@@ -23,6 +23,10 @@ if ($lock === false) {
     exit("Vorige run is nog bezig\n");
 }
 
+if ($err = Installer::ensureSchema()) {
+    fwrite(STDERR, "$err\n");
+}
+
 $force = in_array('--force', $argv, true);
 $n = Monitor::runDue($force);
 Monitor::pollReceipts();

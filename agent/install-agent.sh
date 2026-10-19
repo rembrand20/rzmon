@@ -63,6 +63,7 @@ Gebruik: sudo bash install-agent.sh --url URL --token TOKEN [opties]
   --test               Verbindingstest: planning, netwerk, token en een proefrapport
   --update             Alleen de agent zelf bijwerken (instellingen blijven)
   --uninstall          Agent verwijderen
+  --version            Geïnstalleerde agentversie tonen
   -h, --help           Deze hulp
 EOF
 }
@@ -80,11 +81,17 @@ while [ $# -gt 0 ]; do
         --update) MODE="update" ;;
         --test) MODE="test" ;;
         --uninstall) MODE="uninstall" ;;
+        --version) MODE="version" ;;
         -h|--help) usage; exit 0 ;;
         *) usage; die "Onbekende optie: $1" ;;
     esac
     shift
 done
+
+if [ "$MODE" = "version" ]; then
+    if [ -x "$BIN" ]; then "$BIN" --version 2>/dev/null || echo "rzmon-agent (oude versie, zonder versienummer)"; else echo "Agent niet geïnstalleerd"; fi
+    exit 0
+fi
 
 [ "$(id -u)" -eq 0 ] || die "Voer dit uit als root (met sudo)."
 
@@ -249,9 +256,15 @@ fi
 rm -f /tmp/rzmon-agent-dl.err
 head -1 "$tmp" | grep -q '^#!/usr/bin/env bash' && grep -q 'RzMon agent' "$tmp" \
     || die "Het gedownloade bestand is geen RzMon-agent. Klopt het adres ($URL)?"
+old_version=$([ -x "$BIN" ] && "$BIN" --version 2>/dev/null | awk '{print $2}' || true)
+new_version=$(sed -n 's/^AGENT_VERSION="\([^"]*\)".*/\1/p' "$tmp")
 install -m 755 -o root -g root "$tmp" "$BIN"
 command -v restorecon >/dev/null 2>&1 && restorecon "$BIN" 2>/dev/null || true
-ok "$BIN ($(grep -c '' "$BIN") regels)"
+if [ -n "$old_version" ] && [ "$old_version" != "$new_version" ]; then
+    ok "Agent bijgewerkt van $old_version naar ${new_version:-?}"
+else
+    ok "Agent ${new_version:-?} → $BIN"
+fi
 
 # ----------------------------------------------------------------- 3. services
 if [ "$MODE" = "install" ]; then

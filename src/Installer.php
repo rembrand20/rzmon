@@ -21,6 +21,31 @@ final class Installer
             $pdo->exec($stmt);
         }
         self::migrate($pdo);
+        $pdo->prepare('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)')
+            ->execute(['db_version', RZMON_VERSION]);
+    }
+
+    /**
+     * Database bijwerken als die bij een oudere RzMon-versie hoort (na git pull / update).
+     * Veilig om vaak aan te roepen: kost één query als alles al klopt.
+     * @return string|null foutmelding, of null als alles in orde is
+     */
+    public static function ensureSchema(): ?string
+    {
+        try {
+            $current = db()->query("SELECT value FROM settings WHERE name = 'db_version'")->fetchColumn();
+        } catch (Throwable) {
+            $current = false;   // bv. settings-tabel bestaat nog niet
+        }
+        if ($current === RZMON_VERSION) {
+            return null;
+        }
+        try {
+            self::runSchema();
+            return null;
+        } catch (Throwable $e) {
+            return 'Database bijwerken naar ' . RZMON_VERSION . ' mislukt: ' . $e->getMessage();
+        }
     }
 
     /** Kolommen van latere versies; werkt op MariaDB én MySQL (geen ADD COLUMN IF NOT EXISTS). */
@@ -39,6 +64,7 @@ final class Installer
         ['checks', 'ack_comment', 'VARCHAR(200) NULL'],
         ['checks', 'pushover_receipt', 'VARCHAR(40) NULL'],
         ['hosts', 'agent_ip', 'VARCHAR(45) NULL'],
+        ['hosts', 'agent_version', 'VARCHAR(20) NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

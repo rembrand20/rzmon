@@ -14,8 +14,15 @@
 #
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
+# Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
+AGENT_VERSION="1.6.0"
+
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
+if [ "${1-}" = "--version" ]; then
+    echo "rzmon-agent $AGENT_VERSION"
+    exit 0
+fi
 
 # Met de hand gestart (zonder omgeving van systemd/cron)? Dan zelf de instellingen inlezen.
 if [ -z "${MONITOR_URL-}" ] && [ -z "${SUPERVISOR_TOKEN-}" ] && [ -r /etc/default/rzmon-agent ]; then
@@ -49,7 +56,7 @@ TEST_FAILED=0
 
 if [ "$TEST" = 1 ]; then
     base=${MONITOR_URL%/}
-    echo "RzMon agent – verbindingstest"
+    echo "RzMon agent $AGENT_VERSION – verbindingstest"
     echo "  RzMon-adres : $base"
     echo "  Token       : ${TOKEN:0:6}…${TOKEN: -4}"
     echo
@@ -104,7 +111,11 @@ if [ "$TEST" = 1 ]; then
     body=$(cat /tmp/rzmon-test.$$ 2>/dev/null); err=$(cat /tmp/rzmon-test-err.$$ 2>/dev/null)
     old_rzmon=0
     if [ "$code" = 200 ] && [[ "$body" == *'"app":"RzMon"'* ]]; then
-        pass "RzMon gevonden op $base"
+        rz_version=$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' <<<"$body")
+        pass "RzMon ${rz_version:+$rz_version }gevonden op $base"
+        if [ -n "$rz_version" ] && [ "$rz_version" != "$AGENT_VERSION" ]; then
+            hint "Agent is versie $AGENT_VERSION, RzMon $rz_version: bijwerken met  sudo rzmon-agent-setup --update"
+        fi
     elif [ "$code" = 401 ] && [[ "$body" == *'"error"'* ]]; then
         pass "RzMon gevonden op $base (oudere versie: werk RzMon bij voor een volledige test)"
         old_rzmon=1
@@ -237,7 +248,7 @@ else
 fi
 
 # ---------------------------------------------------------------- Versturen
-payload="{\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)

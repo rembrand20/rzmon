@@ -217,7 +217,7 @@ $v = filemtime(__DIR__ . '/assets/setup.js') . filemtime(__DIR__ . '/assets/app.
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="logo">📡</span> RzMon <span class="badge">setup</span></div>
+    <div class="brand"><span class="logo">📡</span> RzMon <span class="version">v<?= htmlspecialchars(RZMON_VERSION) ?></span> <span class="badge">setup</span></div>
     <?php if ($installed): ?>
       <nav class="tabs">
         <a class="tab" href="index.php#dashboard">Dashboard</a>

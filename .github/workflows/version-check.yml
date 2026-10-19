@@ -1,0 +1,20 @@
+name: Versiecontrole
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versienummers gelijk en changelog bijgewerkt
+        run: bash tools/check-version.sh
+      - name: Syntaxcontrole shellscripts
+        run: |
+          for f in agent/*.sh install/*.sh tools/*.sh ha-addon/rzmon_agent/*.sh; do bash -n "$f"; done
+      - name: Syntaxcontrole PHP
+        run: |
+          for f in $(git ls-files '*.php'); do php -l "$f" >/dev/null; done

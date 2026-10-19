@@ -770,21 +770,58 @@ Herstart Home Assistant. Ideeën:
 
 ## 12. Upgraden
 
+### Versienummer
+RzMon heeft een versienummer (bijvoorbeeld **v1.6.0**). Je ziet het:
+- naast het logo in de topbalk; klik erop voor de lijst met wijzigingen in [`CHANGELOG.md`](CHANGELOG.md);
+- op de login- en setup-pagina;
+- in de API (`GET /api/v1/status` → `version`, en `api.php?action=ping`).
+
+De nummering is *major.minor.patch*:
+- **patch** (1.6.0 → 1.6.1): alleen reparaties;
+- **minor** (1.6 → 1.7): nieuwe functies, volledig compatibel;
+- **major** (1 → 2): er verandert iets waar je zelf iets voor moet doen. Dat staat dan in de changelog.
+
+De agents hebben hetzelfde versienummer. Elke agent geeft zijn versie door, en je ziet die op de servertegel (bijvoorbeeld `agent 1 min geleden · v1.6.0`). Is een agent ouder dan RzMon, dan staat er **⬆** achter. In het venster *Agent installeren* staat dan het commando om hem bij te werken. Met `rzmon-agent.sh --version` zie je de versie op de server zelf.
+
+### Bijwerken met het installatiescript (Rocky Linux)
+```bash
+git -C ~/rzmon pull && sudo bash ~/rzmon/install/install-rocky.sh --repo ~/rzmon
+```
+Gebruik je de curl-methode (openbare repository), voer dan hetzelfde curl-commando uit als bij de installatie. Zie ook [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md).
+Het script haalt de nieuwste versie op en meldt bijvoorbeeld `RzMon bijgewerkt van 1.5.0 naar 1.6.0`.
+
+### Handmatig bijwerken
 1. **Maak eerst een back-up** (hoofdstuk 13).
-2. **Zet de nieuwe bestanden eroverheen.** Laat `config.php` staan:
+2. **Zet de nieuwe bestanden eroverheen** (`git pull` in de RzMon-map, of uitpakken). Laat `config.php` staan:
    ```bash
    cd /tmp && unzip -o rzmon.zip
    sudo rsync -a --exclude config.php /tmp/rzmon/ /var/www/rzmon/
    sudo chown -R root:www-data /var/www/rzmon
    ```
-3. **Werk de database bij.** Klik op **Setup → ↻ Tabellen bijwerken**, of:
+3. **De database wordt automatisch bijgewerkt.** Dat gebeurt bij de eerste cron-run of de eerste keer dat je het dashboard opent na een nieuwe versie. Lukt dat niet, bijvoorbeeld door ontbrekende rechten, dan zie je een rode balk op het dashboard. Handmatig kan het ook:
    ```bash
    sudo -u www-data php /var/www/rzmon/install/install.php --upgrade
    ```
-4. **Vervang de agents:**
-   - Linux-servers: `/usr/local/bin/rzmon-agent.sh`.
-   - Home Assistant: kopieer de map `rzmon_agent` opnieuw naar `addons`, ga naar de add-on winkel → ⋮ → *Controleren op updates* → *Bijwerken*.
+   Of klik op **Setup → ↻ Tabellen bijwerken**.
+4. **Werk de agents bij:**
+   - Linux-servers: `sudo rzmon-agent-setup --update`.
+   - Home Assistant: ga naar de add-on winkel → ⋮ → *Controleren op updates* → *Bijwerken*. HA ziet de update omdat het versienummer van de add-on mee verhoogd wordt.
 5. **Ververs de browser** met Ctrl+F5.
+
+### Voor ontwikkelaars: versie verhogen
+Elke wijziging aan RzMon krijgt een nieuw versienummer:
+```bash
+tools/bump-version.sh patch      # of minor / major / 1.7.0
+# vul daarna de nieuwe sectie bovenaan CHANGELOG.md in
+tools/check-version.sh           # controleert of alles gelijk loopt
+```
+`bump-version.sh` werkt deze plekken in één keer bij:
+- het bestand `VERSION`;
+- de agent;
+- de kopie van de agent in de HA-add-on;
+- de add-on-versie.
+
+Op GitHub controleert een Action (`Versiecontrole`) bij elke push of de versies gelijk zijn en de changelog ingevuld is.
 
 > Kom je van de versie die nog *ServerMonitor* heette? Laat je `config.php` met de oude databasenaam staan. De agent heet nu `rzmon-agent.sh`; de oude `sm-agent.sh` blijft werken, maar vervang hem bij gelegenheid.
 

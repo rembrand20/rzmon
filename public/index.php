@@ -9,6 +9,9 @@ if (!is_configured()) {
     header('Location: setup.php');
     exit;
 }
+// Na een update (nieuwe VERSION) de database automatisch bijwerken
+$schemaError = Installer::ensureSchema();
+
 try {
     // Database klaar maar nog geen beheerder (bv. na install-rocky.sh) → setup afmaken
     if (Installer::userCount() === 0) {
@@ -38,7 +41,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 <?php if (!$user): ?>
   <main class="login-wrap">
     <form id="login-form" class="card login-card">
-      <div class="brand big"><span class="logo">📡</span> RzMon</div>
+      <div class="brand big"><span class="logo">📡</span> RzMon <span class="version" title="RzMon-versie">v<?= htmlspecialchars(RZMON_VERSION) ?></span></div>
       <label>Gebruikersnaam<input name="username" autocomplete="username" required autofocus></label>
       <label>Wachtwoord<input name="password" type="password" autocomplete="current-password" required></label>
       <p class="form-error" hidden></p>
@@ -47,7 +50,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   </main>
 <?php else: ?>
   <header class="topbar">
-    <div class="brand"><span class="logo">📡</span> RzMon</div>
+    <div class="brand"><span class="logo">📡</span> RzMon <a class="version" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener" title="RzMon-versie – bekijk wat er nieuw is">v<?= htmlspecialchars(RZMON_VERSION) ?></a></div>
     <nav class="tabs" role="tablist">
       <button class="tab active" data-tab="dashboard">Dashboard</button>
       <button class="tab" data-tab="alerts">Meldingen</button>
@@ -63,6 +66,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
   <main class="container">
     <section id="tab-dashboard" class="tab-panel">
+<?php if ($schemaError): ?>
+      <div class="schema-banner">⚠ <?= htmlspecialchars($schemaError) ?> — controleer de databaserechten of voer <code>php install/install.php</code> uit.</div>
+<?php endif; ?>
       <div class="maint-banner" id="maint-banner" hidden></div>
       <div class="summary">
         <div class="stat ok"><span class="num" id="sum-ok">–</span><span>OK</span></div>

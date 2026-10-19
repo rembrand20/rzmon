@@ -9,6 +9,8 @@ const STATUS_UNKNOWN = 3;
 const STATUS_LABELS = ['OK', 'WARNING', 'CRITICAL', 'UNKNOWN'];
 
 const SM_CONFIG_FILE = SM_ROOT . '/config.php';
+// Versie van RzMon: de enige bron is het bestand VERSION (bijwerken met tools/bump-version.sh)
+define('RZMON_VERSION', trim((string) @file_get_contents(SM_ROOT . '/VERSION')) ?: '0.0.0');
 
 // Zonder config.php draait de app in setup-modus (zie public/setup.php)
 $GLOBALS['sm_config'] = is_file(SM_CONFIG_FILE) ? (require SM_CONFIG_FILE) : [];

@@ -162,13 +162,15 @@ De add-on heeft alleen leesrechten: Supervisor-rol `default`, plus host-netwerk 
 
 > `ha-addon/rzmon_agent/rzmon-agent.sh` is een kopie van `agent/rzmon-agent.sh`. Een add-on moet al zijn bestanden in de eigen map hebben. Pas je de agent aan? Kopieer hem dan opnieuw en verhoog `version` in `config.yaml`, zodat HA de update ziet.
 
-## Upgraden
-Nieuwe bestanden eroverheen zetten (behalve `config.php`) en daarna:
-```bash
-sudo -u www-data php install/install.php --upgrade
-```
-Of klik in de webinterface op *Setup → Tabellen bijwerken*.
-Vergeet niet ook `rzmon-agent.sh` op je agent-servers te vervangen (nodig voor CPU/RAM en luisterende poorten).
+## Versie en upgraden
+De huidige versie staat in [`VERSION`](VERSION) en in de topbalk van RzMon. Wat er per versie veranderd is, lees je in [`CHANGELOG.md`](CHANGELOG.md).
+
+Upgraden gaat zo:
+1. Zet de nieuwe bestanden eroverheen (`git pull`, of opnieuw `install-rocky.sh`), behalve `config.php`.
+2. De **database wordt automatisch bijgewerkt** bij de eerste cron-run of het eerste bezoek aan het dashboard. Handmatig kan ook: `sudo -u www-data php install/install.php --upgrade`, of *Setup → Tabellen bijwerken*.
+3. Werk de agents bij met `sudo rzmon-agent-setup --update`. Een verouderde agent herken je aan **⬆** op de servertegel.
+
+Ontwikkelen: verhoog de versie met `tools/bump-version.sh patch|minor|major` en controleer met `tools/check-version.sh`.
 
 > Kom je van de versie die nog *ServerMonitor* heette? Laat je bestaande `config.php` (met de oude databasenaam) gewoon staan. De agent heet nu `rzmon-agent.sh`; de oude `sm-agent.sh` blijft werken, maar vervang hem bij gelegenheid.
 

@@ -70,6 +70,9 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 }
 .brand { font-weight: 700; font-size: 1.1rem; display: flex; align-items: center; gap: .5rem; white-space: nowrap; }
 .brand.big { font-size: 1.5rem; justify-content: center; margin-bottom: 1rem; }
+.brand .version { font-size: .7rem; font-weight: 500; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: .05rem .45rem; text-decoration: none; }
+a.version:hover { color: var(--text); }
+.schema-banner { background: color-mix(in srgb, var(--crit) 15%, transparent); border: 1px solid var(--crit); border-radius: var(--radius); padding: .7rem 1rem; margin-bottom: 1rem; }
 .tabs { display: flex; gap: .25rem; margin-left: 1rem; overflow-x: auto; }
 .tab {
   background: none; border: 0; color: var(--muted); font: inherit; font-weight: 600;

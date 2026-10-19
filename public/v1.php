@@ -118,7 +118,7 @@ function loadChecks(string $where = '1', array $params = []): array
 
 function loadHosts(?int $id = null): array
 {
-    $hosts = q('SELECT id, name, address, mode, parent_id, enabled, agent_seen, maintenance_until FROM hosts' . ($id ? ' WHERE id = ?' : '') . ' ORDER BY name',
+    $hosts = q('SELECT id, name, address, mode, parent_id, enabled, agent_seen, agent_version, maintenance_until FROM hosts' . ($id ? ' WHERE id = ?' : '') . ' ORDER BY name',
         $id ? [$id] : [])->fetchAll();
     $checks = loadChecks($id ? 'c.host_id = ?' : '1', $id ? [$id] : []);
     $out = [];
@@ -134,6 +134,7 @@ function loadHosts(?int $id = null): array
             'status' => $st,
             'status_text' => STATUS_LABELS[$st],
             'agent_seen' => iso($h['agent_seen']),
+            'agent_version' => $h['agent_version'],
             'parent_id' => $h['parent_id'] !== null ? (int) $h['parent_id'] : null,
             'in_maintenance' => ($m = Monitor::globalMaintenance()
                 ?? ($h['maintenance_until'] && strtotime($h['maintenance_until']) > time() ? ['until' => $h['maintenance_until']] : null)) !== null,
@@ -185,6 +186,7 @@ switch (true) {
         $overall = worst($enabled);
         respond([
             'app' => 'RzMon',
+            'version' => RZMON_VERSION,
             'generated_at' => date('c'),
             'status' => $overall,
             'status_text' => STATUS_LABELS[$overall],

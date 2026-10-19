@@ -286,6 +286,7 @@ ok "Database '$DB_NAME' en gebruiker '$DB_USER'@'localhost' klaar $db_pass_note"
 
 # ----------------------------------------------------------------- 5. code
 step "5/9 RzMon ophalen"
+old_version=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || true)
 if [ -d "$INSTALL_DIR/.git" ]; then
     # Na de setup kan de map (tijdelijk) van apache zijn; git als root wil een root-map
     chown root:"$WEB_USER" "$INSTALL_DIR"
@@ -293,13 +294,18 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     gitc -C "$INSTALL_DIR" fetch --quiet origin "$BRANCH"
     gitc -C "$INSTALL_DIR" checkout --quiet "$BRANCH"
     gitc -C "$INSTALL_DIR" pull --quiet --ff-only origin "$BRANCH"
-    ok "Bijgewerkt naar de nieuwste versie ($(gitc -C "$INSTALL_DIR" log -1 --format='%h %s' | cut -c1-60))"
+    new_version=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "?")
+    if [ -n "$old_version" ] && [ "$old_version" != "$new_version" ]; then
+        ok "RzMon bijgewerkt van $old_version naar $new_version (zie CHANGELOG.md)"
+    else
+        ok "RzMon $new_version is de nieuwste versie"
+    fi
 elif [ -e "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
     die "$INSTALL_DIR bestaat al en is geen git-checkout. Kies een andere map met --dir of maak hem leeg."
 else
     mkdir -p "$(dirname "$INSTALL_DIR")"
     gitc clone --quiet --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
-    ok "Gekloond uit $REPO_URL"
+    ok "RzMon $(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo '?') gekloond uit $REPO_URL"
 fi
 
 chown -R root:"$WEB_USER" "$INSTALL_DIR"
@@ -472,7 +478,7 @@ chmod 600 "$SUMMARY_FILE"
 cat <<EOF
 
 ${C_OK}════════════════════════════════════════════════════════════════════${C_OFF}
-${C_OK}  RzMon is geïnstalleerd 🎉${C_OFF}
+${C_OK}  RzMon $(cat "$INSTALL_DIR/VERSION" 2>/dev/null) is geïnstalleerd 🎉${C_OFF}
 ${C_OK}════════════════════════════════════════════════════════════════════${C_OFF}
 
   1. Open vanaf een computer op je lokale netwerk:

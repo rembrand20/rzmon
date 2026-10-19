@@ -33,7 +33,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 // GitHub-repository privé is.
 if ($action === 'ping') {
     // Voor de verbindingstest van de agent: "draait hier RzMon?"
-    out(['ok' => true, 'app' => 'RzMon', 'configured' => is_configured(), 'time' => date('c')]);
+    out(['ok' => true, 'app' => 'RzMon', 'version' => RZMON_VERSION, 'configured' => is_configured(), 'time' => date('c')]);
 }
 if ($action === 'agent_script' || $action === 'agent_install') {
     header('Content-Type: text/x-shellscript; charset=utf-8');
@@ -111,8 +111,9 @@ if ($action === 'agent') {
         $st->execute([$host['id'], mb_substr('service:' . $name, 0, 190), mb_substr((string) $state, 0, 255), $now]);
     }
     q('DELETE FROM agent_data WHERE host_id = ? AND updated_at < ?', [$host['id'], $now]);
-    q('UPDATE hosts SET agent_seen = ?, agent_ip = ? WHERE id = ?', [$now, mb_substr(client_ip(), 0, 45), $host['id']]);
-    out(['ok' => true, 'host' => $host['name'], 'received' => [
+    $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
+    q('UPDATE hosts SET agent_seen = ?, agent_ip = ?, agent_version = ? WHERE id = ?', [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $host['id']]);
+    out(['ok' => true, 'host' => $host['name'], 'rzmon_version' => RZMON_VERSION, 'received' => [
         'disks' => count($in['disks'] ?? []), 'services' => count($in['services'] ?? []), 'ports' => count($in['ports'] ?? []),
     ]]);
 }
@@ -140,7 +141,7 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'state':
-        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, enabled, maintenance_until, maintenance_reason
+        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, enabled, maintenance_until, maintenance_reason
                     FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
@@ -169,7 +170,8 @@ switch ($action) {
                      ORDER BY a.id DESC LIMIT 50')->fetchAll();
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'alerts' => $alerts, 'last_run' => $lastRun, 'user' => $user['username'],
-             'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global]);
+             'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
+             'version' => RZMON_VERSION]);
 
     case 'history':
         $id = (int) ($_GET['check_id'] ?? 0);
@@ -231,7 +233,7 @@ switch ($action) {
 
     case 'agent_status':
         $id = (int) ($_GET['id'] ?? 0);
-        $h = q('SELECT agent_seen, agent_ip, mode FROM hosts WHERE id = ?', [$id])->fetch();
+        $h = q('SELECT agent_seen, agent_ip, agent_version, mode FROM hosts WHERE id = ?', [$id])->fetch();
         if (!$h) {
             out(['error' => 'Server niet gevonden'], 404);
         }
@@ -241,7 +243,8 @@ switch ($action) {
                     WHERE (host_id = ? OR host_id IS NULL) AND created_at >= NOW() - INTERVAL 1 DAY
                       AND (? IS NULL OR created_at > ?)
                     GROUP BY ip, reason ORDER BY MAX(id) DESC LIMIT 6', [$id, $h['agent_seen'], $h['agent_seen']])->fetchAll();
-        out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now()]);
+        out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now(),
+             'agent_version' => $h['agent_version'], 'version' => RZMON_VERSION]);
 
     case 'host_token':
         q('UPDATE hosts SET agent_token = ? WHERE id = ?', [bin2hex(random_bytes(20)), (int) (input()['id'] ?? 0)]);

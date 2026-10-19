@@ -281,7 +281,7 @@ function hostCard(h) {
       <div class="sum-line ${sum.cls}">${esc(sum.text)}</div>
       ${chips ? `<div class="chips">${chips}</div>` : ''}
       ${hostMeters(h) ? `<div class="meters">${hostMeters(h)}</div>` : ''}
-      <div class="muted small sum-foot">${lastChecked ? 'Laatste check ' + ago(lastChecked) : ''}${h.mode === 'agent' ? ` · agent ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}` : ''}</div>
+      <div class="muted small sum-foot">${lastChecked ? 'Laatste check ' + ago(lastChecked) : ''}${h.mode === 'agent' ? ` · agent ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}${agentVer(h)}` : ''}</div>
     </div>
     ${isOpen ? `
     <div class="host-detail">
@@ -818,6 +818,18 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   if (/home.?assistant|hass|haos/i.test(h.name) || h.metrics.includes('service:homeassistant')) show('ha');
 }
 
+/** Versies vergelijken ("1.10.0" > "1.9.2"); negatief als a ouder is dan b. */
+function verCmp(a, b) {
+  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+  return 0;
+}
+/** Agent-versie als tekst, met ⬆ als de agent ouder is dan RzMon zelf. */
+function agentVer(h) {
+  if (!h.agent_version) return h.agent_seen ? ' · versie onbekend ⬆' : '';
+  return ` · v${esc(h.agent_version)}${state.version && verCmp(h.agent_version, state.version) < 0 ? ' ⬆' : ''}`;
+}
+
 /** Live-status van de agent in het venster, elke 5 s zolang het open is. */
 let agentPollGen = 0;
 async function pollAgentStatus(hostId, gen = ++agentPollGen) {
@@ -833,6 +845,11 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
       : s.seen
         ? `<b class="${fresh ? 'good' : 'bad'}">${fresh ? '✔' : '⚠'} Laatste rapport ${ago(s.seen)}</b>${s.ip ? ` vanaf <code>${esc(s.ip)}</code>` : ''}${fresh ? '' : ' — de agent rapporteert niet meer'}`
         : '<b class="wait">⏳ Nog geen rapport ontvangen</b> <span class="muted small">(wordt elke 5 s bijgewerkt)</span>';
+    if (s.mode === 'agent' && s.seen) {
+      const old = !s.agent_version || verCmp(s.agent_version, s.version) < 0;
+      html += `<div class="small">Agent-versie <b>${s.agent_version ? esc(s.agent_version) : 'onbekend (ouder dan 1.6.0)'}</b>, RzMon ${esc(s.version)}${old
+        ? ` — <span class="bad">bijwerken met <code>sudo rzmon-agent-setup --update</code></span>` : ' ✔'}</div>`;
+    }
     if (s.failures.length) {
       html += `<div class="fails"><span class="muted small">Geweigerde pogingen (24 uur):</span>
         ${s.failures.map((f) => `<div class="small"><code>${esc(f.ip)}</code> · ${ago(f.created_at)}${+f.n > 1 ? ` (${f.n}×)` : ''} · ${esc(f.reason)}</div>`).join('')}</div>`;
