@@ -1,0 +1,4 @@
+# Maakt van deze GitHub-repository een Home Assistant add-on repository (add-on staat in ha-addon/rzmon_agent)
+name: RzMon add-ons
+url: https://github.com/rembrand20/rzmon
+maintainer: RzMon

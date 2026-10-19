@@ -433,10 +433,11 @@ Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De 
 
 ### Installeren
 1. **RzMon:** **＋ Server** → naam "Home Assistant", adres = IP van HA, type **Remote met agent**. Kopieer het token via *Agent installeren*, tabblad **🏠 Home Assistant OS**.
-2. **Add-on naar Home Assistant kopiëren.** Kies één van deze manieren:
+2. **Add-on toevoegen aan Home Assistant.** Kies één van deze manieren:
+   - **Via GitHub (aanbevolen):** *Instellingen → Add-ons → Add-on winkel* → ⋮ → **Repositories** → voeg `https://github.com/rembrand20/rzmon` toe. De repository moet openbaar zijn. Updates van de add-on komen dan vanzelf binnen.
    - **Samba share**-add-on: open `\\homeassistant.local\addons` (Windows) of `smb://homeassistant.local/addons` (Mac) en kopieer daar de map **`rzmon_agent`** uit `ha-addon/` naartoe.
    - **Advanced SSH & Web Terminal**-add-on: `scp -r ha-addon/rzmon_agent root@homeassistant.local:/addons/`
-3. **Home Assistant:** *Instellingen → Add-ons → Add-on winkel* → rechtsboven ⋮ → **Controleren op updates**. Onder **Lokale add-ons** staat nu **RzMon Agent**. Klik op **Installeren**; het bouwen duurt een minuut.
+3. **Home Assistant:** *Instellingen → Add-ons → Add-on winkel* → rechtsboven ⋮ → **Controleren op updates**. **RzMon Agent** staat nu onder *RzMon add-ons* (via GitHub) of onder *Lokale add-ons* (via Samba/SSH). Klik op **Installeren**; het bouwen duurt een minuut.
 4. **Tabblad Configuratie:**
    ```yaml
    monitor_url: http://192.168.1.10
@@ -460,8 +461,7 @@ Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De 
   - `403` → het token klopt niet, of de server staat in RzMon niet op type *Remote met agent*.
   - `Could not resolve` / `Failed to connect` → `monitor_url` klopt niet, of RzMon is niet bereikbaar.
   - `SSL` / `certificate` → zet `verify_ssl` uit bij een self-signed certificaat.
-- **Updates van de add-on:** pas `version` aan in `config.yaml`. Home Assistant toont dan een update.
-- **Eigen add-on-repository:** zet de map `ha-addon` in een eigen GitHub-repository en pas `url` aan in `repository.yaml` en `config.yaml`. Voeg de repository daarna toe via *Add-on winkel* → ⋮ → *Repositories*.
+- **Nieuwe versie van de add-on uitbrengen:** verhoog `version` in `ha-addon/rzmon_agent/config.yaml` en push naar GitHub. Home Assistant toont dan een update.
 
 ---
 
@@ -652,8 +652,9 @@ rzmon/
 ├── cron/run.php              elke minuut via cron
 ├── install/                  schema.sql + install.php (CLI)
 ├── agent/rzmon-agent.sh      Linux-agent
-└── ha-addon/                 Home Assistant add-on (repository)
-    └── rzmon_agent/          config.yaml, Dockerfile, run.sh, DOCS.md, vertalingen
+├── repository.yaml           maakt van de GitHub-repo een HA add-on repository
+└── ha-addon/
+    └── rzmon_agent/          Home Assistant add-on: config.yaml, Dockerfile, run.sh, DOCS.md, vertalingen
 ```
 
 ### config.php

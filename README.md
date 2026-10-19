@@ -143,7 +143,7 @@ Installeren:
 3. *Instellingen → Add-ons → Add-on winkel* → ⋮ → **Controleren op updates** → **RzMon Agent** (onder *Lokale add-ons*) → Installeren.
 4. Op het tabblad Configuratie vul je `monitor_url` en `token` in → Starten. Het logboek toont `Verbonden met RzMon ✔`.
 
-Zet je de map `ha-addon` in een eigen GitHub-repository, dan kun je die als add-on-repository toevoegen. Pas dan eerst de `url` aan in `repository.yaml` en `config.yaml`.
+**Makkelijker:** voeg deze GitHub-repository toe als add-on-repository: *Add-on winkel* → ⋮ → *Repositories* → `https://github.com/rembrand20/rzmon`. De repository moet daarvoor openbaar zijn. Updates van de agent komen dan via de add-on winkel binnen.
 De add-on heeft alleen leesrechten: Supervisor-rol `default`, plus host-netwerk voor de poortlijst. Meer uitleg staat in `ha-addon/rzmon_agent/DOCS.md`; die zie je in HA ook op het tabblad *Documentatie*.
 
 > `ha-addon/rzmon_agent/rzmon-agent.sh` is een kopie van `agent/rzmon-agent.sh`. Een add-on moet al zijn bestanden in de eigen map hebben. Pas je de agent aan? Kopieer hem dan opnieuw en verhoog `version` in `config.yaml`, zodat HA de update ziet.

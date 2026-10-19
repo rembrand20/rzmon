@@ -2,7 +2,7 @@ name: RzMon Agent
 version: "1.0.0"
 slug: rzmon_agent
 description: Stuurt CPU, RAM, diskruimte, add-on status, updates en poorten van Home Assistant naar RzMon
-url: https://github.com/JOUW-NAAM/rzmon
+url: https://github.com/rembrand20/rzmon
 arch:
   - aarch64
   - amd64

@@ -1,6 +1,6 @@
 # RzMon Agent
 
-Laat [RzMon](https://github.com/JOUW-NAAM/rzmon) je Home Assistant-systeem bewaken, met Pushover-meldingen als er iets misgaat.
+Laat [RzMon](https://github.com/rembrand20/rzmon) je Home Assistant-systeem bewaken, met Pushover-meldingen als er iets misgaat.
 
 ## Wat wordt er gerapporteerd?
 

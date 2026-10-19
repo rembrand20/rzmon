@@ -545,8 +545,9 @@ function agentInstructions(h) {
       <div data-pane="ha" hidden>
         <p>Op Home Assistant OS / Supervised draait de agent als <b>add-on</b>. Hij meldt CPU, RAM, de data-partitie, of Home Assistant Core en elke add-on draait, en welke updates er klaarstaan.</p>
         <ol class="steps">
-          <li>Kopieer de map <code>ha-addon/rzmon_agent</code> uit de RzMon-download naar de map <code>addons</code> van Home Assistant, met de <i>Samba share</i>- of <i>SSH</i>-add-on.</li>
-          <li>In Home Assistant: <i>Instellingen → Add-ons → Add-on winkel</i> → ⋮ → <b>Controleren op updates</b>. Installeer <b>RzMon Agent</b> onder <i>Lokale add-ons</i>.</li>
+          <li>In Home Assistant: <i>Instellingen → Add-ons → Add-on winkel</i> → ⋮ → <b>Repositories</b> → voeg <code>https://github.com/rembrand20/rzmon</code> toe.
+            <span class="muted small">(Of kopieer de map <code>ha-addon/rzmon_agent</code> naar de share <code>addons</code> met de <i>Samba share</i>-add-on.)</span></li>
+          <li>⋮ → <b>Controleren op updates</b> en installeer <b>RzMon Agent</b>.</li>
           <li>Tabblad <b>Configuratie</b>:</li>
         </ol>
         <pre class="code">monitor_url: ${esc(base)}
