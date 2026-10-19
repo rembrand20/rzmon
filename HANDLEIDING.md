@@ -129,7 +129,7 @@ RzMon bestaat uit vier onderdelen:
 
 | | Minimaal | Aanbevolen |
 |---|---|---|
-| Besturingssysteem | Linux met systemd | Debian 12/13 of Ubuntu 22.04/24.04 |
+| Besturingssysteem | Linux met systemd | Debian 12/13, Ubuntu 22.04/24.04 of [Rocky Linux 10](INSTALL-ROCKY-LINUX-10.md) |
 | PHP | 8.1 | 8.2 of nieuwer |
 | PHP-extensies | `pdo_mysql`, `curl`, `mbstring` | idem |
 | Database | MariaDB 10.3 of MySQL 8 | MariaDB 10.11+ |
@@ -142,6 +142,8 @@ PHP-functies `exec()` en `shell_exec()` moeten toegestaan zijn; die zijn nodig v
 ---
 
 ## 5. Installatie stap voor stap
+
+> 🐧 Dit hoofdstuk is voor **Debian en Ubuntu**. Gebruik je **Rocky Linux 10**, RHEL 10 of AlmaLinux 10? Volg dan [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md). Daarin staan ook SELinux en firewalld. Ga daarna verder met hoofdstuk 6 hieronder.
 
 > In de voorbeelden staat RzMon in `/var/www/rzmon` en gebruikt de webserver de gebruiker `www-data` (Debian/Ubuntu). Pas dat aan als jouw situatie anders is.
 
@@ -211,6 +213,8 @@ Maak `/etc/apache2/sites-available/rzmon.conf`:
 
     <Directory /var/www/rzmon/public>
         Require all granted
+        # Nodig met PHP-FPM: geeft "Authorization: Bearer …" (REST API) door aan PHP
+        CGIPassAuth On
         AllowOverride None
     </Directory>
 
@@ -629,6 +633,7 @@ sudo cp /root/rzmon-config.php /var/www/rzmon/config.php
 | **Agent-checks: "Agent stil sinds …"** | Draait de cron op de agent-server? Kan die server RzMon bereiken? Test het commando uit hoofdstuk 8 |
 | **Agent: "meldt service X niet"** | Voeg de service toe aan `SERVICES` in `/etc/default/rzmon-agent` |
 | **HA-add-on niet zichtbaar in de winkel** | Staat de map als `/addons/rzmon_agent/config.yaml`? Doe ⋮ → *Controleren op updates* en ververs de browser |
+| **REST API geeft 401 met een geldige sleutel (Apache + PHP-FPM)** | Zet `CGIPassAuth On` in de vhost (hoofdstuk 5.4), of gebruik de header `X-API-Key: rzm_…` |
 | **`/v1.php/status` geeft 404 (Nginx)** | Gebruik `location ~ \.php(/|$)` (hoofdstuk 5.4), of `/v1.php?r=status` |
 | **Poortscan vindt niets** | Een firewall blokkeert de scan. Bij een agent-server zie je de luisterende poorten wel in de tweede lijst |
 
@@ -641,6 +646,7 @@ sudo cp /root/rzmon-config.php /var/www/rzmon/config.php
 rzmon/
 ├── HANDLEIDING.md            ← dit document
 ├── README.md                 korte technische beschrijving
+├── INSTALL-ROCKY-LINUX-10.md installatie op Rocky Linux / RHEL / AlmaLinux 10
 ├── config.sample.php         voorbeeldconfig (config.php maakt de setup aan)
 ├── public/                   ← document root van de webserver
 │   ├── index.php             dashboard + login

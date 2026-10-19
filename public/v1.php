@@ -129,7 +129,17 @@ function loadHosts(?int $id = null): array
 }
 
 // ---------- Routing ----------
-$path = trim($_SERVER['PATH_INFO'] ?? ($_GET['r'] ?? ''), '/');
+$path = (string) ($_SERVER['PATH_INFO'] ?? '');
+if ($path === '') {
+    // Sommige webserverconfiguraties (bv. Nginx met try_files) geven geen PATH_INFO door:
+    // dan het pad zelf uit de URL halen (/v1.php/checks/3 → /checks/3)
+    $uri = (string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+    $script = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+    if ($script !== '' && str_starts_with($uri, $script . '/')) {
+        $path = substr($uri, strlen($script));
+    }
+}
+$path = trim($path !== '' ? $path : (string) ($_GET['r'] ?? ''), '/');
 $parts = $path === '' ? [] : explode('/', $path);
 
 switch (true) {

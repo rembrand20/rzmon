@@ -3,6 +3,7 @@
 Lichtgewicht server-monitoring in PHP 8 + MariaDB met een moderne HTML5-interface en Pushover-meldingen.
 
 📖 **Uitgebreide installatiehandleiding en uitleg van alle features: [HANDLEIDING.md](HANDLEIDING.md)**
+🐧 **Rocky Linux 10 / RHEL 10 / AlmaLinux 10 (met SELinux en firewalld): [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md)**
 
 **Checks**
 
@@ -28,6 +29,8 @@ Lichtgewicht server-monitoring in PHP 8 + MariaDB met een moderne HTML5-interfac
 ---
 
 ## Installatie (Debian / Ubuntu)
+
+> Rocky Linux 10 / RHEL / AlmaLinux: zie [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md).
 
 ```bash
 sudo apt install apache2 mariadb-server php php-mysql php-curl php-mbstring iputils-ping
@@ -70,6 +73,8 @@ Apache (`/etc/apache2/sites-available/rzmon.conf`):
     DocumentRoot /var/www/rzmon/public
     <Directory /var/www/rzmon/public>
         Require all granted
+        # Nodig met PHP-FPM: geeft "Authorization: Bearer …" (REST API) door aan PHP
+        CGIPassAuth On
     </Directory>
 </VirtualHost>
 ```
