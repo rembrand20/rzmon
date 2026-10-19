@@ -10,6 +10,11 @@ if (!is_configured()) {
     exit;
 }
 try {
+    // Database klaar maar nog geen beheerder (bv. na install-rocky.sh) → setup afmaken
+    if (Installer::userCount() === 0) {
+        header('Location: setup.php');
+        exit;
+    }
     $user = current_user();
 } catch (PDOException $e) {
     header('Location: setup.php');

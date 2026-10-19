@@ -4,6 +4,45 @@ Deze handleiding installeert RzMon op **Rocky Linux 10**. Ze werkt ook voor RHEL
 
 > Gebruik je Debian of Ubuntu? Dan heb je deze pagina niet nodig; zie [HANDLEIDING.md](HANDLEIDING.md), hoofdstuk 5.
 
+## ⚡ Snelle installatie met het script
+
+Het script [`install/install-rocky.sh`](install/install-rocky.sh) doet alle stappen van deze handleiding in één keer:
+- **Software:** httpd met mod_ssl, PHP-FPM met de nodige extensies, MariaDB en cron.
+- **Beveiliging:** firewalld en SELinux.
+- **Database:** aangemaakt met een willekeurig wachtwoord.
+- **RzMon zelf:** `config.php`, de tabellen, een Apache-vhost op HTTP én HTTPS (self-signed) en de cronjob.
+
+Daarna maak je in de browser alleen nog je beheerder aan.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/install-rocky.sh -o install-rocky.sh
+less install-rocky.sh          # altijd eerst even bekijken wat een script doet
+sudo bash install-rocky.sh
+```
+
+Open aan het eind de getoonde URL, bijvoorbeeld `http://192.168.1.10/`, en maak bij stap 4 van de setup je beheerder aan. Het databasewachtwoord staat in `/root/rzmon-install.txt`, dat alleen root kan lezen.
+
+| Optie | Uitleg |
+|---|---|
+| `--server-name rzmon.lan` | Hostnaam voor Apache (standaard: de hostname van de server) |
+| `--dir /var/www/rzmon` | Installatiemap |
+| `--db-name`, `--db-user`, `--db-pass` | Databasegegevens (standaard `rzmon`/`rzmon`/willekeurig) |
+| `--timezone Europe/Amsterdam` | Tijdzone voor PHP en RzMon |
+| `--no-https` | Geen self-signed HTTPS op poort 443 |
+| `--no-firewall` | firewalld niet aanpassen |
+| `--no-config` | Databasegegevens zelf in de browser invullen |
+| `--update` | Eerst `dnf update` |
+| `-y` | Niet om bevestiging vragen |
+| `--unlock` / `--lock` | Setup tijdelijk wel of niet laten schrijven in `config.php` |
+
+- **Opnieuw uitvoeren is veilig:** het script werkt dan bij met `git pull` en bijgewerkte tabellen. `config.php`, de database en je wachtwoord blijven staan.
+- **Wil je later via *Setup* de database- of PHP-instellingen wijzigen?** Voer dan eerst `sudo bash /var/www/rzmon/install/install-rocky.sh --unlock` uit, en daarna weer `--lock`.
+- **Logboek:** `/var/log/rzmon-install.log`.
+
+Liever alles zelf doen, of wil je weten wat het script precies doet? Volg dan de stappen hieronder.
+
+---
+
 ---
 
 ## Inhoud

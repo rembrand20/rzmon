@@ -47,7 +47,9 @@ function handleConfigResult(r) {
       <p>De webserver mag <code>${esc(r.path)}</code> niet schrijven. Maak het bestand zelf aan met deze inhoud en herlaad daarna deze pagina:</p>
       <pre class="code" id="cfg-content">${esc(r.content)}</pre>
       <button type="button" class="btn" data-copy="#cfg-content">Kopieer</button>
-      <p class="muted small">Of geef de webserver eenmalig schrijfrechten:<br><code>sudo chown www-data ${esc(r.path.replace(/\/config\.php$/, ''))}</code></p>
+      <p class="muted small">Of geef de webserver tijdelijk schrijfrechten en sla opnieuw op:<br>
+        <code>sudo chown ${esc(r.user || 'www-data')} ${esc(r.path.replace(/\/config\.php$/, ''))}</code><br>
+        Rocky Linux / RHEL: <code>sudo bash ${esc(r.path.replace(/\/config\.php$/, ''))}/install/install-rocky.sh --unlock</code></p>
     </div>`;
   $('#modal').showModal();
   return false;

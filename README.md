@@ -3,7 +3,10 @@
 Lichtgewicht server-monitoring in PHP 8 + MariaDB met een moderne HTML5-interface en Pushover-meldingen.
 
 📖 **Uitgebreide installatiehandleiding en uitleg van alle features: [HANDLEIDING.md](HANDLEIDING.md)**
-🐧 **Rocky Linux 10 / RHEL 10 / AlmaLinux 10 (met SELinux en firewalld): [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md)**
+🐧 **Rocky Linux 10 / RHEL 10 / AlmaLinux 10 (met SELinux en firewalld): [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md)**, of in één keer met het installatiescript:
+```bash
+curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/install-rocky.sh -o install-rocky.sh && sudo bash install-rocky.sh
+```
 
 **Checks**
 

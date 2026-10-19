@@ -67,6 +67,7 @@ if (isset($_GET['action'])) {
             return ['ok' => true, 'written' => true];
         }
         return ['ok' => true, 'written' => false, 'path' => realpath(dirname(SM_CONFIG_FILE)) . '/config.php',
+            'user' => function_exists('posix_getpwuid') ? (posix_getpwuid(posix_geteuid())['name'] ?? 'www-data') : get_current_user(),
             'content' => Installer::renderConfig($cfg)];
     };
 
@@ -176,8 +177,12 @@ $checks = [
         fn_enabled('exec') && fn_enabled('shell_exec') ? 'Toegestaan' : 'Nodig voor ping en services; verwijder uit disable_functions'],
     ['Ping beschikbaar', is_executable($pingBin) ?: null, $pingBin . (is_executable($pingBin) ? '' : ' niet gevonden — apt install iputils-ping')],
     ['systemctl beschikbaar', $systemctl !== '' ?: null, $systemctl ?: 'Niet gevonden: lokale service-checks werken niet'],
-    ['config.php schrijfbaar', Installer::configWritable() ?: null,
-        Installer::configWritable() ? realpath(dirname(SM_CONFIG_FILE)) . '/config.php' : 'Niet schrijfbaar: je krijgt de inhoud om zelf te plaatsen'],
+    // Vóór de installatie is schrijven handig; daarna hoort de map weer dicht
+    $installed
+        ? ['Installatiemap vergrendeld', !Installer::configWritable() ?: null,
+            Installer::configWritable() ? 'De webserver mag nog schrijven in ' . realpath(SM_ROOT) . '. Vergrendel na de setup: sudo chown root ' . realpath(SM_ROOT) . ' (Rocky Linux: sudo bash ' . realpath(SM_ROOT) . '/install/install-rocky.sh --lock)' : 'OK']
+        : ['config.php schrijfbaar', Installer::configWritable() ?: null,
+            Installer::configWritable() ? realpath(dirname(SM_CONFIG_FILE)) . '/config.php' : 'Niet schrijfbaar: je krijgt de inhoud om zelf te plaatsen'],
     ['Database verbinding', is_configured() ? ($dbError === null) : null, is_configured() ? ($dbError ?? 'OK') : 'Nog niet ingesteld'],
     ['Cron draait', $cronLast ? (strtotime($cronLast) > time() - 300 ?: null) : null,
         $cronLast ? "Laatste run: $cronLast" : 'Nog geen run gezien (zie stap Cron)'],

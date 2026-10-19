@@ -143,7 +143,7 @@ PHP-functies `exec()` en `shell_exec()` moeten toegestaan zijn; die zijn nodig v
 
 ## 5. Installatie stap voor stap
 
-> 🐧 Dit hoofdstuk is voor **Debian en Ubuntu**. Gebruik je **Rocky Linux 10**, RHEL 10 of AlmaLinux 10? Volg dan [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md). Daarin staan ook SELinux en firewalld. Ga daarna verder met hoofdstuk 6 hieronder.
+> 🐧 Dit hoofdstuk is voor **Debian en Ubuntu**. Gebruik je **Rocky Linux 10**, RHEL 10 of AlmaLinux 10? Volg dan [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md), of gebruik het installatiescript `install/install-rocky.sh`, dat alles in één keer doet. Daarin staan ook SELinux en firewalld. Ga daarna verder met hoofdstuk 6 hieronder.
 
 > In de voorbeelden staat RzMon in `/var/www/rzmon` en gebruikt de webserver de gebruiker `www-data` (Debian/Ubuntu). Pas dat aan als jouw situatie anders is.
 
@@ -656,7 +656,7 @@ rzmon/
 │   └── assets/               app.js, setup.js, app.css
 ├── src/                      PHP-logica (checks, monitor, pushover, auth, poortscan, installer)
 ├── cron/run.php              elke minuut via cron
-├── install/                  schema.sql + install.php (CLI)
+├── install/                  schema.sql, install.php (CLI), install-rocky.sh (installatiescript Rocky 10)
 ├── agent/rzmon-agent.sh      Linux-agent
 ├── repository.yaml           maakt van de GitHub-repo een HA add-on repository
 └── ha-addon/

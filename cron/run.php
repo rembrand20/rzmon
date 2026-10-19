@@ -12,9 +12,14 @@ if (!is_configured()) {
     exit("RzMon is nog niet ingesteld (open setup.php in je browser)\n");
 }
 
-// Voorkom overlappende runs
-$lock = fopen(sys_get_temp_dir() . '/rzmon.lock', 'c');
-if (!flock($lock, LOCK_EX | LOCK_NB)) {
+// Voorkom overlappende runs. Lockbestand per gebruiker: een handmatige run als root
+// mag de cron van de webserver-gebruiker niet blokkeren (root-eigen lockbestand).
+$uid = function_exists('posix_geteuid') ? posix_geteuid() : get_current_user();
+$lockFile = sys_get_temp_dir() . "/rzmon-$uid.lock";
+$lock = @fopen($lockFile, 'c');
+if ($lock === false) {
+    fwrite(STDERR, "Kan lockbestand $lockFile niet openen; ga door zonder overlapbeveiliging\n");
+} elseif (!flock($lock, LOCK_EX | LOCK_NB)) {
     exit("Vorige run is nog bezig\n");
 }
 
