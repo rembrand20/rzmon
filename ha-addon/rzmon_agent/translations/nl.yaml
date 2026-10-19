@@ -1,0 +1,13 @@
+configuration:
+  monitor_url:
+    name: RzMon URL
+    description: Adres van je RzMon-server, bv. http://192.168.1.10 of https://rzmon.mijndomein.nl
+  token:
+    name: Agent token
+    description: Token van deze server in RzMon (server met type "Remote met agent" → "Agent installeren").
+  interval:
+    name: Interval (seconden)
+    description: Hoe vaak de agent rapporteert. RzMon zet de checks op CRITICAL als de agent een paar minuten stil blijft.
+  verify_ssl:
+    name: SSL-certificaat controleren
+    description: Uitzetten als RzMon een self-signed certificaat gebruikt.

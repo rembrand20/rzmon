@@ -1,0 +1,29 @@
+name: RzMon Agent
+version: "1.0.0"
+slug: rzmon_agent
+description: Stuurt CPU, RAM, diskruimte, add-on status, updates en poorten van Home Assistant naar RzMon
+url: https://github.com/JOUW-NAAM/rzmon
+arch:
+  - aarch64
+  - amd64
+  - armv7
+init: false
+startup: services
+boot: auto
+# Supervisor API: host-info, add-ons, updates (alleen lezen)
+hassio_api: true
+hassio_role: default
+# Controleren of Home Assistant Core draait
+homeassistant_api: true
+# Nodig om de luisterende poorten van de host te zien
+host_network: true
+options:
+  monitor_url: "http://192.168.1.10"
+  token: ""
+  interval: 60
+  verify_ssl: true
+schema:
+  monitor_url: url
+  token: password
+  interval: int(30,3600)
+  verify_ssl: bool

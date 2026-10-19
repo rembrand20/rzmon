@@ -1,1 +1,226 @@
-# rzmon
+# 📡 RzMon
+
+Lichtgewicht server-monitoring in PHP 8 + MariaDB met een moderne HTML5-interface en Pushover-meldingen.
+
+📖 **Uitgebreide installatiehandleiding en uitleg van alle features: [HANDLEIDING.md](HANDLEIDING.md)**
+
+**Checks**
+
+| Type | Wat | Drempel |
+|---|---|---|
+| Ping | Reageert de server? (3 pings) | gemiddelde ms — 100% verlies = CRITICAL |
+| TCP poort | Draait een dienst op poort X (SSH, MariaDB, SMTP…) | connect-tijd ms |
+| HTTP(S) | Website/API bereikbaar, status < 400, SSL-cert geldig | responstijd ms |
+| Diskruimte | % gebruikt per mount | % gebruikt |
+| Service | systemd-service `active`? | — (niet actief = CRITICAL) |
+| CPU | CPU-gebruik over 2 sec + load average | % gebruik |
+| RAM | Geheugengebruik (MemAvailable) + swap | % gebruikt |
+
+**Host-types**
+- **Lokaal** – de monitor-server zelf: disk en services worden direct uitgelezen.
+- **Agent** – remote Linux-server met `agent/rzmon-agent.sh` (bash + curl) die elke minuut disk & services pusht, of **Home Assistant OS** met de add-on in `ha-addon/`. Stopt de agent met rapporteren → CRITICAL.
+- **Remote** – alleen netwerkchecks (ping/poort/http), bv. routers, NAS, externe sites.
+
+**Poortscan**: scan vanuit RzMon welke TCP-poorten op een server open staan (bekende poorten, 1-1024 of een eigen lijst/range) en voeg ze met één klik toe als check. Bij agent-servers zie je ook welke poorten er lokaal luisteren, inclusief procesnaam.
+
+**Alarmering**: na *N* opeenvolgende fouten een Pushover-bericht, bij escalatie (WARN → CRIT) opnieuw, optioneel elke *X* minuten herhalen en een melding bij herstel. Alles instelbaar in de webinterface.
+
+---
+
+## Installatie (Debian / Ubuntu)
+
+```bash
+sudo apt install apache2 mariadb-server php php-mysql php-curl php-mbstring iputils-ping
+sudo cp -r rzmon /var/www/
+sudo chown -R root:www-data /var/www/rzmon
+sudo chown www-data /var/www/rzmon     # setup mag config.php aanmaken
+
+# Database + gebruiker (root gebruikt op Debian unix_socket, dus via de terminal):
+sudo mysql -e "CREATE DATABASE rzmon CHARACTER SET utf8mb4;
+  CREATE USER 'rzmon'@'localhost' IDENTIFIED BY 'EEN_STERK_WACHTWOORD';
+  GRANT ALL ON rzmon.* TO 'rzmon'@'localhost';"
+```
+
+Stel de webserver in (hieronder) en open **`http://<server>/`** vanaf je lokale netwerk. Je komt automatisch op de **setup-pagina**:
+
+1. **Systeemcheck** – PHP-versie, extensies, ping, systemctl, schrijfrechten, database, cron.
+2. **Database** – host/poort/naam/gebruiker/wachtwoord, *Verbinding testen*, *Opslaan & tabellen installeren*. Optioneel maakt RzMon de database en gebruiker zelf aan met een MariaDB-beheerdersaccount (werkt niet met `unix_socket`-root; gebruik dan het commando hierboven).
+3. **Applicatie & PHP** – tijdzone, basis-URL, pad naar ping, `memory_limit`, `max_execution_time`, `display_errors`.
+4. **Beheerder** – eerste gebruikersnaam en wachtwoord.
+5. **Cron** – kant-en-klare regel om te kopiëren.
+
+Daarna is de setup altijd bereikbaar via de tab **Setup** (alleen ingelogd). Zolang de installatie niet af is, of als de database onbereikbaar is, werkt de setup **alleen vanaf een privé-netwerk** (192.168.x, 10.x, 172.16-31.x, localhost).
+
+> Mag de webserver `config.php` niet schrijven? Dan toont de setup de inhoud, die je zelf in `/var/www/rzmon/config.php` plaatst. Daarna kun je de schrijfrechten weer intrekken: `sudo chown root /var/www/rzmon`.
+
+Liever via de terminal? Dat kan nog steeds:
+```bash
+sudo cp config.sample.php config.php && sudo nano config.php
+sudo -u www-data php install/install.php admin
+echo '* * * * * www-data /usr/bin/php /var/www/rzmon/cron/run.php >/dev/null 2>&1' | sudo tee /etc/cron.d/rzmon
+```
+
+### Webserver
+De **document root moet `public/`** zijn (dan zijn config en broncode niet bereikbaar).
+
+Apache (`/etc/apache2/sites-available/rzmon.conf`):
+```apache
+<VirtualHost *:80>
+    ServerName rzmon.example.lan
+    DocumentRoot /var/www/rzmon/public
+    <Directory /var/www/rzmon/public>
+        Require all granted
+    </Directory>
+</VirtualHost>
+```
+```bash
+sudo a2ensite rzmon && sudo systemctl reload apache2
+```
+
+Nginx + PHP-FPM:
+```nginx
+server {
+    listen 80;
+    server_name rzmon.example.lan;
+    root /var/www/rzmon/public;
+    index index.php;
+    # (/|$) zorgt dat ook /v1.php/status (API) werkt
+    location ~ \.php(/|$) { include snippets/fastcgi-php.conf; fastcgi_pass unix:/run/php/php8.3-fpm.sock; }
+}
+```
+
+> 🔒 Tip: zet er HTTPS voor (certbot) of maak hem alleen bereikbaar via je LAN/VPN.
+
+### Pushover
+1. Installeer de Pushover app en kopieer je **User Key** van https://pushover.net
+2. Maak een applicatie aan op https://pushover.net/apps/build → **API Token**
+3. Webinterface → *Instellingen* → invullen → *Testbericht sturen* → *Opslaan*
+
+### Inloggen zonder wachtwoord op je lokale netwerk
+*Instellingen → Toegang* → **Geen login nodig op het lokale netwerk**.
+
+- Vul je lokale netwerken in (standaard alle privé-ranges; beperken tot bv. `192.168.1.0/24` kan ook). De kaart toont je huidige IP en of dat als lokaal wordt herkend.
+- Van buitenaf blijft gewoon de login nodig. Ga je met een open sessie van wifi naar 4G, dan word je automatisch uitgelogd.
+- Bij een automatische login staat rechtsboven **🏠 Lokaal netwerk**.
+- **Reverse proxy** (Nginx Proxy Manager, Traefik, Cloudflare tunnel, HA-addon e.d.): vul het IP van de proxy in bij *Reverse proxy IP's*. Het echte bezoekers-IP wordt dan uit `X-Forwarded-For` gehaald. Zet het proxy-IP **nooit** bij de lokale netwerken, anders komt iedereen via de proxy zonder wachtwoord binnen.
+- De REST API vraagt altijd om een API-sleutel, ook op het LAN.
+
+### Poortscan
+Klik bij een server op 🔍. Kies *Bekende poorten*, *1-1024* of een eigen lijst zoals `22,80,443,8000-8100` (max. 4096 poorten). Open poorten krijgen een knop **＋ Check**: die maakt meteen een TCP-check aan, zodat je een Pushover-melding krijgt als de dienst wegvalt.
+Bij agent-servers zie je ook de **luisterende poorten volgens de agent** (via `ss`, met procesnaam als de agent als root draait), dus ook poorten achter een firewall of op `127.0.0.1`.
+
+> Scan alleen je eigen servers. Op sommige netwerken (hosting, bedrijfsnetwerk) kan een poortscan als aanval worden gezien.
+
+### Agent op remote servers
+Voeg in de webinterface een server toe met type **Remote met agent** en klik *Agent installeren* — je krijgt de kant-en-klare commando's met het token. Kort gezegd:
+
+```bash
+sudo install -m 755 rzmon-agent.sh /usr/local/bin/rzmon-agent.sh
+sudo tee /etc/default/rzmon-agent <<'EOF'
+MONITOR_URL="http://rzmon.example.lan"
+TOKEN="<token uit de webinterface>"
+SERVICES="ssh cron nginx mariadb"
+EOF
+echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh >/dev/null 2>&1' | sudo tee /etc/cron.d/rzmon-agent
+```
+
+### Home Assistant OS / Supervised (add-on)
+Op Home Assistant OS kun je geen cron-scripts op de host zetten. Daarom zit de agent er ook bij als **add-on**: `ha-addon/rzmon_agent`.
+
+| Check in RzMon | Wat |
+|---|---|
+| CPU / RAM | Van de HA-host |
+| Diskruimte `/data` | De data-partitie (config, database, back-ups, media) |
+| Service `homeassistant` | Draait Core en reageert de API? |
+| Service `supervisor` | Is de Supervisor *healthy*? |
+| Service `addon:<slug>` | Draait een add-on? bv. `addon:core_mosquitto` |
+| Service `updates` | **WARNING** bij een update voor Core, Supervisor, OS of een add-on |
+| Poortscan | Luisterende poorten van de host |
+
+Installeren:
+1. Voeg in RzMon een server toe met type **Remote met agent** (adres = IP van Home Assistant) en kopieer het token.
+2. Kopieer de map `ha-addon/rzmon_agent` naar de share **`addons`** (met de Samba share-add-on) of naar `/addons/` (met de SSH-add-on).
+3. *Instellingen → Add-ons → Add-on winkel* → ⋮ → **Controleren op updates** → **RzMon Agent** (onder *Lokale add-ons*) → Installeren.
+4. Op het tabblad Configuratie vul je `monitor_url` en `token` in → Starten. Het logboek toont `Verbonden met RzMon ✔`.
+
+Zet je de map `ha-addon` in een eigen GitHub-repository, dan kun je die als add-on-repository toevoegen. Pas dan eerst de `url` aan in `repository.yaml` en `config.yaml`.
+De add-on heeft alleen leesrechten: Supervisor-rol `default`, plus host-netwerk voor de poortlijst. Meer uitleg staat in `ha-addon/rzmon_agent/DOCS.md`; die zie je in HA ook op het tabblad *Documentatie*.
+
+> `ha-addon/rzmon_agent/rzmon-agent.sh` is een kopie van `agent/rzmon-agent.sh`. Een add-on moet al zijn bestanden in de eigen map hebben. Pas je de agent aan? Kopieer hem dan opnieuw en verhoog `version` in `config.yaml`, zodat HA de update ziet.
+
+## Upgraden
+Nieuwe bestanden eroverheen zetten (behalve `config.php`) en daarna:
+```bash
+sudo -u www-data php install/install.php --upgrade
+```
+Of klik in de webinterface op *Setup → Tabellen bijwerken*.
+Vergeet niet ook `rzmon-agent.sh` op je agent-servers te vervangen (nodig voor CPU/RAM en luisterende poorten).
+
+> Kom je van de versie die nog *ServerMonitor* heette? Laat je bestaande `config.php` (met de oude databasenaam) gewoon staan. De agent heet nu `rzmon-agent.sh`; de oude `sm-agent.sh` blijft werken, maar vervang hem bij gelegenheid.
+
+## REST API
+
+Read-only JSON API om statussen en meetwaarden uit te lezen, bv. voor Home Assistant, Grafana of eigen scripts.
+
+1. Webinterface → *Instellingen* → *API-sleutels* → naam invullen → **Sleutel maken** (wordt maar één keer getoond).
+2. Stuur de sleutel mee als header `Authorization: Bearer rzm_…` (of `X-API-Key: rzm_…`).
+
+| Endpoint | Beschrijving |
+|---|---|
+| `GET /v1.php/status` | Totaalstatus, tellers, lijst met problemen en status per server |
+| `GET /v1.php/hosts` | Alle servers met hun checks |
+| `GET /v1.php/hosts/{id}` | Eén server |
+| `GET /v1.php/checks` | Alle checks — filters: `?status=2`, `?type=disk`, `?host_id=1` |
+| `GET /v1.php/checks/{id}` | Eén check |
+| `GET /v1.php/checks/{id}/history?hours=24` | Meetwaarden (max 720 uur) |
+| `GET /v1.php/alerts?limit=50` | Laatste meldingen |
+
+Status-codes: `0` OK · `1` WARNING · `2` CRITICAL · `3` UNKNOWN. Tijden in ISO 8601.
+Werkt `/v1.php/status` niet op je webserver (PATH_INFO uit)? Gebruik dan `/v1.php?r=status`.
+
+```bash
+curl -H "Authorization: Bearer rzm_xxx" https://rzmon.example.lan/v1.php/status
+```
+
+Voorbeeld van een check:
+```json
+{ "id": 3, "host": "web01", "name": "CPU", "type": "cpu", "status": 0, "status_text": "OK",
+  "value": 12.4, "unit": "%", "message": "CPU 12.4% · load 0.31 0.25 0.20 (4 cores)",
+  "warn_threshold": 85, "crit_threshold": 95, "last_checked": "2026-10-19T15:56:59+02:00" }
+```
+
+### Home Assistant
+`configuration.yaml` (sleutel in `secrets.yaml` als `rzmon_auth: "Bearer rzm_xxx"`):
+
+```yaml
+rest:
+  - resource: https://rzmon.example.lan/v1.php/status
+    headers:
+      Authorization: !secret rzmon_auth
+    scan_interval: 60
+    sensor:
+      - name: "RzMon status"
+        value_template: "{{ value_json.status_text }}"
+        json_attributes: [counts, problems]
+      - name: "RzMon problemen"
+        value_template: "{{ value_json.counts.warning + value_json.counts.critical }}"
+    binary_sensor:
+      - name: "RzMon alles OK"
+        value_template: "{{ value_json.status == 0 }}"
+
+  # Losse meetwaarde, bv. CPU van check 3 (id staat in de URL van /checks)
+  - resource: https://rzmon.example.lan/v1.php/checks/3
+    headers:
+      Authorization: !secret rzmon_auth
+    scan_interval: 60
+    sensor:
+      - name: "Web01 CPU"
+        value_template: "{{ value_json.value }}"
+        unit_of_measurement: "%"
+        state_class: measurement
+```
+
+## Handig
+- Handmatig alle checks draaien: `php cron/run.php --force`
+- Historie wordt automatisch opgeschoond (instelbaar, standaard 30 dagen)
+- Mappenstructuur: `public/` (web), `src/` (logica), `cron/`, `agent/`, `install/`

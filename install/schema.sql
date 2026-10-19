@@ -1,0 +1,113 @@
+-- RzMon database schema (MariaDB 10.3+)
+SET NAMES utf8mb4;
+
+CREATE TABLE IF NOT EXISTS users (
+    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    username      VARCHAR(64)  NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS settings (
+    name  VARCHAR(64) PRIMARY KEY,
+    value TEXT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- mode: local  = de monitor-server zelf (disk/service lokaal uitlezen)
+--       agent  = remote server met rzmon-agent.sh (pusht disk/services)
+--       remote = alleen netwerkchecks (ping/tcp/http)
+CREATE TABLE IF NOT EXISTS hosts (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL,
+    address     VARCHAR(255) NOT NULL,
+    mode        ENUM('local','agent','remote') NOT NULL DEFAULT 'remote',
+    agent_token CHAR(40) NULL UNIQUE,
+    agent_seen  DATETIME NULL,
+    enabled     TINYINT(1) NOT NULL DEFAULT 1,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- status: 0=OK 1=WARN 2=CRIT 3=UNKNOWN
+CREATE TABLE IF NOT EXISTS checks (
+    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id         INT UNSIGNED NOT NULL,
+    type            ENUM('ping','tcp','http','disk','service','cpu','ram') NOT NULL,
+    target          VARCHAR(255) NOT NULL DEFAULT '',
+    name            VARCHAR(100) NOT NULL,
+    warn_threshold  DOUBLE NULL,
+    crit_threshold  DOUBLE NULL,
+    interval_sec    INT UNSIGNED NOT NULL DEFAULT 60,
+    enabled         TINYINT(1) NOT NULL DEFAULT 1,
+    status          TINYINT UNSIGNED NOT NULL DEFAULT 3,
+    last_value      DOUBLE NULL,
+    last_message    VARCHAR(500) NULL,
+    last_checked    DATETIME NULL,
+    fail_count      INT UNSIGNED NOT NULL DEFAULT 0,
+    notified_status TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    notified_at     DATETIME NULL,
+    CONSTRAINT fk_checks_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE,
+    INDEX idx_checks_host (host_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS results (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    check_id   INT UNSIGNED NOT NULL,
+    status     TINYINT UNSIGNED NOT NULL,
+    value      DOUBLE NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_results_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE,
+    INDEX idx_results_check_time (check_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Laatste gegevens van een agent (disk.<mount> / service.<naam>)
+CREATE TABLE IF NOT EXISTS agent_data (
+    host_id    INT UNSIGNED NOT NULL,
+    metric     VARCHAR(190) NOT NULL,
+    value      TEXT NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (host_id, metric),
+    CONSTRAINT fk_agent_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS alerts (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    check_id   INT UNSIGNED NULL,
+    status     TINYINT UNSIGNED NOT NULL,
+    title      VARCHAR(250) NOT NULL,
+    message    VARCHAR(1000) NOT NULL,
+    sent_ok    TINYINT(1) NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_alerts_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE SET NULL,
+    INDEX idx_alerts_time (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Sleutels voor de REST API (alleen de SHA-256 hash wordt opgeslagen)
+CREATE TABLE IF NOT EXISTS api_keys (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL,
+    key_hash   CHAR(64) NOT NULL UNIQUE,
+    key_hint   VARCHAR(12) NOT NULL,
+    last_used  DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
+ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','disk','service','cpu','ram') NOT NULL;
+ALTER TABLE agent_data MODIFY value TEXT NOT NULL;
+
+INSERT IGNORE INTO settings (name, value) VALUES
+    ('pushover_enabled', '0'),
+    ('pushover_user', ''),
+    ('pushover_token', ''),
+    ('pushover_priority_crit', '1'),
+    ('pushover_priority_warn', '0'),
+    ('pushover_sound', ''),
+    ('alert_after', '2'),
+    ('repeat_minutes', '60'),
+    ('notify_warn', '1'),
+    ('notify_recovery', '1'),
+    ('agent_stale_minutes', '5'),
+    ('retention_days', '30'),
+    ('lan_no_login', '0'),
+    ('trusted_networks', '192.168.0.0/16\n10.0.0.0/8\n172.16.0.0/12\n127.0.0.1\n::1\nfc00::/7'),
+    ('trusted_proxies', '');

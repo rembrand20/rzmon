@@ -1,0 +1,5 @@
+# Bevat databasewachtwoord – nooit committen
+config.php
+config.php.tmp
+*.log
+.DS_Store
