@@ -60,6 +60,7 @@ Gebruik: sudo bash install-agent.sh --url URL --token TOKEN [opties]
   --cron               Cron gebruiken in plaats van een systemd-timer
   --file PAD           Lokale rzmon-agent.sh gebruiken i.p.v. downloaden
   -y, --yes            Niets vragen
+  --test               Verbindingstest: planning, netwerk, token en een proefrapport
   --update             Alleen de agent zelf bijwerken (instellingen blijven)
   --uninstall          Agent verwijderen
   -h, --help           Deze hulp
@@ -77,6 +78,7 @@ while [ $# -gt 0 ]; do
         --file) SOURCE_FILE="${2:?}"; shift ;;
         -y|--yes) ASSUME_YES=1 ;;
         --update) MODE="update" ;;
+        --test) MODE="test" ;;
         --uninstall) MODE="uninstall" ;;
         -h|--help) usage; exit 0 ;;
         *) usage; die "Onbekende optie: $1" ;;
@@ -134,6 +136,48 @@ fi
 INSECURE=${INSECURE:-0}
 INTERVAL=${INTERVAL:-60}
 
+# ----------------------------------------------------------------- verbindingstest
+if [ "$MODE" = "test" ]; then
+    [ -f "$CONF" ] || die "Nog geen agent geïnstalleerd ($CONF ontbreekt)."
+    [ -x "$BIN" ] || die "$BIN ontbreekt. Installeer opnieuw (commando uit RzMon → Agent installeren)."
+    printf '%sRzMon agent – planning%s\n' "$C_HEAD" "$C_OFF"
+    if has_systemd && [ -f "$TIMER" ]; then
+        if [ "$(systemctl is-active rzmon-agent.timer 2>/dev/null)" = "active" ]; then
+            ok "systemd-timer actief"
+        else
+            warn "systemd-timer staat niet aan → sudo systemctl enable --now rzmon-agent.timer"
+        fi
+        last=$(systemctl show rzmon-agent.service -p ExecMainExitTimestamp --value 2>/dev/null)
+        status=$(systemctl show rzmon-agent.service -p ExecMainStatus --value 2>/dev/null)
+        if [ -z "$last" ]; then
+            warn "Agent is via de timer nog niet uitgevoerd"
+        elif [ "${status:-0}" = 0 ]; then
+            ok "Laatste run: $last (gelukt)"
+        else
+            warn "Laatste run: $last mislukt (exitcode $status). Laatste logregels:"
+            journalctl -u rzmon-agent -n 5 --no-pager -o cat 2>/dev/null | sed 's/^/        /'
+        fi
+    elif [ -f "$CRON" ]; then
+        if pgrep -x crond >/dev/null 2>&1 || pgrep -x cron >/dev/null 2>&1; then
+            ok "cron draait ($CRON)"
+        else
+            warn "cron draait niet: de agent wordt nooit gestart!"
+            info "Rocky/RHEL: sudo dnf -y install cronie && sudo systemctl enable --now crond"
+            info "Debian/Ubuntu: sudo apt install cron && sudo systemctl enable --now cron"
+        fi
+    else
+        warn "Geen planning gevonden (geen timer, geen cron). Installeer opnieuw."
+    fi
+    if ! grep -q -- '--test' "$BIN"; then
+        warn "Deze agent-versie kent nog geen verbindingstest: eerst bijwerken met  sudo rzmon-agent-setup --update"
+        exit 1
+    fi
+    echo
+    # shellcheck disable=SC1090
+    (set -a; . "$CONF"; "$BIN" --test)
+    exit $?
+fi
+
 if [ "$MODE" = "update" ]; then
     [ -f "$CONF" ] || die "Nog geen agent geïnstalleerd ($CONF ontbreekt). Voer eerst een installatie uit."
 fi
@@ -170,7 +214,8 @@ if ! command -v ss >/dev/null 2>&1; then
     case "$pm" in dnf|yum) need+=(iproute) ;; *) need+=(iproute2) ;; esac
 fi
 if [ "$SCHED" = "cron" ] || ! has_systemd; then
-    if ! command -v crontab >/dev/null 2>&1 && [ ! -d /etc/cron.d ]; then
+    # De map /etc/cron.d kan bestaan zonder cron-dienst: kijk naar het programma zelf
+    if ! command -v crond >/dev/null 2>&1 && ! command -v cron >/dev/null 2>&1; then
         case "$pm" in dnf|yum|zypper) need+=(cronie) ;; apt-get) need+=(cron) ;; esac
     fi
 fi
@@ -317,11 +362,12 @@ step "5/5 Testrapport naar RzMon"
 if out=$(set -a; . "$CONF"; "$BIN" 2>&1); then
     ok "RzMon antwoordt: $out"
 else
-    case "$out" in
-        *403*) die "RzMon weigert het token (403). Controleer het token, en of de server in RzMon op type 'Remote met agent' staat." ;;
-        *SSL*|*certificate*) die "Certificaatprobleem. Gebruikt RzMon een self-signed certificaat? Installeer opnieuw met --insecure." ;;
-        *) die "Rapport mislukt: $out" ;;
-    esac
+    warn "Rapport mislukt: $out"
+    echo
+    # Meteen de volledige diagnose tonen
+    # shellcheck disable=SC1090
+    (set -a; . "$CONF"; "$BIN" --test) || true
+    die "De agent is geïnstalleerd, maar RzMon accepteert nog geen rapport. Los het bovenstaande op en test met: sudo rzmon-agent-setup --test"
 fi
 
 cat <<EOF
@@ -333,6 +379,7 @@ ${C_OK}✔ De agent is geïnstalleerd en rapporteert elke ${INTERVAL}s aan ${URL
 
   Status bekijken : $( [ "$use_systemd" -eq 1 ] && echo "systemctl status rzmon-agent.timer; journalctl -u rzmon-agent -n 20" || echo "grep rzmon /var/log/cron* 2>/dev/null" )
   Services wijzigen: sudo rzmon-agent-setup --services "sshd nginx …"   (of: sudo nano $CONF)
+  Verbinding testen: sudo rzmon-agent-setup --test
   Agent bijwerken : sudo rzmon-agent-setup --update
   Verwijderen     : sudo rzmon-agent-setup --uninstall
 

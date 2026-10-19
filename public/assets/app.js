@@ -746,6 +746,7 @@ function agentInstructions(h) {
     title: `Agent installeren – ${h.name}`,
     wide: true,
     body: `
+      <div class="agent-live" id="agent-live"><span class="muted">Status ophalen…</span></div>
       <div class="seg" role="tablist">
         <button type="button" class="seg-btn active" data-seg="linux">🐧 Linux-server</button>
         <button type="button" class="seg-btn" data-seg="ha">🏠 Home Assistant OS</button>
@@ -775,6 +776,7 @@ verify_ssl: true</pre>
         <button type="button" class="btn" id="copy-oneliner">Kopieer</button></div>
       ${base.startsWith('https') ? '<p class="muted small">Self-signed certificaat op RzMon? Voeg <code>-k</code> toe aan curl en <code>--insecure</code> aan het eind.</p>' : ''}
       <p class="muted small">Daarna: klik hier op <b>＋</b> en voeg checks toe (CPU, RAM, diskruimte, services). Later bijwerken: <code>sudo rzmon-agent-setup --update</code> · verwijderen: <code>sudo rzmon-agent-setup --uninstall</code>.</p>
+      <p class="muted small">🩺 <b>Komt er niets binnen?</b> Voer op de server <code>sudo rzmon-agent-setup --test</code> uit. Die controleert stap voor stap planning, netwerk, adres, token en een proefrapport, en zegt wat er mis is.</p>
       <p class="muted small">⚠️ De server moet RzMon kunnen bereiken op <code>${esc(base)}</code>. Klopt dat adres niet, pas dan de <i>Basis-URL</i> aan in Setup.</p>
       <details class="small api-docs">
         <summary>Liever handmatig installeren?</summary>
@@ -807,12 +809,39 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
     $$('[data-pane]', body).forEach((p) => (p.hidden = p.dataset.pane !== seg));
   };
   $$('.seg-btn', body).forEach((b) => (b.onclick = () => show(b.dataset.seg)));
+  pollAgentStatus(h.id);
   $('#copy-oneliner').onclick = async () => {
     try { await navigator.clipboard.writeText(installCmd); toast('Commando gekopieerd'); }
     catch (ex) { getSelection().selectAllChildren($('#agent-oneliner')); toast('Geselecteerd — druk Ctrl+C', 'err'); }
   };
   // Raad Home Assistant bij een naam of agent-gegevens die erop wijzen
   if (/home.?assistant|hass|haos/i.test(h.name) || h.metrics.includes('service:homeassistant')) show('ha');
+}
+
+/** Live-status van de agent in het venster, elke 5 s zolang het open is. */
+let agentPollGen = 0;
+async function pollAgentStatus(hostId, gen = ++agentPollGen) {
+  const box = $('#agent-live');
+  // Stoppen als het venster dicht is of opnieuw geopend (dan loopt er al een nieuwe lus)
+  if (!box || !$('#modal').open || gen !== agentPollGen) return;
+  try {
+    const s = await api('agent_status', null, { id: hostId });
+    const age = s.seen ? Math.round((new Date(s.now.replace(' ', 'T')) - new Date(s.seen.replace(' ', 'T'))) / 1000) : null;
+    const fresh = age !== null && age < 180;
+    let html = s.mode !== 'agent'
+      ? `<b class="bad">✘ Deze server staat op type "${esc(s.mode)}".</b> Een agent werkt alleen bij type <b>Remote met agent</b> (✎ Bewerken).`
+      : s.seen
+        ? `<b class="${fresh ? 'good' : 'bad'}">${fresh ? '✔' : '⚠'} Laatste rapport ${ago(s.seen)}</b>${s.ip ? ` vanaf <code>${esc(s.ip)}</code>` : ''}${fresh ? '' : ' — de agent rapporteert niet meer'}`
+        : '<b class="wait">⏳ Nog geen rapport ontvangen</b> <span class="muted small">(wordt elke 5 s bijgewerkt)</span>';
+    if (s.failures.length) {
+      html += `<div class="fails"><span class="muted small">Geweigerde pogingen (24 uur):</span>
+        ${s.failures.map((f) => `<div class="small"><code>${esc(f.ip)}</code> · ${ago(f.created_at)}${+f.n > 1 ? ` (${f.n}×)` : ''} · ${esc(f.reason)}</div>`).join('')}</div>`;
+    }
+    if (gen === agentPollGen) box.innerHTML = html;
+  } catch (ex) {
+    if (gen === agentPollGen) box.innerHTML = `<span class="muted small">${esc(ex.message)}</span>`;
+  }
+  setTimeout(() => pollAgentStatus(hostId, gen), 5000);
 }
 
 // ---------------------------------------------------------------- Alerts

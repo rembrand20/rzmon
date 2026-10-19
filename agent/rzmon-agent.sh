@@ -11,6 +11,19 @@
 #   Draait als add-on (map ha-addon/rzmon_agent). Zodra SUPERVISOR_TOKEN bestaat schakelt de agent
 #   over op HA-modus: disk via de Supervisor, en "services" zijn Home Assistant Core, de Supervisor,
 #   elke add-on (addon:<slug>) en beschikbare updates. Vereist daarnaast: jq.
+#
+# Verbindingstest:  sudo rzmon-agent.sh --test
+
+TEST=0
+[ "${1-}" = "--test" ] && TEST=1
+
+# Met de hand gestart (zonder omgeving van systemd/cron)? Dan zelf de instellingen inlezen.
+if [ -z "${MONITOR_URL-}" ] && [ -z "${SUPERVISOR_TOKEN-}" ] && [ -r /etc/default/rzmon-agent ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . /etc/default/rzmon-agent
+    set +a
+fi
 
 MONITOR_URL="${MONITOR_URL:-http://rzmon.example.lan}"
 TOKEN="${TOKEN:-VUL_HIER_HET_TOKEN_IN}"
@@ -24,6 +37,112 @@ HA_MODE=0
 [ -n "${SUPERVISOR_TOKEN:-}" ] && HA_MODE=1
 
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+# ---------------------------------------------------------------- Verbindingstest (--test)
+pass() { printf '  \e[32m✔\e[0m %s\n' "$*"; }
+fail() { printf '  \e[31m✘\e[0m %s\n' "$*"; TEST_FAILED=1; }
+hint() { printf '      → %s\n' "$*"; }
+note() { printf '  \e[33m⚠\e[0m %s\n' "$*"; }
+# Harde fout: volgende stappen hebben geen zin
+stop() { echo; echo "  Los dit eerst op en test opnieuw; de volgende stappen zijn overgeslagen."; exit 1; }
+TEST_FAILED=0
+
+if [ "$TEST" = 1 ]; then
+    base=${MONITOR_URL%/}
+    echo "RzMon agent – verbindingstest"
+    echo "  RzMon-adres : $base"
+    echo "  Token       : ${TOKEN:0:6}…${TOKEN: -4}"
+    echo
+
+    # 1. Instellingen
+    if [ "$base" = "http://rzmon.example.lan" ] || [ "$TOKEN" = "VUL_HIER_HET_TOKEN_IN" ]; then
+        fail "Geen instellingen gevonden (adres/token zijn nog de voorbeeldwaarden)"
+        hint "Staan ze in /etc/default/rzmon-agent? Draai de test met sudo (het bestand is alleen leesbaar voor root)."
+        exit 1
+    fi
+    pass "Instellingen gevonden"
+
+    # 2. Adres ontleden
+    if [[ ! "$base" =~ ^(https?)://([^/:]+)(:([0-9]+))?(/.*)?$ ]]; then
+        fail "Ongeldig adres: $base"; exit 1
+    fi
+    proto=${BASH_REMATCH[1]}; host=${BASH_REMATCH[2]}; port=${BASH_REMATCH[4]}
+    [ -n "$port" ] || { [ "$proto" = https ] && port=443 || port=80; }
+    case "$host" in
+        localhost|127.*|::1) note "Het adres wijst naar deze server zelf ($host): alleen goed als RzMon óp deze server draait"
+            hint "Anders: gebruik het IP-adres of de naam van de RzMon-server, bv. http://192.168.1.10" ;;
+    esac
+
+    # 3. DNS
+    if [[ "$host" =~ ^[0-9.]+$ ]] || getent hosts "$host" >/dev/null 2>&1; then
+        pass "Naam opzoeken: $host → $(getent hosts "$host" 2>/dev/null | awk '{print $1; exit}' || echo "$host")"
+    else
+        fail "De naam '$host' kan niet worden opgezocht (DNS)"
+        hint "Gebruik het IP-adres van RzMon, of zet de naam in /etc/hosts"
+        stop
+    fi
+
+    # 4. Netwerk: kan deze server de poort bereiken?
+    if timeout 5 bash -c "exec 3<>/dev/tcp/$host/$port" 2>/dev/null; then
+        pass "Verbinding met $host poort $port"
+    else
+        fail "Geen verbinding met $host poort $port"
+        hint "Draait de webserver op RzMon? (systemctl status httpd/apache2/nginx)"
+        hint "Firewall op de RzMon-server? Rocky: sudo firewall-cmd --permanent --add-service=http && sudo firewall-cmd --reload"
+        hint "Zitten deze server en RzMon in hetzelfde netwerk / mag het verkeer ertussen (VLAN, router)?"
+        stop
+    fi
+    if [ -n "${http_proxy:-}${HTTP_PROXY:-}${https_proxy:-}${HTTPS_PROXY:-}" ]; then
+        hint "Let op: er is een proxy ingesteld (http_proxy/https_proxy). Zet RzMon zo nodig in no_proxy."
+    fi
+
+    curl_t=(-sS -m 15 -o /tmp/rzmon-test.$$ -w '%{http_code} %{redirect_url}')
+    [ "$INSECURE" = 1 ] && curl_t+=(-k)
+
+    # 5. Draait daar RzMon?
+    read -r code redirect < <(curl "${curl_t[@]}" "$base/api.php?action=ping" 2>/tmp/rzmon-test-err.$$ || true)
+    body=$(cat /tmp/rzmon-test.$$ 2>/dev/null); err=$(cat /tmp/rzmon-test-err.$$ 2>/dev/null)
+    old_rzmon=0
+    if [ "$code" = 200 ] && [[ "$body" == *'"app":"RzMon"'* ]]; then
+        pass "RzMon gevonden op $base"
+    elif [ "$code" = 401 ] && [[ "$body" == *'"error"'* ]]; then
+        pass "RzMon gevonden op $base (oudere versie: werk RzMon bij voor een volledige test)"
+        old_rzmon=1
+    elif [[ "$code" =~ ^30[1278]$ ]]; then
+        fail "RzMon stuurt door naar: $redirect"
+        hint "Gebruik dat adres als MONITOR_URL (bv. https:// i.p.v. http://): sudo rzmon-agent-setup --url ${redirect%/api.php*}"
+    elif [ "$code" = 404 ]; then
+        fail "Er draait wel een webserver op $base, maar niet RzMon (404)"
+        hint "Klopt het pad? RzMon staat op de hoofd-URL van de vhost, bv. http://192.168.1.10/ — niet /rzmon/public/"
+    elif [[ "$err" == *SSL* || "$err" == *certificate* ]]; then
+        fail "Certificaatprobleem: ${err#curl: }"
+        hint "Self-signed certificaat? Zet INSECURE=\"1\" in /etc/default/rzmon-agent (of: sudo rzmon-agent-setup --insecure)"
+    elif [ "$code" = 000 ]; then
+        fail "Geen antwoord van $base: ${err#curl: }"
+    else
+        fail "Onverwacht antwoord van $base (HTTP $code)"
+        [ -n "$body" ] && hint "${body:0:200}"
+    fi
+    if [ "$TEST_FAILED" = 1 ]; then rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$; stop; fi
+
+    # 6. Token
+    curl_k=(-sS -m 15); [ "$INSECURE" = 1 ] && curl_k+=(-k)
+    tk=$(curl "${curl_k[@]}" -H "X-Agent-Token: $TOKEN" -w '\n%{http_code}' "$base/api.php?action=agent_check" 2>/dev/null || true)
+    tk_code=${tk##*$'\n'}; tk_body=${tk%$'\n'*}
+    if [ "$tk_code" = 200 ]; then
+        pass "Token geldig voor server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$tk_body") (RzMon ziet dit IP: $(sed -n 's/.*"your_ip":"\([^"]*\)".*/\1/p' <<<"$tk_body"))"
+    elif [ "$tk_code" = 403 ]; then
+        fail "Token geweigerd: $(sed -n 's/.*"reason":"\([^"]*\)".*/\1/p' <<<"$tk_body")"
+        hint "Kopieer het commando opnieuw uit RzMon (server → Agent installeren) en voer het uit"
+        rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$
+        stop
+    elif [ "$old_rzmon" = 1 ]; then
+        hint "Tokencontrole overgeslagen (oudere RzMon-versie); het proefrapport hieronder test het token wel"
+    else
+        fail "Tokencontrole gaf HTTP $tk_code: ${tk_body:0:150}"
+    fi
+    rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$
+fi
 
 # Supervisor API (alleen HA-modus)
 sv() { curl -fsS -m 10 -H "Authorization: Bearer $SUPERVISOR_TOKEN" "$SUPERVISOR_URL$1" 2>/dev/null; }
@@ -122,6 +241,29 @@ payload="{\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)
+
+if [ "$TEST" = 1 ]; then
+    # 7. Verzamelde gegevens tonen
+    n_disks=$(grep -o '"mount"' <<<"$disks" | wc -l)
+    n_ports=$(grep -o '"port"' <<<"$ports" | wc -l)
+    pass "Gegevens verzameld: CPU ${cpu_pct}% (${cores} cores), $n_disks disk(s), $n_ports luisterende poort(en)"
+    [ -n "$services" ] && hint "Services: $(sed 's/"//g; s/,$//; s/,/, /g' <<<"$services")"
+    command -v ss >/dev/null 2>&1 || hint "ss ontbreekt: poorten worden niet gemeld (Rocky: dnf install iproute)"
+
+    # 8. Echt rapport versturen
+    resp=$(curl "${curl_k[@]}" -m 20 -X POST -H "Content-Type: application/json" -H "X-Agent-Token: $TOKEN" \
+        --data "$payload" -w '\n%{http_code}' "${MONITOR_URL%/}/api.php?action=agent" 2>&1 || true)
+    r_code=${resp##*$'\n'}; r_body=${resp%$'\n'*}
+    if [ "$r_code" = 200 ] && [[ "$r_body" == *'"ok":true'* ]]; then
+        pass "Rapport ontvangen door RzMon: $r_body"
+        echo
+        echo "  Alles werkt. Zie je in RzMon toch niets? Klap de server open → 'Agent installeren':"
+        echo "  daar staat wanneer het laatste rapport binnenkwam en vanaf welk IP."
+    else
+        fail "Rapport niet geaccepteerd (HTTP $r_code): ${r_body:0:200}"
+    fi
+    exit "$TEST_FAILED"
+fi
 
 curl "${curl_opts[@]}" \
     -H "Content-Type: application/json" \

@@ -560,6 +560,7 @@ Het installatiescript blijft op de server staan als `rzmon-agent-setup`:
 
 | Wat | Commando |
 |---|---|
+| **Verbinding testen** | `sudo rzmon-agent-setup --test` (zie 8.4) |
 | Status bekijken | `systemctl status rzmon-agent.timer` en `journalctl -u rzmon-agent -n 20` |
 | Services wijzigen | `sudo rzmon-agent-setup --services "sshd nginx mariadb"` |
 | Agent bijwerken | `sudo rzmon-agent-setup --update` (haalt de nieuwste versie van RzMon) |
@@ -577,6 +578,33 @@ Opnieuw uitvoeren is altijd veilig: wat je niet meegeeft, blijft zoals het was.
   - `403` → het token klopt niet, of de server staat niet op type *Remote met agent*;
   - "kan niet downloaden" → het adres klopt niet, of RzMon is niet bereikbaar vanaf die server;
   - certificaat → `--insecure`.
+
+### 8.4 Komt er niets binnen? Verbindingstest 🩺
+**In RzMon:** klap de server open → **Agent installeren**. Bovenaan staat een live-status, die elke 5 seconden wordt bijgewerkt:
+- ✔ **Laatste rapport 12 s geleden vanaf 192.168.1.20**: de agent werkt.
+- ⏳ **Nog geen rapport ontvangen**: er komt niets binnen.
+- **Geweigerde pogingen**, met IP-adres en reden: bijvoorbeeld *onbekend token* of *server staat niet op type 'Remote met agent'*.
+
+**Op de bewaakte server:**
+```bash
+sudo rzmon-agent-setup --test
+```
+De test loopt stap voor stap na waar het misgaat, en stopt bij de eerste echte fout met een concrete oplossing:
+
+| Stap | Wat wordt gecontroleerd | Typische oplossing bij een fout |
+|---|---|---|
+| Planning | Draait de systemd-timer, of draait cron? Hoe liep de laatste run? | `sudo systemctl enable --now rzmon-agent.timer`; cron installeren |
+| Instellingen | Zijn adres en token ingevuld? | Test met `sudo` draaien; opnieuw installeren |
+| Adres | Wijst het naar deze server zelf (`localhost`)? | Het IP van de RzMon-server gebruiken |
+| DNS | Kan de naam van RzMon worden opgezocht? | IP-adres gebruiken, of `/etc/hosts` |
+| Netwerk | Is de poort van RzMon bereikbaar? | Firewall op RzMon: `firewall-cmd --add-service=http`; VLAN/router |
+| RzMon | Draait daar echt RzMon? Of een doorverwijzing, of een 404? | Juiste URL (http/https, zonder `/public`) |
+| Token | Kent RzMon dit token, en staat de server op type *agent*? | Commando opnieuw kopiëren uit RzMon |
+| Gegevens | CPU, disks, services en poorten verzamelen | Bv. `iproute` installeren voor poorten |
+| Rapport | Proefrapport versturen | — |
+
+Zonder het installatiescript kan het ook: `sudo /usr/local/bin/rzmon-agent.sh --test`.
+Met een oudere agent-versie: eerst bijwerken met `sudo rzmon-agent-setup --update`, of het installatiecommando opnieuw uitvoeren.
 
 <details>
 <summary>Handmatig installeren (zonder het script)</summary>
@@ -805,6 +833,7 @@ sudo cp /root/rzmon-config.php /var/www/rzmon/config.php
 | **Service-check: "System has not been booted with systemd"** | RzMon draait in een container zonder systemd. Gebruik dan TCP-checks, of een agent op de host |
 | **HTTP-check: SSL-fout** | Het certificaat is verlopen of self-signed, of het systeem mist CA-certificaten (`sudo apt install ca-certificates`) |
 | **Pushover-test mislukt** | Controleer de user key en het token. De server moet uitgaand `https://api.pushover.net` kunnen bereiken: test met `curl -I https://api.pushover.net` |
+| **Agent rapporteert niet / "Nog geen rapport ontvangen"** | Op de server: `sudo rzmon-agent-setup --test` (§8.4). In RzMon staan bij *Agent installeren* de geweigerde pogingen met reden |
 | **Agent: `403`** | Het token klopt niet, of de server staat niet op type *Remote met agent* |
 | **Agent-checks: "Agent stil sinds …"** | Draait de cron op de agent-server? Kan die server RzMon bereiken? Test het commando uit hoofdstuk 8 |
 | **Agent: "meldt service X niet"** | Voeg de service toe aan `SERVICES` in `/etc/default/rzmon-agent` |

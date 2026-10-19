@@ -91,6 +91,16 @@ CREATE TABLE IF NOT EXISTS api_keys (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Agent-rapporten die geweigerd zijn (voor de diagnose in "Agent installeren")
+CREATE TABLE IF NOT EXISTS agent_log (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NULL,
+    ip         VARCHAR(45) NOT NULL,
+    reason     VARCHAR(200) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_agent_log_time (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
 ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','disk','service','cpu','ram') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;

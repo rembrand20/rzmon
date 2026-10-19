@@ -309,6 +309,10 @@ ol.steps li { margin-bottom: .45rem; }
 .host-detail .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); }
 .host-detail .chk { border-right: 1px solid var(--border); }
 
+.agent-live { border: 1px solid var(--border); background: var(--card-2); border-radius: 10px; padding: .65rem .8rem; margin-bottom: 1rem; font-size: .9rem; }
+.agent-live .good { color: var(--ok); } .agent-live .bad { color: var(--warn); } .agent-live .wait { color: var(--muted); }
+.agent-live .fails { margin-top: .5rem; padding-top: .5rem; border-top: 1px dashed var(--border); color: var(--warn); }
+
 /* ---------- Port scan ---------- */
 .scan-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: .6rem; align-items: end; }
 .scan-form label { margin: 0; }

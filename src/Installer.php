@@ -38,6 +38,7 @@ final class Installer
         ['checks', 'acked_by', 'VARCHAR(64) NULL'],
         ['checks', 'ack_comment', 'VARCHAR(200) NULL'],
         ['checks', 'pushover_receipt', 'VARCHAR(40) NULL'],
+        ['hosts', 'agent_ip', 'VARCHAR(45) NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

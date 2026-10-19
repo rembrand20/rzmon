@@ -31,6 +31,10 @@ $method = $_SERVER['REQUEST_METHOD'];
 // ---------- Agent en installatiescript (openbaar: bevatten niets geheims) ----------
 // Zo kan een server de agent rechtstreeks van RzMon installeren, ook als de
 // GitHub-repository privé is.
+if ($action === 'ping') {
+    // Voor de verbindingstest van de agent: "draait hier RzMon?"
+    out(['ok' => true, 'app' => 'RzMon', 'configured' => is_configured(), 'time' => date('c')]);
+}
 if ($action === 'agent_script' || $action === 'agent_install') {
     header('Content-Type: text/x-shellscript; charset=utf-8');
     header('Cache-Control: no-store');
@@ -43,12 +47,34 @@ if (!is_configured()) {
 }
 
 // ---------- Agent endpoint (token-auth, geen sessie) ----------
-if ($action === 'agent') {
-    $token = $_SERVER['HTTP_X_AGENT_TOKEN'] ?? '';
-    $host = $token !== '' ? q("SELECT id FROM hosts WHERE agent_token = ? AND mode = 'agent'", [$token])->fetch() : false;
-    if (!$host) {
-        out(['error' => 'Ongeldig token'], 403);
+/** Zoekt de server bij een agent-token; bij een fout: logboek + 403 met de reden. */
+function agent_host(): array
+{
+    $token = trim((string) ($_SERVER['HTTP_X_AGENT_TOKEN'] ?? ''));
+    $ip = client_ip();
+    $host = $token !== '' ? q('SELECT id, name, mode FROM hosts WHERE agent_token = ?', [$token])->fetch() : false;
+    $reason = match (true) {
+        $token === '' => 'geen token meegestuurd',
+        !$host => 'onbekend token (verkeerd gekopieerd, of in RzMon vernieuwd?)',
+        $host['mode'] !== 'agent' => "server '{$host['name']}' staat niet op type 'Remote met agent'",
+        default => null,
+    };
+    if ($reason !== null) {
+        q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'] ?? null, mb_substr($ip, 0, 45), $reason]);
+        q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
+        out(['error' => "Geweigerd: $reason", 'reason' => $reason], 403);
     }
+    return $host;
+}
+
+// Alleen het token controleren, zonder gegevens te versturen (verbindingstest)
+if ($action === 'agent_check') {
+    $host = agent_host();
+    out(['ok' => true, 'host' => $host['name'], 'your_ip' => client_ip()]);
+}
+
+if ($action === 'agent') {
+    $host = agent_host();
     $in = input();
     $now = now();
     $st = db()->prepare('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?)
@@ -85,8 +111,10 @@ if ($action === 'agent') {
         $st->execute([$host['id'], mb_substr('service:' . $name, 0, 190), mb_substr((string) $state, 0, 255), $now]);
     }
     q('DELETE FROM agent_data WHERE host_id = ? AND updated_at < ?', [$host['id'], $now]);
-    q('UPDATE hosts SET agent_seen = ? WHERE id = ?', [$now, $host['id']]);
-    out(['ok' => true]);
+    q('UPDATE hosts SET agent_seen = ?, agent_ip = ? WHERE id = ?', [$now, mb_substr(client_ip(), 0, 45), $host['id']]);
+    out(['ok' => true, 'host' => $host['name'], 'received' => [
+        'disks' => count($in['disks'] ?? []), 'services' => count($in['services'] ?? []), 'ports' => count($in['ports'] ?? []),
+    ]]);
 }
 
 // ---------- Login ----------
@@ -200,6 +228,20 @@ switch ($action) {
             q('UPDATE hosts SET agent_token = COALESCE(agent_token, ?) WHERE id = ?', [bin2hex(random_bytes(20)), $id]);
         }
         out(['ok' => true, 'id' => $id]);
+
+    case 'agent_status':
+        $id = (int) ($_GET['id'] ?? 0);
+        $h = q('SELECT agent_seen, agent_ip, mode FROM hosts WHERE id = ?', [$id])->fetch();
+        if (!$h) {
+            out(['error' => 'Server niet gevonden'], 404);
+        }
+        // Geweigerde pogingen (laatste 24 uur, en ná het laatste geslaagde rapport): voor deze
+        // server of met een onbekend token. Gelijke pogingen samengevoegd met een aantal.
+        $fails = q('SELECT ip, reason, MAX(created_at) AS created_at, COUNT(*) AS n FROM agent_log
+                    WHERE (host_id = ? OR host_id IS NULL) AND created_at >= NOW() - INTERVAL 1 DAY
+                      AND (? IS NULL OR created_at > ?)
+                    GROUP BY ip, reason ORDER BY MAX(id) DESC LIMIT 6', [$id, $h['agent_seen'], $h['agent_seen']])->fetchAll();
+        out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now()]);
 
     case 'host_token':
         q('UPDATE hosts SET agent_token = ? WHERE id = ?', [bin2hex(random_bytes(20)), (int) (input()['id'] ?? 0)]);
