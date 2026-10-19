@@ -20,6 +20,24 @@ less install-rocky.sh          # altijd eerst even bekijken wat een script doet
 sudo bash install-rocky.sh
 ```
 
+> **Krijg je `curl: (22) … error: 404`?** Dan is de GitHub-repository **privé**: GitHub geeft dan aan iedereen die niet ingelogd is een 404. Kies één van deze twee oplossingen:
+>
+> **A. Repository openbaar maken (makkelijkst).** Op GitHub: *Settings → General → Danger Zone → Change visibility → Public*. Er staan geen wachtwoorden of tokens in de code; `config.php` gaat nooit naar GitHub. Daarna werkt de curl-regel hierboven, en kun je de Home Assistant-add-on direct als repository toevoegen.
+>
+> **B. Privé houden.** Clone de repository dan zelf, met een *Personal Access Token*:
+> 1. Maak op GitHub een token aan: *Settings → Developer settings → Fine-grained tokens → Generate new token*. Kies *Only select repositories* → `rzmon`, met bij *Permissions* **Contents: Read-only**.
+> 2. Op de server:
+>    ```bash
+>    sudo dnf -y install git
+>    git clone https://github.com/rembrand20/rzmon.git ~/rzmon     # gebruikersnaam + het token als wachtwoord
+>    sudo bash ~/rzmon/install/install-rocky.sh --repo ~/rzmon
+>    ```
+> 3. Bijwerken gaat daarna met:
+>    ```bash
+>    git -C ~/rzmon pull && sudo bash ~/rzmon/install/install-rocky.sh --repo ~/rzmon
+>    ```
+> Het token wordt niet op de server opgeslagen; git vraagt er bij `git pull` opnieuw om.
+
 Open aan het eind de getoonde URL, bijvoorbeeld `http://192.168.1.10/`, en maak bij stap 4 van de setup je beheerder aan. Het databasewachtwoord staat in `/root/rzmon-install.txt`, dat alleen root kan lezen.
 
 | Optie | Uitleg |
@@ -31,6 +49,7 @@ Open aan het eind de getoonde URL, bijvoorbeeld `http://192.168.1.10/`, en maak 
 | `--no-https` | Geen self-signed HTTPS op poort 443 |
 | `--no-firewall` | firewalld niet aanpassen |
 | `--no-config` | Databasegegevens zelf in de browser invullen |
+| `--repo ~/rzmon` | Installeren vanaf een lokale clone, bv. van een privé-repository |
 | `--update` | Eerst `dnf update` |
 | `-y` | Niet om bevestiging vragen |
 | `--unlock` / `--lock` | Setup tijdelijk wel of niet laten schrijven in `config.php` |

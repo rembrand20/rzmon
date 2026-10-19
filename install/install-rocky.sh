@@ -33,6 +33,7 @@ DO_UPDATE=0                # dnf update vooraf
 WRITE_CONFIG=1             # 0 = databasegegevens zelf in de browser invullen
 ASSUME_YES=0
 MODE="install"             # install | lock | unlock
+REPO_SET=0
 
 WEB_USER="apache"
 LOG_FILE="/var/log/rzmon-install.log"
@@ -65,7 +66,8 @@ Opties:
   --db-pass WACHTWOORD Databasewachtwoord                (standaard: willekeurig)
   --timezone TZ        Tijdzone                          (standaard: $TIMEZONE)
   --branch NAAM        Git-branch                        (standaard: $BRANCH)
-  --repo URL           Git-repository                    (standaard: $REPO_URL)
+  --repo URL|MAP       Git-repository, of een lokale clone (bv. van een privé-repository)
+                                                         (standaard: $REPO_URL)
   --no-https           Geen self-signed HTTPS op poort 443
   --no-firewall        firewalld niet aanpassen
   --no-config          Geen config.php schrijven: database zelf in de browser invullen
@@ -87,7 +89,7 @@ while [ $# -gt 0 ]; do
         --db-pass) DB_PASS="${2:?}"; shift ;;
         --timezone) TIMEZONE="${2:?}"; shift ;;
         --branch) BRANCH="${2:?}"; shift ;;
-        --repo) REPO_URL="${2:?}"; shift ;;
+        --repo) REPO_URL="${2:?}"; REPO_SET=1; shift ;;
         --no-https) WITH_HTTPS=0 ;;
         --no-firewall) DO_FIREWALL=0 ;;
         --no-config) WRITE_CONFIG=0 ;;
@@ -103,6 +105,25 @@ done
 INSTALL_DIR="${INSTALL_DIR%/}"
 
 # ----------------------------------------------------------------- hulpfuncties
+# Een lokale map als bron (bv. ~/rzmon, een eigen clone van een privé-repository)
+# is van een andere gebruiker dan root; git weigert die dan ("dubious ownership").
+# "git -c safe.directory=…" werkt niet voor lokale bronnen, een tijdelijk globaal
+# config-bestand wel. Alleen voor deze git-aanroepen; ~/.gitconfig blijft ongemoeid.
+GIT_SAFE_CFG=""
+if [ -d "$REPO_URL" ]; then
+    REPO_URL=$(cd "$REPO_URL" && pwd)
+    GIT_SAFE_CFG=$(mktemp)
+    printf '[safe]\n\tdirectory = %s\n\tdirectory = %s/.git\n' "$REPO_URL" "$REPO_URL" > "$GIT_SAFE_CFG"
+    trap 'rm -f "$GIT_SAFE_CFG"' EXIT
+fi
+gitc() {
+    if [ -n "$GIT_SAFE_CFG" ]; then
+        GIT_CONFIG_GLOBAL="$GIT_SAFE_CFG" git "$@"
+    else
+        git "$@"
+    fi
+}
+
 selinux_on() { command -v getenforce >/dev/null 2>&1 && [ "$(getenforce)" != "Disabled" ]; }
 
 as_web() { runuser -u "$WEB_USER" -- "$@"; }
@@ -268,15 +289,16 @@ step "5/9 RzMon ophalen"
 if [ -d "$INSTALL_DIR/.git" ]; then
     # Na de setup kan de map (tijdelijk) van apache zijn; git als root wil een root-map
     chown root:"$WEB_USER" "$INSTALL_DIR"
-    git -C "$INSTALL_DIR" fetch --quiet origin "$BRANCH"
-    git -C "$INSTALL_DIR" checkout --quiet "$BRANCH"
-    git -C "$INSTALL_DIR" pull --quiet --ff-only origin "$BRANCH"
-    ok "Bijgewerkt naar de nieuwste versie ($(git -C "$INSTALL_DIR" log -1 --format='%h %s' | cut -c1-60))"
+    [ "$REPO_SET" -eq 1 ] && gitc -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
+    gitc -C "$INSTALL_DIR" fetch --quiet origin "$BRANCH"
+    gitc -C "$INSTALL_DIR" checkout --quiet "$BRANCH"
+    gitc -C "$INSTALL_DIR" pull --quiet --ff-only origin "$BRANCH"
+    ok "Bijgewerkt naar de nieuwste versie ($(gitc -C "$INSTALL_DIR" log -1 --format='%h %s' | cut -c1-60))"
 elif [ -e "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
     die "$INSTALL_DIR bestaat al en is geen git-checkout. Kies een andere map met --dir of maak hem leeg."
 else
     mkdir -p "$(dirname "$INSTALL_DIR")"
-    git clone --quiet --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
+    gitc clone --quiet --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
     ok "Gekloond uit $REPO_URL"
 fi
 
