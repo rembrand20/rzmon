@@ -97,6 +97,9 @@ function init() {
 
   $('#settings-form').addEventListener('submit', saveSettings);
   $('#pushover-test').onclick = testPushover;
+  $('#webhook-test').onclick = testWebhook;
+  $('#maint-all').onclick = () => maintenanceDialog('all', 0, 'alle servers', state.maintenance);
+  $('#maint-banner').addEventListener('click', (e) => e.target.closest('[data-maint-end]') && endMaintenance('all', 0));
   $('#password-form').addEventListener('submit', changePassword);
   $('#api-key-form').addEventListener('submit', createApiKey);
   $('#api-keys').addEventListener('click', deleteApiKey);
@@ -125,9 +128,11 @@ async function refresh() {
   }
 }
 
+// 4 = alles in onderhoud
 function hostStatus(h) {
-  const active = h.checks.filter((c) => +c.enabled);
-  if (!active.length) return 3;
+  const enabled = h.checks.filter((c) => +c.enabled);
+  const active = enabled.filter((c) => !c.maintenance);
+  if (!active.length) return enabled.length || h.maintenance ? 4 : 3;
   const sts = active.map((c) => +c.status);
   if (sts.includes(2)) return 2;
   if (sts.includes(1)) return 1;
@@ -135,10 +140,31 @@ function hostStatus(h) {
   return 0;
 }
 
+const STATUS_RANK = { 2: 4, 1: 3, 3: 2, 0: 1, 4: 0 };
+
+/** "14:30" voor vandaag, anders "di 21 okt 14:30" */
+function fmtUntil(dt) {
+  const d = new Date(dt.replace(' ', 'T'));
+  const time = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString()
+    ? time : d.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + time;
+}
+
+function maintLabel(m) {
+  return `🔧 tot ${fmtUntil(m.until)}${m.reason ? ' – ' + m.reason : ''}`;
+}
+
 function render() {
-  const counts = [0, 0, 0, 0];
-  state.hosts.forEach((h) => +h.enabled && h.checks.forEach((c) => +c.enabled && counts[+c.status]++));
-  ['ok', 'warn', 'crit', 'unknown'].forEach((k, i) => ($('#sum-' + k).textContent = counts[i]));
+  const counts = [0, 0, 0, 0, 0];
+  state.hosts.forEach((h) => +h.enabled && h.checks.forEach((c) => +c.enabled && counts[c.maintenance ? 4 : +c.status]++));
+  ['ok', 'warn', 'crit', 'unknown', 'maint'].forEach((k, i) => ($('#sum-' + k).textContent = counts[i]));
+  const banner = $('#maint-banner');
+  banner.hidden = !state.maintenance;
+  if (state.maintenance) {
+    banner.innerHTML = `<span><b>🔧 Onderhoud actief</b> tot ${esc(fmtUntil(state.maintenance.until))}${state.maintenance.reason ? ' – ' + esc(state.maintenance.reason) : ''}.
+      Checks draaien door, maar er gaan geen meldingen uit.</span>
+      <button class="btn" data-maint-end="all">Beëindigen</button>`;
+  }
   $('#last-run').textContent = state.last_run ? 'Laatste check: ' + ago(state.last_run) : '';
   document.title = (counts[2] ? `(${counts[2]}) ` : '') + 'RzMon';
 
@@ -153,7 +179,7 @@ function render() {
       return { ...h, shown: checks, match: hostMatch };
     })
     .filter((h) => (h.match && !onlyProblems) || h.shown.length)
-    .sort((a, b) => (hostStatus(b) % 3) - (hostStatus(a) % 3) || a.name.localeCompare(b.name));
+    .sort((a, b) => STATUS_RANK[hostStatus(b)] - STATUS_RANK[hostStatus(a)] || a.name.localeCompare(b.name));
 
   const el = $('#hosts');
   if (!state.hosts.length) {
@@ -172,14 +198,17 @@ function hostCard(h) {
   const agentInfo = h.mode === 'agent'
     ? `<span class="muted">Agent: ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}</span>
        <button class="btn" data-act="agent" data-id="${h.id}">Agent installeren</button>` : '';
+  const parent = h.parent_id ? findHost(h.parent_id) : null;
   return `
-  <article class="card host s${st} ${+h.enabled ? '' : 'disabled'}">
+  <article class="card host s${st} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''}">
     <div class="host-head">
       <span class="dot"></span>
       <div class="host-title">
         <strong>${esc(h.name)} <span class="badge">${esc(h.mode)}</span>${+h.enabled ? '' : '<span class="badge">uit</span>'}</strong>
-        <span class="muted mono">${esc(h.address)}</span>
+        <span class="muted mono">${esc(h.address)}</span>${parent ? ` <span class="via" title="Afhankelijk van ${esc(parent.name)}: geen aparte meldingen als die onbereikbaar is">↳ via ${esc(parent.name)}</span>` : ''}
+        ${h.maintenance ? `<span class="maint-tag">${esc(maintLabel(h.maintenance))}</span>` : ''}
       </div>
+      <button class="icon-btn" title="Onderhoud" data-act="maint-host" data-id="${h.id}">🔧</button>
       <button class="icon-btn" title="Check toevoegen" data-act="add-check" data-id="${h.id}">＋</button>
       <button class="icon-btn" title="Poorten scannen" data-act="scan" data-id="${h.id}">🔍</button>
       <button class="icon-btn" title="Server bewerken" data-act="edit-host" data-id="${h.id}">✎</button>
@@ -202,11 +231,15 @@ function checkRow(c) {
       ${c.crit_threshold !== null ? `<b style="left:${+c.crit_threshold}%"></b>` : ''}</div>`;
   }
   const value = t.unit === 'ms' && c.last_value !== null ? ` · ${fmt(c.last_value, t.unit)}` : '';
+  const own = c.maintenance && c.maintenance.scope === 'check';
+  const flags = (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">🔧 tot ${esc(fmtUntil(c.maintenance.until))}</span>` : '')
+    + (c.suppressed_by ? ' <span class="supp-tag" title="Geen melding: een server erboven is onbereikbaar">🔕 onderdrukt</span>' : '');
   return `
-  <li class="chk s${s} ${+c.enabled ? '' : 'disabled'}" title="${STATUS[s]} – laatst ${ago(c.last_checked)}">
+  <li class="chk s${s} ${+c.enabled ? '' : 'disabled'} ${c.maintenance ? 'in-maint' : ''}" title="${STATUS[s]} – laatst ${ago(c.last_checked)}">
     <span class="dot"></span>
-    <span class="chk-name">${esc(c.name)}<span class="type">${t.label}${value}</span></span>
+    <span class="chk-name">${esc(c.name)}<span class="type">${t.label}${value}</span>${flags}</span>
     <span class="chk-actions">
+      <button class="icon-btn" title="Onderhoud" data-act="maint-check" data-id="${c.id}">🔧</button>
       <button class="icon-btn" title="Nu checken" data-act="run" data-id="${c.id}">↻</button>
       <button class="icon-btn" title="Historie" data-act="history" data-id="${c.id}">📈</button>
       <button class="icon-btn" title="Bewerken" data-act="edit-check" data-id="${c.id}">✎</button>
@@ -233,6 +266,8 @@ async function onHostsClick(e) {
     case 'history': { const [c, h] = findCheck(id); return showHistory(c, h); }
     case 'agent': return agentInstructions(findHost(id));
     case 'scan': return portScan(findHost(id));
+    case 'maint-host': { const h = findHost(id); return maintenanceDialog('host', id, h.name, h.maintenance && h.maintenance.scope === 'host' ? h.maintenance : null); }
+    case 'maint-check': { const [c, h] = findCheck(id); return maintenanceDialog('check', id, `${h.name} – ${c.name}`, c.maintenance && c.maintenance.scope === 'check' ? c.maintenance : null); }
     case 'run':
       b.disabled = true;
       try {
@@ -303,6 +338,13 @@ function hostForm(h) {
         <select name="mode">${Object.entries(MODES).map(([k, v]) => `<option value="${k}" ${h.mode === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
         <span class="hint">Lokaal = disk/services van deze monitor-server. Agent = remote server die disk/services rapporteert via rzmon-agent.sh. Remote = alleen ping/poort/http.</span>
       </label>
+      <label>Afhankelijk van <span class="hint">(optioneel)</span>
+        <select name="parent_id">
+          <option value="">— geen —</option>
+          ${parentOptions(h)}
+        </select>
+        <span class="hint">Bereikbaar via deze server, bv. een router, switch, VPN of hypervisor. Is die onbereikbaar, dan krijg je één melding voor die server en niet ook voor deze.</span>
+      </label>
       <label class="switch"><input type="checkbox" name="enabled" ${+h.enabled ? 'checked' : ''}><span></span> Actief</label>
       ${isNew ? '<label class="switch"><input type="checkbox" name="add_ping" checked><span></span> Direct een ping-check toevoegen</label>' : ''}`,
     buttons: [
@@ -322,6 +364,63 @@ function hostForm(h) {
       }
     },
   });
+}
+
+/** Servers die als parent kunnen dienen: niet de server zelf en niets wat (indirect) eronder hangt. */
+function parentOptions(h) {
+  const below = new Set(h.id ? [+h.id] : []);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    state.hosts.forEach((x) => {
+      if (x.parent_id && below.has(+x.parent_id) && !below.has(+x.id)) { below.add(+x.id); grew = true; }
+    });
+  }
+  return state.hosts
+    .filter((x) => !below.has(+x.id))
+    .map((x) => `<option value="${x.id}" ${+h.parent_id === +x.id ? 'selected' : ''}>${esc(x.name)} (${esc(x.address)})</option>`)
+    .join('');
+}
+
+// ---------------------------------------------------------------- Maintenance
+function maintenanceDialog(scope, id, label, current) {
+  const presets = [[15, '15 min'], [30, '30 min'], [60, '1 uur'], [120, '2 uur'], [240, '4 uur'], [480, '8 uur'], [1440, '24 uur'], [10080, '1 week']];
+  modal({
+    title: `🔧 Onderhoud – ${label}`,
+    body: `
+      <p class="muted small" style="margin-top:0">Checks blijven draaien en je ziet de status gewoon, maar er gaan <b>geen meldingen</b> uit (Pushover en webhook).
+        Is er na afloop nog iets mis, dan krijg je alsnog een melding.</p>
+      ${current ? `<p class="maint-now">Nu actief: ${esc(maintLabel(current))}</p>` : ''}
+      <div class="presets">${presets.map(([m, l]) => `<button type="button" class="btn" data-min="${m}">${l}</button>`).join('')}</div>
+      <label>Of tot een vast tijdstip<input type="datetime-local" name="until"></label>
+      <label>Reden <span class="hint">(optioneel)</span><input name="reason" maxlength="200" placeholder="bv. updates installeren" value="${esc(current?.reason || '')}"></label>`,
+    buttons: [
+      ...(current ? [{ label: 'Onderhoud beëindigen', cls: 'danger', style: 'margin-right:auto', onClick: () => endMaintenance(scope, id) }] : []),
+      { label: 'Tot dit tijdstip', cls: 'primary', submit: true },
+    ],
+    onSubmit: async (d) => {
+      if (!d.until) throw new Error('Kies een duur of een tijdstip');
+      await api('maintenance_set', { scope, id, until: d.until, reason: d.reason });
+      toast('Onderhoud ingesteld');
+    },
+  });
+  $$('[data-min]', $('#modal-body')).forEach((b) => (b.onclick = async () => {
+    try {
+      await api('maintenance_set', { scope, id, minutes: +b.dataset.min, reason: $('#modal-form').reason.value });
+      $('#modal').close();
+      toast(`Onderhoud: ${b.textContent}`);
+      refresh();
+    } catch (ex) { modalError(ex.message); }
+  }));
+}
+
+async function endMaintenance(scope, id) {
+  try {
+    await api('maintenance_set', { scope, id, minutes: 0 });
+    if ($('#modal').open) $('#modal').close();
+    toast('Onderhoud beëindigd');
+    refresh();
+  } catch (ex) { toast(ex.message, 'err'); }
 }
 
 // ---------------------------------------------------------------- Check form
@@ -595,6 +694,14 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
 }
 
 // ---------------------------------------------------------------- Alerts
+function channelIcons(a) {
+  const out = [];
+  if (+a.sent_ok) out.push('<span title="Verstuurd via Pushover">📲</span>');
+  if (a.webhook_ok !== null) out.push(+a.webhook_ok ? '<span title="Verstuurd naar Home Assistant">🏠</span>' : '<span title="Webhook mislukt">🏠✕</span>');
+  if (!out.length) out.push('<span title="Niet verzonden">✉️✕</span>');
+  return out.join(' ');
+}
+
 function renderAlerts() {
   const el = $('#alerts');
   if (!state.alerts.length) { el.innerHTML = '<p class="muted">Nog geen meldingen. 👌</p>'; return; }
@@ -602,7 +709,7 @@ function renderAlerts() {
     <div class="alert-item s${a.status}">
       <span class="dot"></span>
       <strong>${esc(a.title)}</strong>
-      <span class="muted small" title="${esc(a.created_at)}">${ago(a.created_at)} ${+a.sent_ok ? '📲' : '<span title="Niet via Pushover verzonden">✉️✕</span>'}</span>
+      <span class="muted small" title="${esc(a.created_at)}">${ago(a.created_at)} ${channelIcons(a)}</span>
       <span class="msg">${esc(a.message)}</span>
     </div>`).join('');
 }
@@ -713,6 +820,14 @@ async function testPushover(e) {
   b.disabled = true;
   try { await api('pushover_test', settingsData()); toast('Testbericht verstuurd! Check je telefoon 📱'); }
   catch (ex) { toast('Pushover: ' + ex.message, 'err'); }
+  b.disabled = false;
+}
+
+async function testWebhook(e) {
+  const b = e.target;
+  b.disabled = true;
+  try { await api('webhook_test', settingsData()); toast('Testbericht naar Home Assistant verstuurd 🏠'); }
+  catch (ex) { toast('Webhook: ' + ex.message, 'err'); }
   b.disabled = false;
 }
 

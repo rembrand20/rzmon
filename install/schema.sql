@@ -110,4 +110,10 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('retention_days', '30'),
     ('lan_no_login', '0'),
     ('trusted_networks', '192.168.0.0/16\n10.0.0.0/8\n172.16.0.0/12\n127.0.0.1\n::1\nfc00::/7'),
-    ('trusted_proxies', '');
+    ('trusted_proxies', ''),
+    ('maintenance_until', ''),
+    ('maintenance_reason', ''),
+    ('ha_webhook_enabled', '0'),
+    ('ha_webhook_url', ''),
+    ('ha_webhook_verify_ssl', '1'),
+    ('ha_webhook_events', 'all');

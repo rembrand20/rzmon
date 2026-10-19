@@ -63,13 +63,16 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
   <main class="container">
     <section id="tab-dashboard" class="tab-panel">
+      <div class="maint-banner" id="maint-banner" hidden></div>
       <div class="summary">
         <div class="stat ok"><span class="num" id="sum-ok">–</span><span>OK</span></div>
         <div class="stat warn"><span class="num" id="sum-warn">–</span><span>Warning</span></div>
         <div class="stat crit"><span class="num" id="sum-crit">–</span><span>Critical</span></div>
         <div class="stat unknown"><span class="num" id="sum-unknown">–</span><span>Onbekend</span></div>
+        <div class="stat maint" title="Checks in onderhoud: geen meldingen"><span class="num" id="sum-maint">–</span><span>Onderhoud</span></div>
         <div class="summary-actions">
           <span class="muted small" id="last-run"></span>
+          <button class="btn" id="maint-all" title="Alle meldingen tijdelijk pauzeren">🔧 Onderhoud</button>
           <button class="btn" id="run-all">↻ Alles nu checken</button>
           <button class="btn primary" id="add-host">＋ Server</button>
         </div>
@@ -122,6 +125,22 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label class="switch"><input type="checkbox" name="notify_recovery"><span></span> Melden bij herstel</label>
           <label>Agent offline na … minuten zonder rapport<input type="number" name="agent_stale_minutes" min="1"></label>
           <label>Historie bewaren (dagen)<input type="number" name="retention_days" min="1"></label>
+        </div>
+
+        <div class="card">
+          <h2>Home Assistant-webhook</h2>
+          <p class="muted small">Stuurt elke melding ook als JSON naar Home Assistant, zodat je er een automatisering op kunt starten: een lamp die rood kleurt, een TTS-melding, of een notificatie via de HA-app.
+            Maak in HA een automatisering met trigger <b>Webhook</b> en plak de URL hieronder, bv. <code>http://homeassistant.local:8123/api/webhook/rzmon-…</code></p>
+          <label class="switch"><input type="checkbox" name="ha_webhook_enabled"><span></span> Webhook aan</label>
+          <label>Webhook-URL<input name="ha_webhook_url" type="url" spellcheck="false" placeholder="http://homeassistant.local:8123/api/webhook/rzmon-geheim-id"></label>
+          <label>Versturen bij
+            <select name="ha_webhook_events">
+              <option value="all">Alle meldingen (warning, critical, herhaling, herstel)</option>
+              <option value="crit">Alleen critical en herstel</option>
+            </select>
+          </label>
+          <label class="switch"><input type="checkbox" name="ha_webhook_verify_ssl"><span></span> SSL-certificaat controleren (uit bij self-signed)</label>
+          <button type="button" class="btn" id="webhook-test">🏠 Testbericht naar Home Assistant</button>
         </div>
 
         <div class="settings-save"><button class="btn primary">Instellingen opslaan</button></div>

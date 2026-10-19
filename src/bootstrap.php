@@ -21,6 +21,7 @@ foreach ((array) config('php', []) as $ini => $val) {
 
 require_once __DIR__ . '/net.php';
 require_once __DIR__ . '/Pushover.php';
+require_once __DIR__ . '/Webhook.php';
 require_once __DIR__ . '/Checks.php';
 require_once __DIR__ . '/Monitor.php';
 require_once __DIR__ . '/Installer.php';

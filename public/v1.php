@@ -81,32 +81,39 @@ function fmtCheck(array $c): array
         'interval_sec' => (int) $c['interval_sec'],
         'fail_count' => (int) $c['fail_count'],
         'last_checked' => iso($c['last_checked']),
+        'in_maintenance' => ($m = Monitor::maintenanceFor($c)) !== null,
+        'maintenance_until' => $m ? iso($m['until']) : null,
+        'suppressed_by' => $c['suppressed_by'] !== null ? (int) $c['suppressed_by'] : null,
     ];
 }
 
-/** Ergste status van actieve checks (CRIT > WARN > UNKNOWN > OK). */
+/** Ergste status van actieve checks (CRIT > WARN > UNKNOWN > OK); checks in onderhoud tellen niet mee. */
 function worst(array $checks): int
 {
     $rank = [STATUS_OK => 0, STATUS_UNKNOWN => 1, STATUS_WARN => 2, STATUS_CRIT => 3];
     $worst = null;
+    $maintenance = false;
     foreach ($checks as $c) {
-        if ($c['enabled'] && ($worst === null || $rank[$c['status']] > $rank[$worst])) {
+        $maintenance = $maintenance || ($c['enabled'] && $c['in_maintenance']);
+        if ($c['enabled'] && !$c['in_maintenance'] && ($worst === null || $rank[$c['status']] > $rank[$worst])) {
             $worst = $c['status'];
         }
     }
-    return $worst ?? STATUS_UNKNOWN;
+    // Alles in onderhoud = bewust stil, geen onbekende toestand
+    return $worst ?? ($maintenance ? STATUS_OK : STATUS_UNKNOWN);
 }
 
 function loadChecks(string $where = '1', array $params = []): array
 {
-    $rows = q("SELECT c.*, h.name AS host_name FROM checks c JOIN hosts h ON h.id = c.host_id
+    $rows = q("SELECT c.*, h.name AS host_name, h.maintenance_until AS host_maintenance_until,
+                      h.maintenance_reason AS host_maintenance_reason FROM checks c JOIN hosts h ON h.id = c.host_id
                WHERE $where ORDER BY h.name, c.name", $params)->fetchAll();
     return array_map('fmtCheck', $rows);
 }
 
 function loadHosts(?int $id = null): array
 {
-    $hosts = q('SELECT id, name, address, mode, enabled, agent_seen FROM hosts' . ($id ? ' WHERE id = ?' : '') . ' ORDER BY name',
+    $hosts = q('SELECT id, name, address, mode, parent_id, enabled, agent_seen, maintenance_until FROM hosts' . ($id ? ' WHERE id = ?' : '') . ' ORDER BY name',
         $id ? [$id] : [])->fetchAll();
     $checks = loadChecks($id ? 'c.host_id = ?' : '1', $id ? [$id] : []);
     $out = [];
@@ -122,6 +129,10 @@ function loadHosts(?int $id = null): array
             'status' => $st,
             'status_text' => STATUS_LABELS[$st],
             'agent_seen' => iso($h['agent_seen']),
+            'parent_id' => $h['parent_id'] !== null ? (int) $h['parent_id'] : null,
+            'in_maintenance' => ($m = Monitor::globalMaintenance()
+                ?? ($h['maintenance_until'] && strtotime($h['maintenance_until']) > time() ? ['until' => $h['maintenance_until']] : null)) !== null,
+            'maintenance_until' => $m ? iso($m['until']) : null,
             'checks' => $hc,
         ];
     }
@@ -145,27 +156,34 @@ $parts = $path === '' ? [] : explode('/', $path);
 switch (true) {
     case $parts === [] || $parts === ['status']:
         $hosts = loadHosts();
-        $counts = ['ok' => 0, 'warning' => 0, 'critical' => 0, 'unknown' => 0];
+        $counts = ['ok' => 0, 'warning' => 0, 'critical' => 0, 'unknown' => 0, 'maintenance' => 0];
         $keys = ['ok', 'warning', 'critical', 'unknown'];
         $all = [];
+        $enabled = [];
         foreach ($hosts as $h) {
             if (!$h['enabled']) {
                 continue;
             }
             foreach ($h['checks'] as $c) {
                 if ($c['enabled']) {
+                    $enabled[] = $c;
+                }
+                if ($c['enabled'] && $c['in_maintenance']) {
+                    $counts['maintenance']++;
+                } elseif ($c['enabled']) {
                     $counts[$keys[$c['status']]]++;
                     $all[] = $c;
                 }
             }
         }
-        $overall = worst($all);
+        $overall = worst($enabled);
         respond([
             'app' => 'RzMon',
             'generated_at' => date('c'),
             'status' => $overall,
             'status_text' => STATUS_LABELS[$overall],
             'counts' => $counts,
+            'maintenance' => ($g = Monitor::globalMaintenance()) ? ['until' => iso($g['until']), 'reason' => $g['reason'] ?: null] : null,
             'problems' => array_values(array_filter($all, fn($c) => $c['status'] !== STATUS_OK)),
             'hosts' => array_map(fn($h) => array_diff_key($h, ['checks' => 1]), $hosts),
         ]);

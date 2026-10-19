@@ -59,13 +59,18 @@ RzMon bestaat uit vier onderdelen:
 - **Remote met agent**: een Linux-server of Home Assistant die zelf gegevens doorstuurt. Stopt de agent met rapporteren, dan worden de checks na 5 minuten CRITICAL (instelbaar).
 - **Remote (alleen netwerk)**: routers, NAS, switches, printers en websites. Daarvoor zijn ping, TCP en HTTP beschikbaar.
 
-### Meldingen via Pushover
+### Meldingen via Pushover en Home Assistant
+- **Twee kanalen:** Pushover op je telefoon, en een **webhook naar Home Assistant** om automatiseringen te starten (lamp rood, TTS, notificatie via de HA-app).
 - **Melding pas na N fouten** achter elkaar (standaard 2), zodat je geen valse alarmen krijgt.
 - **Nieuwe melding bij escalatie**, bijvoorbeeld van WARNING naar CRITICAL.
 - **Herhaalmelding** elke X minuten zolang het probleem blijft (standaard 60, 0 = uit).
 - **Herstelmelding** ✅ als het weer goed gaat, met lage prioriteit dus zonder geluid.
 - **Prioriteit en geluid instelbaar**, apart voor critical en warning, inclusief *Emergency* (blijft herhalen tot je hem bevestigt).
-- **Testknop** en een **meldingenlog** in de webinterface.
+- **Testknoppen** voor beide kanalen, en een **meldingenlog** dat per melding toont via welk kanaal hij is verstuurd (📲 / 🏠).
+
+### Onderhoud en afhankelijkheden
+- **🔧 Onderhoudsmodus:** voor alles, per server of per check. Kies een duur (15 min tot een week) of een eindtijd, met een optionele reden. Checks blijven draaien, maar er gaan geen meldingen uit. Is er na afloop nog iets mis, dan krijg je alsnog een melding.
+- **🔗 Afhankelijkheden:** geef aan dat een server bereikbaar is via een andere, zoals een router, switch, VPN of hypervisor. Valt die uit, dan krijg je **één** melding ("…meldingen van 5 afhankelijke servers worden onderdrukt") in plaats van een stortvloed. Komt hij terug en ligt een server erachter nog plat, dan krijg je die melding alsnog.
 
 ### Dashboard (HTML5)
 - **Overzicht:** tellers voor OK, Warning, Critical en Onbekend, en een kaart per server met de status van elke check.
@@ -97,7 +102,7 @@ RzMon bestaat uit vier onderdelen:
 ### REST API
 - **Alleen lezen** (JSON), met API-sleutels die je in de webinterface beheert.
 - **Endpoints** voor de status, servers, checks, historie en meldingen.
-- **Home Assistant:** voorbeeldconfiguratie voor sensoren in Home Assistant.
+- **Home Assistant:** voorbeeldconfiguratie voor sensoren in Home Assistant (en de webhook voor meldingen).
 
 ---
 
@@ -349,6 +354,71 @@ echo '* * * * * www-data /usr/bin/php /var/www/rzmon/cron/run.php >/dev/null 2>&
 
 ---
 
+### 6.3 Home Assistant-webhook
+RzMon kan elke melding ook naar Home Assistant sturen. Daar start je er een automatisering mee: een lamp rood kleuren, een TTS-melding, of een notificatie via de HA-app als extra kanaal naast Pushover.
+
+**1. Automatisering in Home Assistant.** Ga naar *Instellingen → Automatiseringen → Nieuwe automatisering → ⋮ → Bewerken in YAML* en plak:
+```yaml
+alias: RzMon meldingen
+description: Meldingen van RzMon via webhook
+triggers:
+  - trigger: webhook
+    webhook_id: rzmon-kies-hier-een-lang-geheim-id   # werkt als wachtwoord
+    allowed_methods: [POST]
+    local_only: true
+actions:
+  # Altijd: notificatie via de Home Assistant-app
+  - action: notify.mobile_app_jouw_telefoon
+    data:
+      title: "{{ trigger.json.title }}"
+      message: "{{ trigger.json.message }}"
+  # Alleen bij CRITICAL: lamp rood laten knipperen
+  - if:
+      - condition: template
+        value_template: "{{ trigger.json.status == 2 and trigger.json.event == 'problem' }}"
+    then:
+      - action: light.turn_on
+        target:
+          entity_id: light.bureau
+        data:
+          color_name: red
+          flash: short
+mode: queued
+```
+Vervang `notify.mobile_app_jouw_telefoon` en `light.bureau` door je eigen entiteiten. Het `webhook_id` werkt als wachtwoord: maak het lang en onvoorspelbaar.
+
+**2. In RzMon:** ga naar *Instellingen → Home Assistant-webhook*:
+- zet *Webhook aan*;
+- vul als URL in: `http://<home-assistant>:8123/api/webhook/rzmon-kies-hier-een-lang-geheim-id`;
+- klik op **🏠 Testbericht naar Home Assistant**;
+- klik op **Instellingen opslaan**.
+
+| Instelling | Uitleg |
+|---|---|
+| Versturen bij | *Alle meldingen*, of *Alleen critical en herstel* |
+| SSL-certificaat controleren | Uitzetten als HA via HTTPS met een self-signed certificaat draait |
+
+**Inhoud van het bericht** (`trigger.json` in Home Assistant):
+```jsonc
+{
+  "source": "rzmon",
+  "event": "problem",              // problem | reminder | recovery | test
+  "status": 2, "status_text": "CRITICAL",
+  "previous_status": 0, "previous_status_text": "OK",
+  "host": "NAS", "host_id": 2,
+  "check": "SMB", "check_id": 5, "type": "tcp", "target": "445",
+  "value": null, "unit": "ms",
+  "title": "🔴 CRITICAL: NAS – SMB",
+  "message": "Poort 445 onbereikbaar: Connection refused",
+  "time": "2026-10-19T18:02:05+02:00",
+  "url": "http://192.168.1.10"
+}
+```
+
+> `local_only: true` betekent dat HA de webhook alleen accepteert vanaf je eigen netwerk. Draait RzMon ergens anders, bijvoorbeeld in de cloud, zet dit dan op `false` en gebruik een HTTPS-URL.
+
+---
+
 ## 7. Servers en checks toevoegen
 
 ### 7.1 Server toevoegen
@@ -383,6 +453,46 @@ Klik op een serverkaart op **🔍**:
 3. Bij agent-servers staat eronder ook de lijst met luisterende poorten volgens de agent.
 
 > Scan alleen apparaten van jezelf. Op bedrijfs- of hostingnetwerken kan een poortscan als aanval worden gezien.
+
+### 7.4 Onderhoud 🔧
+Ga je iets updaten of herstarten? Zet dan onderhoud aan, zodat je geen meldingen krijgt voor iets wat je zelf doet.
+
+| Waar | Knop |
+|---|---|
+| **Alles** | **🔧 Onderhoud** naast *Alles nu checken* |
+| **Eén server** | 🔧 op de serverkaart |
+| **Eén check** | 🔧 bij de check |
+
+Kies een duur (15 min, 30 min, 1 uur … 1 week), of een vast eindtijdstip, en vul eventueel een reden in.
+
+- **Tijdens het onderhoud** blijven checks draaien en zie je de status gewoon. Er gaan geen Pushover- of webhookmeldingen uit.
+- **Herkenbaar:** servers en checks in onderhoud zijn paars gestreept, met een label *🔧 tot 14:30*. Bij globaal onderhoud staat bovenaan een balk.
+- **Na afloop** stopt het onderhoud vanzelf. Is er dan nog iets mis, dan komt de melding bij de volgende check, en is het weer goed, dan krijg je een herstelmelding. Zo mis je nooit iets dat na je onderhoud kapot is gebleven.
+- **Eerder stoppen:** klik op 🔧 → **Onderhoud beëindigen**, of op **Beëindigen** in de balk.
+- **REST API:** checks in onderhoud tellen niet mee voor de totaalstatus. De sensor *RzMon alles OK* springt dus niet op rood door gepland onderhoud. `counts.maintenance` telt ze apart.
+
+### 7.5 Afhankelijkheden 🔗
+Valt je router uit, dan zijn alle servers erachter ook onbereikbaar. Zonder afhankelijkheden krijg je dan tientallen meldingen. Zo stel je het in:
+
+1. Zorg dat de router (of switch, VPN-server, hypervisor) een **ping-check** heeft.
+2. Bewerk elke server erachter (✎) en kies bij **Afhankelijk van** de router.
+
+Je kunt meerdere lagen maken, bijvoorbeeld *Internet → Router → Switch → NAS*. Kringen, waarbij A van B afhangt en B van A, worden geweigerd.
+
+**Wat er gebeurt:**
+| Situatie | Melding |
+|---|---|
+| Router valt uit | 🔴 *Router – Ping*, met *"Meldingen van 5 afhankelijke server(s) worden onderdrukt."* |
+| Servers erachter worden onbereikbaar | Geen melding; de checks tonen **🔕 onderdrukt** |
+| Router komt terug, NAS is ook weer OK | ✅ Herstel voor de router |
+| Router komt terug, NAS blijft plat | ✅ Herstel voor de router **en** 🔴 voor de NAS |
+
+**Wanneer telt een server als onbereikbaar?**
+- **Met ping-checks:** als al zijn ping-checks CRITICAL zijn.
+- **Zonder ping:** als al zijn TCP- en HTTP-checks CRITICAL zijn.
+- **Zonder netwerkchecks** telt een server nooit als onbereikbaar.
+
+Bovenliggende servers worden in elke ronde als eerste gecontroleerd, zodat de onderdrukking meteen klopt.
 
 ---
 
@@ -521,7 +631,8 @@ In plaats van de `Authorization`-header kun je ook `X-API-Key: rzm_…` gebruike
 | `GET /v1.php/checks/{id}/history?hours=24` | Meetwaarden (maximaal 720 uur) |
 | `GET /v1.php/alerts?limit=50` | Laatste meldingen (maximaal 500) |
 
-- **Status:** `0` OK, `1` WARNING, `2` CRITICAL, `3` UNKNOWN.
+- **Status:** `0` OK, `1` WARNING, `2` CRITICAL, `3` UNKNOWN. Checks in onderhoud tellen niet mee voor de totaalstatus; staat alles in onderhoud, dan is de status `0`.
+- **Extra velden:** `in_maintenance` en `maintenance_until` bij servers en checks, `parent_id` bij servers, `suppressed_by` bij checks (id van de onbereikbare server erboven), `counts.maintenance` en `maintenance` (globaal onderhoud) in `/status`.
 - **Tijden** in ISO 8601.
 - **Werkt `/v1.php/status` niet** (bijvoorbeeld Nginx zonder PATH_INFO)? Gebruik dan `/v1.php?r=status`.
 - **Check-id** vind je via `/v1.php/checks`.
@@ -544,6 +655,8 @@ rest:
         json_attributes: [counts, problems]
       - name: "RzMon problemen"
         value_template: "{{ value_json.counts.warning + value_json.counts.critical }}"
+      - name: "RzMon in onderhoud"
+        value_template: "{{ value_json.counts.maintenance }}"
     binary_sensor:
       - name: "RzMon alles OK"
         value_template: "{{ value_json.status == 0 }}"

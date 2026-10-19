@@ -20,6 +20,30 @@ final class Installer
         foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
             $pdo->exec($stmt);
         }
+        self::migrate($pdo);
+    }
+
+    /** Kolommen van latere versies; werkt op MariaDB én MySQL (geen ADD COLUMN IF NOT EXISTS). */
+    private const COLUMNS = [
+        ['hosts', 'parent_id', 'INT UNSIGNED NULL AFTER mode'],
+        ['hosts', 'maintenance_until', 'DATETIME NULL'],
+        ['hosts', 'maintenance_reason', 'VARCHAR(200) NULL'],
+        ['checks', 'maintenance_until', 'DATETIME NULL'],
+        ['checks', 'maintenance_reason', 'VARCHAR(200) NULL'],
+        ['checks', 'suppressed_by', 'INT UNSIGNED NULL'],
+        ['alerts', 'webhook_ok', 'TINYINT(1) NULL'],
+    ];
+
+    private static function migrate(PDO $pdo): void
+    {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS
+                             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+        foreach (self::COLUMNS as [$table, $column, $definition]) {
+            $st->execute([$table, $column]);
+            if (!(int) $st->fetchColumn()) {
+                $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+            }
+        }
     }
 
     public static function userCount(): int

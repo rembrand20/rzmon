@@ -3,27 +3,34 @@ declare(strict_types=1);
 
 final class Monitor
 {
+    private const CHECK_SELECT = 'SELECT c.*, h.name AS host_name, h.address, h.mode, h.agent_seen, h.id AS hid,
+                h.parent_id, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
+                FROM checks c JOIN hosts h ON h.id = c.host_id';
+
     /** Voert alle checks uit die aan de beurt zijn (of alles bij $force). */
     public static function runDue(bool $force = false): int
     {
-        $sql = 'SELECT c.*, h.name AS host_name, h.address, h.mode, h.agent_seen, h.id AS hid
-                FROM checks c JOIN hosts h ON h.id = c.host_id
-                WHERE c.enabled = 1 AND h.enabled = 1';
+        $sql = self::CHECK_SELECT . ' WHERE c.enabled = 1 AND h.enabled = 1';
         if (!$force) {
             $sql .= ' AND (c.last_checked IS NULL OR c.last_checked <= NOW() - INTERVAL c.interval_sec SECOND + INTERVAL 15 SECOND)';
         }
-        $count = 0;
-        foreach (q($sql)->fetchAll() as $row) {
+        $rows = q($sql)->fetchAll();
+
+        // Bovenliggende servers (router, switch…) eerst, en per server de ping eerst:
+        // dan weten afhankelijke checks in dezelfde run al of hun route werkt.
+        $depth = self::hostDepths();
+        usort($rows, fn($a, $b) => [$depth[$a['hid']] ?? 0, $a['type'] !== 'ping', $a['id']]
+            <=> [$depth[$b['hid']] ?? 0, $b['type'] !== 'ping', $b['id']]);
+
+        foreach ($rows as $row) {
             self::runOne($row);
-            $count++;
         }
-        return $count;
+        return count($rows);
     }
 
     public static function runCheckById(int $id): ?array
     {
-        $row = q('SELECT c.*, h.name AS host_name, h.address, h.mode, h.agent_seen, h.id AS hid
-                  FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.id = ?', [$id])->fetch();
+        $row = q(self::CHECK_SELECT . ' WHERE c.id = ?', [$id])->fetch();
         return $row ? self::runOne($row) : null;
     }
 
@@ -41,21 +48,131 @@ final class Monitor
         return $res;
     }
 
+    // ------------------------------------------------------------------ onderhoud
+
+    /** Globaal onderhoud (alles), of null. */
+    public static function globalMaintenance(): ?array
+    {
+        $until = (string) setting('maintenance_until', '');
+        if ($until !== '' && strtotime($until) > time()) {
+            return ['scope' => 'all', 'until' => $until, 'reason' => (string) setting('maintenance_reason', '')];
+        }
+        return null;
+    }
+
+    /**
+     * Actief onderhoud voor een check (globaal, server of check zelf), of null.
+     * Verwacht de kolommen maintenance_until/-reason en host_maintenance_until/-reason.
+     */
+    public static function maintenanceFor(array $check): ?array
+    {
+        if ($g = self::globalMaintenance()) {
+            return $g;
+        }
+        foreach (['host' => 'host_maintenance_', 'check' => 'maintenance_'] as $scope => $prefix) {
+            $until = $check[$prefix . 'until'] ?? null;
+            if ($until && strtotime($until) > time()) {
+                return ['scope' => $scope, 'until' => $until, 'reason' => (string) ($check[$prefix . 'reason'] ?? '')];
+            }
+        }
+        return null;
+    }
+
+    // ------------------------------------------------------------------ afhankelijkheden
+
+    /** Diepte van elke server in de afhankelijkheidsboom (0 = geen parent). */
+    public static function hostDepths(): array
+    {
+        $parents = [];
+        foreach (q('SELECT id, parent_id FROM hosts') as $h) {
+            $parents[(int) $h['id']] = $h['parent_id'] !== null ? (int) $h['parent_id'] : null;
+        }
+        $depth = [];
+        foreach (array_keys($parents) as $id) {
+            $d = 0;
+            $seen = [$id => true];
+            for ($p = $parents[$id]; $p !== null && isset($parents[$p]) && !isset($seen[$p]) && $d < 20; $p = $parents[$p]) {
+                $seen[$p] = true;
+                $d++;
+            }
+            $depth[$id] = $d;
+        }
+        return $depth;
+    }
+
+    /**
+     * Is een server onbereikbaar? Met ping-checks: alle ping-checks CRITICAL.
+     * Zonder ping: alle TCP/HTTP-checks CRITICAL. Zonder netwerkchecks: nooit.
+     */
+    public static function hostUnreachable(int $hostId): bool
+    {
+        $rows = q("SELECT type, status FROM checks WHERE host_id = ? AND enabled = 1 AND type IN ('ping','tcp','http')", [$hostId])->fetchAll();
+        $pings = array_filter($rows, fn($r) => $r['type'] === 'ping');
+        $relevant = $pings ?: $rows;
+        if (!$relevant) {
+            return false;
+        }
+        foreach ($relevant as $r) {
+            if ((int) $r['status'] !== STATUS_CRIT) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Eerste onbereikbare server boven deze server in de keten, of null. */
+    public static function upstreamDown(int $hostId): ?array
+    {
+        $seen = [$hostId => true];
+        $current = $hostId;
+        for ($i = 0; $i < 20; $i++) {
+            $parent = q('SELECT p.id, p.name, p.enabled FROM hosts h JOIN hosts p ON p.id = h.parent_id WHERE h.id = ?', [$current])->fetch();
+            if (!$parent || isset($seen[(int) $parent['id']])) {
+                return null;
+            }
+            if ((int) $parent['enabled'] === 1 && self::hostUnreachable((int) $parent['id'])) {
+                return ['id' => (int) $parent['id'], 'name' => $parent['name']];
+            }
+            $seen[(int) $parent['id']] = true;
+            $current = (int) $parent['id'];
+        }
+        return null;
+    }
+
+    // ------------------------------------------------------------------ verwerking
+
     private static function process(array $check, array $res): void
     {
         $status = $res['status'];
         $failCount = $status === STATUS_OK ? 0 : (int) $check['fail_count'] + 1;
         $notified = (int) $check['notified_status'];
         $notifiedAt = $check['notified_at'];
+        $message = $res['message'];
 
         q('INSERT INTO results (check_id, status, value) VALUES (?, ?, ?)', [$check['id'], $status, $res['value']]);
+
+        // Onderdrukken: een server erboven is onbereikbaar → dat is al gemeld
+        $upstream = $status !== STATUS_OK ? self::upstreamDown((int) $check['hid']) : null;
+        if ($upstream) {
+            $message .= " (onderdrukt: {$upstream['name']} is onbereikbaar)";
+        }
+        // Onderhoud: checks draaien door, maar er gaan geen meldingen uit. notified_status
+        // blijft staan, zodat na afloop alsnog gemeld wordt als er dan nog iets mis is.
+        $silenced = $upstream !== null || self::maintenanceFor($check) !== null;
+
+        // Status eerst opslaan: meldingen kijken (via hostUnreachable) naar de actuele status
+        q('UPDATE checks SET status = ?, last_value = ?, last_message = ?, last_checked = ?, fail_count = ?, suppressed_by = ? WHERE id = ?', [
+            $status, $res['value'], mb_substr($message, 0, 500), now(), $failCount, $upstream['id'] ?? null, $check['id'],
+        ]);
 
         $s = settings();
         $title = sprintf('%s – %s', $check['host_name'], $check['name']);
 
-        if ($status === STATUS_OK) {
+        if ($silenced) {
+            // niets versturen
+        } elseif ($status === STATUS_OK) {
             if ($notified !== STATUS_OK && ($s['notify_recovery'] ?? '1') === '1') {
-                self::notify((int) $check['id'], STATUS_OK, "✅ HERSTELD: $title", $res['message'], -1);
+                self::notify($check, $res, STATUS_OK, "✅ HERSTELD: $title", $message, -1, 'recovery', $notified);
             }
             $notified = STATUS_OK;
             $notifiedAt = null;
@@ -63,34 +180,96 @@ final class Monitor
             $isWarnish = $status !== STATUS_CRIT;
             $allowed = !$isWarnish || ($s['notify_warn'] ?? '1') === '1';
             $repeat = (int) ($s['repeat_minutes'] ?? 0);
-            $due = $status !== $notified
+            $isRepeat = $status === $notified;
+            $due = !$isRepeat
                 || ($repeat > 0 && $notifiedAt !== null && strtotime($notifiedAt) <= time() - $repeat * 60);
 
             if ($allowed && $due) {
                 $icon = [STATUS_WARN => '🟠', STATUS_CRIT => '🔴', STATUS_UNKNOWN => '⚪'][$status];
                 $prio = (int) ($isWarnish ? ($s['pushover_priority_warn'] ?? 0) : ($s['pushover_priority_crit'] ?? 1));
-                self::notify((int) $check['id'], $status, sprintf('%s %s: %s', $icon, STATUS_LABELS[$status], $title), $res['message'], $prio);
+                $extra = '';
+                if ($status === STATUS_CRIT && in_array($check['type'], ['ping', 'tcp', 'http'], true)) {
+                    $children = (int) q('SELECT COUNT(*) FROM hosts WHERE parent_id = ? AND enabled = 1', [$check['hid']])->fetchColumn();
+                    if ($children > 0 && self::hostUnreachable((int) $check['hid'])) {
+                        $extra = "\nMeldingen van $children afhankelijke server(s) worden onderdrukt.";
+                    }
+                }
+                self::notify($check, $res, $status, sprintf('%s %s: %s', $icon, STATUS_LABELS[$status], $title),
+                    $message . $extra, $prio, $isRepeat ? 'reminder' : 'problem', $notified);
                 $notified = $status;
                 $notifiedAt = now();
             }
         }
 
-        q('UPDATE checks SET status = ?, last_value = ?, last_message = ?, last_checked = ?, fail_count = ?, notified_status = ?, notified_at = ? WHERE id = ?', [
-            $status, $res['value'], mb_substr($res['message'], 0, 500), now(), $failCount, $notified, $notifiedAt, $check['id'],
+        q('UPDATE checks SET notified_status = ?, notified_at = ? WHERE id = ?', [$notified, $notifiedAt, $check['id']]);
+    }
+
+    /** Verstuurt een melding via alle ingeschakelde kanalen en logt hem. */
+    private static function notify(array $check, array $res, int $status, string $title, string $message, int $priority, string $event, int $previous): void
+    {
+        $errors = [];
+
+        $pushover = null;
+        if (setting('pushover_enabled', '0') === '1') {
+            $r = Pushover::send($title, $message . "\n" . date('d-m-Y H:i:s'), $priority);
+            $pushover = $r['ok'];
+            if (!$r['ok']) {
+                $errors[] = 'Pushover: ' . $r['error'];
+            }
+        }
+
+        $webhook = null;
+        if (self::webhookWanted($status, $event)) {
+            $r = Webhook::send(self::webhookPayload($check, $res, $status, $title, $message, $event, $previous));
+            $webhook = $r['ok'];
+            if (!$r['ok']) {
+                $errors[] = 'Webhook: ' . $r['error'];
+            }
+        }
+
+        if ($pushover === null && $webhook === null) {
+            $errors[] = 'geen meldkanaal ingeschakeld';
+        }
+
+        q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok) VALUES (?, ?, ?, ?, ?, ?)', [
+            $check['id'], $status, mb_substr($title, 0, 250),
+            mb_substr($message . ($errors ? ' [niet verzonden: ' . implode('; ', $errors) . ']' : ''), 0, 1000),
+            $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0),
         ]);
     }
 
-    private static function notify(int $checkId, int $status, string $title, string $message, int $priority): void
+    private static function webhookWanted(int $status, string $event): bool
     {
-        $sent = ['ok' => false, 'error' => 'Pushover uitgeschakeld'];
-        if (setting('pushover_enabled', '0') === '1') {
-            $sent = Pushover::send($title, $message . "\n" . date('d-m-Y H:i:s'), $priority);
+        if (setting('ha_webhook_enabled', '0') !== '1') {
+            return false;
         }
-        q('INSERT INTO alerts (check_id, status, title, message, sent_ok) VALUES (?, ?, ?, ?, ?)', [
-            $checkId, $status, mb_substr($title, 0, 250),
-            mb_substr($message . ($sent['ok'] ? '' : ' [niet verzonden: ' . $sent['error'] . ']'), 0, 1000),
-            $sent['ok'] ? 1 : 0,
-        ]);
+        // "crit": alleen CRITICAL-problemen en herstel na een melding
+        return setting('ha_webhook_events', 'all') !== 'crit' || $status === STATUS_CRIT || $event === 'recovery';
+    }
+
+    public static function webhookPayload(array $check, array $res, int $status, string $title, string $message, string $event, int $previous): array
+    {
+        $units = ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'disk' => '%', 'cpu' => '%', 'ram' => '%'];
+        return [
+            'source' => 'rzmon',
+            'event' => $event,                       // problem | reminder | recovery | test
+            'status' => $status,
+            'status_text' => STATUS_LABELS[$status],
+            'previous_status' => $previous,
+            'previous_status_text' => STATUS_LABELS[$previous] ?? null,
+            'host' => $check['host_name'],
+            'host_id' => (int) $check['hid'],
+            'check' => $check['name'],
+            'check_id' => (int) $check['id'],
+            'type' => $check['type'],
+            'target' => $check['target'] !== '' ? $check['target'] : null,
+            'value' => is_float($res['value']) ? round($res['value'], 2) : $res['value'],
+            'unit' => $units[$check['type']] ?? null,
+            'title' => $title,
+            'message' => $message,
+            'time' => date('c'),
+            'url' => config('base_url', '') ?: null,
+        ];
     }
 
     public static function purge(): void

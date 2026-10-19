@@ -102,11 +102,17 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'state':
-        $hosts = q('SELECT id, name, address, mode, agent_token, agent_seen, enabled FROM hosts ORDER BY name')->fetchAll();
-        $checks = q('SELECT * FROM checks ORDER BY name')->fetchAll();
+        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, enabled, maintenance_until, maintenance_reason
+                    FROM hosts ORDER BY name')->fetchAll();
+        $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
+                     FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
+        $global = Monitor::globalMaintenance();
         $agent = q("SELECT host_id, metric FROM agent_data")->fetchAll();
         $byHost = [];
         foreach ($checks as $c) {
+            // Effectief onderhoud (globaal, server of check) voor de weergave
+            $c['maintenance'] = Monitor::maintenanceFor($c);
+            unset($c['host_maintenance_until'], $c['host_maintenance_reason']);
             $byHost[$c['host_id']][] = $c;
         }
         $metrics = [];
@@ -116,13 +122,16 @@ switch ($action) {
         foreach ($hosts as &$h) {
             $h['checks'] = $byHost[$h['id']] ?? [];
             $h['metrics'] = $metrics[$h['id']] ?? [];
+            $own = $h['maintenance_until'] && strtotime($h['maintenance_until']) > time()
+                ? ['scope' => 'host', 'until' => $h['maintenance_until'], 'reason' => (string) $h['maintenance_reason']] : null;
+            $h['maintenance'] = $global ?? $own;
         }
         unset($h);
         $alerts = q('SELECT a.*, c.name AS check_name FROM alerts a LEFT JOIN checks c ON c.id = a.check_id
                      ORDER BY a.id DESC LIMIT 50')->fetchAll();
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'alerts' => $alerts, 'last_run' => $lastRun, 'user' => $user['username'],
-             'base_url' => config('base_url', ''), 'lan_session' => is_lan_session()]);
+             'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global]);
 
     case 'history':
         $id = (int) ($_GET['check_id'] ?? 0);
@@ -153,11 +162,25 @@ switch ($action) {
             out(['error' => 'Naam en geldig adres (hostname/IP) zijn verplicht'], 422);
         }
         $enabled = !empty($in['enabled']) ? 1 : 0;
+        $parent = !empty($in['parent_id']) ? (int) $in['parent_id'] : null;
+        if ($parent !== null) {
+            if (!q('SELECT 1 FROM hosts WHERE id = ?', [$parent])->fetchColumn()) {
+                out(['error' => 'Bovenliggende server bestaat niet'], 422);
+            }
+            // Geen kringen: de parent mag niet (indirect) onder deze server hangen
+            for ($p = $parent, $i = 0; $p !== null && $i < 50; $i++) {
+                if (!empty($in['id']) && $p === (int) $in['id']) {
+                    out(['error' => 'Een server kan niet van zichzelf afhankelijk zijn (ook niet via een andere server)'], 422);
+                }
+                $next = q('SELECT parent_id FROM hosts WHERE id = ?', [$p])->fetchColumn();
+                $p = $next ? (int) $next : null;
+            }
+        }
         if (!empty($in['id'])) {
-            q('UPDATE hosts SET name = ?, address = ?, mode = ?, enabled = ? WHERE id = ?', [$name, $addr, $mode, $enabled, (int) $in['id']]);
+            q('UPDATE hosts SET name = ?, address = ?, mode = ?, enabled = ?, parent_id = ? WHERE id = ?', [$name, $addr, $mode, $enabled, $parent, (int) $in['id']]);
             $id = (int) $in['id'];
         } else {
-            q('INSERT INTO hosts (name, address, mode, enabled) VALUES (?, ?, ?, ?)', [$name, $addr, $mode, $enabled]);
+            q('INSERT INTO hosts (name, address, mode, enabled, parent_id) VALUES (?, ?, ?, ?, ?)', [$name, $addr, $mode, $enabled, $parent]);
             $id = (int) db()->lastInsertId();
             if (!empty($in['add_ping'])) {
                 q("INSERT INTO checks (host_id, type, name, warn_threshold, crit_threshold) VALUES (?, 'ping', 'Ping', 100, 500)", [$id]);
@@ -173,8 +196,39 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'host_delete':
-        q('DELETE FROM hosts WHERE id = ?', [(int) (input()['id'] ?? 0)]);
+        $id = (int) (input()['id'] ?? 0);
+        // Afhankelijke servers hangen daarna aan de parent van de verwijderde server
+        $grand = q('SELECT parent_id FROM hosts WHERE id = ?', [$id])->fetchColumn() ?: null;
+        q('UPDATE hosts SET parent_id = ? WHERE parent_id = ?', [$grand, $id]);
+        q('UPDATE checks SET suppressed_by = NULL WHERE suppressed_by = ?', [$id]);
+        q('DELETE FROM hosts WHERE id = ?', [$id]);
         out(['ok' => true]);
+
+    case 'maintenance_set':
+        // scope: all | host | check ; minutes = 0 beëindigt het onderhoud
+        $in = input();
+        $scope = (string) ($in['scope'] ?? '');
+        $minutes = (int) ($in['minutes'] ?? 0);
+        if (!empty($in['until'])) {
+            $ts = strtotime((string) $in['until']);
+            if (!$ts || $ts <= time()) {
+                out(['error' => 'Kies een eindtijd in de toekomst'], 422);
+            }
+            $minutes = (int) ceil(($ts - time()) / 60);
+        }
+        if ($minutes < 0 || $minutes > 60 * 24 * 90) {
+            out(['error' => 'Onderhoud kan maximaal 90 dagen duren'], 422);
+        }
+        $until = $minutes > 0 ? date('Y-m-d H:i:s', time() + $minutes * 60) : null;
+        $reason = mb_substr(trim((string) ($in['reason'] ?? '')), 0, 200) ?: null;
+        $id = (int) ($in['id'] ?? 0);
+        match ($scope) {
+            'all' => [save_setting('maintenance_until', (string) $until), save_setting('maintenance_reason', (string) $reason)],
+            'host' => q('UPDATE hosts SET maintenance_until = ?, maintenance_reason = ? WHERE id = ?', [$until, $reason, $id]),
+            'check' => q('UPDATE checks SET maintenance_until = ?, maintenance_reason = ? WHERE id = ?', [$until, $reason, $id]),
+            default => out(['error' => 'Onbekend bereik'], 422),
+        };
+        out(['ok' => true, 'until' => $until]);
 
     case 'check_save':
         $in = input();
@@ -232,7 +286,14 @@ switch ($action) {
     case 'settings_save':
         $in = input();
         $allowed = ['pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days'];
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days',
+            'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events'];
+        if (($in['ha_webhook_url'] ?? '') !== '' && !preg_match('#^https?://\S+$#i', trim((string) $in['ha_webhook_url']))) {
+            out(['error' => 'Webhook-URL moet met http:// of https:// beginnen'], 422);
+        }
+        if (($in['ha_webhook_enabled'] ?? '0') === '1' && trim((string) ($in['ha_webhook_url'] ?? '')) === '') {
+            out(['error' => 'Vul een webhook-URL in of zet de webhook uit'], 422);
+        }
         foreach ($allowed as $k) {
             if (!array_key_exists($k, $in)) {
                 continue;
@@ -244,6 +305,15 @@ switch ($action) {
             save_setting($k, $v);
         }
         out(['ok' => true]);
+
+    case 'webhook_test':
+        $in = input();
+        $url = trim((string) ($in['ha_webhook_url'] ?? '')) ?: null;
+        $verify = isset($in['ha_webhook_verify_ssl']) ? $in['ha_webhook_verify_ssl'] === '1' : null;
+        $fake = ['id' => 0, 'hid' => 0, 'host_name' => 'RzMon', 'name' => 'Testmelding', 'type' => 'ping', 'target' => ''];
+        $res = Webhook::send(Monitor::webhookPayload($fake, ['value' => null], STATUS_OK, '🧪 RzMon test',
+            'Als je dit in Home Assistant ziet, werkt de webhook! 🎉', 'test', STATUS_OK), $url, $verify);
+        out($res, $res['ok'] ? 200 : 422);
 
     case 'pushover_test':
         $in = input();
