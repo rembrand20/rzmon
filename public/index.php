@@ -80,6 +80,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="filter-row">
         <input type="search" id="filter" placeholder="Zoek server of check…">
         <label class="switch small"><input type="checkbox" id="only-problems"><span></span> Alleen problemen</label>
+        <button class="btn" id="toggle-all" type="button">⊞ Alles openen</button>
       </div>
       <div id="hosts" class="hosts"></div>
     </section>

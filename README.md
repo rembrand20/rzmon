@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **Host-types**
 - **Lokaal** – de monitor-server zelf: disk en services worden direct uitgelezen.
-- **Agent** – remote Linux-server met `agent/rzmon-agent.sh` (bash + curl) die elke minuut disk & services pusht, of **Home Assistant OS** met de add-on in `ha-addon/`. Stopt de agent met rapporteren → CRITICAL.
+- **Agent** – remote Linux-server met `agent/rzmon-agent.sh`, geïnstalleerd met één commando (`agent/install-agent.sh`, wordt door RzMon zelf aangeboden), (bash + curl) die elke minuut disk & services pusht, of **Home Assistant OS** met de add-on in `ha-addon/`. Stopt de agent met rapporteren → CRITICAL.
 - **Remote** – alleen netwerkchecks (ping/poort/http), bv. routers, NAS, externe sites.
 
 **Poortscan**: scan vanuit RzMon welke TCP-poorten op een server open staan (bekende poorten, 1-1024 of een eigen lijst/range) en voeg ze met één klik toe als check. Bij agent-servers zie je ook welke poorten er lokaal luisteren, inclusief procesnaam.

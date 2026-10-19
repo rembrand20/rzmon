@@ -430,16 +430,15 @@ SELinux, cron en de setup werken hetzelfde als bij Apache. De gebruiker blijft `
 
 ## 14. Agent op Rocky Linux-servers
 
-Wil je **andere** Rocky-servers bewaken met de agent (CPU, RAM, disks, services, poorten)? Op die server:
+Wil je **andere** Rocky-servers bewaken met de agent (CPU, RAM, disks, services, poorten)? Kopieer in RzMon het commando bij *Agent installeren* en plak het op die server:
 
 ```bash
-sudo dnf -y install curl iproute cronie
-sudo systemctl enable --now crond
+curl -fsSL 'http://192.168.1.10/api.php?action=agent_install' | sudo bash -s -- --url 'http://192.168.1.10' --token '<token>'
 ```
 
-Volg daarna [HANDLEIDING.md, hoofdstuk 8](HANDLEIDING.md#8-agent-op-linux-servers). De stappen zijn precies hetzelfde.
+Het script installeert zelf wat ontbreekt (`iproute`), stelt de draaiende services voor en zet een systemd-timer aan. Zie [HANDLEIDING.md, hoofdstuk 8](HANDLEIDING.md#8-agent-op-linux-servers).
 
-- **SELinux:** geen aanpassingen nodig. De agent draait via cron en maakt alleen een uitgaande HTTPS-verbinding.
+- **SELinux:** geen aanpassingen nodig. De agent draait als systemd-service en maakt alleen een uitgaande verbinding naar RzMon.
 - **Firewall:** geen poort nodig op de agent-server, want de agent stuurt zelf naar RzMon.
 - **Interessante services** om in `SERVICES` te zetten, bijvoorbeeld:
   ```

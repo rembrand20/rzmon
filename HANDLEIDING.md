@@ -79,9 +79,9 @@ RzMon bestaat uit vier onderdelen:
 - **🔗 Afhankelijkheden:** geef aan dat een server bereikbaar is via een andere, zoals een router, switch, VPN of hypervisor. Valt die uit, dan krijg je **één** melding ("…meldingen van 5 afhankelijke servers worden onderdrukt") in plaats van een stortvloed. Komt hij terug en ligt een server erachter nog plat, dan krijg je die melding alsnog.
 
 ### Dashboard (HTML5)
-- **Overzicht:** tellers voor OK, Warning, Critical en Onbekend, en een kaart per server met de status van elke check.
-- **Visueel:** balkjes voor disk, CPU en RAM met de drempels als streepjes. Servers met problemen staan bovenaan.
-- **Zoeken:** zoekveld en een filter **Alleen problemen**.
+- **Overzicht:** tellers voor OK, Warning, Critical, Onbekend en Onderhoud, en per server een **tegel met de algehele status** ("Alles OK · 6 checks" of "1 kritiek · 1 waarschuwing"), de namen van de checks met een probleem en mini-meters voor CPU, RAM en disk. Servers met problemen staan bovenaan.
+- **Details:** klik op een tegel en hij klapt uit met alle checks per stuk, met balkjes en drempels en de knoppen (bevestigen, onderhoud, check toevoegen, poortscan, bewerken). Welke tegels open staan, wordt onthouden; **⊞ Alles openen** klapt alles in één keer open.
+- **Zoeken:** zoekveld (zoek je op een checknaam, dan klapt de server vanzelf open) en een filter **Alleen problemen**.
 - **Grafiek per check:** over 6 uur, 24 uur, 7 dagen of 30 dagen, met beschikbaarheidspercentage.
 - **Bijwerken:** de pagina ververst zichzelf elke 20 seconden. Met **↻ Alles nu checken** draai je direct alle checks.
 - **Weergave:** donker en licht thema, werkt ook op je telefoon.
@@ -530,35 +530,66 @@ Bovenliggende servers worden in elke ronde als eerste gecontroleerd, zodat de on
 
 ## 8. Agent op Linux-servers
 
-Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-servers.
+Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-servers: Rocky, RHEL, AlmaLinux, Fedora, Debian, Ubuntu, Raspberry Pi OS en Proxmox VE.
 
+### 8.1 Installeren met één commando
 1. Voeg in RzMon een server toe met type **Remote met agent**.
-2. Klik op de kaart op **Agent installeren**, tabblad **🐧 Linux-server**. Daar staan de commando's met jouw token al ingevuld.
-3. Kopieer `agent/rzmon-agent.sh` naar de server, bijvoorbeeld met `scp agent/rzmon-agent.sh gebruiker@server:/tmp/`, en voer daar uit:
+2. Klap de server open en klik op **Agent installeren** → tabblad **🐧 Linux-server**. Klik op **Kopieer** bij het commando; daarin staan het adres van RzMon en het token van deze server al ingevuld:
+   ```bash
+   curl -fsSL 'http://192.168.1.10/api.php?action=agent_install' | sudo bash -s -- --url 'http://192.168.1.10' --token '<token>'
+   ```
+3. Plak het op de server die je wilt bewaken. Het script:
+   - installeert wat ontbreekt (`curl`, `ss`);
+   - haalt de agent op **van je eigen RzMon**, dus het werkt ook als de GitHub-repository privé is;
+   - **stelt de services voor** die op die server aan staan (bv. `sshd nginx mariadb docker`). Druk op Enter om ze over te nemen, of typ je eigen lijst;
+   - zet de instellingen in `/etc/default/rzmon-agent` (alleen leesbaar voor root);
+   - laat de agent elke minuut rapporteren via een **systemd-timer**, of via cron als er geen systemd is;
+   - stuurt een **testrapport** en controleert of RzMon het accepteert.
+4. Klap de server in RzMon open en voeg checks toe met **＋ Check**. Mounts en services kies je uit de lijst met wat de agent gemeld heeft.
+
+| Optie | Uitleg |
+|---|---|
+| `--services "sshd nginx"` | Zelf de te bewaken services kiezen (anders: voorstel) |
+| `--interval 120` | Rapporteren elke … seconden (30-3600, standaard 60) |
+| `--insecure` | Self-signed HTTPS-certificaat van RzMon accepteren (gebruik dan ook `curl -k`) |
+| `--cron` | Cron gebruiken in plaats van een systemd-timer |
+| `-y` | Niets vragen (handig voor Ansible e.d.) |
+
+### 8.2 Beheren
+Het installatiescript blijft op de server staan als `rzmon-agent-setup`:
+
+| Wat | Commando |
+|---|---|
+| Status bekijken | `systemctl status rzmon-agent.timer` en `journalctl -u rzmon-agent -n 20` |
+| Services wijzigen | `sudo rzmon-agent-setup --services "sshd nginx mariadb"` |
+| Agent bijwerken | `sudo rzmon-agent-setup --update` (haalt de nieuwste versie van RzMon) |
+| Nieuw token | `sudo rzmon-agent-setup --token <nieuw token>` |
+| Verwijderen | `sudo rzmon-agent-setup --uninstall` |
+
+Opnieuw uitvoeren is altijd veilig: wat je niet meegeeft, blijft zoals het was.
+
+### 8.3 Goed om te weten
+- **Gegevens:** CPU, RAM, alle echte mounts, de gekozen services en de luisterende TCP-poorten.
+- **Netwerk:** de agent stuurt zelf naar RzMon. Op de bewaakte server hoeft dus geen poort open; die server moet RzMon wel kunnen bereiken op de *Basis-URL* uit Setup.
+- **Root:** de agent draait als root om procesnamen bij poorten te zien. De systemd-service is afgeschermd (`ProtectSystem`, `NoNewPrivileges`); de agent leest alleen en schrijft niets.
+- **Token gelekt?** Klik op *Agent installeren* → **↻ Nieuw token** en voer op de server `sudo rzmon-agent-setup --token <nieuw token>` uit.
+- **Foutmeldingen** tijdens het installeren:
+  - `403` → het token klopt niet, of de server staat niet op type *Remote met agent*;
+  - "kan niet downloaden" → het adres klopt niet, of RzMon is niet bereikbaar vanaf die server;
+  - certificaat → `--insecure`.
+
+<details>
+<summary>Handmatig installeren (zonder het script)</summary>
 
 ```bash
-sudo install -m 755 /tmp/rzmon-agent.sh /usr/local/bin/rzmon-agent.sh
-
-sudo tee /etc/default/rzmon-agent >/dev/null <<'EOF'
-MONITOR_URL="http://192.168.1.10"
-TOKEN="<token uit RzMon>"
-SERVICES="ssh cron nginx mariadb docker"
-# INSECURE=1   # alleen bij een self-signed certificaat op RzMon
-EOF
+curl -fsSL 'http://192.168.1.10/api.php?action=agent_script' -o rzmon-agent.sh
+sudo install -m 755 rzmon-agent.sh /usr/local/bin/rzmon-agent.sh
+printf 'MONITOR_URL="%s"\nTOKEN="%s"\nSERVICES="%s"\n' 'http://192.168.1.10' '<token>' 'sshd cron nginx' | sudo tee /etc/default/rzmon-agent >/dev/null
 sudo chmod 600 /etc/default/rzmon-agent
-
 echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh >/dev/null 2>&1' | sudo tee /etc/cron.d/rzmon-agent
-
-# Test — moet {"ok":true} geven:
-sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
+sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'   # moet {"ok":true} geven
 ```
-
-4. Voeg in RzMon checks toe. Mounts en services kies je uit de lijst met wat de agent gemeld heeft.
-
-- **Vereisten:** `bash`, `curl`, `df`, `systemctl` en `ss`. Die staan standaard op Debian, Ubuntu, Raspberry Pi OS en Proxmox.
-- **Gegevens:** CPU, RAM, alle echte mounts, de services in `SERVICES` en de luisterende TCP-poorten.
-- **Root:** de agent draait als root om procesnamen bij poorten te zien. Als gewone gebruiker werkt alles ook, maar dan zonder procesnamen.
-- **Token gelekt?** Klik op *Agent installeren* → **↻ Nieuw token** en zet het nieuwe token in `/etc/default/rzmon-agent`.
+</details>
 
 ---
 

@@ -28,6 +28,16 @@ function num($v): ?float
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 
+// ---------- Agent en installatiescript (openbaar: bevatten niets geheims) ----------
+// Zo kan een server de agent rechtstreeks van RzMon installeren, ook als de
+// GitHub-repository privé is.
+if ($action === 'agent_script' || $action === 'agent_install') {
+    header('Content-Type: text/x-shellscript; charset=utf-8');
+    header('Cache-Control: no-store');
+    readfile(SM_ROOT . '/agent/' . ($action === 'agent_script' ? 'rzmon-agent.sh' : 'install-agent.sh'));
+    exit;
+}
+
 if (!is_configured()) {
     out(['error' => 'RzMon is nog niet ingesteld', 'setup' => true], 503);
 }
@@ -445,11 +455,6 @@ switch ($action) {
         }
         q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash((string) $in['new'], PASSWORD_DEFAULT), $user['id']]);
         out(['ok' => true]);
-
-    case 'agent_script':
-        header('Content-Type: text/plain; charset=utf-8');
-        readfile(SM_ROOT . '/agent/rzmon-agent.sh');
-        exit;
 
     default:
         out(['error' => 'Onbekende actie'], 404);

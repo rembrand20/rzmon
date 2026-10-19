@@ -94,6 +94,17 @@ function init() {
   $('#filter').addEventListener('input', render);
   $('#only-problems').addEventListener('change', render);
   $('#hosts').addEventListener('click', onHostsClick);
+  $('#hosts').addEventListener('keydown', (e) => {
+    const head = e.target.closest('.host-head[data-act=toggle]');
+    if (head && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleHost(head.dataset.id); }
+  });
+  $('#toggle-all').onclick = () => {
+    const all = state.hosts.every((h) => openHosts.has(+h.id));
+    openHosts.clear();
+    if (!all) state.hosts.forEach((h) => openHosts.add(+h.id));
+    saveOpen();
+    render();
+  };
 
   $('#settings-form').addEventListener('submit', saveSettings);
   $('#pushover-test').onclick = testPushover;
@@ -178,7 +189,7 @@ function render() {
       const hostMatch = !f || (h.name + ' ' + h.address).toLowerCase().includes(f);
       if (!hostMatch) checks = checks.filter((c) => (c.name + ' ' + c.target).toLowerCase().includes(f));
       if (onlyProblems) checks = checks.filter((c) => +c.status !== 0 && +c.enabled);
-      return { ...h, shown: checks, match: hostMatch };
+      return { ...h, shown: checks, match: hostMatch, autoOpen: !!f && !hostMatch && checks.length > 0 };
     })
     .filter((h) => (h.match && !onlyProblems) || h.shown.length)
     .sort((a, b) => STATUS_RANK[hostStatus(b)] - STATUS_RANK[hostStatus(a)] || a.name.localeCompare(b.name));
@@ -193,33 +204,99 @@ function render() {
     return;
   }
   el.innerHTML = hosts.map(hostCard).join('');
+  $('#toggle-all').textContent = state.hosts.length && state.hosts.every((h) => openHosts.has(+h.id)) ? '⊟ Alles sluiten' : '⊞ Alles openen';
+}
+
+// ---------------------------------------------------------------- Server-tegels
+// Ingeklapt: alleen de algehele status. Klik = uitklappen met alle checks.
+const openHosts = new Set((() => { try { return JSON.parse(localStorage.getItem('rzmon-open') || '[]'); } catch (e) { return []; } })());
+function saveOpen() { try { localStorage.setItem('rzmon-open', JSON.stringify([...openHosts])); } catch (e) {} }
+function toggleHost(id) {
+  openHosts.has(+id) ? openHosts.delete(+id) : openHosts.add(+id);
+  saveOpen();
+  render();
+}
+
+function hostSummary(h) {
+  const enabled = h.checks.filter((c) => +c.enabled);
+  if (!enabled.length) return { text: 'Nog geen checks', cls: 's3' };
+  const active = enabled.filter((c) => !c.maintenance);
+  if (!active.length) return { text: '🔧 In onderhoud', cls: 's4' };
+  const n = [0, 0, 0, 0];
+  active.forEach((c) => n[+c.status]++);
+  const acked = active.filter((c) => +c.status !== 0 && c.acked_at).length;
+  const parts = [];
+  if (n[2]) parts.push(`${n[2]} kritiek`);
+  if (n[1]) parts.push(`${n[1]} waarschuwing`);
+  if (n[3]) parts.push(`${n[3]} onbekend`);
+  if (!parts.length) return { text: `Alles OK · ${active.length} check${active.length === 1 ? '' : 's'}`, cls: 's0' };
+  return { text: parts.join(' · ') + (acked ? ` (${acked} bevestigd)` : ''), cls: 's' + hostStatus(h) };
+}
+
+/** Mini-meters voor CPU, RAM en de volste disk */
+function hostMeters(h) {
+  const pick = (type) => h.checks.filter((c) => c.type === type && +c.enabled && c.last_value !== null)
+    .sort((a, b) => b.last_value - a.last_value)[0];
+  return [['cpu', 'CPU'], ['ram', 'RAM'], ['disk', 'Disk']].map(([t, l]) => {
+    const c = pick(t);
+    if (!c) return '';
+    const v = Math.min(100, Math.round(+c.last_value));
+    return `<span class="meter s${c.maintenance ? 4 : c.status}" title="${esc(c.name)}: ${esc(c.last_message || '')}">
+      <span>${l}</span><span class="meter-bar"><i style="width:${v}%"></i></span><b>${v}%</b></span>`;
+  }).join('');
 }
 
 function hostCard(h) {
   const st = hostStatus(h);
-  const agentInfo = h.mode === 'agent'
-    ? `<span class="muted">Agent: ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}</span>
-       <button class="btn" data-act="agent" data-id="${h.id}">Agent installeren</button>` : '';
+  const sum = hostSummary(h);
+  const isOpen = openHosts.has(+h.id) || h.autoOpen;
   const parent = h.parent_id ? findHost(h.parent_id) : null;
+  const problems = h.checks
+    .filter((c) => +c.enabled && +c.status !== 0)
+    .sort((a, b) => STATUS_RANK[b.maintenance ? 4 : +b.status] - STATUS_RANK[a.maintenance ? 4 : +a.status]);
+  const chips = problems.slice(0, 4).map((c) =>
+    `<span class="pchip s${c.maintenance ? 4 : c.status} ${c.acked_at ? 'acked' : ''}" title="${esc(c.last_message || '')}">${c.acked_at ? '✔ ' : ''}${esc(c.name)}</span>`).join('')
+    + (problems.length > 4 ? `<span class="pchip more">+${problems.length - 4}</span>` : '');
+  const counts = [0, 1, 2, 3].map((s) => [s, h.checks.filter((c) => +c.enabled && !c.maintenance && +c.status === s).length])
+    .filter(([, n]) => n).map(([s, n]) => `<span class="cnt s${s}" title="${STATUS[s]}">${n}</span>`).join('');
+  const agentInfo = h.mode === 'agent'
+    ? `<span class="muted small">Agent: ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}</span>
+       <button class="btn" data-act="agent" data-id="${h.id}">Agent installeren</button>` : '';
+  const lastChecked = h.checks.reduce((m, c) => (c.last_checked && (!m || c.last_checked > m) ? c.last_checked : m), null);
+
   return `
-  <article class="card host s${st} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''}">
-    <div class="host-head">
+  <article class="card host tile s${st} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''} ${isOpen ? 'open' : ''}">
+    <div class="host-head" data-act="toggle" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${isOpen}"
+         title="${isOpen ? 'Inklappen' : 'Klik voor alle checks'}">
       <span class="dot"></span>
       <div class="host-title">
         <strong>${esc(h.name)} <span class="badge">${esc(h.mode)}</span>${+h.enabled ? '' : '<span class="badge">uit</span>'}</strong>
         <span class="muted mono">${esc(h.address)}</span>${parent ? ` <span class="via" title="Afhankelijk van ${esc(parent.name)}: geen aparte meldingen als die onbereikbaar is">↳ via ${esc(parent.name)}</span>` : ''}
         ${h.maintenance ? `<span class="maint-tag">${esc(maintLabel(h.maintenance))}</span>` : ''}
       </div>
-      ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="icon-btn ack-btn" title="Alle storingen van deze server bevestigen" data-act="ack-host" data-id="${h.id}">✔</button>` : ''}
-      <button class="icon-btn" title="Onderhoud" data-act="maint-host" data-id="${h.id}">🔧</button>
-      <button class="icon-btn" title="Check toevoegen" data-act="add-check" data-id="${h.id}">＋</button>
-      <button class="icon-btn" title="Poorten scannen" data-act="scan" data-id="${h.id}">🔍</button>
-      <button class="icon-btn" title="Server bewerken" data-act="edit-host" data-id="${h.id}">✎</button>
+      <span class="counts">${counts}</span>
+      <span class="chev" aria-hidden="true">›</span>
     </div>
-    <ul class="checks">
-      ${h.shown.length ? h.shown.map(checkRow).join('') : '<li class="empty small">Nog geen checks — klik op ＋</li>'}
-    </ul>
-    ${agentInfo ? `<div class="host-foot">${agentInfo}</div>` : ''}
+    <div class="host-sum" data-act="toggle" data-id="${h.id}">
+      <div class="sum-line ${sum.cls}">${esc(sum.text)}</div>
+      ${chips ? `<div class="chips">${chips}</div>` : ''}
+      ${hostMeters(h) ? `<div class="meters">${hostMeters(h)}</div>` : ''}
+      <div class="muted small sum-foot">${lastChecked ? 'Laatste check ' + ago(lastChecked) : ''}${h.mode === 'agent' ? ` · agent ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}` : ''}</div>
+    </div>
+    ${isOpen ? `
+    <div class="host-detail">
+      <div class="detail-bar">
+        ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="btn ack-btn" data-act="ack-host" data-id="${h.id}">✔ Alles bevestigen</button>` : ''}
+        <button class="btn" data-act="maint-host" data-id="${h.id}">🔧 Onderhoud</button>
+        <button class="btn" data-act="add-check" data-id="${h.id}">＋ Check</button>
+        <button class="btn" data-act="scan" data-id="${h.id}">🔍 Poorten</button>
+        <button class="btn" data-act="edit-host" data-id="${h.id}">✎ Bewerken</button>
+        ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
+      </div>
+      <ul class="checks">
+        ${h.shown.length ? h.shown.map(checkRow).join('') : '<li class="empty small">Nog geen checks — klik op ＋ Check</li>'}
+      </ul>
+    </div>` : ''}
   </article>`;
 }
 
@@ -273,6 +350,7 @@ async function onHostsClick(e) {
     case 'history': { const [c, h] = findCheck(id); return showHistory(c, h); }
     case 'agent': return agentInstructions(findHost(id));
     case 'scan': return portScan(findHost(id));
+    case 'toggle': return toggleHost(id);
     case 'ack': { const [c, h] = findCheck(id); return ackDialog('check', id, `${h.name} – ${c.name}`, c.last_message); }
     case 'ack-host': { const h = findHost(id); const n = h.checks.filter((c) => +c.enabled && +c.status !== 0 && !c.acked_at).length; return ackDialog('host', id, h.name, `${n} onbevestigde storing(en)`); }
     case 'unack':
@@ -663,6 +741,7 @@ async function addPortCheck(e, h) {
 function agentInstructions(h) {
   const base = state.base_url || location.origin + location.pathname.replace(/\/[^/]*$/, '');
   const scriptUrl = location.origin + location.pathname.replace(/\/[^/]*$/, '') + '/api.php?action=agent_script';
+  const installCmd = `curl -fsSL '${base}/api.php?action=agent_install' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}'`;
   modal({
     title: `Agent installeren – ${h.name}`,
     wide: true,
@@ -690,8 +769,16 @@ verify_ssl: true</pre>
         <p class="muted small">Tip: zet er ook een ping-check en een TCP-check op poort 8123 bij. Die werken los van de agent.</p>
       </div>
       <div data-pane="linux">
-      <p>Voer dit uit op <b>${esc(h.name)}</b>. De agent stuurt elke minuut diskgebruik en service-status naar de monitor.</p>
-      <p class="muted small">1. Download <code>agent/rzmon-agent.sh</code> uit de projectmap (of via je browser: <a href="${esc(scriptUrl)}" target="_blank">rzmon-agent.sh</a>) en kopieer het naar de server.</p>
+      <p>Voer dit één commando uit op <b>${esc(h.name)}</b> (Rocky/RHEL/Alma, Debian/Ubuntu, Raspberry Pi OS, Proxmox).
+        Het installeert de agent, stelt de services voor die er draaien, zet een systemd-timer aan en stuurt een testrapport.</p>
+      <div class="copy-line"><pre class="code" id="agent-oneliner">${esc(installCmd)}</pre>
+        <button type="button" class="btn" id="copy-oneliner">Kopieer</button></div>
+      ${base.startsWith('https') ? '<p class="muted small">Self-signed certificaat op RzMon? Voeg <code>-k</code> toe aan curl en <code>--insecure</code> aan het eind.</p>' : ''}
+      <p class="muted small">Daarna: klik hier op <b>＋</b> en voeg checks toe (CPU, RAM, diskruimte, services). Later bijwerken: <code>sudo rzmon-agent-setup --update</code> · verwijderen: <code>sudo rzmon-agent-setup --uninstall</code>.</p>
+      <p class="muted small">⚠️ De server moet RzMon kunnen bereiken op <code>${esc(base)}</code>. Klopt dat adres niet, pas dan de <i>Basis-URL</i> aan in Setup.</p>
+      <details class="small api-docs">
+        <summary>Liever handmatig installeren?</summary>
+      <p class="muted small">1. Download <a href="${esc(scriptUrl)}" target="_blank">rzmon-agent.sh</a> en kopieer het naar de server.</p>
       <p class="muted small">2. Installeer en configureer:</p>
       <pre class="code">sudo install -m 755 rzmon-agent.sh /usr/local/bin/rzmon-agent.sh
 sudo tee /etc/default/rzmon-agent &gt;/dev/null &lt;&lt;'EOF'
@@ -704,6 +791,7 @@ echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-ag
 # Testen:
 sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'</pre>
       <p class="muted small">Pas <code>SERVICES</code> aan naar de services die je wilt bewaken. Na de eerste rapportage kun je bij "Check toevoegen" de mounts en services uit een lijst kiezen.</p>
+      </details>
       </div>`,
     buttons: [
       { label: '↻ Nieuw token', onClick: async () => {
@@ -719,6 +807,10 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
     $$('[data-pane]', body).forEach((p) => (p.hidden = p.dataset.pane !== seg));
   };
   $$('.seg-btn', body).forEach((b) => (b.onclick = () => show(b.dataset.seg)));
+  $('#copy-oneliner').onclick = async () => {
+    try { await navigator.clipboard.writeText(installCmd); toast('Commando gekopieerd'); }
+    catch (ex) { getSelection().selectAllChildren($('#agent-oneliner')); toast('Geselecteerd — druk Ctrl+C', 'err'); }
+  };
   // Raad Home Assistant bij een naam of agent-gegevens die erop wijzen
   if (/home.?assistant|hass|haos/i.test(h.name) || h.metrics.includes('service:homeassistant')) show('ha');
 }
