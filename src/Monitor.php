@@ -160,22 +160,40 @@ final class Monitor
         // blijft staan, zodat na afloop alsnog gemeld wordt als er dan nog iets mis is.
         $silenced = $upstream !== null || self::maintenanceFor($check) !== null;
 
+        // Begin van de huidige storing: hoort bij de bevestig-link (zie ackToken)
+        $problemSince = $status === STATUS_OK ? null : ($check['problem_since'] ?: now());
+        $check['problem_since'] = $problemSince;
+        $acked = $check['acked_at'] !== null;
+
         // Status eerst opslaan: meldingen kijken (via hostUnreachable) naar de actuele status
-        q('UPDATE checks SET status = ?, last_value = ?, last_message = ?, last_checked = ?, fail_count = ?, suppressed_by = ? WHERE id = ?', [
-            $status, $res['value'], mb_substr($message, 0, 500), now(), $failCount, $upstream['id'] ?? null, $check['id'],
+        q('UPDATE checks SET status = ?, last_value = ?, last_message = ?, last_checked = ?, fail_count = ?, suppressed_by = ?, problem_since = ? WHERE id = ?', [
+            $status, $res['value'], mb_substr($message, 0, 500), now(), $failCount, $upstream['id'] ?? null, $problemSince, $check['id'],
         ]);
 
         $s = settings();
         $title = sprintf('%s – %s', $check['host_name'], $check['name']);
 
+        if ($status === STATUS_OK) {
+            // Storing voorbij: bevestiging vervalt, Emergency-herhaling van Pushover stoppen
+            if ($check['pushover_receipt']) {
+                Pushover::cancel($check['pushover_receipt']);
+            }
+            if ($acked || $check['pushover_receipt']) {
+                q('UPDATE checks SET acked_at = NULL, acked_by = NULL, ack_comment = NULL, pushover_receipt = NULL WHERE id = ?', [$check['id']]);
+            }
+        }
+
         if ($silenced) {
             // niets versturen
         } elseif ($status === STATUS_OK) {
-            if ($notified !== STATUS_OK && ($s['notify_recovery'] ?? '1') === '1') {
+            $wanted = ($s['notify_recovery'] ?? '1') === '1' && (!$acked || ($s['notify_recovery_acked'] ?? '0') === '1');
+            if ($notified !== STATUS_OK && $wanted) {
                 self::notify($check, $res, STATUS_OK, "✅ HERSTELD: $title", $message, -1, 'recovery', $notified);
             }
             $notified = STATUS_OK;
             $notifiedAt = null;
+        } elseif ($acked) {
+            // Bevestigd: geen meldingen meer voor deze storing (ook niet bij erger worden)
         } elseif ($failCount >= max(1, (int) ($s['alert_after'] ?? 2))) {
             $isWarnish = $status !== STATUS_CRIT;
             $allowed = !$isWarnish || ($s['notify_warn'] ?? '1') === '1';
@@ -209,12 +227,19 @@ final class Monitor
     {
         $errors = [];
 
+        $ackUrl = $status !== STATUS_OK ? self::ackUrl($check) : null;
+
         $pushover = null;
         if (setting('pushover_enabled', '0') === '1') {
-            $r = Pushover::send($title, $message . "\n" . date('d-m-Y H:i:s'), $priority);
+            $r = Pushover::send($title, $message . "\n" . date('d-m-Y H:i:s'), $priority, null, null,
+                $ackUrl ? ['url' => $ackUrl, 'url_title' => '✔ Bevestigen'] : []);
             $pushover = $r['ok'];
             if (!$r['ok']) {
                 $errors[] = 'Pushover: ' . $r['error'];
+            }
+            if (!empty($r['receipt'])) {
+                // Emergency: later nagaan of hij in de Pushover-app bevestigd is
+                q('UPDATE checks SET pushover_receipt = ? WHERE id = ?', [$r['receipt'], $check['id']]);
             }
         }
 
@@ -269,7 +294,89 @@ final class Monitor
             'message' => $message,
             'time' => date('c'),
             'url' => config('base_url', '') ?: null,
+            'ack_url' => $status !== STATUS_OK && $event !== 'test' ? self::ackUrl($check) : null,
         ];
+    }
+
+    // ------------------------------------------------------------------ bevestigen
+
+    /** Geheime sleutel voor bevestig-links (wordt eenmalig aangemaakt). */
+    private static function ackSecret(): string
+    {
+        $secret = (string) setting('ack_secret', '');
+        if (strlen($secret) < 32) {
+            $secret = bin2hex(random_bytes(32));
+            save_setting('ack_secret', $secret);
+        }
+        return $secret;
+    }
+
+    /**
+     * Token voor de bevestig-link: geldt alleen voor deze check en deze storing
+     * (problem_since). Na herstel of een nieuwe storing werkt een oude link niet meer.
+     */
+    public static function ackToken(int $checkId, ?string $problemSince): ?string
+    {
+        if (!$problemSince) {
+            return null;
+        }
+        return substr(hash_hmac('sha256', "ack|$checkId|$problemSince", self::ackSecret()), 0, 32);
+    }
+
+    public static function ackUrl(array $check): ?string
+    {
+        $base = rtrim((string) config('base_url', ''), '/');
+        $token = self::ackToken((int) $check['id'], $check['problem_since'] ?? null);
+        return $base !== '' && $token ? "$base/ack.php?c={$check['id']}&t=$token" : null;
+    }
+
+    /** Bevestigt een storing. Geeft false als de check (inmiddels) OK is. */
+    public static function acknowledge(int $checkId, string $by, string $comment = ''): bool
+    {
+        $c = q('SELECT c.id, c.name, c.status, c.acked_at, c.pushover_receipt, h.name AS host_name
+                FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.id = ?', [$checkId])->fetch();
+        if (!$c || (int) $c['status'] === STATUS_OK) {
+            return false;
+        }
+        if ($c['acked_at'] === null) {
+            $comment = mb_substr(trim($comment), 0, 200);
+            q('UPDATE checks SET acked_at = ?, acked_by = ?, ack_comment = ? WHERE id = ?', [now(), mb_substr($by, 0, 64), $comment ?: null, $checkId]);
+            q("INSERT INTO alerts (check_id, status, title, message, sent_ok, kind) VALUES (?, ?, ?, ?, 0, 'ack')", [
+                $checkId, (int) $c['status'], mb_substr("✔ BEVESTIGD: {$c['host_name']} – {$c['name']}", 0, 250),
+                mb_substr("Bevestigd door $by" . ($comment ? ": $comment" : '') . '. Geen meldingen meer tot herstel.', 0, 1000),
+            ]);
+        }
+        if ($c['pushover_receipt']) {
+            Pushover::cancel($c['pushover_receipt']);
+            q('UPDATE checks SET pushover_receipt = NULL WHERE id = ?', [$checkId]);
+        }
+        return true;
+    }
+
+    public static function unacknowledge(int $checkId): void
+    {
+        q('UPDATE checks SET acked_at = NULL, acked_by = NULL, ack_comment = NULL WHERE id = ?', [$checkId]);
+    }
+
+    /** Emergency-meldingen die in de Pushover-app bevestigd zijn, ook in RzMon bevestigen. */
+    public static function pollReceipts(): void
+    {
+        if (setting('pushover_enabled', '0') !== '1') {
+            return;
+        }
+        foreach (q('SELECT id, pushover_receipt FROM checks WHERE pushover_receipt IS NOT NULL LIMIT 20')->fetchAll() as $c) {
+            $r = Pushover::receipt($c['pushover_receipt']);
+            if (!$r) {
+                continue;
+            }
+            if ((int) ($r['acknowledged'] ?? 0) === 1) {
+                $device = (string) ($r['acknowledged_by_device'] ?? '');
+                self::acknowledge((int) $c['id'], 'Pushover' . ($device !== '' ? " ($device)" : ''));
+            }
+            if ((int) ($r['acknowledged'] ?? 0) === 1 || (int) ($r['expired'] ?? 0) === 1) {
+                q('UPDATE checks SET pushover_receipt = NULL WHERE id = ?', [$c['id']]);
+            }
+        }
     }
 
     public static function purge(): void

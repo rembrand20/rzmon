@@ -32,6 +32,12 @@ final class Installer
         ['checks', 'maintenance_reason', 'VARCHAR(200) NULL'],
         ['checks', 'suppressed_by', 'INT UNSIGNED NULL'],
         ['alerts', 'webhook_ok', 'TINYINT(1) NULL'],
+        ['alerts', 'kind', "VARCHAR(16) NOT NULL DEFAULT 'notify'"],
+        ['checks', 'problem_since', 'DATETIME NULL'],
+        ['checks', 'acked_at', 'DATETIME NULL'],
+        ['checks', 'acked_by', 'VARCHAR(64) NULL'],
+        ['checks', 'ack_comment', 'VARCHAR(200) NULL'],
+        ['checks', 'pushover_receipt', 'VARCHAR(40) NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

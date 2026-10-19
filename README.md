@@ -29,6 +29,8 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **Onderhoud & afhankelijkheden**: 🔧 meldingen pauzeren voor alles, een server of een check (bv. tijdens updates). 🔗 Servers achter een router/switch/VPN geven geen eigen melding als die onbereikbaar is: één melding in plaats van tientallen.
 
+**Storingen bevestigen**: ✔ bevestig een storing in het dashboard, via de link in de Pushover-melding, of in de Pushover-app (Emergency). Daarna krijg je er geen meldingen meer over; na herstel vervalt de bevestiging vanzelf.
+
 **Home Assistant-webhook**: elke melding ook als JSON naar een HA-webhook, om automatiseringen te starten (zie HANDLEIDING.md §6.3).
 
 **Alarmering**: na *N* opeenvolgende fouten een Pushover-bericht, bij escalatie (WARN → CRIT) opnieuw, optioneel elke *X* minuten herhalen en een melding bij herstel. Alles instelbaar in de webinterface.

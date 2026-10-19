@@ -68,6 +68,12 @@ RzMon bestaat uit vier onderdelen:
 - **Prioriteit en geluid instelbaar**, apart voor critical en warning, inclusief *Emergency* (blijft herhalen tot je hem bevestigt).
 - **Testknoppen** voor beide kanalen, en een **meldingenlog** dat per melding toont via welk kanaal hij is verstuurd (📲 / 🏠).
 
+### Storingen bevestigen
+- **✔ Bevestigen** per check, of alle storingen van een server tegelijk, met een optionele opmerking. Daarna krijg je voor die storing **geen meldingen meer**: geen herhalingen, ook niet bij erger worden.
+- **Vanaf je telefoon:** elke melding bevat een link **"✔ Bevestigen"** (Pushover, en via de webhook ook in Home Assistant). Die werkt zonder inloggen, maar alleen voor die ene storing.
+- **Emergency-meldingen:** bevestig je in de Pushover-app, dan neemt RzMon dat over. Bevestig je in RzMon, dan stopt Pushover met herhalen.
+- **Vervalt vanzelf:** zodra de check weer OK is, vervalt de bevestiging. Een nieuwe storing geeft gewoon weer een melding.
+
 ### Onderhoud en afhankelijkheden
 - **🔧 Onderhoudsmodus:** voor alles, per server of per check. Kies een duur (15 min tot een week) of een eindtijd, met een optionele reden. Checks blijven draaien, maar er gaan geen meldingen uit. Is er na afloop nog iets mis, dan krijg je alsnog een melding.
 - **🔗 Afhankelijkheden:** geef aan dat een server bereikbaar is via een andere, zoals een router, switch, VPN of hypervisor. Valt die uit, dan krijg je **één** melding ("…meldingen van 5 afhankelijke servers worden onderdrukt") in plaats van een stortvloed. Komt hij terug en ligt een server erachter nog plat, dan krijg je die melding alsnog.
@@ -367,11 +373,15 @@ triggers:
     allowed_methods: [POST]
     local_only: true
 actions:
-  # Altijd: notificatie via de Home Assistant-app
+  # Altijd: notificatie via de Home Assistant-app (met knop "Bevestigen" bij een storing)
   - action: notify.mobile_app_jouw_telefoon
     data:
       title: "{{ trigger.json.title }}"
       message: "{{ trigger.json.message }}"
+      data:
+        actions: >
+          {{ [{'action': 'URI', 'title': '✔ Bevestigen', 'uri': trigger.json.ack_url}]
+             if trigger.json.ack_url else [] }}
   # Alleen bij CRITICAL: lamp rood laten knipperen
   - if:
       - condition: template
@@ -411,7 +421,8 @@ Vervang `notify.mobile_app_jouw_telefoon` en `light.bureau` door je eigen entite
   "title": "🔴 CRITICAL: NAS – SMB",
   "message": "Poort 445 onbereikbaar: Connection refused",
   "time": "2026-10-19T18:02:05+02:00",
-  "url": "http://192.168.1.10"
+  "url": "http://192.168.1.10",
+  "ack_url": "http://192.168.1.10/ack.php?c=5&t=…"   // bevestig-link (null bij herstel/test)
 }
 ```
 
@@ -471,7 +482,28 @@ Kies een duur (15 min, 30 min, 1 uur … 1 week), of een vast eindtijdstip, en v
 - **Eerder stoppen:** klik op 🔧 → **Onderhoud beëindigen**, of op **Beëindigen** in de balk.
 - **REST API:** checks in onderhoud tellen niet mee voor de totaalstatus. De sensor *RzMon alles OK* springt dus niet op rood door gepland onderhoud. `counts.maintenance` telt ze apart.
 
-### 7.5 Afhankelijkheden 🔗
+### 7.5 Storing bevestigen ✔
+Weet je van een storing en ben je ermee bezig? Bevestig hem, dan word je er niet meer over gestoord.
+
+| Waar | Hoe |
+|---|---|
+| **Dashboard, één check** | De groene **✔** bij de check |
+| **Dashboard, hele server** | De groene **✔** op de serverkaart: alle onbevestigde storingen van die server |
+| **Telefoon** | Tik in de Pushover-melding op **✔ Bevestigen** → *Bevestigen* |
+| **Pushover-app** (alleen Emergency, prioriteit 2) | Tik op *Acknowledge*; RzMon neemt dat binnen een minuut over |
+
+**Wat er gebeurt:**
+- **Geen meldingen meer** voor deze storing: geen herhalingen, en ook niet als hij van WARNING naar CRITICAL gaat.
+- **Emergency:** een Emergency-melding stopt meteen met herhalen.
+- **Op het dashboard** staat bij de check **✔ bevestigd**. Hou de muis erop voor wie, wanneer en de opmerking; klik erop om de bevestiging **in te trekken**, dan hervatten de meldingen.
+- **Titelbalk:** het getal tussen haakjes telt alleen onbevestigde CRITICAL-storingen.
+- **Herstel:** zodra de check weer **OK** is, vervalt de bevestiging automatisch. Een herstelmelding krijg je dan alleen als *Instellingen → Alarmgedrag → Ook herstel melden na een bevestigde storing* aan staat (standaard uit).
+- **Meldingenlog:** elke bevestiging komt in het log, met ✔.
+
+> **De bevestig-link in Pushover** gebruikt de *Basis-URL* uit *Setup → Applicatie & PHP*, bijvoorbeeld `http://192.168.1.10`. Is die leeg, dan komt er geen link in de melding. Bereikbaar van buitenaf? Gebruik dan je externe adres (HTTPS).
+> De link werkt zonder inloggen, maar alleen voor die ene storing. Na herstel of bij een nieuwe storing is een oude link ongeldig. Bevestigen gebeurt pas na een klik op de knop, zodat een linkvoorbeeld in een chat-app niet per ongeluk bevestigt.
+
+### 7.6 Afhankelijkheden 🔗
 Valt je router uit, dan zijn alle servers erachter ook onbereikbaar. Zonder afhankelijkheden krijg je dan tientallen meldingen. Zo stel je het in:
 
 1. Zorg dat de router (of switch, VPN-server, hypervisor) een **ping-check** heeft.
@@ -632,7 +664,7 @@ In plaats van de `Authorization`-header kun je ook `X-API-Key: rzm_…` gebruike
 | `GET /v1.php/alerts?limit=50` | Laatste meldingen (maximaal 500) |
 
 - **Status:** `0` OK, `1` WARNING, `2` CRITICAL, `3` UNKNOWN. Checks in onderhoud tellen niet mee voor de totaalstatus; staat alles in onderhoud, dan is de status `0`.
-- **Extra velden:** `in_maintenance` en `maintenance_until` bij servers en checks, `parent_id` bij servers, `suppressed_by` bij checks (id van de onbereikbare server erboven), `counts.maintenance` en `maintenance` (globaal onderhoud) in `/status`.
+- **Extra velden:** `in_maintenance` en `maintenance_until` bij servers en checks, `parent_id` bij servers, `suppressed_by` bij checks (id van de onbereikbare server erboven), `acknowledged`, `acknowledged_at`, `acknowledged_by`, `ack_comment` en `problem_since` bij checks, `counts.acknowledged` (bevestigde storingen), `counts.maintenance` en `maintenance` (globaal onderhoud) in `/status`.
 - **Tijden** in ISO 8601.
 - **Werkt `/v1.php/status` niet** (bijvoorbeeld Nginx zonder PATH_INFO)? Gebruik dan `/v1.php?r=status`.
 - **Check-id** vind je via `/v1.php/checks`.

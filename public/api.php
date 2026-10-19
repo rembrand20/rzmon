@@ -204,6 +204,26 @@ switch ($action) {
         q('DELETE FROM hosts WHERE id = ?', [$id]);
         out(['ok' => true]);
 
+    case 'ack':
+        $in = input();
+        if (!Monitor::acknowledge((int) ($in['id'] ?? 0), $user['username'], (string) ($in['comment'] ?? ''))) {
+            out(['error' => 'Deze check heeft geen storing (meer)'], 422);
+        }
+        out(['ok' => true]);
+
+    case 'ack_host':
+        // Alle onbevestigde storingen van een server in één keer
+        $in = input();
+        $n = 0;
+        foreach (q('SELECT id FROM checks WHERE host_id = ? AND enabled = 1 AND status <> 0 AND acked_at IS NULL', [(int) ($in['id'] ?? 0)])->fetchAll() as $c) {
+            $n += Monitor::acknowledge((int) $c['id'], $user['username'], (string) ($in['comment'] ?? '')) ? 1 : 0;
+        }
+        out(['ok' => true, 'count' => $n]);
+
+    case 'unack':
+        Monitor::unacknowledge((int) (input()['id'] ?? 0));
+        out(['ok' => true]);
+
     case 'maintenance_set':
         // scope: all | host | check ; minutes = 0 beëindigt het onderhoud
         $in = input();
@@ -281,13 +301,14 @@ switch ($action) {
     case 'settings':
         $s = settings();
         $s['pushover_token'] = $s['pushover_token'] !== '' ? '••••••••' : '';
+        unset($s['ack_secret']);
         out($s);
 
     case 'settings_save':
         $in = input();
         $allowed = ['pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
             'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days',
-            'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events'];
+            'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked'];
         if (($in['ha_webhook_url'] ?? '') !== '' && !preg_match('#^https?://\S+$#i', trim((string) $in['ha_webhook_url']))) {
             out(['error' => 'Webhook-URL moet met http:// of https:// beginnen'], 422);
         }

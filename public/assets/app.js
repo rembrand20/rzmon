@@ -166,7 +166,9 @@ function render() {
       <button class="btn" data-maint-end="all">Beëindigen</button>`;
   }
   $('#last-run').textContent = state.last_run ? 'Laatste check: ' + ago(state.last_run) : '';
-  document.title = (counts[2] ? `(${counts[2]}) ` : '') + 'RzMon';
+  let open = 0;
+  state.hosts.forEach((h) => +h.enabled && h.checks.forEach((c) => +c.enabled && !c.maintenance && +c.status === 2 && !c.acked_at && open++));
+  document.title = (open ? `(${open}) ` : '') + 'RzMon';
 
   const f = $('#filter').value.trim().toLowerCase();
   const onlyProblems = $('#only-problems').checked;
@@ -208,6 +210,7 @@ function hostCard(h) {
         <span class="muted mono">${esc(h.address)}</span>${parent ? ` <span class="via" title="Afhankelijk van ${esc(parent.name)}: geen aparte meldingen als die onbereikbaar is">↳ via ${esc(parent.name)}</span>` : ''}
         ${h.maintenance ? `<span class="maint-tag">${esc(maintLabel(h.maintenance))}</span>` : ''}
       </div>
+      ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="icon-btn ack-btn" title="Alle storingen van deze server bevestigen" data-act="ack-host" data-id="${h.id}">✔</button>` : ''}
       <button class="icon-btn" title="Onderhoud" data-act="maint-host" data-id="${h.id}">🔧</button>
       <button class="icon-btn" title="Check toevoegen" data-act="add-check" data-id="${h.id}">＋</button>
       <button class="icon-btn" title="Poorten scannen" data-act="scan" data-id="${h.id}">🔍</button>
@@ -232,13 +235,17 @@ function checkRow(c) {
   }
   const value = t.unit === 'ms' && c.last_value !== null ? ` · ${fmt(c.last_value, t.unit)}` : '';
   const own = c.maintenance && c.maintenance.scope === 'check';
-  const flags = (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">🔧 tot ${esc(fmtUntil(c.maintenance.until))}</span>` : '')
+  const problem = s !== 0 && +c.enabled;
+  const ackTitle = c.acked_at ? `Bevestigd door ${c.acked_by || '?'} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. Klik om in te trekken.` : '';
+  const flags = (problem && c.acked_at ? ` <button class="ack-tag" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ bevestigd</button>` : '')
+    + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">🔧 tot ${esc(fmtUntil(c.maintenance.until))}</span>` : '')
     + (c.suppressed_by ? ' <span class="supp-tag" title="Geen melding: een server erboven is onbereikbaar">🔕 onderdrukt</span>' : '');
   return `
-  <li class="chk s${s} ${+c.enabled ? '' : 'disabled'} ${c.maintenance ? 'in-maint' : ''}" title="${STATUS[s]} – laatst ${ago(c.last_checked)}">
+  <li class="chk s${s} ${+c.enabled ? '' : 'disabled'} ${c.maintenance ? 'in-maint' : ''} ${problem && c.acked_at ? 'acked' : ''}" title="${STATUS[s]} – laatst ${ago(c.last_checked)}">
     <span class="dot"></span>
     <span class="chk-name">${esc(c.name)}<span class="type">${t.label}${value}</span>${flags}</span>
     <span class="chk-actions">
+      ${problem && !c.acked_at ? `<button class="icon-btn ack-btn" title="Storing bevestigen: geen meldingen meer" data-act="ack" data-id="${c.id}">✔</button>` : ''}
       <button class="icon-btn" title="Onderhoud" data-act="maint-check" data-id="${c.id}">🔧</button>
       <button class="icon-btn" title="Nu checken" data-act="run" data-id="${c.id}">↻</button>
       <button class="icon-btn" title="Historie" data-act="history" data-id="${c.id}">📈</button>
@@ -266,6 +273,12 @@ async function onHostsClick(e) {
     case 'history': { const [c, h] = findCheck(id); return showHistory(c, h); }
     case 'agent': return agentInstructions(findHost(id));
     case 'scan': return portScan(findHost(id));
+    case 'ack': { const [c, h] = findCheck(id); return ackDialog('check', id, `${h.name} – ${c.name}`, c.last_message); }
+    case 'ack-host': { const h = findHost(id); const n = h.checks.filter((c) => +c.enabled && +c.status !== 0 && !c.acked_at).length; return ackDialog('host', id, h.name, `${n} onbevestigde storing(en)`); }
+    case 'unack':
+      if (!confirm('Bevestiging intrekken? Er worden dan weer meldingen verstuurd voor deze storing.')) return;
+      try { await api('unack', { id }); toast('Bevestiging ingetrokken'); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+      return;
     case 'maint-host': { const h = findHost(id); return maintenanceDialog('host', id, h.name, h.maintenance && h.maintenance.scope === 'host' ? h.maintenance : null); }
     case 'maint-check': { const [c, h] = findCheck(id); return maintenanceDialog('check', id, `${h.name} – ${c.name}`, c.maintenance && c.maintenance.scope === 'check' ? c.maintenance : null); }
     case 'run':
@@ -380,6 +393,23 @@ function parentOptions(h) {
     .filter((x) => !below.has(+x.id))
     .map((x) => `<option value="${x.id}" ${+h.parent_id === +x.id ? 'selected' : ''}>${esc(x.name)} (${esc(x.address)})</option>`)
     .join('');
+}
+
+// ---------------------------------------------------------------- Acknowledge
+function ackDialog(scope, id, label, detail) {
+  modal({
+    title: `✔ Bevestigen – ${label}`,
+    body: `
+      <p class="muted small" style="margin-top:0">${esc(detail || '')}</p>
+      <p style="margin-top:0">Na bevestigen krijg je voor deze storing <b>geen meldingen meer</b>: geen herhalingen, en ook niet als hij erger wordt.
+        Zodra de check weer OK is vervalt de bevestiging; gaat het later opnieuw mis, dan krijg je gewoon weer een melding.</p>
+      <label>Opmerking <span class="hint">(optioneel)</span><input name="comment" maxlength="200" placeholder="bv. schijf wordt morgen vervangen" autofocus></label>`,
+    buttons: [{ label: '✔ Bevestigen', cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const r = await api(scope === 'host' ? 'ack_host' : 'ack', { id, comment: d.comment });
+      toast(scope === 'host' ? `${r.count} storing(en) bevestigd` : 'Storing bevestigd');
+    },
+  });
 }
 
 // ---------------------------------------------------------------- Maintenance
@@ -695,6 +725,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
 
 // ---------------------------------------------------------------- Alerts
 function channelIcons(a) {
+  if (a.kind === 'ack') return '<span title="Bevestiging">✔</span>';
   const out = [];
   if (+a.sent_ok) out.push('<span title="Verstuurd via Pushover">📲</span>');
   if (a.webhook_ok !== null) out.push(+a.webhook_ok ? '<span title="Verstuurd naar Home Assistant">🏠</span>' : '<span title="Webhook mislukt">🏠✕</span>');
@@ -706,7 +737,7 @@ function renderAlerts() {
   const el = $('#alerts');
   if (!state.alerts.length) { el.innerHTML = '<p class="muted">Nog geen meldingen. 👌</p>'; return; }
   el.innerHTML = state.alerts.map((a) => `
-    <div class="alert-item s${a.status}">
+    <div class="alert-item ${a.kind === 'ack' ? 'ack' : 's' + a.status}">
       <span class="dot"></span>
       <strong>${esc(a.title)}</strong>
       <span class="muted small" title="${esc(a.created_at)}">${ago(a.created_at)} ${channelIcons(a)}</span>

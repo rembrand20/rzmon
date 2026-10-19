@@ -194,7 +194,7 @@ input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--primary)
 .alert-list { display: flex; flex-direction: column; }
 .alert-item { display: grid; grid-template-columns: auto 1fr auto; gap: .2rem .8rem; padding: .7rem 0; border-bottom: 1px solid var(--border); align-items: center; }
 .alert-item:last-child { border-bottom: 0; }
-.alert-item.s0 { --c: var(--ok); } .alert-item.s1 { --c: var(--warn); } .alert-item.s2 { --c: var(--crit); } .alert-item.s3 { --c: var(--unknown); }
+.alert-item.s0, .alert-item.ack { --c: var(--ok); } .alert-item.s1 { --c: var(--warn); } .alert-item.s2 { --c: var(--crit); } .alert-item.s3 { --c: var(--unknown); }
 .alert-item .msg { grid-column: 2 / 4; color: var(--muted); font-size: .85rem; white-space: pre-line; }
 
 /* ---------- Settings ---------- */
@@ -255,6 +255,19 @@ ol.steps li { margin-bottom: .45rem; }
 .presets { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: 1rem; }
 .presets .btn { padding: .4rem .75rem; font-size: .85rem; }
 .maint-now { background: color-mix(in srgb, var(--maint) 12%, transparent); color: var(--maint); padding: .5rem .75rem; border-radius: 8px; font-weight: 600; font-size: .88rem; }
+
+/* ---------- Bevestigen ---------- */
+.ack-btn { color: var(--ok); }
+.ack-tag { font: inherit; font-size: .72rem; font-weight: 600; padding: .05rem .45rem; border-radius: 99px; margin-left: .35rem; cursor: pointer;
+  color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent); }
+.ack-tag:hover { border-color: var(--ok); }
+.chk.acked .dot { animation: none; opacity: .65; }
+.chk.acked .chk-msg { opacity: .8; }
+.ack-card .brand { margin-bottom: 1.2rem; }
+.ack-check { display: flex; gap: .7rem; align-items: flex-start; background: var(--card-2); border: 1px solid var(--border); border-radius: 10px; padding: .7rem .8rem; }
+.ack-check.s1 { --c: var(--warn); } .ack-check.s2 { --c: var(--crit); } .ack-check.s3 { --c: var(--unknown); }
+.ack-check .dot { margin-top: .35rem; }
+.ack-ok { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); padding: .7rem .8rem; border-radius: 10px; font-weight: 600; }
 
 /* ---------- Port scan ---------- */
 .scan-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: .6rem; align-items: end; }

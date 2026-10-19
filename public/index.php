@@ -123,6 +123,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label>Herhaal melding elke … minuten <span class="muted small">(0 = nooit)</span><input type="number" name="repeat_minutes" min="0"></label>
           <label class="switch"><input type="checkbox" name="notify_warn"><span></span> Ook melden bij WARNING</label>
           <label class="switch"><input type="checkbox" name="notify_recovery"><span></span> Melden bij herstel</label>
+          <label class="switch"><input type="checkbox" name="notify_recovery_acked"><span></span> Ook herstel melden na een bevestigde storing</label>
           <label>Agent offline na … minuten zonder rapport<input type="number" name="agent_stale_minutes" min="1"></label>
           <label>Historie bewaren (dagen)<input type="number" name="retention_days" min="1"></label>
         </div>

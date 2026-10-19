@@ -116,4 +116,6 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('ha_webhook_enabled', '0'),
     ('ha_webhook_url', ''),
     ('ha_webhook_verify_ssl', '1'),
-    ('ha_webhook_events', 'all');
+    ('ha_webhook_events', 'all'),
+    ('notify_recovery_acked', '0'),
+    ('ack_secret', '');

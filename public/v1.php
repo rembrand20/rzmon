@@ -84,6 +84,11 @@ function fmtCheck(array $c): array
         'in_maintenance' => ($m = Monitor::maintenanceFor($c)) !== null,
         'maintenance_until' => $m ? iso($m['until']) : null,
         'suppressed_by' => $c['suppressed_by'] !== null ? (int) $c['suppressed_by'] : null,
+        'problem_since' => iso($c['problem_since']),
+        'acknowledged' => $c['acked_at'] !== null,
+        'acknowledged_at' => iso($c['acked_at']),
+        'acknowledged_by' => $c['acked_by'],
+        'ack_comment' => $c['ack_comment'],
     ];
 }
 
@@ -156,7 +161,7 @@ $parts = $path === '' ? [] : explode('/', $path);
 switch (true) {
     case $parts === [] || $parts === ['status']:
         $hosts = loadHosts();
-        $counts = ['ok' => 0, 'warning' => 0, 'critical' => 0, 'unknown' => 0, 'maintenance' => 0];
+        $counts = ['ok' => 0, 'warning' => 0, 'critical' => 0, 'unknown' => 0, 'maintenance' => 0, 'acknowledged' => 0];
         $keys = ['ok', 'warning', 'critical', 'unknown'];
         $all = [];
         $enabled = [];
@@ -172,6 +177,7 @@ switch (true) {
                     $counts['maintenance']++;
                 } elseif ($c['enabled']) {
                     $counts[$keys[$c['status']]]++;
+                    $counts['acknowledged'] += $c['acknowledged'] ? 1 : 0;
                     $all[] = $c;
                 }
             }

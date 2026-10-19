@@ -25,6 +25,7 @@ if ($lock === false) {
 
 $force = in_array('--force', $argv, true);
 $n = Monitor::runDue($force);
+Monitor::pollReceipts();
 save_setting('cron_last_run', now());
 if (date('i') === '00') {
     Monitor::purge();
