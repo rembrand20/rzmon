@@ -54,6 +54,8 @@ RzMon bestaat uit vier onderdelen:
 | **CPU** | CPU-gebruik over 2 seconden + load average | % gebruik | Lokaal + agent |
 | **RAM** | Geheugengebruik (cache telt niet mee) + swap | % gebruikt | Lokaal + agent |
 | **Home Assistant** | Core, Supervisor, elke add-on en beschikbare updates | Niet actief = CRITICAL, update beschikbaar = WARNING | HA-add-on |
+| **Podman (algemeen)** | Draait podman; gestopte (foutcode), ongezonde of gepauzeerde containers; pods | Probleem = WARNING | Agent met podman |
+| **Container (Podman)** | Eén container: status (incl. healthcheck en herstarts), CPU, RAM of disk | Gestopt/ongezond = CRITICAL; CPU/RAM in %, disk in MB | Agent met podman |
 
 ### Drie soorten servers
 - **Lokaal**: de RzMon-server zelf. Alles wordt direct uitgelezen.
@@ -516,6 +518,8 @@ Klik op een serverkaart op **＋**. Per type:
 | Service | systemd-naam, bv. `nginx`. Bij een HA-agent: `homeassistant`, `supervisor`, `updates` of `addon:<slug>` | – |
 | CPU | – | 85 / 95 % |
 | RAM | – | 85 / 95 % |
+| Podman (algemeen) | – (alleen agent-servers met podman) | – |
+| Container (Podman) | Containernaam, uit de lijst. Kies bij *Meten*: Status, CPU, RAM of Disk | CPU 80 / 95 %, RAM 85 / 95 %, disk 5000 / 10000 MB |
 
 - **Interval:** minimaal 30 seconden. Omdat cron elke minuut draait, is **1 minuut** in de praktijk het kortste interval.
 - **Na opslaan** wordt de check direct uitgevoerd.
@@ -634,6 +638,7 @@ Het installatiescript blijft op de server staan als `rzmon-agent-setup`:
 | Status bekijken | `systemctl status rzmon-agent.timer` en `journalctl -u rzmon-agent -n 20` |
 | Services wijzigen | `sudo rzmon-agent-setup --services "sshd nginx mariadb"` |
 | Certificaten wijzigen | `sudo rzmon-agent-setup --certs "/etc/letsencrypt/live/*/cert.pem localhost:8443"` (zie 8.5) |
+| Podman uitzetten | Zet `PODMAN=0` in `/etc/default/rzmon-agent` (zie 8.6) |
 | Agent bijwerken | `sudo rzmon-agent-setup --update` (haalt de nieuwste versie van RzMon) |
 | Nieuw token | `sudo rzmon-agent-setup --token <nieuw token>` |
 | Verwijderen | `sudo rzmon-agent-setup --uninstall` |
@@ -641,7 +646,7 @@ Het installatiescript blijft op de server staan als `rzmon-agent-setup`:
 Opnieuw uitvoeren is altijd veilig: wat je niet meegeeft, blijft zoals het was.
 
 ### 8.3 Goed om te weten
-- **Gegevens:** CPU, RAM, alle echte mounts, de gekozen services, de luisterende TCP-poorten en de vervaldatum van de gekozen certificaten.
+- **Gegevens:** CPU, RAM, alle echte mounts, de gekozen services, de luisterende TCP-poorten, de vervaldatum van de gekozen certificaten en, als podman er staat, de containers (8.6).
 - **Netwerk:** de agent stuurt zelf naar RzMon. Op de bewaakte server hoeft dus geen poort open; die server moet RzMon wel kunnen bereiken op de *Basis-URL* uit Setup.
 - **Root:** de agent draait als root om procesnamen bij poorten te zien. De systemd-service is afgeschermd (`ProtectSystem`, `NoNewPrivileges`); de agent leest alleen en schrijft niets.
 - **Token gelekt?** Klik op *Agent installeren* → **↻ Nieuw token** en voer op de server `sudo rzmon-agent-setup --token <nieuw token>` uit.
@@ -717,6 +722,43 @@ CERTS="/etc/letsencrypt/live/*/cert.pem /etc/pki/tls/certs/mijn.crt localhost:84
 - Bij bestanden wordt alleen de vervaldatum bekeken.
 
 **Controleren:** `sudo rzmon-agent-setup --test` toont per certificaat bijvoorbeeld `localhost:8443: nas.lan, nog 63 dagen geldig`, of wat er mis is, zoals "poort dicht" of "bestand niet gevonden".
+
+
+### 8.6 Podman-containers 📦
+Staat **podman** op de server, dan meldt de agent vanzelf alle containers. Er hoeft niets ingesteld te worden. Zonder podman stuurt de agent hier niets over.
+
+**Wat de agent meldt** (elke minuut):
+
+| | |
+|---|---|
+| **Algemeen** | Podman-versie, aantal containers en pods, ruimte van images, containers en volumes, en hoeveel je kunt opruimen (`podman system prune`) |
+| **Per container** | Status (draait, gestopt + exitcode, gepauzeerd), healthcheck (gezond/ongezond), aantal automatische herstarts, starttijd, image en pod |
+| | **CPU** (actueel, gemeten over 2 seconden; 100% = één core, net als `podman stats`), **geheugen** en de limiet, netwerk- en disk-I/O, aantal processen |
+| | **Disk**: de schrijflaag van de container plus de grootte van zijn volumes. Volumes worden elk uur opnieuw gemeten |
+| **Per pod** | Status (Running, Degraded…) en aantal containers |
+
+**Rootless containers:** naast de containers van root zoekt de agent gebruikers met eigen containers (in `~/.local/share/containers`). Die staan in RzMon als `gebruiker/naam`.
+- Andere keuze: zet `PODMAN_USERS="jan piet"` in `/etc/default/rzmon-agent` voor een vaste lijst, of `PODMAN_USERS=""` voor alleen root. `PODMAN=0` zet podman helemaal uit.
+- **CPU en RAM van rootless containers** vereisen cgroups v2; dat is standaard op Rocky/RHEL 9 en 10, Debian 11+ en Ubuntu 22.04+.
+- **Lingering:** zet voor die gebruiker *lingering* aan (`sudo loginctl enable-linger jan`), anders stoppen de containers als de gebruiker uitlogt. Dat is sowieso aan te raden.
+- **systemd-service:** het installatiescript zet op servers met podman `NoNewPrivileges` en `ProtectHome` uit, omdat rootless podman die nodig heeft. Na het bijwerken van een bestaande agent: `sudo rzmon-agent-setup --update`.
+
+**In RzMon:** klap de server open en klik op **📦 Containers**. Je ziet alle containers met status, CPU, RAM en disk.
+- Per container voeg je met één klik een check toe: **＋ Status**, **＋ CPU**, **＋ RAM** of **＋ Disk**.
+- Bovenaan staan **＋ Podman-check** (algehele status) en **＋ Status-check voor alle containers**.
+- Je kunt het ook via **＋ Check** doen: kies het type *Container (Podman)*, de container uit de lijst, en bij *Meten* wat je wilt bewaken.
+
+| Check | OK | WARNING | CRITICAL |
+|---|---|---|---|
+| Podman (algemeen) | Alles in orde | Container gestopt met foutcode, ongezond of gepauzeerd; pod niet in orde | Podman reageert niet |
+| Container – Status | Draait | Gepauzeerd, of in het afgelopen kwartier automatisch herstart (crash) | Gestopt, ongezond (healthcheck faalt), of bestaat niet meer |
+| Container – CPU / RAM | Onder de drempel | Boven de warning-drempel | Boven de critical-drempel. Draait de container niet, dan is deze check ONBEKEND (de status-check meldt het stoppen) |
+| Container – Disk | Onder de drempel (MB) | Boven de warning-drempel | Boven de critical-drempel |
+
+Goed om te weten:
+- **Bedoeld gestopt:** een container die met exitcode 0 is gestopt (een eenmalige taak), telt bij *Podman (algemeen)* niet als probleem. Een status-check op zo'n container wordt wel CRITICAL; zet daar dus geen status-check op.
+- **Handmatige herstart:** `podman restart` telt niet als crash. Alleen herstarts door de restart-policy (`--restart always` of `on-failure`) geven een WARNING.
+- **Grafieken en MQTT:** CPU, RAM en disk van containers krijgen ook grafieken en verschijnen als sensoren in Home Assistant, met eenheid % en MB.
 
 ---
 

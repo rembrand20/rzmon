@@ -401,3 +401,13 @@ code.secret { font-size: .95rem; letter-spacing: .05em; user-select: all; }
 .spark path { fill: none; stroke: var(--c, var(--primary)); stroke-width: 1.5; vector-effect: non-scaling-stroke; opacity: .85; }
 .spark rect.s0 { fill: var(--ok); opacity: .55; } .spark rect.s1 { fill: var(--warn); } .spark rect.s2 { fill: var(--crit); } .spark rect.s3 { fill: var(--unknown); opacity: .5; }
 .chart-head .bad { color: var(--crit); }
+
+/* ---------- Podman ---------- */
+.podman-actions { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin: .2rem 0 .8rem; }
+.table-scroll { overflow-x: auto; }
+.podman-table td { vertical-align: top; }
+.podman-table td.num { white-space: nowrap; }
+.pc-actions { display: flex; flex-wrap: wrap; gap: .3rem; justify-content: flex-end; min-width: 260px; }
+.small-btn { padding: .2rem .5rem; font-size: .78rem; }
+.dot-inline { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: .45rem; background: var(--unknown); vertical-align: middle; }
+.dot-inline.s0 { background: var(--ok); } .dot-inline.s1 { background: var(--warn); } .dot-inline.s2 { background: var(--crit); }

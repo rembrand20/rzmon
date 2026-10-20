@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# RzMon agent – rapporteert CPU, RAM, disk usage, luisterende poorten, service-status en
-# vervaldatums van SSL-certificaten (bestanden en host:poort, ook op internet) aan de monitor.
+# RzMon agent – rapporteert CPU, RAM, disk usage, luisterende poorten, service-status,
+# vervaldatums van SSL-certificaten (bestanden en host:poort, ook op internet) en, als
+# podman aanwezig is, de status en het verbruik van elke container en pod aan de monitor.
 #
 # Linux-server:
 #   sudo install -m 755 rzmon-agent.sh /usr/local/bin/rzmon-agent.sh
@@ -16,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.8.0"
+AGENT_VERSION="1.9.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -45,6 +46,11 @@ INSECURE="${INSECURE:-0}"
 CERTS="${CERTS-/etc/letsencrypt/live/*/cert.pem}"
 # Certificaten veranderen zelden: elk uur opnieuw uitlezen is genoeg (seconden)
 CERT_INTERVAL="${CERT_INTERVAL:-3600}"
+# Podman: wordt alleen gemeld als podman op deze server staat. PODMAN=0 zet het uit.
+PODMAN="${PODMAN:-1}"
+# Gebruikers met rootless containers: "auto" = zelf zoeken (gebruikers met ~/.local/share/containers),
+# of een lijst namen; "" = alleen de containers van root
+PODMAN_USERS="${PODMAN_USERS-auto}"
 SUPERVISOR_URL="${SUPERVISOR_URL:-http://supervisor}"
 
 HA_MODE=0
@@ -183,6 +189,44 @@ else
     done < <(df -P -B1 -x tmpfs -x devtmpfs -x squashfs -x overlay -x efivarfs 2>/dev/null | tail -n +2)
 fi
 
+# ---------------------------------------------------------------- Podman: voorbereiding
+# Contexten: "root" (of de huidige gebruiker) plus gebruikers met rootless containers
+podman_ctx=()
+if [ "$PODMAN" != 0 ] && [ "$HA_MODE" = 0 ] && command -v podman >/dev/null 2>&1; then
+    me=$(id -un)
+    podman_ctx=("$( [ "$(id -u)" = 0 ] && echo root || echo "$me")")
+    if [ "$(id -u)" = 0 ] && [ -n "$PODMAN_USERS" ]; then
+        if [ "$PODMAN_USERS" = auto ]; then
+            while IFS=: read -r u _ uid _ _ home _; do
+                [ "$uid" -ge 1000 ] && [ "$uid" -lt 65534 ] && [ -d "$home/.local/share/containers/storage" ] && podman_ctx+=("$u")
+            done < <(getent passwd 2>/dev/null)
+        else
+            for u in $PODMAN_USERS; do id -u "$u" >/dev/null 2>&1 && podman_ctx+=("$u"); done
+        fi
+    fi
+fi
+pm() {  # pm <context> <podman-argumenten…>: podman als root, of als die gebruiker (rootless)
+    local ctx=$1 uid
+    shift
+    if [ "$ctx" = root ] || [ "$ctx" = "$(id -un)" ]; then
+        timeout 60 podman "$@"
+    else
+        uid=$(id -u "$ctx")
+        (cd / && if [ -d "/run/user/$uid" ]; then export XDG_RUNTIME_DIR="/run/user/$uid"; else unset XDG_RUNTIME_DIR; fi
+         timeout 60 runuser -u "$ctx" -- podman "$@")
+    fi
+}
+# Ruwe tellers per draaiende container; twee metingen → actueel CPU-gebruik (zoals podman stats)
+podman_stats() {
+    local ctx
+    for ctx in "${podman_ctx[@]}"; do
+        pm "$ctx" stats --no-stream --no-trunc --format '{{.ContainerStats.ContainerID}}|{{.ContainerStats.CPUNano}}|{{.ContainerStats.SystemNano}}|{{.ContainerStats.MemUsage}}|{{.ContainerStats.MemLimit}}|{{.ContainerStats.NetInput}}|{{.ContainerStats.NetOutput}}|{{.ContainerStats.BlockInput}}|{{.ContainerStats.BlockOutput}}|{{.ContainerStats.PIDs}}' 2>/dev/null \
+            | sed "s/^/S|$ctx|/"
+    done
+}
+pod_stats_a=""
+[ ${#podman_ctx[@]} -gt 0 ] && pod_stats_a=$(podman_stats)
+
 # ---------------------------------------------------------------- CPU
 # CPU-gebruik over 2 seconden uit /proc/stat (idle = idle + iowait)
 read -r _ u1 n1 s1 i1 w1 q1 sq1 st1 _ < /proc/stat
@@ -252,6 +296,94 @@ else
         state=$(systemctl is-active "$s" 2>/dev/null)
         services+="\"$(json_escape "$s")\":\"$(json_escape "${state:-unknown}")\","
     done
+fi
+
+# ---------------------------------------------------------------- Podman: containers, pods en opslag
+# Per context: versie, containers (status, health, herstarts, grootte, volumes), pods en opslag.
+# Volumegroottes (du) worden een uur bewaard: die kunnen groot zijn en veranderen langzaam.
+podman_json=""
+if [ ${#podman_ctx[@]} -gt 0 ]; then
+    pod_stats_b=$(podman_stats)
+    vol_cache_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
+    mkdir -p "$vol_cache_dir" 2>/dev/null && [ -w "$vol_cache_dir" ] || vol_cache_dir="${TMPDIR:-/tmp}"
+    vol_cache="$vol_cache_dir/volumes.cache"
+    now_s=$(date +%s)
+    podman_raw=$(
+        printf '%s\n' "$pod_stats_a" | sed 's/^S|/A|/'
+        printf '%s\n' "$pod_stats_b" | sed 's/^S|/B|/'
+        for ctx in "${podman_ctx[@]}"; do
+            if ! ver=$(pm "$ctx" version --format '{{.Client.Version}}' 2>/dev/null); then
+                # Podman zet waarschuwingen vóór de echte fout; die echte fout is wat telt
+                err=$(pm "$ctx" version 2>&1 | grep -m1 -iE 'error|denied|not permitted' | sed 's/^time="[^"]*" level=[a-z]* msg="//; s/"$//')
+                printf 'E|%s|%s\n' "$ctx" "$(tr '|' ' ' <<<"${err:-podman reageert niet}" | cut -c1-150)"
+                continue
+            fi
+            printf 'V|%s|%s\n' "$ctx" "$ver"
+            pm "$ctx" ps -a --pod --size --no-trunc --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.ExitCode}}|{{.Restarts}}|{{.PodName}}|{{.IsInfra}}|{{.StartedAt}}|{{.Size}}' 2>/dev/null \
+                | sed "s/^/C|$ctx|/"
+            pm "$ctx" pod ps --format '{{.Name}}|{{.Status}}|{{.NumberOfContainers}}' 2>/dev/null | sed "s/^/P|$ctx|/"
+            pm "$ctx" system df --format '{{.Type}}|{{.RawSize}}|{{.RawReclaimable}}|{{.Total}}|{{.Active}}' 2>/dev/null | sed "s/^/D|$ctx|/"
+            ids=$(pm "$ctx" ps -aq --no-trunc 2>/dev/null)
+            if [ -n "$ids" ]; then
+                # shellcheck disable=SC2086
+                pm "$ctx" inspect --format '{{.ID}}|{{range .Mounts}}{{if eq .Type "volume"}}{{.Source}};{{end}}{{end}}' $ids 2>/dev/null \
+                    | sed "s/^/M|$ctx|/"
+            fi
+        done
+    )
+    # Volumegroottes: uit de cache als die minder dan een uur oud is
+    vols=$(grep '^M|' <<<"$podman_raw" | cut -d'|' -f4 | tr ';' '\n' | grep -v '^$' | sort -u)
+    if [ -n "$vols" ]; then
+        if [ -r "$vol_cache" ] && [ $(( now_s - $(head -1 "$vol_cache") )) -lt 3600 ]; then
+            vol_sizes=$(tail -n +2 "$vol_cache")
+        else
+            vol_sizes=$(while IFS= read -r v; do
+                printf 'Z|%s|%s\n' "$v" "$(du -sb "$v" 2>/dev/null | cut -f1)"
+            done <<<"$vols")
+            (umask 077; { echo "$now_s"; echo "$vol_sizes"; } >"$vol_cache") 2>/dev/null || true
+        fi
+        podman_raw+=$'\n'"$vol_sizes"
+    fi
+    podman_json=$(awk -F'|' -v now="$now_s" '
+        function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
+        function num(v) { return (v ~ /^[0-9]+(\.[0-9]+)?$/) ? v : 0 }
+        # "11.8kB (virtual 8.12MB)" → bytes (podman gebruikt SI: kB = 1000)
+        function bytes(s,   n, u) {
+            if (!match(s, /^[0-9.]+[a-zA-Z]*/)) return 0
+            s = substr(s, 1, RLENGTH); n = s + 0; u = s; sub(/^[0-9.]+/, "", u); u = tolower(u)
+            return n * (u == "kb" ? 1e3 : u == "mb" ? 1e6 : u == "gb" ? 1e9 : u == "tb" ? 1e12 : 1)
+        }
+        $1 == "A" { a_cpu[$3] = $4; a_sys[$3] = $5 }
+        $1 == "B" { b_cpu[$3] = $4; b_sys[$3] = $5; mem[$3] = $6; lim[$3] = $7; ni[$3] = $8; no[$3] = $9; bi[$3] = $10; bo[$3] = $11; pids[$3] = $12 }
+        $1 == "V" { if (version == "") version = $3; ctxs = ctxs (ctxs ? "," : "") "\"" esc($2) "\"" }
+        $1 == "E" { errs = errs (errs ? "; " : "") $2 ": " $3 }
+        $1 == "C" { n++; c_ctx[n] = $2; c_id[n] = $3; c_line[n] = $0 }
+        $1 == "P" { pods = pods sprintf("{\"name\":\"%s\",\"user\":\"%s\",\"status\":\"%s\",\"containers\":%d},", esc($3), esc($2), esc($4), num($5)) }
+        $1 == "D" { t = tolower($3); df_size[t] += num($4); reclaim += num($5); if (t == "images") images += num($6) }
+        $1 == "M" { cvol[$3] = $4 }
+        $1 == "Z" { vsize[$2] = num($3) }
+        END {
+            out = ""
+            for (i = 1; i <= n; i++) {
+                split(c_line[i], f, "|")
+                if (f[11] == "true") continue            # infra-container van een pod
+                id = f[3]; health = ""
+                if (f[7] ~ /\(healthy\)/) health = "healthy"; else if (f[7] ~ /\(unhealthy\)/) health = "unhealthy"; else if (f[7] ~ /\(starting\)/) health = "starting"
+                cpu = "null"
+                if ((id in a_cpu) && (id in b_cpu) && b_sys[id] > a_sys[id])
+                    cpu = sprintf("%.2f", (b_cpu[id] - a_cpu[id]) / (b_sys[id] - a_sys[id]) * 100)
+                vb = 0; nv = split(cvol[id], vl, ";")
+                for (j = 1; j <= nv; j++) if (vl[j] != "") vb += vsize[vl[j]]
+                out = out sprintf("{\"name\":\"%s\",\"user\":\"%s\",\"pod\":\"%s\",\"image\":\"%s\",\"state\":\"%s\",\"status\":\"%s\",\"health\":\"%s\",\"exit_code\":%d,\"restarts\":%d,\"started\":%.0f,\"cpu\":%s,\"mem\":%s,\"mem_limit\":%s,\"net_in\":%s,\"net_out\":%s,\"blk_in\":%s,\"blk_out\":%s,\"pids\":%s,\"size_rw\":%.0f,\"volumes\":%.0f},",
+                    esc(f[4]), esc(f[2]), esc(f[10]), esc(f[5]), esc(f[6]), esc(f[7]), health, num(f[8]), num(f[9]), num(f[12]), cpu,
+                    (id in mem) ? num(mem[id]) : "null", (id in lim) ? num(lim[id]) : "null", (id in ni) ? num(ni[id]) : "null",
+                    (id in no) ? num(no[id]) : "null", (id in bi) ? num(bi[id]) : "null", (id in bo) ? num(bo[id]) : "null",
+                    (id in pids) ? num(pids[id]) : "null", bytes(f[13]), vb)
+            }
+            sub(/,$/, "", out); sub(/,$/, "", pods)
+            printf "{\"version\":\"%s\",\"error\":\"%s\",\"users\":[%s],\"images\":%d,\"images_size\":%.0f,\"containers_size\":%.0f,\"volumes_size\":%.0f,\"reclaimable\":%.0f,\"pods\":[%s],\"containers\":[%s]}",
+                esc(version), esc(errs), ctxs, images, df_size["images"], df_size["containers"], df_size["local volumes"], reclaim, pods, out
+        }' <<<"$podman_raw")
 fi
 
 # ---------------------------------------------------------------- Certificaten
@@ -337,7 +469,7 @@ if [ -n "$CERTS" ]; then
 fi
 
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)
@@ -349,6 +481,15 @@ if [ "$TEST" = 1 ]; then
     pass "Gegevens verzameld: CPU ${cpu_pct}% (${cores} cores), $n_disks disk(s), $n_ports luisterende poort(en)"
     [ -n "$services" ] && hint "Services: $(sed 's/"//g; s/,$//; s/,/, /g' <<<"$services")"
     command -v ss >/dev/null 2>&1 || hint "ss ontbreekt: poorten worden niet gemeld (Rocky: dnf install iproute)"
+    if [ -n "$podman_json" ]; then
+        n_run=$(grep -o '"state":"running"' <<<"$podman_json" | wc -l)
+        n_all=$(grep -o '"state":"' <<<"$podman_json" | wc -l)
+        pass "Podman $(sed -n 's/^{"version":"\([^"]*\)".*/\1/p' <<<"$podman_json"): $n_run van $n_all container(s) draaien (${podman_ctx[*]})"
+        p_err=$(sed -n 's/^{"version":"[^"]*","error":"\([^"]*\)".*/\1/p' <<<"$podman_json")
+        [ -n "$p_err" ] && note "Podman-fout: $p_err"
+    elif command -v podman >/dev/null 2>&1; then
+        hint "Podman staat erop, maar wordt niet gemeld (PODMAN=0 of HA-modus)"
+    fi
     if [ -n "$certs" ]; then
         n_certs=$(grep -o '"source"' <<<"$certs" | wc -l)
         pass "Certificaten: $n_certs uitgelezen"

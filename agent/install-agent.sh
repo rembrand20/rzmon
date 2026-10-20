@@ -351,6 +351,15 @@ use_systemd=0
 if [ "$SCHED" != "cron" ] && has_systemd; then
     use_systemd=1
 fi
+# Rootless podman (containers van gewone gebruikers) moet newuidmap kunnen gebruiken en lock-
+# bestanden in de home-map schrijven; zonder podman blijft de service strenger afgeschermd.
+hardening="NoNewPrivileges=yes
+ProtectHome=read-only"
+if command -v podman >/dev/null 2>&1; then
+    hardening="# Podman aanwezig: nodig om ook rootless containers van gebruikers uit te lezen
+NoNewPrivileges=no
+ProtectHome=no"
+fi
 
 if [ "$use_systemd" -eq 1 ]; then
     cat > "$UNIT" <<EOF
@@ -364,11 +373,10 @@ Type=oneshot
 EnvironmentFile=$CONF
 ExecStart=$BIN
 Nice=10
-NoNewPrivileges=yes
+$hardening
 PrivateTmp=yes
 CacheDirectory=rzmon-agent
 ProtectSystem=full
-ProtectHome=read-only
 EOF
     cat > "$TIMER" <<EOF
 [Unit]

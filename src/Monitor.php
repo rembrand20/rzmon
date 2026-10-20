@@ -291,7 +291,6 @@ final class Monitor
 
     public static function webhookPayload(array $check, array $res, int $status, string $title, string $message, string $event, int $previous): array
     {
-        $units = ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'ssl' => 'dagen', 'disk' => '%', 'cpu' => '%', 'ram' => '%'];
         return [
             'source' => 'rzmon',
             'event' => $event,                       // problem | reminder | recovery | test
@@ -306,7 +305,7 @@ final class Monitor
             'type' => $check['type'],
             'target' => $check['target'] !== '' ? $check['target'] : null,
             'value' => is_float($res['value']) ? round($res['value'], 2) : $res['value'],
-            'unit' => $units[$check['type']] ?? null,
+            'unit' => check_unit($check),
             'title' => $title,
             'message' => $message,
             'time' => date('c'),

@@ -20,6 +20,8 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 | Service | systemd-service `active`? | — (niet actief = CRITICAL) |
 | CPU | CPU-gebruik over 2 sec + load average | % gebruik |
 | RAM | Geheugengebruik (MemAvailable) + swap | % gebruikt |
+| Podman (algemeen) | Via de agent: gestopte, ongezonde of gepauzeerde containers, pods | probleem = WARNING |
+| Container (Podman) | Via de agent, per container: status (healthcheck, herstarts), CPU, RAM of disk | %, MB |
 
 **Host-types**
 - **Lokaal** – de monitor-server zelf: disk en services worden direct uitgelezen.

@@ -54,8 +54,6 @@ if (!$apiKey) {
 q('UPDATE api_keys SET last_used = ? WHERE id = ?', [now(), $apiKey['id']]);
 
 // ---------- Helpers ----------
-const UNITS = ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'ssl' => 'dagen', 'disk' => '%', 'cpu' => '%', 'ram' => '%', 'service' => null];
-
 function iso(?string $dt): ?string
 {
     return $dt ? date('c', strtotime($dt)) : null;
@@ -74,7 +72,8 @@ function fmtCheck(array $c): array
         'status' => (int) $c['status'],
         'status_text' => STATUS_LABELS[(int) $c['status']],
         'value' => $c['last_value'] !== null ? (float) $c['last_value'] : null,
-        'unit' => UNITS[$c['type']] ?? null,
+        'unit' => check_unit($c),
+        'metric' => $c['metric'],
         'message' => $c['last_message'],
         'warn_threshold' => $c['warn_threshold'] !== null ? (float) $c['warn_threshold'] : null,
         'crit_threshold' => $c['crit_threshold'] !== null ? (float) $c['crit_threshold'] : null,

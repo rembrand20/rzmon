@@ -14,8 +14,22 @@ const TYPES = {
   disk:    { label: 'Diskruimte',    target: 'Mount / pad',   unit: '%',  warn: 80, crit: 90, ph: '/', help: 'Percentage gebruikt. Op agent-servers: mount zoals de agent meldt.' },
   cpu:     { label: 'CPU',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'CPU-gebruik gemeten over 2 seconden, met load average in het bericht. Tip: zet "alarm na N fouten" op 3+ om korte pieken te negeren.' },
   ram:     { label: 'RAM',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'Percentage geheugen in gebruik (op basis van MemAvailable, dus cache telt niet mee). Swap staat in het bericht.' },
+  podman:  { label: 'Podman (algemeen)', target: null, unit: null, help: 'Algehele status van Podman op deze server: draait podman, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.' },
+  container: { label: 'Container (Podman)', target: 'Container', unit: null, ph: 'naam, of gebruiker/naam (rootless)', help: 'Eén container: kies hieronder wat je wilt meten. Kies de naam uit de lijst die de agent meldt.' },
   service: { label: 'Service',       target: 'Servicenaam',   unit: null, ph: 'nginx', help: 'systemd service moet "active" zijn. Op agent-servers: voeg de service toe aan SERVICES in rzmon-agent.sh. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.' },
 };
+// Container-checks: wat er gemeten wordt (eigen eenheid en drempels)
+const METRICS = {
+  status: { label: 'Status (draait, healthcheck, herstarts)', unit: null, help: 'OK als de container draait. CRITICAL als hij gestopt of ongezond (healthcheck) is. WARNING als hij gepauzeerd is, of in het afgelopen kwartier automatisch herstart is (crash).' },
+  cpu:    { label: 'CPU-gebruik', unit: '%', warn: 80, crit: 95, help: 'CPU-gebruik zoals podman stats het toont: 100% = één volledige core (kan dus boven 100% komen).' },
+  mem:    { label: 'Geheugen (RAM)', unit: '%', warn: 85, crit: 95, help: 'Percentage van de geheugenlimiet van de container, of van het totale geheugen als er geen limiet is.' },
+  disk:   { label: 'Diskgebruik', unit: 'MB', warn: 5000, crit: 10000, help: 'Schrijflaag van de container plus de grootte van zijn volumes (volumes worden elk uur gemeten).' },
+};
+/** Type-beschrijving van een check; bij containers met de eenheid van de gekozen meting. */
+function typeOf(c) {
+  return c.type === 'container' ? { ...TYPES.container, ...METRICS[c.metric || 'status'], label: TYPES.container.label } : TYPES[c.type];
+}
+
 const MODES = { local: 'Lokaal (deze server)', agent: 'Remote met agent', remote: 'Remote (alleen netwerk)' };
 
 let state = { hosts: [], alerts: [] };
@@ -186,7 +200,7 @@ function sparkSvg(c) {
   const data = stats.sparks[c.id];
   if (!data) return '';
   const W = 240, H = 26;
-  const t = TYPES[c.type];
+  const t = typeOf(c);
   const vals = data.filter((d) => d && d[0] !== null).map((d) => d[0]);
   const max = t.unit === '%' ? 100 : Math.max(...vals, +c.warn_threshold || 0, 1) * 1.1;
   const x = (i) => (i / 47) * W;
@@ -352,6 +366,7 @@ function hostCard(h) {
         <button class="btn" data-act="maint-host" data-id="${h.id}">🔧 Onderhoud</button>
         <button class="btn" data-act="add-check" data-id="${h.id}">＋ Check</button>
         <button class="btn" data-act="scan" data-id="${h.id}">🔍 Poorten</button>
+        ${h.metrics.includes('podman') ? `<button class="btn" data-act="podman" data-id="${h.id}">📦 Containers</button>` : ''}
         <button class="btn" data-act="edit-host" data-id="${h.id}">✎ Bewerken</button>
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
       </div>
@@ -364,7 +379,7 @@ function hostCard(h) {
 }
 
 function checkRow(c) {
-  const t = TYPES[c.type];
+  const t = typeOf(c);
   const s = +c.status;
   let bar = '';
   if (t.unit === '%' && c.last_value !== null) {
@@ -373,7 +388,7 @@ function checkRow(c) {
       ${c.warn_threshold !== null ? `<b style="left:${+c.warn_threshold}%"></b>` : ''}
       ${c.crit_threshold !== null ? `<b style="left:${+c.crit_threshold}%"></b>` : ''}</div>`;
   }
-  const value = (t.unit === 'ms' || t.unit === 'dagen') && c.last_value !== null ? ` · ${t.unit === 'dagen' ? Math.floor(c.last_value) + ' dagen' : fmt(c.last_value, t.unit)}` : '';
+  const value = ['ms', 'dagen', 'MB'].includes(t.unit) && c.last_value !== null ? ` · ${t.unit === 'dagen' ? Math.floor(c.last_value) + ' dagen' : fmt(c.last_value, t.unit)}` : '';
   const own = c.maintenance && c.maintenance.scope === 'check';
   const problem = s !== 0 && +c.enabled;
   const ackTitle = c.acked_at ? `Bevestigd door ${c.acked_by || '?'} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. Klik om in te trekken.` : '';
@@ -414,6 +429,7 @@ async function onHostsClick(e) {
     case 'history': { const [c, h] = findCheck(id); return showHistory(c, h); }
     case 'agent': return agentInstructions(findHost(id));
     case 'scan': return portScan(findHost(id));
+    case 'podman': return podmanOverview(findHost(id));
     case 'toggle': return toggleHost(id);
     case 'ack': { const [c, h] = findCheck(id); return ackDialog('check', id, `${h.name} – ${c.name}`, c.last_message); }
     case 'ack-host': { const h = findHost(id); const n = h.checks.filter((c) => +c.enabled && +c.status !== 0 && !c.acked_at).length; return ackDialog('host', id, h.name, `${n} onbevestigde storing(en)`); }
@@ -596,13 +612,15 @@ async function endMaintenance(scope, id) {
 }
 
 // ---------------------------------------------------------------- Check form
-function checkForm(c, h) {
+function checkForm(c, h, preset = {}) {
   const isNew = !c;
-  c = c || { type: 'ping', target: '', name: '', warn_threshold: TYPES.ping.warn, crit_threshold: TYPES.ping.crit, interval_sec: 60, enabled: 1 };
-  const allowed = h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl'] : Object.keys(TYPES);
+  c = c || { type: 'ping', target: '', name: '', warn_threshold: TYPES.ping.warn, crit_threshold: TYPES.ping.crit, interval_sec: 60, enabled: 1, ...preset };
+  const allowed = h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl']
+    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container'].includes(k));
   const disks = h.metrics.filter((m) => m.startsWith('disk:')).map((m) => m.slice(5));
   const svcs = h.metrics.filter((m) => m.startsWith('service:')).map((m) => m.slice(8));
   const certs = h.metrics.filter((m) => m.startsWith('cert:')).map((m) => m.slice(5));
+  const containers = h.metrics.filter((m) => m.startsWith('container:')).map((m) => m.slice(10));
 
   const { form } = modal({
     title: isNew ? `Check toevoegen – ${h.name}` : `Check bewerken – ${c.name}`,
@@ -612,6 +630,10 @@ function checkForm(c, h) {
         <span class="hint" id="type-help"></span>
       </label>
       <label id="target-wrap"><span id="target-label"></span><input name="target" value="${esc(c.target)}" list="target-list" class="mono"></label>
+      <label id="metric-wrap" hidden>Meten
+        <select name="metric">${Object.entries(METRICS).map(([k, m]) => `<option value="${k}" ${(c.metric || 'status') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+        <span class="hint" id="metric-help"></span>
+      </label>
       <datalist id="target-list"></datalist>
       <label>Naam <span class="hint">(optioneel)</span><input name="name" value="${esc(c.name)}"></label>
       <div class="row3" id="thr-wrap">
@@ -636,9 +658,13 @@ function checkForm(c, h) {
   });
 
   const typeSel = $('[name=type]', form);
+  const metricSel = $('[name=metric]', form);
   const update = (setDefaults) => {
-    const t = TYPES[typeSel.value];
-    $('#type-help').textContent = t.help;
+    const isContainer = typeSel.value === 'container';
+    const t = isContainer ? { ...TYPES.container, ...METRICS[metricSel.value] } : TYPES[typeSel.value];
+    $('#type-help').textContent = TYPES[typeSel.value].help;
+    $('#metric-wrap').hidden = !isContainer;
+    $('#metric-help').textContent = isContainer ? METRICS[metricSel.value].help : '';
     $('#target-wrap').hidden = !t.target;
     $('#target-label').textContent = t.target || '';
     $('[name=target]', form).placeholder = t.ph || '';
@@ -649,21 +675,22 @@ function checkForm(c, h) {
     words[1].textContent = t.low ? 'Critical onder' : 'Critical vanaf';
     $('#verify-wrap').hidden = !['http', 'ssl'].includes(typeSel.value);
     $('[name=target]', form).required = !!t.target && !['http', 'ssl'].includes(typeSel.value);
-    const list = { disk: disks, service: svcs, ssl: certs }[typeSel.value] || [];
+    const list = { disk: disks, service: svcs, ssl: certs, container: containers }[typeSel.value] || [];
     $('#target-list').innerHTML = list.map((v) => `<option value="${esc(v)}">`).join('');
     if (setDefaults) {
       $('[name=warn_threshold]', form).value = t.warn ?? '';
       $('[name=crit_threshold]', form).value = t.crit ?? '';
-      $('[name=target]', form).value = typeSel.value === 'disk' ? '/' : '';
+      if (setDefaults !== 'metric') $('[name=target]', form).value = typeSel.value === 'disk' ? '/' : '';
     }
   };
   typeSel.onchange = () => update(true);
+  metricSel.onchange = () => update('metric');
   update(false);
 }
 
 // ---------------------------------------------------------------- History
 async function showHistory(c, h) {
-  const t = TYPES[c.type];
+  const t = typeOf(c);
   modal({
     title: `${h.name} – ${c.name}`,
     wide: true,
@@ -845,6 +872,78 @@ async function addPortCheck(e, h) {
     toast(ex.message, 'err');
     b.disabled = false;
   }
+}
+
+// ---------------------------------------------------------------- Podman
+const fmtBytes = (b) => {
+  if (b === null || b === undefined) return '–';
+  const u = ['B', 'kB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (b >= 1000 && i < u.length - 1) { b /= 1000; i++; }
+  return `${b >= 100 || i === 0 ? Math.round(b) : b.toFixed(1)} ${u[i]}`.replace('.', ',');
+};
+
+async function podmanOverview(h) {
+  modal({ title: `📦 Containers – ${h.name}`, wide: true, body: '<div id="podman-body"><p class="muted">Laden…</p></div>' });
+  const body = $('#podman-body');
+  let d;
+  try { d = await api('podman', null, { id: h.id }); } catch (ex) { body.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const sm = d.summary;
+  const has = (key, metric) => d.checks.some((c) => c.type === 'container' && c.target === key && (c.metric || 'status') === metric);
+  const stateCls = (c) => (c.state === 'running' ? (c.health === 'unhealthy' ? 's2' : 's0') : c.state === 'paused' ? 's1' : +c.exit_code ? 's2' : 's3');
+  const stateText = (c) => (c.state === 'running' ? 'draait' + (c.health ? ` (${c.health === 'healthy' ? 'gezond' : c.health === 'unhealthy' ? 'ONGEZOND' : 'start op'})` : '')
+    : c.state === 'paused' ? 'gepauzeerd' : c.state === 'exited' ? `gestopt (exit ${c.exit_code})` : c.state);
+  const rows = d.containers.map((c) => {
+    const memPct = c.mem !== null && c.mem_limit ? (c.mem / c.mem_limit) * 100 : null;
+    const disk = (c.size_rw || 0) + (c.volumes || 0);
+    const btn = (metric, label, title) => (has(c.key, metric) ? `<span class="muted small" title="Wordt bewaakt">✓ ${label}</span>`
+      : `<button type="button" class="btn small-btn" data-pc="${esc(c.key)}" data-metric="${metric}" title="${title}">＋ ${label}</button>`);
+    return `<tr>
+      <td><span class="dot-inline ${stateCls(c)}"></span><b>${esc(c.key)}</b>${c.pod ? `<br><span class="muted small">pod ${esc(c.pod)}</span>` : ''}
+        <br><span class="muted small mono">${esc(c.image)}</span></td>
+      <td>${esc(stateText(c))}${+c.restarts ? `<br><span class="muted small">${c.restarts}× herstart</span>` : ''}</td>
+      <td class="num">${c.cpu !== null ? (Math.round(c.cpu * 10) / 10).toString().replace('.', ',') + '%' : '–'}</td>
+      <td class="num">${c.mem !== null ? fmtBytes(c.mem) : '–'}${memPct !== null ? `<br><span class="muted small">${memPct.toFixed(1).replace('.', ',')}% van ${fmtBytes(c.mem_limit)}</span>` : ''}</td>
+      <td class="num">${fmtBytes(disk)}${c.volumes ? `<br><span class="muted small">volumes ${fmtBytes(c.volumes)}</span>` : ''}</td>
+      <td class="pc-actions">${btn('status', 'Status', 'Melding als de container stopt, ongezond wordt of herstart')}
+        ${btn('cpu', 'CPU', 'CPU-gebruik bewaken')} ${btn('mem', 'RAM', 'Geheugengebruik bewaken')} ${btn('disk', 'Disk', 'Diskgebruik bewaken')}</td>
+    </tr>`;
+  }).join('');
+  const missing = d.containers.filter((c) => !has(c.key, 'status'));
+  body.innerHTML = `
+    <p class="scan-summary">Podman ${esc(sm.version || '?')} · ${d.containers.filter((c) => c.state === 'running').length} van ${d.containers.length} containers draaien
+      ${(sm.pods || []).length ? ' · pods: ' + sm.pods.map((p) => `${esc(p.name)} (${esc(p.status)})`).join(', ') : ''}
+      <br><span class="muted small">Images ${fmtBytes(sm.images_size)} · containers ${fmtBytes(sm.containers_size)} · volumes ${fmtBytes(sm.volumes_size)}
+      ${sm.reclaimable ? ` · ${fmtBytes(sm.reclaimable)} op te ruimen (<code>podman system prune</code>)` : ''} · gemeld ${ago(d.updated_at)}
+      ${(sm.users || []).length > 1 ? ' · gebruikers: ' + sm.users.map(esc).join(', ') : ''}</span></p>
+    ${sm.error ? `<p class="form-error">Podman-fout: ${esc(sm.error)}</p>` : ''}
+    <div class="podman-actions">
+      ${d.checks.some((c) => c.type === 'podman') ? '<span class="muted small">✓ Podman-check aanwezig</span>'
+        : '<button type="button" class="btn" id="pc-overall">＋ Podman-check (algehele status)</button>'}
+      ${missing.length ? `<button type="button" class="btn" id="pc-all">＋ Status-check voor ${missing.length === d.containers.length ? 'alle' : 'de overige'} ${missing.length} container(s)</button>` : ''}
+    </div>
+    <div class="table-scroll"><table class="port-table podman-table">
+      <thead><tr><th>Container</th><th>Status</th><th>CPU</th><th>RAM</th><th>Disk</th><th>Bewaken</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" class="muted">Geen containers.</td></tr>'}</tbody></table></div>
+    <p class="muted small">CPU zoals <code>podman stats</code>: 100% = één core. Disk = schrijflaag van de container + zijn volumes.
+      Containers van gewone gebruikers (rootless) staan als <code>gebruiker/naam</code>.</p>`;
+
+  const add = async (payload) => api('check_save', { host_id: h.id, interval_sec: 60, enabled: true, ...payload });
+  const addContainer = (key, metric) => add({ type: 'container', target: key, metric, name: '',
+    warn_threshold: METRICS[metric].warn ?? '', crit_threshold: METRICS[metric].crit ?? '' });
+  body.onclick = async (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    b.disabled = true;
+    try {
+      if (b.id === 'pc-overall') await add({ type: 'podman', name: 'Podman' });
+      else if (b.id === 'pc-all') for (const c of missing) await addContainer(c.key, 'status');
+      else if (b.dataset.pc) await addContainer(b.dataset.pc, b.dataset.metric);
+      toast('Check(s) toegevoegd');
+      await refresh();
+      podmanOverview(findHost(h.id));
+    } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
+  };
 }
 
 // ---------------------------------------------------------------- Agent

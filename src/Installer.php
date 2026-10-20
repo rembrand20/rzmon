@@ -70,6 +70,7 @@ final class Installer
         ['users', 'last_login', 'DATETIME NULL'],
         ['checks', 'verify_ssl', 'TINYINT(1) NOT NULL DEFAULT 1'],
         ['alerts', 'email_ok', 'TINYINT(1) NULL'],
+        ['checks', 'metric', 'VARCHAR(16) NULL'],   // container: status | cpu | mem | disk
     ];
 
     private static function migrate(PDO $pdo): void

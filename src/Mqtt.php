@@ -12,9 +12,8 @@ final class Mqtt
 {
     /** Sensoren worden "niet beschikbaar" in HA als RzMon zo lang niets publiceert (cron gestopt?). */
     private const EXPIRE_AFTER = 600;
-    private const UNITS = ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'ssl' => 'd', 'disk' => '%', 'cpu' => '%', 'ram' => '%'];
     private const STATES = ['OK', 'WARNING', 'CRITICAL', 'UNKNOWN', 'ONDERHOUD'];
-    private const ICONS = ['disk' => 'mdi:harddisk', 'cpu' => 'mdi:cpu-64-bit', 'ram' => 'mdi:memory'];
+    private const ICONS = ['disk' => 'mdi:harddisk', 'cpu' => 'mdi:cpu-64-bit', 'ram' => 'mdi:memory', 'container' => 'mdi:docker'];
     private const RANK = [0 => 0, 3 => 1, 1 => 2, 2 => 3];
 
     /** @var resource */
@@ -241,8 +240,10 @@ final class Mqtt
                     'acknowledged' => $c['acked_at'] !== null,
                     'maintenance' => $maint !== null,
                 ];
+                // HA kent "d" voor dagen; de rest is gelijk
+                $unit = check_unit($c) === 'dagen' ? 'd' : check_unit($c);
                 $entity('sensor', "check_{$cid}_status", $device, [
-                    'name' => $c['name'] . (isset(self::UNITS[$c['type']]) ? ' status' : ''),
+                    'name' => $c['name'] . ($unit !== null ? ' status' : ''),
                     'state_topic' => $topic,
                     'value_template' => '{{ value_json.status }}',
                     'json_attributes_topic' => $topic,
@@ -250,11 +251,12 @@ final class Mqtt
                     'options' => self::STATES,
                     'icon' => 'mdi:list-status',
                 ]);
-                if (isset(self::UNITS[$c['type']])) {
-                    $unit = self::UNITS[$c['type']];
-                    $looks = in_array($unit, ['ms', 'd'], true)
-                        ? ['device_class' => 'duration']
-                        : ['icon' => self::ICONS[$c['type']] ?? 'mdi:gauge'];
+                if ($unit !== null) {
+                    $looks = match ($unit) {
+                        'ms', 'd' => ['device_class' => 'duration'],
+                        'MB' => ['device_class' => 'data_size'],
+                        default => ['icon' => self::ICONS[$c['type']] ?? 'mdi:gauge'],
+                    };
                     $entity('sensor', "check_{$cid}_value", $device, [
                         'name' => $c['name'],
                         'state_topic' => $topic,

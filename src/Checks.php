@@ -13,12 +13,17 @@ final class Checks
         if ($host['mode'] === 'remote' && in_array($check['type'], ['disk', 'service', 'cpu', 'ram'], true)) {
             return self::result(STATUS_UNKNOWN, null, 'Disk/service/CPU/RAM checks vereisen host-type lokaal of agent');
         }
+        if ($host['mode'] !== 'agent' && in_array($check['type'], ['podman', 'container'], true)) {
+            return self::result(STATUS_UNKNOWN, null, 'Podman-checks werken via de agent: zet de server op type "Remote met agent" en installeer de agent');
+        }
         try {
             return match ($check['type']) {
                 'ping' => self::ping($check, $host),
                 'tcp' => self::tcp($check, $host),
                 'http' => self::http($check, $host),
                 'ssl' => self::ssl($check, $host),
+                'podman' => self::podman($check, $host),
+                'container' => self::container($check, $host),
                 'disk' => $host['mode'] === 'agent' ? self::agentDisk($check, $host) : self::localDisk($check),
                 'service' => $host['mode'] === 'agent' ? self::agentService($check, $host) : self::localService($check),
                 'cpu' => $host['mode'] === 'agent' ? self::agentCpu($check, $host) : self::localCpu($check),
@@ -256,6 +261,135 @@ final class Checks
     private static function fmtHostPort(array $hp): string
     {
         return (str_contains($hp[0], ':') ? "[{$hp[0]}]" : $hp[0]) . ':' . $hp[1];
+    }
+
+    // ------------------------------------------------------------------ Podman (via de agent)
+
+    /** Algehele status: draait podman, en zijn er gestopte (exitcode ≠ 0), ongezonde of gepauzeerde containers? */
+    private static function podman(array $check, array $host): array
+    {
+        if ($stale = self::agentStale($host)) {
+            return $stale;
+        }
+        $raw = self::agentMetric($host, 'podman');
+        if ($raw === null) {
+            return self::result(STATUS_UNKNOWN, null, 'Agent meldt geen Podman (staat podman op de server, en is de agent bijgewerkt?)');
+        }
+        $p = json_decode($raw, true) ?: [];
+        $all = $p['containers'] ?? [];
+        $running = array_filter($all, fn($c) => ($c['state'] ?? '') === 'running');
+        $problems = [];
+        foreach ($all as $c) {
+            $name = (($c['user'] ?? 'root') !== 'root' ? $c['user'] . '/' : '') . $c['name'];
+            $state = $c['state'] ?? '';
+            if ($state === 'running' && ($c['health'] ?? '') === 'unhealthy') {
+                $problems[] = "$name ongezond";
+            } elseif ($state === 'paused') {
+                $problems[] = "$name gepauzeerd";
+            } elseif ($state !== 'running' && (int) ($c['exit_code'] ?? 0) !== 0) {
+                $problems[] = "$name gestopt (exit {$c['exit_code']})";
+            }
+        }
+        foreach ($p['pods'] ?? [] as $pod) {
+            if (!in_array($pod['status'] ?? '', ['Running', 'Exited', 'Created'], true)) {
+                $problems[] = "pod {$pod['name']}: " . ($pod['status'] ?? '?');
+            }
+        }
+        $msg = sprintf('Podman %s · %d van %d container(s) draaien', $p['version'] ?? '?', count($running), count($all));
+        if (!empty($p['pods'])) {
+            $msg .= ' · ' . count($p['pods']) . ' pod(s)';
+        }
+        $msg .= sprintf(' · images %s, volumes %s', self::siBytes((float) ($p['images_size'] ?? 0)), self::siBytes((float) ($p['volumes_size'] ?? 0)));
+        if (($p['reclaimable'] ?? 0) > 0) {
+            $msg .= ' (' . self::siBytes((float) $p['reclaimable']) . ' op te ruimen)';
+        }
+        if (($p['error'] ?? '') !== '') {
+            return self::result(count($all) ? STATUS_WARN : STATUS_CRIT, (float) count($running), "Podman-fout: {$p['error']} · $msg");
+        }
+        if ($problems) {
+            return self::result(STATUS_WARN, (float) count($running), implode(', ', $problems) . " · $msg");
+        }
+        return self::result(STATUS_OK, (float) count($running), $msg);
+    }
+
+    /** Eén container: status (incl. health en herstarts), of CPU / RAM / disk met drempels. */
+    private static function container(array $check, array $host): array
+    {
+        if ($stale = self::agentStale($host)) {
+            return $stale;
+        }
+        $name = $check['target'];
+        $raw = self::agentMetric($host, "container:$name");
+        if ($raw === null) {
+            return self::result(self::agentMetric($host, 'podman') === null ? STATUS_UNKNOWN : STATUS_CRIT, null,
+                self::agentMetric($host, 'podman') === null ? 'Agent meldt geen Podman (agent bijwerken?)' : "Container $name bestaat niet (meer)");
+        }
+        $c = json_decode($raw, true) ?: [];
+        $state = (string) ($c['state'] ?? 'unknown');
+        $running = $state === 'running';
+        $metric = $check['metric'] ?: 'status';
+        $memText = isset($c['mem']) ? self::siBytes((float) $c['mem']) . (!empty($c['mem_limit']) ? ' / ' . self::siBytes((float) $c['mem_limit']) : '') : null;
+
+        if ($metric === 'status') {
+            $restarts = (int) ($c['restarts'] ?? 0);
+            $up = !empty($c['started']) && $running ? ' · draait sinds ' . date('d-m H:i', (int) $c['started']) : '';
+            $extra = ($c['pod'] ?? '') !== '' ? " · pod {$c['pod']}" : '';
+            if ($running && ($c['health'] ?? '') === 'unhealthy') {
+                return self::result(STATUS_CRIT, (float) $restarts, "$name draait maar is ONGEZOND (healthcheck faalt)$extra");
+            }
+            if ($state === 'paused') {
+                return self::result(STATUS_WARN, (float) $restarts, "$name is gepauzeerd$extra");
+            }
+            if (!$running) {
+                return self::result(STATUS_CRIT, (float) $restarts, "$name is gestopt ($state, exitcode " . (int) ($c['exit_code'] ?? 0) . ")$extra");
+            }
+            // Automatisch herstart (restart-policy) in het afgelopen kwartier: WARNING, lang genoeg voor
+            // "alarm na N fouten". Een crashende container blijft zo WARNING. Handmatig herstarten telt niet.
+            if ($restarts > 0 && !empty($c['started']) && (int) $c['started'] > time() - 900) {
+                $min = max(1, (int) round((time() - (int) $c['started']) / 60));
+                return self::result(STATUS_WARN, (float) $restarts, "$name is $min min geleden automatisch herstart (totaal {$restarts}×)$extra");
+            }
+            $health = ($c['health'] ?? '') !== '' ? " ({$c['health']})" : '';
+            return self::result(STATUS_OK, (float) $restarts, "$name draait$health$up"
+                . (isset($c['cpu']) ? sprintf(' · CPU %.1f%%', $c['cpu']) : '') . ($memText ? " · RAM $memText" : '') . $extra);
+        }
+
+        if ($metric === 'disk') {
+            $bytes = (float) ($c['size_rw'] ?? 0) + (float) ($c['volumes'] ?? 0);
+            $mb = round($bytes / 1e6, 1);
+            return self::result(self::threshold($mb, $check), $mb, sprintf('%s: %s (container %s, volumes %s)', $name, self::siBytes($bytes),
+                self::siBytes((float) ($c['size_rw'] ?? 0)), self::siBytes((float) ($c['volumes'] ?? 0))));
+        }
+
+        // cpu / mem: alleen zinvol als de container draait (de status-check meldt het stoppen)
+        if (!$running) {
+            return self::result(STATUS_UNKNOWN, null, "$name draait niet ($state)");
+        }
+        if ($metric === 'cpu') {
+            if (!isset($c['cpu'])) {
+                return self::result(STATUS_UNKNOWN, null, "Geen CPU-gegevens voor $name (rootless zonder cgroups v2?)");
+            }
+            $pct = round((float) $c['cpu'], 1);
+            return self::result(self::threshold($pct, $check), $pct, sprintf('%s: CPU %.1f%% (100%% = één core)%s', $name, $pct,
+                isset($c['pids']) ? " · {$c['pids']} processen" : ''));
+        }
+        if (empty($c['mem_limit']) || !isset($c['mem'])) {
+            return self::result(STATUS_UNKNOWN, null, "Geen geheugengegevens voor $name (rootless zonder cgroups v2?)");
+        }
+        $pct = round((float) $c['mem'] / (float) $c['mem_limit'] * 100, 1);
+        return self::result(self::threshold($pct, $check), $pct, sprintf('%s: RAM %.1f%% (%s)', $name, $pct, $memText));
+    }
+
+    /** Bytes zoals podman ze toont (SI: 1 MB = 1000 kB). */
+    private static function siBytes(float $b): string
+    {
+        $u = ['B', 'kB', 'MB', 'GB', 'TB'];
+        $i = 0;
+        while ($b >= 1000 && $i < count($u) - 1) {
+            $b /= 1000;
+            $i++;
+        }
+        return round($b, 1) . ' ' . $u[$i];
     }
 
     private static function localDisk(array $check): array

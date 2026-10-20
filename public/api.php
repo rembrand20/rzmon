@@ -120,6 +120,24 @@ if ($action === 'agent') {
             'error' => mb_substr((string) ($c['error'] ?? ''), 0, 200),
         ], JSON_UNESCAPED_UNICODE), $now]);
     }
+    // Podman: overzicht, en per container en pod een eigen regel (sleutel: naam, of gebruiker/naam bij rootless)
+    if (isset($in['podman']) && is_array($in['podman'])) {
+        $pd = $in['podman'];
+        $key = static fn(array $x): string => mb_substr((($x['user'] ?? 'root') !== 'root' ? $x['user'] . '/' : '') . ($x['name'] ?? ''), 0, 150);
+        $summary = array_intersect_key($pd, array_flip(['version', 'error', 'users', 'images', 'images_size', 'containers_size', 'volumes_size', 'reclaimable', 'pods']));
+        $summary['containers'] = [];
+        foreach (array_slice((array) ($pd['containers'] ?? []), 0, 300) as $c) {
+            if (!is_array($c) || ($c['name'] ?? '') === '') {
+                continue;
+            }
+            $c = array_intersect_key($c, array_flip(['name', 'user', 'pod', 'image', 'state', 'status', 'health', 'exit_code', 'restarts',
+                'started', 'cpu', 'mem', 'mem_limit', 'net_in', 'net_out', 'blk_in', 'blk_out', 'pids', 'size_rw', 'volumes']));
+            $st->execute([$host['id'], 'container:' . $key($c), json_encode($c, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
+            // Kort overzicht voor de Podman-check (zonder de meetwaarden)
+            $summary['containers'][] = array_intersect_key($c, array_flip(['name', 'user', 'pod', 'state', 'health', 'exit_code']));
+        }
+        $st->execute([$host['id'], 'podman', json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
+    }
     foreach (($in['services'] ?? []) as $name => $state) {
         $st->execute([$host['id'], mb_substr('service:' . $name, 0, 190), mb_substr((string) $state, 0, 255), $now]);
     }
@@ -128,7 +146,7 @@ if ($action === 'agent') {
     q('UPDATE hosts SET agent_seen = ?, agent_ip = ?, agent_version = ? WHERE id = ?', [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $host['id']]);
     out(['ok' => true, 'host' => $host['name'], 'rzmon_version' => RZMON_VERSION, 'received' => [
         'disks' => count($in['disks'] ?? []), 'services' => count($in['services'] ?? []), 'ports' => count($in['ports'] ?? []),
-        'certs' => count((array) ($in['certs'] ?? [])),
+        'certs' => count((array) ($in['certs'] ?? [])), 'containers' => count((array) ($in['podman']['containers'] ?? [])),
     ]]);
 }
 
@@ -282,6 +300,22 @@ switch ($action) {
         out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now(),
              'agent_version' => $h['agent_version'], 'version' => RZMON_VERSION]);
 
+    case 'podman':
+        // Overzicht van alle containers die de agent van deze server meldt
+        $id = (int) ($_GET['id'] ?? 0);
+        $sum = q("SELECT value, updated_at FROM agent_data WHERE host_id = ? AND metric = 'podman'", [$id])->fetch();
+        if (!$sum) {
+            out(['error' => 'Deze server meldt (nog) geen Podman'], 404);
+        }
+        $containers = [];
+        foreach (q("SELECT metric, value FROM agent_data WHERE host_id = ? AND metric LIKE 'container:%' ORDER BY metric", [$id]) as $r) {
+            $containers[] = ['key' => substr($r['metric'], 10)] + (json_decode($r['value'], true) ?: []);
+        }
+        $summary = json_decode($sum['value'], true) ?: [];
+        unset($summary['containers']);
+        out(['summary' => $summary, 'updated_at' => $sum['updated_at'], 'containers' => $containers,
+             'checks' => q("SELECT id, type, target, metric FROM checks WHERE host_id = ? AND type IN ('podman', 'container')", [$id])->fetchAll()]);
+
     case 'host_token':
         q('UPDATE hosts SET agent_token = ? WHERE id = ?', [bin2hex(random_bytes(20)), (int) (input()['id'] ?? 0)]);
         out(['ok' => true]);
@@ -344,8 +378,12 @@ switch ($action) {
     case 'check_save':
         $in = input();
         $type = $in['type'] ?? '';
-        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram'], true)) {
+        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container'], true)) {
             out(['error' => 'Ongeldig type'], 422);
+        }
+        $metric = $type === 'container' ? (string) ($in['metric'] ?? 'status') : null;
+        if ($metric !== null && !in_array($metric, ['status', 'cpu', 'mem', 'disk'], true)) {
+            out(['error' => 'Ongeldige meting'], 422);
         }
         $target = trim((string) ($in['target'] ?? ''));
         if ($type === 'tcp' && ((int) $target < 1 || (int) $target > 65535)) {
@@ -353,6 +391,9 @@ switch ($action) {
         }
         if ($type === 'service' && !preg_match('/^[A-Za-z0-9@._:-]+$/', $target)) {
             out(['error' => 'Geef een geldige servicenaam op'], 422);
+        }
+        if ($type === 'container' && !preg_match('#^([a-z_][a-z0-9_.-]*/)?[A-Za-z0-9][A-Za-z0-9_.-]*$#', $target)) {
+            out(['error' => 'Geef de naam van een container op (rootless: gebruiker/naam)'], 422);
         }
         $warn = num($in['warn_threshold'] ?? null);
         $crit = num($in['crit_threshold'] ?? null);
@@ -368,19 +409,23 @@ switch ($action) {
             && !preg_match('#^/[^\s\'"]+$#', $target)) {
             out(['error' => 'Geef een host op, eventueel met poort (example.com of example.com:8443), of het pad van een certificaatbestand dat de agent meldt'], 422);
         }
-        if (in_array($type, ['ping', 'cpu', 'ram'], true)) {
+        if (in_array($type, ['ping', 'cpu', 'ram', 'podman'], true)) {
             $target = '';
         }
-        $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service',
-            'cpu' => 'CPU', 'ram' => 'RAM'][$type] . ($target !== '' ? " $target" : '');
+        if ($type === 'container' && $metric === 'status') {
+            $warn = $crit = null;   // status heeft geen drempels
+        }
+        $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
+            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM'][$type] . ($target !== '' ? " $target" : '')
+            . ($type === 'container' && $metric !== 'status' ? ' · ' . ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'Disk'][$metric] : '');
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
-            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0];
+            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric];
         if (!empty($in['id'])) {
-            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ? WHERE id = ?',
+            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ? WHERE id = ?',
                 [...$params, (int) $in['id']]);
             $id = (int) $in['id'];
         } else {
-            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [...$params, (int) ($in['host_id'] ?? 0)]);
             $id = (int) db()->lastInsertId();
         }

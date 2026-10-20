@@ -95,6 +95,15 @@ function save_setting(string $name, string $value): void
     q('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)', [$name, $value]);
 }
 
+/** Eenheid van de meetwaarde van een check (null = geen getal om te tonen). */
+function check_unit(array $check): ?string
+{
+    if ($check['type'] === 'container') {
+        return ['cpu' => '%', 'mem' => '%', 'disk' => 'MB'][$check['metric'] ?? ''] ?? null;
+    }
+    return ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'ssl' => 'dagen', 'disk' => '%', 'cpu' => '%', 'ram' => '%'][$check['type']] ?? null;
+}
+
 function now(): string
 {
     return date('Y-m-d H:i:s');
