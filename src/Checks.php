@@ -13,8 +13,8 @@ final class Checks
         if ($host['mode'] === 'remote' && in_array($check['type'], ['disk', 'service', 'cpu', 'ram'], true)) {
             return self::result(STATUS_UNKNOWN, null, 'Disk/service/CPU/RAM checks vereisen host-type lokaal of agent');
         }
-        if ($host['mode'] !== 'agent' && in_array($check['type'], ['podman', 'container'], true)) {
-            return self::result(STATUS_UNKNOWN, null, 'Podman-checks werken via de agent: zet de server op type "Remote met agent" en installeer de agent');
+        if ($host['mode'] !== 'agent' && in_array($check['type'], ['podman', 'container', 'log'], true)) {
+            return self::result(STATUS_UNKNOWN, null, 'Deze check werkt via de agent: zet de server op type "Remote met agent" en installeer de agent');
         }
         try {
             return match ($check['type']) {
@@ -24,6 +24,7 @@ final class Checks
                 'ssl' => self::ssl($check, $host),
                 'podman' => self::podman($check, $host),
                 'container' => self::container($check, $host),
+                'log' => self::logCheck($check, $host),
                 'disk' => $host['mode'] === 'agent' ? self::agentDisk($check, $host) : self::localDisk($check),
                 'service' => $host['mode'] === 'agent' ? self::agentService($check, $host) : self::localService($check),
                 'cpu' => $host['mode'] === 'agent' ? self::agentCpu($check, $host) : self::localCpu($check),
@@ -390,6 +391,53 @@ final class Checks
             $i++;
         }
         return round($b, 1) . ' ' . $u[$i];
+    }
+
+    /**
+     * Logbestand doorzoeken (via de agent): aantal treffers in de laatste N minuten (instelling
+     * "log_window", standaard 15), met de IP-adressen die het vaakst voorkomen en de laatste regel.
+     */
+    private static function logCheck(array $check, array $host): array
+    {
+        if ($stale = self::agentStale($host)) {
+            return $stale;
+        }
+        $raw = self::agentMetric($host, 'logrun:' . $check['id']);
+        if ($raw === null) {
+            return self::result(STATUS_UNKNOWN, null, 'Nog geen gegevens: de agent haalt nieuwe zoekopdrachten binnen 10 minuten op (agent bijgewerkt?)');
+        }
+        $d = json_decode($raw, true) ?: [];
+        if (($d['error'] ?? '') !== '') {
+            return self::result(STATUS_UNKNOWN, null, 'Agent: ' . $d['error']);
+        }
+        $window = max(5, min(1440, (int) setting('log_window', 15)));
+        $count = 0;
+        $ips = [];
+        foreach ($d['hist'] ?? [] as $h) {
+            if ($h[0] >= time() - $window * 60) {
+                $count += (int) $h[1];
+                foreach ($h[2] ?? [] as $ip => $n) {
+                    $ips[$ip] = ($ips[$ip] ?? 0) + (int) $n;
+                }
+            }
+        }
+        $period = $window >= 120 && $window % 60 === 0 ? ($window / 60) . ' uur' : "$window min";
+        if ($count === 0) {
+            $last = !empty($d['last_hit']) ? ' (laatste treffer: ' . date('d-m H:i', (int) $d['last_hit']) . ')' : '';
+            return self::result(STATUS_OK, 0.0, "Geen treffers in de laatste $period$last");
+        }
+        arsort($ips);
+        $top = array_slice($ips, 0, 3, true);
+        $msg = "$count treffer" . ($count === 1 ? '' : 's') . " in de laatste $period";
+        if ($top) {
+            $msg .= ' · meeste vanaf ' . implode(', ', array_map(fn($ip, $n) => "$ip ({$n}×)", array_keys($top), $top));
+        }
+        $lines = $d['lines'] ?? [];
+        $lastLine = $lines ? end($lines) : null;
+        if ($lastLine) {
+            $msg .= ' · laatste: ' . mb_substr(preg_replace('/\s+/', ' ', (string) $lastLine[1]), 0, 160);
+        }
+        return self::result(self::threshold((float) $count, $check), (float) $count, $msg);
     }
 
     private static function localDisk(array $check): array

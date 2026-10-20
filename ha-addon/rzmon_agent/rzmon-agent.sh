@@ -17,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.15.0"
+AGENT_VERSION="1.16.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -52,6 +52,9 @@ SERVICE_DEEP="${SERVICE_DEEP:-1}"
 # Eigen tests: een uitvoerbaar script /etc/rzmon-agent/tests/<service> (van root, niet door anderen
 # te wijzigen). Exitcode 0 = OK, 1 = WARNING, 2 = CRITICAL; de eerste regel uitvoer is het bericht.
 SERVICE_TEST_DIR="${SERVICE_TEST_DIR:-/etc/rzmon-agent/tests}"
+# Logbestanden doorzoeken (zoekopdrachten stel je in RzMon in): alleen bestanden in deze mappen
+# mogen gelezen worden, zodat via RzMon niet zomaar elk bestand uitgelezen kan worden.
+LOG_DIRS="${LOG_DIRS:-/var/log}"
 # Podman: wordt alleen gemeld als podman op deze server staat. PODMAN=0 zet het uit.
 PODMAN="${PODMAN:-1}"
 # Gebruikers met rootless containers: "auto" = zelf zoeken (gebruikers met ~/.local/share/containers),
@@ -520,6 +523,85 @@ if [ "$HA_MODE" = 0 ]; then
     done <"$t_cache"
 fi
 
+# ---------------------------------------------------------------- Logbestanden doorzoeken
+# Per zoekopdracht (ingesteld in RzMon): alleen de nieuwe regels sinds de vorige keer lezen,
+# tellen hoeveel er op het patroon passen, en de laatste 5 treffers en de IP-adressen meesturen.
+# Bron: een logbestand (binnen LOG_DIRS), "journal", "journal:<service>" of "kernel".
+log_results=""
+log_allowed() {  # log_allowed pad → 0 als het (echte) pad binnen LOG_DIRS valt
+    local real dir
+    real=$(readlink -f -- "$1" 2>/dev/null) || return 1
+    for dir in $LOG_DIRS; do
+        dir=$(readlink -f -- "$dir" 2>/dev/null) || continue
+        [[ "$real" == "$dir"/* ]] && return 0
+    done
+    return 1
+}
+if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_cache"; then
+    l_dir="$t_dir/logstate"
+    mkdir -p "$l_dir" 2>/dev/null
+    now_l=$(date +%s)
+    while IFS=$'\t' read -r l_id l_type l_src l_pat; do
+        [ "$l_type" = log ] && [[ "$l_id" =~ ^[0-9]+$ ]] || continue
+        st_file="$l_dir/$l_id"
+        prev=$(cat "$st_file" 2>/dev/null)
+        new_text=""; l_err=""
+        case "$l_src" in
+            journal|journal:*|kernel)
+                # Journal: van de vorige keer tot nu; de eerste keer alleen de vorige minuut
+                since=${prev##*|}; [[ "$since" =~ ^[0-9]+$ ]] || since=$((now_l - 60))
+                j_opt=(); [ "$l_src" = kernel ] && j_opt=(-k); [[ "$l_src" == journal:* ]] && j_opt=(-u "${l_src#journal:}")
+                if command -v journalctl >/dev/null 2>&1; then
+                    new_text=$(journalctl "${j_opt[@]}" --since "@$since" --until "@$((now_l - 1))" -q --no-pager -o short-iso 2>/dev/null | head -n 20000)
+                else
+                    l_err="journalctl ontbreekt op deze server"
+                fi
+                echo "journal|$now_l" >"$st_file" ;;
+            /*)
+                if ! log_allowed "$l_src"; then
+                    l_err="$l_src valt buiten de toegestane mappen ($LOG_DIRS); voeg de map toe aan LOG_DIRS in /etc/default/rzmon-agent"
+                elif [ ! -r "$l_src" ]; then
+                    l_err="$l_src bestaat niet of is niet leesbaar"
+                else
+                    # Bestand: verder lezen waar we gebleven waren (inode|positie); nieuw of geroteerd bestand
+                    # → vanaf het begin; de eerste keer vanaf het einde (oude regels tellen niet mee)
+                    inode=$(stat -c %i "$l_src"); size=$(stat -c %s "$l_src")
+                    p_inode=${prev%%|*}; p_pos=${prev##*|}
+                    if [ -z "$prev" ]; then pos=$size
+                    elif [ "$p_inode" != "$inode" ] || ! [[ "$p_pos" =~ ^[0-9]+$ ]] || [ "$p_pos" -gt "$size" ]; then pos=0
+                    else pos=$p_pos; fi
+                    # Maximaal 5 MB per keer, zodat een enorm logbestand de agent niet ophoudt. Alleen volledige
+                    # regels: een half geschreven laatste regel wordt de volgende keer in zijn geheel gelezen.
+                    chunk="$l_dir/$l_id.chunk"
+                    tail -c +"$((pos + 1))" "$l_src" 2>/dev/null | head -c 5000000 >"$chunk"
+                    nbytes=$(stat -c %s "$chunk")
+                    if [ "$nbytes" -gt 0 ] && [ "$(tail -c 1 "$chunk" | od -An -tx1 | tr -d ' ')" != 0a ]; then
+                        nbytes=$((nbytes - $(tail -n 1 "$chunk" | wc -c)))
+                    fi
+                    new_text=$(head -c "$nbytes" "$chunk"); rm -f "$chunk"
+                    echo "$inode|$((pos + nbytes))" >"$st_file"
+                fi ;;
+            *) l_err="onbekende bron: $l_src" ;;
+        esac
+        hits=0; lines_json=""; ips_json=""
+        if [ -z "$l_err" ] && [ -n "$new_text" ]; then
+            matches=$(grep -aiE -- "$l_pat" <<<"$new_text"); rc=$?
+            if [ "$rc" = 2 ]; then
+                l_err="ongeldig zoekpatroon: $l_pat"
+            elif [ -n "$matches" ]; then
+                hits=$(grep -c . <<<"$matches")
+                while IFS= read -r line; do
+                    lines_json+="\"$(json_escape "${line:0:300}")\","
+                done < <(tail -n 5 <<<"$matches" | tr -d '\000-\010\013-\037')
+                # IP-adressen in de treffers (bv. waar mislukte logins vandaan komen): top 3
+                ips_json=$(grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' <<<"$matches" | sort | uniq -c | sort -rn | head -3 |
+                    awk '{ printf "[\"%s\",%d],", $2, $1 }')
+            fi
+        fi
+        log_results+="\"$l_id\":{\"new\":$hits,\"lines\":[${lines_json%,}],\"ips\":[${ips_json%,}],\"error\":\"$(json_escape "$l_err")\"},"
+    done <"$t_cache"
+fi
+
 # ---------------------------------------------------------------- Podman: containers, pods en opslag
 # Per context: versie, containers (status, health, herstarts, grootte, volumes), pods en opslag.
 # Volumegroottes (du) worden een uur bewaard: die kunnen groot zijn en veranderen langzaam.
@@ -691,7 +773,7 @@ if [ -n "$CERTS" ]; then
 fi
 
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)
@@ -712,6 +794,14 @@ if [ "$TEST" = 1 ]; then
                 printf '%s %s: poorten %s%s%s%s%s\n' "$( [ -n "$pf$sf" ] || [ "$rc" = 2 ] && echo ✘ || echo ✔)" "$n" "${p:-geen}" \
                     "${pf:+ (dicht: $pf)}" "$( [ -n "$sf" ] && echo " · socket: ${sf//\"/}" || { [ -n "$so" ] && echo " · socket ${so//\"/} ok"; })" \
                     "${m:+ · $m}" "$( [ "$le" != null ] && [ "$le" != 0 ] && echo " · $le fout(en) in log")"
+            done)
+    fi
+    if [ -n "$log_results" ]; then
+        pass "Logbestanden doorzocht:"
+        while IFS= read -r line; do hint "$line"; done < <(sed 's/},"/}\n"/g' <<<"${log_results%,}" |
+            sed -nE 's/^"([0-9]+)":\{"new":([0-9]+).*"error":"([^"]*)"\}?$/\1|\2|\3/p' |
+            while IFS='|' read -r i n e; do
+                if [ -n "$e" ]; then echo "✘ zoekopdracht $i: $e"; else echo "zoekopdracht $i: $n nieuwe treffer(s)"; fi
             done)
     fi
     if [ -n "$podman_json" ]; then

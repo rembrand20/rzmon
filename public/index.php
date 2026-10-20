@@ -174,6 +174,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label>Agent offline na … minuten zonder rapport<input type="number" name="agent_stale_minutes" min="1"></label>
           <label>Historie bewaren (dagen)<input type="number" name="retention_days" min="1"></label>
           <label>Waarschuwen als een disk binnen … dagen vol raakt <span class="muted small">(0 = uit)</span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
+          <label>Logbestanden: treffers tellen over de laatste … minuten <span class="muted small">(5–1440)</span><input type="number" name="log_window" min="5" max="1440"></label>
           <label class="switch"><input type="checkbox" name="auto_maint_enabled"><span></span> Automatisch onderhoud na herhaalde meldingen</label>
           <label>… na zoveel meldingen voor dezelfde storing <span class="muted small">(alleen die check; stopt vanzelf als hij weer OK is)</span><input type="number" name="auto_maint_after" min="1" max="100"></label>
         </div>

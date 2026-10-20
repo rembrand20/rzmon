@@ -2,6 +2,9 @@
 
 Deze add-on heeft hetzelfde versienummer als RzMon. Het volledige overzicht staat in de [CHANGELOG van RzMon](https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md).
 
+## 1.16.0
+- Geen wijzigingen voor Home Assistant (logbestanden doorzoeken geldt voor Linux-servers).
+
 ## 1.15.0
 - Geen wijzigingen aan de agent.
 

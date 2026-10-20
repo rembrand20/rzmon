@@ -71,6 +71,13 @@ function agent_host(): array
 if ($action === 'agent_tests') {
     $host = agent_host();
     header('Content-Type: text/plain; charset=utf-8');
+    // Logbestanden doorzoeken: id <tab> log <tab> bron <tab> zoekpatroon
+    foreach (q("SELECT id, target, options FROM checks WHERE host_id = ? AND type = 'log' AND enabled = 1", [$host['id']]) as $c) {
+        $o = json_decode((string) $c['options'], true) ?: [];
+        if (($o['pattern'] ?? '') !== '') {
+            echo implode("\t", [$c['id'], 'log', $c['target'], str_replace(["\t", "\n", "\r"], ' ', $o['pattern'])]), "\n";
+        }
+    }
     foreach (q("SELECT id, target, options FROM checks WHERE host_id = ? AND type = 'service' AND enabled = 1 AND options IS NOT NULL", [$host['id']]) as $c) {
         $o = json_decode((string) $c['options'], true) ?: [];
         if (($o['ports'] ?? '') !== '' && ($o['deep'] ?? 1)) {
@@ -174,6 +181,38 @@ if ($action === 'agent') {
             }
             $d['hist'] = array_slice($hist, -70);
             $st->execute([$host['id'], 'svcinfo:' . $name, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
+        }
+    }
+    // Logbestanden: treffers per rapport bijhouden (24 uur), zodat RzMon over een periode kan tellen
+    if (isset($in['logs']) && is_array($in['logs'])) {
+        $prevLogs = [];
+        foreach (q("SELECT metric, value FROM agent_data WHERE host_id = ? AND metric LIKE 'logrun:%'", [$host['id']]) as $r) {
+            $prevLogs[substr($r['metric'], 7)] = json_decode($r['value'], true) ?: [];
+        }
+        foreach (array_slice($in['logs'], 0, 100, true) as $id => $l) {
+            if (!ctype_digit((string) $id) || !is_array($l)) {
+                continue;
+            }
+            $p = $prevLogs[$id] ?? [];
+            $n = max(0, (int) ($l['new'] ?? 0));
+            $ips = [];
+            foreach (array_slice((array) ($l['ips'] ?? []), 0, 3) as $ip) {
+                if (is_array($ip) && filter_var($ip[0] ?? '', FILTER_VALIDATE_IP)) {
+                    $ips[$ip[0]] = (int) ($ip[1] ?? 0);
+                }
+            }
+            $hist = array_values(array_filter($p['hist'] ?? [], fn($h) => is_array($h) && $h[0] >= time() - 86400));
+            $hist[] = $n > 0 ? [time(), $n, $ips] : [time(), 0];
+            $lines = $p['lines'] ?? [];
+            foreach (array_slice((array) ($l['lines'] ?? []), -5) as $line) {
+                $lines[] = [time(), mb_substr((string) $line, 0, 300)];
+            }
+            $st->execute([$host['id'], 'logrun:' . $id, json_encode([
+                'hist' => array_slice($hist, -1500),
+                'lines' => array_slice($lines, -5),
+                'last_hit' => $n > 0 ? time() : ($p['last_hit'] ?? null),
+                'error' => mb_substr((string) ($l['error'] ?? ''), 0, 250),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
         }
     }
     foreach ((array) ($in['svc_tests'] ?? []) as $id => $t) {
@@ -304,7 +343,13 @@ switch ($action) {
         $up = $rows ? count(array_filter($rows, fn($r) => (int) $r['s'] !== STATUS_CRIT)) / count($rows) * 100 : null;
         $type = q('SELECT type, last_value FROM checks WHERE id = ?', [$id])->fetch();
         $forecast = $type && $type['type'] === 'disk' && $type['last_value'] !== null ? Stats::diskForecast($id, (float) $type['last_value']) : null;
-        out(['points' => $pts, 'uptime' => $up, 'forecast' => $forecast]);
+        $logLines = null;
+        if ($type && $type['type'] === 'log') {
+            $hid = q('SELECT host_id FROM checks WHERE id = ?', [$id])->fetchColumn();
+            $lr = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = ?", [$hid, "logrun:$id"])->fetchColumn(), true);
+            $logLines = array_map(fn($l) => ['time' => date('Y-m-d H:i:s', (int) $l[0]), 'line' => $l[1]], $lr['lines'] ?? []);
+        }
+        out(['points' => $pts, 'uptime' => $up, 'forecast' => $forecast, 'log_lines' => $logLines]);
 
     case 'stats':
         // Beschikbaarheid per server en minigrafieken per check; 2 minuten bewaard
@@ -447,7 +492,7 @@ switch ($action) {
     case 'check_save':
         $in = input();
         $type = $in['type'] ?? '';
-        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container'], true)) {
+        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log'], true)) {
             out(['error' => 'Ongeldig type'], 422);
         }
         $metric = $type === 'container' ? (string) ($in['metric'] ?? 'status') : null;
@@ -485,6 +530,20 @@ switch ($action) {
             $warn = $crit = null;   // status heeft geen drempels
         }
         $options = null;
+        if ($type === 'log') {
+            // Bron: een logbestand (absoluut pad), het systemlog (journal), het log van één service, of kernelmeldingen
+            if (!preg_match('#^(/[A-Za-z0-9._/@+-]{1,250}|journal|journal:[A-Za-z0-9@._:-]{1,100}|kernel)$#', $target)) {
+                out(['error' => 'Bron: geef een logbestand (bv. /var/log/secure), "journal", "journal:sshd" of "kernel"'], 422);
+            }
+            $pattern = trim((string) ($in['pattern'] ?? ''));
+            if ($pattern === '' || mb_strlen($pattern) > 300) {
+                out(['error' => 'Geef aan waarnaar gezocht moet worden (maximaal 300 tekens)'], 422);
+            }
+            if (@preg_match('~' . str_replace('~', '\\~', $pattern) . '~i', '') === false) {
+                out(['error' => 'Het zoekpatroon klopt niet (regex). Tip: gebruik | tussen alternatieven, bv. Failed password|Invalid user'], 422);
+            }
+            $options = json_encode(['pattern' => $pattern, 'preset' => mb_substr((string) ($in['preset'] ?? ''), 0, 30)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
         if ($type === 'service') {
             $testType = in_array($in['test_type'] ?? '', ['url', 'port'], true) ? $in['test_type'] : '';
             $testTarget = trim((string) ($in['test_target'] ?? ''));
@@ -513,7 +572,7 @@ switch ($action) {
             ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
         $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
-            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM'][$type] . ($target !== '' ? " $target" : '')
+            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log'][$type] . ($target !== '' ? " $target" : '')
             . ($type === 'container' && $metric !== 'status' ? ' · ' . ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'Disk'][$metric] : '');
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
             max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options];
@@ -556,7 +615,7 @@ switch ($action) {
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
-            'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after'];
+            'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window'];
         if (($in['ha_webhook_url'] ?? '') !== '' && !preg_match('#^https?://\S+$#i', trim((string) $in['ha_webhook_url']))) {
             out(['error' => 'Webhook-URL moet met http:// of https:// beginnen'], 422);
         }

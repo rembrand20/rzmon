@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS hosts (
 CREATE TABLE IF NOT EXISTS checks (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     host_id         INT UNSIGNED NOT NULL,
-    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container') NOT NULL,
+    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log') NOT NULL,
     target          VARCHAR(255) NOT NULL DEFAULT '',
     name            VARCHAR(100) NOT NULL,
     warn_threshold  DOUBLE NULL,
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS remember_tokens (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
-ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container') NOT NULL;
+ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;
 
 INSERT IGNORE INTO settings (name, value) VALUES
@@ -168,4 +168,5 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('disk_forecast_days', '7'),
     ('auto_maint_enabled', '1'),
     ('auto_maint_after', '3'),
-    ('lan_as_admin', '0');
+    ('lan_as_admin', '0'),
+    ('log_window', '15');

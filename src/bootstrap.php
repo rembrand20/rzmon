@@ -107,7 +107,7 @@ function check_unit(array $check): ?string
     if ($check['type'] === 'container') {
         return ['cpu' => '%', 'mem' => '%', 'disk' => 'MB'][$check['metric'] ?? ''] ?? null;
     }
-    return ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'ssl' => 'dagen', 'disk' => '%', 'cpu' => '%', 'ram' => '%'][$check['type']] ?? null;
+    return ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'ssl' => 'dagen', 'disk' => '%', 'cpu' => '%', 'ram' => '%', 'log' => 'treffers'][$check['type']] ?? null;
 }
 
 function now(): string

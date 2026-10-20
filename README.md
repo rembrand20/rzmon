@@ -21,6 +21,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 | CPU | CPU-gebruik over 2 sec + load average | % gebruik |
 | RAM | Geheugengebruik (MemAvailable) + swap | % gebruikt |
 | Podman (algemeen) | Via de agent: gestopte, ongezonde of gepauzeerde containers, pods | probleem = WARNING |
+| Logbestand (zoeken) | Via de agent: treffers in een logbestand, het systemlog of kernelmeldingen, met voorinstellingen voor mislukte logins, disk- en hardwarefouten | aantal treffers in 15 min |
 | Container (Podman) | Via de agent, per container: status (healthcheck, herstarts), CPU, RAM of disk | %, MB |
 
 **Host-types**

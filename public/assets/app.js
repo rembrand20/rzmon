@@ -16,8 +16,37 @@ const TYPES = {
   ram:     { label: 'RAM',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'Percentage geheugen in gebruik (op basis van MemAvailable, dus cache telt niet mee). Swap staat in het bericht.' },
   podman:  { label: 'Podman (algemeen)', target: null, unit: null, help: 'Algehele status van Podman op deze server: draait podman, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.' },
   container: { label: 'Container (Podman)', target: 'Container', unit: null, ph: 'naam, of gebruiker/naam (rootless)', help: 'Eén container: kies hieronder wat je wilt meten. Kies de naam uit de lijst die de agent meldt.' },
+  log:     { label: 'Logbestand (zoeken)', target: 'Bron', unit: 'treffers', warn: 5, crit: 20, ph: '/var/log/secure, journal, journal:sshd of kernel', help: 'De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.' },
   service: { label: 'Service',       target: 'Servicenaam',   unit: null, ph: 'nginx', help: 'De systemd-service moet "active" zijn. Op agent-servers zet je de service in SERVICES van de agent; daar wordt met Diepere controle ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.' },
 };
+// Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
+const LOG_PRESETS = {
+  ssh:      { label: '🔐 Mislukte logins (SSH)', src: 'journal', warn: 5, crit: 20,
+              pat: 'Failed password|Invalid user|authentication failure|Connection closed by authenticating user|maximum authentication attempts' },
+  sudo:     { label: '🔐 Mislukte sudo / su', src: 'journal', warn: 1, crit: 5,
+              pat: 'incorrect password attempt|sudo:.*authentication failure|FAILED SU|su:.*authentication failure' },
+  disk:     { label: '💾 Diskfouten', src: 'kernel', warn: 1, crit: 5,
+              pat: 'I/O error|blk_update_request|Buffer I/O error|medium error|ata[0-9.]+: (exception|error|failed command)|EXT4-fs error|XFS .*(error|corrupt)|BTRFS .*(error|corrupt)|nvme.*(timeout|reset|error)' },
+  hardware: { label: '🔥 Hardwarefouten (CPU, geheugen, PCIe, temperatuur)', src: 'kernel', warn: 1, crit: 3,
+              pat: 'Machine check|mce: |EDAC|Hardware Error|PCIe Bus Error|AER: |temperature above threshold|thermal.*throttl|Corrected error|Uncorrected error' },
+  smart:    { label: '💽 SMART-waarschuwingen (smartd)', src: 'journal:smartd', warn: 1, crit: 3,
+              pat: 'FAILURE|Prefailure|Currently unreadable|Offline uncorrectable|failed self-test|SMART Failure' },
+  oom:      { label: '🧠 Geheugen vol (OOM)', src: 'kernel', warn: 1, crit: 3, pat: 'Out of memory|oom-kill|Killed process' },
+  crash:    { label: '💥 Programma\'s gecrasht', src: 'kernel', warn: 1, crit: 5, pat: 'segfault|general protection|core dumped|traps: .* trap' },
+  failed:   { label: '⚙️ Mislukte services (systemd)', src: 'journal', warn: 1, crit: 5, pat: 'Failed to start|failed with result|Main process exited, code=(exited|killed|dumped), status=[1-9]' },
+  fw:       { label: '🧱 Firewall-blokkades', src: 'kernel', warn: 100, crit: 1000, pat: 'REJECT|DROP|filter_IN_.*(REJECT|DROP)|nft.*(drop|reject)' },
+  f2b:      { label: '🚫 Fail2ban-bans', src: '/var/log/fail2ban.log', warn: 5, crit: 20, pat: ' Ban ' },
+  web5xx:   { label: '🌐 Webserver: serverfouten (5xx)', src: '/var/log/nginx/access.log', warn: 10, crit: 50, pat: '" 5[0-9][0-9] ' },
+  web404:   { label: '🌐 Webserver: niet gevonden (404, scans)', src: '/var/log/nginx/access.log', warn: 100, crit: 500, pat: '" 404 ' },
+  weberr:   { label: '🌐 Webserver: foutlog', src: '/var/log/nginx/error.log', warn: 5, crit: 20, pat: '\\[(error|crit|alert|emerg)\\]' },
+  mail:     { label: '✉️ Mail: mislukte logins', src: 'journal', warn: 5, crit: 20, pat: 'SASL [A-Z]+ authentication failed|auth failed|authentication failure.*(dovecot|postfix)' },
+  db:       { label: '🗄️ Database: fouten', src: 'journal:mariadb', warn: 1, crit: 5, pat: '\\[ERROR\\]|Access denied for user|Aborted connection' },
+  custom:   { label: '✏️ Zelf instellen', src: '', warn: 1, crit: 10, pat: '' },
+};
+const LOG_SOURCES = ['journal', 'journal:sshd', 'journal:ssh', 'kernel', '/var/log/secure', '/var/log/auth.log', '/var/log/messages',
+  '/var/log/syslog', '/var/log/kern.log', '/var/log/fail2ban.log', '/var/log/nginx/access.log', '/var/log/nginx/error.log',
+  '/var/log/httpd/access_log', '/var/log/httpd/error_log', '/var/log/maillog', '/var/log/mail.log', '/var/log/mariadb/mariadb.log'];
+
 // Container-checks: wat er gemeten wordt (eigen eenheid en drempels)
 const METRICS = {
   status: { label: 'Status (draait, healthcheck, herstarts)', unit: null, help: 'OK als de container draait. CRITICAL als hij gestopt of ongezond (healthcheck) is. WARNING als hij gepauzeerd is, of in het afgelopen kwartier automatisch herstart is (crash).' },
@@ -487,7 +516,7 @@ function checkRow(c) {
       ${c.warn_threshold !== null ? `<b style="left:${+c.warn_threshold}%"></b>` : ''}
       ${c.crit_threshold !== null ? `<b style="left:${+c.crit_threshold}%"></b>` : ''}</div>`;
   }
-  const value = ['ms', 'dagen', 'MB'].includes(t.unit) && c.last_value !== null ? ` · ${t.unit === 'dagen' ? Math.floor(c.last_value) + ' dagen' : fmt(c.last_value, t.unit)}` : '';
+  const value = ['ms', 'dagen', 'MB', 'treffers'].includes(t.unit) && c.last_value !== null ? ` · ${t.unit === 'dagen' ? Math.floor(c.last_value) + ' dagen' : fmt(c.last_value, t.unit)}` : '';
   const own = c.maintenance && c.maintenance.scope === 'check';
   const problem = s !== 0 && +c.enabled;
   const ackTitle = c.acked_at ? `Bevestigd door ${c.acked_by || '?'} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. Klik om in te trekken.` : '';
@@ -715,7 +744,7 @@ function checkForm(c, h, preset = {}) {
   const isNew = !c;
   c = c || { type: 'ping', target: '', name: '', warn_threshold: TYPES.ping.warn, crit_threshold: TYPES.ping.crit, interval_sec: 60, enabled: 1, ...preset };
   const allowed = h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl']
-    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container'].includes(k));
+    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log'].includes(k));
   const disks = h.metrics.filter((m) => m.startsWith('disk:')).map((m) => m.slice(5));
   const svcs = h.metrics.filter((m) => m.startsWith('service:')).map((m) => m.slice(8));
   let opts = {};
@@ -730,6 +759,14 @@ function checkForm(c, h, preset = {}) {
         <select name="type">${allowed.map((k) => `<option value="${k}" ${c.type === k ? 'selected' : ''}>${TYPES[k].label}</option>`).join('')}</select>
         <span class="hint" id="type-help"></span>
       </label>
+      <div id="log-wrap" hidden>
+        <label>Voorinstelling
+          <select name="preset">${Object.entries(LOG_PRESETS).map(([k, p]) => `<option value="${k}" ${(opts.preset || 'custom') === k ? 'selected' : ''}>${p.label}</option>`).join('')}</select>
+        </label>
+        <label>Zoek naar <span class="hint">(regex; hoofdletters maakt niet uit; | = of)</span>
+          <input name="pattern" class="mono" value="${esc(opts.pattern || '')}" placeholder="bv. Failed password|Invalid user"></label>
+        <span class="hint">Bron: een logbestand (alleen in mappen die op de server zijn toegestaan, standaard /var/log), <code>journal</code> (systemlog), <code>journal:sshd</code> (log van één service) of <code>kernel</code>. Drempels: aantal treffers in de periode.</span>
+      </div>
       <label id="target-wrap"><span id="target-label"></span><input name="target" value="${esc(c.target)}" list="target-list" class="mono"></label>
       <label id="metric-wrap" hidden>Meten
         <select name="metric">${Object.entries(METRICS).map(([k, m]) => `<option value="${k}" ${(c.metric || 'status') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
@@ -804,7 +841,9 @@ function checkForm(c, h, preset = {}) {
     $('[name=test_target]', form).placeholder = tt === 'port' ? '8080 of localhost:8080' : 'http://localhost:8080/health';
     $('[name=test_target]', form).required = deep && !!tt;
     $('[name=target]', form).required = !!t.target && !['http', 'ssl'].includes(typeSel.value);
-    const list = { disk: disks, service: svcs, ssl: certs, container: containers }[typeSel.value] || [];
+    const list = { disk: disks, service: svcs, ssl: certs, container: containers, log: LOG_SOURCES }[typeSel.value] || [];
+    $('#log-wrap').hidden = typeSel.value !== 'log';
+    $('[name=pattern]', form).required = typeSel.value === 'log';
     $('#target-list').innerHTML = list.map((v) => `<option value="${esc(v)}">`).join('');
     if (setDefaults) {
       $('[name=warn_threshold]', form).value = t.warn ?? '';
@@ -815,6 +854,19 @@ function checkForm(c, h, preset = {}) {
   typeSel.onchange = () => update(true);
   metricSel.onchange = () => update('metric');
   $('[name=test_type]', form).onchange = () => update(false);
+  // Voorinstelling kiezen: bron, patroon, drempels en naam invullen
+  $('[name=preset]', form).onchange = (e) => {
+    const p = LOG_PRESETS[e.target.value];
+    if (!p || e.target.value === 'custom') return;
+    const f = (n) => $(`[name=${n}]`, form);
+    f('target').value = p.src;
+    f('pattern').value = p.pat;
+    f('warn_threshold').value = p.warn;
+    f('crit_threshold').value = p.crit;
+    // Naam invullen, tenzij je zelf al iets anders hebt getypt
+    const plain = (x) => x.label.replace(/^\S+\s/, '');
+    if (!f('name').value || Object.values(LOG_PRESETS).some((x) => f('name').value === plain(x))) f('name').value = plain(p);
+  };
   update(false);
 }
 
@@ -829,7 +881,8 @@ async function showHistory(c, h) {
         <span id="uptime" class="muted"></span>
         <select id="range"><option value="6">6 uur</option><option value="24" selected>24 uur</option><option value="168">7 dagen</option><option value="720">30 dagen</option></select>
       </div>
-      <div id="chart-svg"><p class="muted">Laden…</p></div></div>`,
+      <div id="chart-svg"><p class="muted">Laden…</p></div></div>
+      <div id="log-lines"></div>`,
   });
   const load = async () => {
     const hours = $('#range').value;
@@ -843,7 +896,14 @@ async function showHistory(c, h) {
         ? ` · <span class="${d.forecast.days_to_full <= 14 ? 'bad' : ''}">trend +${String(Math.round(d.forecast.per_day * 100) / 100).replace('.', ',')}%/dag: vol over ~${Math.round(d.forecast.days_to_full)} dagen</span>`
         : ' · trend: stabiel')
       : '';
-    $('#uptime').innerHTML = d.uptime === null ? 'Geen data' : `Beschikbaarheid: <b>${pct(d.uptime)}</b>${mma}${fc}`;
+    $('#uptime').innerHTML = d.uptime === null ? 'Geen data'
+      : c.type === 'log' ? `Treffers per controle${mma}`   // "beschikbaarheid" zegt bij een logbestand niets
+      : `Beschikbaarheid: <b>${pct(d.uptime)}</b>${mma}${fc}`;
+    // Logbestand: de laatst gevonden regels
+    const ll = $('#log-lines');
+    if (ll) ll.innerHTML = d.log_lines && d.log_lines.length
+      ? `<h4>Laatst gevonden regels</h4><pre class="code log-lines">${d.log_lines.map((l) => `<span class="muted">${esc(fmtUntil(l.time))}</span>  ${esc(l.line)}`).join('\n')}</pre>`
+      : (d.log_lines ? '<p class="muted small">Nog geen regels gevonden.</p>' : '');
     $('#chart-svg').innerHTML = chartSvg(d.points, c, t, +hours);
   };
   $('#range').onchange = load;

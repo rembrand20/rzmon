@@ -55,6 +55,7 @@ RzMon bestaat uit vier onderdelen:
 | **RAM** | Geheugengebruik (cache telt niet mee) + swap | % gebruikt | Lokaal + agent |
 | **Home Assistant** | Core, Supervisor, elke add-on en beschikbare updates | Niet actief = CRITICAL, update beschikbaar = WARNING | HA-add-on |
 | **Podman (algemeen)** | Draait podman; gestopte (foutcode), ongezonde of gepauzeerde containers; pods | Probleem = WARNING | Agent met podman |
+| **Logbestand (zoeken)** | Treffers van een zoekpatroon in een logbestand, het systemlog of kernelmeldingen (bv. mislukte logins, hardwarefouten) | Aantal treffers in de laatste 15 min (instelbaar) | Agent |
 | **Container (Podman)** | Eén container: status (incl. healthcheck en herstarts), CPU, RAM of disk | Gestopt/ongezond = CRITICAL; CPU/RAM in %, disk in MB | Agent met podman |
 
 ### Drie soorten servers
@@ -849,6 +850,60 @@ sudo chmod 755 /etc/rzmon-agent/tests/myapp
 - **Eenmalige services** (`Type=oneshot`, zoals een firewall-script) die "exited" zijn, gelden als goed.
 - **Op de RzMon-server zelf** (type *Lokaal*) wordt alleen de status gecontroleerd. Wil je daar ook de diepere controle, installeer dan de agent en maak een server van type *Remote met agent*.
 - Controleren op de server: `sudo rzmon-agent-setup --test` toont per service de poorten en het resultaat van de test.
+
+
+### 8.8 Logbestanden doorzoeken 🔎📜
+De agent kan logbestanden doorzoeken op bijvoorbeeld **mislukte logins** of **hardwarefouten**. Je stelt alles in RzMon in: klik bij de server op **＋ Check** en kies *Logbestand (zoeken)*.
+
+1. **Voorinstelling:** kies er een, of *Zelf instellen*. Een voorinstelling vult de bron, het zoekpatroon, de drempels en de naam in; daarna kun je alles nog aanpassen.
+2. **Zoek naar:** een zoekpatroon (regex). Hoofdletters maken niet uit, en `|` betekent "of". Voorbeeld: `Failed password|Invalid user`. Gebruik `[0-9]` voor een cijfer; `\d` werkt niet.
+3. **Bron:**
+   - een logbestand, zoals `/var/log/secure` (Rocky) of `/var/log/auth.log` (Debian/Ubuntu);
+   - `journal`: het hele systemlog;
+   - `journal:sshd`: het log van één service;
+   - `kernel`: kernelmeldingen, waar hardware- en diskfouten staan.
+4. **Drempels:** het aantal treffers in de periode. Bijvoorbeeld warning bij 5 en critical bij 20 mislukte logins.
+
+**De periode** is standaard **15 minuten** en stel je in onder *Instellingen → Alarmgedrag* (5 minuten tot 24 uur).
+
+**Voorinstellingen**
+
+| Voorinstelling | Bron | Zoekt naar |
+|---|---|---|
+| 🔐 Mislukte logins (SSH) | journal | `Failed password`, `Invalid user`, `authentication failure` |
+| 🔐 Mislukte sudo / su | journal | `incorrect password attempt`, `FAILED SU` |
+| 💾 Diskfouten | kernel | `I/O error`, ATA-fouten, EXT4/XFS/BTRFS-fouten, NVMe-timeouts |
+| 🔥 Hardwarefouten | kernel | `Machine check`, `MCE`, `EDAC`, `PCIe Bus Error`, temperatuur |
+| 💽 SMART-waarschuwingen | journal:smartd | `Prefailure`, `Currently unreadable`, `failed self-test` |
+| 🧠 Geheugen vol | kernel | `Out of memory`, `oom-kill` |
+| 💥 Programma's gecrasht | kernel | `segfault`, `general protection`, `core dumped` |
+| ⚙️ Mislukte services | journal | `Failed to start`, `failed with result` |
+| 🧱 Firewall-blokkades | kernel | `REJECT`, `DROP` (alleen als je firewall blokkades logt) |
+| 🚫 Fail2ban-bans | /var/log/fail2ban.log | ` Ban ` |
+| 🌐 Webserver 5xx / 404 / foutlog | /var/log/nginx/… | HTTP 5xx, 404 (scans), `[error]` |
+| ✉️ Mail: mislukte logins | journal | `SASL … authentication failed` |
+| 🗄️ Database: fouten | journal:mariadb | `[ERROR]`, `Access denied` |
+
+Gebruik je httpd (Apache, standaard op Rocky) in plaats van nginx? Kies dan als bron `/var/log/httpd/access_log` of `/var/log/httpd/error_log`.
+
+**Wat je ziet**
+> 🟠 WARNING: 12 treffers in de laatste 15 min · meeste vanaf 185.220.101.2 (9×) · laatste: Failed password for root from 185.220.101.2 …
+
+Klik op 📈 voor de grafiek van het aantal treffers en de **laatste 5 gevonden regels**.
+
+**Hoe de agent het doet**
+- Hij leest elke minuut alleen de **nieuwe** regels en onthoudt waar hij gebleven was. Bij een nieuwe zoekopdracht tellen oude regels niet mee.
+- **Logrotatie** gaat goed: bij een nieuw bestand begint hij gewoon opnieuw. Een regel die nog half geschreven is, telt pas als hij af is.
+- Bij het systemlog leest hij precies de periode sinds de vorige keer.
+- Nieuwe en gewijzigde zoekopdrachten worden binnen 10 minuten opgepikt.
+
+**Veiligheid**
+- De agent leest alleen logbestanden binnen de mappen in `LOG_DIRS` (standaard `/var/log`). Ook een link vanuit `/var/log` naar een bestand daarbuiten wordt geweigerd.
+- Andere mappen toestaan doe je **op de server**:
+  ```bash
+  echo 'LOG_DIRS="/var/log /opt/mijnapp/logs"' | sudo tee -a /etc/default/rzmon-agent
+  ```
+- Er worden alleen gevonden regels verstuurd (maximaal 5, ingekort), nooit hele logbestanden.
 
 ---
 
