@@ -422,8 +422,11 @@ function hostParts(h) {
   };
 }
 
-/** Uitgeklapt deel: knoppen en alle checks (gelijk in beide lay-outs). */
-function hostDetail(h) {
+/**
+ * Uitgeklapt deel: knoppen en alle checks. Blox: checks als tegels. L1nes (lines = 'small' of 'large'):
+ * checks als rijen, net als de servers, met problemen bovenaan.
+ */
+function hostDetail(h, lines = null) {
   const agentInfo = h.mode === 'agent'
     ? `<span class="muted small">Agent: ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}</span>
        <button class="btn need-admin" data-act="agent" data-id="${h.id}">Agent installeren</button>` : '';
@@ -439,9 +442,9 @@ function hostDetail(h) {
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
       </div>
       ${uptimeLine(h, false)}
-      <ul class="checks">
+      ${lines ? checkLines(h, lines === 'large') : `<ul class="checks">
         ${h.shown.length ? h.shown.map(checkRow).join('') : '<li class="empty small">Nog geen checks — klik op ＋ Check</li>'}
-      </ul>
+      </ul>`}
     </div>`;
 }
 
@@ -504,7 +507,7 @@ function hostLine(h, large) {
       ${cells}
       <span class="chev" aria-hidden="true">›</span>
     </div>
-    ${p.isOpen ? hostDetail(h) : ''}
+    ${p.isOpen ? hostDetail(h, large ? 'large' : 'small') : ''}
   </article>`;
 }
 
@@ -514,38 +517,78 @@ function lineHeader() {
     <span class="lc-m">CPU</span><span class="lc-m">RAM</span><span class="lc-m">Disk</span><span class="lc-up">Bereikbaar</span><span class="lc-last">Laatste check</span><span></span></div>`;
 }
 
-function checkRow(c) {
+/** Wat een check-tegel (Blox) en een check-rij (L1nes) allebei tonen. */
+function checkBits(c) {
   const t = typeOf(c);
   const s = +c.status;
-  let bar = '';
-  if (t.unit === '%' && c.last_value !== null) {
-    const v = Math.min(100, +c.last_value);
-    bar = `<div class="bar" title="${fmt(v, '%')}"><i style="width:${v}%"></i>
-      ${c.warn_threshold !== null ? `<b style="left:${+c.warn_threshold}%"></b>` : ''}
-      ${c.crit_threshold !== null ? `<b style="left:${+c.crit_threshold}%"></b>` : ''}</div>`;
-  }
-  const value = ['ms', 'dagen', 'MB', 'treffers'].includes(t.unit) && c.last_value !== null ? ` · ${t.unit === 'dagen' ? Math.floor(c.last_value) + ' dagen' : fmt(c.last_value, t.unit)}` : '';
+  const pctVal = t.unit === '%' && c.last_value !== null ? Math.min(100, +c.last_value) : null;
+  const ticks = (pctVal !== null ? (c.warn_threshold !== null ? `<b style="left:${+c.warn_threshold}%"></b>` : '')
+    + (c.crit_threshold !== null ? `<b style="left:${+c.crit_threshold}%"></b>` : '') : '');
+  const num = ['ms', 'dagen', 'MB', 'treffers'].includes(t.unit) && c.last_value !== null
+    ? (t.unit === 'dagen' ? Math.floor(c.last_value) + ' dagen' : fmt(c.last_value, t.unit)) : '';
   const own = c.maintenance && c.maintenance.scope === 'check';
   const problem = s !== 0 && +c.enabled;
   const ackTitle = c.acked_at ? `Bevestigd door ${c.acked_by || '?'} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. Klik om in te trekken.` : '';
   const flags = (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ bevestigd</button>` : '')
     + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">${c.maintenance.auto ? '🔧 auto, tot opgelost' : `🔧 tot ${esc(fmtUntil(c.maintenance.until))}`}</span>` : '')
     + (c.suppressed_by ? ' <span class="supp-tag" title="Geen melding: een server erboven is onbereikbaar">🔕 onderdrukt</span>' : '');
-  return `
-  <li class="chk s${s} ${+c.enabled ? '' : 'disabled'} ${c.maintenance ? 'in-maint' : ''} ${problem && c.acked_at ? 'acked' : ''}" title="${STATUS[s]} – laatst ${ago(c.last_checked)}">
-    <span class="dot"></span>
-    <span class="chk-name">${esc(c.name)}<span class="type">${t.label}${value}</span>${flags}</span>
-    <span class="chk-actions">
+  const actions = `
       ${problem && !c.acked_at ? `<button class="icon-btn ack-btn need-user" title="Storing bevestigen: geen meldingen meer" data-act="ack" data-id="${c.id}">✔</button>` : ''}
       <button class="icon-btn need-user" title="Onderhoud" data-act="maint-check" data-id="${c.id}">🔧</button>
       <button class="icon-btn need-user" title="Nu checken" data-act="run" data-id="${c.id}">↻</button>
       <button class="icon-btn" title="Historie" data-act="history" data-id="${c.id}">📈</button>
-      <button class="icon-btn need-admin" title="Bewerken" data-act="edit-check" data-id="${c.id}">✎</button>
+      <button class="icon-btn need-admin" title="Bewerken" data-act="edit-check" data-id="${c.id}">✎</button>`;
+  return {
+    t, s, pctVal, ticks, num, problem, flags, actions,
+    cls: `s${s} ${+c.enabled ? '' : 'disabled'} ${c.maintenance ? 'in-maint' : ''} ${problem && c.acked_at ? 'acked' : ''}`,
+    title: `${STATUS[s]} – laatst ${ago(c.last_checked)}`,
+    msg: esc(c.last_message || 'Nog niet gecontroleerd'),
+  };
+}
+
+// Blox: een check als tegel
+function checkRow(c) {
+  const b = checkBits(c);
+  const bar = b.pctVal !== null ? `<div class="bar" title="${fmt(b.pctVal, '%')}"><i style="width:${b.pctVal}%"></i>${b.ticks}</div>` : '';
+  return `
+  <li class="chk ${b.cls}" title="${b.title}">
+    <span class="dot"></span>
+    <span class="chk-name">${esc(c.name)}<span class="type">${b.t.label}${b.num ? ` · ${b.num}` : ''}</span>${b.flags}</span>
+    <span class="chk-actions">${b.actions}
     </span>
     ${bar}
     ${sparkSvg(c)}
-    <span class="chk-msg">${esc(c.last_message || 'Nog niet gecontroleerd')} · ${ago(c.last_checked)}</span>
+    <span class="chk-msg">${b.msg} · ${ago(c.last_checked)}</span>
   </li>`;
+}
+
+// L1nes: checks als rijen onder de server, problemen bovenaan (kritiek → waarschuwing → onbekend → OK →
+// onderhoud → uitgeschakeld); binnen dezelfde status de volgorde waarin ze zijn toegevoegd.
+function checkLines(h, large) {
+  if (!h.shown.length) return '<p class="empty small check-lines-empty">Nog geen checks — klik op ＋ Check</p>';
+  const rank = (c) => (+c.enabled ? STATUS_RANK[c.maintenance ? 4 : +c.status] : -1);
+  const sorted = h.shown.map((c, i) => [c, i]).sort((a, b) => rank(b[0]) - rank(a[0]) || a[1] - b[1]).map(([c]) => c);
+  const head = large ? `<div class="cl-head" aria-hidden="true"><span></span><span>Check</span><span>Waarde</span><span class="cl-spark">24 uur</span>
+    <span>Bericht</span><span class="cl-last">Laatst</span><span></span></div>` : '';
+  return `<div class="check-lines ${large ? 'large' : 'small'}">${head}${sorted.map((c) => checkLine(c, large)).join('')}</div>`;
+}
+
+function checkLine(c, large) {
+  const b = checkBits(c);
+  const value = b.pctVal !== null
+    ? `<span class="cl-meter" title="${fmt(b.pctVal, '%')}"><span class="bar"><i style="width:${b.pctVal}%"></i>${b.ticks}</span><b>${Math.round(b.pctVal)}%</b></span>`
+    : b.num ? `<span class="cl-num">${b.num}</span>` : '<span class="muted">–</span>';
+  return `
+  <div class="cl chk ${b.cls}" title="${b.title}">
+    <span class="dot"></span>
+    <span class="cl-name"><span class="cl-title">${esc(c.name)}</span>${large ? `<span class="type">${b.t.label}</span>` : ` <span class="type">${b.t.label}</span>`}${b.flags ? `<span class="cl-flags">${b.flags}</span>` : ''}</span>
+    <span class="cl-value">${value}</span>
+    ${large ? `<span class="cl-spark">${sparkSvg(c) || '<span class="muted small">–</span>'}</span>` : ''}
+    <span class="cl-msg">${b.msg}</span>
+    <span class="cl-last muted small">${ago(c.last_checked)}</span>
+    <span class="chk-actions">${b.actions}
+    </span>
+  </div>`;
 }
 
 function findHost(id) { return state.hosts.find((h) => +h.id === +id); }

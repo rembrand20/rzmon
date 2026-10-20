@@ -96,7 +96,10 @@ RzMon bestaat uit vier onderdelen:
   - **L1nes:** alle servers onder elkaar, elk als balk over de volle breedte. Je kiest **Small** of **Large**:
     - **Small:** één regel met naam, adres, status en tellers.
     - **Large:** kolommen voor status, probleem-checks, CPU, RAM, disk, bereikbaarheid (7 dagen) en de laatste check.
-  - Klik op een balk om hem uit te klappen; alles werkt daarna hetzelfde als bij Blox.
+  - Klik op een balk om hem uit te klappen. De checks staan dan ook als **rijen** onder de server, **problemen bovenaan** (kritiek → waarschuwing → onbekend → OK → onderhoud → uit):
+    - **Small:** één regel per check met naam, type, waarde (balk voor percentages), bericht en tijd.
+    - **Large:** kolomkoppen, met per check ook de minigrafiek van 24 uur; het bericht mag over meer regels lopen.
+    - De knoppen per check (✔ 🔧 ↻ 📈 ✎) verschijnen als je met de muis over de rij gaat; op een telefoon of tablet staan ze er altijd.
 
 ### Poortscan
 - **Scannen** naar open TCP-poorten: bekende poorten, poort 1-1024, of een eigen lijst zoals `22,80,8000-8100` (maximaal 4096 poorten).
