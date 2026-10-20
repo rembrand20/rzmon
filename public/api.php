@@ -124,6 +124,19 @@ if ($action === 'agent_check') {
 if ($action === 'agent') {
     $host = agent_host();
     $in = input();
+    if (!$in) {
+        // Agent 1.20.0–1.20.3 zette servicenamen als systemd-fsck@dev-disk-by\x2duuid… ongewijzigd in de JSON.
+        // Zo'n losse backslash herstellen, dan blijft die agent werken (en kan hij met de knop bijgewerkt worden).
+        $raw = (string) file_get_contents('php://input');
+        $fixed = preg_replace_callback('/\\\\(.?)/s', static fn($m) => $m[1] !== '' && str_contains('"\\\\/bfnrtu', $m[1]) ? $m[0] : '\\' . $m[0], $raw);
+        $in = json_decode((string) $fixed, true) ?: [];
+    }
+    if (!$in) {
+        // Onleesbaar rapport: niets wegschrijven (anders lijken alle gegevens verdwenen) en de reden loggen
+        $reason = 'onleesbaar rapport (JSON: ' . json_last_error_msg() . '); werk de agent bij';
+        q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'], mb_substr(client_ip(), 0, 45), $reason]);
+        out(['error' => "Geweigerd: $reason"], 400);
+    }
     $now = now();
     $st = db()->prepare('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?)
                          ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)');
