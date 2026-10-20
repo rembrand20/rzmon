@@ -1161,17 +1161,80 @@ Op GitHub controleert een Action (`Versiecontrole`) bij elke push of de versies 
 
 ## 13. Back-up en herstel
 
-Belangrijk zijn alleen de **database** en **`config.php`**.
+Belangrijk zijn alleen de **database** en **`config.php`**. RzMon maakt daar zelf back-ups van: onder **Instellingen → 💾 Back-up** (alleen beheerders).
+
+### Instellen
+
+| Instelling | Uitleg |
+|---|---|
+| **Automatisch** | Uit, elke dag, elke week (op een dag die je kiest) of elke maand (de 1e) |
+| **Om** | Tijdstip, standaard 03:15. Stond de server toen uit, dan volgt de back-up zodra cron weer draait. |
+| **Bewaren** | Zoveel *automatische* back-ups blijven er staan, standaard 7. De oudste gaat weg als er een nieuwe bijkomt. Handmatige en geüploade back-ups blijven tot je ze zelf verwijdert; van de veiligheidsback-ups (zie hieronder) blijven de laatste 3. |
+| **Meethistorie meenemen** | Met de meetresultaten achter de grafieken (standaard aan). Uit maakt de zip veel kleiner; bij terugzetten blijft de huidige historie dan staan. |
+| **Zip-wachtwoord** | Versleutelt `database.sql` en `config.php` in de zip met **AES-256** (minstens 8 tekens). Zonder wachtwoord is de zip niet versleuteld; je krijgt daar een waarschuwing over. |
+
+> **Bewaar het zip-wachtwoord goed**, bijvoorbeeld in je wachtwoordmanager. Zonder dat wachtwoord is een back-up onbruikbaar. Een versleutelde zip open je met **7-Zip** of een vergelijkbaar programma; de ingebouwde zip van Windows en macOS kan geen AES.
+
+Mislukt een automatische back-up (disk vol, map niet schrijfbaar…), dan krijg je **één melding** via je meldkanalen (Pushover, e-mail, Home Assistant). RzMon probeert het daarna elk uur opnieuw en meldt het als het weer lukt.
+
+### Wat zit er in de zip?
+
+- `database.sql`: alle tabellen (servers, checks, instellingen, gebruikers, API-sleutels, meldingen en eventueel de meethistorie);
+- `config.php`: met het databasewachtwoord;
+- `info.txt`: versie, datum, server en het aantal rijen per tabel (niet versleuteld, bevat geen geheimen).
+
+De back-ups staan in `/var/lib/rzmon/backups`, buiten de webmap, alleen leesbaar voor root en de webserver. Een andere map kan met `'backup_dir' => '/pad'` in `config.php`. RzMon maakt de back-ups in PHP zelf: `mysqldump` is niet nodig, alleen de PHP-extensie **zip** (`php-zip`).
+
+> Bewaar af en toe een kopie **buiten de server**: download een zip (⬇) en zet hem op je NAS of in de cloud. Een back-up op dezelfde disk helpt niet als die disk stukgaat.
+
+### Knoppen
+
+- **💾 Nu back-up maken**: meteen een back-up, met de opgeslagen instellingen.
+- **⬇ Downloaden**: de zip bevat `config.php`, dus je bevestigt eerst met je eigen wachtwoord (op het LAN zonder inloggen typ je `DOWNLOADEN`). Daarna kun je 10 minuten downloaden zonder opnieuw te bevestigen.
+- **⬆ Zip uploaden**: een zip van je computer terugzetten, bijvoorbeeld van een andere server. De upload gaat in stukjes, dus de upload-limiet van PHP maakt niet uit (maximaal 2 GB).
+- **↺ Terugzetten** en **🗑 Verwijderen**.
+
+### Terugzetten
+
+1. Klik op **↺** bij de back-up en bevestig met je wachtwoord (op het LAN zonder inloggen: `HERSTELLEN`). Heeft de zip een ander wachtwoord dan het ingestelde, vul dat dan in.
+2. RzMon maakt eerst een **veiligheidsback-up** van de huidige toestand (*voor herstel* in de lijst).
+3. Daarna wordt de database teruggezet. Mislukt dat halverwege, dan zet RzMon automatisch de veiligheidsback-up terug: het is alles of niets.
+
+Goed om te weten:
+- Het back-upschema en het zip-wachtwoord blijven zoals ze nu zijn.
+- Gebruikers en wachtwoorden worden die uit de back-up; misschien moet je opnieuw inloggen.
+- Een back-up van een oudere RzMon-versie kan gewoon; de tabellen worden daarna bijgewerkt.
+- RzMon zet alleen terug wat hij zelf heeft geschreven (tabellen en rijen). Een gewijzigde of afgebroken `database.sql` wordt geweigerd.
+- `config.php` wordt via de webpagina niet teruggezet; op dezelfde server is dat ook niet nodig.
+
+### In de terminal en op een nieuwe server
 
 ```bash
-# Back-up (bijvoorbeeld dagelijks via cron)
-sudo mysqldump --single-transaction rzmon | gzip > /root/rzmon-$(date +%F).sql.gz
-sudo cp /var/www/rzmon/config.php /root/rzmon-config.php
-
-# Herstel
-gunzip < /root/rzmon-2026-10-19.sql.gz | sudo mysql rzmon
-sudo cp /root/rzmon-config.php /var/www/rzmon/config.php
+sudo php /var/www/rzmon/install/install.php --backup                 # back-up maken (--zonder-historie kan ook)
+sudo php /var/www/rzmon/install/install.php --list-backups           # lijst
+sudo php /var/www/rzmon/install/install.php --restore /pad/naar/rzmon-backup-….zip
 ```
+
+**Naar een nieuwe server** (bijvoorbeeld na een crash):
+
+1. Installeer RzMon, bijvoorbeeld met `install-rocky.sh`, of zet alleen de bestanden en MariaDB klaar.
+2. Zet de zip op de server en voer uit:
+   ```bash
+   sudo php /var/www/rzmon/install/install.php --restore /root/rzmon-backup-….zip --with-config
+   ```
+   Je wordt om het zip-wachtwoord gevraagd (of geef `--password=…` mee).
+3. RzMon zet `config.php` terug, maakt de database en de databasegebruiker aan met het wachtwoord uit de back-up, en zet de database terug. Zonder `config.php` op de server gebeurt dit automatisch, ook zonder `--with-config`.
+
+Uit veiligheid wordt een `config.php` met programmacode erin niet teruggezet: alleen gewone instellingen.
+
+### Bestaande installatie (van vóór 1.18.0)
+
+De back-upmap wordt aangemaakt door de hulpdienst. Toont de kaart een waarschuwing, voer dan één keer uit:
+```bash
+sudo dnf -y install php-zip && sudo systemctl restart php-fpm   # Debian/Ubuntu: sudo apt install php-zip
+sudo bash /var/www/rzmon/install/install-helper.sh
+```
+Opnieuw `install-rocky.sh` draaien doet beide ook.
 
 ---
 
@@ -1217,7 +1280,7 @@ sudo php /var/www/rzmon/install/install.php --rotate-db-password
 ```
 
 > Werkt de knop niet ("De hulpdienst reageert niet")? Kijk dan met `systemctl status rzmon-helper.path rzmon-helper.service` en `journalctl -u rzmon-helper.service`.
-> Maak na het vernieuwen ook een nieuwe kopie van `config.php` voor je back-up (zie hoofdstuk 13).
+> Maak na het vernieuwen ook een nieuwe back-up (zie hoofdstuk 13): oude back-ups bevatten nog het oude wachtwoord in `config.php`. Bij terugzetten op dezelfde server maakt dat niet uit, want `config.php` wordt dan niet teruggezet.
 
 ---
 

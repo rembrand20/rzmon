@@ -256,6 +256,38 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="mqtt-test">📡 Verbinding testen &amp; publiceren</button>
         </div>
 
+        <div class="card" id="backup-card">
+          <h2>💾 Back-up</h2>
+          <p class="muted small">Een zip met de hele database (servers, checks, instellingen, gebruikers) en <code>config.php</code>. De back-ups staan op deze server, buiten de webmap. Download er af en toe een, zodat je ook een kopie hebt als de server zelf stuk gaat.</p>
+          <div class="row3">
+            <label>Automatisch
+              <select name="backup_freq">
+                <option value="off">Uit</option><option value="daily">Elke dag</option>
+                <option value="weekly">Elke week</option><option value="monthly">Elke maand (de 1e)</option>
+              </select>
+            </label>
+            <label>Om<input type="time" name="backup_time"></label>
+            <label>Bewaren <span class="hint">(aantal)</span><input type="number" name="backup_keep" min="1" max="365"></label>
+          </div>
+          <label class="backup-weekday">Op
+            <select name="backup_weekday">
+              <option value="1">maandag</option><option value="2">dinsdag</option><option value="3">woensdag</option><option value="4">donderdag</option>
+              <option value="5">vrijdag</option><option value="6">zaterdag</option><option value="7">zondag</option>
+            </select>
+          </label>
+          <label class="switch"><input type="checkbox" name="backup_history"><span></span> Meethistorie meenemen</label>
+          <p class="muted small" style="margin-top:-.4rem">De meetresultaten achter de grafieken. Uit = een veel kleinere zip; bij terugzetten blijft de huidige historie dan staan.</p>
+          <label>Zip-wachtwoord <span class="hint">(minstens 8 tekens; versleutelt met AES-256)</span><input name="backup_pass" type="password" autocomplete="new-password"></label>
+          <p class="muted small" style="margin-top:-.4rem">Nodig om een zip te openen (met 7-Zip) of terug te zetten op een andere server. <b>Bewaar het goed</b>: zonder wachtwoord is de back-up onbruikbaar. Wijzigen geldt voor nieuwe back-ups.</p>
+          <p class="small" id="backup-status">…</p>
+          <div class="btn-row">
+            <button type="button" class="btn" id="backup-now">💾 Nu back-up maken</button>
+            <button type="button" class="btn" id="backup-upload">⬆ Zip uploaden</button>
+            <input type="file" id="backup-file" accept=".zip,application/zip" hidden>
+          </div>
+          <div id="backup-list" class="key-list"></div>
+        </div>
+
         <div class="settings-save"><button class="btn primary">Instellingen opslaan</button></div>
       </form>
 

@@ -318,6 +318,47 @@ final class Monitor
         ]);
     }
 
+    /**
+     * Melding die niet bij een check hoort (bv. een mislukte back-up), via dezelfde meldkanalen.
+     * @param string $event problem | recovery
+     */
+    public static function notifySystem(string $title, string $message, int $status, string $event): void
+    {
+        $errors = [];
+        $sent = false;
+        if (setting('pushover_enabled', '0') === '1') {
+            $prio = $status === STATUS_OK ? 0 : min(1, (int) setting('pushover_priority_crit', 1));   // geen emergency: niets te bevestigen
+            $r = Pushover::send($title, $message . "\n" . date('d-m-Y H:i:s'), $prio);
+            $sent = $r['ok'];
+            if (!$r['ok']) {
+                $errors[] = 'Pushover: ' . $r['error'];
+            }
+        }
+        $email = null;
+        if (setting('email_enabled', '0') === '1' && (setting('email_mode', 'always') !== 'fallback' || !$sent)) {
+            $base = rtrim((string) config('base_url', ''), '/');
+            $r = Mailer::send($title, $message . "\n\nTijd: " . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzMon: $base/" : ''));
+            $email = $r['ok'];
+            if (!$r['ok']) {
+                $errors[] = 'E-mail: ' . $r['error'];
+            }
+        }
+        $webhook = null;
+        if (self::webhookWanted($status, $event)) {
+            $r = Webhook::send(['source' => 'rzmon', 'event' => $event, 'status' => $status, 'status_text' => STATUS_LABELS[$status],
+                'host' => null, 'check' => null, 'title' => $title, 'message' => $message, 'time' => date('c'), 'url' => config('base_url', '') ?: null]);
+            $webhook = $r['ok'];
+            if (!$r['ok']) {
+                $errors[] = 'Webhook: ' . $r['error'];
+            }
+        }
+        q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)', [
+            $status, mb_substr($title, 0, 250),
+            mb_substr($message . ($errors ? ' [niet verzonden: ' . implode('; ', $errors) . ']' : ''), 0, 1000),
+            $sent ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), 'system',
+        ]);
+    }
+
     private static function webhookWanted(int $status, string $event): bool
     {
         if (setting('ha_webhook_enabled', '0') !== '1') {

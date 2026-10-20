@@ -220,7 +220,7 @@ fi
 
 dnf -y install \
     httpd mod_ssl \
-    php php-fpm php-cli php-common php-mysqlnd php-mbstring php-process php-opcache \
+    php php-fpm php-cli php-common php-mysqlnd php-mbstring php-process php-opcache php-zip \
     mariadb-server mariadb \
     iputils iproute cronie git curl openssl tar unzip \
     policycoreutils policycoreutils-python-utils

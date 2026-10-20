@@ -39,6 +39,8 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **Home Assistant-webhook**: elke melding ook als JSON naar een HA-webhook, om automatiseringen te starten (zie HANDLEIDING.md §6.3).
 
+**Back-up en herstel**: automatisch elke dag, week of maand (tijd en aantal instelbaar), als zip met database en `config.php`, versleuteld met AES-256. Downloaden, uploaden en terugzetten in de webinterface, met een veiligheidsback-up vooraf (zie HANDLEIDING.md §13).
+
 **Alarmering**: na *N* opeenvolgende fouten een Pushover-bericht, bij escalatie (WARN → CRIT) opnieuw, optioneel elke *X* minuten herhalen en een melding bij herstel. Alles instelbaar in de webinterface.
 
 ---
@@ -48,7 +50,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 > Rocky Linux 10 / RHEL / AlmaLinux: zie [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md).
 
 ```bash
-sudo apt install apache2 mariadb-server php php-mysql php-curl php-mbstring iputils-ping
+sudo apt install apache2 mariadb-server php php-mysql php-curl php-mbstring php-zip iputils-ping
 sudo cp -r rzmon /var/www/
 sudo chown -R root:www-data /var/www/rzmon
 sudo chown www-data /var/www/rzmon     # setup mag config.php aanmaken
@@ -184,7 +186,7 @@ Upgraden gaat zo:
 1. Zet de nieuwe bestanden eroverheen (`git pull`, of opnieuw `install-rocky.sh`), behalve `config.php`.
 2. De **database wordt automatisch bijgewerkt** bij de eerste cron-run of het eerste bezoek aan het dashboard. Handmatig kan ook: `sudo -u www-data php install/install.php --upgrade`, of *Setup → Tabellen bijwerken*.
 3. Werk de agents bij met `sudo rzmon-agent-setup --update`. Een verouderde agent herken je aan **⬆** op de servertegel.
-4. Vanaf 1.17.0: wil je het databasewachtwoord met de knop in *Instellingen → Database* kunnen vernieuwen, installeer dan één keer de hulpdienst met `sudo bash /var/www/rzmon/install/install-helper.sh` (opnieuw `install-rocky.sh` draaien doet dat ook).
+4. Vanaf 1.17.0: installeer één keer de hulpdienst met `sudo bash /var/www/rzmon/install/install-helper.sh` (opnieuw `install-rocky.sh` draaien doet dat ook). Die is nodig voor de knop *Databasewachtwoord vernieuwen* en maakt de back-upmap aan. Voor back-ups (1.18.0) is ook de PHP-extensie `php-zip` nodig.
 
 Ontwikkelen: verhoog de versie met `tools/bump-version.sh patch|minor|major` en controleer met `tools/check-version.sh`.
 

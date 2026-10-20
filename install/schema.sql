@@ -169,4 +169,10 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('auto_maint_enabled', '1'),
     ('auto_maint_after', '3'),
     ('lan_as_admin', '0'),
-    ('log_window', '15');
+    ('log_window', '15'),
+    -- Back-up: uit tot je hem aanzet, dan om 03:15, 7 bewaren, met meethistorie
+    ('backup_freq', 'off'),
+    ('backup_time', '03:15'),
+    ('backup_weekday', '7'),
+    ('backup_keep', '7'),
+    ('backup_history', '1');

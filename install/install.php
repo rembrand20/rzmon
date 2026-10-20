@@ -3,6 +3,11 @@
 //         php install/install.php --upgrade   (alleen database bijwerken)
 //         php install/install.php --reset-2fa <gebruikersnaam>   (telefoon kwijt: 2FA uitzetten)
 //         sudo php install/install.php --rotate-db-password     (nieuw databasewachtwoord, overal opgeslagen)
+//         sudo php install/install.php --backup [--zonder-historie]   (back-up maken)
+//         sudo php install/install.php --list-backups
+//         sudo php install/install.php --restore <zip> [--with-config] [--password=…]
+//              (database terugzetten; met --with-config, of op een nieuwe server zonder config.php,
+//               ook config.php plus de databasegebruiker)
 // Tip: alles kan ook via de browser op /setup.php
 declare(strict_types=1);
 
@@ -10,6 +15,107 @@ if (PHP_SAPI !== 'cli') {
     exit("Alleen via CLI\n");
 }
 require __DIR__ . '/../src/bootstrap.php';
+
+/** Wachtwoord vragen zonder het te tonen. */
+function ask_hidden(string $prompt): string
+{
+    echo $prompt;
+    system('stty -echo 2>/dev/null');
+    $v = trim((string) fgets(STDIN));
+    system('stty echo 2>/dev/null');
+    echo "\n";
+    return $v;
+}
+
+if (($argv[1] ?? '') === '--restore') {
+    $file = (string) ($argv[2] ?? '');
+    if (!is_file($file)) {
+        exit("Gebruik: php install/install.php --restore <back-up.zip> [--with-config] [--password=…]\n");
+    }
+    if (!class_exists('ZipArchive')) {
+        exit("De PHP-extensie zip ontbreekt: " . Backup::fixCommand() . "\n");
+    }
+    $password = null;
+    foreach ($argv as $a) {
+        if (str_starts_with($a, '--password=')) {
+            $password = substr($a, 11);
+        }
+    }
+    $wasConfigured = is_configured();
+    $withConfig = in_array('--with-config', $argv, true) || !$wasConfigured;
+    $isRoot = function_exists('posix_geteuid') && posix_geteuid() === 0;
+
+    if ($withConfig) {
+        // config.php uit de zip: eerst naar een tijdelijk bestand, dan controleren en plaatsen
+        $tmp = tempnam(sys_get_temp_dir(), 'rzmon-cfg');
+        $r = Backup::extract($file, 'config.php', $tmp, $password);
+        if (!$r['ok'] && !empty($r['need_password']) && $password === null) {
+            $password = ask_hidden('Wachtwoord van de zip: ');
+            $r = Backup::extract($file, 'config.php', $tmp, $password);
+        }
+        if (!$r['ok']) {
+            @unlink($tmp);
+            exit("config.php terugzetten mislukt: {$r['error']}\n");
+        }
+        $cfg = Backup::readConfig($tmp);
+        @unlink($tmp);
+        if ($cfg === null) {
+            exit("config.php in de back-up is ongeldig of bevat code; niet teruggezet.\n");
+        }
+        if (!$isRoot) {
+            exit("config.php terugzetten kan alleen als root (sudo).\n");
+        }
+        // Database en gebruiker (met het wachtwoord uit de back-up) aanmaken of bijwerken
+        $admin = Installer::rootPdo();
+        if ($admin) {
+            try {
+                Installer::createDatabase($cfg['db'], '', '', $admin);
+                echo "Database '{$cfg['db']['name']}' en gebruiker '{$cfg['db']['user']}' klaargezet.\n";
+            } catch (Throwable $e) {
+                exit("Database klaarzetten mislukt: {$e->getMessage()}\n");
+            }
+        }
+        $stat = @stat(SM_CONFIG_FILE);
+        if (file_put_contents(SM_CONFIG_FILE . '.tmp', Installer::renderConfig($cfg), LOCK_EX) === false) {
+            exit("Kan config.php niet schrijven.\n");
+        }
+        chmod(SM_CONFIG_FILE . '.tmp', $stat ? $stat['mode'] & 0777 : 0640);
+        $grp = $stat['gid'] ?? null;
+        if ($grp === null) {
+            foreach (['apache', 'www-data', 'nginx', 'http'] as $g) {
+                if ($info = posix_getgrnam($g)) {
+                    $grp = $info['gid'];
+                    break;
+                }
+            }
+        }
+        if ($grp !== null) {
+            chgrp(SM_CONFIG_FILE . '.tmp', $grp);
+        }
+        rename(SM_CONFIG_FILE . '.tmp', SM_CONFIG_FILE);
+        $GLOBALS['sm_config'] = $cfg;
+        echo "config.php teruggezet.\n";
+    }
+    if (!is_configured()) {
+        exit("config.php ontbreekt.\n");
+    }
+    try {
+        db()->query('SELECT 1 FROM settings LIMIT 1');
+        $safety = true;
+    } catch (Throwable) {
+        $safety = false;   // lege database: geen veiligheidsback-up nodig
+    }
+    echo "Database terugzetten" . ($safety ? ' (eerst een veiligheidsback-up)' : '') . "...\n";
+    $r = Backup::restore($file, $password, $safety);
+    if (!$r['ok'] && !empty($r['need_password']) && $password === null) {
+        $r = Backup::restore($file, ask_hidden('Wachtwoord van de zip: '), $safety);
+    }
+    if (!$r['ok']) {
+        exit("Mislukt: {$r['error']}\n");
+    }
+    echo "Klaar! De database is teruggezet" . ($r['safety'] ? ". Veiligheidsback-up van daarvoor: {$r['safety']}" : '') . ".\n";
+    exit(0);
+}
 
 if (!is_configured()) {
     exit("config.php ontbreekt. Kopieer config.sample.php naar config.php of gebruik setup.php in de browser.\n");
@@ -49,6 +155,27 @@ if (($argv[1] ?? '') === '--rotate-db-password') {
     echo "Opgeslagen in config.php" . (is_writable('/root/rzmon-install.txt') ? ' en /root/rzmon-install.txt' : '') . ". RzMon werkt gewoon door.\n";
     foreach ($r['warnings'] as $w) {
         echo "Let op: $w\n";
+    }
+    exit(0);
+}
+if (($argv[1] ?? '') === '--backup') {
+    Installer::ensureSchema();
+    $r = Backup::create('manual', in_array('--zonder-historie', $argv, true) ? false : null);
+    if (!$r['ok']) {
+        fwrite(STDERR, "Mislukt: {$r['error']}\n");
+        exit(1);
+    }
+    printf("Back-up gemaakt: %s/%s (%.1f MB)%s\n", Backup::dir(), $r['file'], $r['size'] / 1048576,
+        (string) setting('backup_pass', '') === '' ? "\nLet op: niet versleuteld (geen back-upwachtwoord ingesteld)" : '');
+    exit(0);
+}
+if (($argv[1] ?? '') === '--list-backups') {
+    if ($p = Backup::problem()) {
+        exit("$p\n");
+    }
+    foreach (Backup::list() as $b) {
+        printf("%s  %s  %7.1f MB  %-13s %s%s\n", $b['at'], $b['file'], $b['size'] / 1048576, $b['type_label'],
+            $b['encrypted'] ? '🔒' : '  ', $b['history'] ? '' : ' (zonder historie)');
     }
     exit(0);
 }

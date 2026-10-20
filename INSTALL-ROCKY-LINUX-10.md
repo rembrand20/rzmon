@@ -38,7 +38,7 @@ sudo bash install-rocky.sh
 >    ```
 > Het token wordt niet op de server opgeslagen; git vraagt er bij `git pull` opnieuw om.
 
-Open aan het eind de getoonde URL, bijvoorbeeld `http://192.168.1.10/`, en maak bij stap 4 van de setup je beheerder aan. Het databasewachtwoord staat in `/root/rzmon-install.txt`, dat alleen root kan lezen. Het script installeert ook de *hulpdienst* (`rzmon-helper.path`), waarmee je het databasewachtwoord later met één knop kunt vernieuwen (*Instellingen → Database*). Bij een oudere installatie zet je die er één keer bij met `sudo bash /var/www/rzmon/install/install-helper.sh`.
+Open aan het eind de getoonde URL, bijvoorbeeld `http://192.168.1.10/`, en maak bij stap 4 van de setup je beheerder aan. Het databasewachtwoord staat in `/root/rzmon-install.txt`, dat alleen root kan lezen. Het script installeert ook de *hulpdienst* (`rzmon-helper.path`), waarmee je het databasewachtwoord later met één knop kunt vernieuwen (*Instellingen → Database*). De hulpdienst maakt ook de map voor back-ups aan (`/var/lib/rzmon/backups`, zie *Instellingen → 💾 Back-up*). Bij een oudere installatie zet je die er één keer bij met `sudo dnf -y install php-zip && sudo bash /var/www/rzmon/install/install-helper.sh`.
 
 | Optie | Uitleg |
 |---|---|
@@ -124,7 +124,7 @@ Rocky Linux 10 levert standaard **PHP 8.3** en **MariaDB 10.11**. Beide voldoen 
 
 ```bash
 sudo dnf -y install \
-    httpd php php-fpm php-cli php-mysqlnd php-mbstring php-process \
+    httpd php php-fpm php-cli php-mysqlnd php-mbstring php-process php-zip \
     mariadb-server \
     iputils iproute cronie git unzip \
     policycoreutils-python-utils
@@ -136,6 +136,7 @@ sudo dnf -y install \
 | `php-mysqlnd` | `pdo_mysql`: verbinding met MariaDB |
 | `php-mbstring` | Tekstfuncties |
 | `php-process` | `posix`-functies (gebruikt door de systeemcheck) |
+| `php-zip` | Back-ups als (versleutelde) zip |
 | `mariadb-server` | Database |
 | `iputils`, `iproute` | `ping` en `ss` |
 | `cronie` | Cron, om elke minuut de checks te draaien |
@@ -460,6 +461,8 @@ sudo -u apache php install/install.php --upgrade
 De laatste stap is eigenlijk niet meer nodig: sinds versie 1.6.0 werkt RzMon de database automatisch bij bij de eerste cron-run of het eerste bezoek aan het dashboard. Je kunt ook na de `git pull` op **Setup → ↻ Tabellen bijwerken** klikken. De versie staat in de topbalk, en wat er nieuw is lees je in `CHANGELOG.md`. Agents werk je bij met `sudo rzmon-agent-setup --update`.
 
 `config.php` staat niet in Git (`.gitignore`), dus `git pull` laat hem met rust.
+
+Vanaf 1.18.0 (back-ups) is ook `php-zip` nodig, plus de back-upmap: `sudo dnf -y install php-zip && sudo systemctl restart php-fpm && sudo bash /var/www/rzmon/install/install-helper.sh`. Opnieuw `install-rocky.sh` draaien doet dit vanzelf.
 
 Pakketupdates van Rocky zelf gaan met `sudo dnf -y update`. Na een PHP-update eventueel nog:
 ```bash

@@ -278,6 +278,25 @@ $ownOnly = static function (int $id) use ($user, $isAdmin): void {
     }
 };
 
+/**
+ * Bevestiging voor een gevoelige actie: je eigen wachtwoord, of een woord typen
+ * als je automatisch beheerder bent via het LAN (dan heb je geen wachtwoord ingevuld).
+ */
+$confirm = static function (string $word) use ($user): void {
+    $c = (string) (input()['confirm'] ?? '');
+    if (is_lan_session()) {
+        if ($c !== $word) {
+            out(['error' => "Typ $word om te bevestigen"], 422);
+        }
+        return;
+    }
+    $hash = q('SELECT password_hash FROM users WHERE id = ?', [$user['id']])->fetchColumn();
+    if (!$hash || !password_verify($c, $hash)) {
+        usleep(500000);
+        out(['error' => 'Je wachtwoord klopt niet'], 422);
+    }
+};
+
 switch ($action) {
     case 'logout':
         logout();
@@ -615,7 +634,8 @@ switch ($action) {
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
-            'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window'];
+            'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window',
+            'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass'];
         if (($in['ha_webhook_url'] ?? '') !== '' && !preg_match('#^https?://\S+$#i', trim((string) $in['ha_webhook_url']))) {
             out(['error' => 'Webhook-URL moet met http:// of https:// beginnen'], 422);
         }
@@ -631,6 +651,29 @@ switch ($action) {
         foreach (['mqtt_prefix', 'mqtt_base_topic'] as $k) {
             if (isset($in[$k]) && !preg_match('#^[A-Za-z0-9_\-/]{1,64}$#', trim((string) $in[$k]))) {
                 out(['error' => 'Een MQTT-topic mag alleen letters, cijfers, _ - en / bevatten'], 422);
+            }
+        }
+        if (isset($in['backup_freq']) && !in_array($in['backup_freq'], ['off', 'daily', 'weekly', 'monthly'], true)) {
+            out(['error' => 'Ongeldige back-upfrequentie'], 422);
+        }
+        if (isset($in['backup_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['backup_time'])) {
+            out(['error' => 'Vul de back-uptijd in als uu:mm, bv. 03:15'], 422);
+        }
+        if (isset($in['backup_keep']) && ((int) $in['backup_keep'] < 1 || (int) $in['backup_keep'] > 365)) {
+            out(['error' => 'Aantal back-ups bewaren: 1 tot 365'], 422);
+        }
+        if (isset($in['backup_weekday']) && ((int) $in['backup_weekday'] < 1 || (int) $in['backup_weekday'] > 7)) {
+            out(['error' => 'Ongeldige dag voor de back-up'], 422);
+        }
+        if (($in['backup_pass'] ?? '') !== '' && $in['backup_pass'] !== '••••••••' && mb_strlen((string) $in['backup_pass']) < 8) {
+            out(['error' => 'Het back-upwachtwoord moet minstens 8 tekens hebben'], 422);
+        }
+        // Schema gewijzigd: tellen vanaf nu (anders volgt meteen een "ingehaalde" back-up)
+        foreach (['backup_freq', 'backup_time', 'backup_weekday'] as $k) {
+            if (isset($in[$k]) && (string) $in[$k] !== (string) setting($k, '')) {
+                save_setting('backup_last_auto', now());
+                save_setting('backup_retry_at', '');
+                break;
             }
         }
         foreach ($allowed as $k) {
@@ -923,19 +966,7 @@ switch ($action) {
         ]);
 
     case 'db_rotate':
-        // Bevestigen: je eigen wachtwoord, of "VERNIEUWEN" bij automatisch inloggen op het LAN
-        $confirm = (string) (input()['confirm'] ?? '');
-        if (is_lan_session()) {
-            if ($confirm !== 'VERNIEUWEN') {
-                out(['error' => 'Typ VERNIEUWEN om te bevestigen'], 422);
-            }
-        } else {
-            $hash = q('SELECT password_hash FROM users WHERE id = ?', [$user['id']])->fetchColumn();
-            if (!$hash || !password_verify($confirm, $hash)) {
-                usleep(500000);
-                out(['error' => 'Je wachtwoord klopt niet'], 422);
-            }
-        }
+        $confirm('VERNIEUWEN');
         $h = Installer::HELPER_DIR;
         if (is_file("$h/helper.installed") && is_writable($h)) {
             // Via de hulpdienst (als root): verzoek neerzetten, het resultaat komt binnen een paar seconden
@@ -973,6 +1004,77 @@ switch ($action) {
             out(['error' => 'De hulpdienst reageert niet. Controleer op de server: systemctl status rzmon-helper.path'], 504);
         }
         out(['pending' => true]);
+
+    // ---------- Back-up en herstel (alleen beheerders) ----------
+    case 'backup_info':
+        $root = realpath(SM_ROOT);
+        $unlock = (int) ($_SESSION['backup_unlock'] ?? 0) + 600 - time();
+        $next = Backup::nextSlot();
+        out([
+            'problem' => Backup::problem(),
+            'fix_cmd' => Backup::fixCommand(),
+            'dir' => Backup::dir(),
+            'encryption' => Backup::encryptionSupported(),
+            'has_pass' => (string) setting('backup_pass', '') !== '',
+            'next' => $next ? date('Y-m-d H:i:s', $next) : null,
+            'last_auto' => setting('backup_last_auto'),
+            'last_error' => (string) setting('backup_last_error', ''),
+            'unlocked' => max(0, $unlock),
+            'max_upload' => Backup::MAX_UPLOAD,
+            'list' => Backup::problem() === null ? Backup::list() : [],
+            'cli_backup' => "sudo php $root/install/install.php --backup",
+            'cli_restore' => "sudo php $root/install/install.php --restore /pad/naar/rzmon-backup-….zip",
+        ]);
+
+    case 'backup_create':
+        session_write_close();   // andere verzoeken van deze gebruiker niet blokkeren
+        $r = Backup::create('manual', isset(input()['history']) ? (bool) input()['history'] : null);
+        out($r, $r['ok'] ? 200 : 422);
+
+    case 'backup_delete':
+        if (!Backup::delete((string) (input()['file'] ?? ''))) {
+            out(['error' => 'Back-up niet gevonden'], 404);
+        }
+        out(['ok' => true]);
+
+    case 'backup_unlock':
+        // Downloaden kan 10 minuten na het bevestigen (de zip bevat config.php met het databasewachtwoord)
+        $confirm('DOWNLOADEN');
+        $_SESSION['backup_unlock'] = time();
+        out(['ok' => true, 'unlocked' => 600]);
+
+    case 'backup_download':
+        $path = Backup::path((string) ($_GET['file'] ?? ''));
+        if ((int) ($_SESSION['backup_unlock'] ?? 0) < time() - 600) {
+            out(['error' => 'Bevestig eerst met je wachtwoord'], 403);
+        }
+        if ($path === null) {
+            out(['error' => 'Back-up niet gevonden'], 404);
+        }
+        session_write_close();
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="' . basename($path) . '"');
+        header('Content-Length: ' . filesize($path));
+        header('X-Content-Type-Options: nosniff');
+        readfile($path);
+        exit;
+
+    case 'backup_upload':
+        // De zip komt in stukken van 1 MB (ruwe body), zie app.js
+        session_write_close();
+        $r = Backup::uploadChunk((string) ($_GET['id'] ?? ''), (int) ($_GET['offset'] ?? -1),
+            (string) file_get_contents('php://input'), ($_GET['final'] ?? '') === '1');
+        out($r, $r['ok'] ? 200 : 422);
+
+    case 'backup_restore':
+        $confirm('HERSTELLEN');
+        $path = Backup::path((string) (input()['file'] ?? ''));
+        if ($path === null) {
+            out(['error' => 'Back-up niet gevonden'], 404);
+        }
+        session_write_close();
+        $r = Backup::restore($path, trim((string) (input()['zip_pass'] ?? '')) ?: null);
+        out($r, $r['ok'] ? 200 : 422);
 
     case 'password':
         if ($user['id'] === 0) {

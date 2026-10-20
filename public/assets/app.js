@@ -175,6 +175,11 @@ function init() {
   };
 
   $('#settings-form').addEventListener('submit', saveSettings);
+  $('#backup-now').onclick = backupNow;
+  $('#backup-upload').onclick = () => $('#backup-file').click();
+  $('#backup-file').onchange = (e) => backupUpload(e.target.files[0]);
+  $('#backup-list').addEventListener('click', onBackupListClick);
+  $('#settings-form').backup_freq.addEventListener('change', backupFormToggle);
   $('#pushover-test').onclick = testPushover;
   $('#webhook-test').onclick = testWebhook;
   $('#email-test').onclick = (e) => testChannel(e, 'email_test', 'Testmail verstuurd 📧', 'E-mail');
@@ -1358,7 +1363,7 @@ async function deleteApiKey(e) {
   catch (ex) { toast(ex.message, 'err'); }
 }
 
-const isAdmin = () => document.body.dataset.role === 'admin';
+function isAdmin() { return document.body.dataset.role === 'admin'; }
 
 async function loadSettings() {
   loadUsers();
@@ -1377,6 +1382,8 @@ async function loadSettings() {
     if (el.type === 'checkbox') el.checked = v === '1';
     else el.value = v ?? '';
   });
+  backupFormToggle();
+  loadBackups();
 }
 
 function settingsData() {
@@ -1588,9 +1595,15 @@ function wireCopy(root) {
   }));
 }
 
+/** Bevestigen met je eigen wachtwoord, of een woord typen als je automatisch beheerder bent op het LAN. */
+function confirmField(word) {
+  const lan = !!document.querySelector('.lan-badge');
+  return `<label>${lan ? `Typ <b>${word}</b> om te bevestigen` : 'Bevestig met je eigen wachtwoord'}
+    <input name="confirm" type="${lan ? 'text' : 'password'}" required autocomplete="${lan ? 'off' : 'current-password'}" autofocus></label>`;
+}
+
 function dbRotateDialog() {
   const info = dbInfo || {};
-  const lan = !!document.querySelector('.lan-badge');
   const canClick = info.helper || info.direct;
   const terminal = `
     <details class="small api-docs" ${canClick ? '' : 'open'}>
@@ -1605,8 +1618,7 @@ function dbRotateDialog() {
       <p style="margin-top:0">RzMon maakt een nieuw wachtwoord van 32 tekens en slaat het op in de database en in <code>config.php</code>${info.helper ? ' (en in /root/rzmon-install.txt)' : ''}.
         Daarna test RzMon de verbinding; lukt dat niet, dan wordt het oude wachtwoord automatisch teruggezet.</p>
       <p class="muted small">Je ziet het nieuwe wachtwoord <b>één keer</b>. RzMon zelf heeft het niet nodig van je; bewaar het alleen als je zelf met de database wilt werken.</p>
-      <label>${lan ? 'Typ <b>VERNIEUWEN</b> om te bevestigen' : 'Bevestig met je eigen wachtwoord'}
-        <input name="confirm" type="${lan ? 'text' : 'password'}" required autocomplete="${lan ? 'off' : 'current-password'}" autofocus></label>
+      ${confirmField('VERNIEUWEN')}
       ${terminal}`
       : `<p style="margin-top:0">De RzMon-map is vergrendeld (veilig), en de <b>hulpdienst</b> die de wissel als root uitvoert is nog niet geïnstalleerd.
           Voer op de server één van deze commando's uit:</p>
@@ -1637,4 +1649,159 @@ function showNewDbPassword(r) {
   });
   wireCopy($('#modal-body'));
   loadDbInfo();
+}
+
+// ---------------------------------------------------------------- Back-up
+let backupInfo = null;
+let backupUnlockedUntil = 0;   // downloaden zonder opnieuw te bevestigen tot dit moment
+const fmtSize = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(b / 1024))} kB`);
+const fmtDateTime = (dt) => new Date(dt.replace(' ', 'T')).toLocaleString('nl-NL',
+  { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+function backupFormToggle() {
+  const f = $('#settings-form');
+  $('.backup-weekday', f).hidden = f.backup_freq.value !== 'weekly';
+}
+
+async function loadBackups() {
+  const st = $('#backup-status');
+  try { backupInfo = await api('backup_info'); } catch (ex) { st.textContent = ex.message; return; }
+  const b = backupInfo;
+  backupUnlockedUntil = Date.now() + b.unlocked * 1000 - 5000;
+  ['#backup-now', '#backup-upload'].forEach((id) => ($(id).disabled = !!b.problem));
+  if (b.problem) {
+    st.innerHTML = `<b class="warn-txt">⚠️ ${esc(b.problem)}.</b> Voer dit één keer uit op de server:${copyBox('cmd-backup-fix', b.fix_cmd)}`;
+    wireCopy(st);
+    $('#backup-list').innerHTML = '';
+    return;
+  }
+  const parts = [];
+  if (b.last_error) parts.push(`<b class="bad">✘ Automatische back-up mislukt: ${esc(b.last_error)}</b> (RzMon probeert het elk uur opnieuw)`);
+  const lastAuto = b.list.find((x) => x.type === 'auto');
+  if (lastAuto) parts.push(`Laatste automatische: <b>${ago(lastAuto.at)}</b>`);
+  parts.push(b.next ? `Volgende: ${fmtDateTime(b.next)}` : 'Automatische back-up staat uit');
+  if (!b.has_pass) parts.push('<b class="warn-txt">⚠️ Geen zip-wachtwoord: back-ups worden niet versleuteld</b>');
+  if (!b.encryption) parts.push('<b class="warn-txt">⚠️ Deze PHP kan geen versleutelde zip maken (libzip te oud)</b>');
+  st.innerHTML = parts.join(' · ');
+  $('#backup-list').innerHTML = b.list.length ? b.list.map((x) => `
+    <div class="key-row">
+      <span class="grow"><strong>${fmtDateTime(x.at)}</strong> <span class="muted small">· ${esc(x.type_label)}</span><br>
+        <span class="muted small">${fmtSize(x.size)} · ${x.encrypted ? '🔒 versleuteld' : '🔓 niet versleuteld'}${x.history ? '' : ' · zonder meethistorie'}${x.version ? ` · v${esc(x.version)}` : ''}${x.server ? ` · ${esc(x.server)}` : ''}${x.valid ? '' : ' · <b class="bad">beschadigd</b>'}</span></span>
+      <button type="button" class="icon-btn" title="Downloaden als zip" data-bk="dl" data-file="${esc(x.file)}">⬇</button>
+      <button type="button" class="icon-btn" title="Terugzetten" data-bk="restore" data-file="${esc(x.file)}" ${x.valid ? '' : 'disabled'}>↺</button>
+      <button type="button" class="icon-btn" title="Verwijderen" data-bk="del" data-file="${esc(x.file)}">🗑</button>
+    </div>`).join('') : '<p class="muted small">Nog geen back-ups.</p>';
+}
+
+async function backupNow(e) {
+  const b = e.currentTarget;
+  b.disabled = true;
+  b.textContent = '⏳ Bezig…';
+  try {
+    const r = await api('backup_create', {});
+    toast(`Back-up gemaakt (${fmtSize(r.size)})`);
+  } catch (ex) { toast('Back-up: ' + ex.message, 'err'); }
+  b.disabled = false;
+  b.textContent = '💾 Nu back-up maken';
+  loadBackups();
+}
+
+async function onBackupListClick(e) {
+  const b = e.target.closest('[data-bk]');
+  if (!b) return;
+  const file = b.dataset.file;
+  if (b.dataset.bk === 'dl') backupDownload(file);
+  else if (b.dataset.bk === 'restore') backupRestore(file);
+  else if (b.dataset.bk === 'del') {
+    if (!confirm('Deze back-up verwijderen?')) return;
+    try { await api('backup_delete', { file }); toast('Back-up verwijderd'); }
+    catch (ex) { toast(ex.message, 'err'); }
+    loadBackups();
+  }
+}
+
+function backupDownload(file) {
+  const go = () => {
+    const a = document.createElement('a');
+    a.href = 'api.php?' + new URLSearchParams({ action: 'backup_download', file });
+    a.download = file;
+    document.body.append(a);
+    a.click();
+    a.remove();
+  };
+  if (Date.now() < backupUnlockedUntil) return go();
+  modal({
+    title: '⬇ Back-up downloaden',
+    body: `<p style="margin-top:0">De zip bevat ook <code>config.php</code> met het databasewachtwoord. Bevestig daarom eerst; daarna kun je 10 minuten downloaden zonder opnieuw te bevestigen.</p>
+      ${backupInfo?.has_pass ? '' : '<p class="callout small">⚠️ Deze back-up is niet versleuteld. Stel een zip-wachtwoord in voor de volgende back-ups.</p>'}
+      ${confirmField('DOWNLOADEN')}`,
+    buttons: [{ label: '⬇ Downloaden', cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const r = await api('backup_unlock', { confirm: d.confirm });
+      backupUnlockedUntil = Date.now() + r.unlocked * 1000 - 5000;
+      setTimeout(go, 50);
+    },
+  });
+}
+
+function backupRestore(file) {
+  const x = (backupInfo?.list || []).find((b) => b.file === file);
+  if (!x) return;
+  modal({
+    title: '↺ Back-up terugzetten',
+    body: `<p style="margin-top:0">De database gaat terug naar <b>${fmtDateTime(x.at)}</b>${x.server ? ` (server ${esc(x.server)})` : ''}.
+        Wat daarna is veranderd aan servers, checks, instellingen en gebruikers gaat verloren.</p>
+      <ul class="small">
+        <li>RzMon maakt eerst een <b>veiligheidsback-up</b> van nu. Daarmee kun je altijd terug.</li>
+        <li>Het back-upschema en het zip-wachtwoord blijven zoals ze nu zijn.</li>
+        ${x.history ? '' : '<li>Deze back-up is zonder meethistorie: de huidige grafieken blijven staan.</li>'}
+        <li>Gebruikers en wachtwoorden worden die uit de back-up; misschien moet je opnieuw inloggen.</li>
+        <li><code>config.php</code> wordt hier niet teruggezet. Voor een nieuwe server: zie de handleiding.</li>
+      </ul>
+      ${x.encrypted ? '<label>Wachtwoord van deze zip <span class="hint">(leeg = het ingestelde zip-wachtwoord)</span><input name="zip_pass" type="password" autocomplete="off"></label>' : ''}
+      ${confirmField('HERSTELLEN')}`,
+    buttons: [{ label: '↺ Terugzetten', cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const r = await api('backup_restore', { ...d, file });
+      setTimeout(() => modal({
+        title: '✔ Back-up teruggezet',
+        body: `<p style="margin-top:0">De database is teruggezet.${r.safety ? ` De toestand van daarvoor staat in de veiligheidsback-up <code>${esc(r.safety)}</code>.` : ''}</p>
+          <p class="muted small">De pagina wordt opnieuw geladen.</p>`,
+        buttons: [{ label: 'OK', cls: 'primary', submit: true }],
+        onSubmit: async () => location.reload(),
+      }), 50);
+    },
+  });
+}
+
+/** Zip uploaden in stukken van 1 MB (dan maakt de upload-limiet van PHP niet uit). */
+async function backupUpload(file) {
+  if (!file) return;
+  const btn = $('#backup-upload');
+  const CHUNK = 1024 * 1024;
+  if (file.size > (backupInfo?.max_upload || Infinity)) { toast('Bestand is te groot (maximaal 2 GB)', 'err'); return; }
+  const id = [...crypto.getRandomValues(new Uint8Array(8))].map((v) => v.toString(16).padStart(2, '0')).join('');
+  btn.disabled = true;
+  try {
+    let r = null;
+    for (let off = 0; ; off += CHUNK) {
+      const final = off + CHUNK >= file.size;
+      btn.textContent = `⬆ ${Math.round((Math.min(off + CHUNK, file.size) / (file.size || 1)) * 100)}%`;
+      const res = await fetch('api.php?' + new URLSearchParams({ action: 'backup_upload', id, offset: off, final: final ? '1' : '0' }), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream', 'X-CSRF-Token': CSRF },
+        body: file.slice(off, off + CHUNK),
+        credentials: 'same-origin',
+      });
+      r = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      if (!res.ok) throw new Error(r.error || `HTTP ${res.status}`);
+      if (final) break;
+    }
+    toast('Zip geüpload');
+    await loadBackups();
+    backupRestore(r.file);
+  } catch (ex) { toast('Upload: ' + ex.message, 'err'); }
+  btn.disabled = false;
+  btn.textContent = '⬆ Zip uploaden';
+  $('#backup-file').value = '';
 }

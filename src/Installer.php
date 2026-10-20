@@ -135,12 +135,12 @@ final class Installer
     }
 
     /** Database + gebruiker aanmaken met een beheerdersaccount (bv. root). */
-    public static function createDatabase(array $db, string $adminUser, string $adminPass): void
+    public static function createDatabase(array $db, string $adminUser, string $adminPass, ?PDO $admin = null): void
     {
         if (!preg_match('/^\w{1,64}$/', $db['name']) || !preg_match('/^[\w.-]{1,80}$/', $db['user'])) {
             throw new InvalidArgumentException('Databasenaam/gebruiker mag alleen letters, cijfers en _ bevatten');
         }
-        $pdo = self::connect(['host' => $db['host'], 'port' => $db['port'], 'user' => $adminUser, 'pass' => $adminPass], false);
+        $pdo = $admin ?? self::connect(['host' => $db['host'], 'port' => $db['port'] ?? 3306, 'user' => $adminUser, 'pass' => $adminPass], false);
         $host = in_array($db['host'], ['127.0.0.1', 'localhost', '::1'], true) ? 'localhost' : '%';
         $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$db['name']}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         $pdo->exec(sprintf("CREATE USER IF NOT EXISTS '%s'@'%s' IDENTIFIED BY %s", $db['user'], $host, $pdo->quote($db['pass'])));
@@ -208,14 +208,7 @@ final class Installer
         }
 
         // Als root: met het MariaDB-beheeraccount (unix_socket, geen wachtwoord) alle accounts bijwerken
-        $admin = null;
-        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
-            try {
-                $admin = new PDO('mysql:host=localhost', 'root', '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 5]);
-            } catch (PDOException) {
-                $admin = null;
-            }
-        }
+        $admin = self::rootPdo();
         $setPassword = static function (string $pass) use ($admin, $db): void {
             if ($admin) {
                 $hosts = $admin->prepare('SELECT Host FROM mysql.user WHERE User = ?');
@@ -295,6 +288,19 @@ final class Installer
             file_put_contents($summary, preg_replace('/^(DB-wachtwoord\s*:\s*).*$/m', '${1}' . $new, $txt));
         }
         return ['ok' => true, 'password' => $new, 'warnings' => $warnings, 'error' => null];
+    }
+
+    /** Als root: het MariaDB-beheeraccount via de socket (unix_socket, geen wachtwoord), anders null. */
+    public static function rootPdo(): ?PDO
+    {
+        if (!function_exists('posix_geteuid') || posix_geteuid() !== 0) {
+            return null;
+        }
+        try {
+            return new PDO('mysql:host=localhost', 'root', '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 5]);
+        } catch (PDOException) {
+            return null;
+        }
     }
 
     /** Willekeurig wachtwoord van letters en cijfers (werkt overal, zonder aanhalingstekens-gedoe). */

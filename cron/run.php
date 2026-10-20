@@ -43,3 +43,12 @@ if (strtotime((string) setting('purge_at', '')) < time() - 3600) {
     Monitor::purge();
 }
 echo date('c') . " $n check(s) uitgevoerd\n";
+
+// Automatische back-up (Instellingen → Back-up). Eerst het lock van deze run vrijgeven:
+// een grote back-up mag de checks van de volgende minuut niet ophouden.
+if ($lock !== false) {
+    flock($lock, LOCK_UN);
+}
+if ($msg = Backup::runScheduled()) {
+    echo date('c') . " $msg\n";
+}
