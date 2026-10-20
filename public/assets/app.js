@@ -735,6 +735,10 @@ function checkForm(c, h, preset = {}) {
       <div id="deep-wrap" hidden>
         <label class="switch"><input type="checkbox" name="deep" ${+(opts.deep ?? 1) ? 'checked' : ''}><span></span> Diepere controle</label>
         <span class="hint">Niet alleen "aan", maar ook: luistert hij op zijn poorten, antwoordt hij (HTTP, database, SSH, mail, DNS…), hoe vaak is hij herstart en staan er fouten in het log.</span>
+        <label style="margin-top:.6rem">Eigen poort(en) of socket <span class="hint">(optioneel)</span>
+          <input name="ports" class="mono" value="${esc(opts.ports || '')}" placeholder="bv. 8080, 127.0.0.1:9000 of /run/php-fpm/www.sock">
+          <span class="hint">Voor als de agent de poort zelf niet vindt (container, socket, andere procesnaam). Wordt altijd getest, en de test van de dienst (HTTP, SSH…) gebruikt deze poort.</span>
+        </label>
         <div class="row2" style="margin-top:.6rem">
           <label>Extra test <span class="hint">(optioneel)</span>
             <select name="test_type">

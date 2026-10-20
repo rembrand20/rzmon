@@ -796,6 +796,19 @@ Op agent-servers kijkt een **service-check** niet alleen of de service "active" 
 | chronyd, systemd-timesyncd | Tijd is gesynchroniseerd |
 | Overige services | Alleen poorten, herstarts en log |
 
+**Eigen poort(en) of socket:** vindt de agent de poort van een service niet zelf, bijvoorbeeld bij een container, een service met een andere procesnaam, of php-fpm via een socket? Bewerk dan de service-check en vul *Eigen poort(en) of socket* in:
+- `8080`, of `127.0.0.1:9000`, of `[::1]:8080`: de poort wordt getest (zonder adres: `127.0.0.1`);
+- `/run/php-fpm/www.sock`: de agent controleert of de socket bestaat en verbindingen aanneemt;
+- meerdere tegelijk mag, gescheiden door een komma (maximaal 10).
+
+Wat er met jouw poorten gebeurt:
+- ze worden **altijd** getest, naast de poorten die de agent zelf vindt;
+- de **test van de dienst** gebruikt jouw poort. Bijvoorbeeld nginx op `8081` → HTTP-test op 8081, of SSH op `2222` → SSH-begroeting op 2222;
+- in het bericht staat "luistert op 80, 8081 (waarvan zelf opgegeven: 8081)";
+- werkt een opgegeven poort of socket niet, dan is de check **CRITICAL**.
+
+Nieuwe of gewijzigde poorten worden, net als extra tests, binnen 10 minuten door de agent opgepikt.
+
 **Extra test per check:** bewerk de service-check en kies bij *Extra test*:
 - **URL moet antwoorden**, bijvoorbeeld `http://localhost:8080/health`, eventueel met een tekst die in het antwoord moet staan (zoals `OK`). HTTP 400 of hoger telt als fout.
 - **Poort moet antwoorden**: `8080` of `host:8080`.

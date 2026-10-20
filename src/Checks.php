@@ -513,7 +513,13 @@ final class Checks
             $raise(STATUS_WARN, 'proces: ' . ($d['sub'] ?? '?'));
         }
         if (!empty($d['ports'])) {
-            $info[] = 'luistert op ' . implode(', ', $d['ports']);
+            $info[] = 'luistert op ' . implode(', ', $d['ports']) . (!empty($d['manual']) ? ' (waarvan zelf opgegeven: ' . implode(', ', $d['manual']) . ')' : '');
+        }
+        // Zelf opgegeven sockets (bv. php-fpm): bestaat de socket en neemt hij verbindingen aan?
+        if (!empty($d['sockets_fail'])) {
+            $raise(STATUS_CRIT, 'socket ' . implode(', ', $d['sockets_fail']));
+        } elseif (!empty($d['sockets'])) {
+            $info[] = 'socket ' . implode(', ', $d['sockets']) . ' neemt verbindingen aan';
         }
         if (!empty($d['ports_fail'])) {
             $raise(STATUS_CRIT, 'poort ' . implode(', ', $d['ports_fail']) . ' neemt geen verbindingen aan');
@@ -526,6 +532,9 @@ final class Checks
             } else {
                 $raise($rc >= 2 ? STATUS_CRIT : STATUS_WARN, (string) $d['probe_msg']);
             }
+        }
+        if (($opt['ports'] ?? '') !== '' && empty($d['manual']) && empty($d['sockets'])) {
+            $info[] = 'zelf opgegeven poorten: nog niet opgepikt (de agent haalt wijzigingen binnen 10 minuten op; agent bijgewerkt?)';
         }
         // Extra test die bij deze check in RzMon is ingesteld (URL of poort, uitgevoerd door de agent)
         if (in_array($opt['test_type'] ?? '', ['url', 'port'], true)) {

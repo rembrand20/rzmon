@@ -71,8 +71,12 @@ function agent_host(): array
 if ($action === 'agent_tests') {
     $host = agent_host();
     header('Content-Type: text/plain; charset=utf-8');
-    foreach (q("SELECT id, options FROM checks WHERE host_id = ? AND type = 'service' AND enabled = 1 AND options IS NOT NULL", [$host['id']]) as $c) {
+    foreach (q("SELECT id, target, options FROM checks WHERE host_id = ? AND type = 'service' AND enabled = 1 AND options IS NOT NULL", [$host['id']]) as $c) {
         $o = json_decode((string) $c['options'], true) ?: [];
+        if (($o['ports'] ?? '') !== '' && ($o['deep'] ?? 1)) {
+            // Zelf opgegeven poorten/sockets van de service (target = servicenaam)
+            echo implode("\t", [$c['id'], 'ports', $c['target'], $o['ports']]), "\n";
+        }
         if (in_array($o['test_type'] ?? '', ['url', 'port'], true) && ($o['test_target'] ?? '') !== '') {
             echo implode("\t", [$c['id'], $o['test_type'], str_replace(["\t", "\n"], ' ', $o['test_target']), str_replace(["\t", "\n"], ' ', (string) ($o['test_expect'] ?? ''))]), "\n";
         }
@@ -162,7 +166,7 @@ if ($action === 'agent') {
             if (!is_array($d) || !preg_match('/^[A-Za-z0-9@._:-]{1,150}$/', (string) $name)) {
                 continue;
             }
-            $d = array_intersect_key($d, array_flip(['sub', 'type', 'pid', 'restarts', 'since', 'ports', 'ports_fail', 'probe', 'probe_rc',
+            $d = array_intersect_key($d, array_flip(['sub', 'type', 'pid', 'restarts', 'since', 'ports', 'ports_fail', 'manual', 'sockets', 'sockets_fail', 'probe', 'probe_rc',
                 'probe_msg', 'log_errors', 'log_last', 'custom_rc', 'custom_msg']));
             $hist = array_values(array_filter($prev[$name]['hist'] ?? [], fn($h) => is_array($h) && $h[0] >= time() - 3900));
             if (isset($d['restarts']) && is_numeric($d['restarts'])) {
@@ -464,7 +468,20 @@ switch ($action) {
             if ($testType === 'port' && !preg_match('#^(([A-Za-z0-9.\-]+|\[[0-9a-fA-F:]+\]):)?\d{1,5}$#', $testTarget)) {
                 out(['error' => 'Extra test: geef een poort (8080) of host:poort (localhost:8080)'], 422);
             }
-            $options = json_encode(['deep' => ($in['deep'] ?? true) ? 1 : 0] + ($testType !== '' ? [
+            // Eigen poorten/sockets: "8080, 127.0.0.1:9000, [::1]:80, /run/php-fpm/www.sock" (max. 10)
+            $ports = [];
+            foreach (preg_split('/[\s,;]+/', trim((string) ($in['ports'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) as $pt) {
+                $isSocket = preg_match('#^/[A-Za-z0-9._/@+-]{1,200}$#', $pt);
+                $isPort = preg_match('#^(([A-Za-z0-9.\-]+|\[[0-9a-fA-F:]+\]):)?(\d{1,5})$#', $pt, $pm) && (int) $pm[3] >= 1 && (int) $pm[3] <= 65535;
+                if (!$isSocket && !$isPort) {
+                    out(['error' => "Poort of socket \"$pt\" klopt niet. Gebruik bv. 8080, 127.0.0.1:9000 of /run/php-fpm/www.sock"], 422);
+                }
+                $ports[] = $pt;
+            }
+            if (count($ports) > 10) {
+                out(['error' => 'Geef maximaal 10 poorten of sockets op'], 422);
+            }
+            $options = json_encode(['deep' => ($in['deep'] ?? true) ? 1 : 0] + ($ports ? ['ports' => implode(' ', array_unique($ports))] : []) + ($testType !== '' ? [
                 'test_type' => $testType, 'test_target' => mb_substr($testTarget, 0, 300),
                 'test_expect' => mb_substr(trim((string) ($in['test_expect'] ?? '')), 0, 100),
             ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

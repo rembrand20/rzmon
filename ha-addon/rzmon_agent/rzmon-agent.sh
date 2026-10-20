@@ -17,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.11.0"
+AGENT_VERSION="1.12.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -390,6 +390,31 @@ probe_service() {  # probe_service naam "poort|adres …" → zet probe, probe_r
             else probe_rc=1; probe_msg="tijd is niet gesynchroniseerd"; fi ;;
     esac
 }
+# Wat in RzMon bij service-checks is ingesteld: extra tests (URL/poort) en de eigen poorten of
+# sockets van een service. De lijst wordt elke 10 minuten bij RzMon opgehaald; er worden nooit
+# commando's van RzMon uitgevoerd.
+declare -A manual_ports=()
+if [ "$HA_MODE" = 0 ]; then
+    t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
+    mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
+    t_cache="$t_dir/tests.cache"
+    if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
+        t_k=(); [ "$INSECURE" = 1 ] && t_k=(-k)
+        if t_list=$(curl -fsS "${t_k[@]}" -m 10 -H "X-Agent-Token: $TOKEN" "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null); then
+            (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null || true
+        fi
+    fi
+    # Regels "id <tab> ports <tab> service <tab> 8080 127.0.0.1:9000 /run/x.sock"
+    [ -r "$t_cache" ] && while IFS=$'\t' read -r _ t_type t_target t_expect; do
+        [ "$t_type" = ports ] && manual_ports["$t_target"]+=" $t_expect"
+    done <"$t_cache"
+fi
+sock_open() {  # sock_open pad → 0 = neemt verbindingen aan, 1 = niet, 2 = geen antwoord binnen 3 s
+    [ -S "$1" ] || return 1
+    curl -s -m 3 --unix-socket "$1" -o /dev/null http://localhost/ 2>/dev/null
+    case $? in 7) return 1 ;; 28) return 2 ;; *) return 0 ;; esac   # 7 = geen verbinding; overige = verbonden
+}
+
 if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "$SERVICES" ] && command -v systemctl >/dev/null 2>&1; then
     # Alle luisterende TCP-poorten met de bijbehorende PID's: "poort|adres|pid pid …"
     listen_map=""
@@ -427,7 +452,26 @@ if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "$SERVICES" ] && comma
                 done
             done <<<"$listen_map"
         fi
-        probe_service "$s" "${plist# }"
+        # Zelf opgegeven poorten en sockets (in RzMon): altijd testen, en de dienst-test gebruikt ze
+        man_list=""; man_show=""; sockets=""; sfail=""
+        for m in ${manual_ports[$s]-}; do
+            if [[ "$m" == /* ]]; then
+                sockets+="\"$(json_escape "$m")\","
+                sock_open "$m"; case $? in
+                    0) ;;
+                    2) sfail+="\"$(json_escape "$m: reageert niet binnen 3 seconden")\"," ;;
+                    *) if [ -S "$m" ]; then sfail+="\"$(json_escape "$m: neemt geen verbindingen aan")\","; else sfail+="\"$(json_escape "$m: bestaat niet")\","; fi ;;
+                esac
+                continue
+            fi
+            m=${m#[}; mport=${m##*:}; maddr=127.0.0.1
+            [[ "$m" == *:* ]] && { maddr=${m%:*}; maddr=${maddr%]}; }
+            [[ "$mport" =~ ^[0-9]+$ ]] || continue
+            man_list+=" $mport|$maddr"; man_show+="\"$(json_escape "$m")\","
+            [[ " $svc_ports " == *" $mport "* ]] || svc_ports+=" $mport"
+            tcp_open "$maddr" "$mport" || { [[ ",$pfail" == *",$mport,"* ]] || pfail+="$mport,"; }
+        done
+        probe_service "$s" "$( [ -n "$man_list" ] && echo "${man_list# }" || echo "${plist# }")"
         # Fouten in het log van het laatste kwartier
         log_n=null; log_last=""
         if command -v journalctl >/dev/null 2>&1; then
@@ -447,23 +491,13 @@ if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "$SERVICES" ] && comma
             fi
         fi
         ports_json=$(tr ' ' '\n' <<<"${svc_ports# }" | grep . | paste -sd, -)
-        svc_detail+="\"$(json_escape "$s")\":{\"sub\":\"$(json_escape "$(get SubState)")\",\"type\":\"$(json_escape "$(get Type)")\",\"pid\":${main:-0},\"restarts\":$(get NRestarts | grep -E '^[0-9]+$' || echo null),\"since\":$since,\"ports\":[${ports_json}],\"ports_fail\":[${pfail%,}],\"probe\":\"$probe\",\"probe_rc\":${probe_rc:-null},\"probe_msg\":\"$(json_escape "$probe_msg")\",\"log_errors\":$log_n,\"log_last\":\"$(json_escape "$log_last")\",\"custom_rc\":$c_rc,\"custom_msg\":\"$(json_escape "$c_msg")\"},"
+        svc_detail+="\"$(json_escape "$s")\":{\"sub\":\"$(json_escape "$(get SubState)")\",\"type\":\"$(json_escape "$(get Type)")\",\"pid\":${main:-0},\"restarts\":$(get NRestarts | grep -E '^[0-9]+$' || echo null),\"since\":$since,\"ports\":[${ports_json}],\"ports_fail\":[${pfail%,}],\"manual\":[${man_show%,}],\"sockets\":[${sockets%,}],\"sockets_fail\":[${sfail%,}],\"probe\":\"$probe\",\"probe_rc\":${probe_rc:-null},\"probe_msg\":\"$(json_escape "$probe_msg")\",\"log_errors\":$log_n,\"log_last\":\"$(json_escape "$log_last")\",\"custom_rc\":$c_rc,\"custom_msg\":\"$(json_escape "$c_msg")\"},"
     done
 fi
 
-# Extra tests die in RzMon bij een service-check zijn ingesteld (URL of poort). De lijst wordt
-# elke 10 minuten bij RzMon opgehaald; er worden nooit commando's van RzMon uitgevoerd.
+# Extra tests die in RzMon bij een service-check zijn ingesteld (URL of poort), zie hierboven.
 svc_tests=""
 if [ "$HA_MODE" = 0 ]; then
-    t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
-    mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
-    t_cache="$t_dir/tests.cache"
-    if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
-        t_k=(); [ "$INSECURE" = 1 ] && t_k=(-k)
-        if t_list=$(curl -fsS "${t_k[@]}" -m 10 -H "X-Agent-Token: $TOKEN" "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null); then
-            (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null || true
-        fi
-    fi
     [ -r "$t_cache" ] && while IFS=$'\t' read -r t_id t_type t_target t_expect; do
         [[ "$t_id" =~ ^[0-9]+$ ]] || continue
         ok=false; msg=""
@@ -673,10 +707,11 @@ if [ "$TEST" = 1 ]; then
         pass "Diepere controle van services:"
         # Per service: poorten en het resultaat van de test (✘ = probleem)
         while IFS= read -r line; do hint "$line"; done < <(sed 's/},"/}\n"/g' <<<"${svc_detail%,}" | sed -nE \
-            's/^"([^"]+)":\{"sub":"running".*"ports":\[([0-9,]*)\],"ports_fail":\[([0-9,]*)\].*"probe_rc":([0-9]|null),"probe_msg":"([^"]*)".*"log_errors":([0-9]+|null).*/\1|\2|\3|\4|\5|\6/p' |
-            while IFS='|' read -r n p pf rc m le; do
-                printf '%s %s: poorten %s%s%s%s\n' "$( [ -n "$pf" ] || [ "$rc" = 2 ] && echo ✘ || echo ✔)" "$n" "${p:-geen}" \
-                    "${pf:+ (dicht: $pf)}" "${m:+ · $m}" "$( [ "$le" != null ] && [ "$le" != 0 ] && echo " · $le fout(en) in log")"
+            's/^"([^"]+)":\{"sub":"running".*"ports":\[([0-9,]*)\],"ports_fail":\[([0-9,]*)\].*"sockets":\[([^]]*)\],"sockets_fail":\[([^]]*)\].*"probe_rc":([0-9]|null),"probe_msg":"([^"]*)".*"log_errors":([0-9]+|null).*/\1|\2|\3|\4|\5|\6|\7|\8/p' |
+            while IFS='|' read -r n p pf so sf rc m le; do
+                printf '%s %s: poorten %s%s%s%s%s\n' "$( [ -n "$pf$sf" ] || [ "$rc" = 2 ] && echo ✘ || echo ✔)" "$n" "${p:-geen}" \
+                    "${pf:+ (dicht: $pf)}" "$( [ -n "$sf" ] && echo " · socket: ${sf//\"/}" || { [ -n "$so" ] && echo " · socket ${so//\"/} ok"; })" \
+                    "${m:+ · $m}" "$( [ "$le" != null ] && [ "$le" != 0 ] && echo " · $le fout(en) in log")"
             done)
     fi
     if [ -n "$podman_json" ]; then
