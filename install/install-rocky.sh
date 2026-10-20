@@ -291,6 +291,9 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     # Na de setup kan de map (tijdelijk) van apache zijn; git als root wil een root-map
     chown root:"$WEB_USER" "$INSTALL_DIR"
     [ "$REPO_SET" -eq 1 ] && gitc -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
+    # Dit script zet zelf de bestandsrechten (640/755); git moet die niet als lokale wijziging zien,
+    # anders weigert "git pull" met "Your local changes … would be overwritten"
+    gitc -C "$INSTALL_DIR" config core.fileMode false
     gitc -C "$INSTALL_DIR" fetch --quiet origin "$BRANCH"
     gitc -C "$INSTALL_DIR" checkout --quiet "$BRANCH"
     gitc -C "$INSTALL_DIR" pull --quiet --ff-only origin "$BRANCH"
