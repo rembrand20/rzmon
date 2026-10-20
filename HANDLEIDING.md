@@ -48,7 +48,8 @@ RzMon bestaat uit vier onderdelen:
 | **Ping** | Reageert de server? 3 pings | Gemiddelde ms. Pakketverlies = minstens WARNING, 100% verlies = CRITICAL | Alle servers |
 | **TCP poort** | Staat een dienst open, zoals SSH, MariaDB of MQTT? | Verbindingstijd in ms. Dicht = CRITICAL | Alle servers |
 | **HTTP(S)** | Website of API bereikbaar, statuscode < 400 | Responstijd in ms. Statuscode ≥ 400 = CRITICAL. SSL-certificaat < 14 dagen geldig = WARNING, < 3 dagen = CRITICAL | Alle servers |
-| **Diskruimte** | Percentage gebruikt per mount | % gebruikt | Lokaal + agent |
+| **SSL-certificaat** | Hoe lang is het certificaat nog geldig? Werkt op elke TLS-poort | Dagen: warning **onder** 21, critical **onder** 7. Verlopen of ongeldig = CRITICAL | Alle servers |
+| **Diskruimte** | Percentage gebruikt per mount, plus een voorspelling wanneer hij vol is | % gebruikt. Vol binnen 7 dagen (instelbaar) = WARNING | Lokaal + agent |
 | **Service** | Is een systemd-service `active`? | Niet actief = CRITICAL | Lokaal + agent |
 | **CPU** | CPU-gebruik over 2 seconden + load average | % gebruik | Lokaal + agent |
 | **RAM** | Geheugengebruik (cache telt niet mee) + swap | % gebruikt | Lokaal + agent |
@@ -59,14 +60,15 @@ RzMon bestaat uit vier onderdelen:
 - **Remote met agent**: een Linux-server of Home Assistant die zelf gegevens doorstuurt. Stopt de agent met rapporteren, dan worden de checks na 5 minuten CRITICAL (instelbaar).
 - **Remote (alleen netwerk)**: routers, NAS, switches, printers en websites. Daarvoor zijn ping, TCP en HTTP beschikbaar.
 
-### Meldingen via Pushover en Home Assistant
-- **Twee kanalen:** Pushover op je telefoon, en een **webhook naar Home Assistant** om automatiseringen te starten (lamp rood, TTS, notificatie via de HA-app).
+### Meldingen via Pushover, e-mail en Home Assistant
+- **Drie kanalen:** Pushover op je telefoon, **e-mail** (altijd, of alleen als reserve als Pushover faalt), en een **webhook naar Home Assistant** om automatiseringen te starten (lamp rood, TTS, notificatie via de HA-app).
+- **MQTT discovery:** al je servers en checks verschijnen als apparaten en sensoren in Home Assistant.
 - **Melding pas na N fouten** achter elkaar (standaard 2), zodat je geen valse alarmen krijgt.
 - **Nieuwe melding bij escalatie**, bijvoorbeeld van WARNING naar CRITICAL.
 - **Herhaalmelding** elke X minuten zolang het probleem blijft (standaard 60, 0 = uit).
 - **Herstelmelding** ✅ als het weer goed gaat, met lage prioriteit dus zonder geluid.
 - **Prioriteit en geluid instelbaar**, apart voor critical en warning, inclusief *Emergency* (blijft herhalen tot je hem bevestigt).
-- **Testknoppen** voor beide kanalen, en een **meldingenlog** dat per melding toont via welk kanaal hij is verstuurd (📲 / 🏠).
+- **Testknoppen** voor elk kanaal, en een **meldingenlog** dat per melding toont via welk kanaal hij is verstuurd (📲 / 📧 / 🏠).
 
 ### Storingen bevestigen
 - **✔ Bevestigen** per check, of alle storingen van een server tegelijk, met een optionele opmerking. Daarna krijg je voor die storing **geen meldingen meer**: geen herhalingen, ook niet bij erger worden.
@@ -82,7 +84,8 @@ RzMon bestaat uit vier onderdelen:
 - **Overzicht:** tellers voor OK, Warning, Critical, Onbekend en Onderhoud, en per server een **tegel met de algehele status** ("Alles OK · 6 checks" of "1 kritiek · 1 waarschuwing"), de namen van de checks met een probleem en mini-meters voor CPU, RAM en disk. Servers met problemen staan bovenaan.
 - **Details:** klik op een tegel en hij klapt uit met alle checks per stuk, met balkjes en drempels en de knoppen (bevestigen, onderhoud, check toevoegen, poortscan, bewerken). Welke tegels open staan, wordt onthouden; **⊞ Alles openen** klapt alles in één keer open.
 - **Zoeken:** zoekveld (zoek je op een checknaam, dan klapt de server vanzelf open) en een filter **Alleen problemen**.
-- **Grafiek per check:** over 6 uur, 24 uur, 7 dagen of 30 dagen, met beschikbaarheidspercentage.
+- **Minigrafiek per check** van de laatste 24 uur; klik erop voor de grote **grafiek** over 6 uur tot 30 dagen, met beschikbaarheid, minimum, gemiddelde, maximum en bij disks de trend.
+- **Beschikbaarheid per server** over 24 uur, 7 dagen en 30 dagen.
 - **Bijwerken:** de pagina ververst zichzelf elke 20 seconden. Met **↻ Alles nu checken** draai je direct alle checks.
 - **Weergave:** donker en licht thema, werkt ook op je telefoon.
 
@@ -94,6 +97,7 @@ RzMon bestaat uit vier onderdelen:
 
 ### Toegang en beveiliging
 - **Login:** inloggen met gebruikersnaam en wachtwoord (bcrypt). Pogingen worden afgeremd tegen brute force.
+- **Meerdere gebruikers**, elk met of zonder **tweestapsverificatie** (TOTP, met elke authenticator-app). Beheer en resetten via de instellingenpagina.
 - **Geen login op je lokale netwerk** (optioneel). Van buitenaf blijft de login nodig. Ga je met je telefoon van wifi naar 4G, dan word je automatisch uitgelogd.
 - **Reverse proxy:** ondersteuning voor Nginx Proxy Manager, Traefik en Cloudflare Tunnel, waarbij het echte bezoekers-IP alleen wordt vertrouwd van proxy's die je zelf instelt.
 - **Overige beveiliging:** CSRF-bescherming, HttpOnly/SameSite-cookies, een eigen token per agent en API-sleutels die alleen als hash worden opgeslagen.
@@ -428,6 +432,65 @@ Vervang `notify.mobile_app_jouw_telefoon` en `light.bureau` door je eigen entite
 
 > `local_only: true` betekent dat HA de webhook alleen accepteert vanaf je eigen netwerk. Draait RzMon ergens anders, bijvoorbeeld in de cloud, zet dit dan op `false` en gebruik een HTTPS-URL.
 
+### 6.4 E-mail
+Ga naar *Instellingen → E-mail*, zet **E-mailmeldingen aan** en vul in:
+
+| Instelling | Uitleg |
+|---|---|
+| Versturen | **Altijd** (naast Pushover), of **Alleen als Pushover uit staat of mislukt**: e-mail als reservekanaal |
+| SMTP-server, poort, beveiliging | Bijvoorbeeld `smtp.gmail.com`, `587`, STARTTLS. Of poort `465` met SSL/TLS. Poort `25` zonder versleuteling alleen voor een mailserver in je eigen netwerk |
+| Gebruikersnaam en wachtwoord | Je mailaccount. Leeg laten als de server geen login vraagt |
+| Afzender | Leeg = je gebruikersnaam (als dat een e-mailadres is) |
+| Ontvanger(s) | Eén of meer adressen, met een komma ertussen |
+
+Klik op **📧 Testmail sturen**. Dat gebruikt wat je hebt ingevuld, ook als het nog niet is opgeslagen. Klik daarna op **Instellingen opslaan**.
+
+Aandachtspunten:
+- **App-wachtwoord:** Gmail, Outlook/Hotmail en iCloud accepteren je gewone wachtwoord niet. Maak in je accountinstellingen een *app-wachtwoord* aan (daarvoor moet 2FA bij die dienst aan staan).
+- **Inhoud:** de mail bevat de melding, de tijd, de **bevestig-link** en een link naar RzMon (als de *Basis-URL* in Setup is ingevuld).
+- **Foutmelding bij de test:** die zegt wat er mis is, bijvoorbeeld "gebruikersnaam/wachtwoord onjuist" of "klopt de beveiliging? 465 = SSL/TLS, 587 = STARTTLS".
+
+### 6.5 MQTT voor Home Assistant
+Met MQTT verschijnt RzMon vanzelf in Home Assistant, zonder YAML.
+
+**1. MQTT in Home Assistant.** Heb je nog geen MQTT:
+- installeer de add-on **Mosquitto broker** (*Instellingen → Add-ons → Add-on winkel*) en start hem;
+- voeg de integratie **MQTT** toe (*Instellingen → Apparaten en diensten*); meestal stelt HA die zelf voor;
+- maak een gebruiker voor RzMon, bijvoorbeeld een HA-gebruiker `rzmon` (*Instellingen → Personen → Gebruikers*). Mosquitto accepteert HA-gebruikers als MQTT-login.
+
+**2. In RzMon:** ga naar *Instellingen → MQTT*:
+- zet **MQTT aan**;
+- vul de MQTT-server in (het adres van Home Assistant), poort `1883`, en de gebruikersnaam en het wachtwoord;
+- klik op **📡 Verbinding testen & publiceren** en daarna op **Instellingen opslaan**.
+
+Onder *Apparaten en diensten → MQTT* staan nu:
+
+| Apparaat | Entiteiten |
+|---|---|
+| **RzMon** | *Probleem* (aan als er ergens een warning of critical is), *Kritiek* en *Waarschuwingen* (aantallen), *Laatste controle* |
+| **Elke server** | *Probleem* en *Status* (OK, WARNING, CRITICAL, UNKNOWN of ONDERHOUD) |
+| **Elke check** | Een status-sensor, en bij checks met een meetwaarde ook een sensor met die waarde (ms, %, dagen). Die kun je in grafieken en automatiseringen gebruiken |
+
+Goed om te weten:
+- **Bijwerken:** RzMon publiceert elke minuut, bij elke cron-run.
+- **Niet beschikbaar:** komt er 10 minuten niets binnen, bijvoorbeeld omdat cron of RzMon gestopt is, dan worden de sensoren *niet beschikbaar*. Daar kun je in HA een melding op maken: zo merk je het ook als RzMon zelf uitvalt.
+- **Verwijderen:** verwijder je een check of server in RzMon, dan verdwijnt hij ook uit HA.
+- **TLS:** kies *Versleuteling: TLS* en poort `8883`. Gebruik je een self-signed certificaat, zet dan onder *Geavanceerd* de certificaatcontrole uit.
+- **Prefix:** *Geavanceerd* bevat ook de discovery-prefix (standaard `homeassistant`) en het basis-topic (standaard `rzmon`). Die hoef je normaal niet te veranderen.
+
+Voorbeeld van een automatisering:
+```yaml
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.rzmon_probleem
+    to: "on"
+actions:
+  - action: notify.mobile_app_jouw_telefoon
+    data:
+      message: "RzMon: {{ state_attr('binary_sensor.rzmon_probleem', 'critical') }} kritieke storing(en)"
+```
+De precieze entiteitnamen zie je in HA bij het apparaat *RzMon*.
+
 ---
 
 ## 7. Servers en checks toevoegen
@@ -448,7 +511,8 @@ Klik op een serverkaart op **＋**. Per type:
 | Ping | – | Warning 100 ms, critical 500 ms |
 | TCP poort | Poortnummer, bv. `22` | 500 / 2000 ms |
 | HTTP(S) | Volledige URL (`https://site.nl/`) of een pad (`/status`, dan wordt het adres van de server gebruikt) | 1000 / 3000 ms |
-| Diskruimte | Mount, bv. `/` of `/data`. Bij agent-servers kies je uit een lijst | 80 / 90 % |
+| SSL-certificaat | Host met eventueel een poort: `site.nl`, `nas.lan:5001`, `mqtt.lan:8883`. Leeg = adres van de server op poort 443 | Warning **onder** 21 dagen, critical **onder** 7 dagen |
+| Diskruimte | Mount, bv. `/` of `/data`. Bij agent-servers kies je uit een lijst | 80 / 90 %. Plus WARNING als hij binnen 7 dagen vol raakt |
 | Service | systemd-naam, bv. `nginx`. Bij een HA-agent: `homeassistant`, `supervisor`, `updates` of `addon:<slug>` | – |
 | CPU | – | 85 / 95 % |
 | RAM | – | 85 / 95 % |
@@ -456,6 +520,12 @@ Klik op een serverkaart op **＋**. Per type:
 - **Interval:** minimaal 30 seconden. Omdat cron elke minuut draait, is **1 minuut** in de praktijk het kortste interval.
 - **Na opslaan** wordt de check direct uitgevoerd.
 - **Knoppen per check:** ↻ = nu checken, 📈 = grafiek, ✎ = bewerken of verwijderen.
+- **Certificaat controleren** (bij HTTP(S) en SSL-certificaat): zet dit uit voor apparaten met een self-signed certificaat, zoals Proxmox of een NAS. De vervaldatum wordt dan nog steeds bewaakt.
+
+**Grafieken en beschikbaarheid**
+- Onder elke check staat een **minigrafiek** van de laatste 24 uur: de lijn is de meetwaarde, en de gekleurde streepjes eronder tonen de status. Klik erop (of op 📈) voor de grote grafiek, met minimum, gemiddelde en maximum.
+- Een opengeklapte server toont **Bereikbaar: 24 u · 7 d · 30 d**. Dat is het percentage metingen waarin de ping lukte; heeft de server geen ping-check, dan tellen de TCP- en HTTP-checks. Ingeklapt staat het percentage van 7 dagen achter ⏱.
+- **Diskvoorspelling:** RzMon trekt een lijn door de diskmetingen van de afgelopen 7 dagen. Groeit een disk, dan staat in de check bijvoorbeeld *vol over ~12 dagen (+0,8%/dag)*. Raakt hij binnen 7 dagen vol, dan wordt de check WARNING, ook als de drempel nog niet bereikt is. Het aantal dagen stel je in onder *Instellingen → Alarmgedrag* (0 = uit). Er is minimaal een dag aan metingen nodig.
 
 ### 7.3 Poortscan
 Klik op een serverkaart op **🔍**:
@@ -696,6 +766,21 @@ Gebruik je **Nginx Proxy Manager**, **Traefik**, **Caddy**, **Cloudflare Tunnel*
 
 > ⚠️ Sommige routers geven bij port-forwarding álle bezoekers het IP van de router. Test daarom altijd via 4G nadat je deze optie aanzet.
 
+### Gebruikers en tweestapsverificatie 🔐
+Onder *Instellingen → Gebruikers* beheer je wie er mag inloggen. Iedere gebruiker kan alles beheren.
+
+- **Gebruiker toevoegen:** vul een naam en wachtwoord in. Wil je meteen 2FA, zet dan *Direct tweestapsverificatie instellen* aan. Zonder 2FA is alleen het wachtwoord nodig.
+- **2FA instellen:** klik bij de gebruiker op **🔐 2FA instellen** en scan de QR-code met een authenticator-app, zoals Google of Microsoft Authenticator, Authy, Bitwarden of 1Password. Lukt scannen niet, typ dan de sleutel eronder over. Vul de code in die de app toont: pas daarna staat 2FA aan, dus je kunt jezelf niet per ongeluk buitensluiten.
+- **Inloggen met 2FA:** na het wachtwoord vraagt RzMon om de 6-cijferige code. Een code werkt maar één keer. Na 5 foute codes, of na 5 minuten, begin je opnieuw met je wachtwoord.
+- **2FA resetten:** bijvoorbeeld bij een nieuwe of verloren telefoon. Klik op **2FA resetten**: die gebruiker logt dan weer in met alleen het wachtwoord, tot 2FA opnieuw is ingesteld.
+- **🔑** stelt een nieuw wachtwoord in voor een gebruiker. **🗑** verwijdert een gebruiker; jezelf en de laatste gebruiker kun je niet verwijderen.
+- **Op het lokale netwerk** blijft inloggen zonder wachtwoord werken als je dat aan hebt staan; 2FA geldt voor inloggen van buitenaf.
+
+**Buitengesloten?** Op de server zet dit 2FA uit voor een gebruiker:
+```bash
+sudo -u www-data php /var/www/rzmon/install/install.php --reset-2fa admin     # Rocky: sudo -u apache …
+```
+
 ---
 
 ## 11. REST API en Home Assistant-integratie
@@ -715,7 +800,7 @@ In plaats van de `Authorization`-header kun je ook `X-API-Key: rzm_…` gebruike
 | Endpoint | Resultaat |
 |---|---|
 | `GET /v1.php/status` | Totaalstatus, tellers, lijst met problemen, status per server |
-| `GET /v1.php/hosts` | Alle servers met checks |
+| `GET /v1.php/hosts` | Alle servers met checks, inclusief `uptime` (% bereikbaar over `h24`, `d7` en `d30`) |
 | `GET /v1.php/hosts/{id}` | Eén server |
 | `GET /v1.php/checks` | Alle checks. Filters: `?status=2`, `?type=disk`, `?host_id=1` |
 | `GET /v1.php/checks/{id}` | Eén check, met waarde, eenheid, drempels en bericht |
@@ -863,6 +948,12 @@ sudo cp /root/rzmon-config.php /var/www/rzmon/config.php
 | **"Setup is alleen bereikbaar vanaf het lokale netwerk"** | Open de pagina vanaf een computer op je LAN, of via een SSH-tunnel: `ssh -L 8080:localhost:80 server` en dan `http://localhost:8080` |
 | **Witte pagina / fout 500** | Bekijk `/var/log/apache2/rzmon_error.log` of `/var/log/nginx/error.log`. Of zet tijdelijk `display_errors` aan via Setup |
 | **Wachtwoord vergeten** | `sudo -u www-data php /var/www/rzmon/install/install.php admin` zet een nieuw wachtwoord voor `admin` |
+| **Telefoon met 2FA kwijt** | `sudo -u www-data php /var/www/rzmon/install/install.php --reset-2fa admin` zet 2FA uit; stel het daarna opnieuw in |
+| **2FA-code steeds "onjuist"** | Staat de klok van je telefoon én van de server goed? Codes wisselen elke 30 seconden. Controleer de server met `timedatectl` |
+| **Testmail mislukt** | Lees de foutmelding: bij "gebruikersnaam/wachtwoord onjuist" heb je bij Gmail/Outlook een app-wachtwoord nodig. Bij een time-out: 465 = SSL/TLS, 587 = STARTTLS. Op Rocky Linux moet SELinux uitgaande verbindingen toestaan (`setsebool -P httpd_can_network_connect 1`, doet het installatiescript al) |
+| **MQTT: "geen toegang"** | Gebruikersnaam/wachtwoord van de broker klopt niet. Bij de Mosquitto-add-on: gebruik een HA-gebruiker of zet een login in de add-on-configuratie |
+| **MQTT: geen apparaten in HA** | Is de MQTT-integratie in HA toegevoegd? Klopt de discovery-prefix (`homeassistant`)? Klik op *Verbinding testen & publiceren*. Met `mosquitto_sub -h <broker> -u … -P … -t 'rzmon/#' -v` zie je wat RzMon stuurt |
+| **SSL-check: "niet vertrouwd of naam klopt niet"** | Self-signed certificaat (bv. Proxmox of een NAS): zet *Certificaat controleren* uit bij de check. De vervaldatum wordt dan nog steeds bewaakt |
 | **Dashboard stuurt door naar Setup** | De database is onbereikbaar. Controleer `sudo systemctl status mariadb` en de gegevens bij Setup → Database |
 | **"Cron draait" blijft oranje** | Controleer `/etc/cron.d/rzmon`: het bestand moet van root zijn en mag geen punt in de naam hebben. Test handmatig met `sudo -u www-data php cron/run.php` |
 | **Ping: "not found"** | `sudo apt install iputils-ping`, en zet het juiste pad bij Setup (`command -v ping`) |

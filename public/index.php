@@ -42,8 +42,14 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <main class="login-wrap">
     <form id="login-form" class="card login-card">
       <div class="brand big"><span class="logo">📡</span> RzMon <span class="version" title="RzMon-versie">v<?= htmlspecialchars(RZMON_VERSION) ?></span></div>
-      <label>Gebruikersnaam<input name="username" autocomplete="username" required autofocus></label>
-      <label>Wachtwoord<input name="password" type="password" autocomplete="current-password" required></label>
+      <div id="login-step1">
+        <label>Gebruikersnaam<input name="username" autocomplete="username" required autofocus></label>
+        <label>Wachtwoord<input name="password" type="password" autocomplete="current-password" required></label>
+      </div>
+      <div id="login-step2" hidden>
+        <p class="muted small" style="margin-top:0">🔐 Voer de 6-cijferige code uit je authenticator-app in.</p>
+        <label>Code<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" class="mono totp-input"></label>
+      </div>
       <p class="form-error" hidden></p>
       <button class="btn primary block">Inloggen</button>
     </form>
@@ -133,6 +139,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label class="switch"><input type="checkbox" name="notify_recovery_acked"><span></span> Ook herstel melden na een bevestigde storing</label>
           <label>Agent offline na … minuten zonder rapport<input type="number" name="agent_stale_minutes" min="1"></label>
           <label>Historie bewaren (dagen)<input type="number" name="retention_days" min="1"></label>
+          <label>Waarschuwen als een disk binnen … dagen vol raakt <span class="muted small">(0 = uit)</span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
         </div>
 
         <div class="card">
@@ -149,6 +156,67 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </label>
           <label class="switch"><input type="checkbox" name="ha_webhook_verify_ssl"><span></span> SSL-certificaat controleren (uit bij self-signed)</label>
           <button type="button" class="btn" id="webhook-test">🏠 Testbericht naar Home Assistant</button>
+        </div>
+
+        <div class="card">
+          <h2>E-mail</h2>
+          <p class="muted small">Meldingen ook per e-mail, of alleen als reserve wanneer Pushover niet werkt. Bij Gmail, Outlook en iCloud heb je een <b>app-wachtwoord</b> nodig (niet je gewone wachtwoord).</p>
+          <label class="switch"><input type="checkbox" name="email_enabled"><span></span> E-mailmeldingen aan</label>
+          <label>Versturen
+            <select name="email_mode">
+              <option value="always">Altijd (naast Pushover)</option>
+              <option value="fallback">Alleen als Pushover uit staat of mislukt</option>
+            </select>
+          </label>
+          <div class="row3 smtp-row">
+            <label>SMTP-server<input name="smtp_host" spellcheck="false" placeholder="smtp.gmail.com"></label>
+            <label>Poort<input name="smtp_port" type="number" min="1" max="65535" placeholder="587" title="587 = STARTTLS, 465 = SSL/TLS, 25 = geen"></label>
+            <label>Beveiliging
+              <select name="smtp_security">
+                <option value="starttls">STARTTLS</option>
+                <option value="ssl">SSL/TLS</option>
+                <option value="none">Geen</option>
+              </select>
+            </label>
+          </div>
+          <div class="row2">
+            <label>Gebruikersnaam<input name="smtp_user" autocomplete="off" spellcheck="false" placeholder="leeg = zonder inloggen"></label>
+            <label>Wachtwoord<input name="smtp_pass" type="password" autocomplete="new-password"></label>
+          </div>
+          <div class="row2">
+            <label>Afzender <span class="hint">(leeg = gebruikersnaam)</span><input name="mail_from" type="email" spellcheck="false" placeholder="rzmon@example.com"></label>
+            <label>Ontvanger(s) <span class="hint">(komma tussen meerdere)</span><input name="mail_to" spellcheck="false" placeholder="jij@example.com"></label>
+          </div>
+          <label class="switch"><input type="checkbox" name="smtp_verify_ssl"><span></span> SSL-certificaat controleren (uit bij self-signed)</label>
+          <button type="button" class="btn" id="email-test">📧 Testmail sturen</button>
+        </div>
+
+        <div class="card">
+          <h2>MQTT (Home Assistant)</h2>
+          <p class="muted small">RzMon meldt zich via <b>MQTT discovery</b> bij Home Assistant: elke server wordt een apparaat met sensoren voor de status en meetwaarden van zijn checks. Je hebt een MQTT-broker nodig, bv. de <i>Mosquitto broker</i>-add-on, en de MQTT-integratie in HA.
+            Gebruik bij Mosquitto een HA-gebruiker (of een aparte gebruiker) als login.</p>
+          <label class="switch"><input type="checkbox" name="mqtt_enabled"><span></span> MQTT aan</label>
+          <div class="row3 smtp-row">
+            <label>MQTT-server<input name="mqtt_host" spellcheck="false" placeholder="homeassistant.local"></label>
+            <label>Poort<input name="mqtt_port" type="number" min="1" max="65535" placeholder="1883" title="1883 = geen versleuteling, 8883 = TLS"></label>
+            <label>Versleuteling
+              <select name="mqtt_tls"><option value="0">Geen</option><option value="1">TLS</option></select>
+            </label>
+          </div>
+          <div class="row2">
+            <label>Gebruikersnaam<input name="mqtt_user" autocomplete="off" spellcheck="false"></label>
+            <label>Wachtwoord<input name="mqtt_pass" type="password" autocomplete="new-password"></label>
+          </div>
+          <details class="small api-docs">
+            <summary>Geavanceerd</summary>
+            <div class="row2">
+              <label>Discovery-prefix<input name="mqtt_prefix" spellcheck="false" placeholder="homeassistant"></label>
+              <label>Basis-topic<input name="mqtt_base_topic" spellcheck="false" placeholder="rzmon"></label>
+            </div>
+            <label class="switch"><input type="checkbox" name="mqtt_verify_ssl"><span></span> TLS-certificaat controleren</label>
+          </details>
+          <p class="small" id="mqtt-status"></p>
+          <button type="button" class="btn" id="mqtt-test">📡 Verbinding testen &amp; publiceren</button>
         </div>
 
         <div class="settings-save"><button class="btn primary">Instellingen opslaan</button></div>
@@ -189,6 +257,21 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         </details>
       </div>
 
+      <div class="card" id="users-card">
+        <h2>Gebruikers</h2>
+        <p class="muted small">Iedere gebruiker kan alles beheren. Met <b>tweestapsverificatie</b> (TOTP) is naast het wachtwoord een code uit een authenticator-app nodig, zoals Google/Microsoft Authenticator, Authy, Bitwarden of 1Password.
+          Inloggen zonder wachtwoord op je lokale netwerk (zie <i>Toegang</i>) blijft gewoon werken.</p>
+        <div id="users" class="key-list"></div>
+        <form id="user-form" class="user-form">
+          <div class="row2">
+            <input name="username" placeholder="Gebruikersnaam" required maxlength="64" autocomplete="off">
+            <input name="password" type="password" placeholder="Wachtwoord (min. 8 tekens)" required minlength="8" autocomplete="new-password">
+          </div>
+          <label class="switch small"><input type="checkbox" name="totp"><span></span> Direct tweestapsverificatie instellen</label>
+          <button class="btn">＋ Gebruiker toevoegen</button>
+        </form>
+      </div>
+
       <form id="password-form" class="card">
         <h2>Wachtwoord wijzigen</h2>
         <label>Huidig wachtwoord<input type="password" name="current" autocomplete="current-password" required></label>
@@ -209,6 +292,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   </dialog>
 
   <div id="toasts"></div>
+<?php endif; ?>
+<?php if ($user): ?>
+  <script src="assets/vendor/qrcode.js?v=1.4.4"></script>
 <?php endif; ?>
   <script src="assets/app.js?v=<?= $v ?>"></script>
 </body>

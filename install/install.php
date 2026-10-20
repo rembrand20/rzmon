@@ -1,6 +1,7 @@
 <?php
 // Gebruik: php install/install.php <gebruikersnaam>
 //         php install/install.php --upgrade   (alleen database bijwerken)
+//         php install/install.php --reset-2fa <gebruikersnaam>   (telefoon kwijt: 2FA uitzetten)
 // Tip: alles kan ook via de browser op /setup.php
 declare(strict_types=1);
 
@@ -14,6 +15,12 @@ if (!is_configured()) {
 }
 
 $upgrade = in_array('--upgrade', $argv, true);
+if (($argv[1] ?? '') === '--reset-2fa') {
+    Installer::ensureSchema();
+    $name = (string) ($argv[2] ?? '');
+    $n = q('UPDATE users SET totp_secret = NULL, totp_last_step = NULL WHERE username = ?', [$name])->rowCount();
+    exit($n ? "Tweestapsverificatie van '$name' is uitgezet. Log in met alleen het wachtwoord.\n" : "Gebruiker '$name' niet gevonden (of 2FA stond al uit).\n");
+}
 $user = $argv[1] ?? 'admin';
 
 echo "Database schema laden...\n";

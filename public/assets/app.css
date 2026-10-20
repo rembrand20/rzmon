@@ -377,3 +377,27 @@ pre.code { background: var(--bg); border: 1px solid var(--border); border-radius
   .row3 { grid-template-columns: 1fr 1fr; }
   .chk-actions { opacity: 1; }
 }
+
+/* ---------- Gebruikers & tweestapsverificatie ---------- */
+.tfa { display: inline-block; font-size: .72rem; font-weight: 600; padding: .05rem .45rem; border-radius: 99px; margin-left: .35rem;
+  color: var(--muted); background: var(--card-2); border: 1px solid var(--border); }
+.tfa.on { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); border-color: transparent; }
+.row-actions { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.user-form { display: grid; gap: .6rem; margin-top: .8rem; }
+.user-form .row2 { margin: 0; }
+.qr { display: flex; justify-content: center; margin: .4rem 0; }
+.qr svg { background: #fff; border-radius: 10px; width: 210px; height: 210px; }
+.qr svg rect[fill="white"], .qr svg path { shape-rendering: crispEdges; }
+code.secret { font-size: .95rem; letter-spacing: .05em; user-select: all; }
+.totp-input { font-size: 1.4rem; letter-spacing: .3em; text-align: center; }
+.smtp-row { grid-template-columns: 2fr 1fr 1.4fr; }
+#mqtt-status .good { color: var(--ok); } #mqtt-status .bad { color: var(--crit); }
+@media (max-width: 640px) { .smtp-row, .user-form .row2 { grid-template-columns: 1fr; } }
+
+/* ---------- Beschikbaarheid & minigrafieken ---------- */
+.uptime { display: block; padding: .55rem 1rem; font-size: .82rem; color: var(--muted); border-bottom: 1px solid var(--border); }
+.uptime b { color: var(--text); font-weight: 600; }
+.spark { grid-column: 2 / 4; width: 100%; height: 26px; cursor: pointer; display: block; }
+.spark path { fill: none; stroke: var(--c, var(--primary)); stroke-width: 1.5; vector-effect: non-scaling-stroke; opacity: .85; }
+.spark rect.s0 { fill: var(--ok); opacity: .55; } .spark rect.s1 { fill: var(--warn); } .spark rect.s2 { fill: var(--crit); } .spark rect.s3 { fill: var(--unknown); opacity: .5; }
+.chart-head .bad { color: var(--crit); }

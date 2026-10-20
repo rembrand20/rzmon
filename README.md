@@ -1,6 +1,6 @@
 # 📡 RzMon
 
-Lichtgewicht server-monitoring in PHP 8 + MariaDB met een moderne HTML5-interface en Pushover-meldingen.
+Lichtgewicht server-monitoring in PHP 8 + MariaDB met een moderne HTML5-interface, meldingen via Pushover, e-mail en Home Assistant, en MQTT discovery voor Home Assistant.
 
 📖 **Uitgebreide installatiehandleiding en uitleg van alle features: [HANDLEIDING.md](HANDLEIDING.md)**
 🐧 **Rocky Linux 10 / RHEL 10 / AlmaLinux 10 (met SELinux en firewalld): [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md)**, of in één keer met het installatiescript:
@@ -15,7 +15,8 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 | Ping | Reageert de server? (3 pings) | gemiddelde ms — 100% verlies = CRITICAL |
 | TCP poort | Draait een dienst op poort X (SSH, MariaDB, SMTP…) | connect-tijd ms |
 | HTTP(S) | Website/API bereikbaar, status < 400, SSL-cert geldig | responstijd ms |
-| Diskruimte | % gebruikt per mount | % gebruikt |
+| SSL-certificaat | Dagen dat een certificaat nog geldig is (elke TLS-poort) | dagen — warning **onder** 21, critical **onder** 7 |
+| Diskruimte | % gebruikt per mount + voorspelling "vol over ~N dagen" | % gebruikt; vol binnen 7 dagen = WARNING |
 | Service | systemd-service `active`? | — (niet actief = CRITICAL) |
 | CPU | CPU-gebruik over 2 sec + load average | % gebruik |
 | RAM | Geheugengebruik (MemAvailable) + swap | % gebruikt |
@@ -109,6 +110,15 @@ server {
 1. Installeer de Pushover app en kopieer je **User Key** van https://pushover.net
 2. Maak een applicatie aan op https://pushover.net/apps/build → **API Token**
 3. Webinterface → *Instellingen* → invullen → *Testbericht sturen* → *Opslaan*
+
+### E-mail
+*Instellingen → E-mail*: SMTP-server, poort, beveiliging (STARTTLS / SSL/TLS / geen), login, afzender en ontvangers. Kies **altijd** of **alleen als Pushover faalt**. Gmail/Outlook/iCloud: gebruik een app-wachtwoord.
+
+### MQTT (Home Assistant)
+*Instellingen → MQTT*: server, poort, TLS, gebruikersnaam en wachtwoord van je broker (bv. de Mosquitto-add-on). Elke server verschijnt in Home Assistant als apparaat met sensoren voor status en meetwaarden; RzMon publiceert elke minuut.
+
+### Gebruikers en tweestapsverificatie
+*Instellingen → Gebruikers*: accounts aanmaken met of zonder 2FA (TOTP, QR-code voor elke authenticator-app), 2FA resetten, wachtwoord instellen, verwijderen. Telefoon kwijt: `sudo -u www-data php install/install.php --reset-2fa <naam>`.
 
 ### Inloggen zonder wachtwoord op je lokale netwerk
 *Instellingen → Toegang* → **Geen login nodig op het lokale netwerk**.

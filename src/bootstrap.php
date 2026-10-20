@@ -7,6 +7,8 @@ const STATUS_WARN = 1;
 const STATUS_CRIT = 2;
 const STATUS_UNKNOWN = 3;
 const STATUS_LABELS = ['OK', 'WARNING', 'CRITICAL', 'UNKNOWN'];
+// Instellingen die nooit naar de browser gaan (alleen "ingevuld of niet")
+const SECRET_SETTINGS = ['pushover_token', 'smtp_pass', 'mqtt_pass'];
 
 const SM_CONFIG_FILE = SM_ROOT . '/config.php';
 // Versie van RzMon: de enige bron is het bestand VERSION (bijwerken met tools/bump-version.sh)
@@ -28,6 +30,10 @@ require_once __DIR__ . '/Checks.php';
 require_once __DIR__ . '/Monitor.php';
 require_once __DIR__ . '/Installer.php';
 require_once __DIR__ . '/PortScan.php';
+require_once __DIR__ . '/Totp.php';
+require_once __DIR__ . '/Mailer.php';
+require_once __DIR__ . '/Mqtt.php';
+require_once __DIR__ . '/Stats.php';
 
 function config(string $key, $default = null)
 {

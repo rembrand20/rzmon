@@ -61,7 +61,6 @@ function agent_host(): array
     };
     if ($reason !== null) {
         q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'] ?? null, mb_substr($ip, 0, 45), $reason]);
-        q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
         out(['error' => "Geweigerd: $reason", 'reason' => $reason], 403);
     }
     return $host;
@@ -121,10 +120,21 @@ if ($action === 'agent') {
 // ---------- Login ----------
 if ($action === 'login' && $method === 'POST') {
     $in = input();
-    if (login((string) ($in['username'] ?? ''), (string) ($in['password'] ?? ''))) {
+    $r = login((string) ($in['username'] ?? ''), (string) ($in['password'] ?? ''));
+    if ($r === 'totp') {
+        out(['ok' => true, 'totp_required' => true]);
+    }
+    if ($r === 'ok') {
         out(['ok' => true, 'csrf' => csrf_token()]);
     }
     out(['error' => 'Onjuiste gebruikersnaam of wachtwoord'], 401);
+}
+if ($action === 'login_totp' && $method === 'POST') {
+    $r = login_totp((string) (input()['code'] ?? ''));
+    if ($r === true) {
+        out(['ok' => true, 'csrf' => csrf_token()]);
+    }
+    out(['error' => $r], 401);
 }
 
 $user = current_user();
@@ -191,7 +201,18 @@ switch ($action) {
             ];
         }
         $up = $rows ? count(array_filter($rows, fn($r) => (int) $r['s'] !== STATUS_CRIT)) / count($rows) * 100 : null;
-        out(['points' => $pts, 'uptime' => $up]);
+        $type = q('SELECT type, last_value FROM checks WHERE id = ?', [$id])->fetch();
+        $forecast = $type && $type['type'] === 'disk' && $type['last_value'] !== null ? Stats::diskForecast($id, (float) $type['last_value']) : null;
+        out(['points' => $pts, 'uptime' => $up, 'forecast' => $forecast]);
+
+    case 'stats':
+        // Beschikbaarheid per server en minigrafieken per check; 2 minuten bewaard
+        $cache = json_decode((string) setting('stats_cache', ''), true);
+        if (!$cache || ($cache['at'] ?? 0) < time() - 120) {
+            $cache = ['at' => time(), 'uptime' => Stats::uptime(), 'sparks' => Stats::sparks()];
+            save_setting('stats_cache', json_encode($cache));
+        }
+        out($cache);
 
     case 'host_save':
         $in = input();
@@ -308,7 +329,7 @@ switch ($action) {
     case 'check_save':
         $in = input();
         $type = $in['type'] ?? '';
-        if (!in_array($type, ['ping', 'tcp', 'http', 'disk', 'service', 'cpu', 'ram'], true)) {
+        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram'], true)) {
             out(['error' => 'Ongeldig type'], 422);
         }
         $target = trim((string) ($in['target'] ?? ''));
@@ -320,22 +341,30 @@ switch ($action) {
         }
         $warn = num($in['warn_threshold'] ?? null);
         $crit = num($in['crit_threshold'] ?? null);
-        if ($warn !== null && $crit !== null && $warn > $crit) {
+        if ($type === 'ssl') {
+            // Hier geldt "minder dagen = slechter"
+            if ($warn !== null && $crit !== null && $warn < $crit) {
+                out(['error' => 'Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel'], 422);
+            }
+        } elseif ($warn !== null && $crit !== null && $warn > $crit) {
             out(['error' => 'Warning-drempel moet lager zijn dan critical-drempel'], 422);
+        }
+        if ($type === 'ssl' && $target !== '' && !preg_match('#^(https?://)?(\[[0-9a-fA-F:]+\]|[A-Za-z0-9.\-]+)(:\d{1,5})?/?$#', $target)) {
+            out(['error' => 'Geef een host op, eventueel met poort: example.com of example.com:8443'], 422);
         }
         if (in_array($type, ['ping', 'cpu', 'ram'], true)) {
             $target = '';
         }
-        $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'disk' => 'Disk', 'service' => 'Service',
+        $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service',
             'cpu' => 'CPU', 'ram' => 'RAM'][$type] . ($target !== '' ? " $target" : '');
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
-            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0];
+            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0];
         if (!empty($in['id'])) {
-            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ? WHERE id = ?',
+            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ? WHERE id = ?',
                 [...$params, (int) $in['id']]);
             $id = (int) $in['id'];
         } else {
-            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [...$params, (int) ($in['host_id'] ?? 0)]);
             $id = (int) db()->lastInsertId();
         }
@@ -355,27 +384,44 @@ switch ($action) {
 
     case 'settings':
         $s = settings();
-        $s['pushover_token'] = $s['pushover_token'] !== '' ? '••••••••' : '';
-        unset($s['ack_secret']);
+        // Wachtwoorden en tokens nooit terugsturen, alleen of ze ingevuld zijn
+        foreach (SECRET_SETTINGS as $k) {
+            $s[$k] = ($s[$k] ?? '') !== '' ? '••••••••' : '';
+        }
+        unset($s['ack_secret'], $s['mqtt_topics'], $s['mqtt_hash'], $s['stats_cache']);
         out($s);
 
     case 'settings_save':
         $in = input();
         $allowed = ['pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
             'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days',
-            'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked'];
+            'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
+            'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
+            'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
+            'disk_forecast_days'];
         if (($in['ha_webhook_url'] ?? '') !== '' && !preg_match('#^https?://\S+$#i', trim((string) $in['ha_webhook_url']))) {
             out(['error' => 'Webhook-URL moet met http:// of https:// beginnen'], 422);
         }
         if (($in['ha_webhook_enabled'] ?? '0') === '1' && trim((string) ($in['ha_webhook_url'] ?? '')) === '') {
             out(['error' => 'Vul een webhook-URL in of zet de webhook uit'], 422);
         }
+        if (($in['email_enabled'] ?? '0') === '1' && (trim((string) ($in['smtp_host'] ?? '')) === '' || trim((string) ($in['mail_to'] ?? '')) === '')) {
+            out(['error' => 'Vul de SMTP-server en een ontvanger in, of zet e-mail uit'], 422);
+        }
+        if (($in['mqtt_enabled'] ?? '0') === '1' && trim((string) ($in['mqtt_host'] ?? '')) === '') {
+            out(['error' => 'Vul de MQTT-server in, of zet MQTT uit'], 422);
+        }
+        foreach (['mqtt_prefix', 'mqtt_base_topic'] as $k) {
+            if (isset($in[$k]) && !preg_match('#^[A-Za-z0-9_\-/]{1,64}$#', trim((string) $in[$k]))) {
+                out(['error' => 'Een MQTT-topic mag alleen letters, cijfers, _ - en / bevatten'], 422);
+            }
+        }
         foreach ($allowed as $k) {
             if (!array_key_exists($k, $in)) {
                 continue;
             }
             $v = trim((string) $in[$k]);
-            if ($k === 'pushover_token' && $v === '••••••••') {
+            if (in_array($k, SECRET_SETTINGS, true) && $v === '••••••••') {
                 continue;
             }
             save_setting($k, $v);
@@ -390,6 +436,34 @@ switch ($action) {
         $res = Webhook::send(Monitor::webhookPayload($fake, ['value' => null], STATUS_OK, '🧪 RzMon test',
             'Als je dit in Home Assistant ziet, werkt de webhook! 🎉', 'test', STATUS_OK), $url, $verify);
         out($res, $res['ok'] ? 200 : 422);
+
+    case 'email_test':
+        // Test met de (nog niet opgeslagen) waarden uit het formulier
+        $in = input();
+        $cfg = Mailer::config();
+        foreach (array_keys($cfg) as $k) {
+            if (isset($in[$k]) && !($k === 'smtp_pass' && $in[$k] === '••••••••')) {
+                $cfg[$k] = trim((string) $in[$k]);
+            }
+        }
+        session_write_close();
+        $res = Mailer::send('🧪 RzMon test', "Als je dit leest, werken e-mailmeldingen van RzMon! 🎉\n\nVerstuurd op " . date('d-m-Y H:i:s') . '.', $cfg);
+        out($res, $res['ok'] ? 200 : 422);
+
+    case 'mqtt_test':
+        $in = input();
+        $cfg = Mqtt::config();
+        foreach (array_keys($cfg) as $k) {
+            if (isset($in[$k]) && !($k === 'mqtt_pass' && $in[$k] === '••••••••')) {
+                $cfg[$k] = trim((string) $in[$k]);
+            }
+        }
+        session_write_close();
+        $r = Mqtt::publishAll($cfg, true);
+        if (!$r['ok']) {
+            out(['error' => $r['error']], 422);
+        }
+        out(['ok' => true, 'message' => "Verbonden ✔ — {$r['entities']} sensoren voor {$r['hosts']} server(s) naar Home Assistant gestuurd"]);
 
     case 'pushover_test':
         $in = input();
@@ -487,6 +561,77 @@ switch ($action) {
 
     case 'api_key_delete':
         q('DELETE FROM api_keys WHERE id = ?', [(int) (input()['id'] ?? 0)]);
+        out(['ok' => true]);
+
+    // ---------- Gebruikers en tweestapsverificatie ----------
+    case 'users':
+        $rows = q('SELECT id, username, totp_secret IS NOT NULL AS totp, created_at, last_login FROM users ORDER BY username')->fetchAll();
+        foreach ($rows as &$r) {
+            $r['totp'] = (bool) $r['totp'];
+            $r['me'] = (int) $r['id'] === $user['id'];
+        }
+        unset($r);
+        out($rows);
+
+    case 'user_create':
+        $in = input();
+        try {
+            if (q('SELECT 1 FROM users WHERE username = ?', [trim((string) ($in['username'] ?? ''))])->fetchColumn()) {
+                throw new InvalidArgumentException('Deze gebruikersnaam bestaat al');
+            }
+            Installer::saveUser(trim((string) ($in['username'] ?? '')), (string) ($in['password'] ?? ''));
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+        out(['ok' => true, 'id' => (int) db()->lastInsertId()]);
+
+    case 'user_password':
+        $in = input();
+        if (strlen((string) ($in['password'] ?? '')) < 8) {
+            out(['error' => 'Wachtwoord moet minimaal 8 tekens zijn'], 422);
+        }
+        q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash((string) $in['password'], PASSWORD_DEFAULT), (int) ($in['id'] ?? 0)]);
+        out(['ok' => true]);
+
+    case 'user_delete':
+        $id = (int) (input()['id'] ?? 0);
+        if ($id === $user['id']) {
+            out(['error' => 'Je kunt jezelf niet verwijderen'], 422);
+        }
+        if ((int) q('SELECT COUNT(*) FROM users')->fetchColumn() <= 1) {
+            out(['error' => 'Er moet minimaal één gebruiker overblijven'], 422);
+        }
+        q('DELETE FROM users WHERE id = ?', [$id]);
+        out(['ok' => true]);
+
+    case 'totp_setup':
+        // Stap 1: nieuw geheim (nog niet actief) → QR-code scannen
+        $u = q('SELECT id, username FROM users WHERE id = ?', [(int) (input()['id'] ?? 0)])->fetch();
+        if (!$u) {
+            out(['error' => 'Gebruiker niet gevonden'], 404);
+        }
+        $secret = Totp::newSecret();
+        $_SESSION['totp_setup'][(int) $u['id']] = $secret;
+        out(['ok' => true, 'secret' => $secret, 'uri' => Totp::uri($secret, $u['username'])]);
+
+    case 'totp_confirm':
+        // Stap 2: pas actief na een geldige code, zodat je jezelf niet buitensluit
+        $in = input();
+        $id = (int) ($in['id'] ?? 0);
+        $secret = $_SESSION['totp_setup'][$id] ?? null;
+        if (!$secret) {
+            out(['error' => 'Begin opnieuw met instellen'], 422);
+        }
+        $step = Totp::verify($secret, (string) ($in['code'] ?? ''));
+        if ($step === null) {
+            out(['error' => 'Code klopt niet. Staat de klok van je telefoon goed?'], 422);
+        }
+        q('UPDATE users SET totp_secret = ?, totp_last_step = ? WHERE id = ?', [$secret, $step, $id]);
+        unset($_SESSION['totp_setup'][$id]);
+        out(['ok' => true]);
+
+    case 'totp_reset':
+        q('UPDATE users SET totp_secret = NULL, totp_last_step = NULL WHERE id = ?', [(int) (input()['id'] ?? 0)]);
         out(['ok' => true]);
 
     case 'password':

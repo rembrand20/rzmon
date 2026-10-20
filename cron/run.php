@@ -31,7 +31,15 @@ $force = in_array('--force', $argv, true);
 $n = Monitor::runDue($force);
 Monitor::pollReceipts();
 save_setting('cron_last_run', now());
-if (date('i') === '00') {
+if (setting('mqtt_enabled', '0') === '1') {
+    $r = Mqtt::publishAll();
+    if (!$r['ok']) {
+        fwrite(STDERR, "MQTT: {$r['error']}\n");
+    }
+}
+// Eén keer per uur opruimen (ook als de run van precies :00 is overgeslagen)
+if (strtotime((string) setting('purge_at', '')) < time() - 3600) {
+    save_setting('purge_at', now());
     Monitor::purge();
 }
 echo date('c') . " $n check(s) uitgevoerd\n";

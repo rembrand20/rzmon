@@ -9,7 +9,8 @@ const STATUS = ['OK', 'WARNING', 'CRITICAL', 'ONBEKEND'];
 const TYPES = {
   ping:    { label: 'Ping',          target: null,            unit: 'ms', warn: 100, crit: 500, help: 'Gemiddelde responstijd van 3 pings. Geen antwoord = CRITICAL.' },
   tcp:     { label: 'TCP poort',     target: 'Poort',         unit: 'ms', warn: 500, crit: 2000, ph: '22', help: 'Controleert of de poort open staat (bv. 22 SSH, 3306 MariaDB, 443 HTTPS).' },
-  http:    { label: 'HTTP(S)',       target: 'URL of pad',    unit: 'ms', warn: 1000, crit: 3000, ph: 'https://example.com/ of /status', help: 'HTTP status ≥ 400 = CRITICAL. SSL-certificaat < 14 dagen = WARNING.' },
+  http:    { label: 'HTTP(S)',       target: 'URL of pad',    unit: 'ms', warn: 1000, crit: 3000, ph: 'https://example.com/ of /status', help: 'HTTP status ≥ 400 = CRITICAL. SSL-certificaat < 14 dagen = WARNING (voor eigen drempels: gebruik de check SSL-certificaat).' },
+  ssl:     { label: 'SSL-certificaat', target: 'Host[:poort]', unit: 'dagen', warn: 21, crit: 7, low: true, ph: 'example.com of nas.lan:5001', help: 'Waarschuwt als het certificaat bijna verloopt. Leeg = adres van de server op poort 443. Werkt op elke TLS-poort (8443, 993, 8883…).' },
   disk:    { label: 'Diskruimte',    target: 'Mount / pad',   unit: '%',  warn: 80, crit: 90, ph: '/', help: 'Percentage gebruikt. Op agent-servers: mount zoals de agent meldt.' },
   cpu:     { label: 'CPU',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'CPU-gebruik gemeten over 2 seconden, met load average in het bericht. Tip: zet "alarm na N fouten" op 3+ om korte pieken te negeren.' },
   ram:     { label: 'RAM',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'Percentage geheugen in gebruik (op basis van MemAvailable, dus cache telt niet mee). Swap staat in het bericht.' },
@@ -18,6 +19,7 @@ const TYPES = {
 const MODES = { local: 'Lokaal (deze server)', agent: 'Remote met agent', remote: 'Remote (alleen netwerk)' };
 
 let state = { hosts: [], alerts: [] };
+let stats = { uptime: {}, sparks: {} };
 
 // ---------------------------------------------------------------- API
 async function api(action, body, params = {}) {
@@ -29,7 +31,7 @@ async function api(action, body, params = {}) {
     credentials: 'same-origin',
   });
   const data = await res.json().catch(() => ({ error: 'Ongeldig antwoord van server' }));
-  if (res.status === 401 && action !== 'login') { location.reload(); }
+  if (res.status === 401 && !action.startsWith('login')) { location.reload(); }
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
@@ -59,12 +61,35 @@ if (loginForm) {
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('.form-error', loginForm);
+    const step2 = !$('#login-step2').hidden;
     try {
-      await api('login', Object.fromEntries(new FormData(loginForm)));
-      location.reload();
+      if (step2) {
+        await api('login_totp', { code: loginForm.code.value });
+        return location.reload();
+      }
+      const r = await api('login', { username: loginForm.username.value, password: loginForm.password.value });
+      if (!r.totp_required) return location.reload();
+      // Wachtwoord klopt; nu de code uit de authenticator-app
+      $('#login-step1').hidden = true;
+      $('#login-step2').hidden = false;
+      $$('#login-step1 input').forEach((i) => (i.required = false));
+      loginForm.code.required = true;
+      err.hidden = true;
+      loginForm.code.focus();
     } catch (ex) {
       err.textContent = ex.message;
       err.hidden = false;
+      if (step2 && /opnieuw in/.test(ex.message)) {
+        $('#login-step1').hidden = false;
+        $('#login-step2').hidden = true;
+        $$('#login-step1 input').forEach((i) => (i.required = true));
+        loginForm.code.required = false;
+        loginForm.code.value = '';
+        loginForm.password.value = '';
+        loginForm.password.focus();
+      } else if (step2) {
+        loginForm.code.select();
+      }
     }
   });
 } else {
@@ -109,9 +134,13 @@ function init() {
   $('#settings-form').addEventListener('submit', saveSettings);
   $('#pushover-test').onclick = testPushover;
   $('#webhook-test').onclick = testWebhook;
+  $('#email-test').onclick = (e) => testChannel(e, 'email_test', 'Testmail verstuurd 📧', 'E-mail');
+  $('#mqtt-test').onclick = (e) => testChannel(e, 'mqtt_test', null, 'MQTT');
   $('#maint-all').onclick = () => maintenanceDialog('all', 0, 'alle servers', state.maintenance);
   $('#maint-banner').addEventListener('click', (e) => e.target.closest('[data-maint-end]') && endMaintenance('all', 0));
   $('#password-form').addEventListener('submit', changePassword);
+  $('#user-form').addEventListener('submit', createUser);
+  $('#users').addEventListener('click', onUsersClick);
   $('#api-key-form').addEventListener('submit', createApiKey);
   $('#api-keys').addEventListener('click', deleteApiKey);
   $('#access-form').addEventListener('submit', saveAccess);
@@ -137,6 +166,39 @@ async function refresh() {
   } catch (ex) {
     toast(ex.message, 'err');
   }
+  // Beschikbaarheid en minigrafieken apart: mag iets langer duren
+  try { stats = await api('stats'); render(); } catch (ex) { /* niet kritiek */ }
+}
+
+const pct = (v) => (v === null || v === undefined ? '–' : (v >= 99.995 ? '100' : v.toFixed(v >= 99 ? 2 : 1)).replace('.', ',') + '%');
+
+/** Beschikbaarheid van een server (24 u / 7 d / 30 d), of '' zonder netwerkchecks. */
+function uptimeLine(h, short) {
+  const u = stats.uptime[h.id];
+  if (!u) return '';
+  if (short) return ` · <span title="Bereikbaar afgelopen 7 dagen">⏱ ${pct(u.d7)}</span>`;
+  return `<span class="uptime" title="Percentage van de metingen (ping, of anders poort/HTTP) dat de server bereikbaar was">
+    Bereikbaar: 24 u <b>${pct(u.h24)}</b> · 7 d <b>${pct(u.d7)}</b> · 30 d <b>${pct(u.d30)}</b></span>`;
+}
+
+/** Minigrafiek van de laatste 24 uur: lijn voor de waarde, gekleurde streepjes voor de status. */
+function sparkSvg(c) {
+  const data = stats.sparks[c.id];
+  if (!data) return '';
+  const W = 240, H = 26;
+  const t = TYPES[c.type];
+  const vals = data.filter((d) => d && d[0] !== null).map((d) => d[0]);
+  const max = t.unit === '%' ? 100 : Math.max(...vals, +c.warn_threshold || 0, 1) * 1.1;
+  const x = (i) => (i / 47) * W;
+  const y = (v) => H - 6 - (v / max) * (H - 8);
+  // Lege blokjes overslaan: de lijn loopt door naar het volgende meetpunt
+  let line = '';
+  data.forEach((d, i) => {
+    if (d && d[0] !== null) line += `${line ? 'L' : 'M'}${x(i).toFixed(1)},${y(d[0]).toFixed(1)}`;
+  });
+  const strip = data.map((d, i) => (d ? `<rect class="s${d[1]}" x="${x(i) - W / 96}" y="${H - 3}" width="${W / 48 + .3}" height="3"/>` : '')).join('');
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-act="history" data-id="${c.id}" role="img">
+    <title>Laatste 24 uur – klik voor de grafiek</title>${t.unit && vals.length ? `<path d="${line}"/>` : ''}<g>${strip}</g></svg>`;
 }
 
 // 4 = alles in onderhoud
@@ -281,7 +343,7 @@ function hostCard(h) {
       <div class="sum-line ${sum.cls}">${esc(sum.text)}</div>
       ${chips ? `<div class="chips">${chips}</div>` : ''}
       ${hostMeters(h) ? `<div class="meters">${hostMeters(h)}</div>` : ''}
-      <div class="muted small sum-foot">${lastChecked ? 'Laatste check ' + ago(lastChecked) : ''}${h.mode === 'agent' ? ` · agent ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}${agentVer(h)}` : ''}</div>
+      <div class="muted small sum-foot">${lastChecked ? 'Laatste check ' + ago(lastChecked) : ''}${h.mode === 'agent' ? ` · agent ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}${agentVer(h)}` : ''}${uptimeLine(h, true)}</div>
     </div>
     ${isOpen ? `
     <div class="host-detail">
@@ -293,6 +355,7 @@ function hostCard(h) {
         <button class="btn" data-act="edit-host" data-id="${h.id}">✎ Bewerken</button>
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
       </div>
+      ${uptimeLine(h, false)}
       <ul class="checks">
         ${h.shown.length ? h.shown.map(checkRow).join('') : '<li class="empty small">Nog geen checks — klik op ＋ Check</li>'}
       </ul>
@@ -310,7 +373,7 @@ function checkRow(c) {
       ${c.warn_threshold !== null ? `<b style="left:${+c.warn_threshold}%"></b>` : ''}
       ${c.crit_threshold !== null ? `<b style="left:${+c.crit_threshold}%"></b>` : ''}</div>`;
   }
-  const value = t.unit === 'ms' && c.last_value !== null ? ` · ${fmt(c.last_value, t.unit)}` : '';
+  const value = (t.unit === 'ms' || t.unit === 'dagen') && c.last_value !== null ? ` · ${t.unit === 'dagen' ? Math.floor(c.last_value) + ' dagen' : fmt(c.last_value, t.unit)}` : '';
   const own = c.maintenance && c.maintenance.scope === 'check';
   const problem = s !== 0 && +c.enabled;
   const ackTitle = c.acked_at ? `Bevestigd door ${c.acked_by || '?'} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. Klik om in te trekken.` : '';
@@ -329,6 +392,7 @@ function checkRow(c) {
       <button class="icon-btn" title="Bewerken" data-act="edit-check" data-id="${c.id}">✎</button>
     </span>
     ${bar}
+    ${sparkSvg(c)}
     <span class="chk-msg">${esc(c.last_message || 'Nog niet gecontroleerd')} · ${ago(c.last_checked)}</span>
   </li>`;
 }
@@ -535,7 +599,7 @@ async function endMaintenance(scope, id) {
 function checkForm(c, h) {
   const isNew = !c;
   c = c || { type: 'ping', target: '', name: '', warn_threshold: TYPES.ping.warn, crit_threshold: TYPES.ping.crit, interval_sec: 60, enabled: 1 };
-  const allowed = h.mode === 'remote' ? ['ping', 'tcp', 'http'] : Object.keys(TYPES);
+  const allowed = h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl'] : Object.keys(TYPES);
   const disks = h.metrics.filter((m) => m.startsWith('disk:')).map((m) => m.slice(5));
   const svcs = h.metrics.filter((m) => m.startsWith('service:')).map((m) => m.slice(8));
 
@@ -550,10 +614,11 @@ function checkForm(c, h) {
       <datalist id="target-list"></datalist>
       <label>Naam <span class="hint">(optioneel)</span><input name="name" value="${esc(c.name)}"></label>
       <div class="row3" id="thr-wrap">
-        <label>Warning vanaf <span class="hint unit"></span><input name="warn_threshold" type="number" step="any" value="${c.warn_threshold ?? ''}"></label>
-        <label>Critical vanaf <span class="hint unit"></span><input name="crit_threshold" type="number" step="any" value="${c.crit_threshold ?? ''}"></label>
+        <label><span class="thr-word">Warning vanaf</span> <span class="hint unit"></span><input name="warn_threshold" type="number" step="any" value="${c.warn_threshold ?? ''}"></label>
+        <label><span class="thr-word">Critical vanaf</span> <span class="hint unit"></span><input name="crit_threshold" type="number" step="any" value="${c.crit_threshold ?? ''}"></label>
         <label>Interval <span class="hint">sec</span><input name="interval_sec" type="number" min="30" step="30" value="${c.interval_sec}"></label>
       </div>
+      <label class="switch" id="verify-wrap"><input type="checkbox" name="verify_ssl" ${+(c.verify_ssl ?? 1) ? 'checked' : ''}><span></span> Certificaat controleren <span class="hint">(uit bij self-signed, bv. Proxmox of een NAS)</span></label>
       <label class="switch"><input type="checkbox" name="enabled" ${+c.enabled ? 'checked' : ''}><span></span> Actief</label>`,
     buttons: [
       ...(isNew ? [] : [{ label: '🗑 Verwijderen', cls: 'danger', style: 'margin-right:auto', onClick: async () => {
@@ -564,7 +629,7 @@ function checkForm(c, h) {
       { label: isNew ? 'Toevoegen & checken' : 'Opslaan & checken', cls: 'primary', submit: true },
     ],
     onSubmit: async (d) => {
-      await api('check_save', { ...d, id: c.id, host_id: h.id, enabled: !!d.enabled });
+      await api('check_save', { ...d, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl });
       toast('Check opgeslagen');
     },
   });
@@ -576,9 +641,13 @@ function checkForm(c, h) {
     $('#target-wrap').hidden = !t.target;
     $('#target-label').textContent = t.target || '';
     $('[name=target]', form).placeholder = t.ph || '';
-    $('[name=target]', form).required = !!t.target && typeSel.value !== 'http';
     $$('.unit', form).forEach((u) => (u.textContent = t.unit || ''));
     $$('#thr-wrap label', form).slice(0, 2).forEach((l) => (l.hidden = !t.unit));
+    const words = $$('.thr-word', form);
+    words[0].textContent = t.low ? 'Warning onder' : 'Warning vanaf';
+    words[1].textContent = t.low ? 'Critical onder' : 'Critical vanaf';
+    $('#verify-wrap').hidden = !['http', 'ssl'].includes(typeSel.value);
+    $('[name=target]', form).required = !!t.target && !['http', 'ssl'].includes(typeSel.value);
     const list = typeSel.value === 'disk' ? disks : typeSel.value === 'service' ? svcs : [];
     $('#target-list').innerHTML = list.map((v) => `<option value="${esc(v)}">`).join('');
     if (setDefaults) {
@@ -607,7 +676,16 @@ async function showHistory(c, h) {
   const load = async () => {
     const hours = $('#range').value;
     const d = await api('history', null, { check_id: c.id, hours });
-    $('#uptime').innerHTML = d.uptime === null ? 'Geen data' : `Beschikbaarheid: <b>${d.uptime.toFixed(2)}%</b> · ${d.points.length} meetpunten`;
+    const vals = d.points.map((p) => p.v).filter((v) => v !== null);
+    const unit = t.unit === 'dagen' ? ' d' : t.unit ? ' ' + t.unit : '';
+    const mma = t.unit && vals.length
+      ? ` · min <b>${fmt(Math.min(...vals))}</b> · gem <b>${fmt(vals.reduce((a, b) => a + b, 0) / vals.length)}</b> · max <b>${fmt(Math.max(...vals))}</b>${unit}` : '';
+    const fc = d.forecast
+      ? (d.forecast.days_to_full !== null
+        ? ` · <span class="${d.forecast.days_to_full <= 14 ? 'bad' : ''}">trend +${String(Math.round(d.forecast.per_day * 100) / 100).replace('.', ',')}%/dag: vol over ~${Math.round(d.forecast.days_to_full)} dagen</span>`
+        : ' · trend: stabiel')
+      : '';
+    $('#uptime').innerHTML = d.uptime === null ? 'Geen data' : `Beschikbaarheid: <b>${pct(d.uptime)}</b>${mma}${fc}`;
     $('#chart-svg').innerHTML = chartSvg(d.points, c, t, +hours);
   };
   $('#range').onchange = load;
@@ -866,6 +944,7 @@ function channelIcons(a) {
   if (a.kind === 'ack') return '<span title="Bevestiging">✔</span>';
   const out = [];
   if (+a.sent_ok) out.push('<span title="Verstuurd via Pushover">📲</span>');
+  if (a.email_ok !== null && a.email_ok !== undefined) out.push(+a.email_ok ? '<span title="Verstuurd per e-mail">📧</span>' : '<span title="E-mail mislukt">📧✕</span>');
   if (a.webhook_ok !== null) out.push(+a.webhook_ok ? '<span title="Verstuurd naar Home Assistant">🏠</span>' : '<span title="Webhook mislukt">🏠✕</span>');
   if (!out.length) out.push('<span title="Niet verzonden">✉️✕</span>');
   return out.join(' ');
@@ -957,9 +1036,13 @@ async function deleteApiKey(e) {
 
 async function loadSettings() {
   loadApiKeys();
+  loadUsers();
   loadAccess();
   const s = await api('settings');
   const f = $('#settings-form');
+  $('#mqtt-status').innerHTML = s.mqtt_enabled !== '1' ? ''
+    : s.mqtt_last_error ? `<b class="bad">✘ ${esc(s.mqtt_last_error)}</b>`
+    : s.mqtt_last_ok ? `<b class="good">✔ Laatst gepubliceerd ${ago(s.mqtt_last_ok)}</b>` : '<span class="muted">Nog niet gepubliceerd</span>';
   Object.entries(s).forEach(([k, v]) => {
     const el = f.elements[k];
     if (!el) return;
@@ -1000,6 +1083,18 @@ async function testWebhook(e) {
   b.disabled = false;
 }
 
+/** Testknop voor een meldkanaal, met de (nog niet opgeslagen) waarden uit het formulier. */
+async function testChannel(e, action, okMsg, label) {
+  const b = e.target;
+  b.disabled = true;
+  try {
+    const r = await api(action, settingsData());
+    toast(okMsg || r.message);
+    if (action === 'mqtt_test') loadSettings();
+  } catch (ex) { toast(`${label}: ${ex.message}`, 'err'); }
+  b.disabled = false;
+}
+
 async function changePassword(e) {
   e.preventDefault();
   try {
@@ -1007,4 +1102,96 @@ async function changePassword(e) {
     e.target.reset();
     toast('Wachtwoord gewijzigd');
   } catch (ex) { toast(ex.message, 'err'); }
+}
+
+// ---------------------------------------------------------------- Gebruikers & tweestapsverificatie
+let users = [];
+async function loadUsers() {
+  users = await api('users');
+  $('#users').innerHTML = users.map((u) => `
+    <div class="key-row">
+      <span class="grow"><strong>${esc(u.username)}</strong>${u.me ? ' <span class="badge">jij</span>' : ''}
+        ${u.totp ? '<span class="tfa on" title="Tweestapsverificatie staat aan">🔐 2FA aan</span>' : '<span class="tfa" title="Alleen wachtwoord">2FA uit</span>'}<br>
+        <span class="muted small">Laatst ingelogd: ${u.last_login ? ago(u.last_login) : 'nooit'}</span></span>
+      <span class="row-actions">
+        ${u.totp
+          ? `<button class="btn" data-uact="totp-reset" data-id="${u.id}" title="Tweestapsverificatie uitzetten, bv. bij een verloren telefoon">2FA resetten</button>`
+          : `<button class="btn" data-uact="totp-setup" data-id="${u.id}">🔐 2FA instellen</button>`}
+        <button class="icon-btn" data-uact="password" data-id="${u.id}" title="Nieuw wachtwoord instellen">🔑</button>
+        ${u.me ? '' : `<button class="icon-btn" data-uact="delete" data-id="${u.id}" title="Verwijderen">🗑</button>`}
+      </span>
+    </div>`).join('');
+}
+
+async function createUser(e) {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    const r = await api('user_create', { username: f.username.value, password: f.password.value });
+    const name = f.username.value;
+    const withTotp = f.totp.checked;
+    f.reset();
+    toast(`Gebruiker ${name} aangemaakt`);
+    await loadUsers();
+    if (withTotp) totpSetup(r.id, name);
+  } catch (ex) { toast(ex.message, 'err'); }
+}
+
+async function onUsersClick(e) {
+  const b = e.target.closest('[data-uact]');
+  if (!b) return;
+  const u = users.find((x) => +x.id === +b.dataset.id);
+  try {
+    switch (b.dataset.uact) {
+      case 'totp-setup': return totpSetup(u.id, u.username);
+      case 'totp-reset':
+        if (!confirm(`Tweestapsverificatie van ${u.username} resetten?\nInloggen kan daarna weer met alleen het wachtwoord, tot 2FA opnieuw is ingesteld.`)) return;
+        await api('totp_reset', { id: u.id });
+        toast(`2FA van ${u.username} gereset`);
+        return loadUsers();
+      case 'delete':
+        if (!confirm(`Gebruiker ${u.username} verwijderen?`)) return;
+        await api('user_delete', { id: u.id });
+        toast(`${u.username} verwijderd`);
+        return loadUsers();
+      case 'password':
+        return modal({
+          title: `Nieuw wachtwoord – ${u.username}`,
+          body: `<label>Nieuw wachtwoord<input type="password" name="password" minlength="8" required autocomplete="new-password" autofocus></label>`,
+          buttons: [{ label: 'Opslaan', cls: 'primary', submit: true }],
+          onSubmit: async (d) => { await api('user_password', { id: u.id, password: d.password }); toast('Wachtwoord gewijzigd'); },
+        });
+    }
+  } catch (ex) { toast(ex.message, 'err'); }
+}
+
+async function totpSetup(id, username) {
+  let r;
+  try { r = await api('totp_setup', { id }); } catch (ex) { return toast(ex.message, 'err'); }
+  let qr = '';
+  try {
+    const q = qrcode(0, 'M');
+    q.addData(r.uri);
+    q.make();
+    qr = q.createSvgTag(5, 4);
+  } catch (ex) { qr = '<p class="muted small">QR-code maken lukte niet; gebruik de code hieronder.</p>'; }
+  modal({
+    title: `🔐 Tweestapsverificatie – ${username}`,
+    body: `
+      <ol class="steps">
+        <li>Open een authenticator-app op de telefoon van <b>${esc(username)}</b> en scan deze QR-code:</li>
+      </ol>
+      <div class="qr">${qr}</div>
+      <p class="muted small" style="text-align:center">Scannen lukt niet? Voer deze sleutel handmatig in:<br><code class="secret">${esc(r.secret.replace(/(.{4})/g, '$1 ').trim())}</code></p>
+      <ol class="steps" start="2">
+        <li>Vul de 6-cijferige code in die de app nu toont. Pas daarna staat 2FA aan.</li>
+      </ol>
+      <label>Code<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required class="mono totp-input" autofocus></label>`,
+    buttons: [{ label: 'Activeren', cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      await api('totp_confirm', { id, code: d.code });
+      toast(`2FA staat aan voor ${username} 🔐`);
+      loadUsers();
+    },
+  });
 }

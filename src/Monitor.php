@@ -44,6 +44,9 @@ final class Monitor
             'agent_seen' => $row['agent_seen'],
         ];
         $res = Checks::run($row, $host);
+        if ($row['type'] === 'disk') {
+            $res = Stats::applyDiskForecast($row, $res);
+        }
         self::process($row, $res);
         return $res;
     }
@@ -243,6 +246,20 @@ final class Monitor
             }
         }
 
+        // E-mail: altijd, of alleen als reserve wanneer Pushover uit staat of mislukt
+        $email = null;
+        if (setting('email_enabled', '0') === '1' && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
+            $base = rtrim((string) config('base_url', ''), '/');
+            $body = $message . "\n\nTijd: " . date('d-m-Y H:i:s')
+                . ($ackUrl ? "\n\n✔ Bevestigen (geen meldingen meer voor deze storing):\n$ackUrl" : '')
+                . ($base !== '' ? "\n\nRzMon: $base/" : '');
+            $r = Mailer::send($title, $body);
+            $email = $r['ok'];
+            if (!$r['ok']) {
+                $errors[] = 'E-mail: ' . $r['error'];
+            }
+        }
+
         $webhook = null;
         if (self::webhookWanted($status, $event)) {
             $r = Webhook::send(self::webhookPayload($check, $res, $status, $title, $message, $event, $previous));
@@ -252,14 +269,14 @@ final class Monitor
             }
         }
 
-        if ($pushover === null && $webhook === null) {
+        if ($pushover === null && $webhook === null && $email === null) {
             $errors[] = 'geen meldkanaal ingeschakeld';
         }
 
-        q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok) VALUES (?, ?, ?, ?, ?, ?)', [
+        q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok) VALUES (?, ?, ?, ?, ?, ?, ?)', [
             $check['id'], $status, mb_substr($title, 0, 250),
             mb_substr($message . ($errors ? ' [niet verzonden: ' . implode('; ', $errors) . ']' : ''), 0, 1000),
-            $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0),
+            $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0),
         ]);
     }
 
@@ -274,7 +291,7 @@ final class Monitor
 
     public static function webhookPayload(array $check, array $res, int $status, string $title, string $message, string $event, int $previous): array
     {
-        $units = ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'disk' => '%', 'cpu' => '%', 'ram' => '%'];
+        $units = ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'ssl' => 'dagen', 'disk' => '%', 'cpu' => '%', 'ram' => '%'];
         return [
             'source' => 'rzmon',
             'event' => $event,                       // problem | reminder | recovery | test
@@ -384,5 +401,6 @@ final class Monitor
         $days = max(1, (int) setting('retention_days', 30));
         q('DELETE FROM results WHERE created_at < NOW() - INTERVAL ? DAY', [$days]);
         q('DELETE FROM alerts WHERE created_at < NOW() - INTERVAL ? DAY', [$days * 3]);
+        q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
     }
 }

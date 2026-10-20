@@ -54,7 +54,7 @@ if (!$apiKey) {
 q('UPDATE api_keys SET last_used = ? WHERE id = ?', [now(), $apiKey['id']]);
 
 // ---------- Helpers ----------
-const UNITS = ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'disk' => '%', 'cpu' => '%', 'ram' => '%', 'service' => null];
+const UNITS = ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'ssl' => 'dagen', 'disk' => '%', 'cpu' => '%', 'ram' => '%', 'service' => null];
 
 function iso(?string $dt): ?string
 {
@@ -121,6 +121,7 @@ function loadHosts(?int $id = null): array
     $hosts = q('SELECT id, name, address, mode, parent_id, enabled, agent_seen, agent_version, maintenance_until FROM hosts' . ($id ? ' WHERE id = ?' : '') . ' ORDER BY name',
         $id ? [$id] : [])->fetchAll();
     $checks = loadChecks($id ? 'c.host_id = ?' : '1', $id ? [$id] : []);
+    $uptime = Stats::uptime();
     $out = [];
     foreach ($hosts as $h) {
         $hc = array_values(array_filter($checks, fn($c) => $c['host_id'] === (int) $h['id']));
@@ -139,6 +140,7 @@ function loadHosts(?int $id = null): array
             'in_maintenance' => ($m = Monitor::globalMaintenance()
                 ?? ($h['maintenance_until'] && strtotime($h['maintenance_until']) > time() ? ['until' => $h['maintenance_until']] : null)) !== null,
             'maintenance_until' => $m ? iso($m['until']) : null,
+            'uptime' => $uptime[(int) $h['id']] ?? null,   // % bereikbaar: h24, d7, d30
             'checks' => $hc,
         ];
     }

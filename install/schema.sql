@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS hosts (
 CREATE TABLE IF NOT EXISTS checks (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     host_id         INT UNSIGNED NOT NULL,
-    type            ENUM('ping','tcp','http','disk','service','cpu','ram') NOT NULL,
+    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram') NOT NULL,
     target          VARCHAR(255) NOT NULL DEFAULT '',
     name            VARCHAR(100) NOT NULL,
     warn_threshold  DOUBLE NULL,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS agent_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
-ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','disk','service','cpu','ram') NOT NULL;
+ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;
 
 INSERT IGNORE INTO settings (name, value) VALUES
@@ -128,4 +128,24 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('ha_webhook_verify_ssl', '1'),
     ('ha_webhook_events', 'all'),
     ('notify_recovery_acked', '0'),
-    ('ack_secret', '');
+    ('ack_secret', ''),
+    ('email_enabled', '0'),
+    ('email_mode', 'always'),
+    ('smtp_host', ''),
+    ('smtp_port', '587'),
+    ('smtp_security', 'starttls'),
+    ('smtp_user', ''),
+    ('smtp_pass', ''),
+    ('smtp_verify_ssl', '1'),
+    ('mail_from', ''),
+    ('mail_to', ''),
+    ('mqtt_enabled', '0'),
+    ('mqtt_host', ''),
+    ('mqtt_port', '1883'),
+    ('mqtt_tls', '0'),
+    ('mqtt_verify_ssl', '1'),
+    ('mqtt_user', ''),
+    ('mqtt_pass', ''),
+    ('mqtt_prefix', 'homeassistant'),
+    ('mqtt_base_topic', 'rzmon'),
+    ('disk_forecast_days', '7');

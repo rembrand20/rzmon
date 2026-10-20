@@ -65,6 +65,11 @@ final class Installer
         ['checks', 'pushover_receipt', 'VARCHAR(40) NULL'],
         ['hosts', 'agent_ip', 'VARCHAR(45) NULL'],
         ['hosts', 'agent_version', 'VARCHAR(20) NULL'],
+        ['users', 'totp_secret', 'VARCHAR(64) NULL'],
+        ['users', 'totp_last_step', 'BIGINT NULL'],
+        ['users', 'last_login', 'DATETIME NULL'],
+        ['checks', 'verify_ssl', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['alerts', 'email_ok', 'TINYINT(1) NULL'],
     ];
 
     private static function migrate(PDO $pdo): void
