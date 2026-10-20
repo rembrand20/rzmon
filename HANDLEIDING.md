@@ -90,6 +90,12 @@ RzMon bestaat uit vier onderdelen:
 - **Beschikbaarheid per server** over 24 uur, 7 dagen en 30 dagen.
 - **Bijwerken:** de pagina ververst zichzelf elke 20 seconden. Met **↻ Alles nu checken** draai je direct alle checks.
 - **Weergave:** donker en licht thema, werkt ook op je telefoon.
+- **Twee lay-outs** (*Instellingen → Weergave*, per apparaat):
+  - **Blox:** een tegel per server (standaard).
+  - **L1nes:** alle servers onder elkaar, elk als balk over de volle breedte. Je kiest **Small** of **Large**:
+    - **Small:** één regel met naam, adres, status en tellers.
+    - **Large:** kolommen voor status, probleem-checks, CPU, RAM, disk, bereikbaarheid (7 dagen) en de laatste check.
+  - Klik op een balk om hem uit te klappen; alles werkt daarna hetzelfde als bij Blox.
 
 ### Poortscan
 - **Scannen** naar open TCP-poorten: bekende poorten, poort 1-1024, of een eigen lijst zoals `22,80,8000-8100` (maximaal 4096 poorten).

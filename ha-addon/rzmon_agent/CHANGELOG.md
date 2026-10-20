@@ -2,6 +2,9 @@
 
 Deze add-on heeft hetzelfde versienummer als RzMon. Het volledige overzicht staat in de [CHANGELOG van RzMon](https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md).
 
+## 1.10.0
+- Geen wijzigingen aan de agent; zelfde versienummer als RzMon 1.10.0.
+
 ## 1.9.0
 - Geen wijzigingen voor Home Assistant (de nieuwe Podman-bewaking geldt alleen voor Linux-servers).
 

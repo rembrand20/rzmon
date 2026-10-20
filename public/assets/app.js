@@ -134,7 +134,7 @@ function init() {
   $('#only-problems').addEventListener('change', render);
   $('#hosts').addEventListener('click', onHostsClick);
   $('#hosts').addEventListener('keydown', (e) => {
-    const head = e.target.closest('.host-head[data-act=toggle]');
+    const head = e.target.closest('.host-head[data-act=toggle], .line-row[data-act=toggle]');
     if (head && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleHost(head.dataset.id); }
   });
   $('#toggle-all').onclick = () => {
@@ -154,6 +154,9 @@ function init() {
   $('#maint-banner').addEventListener('click', (e) => e.target.closest('[data-maint-end]') && endMaintenance('all', 0));
   $('#password-form').addEventListener('submit', changePassword);
   $('#user-form').addEventListener('submit', createUser);
+  $$('[data-view-layout]').forEach((b) => (b.onclick = () => setViewPref('layout', b.dataset.viewLayout)));
+  $$('[data-view-density]').forEach((b) => (b.onclick = () => setViewPref('density', b.dataset.viewDensity)));
+  showViewPrefs();
   $('#users').addEventListener('click', onUsersClick);
   $('#api-key-form').addEventListener('submit', createApiKey);
   $('#api-keys').addEventListener('click', deleteApiKey);
@@ -279,8 +282,33 @@ function render() {
     el.innerHTML = `<div class="card empty">${onlyProblems ? '🎉 Geen problemen gevonden!' : 'Niets gevonden.'}</div>`;
     return;
   }
-  el.innerHTML = hosts.map(hostCard).join('');
+  const { layout, density } = viewPrefs();
+  el.className = 'hosts layout-' + layout + (layout === 'l1nes' ? ' density-' + density : '');
+  el.innerHTML = layout === 'l1nes'
+    ? (density === 'large' ? lineHeader() : '') + hosts.map((h) => hostLine(h, density === 'large')).join('')
+    : hosts.map(hostCard).join('');
   $('#toggle-all').textContent = state.hosts.length && state.hosts.every((h) => openHosts.has(+h.id)) ? '⊟ Alles sluiten' : '⊞ Alles openen';
+}
+
+// ---------------------------------------------------------------- Weergave (per apparaat)
+// Blox = tegels (standaard), L1nes = balken onder elkaar; L1nes in Small of Large.
+function viewPrefs() {
+  let layout = 'blox', density = 'small';
+  try {
+    layout = localStorage.getItem('rzmon-layout') === 'l1nes' ? 'l1nes' : 'blox';
+    density = localStorage.getItem('rzmon-density') === 'large' ? 'large' : 'small';
+  } catch (e) { /* geen opslag: standaard */ }
+  return { layout, density };
+}
+function setViewPref(key, value) {
+  try { localStorage.setItem('rzmon-' + key, value); } catch (e) {}
+  showViewPrefs();
+  render();
+}
+function showViewPrefs() {
+  const { layout, density } = viewPrefs();
+  $$('[data-view-layout]').forEach((b) => b.classList.toggle('active', b.dataset.viewLayout === layout));
+  $$('[data-view-density]').forEach((b) => { b.classList.toggle('active', b.dataset.viewDensity === density); b.disabled = layout !== 'l1nes'; });
 }
 
 // ---------------------------------------------------------------- Server-tegels
@@ -322,44 +350,37 @@ function hostMeters(h) {
   }).join('');
 }
 
-function hostCard(h) {
-  const st = hostStatus(h);
-  const sum = hostSummary(h);
-  const isOpen = openHosts.has(+h.id) || h.autoOpen;
-  const parent = h.parent_id ? findHost(h.parent_id) : null;
+/** Onderdelen die Blox en L1nes allebei gebruiken. */
+function hostParts(h) {
   const problems = h.checks
     .filter((c) => +c.enabled && +c.status !== 0)
     .sort((a, b) => STATUS_RANK[b.maintenance ? 4 : +b.status] - STATUS_RANK[a.maintenance ? 4 : +a.status]);
-  const chips = problems.slice(0, 4).map((c) =>
+  const chips = (max) => problems.slice(0, max).map((c) =>
     `<span class="pchip s${c.maintenance ? 4 : c.status} ${c.acked_at ? 'acked' : ''}" title="${esc(c.last_message || '')}">${c.acked_at ? '✔ ' : ''}${esc(c.name)}</span>`).join('')
-    + (problems.length > 4 ? `<span class="pchip more">+${problems.length - 4}</span>` : '');
+    + (problems.length > max ? `<span class="pchip more">+${problems.length - max}</span>` : '');
   const counts = [0, 1, 2, 3].map((s) => [s, h.checks.filter((c) => +c.enabled && !c.maintenance && +c.status === s).length])
     .filter(([, n]) => n).map(([s, n]) => `<span class="cnt s${s}" title="${STATUS[s]}">${n}</span>`).join('');
+  const parent = h.parent_id ? findHost(h.parent_id) : null;
+  return {
+    st: hostStatus(h),
+    sum: hostSummary(h),
+    isOpen: openHosts.has(+h.id) || h.autoOpen,
+    chips,
+    counts,
+    lastChecked: h.checks.reduce((m, c) => (c.last_checked && (!m || c.last_checked > m) ? c.last_checked : m), null),
+    title: `${esc(h.name)} <span class="badge">${esc(h.mode)}</span>${+h.enabled ? '' : '<span class="badge">uit</span>'}`,
+    via: parent ? ` <span class="via" title="Afhankelijk van ${esc(parent.name)}: geen aparte meldingen als die onbereikbaar is">↳ via ${esc(parent.name)}</span>` : '',
+    maint: h.maintenance ? `<span class="maint-tag">${esc(maintLabel(h.maintenance))}</span>` : '',
+    cls: `card host s${hostStatus(h)} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''} ${openHosts.has(+h.id) || h.autoOpen ? 'open' : ''}`,
+  };
+}
+
+/** Uitgeklapt deel: knoppen en alle checks (gelijk in beide lay-outs). */
+function hostDetail(h) {
   const agentInfo = h.mode === 'agent'
     ? `<span class="muted small">Agent: ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}</span>
        <button class="btn" data-act="agent" data-id="${h.id}">Agent installeren</button>` : '';
-  const lastChecked = h.checks.reduce((m, c) => (c.last_checked && (!m || c.last_checked > m) ? c.last_checked : m), null);
-
   return `
-  <article class="card host tile s${st} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''} ${isOpen ? 'open' : ''}">
-    <div class="host-head" data-act="toggle" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${isOpen}"
-         title="${isOpen ? 'Inklappen' : 'Klik voor alle checks'}">
-      <span class="dot"></span>
-      <div class="host-title">
-        <strong>${esc(h.name)} <span class="badge">${esc(h.mode)}</span>${+h.enabled ? '' : '<span class="badge">uit</span>'}</strong>
-        <span class="muted mono">${esc(h.address)}</span>${parent ? ` <span class="via" title="Afhankelijk van ${esc(parent.name)}: geen aparte meldingen als die onbereikbaar is">↳ via ${esc(parent.name)}</span>` : ''}
-        ${h.maintenance ? `<span class="maint-tag">${esc(maintLabel(h.maintenance))}</span>` : ''}
-      </div>
-      <span class="counts">${counts}</span>
-      <span class="chev" aria-hidden="true">›</span>
-    </div>
-    <div class="host-sum" data-act="toggle" data-id="${h.id}">
-      <div class="sum-line ${sum.cls}">${esc(sum.text)}</div>
-      ${chips ? `<div class="chips">${chips}</div>` : ''}
-      ${hostMeters(h) ? `<div class="meters">${hostMeters(h)}</div>` : ''}
-      <div class="muted small sum-foot">${lastChecked ? 'Laatste check ' + ago(lastChecked) : ''}${h.mode === 'agent' ? ` · agent ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}${agentVer(h)}` : ''}${uptimeLine(h, true)}</div>
-    </div>
-    ${isOpen ? `
     <div class="host-detail">
       <div class="detail-bar">
         ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="btn ack-btn" data-act="ack-host" data-id="${h.id}">✔ Alles bevestigen</button>` : ''}
@@ -374,8 +395,76 @@ function hostCard(h) {
       <ul class="checks">
         ${h.shown.length ? h.shown.map(checkRow).join('') : '<li class="empty small">Nog geen checks — klik op ＋ Check</li>'}
       </ul>
-    </div>` : ''}
+    </div>`;
+}
+
+// Blox: een tegel per server
+function hostCard(h) {
+  const p = hostParts(h);
+  return `
+  <article class="${p.cls} tile">
+    <div class="host-head" data-act="toggle" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${p.isOpen}"
+         title="${p.isOpen ? 'Inklappen' : 'Klik voor alle checks'}">
+      <span class="dot"></span>
+      <div class="host-title">
+        <strong>${p.title}</strong>
+        <span class="muted mono">${esc(h.address)}</span>${p.via}
+        ${p.maint}
+      </div>
+      <span class="counts">${p.counts}</span>
+      <span class="chev" aria-hidden="true">›</span>
+    </div>
+    <div class="host-sum" data-act="toggle" data-id="${h.id}">
+      <div class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</div>
+      ${p.chips(4) ? `<div class="chips">${p.chips(4)}</div>` : ''}
+      ${hostMeters(h) ? `<div class="meters">${hostMeters(h)}</div>` : ''}
+      <div class="muted small sum-foot">${p.lastChecked ? 'Laatste check ' + ago(p.lastChecked) : ''}${h.mode === 'agent' ? ` · agent ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}${agentVer(h)}` : ''}${uptimeLine(h, true)}</div>
+    </div>
+    ${p.isOpen ? hostDetail(h) : ''}
   </article>`;
+}
+
+// L1nes: een balk over de volle breedte per server, als een tabel (Small of Large)
+/** Eén meter (CPU, RAM of de volste disk) als tabelcel, of een streepje. */
+function meterCell(h, type) {
+  const c = h.checks.filter((x) => x.type === type && +x.enabled && x.last_value !== null).sort((a, b) => b.last_value - a.last_value)[0];
+  if (!c) return '<span class="muted">–</span>';
+  const v = Math.min(100, Math.round(+c.last_value));
+  return `<span class="meter s${c.maintenance ? 4 : c.status}" title="${esc(c.name)}: ${esc(c.last_message || '')}">
+    <span class="meter-bar"><i style="width:${v}%"></i></span><b>${v}%</b></span>`;
+}
+
+function hostLine(h, large) {
+  const p = hostParts(h);
+  const u = stats.uptime[h.id];
+  const agent = h.mode === 'agent' ? `agent ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}${agentVer(h)}` : '';
+  const cells = large
+    ? `<span class="lc-status"><span class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</span>${p.chips(5) ? `<span class="chips">${p.chips(5)}</span>` : ''}</span>
+       <span class="lc-m">${meterCell(h, 'cpu')}</span>
+       <span class="lc-m">${meterCell(h, 'ram')}</span>
+       <span class="lc-m">${meterCell(h, 'disk')}</span>
+       <span class="lc-up" title="Bereikbaar afgelopen 7 dagen">${u ? pct(u.d7) : '<span class="muted">–</span>'}</span>
+       <span class="lc-last muted small">${p.lastChecked ? ago(p.lastChecked) : ''}${agent ? `<br>${agent}` : ''}</span>`
+    : `<span class="lc-status"><span class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</span></span>
+       <span class="counts">${p.counts}</span>`;
+  return `
+  <article class="${p.cls} line ${large ? 'large' : 'small'}">
+    <div class="line-row" data-act="toggle" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${p.isOpen}"
+         title="${p.isOpen ? 'Inklappen' : 'Klik voor alle checks'}">
+      <span class="dot"></span>
+      <span class="lc-name"><strong>${p.title}</strong>${large ? `<span class="muted mono small">${esc(h.address)}</span>${p.via}${p.maint}` : ''}</span>
+      ${large ? '' : `<span class="lc-addr muted mono small">${esc(h.address)}</span>`}
+      ${cells}
+      <span class="chev" aria-hidden="true">›</span>
+    </div>
+    ${p.isOpen ? hostDetail(h) : ''}
+  </article>`;
+}
+
+/** Koppen boven de kolommen van L1nes Large. */
+function lineHeader() {
+  return `<div class="line-head" aria-hidden="true"><span></span><span>Server</span><span>Status</span>
+    <span class="lc-m">CPU</span><span class="lc-m">RAM</span><span class="lc-m">Disk</span><span class="lc-up">Bereikbaar</span><span class="lc-last">Laatste check</span><span></span></div>`;
 }
 
 function checkRow(c) {

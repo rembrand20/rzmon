@@ -105,6 +105,25 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     </section>
 
     <section id="tab-settings" class="tab-panel" hidden>
+      <div class="card view-card">
+        <h2>Weergave</h2>
+        <p class="muted small">Hoe de servers op het dashboard staan. Geldt voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc) en wordt direct toegepast.</p>
+        <div class="view-row">
+          <span class="view-label">Lay-out</span>
+          <div class="seg" role="group" aria-label="Lay-out">
+            <button type="button" class="seg-btn" data-view-layout="blox" title="Een tegel per server">▦ Blox</button>
+            <button type="button" class="seg-btn" data-view-layout="l1nes" title="Servers onder elkaar, als een tabel">☰ L1nes</button>
+          </div>
+        </div>
+        <div class="view-row">
+          <span class="view-label">Grootte <span class="hint">(bij L1nes)</span></span>
+          <div class="seg" role="group" aria-label="Grootte">
+            <button type="button" class="seg-btn" data-view-density="small" title="Eén compacte regel per server">Small</button>
+            <button type="button" class="seg-btn" data-view-density="large" title="Meer informatie: CPU, RAM, disk, bereikbaarheid">Large</button>
+          </div>
+        </div>
+      </div>
+
       <form id="settings-form" class="settings-grid">
         <div class="card">
           <h2>Pushover</h2>
