@@ -487,7 +487,7 @@ switch ($action) {
     case 'history':
         $id = (int) ($_GET['check_id'] ?? 0);
         $hours = min(24 * 30, max(1, (int) ($_GET['hours'] ?? 24)));
-        $rows = q('SELECT UNIX_TIMESTAMP(created_at) AS t, status AS s, value AS v FROM results
+        $rows = q('SELECT UNIX_TIMESTAMP(created_at) AS t, status AS s, value AS v, vals AS x FROM results
                    WHERE check_id = ? AND created_at >= NOW() - INTERVAL ? HOUR ORDER BY created_at', [$id, $hours])->fetchAll();
         // Downsamplen naar max ~300 punten
         $step = max(1, (int) ceil(count($rows) / 300));
@@ -495,14 +495,32 @@ switch ($action) {
         for ($i = 0; $i < count($rows); $i += $step) {
             $slice = array_slice($rows, $i, $step);
             $vals = array_filter(array_column($slice, 'v'), fn($v) => $v !== null);
+            // Container: per meting (CPU, RAM, disk) het gemiddelde
+            $x = [];
+            foreach ($slice as $r) {
+                foreach ((array) json_decode((string) $r['x'], true) as $k => $xv) {
+                    if (is_numeric($xv)) {
+                        $x[$k][] = (float) $xv;
+                    }
+                }
+            }
             $pts[] = [
                 't' => (int) $slice[0]['t'],
                 's' => max(array_map('intval', array_column($slice, 's'))),
                 'v' => $vals ? array_sum($vals) / count($vals) : null,
-            ];
+            ] + ($x ? ['x' => array_map(fn($a) => round(array_sum($a) / count($a), 2), $x)] : []);
         }
         $up = $rows ? count(array_filter($rows, fn($r) => (int) $r['s'] !== STATUS_CRIT)) / count($rows) * 100 : null;
-        $type = q('SELECT type, last_value FROM checks WHERE id = ?', [$id])->fetch();
+        $type = q('SELECT type, last_value, metric, options FROM checks WHERE id = ?', [$id])->fetch();
+        // Container: welke metingen bewaakt worden, met eenheid en drempels (een lijn per meting)
+        $series = null;
+        if ($type && $type['type'] === 'container' && $type['metric'] === null) {
+            $series = [];
+            foreach ((array) ((json_decode((string) $type['options'], true) ?: [])['res'] ?? []) as $k => $t) {
+                $series[] = ['key' => $k, 'label' => ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'Disk'][$k] ?? $k,
+                    'unit' => $k === 'disk' ? 'MB' : '%', 'warn' => $t[0] ?? null, 'crit' => $t[1] ?? null];
+            }
+        }
         $forecast = $type && $type['type'] === 'disk' && $type['last_value'] !== null ? Stats::diskForecast($id, (float) $type['last_value']) : null;
         $logLines = null;
         if ($type && $type['type'] === 'log') {
@@ -510,7 +528,7 @@ switch ($action) {
             $lr = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = ?", [$hid, "logrun:$id"])->fetchColumn(), true);
             $logLines = array_map(fn($l) => ['time' => date('Y-m-d H:i:s', (int) $l[0]), 'line' => $l[1]], $lr['lines'] ?? []);
         }
-        out(['points' => $pts, 'uptime' => $up, 'forecast' => $forecast, 'log_lines' => $logLines]);
+        out(['points' => $pts, 'uptime' => $up, 'forecast' => $forecast, 'log_lines' => $logLines, 'series' => $series]);
 
     case 'stats':
         // Beschikbaarheid per server en minigrafieken per check; 2 minuten bewaard
@@ -619,7 +637,7 @@ switch ($action) {
         $summary = json_decode($sum['value'], true) ?: [];
         unset($summary['containers']);
         out(['summary' => $summary, 'updated_at' => $sum['updated_at'], 'containers' => $containers,
-             'checks' => q("SELECT id, type, target, metric FROM checks WHERE host_id = ? AND type IN ('podman', 'container')", [$id])->fetchAll()]);
+             'checks' => q("SELECT id, type, target, metric, options FROM checks WHERE host_id = ? AND type IN ('podman', 'container')", [$id])->fetchAll()]);
 
     case 'host_token':
         q('UPDATE hosts SET agent_token = ? WHERE id = ?', [bin2hex(random_bytes(20)), (int) (input()['id'] ?? 0)]);
@@ -687,10 +705,7 @@ switch ($action) {
         if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log'], true)) {
             out(['error' => 'Ongeldig type'], 422);
         }
-        $metric = $type === 'container' ? (string) ($in['metric'] ?? 'status') : null;
-        if ($metric !== null && !in_array($metric, ['status', 'cpu', 'mem', 'disk'], true)) {
-            out(['error' => 'Ongeldige meting'], 422);
-        }
+        $metric = null;   // container: één check met status + gekozen resources (options.res)
         $target = trim((string) ($in['target'] ?? ''));
         if ($type === 'tcp' && ((int) $target < 1 || (int) $target > 65535)) {
             out(['error' => 'Geef een geldige poort op (1-65535)'], 422);
@@ -718,10 +733,34 @@ switch ($action) {
         if (in_array($type, ['ping', 'cpu', 'ram', 'podman'], true)) {
             $target = '';
         }
-        if ($type === 'container' && $metric === 'status') {
-            $warn = $crit = null;   // status heeft geen drempels
-        }
         $options = null;
+        if ($type === 'container') {
+            // Status altijd; CPU, RAM en disk alleen als aangevinkt, elk met eigen drempels
+            $warn = $crit = null;
+            $res = [];
+            foreach (['cpu' => '%', 'mem' => '%', 'disk' => 'MB'] as $k => $u) {
+                $r = $in['res'][$k] ?? null;
+                if (!is_array($r) || empty($r['on'])) {
+                    continue;
+                }
+                $w = num($r['warn'] ?? null);
+                $c = num($r['crit'] ?? null);
+                if ($w === null && $c === null) {
+                    out(['error' => 'Vul bij ' . ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'disk'][$k] . ' minstens één drempel in'], 422);
+                }
+                if ($w !== null && $c !== null && $w > $c) {
+                    out(['error' => 'Bij ' . ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'disk'][$k] . ' moet de warning-drempel lager zijn dan de critical-drempel'], 422);
+                }
+                $res[$k] = [$w, $c];
+            }
+            $options = json_encode(['res' => (object) $res]);
+            // Eén check per container: bestaat er al een, dan die aanpassen
+            $dup = q("SELECT id FROM checks WHERE host_id = ? AND type = 'container' AND target = ? AND id <> ?",
+                [(int) ($in['host_id'] ?? q('SELECT host_id FROM checks WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetchColumn()), $target, (int) ($in['id'] ?? 0)])->fetchColumn();
+            if ($dup) {
+                out(['error' => "Container $target wordt al bewaakt. Pas die check aan (✎).", 'existing_id' => (int) $dup], 409);
+            }
+        }
         if ($type === 'log') {
             // Bron: een logbestand (absoluut pad), het systemlog (journal), het log van één service, of kernelmeldingen
             if (!preg_match('#^(/[A-Za-z0-9._/@+-]{1,250}|journal|journal:[A-Za-z0-9@._:-]{1,100}|kernel)$#', $target)) {
@@ -764,8 +803,7 @@ switch ($action) {
             ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
         $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
-            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log'][$type] . ($target !== '' ? " $target" : '')
-            . ($type === 'container' && $metric !== 'status' ? ' · ' . ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'Disk'][$metric] : '');
+            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log'][$type] . ($target !== '' ? " $target" : '');
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
             max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options];
         if (!empty($in['id'])) {

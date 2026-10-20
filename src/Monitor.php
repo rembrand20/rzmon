@@ -154,7 +154,8 @@ final class Monitor
         $notifiedAt = $check['notified_at'];
         $message = $res['message'];
 
-        q('INSERT INTO results (check_id, status, value) VALUES (?, ?, ?)', [$check['id'], $status, $res['value']]);
+        q('INSERT INTO results (check_id, status, value, vals) VALUES (?, ?, ?, ?)',
+            [$check['id'], $status, $res['value'], !empty($res['vals']) ? json_encode($res['vals']) : null]);
 
         // Onderdrukken: een server erboven is onbereikbaar → dat is al gemeld
         $upstream = $status !== STATUS_OK ? self::upstreamDown((int) $check['hid']) : null;

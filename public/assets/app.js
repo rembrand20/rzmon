@@ -15,7 +15,7 @@ const TYPES = {
   cpu:     { label: 'CPU',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'CPU-gebruik gemeten over 2 seconden, met load average in het bericht. Tip: zet "alarm na N fouten" op 3+ om korte pieken te negeren.' },
   ram:     { label: 'RAM',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'Percentage geheugen in gebruik (op basis van MemAvailable, dus cache telt niet mee). Swap staat in het bericht.' },
   podman:  { label: 'Podman (algemeen)', target: null, unit: null, help: 'Algehele status van Podman op deze server: draait podman, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.' },
-  container: { label: 'Container (Podman)', target: 'Container', unit: null, ph: 'naam, of gebruiker/naam (rootless)', help: 'Eén container: kies hieronder wat je wilt meten. Kies de naam uit de lijst die de agent meldt.' },
+  container: { label: 'Container (Podman)', target: 'Container', unit: null, ph: 'naam, of gebruiker/naam (rootless)', help: 'Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.' },
   log:     { label: 'Logbestand (zoeken)', target: 'Bron', unit: 'treffers', warn: 5, crit: 20, ph: '/var/log/secure, journal, journal:sshd of kernel', help: 'De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.' },
   service: { label: 'Service',       target: 'Servicenaam',   unit: null, ph: 'nginx', help: 'De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.' },
 };
@@ -54,9 +54,9 @@ const METRICS = {
   mem:    { label: 'Geheugen (RAM)', unit: '%', warn: 85, crit: 95, help: 'Percentage van de geheugenlimiet van de container, of van het totale geheugen als er geen limiet is.' },
   disk:   { label: 'Diskgebruik', unit: 'MB', warn: 5000, crit: 10000, help: 'Schrijflaag van de container plus de grootte van zijn volumes (volumes worden elk uur gemeten).' },
 };
-/** Type-beschrijving van een check; bij containers met de eenheid van de gekozen meting. */
+/** Type-beschrijving van een check (container: één check met status + resources, geen eigen eenheid). */
 function typeOf(c) {
-  return c.type === 'container' ? { ...TYPES.container, ...METRICS[c.metric || 'status'], label: TYPES.container.label } : TYPES[c.type];
+  return c.type === 'container' && c.metric ? { ...TYPES.container, ...METRICS[c.metric], label: TYPES.container.label } : TYPES[c.type];
 }
 
 const MODES = { local: 'Lokaal (deze server)', agent: 'Remote met agent', remote: 'Remote (alleen netwerk)' };
@@ -890,10 +890,19 @@ function checkForm(c, h, preset = {}) {
         <span class="hint">Bron: een logbestand (alleen in mappen die op de server zijn toegestaan, standaard /var/log), <code>journal</code> (systemlog), <code>journal:sshd</code> (log van één service) of <code>kernel</code>. Drempels: aantal treffers in de periode.</span>
       </div>
       <label id="target-wrap"><span id="target-label"></span><input name="target" value="${esc(c.target)}" list="target-list" class="mono"></label>
-      <label id="metric-wrap" hidden>Meten
-        <select name="metric">${Object.entries(METRICS).map(([k, m]) => `<option value="${k}" ${(c.metric || 'status') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
-        <span class="hint" id="metric-help"></span>
-      </label>
+      <div id="res-wrap" hidden>
+        <p class="hint" style="margin-top:0">✓ De <b>status</b> wordt altijd bewaakt: gestopt of ongezond = CRITICAL, gepauzeerd of net automatisch herstart = WARNING. Vink aan wat je daarnaast wilt bewaken:</p>
+        ${['cpu', 'mem', 'disk'].map((k) => {
+          const r = (opts.res || {})[k];
+          const u = k === 'disk' ? 'MB' : '%';
+          return `<div class="res-row">
+            <label class="switch small" title="${esc(METRICS[k].help)}"><input type="checkbox" name="res_${k}" ${r ? 'checked' : ''}><span></span> ${METRICS[k].label}</label>
+            <label>Warning vanaf <span class="hint">${u}</span><input type="number" step="any" min="0" name="res_${k}_warn" value="${r ? (r[0] ?? '') : METRICS[k].warn}"></label>
+            <label>Critical vanaf <span class="hint">${u}</span><input type="number" step="any" min="0" name="res_${k}_crit" value="${r ? (r[1] ?? '') : METRICS[k].crit}"></label>
+          </div>`;
+        }).join('')}
+        <p class="hint">CPU: 100% = één volledige core. RAM: percentage van de geheugenlimiet van de container. Disk: schrijflaag plus volumes.</p>
+      </div>
       <datalist id="target-list"></datalist>
       <div id="svc-pick-wrap" hidden>
         <div class="svc-pick-head"><span class="hint" id="svc-pick-info">Services op deze server ophalen…</span></div>
@@ -936,19 +945,20 @@ function checkForm(c, h, preset = {}) {
       { label: isNew ? 'Toevoegen & checken' : 'Opslaan & checken', cls: 'primary', submit: true },
     ],
     onSubmit: async (d) => {
-      await api('check_save', { ...d, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep });
+      const res = {};
+      ['cpu', 'mem', 'disk'].forEach((k) => { res[k] = { on: !!d[`res_${k}`], warn: d[`res_${k}_warn`], crit: d[`res_${k}_crit`] }; });
+      await api('check_save', { ...d, res, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep });
       toast('Check opgeslagen');
     },
   });
 
   const typeSel = $('[name=type]', form);
-  const metricSel = $('[name=metric]', form);
   const update = (setDefaults) => {
     const isContainer = typeSel.value === 'container';
-    const t = isContainer ? { ...TYPES.container, ...METRICS[metricSel.value] } : TYPES[typeSel.value];
+    const t = TYPES[typeSel.value];
     $('#type-help').textContent = TYPES[typeSel.value].help;
-    $('#metric-wrap').hidden = !isContainer;
-    $('#metric-help').textContent = isContainer ? METRICS[metricSel.value].help : '';
+    $('#res-wrap').hidden = !isContainer;
+    $$('#res-wrap input[type=number]', form).forEach((i) => { i.disabled = !$(`[name=${i.name.replace(/_(warn|crit)$/, '')}]`, form).checked; });
     $('#target-wrap').hidden = !t.target;
     $('#target-label').textContent = t.target || '';
     $('[name=target]', form).placeholder = t.ph || '';
@@ -1014,7 +1024,7 @@ function checkForm(c, h, preset = {}) {
     $('[name=target]', form).addEventListener('input', () => { if (typeSel.value === 'service') renderSvcPick(); });
   }
   typeSel.onchange = () => update(true);
-  metricSel.onchange = () => update('metric');
+  $$('#res-wrap input[type=checkbox]', form).forEach((cb) => (cb.onchange = () => update(false)));
   $('[name=test_type]', form).onchange = () => update(false);
   // Voorinstelling kiezen: bron, patroon, drempels en naam invullen
   $('[name=preset]', form).onchange = (e) => {
@@ -1066,23 +1076,34 @@ async function showHistory(c, h) {
     if (ll) ll.innerHTML = d.log_lines && d.log_lines.length
       ? `<h4>Laatst gevonden regels</h4><pre class="code log-lines">${d.log_lines.map((l) => `<span class="muted">${esc(fmtUntil(l.time))}</span>  ${esc(l.line)}`).join('\n')}</pre>`
       : (d.log_lines ? '<p class="muted small">Nog geen regels gevonden.</p>' : '');
+    // Container: een grafiek per bewaakte meting (CPU, RAM, disk), elk met eigen schaal en drempels
+    if (d.series && d.series.length) {
+      $('#chart-svg').innerHTML = d.series.map((sr) => {
+        const pts = d.points.map((p) => ({ t: p.t, s: p.s, v: p.x && p.x[sr.key] !== undefined ? p.x[sr.key] : null }));
+        const sv = pts.map((p) => p.v).filter((v) => v !== null);
+        const stats = sv.length ? ` <span class="muted small">min ${fmt(Math.min(...sv))} · gem ${fmt(sv.reduce((a, b) => a + b, 0) / sv.length)} · max ${fmt(Math.max(...sv))} ${sr.unit}</span>` : ' <span class="muted small">nog geen metingen</span>';
+        return `<h4 class="chart-sub">${esc(sr.label)}${stats}</h4>`
+          + chartSvg(pts, { warn_threshold: sr.warn, crit_threshold: sr.crit }, { unit: sr.unit }, +hours, 170);
+      }).join('');
+      return;
+    }
     $('#chart-svg').innerHTML = chartSvg(d.points, c, t, +hours);
   };
   $('#range').onchange = load;
   load();
 }
 
-function chartSvg(pts, c, t, hours) {
+function chartSvg(pts, c, t, hours, H = 260) {
   if (!pts.length) return '<p class="muted">Nog geen meetgegevens.</p>';
-  const W = 860, H = 260, L = 48, R = 12, T = 12, B = 40;
+  const W = 860, L = 48, R = 12, T = 12, B = 40;
   const t1 = Math.floor(Date.now() / 1000), t0 = t1 - hours * 3600;
   const x = (ts) => L + ((ts - t0) / (t1 - t0)) * (W - L - R);
   const vals = pts.map((p) => p.v).filter((v) => v !== null);
   const hasVals = t.unit && vals.length;
   let max = hasVals ? Math.max(...vals, +c.crit_threshold || 0, +c.warn_threshold || 0) * 1.1 : 1;
-  if (t.unit === '%') max = 100;
+  if (t.unit === '%') max = Math.max(100, ...vals);   // CPU van een container kan boven 100% (meer cores)
   const y = (v) => T + (1 - v / max) * (H - T - B - 14);
-  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img">`;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" style="height:${H}px">`;
 
   if (hasVals) {
     svg += '<g class="grid">';
@@ -1241,15 +1262,18 @@ async function podmanOverview(h) {
   let d;
   try { d = await api('podman', null, { id: h.id }); } catch (ex) { body.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const sm = d.summary;
-  const has = (key, metric) => d.checks.some((c) => c.type === 'container' && c.target === key && (c.metric || 'status') === metric);
+  const checkOf = (key) => d.checks.find((c) => c.type === 'container' && c.target === key);
+  const resLabel = (c) => ['status', ...Object.keys((JSON.parse(c.options || '{}') || {}).res || {}).map((k) => ({ cpu: 'CPU', mem: 'RAM', disk: 'disk' }[k]))].join(', ');
   const stateCls = (c) => (c.state === 'running' ? (c.health === 'unhealthy' ? 's2' : 's0') : c.state === 'paused' ? 's1' : +c.exit_code ? 's2' : 's3');
   const stateText = (c) => (c.state === 'running' ? 'draait' + (c.health ? ` (${c.health === 'healthy' ? 'gezond' : c.health === 'unhealthy' ? 'ONGEZOND' : 'start op'})` : '')
     : c.state === 'paused' ? 'gepauzeerd' : c.state === 'exited' ? `gestopt (exit ${c.exit_code})` : c.state);
   const rows = d.containers.map((c) => {
     const memPct = c.mem !== null && c.mem_limit ? (c.mem / c.mem_limit) * 100 : null;
     const disk = (c.size_rw || 0) + (c.volumes || 0);
-    const btn = (metric, label, title) => (has(c.key, metric) ? `<span class="muted small" title="Wordt bewaakt">✓ ${label}</span>`
-      : `<button type="button" class="btn small-btn need-admin" data-pc="${esc(c.key)}" data-metric="${metric}" title="${title}">＋ ${label}</button>`);
+    const chk = checkOf(c.key);
+    const watch = chk
+      ? `<button type="button" class="btn small-btn need-admin pc-watched" data-pc-edit="${chk.id}" title="Aanpassen wat er bewaakt wordt">✓ ${esc(resLabel(chk))} ✎</button>`
+      : `<button type="button" class="btn small-btn need-admin" data-pc="${esc(c.key)}" title="Status en (naar keuze) CPU, RAM en disk bewaken">＋ Bewaken</button>`;
     return `<tr>
       <td><span class="dot-inline ${stateCls(c)}"></span><b>${esc(c.key)}</b>${c.pod ? `<br><span class="muted small">pod ${esc(c.pod)}</span>` : ''}
         <br><span class="muted small mono">${esc(c.image)}</span></td>
@@ -1257,11 +1281,10 @@ async function podmanOverview(h) {
       <td class="num">${c.cpu !== null ? (Math.round(c.cpu * 10) / 10).toString().replace('.', ',') + '%' : '–'}</td>
       <td class="num">${c.mem !== null ? fmtBytes(c.mem) : '–'}${memPct !== null ? `<br><span class="muted small">${memPct.toFixed(1).replace('.', ',')}% van ${fmtBytes(c.mem_limit)}</span>` : ''}</td>
       <td class="num">${fmtBytes(disk)}${c.volumes ? `<br><span class="muted small">volumes ${fmtBytes(c.volumes)}</span>` : ''}</td>
-      <td class="pc-actions"><div class="pc-btns">${btn('status', 'Status', 'Melding als de container stopt, ongezond wordt of herstart')}
-        ${btn('cpu', 'CPU', 'CPU-gebruik bewaken')} ${btn('mem', 'RAM', 'Geheugengebruik bewaken')} ${btn('disk', 'Disk', 'Diskgebruik bewaken')}</div></td>
+      <td class="pc-actions">${watch}</td>
     </tr>`;
   }).join('');
-  const missing = d.containers.filter((c) => !has(c.key, 'status'));
+  const missing = d.containers.filter((c) => !checkOf(c.key));
   body.innerHTML = `
     <p class="scan-summary">Podman ${esc(sm.version || '?')} · ${d.containers.filter((c) => c.state === 'running').length} van ${d.containers.length} containers draaien
       ${(sm.pods || []).length ? ' · pods: ' + sm.pods.map((p) => `${esc(p.name)} (${esc(p.status)})`).join(', ') : ''}
@@ -1272,7 +1295,7 @@ async function podmanOverview(h) {
     <div class="podman-actions">
       ${d.checks.some((c) => c.type === 'podman') ? '<span class="muted small">✓ Podman-check aanwezig</span>'
         : '<button type="button" class="btn need-admin" id="pc-overall">＋ Podman-check (algehele status)</button>'}
-      ${missing.length ? `<button type="button" class="btn need-admin" id="pc-all">＋ Status-check voor ${missing.length === d.containers.length ? 'alle' : 'de overige'} ${missing.length} container(s)</button>` : ''}
+      ${missing.length ? `<button type="button" class="btn need-admin" id="pc-all" title="Alleen de status; CPU, RAM en disk kun je daarna per container aanvinken">＋ ${missing.length === d.containers.length ? 'Alle' : 'De overige'} ${missing.length} container(s) bewaken</button>` : ''}
     </div>
     <div class="table-scroll"><table class="port-table podman-table">
       <thead><tr><th>Container</th><th>Status</th><th>CPU</th><th>RAM</th><th>Disk</th><th>Bewaken</th></tr></thead>
@@ -1281,16 +1304,17 @@ async function podmanOverview(h) {
       Containers van gewone gebruikers (rootless) staan als <code>gebruiker/naam</code>.</p>`;
 
   const add = async (payload) => api('check_save', { host_id: h.id, interval_sec: 60, enabled: true, ...payload });
-  const addContainer = (key, metric) => add({ type: 'container', target: key, metric, name: '',
-    warn_threshold: METRICS[metric].warn ?? '', crit_threshold: METRICS[metric].crit ?? '' });
+  const addContainer = (key) => add({ type: 'container', target: key, name: '', res: {} });
   body.onclick = async (e) => {
     const b = e.target.closest('button');
     if (!b) return;
     b.disabled = true;
+    // Eén container bewaken of aanpassen: het checkformulier met status + vinkjes voor CPU, RAM en disk
+    if (b.dataset.pc) return checkForm(null, findHost(h.id), { type: 'container', target: b.dataset.pc, name: '', options: '{"res":{}}' });
+    if (b.dataset.pcEdit) { const [c] = findCheck(b.dataset.pcEdit); if (c) return checkForm(c, findHost(h.id)); }
     try {
       if (b.id === 'pc-overall') await add({ type: 'podman', name: 'Podman' });
-      else if (b.id === 'pc-all') for (const c of missing) await addContainer(c.key, 'status');
-      else if (b.dataset.pc) await addContainer(b.dataset.pc, b.dataset.metric);
+      else if (b.id === 'pc-all') for (const c of missing) await addContainer(c.key);
       toast('Check(s) toegevoegd');
       await refresh();
       podmanOverview(findHost(h.id));

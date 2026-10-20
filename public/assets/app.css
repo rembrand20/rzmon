@@ -542,3 +542,12 @@ body[data-role="admin"] [data-role-only="nonadmin"] { display: none; }
 /* Wachtwoord vergeten */
 .login-links { text-align: center; margin: .9rem 0 0; }
 .login-card h2 { font-size: 1.05rem; }
+
+/* Container-check: status altijd, CPU/RAM/disk met eigen drempels */
+.res-row { display: grid; grid-template-columns: minmax(150px, 1.2fr) 1fr 1fr; gap: .7rem; align-items: end; margin-bottom: .4rem; }
+.res-row .switch { margin-bottom: .55rem; }
+.res-row input:disabled { opacity: .45; }
+@media (max-width: 640px) { .res-row { grid-template-columns: 1fr 1fr; } .res-row .switch { grid-column: 1 / -1; margin-bottom: 0; } }
+.pc-watched { white-space: nowrap; }
+.chart-sub { margin: .9rem 0 .2rem; font-size: .9rem; }
+.chart-sub:first-child { margin-top: 0; }

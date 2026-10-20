@@ -56,7 +56,7 @@ RzMon bestaat uit vier onderdelen:
 | **Home Assistant** | Core, Supervisor, elke add-on en beschikbare updates | Niet actief = CRITICAL, update beschikbaar = WARNING | HA-add-on |
 | **Podman (algemeen)** | Draait podman; gestopte (foutcode), ongezonde of gepauzeerde containers; pods | Probleem = WARNING | Agent met podman |
 | **Logbestand (zoeken)** | Treffers van een zoekpatroon in een logbestand, het systemlog of kernelmeldingen (bv. mislukte logins, hardwarefouten) | Aantal treffers in de laatste 15 min (instelbaar) | Agent |
-| **Container (Podman)** | Eén container: status (incl. healthcheck en herstarts), CPU, RAM of disk | Gestopt/ongezond = CRITICAL; CPU/RAM in %, disk in MB | Agent met podman |
+| **Container (Podman)** | Eén check per container: altijd de status (incl. healthcheck en herstarts), plus naar keuze CPU, RAM en disk | Gestopt/ongezond = CRITICAL; CPU/RAM in %, disk in MB, elk met eigen drempels | Agent met podman |
 
 ### Drie soorten servers
 - **Lokaal**: de RzMon-server zelf. Alles wordt direct uitgelezen.
@@ -529,7 +529,7 @@ Klik op een serverkaart op **＋**. Per type:
 | CPU | – | 85 / 95 % |
 | RAM | – | 85 / 95 % |
 | Podman (algemeen) | – (alleen agent-servers met podman) | – |
-| Container (Podman) | Containernaam, uit de lijst. Kies bij *Meten*: Status, CPU, RAM of Disk | CPU 80 / 95 %, RAM 85 / 95 %, disk 5000 / 10000 MB |
+| Container (Podman) | Containernaam, uit de lijst. Status altijd; vink CPU, RAM en/of disk aan, elk met eigen drempels | CPU 80 / 95 %, RAM 85 / 95 %, disk 5000 / 10000 MB |
 
 - **Interval:** minimaal 30 seconden. Omdat cron elke minuut draait, is **1 minuut** in de praktijk het kortste interval.
 - **Na opslaan** wordt de check direct uitgevoerd.
@@ -803,16 +803,18 @@ Staat **podman** op de server, dan meldt de agent vanzelf alle containers. Er ho
 - **systemd-service:** het installatiescript zet op servers met podman `NoNewPrivileges` en `ProtectHome` uit, omdat rootless podman die nodig heeft. Na het bijwerken van een bestaande agent: `sudo rzmon-agent-setup --update`.
 
 **In RzMon:** klap de server open en klik op **📦 Containers**. Je ziet alle containers met status, CPU, RAM en disk.
-- Per container voeg je met één klik een check toe: **＋ Status**, **＋ CPU**, **＋ RAM** of **＋ Disk**.
-- Bovenaan staan **＋ Podman-check** (algehele status) en **＋ Status-check voor alle containers**.
-- Je kunt het ook via **＋ Check** doen: kies het type *Container (Podman)*, de container uit de lijst, en bij *Meten* wat je wilt bewaken.
+- **Eén check per container.** Klik bij een container op **＋ Bewaken**. De status wordt altijd bewaakt; vink daarnaast **CPU**, **RAM** en/of **disk** aan, elk met eigen drempels. Wordt een container al bewaakt, dan staat er bijvoorbeeld **✓ status, CPU, RAM ✎**; klik om aan te passen.
+- Bovenaan staan **＋ Podman-check** (algehele status) en **＋ Alle containers bewaken** (alleen de status; resources vink je daarna per container aan).
+- Je kunt het ook via **＋ Check** doen: kies het type *Container (Podman)* en de container uit de lijst.
+- Op het dashboard staat per container **één rij**, bijvoorbeeld *adguardhome draait (gezond) · CPU 2% · RAM 1,6 GB (43,8%) · disk 25,6 kB*. Gaat er iets over een drempel, dan staat dat vooraan: *⚠ RAM 87% (warning vanaf 85%)*. De status van de rij is de slechtste van de onderdelen, en je krijgt één melding per container.
+- **Grafiek (📈):** per bewaakte meting een eigen grafiek onder elkaar, elk met zijn drempels.
+- Had je (vóór 1.23.0) losse checks per meting, dan zijn die bij de update per container samengevoegd. De drempels en de geschiedenis zijn meegenomen.
 
 | Check | OK | WARNING | CRITICAL |
 |---|---|---|---|
 | Podman (algemeen) | Alles in orde | Container gestopt met foutcode, ongezond of gepauzeerd; pod niet in orde | Podman reageert niet |
-| Container – Status | Draait | Gepauzeerd, of in het afgelopen kwartier automatisch herstart (crash) | Gestopt, ongezond (healthcheck faalt), of bestaat niet meer |
-| Container – CPU / RAM | Onder de drempel | Boven de warning-drempel | Boven de critical-drempel. Draait de container niet, dan is deze check ONBEKEND (de status-check meldt het stoppen) |
-| Container – Disk | Onder de drempel (MB) | Boven de warning-drempel | Boven de critical-drempel |
+| Container – status | Draait | Gepauzeerd, of in het afgelopen kwartier automatisch herstart (crash) | Gestopt, ongezond (healthcheck faalt), of bestaat niet meer |
+| Container – CPU / RAM / disk (aangevinkt) | Onder de drempels | Boven een warning-drempel | Boven een critical-drempel. CPU en RAM tellen alleen als de container draait |
 
 Goed om te weten:
 - **Bedoeld gestopt:** een container die met exitcode 0 is gestopt (een eenmalige taak), telt bij *Podman (algemeen)* niet als probleem. Een status-check op zo'n container wordt wel CRITICAL; zet daar dus geen status-check op.

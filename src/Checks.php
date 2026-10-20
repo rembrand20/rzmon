@@ -326,6 +326,9 @@ final class Checks
                 self::agentMetric($host, 'podman') === null ? 'Agent meldt geen Podman (agent bijwerken?)' : "Container $name bestaat niet (meer)");
         }
         $c = json_decode($raw, true) ?: [];
+        if (($check['metric'] ?? '') === '' || $check['metric'] === null) {
+            return self::containerCombined($check, $c, $name);
+        }
         $state = (string) ($c['state'] ?? 'unknown');
         $running = $state === 'running';
         $metric = $check['metric'] ?: 'status';
@@ -379,6 +382,76 @@ final class Checks
         }
         $pct = round((float) $c['mem'] / (float) $c['mem_limit'] * 100, 1);
         return self::result(self::threshold($pct, $check), $pct, sprintf('%s: RAM %.1f%% (%s)', $name, $pct, $memText));
+    }
+
+    /**
+     * Eén check per container: altijd de status (draait, healthcheck, herstarts), plus de gekozen
+     * resources met eigen drempels (options.res = {"cpu": [warn, crit], "mem": [...], "disk": [...]}).
+     * De slechtste uitkomst telt; wat over een drempel gaat staat vooraan in het bericht.
+     * vals = de gemeten waarden (voor de grafiek met een lijn per meting).
+     */
+    private static function containerCombined(array $check, array $c, string $name): array
+    {
+        $res = (json_decode((string) ($check['options'] ?? ''), true) ?: [])['res'] ?? [];
+        $state = (string) ($c['state'] ?? 'unknown');
+        $running = $state === 'running';
+        $restarts = (int) ($c['restarts'] ?? 0);
+        $pod = ($c['pod'] ?? '') !== '' ? " · pod {$c['pod']}" : '';
+
+        // 1. Status
+        if ($running && ($c['health'] ?? '') === 'unhealthy') {
+            [$status, $base] = [STATUS_CRIT, "$name draait maar is ONGEZOND (healthcheck faalt)"];
+        } elseif ($state === 'paused') {
+            [$status, $base] = [STATUS_WARN, "$name is gepauzeerd"];
+        } elseif (!$running) {
+            [$status, $base] = [STATUS_CRIT, "$name is gestopt ($state, exitcode " . (int) ($c['exit_code'] ?? 0) . ')'];
+        } elseif ($restarts > 0 && !empty($c['started']) && (int) $c['started'] > time() - 900) {
+            $min = max(1, (int) round((time() - (int) $c['started']) / 60));
+            [$status, $base] = [STATUS_WARN, "$name is $min min geleden automatisch herstart (totaal {$restarts}×)"];
+        } else {
+            $health = ($c['health'] ?? '') === 'healthy' ? ' (gezond)' : (($c['health'] ?? '') !== '' ? " ({$c['health']})" : '');
+            [$status, $base] = [STATUS_OK, "$name draait$health"];
+        }
+
+        // 2. Metingen (CPU en RAM alleen als hij draait)
+        $memPct = $running && isset($c['mem']) && !empty($c['mem_limit']) ? round((float) $c['mem'] / (float) $c['mem_limit'] * 100, 1) : null;
+        $diskBytes = (float) ($c['size_rw'] ?? 0) + (float) ($c['volumes'] ?? 0);
+        $values = [
+            'cpu' => $running && isset($c['cpu']) ? round((float) $c['cpu'], 1) : null,
+            'mem' => $memPct,
+            'disk' => round($diskBytes / 1e6, 1),
+        ];
+        $nl = static fn(float $v) => str_replace('.', ',', (string) $v);
+        $label = ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'disk'];
+        $show = [
+            'cpu' => $values['cpu'] !== null ? 'CPU ' . $nl($values['cpu']) . '%' : null,
+            'mem' => $running && isset($c['mem']) ? 'RAM ' . self::siBytes((float) $c['mem']) . ($memPct !== null ? ' (' . $nl($memPct) . '%)' : '') : null,
+            'disk' => 'disk ' . self::siBytes($diskBytes),
+        ];
+        $unit = ['cpu' => '%', 'mem' => '%', 'disk' => ' MB'];
+        $rank = [STATUS_OK => 0, STATUS_UNKNOWN => 1, STATUS_WARN => 2, STATUS_CRIT => 3];
+        $problems = [];
+        $vals = [];
+        foreach (['cpu', 'mem', 'disk'] as $m) {
+            if (!isset($res[$m]) || $values[$m] === null) {
+                continue;
+            }
+            $v = $values[$m];
+            $vals[$m] = $v;
+            [$w, $cr] = array_pad((array) $res[$m], 2, null);
+            $st = $cr !== null && $v >= (float) $cr ? STATUS_CRIT : ($w !== null && $v >= (float) $w ? STATUS_WARN : STATUS_OK);
+            if ($st !== STATUS_OK) {
+                $problems[] = ($st === STATUS_CRIT ? '✖ ' : '⚠ ') . $label[$m] . ' ' . $nl($v) . trim($unit[$m])
+                    . ' (' . ($st === STATUS_CRIT ? 'critical' : 'warning') . ' vanaf ' . $nl((float) ($st === STATUS_CRIT ? $cr : $w)) . trim($unit[$m]) . ')';
+                if ($rank[$st] > $rank[$status]) {
+                    $status = $st;
+                }
+            }
+        }
+        $parts = $running ? array_filter([$show['cpu'], $show['mem'], $show['disk']]) : [$show['disk']];
+        $message = implode(' · ', array_merge($problems, [$base], $parts)) . $pod;
+        $value = $vals['cpu'] ?? $vals['mem'] ?? $vals['disk'] ?? null;
+        return ['status' => $status, 'value' => $value, 'message' => $message, 'vals' => $vals ?: null];
     }
 
     /** Bytes zoals podman ze toont (SI: 1 MB = 1000 kB). */

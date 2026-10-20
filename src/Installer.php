@@ -74,6 +74,7 @@ final class Installer
         ['checks', 'options', 'VARCHAR(500) NULL'],  // JSON, bv. service: diepere controle en extra test
         ['checks', 'maintenance_auto', 'TINYINT(1) NOT NULL DEFAULT 0'],  // onderhoud automatisch gezet na herhaalde meldingen
         ['users', 'role', "VARCHAR(10) NOT NULL DEFAULT 'admin'"],   // admin | user | readonly (bestaande accounts: admin)
+        ['results', 'vals', 'VARCHAR(255) NULL'],         // container: CPU, RAM en disk van één meting (JSON)
         ['users', 'email', 'VARCHAR(190) NULL'],         // voor "wachtwoord vergeten"
         ['users', 'pw_changed_at', 'DATETIME NULL'],     // sessies van vóór dit moment worden uitgelogd
         // Agent bijwerken vanuit RzMon: gevraagd (knop), naar de agent gestuurd, uitkomst, en hoe de agent dat kan
@@ -92,6 +93,66 @@ final class Installer
             if (!(int) $st->fetchColumn()) {
                 $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
             }
+        }
+        self::mergeContainerChecks($pdo);
+    }
+
+    /**
+     * Sinds 1.23.0 is er één check per container (status + de gekozen CPU/RAM/disk). Oude losse checks
+     * (metric status/cpu/mem/disk) worden per container samengevoegd. De drempels gaan mee, en de
+     * geschiedenis van de losse metingen komt per minuut in results.vals van de overgebleven check.
+     */
+    private static function mergeContainerChecks(PDO $pdo): void
+    {
+        $rows = $pdo->query("SELECT * FROM checks WHERE type = 'container' AND metric IS NOT NULL
+                             ORDER BY host_id, target, FIELD(metric, 'status', 'cpu', 'mem', 'disk'), id")->fetchAll(PDO::FETCH_ASSOC);
+        $groups = [];
+        foreach ($rows as $r) {
+            $groups[$r['host_id'] . '|' . $r['target']][] = $r;
+        }
+        foreach ($groups as $g) {
+            $find = $pdo->prepare("SELECT * FROM checks WHERE type = 'container' AND metric IS NULL AND host_id = ? AND target = ? ORDER BY id LIMIT 1");
+            $find->execute([$g[0]['host_id'], $g[0]['target']]);
+            $keep = $find->fetch(PDO::FETCH_ASSOC) ?: array_shift($g);
+            $opts = json_decode((string) $keep['options'], true) ?: [];
+            $res = $opts['res'] ?? [];
+            $metricOf = static fn(array $c) => in_array($c['metric'], ['cpu', 'mem', 'disk'], true) ? $c['metric'] : null;
+            $thr = static fn(array $c) => [$c['warn_threshold'] !== null ? (float) $c['warn_threshold'] : null, $c['crit_threshold'] !== null ? (float) $c['crit_threshold'] : null];
+
+            // Eigen geschiedenis van de check die blijft
+            if ($m = $metricOf($keep)) {
+                $res[$m] = $thr($keep);
+                $pdo->prepare("UPDATE results SET vals = JSON_OBJECT(?, value) WHERE check_id = ? AND value IS NOT NULL")->execute([$m, $keep['id']]);
+            } elseif (($keep['metric'] ?? null) === 'status') {
+                $pdo->prepare('UPDATE results SET value = NULL WHERE check_id = ?')->execute([$keep['id']]);   // was het aantal herstarts
+            }
+            $maint = [$keep['maintenance_until'], $keep['maintenance_reason']];
+            foreach ($g as $o) {
+                if ($m = $metricOf($o)) {
+                    $res[$m] = $thr($o);
+                    // Metingen per minuut koppelen aan de metingen van de check die blijft
+                    $pdo->exec('CREATE TEMPORARY TABLE rz_merge (b BIGINT PRIMARY KEY, v DOUBLE NULL)');
+                    $pdo->prepare('INSERT INTO rz_merge SELECT FLOOR(UNIX_TIMESTAMP(created_at) / 60), AVG(value) FROM results
+                                   WHERE check_id = ? AND value IS NOT NULL GROUP BY 1')->execute([$o['id']]);
+                    // $m komt uit de vaste lijst cpu/mem/disk (MariaDB wil een vast JSON-pad)
+                    $pdo->prepare("UPDATE results s JOIN rz_merge t ON t.b = FLOOR(UNIX_TIMESTAMP(s.created_at) / 60)
+                                   SET s.vals = JSON_SET(COALESCE(s.vals, '{}'), '$.$m', t.v) WHERE s.check_id = ?")->execute([$keep['id']]);
+                    $pdo->exec('DROP TEMPORARY TABLE rz_merge');
+                }
+                if ($o['maintenance_until'] !== null && ($maint[0] === null || $o['maintenance_until'] > $maint[0])) {
+                    $maint = [$o['maintenance_until'], $o['maintenance_reason']];
+                }
+                $pdo->prepare('UPDATE alerts SET check_id = ? WHERE check_id = ?')->execute([$keep['id'], $o['id']]);
+                $pdo->prepare('DELETE FROM checks WHERE id = ?')->execute([$o['id']]);
+            }
+            // Waarde voor de minigrafiek: CPU, anders RAM, anders disk
+            $pdo->prepare("UPDATE results SET value = COALESCE(JSON_EXTRACT(vals, '$.cpu'), JSON_EXTRACT(vals, '$.mem'), JSON_EXTRACT(vals, '$.disk')) + 0
+                           WHERE check_id = ? AND vals IS NOT NULL")->execute([$keep['id']]);
+            $name = str_starts_with((string) $keep['name'], '📦') ? '📦 ' . $keep['target'] : $keep['name'];
+            $opts['res'] = (object) $res;
+            $pdo->prepare('UPDATE checks SET metric = NULL, options = ?, name = ?, warn_threshold = NULL, crit_threshold = NULL,
+                           maintenance_until = ?, maintenance_reason = ? WHERE id = ?')
+                ->execute([json_encode($opts), mb_substr($name, 0, 100), $maint[0], $maint[1], $keep['id']]);
         }
     }
 
