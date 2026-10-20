@@ -793,7 +793,7 @@ Staat **podman** op de server, dan meldt de agent vanzelf alle containers. Er ho
 | | **Disk**: de schrijflaag van de container plus de grootte van zijn volumes. Volumes worden elk uur opnieuw gemeten |
 | **Per pod** | Status (Running, Degraded…) en aantal containers |
 
-**Rootless containers:** naast de containers van root zoekt de agent gebruikers met eigen containers (in `~/.local/share/containers`). Die staan in RzMon als `gebruiker/naam`.
+**Rootless containers:** naast de containers van root zoekt de agent gebruikers die zelf containers hebben (in `~/.local/share/containers`). Een gebruiker die podman ooit gestart heeft maar geen containers heeft, telt niet mee. De containers staan in RzMon als `gebruiker/naam`.
 - Andere keuze: zet `PODMAN_USERS="jan piet"` in `/etc/default/rzmon-agent` voor een vaste lijst, of `PODMAN_USERS=""` voor alleen root. `PODMAN=0` zet podman helemaal uit.
 - **CPU en RAM van rootless containers** vereisen cgroups v2; dat is standaard op Rocky/RHEL 9 en 10, Debian 11+ en Ubuntu 22.04+.
 - **Lingering:** zet voor die gebruiker *lingering* aan (`sudo loginctl enable-linger jan`), anders stoppen de containers als de gebruiker uitlogt. Dat is sowieso aan te raden.

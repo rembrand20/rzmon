@@ -17,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.20.2"
+AGENT_VERSION="1.20.3"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -212,7 +212,10 @@ if [ "$PODMAN" != 0 ] && [ "$HA_MODE" = 0 ] && command -v podman >/dev/null 2>&1
     if [ "$(id -u)" = 0 ] && [ -n "$PODMAN_USERS" ]; then
         if [ "$PODMAN_USERS" = auto ]; then
             while IFS=: read -r u _ uid _ _ home _; do
-                [ "$uid" -ge 1000 ] && [ "$uid" -lt 65534 ] && [ -d "$home/.local/share/containers/storage" ] && podman_ctx+=("$u")
+                # Alleen gebruikers die echt containers hebben (een lege podman-map telt niet):
+                # elke container heeft een map <driver>-containers/<id>/userdata (overlay, vfs, btrfs…)
+                [ "$uid" -ge 1000 ] && [ "$uid" -lt 65534 ] \
+                    && compgen -G "$home/.local/share/containers/storage/*-containers/*/userdata" >/dev/null && podman_ctx+=("$u")
             done < <(getent passwd 2>/dev/null)
         else
             for u in $PODMAN_USERS; do id -u "$u" >/dev/null 2>&1 && podman_ctx+=("$u"); done
