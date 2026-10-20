@@ -17,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.27.0"
+AGENT_VERSION="1.27.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -943,6 +943,11 @@ payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$ho
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)
+# Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
+# wordt curl met een lang argument stil afgebroken en komt er niets aan.
+payload_file=$(mktemp "${TMPDIR:-/tmp}/rzmon-report.XXXXXX") || { echo "Kan geen tijdelijk bestand maken" >&2; exit 1; }
+trap 'rm -f "$payload_file"' EXIT
+printf '%s' "$payload" >"$payload_file"
 
 if [ "$TEST" = 1 ]; then
     # 7. Verzamelde gegevens tonen
@@ -995,9 +1000,12 @@ if [ "$TEST" = 1 ]; then
 
     # 8. Echt rapport versturen
     resp=$(curl "${curl_k[@]}" -m 20 -X POST -H "Content-Type: application/json" -H "X-Agent-Token: $TOKEN" \
-        --data "$payload" -w '\n%{http_code}' "${MONITOR_URL%/}/api.php?action=agent" 2>&1 || true)
+        --data-binary "@$payload_file" -w '\n%{http_code}' "${MONITOR_URL%/}/api.php?action=agent" 2>&1)
+    r_rc=$?
     r_code=${resp##*$'\n'}; r_body=${resp%$'\n'*}
-    if [ "$r_code" = 200 ] && [[ "$r_body" == *'"ok":true'* ]]; then
+    if [ -z "$resp" ]; then
+        fail "Rapport niet verstuurd: curl stopte zonder uitvoer (exitcode $r_rc, rapport $(wc -c <"$payload_file") bytes)"
+    elif [ "$r_code" = 200 ] && [[ "$r_body" == *'"ok":true'* ]]; then
         pass "Rapport ontvangen door RzMon: $r_body"
         echo
         echo "  Alles werkt. Zie je in RzMon toch niets? Klap de server open → 'Agent Manager':"
@@ -1011,7 +1019,7 @@ fi
 resp=$(curl "${curl_opts[@]}" \
     -H "Content-Type: application/json" \
     -H "X-Agent-Token: $TOKEN" \
-    --data "$payload" \
+    --data-binary "@$payload_file" \
     "${MONITOR_URL%/}/api.php?action=agent")
 rc=$?
 printf '%s\n' "$resp"

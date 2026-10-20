@@ -2,6 +2,9 @@
 
 Deze add-on heeft hetzelfde versienummer als RzMon. Het volledige overzicht staat in de [CHANGELOG van RzMon](https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md).
 
+## 1.27.1
+- Het rapport gaat nu via een tijdelijk bestand naar RzMon in plaats van als lange tekst (oplossing voor TrueNAS; voor de add-on verandert er niets merkbaars).
+
 ## 1.27.0
 - Geen wijzigingen aan de agent.
 

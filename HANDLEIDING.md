@@ -975,6 +975,37 @@ Klik op 📈 voor de grafiek van het aantal treffers en de **laatste 5 gevonden 
 
 ---
 
+### 8.9 TrueNAS
+**TrueNAS SCALE** (Linux) kan de agent draaien, maar niet met het gewone installatiecommando: TrueNAS staat geen eigen bestanden in `/usr` toe, en wat je in `/etc` zet verdwijnt bij een TrueNAS-update. Zet de agent daarom op je pool en laat TrueNAS hem starten:
+
+1. Voeg in RzMon een server toe met type **Remote met agent** en kopieer het token uit de *Agent Manager*.
+2. Open in TrueNAS de **Shell** (als root) en vervang `tank` door de naam van je pool:
+   ```bash
+   mkdir -p /mnt/tank/rzmon-agent
+   curl -fsSL "http://RZMON-ADRES/api.php?action=agent_script" -o /mnt/tank/rzmon-agent/rzmon-agent.sh
+   cat > /mnt/tank/rzmon-agent/agent.conf <<'EOF'
+   MONITOR_URL="http://RZMON-ADRES"
+   TOKEN="HET_TOKEN"
+   INSECURE="0"
+   EOF
+   chmod 600 /mnt/tank/rzmon-agent/agent.conf
+   ```
+   Let op de aanhalingstekens: gebruik gewone `"`, geen krul-aanhalingstekens (`”`). Die ontstaan makkelijk bij kopiëren vanaf een Mac of telefoon.
+3. Testen:
+   ```bash
+   bash -c 'set -a; . /mnt/tank/rzmon-agent/agent.conf; bash /mnt/tank/rzmon-agent/rzmon-agent.sh --test'
+   ```
+4. In TrueNAS: **System Settings → Advanced → Cron Jobs → Add**:
+   - *Command:* `bash -c 'set -a; . /mnt/tank/rzmon-agent/agent.conf; bash /mnt/tank/rzmon-agent/rzmon-agent.sh'`
+   - *Run As User:* `root`, *Schedule:* Custom `* * * * *` (elke minuut)
+   - zet **Hide Standard Output** en **Hide Standard Error** aan, anders krijg je elke minuut een mail.
+
+Goed om te weten:
+- **Bijwerken:** de knop *⬆ Agents bijwerken* werkt hier niet. Voer de `curl`-regel uit stap 2 opnieuw uit.
+- **Disks:** je pools staan onder `/mnt/…`, bijvoorbeeld een diskcheck op `/mnt/tank`.
+- **Apps:** TrueNAS SCALE 24.10 en nieuwer gebruikt Docker; de agent kent alleen Podman, dus apps worden niet gemeld.
+- **TrueNAS CORE** (FreeBSD) kan de agent niet draaien. Voeg hem toe als **Remote** met ping, poorten (445 SMB, 2049 NFS, 22 SSH) en HTTP(S) op de webinterface.
+
 ## 9. Agent op Home Assistant OS
 
 Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De agent draait daarom als **add-on**.
