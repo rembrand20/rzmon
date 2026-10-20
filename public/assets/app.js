@@ -429,7 +429,7 @@ function hostParts(h) {
 function hostDetail(h, lines = null) {
   const agentInfo = h.mode === 'agent'
     ? `<span class="muted small">Agent: ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}</span>
-       <button class="btn need-admin" data-act="agent" data-id="${h.id}">Agent installeren</button>` : '';
+       <button class="btn need-admin" data-act="agent" data-id="${h.id}">Agent Manager</button>` : '';
   return `
     <div class="host-detail">
       <div class="detail-bar">
@@ -1233,7 +1233,7 @@ function agentInstructions(h) {
   const scriptUrl = location.origin + location.pathname.replace(/\/[^/]*$/, '') + '/api.php?action=agent_script';
   const installCmd = `curl -fsSL '${base}/api.php?action=agent_install' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}'`;
   modal({
-    title: `Agent installeren – ${h.name}`,
+    title: `Agent Manager – ${h.name}`,
     wide: true,
     body: `
       <div class="agent-live" id="agent-live"><span class="muted">Status ophalen…</span></div>

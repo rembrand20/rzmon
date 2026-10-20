@@ -5,7 +5,7 @@
 #
 # Linux-server:
 #   sudo install -m 755 rzmon-agent.sh /usr/local/bin/rzmon-agent.sh
-#   Zet MONITOR_URL, TOKEN, SERVICES en CERTS in /etc/default/rzmon-agent (zie "Agent installeren" in de webinterface)
+#   Zet MONITOR_URL, TOKEN, SERVICES en CERTS in /etc/default/rzmon-agent (zie "Agent Manager" in de webinterface)
 #   echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh >/dev/null 2>&1' | sudo tee /etc/cron.d/rzmon-agent
 #   Vereist: bash, curl, df, systemctl, ss (iproute2); voor certificaten: openssl
 #
@@ -17,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.21.1"
+AGENT_VERSION="1.21.2"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -171,7 +171,7 @@ if [ "$TEST" = 1 ]; then
         pass "Token geldig voor server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$tk_body") (RzMon ziet dit IP: $(sed -n 's/.*"your_ip":"\([^"]*\)".*/\1/p' <<<"$tk_body"))"
     elif [ "$tk_code" = 403 ]; then
         fail "Token geweigerd: $(sed -n 's/.*"reason":"\([^"]*\)".*/\1/p' <<<"$tk_body")"
-        hint "Kopieer het commando opnieuw uit RzMon (server → Agent installeren) en voer het uit"
+        hint "Kopieer het commando opnieuw uit RzMon (server → Agent Manager) en voer het uit"
         rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$
         stop
     elif [ "$old_rzmon" = 1 ]; then
@@ -943,7 +943,7 @@ if [ "$TEST" = 1 ]; then
     if [ "$r_code" = 200 ] && [[ "$r_body" == *'"ok":true'* ]]; then
         pass "Rapport ontvangen door RzMon: $r_body"
         echo
-        echo "  Alles werkt. Zie je in RzMon toch niets? Klap de server open → 'Agent installeren':"
+        echo "  Alles werkt. Zie je in RzMon toch niets? Klap de server open → 'Agent Manager':"
         echo "  daar staat wanneer het laatste rapport binnenkwam en vanaf welk IP."
     else
         fail "Rapport niet geaccepteerd (HTTP $r_code): ${r_body:0:200}"

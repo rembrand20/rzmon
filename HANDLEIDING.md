@@ -631,7 +631,7 @@ Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-
 
 ### 8.1 Installeren met één commando
 1. Voeg in RzMon een server toe met type **Remote met agent**.
-2. Klap de server open en klik op **Agent installeren** → tabblad **🐧 Linux-server**. Klik op **Kopieer** bij het commando; daarin staan het adres van RzMon en het token van deze server al ingevuld:
+2. Klap de server open en klik op **Agent Manager** → tabblad **🐧 Linux-server**. Klik op **Kopieer** bij het commando; daarin staan het adres van RzMon en het token van deze server al ingevuld:
    ```bash
    curl -fsSL 'http://192.168.1.10/api.php?action=agent_install' | sudo bash -s -- --url 'http://192.168.1.10' --token '<token>'
    ```
@@ -670,7 +670,7 @@ Opnieuw uitvoeren is altijd veilig: wat je niet meegeeft, blijft zoals het was.
 #### 8.2.1 Bijwerken vanuit RzMon ⬆
 Na de eerste installatie (met het commando) werk je de agent bij met een knop:
 
-- **Per server:** klap de server open → **Agent installeren** → **⬆ Bijwerken naar …**. Daar staat ook hoe het afliep.
+- **Per server:** klap de server open → **Agent Manager** → **⬆ Bijwerken naar …**. Daar staat ook hoe het afliep.
 - **Allemaal tegelijk:** *Instellingen → ⬆ Agents bijwerken* → **Alle verouderde agents bijwerken**.
 - **Automatisch:** zet op dezelfde kaart **Agents automatisch bijwerken** aan. Een verouderde agent werkt zichzelf dan bij zonder knop, met hooguit één poging per 6 uur.
 
@@ -708,14 +708,14 @@ Staat een service niet in de lijst (bijvoorbeeld omdat hij uit staat), typ dan z
 - **Gegevens:** CPU, RAM, alle echte mounts, de gekozen services, de luisterende TCP-poorten, de vervaldatum van de gekozen certificaten en, als podman er staat, de containers (8.6).
 - **Netwerk:** de agent stuurt zelf naar RzMon. Op de bewaakte server hoeft dus geen poort open; die server moet RzMon wel kunnen bereiken op de *Basis-URL* uit Setup.
 - **Root:** de agent draait als root om procesnamen bij poorten te zien. De systemd-service is afgeschermd (`ProtectSystem`, `NoNewPrivileges`); de agent leest alleen en schrijft niets.
-- **Token gelekt?** Klik op *Agent installeren* → **↻ Nieuw token** en voer op de server `sudo rzmon-agent-setup --token <nieuw token>` uit.
+- **Token gelekt?** Klik op *Agent Manager* → **↻ Nieuw token** en voer op de server `sudo rzmon-agent-setup --token <nieuw token>` uit.
 - **Foutmeldingen** tijdens het installeren:
   - `403` → het token klopt niet, of de server staat niet op type *Remote met agent*;
   - "kan niet downloaden" → het adres klopt niet, of RzMon is niet bereikbaar vanaf die server;
   - certificaat → `--insecure`.
 
 ### 8.4 Komt er niets binnen? Verbindingstest 🩺
-**In RzMon:** klap de server open → **Agent installeren**. Bovenaan staat een live-status, die elke 5 seconden wordt bijgewerkt:
+**In RzMon:** klap de server open → **Agent Manager**. Bovenaan staat een live-status, die elke 5 seconden wordt bijgewerkt:
 - ✔ **Laatste rapport 12 s geleden vanaf 192.168.1.20**: de agent werkt.
 - ⏳ **Nog geen rapport ontvangen**: er komt niets binnen.
 - **Geweigerde pogingen**, met IP-adres en reden: bijvoorbeeld *onbekend token* of *server staat niet op type 'Remote met agent'*.
@@ -962,7 +962,7 @@ Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De 
 | Poortscan | Luisterende poorten van de host |
 
 ### Installeren
-1. **RzMon:** **＋ Server** → naam "Home Assistant", adres = IP van HA, type **Remote met agent**. Kopieer het token via *Agent installeren*, tabblad **🏠 Home Assistant OS**.
+1. **RzMon:** **＋ Server** → naam "Home Assistant", adres = IP van HA, type **Remote met agent**. Kopieer het token via *Agent Manager*, tabblad **🏠 Home Assistant OS**.
 2. **Add-on toevoegen aan Home Assistant.** Kies één van deze manieren:
    - **Via GitHub (aanbevolen):** *Instellingen → Add-ons → Add-on winkel* → ⋮ → **Repositories** → voeg `https://github.com/rembrand20/rzmon` toe. De repository moet openbaar zijn. Updates van de add-on komen dan vanzelf binnen.
    - **Samba share**-add-on: open `\\homeassistant.local\addons` (Windows) of `smb://homeassistant.local/addons` (Mac) en kopieer daar de map **`rzmon_agent`** uit `ha-addon/` naartoe.
@@ -1152,7 +1152,7 @@ De nummering is *major.minor.patch*:
 - **minor** (1.6 → 1.7): nieuwe functies, volledig compatibel;
 - **major** (1 → 2): er verandert iets waar je zelf iets voor moet doen. Dat staat dan in de changelog.
 
-De agents hebben hetzelfde versienummer. Elke agent geeft zijn versie door, en je ziet die op de servertegel (bijvoorbeeld `agent 1 min geleden · v1.6.0`). Is een agent ouder dan RzMon, dan staat er **⬆** achter. In het venster *Agent installeren* staat dan het commando om hem bij te werken. Met `rzmon-agent.sh --version` zie je de versie op de server zelf.
+De agents hebben hetzelfde versienummer. Elke agent geeft zijn versie door, en je ziet die op de servertegel (bijvoorbeeld `agent 1 min geleden · v1.6.0`). Is een agent ouder dan RzMon, dan staat er **⬆** achter. In het venster *Agent Manager* staat dan het commando om hem bij te werken. Met `rzmon-agent.sh --version` zie je de versie op de server zelf.
 
 ### Bijwerken met het installatiescript (Rocky Linux)
 ```bash
@@ -1343,7 +1343,7 @@ sudo php /var/www/rzmon/install/install.php --rotate-db-password
 | **Service-check: "System has not been booted with systemd"** | RzMon draait in een container zonder systemd. Gebruik dan TCP-checks, of een agent op de host |
 | **HTTP-check: SSL-fout** | Het certificaat is verlopen of self-signed, of het systeem mist CA-certificaten (`sudo apt install ca-certificates`) |
 | **Pushover-test mislukt** | Controleer de user key en het token. De server moet uitgaand `https://api.pushover.net` kunnen bereiken: test met `curl -I https://api.pushover.net` |
-| **Agent rapporteert niet / "Nog geen rapport ontvangen"** | Op de server: `sudo rzmon-agent-setup --test` (§8.4). In RzMon staan bij *Agent installeren* de geweigerde pogingen met reden |
+| **Agent rapporteert niet / "Nog geen rapport ontvangen"** | Op de server: `sudo rzmon-agent-setup --test` (§8.4). In RzMon staan bij *Agent Manager* de geweigerde pogingen met reden |
 | **Agent: `403`** | Het token klopt niet, of de server staat niet op type *Remote met agent* |
 | **Agent-checks: "Agent stil sinds …"** | Draait de cron op de agent-server? Kan die server RzMon bereiken? Test het commando uit hoofdstuk 8 |
 | **Agent: "meldt service X niet"** | Werk de agent bij (⬆, 8.2.1); vanaf 1.20.0 bewaakt hij vanzelf elke service waarvoor een check bestaat. Net toegevoegd? Wacht ~2 minuten |

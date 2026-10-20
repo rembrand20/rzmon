@@ -431,7 +431,7 @@ SELinux, cron en de setup werken hetzelfde als bij Apache. De gebruiker blijft `
 
 ## 14. Agent op Rocky Linux-servers
 
-Wil je **andere** Rocky-servers bewaken met de agent (CPU, RAM, disks, services, poorten)? Kopieer in RzMon het commando bij *Agent installeren* en plak het op die server:
+Wil je **andere** Rocky-servers bewaken met de agent (CPU, RAM, disks, services, poorten)? Kopieer in RzMon het commando bij *Agent Manager* en plak het op die server:
 
 ```bash
 curl -fsSL 'http://192.168.1.10/api.php?action=agent_install' | sudo bash -s -- --url 'http://192.168.1.10' --token '<token>'

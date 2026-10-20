@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Agent-rapporten die geweigerd zijn (voor de diagnose in "Agent installeren")
+-- Agent-rapporten die geweigerd zijn (voor de diagnose in "Agent Manager")
 CREATE TABLE IF NOT EXISTS agent_log (
     id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     host_id    INT UNSIGNED NULL,

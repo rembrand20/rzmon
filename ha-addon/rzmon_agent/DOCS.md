@@ -20,7 +20,7 @@ Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon 
 
 ## Installatie
 
-1. **In RzMon:** voeg een server toe met type **Remote met agent** en als adres het IP van je Home Assistant (bv. `192.168.1.20`). Kopieer het **token** uit het venster *Agent installeren*.
+1. **In RzMon:** voeg een server toe met type **Remote met agent** en als adres het IP van je Home Assistant (bv. `192.168.1.20`). Kopieer het **token** uit het venster *Agent Manager*.
 2. **In Home Assistant:** zet deze add-on in de map `/addons` (zie hieronder), ga naar *Instellingen → Add-ons → Add-on winkel*, klik rechtsboven op ⋮ → **Controleren op updates** en installeer **RzMon Agent** onder *Lokale add-ons*.
 3. Tabblad **Configuratie**: vul `monitor_url` (bv. `http://192.168.1.10`) en `token` in en sla op.
 4. **Start** de add-on. Het logboek moet `Verbonden met RzMon ✔` tonen.

@@ -258,7 +258,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
         <div class="card" id="agents-card">
           <h2>⬆ Agents bijwerken</h2>
-          <p class="muted small">Bij een nieuwe versie van RzMon kun je de agents vanaf hier bijwerken: per server in het venster <i>Agent installeren</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzMon op, controleert hem en installeert hem zelf; zijn instellingen blijven staan. De eerste installatie gaat met het commando op de server.</p>
+          <p class="muted small">Bij een nieuwe versie van RzMon kun je de agents vanaf hier bijwerken: per server in het venster <i>Agent Manager</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzMon op, controleert hem en installeert hem zelf; zijn instellingen blijven staan. De eerste installatie gaat met het commando op de server.</p>
           <p class="small" id="agents-status">…</p>
           <button type="button" class="btn" id="agents-update-all" hidden>⬆ Alle verouderde agents bijwerken</button>
           <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="agent_auto_update"><span></span> Agents automatisch bijwerken</label>

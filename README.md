@@ -143,7 +143,7 @@ Bij agent-servers zie je ook de **luisterende poorten volgens de agent** (via `s
 > Scan alleen je eigen servers. Op sommige netwerken (hosting, bedrijfsnetwerk) kan een poortscan als aanval worden gezien.
 
 ### Agent op remote servers
-Voeg in de webinterface een server toe met type **Remote met agent** en klik *Agent installeren* — je krijgt de kant-en-klare commando's met het token. Welke services bewaakt worden, kies je daarna in RzMon (＋ Check → Service, uit een lijst van de server). Kort gezegd:
+Voeg in de webinterface een server toe met type **Remote met agent** en klik *Agent Manager* — je krijgt de kant-en-klare commando's met het token. Welke services bewaakt worden, kies je daarna in RzMon (＋ Check → Service, uit een lijst van de server). Kort gezegd:
 
 ```bash
 sudo install -m 755 rzmon-agent.sh /usr/local/bin/rzmon-agent.sh

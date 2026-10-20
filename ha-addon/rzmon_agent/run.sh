@@ -15,7 +15,7 @@ export MONITOR_URL TOKEN INSECURE CERTS
 
 if [ -z "$TOKEN" ] || [ -z "$MONITOR_URL" ]; then
     log "FOUT: vul 'monitor_url' en 'token' in op het tabblad Configuratie."
-    log "Het token vind je in RzMon bij de server (type 'Remote met agent') → 'Agent installeren'."
+    log "Het token vind je in RzMon bij de server (type 'Remote met agent') → 'Agent Manager'."
     exit 1
 fi
 if [ -z "${SUPERVISOR_TOKEN:-}" ]; then

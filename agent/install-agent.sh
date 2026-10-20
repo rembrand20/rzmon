@@ -3,7 +3,7 @@
 #  RzMon agent – installatiescript voor Linux-servers
 #  (Rocky/RHEL/AlmaLinux/Fedora, Debian/Ubuntu/Raspberry Pi OS, Proxmox VE)
 #
-#  Het makkelijkst: kopieer het commando uit RzMon (server → "Agent installeren"):
+#  Het makkelijkst: kopieer het commando uit RzMon (server → "Agent Manager"):
 #    curl -fsSL http://RZMON/api.php?action=agent_install | sudo bash -s -- --url http://RZMON --token TOKEN
 #
 #  Wat het doet:
@@ -60,7 +60,7 @@ RzMon agent installeren
 Gebruik: sudo bash install-agent.sh --url URL --token TOKEN [opties]
 
   --url URL            Adres van RzMon, bv. http://192.168.1.10
-  --token TOKEN        Agent-token van deze server (RzMon → server → "Agent installeren")
+  --token TOKEN        Agent-token van deze server (RzMon → server → "Agent Manager")
   --services "a b c"   (verouderd) Extra systemd-services; services kies je nu in RzMon
   --certs "a b c"      Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op
                        internet, bv. "/etc/letsencrypt/live/*/cert.pem localhost:8443 site.nl"
@@ -164,7 +164,7 @@ INTERVAL=${INTERVAL:-60}
 # ----------------------------------------------------------------- verbindingstest
 if [ "$MODE" = "test" ]; then
     [ -f "$CONF" ] || die "Nog geen agent geïnstalleerd ($CONF ontbreekt)."
-    [ -x "$BIN" ] || die "$BIN ontbreekt. Installeer opnieuw (commando uit RzMon → Agent installeren)."
+    [ -x "$BIN" ] || die "$BIN ontbreekt. Installeer opnieuw (commando uit RzMon → Agent Manager)."
     printf '%sRzMon agent – planning%s\n' "$C_HEAD" "$C_OFF"
     if has_systemd && [ -f "$TIMER" ]; then
         if [ "$(systemctl is-active rzmon-agent.timer 2>/dev/null)" = "active" ]; then
@@ -215,8 +215,8 @@ if [ -z "$URL" ]; then
     URL=$(ask "Adres van RzMon (bv. http://192.168.1.10)" "")
 fi
 if [ -z "$TOKEN" ]; then
-    interactive || die "Geef het agent-token mee: --token … (RzMon → server → Agent installeren)"
-    TOKEN=$(ask "Agent-token (RzMon → server → Agent installeren)" "")
+    interactive || die "Geef het agent-token mee: --token … (RzMon → server → Agent Manager)"
+    TOKEN=$(ask "Agent-token (RzMon → server → Agent Manager)" "")
 fi
 URL=${URL%/}
 URL=${URL%/api.php*}
@@ -448,7 +448,7 @@ ${C_OK}✔ De agent is geïnstalleerd en rapporteert elke ${INTERVAL}s aan ${URL
   Services         : kies je in RzMon (＋ Check → Service)
   Certificaten     : sudo rzmon-agent-setup --certs "/pad/cert.pem site.nl:443 …"
   Verbinding testen: sudo rzmon-agent-setup --test
-  Agent bijwerken : knop in RzMon (Agent installeren → Bijwerken), of sudo rzmon-agent-setup --update
+  Agent bijwerken : knop in RzMon (Agent Manager → Bijwerken), of sudo rzmon-agent-setup --update
   Verwijderen     : sudo rzmon-agent-setup --uninstall
 
 EOF
