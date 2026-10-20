@@ -1,7 +1,7 @@
 name: RzMon Agent
-version: "1.7.0"
+version: "1.8.0"
 slug: rzmon_agent
-description: Stuurt CPU, RAM, diskruimte, add-on status, updates en poorten van Home Assistant naar RzMon
+description: Stuurt CPU, RAM, diskruimte, add-on status, updates, poorten en certificaten van Home Assistant naar RzMon
 url: https://github.com/rembrand20/rzmon
 arch:
   - aarch64
@@ -17,13 +17,20 @@ hassio_role: default
 homeassistant_api: true
 # Nodig om de luisterende poorten van de host te zien
 host_network: true
+# Certificaten in /ssl (bv. van de Let's Encrypt- of DuckDNS-add-on) alleen lezen
+map:
+  - ssl
 options:
   monitor_url: "http://192.168.1.10"
   token: ""
   interval: 60
   verify_ssl: true
+  certs:
+    - /ssl/fullchain.pem
 schema:
   monitor_url: url
   token: password
   interval: int(30,3600)
   verify_ssl: bool
+  certs:
+    - str

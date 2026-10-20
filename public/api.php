@@ -106,6 +106,20 @@ if ($action === 'agent') {
         }
         $st->execute([$host['id'], 'ports', json_encode($ports), $now]);
     }
+    // Certificaten (bestanden of host:poort) die de agent heeft uitgelezen
+    foreach (array_slice((array) ($in['certs'] ?? []), 0, 100) as $c) {
+        $src = trim((string) ($c['source'] ?? ''));
+        if ($src === '' || mb_strlen($src) > 180) {
+            continue;
+        }
+        $st->execute([$host['id'], 'cert:' . $src, json_encode([
+            'cn' => mb_substr((string) ($c['cn'] ?? ''), 0, 200),
+            'issuer' => mb_substr((string) ($c['issuer'] ?? ''), 0, 200),
+            'not_after' => isset($c['not_after']) && is_numeric($c['not_after']) ? (int) $c['not_after'] : null,
+            'verify' => isset($c['verify']) ? mb_substr((string) $c['verify'], 0, 120) : null,
+            'error' => mb_substr((string) ($c['error'] ?? ''), 0, 200),
+        ], JSON_UNESCAPED_UNICODE), $now]);
+    }
     foreach (($in['services'] ?? []) as $name => $state) {
         $st->execute([$host['id'], mb_substr('service:' . $name, 0, 190), mb_substr((string) $state, 0, 255), $now]);
     }
@@ -114,6 +128,7 @@ if ($action === 'agent') {
     q('UPDATE hosts SET agent_seen = ?, agent_ip = ?, agent_version = ? WHERE id = ?', [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $host['id']]);
     out(['ok' => true, 'host' => $host['name'], 'rzmon_version' => RZMON_VERSION, 'received' => [
         'disks' => count($in['disks'] ?? []), 'services' => count($in['services'] ?? []), 'ports' => count($in['ports'] ?? []),
+        'certs' => count((array) ($in['certs'] ?? [])),
     ]]);
 }
 
@@ -349,8 +364,9 @@ switch ($action) {
         } elseif ($warn !== null && $crit !== null && $warn > $crit) {
             out(['error' => 'Warning-drempel moet lager zijn dan critical-drempel'], 422);
         }
-        if ($type === 'ssl' && $target !== '' && !preg_match('#^(https?://)?(\[[0-9a-fA-F:]+\]|[A-Za-z0-9.\-]+)(:\d{1,5})?/?$#', $target)) {
-            out(['error' => 'Geef een host op, eventueel met poort: example.com of example.com:8443'], 422);
+        if ($type === 'ssl' && $target !== '' && !preg_match('#^(https?://)?(\[[0-9a-fA-F:]+\]|[A-Za-z0-9.\-]+)(:\d{1,5})?/?$#', $target)
+            && !preg_match('#^/[^\s\'"]+$#', $target)) {
+            out(['error' => 'Geef een host op, eventueel met poort (example.com of example.com:8443), of het pad van een certificaatbestand dat de agent meldt'], 422);
         }
         if (in_array($type, ['ping', 'cpu', 'ram'], true)) {
             $target = '';

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# RzMon agent – rapporteert CPU, RAM, disk usage, luisterende poorten en service-status aan de monitor.
+# RzMon agent – rapporteert CPU, RAM, disk usage, luisterende poorten, service-status en
+# vervaldatums van SSL-certificaten (bestanden en host:poort, ook op internet) aan de monitor.
 #
 # Linux-server:
 #   sudo install -m 755 rzmon-agent.sh /usr/local/bin/rzmon-agent.sh
-#   Zet MONITOR_URL, TOKEN en SERVICES in /etc/default/rzmon-agent (zie "Agent installeren" in de webinterface)
+#   Zet MONITOR_URL, TOKEN, SERVICES en CERTS in /etc/default/rzmon-agent (zie "Agent installeren" in de webinterface)
 #   echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh >/dev/null 2>&1' | sudo tee /etc/cron.d/rzmon-agent
-#   Vereist: bash, curl, df, systemctl, ss (iproute2)
+#   Vereist: bash, curl, df, systemctl, ss (iproute2); voor certificaten: openssl
 #
 # Home Assistant OS / Supervised:
 #   Draait als add-on (map ha-addon/rzmon_agent). Zodra SUPERVISOR_TOKEN bestaat schakelt de agent
@@ -15,7 +16,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.7.0"
+AGENT_VERSION="1.8.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -38,6 +39,12 @@ TOKEN="${TOKEN:-VUL_HIER_HET_TOKEN_IN}"
 SERVICES="${SERVICES:-ssh cron}"
 # INSECURE=1 accepteert een self-signed certificaat van RzMon
 INSECURE="${INSECURE:-0}"
+# Certificaten om te bewaken (spatie-gescheiden): bestanden (wildcards mogen) en/of host:poort,
+# lokaal of op internet, bv. "/etc/letsencrypt/live/*/cert.pem localhost:8443 example.com:443".
+# Niet ingesteld = alle Let's Encrypt-certificaten op deze server; leeg ("") = geen.
+CERTS="${CERTS-/etc/letsencrypt/live/*/cert.pem}"
+# Certificaten veranderen zelden: elk uur opnieuw uitlezen is genoeg (seconden)
+CERT_INTERVAL="${CERT_INTERVAL:-3600}"
 SUPERVISOR_URL="${SUPERVISOR_URL:-http://supervisor}"
 
 HA_MODE=0
@@ -247,8 +254,90 @@ else
     done
 fi
 
+# ---------------------------------------------------------------- Certificaten
+# Per bron: onderwerp (CN), uitgever, vervaldatum (epoch) en of het certificaat vertrouwd wordt.
+# RzMon rekent zelf het aantal dagen uit, dus een uur oude gegevens zijn geen probleem.
+cert_line() {  # bron cn uitgever not_after verify fout
+    printf '{"source":"%s","cn":"%s","issuer":"%s","not_after":%s,"verify":%s,"error":"%s"},' \
+        "$(json_escape "$1")" "$(json_escape "$2")" "$(json_escape "$3")" "${4:-null}" \
+        "$( [ -n "$5" ] && printf '"%s"' "$(json_escape "$5")" || echo null)" "$(json_escape "$6")"
+}
+# Leest een PEM-certificaat van stdin en zet cn, issuer en not_after
+parse_cert() {
+    local info
+    info=$(openssl x509 -noout -enddate -subject -issuer -nameopt RFC2253 2>/dev/null) || return 1
+    not_after=$(date -d "$(sed -n 's/^notAfter=//p' <<<"$info")" +%s 2>/dev/null) || return 1
+    cn=$(sed -n 's/^subject=//p' <<<"$info" | grep -o 'CN=[^,]*' | head -1 | cut -c4-)
+    issuer=$(sed -n 's/^issuer=//p' <<<"$info" | grep -o 'O=[^,]*' | head -1 | cut -c3-)
+    [ -n "$issuer" ] || issuer=$(sed -n 's/^issuer=//p' <<<"$info" | grep -o 'CN=[^,]*' | head -1 | cut -c4-)
+}
+collect_certs() {
+    local entry f host port out code rc
+    for entry in $CERTS; do
+        if [[ "$entry" == /* ]]; then
+            # Bestand(en); een wildcard zonder treffers is geen fout (bv. geen Let's Encrypt)
+            if [[ "$entry" == *[*?[]* ]]; then
+                compgen -G "$entry" >/dev/null || continue
+            fi
+            for f in $entry; do
+                if [ ! -r "$f" ]; then
+                    cert_line "$f" "" "" "" "" "bestand niet gevonden of niet leesbaar"
+                elif parse_cert <"$f"; then
+                    cert_line "$f" "$cn" "$issuer" "$not_after" "" ""
+                else
+                    cert_line "$f" "" "" "" "" "geen geldig certificaat (PEM) in dit bestand"
+                fi
+            done
+        else
+            # host:poort (zonder poort: 443); [IPv6]:poort mag ook
+            entry=${entry#*://}; entry=${entry%%/*}
+            if [[ "$entry" == \[*\]:* ]]; then host=${entry%]:*}; host=${host#[}; port=${entry##*]:}
+            elif [[ "$entry" == *:* && "$entry" != *:*:* ]]; then host=${entry%:*}; port=${entry##*:}
+            else host=${entry#[}; host=${host%]}; port=443; fi
+            local src="$host:$port"
+            [[ "$host" == *:* ]] && src="[$host]:$port"
+            out=$(timeout 15 openssl s_client -connect "$src" -servername "$host" -verify_hostname "$host" </dev/null 2>&1)
+            rc=$?
+            if parse_cert <<<"$out"; then
+                code=$(sed -n 's/^ *Verify return code: \([0-9]*\) (\(.*\))/\1 \2/p' <<<"$out" | tail -1)
+                [ "${code%% *}" = 0 ] && code=ok || code=${code#* }
+                cert_line "$src" "$cn" "$issuer" "$not_after" "${code:-onbekend}" ""
+            else
+                case "$out" in
+                    *"Connection refused"*) out="poort dicht (verbinding geweigerd)" ;;
+                    *"not known"*|*"No address"*|*"nodename nor servname"*) out="naam $host onbekend (DNS)" ;;
+                    *"No route"*|*"unreachable"*) out="server onbereikbaar" ;;
+                    *"wrong version number"*|*"packet length too long"*) out="op deze poort draait geen TLS" ;;
+                    *) [ "$rc" = 124 ] && out="geen antwoord binnen 15 seconden" || out="${out%%$'\n'*}"; out=${out:0:120} ;;
+                esac
+                cert_line "$src" "" "" "" "" "geen TLS-verbinding: $out"
+            fi
+        fi
+    done
+}
+certs=""
+if [ -n "$CERTS" ]; then
+    if ! command -v openssl >/dev/null 2>&1; then
+        certs=$(cert_line "openssl" "" "" "" "" "openssl ontbreekt op deze server (installeer het pakket openssl)")
+    else
+        # Vaste cachemap (systemd: CacheDirectory); /tmp is bij systemd per run leeg (PrivateTmp)
+        cache_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
+        mkdir -p "$cache_dir" 2>/dev/null && [ -w "$cache_dir" ] || cache_dir="${TMPDIR:-/tmp}"
+        cache="$cache_dir/certs.cache"
+        key=$(printf '%s' "$CERTS" | cksum | cut -d' ' -f1)
+        # Cache: regel 1 = sleutel van CERTS, regel 2 = tijdstip, regel 3 = resultaat
+        if [ "$TEST" = 0 ] && [ -r "$cache" ] && [ "$(sed -n 1p "$cache")" = "$key" ] \
+            && [ $(( $(date +%s) - $(sed -n 2p "$cache") )) -lt "$CERT_INTERVAL" ]; then
+            certs=$(sed -n 3p "$cache")
+        else
+            certs=$(collect_certs)
+            (umask 077; printf '%s\n%s\n%s\n' "$key" "$(date +%s)" "$certs" >"$cache") 2>/dev/null || true
+        fi
+    fi
+fi
+
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)
@@ -260,6 +349,19 @@ if [ "$TEST" = 1 ]; then
     pass "Gegevens verzameld: CPU ${cpu_pct}% (${cores} cores), $n_disks disk(s), $n_ports luisterende poort(en)"
     [ -n "$services" ] && hint "Services: $(sed 's/"//g; s/,$//; s/,/, /g' <<<"$services")"
     command -v ss >/dev/null 2>&1 || hint "ss ontbreekt: poorten worden niet gemeld (Rocky: dnf install iproute)"
+    if [ -n "$certs" ]; then
+        n_certs=$(grep -o '"source"' <<<"$certs" | wc -l)
+        pass "Certificaten: $n_certs uitgelezen"
+        while IFS= read -r line; do
+            hint "$line"
+        done < <(sed 's/},{/}\n{/g' <<<"${certs%,}" | sed -E 's/^\{"source":"([^"]*)","cn":"([^"]*)",.*"not_after":([0-9]+|null).*"error":"([^"]*)"\}?,?$/\1|\2|\3|\4/' |
+            while IFS='|' read -r src cn na err; do
+                if [ -n "$err" ]; then echo "✘ $src: $err"
+                else echo "$src: ${cn:-?}, nog $(( (na - $(date +%s)) / 86400 )) dagen geldig"; fi
+            done)
+    elif [ -n "$CERTS" ]; then
+        hint "Certificaten: geen gevonden voor CERTS=\"$CERTS\""
+    fi
 
     # 8. Echt rapport versturen
     resp=$(curl "${curl_k[@]}" -m 20 -X POST -H "Content-Type: application/json" -H "X-Agent-Token: $TOKEN" \

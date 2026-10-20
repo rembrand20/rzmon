@@ -511,7 +511,7 @@ Klik op een serverkaart op **＋**. Per type:
 | Ping | – | Warning 100 ms, critical 500 ms |
 | TCP poort | Poortnummer, bv. `22` | 500 / 2000 ms |
 | HTTP(S) | Volledige URL (`https://site.nl/`) of een pad (`/status`, dan wordt het adres van de server gebruikt) | 1000 / 3000 ms |
-| SSL-certificaat | Host met eventueel een poort: `site.nl`, `nas.lan:5001`, `mqtt.lan:8883`. Leeg = adres van de server op poort 443 | Warning **onder** 21 dagen, critical **onder** 7 dagen |
+| SSL-certificaat | Host met eventueel een poort: `site.nl`, `nas.lan:5001`, `mqtt.lan:8883`. Leeg = adres van de server op poort 443. Bij een agent-server kies je ook uit de certificaten die de agent meldt (§8.5) | Warning **onder** 21 dagen, critical **onder** 7 dagen |
 | Diskruimte | Mount, bv. `/` of `/data`. Bij agent-servers kies je uit een lijst | 80 / 90 %. Plus WARNING als hij binnen 7 dagen vol raakt |
 | Service | systemd-naam, bv. `nginx`. Bij een HA-agent: `homeassistant`, `supervisor`, `updates` of `addon:<slug>` | – |
 | CPU | – | 85 / 95 % |
@@ -633,6 +633,7 @@ Het installatiescript blijft op de server staan als `rzmon-agent-setup`:
 | **Verbinding testen** | `sudo rzmon-agent-setup --test` (zie 8.4) |
 | Status bekijken | `systemctl status rzmon-agent.timer` en `journalctl -u rzmon-agent -n 20` |
 | Services wijzigen | `sudo rzmon-agent-setup --services "sshd nginx mariadb"` |
+| Certificaten wijzigen | `sudo rzmon-agent-setup --certs "/etc/letsencrypt/live/*/cert.pem localhost:8443"` (zie 8.5) |
 | Agent bijwerken | `sudo rzmon-agent-setup --update` (haalt de nieuwste versie van RzMon) |
 | Nieuw token | `sudo rzmon-agent-setup --token <nieuw token>` |
 | Verwijderen | `sudo rzmon-agent-setup --uninstall` |
@@ -640,7 +641,7 @@ Het installatiescript blijft op de server staan als `rzmon-agent-setup`:
 Opnieuw uitvoeren is altijd veilig: wat je niet meegeeft, blijft zoals het was.
 
 ### 8.3 Goed om te weten
-- **Gegevens:** CPU, RAM, alle echte mounts, de gekozen services en de luisterende TCP-poorten.
+- **Gegevens:** CPU, RAM, alle echte mounts, de gekozen services, de luisterende TCP-poorten en de vervaldatum van de gekozen certificaten.
 - **Netwerk:** de agent stuurt zelf naar RzMon. Op de bewaakte server hoeft dus geen poort open; die server moet RzMon wel kunnen bereiken op de *Basis-URL* uit Setup.
 - **Root:** de agent draait als root om procesnamen bij poorten te zien. De systemd-service is afgeschermd (`ProtectSystem`, `NoNewPrivileges`); de agent leest alleen en schrijft niets.
 - **Token gelekt?** Klik op *Agent installeren* → **↻ Nieuw token** en voer op de server `sudo rzmon-agent-setup --token <nieuw token>` uit.
@@ -689,6 +690,34 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
 ```
 </details>
 
+
+### 8.5 Certificaten bewaken 🔒
+Het verloop van certificaten kun je op twee manieren bewaken. Je kunt ze ook combineren.
+
+| | **Zonder agent** (RzMon meet zelf) | **Via de agent** |
+|---|---|---|
+| Wat | Elke TLS-poort die RzMon kan bereiken: servers in je netwerk én op internet | Certificaat**bestanden** op de server, en `host:poort` gezien **vanaf die server** |
+| Handig voor | Websites, NAS, Proxmox, MQTT, mailservers… | Diensten die alleen lokaal luisteren of achter een firewall zitten, Let's Encrypt-certificaten (ook als de dienst plat ligt), en servers die alleen die server kan bereiken |
+| Instellen | Check *SSL-certificaat* met `host` of `host:poort` (of in de poortscan op **＋ Cert**) | `CERTS` op de server, daarna een check *SSL-certificaat* en het certificaat kiezen uit de lijst |
+
+**Wat de agent meldt:** de regel `CERTS` in `/etc/default/rzmon-agent`, met spaties tussen de waarden:
+```bash
+CERTS="/etc/letsencrypt/live/*/cert.pem /etc/pki/tls/certs/mijn.crt localhost:8443 mail.example.com:993 example.com"
+```
+- **Bestanden:** wildcards mogen. Een wildcard zonder treffers is geen fout, dus de standaard werkt ook op servers zonder Let's Encrypt.
+- **host:poort:** zonder poort wordt het 443. De agent maakt een TLS-verbinding vanaf die server; dat werkt ook naar servers op internet.
+- **Standaard:** staat `CERTS` er niet in, dan meldt de agent alle Let's Encrypt-certificaten (`/etc/letsencrypt/live/*/cert.pem`). Met `CERTS=""` meldt hij er geen.
+- **Installatiescript:** stelt bij het installeren zelf voor wat het vindt: Let's Encrypt en lokale poorten zoals 443, 8443, 8006 of 9443.
+- **Wijzigen:** `sudo rzmon-agent-setup --certs "…"`, of het bestand aanpassen met `sudo nano /etc/default/rzmon-agent`.
+- **Hoe vaak:** elk uur. RzMon rekent zelf het aantal dagen uit, dus vaker is niet nodig.
+- **Benodigd:** `openssl`; het installatiescript installeert dat zo nodig.
+
+**In RzMon:** klik bij de server op **＋ Check** en kies *SSL-certificaat*. In het veld *Host[:poort]* verschijnt een lijst met de certificaten die de agent meldt. Een check daarop krijgt "· via agent" in het bericht.
+- *Certificaat controleren* aan: een certificaat dat de agent niet vertrouwt, zoals een self-signed certificaat, wordt CRITICAL.
+- Bij bestanden wordt alleen de vervaldatum bekeken.
+
+**Controleren:** `sudo rzmon-agent-setup --test` toont per certificaat bijvoorbeeld `localhost:8443: nas.lan, nog 63 dagen geldig`, of wat er mis is, zoals "poort dicht" of "bestand niet gevonden".
+
 ---
 
 ## 9. Agent op Home Assistant OS
@@ -719,6 +748,9 @@ Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De 
    token: <token uit RzMon>
    interval: 60
    verify_ssl: true
+   certs:                        # vervaldatum bewaken (optioneel)
+     - /ssl/fullchain.pem        # Let's Encrypt- of DuckDNS-add-on
+     - mijndomein.duckdns.org:443
    ```
    Klik op **Opslaan** en dan op **Starten**. Controleer op het tabblad *Info* dat *Starten bij opstarten* aan staat.
 5. **Logboek:** daar moet `Verbonden met RzMon ✔` staan.
@@ -726,6 +758,7 @@ Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De 
    - Service `homeassistant`, `supervisor` en `updates`
    - Service `addon:...` voor elke add-on die altijd moet draaien, zoals Mosquitto, Zigbee2MQTT of Z-Wave JS
    - Diskruimte `/data` (80/90%), CPU, RAM
+   - SSL-certificaat: kies `/ssl/fullchain.pem` uit de lijst (zie §8.5)
    - Bij de server ook een **ping-check** en een **TCP-check op poort 8123**. Die werken los van de agent.
 
 ### Goed om te weten

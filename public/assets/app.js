@@ -10,7 +10,7 @@ const TYPES = {
   ping:    { label: 'Ping',          target: null,            unit: 'ms', warn: 100, crit: 500, help: 'Gemiddelde responstijd van 3 pings. Geen antwoord = CRITICAL.' },
   tcp:     { label: 'TCP poort',     target: 'Poort',         unit: 'ms', warn: 500, crit: 2000, ph: '22', help: 'Controleert of de poort open staat (bv. 22 SSH, 3306 MariaDB, 443 HTTPS).' },
   http:    { label: 'HTTP(S)',       target: 'URL of pad',    unit: 'ms', warn: 1000, crit: 3000, ph: 'https://example.com/ of /status', help: 'HTTP status ≥ 400 = CRITICAL. SSL-certificaat < 14 dagen = WARNING (voor eigen drempels: gebruik de check SSL-certificaat).' },
-  ssl:     { label: 'SSL-certificaat', target: 'Host[:poort]', unit: 'dagen', warn: 21, crit: 7, low: true, ph: 'example.com of nas.lan:5001', help: 'Waarschuwt als het certificaat bijna verloopt. Leeg = adres van de server op poort 443. Werkt op elke TLS-poort (8443, 993, 8883…).' },
+  ssl:     { label: 'SSL-certificaat', target: 'Host[:poort]', unit: 'dagen', warn: 21, crit: 7, low: true, ph: 'example.com of nas.lan:5001', help: 'Waarschuwt als het certificaat bijna verloopt. Leeg = adres van de server op poort 443. Werkt op elke TLS-poort (8443, 993, 8883…), ook op internet. Bij een agent-server kun je ook kiezen uit de certificaten die de agent meldt (bestanden en adressen gezien vanaf die server).' },
   disk:    { label: 'Diskruimte',    target: 'Mount / pad',   unit: '%',  warn: 80, crit: 90, ph: '/', help: 'Percentage gebruikt. Op agent-servers: mount zoals de agent meldt.' },
   cpu:     { label: 'CPU',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'CPU-gebruik gemeten over 2 seconden, met load average in het bericht. Tip: zet "alarm na N fouten" op 3+ om korte pieken te negeren.' },
   ram:     { label: 'RAM',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'Percentage geheugen in gebruik (op basis van MemAvailable, dus cache telt niet mee). Swap staat in het bericht.' },
@@ -602,6 +602,7 @@ function checkForm(c, h) {
   const allowed = h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl'] : Object.keys(TYPES);
   const disks = h.metrics.filter((m) => m.startsWith('disk:')).map((m) => m.slice(5));
   const svcs = h.metrics.filter((m) => m.startsWith('service:')).map((m) => m.slice(8));
+  const certs = h.metrics.filter((m) => m.startsWith('cert:')).map((m) => m.slice(5));
 
   const { form } = modal({
     title: isNew ? `Check toevoegen – ${h.name}` : `Check bewerken – ${c.name}`,
@@ -648,7 +649,7 @@ function checkForm(c, h) {
     words[1].textContent = t.low ? 'Critical onder' : 'Critical vanaf';
     $('#verify-wrap').hidden = !['http', 'ssl'].includes(typeSel.value);
     $('[name=target]', form).required = !!t.target && !['http', 'ssl'].includes(typeSel.value);
-    const list = typeSel.value === 'disk' ? disks : typeSel.value === 'service' ? svcs : [];
+    const list = { disk: disks, service: svcs, ssl: certs }[typeSel.value] || [];
     $('#target-list').innerHTML = list.map((v) => `<option value="${esc(v)}">`).join('');
     if (setDefaults) {
       $('[name=warn_threshold]', form).value = t.warn ?? '';
@@ -772,11 +773,15 @@ async function runScan(h) {
   out.innerHTML = '<p class="scan-summary">⏳ Bezig met scannen…</p>';
   try {
     const r = await api('port_scan', { host_id: h.id, preset: $('#scan-preset').value, ports: $('#scan-ports').value });
+    const certMon = new Set(h.checks.filter((c) => c.type === 'ssl').map((c) => +((c.target || '').match(/:(\d+)\/?$/) || [0, 443])[1]));
     const row = (p, extra = '') => {
       const mon = r.monitored.includes(+p.port);
+      const tls = TLS_PORTS.includes(+p.port);
       return `<tr><td class="num">${p.port}</td><td>${esc(p.service || '–')}</td>${extra}
-        <td style="text-align:right">${mon ? '<span class="muted small">✓ bewaakt</span>'
-          : `<button type="button" class="btn" data-port="${p.port}" data-service="${esc(p.service || '')}">＋ Check</button>`}</td></tr>`;
+        <td style="text-align:right;white-space:nowrap">${mon ? '<span class="muted small">✓ bewaakt</span>'
+          : `<button type="button" class="btn" data-port="${p.port}" data-service="${esc(p.service || '')}">＋ Check</button>`}
+          ${tls ? (certMon.has(+p.port) ? ' <span class="muted small">✓ cert</span>'
+            : ` <button type="button" class="btn" data-cert="${p.port}" title="Certificaat bewaken (vervaldatum)">＋ Cert</button>`) : ''}</td></tr>`;
     };
     let html = `<p class="scan-summary">${r.open.length} open van ${r.scanned} gescande poorten · ${r.seconds}s</p>`;
     html += r.open.length
@@ -798,7 +803,34 @@ async function runScan(h) {
   btn.disabled = false;
 }
 
+// Poorten waarop meestal TLS draait: daar kan direct een certificaatcheck bij
+const TLS_PORTS = [443, 465, 636, 853, 990, 993, 995, 1443, 2083, 2087, 3269, 4443, 5001, 5986, 6443, 7443, 8006, 8443, 8883, 8920, 9443, 10443];
+
+/** Adres in het eigen netwerk? Daar zijn self-signed certificaten gewoon, dus niet streng controleren. */
+function isLocalAddress(a) {
+  return /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|\[?f[cd]|\[?::1)/i.test(a)
+    || !a.includes('.') || /\.(lan|local|home|box|internal|localdomain|home\.arpa)$/i.test(a);
+}
+
+async function addCertCheck(b, h) {
+  b.disabled = true;
+  const port = +b.dataset.cert;
+  try {
+    await api('check_save', { host_id: h.id, type: 'ssl', target: port === 443 ? '' : `${h.address}:${port}`,
+      name: port === 443 ? 'Certificaat' : `Certificaat ${port}`, warn_threshold: TYPES.ssl.warn, crit_threshold: TYPES.ssl.crit,
+      interval_sec: 3600, enabled: true, verify_ssl: !isLocalAddress(h.address) });
+    b.outerHTML = '<span class="muted small">✓ cert</span>';
+    toast(`Certificaatcheck op poort ${port} toegevoegd${isLocalAddress(h.address) ? ' (lokaal adres: certificaatcontrole uit, i.v.m. self-signed)' : ''}`);
+    refresh();
+  } catch (ex) {
+    toast(ex.message, 'err');
+    b.disabled = false;
+  }
+}
+
 async function addPortCheck(e, h) {
+  const cb = e.target.closest('[data-cert]');
+  if (cb) return addCertCheck(cb, h);
   const b = e.target.closest('[data-port]');
   if (!b) return;
   b.disabled = true;
@@ -865,12 +897,13 @@ sudo tee /etc/default/rzmon-agent &gt;/dev/null &lt;&lt;'EOF'
 MONITOR_URL="${esc(base)}"
 TOKEN="${esc(h.agent_token || '')}"
 SERVICES="ssh cron nginx mariadb"
+CERTS="/etc/letsencrypt/live/*/cert.pem localhost:8443"
 EOF
 sudo chmod 600 /etc/default/rzmon-agent
 echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh &gt;/dev/null 2&gt;&amp;1' | sudo tee /etc/cron.d/rzmon-agent
 # Testen:
 sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'</pre>
-      <p class="muted small">Pas <code>SERVICES</code> aan naar de services die je wilt bewaken. Na de eerste rapportage kun je bij "Check toevoegen" de mounts en services uit een lijst kiezen.</p>
+      <p class="muted small"><code>CERTS</code>: certificaatbestanden en/of <code>host:poort</code> (ook op internet) waarvan de agent de vervaldatum meldt. Pas <code>SERVICES</code> aan naar de services die je wilt bewaken. Na de eerste rapportage kun je bij "Check toevoegen" de mounts en services uit een lijst kiezen.</p>
       </details>
       </div>`,
     buttons: [

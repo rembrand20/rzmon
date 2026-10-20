@@ -14,6 +14,7 @@ Laat [RzMon](https://github.com/rembrand20/rzmon) je Home Assistant-systeem bewa
 | **Service `addon:<slug>`** | Draait een add-on? (bv. `addon:core_mosquitto`, `addon:a0d7b954_nodered`) |
 | **Service `updates`** | WARNING als er een update is voor Core, Supervisor, OS of een add-on |
 | **Poortscan** | Luisterende poorten van de host (zonder procesnamen) |
+| **SSL-certificaat** | Vervaldatum van de certificaten uit de optie `certs`, bv. `/ssl/fullchain.pem` of `mijndomein.duckdns.org:443` |
 
 Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon zet de checks dan na een paar minuten op **CRITICAL**: precies het moment waarop je een melding wilt die *niet* via Home Assistant zelf loopt.
 
@@ -38,6 +39,7 @@ Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon 
 | `token` | Agent-token van deze server in RzMon |
 | `interval` | Seconden tussen rapportages (30-3600, standaard 60) |
 | `verify_ssl` | Uitzetten bij een self-signed certificaat |
+| `certs` | Certificaten waarvan RzMon de vervaldatum bewaakt: bestanden in `/ssl` (standaard `/ssl/fullchain.pem`, van de Let's Encrypt- of DuckDNS-add-on) en/of `host:poort`, ook op internet, bv. `mijndomein.duckdns.org:443`. Kies ze in RzMon bij een check van het type *SSL-certificaat* |
 
 ## Tips
 

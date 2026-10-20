@@ -140,23 +140,29 @@ final class Checks
     /**
      * SSL/TLS-certificaat: hoeveel dagen is het nog geldig? Drempels zijn hier "minder dan":
      * warning onder X dagen, critical onder Y dagen. Werkt op elke TLS-poort (443, 8443, 993, 8883…).
+     * Op een agent-server komen certificaten die de agent meldt (bestanden, of host:poort gezien
+     * vanaf die server) van de agent; al het andere meet RzMon zelf via het netwerk.
      */
     private static function ssl(array $check, array $host): array
     {
         $target = trim($check['target']) ?: $host['address'];
-        $target = preg_replace('#^[a-z]+://#i', '', $target);
-        $target = explode('/', $target, 2)[0];
-        if (preg_match('/^\[(.+)\](?::(\d+))?$/', $target, $m)) {           // [IPv6]:poort
-            [$name, $port] = [$m[1], (int) ($m[2] ?? 443)];
-        } elseif (substr_count($target, ':') === 1) {
-            [$name, $port] = explode(':', $target);
-            $port = (int) $port;
-        } else {
-            [$name, $port] = [$target, 443];
+        if ($host['mode'] === 'agent' && $host['id']) {
+            // De agent meldt bestanden met hun pad en adressen als host:poort
+            $hp = $target[0] === '/' ? null : self::hostPort($target);
+            $metric = $target[0] === '/' ? "cert:$target" : ($hp ? 'cert:' . self::fmtHostPort($hp) : null);
+            if ($metric !== null && ($raw = self::agentMetric($host, $metric)) !== null) {
+                return self::agentSsl($check, $host, json_decode($raw, true) ?: []);
+            }
+            if ($target[0] === '/') {
+                return ($stale = self::agentStale($host)) ? $stale
+                    : self::result(STATUS_UNKNOWN, null, "Agent meldt certificaat $target niet (staat het in CERTS op de server?)");
+            }
         }
-        if ($name === '' || $port < 1 || $port > 65535) {
+        $hp = self::hostPort($target);
+        if ($hp === null) {
             return self::result(STATUS_UNKNOWN, null, 'Ongeldig adres; gebruik host of host:poort');
         }
+        [$name, $port] = $hp;
         $verify = (int) ($check['verify_ssl'] ?? 1) === 1;
 
         $fetch = static function (bool $verify) use ($name, $port): array {
@@ -164,8 +170,7 @@ final class Checks
                 'capture_peer_cert' => true, 'verify_peer' => $verify, 'verify_peer_name' => $verify,
                 'allow_self_signed' => !$verify, 'SNI_enabled' => true, 'peer_name' => $name,
             ]]);
-            $remote = 'ssl://' . (str_contains($name, ':') ? "[$name]" : $name) . ":$port";
-            $fp = @stream_socket_client($remote, $errno, $errstr, 10, STREAM_CLIENT_CONNECT, $ctx);
+            $fp = @stream_socket_client('ssl://' . self::fmtHostPort([$name, $port]), $errno, $errstr, 10, STREAM_CLIENT_CONNECT, $ctx);
             if (!$fp) {
                 $err = error_get_last()['message'] ?? $errstr;
                 return [null, $errstr ?: $err];
@@ -187,12 +192,35 @@ final class Checks
         if (!$info) {
             return self::result(STATUS_CRIT, null, "Geen TLS-verbinding met $name:$port" . ($err ? ': ' . trim(preg_replace('/^.*?: /', '', $err)) : ''));
         }
-
-        $days = ($info['validTo_time_t'] - time()) / 86400;
-        $cn = $info['subject']['CN'] ?? '?';
         $issuer = $info['issuer']['O'] ?? ($info['issuer']['CN'] ?? '?');
-        $msg = sprintf('%s geldig tot %s (%s) · %s', $cn, date('d-m-Y', $info['validTo_time_t']),
-            $days < 0 ? 'VERLOPEN' : 'nog ' . (int) floor($days) . ' dagen', is_array($issuer) ? implode(', ', $issuer) : $issuer);
+        return self::certResult($check, (int) $info['validTo_time_t'], (string) ($info['subject']['CN'] ?? '?'),
+            is_array($issuer) ? implode(', ', $issuer) : (string) $issuer, $invalid);
+    }
+
+    /** Certificaat zoals de agent het meldt. */
+    private static function agentSsl(array $check, array $host, array $d): array
+    {
+        if ($stale = self::agentStale($host)) {
+            return $stale;
+        }
+        if (($d['error'] ?? '') !== '' || empty($d['not_after'])) {
+            return self::result(STATUS_CRIT, null, 'Agent: ' . ($d['error'] ?: 'geen certificaatgegevens'));
+        }
+        $invalid = null;
+        if ((int) ($check['verify_ssl'] ?? 1) === 1 && isset($d['verify']) && $d['verify'] !== 'ok') {
+            $invalid = 'certificaat niet vertrouwd (' . $d['verify'] . ')';
+        }
+        $r = self::certResult($check, (int) $d['not_after'], (string) ($d['cn'] ?: '?'), (string) ($d['issuer'] ?: '?'), $invalid);
+        $r['message'] .= ' · via agent';
+        return $r;
+    }
+
+    /** Status bij een vervaldatum: dagen-drempels ("onder"), verlopen of ongeldig = CRITICAL. */
+    private static function certResult(array $check, int $notAfter, string $cn, string $issuer, ?string $invalid): array
+    {
+        $days = ($notAfter - time()) / 86400;
+        $msg = sprintf('%s geldig tot %s (%s) · %s', $cn, date('d-m-Y', $notAfter),
+            $days < 0 ? 'VERLOPEN' : 'nog ' . (int) floor($days) . ' dagen', $issuer);
 
         $status = STATUS_OK;
         if ($days < 0) {
@@ -204,9 +232,30 @@ final class Checks
         }
         if ($invalid) {
             $status = STATUS_CRIT;
-            $msg = "Ongeldig: $invalid (self-signed? zet 'certificaat controleren' uit) · $msg";
+            $msg = "Ongeldig: $invalid — bewust self-signed? Zet dan 'certificaat controleren' uit · $msg";
         }
         return self::result($status, floor($days * 10) / 10, $msg);  // afronden naar beneden, net als de tekst
+    }
+
+    /** "host", "host:poort", "[ipv6]:poort" of een URL → [host, poort], of null. */
+    private static function hostPort(string $target): ?array
+    {
+        $target = preg_replace('#^[a-z]+://#i', '', trim($target));
+        $target = explode('/', $target, 2)[0];
+        if (preg_match('/^\[(.+)\](?::(\d+))?$/', $target, $m)) {
+            [$name, $port] = [$m[1], (int) ($m[2] ?? 443)];
+        } elseif (substr_count($target, ':') === 1) {
+            [$name, $port] = explode(':', $target);
+            $port = (int) $port;
+        } else {
+            [$name, $port] = [$target, 443];
+        }
+        return $name === '' || $port < 1 || $port > 65535 ? null : [$name, $port];
+    }
+
+    private static function fmtHostPort(array $hp): string
+    {
+        return (str_contains($hp[0], ':') ? "[{$hp[0]}]" : $hp[0]) . ':' . $hp[1];
     }
 
     private static function localDisk(array $check): array

@@ -15,7 +15,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 | Ping | Reageert de server? (3 pings) | gemiddelde ms — 100% verlies = CRITICAL |
 | TCP poort | Draait een dienst op poort X (SSH, MariaDB, SMTP…) | connect-tijd ms |
 | HTTP(S) | Website/API bereikbaar, status < 400, SSL-cert geldig | responstijd ms |
-| SSL-certificaat | Dagen dat een certificaat nog geldig is (elke TLS-poort) | dagen — warning **onder** 21, critical **onder** 7 |
+| SSL-certificaat | Dagen dat een certificaat nog geldig is: elke TLS-poort in je netwerk of op internet, of via de agent (certificaatbestanden en lokale poorten, `CERTS`) | dagen — warning **onder** 21, critical **onder** 7 |
 | Diskruimte | % gebruikt per mount + voorspelling "vol over ~N dagen" | % gebruikt; vol binnen 7 dagen = WARNING |
 | Service | systemd-service `active`? | — (niet actief = CRITICAL) |
 | CPU | CPU-gebruik over 2 sec + load average | % gebruik |

@@ -11,3 +11,6 @@ configuration:
   verify_ssl:
     name: SSL-certificaat controleren
     description: Uitzetten als RzMon een self-signed certificaat gebruikt.
+  certs:
+    name: Certificaten
+    description: Certificaten waarvan RzMon de vervaldatum bewaakt. Bestanden in /ssl (bv. /ssl/fullchain.pem) en/of host:poort, ook op internet (bv. homeassistant.local:8123 of mijndomein.duckdns.org:443).

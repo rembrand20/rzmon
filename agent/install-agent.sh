@@ -27,6 +27,8 @@ SETUP="/usr/local/sbin/rzmon-agent-setup"   # dit script, voor later --update/--
 URL=""
 TOKEN=""
 SERVICES=""
+CERTS=""
+CERTS_SET=0           # --certs meegegeven (ook leeg = geen certificaten)
 INSECURE=""
 INTERVAL=""
 SCHED="auto"          # auto | systemd | cron
@@ -55,6 +57,9 @@ Gebruik: sudo bash install-agent.sh --url URL --token TOKEN [opties]
   --url URL            Adres van RzMon, bv. http://192.168.1.10
   --token TOKEN        Agent-token van deze server (RzMon → server → "Agent installeren")
   --services "a b c"   Te bewaken systemd-services (standaard: automatisch voorstel)
+  --certs "a b c"      Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op
+                       internet, bv. "/etc/letsencrypt/live/*/cert.pem localhost:8443 site.nl"
+                       (standaard: automatisch voorstel; "" = geen)
   --interval SEC       Rapporteren elke … seconden (30-3600, standaard 60)
   --insecure           Self-signed HTTPS-certificaat van RzMon accepteren
   --cron               Cron gebruiken in plaats van een systemd-timer
@@ -73,6 +78,7 @@ while [ $# -gt 0 ]; do
         --url) URL="${2:?}"; shift ;;
         --token) TOKEN="${2:?}"; shift ;;
         --services) SERVICES="${2-}"; shift ;;
+        --certs) CERTS="${2-}"; CERTS_SET=1; shift ;;
         --interval) INTERVAL="${2:?}"; shift ;;
         --insecure) INSECURE=1 ;;
         --cron) SCHED="cron" ;;
@@ -116,6 +122,7 @@ if [ "$MODE" = "uninstall" ]; then
         systemctl daemon-reload
     fi
     rm -f "$CRON" "$BIN" "$SETUP"
+    rm -rf /var/cache/rzmon-agent
     if [ -f "$CONF" ]; then
         if interactive && [ "$(ask 'Ook de instellingen (URL en token) verwijderen? j/n' 'j')" != "n" ]; then
             rm -f "$CONF"
@@ -132,12 +139,16 @@ if [ -f "$CONF" ]; then
     # In een subshell inlezen: alleen deze variabelen overnemen
     # shellcheck disable=SC1090
     eval "$(set -a; . "$CONF" >/dev/null 2>&1
-            printf 'OLD_URL=%q OLD_TOKEN=%q OLD_SERVICES=%q OLD_INSECURE=%q OLD_INTERVAL=%q\n' \
-                "${MONITOR_URL-}" "${TOKEN-}" "${SERVICES-}" "${INSECURE-}" "${INTERVAL-}")"
+            printf 'OLD_URL=%q OLD_TOKEN=%q OLD_SERVICES=%q OLD_INSECURE=%q OLD_INTERVAL=%q OLD_CERTS=%q OLD_CERTS_SET=%q\n' \
+                "${MONITOR_URL-}" "${TOKEN-}" "${SERVICES-}" "${INSECURE-}" "${INTERVAL-}" "${CERTS-}" "${CERTS+1}")"
     URL=${URL:-$OLD_URL}
     INTERVAL=${INTERVAL:-$OLD_INTERVAL}
     TOKEN=${TOKEN:-$OLD_TOKEN}
     [ -n "$SERVICES" ] || SERVICES=$OLD_SERVICES
+    if [ "$CERTS_SET" = 0 ] && [ "$OLD_CERTS_SET" = 1 ]; then
+        CERTS=$OLD_CERTS
+        CERTS_SET=1
+    fi
     INSECURE=${INSECURE:-$OLD_INSECURE}
 fi
 INSECURE=${INSECURE:-0}
@@ -217,6 +228,7 @@ for p in dnf yum apt-get zypper apk; do
 done
 need=()
 command -v curl >/dev/null 2>&1 || need+=(curl)
+command -v openssl >/dev/null 2>&1 || need+=(openssl)   # vervaldatum van certificaten
 if ! command -v ss >/dev/null 2>&1; then
     case "$pm" in dnf|yum) need+=(iproute) ;; *) need+=(iproute2) ;; esac
 fi
@@ -236,7 +248,8 @@ if [ ${#need[@]} -gt 0 ]; then
     esac
 fi
 command -v curl >/dev/null 2>&1 || die "curl ontbreekt"
-ok "curl$(command -v ss >/dev/null 2>&1 && echo ', ss') aanwezig"
+ok "curl$(command -v ss >/dev/null 2>&1 && echo ', ss')$(command -v openssl >/dev/null 2>&1 && echo ', openssl') aanwezig"
+command -v openssl >/dev/null 2>&1 || warn "openssl ontbreekt: certificaten worden niet gemeld"
 command -v ss >/dev/null 2>&1 || warn "ss ontbreekt: luisterende poorten worden niet gemeld"
 
 # ----------------------------------------------------------------- 2. agent ophalen
@@ -290,6 +303,29 @@ if [ "$MODE" = "install" ]; then
     fi
     [[ "$SERVICES" =~ ^[A-Za-z0-9@._:\ -]*$ ]] || die "Ongeldige servicenaam in: $SERVICES"
     ok "${SERVICES:-geen services} "
+
+    info ""
+    info "Certificaten om te bewaken (vervaldatum):"
+    if [ "$CERTS_SET" = 0 ]; then
+        # Voorstel: Let's Encrypt-certificaten en lokale poorten waarop meestal TLS draait
+        proposal=()
+        compgen -G "/etc/letsencrypt/live/*/cert.pem" >/dev/null && proposal+=("/etc/letsencrypt/live/*/cert.pem")
+        tls_ports=" 443 465 636 853 993 995 2083 5001 5986 6443 8006 8443 8883 8920 9443 10443 "
+        if command -v ss >/dev/null 2>&1; then
+            for port in $(ss -Htln 2>/dev/null | awk '{ p = $4; sub(/.*:/, "", p); print p }' | sort -un); do
+                [[ "$tls_ports" == *" $port "* ]] && proposal+=("localhost:$port")
+            done
+        fi
+        CERTS="${proposal[*]}"
+        info "Gevonden: ${CERTS:-(geen)}"
+    fi
+    if interactive; then
+        info "Bestanden (wildcards mogen) en/of host:poort, ook servers op internet (bv. example.com:443)."
+        CERTS=$(ask "Certificaten (spatie-gescheiden, Enter = akkoord, - = geen)" "$CERTS")
+        [ "$CERTS" = "-" ] && CERTS=""
+    fi
+    [[ "$CERTS" =~ ^[][A-Za-z0-9@._:/*?\ -]*$ ]] || die "Ongeldig teken in --certs: $CERTS"
+    ok "${CERTS:-geen certificaten}"
 fi
 
 # ----------------------------------------------------------------- 4. instellingen + planning
@@ -301,6 +337,8 @@ if [ "$MODE" = "install" ]; then
 MONITOR_URL="$URL"
 TOKEN="$TOKEN"
 SERVICES="$SERVICES"
+# Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op internet
+CERTS="$CERTS"
 INSECURE="$INSECURE"
 INTERVAL="$INTERVAL"
 EOF
@@ -328,6 +366,7 @@ ExecStart=$BIN
 Nice=10
 NoNewPrivileges=yes
 PrivateTmp=yes
+CacheDirectory=rzmon-agent
 ProtectSystem=full
 ProtectHome=read-only
 EOF
@@ -388,10 +427,12 @@ cat <<EOF
 ${C_OK}✔ De agent is geïnstalleerd en rapporteert elke ${INTERVAL}s aan ${URL}.${C_OFF}
 
   Volgende stap in RzMon: klik bij deze server op ＋ en voeg checks toe:
-  CPU, RAM, Diskruimte (kies een mount) en Service (kies uit: ${SERVICES:-–}).
+  CPU, RAM, Diskruimte (kies een mount), Service (kies uit: ${SERVICES:-–})
+  en SSL-certificaat (kies uit: ${CERTS:-–}).
 
   Status bekijken : $( [ "$use_systemd" -eq 1 ] && echo "systemctl status rzmon-agent.timer; journalctl -u rzmon-agent -n 20" || echo "grep rzmon /var/log/cron* 2>/dev/null" )
   Services wijzigen: sudo rzmon-agent-setup --services "sshd nginx …"   (of: sudo nano $CONF)
+  Certificaten     : sudo rzmon-agent-setup --certs "/pad/cert.pem site.nl:443 …"
   Verbinding testen: sudo rzmon-agent-setup --test
   Agent bijwerken : sudo rzmon-agent-setup --update
   Verwijderen     : sudo rzmon-agent-setup --uninstall

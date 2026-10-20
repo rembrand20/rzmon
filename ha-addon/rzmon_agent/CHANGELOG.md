@@ -2,6 +2,9 @@
 
 Deze add-on heeft hetzelfde versienummer als RzMon. Het volledige overzicht staat in de [CHANGELOG van RzMon](https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md).
 
+## 1.8.0
+- Nieuwe optie `certs`: vervaldatum van certificaten in `/ssl` (standaard `/ssl/fullchain.pem`) en/of `host:poort` doorgeven aan RzMon.
+
 ## 1.7.0
 - Geen wijzigingen aan de agent; zelfde versienummer als RzMon 1.7.0.
 

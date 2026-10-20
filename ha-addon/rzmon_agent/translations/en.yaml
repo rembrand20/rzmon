@@ -11,3 +11,6 @@ configuration:
   verify_ssl:
     name: Verify SSL certificate
     description: Disable when RzMon uses a self-signed certificate.
+  certs:
+    name: Certificates
+    description: Certificates whose expiry date RzMon monitors. Files in /ssl (e.g. /ssl/fullchain.pem) and/or host:port, also on the internet (e.g. homeassistant.local:8123 or mydomain.duckdns.org:443).

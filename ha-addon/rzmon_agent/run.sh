@@ -9,7 +9,9 @@ MONITOR_URL=$(jq -r '.monitor_url // empty' "$OPTIONS")
 TOKEN=$(jq -r '.token // empty' "$OPTIONS")
 INTERVAL=$(jq -r '.interval // 60' "$OPTIONS")
 INSECURE=$(jq -r 'if .verify_ssl == false then 1 else 0 end' "$OPTIONS")
-export MONITOR_URL TOKEN INSECURE
+# Certificaten: bestanden in /ssl en/of host:poort (ook op internet)
+CERTS=$(jq -r '(.certs // []) | join(" ")' "$OPTIONS")
+export MONITOR_URL TOKEN INSECURE CERTS
 
 if [ -z "$TOKEN" ] || [ -z "$MONITOR_URL" ]; then
     log "FOUT: vul 'monitor_url' en 'token' in op het tabblad Configuratie."
