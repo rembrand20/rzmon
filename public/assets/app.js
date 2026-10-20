@@ -17,7 +17,7 @@ const TYPES = {
   podman:  { label: 'Podman (algemeen)', target: null, unit: null, help: 'Algehele status van Podman op deze server: draait podman, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.' },
   container: { label: 'Container (Podman)', target: 'Container', unit: null, ph: 'naam, of gebruiker/naam (rootless)', help: 'Eén container: kies hieronder wat je wilt meten. Kies de naam uit de lijst die de agent meldt.' },
   log:     { label: 'Logbestand (zoeken)', target: 'Bron', unit: 'treffers', warn: 5, crit: 20, ph: '/var/log/secure, journal, journal:sshd of kernel', help: 'De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.' },
-  service: { label: 'Service',       target: 'Servicenaam',   unit: null, ph: 'nginx', help: 'De systemd-service moet "active" zijn. Op agent-servers zet je de service in SERVICES van de agent; daar wordt met Diepere controle ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.' },
+  service: { label: 'Service',       target: 'Servicenaam',   unit: null, ph: 'nginx', help: 'De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.' },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
 const LOG_PRESETS = {
@@ -781,6 +781,10 @@ function checkForm(c, h, preset = {}) {
         <span class="hint" id="metric-help"></span>
       </label>
       <datalist id="target-list"></datalist>
+      <div id="svc-pick-wrap" hidden>
+        <div class="svc-pick-head"><span class="hint" id="svc-pick-info">Services op deze server ophalen…</span></div>
+        <div class="svc-pick" id="svc-pick" role="listbox"></div>
+      </div>
       <label>Naam <span class="hint">(optioneel)</span><input name="name" value="${esc(c.name)}"></label>
       <div class="row3" id="thr-wrap">
         <label><span class="thr-word">Warning vanaf</span> <span class="hint unit"></span><input name="warn_threshold" type="number" step="any" value="${c.warn_threshold ?? ''}"></label>
@@ -853,12 +857,48 @@ function checkForm(c, h, preset = {}) {
     $('#log-wrap').hidden = typeSel.value !== 'log';
     $('[name=pattern]', form).required = typeSel.value === 'log';
     $('#target-list').innerHTML = list.map((v) => `<option value="${esc(v)}">`).join('');
+    $('#svc-pick-wrap').hidden = !(typeSel.value === 'service' && h.mode === 'agent' && svcList);
+    if (typeSel.value === 'service' && h.mode === 'agent') renderSvcPick();
     if (setDefaults) {
       $('[name=warn_threshold]', form).value = t.warn ?? '';
       $('[name=crit_threshold]', form).value = t.crit ?? '';
       if (setDefaults !== 'metric') $('[name=target]', form).value = typeSel.value === 'disk' ? '/' : '';
     }
   };
+  // Servicekiezer (agent-servers): alle services op de server, met status; filtert op wat je typt
+  let svcList = null;
+  const watched = new Set((h.checks || []).filter((x) => x.type === 'service' && (!c.id || +x.id !== +c.id)).map((x) => x.target));
+  const renderSvcPick = () => {
+    if (!svcList) return;
+    const q = $('[name=target]', form).value.trim().toLowerCase();
+    const rows = svcList.filter(([n]) => !q || n.toLowerCase().includes(q));
+    const label = { active: 'actief', failed: 'mislukt', inactive: 'uit', activating: 'start op', deactivating: 'stopt' };
+    $('#svc-pick').innerHTML = rows.length ? rows.map(([n, st, en]) => `
+      <button type="button" class="svc-item${$('[name=target]', form).value === n ? ' sel' : ''}" data-svc="${esc(n)}" ${watched.has(n) ? 'disabled' : ''}>
+        <span class="svc-dot ${st === 'active' ? 'ok' : st === 'failed' ? 'crit' : 'off'}"></span>
+        <span class="mono">${esc(n)}</span>
+        <span class="hint">${esc(label[st] || st)}${en ? '' : ' · start niet automatisch'}${watched.has(n) ? ' · wordt al bewaakt' : ''}</span>
+      </button>`).join('') : `<p class="hint">Geen service gevonden${q ? ` met "${esc(q)}"` : ''}. Je kunt de naam ook zelf typen.</p>`;
+    $('#svc-pick-info').textContent = `${svcList.length} services op ${h.name} (die aan staan of draaien). Klik om te kiezen; de agent bewaakt hem dan vanzelf. Staat hij er niet bij, typ dan de naam.`;
+  };
+  if (h.mode === 'agent') {
+    api('agent_services', null, { id: h.id }).then((r) => {
+      if (!r.list) { $('#svc-pick-info').textContent = 'Deze agent stuurt nog geen lijst met services (bijwerken naar de nieuwste versie). Typ de naam zelf.'; }
+      svcList = r.list || [];
+      update(false);
+      $('#svc-pick-wrap').hidden = !(typeSel.value === 'service');
+      if (!r.list) $('#svc-pick').innerHTML = '';
+    }).catch(() => {});
+    $('#svc-pick').onclick = (e) => {
+      const b = e.target.closest('[data-svc]');
+      if (!b) return;
+      const name = $('[name=name]', form);
+      if (!name.value || name.value === $('[name=target]', form).value) name.value = b.dataset.svc;
+      $('[name=target]', form).value = b.dataset.svc;
+      renderSvcPick();
+    };
+    $('[name=target]', form).addEventListener('input', () => { if (typeSel.value === 'service') renderSvcPick(); });
+  }
   typeSel.onchange = () => update(true);
   metricSel.onchange = () => update('metric');
   $('[name=test_type]', form).onchange = () => update(false);
@@ -1193,14 +1233,13 @@ verify_ssl: true</pre>
 sudo tee /etc/default/rzmon-agent &gt;/dev/null &lt;&lt;'EOF'
 MONITOR_URL="${esc(base)}"
 TOKEN="${esc(h.agent_token || '')}"
-SERVICES="ssh cron nginx mariadb"
 CERTS="/etc/letsencrypt/live/*/cert.pem localhost:8443"
 EOF
 sudo chmod 600 /etc/default/rzmon-agent
 echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh &gt;/dev/null 2&gt;&amp;1' | sudo tee /etc/cron.d/rzmon-agent
 # Testen:
 sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'</pre>
-      <p class="muted small"><code>CERTS</code>: certificaatbestanden en/of <code>host:poort</code> (ook op internet) waarvan de agent de vervaldatum meldt. Pas <code>SERVICES</code> aan naar de services die je wilt bewaken. Na de eerste rapportage kun je bij "Check toevoegen" de mounts en services uit een lijst kiezen.</p>
+      <p class="muted small"><code>CERTS</code>: certificaatbestanden en/of <code>host:poort</code> (ook op internet) waarvan de agent de vervaldatum meldt. Services kies je na de eerste rapportage hier bij "Check toevoegen" uit een lijst van de server; de agent bewaakt ze dan vanzelf.</p>
       </details>
       </div>`,
     buttons: [

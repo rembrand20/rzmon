@@ -17,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.19.0"
+AGENT_VERSION="1.20.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -36,8 +36,9 @@ fi
 
 MONITOR_URL="${MONITOR_URL:-http://rzmon.example.lan}"
 TOKEN="${TOKEN:-VUL_HIER_HET_TOKEN_IN}"
-# Spatie-gescheiden lijst met systemd services om te controleren (niet gebruikt in HA-modus)
-SERVICES="${SERVICES:-ssh cron}"
+# Welke services bewaakt worden, stel je in RzMon in (service-check toevoegen). SERVICES is verouderd,
+# maar werkt nog: services in deze spatie-gescheiden lijst worden óók gemeld (niet gebruikt in HA-modus).
+SERVICES="${SERVICES-}"
 # INSECURE=1 accepteert een self-signed certificaat van RzMon
 INSECURE="${INSECURE:-0}"
 # Certificaten om te bewaken (spatie-gescheiden): bestanden (wildcards mogen) en/of host:poort,
@@ -273,6 +274,31 @@ if command -v ss >/dev/null 2>&1; then
     }')
 fi
 
+# Wat in RzMon is ingesteld: welke services bewaakt worden (service-checks), extra tests (URL/poort),
+# de eigen poorten of sockets van een service en de logzoekopdrachten. De lijst wordt elke 10 minuten
+# bij RzMon opgehaald, en meteen als RzMon meldt dat er iets veranderd is (tests_rev in het antwoord).
+# Er worden nooit commando's van RzMon uitgevoerd: alleen de status van services wordt opgevraagd.
+declare -A manual_ports=()
+rz_services=""
+if [ "$HA_MODE" = 0 ]; then
+    t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
+    mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
+    t_cache="$t_dir/tests.cache"
+    if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
+        t_k=(); [ "$INSECURE" = 1 ] && t_k=(-k)
+        if t_list=$(curl -fsS "${t_k[@]}" -m 10 -H "X-Agent-Token: $TOKEN" "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null); then
+            (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null || true
+        fi
+    fi
+    # Regels "id <tab> ports <tab> service <tab> 8080 127.0.0.1:9000 /run/x.sock" en "id <tab> svc <tab> service"
+    [ -r "$t_cache" ] && while IFS=$'\t' read -r _ t_type t_target t_expect; do
+        [ "$t_type" = ports ] && manual_ports["$t_target"]+=" $t_expect"
+        [ "$t_type" = svc ] && [[ "$t_target" =~ ^[A-Za-z0-9@._:-]+$ ]] && rz_services+=" $t_target"
+    done <"$t_cache"
+fi
+# Te bewaken services: die met een service-check in RzMon, plus (verouderd) SERVICES uit de instellingen
+svc_all=$(printf '%s\n' $SERVICES $rz_services | awk 'NF && !seen[$0]++' | tr '\n' ' ')
+
 # ---------------------------------------------------------------- Services
 services=""
 if [ "$HA_MODE" = 1 ]; then
@@ -305,10 +331,22 @@ if [ "$HA_MODE" = 1 ]; then
         services+="\"updates\":\"active\","
     fi
 else
-    for s in $SERVICES; do
+    for s in $svc_all; do
         state=$(systemctl is-active "$s" 2>/dev/null)
         services+="\"$(json_escape "$s")\":\"$(json_escape "${state:-unknown}")\","
     done
+fi
+
+# Overzicht van de services op deze server (aan bij het opstarten, of draaiend), om in RzMon uit te kiezen.
+# Formaat: [naam, status, enabled]
+svc_list=""
+if [ "$HA_MODE" = 0 ] && command -v systemctl >/dev/null 2>&1; then
+    svc_list=$({ systemctl list-unit-files --type=service --no-legend --no-pager 2>/dev/null | awk '{ print "F", $1, $2 }'
+                 systemctl list-units --type=service --all --no-legend --no-pager --plain 2>/dev/null | awk '{ print "U", $1, $3 }'; } |
+        awk '$2 ~ /\.service$/ && $2 !~ /@\.service$/ { n = $2; sub(/\.service$/, "", n)
+                 if ($1 == "F") en[n] = $3; else st[n] = $3; names[n] = 1 }
+             END { for (n in names) if (en[n] == "enabled" || st[n] == "active" || (st[n] == "failed" && en[n] != "disabled"))
+                       printf "[\"%s\",\"%s\",%d],", n, (n in st ? st[n] : "inactive"), en[n] == "enabled" }' 2>/dev/null)
 fi
 
 # ---------------------------------------------------------------- Services: diepere controle
@@ -397,32 +435,13 @@ probe_service() {  # probe_service naam "poort|adres …" → zet probe, probe_r
             else probe_rc=1; probe_msg="tijd is niet gesynchroniseerd"; fi ;;
     esac
 }
-# Wat in RzMon bij service-checks is ingesteld: extra tests (URL/poort) en de eigen poorten of
-# sockets van een service. De lijst wordt elke 10 minuten bij RzMon opgehaald; er worden nooit
-# commando's van RzMon uitgevoerd.
-declare -A manual_ports=()
-if [ "$HA_MODE" = 0 ]; then
-    t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
-    mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
-    t_cache="$t_dir/tests.cache"
-    if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
-        t_k=(); [ "$INSECURE" = 1 ] && t_k=(-k)
-        if t_list=$(curl -fsS "${t_k[@]}" -m 10 -H "X-Agent-Token: $TOKEN" "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null); then
-            (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null || true
-        fi
-    fi
-    # Regels "id <tab> ports <tab> service <tab> 8080 127.0.0.1:9000 /run/x.sock"
-    [ -r "$t_cache" ] && while IFS=$'\t' read -r _ t_type t_target t_expect; do
-        [ "$t_type" = ports ] && manual_ports["$t_target"]+=" $t_expect"
-    done <"$t_cache"
-fi
 sock_open() {  # sock_open pad → 0 = neemt verbindingen aan, 1 = niet, 2 = geen antwoord binnen 3 s
     [ -S "$1" ] || return 1
     curl -s -m 3 --unix-socket "$1" -o /dev/null http://localhost/ 2>/dev/null
     case $? in 7) return 1 ;; 28) return 2 ;; *) return 0 ;; esac   # 7 = geen verbinding; overige = verbonden
 }
 
-if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "$SERVICES" ] && command -v systemctl >/dev/null 2>&1; then
+if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "${svc_all// /}" ] && command -v systemctl >/dev/null 2>&1; then
     # Alle luisterende TCP-poorten met de bijbehorende PID's: "poort|adres|pid pid …"
     listen_map=""
     command -v ss >/dev/null 2>&1 && listen_map=$(ss -Htlnp 2>/dev/null | awk '{
@@ -431,7 +450,7 @@ if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "$SERVICES" ] && comma
         while (match(s, /pid=[0-9]+/)) { pids = pids " " substr(s, RSTART + 4, RLENGTH - 4); s = substr(s, RSTART + RLENGTH) }
         print port "|" addr "|" pids }')
     read -r up_s _ < /proc/uptime
-    for s in $SERVICES; do
+    for s in $svc_all; do
         info=$(systemctl show -p ActiveState -p SubState -p Type -p MainPID -p NRestarts -p ActiveEnterTimestampMonotonic -p ControlGroup "$s" 2>/dev/null)
         get() { sed -n "s/^$1=//p" <<<"$info"; }
         [ "$(get ActiveState)" = active ] || { svc_detail+="\"$(json_escape "$s")\":{\"sub\":\"$(json_escape "$(get SubState)")\"},"; continue; }
@@ -845,7 +864,7 @@ remote_update() {  # remote_update <antwoord van RzMon>
 }
 
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"svc_list\":[${svc_list%,}],\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)
@@ -924,6 +943,11 @@ printf '%s\n' "$resp"
 if [ "$rc" -eq 0 ]; then
     # Uitkomst is doorgegeven; vraagt RzMon om bij te werken?
     [ -n "$upd_result" ] && rm -f "$upd_dir/update.result"
+    # Instellingen in RzMon gewijzigd (bv. een service-check toegevoegd)? Lijst bij de volgende run opnieuw ophalen.
+    rev=$(sed -n 's/.*"tests_rev":[[:space:]]*"\([0-9a-f]\{8,64\}\)".*/\1/p' <<<"$resp")
+    if [ -n "$rev" ] && [ -n "${t_cache-}" ] && [ -r "$t_cache" ] && [ "$(sha1sum "$t_cache" | cut -c1-12)" != "$rev" ]; then
+        rm -f "$t_cache"
+    fi
     [[ "$resp" =~ \"update\":[[:space:]]*\{ ]] && remote_update "$resp"
 fi
 exit "$rc"

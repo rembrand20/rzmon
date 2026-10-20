@@ -437,15 +437,11 @@ Wil je **andere** Rocky-servers bewaken met de agent (CPU, RAM, disks, services,
 curl -fsSL 'http://192.168.1.10/api.php?action=agent_install' | sudo bash -s -- --url 'http://192.168.1.10' --token '<token>'
 ```
 
-Het script installeert zelf wat ontbreekt (`iproute`), stelt de draaiende services voor en zet een systemd-timer aan. Zie [HANDLEIDING.md, hoofdstuk 8](HANDLEIDING.md#8-agent-op-linux-servers).
+Het script installeert zelf wat ontbreekt (`iproute`) en zet een systemd-timer aan. Zie [HANDLEIDING.md, hoofdstuk 8](HANDLEIDING.md#8-agent-op-linux-servers).
 
 - **SELinux:** geen aanpassingen nodig. De agent draait als systemd-service en maakt alleen een uitgaande verbinding naar RzMon.
 - **Firewall:** geen poort nodig op de agent-server, want de agent stuurt zelf naar RzMon.
-- **Interessante services** om in `SERVICES` te zetten, bijvoorbeeld:
-  ```
-  SERVICES="sshd crond firewalld chronyd httpd mariadb php-fpm"
-  ```
-  Let op: op Rocky heet de SSH-dienst **`sshd`**, niet `ssh` zoals op Debian.
+- **Services** kies je in RzMon (＋ Check → Service), uit een lijst van de server. Interessant op Rocky: `sshd`, `crond`, `firewalld`, `chronyd`, `httpd`, `mariadb`, `php-fpm`. Let op: op Rocky heet de SSH-dienst **`sshd`**, niet `ssh` zoals op Debian.
 
 ---
 

@@ -527,7 +527,10 @@ final class Checks
         }
         $state = self::agentMetric($host, 'service:' . $check['target']);
         if ($state === null) {
-            return self::result(STATUS_UNKNOWN, null, "Agent meldt service {$check['target']} niet (staat hij in SERVICES?)");
+            $v = (string) ($host['agent_version'] ?? '');
+            return self::result(STATUS_UNKNOWN, null, $v !== '' && version_compare($v, '1.20.0', '>=')
+                ? "Agent heeft service {$check['target']} nog niet gemeld (gebeurt binnen ~2 minuten na het toevoegen)"
+                : "Agent meldt service {$check['target']} niet: werk de agent bij (⬆), dan bewaakt hij de services die je hier kiest");
         }
         $base = self::serviceResult($check['target'], $state);
         $opt = json_decode((string) ($check['options'] ?? ''), true) ?: [];

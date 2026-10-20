@@ -61,7 +61,7 @@ Gebruik: sudo bash install-agent.sh --url URL --token TOKEN [opties]
 
   --url URL            Adres van RzMon, bv. http://192.168.1.10
   --token TOKEN        Agent-token van deze server (RzMon → server → "Agent installeren")
-  --services "a b c"   Te bewaken systemd-services (standaard: automatisch voorstel)
+  --services "a b c"   (verouderd) Extra systemd-services; services kies je nu in RzMon
   --certs "a b c"      Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op
                        internet, bv. "/etc/letsencrypt/live/*/cert.pem localhost:8443 site.nl"
                        (standaard: automatisch voorstel; "" = geen)
@@ -288,28 +288,16 @@ fi
 
 # ----------------------------------------------------------------- 3. services
 if [ "$MODE" = "install" ]; then
-    step "3/5 Services om te bewaken"
-    if [ -z "$SERVICES" ] && has_systemd; then
-        # Voorstel: bekende services die op deze server aan staan
-        candidates="sshd ssh cron crond nginx httpd apache2 mariadb mysql postgresql redis redis-server docker containerd
-                    php-fpm php8.3-fpm php8.2-fpm firewalld chronyd systemd-timesyncd NetworkManager smbd nmbd nfs-server
-                    named bind9 unbound pihole-FTL dnsmasq haproxy caddy traefik mosquitto influxdb grafana-server
-                    prometheus node_exporter zabbix-agent2 fail2ban postfix dovecot pveproxy pvedaemon pve-cluster corosync
-                    libvirtd qemu-guest-agent wg-quick@wg0 openvpn-server@server tailscaled cloudflared"
-        found=()
-        for s in $candidates; do
-            if [ "$(systemctl is-enabled "$s" 2>/dev/null)" = "enabled" ]; then
-                found+=("$s")
-            fi
-        done
-        SERVICES="${found[*]}"
-        info "Gevonden: ${SERVICES:-(geen bekende services)}"
-    fi
-    if interactive; then
-        SERVICES=$(ask "Te bewaken services (spatie-gescheiden, Enter = akkoord)" "$SERVICES")
-    fi
+    step "3/5 Wat bewaken"
+    # Services kies je in RzMon (＋ Check → Service): de agent stuurt een lijst van de services op deze
+    # server mee en bewaakt vanzelf wat je daar kiest. --services werkt nog (verouderd).
     [[ "$SERVICES" =~ ^[A-Za-z0-9@._:\ -]*$ ]] || die "Ongeldige servicenaam in: $SERVICES"
-    ok "${SERVICES:-geen services} "
+    if [ -n "$SERVICES" ]; then
+        ok "Services (uit --services of de oude instellingen): $SERVICES"
+        info "Tip: services kies je voortaan in RzMon; deze lijst is niet meer nodig."
+    else
+        ok "Services kies je straks in RzMon (＋ Check → Service), uit een lijst van deze server"
+    fi
 
     info ""
     info "Certificaten om te bewaken (vervaldatum):"
@@ -343,6 +331,7 @@ if [ "$MODE" = "install" ]; then
 # RzMon agent – aangemaakt door install-agent.sh op $(date '+%Y-%m-%d %H:%M')
 MONITOR_URL="$URL"
 TOKEN="$TOKEN"
+# Services stel je in RzMon in (＋ Check → Service). SERVICES is verouderd: wat hier staat wordt ook gemeld.
 SERVICES="$SERVICES"
 # Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op internet
 CERTS="$CERTS"
@@ -452,11 +441,11 @@ cat <<EOF
 ${C_OK}✔ De agent is geïnstalleerd en rapporteert elke ${INTERVAL}s aan ${URL}.${C_OFF}
 
   Volgende stap in RzMon: klik bij deze server op ＋ en voeg checks toe:
-  CPU, RAM, Diskruimte (kies een mount), Service (kies uit: ${SERVICES:-–})
-  en SSL-certificaat (kies uit: ${CERTS:-–}).
+  CPU, RAM, Diskruimte (kies een mount), Service (kies uit de lijst van deze server;
+  de agent bewaakt hem dan vanzelf) en SSL-certificaat (kies uit: ${CERTS:-–}).
 
   Status bekijken : $( [ "$use_systemd" -eq 1 ] && echo "systemctl status rzmon-agent.timer; journalctl -u rzmon-agent -n 20" || echo "grep rzmon /var/log/cron* 2>/dev/null" )
-  Services wijzigen: sudo rzmon-agent-setup --services "sshd nginx …"   (of: sudo nano $CONF)
+  Services         : kies je in RzMon (＋ Check → Service)
   Certificaten     : sudo rzmon-agent-setup --certs "/pad/cert.pem site.nl:443 …"
   Verbinding testen: sudo rzmon-agent-setup --test
   Agent bijwerken : knop in RzMon (Agent installeren → Bijwerken), of sudo rzmon-agent-setup --update

@@ -635,15 +635,14 @@ Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-
 3. Plak het op de server die je wilt bewaken. Het script:
    - installeert wat ontbreekt (`curl`, `ss`);
    - haalt de agent op **van je eigen RzMon**, dus het werkt ook als de GitHub-repository privé is;
-   - **stelt de services voor** die op die server aan staan (bv. `sshd nginx mariadb docker`). Druk op Enter om ze over te nemen, of typ je eigen lijst;
    - zet de instellingen in `/etc/default/rzmon-agent` (alleen leesbaar voor root);
    - laat de agent elke minuut rapporteren via een **systemd-timer**, of via cron als er geen systemd is;
    - stuurt een **testrapport** en controleert of RzMon het accepteert.
-4. Klap de server in RzMon open en voeg checks toe met **＋ Check**. Mounts en services kies je uit de lijst met wat de agent gemeld heeft.
+4. Klap de server in RzMon open en voeg checks toe met **＋ Check**. Mounts en services kies je uit de lijst met wat de agent gemeld heeft (zie 8.2.2).
 
 | Optie | Uitleg |
 |---|---|
-| `--services "sshd nginx"` | Zelf de te bewaken services kiezen (anders: voorstel) |
+| `--services "sshd nginx"` | *Verouderd.* Services kies je in RzMon (8.2.2); wat je hier opgeeft wordt ook gemeld |
 | `--interval 120` | Rapporteren elke … seconden (30-3600, standaard 60) |
 | `--insecure` | Self-signed HTTPS-certificaat van RzMon accepteren (gebruik dan ook `curl -k`) |
 | `--cron` | Cron gebruiken in plaats van een systemd-timer |
@@ -656,7 +655,7 @@ Het installatiescript blijft op de server staan als `rzmon-agent-setup`:
 |---|---|
 | **Verbinding testen** | `sudo rzmon-agent-setup --test` (zie 8.4) |
 | Status bekijken | `systemctl status rzmon-agent.timer` en `journalctl -u rzmon-agent -n 20` |
-| Services wijzigen | `sudo rzmon-agent-setup --services "sshd nginx mariadb"` |
+| Services kiezen | In RzMon: **＋ Check → Service** (zie 8.2.2) |
 | Certificaten wijzigen | `sudo rzmon-agent-setup --certs "/etc/letsencrypt/live/*/cert.pem localhost:8443"` (zie 8.5) |
 | Podman uitzetten | Zet `PODMAN=0` in `/etc/default/rzmon-agent` (zie 8.6) |
 | Agent bijwerken | Knop **⬆ Bijwerken** in RzMon (zie 8.2.1), of `sudo rzmon-agent-setup --update` (haalt de nieuwste versie van RzMon) |
@@ -688,6 +687,19 @@ Goed om te weten:
 - **Home Assistant-add-on:** bijwerken gaat via de add-on winkel.
 - **Veiligheid:** RzMon kan een agent alleen laten bijwerken met het agentscript van RzMon zelf; andere commando's zijn er niet. Wie beheerder is in RzMon, bepaalt wel welke agent er op je servers draait. Bescherm je beheerdersaccounts dus goed (sterk wachtwoord, 2FA).
 - **Mislukt?** Kijk op de server met `journalctl -u "rzmon-agent-update-*"` (systemd) of voer `sudo rzmon-agent-setup --update` uit; dan zie je alle stappen.
+
+#### 8.2.2 Services kiezen in RzMon
+Welke services de agent bewaakt, stel je in RzMon in, niet meer op de server:
+
+1. Klap de server open → **＋ Check** → type **Service**.
+2. Onder *Servicenaam* staat een lijst van de services op die server (die aan staan bij het opstarten, of draaien), met hun status: 🟢 actief, 🔴 mislukt, ⚪ uit. Typ om te zoeken en klik om te kiezen. Services die al een check hebben, staan grijs.
+3. Opslaan. Binnen ongeveer 2 minuten bewaakt de agent de service, inclusief de diepere controle (8.7).
+
+Verwijder je de check, dan houdt de agent ermee op. De agent vraagt alleen de **status** op (`systemctl is-active` en `systemctl show`); RzMon kan op de server niets starten of stoppen.
+
+Staat een service niet in de lijst (bijvoorbeeld omdat hij uit staat), typ dan zelf de naam. Een agent van vóór 1.20.0 stuurt nog geen lijst: werk hem bij met **⬆ Bijwerken** (8.2.1).
+
+> `SERVICES` in `/etc/default/rzmon-agent` is **verouderd**. Een bestaande lijst blijft werken: die services worden óók gemeld. Je kunt hem weghalen zodra je voor die services een check in RzMon hebt.
 
 ### 8.3 Goed om te weten
 - **Gegevens:** CPU, RAM, alle echte mounts, de gekozen services, de luisterende TCP-poorten, de vervaldatum van de gekozen certificaten en, als podman er staat, de containers (8.6).
@@ -732,7 +744,7 @@ Met een oudere agent-versie: eerst bijwerken met de knop in RzMon (8.2.1) of `su
 ```bash
 curl -fsSL 'http://192.168.1.10/api.php?action=agent_script' -o rzmon-agent.sh
 sudo install -m 755 rzmon-agent.sh /usr/local/bin/rzmon-agent.sh
-printf 'MONITOR_URL="%s"\nTOKEN="%s"\nSERVICES="%s"\n' 'http://192.168.1.10' '<token>' 'sshd cron nginx' | sudo tee /etc/default/rzmon-agent >/dev/null
+printf 'MONITOR_URL="%s"\nTOKEN="%s"\n' 'http://192.168.1.10' '<token>' | sudo tee /etc/default/rzmon-agent >/dev/null
 sudo chmod 600 /etc/default/rzmon-agent
 echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh >/dev/null 2>&1' | sudo tee /etc/cron.d/rzmon-agent
 sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'   # moet {"ok":true} geven
@@ -1331,7 +1343,7 @@ sudo php /var/www/rzmon/install/install.php --rotate-db-password
 | **Agent rapporteert niet / "Nog geen rapport ontvangen"** | Op de server: `sudo rzmon-agent-setup --test` (§8.4). In RzMon staan bij *Agent installeren* de geweigerde pogingen met reden |
 | **Agent: `403`** | Het token klopt niet, of de server staat niet op type *Remote met agent* |
 | **Agent-checks: "Agent stil sinds …"** | Draait de cron op de agent-server? Kan die server RzMon bereiken? Test het commando uit hoofdstuk 8 |
-| **Agent: "meldt service X niet"** | Voeg de service toe aan `SERVICES` in `/etc/default/rzmon-agent` |
+| **Agent: "meldt service X niet"** | Werk de agent bij (⬆, 8.2.1); vanaf 1.20.0 bewaakt hij vanzelf elke service waarvoor een check bestaat. Net toegevoegd? Wacht ~2 minuten |
 | **HA-add-on niet zichtbaar in de winkel** | Staat de map als `/addons/rzmon_agent/config.yaml`? Doe ⋮ → *Controleren op updates* en ververs de browser |
 | **REST API geeft 401 met een geldige sleutel (Apache + PHP-FPM)** | Zet `CGIPassAuth On` in de vhost (hoofdstuk 5.4), of gebruik de header `X-API-Key: rzm_…` |
 | **`/v1.php/status` geeft 404 (Nginx)** | Gebruik `location ~ \.php(/|$)` (hoofdstuk 5.4), of `/v1.php?r=status` |

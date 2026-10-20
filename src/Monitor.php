@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class Monitor
 {
-    private const CHECK_SELECT = 'SELECT c.*, h.name AS host_name, h.address, h.mode, h.agent_seen, h.id AS hid,
+    private const CHECK_SELECT = 'SELECT c.*, h.name AS host_name, h.address, h.mode, h.agent_seen, h.agent_version, h.id AS hid,
                 h.parent_id, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                 FROM checks c JOIN hosts h ON h.id = c.host_id';
 
@@ -42,6 +42,7 @@ final class Monitor
             'address' => $row['address'],
             'mode' => $row['mode'],
             'agent_seen' => $row['agent_seen'],
+            'agent_version' => $row['agent_version'] ?? null,
         ];
         $res = Checks::run($row, $host);
         if ($row['type'] === 'disk') {

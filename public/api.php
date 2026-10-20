@@ -68,26 +68,50 @@ function agent_host(): array
 
 // Extra tests (URL of poort) die bij service-checks van deze server zijn ingesteld, voor de agent.
 // Platte tekst, één test per regel: id <tab> type <tab> doel <tab> verwachte tekst.
-if ($action === 'agent_tests') {
-    $host = agent_host();
-    header('Content-Type: text/plain; charset=utf-8');
-    // Logbestanden doorzoeken: id <tab> log <tab> bron <tab> zoekpatroon
-    foreach (q("SELECT id, target, options FROM checks WHERE host_id = ? AND type = 'log' AND enabled = 1", [$host['id']]) as $c) {
-        $o = json_decode((string) $c['options'], true) ?: [];
-        if (($o['pattern'] ?? '') !== '') {
-            echo implode("\t", [$c['id'], 'log', $c['target'], str_replace(["\t", "\n", "\r"], ' ', $o['pattern'])]), "\n";
+/**
+ * Wat de agent van RzMon moet weten, één regel per item (tab-gescheiden):
+ * welke services hij bewaakt, logzoekopdrachten, eigen poorten van services en extra tests.
+ */
+function agent_tests_text(int $hostId): string
+{
+    $out = [];
+    // Services met een service-check: id <tab> svc <tab> servicenaam
+    foreach (q("SELECT id, target FROM checks WHERE host_id = ? AND type = 'service' AND enabled = 1", [$hostId]) as $c) {
+        if (preg_match('/^[A-Za-z0-9@._:-]{1,100}$/', $c['target'])) {
+            $out[] = implode("\t", [$c['id'], 'svc', $c['target']]);
         }
     }
-    foreach (q("SELECT id, target, options FROM checks WHERE host_id = ? AND type = 'service' AND enabled = 1 AND options IS NOT NULL", [$host['id']]) as $c) {
+    // Logbestanden doorzoeken: id <tab> log <tab> bron <tab> zoekpatroon
+    foreach (q("SELECT id, target, options FROM checks WHERE host_id = ? AND type = 'log' AND enabled = 1", [$hostId]) as $c) {
+        $o = json_decode((string) $c['options'], true) ?: [];
+        if (($o['pattern'] ?? '') !== '') {
+            $out[] = implode("\t", [$c['id'], 'log', $c['target'], str_replace(["\t", "\n", "\r"], ' ', $o['pattern'])]);
+        }
+    }
+    foreach (q("SELECT id, target, options FROM checks WHERE host_id = ? AND type = 'service' AND enabled = 1 AND options IS NOT NULL", [$hostId]) as $c) {
         $o = json_decode((string) $c['options'], true) ?: [];
         if (($o['ports'] ?? '') !== '' && ($o['deep'] ?? 1)) {
             // Zelf opgegeven poorten/sockets van de service (target = servicenaam)
-            echo implode("\t", [$c['id'], 'ports', $c['target'], $o['ports']]), "\n";
+            $out[] = implode("\t", [$c['id'], 'ports', $c['target'], $o['ports']]);
         }
         if (in_array($o['test_type'] ?? '', ['url', 'port'], true) && ($o['test_target'] ?? '') !== '') {
-            echo implode("\t", [$c['id'], $o['test_type'], str_replace(["\t", "\n"], ' ', $o['test_target']), str_replace(["\t", "\n"], ' ', (string) ($o['test_expect'] ?? ''))]), "\n";
+            $out[] = implode("\t", [$c['id'], $o['test_type'], str_replace(["\t", "\n"], ' ', $o['test_target']), str_replace(["\t", "\n"], ' ', (string) ($o['test_expect'] ?? ''))]);
         }
     }
+    return $out ? implode("\n", $out) . "\n" : '';
+}
+
+/** Kenmerk van die lijst: verandert het, dan haalt de agent hem meteen opnieuw op. */
+function agent_tests_rev(int $hostId): string
+{
+    // Zelfde inhoud als het cachebestand van de agent (die zet er één regeleinde achter)
+    return substr(sha1(rtrim(agent_tests_text($hostId), "\n") . "\n"), 0, 12);
+}
+
+if ($action === 'agent_tests') {
+    $host = agent_host();
+    header('Content-Type: text/plain; charset=utf-8');
+    echo agent_tests_text((int) $host['id']);
     exit;
 }
 
@@ -223,6 +247,17 @@ if ($action === 'agent') {
     foreach (($in['services'] ?? []) as $name => $state) {
         $st->execute([$host['id'], mb_substr('service:' . $name, 0, 190), mb_substr((string) $state, 0, 255), $now]);
     }
+    // Overzicht van de services op de server (om bij "Check toevoegen" uit te kiezen): [naam, status, enabled]
+    if (isset($in['svc_list']) && is_array($in['svc_list'])) {
+        $list = [];
+        foreach (array_slice($in['svc_list'], 0, 1000) as $e) {
+            if (is_array($e) && preg_match('/^[A-Za-z0-9@._:-]{1,100}$/', (string) ($e[0] ?? ''))) {
+                $list[] = [(string) $e[0], preg_replace('/[^a-z-]/', '', (string) ($e[1] ?? '')), (int) !empty($e[2])];
+            }
+        }
+        usort($list, static fn($a, $b) => strcmp($a[0], $b[0]));
+        $st->execute([$host['id'], 'svclist', json_encode($list), $now]);
+    }
     q('DELETE FROM agent_data WHERE host_id = ? AND updated_at < ?', [$host['id'], $now]);
     $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
     q('UPDATE hosts SET agent_seen = ?, agent_ip = ?, agent_version = ? WHERE id = ?', [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $host['id']]);
@@ -230,6 +265,7 @@ if ($action === 'agent') {
         'disks' => count($in['disks'] ?? []), 'services' => count($in['services'] ?? []), 'ports' => count($in['ports'] ?? []),
         'certs' => count((array) ($in['certs'] ?? [])), 'containers' => count((array) ($in['podman']['containers'] ?? [])),
     ]];
+    $resp['tests_rev'] = agent_tests_rev((int) $host['id']);
     if ($u = agent_update_instruction($host['id'], $agentVersion, $in)) {
         $resp['update'] = $u;
     }
@@ -480,6 +516,11 @@ switch ($action) {
             q('UPDATE hosts SET agent_token = COALESCE(agent_token, ?) WHERE id = ?', [bin2hex(random_bytes(20)), $id]);
         }
         out(['ok' => true, 'id' => $id]);
+
+    case 'agent_services':
+        // Services op een agent-server, om bij "Check toevoegen" uit te kiezen
+        $v = q("SELECT value, updated_at FROM agent_data WHERE host_id = ? AND metric = 'svclist'", [(int) ($_GET['id'] ?? 0)])->fetch();
+        out(['list' => $v ? json_decode($v['value'], true) : null, 'updated' => $v['updated_at'] ?? null]);
 
     case 'agent_update':
         // Eén server (id) of alle verouderde agents (all): bij het volgende rapport werkt de agent zichzelf bij
