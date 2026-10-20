@@ -33,7 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **Onderhoud & afhankelijkheden**: 🔧 meldingen pauzeren voor alles, een server of een check (bv. tijdens updates). 🔗 Servers achter een router/switch/VPN geven geen eigen melding als die onbereikbaar is: één melding in plaats van tientallen.
 
-**Dashboard**: kies onder *Instellingen → Weergave* tussen **Blox** (tegels) en **L1nes** (servers en hun checks onder elkaar als rijen, in Small of Large); de keuze geldt per apparaat.
+**Dashboard**: bovenaan een **gezondheidsbalk** met de algehele status (🟢 Alles in orde, 🟠 Aandacht nodig, 🔴 Storing), een score van 0–100%, klikbare tellers als filter en het langst openstaande probleem; ook als sensor in Home Assistant (MQTT) en in de REST API. Kies onder *Instellingen → Weergave* tussen **Blox** (tegels) en **L1nes** (servers en hun checks onder elkaar als rijen, in Small of Large); de keuze geldt per apparaat.
 
 **Storingen bevestigen**: ✔ bevestig een storing in het dashboard, via de link in de Pushover-melding, of in de Pushover-app (Emergency). Daarna krijg je er geen meldingen meer over; na herstel vervalt de bevestiging vanzelf.
 
@@ -200,7 +200,7 @@ Read-only JSON API om statussen en meetwaarden uit te lezen, bv. voor Home Assis
 
 | Endpoint | Beschrijving |
 |---|---|
-| `GET /v1.php/status` | Totaalstatus, tellers, lijst met problemen en status per server |
+| `GET /v1.php/status` | Totaalstatus, algehele gezondheid (`health`: state, score, tellers), lijst met problemen en status per server |
 | `GET /v1.php/hosts` | Alle servers met hun checks |
 | `GET /v1.php/hosts/{id}` | Eén server |
 | `GET /v1.php/checks` | Alle checks — filters: `?status=2`, `?type=disk`, `?host_id=1` |

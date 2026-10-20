@@ -347,7 +347,7 @@ ls -Z /var/www/rzmon/config.php                           # httpd_sys_content_t
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost/config.php   # 404
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost/             # 200 of 302
 ```
-- Op het **dashboard** staat je server met vier checks: Disk /, MariaDB, CPU en RAM.
+- Op het **dashboard** staat je server met vier checks: Disk /, MariaDB, CPU en RAM. Bovenaan zie je de gezondheidsbalk; als alles goed is: *🟢 Alles in orde · 100%*.
 - **Setup → Systeemcheck:** "Cron draait" staat na een minuut op groen.
 
 > Wil je later via *Setup* de database- of PHP-instellingen veranderen? Herhaal dan `sudo chown apache /var/www/rzmon` en `sudo chcon -t httpd_sys_rw_content_t /var/www/rzmon`, sla op in de setup, en draai daarna de commando's uit dit hoofdstuk opnieuw. Of plak de inhoud die de setup toont zelf in `config.php`.

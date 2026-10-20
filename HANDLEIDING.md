@@ -84,7 +84,12 @@ RzMon bestaat uit vier onderdelen:
 - **🔗 Afhankelijkheden:** geef aan dat een server bereikbaar is via een andere, zoals een router, switch, VPN of hypervisor. Valt die uit, dan krijg je **één** melding ("…meldingen van 5 afhankelijke servers worden onderdrukt") in plaats van een stortvloed. Komt hij terug en ligt een server erachter nog plat, dan krijg je die melding alsnog.
 
 ### Dashboard (HTML5)
-- **Overzicht:** tellers voor OK, Warning, Critical, Onbekend en Onderhoud, en per server een **tegel met de algehele status** ("Alles OK · 6 checks" of "1 kritiek · 1 waarschuwing"), de namen van de checks met een probleem en mini-meters voor CPU, RAM en disk. Servers met problemen staan bovenaan.
+- **Gezondheidsbalk** bovenaan: de algehele status van je netwerk in één oogopslag.
+  - **🟢 Alles in orde**: geen open problemen. **🟠 Aandacht nodig**: alleen warnings of onbekend, of problemen die bevestigd zijn of in onderhoud staan. **🔴 Storing**: een onbevestigde critical of een onbereikbare server.
+  - **Score 0–100%** met een balk: het gemiddelde over je servers. Per server gaat er per probleem iets af (critical 25, warning 10, onbekend 5; bevestigd de helft); een onbereikbare server telt als 0%. Servers die helemaal in onderhoud staan, tellen niet mee.
+  - **Tellers** (● 14 OK ● 1 W ● 1 C ● 0 ? 🔧 2): klik erop en je ziet alleen de checks met die status; nog een keer klikken heft het filter op. Klik op de status zelf voor *Alleen problemen*.
+  - **Inforegel:** servers bereikbaar (met de naam van wie onbereikbaar is: geen ping, agent stil of achter een uitgevallen server), checks OK, het aantal open (onbevestigde) problemen en het **langst openstaande** probleem met de duur, de gemiddelde beschikbaarheid over 24 uur, en indien van toepassing 🔀 flappende checks en 🔧 checks in onderhoud. Klik op een servernaam en RzMon springt naar die server en klapt hem open.
+- **Overzicht:** per server een **tegel met de algehele status** ("Alles OK · 6 checks" of "1 kritiek · 1 waarschuwing"), de namen van de checks met een probleem en mini-meters voor CPU, RAM en disk. Servers met problemen staan bovenaan.
 - **Details:** klik op een tegel en hij klapt uit met alle checks per stuk, met balkjes en drempels en de knoppen (bevestigen, onderhoud, check toevoegen, poortscan, bewerken). Welke tegels open staan, wordt onthouden; **⊞ Alles openen** klapt alles in één keer open.
 - **Zoeken:** zoekveld (zoek je op een checknaam, dan klapt de server vanzelf open) en een filter **Alleen problemen**.
 - **Minigrafiek per check** van de laatste 24 uur; klik erop voor de grote **grafiek** over 6 uur tot 30 dagen, met beschikbaarheid, minimum, gemiddelde, maximum en bij disks de trend.
@@ -501,7 +506,7 @@ Onder *Apparaten en diensten → MQTT* staan nu:
 
 | Apparaat | Entiteiten |
 |---|---|
-| **RzMon** | *Probleem* (aan als er ergens een warning of critical is), *Kritiek* en *Waarschuwingen* (aantallen), *Laatste controle* |
+| **RzMon** | *Algehele status* (Alles in orde, Aandacht nodig of Storing, met alle details als attributen), *Gezondheid* (score in %), *Probleem* (aan als er ergens een warning of critical is), *Kritiek* en *Waarschuwingen* (aantallen), *Laatste controle* |
 | **Elke server** | *Probleem* en *Status* (OK, WARNING, CRITICAL, UNKNOWN of ONDERHOUD) |
 | **Elke check** | Een status-sensor, en bij checks met een meetwaarde ook een sensor met die waarde (ms, %, dagen). Die kun je in grafieken en automatiseringen gebruiken |
 
@@ -1134,7 +1139,7 @@ In plaats van de `Authorization`-header kun je ook `X-API-Key: rzm_…` gebruike
 
 | Endpoint | Resultaat |
 |---|---|
-| `GET /v1.php/status` | Totaalstatus, tellers, lijst met problemen, status per server |
+| `GET /v1.php/status` | Totaalstatus, algehele gezondheid (`health`), tellers, lijst met problemen, status per server |
 | `GET /v1.php/hosts` | Alle servers met checks, inclusief `uptime` (% bereikbaar over `h24`, `d7` en `d30`) |
 | `GET /v1.php/hosts/{id}` | Eén server |
 | `GET /v1.php/checks` | Alle checks. Filters: `?status=2`, `?type=disk`, `?host_id=1` |
@@ -1144,6 +1149,7 @@ In plaats van de `Authorization`-header kun je ook `X-API-Key: rzm_…` gebruike
 
 - **Status:** `0` OK, `1` WARNING, `2` CRITICAL, `3` UNKNOWN. Checks in onderhoud tellen niet mee voor de totaalstatus; staat alles in onderhoud, dan is de status `0`.
 - **Extra velden:** `in_maintenance` en `maintenance_until` bij servers en checks, `parent_id` bij servers, `suppressed_by` bij checks (id van de onbereikbare server erboven), `acknowledged`, `acknowledged_at`, `acknowledged_by`, `ack_comment` en `problem_since` bij checks, `counts.acknowledged` (bevestigde storingen), `counts.maintenance` en `maintenance` (globaal onderhoud) in `/status`.
+- **`health`** in `/status`: `state` (`ok`, `attention` of `outage`), `label`, `score` (0–100), `counts`, `checks_ok`/`checks_total`, `hosts_up`/`hosts_total`, `down` (onbereikbare servers met `reason`: `ping`, `agent` of `parent`), `open_problems`, `oldest_problem`, `flapping` en `availability_24h`.
 - **Tijden** in ISO 8601.
 - **Werkt `/v1.php/status` niet** (bijvoorbeeld Nginx zonder PATH_INFO)? Gebruik dan `/v1.php?r=status`.
 - **Check-id** vind je via `/v1.php/checks`.

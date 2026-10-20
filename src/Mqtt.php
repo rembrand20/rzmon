@@ -302,6 +302,18 @@ final class Mqtt
         $entity('sensor', 'summary_last_run', $hub, ['name' => 'Laatste controle', 'state_topic' => $topic,
             'value_template' => '{{ value_json.last_run }}', 'device_class' => 'timestamp', 'entity_category' => 'diagnostic']);
 
+
+        // Algehele gezondheid: toestand als status, score en details als attributen
+        $topic = "$base/health";
+        $cache = json_decode((string) setting('stats_cache', ''), true);
+        $health = Health::current(is_array($cache['uptime'] ?? null) ? $cache['uptime'] : null);
+        $states[$topic] = ['status' => $health['label']] + $health;
+        $entity('sensor', 'health', $hub, ['name' => 'Algehele status', 'state_topic' => $topic,
+            'value_template' => '{{ value_json.status }}', 'json_attributes_topic' => $topic,
+            'device_class' => 'enum', 'options' => array_values(Health::LABELS), 'icon' => 'mdi:heart-pulse']);
+        $entity('sensor', 'health_score', $hub, ['name' => 'Gezondheid', 'state_topic' => $topic,
+            'value_template' => '{{ value_json.score }}', 'unit_of_measurement' => '%', 'state_class' => 'measurement', 'icon' => 'mdi:heart-pulse']);
+
         return [$disc, $states];
     }
 }

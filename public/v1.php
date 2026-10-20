@@ -6,7 +6,7 @@
  * (of ?key=<sleutel>, minder veilig omdat het in logs belandt).
  *
  * Endpoints (pad via PATH_INFO of ?r=):
- *   GET /v1.php/status                     samenvatting + status per host
+ *   GET /v1.php/status                     samenvatting, algehele gezondheid + status per host
  *   GET /v1.php/hosts                      alle hosts met hun checks
  *   GET /v1.php/hosts/{id}                 één host met checks
  *   GET /v1.php/checks                     alle checks  (?status=0-3, ?type=disk, ?host_id=1)
@@ -193,6 +193,12 @@ switch (true) {
             'status' => $overall,
             'status_text' => STATUS_LABELS[$overall],
             'counts' => $counts,
+            'health' => (function (array $hl): array {   // algehele gezondheid: state, score (0-100), tellers
+                if ($hl['oldest_problem']) {
+                    $hl['oldest_problem']['since'] = iso($hl['oldest_problem']['since']);
+                }
+                return $hl;
+            })(Health::current(Stats::uptime())),
             'maintenance' => ($g = Monitor::globalMaintenance()) ? ['until' => iso($g['until']), 'reason' => $g['reason'] ?: null] : null,
             'problems' => array_values(array_filter($all, fn($c) => $c['status'] !== STATUS_OK)),
             'hosts' => array_map(fn($h) => array_diff_key($h, ['checks' => 1]), $hosts),

@@ -125,12 +125,17 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="schema-banner">⚠ <?= htmlspecialchars($schemaError) ?> — controleer de databaserechten of voer <code>php install/install.php</code> uit.</div>
 <?php endif; ?>
       <div class="maint-banner" id="maint-banner" hidden></div>
-      <div class="summary">
-        <div class="stat ok"><span class="num" id="sum-ok">–</span><span>OK</span></div>
-        <div class="stat warn"><span class="num" id="sum-warn">–</span><span>Warning</span></div>
-        <div class="stat crit"><span class="num" id="sum-crit">–</span><span>Critical</span></div>
-        <div class="stat unknown"><span class="num" id="sum-unknown">–</span><span>Onbekend</span></div>
-        <div class="stat maint" title="Checks in onderhoud: geen meldingen"><span class="num" id="sum-maint">–</span><span>Onderhoud</span></div>
+      <div class="summary health" id="health">
+        <div class="health-main">
+          <button class="health-state" id="health-state" type="button" title="Klik: alleen problemen tonen">
+            <b id="health-label">Laden…</b>
+          </button>
+          <div class="health-score" title="Gezondheidsscore: 100% = alles OK. Een critical telt zwaarder dan een warning, een onbereikbare server het zwaarst.">
+            <b id="health-pct">–</b><span class="meter-bar"><i id="health-bar"></i></span>
+          </div>
+          <div class="health-counts" id="health-counts" role="group" aria-label="Filter op status"></div>
+        </div>
+        <div class="health-info" id="health-info"></div>
         <div class="summary-actions">
           <span class="muted small" id="last-run"></span>
           <button class="btn need-user" id="maint-all" title="Alle meldingen tijdelijk pauzeren">🔧 Onderhoud</button>

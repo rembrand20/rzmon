@@ -239,7 +239,25 @@ function init() {
     e.target.disabled = false;
   };
   $('#filter').addEventListener('input', render);
-  $('#only-problems').addEventListener('change', render);
+  $('#only-problems').addEventListener('change', () => { statusFilter = null; render(); });
+  $('#health-state').onclick = () => {
+    const op = $('#only-problems');
+    op.checked = statusFilter !== null || !op.checked;
+    statusFilter = null;
+    render();
+  };
+  $('#health-counts').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-st]');
+    if (!b) return;
+    const st = +b.dataset.st;
+    statusFilter = statusFilter === st ? null : st;
+    $('#only-problems').checked = false;
+    render();
+  });
+  $('#health-info').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-host]');
+    if (b) jumpToHost(b.dataset.host);
+  });
   $('#hosts').addEventListener('click', onHostsClick);
   $('#hosts').addEventListener('keydown', (e) => {
     const head = e.target.closest('.host-head[data-act=toggle], .line-row[data-act=toggle]');
@@ -370,10 +388,75 @@ function maintLabel(m) {
   return `🔧 tot ${fmtUntil(m.until)}${m.reason ? ' – ' + m.reason : ''}`;
 }
 
+// ---------------------------------------------------------------- Algehele gezondheid
+// De toestand en score komen van de server (Health.php); hier alleen weergave en filters.
+let statusFilter = null;   // null, of 0-3 (status) / 4 (onderhoud): alleen die checks tonen
+const HEALTH_COUNTS = [[0, 'ok', 'OK'], [1, 'warning', 'W'], [2, 'critical', 'C'], [3, 'unknown', '?'], [4, 'maintenance', '🔧']];
+const HEALTH_TITLES = { 0: 'OK', 1: 'warning', 2: 'critical', 3: 'onbekend', 4: 'in onderhoud' };
+
+/** "12 min", "2 u 14 min", "3 d 4 u" */
+function dur(dt) {
+  const m = Math.max(0, Math.round((Date.now() - new Date(dt.replace(' ', 'T')).getTime()) / 60000));
+  if (m < 60) return `${m} min`;
+  if (m < 1440) return `${Math.floor(m / 60)} u${m % 60 ? ` ${m % 60} min` : ''}`;
+  return `${Math.floor(m / 1440)} d${Math.floor(m % 1440 / 60) ? ` ${Math.floor(m % 1440 / 60)} u` : ''}`;
+}
+
+function renderHealth() {
+  const hl = state.health;
+  if (!hl) return;
+  const box = $('#health');
+  box.className = 'summary health h-' + hl.state;
+  $('#health-label').textContent = { ok: '🟢', attention: '🟠', outage: '🔴' }[hl.state] + ' ' + hl.label;
+  $('#health-state').title = $('#only-problems').checked ? 'Klik: alles weer tonen' : 'Klik: alleen problemen tonen';
+  $('#health-pct').textContent = hl.score + '%';
+  $('#health-bar').style.width = hl.score + '%';
+  $('#health-counts').innerHTML = HEALTH_COUNTS.map(([st, key, short]) => {
+    const n = hl.counts[key];
+    if (st === 4 && !n) return '';
+    return `<button type="button" class="hc s${st} ${statusFilter === st ? 'on' : ''} ${n ? '' : 'zero'}" data-st="${st}"
+      title="${n} check${n === 1 ? '' : 's'} ${HEALTH_TITLES[st]}${statusFilter === st ? ' – klik om het filter op te heffen' : ' – klik om alleen deze te tonen'}">
+      ${st === 4 ? '' : '<span class="hc-dot"></span>'}<b>${n}</b> ${short}</button>`;
+  }).join('');
+
+  const parts = [];
+  const hostLink = (id, text) => `<button type="button" class="hl-link" data-host="${id}">${esc(text)}</button>`;
+  const why = { agent: 'agent stil', parent: 'achter uitgevallen server' };
+  const downs = hl.down.map((d) => hostLink(d.id, d.name) + (why[d.reason] ? ` – ${why[d.reason]}` : '') + (d.acknowledged ? ' ✔' : '')).join(', ');
+  parts.push(`<span class="${hl.down.length ? 'bad' : ''}" title="Servers die reageren (ping, of de agent rapporteert)">🖥 Servers bereikbaar <b>${hl.hosts_up}/${hl.hosts_total}</b>${downs ? ` (${downs} onbereikbaar)` : ''}</span>`);
+  parts.push(`<span title="Actieve checks met status OK (checks in onderhoud tellen niet mee)">✔ Checks OK <b>${hl.checks_ok}/${hl.checks_total}</b></span>`);
+  if (hl.open_problems) {
+    const o = hl.oldest_problem;
+    parts.push(`<span title="Problemen die nog niet bevestigd zijn">⏳ <b>${hl.open_problems}</b> open probleem${hl.open_problems === 1 ? '' : 'en'}${o
+      ? ` · langst: ${hostLink(o.host_id, o.host + ' – ' + o.check)} (${dur(o.since)})` : ''}</span>`);
+  } else if (hl.state === 'ok') {
+    parts.push('<span>Geen open problemen</span>');
+  }
+  const u = Object.values(stats.uptime).map((x) => x.h24).filter((v) => v !== null && v !== undefined);
+  if (u.length) parts.push(`<span title="Gemiddelde bereikbaarheid van alle servers over de afgelopen 24 uur">📈 24 u beschikbaar <b>${pct(u.reduce((a, b) => a + b, 0) / u.length)}</b></span>`);
+  if (hl.flapping) parts.push(`<span title="Checks die steeds van status wisselen">🔀 <b>${hl.flapping}</b> flapt</span>`);
+  if (hl.counts.maintenance) parts.push(`<span title="Checks in onderhoud: geen meldingen">🔧 <b>${hl.counts.maintenance}</b> in onderhoud</span>`);
+  $('#health-info').innerHTML = parts.join('<span class="hl-sep">·</span>');
+}
+
+/** Naar een server springen en hem openklappen (vanuit de gezondheidsbalk). */
+function jumpToHost(id) {
+  statusFilter = null;
+  $('#filter').value = '';
+  openHosts.add(+id);
+  saveOpen();
+  render();
+  const head = $(`#hosts [data-act=toggle][data-id="${id}"]`);
+  if (head) {
+    const art = head.closest('article');
+    art.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    art.classList.add('flash');
+    setTimeout(() => art.classList.remove('flash'), 1600);
+  }
+}
+
 function render() {
-  const counts = [0, 0, 0, 0, 0];
-  state.hosts.forEach((h) => +h.enabled && h.checks.forEach((c) => +c.enabled && counts[c.maintenance ? 4 : +c.status]++));
-  ['ok', 'warn', 'crit', 'unknown', 'maint'].forEach((k, i) => ($('#sum-' + k).textContent = counts[i]));
+  renderHealth();
   const banner = $('#maint-banner');
   banner.hidden = !state.maintenance;
   if (state.maintenance) {
@@ -388,15 +471,17 @@ function render() {
 
   const f = $('#filter').value.trim().toLowerCase();
   const onlyProblems = $('#only-problems').checked;
+  const narrowed = onlyProblems || statusFilter !== null;
   const hosts = state.hosts
     .map((h) => {
       let checks = h.checks;
       const hostMatch = !f || (h.name + ' ' + h.address).toLowerCase().includes(f);
       if (!hostMatch) checks = checks.filter((c) => (c.name + ' ' + c.target).toLowerCase().includes(f));
       if (onlyProblems) checks = checks.filter((c) => +c.status !== 0 && +c.enabled);
+      if (statusFilter !== null) checks = checks.filter((c) => +h.enabled && +c.enabled && (statusFilter === 4 ? !!c.maintenance : !c.maintenance && +c.status === statusFilter));
       return { ...h, shown: checks, match: hostMatch, autoOpen: !!f && !hostMatch && checks.length > 0 };
     })
-    .filter((h) => (h.match && !onlyProblems) || h.shown.length)
+    .filter((h) => (h.match && !narrowed) || h.shown.length)
     .sort((a, b) => STATUS_RANK[hostStatus(b)] - STATUS_RANK[hostStatus(a)] || a.name.localeCompare(b.name));
 
   const el = $('#hosts');
@@ -405,7 +490,8 @@ function render() {
     return;
   }
   if (!hosts.length) {
-    el.innerHTML = `<div class="card empty">${onlyProblems ? '🎉 Geen problemen gevonden!' : 'Niets gevonden.'}</div>`;
+    el.innerHTML = `<div class="card empty">${statusFilter !== null ? `Geen checks met status ${HEALTH_COUNTS.find((k) => k[0] === statusFilter)[2]}.`
+      : onlyProblems ? '🎉 Geen problemen gevonden!' : 'Niets gevonden.'}</div>`;
     return;
   }
   const { layout, density } = viewPrefs();
