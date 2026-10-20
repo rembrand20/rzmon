@@ -365,6 +365,35 @@ if ($action === 'login_totp' && $method === 'POST') {
     out(['error' => $r], 401);
 }
 
+// ---------- Wachtwoord vergeten (zonder login) ----------
+if ($action === 'pw_forgot' && $method === 'POST') {
+    // Altijd hetzelfde antwoord: niemand kan zo uitzoeken welke accounts er bestaan
+    $why = PasswordReset::unavailable();
+    $send = $why === null ? PasswordReset::request((string) (input()['ident'] ?? '')) : null;
+    if ($why !== null) {
+        out(['ok' => true, 'no_mail' => true]);   // geen mail mogelijk: "vraag een beheerder"
+    }
+    http_response_code(200);
+    echo json_encode(['ok' => true]);
+    // De mail pas na het antwoord versturen: zo duurt het antwoord even lang, of het account nu bestaat of niet
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    }
+    if ($send) {
+        $send();
+    }
+    exit;
+}
+if ($action === 'pw_reset_check' && $method === 'POST') {
+    $r = PasswordReset::check((string) (input()['token'] ?? ''));
+    $r ? out(['ok' => true] + $r) : out(['error' => 'Deze link is verlopen of al gebruikt. Vraag een nieuwe aan via "Wachtwoord vergeten?".'], 410);
+}
+if ($action === 'pw_reset' && $method === 'POST') {
+    $in = input();
+    $r = PasswordReset::reset((string) ($in['token'] ?? ''), (string) ($in['password'] ?? ''), (string) ($in['code'] ?? ''));
+    $r === true ? out(['ok' => true]) : out(['error' => $r], 422);
+}
+
 $user = current_user();
 if (!$user) {
     out(['error' => 'Niet ingelogd'], 401);
@@ -376,7 +405,7 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
     'state', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
-    'devices', 'device_forget', 'device_forget_all' => 'readonly',
+    'devices', 'device_forget', 'device_forget_all', 'user_email' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan' => 'user',
     default => 'admin',
 };
@@ -971,7 +1000,7 @@ switch ($action) {
 
     // ---------- Gebruikers en tweestapsverificatie ----------
     case 'users':
-        $rows = q('SELECT id, username, role, totp_secret IS NOT NULL AS totp, created_at, last_login,
+        $rows = q('SELECT id, username, email, role, totp_secret IS NOT NULL AS totp, created_at, last_login,
                           (SELECT COUNT(*) FROM remember_tokens r WHERE r.user_id = users.id) AS devices FROM users'
             . ($isAdmin ? '' : ' WHERE id = ' . (int) $user['id']) . ' ORDER BY username')->fetchAll();
         foreach ($rows as &$r) {
@@ -983,26 +1012,59 @@ switch ($action) {
 
     case 'user_create':
         $in = input();
+        $email = trim((string) ($in['email'] ?? ''));
         try {
             if (q('SELECT 1 FROM users WHERE username = ?', [trim((string) ($in['username'] ?? ''))])->fetchColumn()) {
                 throw new InvalidArgumentException('Deze gebruikersnaam bestaat al');
+            }
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new InvalidArgumentException('Ongeldig e-mailadres');
+            }
+            if ($email !== '' && q('SELECT 1 FROM users WHERE LOWER(email) = LOWER(?)', [$email])->fetchColumn()) {
+                throw new InvalidArgumentException('Dit e-mailadres hoort al bij een ander account');
             }
             Installer::saveUser(trim((string) ($in['username'] ?? '')), (string) ($in['password'] ?? ''),
                 in_array($in['role'] ?? '', array_keys(ROLES), true) ? $in['role'] : 'user');
         } catch (InvalidArgumentException $e) {
             out(['error' => $e->getMessage()], 422);
         }
-        out(['ok' => true, 'id' => (int) db()->lastInsertId()]);
+        $id = (int) db()->lastInsertId();
+        if ($email !== '') {
+            q('UPDATE users SET email = ? WHERE id = ?', [$email, $id]);
+        }
+        out(['ok' => true, 'id' => $id]);
 
     case 'user_password':
         $in = input();
         if (strlen((string) ($in['password'] ?? '')) < 8) {
             out(['error' => 'Wachtwoord moet minimaal 8 tekens zijn'], 422);
         }
-        q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash((string) $in['password'], PASSWORD_DEFAULT), (int) ($in['id'] ?? 0)]);
+        q('UPDATE users SET password_hash = ?, pw_changed_at = ? WHERE id = ?', [password_hash((string) $in['password'], PASSWORD_DEFAULT), now(), (int) ($in['id'] ?? 0)]);
+        if ((int) ($in['id'] ?? 0) === $user['id']) {
+            $_SESSION['auth_at'] = time();   // eigen account: deze sessie blijft
+        }
         // Nieuw wachtwoord gezet door een beheerder: onthouden apparaten van die gebruiker vergeten
         q('DELETE FROM remember_tokens WHERE user_id = ?', [(int) ($in['id'] ?? 0)]);
         out(['ok' => true]);
+
+    case 'user_email':
+        // E-mailadres voor "wachtwoord vergeten" (beheerder: iedereen; anderen: alleen zichzelf)
+        $id = (int) (input()['id'] ?? 0);
+        $ownOnly($id);
+        $email = trim((string) (input()['email'] ?? ''));
+        if ($email !== '' && (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 190)) {
+            out(['error' => 'Ongeldig e-mailadres'], 422);
+        }
+        if ($email !== '' && q('SELECT 1 FROM users WHERE LOWER(email) = LOWER(?) AND id <> ?', [$email, $id])->fetchColumn()) {
+            out(['error' => 'Dit e-mailadres hoort al bij een ander account'], 422);
+        }
+        q('UPDATE users SET email = ? WHERE id = ?', [$email !== '' ? $email : null, $id]);
+        out(['ok' => true]);
+
+    case 'pw_reset_info':
+        out(['unavailable' => PasswordReset::unavailable(),
+             'log' => q('SELECT l.created_at, l.ident, l.ip, l.event, u.username FROM password_reset_log l
+                         LEFT JOIN users u ON u.id = l.user_id ORDER BY l.id DESC LIMIT 50')->fetchAll()]);
 
     case 'user_role':
         $in = input();
@@ -1232,7 +1294,9 @@ switch ($action) {
         if (strlen((string) ($in['new'] ?? '')) < 8) {
             out(['error' => 'Nieuw wachtwoord moet minimaal 8 tekens zijn'], 422);
         }
-        q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash((string) $in['new'], PASSWORD_DEFAULT), $user['id']]);
+        // Andere sessies van dit account worden uitgelogd (pw_changed_at); deze blijft
+        q('UPDATE users SET password_hash = ?, pw_changed_at = ? WHERE id = ?', [password_hash((string) $in['new'], PASSWORD_DEFAULT), now(), $user['id']]);
+        $_SESSION['auth_at'] = time();
         // Eigen wachtwoord gewijzigd: alle andere onthouden apparaten vergeten (dit apparaat blijft)
         q('DELETE FROM remember_tokens WHERE user_id = ? AND id <> ?', [$user['id'], (int) ($_SESSION['remember_id'] ?? 0)]);
         out(['ok' => true]);

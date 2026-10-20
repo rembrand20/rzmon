@@ -74,6 +74,8 @@ final class Installer
         ['checks', 'options', 'VARCHAR(500) NULL'],  // JSON, bv. service: diepere controle en extra test
         ['checks', 'maintenance_auto', 'TINYINT(1) NOT NULL DEFAULT 0'],  // onderhoud automatisch gezet na herhaalde meldingen
         ['users', 'role', "VARCHAR(10) NOT NULL DEFAULT 'admin'"],   // admin | user | readonly (bestaande accounts: admin)
+        ['users', 'email', 'VARCHAR(190) NULL'],         // voor "wachtwoord vergeten"
+        ['users', 'pw_changed_at', 'DATETIME NULL'],     // sessies van vóór dit moment worden uitgelogd
         // Agent bijwerken vanuit RzMon: gevraagd (knop), naar de agent gestuurd, uitkomst, en hoe de agent dat kan
         ['hosts', 'agent_update_req', 'DATETIME NULL'],
         ['hosts', 'agent_update_sent', 'DATETIME NULL'],

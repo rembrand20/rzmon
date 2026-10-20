@@ -33,6 +33,8 @@ try {
 }
 $csrf = csrf_token();
 $role = $user['role'] ?? 'readonly';
+// Link uit de mail "wachtwoord opnieuw instellen"
+$resetToken = preg_match('/^[0-9a-f]{64}$/', (string) ($_GET['reset'] ?? '')) ? (string) $_GET['reset'] : null;
 $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.css');
 ?>
 <!doctype html>
@@ -41,13 +43,32 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="<?= htmlspecialchars($csrf) ?>">
+  <?php if ($resetToken): ?><meta name="referrer" content="no-referrer"><?php endif; ?>
   <title>RzMon</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
   <script>try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
 <body data-role="<?= htmlspecialchars($role) ?>">
-<?php if (!$user): ?>
+<?php if ($resetToken): ?>
+  <main class="login-wrap">
+    <form id="reset-form" class="card login-card" data-token="<?= htmlspecialchars($resetToken) ?>">
+      <div class="brand big"><span class="logo">📡</span> RzMon</div>
+      <h2 style="margin:0 0 .6rem">Nieuw wachtwoord</h2>
+      <div id="reset-fields" hidden>
+        <p class="muted small" style="margin-top:0">Kies een nieuw wachtwoord voor <b id="reset-user"></b>. Daarna worden alle apparaten waarop dit account ingelogd bleef, uitgelogd.</p>
+        <input type="text" name="username" autocomplete="username" hidden>
+        <label>Nieuw wachtwoord <span class="hint">(minstens 8 tekens)</span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Nog een keer<input name="password2" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label id="reset-code-wrap" hidden>Code uit je authenticator-app<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" class="mono totp-input"></label>
+        <button class="btn primary block">Wachtwoord opslaan</button>
+      </div>
+      <p class="muted small" id="reset-status">Link controleren…</p>
+      <p class="form-error" hidden></p>
+      <p class="small login-links"><a href="index.php?login=1">Naar inloggen</a></p>
+    </form>
+  </main>
+<?php elseif (!$user): ?>
   <main class="login-wrap">
     <form id="login-form" class="card login-card">
       <div class="brand big"><span class="logo">📡</span> RzMon <span class="version" title="RzMon-versie">v<?= htmlspecialchars(RZMON_VERSION) ?></span></div>
@@ -62,9 +83,22 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div>
       <p class="form-error" hidden></p>
       <button class="btn primary block">Inloggen</button>
+      <p class="small login-links"><a href="#" id="forgot-link">Wachtwoord vergeten?</a></p>
       <?php if (lan_login_allowed()): ?>
         <p class="small" style="text-align:center;margin:.9rem 0 0"><a href="index.php?lan=1">Verder zonder inloggen (alleen lezen)</a></p>
       <?php endif; ?>
+    </form>
+    <form id="forgot-form" class="card login-card" hidden>
+      <div class="brand big"><span class="logo">📡</span> RzMon</div>
+      <h2 style="margin:0 0 .6rem">Wachtwoord vergeten</h2>
+      <div id="forgot-fields">
+        <p class="muted small" style="margin-top:0">Vul je gebruikersnaam of e-mailadres in. Je krijgt een mail met een link om een nieuw wachtwoord te kiezen (30 minuten geldig).</p>
+        <label>Gebruikersnaam of e-mailadres<input name="ident" autocomplete="username" required maxlength="190"></label>
+        <button class="btn primary block">Stuur herstellink</button>
+      </div>
+      <p class="small" id="forgot-done" hidden></p>
+      <p class="form-error" hidden></p>
+      <p class="small login-links"><a href="#" id="forgot-back">← Terug naar inloggen</a></p>
     </form>
   </main>
 <?php else: ?>
@@ -343,11 +377,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           Met <b>tweestapsverificatie</b> (TOTP) is naast het wachtwoord een code uit een authenticator-app nodig, zoals Google/Microsoft Authenticator, Authy, Bitwarden of 1Password.</p>
         <p class="muted small" data-role-only="nonadmin">Je account. Hier stel je je tweestapsverificatie in; je wachtwoord wijzig je hieronder.</p>
         <div id="users" class="key-list"></div>
+        <p class="small need-admin" id="pw-reset-info"></p>
         <form id="user-form" class="user-form need-admin">
           <div class="row2">
             <input name="username" placeholder="Gebruikersnaam" required maxlength="64" autocomplete="off">
             <input name="password" type="password" placeholder="Wachtwoord (min. 8 tekens)" required minlength="8" autocomplete="new-password">
           </div>
+          <input name="email" type="email" placeholder="E-mailadres (optioneel, voor wachtwoord vergeten)" maxlength="190" autocomplete="off">
           <label>Rol
             <select name="role">
               <option value="user">👤 Gebruiker – storingen afhandelen</option>

@@ -2,6 +2,7 @@
 // Gebruik: php install/install.php <gebruikersnaam>
 //         php install/install.php --upgrade   (alleen database bijwerken)
 //         php install/install.php --reset-2fa <gebruikersnaam>   (telefoon kwijt: 2FA uitzetten)
+//         php install/install.php --reset-password <gebruikersnaam>   (wachtwoord kwijt en geen mail)
 //         sudo php install/install.php --rotate-db-password     (nieuw databasewachtwoord, overal opgeslagen)
 //         sudo php install/install.php --backup [--zonder-historie]   (back-up maken)
 //         sudo php install/install.php --list-backups
@@ -178,6 +179,26 @@ if (($argv[1] ?? '') === '--list-backups') {
             $b['encrypted'] ? '🔒' : '  ', $b['history'] ? '' : ' (zonder historie)');
     }
     exit(0);
+}
+if (($argv[1] ?? '') === '--reset-password') {
+    // Wachtwoord kwijt en "wachtwoord vergeten" werkt niet (bv. de enige beheerder, geen SMTP)
+    Installer::ensureSchema();
+    $name = (string) ($argv[2] ?? '');
+    $id = q('SELECT id FROM users WHERE username = ?', [$name])->fetchColumn();
+    if (!$id) {
+        exit("Gebruiker '$name' niet gevonden. Gebruik: php install/install.php --reset-password <gebruikersnaam>\n");
+    }
+    $pass = ask_hidden("Nieuw wachtwoord voor '$name' (min. 8 tekens): ");
+    if (mb_strlen($pass) < 8) {
+        exit("Te kort; er is niets gewijzigd.\n");
+    }
+    if (ask_hidden('Nog een keer: ') !== $pass) {
+        exit("De wachtwoorden zijn niet gelijk; er is niets gewijzigd.\n");
+    }
+    q('UPDATE users SET password_hash = ?, pw_changed_at = ? WHERE id = ?', [password_hash($pass, PASSWORD_DEFAULT), now(), $id]);
+    q('DELETE FROM remember_tokens WHERE user_id = ?', [$id]);
+    PasswordReset::log((int) $id, $name, 'wachtwoord hersteld via de terminal');
+    exit("Wachtwoord van '$name' gewijzigd. Onthouden apparaten en open sessies zijn uitgelogd.\n");
 }
 if (($argv[1] ?? '') === '--reset-2fa') {
     Installer::ensureSchema();

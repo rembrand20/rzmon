@@ -1062,9 +1062,29 @@ Onder *Instellingen → Gebruikers* beheer je wie er mag inloggen, en met welke 
 - **🔑** stelt een nieuw wachtwoord in voor een gebruiker. **🗑** verwijdert een gebruiker; jezelf en de laatste gebruiker kun je niet verwijderen.
 - **Op het lokale netwerk** blijft inloggen zonder wachtwoord werken als je dat aan hebt staan (als *alleen lezen*, zie hieronder); 2FA geldt voor inloggen met een account.
 
-**Buitengesloten?** Op de server zet dit 2FA uit voor een gebruiker:
+### Wachtwoord vergeten 🔑
+Op het loginscherm staat **Wachtwoord vergeten?**.
+
+1. Vul je **gebruikersnaam of e-mailadres** in. Je krijgt altijd dezelfde melding, of het account nu bestaat of niet; zo kan niemand uitzoeken welke accounts er zijn.
+2. Heeft het account een e-mailadres, dan komt er een mail met een link. Die is **30 minuten** geldig en werkt **één keer**.
+3. Via de link kies je een nieuw wachtwoord (twee keer). Heeft het account **tweestapsverificatie**, dan is ook de code uit de app nodig: alleen toegang tot iemands mailbox is dus niet genoeg.
+4. Daarna:
+   - worden alle apparaten met "onthoud mij" en andere open sessies van dat account uitgelogd;
+   - krijg je een bevestigingsmail *"je wachtwoord is gewijzigd"*.
+
+Wat ervoor nodig is:
+- een **e-mailadres** bij het account: beheerders vullen het in bij *Instellingen → Gebruikers* (✉, of bij het aanmaken); iedereen kan zijn eigen adres instellen;
+- een **SMTP-server** (*Instellingen → E-mail*; de schakelaar voor e-mailmeldingen hoeft niet aan);
+- de **Basis-URL** (Setup), want daarmee wordt de link in de mail gemaakt.
+
+Ontbreekt er iets, dan staat dat in rood bij *Gebruikers*. Op het loginscherm verschijnt dan *"Vraag een beheerder"*.
+
+Beveiliging: hooguit 3 links per account per uur en 10 aanvragen per IP-adres per uur. RzMon bewaart alleen een hash van de link. Elke aanvraag staat in het **logboek** (*Gebruikers → Logboek bekijken*), met tijd, IP-adres en wat er gebeurde.
+
+**Buitengesloten?** Op de server:
 ```bash
-sudo -u www-data php /var/www/rzmon/install/install.php --reset-2fa admin     # Rocky: sudo -u apache …
+sudo -u apache php /var/www/rzmon/install/install.php --reset-password admin   # nieuw wachtwoord (Debian: www-data)
+sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        # 2FA uitzetten (telefoon kwijt)
 ```
 
 ---
@@ -1331,6 +1351,7 @@ sudo php /var/www/rzmon/install/install.php --rotate-db-password
 | **Witte pagina / fout 500** | Bekijk `/var/log/apache2/rzmon_error.log` of `/var/log/nginx/error.log`. Of zet tijdelijk `display_errors` aan via Setup |
 | **Wachtwoord vergeten** | `sudo -u www-data php /var/www/rzmon/install/install.php admin` zet een nieuw wachtwoord voor `admin` |
 | **Telefoon met 2FA kwijt** | `sudo -u www-data php /var/www/rzmon/install/install.php --reset-2fa admin` zet 2FA uit; stel het daarna opnieuw in |
+| **Wachtwoord kwijt** | *Wachtwoord vergeten?* op het loginscherm (account met e-mailadres), of op de server: `sudo -u www-data php /var/www/rzmon/install/install.php --reset-password admin` |
 | **2FA-code steeds "onjuist"** | Staat de klok van je telefoon én van de server goed? Codes wisselen elke 30 seconden. Controleer de server met `timedatectl` |
 | **Testmail mislukt** | Lees de foutmelding: bij "gebruikersnaam/wachtwoord onjuist" heb je bij Gmail/Outlook een app-wachtwoord nodig. Bij een time-out: 465 = SSL/TLS, 587 = STARTTLS. Op Rocky Linux moet SELinux uitgaande verbindingen toestaan (`setsebool -P httpd_can_network_connect 1`, doet het installatiescript al) |
 | **MQTT: "geen toegang"** | Gebruikersnaam/wachtwoord van de broker klopt niet. Bij de Mosquitto-add-on: gebruik een HA-gebruiker of zet een login in de add-on-configuratie |

@@ -98,6 +98,77 @@ function ago(dt) {
 
 const fmt = (v, unit) => (v === null || v === undefined ? '' : `${Math.round(v * 10) / 10}${unit ? ' ' + unit : ''}`);
 
+// ---------------------------------------------------------------- Wachtwoord vergeten
+const forgotForm = $('#forgot-form');
+if (forgotForm) {
+  const show = (forgot) => {
+    $('#login-form').hidden = forgot;
+    forgotForm.hidden = !forgot;
+    (forgot ? forgotForm.ident : $('#login-form').username).focus();
+  };
+  $('#forgot-link').onclick = (e) => {
+    e.preventDefault();
+    forgotForm.ident.value = $('#login-form').username.value;
+    show(true);
+  };
+  $('#forgot-back').onclick = (e) => { e.preventDefault(); show(false); };
+  forgotForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('.form-error', forgotForm);
+    const b = $('button', forgotForm);
+    b.disabled = true;
+    try {
+      const r = await api('pw_forgot', { ident: forgotForm.ident.value });
+      $('#forgot-fields').hidden = true;
+      $('#forgot-done').hidden = false;
+      $('#forgot-done').innerHTML = r.no_mail
+        ? '⚠️ RzMon kan op dit moment geen e-mail versturen. <b>Vraag een beheerder</b> om je wachtwoord opnieuw in te stellen.'
+        : '✉️ Als dit account bestaat en een e-mailadres heeft, is er een mail met een herstellink verstuurd. Kijk ook in je spammap. De link is 30 minuten geldig.';
+      err.hidden = true;
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+    b.disabled = false;
+  });
+}
+
+// Nieuw wachtwoord kiezen (link uit de mail)
+const resetForm = $('#reset-form');
+if (resetForm) {
+  const token = resetForm.dataset.token;
+  history.replaceState(null, '', location.pathname);   // de sleutel niet in de adresbalk of geschiedenis laten staan
+  const err = $('.form-error', resetForm);
+  api('pw_reset_check', { token }).then((r) => {
+    $('#reset-user').textContent = r.username;
+    resetForm.username.value = r.username;
+    $('#reset-code-wrap').hidden = !r.totp;
+    resetForm.code.required = r.totp;
+    $('#reset-fields').hidden = false;
+    $('#reset-status').hidden = true;
+    resetForm.password.focus();
+  }).catch((ex) => { $('#reset-status').textContent = ex.message; });
+  resetForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (resetForm.password.value !== resetForm.password2.value) {
+      err.textContent = 'De twee wachtwoorden zijn niet gelijk';
+      err.hidden = false;
+      return;
+    }
+    const b = $('#reset-fields button', resetForm);
+    b.disabled = true;
+    try {
+      await api('pw_reset', { token, password: resetForm.password.value, code: resetForm.code.value });
+      $('#reset-fields').hidden = true;
+      err.hidden = true;
+      $('#reset-status').hidden = false;
+      $('#reset-status').innerHTML = '<b class="good-txt">✔ Je wachtwoord is gewijzigd.</b> Log nu in met je nieuwe wachtwoord.';
+    } catch (ex) {
+      err.textContent = ex.message;
+      err.hidden = false;
+      if (/verlopen|werkt niet meer/.test(ex.message)) $('#reset-fields').hidden = true;
+    }
+    b.disabled = false;
+  });
+}
+
 // ---------------------------------------------------------------- Login
 const loginForm = $('#login-form');
 if (loginForm) {
@@ -135,7 +206,7 @@ if (loginForm) {
       }
     }
   });
-} else {
+} else if (!resetForm) {
   init();
 }
 
@@ -1576,12 +1647,21 @@ const ROLE_LABEL = { admin: '🔑 Beheerder', user: '👤 Gebruiker', readonly: 
 async function loadUsers() {
   if ($('#users-card').hidden) return;
   users = await api('users');
+  if (isAdmin()) {
+    api('pw_reset_info').then((r) => {
+      $('#pw-reset-info').innerHTML = (r.unavailable
+        ? `<span class="warn-txt">⚠️ Wachtwoord vergeten werkt nu niet: ${esc(r.unavailable)}.</span> `
+        : '🔑 Wachtwoord vergeten werkt voor accounts met een e-mailadres. ')
+        + `<a href="#" id="pw-reset-log">Logboek bekijken (${r.log.length})</a>`;
+      $('#pw-reset-log').onclick = (e) => { e.preventDefault(); pwResetLog(r.log); };
+    }).catch(() => {});
+  }
   $('#users').innerHTML = users.map((u) => `
     <div class="key-row">
       <span class="grow"><strong>${esc(u.username)}</strong>${u.me ? ' <span class="badge">jij</span>' : ''}
         <span class="role-tag r-${esc(u.role)}">${ROLE_LABEL[u.role] || esc(u.role)}</span>
         ${u.totp ? '<span class="tfa on" title="Tweestapsverificatie staat aan">🔐 2FA aan</span>' : '<span class="tfa" title="Alleen wachtwoord">2FA uit</span>'}<br>
-        <span class="muted small">Laatst ingelogd: ${u.last_login ? ago(u.last_login) : 'nooit'}</span></span>
+        <span class="muted small">${u.email ? `✉ ${esc(u.email)}` : '<span title="Nodig voor wachtwoord vergeten">✉ geen e-mailadres</span>'} · Laatst ingelogd: ${u.last_login ? ago(u.last_login) : 'nooit'}</span></span>
       <span class="row-actions">
         ${u.totp
           ? `<button class="btn" data-uact="totp-reset" data-id="${u.id}" title="Tweestapsverificatie uitzetten, bv. bij een verloren telefoon">2FA resetten</button>`
@@ -1589,17 +1669,32 @@ async function loadUsers() {
         ${u.me ? '' : `<select class="role-select need-admin" data-uact="role" data-id="${u.id}" title="Rol wijzigen">
           ${Object.entries(ROLE_LABEL).map(([k, l]) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`}
         <button class="btn small-btn" data-uact="devices" data-id="${u.id}" title="Apparaten waarop ${esc(u.username)} ingelogd blijft">📱 ${+u.devices}</button>
+        <button class="icon-btn" data-uact="email" data-id="${u.id}" title="E-mailadres (voor wachtwoord vergeten)">✉</button>
         <button class="icon-btn need-admin" data-uact="password" data-id="${u.id}" title="Nieuw wachtwoord instellen">🔑</button>
         ${u.me ? '' : `<button class="icon-btn need-admin" data-uact="delete" data-id="${u.id}" title="Verwijderen">🗑</button>`}
       </span>
     </div>`).join('');
 }
 
+/** Logboek van "wachtwoord vergeten": aanvragen, verstuurde links en herstelde wachtwoorden. */
+function pwResetLog(log) {
+  modal({
+    title: '🔑 Wachtwoord vergeten – logboek',
+    wide: true,
+    body: log.length ? `<div class="table-scroll"><table class="port-table"><thead><tr><th>Wanneer</th><th>Account</th><th>Ingevuld</th><th>IP-adres</th><th>Wat</th></tr></thead><tbody>
+      ${log.map((l) => `<tr><td title="${esc(l.created_at)}">${ago(l.created_at)}</td><td>${l.username ? esc(l.username) : '<span class="muted">–</span>'}</td>
+        <td class="mono small">${esc(l.ident)}</td><td class="mono small">${esc(l.ip)}</td><td>${esc(l.event)}</td></tr>`).join('')}</tbody></table></div>
+      <p class="muted small">De laatste 50 regels; ouder dan 90 dagen wordt opgeruimd.</p>`
+      : '<p class="muted">Nog geen aanvragen.</p>',
+    buttons: [{ label: 'Sluiten', cls: 'primary', submit: true }],
+  });
+}
+
 async function createUser(e) {
   e.preventDefault();
   const f = e.target;
   try {
-    const r = await api('user_create', { username: f.username.value, password: f.password.value, role: f.role.value });
+    const r = await api('user_create', { username: f.username.value, password: f.password.value, email: f.email.value, role: f.role.value });
     const name = f.username.value;
     const withTotp = f.totp.checked;
     f.reset();
@@ -1627,6 +1722,14 @@ async function onUsersClick(e) {
         await api('user_delete', { id: u.id });
         toast(`${u.username} verwijderd`);
         return loadUsers();
+      case 'email':
+        return modal({
+          title: `E-mailadres – ${u.username}`,
+          body: `<p class="muted small" style="margin-top:0">Hierheen gaat de link als ${u.me ? 'je' : esc(u.username) + ' zijn of haar'} wachtwoord vergeten is. Leeg = geen herstel per e-mail.</p>
+            <label>E-mailadres<input type="email" name="email" value="${esc(u.email || '')}" maxlength="190" autocomplete="email" autofocus></label>`,
+          buttons: [{ label: 'Opslaan', cls: 'primary', submit: true }],
+          onSubmit: async (d) => { await api('user_email', { id: u.id, email: d.email }); toast('E-mailadres opgeslagen'); loadUsers(); },
+        });
       case 'password':
         return modal({
           title: `Nieuw wachtwoord – ${u.username}`,

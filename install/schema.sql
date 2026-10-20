@@ -118,6 +118,30 @@ CREATE TABLE IF NOT EXISTS remember_tokens (
     INDEX idx_remember_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Wachtwoord vergeten: herstellinks (alleen de SHA-256 hash) en een logboek van aanvragen
+CREATE TABLE IF NOT EXISTS password_resets (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT UNSIGNED NOT NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    used_at    DATETIME NULL,
+    tries      TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    ip         VARCHAR(45) NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS password_reset_log (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT UNSIGNED NULL,
+    ident      VARCHAR(190) NOT NULL,
+    ip         VARCHAR(45) NOT NULL,
+    event      VARCHAR(200) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_reset_log_time (created_at),
+    INDEX idx_reset_log_ip (ip, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
 ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;

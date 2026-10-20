@@ -50,7 +50,11 @@ function current_user(): ?array
         $user = $_SESSION['user'] = lan_user();
     } elseif ($user) {
         // Eigen account: bestaan en rol elke keer uit de database (verwijderd of rol gewijzigd → direct merkbaar)
-        $row = q('SELECT id, username, role FROM users WHERE id = ?', [$user['id']])->fetch();
+        $row = q('SELECT id, username, role, pw_changed_at FROM users WHERE id = ?', [$user['id']])->fetch();
+        // Wachtwoord gewijzigd ná het inloggen in deze sessie (bv. via "wachtwoord vergeten") → uitloggen
+        if ($row && $row['pw_changed_at'] !== null && strtotime($row['pw_changed_at']) > (int) ($_SESSION['auth_at'] ?? 0)) {
+            $row = false;
+        }
         $user = $row ? ['id' => (int) $row['id'], 'username' => $row['username'], 'role' => $row['role']] : null;
         // Ingelogd via "onthoud mij" en dat apparaat is intussen vergeten (bv. telefoon kwijt) → uitloggen
         if ($user && !empty($_SESSION['remember_id']) && !remember_touch()) {
@@ -158,6 +162,7 @@ function finish_login(array $u, bool $remember = false): void
     session_regenerate_id(true);
     unset($_SESSION['pending_2fa'], $_SESSION['lan_auto'], $_SESSION['no_lan_auto'], $_SESSION['remember_id']);
     $_SESSION['user'] = ['id' => (int) $u['id'], 'username' => $u['username'], 'role' => $u['role'] ?? 'admin'];
+    $_SESSION['auth_at'] = time();
     q('UPDATE users SET last_login = ? WHERE id = ?', [now(), $u['id']]);
     if ($remember) {
         remember_create((int) $u['id']);
@@ -230,6 +235,7 @@ function remember_login(): ?array
     }
     session_regenerate_id(true);
     unset($_SESSION['lan_auto'], $_SESSION['no_lan_auto']);
+    $_SESSION['auth_at'] = time();
     $_SESSION['remember_id'] = (int) $t['id'];
     $_SESSION['remember_touch'] = time();
     if ($fresh) {

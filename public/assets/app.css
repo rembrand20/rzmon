@@ -538,3 +538,7 @@ body[data-role="admin"] [data-role-only="nonadmin"] { display: none; }
 .svc-dot { width: .55rem; height: .55rem; border-radius: 50%; flex: none; background: var(--muted); }
 .svc-dot.ok { background: var(--ok); } .svc-dot.crit { background: var(--crit); }
 .svc-pick > .hint { display: block; padding: .5rem .65rem; }
+
+/* Wachtwoord vergeten */
+.login-links { text-align: center; margin: .9rem 0 0; }
+.login-card h2 { font-size: 1.05rem; }

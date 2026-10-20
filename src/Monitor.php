@@ -482,5 +482,6 @@ final class Monitor
         q('DELETE FROM alerts WHERE created_at < NOW() - INTERVAL ? DAY', [$days * 3]);
         q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
         q('DELETE FROM remember_tokens WHERE last_used < NOW() - INTERVAL ? DAY', [REMEMBER_DAYS]);
+        PasswordReset::purge();
     }
 }

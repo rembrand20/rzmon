@@ -46,6 +46,7 @@ require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Mqtt.php';
 require_once __DIR__ . '/Stats.php';
 require_once __DIR__ . '/Backup.php';
+require_once __DIR__ . '/PasswordReset.php';
 
 function config(string $key, $default = null)
 {
