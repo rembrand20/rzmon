@@ -2,6 +2,9 @@
 
 Deze add-on heeft hetzelfde versienummer als RzMon. Het volledige overzicht staat in de [CHANGELOG van RzMon](https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md).
 
+## 1.19.0
+- De agent meldt aan RzMon dat hij een add-on is. Bijwerken gaat via de add-on winkel; RzMon toont dat nu bij de knop *Bijwerken*.
+
 ## 1.18.0
 - Geen wijzigingen aan de agent.
 

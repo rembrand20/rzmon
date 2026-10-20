@@ -175,4 +175,5 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('backup_time', '03:15'),
     ('backup_weekday', '7'),
     ('backup_keep', '7'),
-    ('backup_history', '1');
+    ('backup_history', '1'),
+    ('agent_auto_update', '0');

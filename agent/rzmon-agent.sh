@@ -17,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.18.0"
+AGENT_VERSION="1.19.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -60,6 +60,10 @@ PODMAN="${PODMAN:-1}"
 # Gebruikers met rootless containers: "auto" = zelf zoeken (gebruikers met ~/.local/share/containers),
 # of een lijst namen; "" = alleen de containers van root
 PODMAN_USERS="${PODMAN_USERS-auto}"
+# Bijwerken vanuit RzMon (knop "Agent bijwerken" of automatisch). REMOTE_UPDATE=0: alleen met de hand
+# (sudo rzmon-agent-setup --update). De nieuwe versie komt altijd van je eigen RzMon en wordt eerst
+# gecontroleerd (SHA-256, geldig script, juiste versie) voordat hij geïnstalleerd wordt.
+REMOTE_UPDATE="${REMOTE_UPDATE:-1}"
 SUPERVISOR_URL="${SUPERVISOR_URL:-http://supervisor}"
 
 HA_MODE=0
@@ -772,8 +776,76 @@ if [ -n "$CERTS" ]; then
     fi
 fi
 
+# ---------------------------------------------------------------- Bijwerken op afstand
+# Kan deze agent zichzelf bijwerken, en hoe? Gestart door systemd (afgeschermd: /usr is alleen-lezen)
+# → via systemd-run als aparte taak; via cron of met de hand → direct.
+upd_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
+upd_setup=/usr/local/sbin/rzmon-agent-setup
+if [ "$TEST" = 1 ]; then
+    upd_via="test"   # verbindingstest: RzMon stuurt dan geen update-opdracht
+elif [ "$HA_MODE" = 1 ]; then
+    upd_via=ha
+elif [ "$REMOTE_UPDATE" != 1 ]; then
+    upd_via=off
+elif [ "$(id -u)" != 0 ] || [ ! -f "$upd_setup" ] || ! command -v sha256sum >/dev/null 2>&1; then
+    upd_via=none
+elif [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
+    upd_via=systemd
+else
+    upd_via=direct
+fi
+# Uitkomst van de vorige update terugmelden (één regel: "ok <oud> <nieuw>" of "error <reden>")
+upd_result=""
+if [ -r "$upd_dir/update.result" ]; then
+    upd_result=$(head -c 300 "$upd_dir/update.result" | head -1)
+fi
+
+remote_update() {  # remote_update <antwoord van RzMon>
+    local want sha_a sha_s k
+    want=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"version":[[:space:]]*"\([0-9.]*\)".*/\1/p' <<<"$1")
+    sha_a=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"agent_sha256":[[:space:]]*"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$1")
+    sha_s=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"setup_sha256":[[:space:]]*"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$1")
+    case "$upd_via" in systemd|direct) ;; *) return 0 ;; esac
+    [ -n "$want" ] && [ -n "$sha_a" ] && [ -n "$sha_s" ] || return 0
+    mkdir -p "$upd_dir" 2>/dev/null && [ -w "$upd_dir" ] || return 0
+    # Loopt er al een update (minder dan 10 minuten geleden gestart)? Dan niet nog een.
+    if [ -f "$upd_dir/update.lock" ] && [ $(( $(date +%s) - $(stat -c %Y "$upd_dir/update.lock" 2>/dev/null || echo 0) )) -lt 600 ]; then
+        return 0
+    fi
+    : >"$upd_dir/update.lock"
+    upd_fail() {
+        printf 'error %s\n' "$1" >"$upd_dir/update.result"
+        rm -f "$upd_dir/update.lock" "$upd_dir/agent.new" "$upd_dir/setup.new"
+    }
+    k=(-fsS -m 60)
+    [ "$INSECURE" = 1 ] && k+=(-k)
+    if ! curl "${k[@]}" -o "$upd_dir/agent.new" "${MONITOR_URL%/}/api.php?action=agent_script" 2>/dev/null \
+        || ! curl "${k[@]}" -o "$upd_dir/setup.new" "${MONITOR_URL%/}/api.php?action=agent_install" 2>/dev/null; then
+        upd_fail "downloaden van de nieuwe versie bij RzMon mislukt"
+        return 0
+    fi
+    if [ "$(sha256sum "$upd_dir/agent.new" | cut -d' ' -f1)" != "$sha_a" ] || [ "$(sha256sum "$upd_dir/setup.new" | cut -d' ' -f1)" != "$sha_s" ]; then
+        upd_fail "controlegetal (SHA-256) klopt niet: download onvolledig of onderweg gewijzigd"
+        return 0
+    fi
+    if ! bash -n "$upd_dir/agent.new" 2>/dev/null || ! bash -n "$upd_dir/setup.new" 2>/dev/null \
+        || ! grep -q "^AGENT_VERSION=\"$want\"" "$upd_dir/agent.new" || ! grep -q 'RzMon agent' "$upd_dir/setup.new"; then
+        upd_fail "de download is geen geldige RzMon-agent $want"
+        return 0
+    fi
+    chmod 700 "$upd_dir/setup.new"
+    # Het installatiescript doet de rest (zoals bij sudo rzmon-agent-setup --update), met de gecontroleerde bestanden
+    local args=(/bin/bash "$upd_dir/setup.new" --update --yes --file "$upd_dir/agent.new" --result "$upd_dir/update.result")
+    if [ "$upd_via" = systemd ]; then
+        systemd-run --quiet --collect --unit="rzmon-agent-update-$(date +%s)" "${args[@]}" >/dev/null 2>&1 \
+            || upd_fail "systemd-run mislukt; werk bij met: sudo rzmon-agent-setup --update"
+    else
+        setsid "${args[@]}" </dev/null >/dev/null 2>&1 &
+    fi
+}
+
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)
@@ -842,8 +914,16 @@ if [ "$TEST" = 1 ]; then
     exit "$TEST_FAILED"
 fi
 
-curl "${curl_opts[@]}" \
+resp=$(curl "${curl_opts[@]}" \
     -H "Content-Type: application/json" \
     -H "X-Agent-Token: $TOKEN" \
     --data "$payload" \
-    "${MONITOR_URL%/}/api.php?action=agent"
+    "${MONITOR_URL%/}/api.php?action=agent")
+rc=$?
+printf '%s\n' "$resp"
+if [ "$rc" -eq 0 ]; then
+    # Uitkomst is doorgegeven; vraagt RzMon om bij te werken?
+    [ -n "$upd_result" ] && rm -f "$upd_dir/update.result"
+    [[ "$resp" =~ \"update\":[[:space:]]*\{ ]] && remote_update "$resp"
+fi
+exit "$rc"

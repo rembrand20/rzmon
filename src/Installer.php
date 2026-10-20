@@ -74,6 +74,11 @@ final class Installer
         ['checks', 'options', 'VARCHAR(500) NULL'],  // JSON, bv. service: diepere controle en extra test
         ['checks', 'maintenance_auto', 'TINYINT(1) NOT NULL DEFAULT 0'],  // onderhoud automatisch gezet na herhaalde meldingen
         ['users', 'role', "VARCHAR(10) NOT NULL DEFAULT 'admin'"],   // admin | user | readonly (bestaande accounts: admin)
+        // Agent bijwerken vanuit RzMon: gevraagd (knop), naar de agent gestuurd, uitkomst, en hoe de agent dat kan
+        ['hosts', 'agent_update_req', 'DATETIME NULL'],
+        ['hosts', 'agent_update_sent', 'DATETIME NULL'],
+        ['hosts', 'agent_update_status', 'VARCHAR(255) NULL'],
+        ['hosts', 'agent_update_via', 'VARCHAR(16) NULL'],   // systemd | direct | off | ha | none (null = oude agent)
     ];
 
     private static function migrate(PDO $pdo): void

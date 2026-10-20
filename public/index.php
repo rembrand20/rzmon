@@ -256,6 +256,15 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="mqtt-test">📡 Verbinding testen &amp; publiceren</button>
         </div>
 
+        <div class="card" id="agents-card">
+          <h2>⬆ Agents bijwerken</h2>
+          <p class="muted small">Bij een nieuwe versie van RzMon kun je de agents vanaf hier bijwerken: per server in het venster <i>Agent installeren</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzMon op, controleert hem en installeert hem zelf; zijn instellingen blijven staan. De eerste installatie gaat met het commando op de server.</p>
+          <p class="small" id="agents-status">…</p>
+          <button type="button" class="btn" id="agents-update-all" hidden>⬆ Alle verouderde agents bijwerken</button>
+          <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="agent_auto_update"><span></span> Agents automatisch bijwerken</label>
+          <p class="muted small" style="margin-top:-.4rem">Verouderde agents werken zichzelf bij zonder dat je op de knop drukt (hooguit één poging per 6 uur). Home Assistant-add-ons werk je bij via de add-on winkel. Een server uitzonderen: <code>REMOTE_UPDATE=0</code> in <code>/etc/default/rzmon-agent</code>.</p>
+        </div>
+
         <div class="card" id="backup-card">
           <h2>💾 Back-up</h2>
           <p class="muted small">Een zip met de hele database (servers, checks, instellingen, gebruikers) en <code>config.php</code>. De back-ups staan op deze server, buiten de webmap. Download er af en toe een, zodat je ook een kopie hebt als de server zelf stuk gaat.</p>

@@ -226,10 +226,74 @@ if ($action === 'agent') {
     q('DELETE FROM agent_data WHERE host_id = ? AND updated_at < ?', [$host['id'], $now]);
     $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
     q('UPDATE hosts SET agent_seen = ?, agent_ip = ?, agent_version = ? WHERE id = ?', [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $host['id']]);
-    out(['ok' => true, 'host' => $host['name'], 'rzmon_version' => RZMON_VERSION, 'received' => [
+    $resp = ['ok' => true, 'host' => $host['name'], 'rzmon_version' => RZMON_VERSION, 'received' => [
         'disks' => count($in['disks'] ?? []), 'services' => count($in['services'] ?? []), 'ports' => count($in['ports'] ?? []),
         'certs' => count((array) ($in['certs'] ?? [])), 'containers' => count((array) ($in['podman']['containers'] ?? [])),
-    ]]);
+    ]];
+    if ($u = agent_update_instruction($host['id'], $agentVersion, $in)) {
+        $resp['update'] = $u;
+    }
+    out($resp);
+}
+
+/**
+ * Bijwerken op afstand: verwerkt wat de agent over updates meldt en bepaalt of hij nu moet bijwerken.
+ * De agent haalt dan zelf de nieuwe versie bij RzMon op en controleert die met de SHA-256 hieronder.
+ * @return array|null opdracht voor de agent, of null
+ */
+function agent_update_instruction(int $hostId, ?string $version, array $in): ?array
+{
+    $via = (string) ($in['update']['via'] ?? '');
+    if ($via === 'test') {
+        return null;   // verbindingstest (rzmon-agent-setup --test): niets veranderen
+    }
+    $via = in_array($via, ['systemd', 'direct', 'off', 'ha', 'none'], true) ? $via : null;   // null: agent van vóór 1.19.0
+    $h = q('SELECT agent_update_req, agent_update_sent, agent_update_status FROM hosts WHERE id = ?', [$hostId])->fetch();
+    $status = null;
+    $req = $h['agent_update_req'];
+    $sent = $h['agent_update_sent'];
+
+    // Uitkomst van een eerdere update ("ok 1.18.0 1.19.0" of "error <reden>")
+    $result = trim((string) ($in['update_result'] ?? ''));
+    if ($result !== '') {
+        $status = preg_match('/^ok (\S*) (\S+)/', $result, $m)
+            ? '✔ ' . date('d-m H:i') . ' bijgewerkt' . ($m[1] !== '' && $m[1] !== $m[2] ? " van $m[1]" : '') . " naar $m[2]"
+            : '✘ ' . date('d-m H:i') . ' bijwerken mislukt: ' . mb_substr(preg_replace('/^error\s*/', '', $result), 0, 200);
+        if (str_starts_with($result, 'ok')) {
+            $sent = null;   // gelukt: een volgende RzMon-versie mag meteen weer automatisch
+        }
+        $req = null;
+    } elseif ($req !== null && $sent !== null && strtotime($sent) < time() - 600) {
+        $status = '✘ Geen antwoord van de update na 10 minuten. Kijk op de server: journalctl -u "rzmon-agent-update-*"';
+        $req = null;
+    }
+
+    $outdated = $version === null || version_compare($version, RZMON_VERSION, '<');
+    $wanted = ($req !== null && $sent === null) || ($req === null && $outdated && setting('agent_auto_update', '0') === '1'
+        && ($sent === null || strtotime($sent) < time() - 6 * 3600));   // automatisch: hooguit elke 6 uur een poging
+    $instruction = null;
+    if ($wanted && in_array($via, ['systemd', 'direct'], true)) {
+        $instruction = [
+            'version' => RZMON_VERSION,
+            'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
+            'setup_sha256' => hash_file('sha256', SM_ROOT . '/agent/install-agent.sh'),
+        ];
+        $sent = now();
+        $req ??= now();
+        $status = '⏳ Bijwerken naar ' . RZMON_VERSION . ' gestart…';
+    } elseif ($req !== null && $sent === null) {
+        // Gevraagd, maar deze agent kan het niet: uitleggen waarom
+        $status = '✘ ' . match ($via) {
+            'off' => 'Bijwerken op afstand staat uit op deze server (REMOTE_UPDATE=0 in /etc/default/rzmon-agent)',
+            'ha' => 'Home Assistant-add-on: bijwerken via de add-on winkel',
+            'none' => 'De agent kan zichzelf hier niet bijwerken (geen root of rzmon-agent-setup ontbreekt): sudo rzmon-agent-setup --update',
+            default => 'Deze agent kent bijwerken op afstand nog niet. Werk hem één keer bij op de server: sudo rzmon-agent-setup --update',
+        };
+        $req = null;
+    }
+    q('UPDATE hosts SET agent_update_req = ?, agent_update_sent = ?, agent_update_status = COALESCE(?, agent_update_status), agent_update_via = ? WHERE id = ?',
+        [$req, $sent, $status, $via, $hostId]);
+    return $instruction;
 }
 
 // ---------- Login ----------
@@ -303,7 +367,7 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'state':
-        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, enabled, maintenance_until, maintenance_reason
+        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, enabled, maintenance_until, maintenance_reason
                     FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
@@ -417,9 +481,34 @@ switch ($action) {
         }
         out(['ok' => true, 'id' => $id]);
 
+    case 'agent_update':
+        // Eén server (id) of alle verouderde agents (all): bij het volgende rapport werkt de agent zichzelf bij
+        $in = input();
+        if (!empty($in['all'])) {
+            $ids = [];
+            foreach (q("SELECT id, agent_version FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen IS NOT NULL") as $h) {
+                if ($h['agent_version'] === null || version_compare($h['agent_version'], RZMON_VERSION, '<')) {
+                    $ids[] = (int) $h['id'];
+                }
+            }
+        } else {
+            $ids = q("SELECT id FROM hosts WHERE id = ? AND mode = 'agent'", [(int) ($in['id'] ?? 0)])->fetchAll(PDO::FETCH_COLUMN);
+            if (!$ids) {
+                out(['error' => 'Geen agent-server gevonden'], 404);
+            }
+        }
+        foreach ($ids as $id) {
+            q("UPDATE hosts SET agent_update_req = ?, agent_update_sent = NULL, agent_update_status = '⏳ Bijwerken gevraagd; de agent pakt het op bij zijn volgende rapport' WHERE id = ?", [now(), $id]);
+        }
+        out(['ok' => true, 'count' => count($ids)]);
+
+    case 'agent_update_cancel':
+        q('UPDATE hosts SET agent_update_req = NULL, agent_update_sent = NULL, agent_update_status = NULL WHERE id = ?', [(int) (input()['id'] ?? 0)]);
+        out(['ok' => true]);
+
     case 'agent_status':
         $id = (int) ($_GET['id'] ?? 0);
-        $h = q('SELECT agent_seen, agent_ip, agent_version, mode FROM hosts WHERE id = ?', [$id])->fetch();
+        $h = q('SELECT agent_seen, agent_ip, agent_version, mode, agent_update_req, agent_update_status, agent_update_via FROM hosts WHERE id = ?', [$id])->fetch();
         if (!$h) {
             out(['error' => 'Server niet gevonden'], 404);
         }
@@ -430,7 +519,8 @@ switch ($action) {
                       AND (? IS NULL OR created_at > ?)
                     GROUP BY ip, reason ORDER BY MAX(id) DESC LIMIT 6', [$id, $h['agent_seen'], $h['agent_seen']])->fetchAll();
         out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now(),
-             'agent_version' => $h['agent_version'], 'version' => RZMON_VERSION]);
+             'agent_version' => $h['agent_version'], 'version' => RZMON_VERSION,
+             'update' => ['pending' => $h['agent_update_req'] !== null, 'status' => $h['agent_update_status'], 'via' => $h['agent_update_via']]]);
 
     case 'podman':
         // Overzicht van alle containers die de agent van deze server meldt
@@ -634,7 +724,7 @@ switch ($action) {
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
-            'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window',
+            'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass'];
         if (($in['ha_webhook_url'] ?? '') !== '' && !preg_match('#^https?://\S+$#i', trim((string) $in['ha_webhook_url']))) {
             out(['error' => 'Webhook-URL moet met http:// of https:// beginnen'], 422);

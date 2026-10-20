@@ -35,6 +35,7 @@ SCHED="auto"          # auto | systemd | cron
 ASSUME_YES=0
 MODE="install"        # install | update | uninstall
 SOURCE_FILE=""        # lokale rzmon-agent.sh i.p.v. downloaden
+RESULT_FILE=""        # bijwerken vanuit RzMon: uitkomst hierin voor de agent ("ok …" of "error …")
 
 if [ -t 1 ]; then
     C_OK=$'\e[32m'; C_WARN=$'\e[33m'; C_ERR=$'\e[31m'; C_HEAD=$'\e[1;36m'; C_DIM=$'\e[2m'; C_OFF=$'\e[0m'
@@ -45,7 +46,11 @@ step() { printf '\n%s==> %s%s\n' "$C_HEAD" "$*" "$C_OFF"; }
 ok()   { printf '    %s✔%s %s\n' "$C_OK" "$C_OFF" "$*"; }
 info() { printf '    %s%s%s\n' "$C_DIM" "$*" "$C_OFF"; }
 warn() { printf '    %s!%s %s\n' "$C_WARN" "$C_OFF" "$*"; }
-die()  { printf '\n%s✘ %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
+die()  {
+    printf '\n%s✘ %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2
+    [ -n "$RESULT_FILE" ] && printf 'error %s\n' "$*" >"$RESULT_FILE" 2>/dev/null
+    exit 1
+}
 trap 'die "Fout op regel $LINENO. Het script kan veilig opnieuw worden uitgevoerd."' ERR
 
 usage() {
@@ -64,6 +69,7 @@ Gebruik: sudo bash install-agent.sh --url URL --token TOKEN [opties]
   --insecure           Self-signed HTTPS-certificaat van RzMon accepteren
   --cron               Cron gebruiken in plaats van een systemd-timer
   --file PAD           Lokale rzmon-agent.sh gebruiken i.p.v. downloaden
+  --result PAD         (intern) uitkomst van een update vanuit RzMon in dit bestand zetten
   -y, --yes            Niets vragen
   --test               Verbindingstest: planning, netwerk, token en een proefrapport
   --update             Alleen de agent zelf bijwerken (instellingen blijven)
@@ -83,6 +89,7 @@ while [ $# -gt 0 ]; do
         --insecure) INSECURE=1 ;;
         --cron) SCHED="cron" ;;
         --file) SOURCE_FILE="${2:?}"; shift ;;
+        --result) RESULT_FILE="${2:?}"; shift ;;
         -y|--yes) ASSUME_YES=1 ;;
         --update) MODE="update" ;;
         --test) MODE="test" ;;
@@ -408,8 +415,11 @@ else
     ok "cron: $CRON ($sched)"
 fi
 
-# Dit installatiescript bewaren voor later (bij "curl | bash" staat het nergens op schijf)
-if curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_install" -o "$tmp.setup" 2>/dev/null && grep -q 'RzMon agent' "$tmp.setup"; then
+# Dit installatiescript bewaren voor later (bij "curl | bash" staat het nergens op schijf).
+# Vanuit RzMon bijgewerkt: dit script is al door de agent gecontroleerd, dus dat bewaren.
+if [ -n "$RESULT_FILE" ] && [ -f "${BASH_SOURCE[0]:-}" ]; then
+    install -m 755 -o root -g root "${BASH_SOURCE[0]}" "$SETUP"
+elif curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_install" -o "$tmp.setup" 2>/dev/null && grep -q 'RzMon agent' "$tmp.setup"; then
     install -m 755 -o root -g root "$tmp.setup" "$SETUP"
 elif [ -f "${BASH_SOURCE[0]:-}" ] && [ "$(realpath "${BASH_SOURCE[0]}")" != "$SETUP" ]; then
     install -m 755 -o root -g root "${BASH_SOURCE[0]}" "$SETUP"
@@ -430,6 +440,13 @@ else
     die "De agent is geïnstalleerd, maar RzMon accepteert nog geen rapport. Los het bovenstaande op en test met: sudo rzmon-agent-setup --test"
 fi
 
+if [ -n "$RESULT_FILE" ]; then
+    # Bijgewerkt vanuit RzMon: uitkomst voor de agent (die meldt hem bij het volgende rapport) en opruimen
+    printf 'ok %s %s\n' "${old_version:-}" "${new_version:-?}" >"$RESULT_FILE"
+    rm -f "$(dirname "$RESULT_FILE")/update.lock" "$SOURCE_FILE" "$(dirname "$RESULT_FILE")/setup.new"
+    exit 0
+fi
+
 cat <<EOF
 
 ${C_OK}✔ De agent is geïnstalleerd en rapporteert elke ${INTERVAL}s aan ${URL}.${C_OFF}
@@ -442,7 +459,7 @@ ${C_OK}✔ De agent is geïnstalleerd en rapporteert elke ${INTERVAL}s aan ${URL
   Services wijzigen: sudo rzmon-agent-setup --services "sshd nginx …"   (of: sudo nano $CONF)
   Certificaten     : sudo rzmon-agent-setup --certs "/pad/cert.pem site.nl:443 …"
   Verbinding testen: sudo rzmon-agent-setup --test
-  Agent bijwerken : sudo rzmon-agent-setup --update
+  Agent bijwerken : knop in RzMon (Agent installeren → Bijwerken), of sudo rzmon-agent-setup --update
   Verwijderen     : sudo rzmon-agent-setup --uninstall
 
 EOF

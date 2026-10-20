@@ -659,11 +659,35 @@ Het installatiescript blijft op de server staan als `rzmon-agent-setup`:
 | Services wijzigen | `sudo rzmon-agent-setup --services "sshd nginx mariadb"` |
 | Certificaten wijzigen | `sudo rzmon-agent-setup --certs "/etc/letsencrypt/live/*/cert.pem localhost:8443"` (zie 8.5) |
 | Podman uitzetten | Zet `PODMAN=0` in `/etc/default/rzmon-agent` (zie 8.6) |
-| Agent bijwerken | `sudo rzmon-agent-setup --update` (haalt de nieuwste versie van RzMon) |
+| Agent bijwerken | Knop **⬆ Bijwerken** in RzMon (zie 8.2.1), of `sudo rzmon-agent-setup --update` (haalt de nieuwste versie van RzMon) |
 | Nieuw token | `sudo rzmon-agent-setup --token <nieuw token>` |
 | Verwijderen | `sudo rzmon-agent-setup --uninstall` |
 
 Opnieuw uitvoeren is altijd veilig: wat je niet meegeeft, blijft zoals het was.
+
+#### 8.2.1 Bijwerken vanuit RzMon ⬆
+Na de eerste installatie (met het commando) werk je de agent bij met een knop:
+
+- **Per server:** klap de server open → **Agent installeren** → **⬆ Bijwerken naar …**. Daar staat ook hoe het afliep.
+- **Allemaal tegelijk:** *Instellingen → ⬆ Agents bijwerken* → **Alle verouderde agents bijwerken**.
+- **Automatisch:** zet op dezelfde kaart **Agents automatisch bijwerken** aan. Een verouderde agent werkt zichzelf dan bij zonder knop, met hooguit één poging per 6 uur.
+
+Zo gaat het:
+1. RzMon geeft de opdracht mee in het antwoord op het volgende rapport van de agent (binnen een minuut). RzMon hoeft de server dus niet zelf te kunnen bereiken.
+2. De agent haalt de nieuwe agent en `rzmon-agent-setup` op **bij je eigen RzMon** en controleert ze:
+   - het **SHA-256-controlegetal** dat RzMon meestuurt;
+   - of het geldige scripts zijn (`bash -n`);
+   - of het echt de gevraagde versie is.
+   Klopt er iets niet, dan installeert hij niets en meldt hij de reden.
+3. Daarna doet `rzmon-agent-setup --update` de rest, net als met de hand. De instellingen in `/etc/default/rzmon-agent` blijven staan. De systemd-service is afgeschermd (`/usr` alleen-lezen), daarom loopt de update als aparte taak via `systemd-run`. Met cron gebeurt het direct.
+4. Bij het volgende rapport zie je in RzMon **✔ bijgewerkt van 1.18.0 naar 1.19.0**, of **✘** met de reden.
+
+Goed om te weten:
+- **Eenmalig met de hand:** agents van vóór 1.19.0 kennen de knop nog niet. Werk ze één keer bij met `sudo rzmon-agent-setup --update`; daarna gaat het met de knop. RzMon zegt het als dat nodig is.
+- **Uitzonderen:** wil je een server alleen met de hand bijwerken, zet dan `REMOTE_UPDATE=0` in `/etc/default/rzmon-agent`. De knop geeft dan aan dat bijwerken op afstand uit staat.
+- **Home Assistant-add-on:** bijwerken gaat via de add-on winkel.
+- **Veiligheid:** RzMon kan een agent alleen laten bijwerken met het agentscript van RzMon zelf; andere commando's zijn er niet. Wie beheerder is in RzMon, bepaalt wel welke agent er op je servers draait. Bescherm je beheerdersaccounts dus goed (sterk wachtwoord, 2FA).
+- **Mislukt?** Kijk op de server met `journalctl -u "rzmon-agent-update-*"` (systemd) of voer `sudo rzmon-agent-setup --update` uit; dan zie je alle stappen.
 
 ### 8.3 Goed om te weten
 - **Gegevens:** CPU, RAM, alle echte mounts, de gekozen services, de luisterende TCP-poorten, de vervaldatum van de gekozen certificaten en, als podman er staat, de containers (8.6).
@@ -700,7 +724,7 @@ De test loopt stap voor stap na waar het misgaat, en stopt bij de eerste echte f
 | Rapport | Proefrapport versturen | — |
 
 Zonder het installatiescript kan het ook: `sudo /usr/local/bin/rzmon-agent.sh --test`.
-Met een oudere agent-versie: eerst bijwerken met `sudo rzmon-agent-setup --update`, of het installatiecommando opnieuw uitvoeren.
+Met een oudere agent-versie: eerst bijwerken met de knop in RzMon (8.2.1) of `sudo rzmon-agent-setup --update`, of het installatiecommando opnieuw uitvoeren.
 
 <details>
 <summary>Handmatig installeren (zonder het script)</summary>
@@ -1136,7 +1160,7 @@ Het script haalt de nieuwste versie op en meldt bijvoorbeeld `RzMon bijgewerkt v
    ```
    Of klik op **Setup → ↻ Tabellen bijwerken**.
 4. **Werk de agents bij:**
-   - Linux-servers: `sudo rzmon-agent-setup --update`.
+   - Linux-servers: *Instellingen → ⬆ Agents bijwerken* → **Alle verouderde agents bijwerken** (of automatisch, zie 8.2.1). Agents van vóór 1.19.0: één keer `sudo rzmon-agent-setup --update`.
    - Home Assistant: ga naar de add-on winkel → ⋮ → *Controleren op updates* → *Bijwerken*. HA ziet de update omdat het versienummer van de add-on mee verhoogd wordt.
 5. **Ververs de browser** met Ctrl+F5.
 

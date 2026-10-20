@@ -176,6 +176,7 @@ function init() {
 
   $('#settings-form').addEventListener('submit', saveSettings);
   $('#backup-now').onclick = backupNow;
+  $('#agents-update-all').onclick = updateAllAgents;
   $('#backup-upload').onclick = () => $('#backup-file').click();
   $('#backup-file').onchange = (e) => backupUpload(e.target.files[0]);
   $('#backup-list').addEventListener('click', onBackupListClick);
@@ -223,6 +224,7 @@ async function refresh() {
     if (state.role && document.body.dataset.role !== state.role) location.reload();   // rol gewijzigd
     render();
     renderAlerts();
+    if (isAdmin()) renderAgentUpdates();
   } catch (ex) {
     toast(ex.message, 'err');
   }
@@ -1180,7 +1182,7 @@ verify_ssl: true</pre>
       <div class="copy-line"><pre class="code" id="agent-oneliner">${esc(installCmd)}</pre>
         <button type="button" class="btn" id="copy-oneliner">Kopieer</button></div>
       ${base.startsWith('https') ? '<p class="muted small">Self-signed certificaat op RzMon? Voeg <code>-k</code> toe aan curl en <code>--insecure</code> aan het eind.</p>' : ''}
-      <p class="muted small">Daarna: klik hier op <b>＋</b> en voeg checks toe (CPU, RAM, diskruimte, services). Later bijwerken: <code>sudo rzmon-agent-setup --update</code> · verwijderen: <code>sudo rzmon-agent-setup --uninstall</code>.</p>
+      <p class="muted small">Daarna: klik hier op <b>＋</b> en voeg checks toe (CPU, RAM, diskruimte, services). Bijwerken gaat daarna met de knop hierboven (of <code>sudo rzmon-agent-setup --update</code>) · verwijderen: <code>sudo rzmon-agent-setup --uninstall</code>.</p>
       <p class="muted small">🩺 <b>Komt er niets binnen?</b> Voer op de server <code>sudo rzmon-agent-setup --test</code> uit. Die controleert stap voor stap planning, netwerk, adres, token en een proefrapport, en zegt wat er mis is.</p>
       <p class="muted small">⚠️ De server moet RzMon kunnen bereiken op <code>${esc(base)}</code>. Klopt dat adres niet, pas dan de <i>Basis-URL</i> aan in Setup.</p>
       <details class="small api-docs">
@@ -1216,6 +1218,16 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   };
   $$('.seg-btn', body).forEach((b) => (b.onclick = () => show(b.dataset.seg)));
   pollAgentStatus(h.id);
+  $('#agent-live').onclick = async (e) => {
+    const b = e.target.closest('[data-agent-upd]');
+    if (!b) return;
+    b.disabled = true;
+    try {
+      await api(b.dataset.agentUpd === 'go' ? 'agent_update' : 'agent_update_cancel', { id: h.id });
+      toast(b.dataset.agentUpd === 'go' ? 'Bijwerken gevraagd; de agent pakt het op bij zijn volgende rapport' : 'Geannuleerd');
+    } catch (ex) { toast(ex.message, 'err'); }
+    pollAgentStatus(h.id);
+  };
   $('#copy-oneliner').onclick = async () => {
     try { await navigator.clipboard.writeText(installCmd); toast('Commando gekopieerd'); }
     catch (ex) { getSelection().selectAllChildren($('#agent-oneliner')); toast('Geselecteerd — druk Ctrl+C', 'err'); }
@@ -1232,8 +1244,9 @@ function verCmp(a, b) {
 }
 /** Agent-versie als tekst, met ⬆ als de agent ouder is dan RzMon zelf. */
 function agentVer(h) {
-  if (!h.agent_version) return h.agent_seen ? ' · versie onbekend ⬆' : '';
-  return ` · v${esc(h.agent_version)}${state.version && verCmp(h.agent_version, state.version) < 0 ? ' ⬆' : ''}`;
+  const busy = h.agent_update_req ? ' <span title="Wordt bijgewerkt">⏳</span>' : '';
+  if (!h.agent_version) return h.agent_seen ? ` · versie onbekend ⬆${busy}` : '';
+  return ` · v${esc(h.agent_version)}${state.version && verCmp(h.agent_version, state.version) < 0 ? ' ⬆' : ''}${busy}`;
 }
 
 /** Live-status van de agent in het venster, elke 5 s zolang het open is. */
@@ -1253,8 +1266,19 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
         : '<b class="wait">⏳ Nog geen rapport ontvangen</b> <span class="muted small">(wordt elke 5 s bijgewerkt)</span>';
     if (s.mode === 'agent' && s.seen) {
       const old = !s.agent_version || verCmp(s.agent_version, s.version) < 0;
-      html += `<div class="small">Agent-versie <b>${s.agent_version ? esc(s.agent_version) : 'onbekend (ouder dan 1.6.0)'}</b>, RzMon ${esc(s.version)}${old
-        ? ` — <span class="bad">bijwerken met <code>sudo rzmon-agent-setup --update</code></span>` : ' ✔'}</div>`;
+      const u = s.update || {};
+      const canRemote = u.via === 'systemd' || u.via === 'direct';
+      html += `<div class="small">Agent-versie <b>${s.agent_version ? esc(s.agent_version) : 'onbekend (ouder dan 1.6.0)'}</b>, RzMon ${esc(s.version)}${old ? '' : ' ✔'}</div>`;
+      if (u.status) html += `<div class="small agent-upd-status">${esc(u.status)}</div>`;
+      if (isAdmin() && u.pending) {
+        html += '<div class="btn-row agent-upd"><button type="button" class="btn" data-agent-upd="cancel">Bijwerken annuleren</button></div>';
+      } else if (isAdmin() && (old || canRemote)) {
+        html += `<div class="btn-row agent-upd"><button type="button" class="btn ${old ? 'primary' : ''}" data-agent-upd="go">⬆ ${old ? `Bijwerken naar ${esc(s.version)}` : 'Opnieuw installeren'}</button>
+          <span class="muted small">${canRemote ? 'De agent werkt zichzelf bij binnen een minuut.'
+            : u.via === 'ha' ? 'Home Assistant-add-on: bijwerken via de add-on winkel.'
+            : u.via === 'off' ? 'Op afstand bijwerken staat uit op deze server (REMOTE_UPDATE=0).'
+            : 'Deze agent kan dat nog niet: werk hem één keer bij op de server met <code>sudo rzmon-agent-setup --update</code>.'}</span></div>`;
+      }
     }
     if (s.failures.length) {
       html += `<div class="fails"><span class="muted small">Geweigerde pogingen (24 uur):</span>
@@ -1384,6 +1408,31 @@ async function loadSettings() {
   });
   backupFormToggle();
   loadBackups();
+  refresh();   // verse agentversies voor de kaart "Agents bijwerken"
+}
+
+/** Kaart "Agents": hoeveel agents verouderd zijn, en de knop om ze allemaal bij te werken. */
+function renderAgentUpdates() {
+  const agents = state.hosts.filter((h) => h.mode === 'agent' && +h.enabled && h.agent_seen);
+  const old = agents.filter((h) => !h.agent_version || verCmp(h.agent_version, state.version) < 0);
+  const busy = agents.filter((h) => h.agent_update_req);
+  $('#agents-status').innerHTML = !agents.length ? 'Nog geen agents.'
+    : (old.length ? `<b class="warn-txt">${old.length} van ${agents.length} agent(s) verouderd</b>: ${old.map((h) => esc(h.name) + (h.agent_version ? ` (${esc(h.agent_version)})` : '')).join(', ')}`
+      : `<b class="good-txt">✔ Alle ${agents.length} agent(s) zijn up-to-date (${esc(state.version)})</b>`)
+      + (busy.length ? ` · ⏳ ${busy.length} wordt bijgewerkt` : '');
+  $('#agents-update-all').hidden = !old.length;
+}
+
+async function updateAllAgents(e) {
+  const b = e.currentTarget;
+  b.disabled = true;
+  try {
+    const r = await api('agent_update', { all: true });
+    toast(`${r.count} agent(s) worden bijgewerkt bij hun volgende rapport`);
+    await refresh();
+    renderAgentUpdates();
+  } catch (ex) { toast(ex.message, 'err'); }
+  b.disabled = false;
 }
 
 function settingsData() {
