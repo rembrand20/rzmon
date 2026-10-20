@@ -75,7 +75,8 @@ final class Monitor
         foreach (['host' => 'host_maintenance_', 'check' => 'maintenance_'] as $scope => $prefix) {
             $until = $check[$prefix . 'until'] ?? null;
             if ($until && strtotime($until) > time()) {
-                return ['scope' => $scope, 'until' => $until, 'reason' => (string) ($check[$prefix . 'reason'] ?? '')];
+                return ['scope' => $scope, 'until' => $until, 'reason' => (string) ($check[$prefix . 'reason'] ?? ''),
+                    'auto' => $scope === 'check' && !empty($check['maintenance_auto'])];
             }
         }
         return null;
@@ -159,6 +160,15 @@ final class Monitor
         if ($upstream) {
             $message .= " (onderdrukt: {$upstream['name']} is onbereikbaar)";
         }
+        // Automatisch onderhoud (na herhaalde meldingen) stopt vanzelf zodra de check weer OK is;
+        // dan gaat de herstelmelding hieronder gewoon uit.
+        $autoEnded = false;
+        if ($status === STATUS_OK && !empty($check['maintenance_auto'])) {
+            q('UPDATE checks SET maintenance_until = NULL, maintenance_reason = NULL, maintenance_auto = 0 WHERE id = ?', [$check['id']]);
+            $check['maintenance_until'] = $check['maintenance_reason'] = null;
+            $check['maintenance_auto'] = 0;
+            $autoEnded = true;
+        }
         // Onderhoud: checks draaien door, maar er gaan geen meldingen uit. notified_status
         // blijft staan, zodat na afloop alsnog gemeld wordt als er dan nog iets mis is.
         $silenced = $upstream !== null || self::maintenanceFor($check) !== null;
@@ -190,8 +200,9 @@ final class Monitor
             // niets versturen
         } elseif ($status === STATUS_OK) {
             $wanted = ($s['notify_recovery'] ?? '1') === '1' && (!$acked || ($s['notify_recovery_acked'] ?? '0') === '1');
-            if ($notified !== STATUS_OK && $wanted) {
-                self::notify($check, $res, STATUS_OK, "✅ HERSTELD: $title", $message, -1, 'recovery', $notified);
+            if ($notified !== STATUS_OK && ($wanted || $autoEnded)) {
+                self::notify($check, $res, STATUS_OK, "✅ HERSTELD: $title", $message . ($autoEnded ? "\nAutomatisch onderhoud beëindigd." : ''),
+                    -1, 'recovery', $notified);
             }
             $notified = STATUS_OK;
             $notifiedAt = null;
@@ -219,14 +230,41 @@ final class Monitor
                     $message . $extra, $prio, $isRepeat ? 'reminder' : 'problem', $notified);
                 $notified = $status;
                 $notifiedAt = now();
+                self::autoMaintenance($check, $res, $status, $title);
             }
         }
 
         q('UPDATE checks SET notified_status = ?, notified_at = ? WHERE id = ?', [$notified, $notifiedAt, $check['id']]);
     }
 
+    /**
+     * Na N verstuurde meldingen voor dezelfde storing: deze check in onderhoud tot hij weer OK is
+     * (of tot iemand het onderhoud beëindigt). De rest van de server blijft gewoon melden.
+     */
+    private static function autoMaintenance(array $check, array $res, int $status, string $title): void
+    {
+        $after = (int) setting('auto_maint_after', 3);
+        if (setting('auto_maint_enabled', '1') !== '1' || $after < 1 || !$check['problem_since']) {
+            return;
+        }
+        // Alleen meldingen die echt zijn aangekomen (minstens één kanaal gelukt)
+        $sent = (int) q("SELECT COUNT(*) FROM alerts WHERE check_id = ? AND kind = 'notify' AND status <> 0 AND created_at >= ?
+                         AND (sent_ok = 1 OR webhook_ok = 1 OR email_ok = 1)", [$check['id'], $check['problem_since']])->fetchColumn();
+        if ($sent < $after) {
+            return;
+        }
+        $reason = "Automatisch na $sent meldingen";
+        q('UPDATE checks SET maintenance_until = ?, maintenance_reason = ?, maintenance_auto = 1 WHERE id = ?', [self::AUTO_UNTIL, $reason, $check['id']]);
+        self::notify($check, $res, $status, "🔧 ONDERHOUD: $title",
+            "Na $sent meldingen staat deze check automatisch in onderhoud: geen meldingen meer tot hij weer OK is. "
+            . 'De andere checks van deze server melden gewoon door. Beëindigen kan in RzMon (🔧).', -1, 'maintenance', $status, 'maint');
+    }
+
+    /** "Tot het opgelost is": een datum ver weg; het onderhoud stopt bij herstel of handmatig. */
+    public const AUTO_UNTIL = '2099-12-31 23:59:59';
+
     /** Verstuurt een melding via alle ingeschakelde kanalen en logt hem. */
-    private static function notify(array $check, array $res, int $status, string $title, string $message, int $priority, string $event, int $previous): void
+    private static function notify(array $check, array $res, int $status, string $title, string $message, int $priority, string $event, int $previous, string $kind = 'notify'): void
     {
         $errors = [];
 
@@ -273,10 +311,10 @@ final class Monitor
             $errors[] = 'geen meldkanaal ingeschakeld';
         }
 
-        q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok) VALUES (?, ?, ?, ?, ?, ?, ?)', [
+        q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
             $check['id'], $status, mb_substr($title, 0, 250),
             mb_substr($message . ($errors ? ' [niet verzonden: ' . implode('; ', $errors) . ']' : ''), 0, 1000),
-            $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0),
+            $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), $kind,
         ]);
     }
 

@@ -81,7 +81,8 @@ function fmtCheck(array $c): array
         'fail_count' => (int) $c['fail_count'],
         'last_checked' => iso($c['last_checked']),
         'in_maintenance' => ($m = Monitor::maintenanceFor($c)) !== null,
-        'maintenance_until' => $m ? iso($m['until']) : null,
+        'maintenance_until' => $m && empty($m['auto']) ? iso($m['until']) : null,
+        'maintenance_auto' => !empty($m['auto']),   // automatisch na herhaalde meldingen, tot opgelost
         'suppressed_by' => $c['suppressed_by'] !== null ? (int) $c['suppressed_by'] : null,
         'problem_since' => iso($c['problem_since']),
         'acknowledged' => $c['acked_at'] !== null,

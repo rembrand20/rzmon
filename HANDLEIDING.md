@@ -424,7 +424,7 @@ Vervang `notify.mobile_app_jouw_telefoon` en `light.bureau` door je eigen entite
 ```jsonc
 {
   "source": "rzmon",
-  "event": "problem",              // problem | reminder | recovery | test
+  "event": "problem",              // problem | reminder | recovery | maintenance | test
   "status": 2, "status_text": "CRITICAL",
   "previous_status": 0, "previous_status_text": "OK",
   "host": "NAS", "host_id": 2,
@@ -561,6 +561,19 @@ Kies een duur (15 min, 30 min, 1 uur … 1 week), of een vast eindtijdstip, en v
 - **Na afloop** stopt het onderhoud vanzelf. Is er dan nog iets mis, dan komt de melding bij de volgende check, en is het weer goed, dan krijg je een herstelmelding. Zo mis je nooit iets dat na je onderhoud kapot is gebleven.
 - **Eerder stoppen:** klik op 🔧 → **Onderhoud beëindigen**, of op **Beëindigen** in de balk.
 - **REST API:** checks in onderhoud tellen niet mee voor de totaalstatus. De sensor *RzMon alles OK* springt dus niet op rood door gepland onderhoud. `counts.maintenance` telt ze apart.
+
+#### Automatisch onderhoud na herhaalde meldingen
+Blijft een check fout, dan krijg je eerst gewoon meldingen: de eerste, en daarna herhalingen volgens *Herhaal melding elke … minuten*. Bij de **3e verstuurde melding** voor dezelfde storing gaat **die ene check** automatisch in onderhoud:
+- je krijgt één melding *🔧 ONDERHOUD: server – check*, en daarna niets meer over die check;
+- de andere checks van de server melden gewoon door;
+- bij de check staat **🔧 auto, tot opgelost**;
+- is de check weer OK, dan stopt het onderhoud vanzelf en krijg je *✅ HERSTELD … Automatisch onderhoud beëindigd*;
+- eerder stoppen kan met 🔧 → **Onderhoud beëindigen**.
+
+Instellen gaat onder *Instellingen → Alarmgedrag*: aan/uit en het aantal meldingen (standaard aan, na 3).
+- **Wat telt mee:** alleen meldingen die via minstens één kanaal zijn aangekomen. Onderdrukte meldingen (afhankelijkheden) tellen niet mee.
+- **Bevestigd:** bevestig je een storing, dan stoppen de meldingen al, dus dan komt automatisch onderhoud niet aan de orde.
+- **Geen herhalingen:** staat *Herhaal melding* op 0, dan krijg je maar één melding per storing (plus een nieuwe als hij erger wordt), en wordt de drempel van 3 meestal niet gehaald.
 
 ### 7.5 Storing bevestigen ✔
 Weet je van een storing en ben je ermee bezig? Bevestig hem, dan word je er niet meer over gestoord.

@@ -72,6 +72,7 @@ final class Installer
         ['alerts', 'email_ok', 'TINYINT(1) NULL'],
         ['checks', 'metric', 'VARCHAR(16) NULL'],   // container: status | cpu | mem | disk
         ['checks', 'options', 'VARCHAR(500) NULL'],  // JSON, bv. service: diepere controle en extra test
+        ['checks', 'maintenance_auto', 'TINYINT(1) NOT NULL DEFAULT 0'],  // onderhoud automatisch gezet na herhaalde meldingen
     ];
 
     private static function migrate(PDO $pdo): void

@@ -413,7 +413,8 @@ switch ($action) {
         match ($scope) {
             'all' => [save_setting('maintenance_until', (string) $until), save_setting('maintenance_reason', (string) $reason)],
             'host' => q('UPDATE hosts SET maintenance_until = ?, maintenance_reason = ? WHERE id = ?', [$until, $reason, $id]),
-            'check' => q('UPDATE checks SET maintenance_until = ?, maintenance_reason = ? WHERE id = ?', [$until, $reason, $id]),
+            // Handmatig ingesteld of beëindigd: niet (meer) automatisch
+            'check' => q('UPDATE checks SET maintenance_until = ?, maintenance_reason = ?, maintenance_auto = 0 WHERE id = ?', [$until, $reason, $id]),
             default => out(['error' => 'Onbekend bereik'], 422),
         };
         out(['ok' => true, 'until' => $until]);
@@ -530,7 +531,7 @@ switch ($action) {
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
-            'disk_forecast_days'];
+            'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after'];
         if (($in['ha_webhook_url'] ?? '') !== '' && !preg_match('#^https?://\S+$#i', trim((string) $in['ha_webhook_url']))) {
             out(['error' => 'Webhook-URL moet met http:// of https:// beginnen'], 422);
         }

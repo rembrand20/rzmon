@@ -241,6 +241,8 @@ function fmtUntil(dt) {
 }
 
 function maintLabel(m) {
+  // Automatisch onderhoud loopt "tot opgelost" (de datum is een placeholder ver in de toekomst)
+  if (m.auto) return `🔧 automatisch, tot opgelost${m.reason ? ' – ' + m.reason : ''}`;
   return `🔧 tot ${fmtUntil(m.until)}${m.reason ? ' – ' + m.reason : ''}`;
 }
 
@@ -482,7 +484,7 @@ function checkRow(c) {
   const problem = s !== 0 && +c.enabled;
   const ackTitle = c.acked_at ? `Bevestigd door ${c.acked_by || '?'} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. Klik om in te trekken.` : '';
   const flags = (problem && c.acked_at ? ` <button class="ack-tag" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ bevestigd</button>` : '')
-    + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">🔧 tot ${esc(fmtUntil(c.maintenance.until))}</span>` : '')
+    + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">${c.maintenance.auto ? '🔧 auto, tot opgelost' : `🔧 tot ${esc(fmtUntil(c.maintenance.until))}`}</span>` : '')
     + (c.suppressed_by ? ' <span class="supp-tag" title="Geen melding: een server erboven is onbereikbaar">🔕 onderdrukt</span>' : '');
   return `
   <li class="chk s${s} ${+c.enabled ? '' : 'disabled'} ${c.maintenance ? 'in-maint' : ''} ${problem && c.acked_at ? 'acked' : ''}" title="${STATUS[s]} – laatst ${ago(c.last_checked)}">
