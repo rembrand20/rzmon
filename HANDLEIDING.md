@@ -50,7 +50,7 @@ RzMon bestaat uit vier onderdelen:
 | **HTTP(S)** | Website of API bereikbaar, statuscode < 400 | Responstijd in ms. Statuscode ≥ 400 = CRITICAL. SSL-certificaat < 14 dagen geldig = WARNING, < 3 dagen = CRITICAL | Alle servers |
 | **SSL-certificaat** | Hoe lang is het certificaat nog geldig? Werkt op elke TLS-poort | Dagen: warning **onder** 21, critical **onder** 7. Verlopen of ongeldig = CRITICAL | Alle servers |
 | **Diskruimte** | Percentage gebruikt per mount, plus een voorspelling wanneer hij vol is | % gebruikt. Vol binnen 7 dagen (instelbaar) = WARNING | Lokaal + agent |
-| **Service** | Is een systemd-service `active`? | Niet actief = CRITICAL | Lokaal + agent |
+| **Service** | Is een systemd-service `active`? Op agent-servers ook: luistert hij op zijn poorten, antwoordt hij, herstarts en log-fouten (§8.7) | Niet actief of antwoordt niet = CRITICAL; ≥ 3 herstarts/uur of fouten in het log = WARNING | Lokaal + agent |
 | **CPU** | CPU-gebruik over 2 seconden + load average | % gebruik | Lokaal + agent |
 | **RAM** | Geheugengebruik (cache telt niet mee) + swap | % gebruikt | Lokaal + agent |
 | **Home Assistant** | Core, Supervisor, elke add-on en beschikbare updates | Niet actief = CRITICAL, update beschikbaar = WARNING | HA-add-on |
@@ -765,6 +765,64 @@ Goed om te weten:
 - **Bedoeld gestopt:** een container die met exitcode 0 is gestopt (een eenmalige taak), telt bij *Podman (algemeen)* niet als probleem. Een status-check op zo'n container wordt wel CRITICAL; zet daar dus geen status-check op.
 - **Handmatige herstart:** `podman restart` telt niet als crash. Alleen herstarts door de restart-policy (`--restart always` of `on-failure`) geven een WARNING.
 - **Grafieken en MQTT:** CPU, RAM en disk van containers krijgen ook grafieken en verschijnen als sensoren in Home Assistant, met eenheid % en MB.
+
+
+### 8.7 Werkt de service echt? Diepere controle 🔎
+Op agent-servers kijkt een **service-check** niet alleen of de service "active" is, maar ook of hij echt werkt. Dat staat standaard aan. Een bericht ziet er bijvoorbeeld zo uit:
+> nginx draait · luistert op 80, 443 · HTTP 200 in 12 ms · geen fouten in log · draait sinds 20-10 08:15
+
+**Wat de agent controleert:**
+
+| Laag | Wat | Status bij een probleem |
+|---|---|---|
+| Proces | Draait het hoofdproces echt (`running`), niet alleen "active"? | WARNING |
+| Poorten | Op welke poorten luistert díe service, en nemen ze verbindingen aan? Getest op de server zelf | CRITICAL |
+| Antwoordt hij? | Een test die bij de dienst past (zie hieronder) | CRITICAL (of WARNING bij bv. HTTP 5xx of tijd niet gesynchroniseerd) |
+| Herstarts | Automatische herstarts in het afgelopen uur | WARNING vanaf 3 (crash-lus) |
+| Log | Foutregels (`journalctl -p err`) van het laatste kwartier | WARNING, met de laatste foutregel |
+
+**Tests per dienst** (op naam van de service):
+
+| Service | Test |
+|---|---|
+| nginx, httpd, apache2, caddy, lighttpd, traefik, haproxy | HTTP-verzoek naar de eigen poort; elk antwoord is goed, 5xx = WARNING |
+| mariadb, mysql | `mariadb-admin ping` (werkt ook zonder wachtwoord) |
+| postgresql | `pg_isready` |
+| redis, valkey | `PING` → `PONG` |
+| ssh, sshd | SSH-begroeting |
+| postfix, exim, sendmail | SMTP-begroeting (220) |
+| dovecot | IMAP-begroeting |
+| named, bind9, unbound, pihole-FTL, dnsmasq | DNS-vraag krijgt antwoord (`dig`) |
+| chronyd, systemd-timesyncd | Tijd is gesynchroniseerd |
+| Overige services | Alleen poorten, herstarts en log |
+
+**Extra test per check:** bewerk de service-check en kies bij *Extra test*:
+- **URL moet antwoorden**, bijvoorbeeld `http://localhost:8080/health`, eventueel met een tekst die in het antwoord moet staan (zoals `OK`). HTTP 400 of hoger telt als fout.
+- **Poort moet antwoorden**: `8080` of `host:8080`.
+
+De agent voert de test uit op de server zelf, dus `localhost` werkt. Nieuwe of gewijzigde tests worden binnen 10 minuten opgepikt.
+
+**Eigen test-script** (voor alles wat hierboven niet past): maak een uitvoerbaar script `/etc/rzmon-agent/tests/<servicenaam>`:
+```bash
+sudo mkdir -p /etc/rzmon-agent/tests
+sudo tee /etc/rzmon-agent/tests/myapp >/dev/null <<'EOF'
+#!/bin/sh
+# Eerste regel uitvoer = bericht. Exitcode: 0 = OK, 1 = WARNING, 2 = CRITICAL
+n=$(ls /var/spool/myapp | wc -l)
+[ "$n" -gt 1000 ] && { echo "wachtrij vol: $n"; exit 2; }
+echo "wachtrij: $n"
+EOF
+sudo chmod 755 /etc/rzmon-agent/tests/myapp
+```
+- Bestaande Nagios-plugins werken ook; die gebruiken dezelfde exitcodes.
+- **Veiligheid:** het script moet van root zijn en mag niet door anderen te wijzigen zijn, anders voert de agent het niet uit. Het mag maximaal 20 seconden duren.
+- Via RzMon kunnen nooit commando's op je servers worden uitgevoerd; alleen URL- en poorttests.
+
+**Goed om te weten:**
+- **Uitzetten:** per check zet je *Diepere controle* uit, dan wordt alleen "active" gecontroleerd. Voor de hele server: `SERVICE_DEEP=0` in `/etc/default/rzmon-agent`.
+- **Eenmalige services** (`Type=oneshot`, zoals een firewall-script) die "exited" zijn, gelden als goed.
+- **Op de RzMon-server zelf** (type *Lokaal*) wordt alleen de status gecontroleerd. Wil je daar ook de diepere controle, installeer dan de agent en maak een server van type *Remote met agent*.
+- Controleren op de server: `sudo rzmon-agent-setup --test` toont per service de poorten en het resultaat van de test.
 
 ---
 

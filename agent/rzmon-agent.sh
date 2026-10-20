@@ -17,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.10.0"
+AGENT_VERSION="1.11.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -46,6 +46,12 @@ INSECURE="${INSECURE:-0}"
 CERTS="${CERTS-/etc/letsencrypt/live/*/cert.pem}"
 # Certificaten veranderen zelden: elk uur opnieuw uitlezen is genoeg (seconden)
 CERT_INTERVAL="${CERT_INTERVAL:-3600}"
+# Diepere controle van services: draait het proces, luistert het op zijn poorten, antwoordt het
+# (HTTP, database, SSH, mail, DNS…), herstarts en fouten in het log. SERVICE_DEEP=0 zet het uit.
+SERVICE_DEEP="${SERVICE_DEEP:-1}"
+# Eigen tests: een uitvoerbaar script /etc/rzmon-agent/tests/<service> (van root, niet door anderen
+# te wijzigen). Exitcode 0 = OK, 1 = WARNING, 2 = CRITICAL; de eerste regel uitvoer is het bericht.
+SERVICE_TEST_DIR="${SERVICE_TEST_DIR:-/etc/rzmon-agent/tests}"
 # Podman: wordt alleen gemeld als podman op deze server staat. PODMAN=0 zet het uit.
 PODMAN="${PODMAN:-1}"
 # Gebruikers met rootless containers: "auto" = zelf zoeken (gebruikers met ~/.local/share/containers),
@@ -298,6 +304,188 @@ else
     done
 fi
 
+# ---------------------------------------------------------------- Services: diepere controle
+# Per service: systemd-details, de poorten van zijn processen (getest op deze server), een test
+# die bij de dienst past, fouten in het log van het laatste kwartier en een eventuele eigen test.
+svc_detail=""
+tcp_open() {  # tcp_open adres poort → 0 als er een verbinding mogelijk is
+    # shellcheck disable=SC2016
+    timeout 3 bash -c 'exec 3<>"/dev/tcp/$0/$1"' "$1" "$2" 2>/dev/null
+}
+tcp_banner() {  # tcp_banner adres poort [tekst om te sturen] → eerste regel van het antwoord
+    # Eén regel lezen (read -t): veel servers houden de verbinding daarna open
+    # shellcheck disable=SC2016
+    timeout 5 bash -c 'exec 3<>"/dev/tcp/$0/$1" || exit 1
+        [ -n "$2" ] && printf "$2" >&3
+        IFS= read -r -t 3 line <&3; printf "%s" "$line"' "$1" "$2" "${3-}" 2>/dev/null | tr -d '\r'
+}
+probe_service() {  # probe_service naam "poort|adres …" → zet probe, probe_rc (0/1/2) en probe_msg
+    local name=${1%.service} list=$2 port addr out t code first
+    probe=""; probe_rc=""; probe_msg=""
+    first=${list%% *}; port=${first%%|*}; addr=${first#*|}
+    case "$name" in
+        nginx*|httpd*|apache2*|caddy*|lighttpd*|traefik*|haproxy*)
+            probe=http
+            for pa in $list; do case "${pa%%|*}" in 80|8080|443|8443) port=${pa%%|*}; addr=${pa#*|}; break ;; esac; done
+            [ -n "$port" ] || { probe_rc=2; probe_msg="luistert op geen enkele poort"; return; }
+            local proto=http; [[ "$port" == *443 ]] && proto=https
+            out=$(curl -sk -o /dev/null -m 5 -w '%{http_code} %{time_total}' "$proto://$addr:$port/" 2>/dev/null)
+            code=${out%% *}; t=$(awk -v s="${out#* }" 'BEGIN { printf "%d", s * 1000 }')
+            if [ -z "$code" ] || [ "$code" = 000 ]; then probe_rc=2; probe_msg="geen HTTP-antwoord op $proto://$addr:$port/"
+            elif [ "$code" -ge 500 ]; then probe_rc=1; probe_msg="HTTP $code in $t ms (serverfout)"
+            else probe_rc=0; probe_msg="HTTP $code in $t ms"; fi ;;
+        mariadb*|mysql*)
+            probe=database
+            local admin; admin=$(command -v mariadb-admin || command -v mysqladmin)
+            if [ -n "$admin" ]; then
+                # "mysqld is alive" ook als de login geweigerd wordt: de server antwoordt dan wel
+                if "$admin" --connect-timeout=5 ping >/dev/null 2>&1; then probe_rc=0; probe_msg="database antwoordt (ping)"
+                else probe_rc=2; probe_msg="database antwoordt niet op ping"; fi
+            elif [ -n "$port" ]; then
+                if [ -n "$(tcp_banner "$addr" "$port")" ]; then probe_rc=0; probe_msg="database geeft zijn begroeting"; else probe_rc=2; probe_msg="geen begroeting op poort $port"; fi
+            fi ;;
+        postgresql*)
+            probe=database
+            if command -v pg_isready >/dev/null 2>&1; then
+                out=$(pg_isready -t 5 2>&1); code=$?
+                case $code in 0) probe_rc=0; probe_msg="database neemt verbindingen aan" ;; 1) probe_rc=1; probe_msg="database start op of weigert: $out" ;; *) probe_rc=2; probe_msg="database antwoordt niet" ;; esac
+            fi ;;
+        redis*|valkey*)
+            probe=redis
+            [ -n "$port" ] || return
+            out=$(tcp_banner "$addr" "$port" 'PING\r\n')
+            case "$out" in +PONG*|-NOAUTH*) probe_rc=0; probe_msg="antwoordt op PING" ;; *) probe_rc=2; probe_msg="geen antwoord op PING" ;; esac ;;
+        ssh|sshd)
+            probe=ssh
+            [ -n "$port" ] || return
+            out=$(tcp_banner "$addr" "$port")
+            if [[ "$out" == SSH-* ]]; then probe_rc=0; probe_msg="${out:0:40}"; else probe_rc=2; probe_msg="geen SSH-begroeting op poort $port"; fi ;;
+        postfix*|exim*|sendmail*|opensmtpd*)
+            probe=smtp
+            for pa in $list; do case "${pa%%|*}" in 25|587) port=${pa%%|*}; addr=${pa#*|}; break ;; esac; done
+            [ -n "$port" ] || return
+            out=$(tcp_banner "$addr" "$port")
+            if [[ "$out" == 220* ]]; then probe_rc=0; probe_msg="mailserver antwoordt (SMTP 220)"; else probe_rc=2; probe_msg="geen SMTP-begroeting op poort $port"; fi ;;
+        dovecot*)
+            probe=imap
+            for pa in $list; do [ "${pa%%|*}" = 143 ] && { port=143; addr=${pa#*|}; break; }; done
+            [ "$port" = 143 ] || return
+            out=$(tcp_banner "$addr" 143)
+            if [[ "$out" == "* OK"* ]]; then probe_rc=0; probe_msg="IMAP antwoordt"; else probe_rc=2; probe_msg="geen IMAP-begroeting"; fi ;;
+        named|bind9|unbound|pihole-FTL|dnsmasq|knot*|pdns*|coredns*)
+            probe=dns
+            for pa in $list; do [ "${pa%%|*}" = 53 ] && { port=53; addr=${pa#*|}; break; }; done
+            [ -n "$port" ] && command -v dig >/dev/null 2>&1 || return
+            if out=$(dig +time=2 +tries=1 @"$addr" -p "$port" . NS 2>&1) && [[ "$out" == *"status:"* ]]; then
+                probe_rc=0; probe_msg="DNS antwoordt ($(grep -o 'status: [A-Z]*' <<<"$out" | head -1))"
+            else probe_rc=2; probe_msg="DNS geeft geen antwoord"; fi ;;
+        chronyd|chrony)
+            probe=ntp
+            command -v chronyc >/dev/null 2>&1 || return
+            if chronyc -n tracking 2>/dev/null | grep -q 'Leap status *: Normal'; then probe_rc=0; probe_msg="tijd is gesynchroniseerd"
+            else probe_rc=1; probe_msg="tijd is niet gesynchroniseerd"; fi ;;
+        systemd-timesyncd)
+            probe=ntp
+            if [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ]; then probe_rc=0; probe_msg="tijd is gesynchroniseerd"
+            else probe_rc=1; probe_msg="tijd is niet gesynchroniseerd"; fi ;;
+    esac
+}
+if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "$SERVICES" ] && command -v systemctl >/dev/null 2>&1; then
+    # Alle luisterende TCP-poorten met de bijbehorende PID's: "poort|adres|pid pid …"
+    listen_map=""
+    command -v ss >/dev/null 2>&1 && listen_map=$(ss -Htlnp 2>/dev/null | awk '{
+        local = $4; port = local; sub(/.*:/, "", port); addr = local; sub(/:[^:]*$/, "", addr); gsub(/[\[\]]/, "", addr); sub(/%.*/, "", addr)
+        pids = ""; s = $0
+        while (match(s, /pid=[0-9]+/)) { pids = pids " " substr(s, RSTART + 4, RLENGTH - 4); s = substr(s, RSTART + RLENGTH) }
+        print port "|" addr "|" pids }')
+    read -r up_s _ < /proc/uptime
+    for s in $SERVICES; do
+        info=$(systemctl show -p ActiveState -p SubState -p Type -p MainPID -p NRestarts -p ActiveEnterTimestampMonotonic -p ControlGroup "$s" 2>/dev/null)
+        get() { sed -n "s/^$1=//p" <<<"$info"; }
+        [ "$(get ActiveState)" = active ] || { svc_detail+="\"$(json_escape "$s")\":{\"sub\":\"$(json_escape "$(get SubState)")\"},"; continue; }
+        main=$(get MainPID); cg=$(get ControlGroup); mono=$(get ActiveEnterTimestampMonotonic)
+        since=null
+        [[ "$mono" =~ ^[0-9]+$ ]] && [ "$mono" -gt 0 ] && since=$(awk -v u="$up_s" -v m="$mono" -v n="$(date +%s)" 'BEGIN { printf "%d", n - (u - m / 1e6) }')
+        # PID's van de service: zijn cgroup, of anders het hoofdproces met zijn kinderen
+        pids=""
+        for base in /sys/fs/cgroup /sys/fs/cgroup/systemd /sys/fs/cgroup/unified; do
+            if [ -n "$cg" ] && [ -d "$base$cg" ]; then pids=$(find "$base$cg" -name cgroup.procs -exec cat {} + 2>/dev/null | tr '\n' ' '); break; fi
+        done
+        [ -z "$pids" ] && [[ "$main" =~ ^[1-9][0-9]*$ ]] && pids="$main $(ps -o pid= --ppid "$main" 2>/dev/null | tr '\n' ' ')"
+        # Poorten van die PID's; testen op het adres waarop hij luistert (0.0.0.0/:: → 127.0.0.1)
+        svc_ports=""; plist=""; pfail=""
+        if [ -n "$pids" ] && [ -n "$listen_map" ]; then
+            while IFS='|' read -r port addr lpids; do
+                for pid in $lpids; do
+                    if [[ " $pids " == *" $pid "* ]]; then
+                        [[ " $svc_ports " == *" $port "* ]] && break
+                        case "$addr" in ''|'*'|0.0.0.0|::) taddr=127.0.0.1 ;; *) taddr=$addr ;; esac
+                        svc_ports+=" $port"; plist+=" $port|$taddr"
+                        if ! tcp_open "$taddr" "$port" && ! { [ "$addr" = :: ] && tcp_open ::1 "$port"; }; then pfail+="$port,"; fi
+                        break
+                    fi
+                done
+            done <<<"$listen_map"
+        fi
+        probe_service "$s" "${plist# }"
+        # Fouten in het log van het laatste kwartier
+        log_n=null; log_last=""
+        if command -v journalctl >/dev/null 2>&1; then
+            log=$(journalctl -u "$s" -p err --since "-15 min" -q --no-pager -o cat 2>/dev/null)
+            log_n=$(grep -c . <<<"$log"); log_last=$(tail -1 <<<"$log" | cut -c1-160)
+        fi
+        # Eigen test: alleen van root en niet door anderen te wijzigen (anders genegeerd)
+        c_rc=null; c_msg=""
+        f="$SERVICE_TEST_DIR/${s%.service}"
+        if [ -f "$f" ] && [ -x "$f" ]; then
+            if [ "$(stat -c '%u' "$f")" = 0 ] && ! find "$f" -perm /022 | grep -q .; then
+                c_out=$(timeout 20 "$f" 2>&1); c_rc=$?
+                c_msg=$(head -1 <<<"$c_out" | cut -c1-160)
+                [ "$c_rc" = 124 ] && { c_rc=2; c_msg="eigen test duurde langer dan 20 seconden"; }
+            else
+                c_rc=1; c_msg="eigen test $f genegeerd: moet van root zijn en mag niet door anderen te wijzigen zijn"
+            fi
+        fi
+        ports_json=$(tr ' ' '\n' <<<"${svc_ports# }" | grep . | paste -sd, -)
+        svc_detail+="\"$(json_escape "$s")\":{\"sub\":\"$(json_escape "$(get SubState)")\",\"type\":\"$(json_escape "$(get Type)")\",\"pid\":${main:-0},\"restarts\":$(get NRestarts | grep -E '^[0-9]+$' || echo null),\"since\":$since,\"ports\":[${ports_json}],\"ports_fail\":[${pfail%,}],\"probe\":\"$probe\",\"probe_rc\":${probe_rc:-null},\"probe_msg\":\"$(json_escape "$probe_msg")\",\"log_errors\":$log_n,\"log_last\":\"$(json_escape "$log_last")\",\"custom_rc\":$c_rc,\"custom_msg\":\"$(json_escape "$c_msg")\"},"
+    done
+fi
+
+# Extra tests die in RzMon bij een service-check zijn ingesteld (URL of poort). De lijst wordt
+# elke 10 minuten bij RzMon opgehaald; er worden nooit commando's van RzMon uitgevoerd.
+svc_tests=""
+if [ "$HA_MODE" = 0 ]; then
+    t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
+    mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
+    t_cache="$t_dir/tests.cache"
+    if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
+        t_k=(); [ "$INSECURE" = 1 ] && t_k=(-k)
+        if t_list=$(curl -fsS "${t_k[@]}" -m 10 -H "X-Agent-Token: $TOKEN" "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null); then
+            (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null || true
+        fi
+    fi
+    [ -r "$t_cache" ] && while IFS=$'\t' read -r t_id t_type t_target t_expect; do
+        [[ "$t_id" =~ ^[0-9]+$ ]] || continue
+        ok=false; msg=""
+        if [ "$t_type" = url ]; then
+            body=$(curl -sk -m 10 -w '\n%{http_code} %{time_total}' "$t_target" 2>&1)
+            meta=${body##*$'\n'}; body=${body%$'\n'*}; code=${meta%% *}
+            t=$(awk -v s="${meta#* }" 'BEGIN { printf "%d", s * 1000 }')
+            if [ "$code" = 000 ] || [ -z "$code" ]; then msg="geen antwoord van $t_target"
+            elif [ "$code" -ge 400 ]; then msg="HTTP $code van $t_target"
+            elif [ -n "$t_expect" ] && [[ "$body" != *"$t_expect"* ]]; then msg="HTTP $code, maar \"$t_expect\" staat niet in het antwoord"
+            else ok=true; msg="HTTP $code in $t ms${t_expect:+, bevat \"$t_expect\"}"; fi
+        elif [ "$t_type" = port ]; then
+            t_host=${t_target%:*}; t_port=${t_target##*:}
+            [ "$t_host" = "$t_target" ] && t_host=127.0.0.1
+            if tcp_open "$t_host" "$t_port"; then ok=true; msg="poort $t_port op $t_host antwoordt"; else msg="poort $t_port op $t_host antwoordt niet"; fi
+        else
+            continue
+        fi
+        svc_tests+="\"$t_id\":{\"ok\":$ok,\"msg\":\"$(json_escape "$msg")\"},"
+    done <"$t_cache"
+fi
+
 # ---------------------------------------------------------------- Podman: containers, pods en opslag
 # Per context: versie, containers (status, health, herstarts, grootte, volumes), pods en opslag.
 # Volumegroottes (du) worden een uur bewaard: die kunnen groot zijn en veranderen langzaam.
@@ -469,7 +657,7 @@ if [ -n "$CERTS" ]; then
 fi
 
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)
@@ -481,6 +669,16 @@ if [ "$TEST" = 1 ]; then
     pass "Gegevens verzameld: CPU ${cpu_pct}% (${cores} cores), $n_disks disk(s), $n_ports luisterende poort(en)"
     [ -n "$services" ] && hint "Services: $(sed 's/"//g; s/,$//; s/,/, /g' <<<"$services")"
     command -v ss >/dev/null 2>&1 || hint "ss ontbreekt: poorten worden niet gemeld (Rocky: dnf install iproute)"
+    if [ -n "$svc_detail" ]; then
+        pass "Diepere controle van services:"
+        # Per service: poorten en het resultaat van de test (✘ = probleem)
+        while IFS= read -r line; do hint "$line"; done < <(sed 's/},"/}\n"/g' <<<"${svc_detail%,}" | sed -nE \
+            's/^"([^"]+)":\{"sub":"running".*"ports":\[([0-9,]*)\],"ports_fail":\[([0-9,]*)\].*"probe_rc":([0-9]|null),"probe_msg":"([^"]*)".*"log_errors":([0-9]+|null).*/\1|\2|\3|\4|\5|\6/p' |
+            while IFS='|' read -r n p pf rc m le; do
+                printf '%s %s: poorten %s%s%s%s\n' "$( [ -n "$pf" ] || [ "$rc" = 2 ] && echo ✘ || echo ✔)" "$n" "${p:-geen}" \
+                    "${pf:+ (dicht: $pf)}" "${m:+ · $m}" "$( [ "$le" != null ] && [ "$le" != 0 ] && echo " · $le fout(en) in log")"
+            done)
+    fi
     if [ -n "$podman_json" ]; then
         n_run=$(grep -o '"state":"running"' <<<"$podman_json" | wc -l)
         n_all=$(grep -o '"state":"' <<<"$podman_json" | wc -l)

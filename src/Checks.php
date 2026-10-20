@@ -481,7 +481,100 @@ final class Checks
         if ($state === null) {
             return self::result(STATUS_UNKNOWN, null, "Agent meldt service {$check['target']} niet (staat hij in SERVICES?)");
         }
-        return self::serviceResult($check['target'], $state);
+        $base = self::serviceResult($check['target'], $state);
+        $opt = json_decode((string) ($check['options'] ?? ''), true) ?: [];
+        if ($base['status'] !== STATUS_OK || (int) ($opt['deep'] ?? 1) === 0) {
+            return $base;
+        }
+        $raw = self::agentMetric($host, 'svcinfo:' . $check['target']);
+        return $raw === null ? $base : self::deepService($check, $opt, json_decode($raw, true) ?: [], $host);
+    }
+
+    /**
+     * Eén laag dieper dan "active": poorten, een test die bij de dienst past, herstarts, log-fouten,
+     * een eigen test op de server en een extra test die bij de check is ingesteld.
+     */
+    private static function deepService(array $check, array $opt, array $d, array $host): array
+    {
+        $name = $check['target'];
+        $status = STATUS_OK;
+        $bad = [];     // wat niet goed is: vooraan in het bericht
+        $info = [];    // overige details
+        $raise = static function (int $s, string $msg) use (&$status, &$bad): void {
+            $rank = [STATUS_OK => 0, STATUS_UNKNOWN => 1, STATUS_WARN => 2, STATUS_CRIT => 3];
+            if ($rank[$s] > $rank[$status]) {
+                $status = $s;
+            }
+            $bad[] = $msg;
+        };
+
+        // Hoofdproces: "active" maar niet "running" is bij gewone services verdacht (oneshot mag "exited")
+        if (($d['sub'] ?? '') !== 'running' && !in_array($d['type'] ?? '', ['oneshot'], true) && ($d['sub'] ?? '') !== 'exited') {
+            $raise(STATUS_WARN, 'proces: ' . ($d['sub'] ?? '?'));
+        }
+        if (!empty($d['ports'])) {
+            $info[] = 'luistert op ' . implode(', ', $d['ports']);
+        }
+        if (!empty($d['ports_fail'])) {
+            $raise(STATUS_CRIT, 'poort ' . implode(', ', $d['ports_fail']) . ' neemt geen verbindingen aan');
+        }
+        // Test die bij de dienst past (HTTP, database, SSH, mail, DNS, tijd…)
+        if (isset($d['probe_rc']) && $d['probe_rc'] !== null) {
+            $rc = (int) $d['probe_rc'];
+            if ($rc === 0) {
+                $info[] = (string) $d['probe_msg'];
+            } else {
+                $raise($rc >= 2 ? STATUS_CRIT : STATUS_WARN, (string) $d['probe_msg']);
+            }
+        }
+        // Extra test die bij deze check in RzMon is ingesteld (URL of poort, uitgevoerd door de agent)
+        if (in_array($opt['test_type'] ?? '', ['url', 'port'], true)) {
+            $t = json_decode((string) self::agentMetric($host, 'svctest:' . $check['id']), true);
+            if (!$t) {
+                $info[] = 'extra test: nog geen resultaat (de agent haalt nieuwe tests binnen 10 minuten op)';
+            } elseif ($t['ok']) {
+                $info[] = $t['msg'];
+            } else {
+                $raise(STATUS_CRIT, $t['msg']);
+            }
+        }
+        // Eigen test op de server (/etc/rzmon-agent/tests/<service>), in Nagios-stijl: 0/1/2
+        if (isset($d['custom_rc']) && $d['custom_rc'] !== null) {
+            $rc = (int) $d['custom_rc'];
+            $msg = 'eigen test: ' . ($d['custom_msg'] !== '' ? $d['custom_msg'] : "exitcode $rc");
+            if ($rc === 0) {
+                $info[] = $msg;
+            } else {
+                $raise($rc === 1 ? STATUS_WARN : ($rc === 2 ? STATUS_CRIT : STATUS_UNKNOWN), $msg);
+            }
+        }
+        // Automatische herstarts (crash) in het afgelopen uur: vanaf 3 een WARNING
+        $hist = array_values(array_filter($d['hist'] ?? [], fn($h) => $h[0] >= time() - 3600));
+        $restarts = 0;
+        if ($hist) {
+            $first = (int) $hist[0][1];
+            $last = (int) end($hist)[1];
+            $restarts = max(0, $last - $first);
+        }
+        if ($restarts >= 3) {
+            $raise(STATUS_WARN, "{$restarts}× herstart in het afgelopen uur");
+        } elseif ($restarts > 0) {
+            $info[] = "{$restarts}× herstart in het afgelopen uur";
+        }
+        // Foutregels in het systeemlog van het laatste kwartier
+        if (isset($d['log_errors']) && $d['log_errors'] !== null) {
+            if ((int) $d['log_errors'] > 0) {
+                $raise(STATUS_WARN, "{$d['log_errors']} fout(en) in log (15 min): " . mb_substr((string) $d['log_last'], 0, 120));
+            } else {
+                $info[] = 'geen fouten in log';
+            }
+        }
+        if (!empty($d['since'])) {
+            $info[] = 'draait sinds ' . date('d-m H:i', (int) $d['since']);
+        }
+
+        $head = $status === STATUS_OK ? "$name draait" : "$name draait, maar: " . implode(' · ', $bad);
+        return self::result($status, $status === STATUS_CRIT ? 0.0 : 1.0, $head . ($info ? ' · ' . implode(' · ', $info) : ''));
     }
 
     /** CPU-gebruik gemeten over 2 seconden via /proc/stat. */

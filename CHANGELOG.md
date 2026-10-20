@@ -7,6 +7,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.11.0 – 2026-10-20
+### Nieuw
+- **Diepere controle van services via de agent:** een service-check kijkt nu niet alleen of de service "active" is, maar ook of hij echt werkt:
+  - draait het hoofdproces echt (niet alleen "active");
+  - **luistert hij op zijn poorten** en nemen die verbindingen aan (getest op de server zelf);
+  - **antwoordt hij**: een test die bij de dienst past, voor web (nginx, httpd, apache, caddy…: HTTP-antwoord), MariaDB/MySQL (ping), PostgreSQL (`pg_isready`), Redis (`PING`), SSH (begroeting), Postfix/Exim (SMTP 220), Dovecot (IMAP), DNS (named, unbound, Pi-hole, dnsmasq…: DNS-vraag) en chrony/timesyncd (tijd gesynchroniseerd);
+  - **herstarts**: vanaf 3 automatische herstarts per uur een WARNING (crash-lus);
+  - **fouten in het log** van het laatste kwartier: WARNING, met de laatste foutregel.
+  Je bestaande service-checks doen dit vanzelf (nadat de agent is bijgewerkt). Per check kun je het uitzetten met *Diepere controle*.
+- **Extra test per service-check:** "deze URL moet antwoorden (en deze tekst bevatten)" of "deze poort moet antwoorden". Je stelt die in bij de check in RzMon; de agent voert hem uit op de server zelf, dus `localhost` werkt ook.
+- **Eigen test-scripts** op de server: `/etc/rzmon-agent/tests/<service>`, met exitcode 0 = OK, 1 = WARNING, 2 = CRITICAL (zoals Nagios-plugins). Alleen scripts van root die niet door anderen te wijzigen zijn, worden uitgevoerd. RzMon zelf kan nooit commando's op je servers laten uitvoeren.
+- `rzmon-agent-setup --test` toont per service de poorten en het resultaat van de test.
+
 ## 1.10.0 – 2026-10-20
 ### Nieuw
 - **Twee lay-outs voor het dashboard**, te kiezen onder *Instellingen → Weergave*:

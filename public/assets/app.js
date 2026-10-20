@@ -16,7 +16,7 @@ const TYPES = {
   ram:     { label: 'RAM',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'Percentage geheugen in gebruik (op basis van MemAvailable, dus cache telt niet mee). Swap staat in het bericht.' },
   podman:  { label: 'Podman (algemeen)', target: null, unit: null, help: 'Algehele status van Podman op deze server: draait podman, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.' },
   container: { label: 'Container (Podman)', target: 'Container', unit: null, ph: 'naam, of gebruiker/naam (rootless)', help: 'Eén container: kies hieronder wat je wilt meten. Kies de naam uit de lijst die de agent meldt.' },
-  service: { label: 'Service',       target: 'Servicenaam',   unit: null, ph: 'nginx', help: 'systemd service moet "active" zijn. Op agent-servers: voeg de service toe aan SERVICES in rzmon-agent.sh. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.' },
+  service: { label: 'Service',       target: 'Servicenaam',   unit: null, ph: 'nginx', help: 'De systemd-service moet "active" zijn. Op agent-servers zet je de service in SERVICES van de agent; daar wordt met Diepere controle ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.' },
 };
 // Container-checks: wat er gemeten wordt (eigen eenheid en drempels)
 const METRICS = {
@@ -708,6 +708,8 @@ function checkForm(c, h, preset = {}) {
     : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container'].includes(k));
   const disks = h.metrics.filter((m) => m.startsWith('disk:')).map((m) => m.slice(5));
   const svcs = h.metrics.filter((m) => m.startsWith('service:')).map((m) => m.slice(8));
+  let opts = {};
+  try { opts = JSON.parse(c.options || '{}') || {}; } catch (e) { opts = {}; }
   const certs = h.metrics.filter((m) => m.startsWith('cert:')).map((m) => m.slice(5));
   const containers = h.metrics.filter((m) => m.startsWith('container:')).map((m) => m.slice(10));
 
@@ -730,6 +732,22 @@ function checkForm(c, h, preset = {}) {
         <label><span class="thr-word">Critical vanaf</span> <span class="hint unit"></span><input name="crit_threshold" type="number" step="any" value="${c.crit_threshold ?? ''}"></label>
         <label>Interval <span class="hint">sec</span><input name="interval_sec" type="number" min="30" step="30" value="${c.interval_sec}"></label>
       </div>
+      <div id="deep-wrap" hidden>
+        <label class="switch"><input type="checkbox" name="deep" ${+(opts.deep ?? 1) ? 'checked' : ''}><span></span> Diepere controle</label>
+        <span class="hint">Niet alleen "aan", maar ook: luistert hij op zijn poorten, antwoordt hij (HTTP, database, SSH, mail, DNS…), hoe vaak is hij herstart en staan er fouten in het log.</span>
+        <div class="row2" style="margin-top:.6rem">
+          <label>Extra test <span class="hint">(optioneel)</span>
+            <select name="test_type">
+              <option value="">Geen</option>
+              <option value="url" ${opts.test_type === 'url' ? 'selected' : ''}>URL moet antwoorden</option>
+              <option value="port" ${opts.test_type === 'port' ? 'selected' : ''}>Poort moet antwoorden</option>
+            </select>
+          </label>
+          <label id="test-target-wrap">Adres<input name="test_target" class="mono" value="${esc(opts.test_target || '')}"></label>
+        </div>
+        <label id="test-expect-wrap">Moet deze tekst bevatten <span class="hint">(optioneel)</span><input name="test_expect" value="${esc(opts.test_expect || '')}" placeholder="bv. OK of &quot;status&quot;:&quot;up&quot;"></label>
+        <span class="hint">De agent voert de test uit op de server zelf, dus <code>localhost</code> werkt ook. Nieuwe tests worden binnen 10 minuten opgepikt.</span>
+      </div>
       <label class="switch" id="verify-wrap"><input type="checkbox" name="verify_ssl" ${+(c.verify_ssl ?? 1) ? 'checked' : ''}><span></span> Certificaat controleren <span class="hint">(uit bij self-signed, bv. Proxmox of een NAS)</span></label>
       <label class="switch"><input type="checkbox" name="enabled" ${+c.enabled ? 'checked' : ''}><span></span> Actief</label>`,
     buttons: [
@@ -741,7 +759,7 @@ function checkForm(c, h, preset = {}) {
       { label: isNew ? 'Toevoegen & checken' : 'Opslaan & checken', cls: 'primary', submit: true },
     ],
     onSubmit: async (d) => {
-      await api('check_save', { ...d, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl });
+      await api('check_save', { ...d, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep });
       toast('Check opgeslagen');
     },
   });
@@ -763,6 +781,14 @@ function checkForm(c, h, preset = {}) {
     words[0].textContent = t.low ? 'Warning onder' : 'Warning vanaf';
     words[1].textContent = t.low ? 'Critical onder' : 'Critical vanaf';
     $('#verify-wrap').hidden = !['http', 'ssl'].includes(typeSel.value);
+    // Diepere controle en extra test: alleen services op agent-servers
+    const deep = typeSel.value === 'service' && h.mode === 'agent';
+    $('#deep-wrap').hidden = !deep;
+    const tt = $('[name=test_type]', form).value;
+    $('#test-target-wrap').hidden = !tt;
+    $('#test-expect-wrap').hidden = tt !== 'url';
+    $('[name=test_target]', form).placeholder = tt === 'port' ? '8080 of localhost:8080' : 'http://localhost:8080/health';
+    $('[name=test_target]', form).required = deep && !!tt;
     $('[name=target]', form).required = !!t.target && !['http', 'ssl'].includes(typeSel.value);
     const list = { disk: disks, service: svcs, ssl: certs, container: containers }[typeSel.value] || [];
     $('#target-list').innerHTML = list.map((v) => `<option value="${esc(v)}">`).join('');
@@ -774,6 +800,7 @@ function checkForm(c, h, preset = {}) {
   };
   typeSel.onchange = () => update(true);
   metricSel.onchange = () => update('metric');
+  $('[name=test_type]', form).onchange = () => update(false);
   update(false);
 }
 

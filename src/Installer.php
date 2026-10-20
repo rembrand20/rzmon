@@ -71,6 +71,7 @@ final class Installer
         ['checks', 'verify_ssl', 'TINYINT(1) NOT NULL DEFAULT 1'],
         ['alerts', 'email_ok', 'TINYINT(1) NULL'],
         ['checks', 'metric', 'VARCHAR(16) NULL'],   // container: status | cpu | mem | disk
+        ['checks', 'options', 'VARCHAR(500) NULL'],  // JSON, bv. service: diepere controle en extra test
     ];
 
     private static function migrate(PDO $pdo): void

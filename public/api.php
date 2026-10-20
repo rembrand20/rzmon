@@ -66,6 +66,20 @@ function agent_host(): array
     return $host;
 }
 
+// Extra tests (URL of poort) die bij service-checks van deze server zijn ingesteld, voor de agent.
+// Platte tekst, één test per regel: id <tab> type <tab> doel <tab> verwachte tekst.
+if ($action === 'agent_tests') {
+    $host = agent_host();
+    header('Content-Type: text/plain; charset=utf-8');
+    foreach (q("SELECT id, options FROM checks WHERE host_id = ? AND type = 'service' AND enabled = 1 AND options IS NOT NULL", [$host['id']]) as $c) {
+        $o = json_decode((string) $c['options'], true) ?: [];
+        if (in_array($o['test_type'] ?? '', ['url', 'port'], true) && ($o['test_target'] ?? '') !== '') {
+            echo implode("\t", [$c['id'], $o['test_type'], str_replace(["\t", "\n"], ' ', $o['test_target']), str_replace(["\t", "\n"], ' ', (string) ($o['test_expect'] ?? ''))]), "\n";
+        }
+    }
+    exit;
+}
+
 // Alleen het token controleren, zonder gegevens te versturen (verbindingstest)
 if ($action === 'agent_check') {
     $host = agent_host();
@@ -137,6 +151,31 @@ if ($action === 'agent') {
             $summary['containers'][] = array_intersect_key($c, array_flip(['name', 'user', 'pod', 'state', 'health', 'exit_code']));
         }
         $st->execute([$host['id'], 'podman', json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
+    }
+    // Services: details van de diepere controle, met een uur herstart-historie (voor "≥ 3 per uur")
+    if (isset($in['svc']) && is_array($in['svc'])) {
+        $prev = [];
+        foreach (q("SELECT metric, value FROM agent_data WHERE host_id = ? AND metric LIKE 'svcinfo:%'", [$host['id']]) as $r) {
+            $prev[substr($r['metric'], 8)] = json_decode($r['value'], true) ?: [];
+        }
+        foreach (array_slice($in['svc'], 0, 100, true) as $name => $d) {
+            if (!is_array($d) || !preg_match('/^[A-Za-z0-9@._:-]{1,150}$/', (string) $name)) {
+                continue;
+            }
+            $d = array_intersect_key($d, array_flip(['sub', 'type', 'pid', 'restarts', 'since', 'ports', 'ports_fail', 'probe', 'probe_rc',
+                'probe_msg', 'log_errors', 'log_last', 'custom_rc', 'custom_msg']));
+            $hist = array_values(array_filter($prev[$name]['hist'] ?? [], fn($h) => is_array($h) && $h[0] >= time() - 3900));
+            if (isset($d['restarts']) && is_numeric($d['restarts'])) {
+                $hist[] = [time(), (int) $d['restarts']];
+            }
+            $d['hist'] = array_slice($hist, -70);
+            $st->execute([$host['id'], 'svcinfo:' . $name, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
+        }
+    }
+    foreach ((array) ($in['svc_tests'] ?? []) as $id => $t) {
+        if (ctype_digit((string) $id) && is_array($t)) {
+            $st->execute([$host['id'], 'svctest:' . $id, json_encode(['ok' => !empty($t['ok']), 'msg' => mb_substr((string) ($t['msg'] ?? ''), 0, 200)], JSON_UNESCAPED_UNICODE), $now]);
+        }
     }
     foreach (($in['services'] ?? []) as $name => $state) {
         $st->execute([$host['id'], mb_substr('service:' . $name, 0, 190), mb_substr((string) $state, 0, 255), $now]);
@@ -415,17 +454,32 @@ switch ($action) {
         if ($type === 'container' && $metric === 'status') {
             $warn = $crit = null;   // status heeft geen drempels
         }
+        $options = null;
+        if ($type === 'service') {
+            $testType = in_array($in['test_type'] ?? '', ['url', 'port'], true) ? $in['test_type'] : '';
+            $testTarget = trim((string) ($in['test_target'] ?? ''));
+            if ($testType === 'url' && !preg_match('#^https?://[^\s]+$#i', $testTarget)) {
+                out(['error' => 'Extra test: geef een URL die met http:// of https:// begint, bv. http://localhost:8080/health'], 422);
+            }
+            if ($testType === 'port' && !preg_match('#^(([A-Za-z0-9.\-]+|\[[0-9a-fA-F:]+\]):)?\d{1,5}$#', $testTarget)) {
+                out(['error' => 'Extra test: geef een poort (8080) of host:poort (localhost:8080)'], 422);
+            }
+            $options = json_encode(['deep' => ($in['deep'] ?? true) ? 1 : 0] + ($testType !== '' ? [
+                'test_type' => $testType, 'test_target' => mb_substr($testTarget, 0, 300),
+                'test_expect' => mb_substr(trim((string) ($in['test_expect'] ?? '')), 0, 100),
+            ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
         $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
             'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM'][$type] . ($target !== '' ? " $target" : '')
             . ($type === 'container' && $metric !== 'status' ? ' · ' . ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'Disk'][$metric] : '');
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
-            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric];
+            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options];
         if (!empty($in['id'])) {
-            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ? WHERE id = ?',
+            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ? WHERE id = ?',
                 [...$params, (int) $in['id']]);
             $id = (int) $in['id'];
         } else {
-            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [...$params, (int) ($in['host_id'] ?? 0)]);
             $id = (int) db()->lastInsertId();
         }
