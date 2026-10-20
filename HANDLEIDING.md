@@ -922,8 +922,17 @@ Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De 
 - **Wissel je van netwerk** met een open sessie, bijvoorbeeld van wifi naar 4G, dan word je bij het volgende verzoek uitgelogd.
 - **REST API:** die vraagt altijd een API-sleutel, ook op het LAN.
 
+### Onthoud mij op dit apparaat 📱
+Zet bij het inloggen **Onthoud mij op dit apparaat** aan. Dan blijf je op dat apparaat ingelogd, ook na het sluiten van de browser of een herstart, en hoef je geen wachtwoord of 2FA-code meer in te vullen.
+- **30 dagen:** gebruik je het apparaat 30 dagen niet, dan wordt het vergeten. Elk gebruik telt opnieuw vanaf nul.
+- **Gekoppeld aan dat apparaat:** het apparaat krijgt een geheime sleutel in een beveiligde cookie, die alleen in die browser werkt. Wis je de cookies of gebruik je een privévenster, dan moet je opnieuw inloggen.
+- **Veilig:** in de database staat alleen een hash van de sleutel. De sleutel wordt bij elk gebruik vervangen. Duikt een oude sleutel op (bijvoorbeeld een gestolen cookie), dan wordt het apparaat ongeldig.
+- **Apparaten beheren:** klik bij je account onder *Instellingen → Gebruikers* op **📱**. Je ziet elk apparaat met naam, laatste gebruik en IP-adres, en kunt het **vergeten**. Een vergeten apparaat wordt ook direct uitgelogd, handig bij een verloren telefoon. Beheerders kunnen dit voor alle gebruikers.
+- **Automatisch vergeten** bij uitloggen op dat apparaat, bij een wachtwoordwijziging (alle andere apparaten) en als een beheerder je wachtwoord reset.
+- **Rechten:** je houdt de rechten van je account. Wijzigt een beheerder je rol, dan geldt die meteen.
+
 ### Welke rechten heb je op het lokale netwerk?
-- **Standaard** kom je zonder wachtwoord binnen als **👁 Alleen lezen**: je kunt alles zien, maar niets veranderen.
+- **Standaard** kom je zonder wachtwoord binnen als **👁 Alleen lezen**: je kunt alles zien, maar niets veranderen. Heb je op dit apparaat *Onthoud mij* aan staan, dan kom je binnen met je eigen account.
 - **Inloggen** (knop rechtsboven) logt je in met je eigen account, met de rechten van dat account. *Verder zonder inloggen* brengt je terug naar alleen lezen.
 - **"Op het lokale netwerk als beheerder inloggen"** (onder *Toegang*, alleen te wijzigen door een beheerder): staat dit aan, dan kom je op het LAN zonder wachtwoord binnen als **beheerder**. Dat geldt alleen voor het lokale netwerk.
 - **Van buitenaf (internet)** is altijd een gebruikersnaam en wachtwoord nodig, plus 2FA als die aan staat. Je krijgt dan de rechten van je account.

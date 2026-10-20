@@ -52,11 +52,20 @@ function current_user(): ?array
         // Eigen account: bestaan en rol elke keer uit de database (verwijderd of rol gewijzigd → direct merkbaar)
         $row = q('SELECT id, username, role FROM users WHERE id = ?', [$user['id']])->fetch();
         $user = $row ? ['id' => (int) $row['id'], 'username' => $row['username'], 'role' => $row['role']] : null;
+        // Ingelogd via "onthoud mij" en dat apparaat is intussen vergeten (bv. telefoon kwijt) → uitloggen
+        if ($user && !empty($_SESSION['remember_id']) && !remember_touch()) {
+            $user = null;
+        }
         if ($user) {
             $_SESSION['user'] = $user;
         } else {
             $_SESSION = ['csrf' => $_SESSION['csrf']];
         }
+    }
+
+    // Onthouden apparaat: inloggen met de sleutel uit de cookie (ook op het LAN: dan je eigen account)
+    if (!$user) {
+        $user = remember_login();
     }
 
     // "Inloggen" gekozen op het LAN (?login=1): dan niet automatisch binnenlaten
@@ -98,7 +107,7 @@ function is_lan_session(): bool
  * Eerste stap van inloggen.
  * @return string|false 'ok' (ingelogd), 'totp' (nu nog de code uit de authenticator-app) of false
  */
-function login(string $username, string $password): string|false
+function login(string $username, string $password, bool $remember = false): string|false
 {
     start_session();
     $u = q('SELECT id, username, password_hash, totp_secret, role FROM users WHERE username = ?', [$username])->fetch();
@@ -109,10 +118,10 @@ function login(string $username, string $password): string|false
     if ($u['totp_secret']) {
         // Wachtwoord klopt; de sessie is pas geldig na de juiste code
         unset($_SESSION['user'], $_SESSION['lan_auto']);
-        $_SESSION['pending_2fa'] = ['id' => (int) $u['id'], 'at' => time(), 'tries' => 0];
+        $_SESSION['pending_2fa'] = ['id' => (int) $u['id'], 'at' => time(), 'tries' => 0, 'remember' => $remember];
         return 'totp';
     }
-    finish_login($u);
+    finish_login($u, $remember);
     return 'ok';
 }
 
@@ -140,21 +149,157 @@ function login_totp(string $code): true|string
         return 'Onjuiste code' . ($_SESSION['pending_2fa']['tries'] >= 5 ? ' — log opnieuw in met je wachtwoord' : '');
     }
     q('UPDATE users SET totp_last_step = ? WHERE id = ?', [$step, $u['id']]);
-    finish_login($u);
+    finish_login($u, !empty($p['remember']));
     return true;
 }
 
-function finish_login(array $u): void
+function finish_login(array $u, bool $remember = false): void
 {
     session_regenerate_id(true);
-    unset($_SESSION['pending_2fa'], $_SESSION['lan_auto'], $_SESSION['no_lan_auto']);
+    unset($_SESSION['pending_2fa'], $_SESSION['lan_auto'], $_SESSION['no_lan_auto'], $_SESSION['remember_id']);
     $_SESSION['user'] = ['id' => (int) $u['id'], 'username' => $u['username'], 'role' => $u['role'] ?? 'admin'];
     q('UPDATE users SET last_login = ? WHERE id = ?', [now(), $u['id']]);
+    if ($remember) {
+        remember_create((int) $u['id']);
+    }
+}
+
+// ------------------------------------------------------------------ onthoud mij op dit apparaat
+
+const REMEMBER_COOKIE = 'rzmon_remember';
+
+/** Cookie zetten (of met null weghalen). Lax: ook geldig als je een link uit een melding opent. */
+function remember_cookie(?string $value): void
+{
+    $path = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
+    setcookie(REMEMBER_COOKIE, $value ?? '', [
+        'expires' => $value !== null ? time() + REMEMBER_DAYS * 86400 : time() - 3600,
+        'path' => $path,
+        'httponly' => true,
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'samesite' => 'Lax',
+    ]);
+    if ($value === null) {
+        unset($_COOKIE[REMEMBER_COOKIE]);
+    }
+}
+
+/** Nieuw onthouden apparaat: willekeurige sleutel; in de database alleen de hash. */
+function remember_create(int $userId): void
+{
+    $selector = bin2hex(random_bytes(12));
+    $validator = bin2hex(random_bytes(32));
+    q('INSERT INTO remember_tokens (user_id, selector, token_hash, device, ip, last_used) VALUES (?, ?, ?, ?, ?, ?)', [
+        $userId, $selector, hash('sha256', $validator), device_name(), mb_substr(client_ip(), 0, 45), now(),
+    ]);
+    $_SESSION['remember_id'] = (int) db()->lastInsertId();
+    $_SESSION['remember_value'] = "$selector:$validator";
+    $_SESSION['remember_touch'] = time();
+    remember_cookie("$selector:$validator");
+}
+
+/**
+ * Inloggen met de cookie. De sleutel wordt daarbij vervangen. Een oude sleutel die opnieuw
+ * opduikt (gestolen cookie?) maakt het apparaat ongeldig. Geen 2FA nodig: dit apparaat is vertrouwd.
+ */
+function remember_login(): ?array
+{
+    $c = (string) ($_COOKIE[REMEMBER_COOKIE] ?? '');
+    if (!preg_match('/^([0-9a-f]{24}):([0-9a-f]{64})$/', $c, $m)) {
+        if ($c !== '') {
+            remember_cookie(null);
+        }
+        return null;
+    }
+    $t = q('SELECT r.*, u.username, u.role FROM remember_tokens r JOIN users u ON u.id = r.user_id WHERE r.selector = ?', [$m[1]])->fetch();
+    if (!$t || strtotime($t['last_used']) < time() - REMEMBER_DAYS * 86400) {
+        if ($t) {
+            q('DELETE FROM remember_tokens WHERE id = ?', [$t['id']]);
+        }
+        remember_cookie(null);
+        return null;
+    }
+    $hash = hash('sha256', $m[2]);
+    $fresh = hash_equals($t['token_hash'], $hash);
+    // Twee verzoeken tegelijk met dezelfde (net vervangen) sleutel: 60 seconden speling
+    $grace = !$fresh && $t['prev_hash'] && hash_equals($t['prev_hash'], $hash) && strtotime((string) $t['rotated_at']) > time() - 60;
+    if (!$fresh && !$grace) {
+        q('DELETE FROM remember_tokens WHERE id = ?', [$t['id']]);
+        remember_cookie(null);
+        return null;
+    }
+    session_regenerate_id(true);
+    unset($_SESSION['lan_auto'], $_SESSION['no_lan_auto']);
+    $_SESSION['remember_id'] = (int) $t['id'];
+    $_SESSION['remember_touch'] = time();
+    if ($fresh) {
+        $validator = bin2hex(random_bytes(32));
+        q('UPDATE remember_tokens SET token_hash = ?, prev_hash = ?, rotated_at = ?, last_used = ?, ip = ? WHERE id = ?', [
+            hash('sha256', $validator), $t['token_hash'], now(), now(), mb_substr(client_ip(), 0, 45), $t['id'],
+        ]);
+        $_SESSION['remember_value'] = "{$m[1]}:$validator";
+        remember_cookie($_SESSION['remember_value']);
+    }
+    q('UPDATE users SET last_login = ? WHERE id = ?', [now(), $t['user_id']]);
+    return $_SESSION['user'] = ['id' => (int) $t['user_id'], 'username' => $t['username'], 'role' => $t['role']];
+}
+
+/**
+ * Tijdens een sessie: bestaat het apparaat nog (niet "vergeten")? Elke 10 minuten ook
+ * "laatst gebruikt" en de vervaldatum van de cookie bijwerken (30 dagen vanaf nu).
+ */
+function remember_touch(): bool
+{
+    $id = (int) $_SESSION['remember_id'];
+    if (!q('SELECT 1 FROM remember_tokens WHERE id = ?', [$id])->fetchColumn()) {
+        unset($_SESSION['remember_id'], $_SESSION['remember_value']);
+        remember_cookie(null);
+        return false;
+    }
+    if (time() - (int) ($_SESSION['remember_touch'] ?? 0) > 600) {
+        q('UPDATE remember_tokens SET last_used = ?, ip = ? WHERE id = ?', [now(), mb_substr(client_ip(), 0, 45), $id]);
+        $_SESSION['remember_touch'] = time();
+        if (!empty($_SESSION['remember_value'])) {
+            remember_cookie($_SESSION['remember_value']);
+        }
+    }
+    return true;
+}
+
+/** Leesbare naam voor het apparaat, uit de User-Agent: "Safari op iPhone". */
+function device_name(): string
+{
+    $ua = (string) ($_SERVER['HTTP_USER_AGENT'] ?? '');
+    $os = match (true) {
+        str_contains($ua, 'iPhone') => 'iPhone',
+        str_contains($ua, 'iPad') => 'iPad',
+        str_contains($ua, 'Android') => 'Android',
+        str_contains($ua, 'Windows') => 'Windows',
+        str_contains($ua, 'Mac OS X') || str_contains($ua, 'Macintosh') => 'Mac',
+        str_contains($ua, 'CrOS') => 'Chromebook',
+        str_contains($ua, 'Linux') => 'Linux',
+        default => 'onbekend systeem',
+    };
+    $browser = match (true) {
+        str_contains($ua, 'Edg/') => 'Edge',
+        str_contains($ua, 'OPR/') || str_contains($ua, 'Opera') => 'Opera',
+        str_contains($ua, 'SamsungBrowser') => 'Samsung Internet',
+        str_contains($ua, 'Firefox/') || str_contains($ua, 'FxiOS') => 'Firefox',
+        str_contains($ua, 'Chrome/') || str_contains($ua, 'CriOS') => 'Chrome',
+        str_contains($ua, 'Safari/') => 'Safari',
+        default => 'Browser',
+    };
+    return "$browser op $os";
 }
 
 function logout(): void
 {
     start_session();
+    // Uitloggen = ook dit apparaat niet meer onthouden
+    if (!empty($_SESSION['remember_id'])) {
+        q('DELETE FROM remember_tokens WHERE id = ?', [(int) $_SESSION['remember_id']]);
+    }
+    remember_cookie(null);
     $_SESSION = [];
     session_destroy();
 }

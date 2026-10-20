@@ -81,7 +81,7 @@ if (loginForm) {
         await api('login_totp', { code: loginForm.code.value });
         return location.replace(location.pathname);   // zonder ?login=1, anders weer uitgelogd
       }
-      const r = await api('login', { username: loginForm.username.value, password: loginForm.password.value });
+      const r = await api('login', { username: loginForm.username.value, password: loginForm.password.value, remember: loginForm.remember.checked });
       if (!r.totp_required) return location.replace(location.pathname);
       // Wachtwoord klopt; nu de code uit de authenticator-app
       $('#login-step1').hidden = true;
@@ -1388,6 +1388,7 @@ async function loadUsers() {
           : `<button class="btn" data-uact="totp-setup" data-id="${u.id}">🔐 2FA instellen</button>`}
         ${u.me ? '' : `<select class="role-select need-admin" data-uact="role" data-id="${u.id}" title="Rol wijzigen">
           ${Object.entries(ROLE_LABEL).map(([k, l]) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`}
+        <button class="btn small-btn" data-uact="devices" data-id="${u.id}" title="Apparaten waarop ${esc(u.username)} ingelogd blijft">📱 ${+u.devices}</button>
         <button class="icon-btn need-admin" data-uact="password" data-id="${u.id}" title="Nieuw wachtwoord instellen">🔑</button>
         ${u.me ? '' : `<button class="icon-btn need-admin" data-uact="delete" data-id="${u.id}" title="Verwijderen">🗑</button>`}
       </span>
@@ -1415,6 +1416,7 @@ async function onUsersClick(e) {
   try {
     switch (b.dataset.uact) {
       case 'totp-setup': return totpSetup(u.id, u.username);
+      case 'devices': return devicesDialog(u);
       case 'totp-reset':
         if (!confirm(`Tweestapsverificatie van ${u.username} resetten?\nInloggen kan daarna weer met alleen het wachtwoord, tot 2FA opnieuw is ingesteld.`)) return;
         await api('totp_reset', { id: u.id });
@@ -1434,6 +1436,43 @@ async function onUsersClick(e) {
         });
     }
   } catch (ex) { toast(ex.message, 'err'); }
+}
+
+/** Onthouden apparaten van een gebruiker: bekijken en vergeten. */
+async function devicesDialog(u) {
+  let list;
+  try { list = await api('devices', null, { user_id: u.id }); } catch (ex) { return toast(ex.message, 'err'); }
+  const icon = (d) => (/iPhone|Android/.test(d) ? '📱' : /iPad/.test(d) ? '📲' : '💻');
+  modal({
+    title: `📱 Onthouden apparaten – ${u.username}`,
+    body: list.length ? `
+      <p class="muted small" style="margin-top:0">Op deze apparaten blijft ${esc(u.username)} ingelogd (zonder wachtwoord en 2FA). Een apparaat wordt vanzelf vergeten na 30 dagen niet gebruiken, en bij een wachtwoordwijziging.</p>
+      <div class="key-list" id="device-list">${list.map((d) => `
+        <div class="key-row">
+          <span class="grow"><strong>${icon(d.device)} ${esc(d.device || 'Onbekend apparaat')}</strong>${d.current ? ' <span class="badge">dit apparaat</span>' : ''}<br>
+            <span class="muted small">Laatst gebruikt ${ago(d.last_used)} · ${esc(d.ip)} · sinds ${esc(fmtUntil(d.created_at))}</span></span>
+          <button type="button" class="btn small-btn" data-forget="${d.id}">Vergeten</button>
+        </div>`).join('')}</div>`
+      : '<p class="muted">Geen onthouden apparaten. Zet bij het inloggen <b>Onthoud mij op dit apparaat</b> aan.</p>',
+    buttons: [
+      ...(list.length ? [{ label: 'Alle apparaten vergeten', cls: 'danger', style: 'margin-right:auto', onClick: async () => {
+        if (!confirm(`Alle onthouden apparaten van ${u.username} vergeten? Daar moet dan opnieuw worden ingelogd.`)) return;
+        try { await api('device_forget_all', { user_id: u.id }); toast('Alle apparaten vergeten'); $('#modal').close(); loadUsers(); }
+        catch (ex) { toast(ex.message, 'err'); }
+      } }] : []),
+      { label: 'Sluiten', cls: 'primary', submit: true },
+    ],
+  });
+  $('#device-list')?.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-forget]');
+    if (!b) return;
+    try {
+      await api('device_forget', { id: b.dataset.forget });
+      toast('Apparaat vergeten');
+      loadUsers();
+      devicesDialog(u);
+    } catch (ex) { toast(ex.message, 'err'); }
+  });
 }
 
 async function totpSetup(id, username) {

@@ -101,6 +101,23 @@ CREATE TABLE IF NOT EXISTS agent_log (
     INDEX idx_agent_log_time (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- "Onthoud mij op dit apparaat": per apparaat een sleutel (alleen de SHA-256 hash wordt opgeslagen).
+-- De sleutel wordt bij elk gebruik vervangen; prev_hash blijft 60 s geldig voor gelijktijdige verzoeken.
+CREATE TABLE IF NOT EXISTS remember_tokens (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT UNSIGNED NOT NULL,
+    selector   CHAR(24) NOT NULL UNIQUE,
+    token_hash CHAR(64) NOT NULL,
+    prev_hash  CHAR(64) NULL,
+    rotated_at DATETIME NULL,
+    device     VARCHAR(100) NOT NULL DEFAULT '',
+    ip         VARCHAR(45) NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used  DATETIME NOT NULL,
+    CONSTRAINT fk_remember_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_remember_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
 ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;

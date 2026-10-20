@@ -196,7 +196,7 @@ if ($action === 'agent') {
 // ---------- Login ----------
 if ($action === 'login' && $method === 'POST') {
     $in = input();
-    $r = login((string) ($in['username'] ?? ''), (string) ($in['password'] ?? ''));
+    $r = login((string) ($in['username'] ?? ''), (string) ($in['password'] ?? ''), !empty($in['remember']));
     if ($r === 'totp') {
         out(['ok' => true, 'totp_required' => true]);
     }
@@ -223,7 +223,8 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset' => 'readonly',
+    'state', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'devices', 'device_forget', 'device_forget_all' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan' => 'user',
     default => 'admin',
 };
@@ -724,7 +725,8 @@ switch ($action) {
 
     // ---------- Gebruikers en tweestapsverificatie ----------
     case 'users':
-        $rows = q('SELECT id, username, role, totp_secret IS NOT NULL AS totp, created_at, last_login FROM users'
+        $rows = q('SELECT id, username, role, totp_secret IS NOT NULL AS totp, created_at, last_login,
+                          (SELECT COUNT(*) FROM remember_tokens r WHERE r.user_id = users.id) AS devices FROM users'
             . ($isAdmin ? '' : ' WHERE id = ' . (int) $user['id']) . ' ORDER BY username')->fetchAll();
         foreach ($rows as &$r) {
             $r['totp'] = (bool) $r['totp'];
@@ -752,6 +754,8 @@ switch ($action) {
             out(['error' => 'Wachtwoord moet minimaal 8 tekens zijn'], 422);
         }
         q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash((string) $in['password'], PASSWORD_DEFAULT), (int) ($in['id'] ?? 0)]);
+        // Nieuw wachtwoord gezet door een beheerder: onthouden apparaten van die gebruiker vergeten
+        q('DELETE FROM remember_tokens WHERE user_id = ?', [(int) ($in['id'] ?? 0)]);
         out(['ok' => true]);
 
     case 'user_role':
@@ -814,6 +818,33 @@ switch ($action) {
         unset($_SESSION['totp_setup'][$id]);
         out(['ok' => true]);
 
+    // ---------- Onthouden apparaten ----------
+    case 'devices':
+        $uid = (int) ($_GET['user_id'] ?? $user['id']);
+        $ownOnly($uid);
+        $rows = q('SELECT id, device, ip, created_at, last_used FROM remember_tokens WHERE user_id = ? ORDER BY last_used DESC', [$uid])->fetchAll();
+        foreach ($rows as &$r) {
+            $r['current'] = (int) $r['id'] === (int) ($_SESSION['remember_id'] ?? 0);
+        }
+        unset($r);
+        out($rows);
+
+    case 'device_forget':
+        $id = (int) (input()['id'] ?? 0);
+        $owner = q('SELECT user_id FROM remember_tokens WHERE id = ?', [$id])->fetchColumn();
+        if ($owner === false) {
+            out(['error' => 'Apparaat niet gevonden'], 404);
+        }
+        $ownOnly((int) $owner);
+        q('DELETE FROM remember_tokens WHERE id = ?', [$id]);
+        out(['ok' => true]);
+
+    case 'device_forget_all':
+        $uid = (int) (input()['user_id'] ?? $user['id']);
+        $ownOnly($uid);
+        q('DELETE FROM remember_tokens WHERE user_id = ?', [$uid]);
+        out(['ok' => true]);
+
     case 'totp_reset':
         $ownOnly((int) (input()['id'] ?? 0));
         q('UPDATE users SET totp_secret = NULL, totp_last_step = NULL WHERE id = ?', [(int) (input()['id'] ?? 0)]);
@@ -832,6 +863,8 @@ switch ($action) {
             out(['error' => 'Nieuw wachtwoord moet minimaal 8 tekens zijn'], 422);
         }
         q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash((string) $in['new'], PASSWORD_DEFAULT), $user['id']]);
+        // Eigen wachtwoord gewijzigd: alle andere onthouden apparaten vergeten (dit apparaat blijft)
+        q('DELETE FROM remember_tokens WHERE user_id = ? AND id <> ?', [$user['id'], (int) ($_SESSION['remember_id'] ?? 0)]);
         out(['ok' => true]);
 
     default:

@@ -11,6 +11,8 @@ const STATUS_LABELS = ['OK', 'WARNING', 'CRITICAL', 'UNKNOWN'];
 // (bevestigen, nu checken, onderhoud, poortscan). Alleen lezen: kijken.
 const ROLES = ['admin' => 3, 'user' => 2, 'readonly' => 1];
 const ROLE_LABELS = ['admin' => 'Beheerder', 'user' => 'Gebruiker', 'readonly' => 'Alleen lezen'];
+// "Onthoud mij": na zoveel dagen niet gebruikt wordt een apparaat vergeten (elk gebruik telt opnieuw)
+const REMEMBER_DAYS = 30;
 // Instellingen die nooit naar de browser gaan (alleen "ingevuld of niet")
 const SECRET_SETTINGS = ['pushover_token', 'smtp_pass', 'mqtt_pass'];
 

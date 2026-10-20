@@ -54,6 +54,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div id="login-step1">
         <label>Gebruikersnaam<input name="username" autocomplete="username" required autofocus></label>
         <label>Wachtwoord<input name="password" type="password" autocomplete="current-password" required></label>
+        <label class="switch small remember"><input type="checkbox" name="remember"><span></span> Onthoud mij op dit apparaat <small class="muted">(30 dagen)</small></label>
       </div>
       <div id="login-step2" hidden>
         <p class="muted small" style="margin-top:0">🔐 Voer de 6-cijferige code uit je authenticator-app in.</p>

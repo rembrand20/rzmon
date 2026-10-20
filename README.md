@@ -122,7 +122,7 @@ server {
 *Instellingen → MQTT*: server, poort, TLS, gebruikersnaam en wachtwoord van je broker (bv. de Mosquitto-add-on). Elke server verschijnt in Home Assistant als apparaat met sensoren voor status en meetwaarden; RzMon publiceert elke minuut.
 
 ### Gebruikers, rollen en tweestapsverificatie
-*Instellingen → Gebruikers*: rollen **Beheerder** (alles), **Gebruiker** (storingen afhandelen) en **Alleen lezen** (kijken). Op het lokale netwerk kom je zonder wachtwoord binnen als alleen lezen, tenzij een beheerder onder *Toegang* "als beheerder inloggen" aanzet. Accounts aanmaken met of zonder 2FA (TOTP, QR-code voor elke authenticator-app), 2FA resetten, wachtwoord instellen, verwijderen. Telefoon kwijt: `sudo -u www-data php install/install.php --reset-2fa <naam>`.
+*Instellingen → Gebruikers*: rollen **Beheerder** (alles), **Gebruiker** (storingen afhandelen) en **Alleen lezen** (kijken). Op het lokale netwerk kom je zonder wachtwoord binnen als alleen lezen, tenzij een beheerder onder *Toegang* "als beheerder inloggen" aanzet. Met *Onthoud mij op dit apparaat* blijf je 30 dagen ingelogd (beheer per apparaat via 📱). Accounts aanmaken met of zonder 2FA (TOTP, QR-code voor elke authenticator-app), 2FA resetten, wachtwoord instellen, verwijderen. Telefoon kwijt: `sudo -u www-data php install/install.php --reset-2fa <naam>`.
 
 ### Inloggen zonder wachtwoord op je lokale netwerk
 *Instellingen → Toegang* → **Geen login nodig op het lokale netwerk**.
