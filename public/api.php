@@ -260,6 +260,12 @@ if ($action === 'agent') {
     foreach (($in['services'] ?? []) as $name => $state) {
         $st->execute([$host['id'], mb_substr('service:' . $name, 0, 190), mb_substr((string) $state, 0, 255), $now]);
     }
+    // Home Assistant-add-on: laatste back-up, integraties en systeemstatus
+    foreach ((array) ($in['ha'] ?? []) as $k => $v) {
+        if (in_array($k, ['backup', 'integrations', 'repairs'], true) && is_array($v)) {
+            $st->execute([$host['id'], "ha:$k", json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
+        }
+    }
     // Overzicht van de services op de server (om bij "Check toevoegen" uit te kiezen): [naam, status, enabled]
     if (isset($in['svc_list']) && is_array($in['svc_list'])) {
         $list = [];
@@ -702,10 +708,16 @@ switch ($action) {
     case 'check_save':
         $in = input();
         $type = $in['type'] ?? '';
-        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log'], true)) {
+        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha'], true)) {
             out(['error' => 'Ongeldig type'], 422);
         }
         $metric = null;   // container: één check met status + gekozen resources (options.res)
+        if ($type === 'ha') {
+            $metric = (string) ($in['metric'] ?? '');
+            if (!in_array($metric, ['backup', 'integrations', 'repairs'], true)) {
+                out(['error' => 'Kies wat je van Home Assistant wilt bewaken'], 422);
+            }
+        }
         $target = trim((string) ($in['target'] ?? ''));
         if ($type === 'tcp' && ((int) $target < 1 || (int) $target > 65535)) {
             out(['error' => 'Geef een geldige poort op (1-65535)'], 422);
@@ -730,8 +742,11 @@ switch ($action) {
             && !preg_match('#^/[^\s\'"]+$#', $target)) {
             out(['error' => 'Geef een host op, eventueel met poort (example.com of example.com:8443), of het pad van een certificaatbestand dat de agent meldt'], 422);
         }
-        if (in_array($type, ['ping', 'cpu', 'ram', 'podman'], true)) {
+        if (in_array($type, ['ping', 'cpu', 'ram', 'podman', 'ha'], true)) {
             $target = '';
+        }
+        if ($type === 'ha' && $metric === 'repairs') {
+            $warn = $crit = null;   // systeemstatus: unhealthy = critical, de rest warning
         }
         $options = null;
         if ($type === 'container') {
@@ -803,7 +818,8 @@ switch ($action) {
             ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
         $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
-            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log'][$type] . ($target !== '' ? " $target" : '');
+            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log',
+            'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
             max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options];
         if (!empty($in['id'])) {

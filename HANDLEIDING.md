@@ -962,6 +962,11 @@ Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De 
 | Service `addon:<slug>` | Draait een add-on? Bijvoorbeeld `addon:core_mosquitto`, `addon:45df7312_zigbee2mqtt` of `addon:a0d7b954_nodered` |
 | Service `updates` | WARNING met de lijst van beschikbare updates (Core, Supervisor, OS, add-ons) |
 | Poortscan | Luisterende poorten van de host |
+| Home Assistant → **Laatste back-up** | Dagen sinds de laatste geslaagde automatische back-up (standaard warning 2, critical 7); ook WARNING als de laatste poging mislukt is. Nodig: HA 2025.2+ met automatische back-ups (*Instellingen → Systeem → Back-ups*) |
+| Home Assistant → **Integraties** | Aantal integraties dat niet geladen is (fout bij instellen, opnieuw proberen, uitladen mislukt), met de namen in het bericht. Uitgeschakelde integraties tellen niet mee |
+| Home Assistant → **Systeemstatus** | Reparaties van de Supervisor: *niet gezond* = CRITICAL; *niet ondersteund* of een melding (bv. weinig vrije ruimte) = WARNING |
+
+De Home Assistant-checks voeg je toe met **＋ Check → Home Assistant** en dan bij *Bewaken* wat je wilt. Services (Core, Supervisor, add-ons, Updates) kies je bij **＋ Check → Service** uit een lijst. De add-on haalt back-up, integraties en systeemstatus elke 5 minuten op, en leest alleen: hij heeft geen extra rechten nodig. Geeft je Home Assistant iets niet vrij, dan staat de check op ONBEKEND met de reden erbij.
 
 ### Installeren
 1. **RzMon:** **＋ Server** → naam "Home Assistant", adres = IP van HA, type **Remote met agent**. Kopieer het token via *Agent Manager*, tabblad **🏠 Home Assistant OS**.

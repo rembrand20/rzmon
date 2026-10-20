@@ -15,6 +15,9 @@ Laat [RzMon](https://github.com/rembrand20/rzmon) je Home Assistant-systeem bewa
 | **Service `updates`** | WARNING als er een update is voor Core, Supervisor, OS of een add-on |
 | **Poortscan** | Luisterende poorten van de host (zonder procesnamen) |
 | **SSL-certificaat** | Vervaldatum van de certificaten uit de optie `certs`, bv. `/ssl/fullchain.pem` of `mijndomein.duckdns.org:443` |
+| **Home Assistant → Laatste back-up** | Dagen sinds de laatste geslaagde automatische back-up; WARNING als de laatste poging mislukt is (HA 2025.2+, automatische back-ups aan) |
+| **Home Assistant → Integraties** | Integraties die niet geladen zijn, met hun namen |
+| **Home Assistant → Systeemstatus** | Reparaties van de Supervisor: niet gezond, niet ondersteund, of een melding zoals weinig vrije ruimte |
 
 Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon zet de checks dan na een paar minuten op **CRITICAL**: precies het moment waarop je een melding wilt die *niet* via Home Assistant zelf loopt.
 

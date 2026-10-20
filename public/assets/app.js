@@ -17,6 +17,7 @@ const TYPES = {
   podman:  { label: 'Podman (algemeen)', target: null, unit: null, help: 'Algehele status van Podman op deze server: draait podman, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.' },
   container: { label: 'Container (Podman)', target: 'Container', unit: null, ph: 'naam, of gebruiker/naam (rootless)', help: 'Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.' },
   log:     { label: 'Logbestand (zoeken)', target: 'Bron', unit: 'treffers', warn: 5, crit: 20, ph: '/var/log/secure, journal, journal:sshd of kernel', help: 'De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.' },
+  ha:      { label: 'Home Assistant', target: null, unit: null, help: 'Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.' },
   service: { label: 'Service',       target: 'Servicenaam',   unit: null, ph: 'nginx', help: 'De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.' },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
@@ -54,8 +55,15 @@ const METRICS = {
   mem:    { label: 'Geheugen (RAM)', unit: '%', warn: 85, crit: 95, help: 'Percentage van de geheugenlimiet van de container, of van het totale geheugen als er geen limiet is.' },
   disk:   { label: 'Diskgebruik', unit: 'MB', warn: 5000, crit: 10000, help: 'Schrijflaag van de container plus de grootte van zijn volumes (volumes worden elk uur gemeten).' },
 };
+// Home Assistant (add-on): wat er bewaakt kan worden, met standaarddrempels
+const HA_METRICS = {
+  backup:       { label: 'Laatste back-up', unit: 'dagen', warn: 2, crit: 7, help: 'Hoe oud de laatste geslaagde automatische back-up is (HA 2025.2 of nieuwer, met automatische back-ups). Ook WARNING als de laatste poging mislukt is.' },
+  integrations: { label: 'Integraties', unit: 'stuks', warn: 1, crit: 3, help: 'Aantal integraties dat niet geladen is: fout bij instellen, opnieuw proberen of uitladen mislukt. Uitgeschakelde integraties tellen niet mee.' },
+  repairs:      { label: 'Systeemstatus (reparaties)', unit: null, help: 'Reparaties van de Supervisor: "niet gezond" = CRITICAL; "niet ondersteund" of een openstaande melding (bv. weinig vrije ruimte) = WARNING.' },
+};
 /** Type-beschrijving van een check (container: één check met status + resources, geen eigen eenheid). */
 function typeOf(c) {
+  if (c.type === 'ha') return { ...TYPES.ha, ...(HA_METRICS[c.metric] || {}), label: 'Home Assistant' };
   return c.type === 'container' && c.metric ? { ...TYPES.container, ...METRICS[c.metric], label: TYPES.container.label } : TYPES[c.type];
 }
 
@@ -595,8 +603,8 @@ function checkBits(c) {
   const pctVal = t.unit === '%' && c.last_value !== null ? Math.min(100, +c.last_value) : null;
   const ticks = (pctVal !== null ? (c.warn_threshold !== null ? `<b style="left:${+c.warn_threshold}%"></b>` : '')
     + (c.crit_threshold !== null ? `<b style="left:${+c.crit_threshold}%"></b>` : '') : '');
-  const num = ['ms', 'dagen', 'MB', 'treffers'].includes(t.unit) && c.last_value !== null
-    ? (t.unit === 'dagen' ? Math.floor(c.last_value) + ' dagen' : fmt(c.last_value, t.unit)) : '';
+  const num = ['ms', 'dagen', 'MB', 'treffers', 'stuks'].includes(t.unit) && c.last_value !== null
+    ? (t.unit === 'dagen' && c.type !== 'ha' ? Math.floor(c.last_value) + ' dagen' : fmt(c.last_value, t.unit).replace('.', ',')) : '';
   const own = c.maintenance && c.maintenance.scope === 'check';
   const problem = s !== 0 && +c.enabled;
   const ackTitle = c.acked_at ? `Bevestigd door ${c.acked_by || '?'} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. Klik om in te trekken.` : '';
@@ -866,7 +874,8 @@ function checkForm(c, h, preset = {}) {
   const isNew = !c;
   c = c || { type: 'ping', target: '', name: '', warn_threshold: TYPES.ping.warn, crit_threshold: TYPES.ping.crit, interval_sec: 60, enabled: 1, ...preset };
   const allowed = h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl']
-    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log'].includes(k));
+    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha'].includes(k))
+      .filter((k) => k !== 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor') || c?.type === 'ha');
   const disks = h.metrics.filter((m) => m.startsWith('disk:')).map((m) => m.slice(5));
   const svcs = h.metrics.filter((m) => m.startsWith('service:')).map((m) => m.slice(8));
   let opts = {};
@@ -890,6 +899,10 @@ function checkForm(c, h, preset = {}) {
         <span class="hint">Bron: een logbestand (alleen in mappen die op de server zijn toegestaan, standaard /var/log), <code>journal</code> (systemlog), <code>journal:sshd</code> (log van één service) of <code>kernel</code>. Drempels: aantal treffers in de periode.</span>
       </div>
       <label id="target-wrap"><span id="target-label"></span><input name="target" value="${esc(c.target)}" list="target-list" class="mono"></label>
+      <label id="ha-wrap" hidden>Bewaken
+        <select name="metric">${Object.entries(HA_METRICS).map(([k, m]) => `<option value="${k}" ${(c.metric || 'backup') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+        <span class="hint" id="ha-help"></span>
+      </label>
       <div id="res-wrap" hidden>
         <p class="hint" style="margin-top:0">✓ De <b>status</b> wordt altijd bewaakt: gestopt of ongezond = CRITICAL, gepauzeerd of net automatisch herstart = WARNING. Vink aan wat je daarnaast wilt bewaken:</p>
         ${['cpu', 'mem', 'disk'].map((k) => {
@@ -953,9 +966,14 @@ function checkForm(c, h, preset = {}) {
   });
 
   const typeSel = $('[name=type]', form);
+  const haSel = $('[name=metric]', form);
   const update = (setDefaults) => {
     const isContainer = typeSel.value === 'container';
-    const t = TYPES[typeSel.value];
+    const isHa = typeSel.value === 'ha';
+    const t = isHa ? { ...TYPES.ha, ...HA_METRICS[haSel.value] } : TYPES[typeSel.value];
+    $('#ha-wrap').hidden = !isHa;
+    haSel.disabled = !isHa;   // niet meesturen bij andere types
+    $('#ha-help').textContent = isHa ? HA_METRICS[haSel.value].help : '';
     $('#type-help').textContent = TYPES[typeSel.value].help;
     $('#res-wrap').hidden = !isContainer;
     $$('#res-wrap input[type=number]', form).forEach((i) => { i.disabled = !$(`[name=${i.name.replace(/_(warn|crit)$/, '')}]`, form).checked; });
@@ -996,10 +1014,10 @@ function checkForm(c, h, preset = {}) {
     if (!svcList) return;
     const q = $('[name=target]', form).value.trim().toLowerCase();
     const rows = svcList.filter(([n]) => !q || n.toLowerCase().includes(q));
-    const label = { active: 'actief', failed: 'mislukt', inactive: 'uit', activating: 'start op', deactivating: 'stopt' };
+    const label = { active: 'actief', failed: 'mislukt', inactive: 'uit', activating: 'start op', deactivating: 'stopt', stopped: 'gestopt', error: 'fout', update: 'update beschikbaar' };
     $('#svc-pick').innerHTML = rows.length ? rows.map(([n, st, en]) => `
       <button type="button" class="svc-item${$('[name=target]', form).value === n ? ' sel' : ''}" data-svc="${esc(n)}" ${watched.has(n) ? 'disabled' : ''}>
-        <span class="svc-dot ${st === 'active' ? 'ok' : st === 'failed' ? 'crit' : 'off'}"></span>
+        <span class="svc-dot ${st === 'active' ? 'ok' : st === 'failed' || st === 'error' ? 'crit' : st === 'update' ? 'warn' : 'off'}"></span>
         <span class="mono">${esc(n)}</span>
         <span class="hint">${esc(label[st] || st)}${en ? '' : ' · start niet automatisch'}${watched.has(n) ? ' · wordt al bewaakt' : ''}</span>
       </button>`).join('') : `<p class="hint">Geen service gevonden${q ? ` met "${esc(q)}"` : ''}. Je kunt de naam ook zelf typen.</p>`;
@@ -1024,6 +1042,7 @@ function checkForm(c, h, preset = {}) {
     $('[name=target]', form).addEventListener('input', () => { if (typeSel.value === 'service') renderSvcPick(); });
   }
   typeSel.onchange = () => update(true);
+  haSel.onchange = () => update('metric');
   $$('#res-wrap input[type=checkbox]', form).forEach((cb) => (cb.onchange = () => update(false)));
   $('[name=test_type]', form).onchange = () => update(false);
   // Voorinstelling kiezen: bron, patroon, drempels en naam invullen

@@ -2,6 +2,11 @@
 
 Deze add-on heeft hetzelfde versienummer als RzMon. Het volledige overzicht staat in de [CHANGELOG van RzMon](https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md).
 
+## 1.24.0
+- Nieuw: laatste back-up (via de back-upsensoren van HA 2025.2+), integraties die niet geladen zijn, en de systeemstatus van de Supervisor. Voeg ze in RzMon toe met *＋ Check → Home Assistant*.
+- Services (Core, Supervisor, add-ons, Updates) staan in RzMon nu in de servicekiezer.
+- Geen extra rechten nodig; de add-on leest alleen.
+
 ## 1.23.0
 - Geen wijzigingen aan de agent.
 

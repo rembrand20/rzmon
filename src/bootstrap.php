@@ -111,6 +111,9 @@ function save_setting(string $name, string $value): void
 /** Eenheid van de meetwaarde van een check (null = geen getal om te tonen). */
 function check_unit(array $check): ?string
 {
+    if ($check['type'] === 'ha') {
+        return ['backup' => 'dagen', 'integrations' => 'stuks', 'repairs' => 'stuks'][$check['metric'] ?? ''] ?? null;
+    }
     if ($check['type'] === 'container') {
         return ['cpu' => '%', 'mem' => '%', 'disk' => 'MB'][$check['metric'] ?? ''] ?? null;
     }

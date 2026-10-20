@@ -17,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.23.0"
+AGENT_VERSION="1.24.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -353,6 +353,63 @@ if [ "$HA_MODE" = 0 ] && command -v systemctl >/dev/null 2>&1; then
                  if ($1 == "F") en[n] = $3; else st[n] = $3; names[n] = 1 }
              END { for (n in names) if (en[n] == "enabled" || st[n] == "active" || (st[n] == "failed" && en[n] != "disabled"))
                        printf "[\"%s\",\"%s\",%d],", n, (n in st ? st[n] : "inactive"), en[n] == "enabled" }' 2>/dev/null)
+fi
+# Home Assistant: Core, Supervisor, add-ons en updates als lijst om uit te kiezen
+if [ "$HA_MODE" = 1 ] && [ -n "$services" ]; then
+    svc_list=$(jq -r 'to_entries[] | "[\(.key | tojson),\((if .value == "active" then "active" elif (.value | test("update-available")) then "update" else .value end) | tojson),1],"' \
+        <<<"{${services%,}}" 2>/dev/null | tr -d '\n')
+fi
+
+# ---------------------------------------------------------------- Home Assistant: back-up, integraties, systeemstatus
+# Elke 5 minuten opnieuw opgehaald (de lijst met entiteiten kan groot zijn). Alleen lezen.
+ha_json=""
+if [ "$HA_MODE" = 1 ]; then
+    ha_cache="${TMPDIR:-/tmp}/rzmon-ha.json"
+    if [ "$TEST" != 1 ] && [ -s "$ha_cache" ] && [ $(( $(date +%s) - $(stat -c %Y "$ha_cache") )) -lt 300 ]; then
+        ha_json=$(cat "$ha_cache")
+    else
+        ha_get() {  # ha_get <pad> → body; exitcode 0 alleen bij HTTP 200
+            local out
+            out=$(curl -sS -m 20 -H "Authorization: Bearer $SUPERVISOR_TOKEN" -w '\n%{http_code}' "$SUPERVISOR_URL$1" 2>&1) || { echo "${out##*$'\n'}"; return 1; }
+            [ "${out##*$'\n'}" = 200 ] || { echo "HTTP ${out##*$'\n'}"; return 1; }
+            printf '%s' "${out%$'\n'*}"
+        }
+        now_s=$(date +%s)
+        # 1. Back-up: de sensoren van de backup-integratie (HA 2025.2+). Tijdstempels in het verleden zijn de
+        #    laatste geslaagde en de laatste poging (naam met "succes"/"erfolg" = geslaagd), in de toekomst de volgende.
+        if states=$(ha_get /core/api/states); then
+            ha_backup=$(jq -c --argjson now "$now_s" '
+                def ts: sub("\\.[0-9]+"; "") | sub("[+]00:00$"; "Z") | (try fromdateiso8601 catch null);
+                [.[] | select(.entity_id | startswith("sensor.backup_"))] as $b
+                | [$b[] | select(.attributes.device_class == "timestamp") | {name: (.attributes.friendly_name // .entity_id), t: (.state | ts)}
+                   | select(.t != null)] as $ts
+                | [$ts[] | select(.t <= $now)] as $past
+                | ([$past[] | select(.name | test("succes|erfolg|réussi"; "i"))] | max_by(.t) // null) as $ok
+                | {found: ($b | length > 0),
+                   last_ok: (if $ok then $ok.t elif ($past | length) == 1 then $past[0].t else ($past | min_by(.t) | .t?) end),
+                   last_try: ($past | max_by(.t) | .t?),
+                   next: ([$ts[] | select(.t > $now)] | min_by(.t) | .t?)}' <<<"$states" 2>/dev/null)
+        else
+            ha_backup="{\"error\":\"$(json_escape "Home Assistant-API: $states")\"}"
+        fi
+        # 2. Integraties die niet geladen zijn (uitgeschakelde tellen niet mee)
+        if entries=$(ha_get /core/api/config/config_entries/entry); then
+            ha_integr=$(jq -c '[.[] | select(.disabled_by == null)] as $all
+                | {total: ($all | length), failed: [$all[] | select(.state == "setup_error" or .state == "setup_retry" or .state == "failed_unload")
+                   | {domain, title, state, reason: (.reason // null)}]}' <<<"$entries" 2>/dev/null)
+        else
+            ha_integr="{\"error\":\"$(json_escape "integratielijst niet beschikbaar voor de add-on ($entries)")\"}"
+        fi
+        # 4. Systeemstatus van de Supervisor: unhealthy, unsupported en openstaande meldingen
+        if resol=$(ha_get /resolution/info); then
+            ha_repair=$(jq -c '.data | {unhealthy: (.unhealthy // []), unsupported: (.unsupported // []),
+                issues: [(.issues // [])[] | {type, context, reference}]}' <<<"$resol" 2>/dev/null)
+        else
+            ha_repair="{\"error\":\"$(json_escape "Supervisor: $resol")\"}"
+        fi
+        ha_json="{\"backup\":${ha_backup:-null},\"integrations\":${ha_integr:-null},\"repairs\":${ha_repair:-null}}"
+        (umask 077; printf '%s' "$ha_json" >"$ha_cache") 2>/dev/null || true
+    fi
 fi
 
 # ---------------------------------------------------------------- Services: diepere controle
@@ -882,7 +939,7 @@ remote_update() {  # remote_update <antwoord van RzMon>
 }
 
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"svc_list\":[${svc_list%,}],\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)

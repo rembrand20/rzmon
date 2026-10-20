@@ -25,6 +25,8 @@ final class Checks
                 'podman' => self::podman($check, $host),
                 'container' => self::container($check, $host),
                 'log' => self::logCheck($check, $host),
+                'ha' => $host['mode'] === 'agent' ? self::haCheck($check, $host)
+                    : self::result(STATUS_UNKNOWN, null, 'Deze check werkt via de Home Assistant-add-on: zet de server op type "Remote met agent"'),
                 'disk' => $host['mode'] === 'agent' ? self::agentDisk($check, $host) : self::localDisk($check),
                 'service' => $host['mode'] === 'agent' ? self::agentService($check, $host) : self::localService($check),
                 'cpu' => $host['mode'] === 'agent' ? self::agentCpu($check, $host) : self::localCpu($check),
@@ -452,6 +454,87 @@ final class Checks
         $message = implode(' · ', array_merge($problems, [$base], $parts)) . $pod;
         $value = $vals['cpu'] ?? $vals['mem'] ?? $vals['disk'] ?? null;
         return ['status' => $status, 'value' => $value, 'message' => $message, 'vals' => $vals ?: null];
+    }
+
+    /**
+     * Home Assistant (via de add-on): laatste back-up (dagen), integraties die niet geladen zijn (aantal),
+     * of de systeemstatus van de Supervisor (unhealthy = CRITICAL, unsupported of meldingen = WARNING).
+     */
+    private static function haCheck(array $check, array $host): array
+    {
+        if ($stale = self::agentStale($host)) {
+            return $stale;
+        }
+        $m = (string) $check['metric'];
+        $raw = self::agentMetric($host, "ha:$m");
+        if ($raw === null) {
+            return self::result(STATUS_UNKNOWN, null, 'De agent meldt dit niet. Is het de Home Assistant-add-on, versie 1.24.0 of nieuwer? (bijwerken via de add-on winkel)');
+        }
+        $d = json_decode($raw, true) ?: [];
+        if (!empty($d['error'])) {
+            return self::result(STATUS_UNKNOWN, null, 'Niet beschikbaar: ' . $d['error']);
+        }
+        $ago = static function (int $t): string {
+            $s = max(0, time() - $t);
+            $txt = $s < 3600 ? max(1, intdiv($s, 60)) . ' min' : ($s < 172800 ? intdiv($s, 3600) . ' uur' : intdiv($s, 86400) . ' dagen');
+            return "$txt geleden (" . date('d-m H:i', $t) . ')';
+        };
+
+        if ($m === 'backup') {
+            if (empty($d['found'])) {
+                return self::result(STATUS_UNKNOWN, null, 'Geen back-upsensoren gevonden. Nodig: Home Assistant 2025.2 of nieuwer met automatische back-ups (Instellingen → Systeem → Back-ups).');
+            }
+            $next = !empty($d['next']) ? ' · volgende: ' . date('d-m H:i', (int) $d['next']) : ' · geen automatische back-up gepland';
+            if (empty($d['last_ok'])) {
+                return self::result(STATUS_CRIT, null, 'Nog geen geslaagde automatische back-up' . $next);
+            }
+            $ok = (int) $d['last_ok'];
+            $days = round((time() - $ok) / 86400, 1);
+            $status = self::threshold($days, $check);
+            $failed = !empty($d['last_try']) && (int) $d['last_try'] > $ok + 60;
+            if ($failed && $status === STATUS_OK) {
+                $status = STATUS_WARN;
+            }
+            return self::result($status, $days, 'Laatste geslaagde back-up ' . $ago($ok)
+                . ($failed ? ' · laatste poging ' . date('d-m H:i', (int) $d['last_try']) . ' is MISLUKT' : '') . $next);
+        }
+
+        if ($m === 'integrations') {
+            $failed = (array) ($d['failed'] ?? []);
+            $n = count($failed);
+            $total = (int) ($d['total'] ?? 0);
+            if (!$n) {
+                return self::result(STATUS_OK, 0.0, "Alle $total integraties zijn geladen");
+            }
+            $label = ['setup_error' => 'fout bij instellen', 'setup_retry' => 'opnieuw proberen', 'failed_unload' => 'uitladen mislukt'];
+            $names = array_map(static fn($f) => ($f['title'] ?: $f['domain']) . ' (' . ($label[$f['state']] ?? $f['state']) . ')', array_slice($failed, 0, 6));
+            return self::result(self::threshold((float) $n, $check), (float) $n,
+                "$n van $total integraties niet geladen: " . implode(', ', $names) . ($n > 6 ? ', …' : ''));
+        }
+
+        // Systeemstatus (Supervisor)
+        $nice = static fn(string $c) => [
+            'free_space' => 'weinig vrije schijfruimte', 'docker' => 'Docker', 'docker_version' => 'Docker-versie',
+            'docker_config' => 'Docker-configuratie', 'os' => 'besturingssysteem', 'network_manager' => 'NetworkManager',
+            'systemd' => 'systemd', 'privileged' => 'Supervisor niet privileged', 'supervisor' => 'Supervisor', 'setup' => 'installatie',
+            'untrusted' => 'niet-vertrouwde inhoud', 'oserror_bad_message' => 'bestandssysteemfout', 'reboot_required' => 'herstart nodig',
+            'multiple_data_disks' => 'meerdere datadisks', 'no_current_backup' => 'geen recente back-up', 'pwned' => 'gelekt wachtwoord',
+            'update_failed' => 'update mislukt', 'update_rollback' => 'update teruggedraaid', 'corrupt_repository' => 'beschadigde repository',
+            'trust' => 'vertrouwen', 'security' => 'beveiliging', 'connectivity_check' => 'verbindingscontrole',
+        ][$c] ?? str_replace('_', ' ', $c);
+        $unhealthy = array_map($nice, (array) ($d['unhealthy'] ?? []));
+        $unsupported = array_map($nice, (array) ($d['unsupported'] ?? []));
+        $issues = array_map(static fn($i) => $nice((string) ($i['type'] ?? '?')) . (!empty($i['reference']) ? " ({$i['reference']})" : ''), (array) ($d['issues'] ?? []));
+        $n = count($unhealthy) + count($unsupported) + count($issues);
+        if (!$n) {
+            return self::result(STATUS_OK, 0.0, 'Systeemstatus in orde: geen reparaties');
+        }
+        $parts = array_filter([
+            $unhealthy ? 'NIET GEZOND: ' . implode(', ', $unhealthy) : '',
+            $unsupported ? 'niet ondersteund: ' . implode(', ', $unsupported) : '',
+            $issues ? count($issues) . ' melding' . (count($issues) === 1 ? '' : 'en') . ': ' . implode(', ', $issues) : '',
+        ]);
+        return self::result($unhealthy ? STATUS_CRIT : STATUS_WARN, (float) $n, implode(' · ', $parts));
     }
 
     /** Bytes zoals podman ze toont (SI: 1 MB = 1000 kB). */
