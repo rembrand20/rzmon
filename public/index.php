@@ -322,6 +322,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <?php if (($user['id'] ?? 0) === 0): ?>
       <div class="card"><h2>Account</h2><p class="muted small">Je bent automatisch ingelogd via het lokale netwerk, met alleen-lezen-rechten. Klik rechtsboven op <b>Inloggen</b> om met je eigen account in te loggen.</p></div>
       <?php endif; ?>
+      <div class="card need-admin" id="db-card">
+        <h2>Database</h2>
+        <p class="muted small">RzMon gebruikt een eigen databasegebruiker. Met de knop maak je een nieuw, sterk wachtwoord en slaat RzMon het overal op. Alles blijft gewoon werken: dashboards, cron, API en agents.</p>
+        <p class="small" id="db-status">…</p>
+        <button type="button" class="btn" id="db-rotate">🔑 Databasewachtwoord vernieuwen</button>
+      </div>
+
       <form id="password-form" class="card" <?= ($user['id'] ?? 0) === 0 ? 'hidden' : '' ?>>
         <h2>Wachtwoord wijzigen</h2>
         <label>Huidig wachtwoord<input type="password" name="current" autocomplete="current-password" required></label>

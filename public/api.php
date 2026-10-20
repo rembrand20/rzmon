@@ -909,6 +909,71 @@ switch ($action) {
         q('UPDATE users SET totp_secret = NULL, totp_last_step = NULL WHERE id = ?', [(int) (input()['id'] ?? 0)]);
         out(['ok' => true]);
 
+    // ---------- Databasewachtwoord vernieuwen (alleen beheerders) ----------
+    case 'db_info':
+        $h = Installer::HELPER_DIR;
+        $root = realpath(SM_ROOT);
+        $db = config('db');
+        out([
+            'helper' => is_file("$h/helper.installed") && is_writable($h),
+            'direct' => Installer::configWritable() || is_writable(SM_CONFIG_FILE),
+            'db' => ['host' => $db['host'], 'name' => $db['name'], 'user' => $db['user']],
+            'cli_cmd' => "sudo php $root/install/install.php --rotate-db-password",
+            'helper_cmd' => "sudo bash $root/install/install-helper.sh",
+        ]);
+
+    case 'db_rotate':
+        // Bevestigen: je eigen wachtwoord, of "VERNIEUWEN" bij automatisch inloggen op het LAN
+        $confirm = (string) (input()['confirm'] ?? '');
+        if (is_lan_session()) {
+            if ($confirm !== 'VERNIEUWEN') {
+                out(['error' => 'Typ VERNIEUWEN om te bevestigen'], 422);
+            }
+        } else {
+            $hash = q('SELECT password_hash FROM users WHERE id = ?', [$user['id']])->fetchColumn();
+            if (!$hash || !password_verify($confirm, $hash)) {
+                usleep(500000);
+                out(['error' => 'Je wachtwoord klopt niet'], 422);
+            }
+        }
+        $h = Installer::HELPER_DIR;
+        if (is_file("$h/helper.installed") && is_writable($h)) {
+            // Via de hulpdienst (als root): verzoek neerzetten, het resultaat komt binnen een paar seconden
+            @unlink("$h/rotate.result");
+            $nonce = bin2hex(random_bytes(16));
+            if (file_put_contents("$h/rotate.request", $nonce) === false) {
+                out(['error' => "Kan geen verzoek neerzetten in $h"], 500);
+            }
+            $_SESSION['db_rotate'] = ['nonce' => $nonce, 'at' => time()];
+            out(['ok' => true, 'pending' => true]);
+        }
+        if (Installer::configWritable() || is_writable(SM_CONFIG_FILE)) {
+            session_write_close();
+            $r = Installer::rotateDbPassword();
+            out($r, $r['ok'] ? 200 : 422);
+        }
+        out(['error' => 'De RzMon-map is vergrendeld en de hulpdienst is niet geïnstalleerd', 'need_helper' => true], 409);
+
+    case 'db_rotate_status':
+        $p = $_SESSION['db_rotate'] ?? null;
+        $h = Installer::HELPER_DIR;
+        if (!$p) {
+            out(['error' => 'Geen wachtwoordwissel bezig'], 404);
+        }
+        $res = json_decode((string) @file_get_contents("$h/rotate.result"), true);
+        if ($res && hash_equals($p['nonce'], (string) ($res['nonce'] ?? ''))) {
+            // Eén keer tonen: resultaat meteen weg
+            @unlink("$h/rotate.result");
+            unset($_SESSION['db_rotate'], $res['nonce'], $res['at']);
+            out($res, $res['ok'] ? 200 : 422);
+        }
+        if (time() - $p['at'] > 30) {
+            unset($_SESSION['db_rotate']);
+            @unlink("$h/rotate.request");
+            out(['error' => 'De hulpdienst reageert niet. Controleer op de server: systemctl status rzmon-helper.path'], 504);
+        }
+        out(['pending' => true]);
+
     case 'password':
         if ($user['id'] === 0) {
             out(['error' => 'Je bent automatisch ingelogd (lokaal netwerk). Log in met je eigen account om je wachtwoord te wijzigen.'], 422);

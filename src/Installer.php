@@ -184,6 +184,130 @@ final class Installer
         return $ok;
     }
 
+    // ------------------------------------------------------------------ databasewachtwoord vernieuwen
+
+    /** Map voor de hulpdienst (zie install/install-helper.sh): verzoek en resultaat van de wissel. */
+    public const HELPER_DIR = '/var/lib/rzmon';
+
+    /**
+     * Nieuw databasewachtwoord: in de database, config.php en (als root) /root/rzmon-install.txt.
+     * Daarna wordt de verbinding getest; lukt dat niet, dan gaat alles terug naar het oude wachtwoord.
+     * Als root (terminal of hulpdienst) worden álle accounts van de databasegebruiker bijgewerkt
+     * (bv. 'rzmon'@'localhost' en 'rzmon'@'127.0.0.1'), zodat het oude wachtwoord nergens meer werkt.
+     * @return array{ok: bool, password: ?string, warnings: list<string>, error: ?string}
+     */
+    public static function rotateDbPassword(): array
+    {
+        $cfg = $GLOBALS['sm_config'];
+        $db = $cfg['db'];
+        $old = (string) $db['pass'];
+        $new = self::randomPassword(32);
+        $warnings = [];
+        if (!is_writable(SM_CONFIG_FILE) && !self::configWritable()) {
+            return ['ok' => false, 'password' => null, 'warnings' => [], 'error' => 'config.php kan niet worden opgeslagen (map vergrendeld). Gebruik de hulpdienst of de terminal (als root).'];
+        }
+
+        // Als root: met het MariaDB-beheeraccount (unix_socket, geen wachtwoord) alle accounts bijwerken
+        $admin = null;
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            try {
+                $admin = new PDO('mysql:host=localhost', 'root', '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 5]);
+            } catch (PDOException) {
+                $admin = null;
+            }
+        }
+        $setPassword = static function (string $pass) use ($admin, $db): void {
+            if ($admin) {
+                $hosts = $admin->prepare('SELECT Host FROM mysql.user WHERE User = ?');
+                $hosts->execute([$db['user']]);
+                foreach ($hosts->fetchAll(PDO::FETCH_COLUMN) as $h) {
+                    $admin->exec(sprintf('ALTER USER %s@%s IDENTIFIED BY %s', $admin->quote($db['user']), $admin->quote($h), $admin->quote($pass)));
+                }
+                $admin->exec('FLUSH PRIVILEGES');
+            } else {
+                // Zonder beheerrechten: alleen het account waarmee RzMon verbinding maakt
+                self::connect($db)->exec('ALTER USER CURRENT_USER() IDENTIFIED BY ' . self::connect($db)->quote($pass));
+            }
+        };
+
+        try {
+            $setPassword($new);
+        } catch (PDOException $e) {
+            return ['ok' => false, 'password' => null, 'warnings' => [], 'error' => 'De database weigert de wijziging: ' . $e->getMessage()];
+        }
+
+        // config.php bijwerken met dezelfde eigenaar, groep en rechten als het origineel
+        $stat = @stat(SM_CONFIG_FILE);
+        $cfg['db']['pass'] = $new;
+        $tmp = SM_CONFIG_FILE . '.tmp';
+        if (self::configWritable()) {
+            // Via een tijdelijk bestand + rename: nooit een half geschreven config.php
+            $written = file_put_contents($tmp, self::renderConfig($cfg), LOCK_EX) !== false;
+            if ($written && $stat) {
+                @chmod($tmp, $stat['mode'] & 0777);
+                @chown($tmp, $stat['uid']);
+                @chgrp($tmp, $stat['gid']);
+            }
+            $written = $written && @rename($tmp, SM_CONFIG_FILE);
+        } else {
+            $written = file_put_contents(SM_CONFIG_FILE, self::renderConfig($cfg), LOCK_EX) !== false;
+        }
+        if (function_exists('opcache_invalidate')) {
+            @opcache_invalidate(SM_CONFIG_FILE, true);
+        }
+
+        // Werkt het nieuwe wachtwoord? Anders alles terug.
+        $works = false;
+        try {
+            self::connect(['pass' => $new] + $db)->query('SELECT 1');
+            $works = true;
+        } catch (PDOException) {
+        }
+        if (!$written || !$works) {
+            @unlink($tmp);
+            try {
+                $admin ? $setPassword($old) : self::connect(['pass' => $new] + $db)->exec('ALTER USER CURRENT_USER() IDENTIFIED BY ' . self::connect(['pass' => $new] + $db)->quote($old));
+            } catch (PDOException) {
+            }
+            if ($written) {
+                $cfg['db']['pass'] = $old;
+                file_put_contents(SM_CONFIG_FILE, self::renderConfig($cfg), LOCK_EX);
+            }
+            return ['ok' => false, 'password' => null, 'warnings' => [],
+                'error' => !$written ? 'config.php kon niet worden opgeslagen; het oude wachtwoord is teruggezet' : 'Verbinden met het nieuwe wachtwoord mislukte; het oude wachtwoord is teruggezet'];
+        }
+        $GLOBALS['sm_config']['db']['pass'] = $new;
+
+        // Werkt het oude wachtwoord nog via een ander account (zonder beheerrechten niet bij te werken)?
+        if (!$admin) {
+            foreach (['localhost', '127.0.0.1'] as $h) {
+                try {
+                    self::connect(['host' => $h, 'pass' => $old] + $db);
+                    $warnings[] = "Het oude wachtwoord werkt nog voor {$db['user']}@$h. Vernieuw via de hulpdienst of de terminal (als root), dan worden alle accounts bijgewerkt.";
+                } catch (PDOException) {
+                }
+            }
+        }
+        // Installatieoverzicht van install-rocky.sh bijwerken (alleen als root leesbaar)
+        $summary = '/root/rzmon-install.txt';
+        if (is_writable($summary)) {
+            $txt = (string) file_get_contents($summary);
+            file_put_contents($summary, preg_replace('/^(DB-wachtwoord\s*:\s*).*$/m', '${1}' . $new, $txt));
+        }
+        return ['ok' => true, 'password' => $new, 'warnings' => $warnings, 'error' => null];
+    }
+
+    /** Willekeurig wachtwoord van letters en cijfers (werkt overal, zonder aanhalingstekens-gedoe). */
+    public static function randomPassword(int $length): string
+    {
+        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+        $out = '';
+        for ($i = 0; $i < $length; $i++) {
+            $out .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+        return $out;
+    }
+
     public static function mergedConfig(array $changes): array
     {
         return array_replace_recursive(self::CONFIG_DEFAULTS, $GLOBALS['sm_config'] ?? [], $changes);

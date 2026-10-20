@@ -184,6 +184,7 @@ Upgraden gaat zo:
 1. Zet de nieuwe bestanden eroverheen (`git pull`, of opnieuw `install-rocky.sh`), behalve `config.php`.
 2. De **database wordt automatisch bijgewerkt** bij de eerste cron-run of het eerste bezoek aan het dashboard. Handmatig kan ook: `sudo -u www-data php install/install.php --upgrade`, of *Setup → Tabellen bijwerken*.
 3. Werk de agents bij met `sudo rzmon-agent-setup --update`. Een verouderde agent herken je aan **⬆** op de servertegel.
+4. Vanaf 1.17.0: wil je het databasewachtwoord met de knop in *Instellingen → Database* kunnen vernieuwen, installeer dan één keer de hulpdienst met `sudo bash /var/www/rzmon/install/install-helper.sh` (opnieuw `install-rocky.sh` draaien doet dat ook).
 
 Ontwikkelen: verhoog de versie met `tools/bump-version.sh patch|minor|major` en controleer met `tools/check-version.sh`.
 

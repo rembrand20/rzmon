@@ -311,7 +311,7 @@ fi
 chown -R root:"$WEB_USER" "$INSTALL_DIR"
 find "$INSTALL_DIR" -path "$INSTALL_DIR/.git" -prune -o -type d -exec chmod 750 {} +
 find "$INSTALL_DIR" -path "$INSTALL_DIR/.git" -prune -o -type f -exec chmod 640 {} +
-chmod 755 "$INSTALL_DIR/agent/rzmon-agent.sh" "$INSTALL_DIR/install/install-rocky.sh"
+chmod 755 "$INSTALL_DIR/agent/rzmon-agent.sh" "$INSTALL_DIR/install/install-rocky.sh" "$INSTALL_DIR/install/install-helper.sh"
 ok "Rechten gezet (root:$WEB_USER, mappen 750, bestanden 640)"
 
 # ----------------------------------------------------------------- 6. config + tabellen
@@ -450,6 +450,12 @@ chmod 644 /etc/cron.d/rzmon
 ok "/etc/cron.d/rzmon (als gebruiker $WEB_USER)"
 if [ "$WRITE_CONFIG" -eq 1 ]; then
     as_web php "$INSTALL_DIR/cron/run.php" >/dev/null && ok "Eerste testrun van de checks geslaagd"
+fi
+# Hulpdienst: laat "Databasewachtwoord vernieuwen" in RzMon werken terwijl de map vergrendeld is
+if bash "$INSTALL_DIR/install/install-helper.sh" --group "$WEB_USER" >/dev/null; then
+    ok "Hulpdienst rzmon-helper (databasewachtwoord vernieuwen vanuit RzMon)"
+else
+    warn "Hulpdienst niet geïnstalleerd; databasewachtwoord vernieuwen kan via: sudo php $INSTALL_DIR/install/install.php --rotate-db-password"
 fi
 
 # ----------------------------------------------------------------- controle

@@ -472,3 +472,5 @@ body[data-role="admin"] [data-role-only="nonadmin"] { display: none; }
 .login-card .remember { margin: .2rem 0 .9rem; }
 .log-lines { white-space: pre-wrap; word-break: break-word; font-size: .78rem; max-height: 220px; overflow: auto; }
 #log-lines h4 { margin: 1rem 0 .4rem; }
+.good-txt { color: var(--ok); } .warn-txt { color: var(--warn); }
+#new-db-pass { font-size: 1.05rem; letter-spacing: .03em; user-select: all; }

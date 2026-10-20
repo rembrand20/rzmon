@@ -20,7 +20,12 @@ const SM_CONFIG_FILE = SM_ROOT . '/config.php';
 // Versie van RzMon: de enige bron is het bestand VERSION (bijwerken met tools/bump-version.sh)
 define('RZMON_VERSION', trim((string) @file_get_contents(SM_ROOT . '/VERSION')) ?: '0.0.0');
 
-// Zonder config.php draait de app in setup-modus (zie public/setup.php)
+// Zonder config.php draait de app in setup-modus (zie public/setup.php).
+// opcache: een gewijzigde config.php (bv. nieuw databasewachtwoord via de hulpdienst, een ander
+// proces) meteen opnieuw inlezen, ook als opcache.validate_timestamps uit staat. Kost één stat().
+if (function_exists('opcache_invalidate')) {
+    @opcache_invalidate(SM_CONFIG_FILE, false);
+}
 $GLOBALS['sm_config'] = is_file(SM_CONFIG_FILE) ? (require SM_CONFIG_FILE) : [];
 date_default_timezone_set(config('timezone', 'Europe/Amsterdam'));
 foreach ((array) config('php', []) as $ini => $val) {

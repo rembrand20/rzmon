@@ -38,7 +38,7 @@ sudo bash install-rocky.sh
 >    ```
 > Het token wordt niet op de server opgeslagen; git vraagt er bij `git pull` opnieuw om.
 
-Open aan het eind de getoonde URL, bijvoorbeeld `http://192.168.1.10/`, en maak bij stap 4 van de setup je beheerder aan. Het databasewachtwoord staat in `/root/rzmon-install.txt`, dat alleen root kan lezen.
+Open aan het eind de getoonde URL, bijvoorbeeld `http://192.168.1.10/`, en maak bij stap 4 van de setup je beheerder aan. Het databasewachtwoord staat in `/root/rzmon-install.txt`, dat alleen root kan lezen. Het script installeert ook de *hulpdienst* (`rzmon-helper.path`), waarmee je het databasewachtwoord later met één knop kunt vernieuwen (*Instellingen → Database*). Bij een oudere installatie zet je die er één keer bij met `sudo bash /var/www/rzmon/install/install-helper.sh`.
 
 | Optie | Uitleg |
 |---|---|

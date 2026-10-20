@@ -183,6 +183,7 @@ function init() {
   $('#maint-banner').addEventListener('click', (e) => e.target.closest('[data-maint-end]') && endMaintenance('all', 0));
   $('#password-form').addEventListener('submit', changePassword);
   $('#user-form').addEventListener('submit', createUser);
+  $('#db-rotate').onclick = dbRotateDialog;
   $$('[data-view-layout]').forEach((b) => (b.onclick = () => setViewPref('layout', b.dataset.viewLayout)));
   $$('[data-view-density]').forEach((b) => (b.onclick = () => setViewPref('density', b.dataset.viewDensity)));
   showViewPrefs();
@@ -1364,6 +1365,7 @@ async function loadSettings() {
   if (!isAdmin()) return;   // de rest van de instellingen is alleen voor beheerders
   loadApiKeys();
   loadAccess();
+  loadDbInfo();
   const s = await api('settings');
   const f = $('#settings-form');
   $('#mqtt-status').innerHTML = s.mqtt_enabled !== '1' ? ''
@@ -1564,4 +1566,75 @@ async function totpSetup(id, username) {
       loadUsers();
     },
   });
+}
+
+// ---------------------------------------------------------------- Databasewachtwoord vernieuwen
+let dbInfo = null;
+async function loadDbInfo() {
+  try { dbInfo = await api('db_info'); } catch (ex) { return; }
+  $('#db-status').innerHTML = `Gebruiker <code>${esc(dbInfo.db.user)}</code> op <code>${esc(dbInfo.db.host)}</code>, database <code>${esc(dbInfo.db.name)}</code> · `
+    + (dbInfo.helper ? '<b class="good-txt">hulpdienst actief</b>' : dbInfo.direct ? 'RzMon mag config.php zelf opslaan' : '<b class="warn-txt">hulpdienst niet geïnstalleerd</b>');
+}
+
+/** Een commando met kopieerknop. */
+function copyBox(id, cmd) {
+  return `<div class="copy-line"><pre class="code" id="${id}">${esc(cmd)}</pre><button type="button" class="btn" data-copy="${id}">Kopieer</button></div>`;
+}
+function wireCopy(root) {
+  $$('[data-copy]', root).forEach((b) => (b.onclick = async () => {
+    const el = $('#' + b.dataset.copy);
+    try { await navigator.clipboard.writeText(el.textContent); toast('Gekopieerd'); }
+    catch (ex) { getSelection().selectAllChildren(el); toast('Geselecteerd — druk Ctrl+C', 'err'); }
+  }));
+}
+
+function dbRotateDialog() {
+  const info = dbInfo || {};
+  const lan = !!document.querySelector('.lan-badge');
+  const canClick = info.helper || info.direct;
+  const terminal = `
+    <details class="small api-docs" ${canClick ? '' : 'open'}>
+      <summary>Via de terminal (als root)</summary>
+      <p class="muted small">Dit doet hetzelfde als de knop, en werkt altijd:</p>
+      ${copyBox('cmd-rotate', info.cli_cmd || '')}
+      ${info.helper ? '' : `<p class="muted small" style="margin-top:.8rem">Hulpdienst installeren, zodat de knop ook werkt als de RzMon-map vergrendeld is:</p>${copyBox('cmd-helper', info.helper_cmd || '')}`}
+    </details>`;
+  modal({
+    title: '🔑 Databasewachtwoord vernieuwen',
+    body: canClick ? `
+      <p style="margin-top:0">RzMon maakt een nieuw wachtwoord van 32 tekens en slaat het op in de database en in <code>config.php</code>${info.helper ? ' (en in /root/rzmon-install.txt)' : ''}.
+        Daarna test RzMon de verbinding; lukt dat niet, dan wordt het oude wachtwoord automatisch teruggezet.</p>
+      <p class="muted small">Je ziet het nieuwe wachtwoord <b>één keer</b>. RzMon zelf heeft het niet nodig van je; bewaar het alleen als je zelf met de database wilt werken.</p>
+      <label>${lan ? 'Typ <b>VERNIEUWEN</b> om te bevestigen' : 'Bevestig met je eigen wachtwoord'}
+        <input name="confirm" type="${lan ? 'text' : 'password'}" required autocomplete="${lan ? 'off' : 'current-password'}" autofocus></label>
+      ${terminal}`
+      : `<p style="margin-top:0">De RzMon-map is vergrendeld (veilig), en de <b>hulpdienst</b> die de wissel als root uitvoert is nog niet geïnstalleerd.
+          Voer op de server één van deze commando's uit:</p>
+        <p class="small"><b>1. Hulpdienst installeren</b> (eenmalig; daarna werkt deze knop):</p>${copyBox('cmd-helper', info.helper_cmd || '')}
+        <p class="small" style="margin-top:1rem"><b>2. Of nu meteen vernieuwen</b> in de terminal:</p>${copyBox('cmd-rotate', info.cli_cmd || '')}`,
+    buttons: canClick ? [{ label: '🔑 Vernieuwen', cls: 'primary', submit: true }] : [{ label: 'Sluiten', cls: 'primary', submit: true }],
+    onSubmit: canClick ? async (d) => {
+      let r = await api('db_rotate', { confirm: d.confirm });
+      for (let i = 0; r.pending && i < 40; i++) {   // hulpdienst: even wachten op het resultaat
+        await new Promise((res) => setTimeout(res, 750));
+        try { r = await api('db_rotate_status'); }
+        catch (ex) { if (/hulpdienst reageert niet|Geen wachtwoordwissel/.test(ex.message)) throw ex; }   // tijdens de wissel kan één verzoek mislukken
+      }
+      if (r.pending) throw new Error('Geen antwoord van de hulpdienst');
+      setTimeout(() => showNewDbPassword(r), 50);
+    } : null,
+  });
+  wireCopy($('#modal-body'));
+}
+
+function showNewDbPassword(r) {
+  modal({
+    title: '✔ Nieuw databasewachtwoord',
+    body: `<p style="margin-top:0">Opgeslagen en getest; RzMon werkt gewoon door. Dit wachtwoord wordt <b>niet opnieuw getoond</b>.</p>
+      ${copyBox('new-db-pass', r.password)}
+      ${(r.warnings || []).map((w) => `<p class="callout small">⚠️ ${esc(w)}</p>`).join('')}`,
+    buttons: [{ label: 'Klaar', cls: 'primary', submit: true }],
+  });
+  wireCopy($('#modal-body'));
+  loadDbInfo();
 }

@@ -1186,6 +1186,39 @@ sudo cp /root/rzmon-config.php /var/www/rzmon/config.php
 - [ ] De MariaDB-gebruiker `rzmon` mag alleen inloggen vanaf `localhost`.
 - [ ] `display_errors` staat uit.
 
+
+### Databasewachtwoord vernieuwen 🔑
+
+Onder **Instellingen → Database** staat de knop **🔑 Databasewachtwoord vernieuwen** (alleen voor beheerders).
+
+1. Klik op de knop en bevestig met **je eigen wachtwoord**. Ben je op het LAN automatisch beheerder (zonder inloggen), dan typ je `VERNIEUWEN`.
+2. RzMon maakt een nieuw wachtwoord van 32 tekens en zet het in MariaDB **en** in `config.php`. Daarna test hij de verbinding. Mislukt er iets, dan wordt alles teruggezet en verandert er niets.
+3. Het nieuwe wachtwoord wordt **één keer** getoond. Kopieer het als je het ergens wilt bewaren. Het staat ook in `/root/rzmon-install.txt`.
+
+Dashboard, cron, agents en de API blijven gewoon werken: zij praten via RzMon met de database en gebruiken dus vanzelf het nieuwe wachtwoord.
+
+**De hulpdienst.** De webserver mag `config.php` niet wijzigen (de map is na de setup vergrendeld, zie de checklist hierboven). Daarom doet een kleine systemd-dienst het wisselen als root:
+
+- De webpagina zet een verzoek in `/var/lib/rzmon`.
+- `rzmon-helper.path` ziet dat en start `install.php --rotate-db-password --helper`.
+- De dienst kan niets anders. Hij voert geen commando's uit die van de webpagina komen.
+
+`install-rocky.sh` installeert de hulpdienst automatisch. Heb je een oudere installatie, voer dan één keer uit:
+
+```bash
+sudo bash /var/www/rzmon/install/install-helper.sh            # installeren
+sudo bash /var/www/rzmon/install/install-helper.sh --uninstall # verwijderen
+```
+
+Is de hulpdienst er niet, dan toont de knop een venster met beide commando's om te kopiëren. Zonder knop kan het ook altijd in de terminal:
+
+```bash
+sudo php /var/www/rzmon/install/install.php --rotate-db-password
+```
+
+> Werkt de knop niet ("De hulpdienst reageert niet")? Kijk dan met `systemctl status rzmon-helper.path rzmon-helper.service` en `journalctl -u rzmon-helper.service`.
+> Maak na het vernieuwen ook een nieuwe kopie van `config.php` voor je back-up (zie hoofdstuk 13).
+
 ---
 
 ## 15. Problemen oplossen
