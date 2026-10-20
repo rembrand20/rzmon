@@ -79,10 +79,10 @@ if (loginForm) {
     try {
       if (step2) {
         await api('login_totp', { code: loginForm.code.value });
-        return location.reload();
+        return location.replace(location.pathname);   // zonder ?login=1, anders weer uitgelogd
       }
       const r = await api('login', { username: loginForm.username.value, password: loginForm.password.value });
-      if (!r.totp_required) return location.reload();
+      if (!r.totp_required) return location.replace(location.pathname);
       // Wachtwoord klopt; nu de code uit de authenticator-app
       $('#login-step1').hidden = true;
       $('#login-step2').hidden = false;
@@ -158,6 +158,13 @@ function init() {
   $$('[data-view-density]').forEach((b) => (b.onclick = () => setViewPref('density', b.dataset.viewDensity)));
   showViewPrefs();
   $('#users').addEventListener('click', onUsersClick);
+  $('#users').addEventListener('change', async (e) => {
+    const sel = e.target.closest('select[data-uact=role]');
+    if (!sel) return;
+    try { await api('user_role', { id: sel.dataset.id, role: sel.value }); toast('Rol gewijzigd'); }
+    catch (ex) { toast(ex.message, 'err'); }
+    loadUsers();
+  });
   $('#api-key-form').addEventListener('submit', createApiKey);
   $('#api-keys').addEventListener('click', deleteApiKey);
   $('#access-form').addEventListener('submit', saveAccess);
@@ -178,6 +185,7 @@ function showTab(name) {
 async function refresh() {
   try {
     state = await api('state');
+    if (state.role && document.body.dataset.role !== state.role) location.reload();   // rol gewijzigd
     render();
     renderAlerts();
   } catch (ex) {
@@ -255,7 +263,7 @@ function render() {
   if (state.maintenance) {
     banner.innerHTML = `<span><b>🔧 Onderhoud actief</b> tot ${esc(fmtUntil(state.maintenance.until))}${state.maintenance.reason ? ' – ' + esc(state.maintenance.reason) : ''}.
       Checks draaien door, maar er gaan geen meldingen uit.</span>
-      <button class="btn" data-maint-end="all">Beëindigen</button>`;
+      <button class="btn need-user" data-maint-end="all">Beëindigen</button>`;
   }
   $('#last-run').textContent = state.last_run ? 'Laatste check: ' + ago(state.last_run) : '';
   let open = 0;
@@ -381,16 +389,16 @@ function hostParts(h) {
 function hostDetail(h) {
   const agentInfo = h.mode === 'agent'
     ? `<span class="muted small">Agent: ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}</span>
-       <button class="btn" data-act="agent" data-id="${h.id}">Agent installeren</button>` : '';
+       <button class="btn need-admin" data-act="agent" data-id="${h.id}">Agent installeren</button>` : '';
   return `
     <div class="host-detail">
       <div class="detail-bar">
-        ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="btn ack-btn" data-act="ack-host" data-id="${h.id}">✔ Alles bevestigen</button>` : ''}
-        <button class="btn" data-act="maint-host" data-id="${h.id}">🔧 Onderhoud</button>
-        <button class="btn" data-act="add-check" data-id="${h.id}">＋ Check</button>
-        <button class="btn" data-act="scan" data-id="${h.id}">🔍 Poorten</button>
+        ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="btn ack-btn need-user" data-act="ack-host" data-id="${h.id}">✔ Alles bevestigen</button>` : ''}
+        <button class="btn need-user" data-act="maint-host" data-id="${h.id}">🔧 Onderhoud</button>
+        <button class="btn need-admin" data-act="add-check" data-id="${h.id}">＋ Check</button>
+        <button class="btn need-user" data-act="scan" data-id="${h.id}">🔍 Poorten</button>
         ${h.metrics.includes('podman') ? `<button class="btn" data-act="podman" data-id="${h.id}">📦 Containers</button>` : ''}
-        <button class="btn" data-act="edit-host" data-id="${h.id}">✎ Bewerken</button>
+        <button class="btn need-admin" data-act="edit-host" data-id="${h.id}">✎ Bewerken</button>
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
       </div>
       ${uptimeLine(h, false)}
@@ -483,7 +491,7 @@ function checkRow(c) {
   const own = c.maintenance && c.maintenance.scope === 'check';
   const problem = s !== 0 && +c.enabled;
   const ackTitle = c.acked_at ? `Bevestigd door ${c.acked_by || '?'} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. Klik om in te trekken.` : '';
-  const flags = (problem && c.acked_at ? ` <button class="ack-tag" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ bevestigd</button>` : '')
+  const flags = (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ bevestigd</button>` : '')
     + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">${c.maintenance.auto ? '🔧 auto, tot opgelost' : `🔧 tot ${esc(fmtUntil(c.maintenance.until))}`}</span>` : '')
     + (c.suppressed_by ? ' <span class="supp-tag" title="Geen melding: een server erboven is onbereikbaar">🔕 onderdrukt</span>' : '');
   return `
@@ -491,11 +499,11 @@ function checkRow(c) {
     <span class="dot"></span>
     <span class="chk-name">${esc(c.name)}<span class="type">${t.label}${value}</span>${flags}</span>
     <span class="chk-actions">
-      ${problem && !c.acked_at ? `<button class="icon-btn ack-btn" title="Storing bevestigen: geen meldingen meer" data-act="ack" data-id="${c.id}">✔</button>` : ''}
-      <button class="icon-btn" title="Onderhoud" data-act="maint-check" data-id="${c.id}">🔧</button>
-      <button class="icon-btn" title="Nu checken" data-act="run" data-id="${c.id}">↻</button>
+      ${problem && !c.acked_at ? `<button class="icon-btn ack-btn need-user" title="Storing bevestigen: geen meldingen meer" data-act="ack" data-id="${c.id}">✔</button>` : ''}
+      <button class="icon-btn need-user" title="Onderhoud" data-act="maint-check" data-id="${c.id}">🔧</button>
+      <button class="icon-btn need-user" title="Nu checken" data-act="run" data-id="${c.id}">↻</button>
       <button class="icon-btn" title="Historie" data-act="history" data-id="${c.id}">📈</button>
-      <button class="icon-btn" title="Bewerken" data-act="edit-check" data-id="${c.id}">✎</button>
+      <button class="icon-btn need-admin" title="Bewerken" data-act="edit-check" data-id="${c.id}">✎</button>
     </span>
     ${bar}
     ${sparkSvg(c)}
@@ -928,9 +936,9 @@ async function runScan(h) {
       const tls = TLS_PORTS.includes(+p.port);
       return `<tr><td class="num">${p.port}</td><td>${esc(p.service || '–')}</td>${extra}
         <td style="text-align:right;white-space:nowrap">${mon ? '<span class="muted small">✓ bewaakt</span>'
-          : `<button type="button" class="btn" data-port="${p.port}" data-service="${esc(p.service || '')}">＋ Check</button>`}
+          : `<button type="button" class="btn need-admin" data-port="${p.port}" data-service="${esc(p.service || '')}">＋ Check</button>`}
           ${tls ? (certMon.has(+p.port) ? ' <span class="muted small">✓ cert</span>'
-            : ` <button type="button" class="btn" data-cert="${p.port}" title="Certificaat bewaken (vervaldatum)">＋ Cert</button>`) : ''}</td></tr>`;
+            : ` <button type="button" class="btn need-admin" data-cert="${p.port}" title="Certificaat bewaken (vervaldatum)">＋ Cert</button>`) : ''}</td></tr>`;
     };
     let html = `<p class="scan-summary">${r.open.length} open van ${r.scanned} gescande poorten · ${r.seconds}s</p>`;
     html += r.open.length
@@ -1019,7 +1027,7 @@ async function podmanOverview(h) {
     const memPct = c.mem !== null && c.mem_limit ? (c.mem / c.mem_limit) * 100 : null;
     const disk = (c.size_rw || 0) + (c.volumes || 0);
     const btn = (metric, label, title) => (has(c.key, metric) ? `<span class="muted small" title="Wordt bewaakt">✓ ${label}</span>`
-      : `<button type="button" class="btn small-btn" data-pc="${esc(c.key)}" data-metric="${metric}" title="${title}">＋ ${label}</button>`);
+      : `<button type="button" class="btn small-btn need-admin" data-pc="${esc(c.key)}" data-metric="${metric}" title="${title}">＋ ${label}</button>`);
     return `<tr>
       <td><span class="dot-inline ${stateCls(c)}"></span><b>${esc(c.key)}</b>${c.pod ? `<br><span class="muted small">pod ${esc(c.pod)}</span>` : ''}
         <br><span class="muted small mono">${esc(c.image)}</span></td>
@@ -1041,8 +1049,8 @@ async function podmanOverview(h) {
     ${sm.error ? `<p class="form-error">Podman-fout: ${esc(sm.error)}</p>` : ''}
     <div class="podman-actions">
       ${d.checks.some((c) => c.type === 'podman') ? '<span class="muted small">✓ Podman-check aanwezig</span>'
-        : '<button type="button" class="btn" id="pc-overall">＋ Podman-check (algehele status)</button>'}
-      ${missing.length ? `<button type="button" class="btn" id="pc-all">＋ Status-check voor ${missing.length === d.containers.length ? 'alle' : 'de overige'} ${missing.length} container(s)</button>` : ''}
+        : '<button type="button" class="btn need-admin" id="pc-overall">＋ Podman-check (algehele status)</button>'}
+      ${missing.length ? `<button type="button" class="btn need-admin" id="pc-all">＋ Status-check voor ${missing.length === d.containers.length ? 'alle' : 'de overige'} ${missing.length} container(s)</button>` : ''}
     </div>
     <div class="table-scroll"><table class="port-table podman-table">
       <thead><tr><th>Container</th><th>Status</th><th>CPU</th><th>RAM</th><th>Disk</th><th>Bewaken</th></tr></thead>
@@ -1222,6 +1230,7 @@ async function loadAccess() {
   const a = await api('access_info');
   const f = $('#access-form');
   f.lan_no_login.checked = a.lan_no_login;
+  f.lan_as_admin.checked = a.lan_as_admin;
   f.trusted_networks.value = a.trusted_networks;
   f.trusted_proxies.value = a.trusted_proxies;
   $('#ip-status').innerHTML = `Jouw IP-adres: <code>${esc(a.client_ip)}</code>${a.client_ip !== a.remote_addr ? ` <span class="muted small">(via proxy ${esc(a.remote_addr)})</span>` : ''}
@@ -1234,7 +1243,7 @@ async function saveAccess(e) {
   const err = $('.form-error', f);
   err.hidden = true;
   try {
-    await api('access_save', { lan_no_login: f.lan_no_login.checked, trusted_networks: f.trusted_networks.value, trusted_proxies: f.trusted_proxies.value });
+    await api('access_save', { lan_no_login: f.lan_no_login.checked, lan_as_admin: f.lan_as_admin.checked, trusted_networks: f.trusted_networks.value, trusted_proxies: f.trusted_proxies.value });
     toast('Toegang opgeslagen');
     loadAccess();
   } catch (ex) {
@@ -1288,9 +1297,12 @@ async function deleteApiKey(e) {
   catch (ex) { toast(ex.message, 'err'); }
 }
 
+const isAdmin = () => document.body.dataset.role === 'admin';
+
 async function loadSettings() {
-  loadApiKeys();
   loadUsers();
+  if (!isAdmin()) return;   // de rest van de instellingen is alleen voor beheerders
+  loadApiKeys();
   loadAccess();
   const s = await api('settings');
   const f = $('#settings-form');
@@ -1360,19 +1372,24 @@ async function changePassword(e) {
 
 // ---------------------------------------------------------------- Gebruikers & tweestapsverificatie
 let users = [];
+const ROLE_LABEL = { admin: '🔑 Beheerder', user: '👤 Gebruiker', readonly: '👁 Alleen lezen' };
 async function loadUsers() {
+  if ($('#users-card').hidden) return;
   users = await api('users');
   $('#users').innerHTML = users.map((u) => `
     <div class="key-row">
       <span class="grow"><strong>${esc(u.username)}</strong>${u.me ? ' <span class="badge">jij</span>' : ''}
+        <span class="role-tag r-${esc(u.role)}">${ROLE_LABEL[u.role] || esc(u.role)}</span>
         ${u.totp ? '<span class="tfa on" title="Tweestapsverificatie staat aan">🔐 2FA aan</span>' : '<span class="tfa" title="Alleen wachtwoord">2FA uit</span>'}<br>
         <span class="muted small">Laatst ingelogd: ${u.last_login ? ago(u.last_login) : 'nooit'}</span></span>
       <span class="row-actions">
         ${u.totp
           ? `<button class="btn" data-uact="totp-reset" data-id="${u.id}" title="Tweestapsverificatie uitzetten, bv. bij een verloren telefoon">2FA resetten</button>`
           : `<button class="btn" data-uact="totp-setup" data-id="${u.id}">🔐 2FA instellen</button>`}
-        <button class="icon-btn" data-uact="password" data-id="${u.id}" title="Nieuw wachtwoord instellen">🔑</button>
-        ${u.me ? '' : `<button class="icon-btn" data-uact="delete" data-id="${u.id}" title="Verwijderen">🗑</button>`}
+        ${u.me ? '' : `<select class="role-select need-admin" data-uact="role" data-id="${u.id}" title="Rol wijzigen">
+          ${Object.entries(ROLE_LABEL).map(([k, l]) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`}
+        <button class="icon-btn need-admin" data-uact="password" data-id="${u.id}" title="Nieuw wachtwoord instellen">🔑</button>
+        ${u.me ? '' : `<button class="icon-btn need-admin" data-uact="delete" data-id="${u.id}" title="Verwijderen">🗑</button>`}
       </span>
     </div>`).join('');
 }
@@ -1381,7 +1398,7 @@ async function createUser(e) {
   e.preventDefault();
   const f = e.target;
   try {
-    const r = await api('user_create', { username: f.username.value, password: f.password.value });
+    const r = await api('user_create', { username: f.username.value, password: f.password.value, role: f.role.value });
     const name = f.username.value;
     const withTotp = f.totp.checked;
     f.reset();
@@ -1392,7 +1409,7 @@ async function createUser(e) {
 }
 
 async function onUsersClick(e) {
-  const b = e.target.closest('[data-uact]');
+  const b = e.target.closest('button[data-uact]');
   if (!b) return;
   const u = users.find((x) => +x.id === +b.dataset.id);
   try {

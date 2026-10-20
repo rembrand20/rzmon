@@ -18,12 +18,21 @@ try {
         header('Location: setup.php');
         exit;
     }
+    // Op het LAN gekozen voor "Inloggen": niet automatisch (alleen lezen) binnenlaten
+    if (isset($_GET['login'])) {
+        start_session();
+        $_SESSION = ['csrf' => $_SESSION['csrf'], 'no_lan_auto' => true];
+    } elseif (isset($_GET['lan'])) {
+        start_session();
+        unset($_SESSION['no_lan_auto']);
+    }
     $user = current_user();
 } catch (PDOException $e) {
     header('Location: setup.php');
     exit;
 }
 $csrf = csrf_token();
+$role = $user['role'] ?? 'readonly';
 $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.css');
 ?>
 <!doctype html>
@@ -37,7 +46,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
   <script>try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
-<body>
+<body data-role="<?= htmlspecialchars($role) ?>">
 <?php if (!$user): ?>
   <main class="login-wrap">
     <form id="login-form" class="card login-card">
@@ -52,6 +61,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div>
       <p class="form-error" hidden></p>
       <button class="btn primary block">Inloggen</button>
+      <?php if (lan_login_allowed()): ?>
+        <p class="small" style="text-align:center;margin:.9rem 0 0"><a href="index.php?lan=1">Verder zonder inloggen (alleen lezen)</a></p>
+      <?php endif; ?>
     </form>
   </main>
 <?php else: ?>
@@ -61,12 +73,14 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <button class="tab active" data-tab="dashboard">Dashboard</button>
       <button class="tab" data-tab="alerts">Meldingen</button>
       <button class="tab" data-tab="settings">Instellingen</button>
-      <a class="tab" href="setup.php">Setup</a>
+      <?php if ($role === 'admin'): ?><a class="tab" href="setup.php">Setup</a><?php endif; ?>
     </nav>
     <div class="top-actions">
       <?php if (is_lan_session()): ?><span class="lan-badge" title="Ingelogd zonder wachtwoord omdat je op het lokale netwerk zit">🏠 Lokaal netwerk</span><?php endif; ?>
+      <?php if ($role !== 'admin'): ?><span class="role-badge" title="Je rechten: <?= $role === 'user' ? 'storingen afhandelen, niets inrichten' : 'alleen kijken' ?>"><?= $role === 'user' ? '👤 Gebruiker' : '👁 Alleen lezen' ?></span><?php endif; ?>
+      <?php if (is_lan_session()): ?><a class="btn small-btn" href="index.php?login=1" title="Inloggen met je eigen account voor je eigen rechten">Inloggen</a><?php endif; ?>
       <button class="icon-btn" id="theme-toggle" title="Thema wisselen">🌓</button>
-      <?php if (!is_lan_session()): ?><button class="icon-btn" id="logout" title="Uitloggen">⏻</button><?php endif; ?>
+      <?php if (!is_lan_session()): ?><button class="icon-btn" id="logout" title="Uitloggen (<?= htmlspecialchars($user['username']) ?>)">⏻</button><?php endif; ?>
     </div>
   </header>
 
@@ -84,9 +98,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="stat maint" title="Checks in onderhoud: geen meldingen"><span class="num" id="sum-maint">–</span><span>Onderhoud</span></div>
         <div class="summary-actions">
           <span class="muted small" id="last-run"></span>
-          <button class="btn" id="maint-all" title="Alle meldingen tijdelijk pauzeren">🔧 Onderhoud</button>
-          <button class="btn" id="run-all">↻ Alles nu checken</button>
-          <button class="btn primary" id="add-host">＋ Server</button>
+          <button class="btn need-user" id="maint-all" title="Alle meldingen tijdelijk pauzeren">🔧 Onderhoud</button>
+          <button class="btn need-user" id="run-all">↻ Alles nu checken</button>
+          <button class="btn primary need-admin" id="add-host">＋ Server</button>
         </div>
       </div>
       <div class="filter-row">
@@ -124,7 +138,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         </div>
       </div>
 
-      <form id="settings-form" class="settings-grid">
+      <form id="settings-form" class="settings-grid need-admin">
         <div class="card">
           <h2>Pushover</h2>
           <p class="muted small">Maak een applicatie aan op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> voor het API-token. Je user key staat op je Pushover dashboard.</p>
@@ -244,10 +258,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </form>
 
       <div class="settings-grid" style="margin-top:1.25rem">
-      <form class="card" id="access-form">
+      <form class="card need-admin" id="access-form">
         <h2>Toegang</h2>
         <div class="ip-status" id="ip-status">…</div>
         <label class="switch"><input type="checkbox" name="lan_no_login"><span></span> Geen login nodig op het lokale netwerk</label>
+        <label class="switch"><input type="checkbox" name="lan_as_admin"><span></span> Op het lokale netwerk als <b>beheerder</b> inloggen</label>
+        <p class="muted small" style="margin-top:-.3rem">Uit: op het lokale netwerk kom je binnen als <b>alleen lezen</b>, en met <i>Inloggen</i> rechtsboven krijg je de rechten van je eigen account. Van buitenaf is altijd een gebruikersnaam en wachtwoord nodig.</p>
         <label>Lokale netwerken <span class="hint">(één per regel, bv. 192.168.1.0/24)</span>
           <textarea name="trusted_networks" rows="5" spellcheck="false"></textarea></label>
         <label>Reverse proxy IP's <span class="hint">(optioneel — alleen invullen als RzMon achter Nginx Proxy Manager, Traefik, Cloudflare tunnel e.d. staat)</span>
@@ -257,7 +273,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <button class="btn primary">Toegang opslaan</button>
       </form>
 
-      <div class="card" id="api-card">
+      <div class="card need-admin" id="api-card">
         <h2>API-sleutels</h2>
         <p class="muted small">Lees statussen en meetwaarden uit via de REST API, bijvoorbeeld vanuit Home Assistant. Stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.</p>
         <p class="small">Basis-URL: <code id="api-base"></code></p>
@@ -278,22 +294,33 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         </details>
       </div>
 
-      <div class="card" id="users-card">
+      <div class="card" id="users-card" <?= ($user['id'] ?? 0) === 0 ? 'hidden' : '' ?>>
         <h2>Gebruikers</h2>
-        <p class="muted small">Iedere gebruiker kan alles beheren. Met <b>tweestapsverificatie</b> (TOTP) is naast het wachtwoord een code uit een authenticator-app nodig, zoals Google/Microsoft Authenticator, Authy, Bitwarden of 1Password.
-          Inloggen zonder wachtwoord op je lokale netwerk (zie <i>Toegang</i>) blijft gewoon werken.</p>
+        <p class="muted small need-admin"><b>Beheerder</b>: alles. <b>Gebruiker</b>: storingen afhandelen (bevestigen, nu checken, onderhoud, poortscan), maar niets inrichten. <b>Alleen lezen</b>: kijken.
+          Met <b>tweestapsverificatie</b> (TOTP) is naast het wachtwoord een code uit een authenticator-app nodig, zoals Google/Microsoft Authenticator, Authy, Bitwarden of 1Password.</p>
+        <p class="muted small" data-role-only="nonadmin">Je account. Hier stel je je tweestapsverificatie in; je wachtwoord wijzig je hieronder.</p>
         <div id="users" class="key-list"></div>
-        <form id="user-form" class="user-form">
+        <form id="user-form" class="user-form need-admin">
           <div class="row2">
             <input name="username" placeholder="Gebruikersnaam" required maxlength="64" autocomplete="off">
             <input name="password" type="password" placeholder="Wachtwoord (min. 8 tekens)" required minlength="8" autocomplete="new-password">
           </div>
+          <label>Rol
+            <select name="role">
+              <option value="user">👤 Gebruiker – storingen afhandelen</option>
+              <option value="readonly">👁 Alleen lezen – kijken</option>
+              <option value="admin">🔑 Beheerder – alles</option>
+            </select>
+          </label>
           <label class="switch small"><input type="checkbox" name="totp"><span></span> Direct tweestapsverificatie instellen</label>
           <button class="btn">＋ Gebruiker toevoegen</button>
         </form>
       </div>
 
-      <form id="password-form" class="card">
+      <?php if (($user['id'] ?? 0) === 0): ?>
+      <div class="card"><h2>Account</h2><p class="muted small">Je bent automatisch ingelogd via het lokale netwerk, met alleen-lezen-rechten. Klik rechtsboven op <b>Inloggen</b> om met je eigen account in te loggen.</p></div>
+      <?php endif; ?>
+      <form id="password-form" class="card" <?= ($user['id'] ?? 0) === 0 ? 'hidden' : '' ?>>
         <h2>Wachtwoord wijzigen</h2>
         <label>Huidig wachtwoord<input type="password" name="current" autocomplete="current-password" required></label>
         <label>Nieuw wachtwoord<input type="password" name="new" minlength="8" autocomplete="new-password" required></label>

@@ -922,6 +922,12 @@ Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De 
 - **Wissel je van netwerk** met een open sessie, bijvoorbeeld van wifi naar 4G, dan word je bij het volgende verzoek uitgelogd.
 - **REST API:** die vraagt altijd een API-sleutel, ook op het LAN.
 
+### Welke rechten heb je op het lokale netwerk?
+- **Standaard** kom je zonder wachtwoord binnen als **👁 Alleen lezen**: je kunt alles zien, maar niets veranderen.
+- **Inloggen** (knop rechtsboven) logt je in met je eigen account, met de rechten van dat account. *Verder zonder inloggen* brengt je terug naar alleen lezen.
+- **"Op het lokale netwerk als beheerder inloggen"** (onder *Toegang*, alleen te wijzigen door een beheerder): staat dit aan, dan kom je op het LAN zonder wachtwoord binnen als **beheerder**. Dat geldt alleen voor het lokale netwerk.
+- **Van buitenaf (internet)** is altijd een gebruikersnaam en wachtwoord nodig, plus 2FA als die aan staat. Je krijgt dan de rechten van je account.
+
 ### Achter een reverse proxy
 Gebruik je **Nginx Proxy Manager**, **Traefik**, **Caddy**, **Cloudflare Tunnel** of de HA-add-on *NGINX SSL proxy*? Dan komt elk verzoek binnen met het IP van de proxy.
 
@@ -931,15 +937,27 @@ Gebruik je **Nginx Proxy Manager**, **Traefik**, **Caddy**, **Cloudflare Tunnel*
 
 > ⚠️ Sommige routers geven bij port-forwarding álle bezoekers het IP van de router. Test daarom altijd via 4G nadat je deze optie aanzet.
 
-### Gebruikers en tweestapsverificatie 🔐
-Onder *Instellingen → Gebruikers* beheer je wie er mag inloggen. Iedere gebruiker kan alles beheren.
+### Gebruikers, rollen en tweestapsverificatie 🔐
+Onder *Instellingen → Gebruikers* beheer je wie er mag inloggen, en met welke **rol**:
+
+| Mag… | 🔑 Beheerder | 👤 Gebruiker | 👁 Alleen lezen |
+|---|:-:|:-:|:-:|
+| Dashboard, checks, grafieken, meldingen, containers bekijken | ✅ | ✅ | ✅ |
+| Eigen wachtwoord en eigen 2FA | ✅ | ✅ | ✅ |
+| Storing bevestigen, nu checken, onderhoud, poortscan | ✅ | ✅ | ❌ |
+| Servers en checks inrichten, agents, instellingen, gebruikers, API-sleutels, Setup | ✅ | ❌ | ❌ |
+
+- De rol kies je bij het aanmaken. Wijzigen gaat met de keuzelijst bij de gebruiker.
+- Je kunt je eigen rol niet wijzigen, en er blijft altijd minimaal één beheerder.
+- Knoppen die niet mogen, verdwijnen. Rechtsboven zie je *👤 Gebruiker* of *👁 Alleen lezen*.
+- De server controleert de rechten ook zelf, dus ook via de API kan niemand meer dan zijn rol toestaat.
 
 - **Gebruiker toevoegen:** vul een naam en wachtwoord in. Wil je meteen 2FA, zet dan *Direct tweestapsverificatie instellen* aan. Zonder 2FA is alleen het wachtwoord nodig.
 - **2FA instellen:** klik bij de gebruiker op **🔐 2FA instellen** en scan de QR-code met een authenticator-app, zoals Google of Microsoft Authenticator, Authy, Bitwarden of 1Password. Lukt scannen niet, typ dan de sleutel eronder over. Vul de code in die de app toont: pas daarna staat 2FA aan, dus je kunt jezelf niet per ongeluk buitensluiten.
 - **Inloggen met 2FA:** na het wachtwoord vraagt RzMon om de 6-cijferige code. Een code werkt maar één keer. Na 5 foute codes, of na 5 minuten, begin je opnieuw met je wachtwoord.
 - **2FA resetten:** bijvoorbeeld bij een nieuwe of verloren telefoon. Klik op **2FA resetten**: die gebruiker logt dan weer in met alleen het wachtwoord, tot 2FA opnieuw is ingesteld.
 - **🔑** stelt een nieuw wachtwoord in voor een gebruiker. **🗑** verwijdert een gebruiker; jezelf en de laatste gebruiker kun je niet verwijderen.
-- **Op het lokale netwerk** blijft inloggen zonder wachtwoord werken als je dat aan hebt staan; 2FA geldt voor inloggen van buitenaf.
+- **Op het lokale netwerk** blijft inloggen zonder wachtwoord werken als je dat aan hebt staan (als *alleen lezen*, zie hieronder); 2FA geldt voor inloggen met een account.
 
 **Buitengesloten?** Op de server zet dit 2FA uit voor een gebruiker:
 ```bash

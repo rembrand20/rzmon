@@ -73,6 +73,7 @@ final class Installer
         ['checks', 'metric', 'VARCHAR(16) NULL'],   // container: status | cpu | mem | disk
         ['checks', 'options', 'VARCHAR(500) NULL'],  // JSON, bv. service: diepere controle en extra test
         ['checks', 'maintenance_auto', 'TINYINT(1) NOT NULL DEFAULT 0'],  // onderhoud automatisch gezet na herhaalde meldingen
+        ['users', 'role', "VARCHAR(10) NOT NULL DEFAULT 'admin'"],   // admin | user | readonly (bestaande accounts: admin)
     ];
 
     private static function migrate(PDO $pdo): void
@@ -92,7 +93,7 @@ final class Installer
         return (int) q('SELECT COUNT(*) FROM users')->fetchColumn();
     }
 
-    public static function saveUser(string $username, string $password): void
+    public static function saveUser(string $username, string $password, ?string $role = null): void
     {
         if (!preg_match('/^[\w.@-]{2,64}$/u', $username)) {
             throw new InvalidArgumentException('Gebruikersnaam: 2-64 tekens, letters/cijfers/._@-');
@@ -100,8 +101,8 @@ final class Installer
         if (strlen($password) < 8) {
             throw new InvalidArgumentException('Wachtwoord moet minimaal 8 tekens zijn');
         }
-        q('INSERT INTO users (username, password_hash) VALUES (?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)', [
-            $username, password_hash($password, PASSWORD_DEFAULT),
+        q('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)', [
+            $username, password_hash($password, PASSWORD_DEFAULT), in_array($role, array_keys(ROLES), true) ? $role : 'admin',
         ]);
     }
 

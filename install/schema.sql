@@ -150,4 +150,5 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('mqtt_base_topic', 'rzmon'),
     ('disk_forecast_days', '7'),
     ('auto_maint_enabled', '1'),
-    ('auto_maint_after', '3');
+    ('auto_maint_after', '3'),
+    ('lan_as_admin', '0');

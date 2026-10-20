@@ -221,6 +221,23 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
     out(['error' => 'Ongeldig CSRF token'], 403);
 }
 
+// Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
+$need = match ($action) {
+    'state', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset' => 'readonly',
+    'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan' => 'user',
+    default => 'admin',
+};
+if (!has_role($user, $need)) {
+    out(['error' => 'Daar heb je geen rechten voor (je bent ' . mb_strtolower(ROLE_LABELS[$user['role']] ?? '?') . ')'], 403);
+}
+$isAdmin = has_role($user, 'admin');
+/** Niet-beheerders mogen alleen hun eigen account (2FA) beheren. */
+$ownOnly = static function (int $id) use ($user, $isAdmin): void {
+    if (!$isAdmin && $id !== $user['id']) {
+        out(['error' => 'Je kunt alleen je eigen account beheren'], 403);
+    }
+};
+
 switch ($action) {
     case 'logout':
         logout();
@@ -252,12 +269,19 @@ switch ($action) {
             $h['maintenance'] = $global ?? $own;
         }
         unset($h);
+        if (!$isAdmin) {
+            // Agent-tokens zijn geheim: alleen beheerders installeren agents
+            foreach ($hosts as &$h) {
+                $h['agent_token'] = null;
+            }
+            unset($h);
+        }
         $alerts = q('SELECT a.*, c.name AS check_name FROM alerts a LEFT JOIN checks c ON c.id = a.check_id
                      ORDER BY a.id DESC LIMIT 50')->fetchAll();
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'alerts' => $alerts, 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
-             'version' => RZMON_VERSION]);
+             'version' => RZMON_VERSION, 'role' => $user['role'], 'user_id' => $user['id']]);
 
     case 'history':
         $id = (int) ($_GET['check_id'] ?? 0);
@@ -609,6 +633,7 @@ switch ($action) {
     case 'access_info':
         out([
             'lan_no_login' => setting('lan_no_login', '0') === '1',
+            'lan_as_admin' => setting('lan_as_admin', '0') === '1',
             'trusted_networks' => (string) setting('trusted_networks', ''),
             'trusted_proxies' => (string) setting('trusted_proxies', ''),
             'client_ip' => client_ip(),
@@ -638,6 +663,7 @@ switch ($action) {
             }
         }
         save_setting('lan_no_login', $enable ? '1' : '0');
+        save_setting('lan_as_admin', !empty($in['lan_as_admin']) ? '1' : '0');
         save_setting('trusted_networks', implode("\n", $networks));
         save_setting('trusted_proxies', implode("\n", $proxies));
         out(['ok' => true]);
@@ -698,7 +724,8 @@ switch ($action) {
 
     // ---------- Gebruikers en tweestapsverificatie ----------
     case 'users':
-        $rows = q('SELECT id, username, totp_secret IS NOT NULL AS totp, created_at, last_login FROM users ORDER BY username')->fetchAll();
+        $rows = q('SELECT id, username, role, totp_secret IS NOT NULL AS totp, created_at, last_login FROM users'
+            . ($isAdmin ? '' : ' WHERE id = ' . (int) $user['id']) . ' ORDER BY username')->fetchAll();
         foreach ($rows as &$r) {
             $r['totp'] = (bool) $r['totp'];
             $r['me'] = (int) $r['id'] === $user['id'];
@@ -712,7 +739,8 @@ switch ($action) {
             if (q('SELECT 1 FROM users WHERE username = ?', [trim((string) ($in['username'] ?? ''))])->fetchColumn()) {
                 throw new InvalidArgumentException('Deze gebruikersnaam bestaat al');
             }
-            Installer::saveUser(trim((string) ($in['username'] ?? '')), (string) ($in['password'] ?? ''));
+            Installer::saveUser(trim((string) ($in['username'] ?? '')), (string) ($in['password'] ?? ''),
+                in_array($in['role'] ?? '', array_keys(ROLES), true) ? $in['role'] : 'user');
         } catch (InvalidArgumentException $e) {
             out(['error' => $e->getMessage()], 422);
         }
@@ -726,6 +754,23 @@ switch ($action) {
         q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash((string) $in['password'], PASSWORD_DEFAULT), (int) ($in['id'] ?? 0)]);
         out(['ok' => true]);
 
+    case 'user_role':
+        $in = input();
+        $id = (int) ($in['id'] ?? 0);
+        $role = (string) ($in['role'] ?? '');
+        if (!isset(ROLES[$role])) {
+            out(['error' => 'Onbekende rol'], 422);
+        }
+        if ($id === $user['id']) {
+            out(['error' => 'Je kunt je eigen rol niet wijzigen (laat een andere beheerder dat doen)'], 422);
+        }
+        if ($role !== 'admin' && q("SELECT role FROM users WHERE id = ?", [$id])->fetchColumn() === 'admin'
+            && (int) q("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn() <= 1) {
+            out(['error' => 'Er moet minimaal één beheerder overblijven'], 422);
+        }
+        q('UPDATE users SET role = ? WHERE id = ?', [$role, $id]);
+        out(['ok' => true]);
+
     case 'user_delete':
         $id = (int) (input()['id'] ?? 0);
         if ($id === $user['id']) {
@@ -734,11 +779,16 @@ switch ($action) {
         if ((int) q('SELECT COUNT(*) FROM users')->fetchColumn() <= 1) {
             out(['error' => 'Er moet minimaal één gebruiker overblijven'], 422);
         }
+        if (q("SELECT role FROM users WHERE id = ?", [$id])->fetchColumn() === 'admin'
+            && (int) q("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn() <= 1) {
+            out(['error' => 'Er moet minimaal één beheerder overblijven'], 422);
+        }
         q('DELETE FROM users WHERE id = ?', [$id]);
         out(['ok' => true]);
 
     case 'totp_setup':
         // Stap 1: nieuw geheim (nog niet actief) → QR-code scannen
+        $ownOnly((int) (input()['id'] ?? 0));
         $u = q('SELECT id, username FROM users WHERE id = ?', [(int) (input()['id'] ?? 0)])->fetch();
         if (!$u) {
             out(['error' => 'Gebruiker niet gevonden'], 404);
@@ -751,6 +801,7 @@ switch ($action) {
         // Stap 2: pas actief na een geldige code, zodat je jezelf niet buitensluit
         $in = input();
         $id = (int) ($in['id'] ?? 0);
+        $ownOnly($id);
         $secret = $_SESSION['totp_setup'][$id] ?? null;
         if (!$secret) {
             out(['error' => 'Begin opnieuw met instellen'], 422);
@@ -764,10 +815,14 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'totp_reset':
+        $ownOnly((int) (input()['id'] ?? 0));
         q('UPDATE users SET totp_secret = NULL, totp_last_step = NULL WHERE id = ?', [(int) (input()['id'] ?? 0)]);
         out(['ok' => true]);
 
     case 'password':
+        if ($user['id'] === 0) {
+            out(['error' => 'Je bent automatisch ingelogd (lokaal netwerk). Log in met je eigen account om je wachtwoord te wijzigen.'], 422);
+        }
         $in = input();
         $row = q('SELECT password_hash FROM users WHERE id = ?', [$user['id']])->fetch();
         if (!$row || !password_verify((string) ($in['current'] ?? ''), $row['password_hash'])) {

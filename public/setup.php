@@ -27,9 +27,14 @@ if (is_configured()) {
 $installed = is_configured() && $dbError === null && $userCount > 0;
 
 if ($installed) {
-    if (!current_user()) {
+    $setupUser = current_user();
+    if (!$setupUser) {
         header('Location: index.php');
         exit;
+    }
+    if (!has_role($setupUser, 'admin')) {
+        http_response_code(403);
+        exit('Setup is alleen voor beheerders.');
     }
 } elseif (!is_private_client()) {
     http_response_code(403);

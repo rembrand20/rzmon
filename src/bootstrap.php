@@ -7,6 +7,10 @@ const STATUS_WARN = 1;
 const STATUS_CRIT = 2;
 const STATUS_UNKNOWN = 3;
 const STATUS_LABELS = ['OK', 'WARNING', 'CRITICAL', 'UNKNOWN'];
+// Rollen, van meeste naar minste rechten. Beheerder: alles. Gebruiker: storingen afhandelen
+// (bevestigen, nu checken, onderhoud, poortscan). Alleen lezen: kijken.
+const ROLES = ['admin' => 3, 'user' => 2, 'readonly' => 1];
+const ROLE_LABELS = ['admin' => 'Beheerder', 'user' => 'Gebruiker', 'readonly' => 'Alleen lezen'];
 // Instellingen die nooit naar de browser gaan (alleen "ingevuld of niet")
 const SECRET_SETTINGS = ['pushover_token', 'smtp_pass', 'mqtt_pass'];
 
