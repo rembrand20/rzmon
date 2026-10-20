@@ -41,7 +41,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **Back-up en herstel**: automatisch elke dag, week of maand (tijd en aantal instelbaar), als zip met database en `config.php`, versleuteld met AES-256. Downloaden, uploaden en terugzetten in de webinterface, met een veiligheidsback-up vooraf (zie HANDLEIDING.md §13).
 
-**Alarmering**: per status (warning, critical, onbekend, hersteld) instellen: nooit, direct of pas na *X* minuten, herhalen elke *Y* minuten, en welke kanalen (Pushover, e-mail, Home Assistant). Per check te overschrijven. Meldingen per server gebundeld in één bericht (standaard binnen 120 seconden). Bij escalatie (WARN → CRIT) direct opnieuw.
+**Alarmering**: per status (warning, critical, onbekend, hersteld) instellen: nooit, direct of pas na *X* minuten, herhalen elke *Y* minuten, en welke kanalen (Pushover, e-mail, Home Assistant). Per check te overschrijven. Meldingen per server gebundeld in één bericht (standaard binnen 120 seconden). Anti-flapping: een check die steeds wisselt, geeft per status hooguit één melding tot hij stabiel is. Bij escalatie (WARN → CRIT) direct opnieuw.
 
 ---
 

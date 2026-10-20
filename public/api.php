@@ -824,7 +824,8 @@ switch ($action) {
         $notify = null;
         if (is_array($in['notify'] ?? null)) {
             $notify = json_encode(['rules' => NotifyRules::cleanRules((array) ($in['notify']['rules'] ?? [])),
-                'channels' => NotifyRules::cleanChannels((array) ($in['notify']['channels'] ?? []))]);
+                'channels' => NotifyRules::cleanChannels((array) ($in['notify']['channels'] ?? []))]
+                + (is_array($in['notify']['flap'] ?? null) ? ['flap' => NotifyRules::cleanFlap($in['notify']['flap'])] : []));
         }
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
             max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options, $notify];
@@ -869,7 +870,10 @@ switch ($action) {
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
-            'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds'];
+            'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_flap'];
+        if (isset($in['notify_flap'])) {
+            $in['notify_flap'] = json_encode(NotifyRules::cleanFlap((array) (is_string($in['notify_flap']) ? json_decode($in['notify_flap'], true) : $in['notify_flap'])));
+        }
         // Meldregels en kanalen per status: alleen geldige waarden opslaan
         if (isset($in['notify_rules'])) {
             $in['notify_rules'] = json_encode(array_replace(NotifyRules::defaults()['rules'],

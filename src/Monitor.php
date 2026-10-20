@@ -201,8 +201,63 @@ final class Monitor
             q('UPDATE checks SET pushover_receipt = NULL WHERE id = ?', [$check['id']]);
         }
 
+        // Anti-flapping: wisselt een check vaak van status, dan één melding "staat te flappen", daarna per
+        // status hooguit één melding, tot hij een tijd stabiel is (Instellingen → 🔔 Meldingen)
+        $flap = $cfg['flap'];
+        $flapping = $flap['on'] && $check['flapping_since'] !== null;
+        $flapSent = $flapping && (string) $check['flap_notified'] !== '' ? array_map('intval', explode(',', (string) $check['flap_notified'])) : [];
+        $flapEvent = null;
+        $flapChanges = 0;
+        if ($flap['on'] && !$flapping && $status !== (int) $check['status']) {
+            // Wisselingen binnen het venster, maar niet van vóór het moment dat hij de vorige keer weer stabiel werd
+            $sts = q('SELECT status FROM results WHERE check_id = ? AND created_at >= NOW() - INTERVAL ? MINUTE AND created_at >= ? ORDER BY id',
+                [$check['id'], $flap['window'], $check['flap_ended_at'] ?? '1970-01-01'])->fetchAll(PDO::FETCH_COLUMN);
+            for ($i = 1; $i < count($sts); $i++) {
+                $flapChanges += (int) $sts[$i] !== (int) $sts[$i - 1] ? 1 : 0;
+            }
+            if ($flapChanges >= $flap['changes']) {
+                [$flapping, $flapEvent, $flapSent] = [true, 'start', [$status]];
+            }
+        } elseif ($flapping && $age >= $flap['stable'] * 60) {
+            [$flapping, $flapEvent] = [false, 'stable'];
+        }
+        $prioOf = static fn(int $st) => $st === STATUS_OK ? -1 : (int) ($st === STATUS_CRIT ? ($s['pushover_priority_crit'] ?? 1) : ($s['pushover_priority_warn'] ?? 0));
+        $iconOf = [STATUS_OK => '✅', STATUS_WARN => '🟠', STATUS_CRIT => '🔴', STATUS_UNKNOWN => '⚪'];
+
         if ($silenced) {
             // niets versturen
+        } elseif ($flapEvent === 'start') {
+            if (!$acked) {
+                self::enqueue($check, $status, 'flap', $notified, "🔀 FLAPPEND: $title",
+                    "$title staat te flappen: {$flapChanges}× van status gewisseld in {$flap['window']} min (nu " . STATUS_LABELS[$status] . '). '
+                    . "Per status komt er nog hooguit één melding, tot hij {$flap['stable']} min stabiel is.\n$message", $prioOf($status), $res['value']);
+            }
+            $notified = $status;
+            $notifiedAt = now();
+        } elseif ($flapping) {
+            // Per status (warning, critical, onbekend, hersteld) hooguit één melding zolang hij flapt
+            $r = $cfg['rules'][NotifyRules::KEYS[$status]];
+            $on = $r['mode'] !== 'never' && ($status !== STATUS_UNKNOWN || ($s['notify_unknown'] ?? '1') === '1');
+            if ($status !== $notified && !in_array($status, $flapSent, true)) {
+                if ($on && !$acked) {
+                    self::enqueue($check, $status, $status === STATUS_OK ? 'recovery' : 'problem', $notified,
+                        $status === STATUS_OK ? "✅ HERSTELD: $title" : sprintf('%s %s: %s', $iconOf[$status], STATUS_LABELS[$status], $title),
+                        $message . ' (flapt: verdere wisselingen worden niet gemeld)', $prioOf($status), $res['value']);
+                    $notified = $status;
+                    $notifiedAt = now();
+                }
+                $flapSent[] = $status;
+            }
+        } elseif ($flapEvent === 'stable') {
+            if (!$acked || $status === STATUS_OK) {
+                self::enqueue($check, $status, 'stable', $notified, "{$iconOf[$status]} STABIEL: $title",
+                    "$title flapt niet meer: al {$flap['stable']} min " . STATUS_LABELS[$status] . ".\n$message", $prioOf($status), $res['value']);
+            }
+            $notified = $status;
+            $notifiedAt = $status === STATUS_OK ? null : now();
+            if ($status === STATUS_OK && $acked) {
+                q('UPDATE checks SET acked_at = NULL, acked_by = NULL, ack_comment = NULL WHERE id = ?', [$check['id']]);
+            }
         } elseif ($status === STATUS_OK) {
             if ($notified !== STATUS_OK) {
                 // Er was een probleem gemeld: herstelmelding direct, of pas als het X minuten OK blijft.
@@ -250,7 +305,10 @@ final class Monitor
             }
         }
 
-        q('UPDATE checks SET notified_status = ?, notified_at = ? WHERE id = ?', [$notified, $notifiedAt, $check['id']]);
+        q('UPDATE checks SET notified_status = ?, notified_at = ?, flapping_since = ?, flap_notified = ?, flap_ended_at = ? WHERE id = ?', [
+            $notified, $notifiedAt, $flapping ? ($check['flapping_since'] ?: now()) : null, $flapping ? implode(',', array_unique($flapSent)) : null,
+            $flapEvent === 'stable' ? date('Y-m-d H:i:s', time() - $age) : $check['flap_ended_at'], $check['id'],
+        ]);
     }
 
     // ------------------------------------------------------------------ wachtrij en bundelen
@@ -306,7 +364,7 @@ final class Monitor
         $status = (int) $it['status'];
         self::notify($check, ['value' => $it['value']], $status, $it['title'], $it['message'], (int) $it['priority'], $it['event'],
             (int) $it['previous'], 'notify', self::channelsFor($check, $status));
-        if ($it['event'] !== 'recovery') {
+        if (in_array($it['event'], ['problem', 'reminder'], true)) {
             self::autoMaintenance($check, ['value' => $it['value']], $status, sprintf('%s – %s', $check['host_name'], $check['name']));
         }
     }
@@ -332,9 +390,15 @@ final class Monitor
             foreach (self::channelsFor($c, $st) as $k => $on) {
                 $channels[$k] = $channels[$k] || $on;
             }
-            $what = $it['event'] === 'recovery' ? 'hersteld' : ($it['event'] === 'reminder' ? 'nog steeds ' . STATUS_LABELS[$st] : STATUS_LABELS[$st]);
+            $what = match ($it['event']) {
+                'recovery' => 'hersteld',
+                'reminder' => 'nog steeds ' . STATUS_LABELS[$st],
+                'flap' => '🔀 flapt, nu ' . STATUS_LABELS[$st],
+                'stable' => 'weer stabiel, ' . STATUS_LABELS[$st],
+                default => STATUS_LABELS[$st],
+            };
             $lines[] = $icon[$st] . " {$c['name']} ($what): " . strtok($it['message'], "\n");
-            if ($it['event'] !== 'recovery' && ($u = self::ackUrl($c))) {
+            if ($st !== STATUS_OK && ($u = self::ackUrl($c))) {
                 $acks[] = "✔ {$c['name']}: $u";
             }
         }
@@ -385,7 +449,7 @@ final class Monitor
                 mb_substr($it['message'] . " (gebundeld: $title)" . ($errors ? ' [niet verzonden: ' . implode('; ', $errors) . ']' : ''), 0, 1000),
                 $pushover ? 1 : 0, $hook === null ? null : ($hook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), 'notify',
             ]);
-            if ($it['event'] !== 'recovery') {
+            if (in_array($it['event'], ['problem', 'reminder'], true)) {
                 self::autoMaintenance($c, ['value' => $it['value']], $st, sprintf('%s – %s', $c['host_name'], $c['name']));
             }
         }

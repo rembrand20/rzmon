@@ -611,7 +611,8 @@ function checkBits(c) {
   const flags = (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ bevestigd</button>` : '')
     + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">${c.maintenance.auto ? '🔧 auto, tot opgelost' : `🔧 tot ${esc(fmtUntil(c.maintenance.until))}`}</span>` : '')
     + (c.suppressed_by ? ' <span class="supp-tag" title="Geen melding: een server erboven is onbereikbaar">🔕 onderdrukt</span>' : '')
-    + (c.notify ? ' <span class="own-notify" title="Deze check heeft eigen meldregels">🔔</span>' : '');
+    + (c.notify ? ' <span class="own-notify" title="Deze check heeft eigen meldregels">🔔</span>' : '')
+    + (c.flapping_since ? ` <span class="flap-tag" title="Wisselt steeds van status sinds ${esc(fmtUntil(c.flapping_since))}: per status hooguit één melding tot hij stabiel is">🔀 flapt</span>` : '');
   const actions = `
       ${problem && !c.acked_at ? `<button class="icon-btn ack-btn need-user" title="Storing bevestigen: geen meldingen meer" data-act="ack" data-id="${c.id}">✔</button>` : ''}
       <button class="icon-btn need-user" title="Onderhoud" data-act="maint-check" data-id="${c.id}">🔧</button>
@@ -985,7 +986,8 @@ function checkForm(c, h, preset = {}) {
       try { own = JSON.parse(c.notify || 'null'); } catch (e) { own = null; }
       const g = await api('settings');
       const parse = (v) => { try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
-      const cfg = { rules: { ...parse(g.notify_rules), ...((own && own.rules) || {}) }, channels: { ...parse(g.notify_channels), ...((own && own.channels) || {}) } };
+      const cfg = { rules: { ...parse(g.notify_rules), ...((own && own.rules) || {}) }, channels: { ...parse(g.notify_channels), ...((own && own.channels) || {}) },
+        flap: (own && own.flap) || parse(g.notify_flap) };
       ownEditor = notifyEditor($('#notify-own-editor'), cfg,
         { pushover_enabled: g.pushover_enabled === '1', email_enabled: g.email_enabled === '1', ha_webhook_enabled: g.ha_webhook_enabled === '1' });
     }
@@ -1630,7 +1632,7 @@ async function loadSettings() {
     else el.value = v ?? '';
   });
   const parse = (v) => { try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
-  notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels) },
+  notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels), flap: parse(s.notify_flap) },
     { pushover_enabled: s.pushover_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
   backupFormToggle();
   loadBackups();
@@ -1669,7 +1671,7 @@ const NOTIFY_CHANNELS = [['pushover', 'Pushover', 'pushover_enabled'], ['email',
 
 /** Tabel met per status: melden (nooit / direct / na X min), herhalen en kanalen. Geeft {get()} terug. */
 function notifyEditor(el, cfg, enabled = {}) {
-  const r = cfg.rules || {}, ch = cfg.channels || {};
+  const r = cfg.rules || {}, ch = cfg.channels || {}, fl = cfg.flap || {};
   el.innerHTML = `<div class="table-scroll"><table class="notify-table">
     <thead><tr><th>Status</th><th>Melden</th><th>Herhalen</th>
       ${NOTIFY_CHANNELS.map(([k, l, set]) => `<th class="nt-ch" title="${enabled[set] === false ? 'Dit kanaal staat uit (zie hieronder)' : ''}">${l}${enabled[set] === false ? ' <span class="muted">(uit)</span>' : ''}</th>`).join('')}</tr></thead>
@@ -1690,12 +1692,21 @@ function notifyEditor(el, cfg, enabled = {}) {
         ${NOTIFY_CHANNELS.map(([c]) => `<td class="nt-ch"><input type="checkbox" data-c="${c}" ${(ch[k] || {})[c] !== false ? 'checked' : ''}></td>`).join('')}
       </tr>`;
     }).join('')}</tbody></table></div>
-    <p class="hint">Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).</p>`;
-  const sync = () => $$('tr[data-k]', el).forEach((tr) => {
+    <p class="hint">Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).</p>
+    <div class="flap-box">
+      <label class="switch small"><input type="checkbox" data-flap="on" ${fl.on !== false ? 'checked' : ''}><span></span> <b>Anti-flapping</b></label>
+      <div class="flap-fields">
+        Een check flapt bij <input type="number" data-flap="changes" min="2" max="100" value="${fl.changes ?? 4}"> statuswisselingen binnen
+        <input type="number" data-flap="window" min="1" max="1440" value="${fl.window ?? 30}"> minuten; weer stabiel na
+        <input type="number" data-flap="stable" min="1" max="1440" value="${fl.stable ?? 15}"> minuten zonder wisseling.
+      </div>
+      <p class="hint">Flapt een check, dan krijg je één melding "staat te flappen", daarna per status (warning, critical, onbekend, hersteld) hooguit één melding, en een melding als hij weer stabiel is.</p>
+    </div>`;
+  const sync = () => { $('.flap-fields', el).classList.toggle('off', !$('[data-flap=on]', el).checked); $$('tr[data-k]', el).forEach((tr) => {
     const mode = $('[data-f=mode]', tr).value;
     $('[data-f=min]', tr).hidden = mode !== 'after';
     $$('input', tr).forEach((i) => { if (i.dataset.f !== 'min') i.disabled = mode === 'never' && i.dataset.f === 'repeat'; });
-  });
+  }); };
   el.onchange = sync;
   sync();
   return {
@@ -1706,6 +1717,7 @@ function notifyEditor(el, cfg, enabled = {}) {
         out.rules[k] = { mode: $('[data-f=mode]', tr).value, min: +$('[data-f=min]', tr).value || 1, repeat: +($('[data-f=repeat]', tr)?.value || 0) };
         out.channels[k] = Object.fromEntries($$('[data-c]', tr).map((i) => [i.dataset.c, i.checked]));
       });
+      out.flap = { on: $('[data-flap=on]', el).checked, changes: +$('[data-flap=changes]', el).value, window: +$('[data-flap=window]', el).value, stable: +$('[data-flap=stable]', el).value };
       return out;
     },
   };
@@ -1718,6 +1730,7 @@ function settingsData() {
     const n = notifyGlobal.get();
     f.notify_rules.value = JSON.stringify(n.rules);
     f.notify_channels.value = JSON.stringify(n.channels);
+    f.notify_flap.value = JSON.stringify(n.flap);
   }
   const d = {};
   [...f.elements].forEach((el) => {

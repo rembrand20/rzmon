@@ -23,6 +23,7 @@ final class NotifyRules
         return [
             'rules' => array_replace($global['rules'], self::cleanRules((array) ($own['rules'] ?? []))),
             'channels' => array_replace($global['channels'], self::cleanChannels((array) ($own['channels'] ?? []))),
+            'flap' => isset($own['flap']) && is_array($own['flap']) ? self::cleanFlap($own['flap']) : $global['flap'],
             'own' => true,
         ];
     }
@@ -32,6 +33,7 @@ final class NotifyRules
         return [
             'rules' => array_replace(self::defaults()['rules'], self::cleanRules((array) json_decode((string) setting('notify_rules', ''), true))),
             'channels' => array_replace(self::defaults()['channels'], self::cleanChannels((array) json_decode((string) setting('notify_channels', ''), true))),
+            'flap' => self::cleanFlap((array) (json_decode((string) setting('notify_flap', ''), true) ?: self::defaults()['flap'])),
             'own' => false,
         ];
     }
@@ -47,6 +49,18 @@ final class NotifyRules
                 'recovery' => ['mode' => 'now', 'min' => 0, 'repeat' => 0],
             ],
             'channels' => array_fill_keys(array_values(self::KEYS), $on),
+            // Anti-flapping: flapt bij `changes` statuswisselingen binnen `window` minuten; stabiel na `stable` minuten
+            'flap' => ['on' => true, 'changes' => 4, 'window' => 30, 'stable' => 15],
+        ];
+    }
+
+    public static function cleanFlap(array $in): array
+    {
+        return [
+            'on' => !empty($in['on']),
+            'changes' => max(2, min(100, (int) ($in['changes'] ?? 4))),
+            'window' => max(1, min(1440, (int) ($in['window'] ?? 30))),
+            'stable' => max(1, min(1440, (int) ($in['stable'] ?? 15))),
         ];
     }
 
@@ -94,6 +108,8 @@ final class NotifyRules
         foreach ($pdo->query('SELECT name, value FROM settings') as $row) {
             $s[$row['name']] = $row['value'];
         }
+        // 1.26.0: anti-flapping standaard aan
+        $pdo->prepare('INSERT IGNORE INTO settings (name, value) VALUES (?, ?)')->execute(['notify_flap', json_encode(self::defaults()['flap'])]);
         if (isset($s['notify_rules'])) {
             return;
         }

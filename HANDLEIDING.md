@@ -380,6 +380,12 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - **Bundelen per server** (standaard 120 seconden): gaan op één server binnen die tijd meerdere checks mis of herstellen ze, dan komt er **één bericht**, bijvoorbeeld *"🔴 CRITICAL: WebServer01 – 3 meldingen"* met alle checks erin. Ook herinneringen worden gebundeld (*"🔁 WebServer01: nog steeds 2 problemen"*). Het bericht krijgt de ergste status, en gaat naar alle kanalen die bij één van de checks horen. De eerste melding wacht daardoor hooguit zo lang; 0 = niet bundelen. Home Assistant krijgt wel een bericht per check.
 - **Ook herstel melden na een bevestigde storing:** standaard uit.
 
+**Anti-flapping** (standaard aan): een check die steeds van status wisselt, bijvoorbeeld OK → CRITICAL → OK → CRITICAL, geeft geen stroom berichten.
+- Een check **flapt** bij **4 statuswisselingen binnen 30 minuten**. Je krijgt dan één melding: *"🔀 FLAPPEND: … staat te flappen (5× gewisseld in 30 min)"*.
+- Zolang hij flapt, komt er **per status hooguit één melding**: de eerste warning, de eerste critical, de eerste onbekend en het eerste herstel. Verdere wisselingen en herinneringen worden niet gemeld. Op het dashboard staat **🔀 flapt** bij de check.
+- Is de status **15 minuten** niet veranderd, dan krijg je één melding *"STABIEL: … is 15 min OK/CRITICAL"*, en werkt alles weer normaal.
+- De drie getallen pas je aan in het blok *Anti-flapping*, en per check in de eigen meldregels.
+
 **Per check aanpassen:** in het checkformulier (✎) staat **🔔 Meldingen**. Zet *Eigen meldregels* aan en pas de tabel aan; de algemene instellingen zijn het startpunt. Checks met eigen regels hebben een 🔔 op het dashboard. Bijvoorbeeld: een back-upcheck die pas na een dag meldt, of een ping die critical meteen meldt en herstel na 2 minuten.
 
 Bij de update naar 1.25.0 zijn je oude instellingen omgezet, zodat er niets veranderde. "Alarm na N fouten" werd "na N−1 minuten", "ook melden bij WARNING" uit werd "Nooit", en de webhook-keuze "alleen critical en herstel" werd de kolom Home Assistant.

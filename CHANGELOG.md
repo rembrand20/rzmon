@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.26.0 – 2026-10-20
+### Nieuw
+- **Anti-flapping** (*Instellingen → 🔔 Meldingen*, standaard aan). Wisselt een check **4× binnen 30 minuten** van status, dan:
+  - komt er één melding *"🔀 FLAPPEND: … staat te flappen"*;
+  - daarna per status (warning, critical, onbekend, hersteld) **hooguit één melding**; verdere wisselingen en herinneringen blijven stil;
+  - is de status **15 minuten** niet veranderd, dan volgt één melding *"STABIEL"* met de status van dat moment, en werkt alles weer normaal.
+- De drie getallen zijn algemeen in te stellen en per check te overschrijven (eigen meldregels).
+- Op het dashboard staat **🔀 flapt** bij een check die flapt.
+
 ## 1.25.0 – 2026-10-20
 ### Nieuw
 - **Meer controle over meldingen** (*Instellingen → 🔔 Meldingen*). Per status (warning, critical, onbekend, hersteld) stel je in:

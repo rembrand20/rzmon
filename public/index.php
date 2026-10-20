@@ -203,7 +203,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="muted small">Per status: <b>nooit</b>, <b>direct</b>, of pas <b>na X minuten</b> onafgebroken in die status. Herstelt het eerder, dan komt er geen melding. Hersteld: pas melden als het X minuten goed blijft. Per check kun je dit aanpassen (✎ → Meldingen).</p>
           <label class="switch"><input type="checkbox" name="notify_unknown"><span></span> Melden bij ONBEKEND</label>
           <div id="notify-editor"></div>
-          <input type="hidden" name="notify_rules"><input type="hidden" name="notify_channels">
+          <input type="hidden" name="notify_rules"><input type="hidden" name="notify_channels"><input type="hidden" name="notify_flap">
           <div class="row2">
             <label>Meldingen per server bundelen binnen … seconden <span class="muted small">(0 = niet bundelen)</span><input type="number" name="notify_group_seconds" min="0" max="3600"></label>
             <label class="switch" style="align-self:end"><input type="checkbox" name="notify_recovery_acked"><span></span> Ook herstel melden na een bevestigde storing</label>

@@ -76,7 +76,10 @@ final class Installer
         ['users', 'role', "VARCHAR(10) NOT NULL DEFAULT 'admin'"],   // admin | user | readonly (bestaande accounts: admin)
         ['results', 'vals', 'VARCHAR(255) NULL'],
         ['checks', 'notify', 'VARCHAR(1000) NULL'],        // eigen meldregels (JSON), anders de algemene
-        ['checks', 'status_since', 'DATETIME NULL'],       // sinds wanneer de huidige status geldt (voor "na X minuten")         // container: CPU, RAM en disk van één meting (JSON)
+        ['checks', 'status_since', 'DATETIME NULL'],       // sinds wanneer de huidige status geldt (voor "na X minuten")
+        ['checks', 'flapping_since', 'DATETIME NULL'],     // anti-flapping: check wisselt steeds van status
+        ['checks', 'flap_notified', 'VARCHAR(20) NULL'],   // statussen die tijdens het flapperen al gemeld zijn
+        ['checks', 'flap_ended_at', 'DATETIME NULL'],      // weer stabiel: wisselingen van daarvoor tellen niet meer mee         // container: CPU, RAM en disk van één meting (JSON)
         ['users', 'email', 'VARCHAR(190) NULL'],         // voor "wachtwoord vergeten"
         ['users', 'pw_changed_at', 'DATETIME NULL'],     // sessies van vóór dit moment worden uitgelogd
         // Agent bijwerken vanuit RzMon: gevraagd (knop), naar de agent gestuurd, uitkomst, en hoe de agent dat kan
