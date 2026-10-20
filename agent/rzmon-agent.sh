@@ -17,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.20.1"
+AGENT_VERSION="1.20.2"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -641,8 +641,19 @@ if [ ${#podman_ctx[@]} -gt 0 ]; then
         for ctx in "${podman_ctx[@]}"; do
             if ! ver=$(pm "$ctx" version --format '{{.Client.Version}}' 2>/dev/null); then
                 # Podman zet waarschuwingen vóór de echte fout; die echte fout is wat telt
-                err=$(pm "$ctx" version 2>&1 | grep -m1 -iE 'error|denied|not permitted' | sed 's/^time="[^"]*" level=[a-z]* msg="//; s/"$//')
-                printf 'E|%s|%s\n' "$ctx" "$(tr '|' ' ' <<<"${err:-podman reageert niet}" | cut -c1-150)"
+                out=$(pm "$ctx" version 2>&1); rc=$?
+                err=$(grep -m1 -iE 'error|denied|not permitted|read-only' <<<"$out" | sed 's/^time="[^"]*" level=[a-z]* msg="//; s/"$//')
+                home=$(getent passwd "$ctx" | cut -d: -f6)
+                if [ "$ctx" != root ] && [ -n "${INVOCATION_ID-}" ] && [ -n "$home" ] && ! [ -w "$home" ]; then
+                    # systemd-service met ProtectHome=read-only (agent geïnstalleerd vóór podman)
+                    err="home-map is alleen-lezen voor de agent; los op met: sudo rzmon-agent-setup --update${err:+ ($err)}"
+                elif [ "$rc" = 124 ]; then
+                    err="podman gaf binnen 60 s geen antwoord"
+                elif [ -z "$err" ]; then
+                    err=$(grep -v '^[[:space:]]*$' <<<"$out" | tail -1 | sed 's/^time="[^"]*" level=[a-z]* msg="//; s/"$//')
+                    err="${err:-podman stopte met code $rc}"
+                fi
+                printf 'E|%s|%s\n' "$ctx" "$(tr '|' ' ' <<<"$err" | cut -c1-200)"
                 continue
             fi
             printf 'V|%s|%s\n' "$ctx" "$ver"

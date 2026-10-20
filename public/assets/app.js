@@ -1143,8 +1143,8 @@ async function podmanOverview(h) {
       <td class="num">${c.cpu !== null ? (Math.round(c.cpu * 10) / 10).toString().replace('.', ',') + '%' : '–'}</td>
       <td class="num">${c.mem !== null ? fmtBytes(c.mem) : '–'}${memPct !== null ? `<br><span class="muted small">${memPct.toFixed(1).replace('.', ',')}% van ${fmtBytes(c.mem_limit)}</span>` : ''}</td>
       <td class="num">${fmtBytes(disk)}${c.volumes ? `<br><span class="muted small">volumes ${fmtBytes(c.volumes)}</span>` : ''}</td>
-      <td class="pc-actions">${btn('status', 'Status', 'Melding als de container stopt, ongezond wordt of herstart')}
-        ${btn('cpu', 'CPU', 'CPU-gebruik bewaken')} ${btn('mem', 'RAM', 'Geheugengebruik bewaken')} ${btn('disk', 'Disk', 'Diskgebruik bewaken')}</td>
+      <td class="pc-actions"><div class="pc-btns">${btn('status', 'Status', 'Melding als de container stopt, ongezond wordt of herstart')}
+        ${btn('cpu', 'CPU', 'CPU-gebruik bewaken')} ${btn('mem', 'RAM', 'Geheugengebruik bewaken')} ${btn('disk', 'Disk', 'Diskgebruik bewaken')}</div></td>
     </tr>`;
   }).join('');
   const missing = d.containers.filter((c) => !has(c.key, 'status'));

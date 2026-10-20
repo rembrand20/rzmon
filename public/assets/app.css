@@ -407,7 +407,10 @@ code.secret { font-size: .95rem; letter-spacing: .05em; user-select: all; }
 .table-scroll { overflow-x: auto; }
 .podman-table td { vertical-align: top; }
 .podman-table td.num { white-space: nowrap; }
-.pc-actions { display: flex; flex-wrap: wrap; gap: .3rem; justify-content: flex-end; min-width: 260px; }
+/* Knoppen in een gewone tabelcel (geen flex op de td zelf: dan is het geen tabelcel meer) */
+.pc-actions { width: 1%; }
+.pc-btns { display: grid; grid-template-columns: repeat(2, auto); gap: .3rem; justify-content: end; }
+.pc-btns > * { white-space: nowrap; text-align: center; }
 .small-btn { padding: .2rem .5rem; font-size: .78rem; }
 .dot-inline { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: .45rem; background: var(--unknown); vertical-align: middle; }
 .dot-inline.s0 { background: var(--ok); } .dot-inline.s1 { background: var(--warn); } .dot-inline.s2 { background: var(--crit); }
