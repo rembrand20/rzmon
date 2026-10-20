@@ -17,7 +17,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.21.0"
+AGENT_VERSION="1.21.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -233,11 +233,13 @@ pm() {  # pm <context> <podman-argumenten…>: podman als root, of als die gebru
          timeout 60 runuser -u "$ctx" -- podman "$@")
     fi
 }
-# Ruwe tellers per draaiende container; twee metingen → actueel CPU-gebruik (zoals podman stats)
+# Ruwe tellers per draaiende container; twee metingen → actueel CPU-gebruik (zoals podman stats).
+# Netwerk via {{.NetIO}} ("27.2MB / 25.1MB"): podman 5 heeft NetInput/NetOutput weggehaald, en een
+# onbekend veld laat podman na de eerste container stoppen (dan kregen alleen die cijfers).
 podman_stats() {
     local ctx
     for ctx in "${podman_ctx[@]}"; do
-        pm "$ctx" stats --no-stream --no-trunc --format '{{.ContainerStats.ContainerID}}|{{.ContainerStats.CPUNano}}|{{.ContainerStats.SystemNano}}|{{.ContainerStats.MemUsage}}|{{.ContainerStats.MemLimit}}|{{.ContainerStats.NetInput}}|{{.ContainerStats.NetOutput}}|{{.ContainerStats.BlockInput}}|{{.ContainerStats.BlockOutput}}|{{.ContainerStats.PIDs}}' 2>/dev/null \
+        pm "$ctx" stats --no-stream --no-trunc --format '{{.ContainerStats.ContainerID}}|{{.ContainerStats.CPUNano}}|{{.ContainerStats.SystemNano}}|{{.ContainerStats.MemUsage}}|{{.ContainerStats.MemLimit}}|{{.NetIO}}|{{.ContainerStats.BlockInput}}|{{.ContainerStats.BlockOutput}}|{{.ContainerStats.PIDs}}' 2>/dev/null \
             | sed "s/^/S|$ctx|/"
     done
 }
@@ -696,7 +698,8 @@ if [ ${#podman_ctx[@]} -gt 0 ]; then
             return n * (u == "kb" ? 1e3 : u == "mb" ? 1e6 : u == "gb" ? 1e9 : u == "tb" ? 1e12 : 1)
         }
         $1 == "A" { a_cpu[$3] = $4; a_sys[$3] = $5 }
-        $1 == "B" { b_cpu[$3] = $4; b_sys[$3] = $5; mem[$3] = $6; lim[$3] = $7; ni[$3] = $8; no[$3] = $9; bi[$3] = $10; bo[$3] = $11; pids[$3] = $12 }
+        $1 == "B" { b_cpu[$3] = $4; b_sys[$3] = $5; mem[$3] = $6; lim[$3] = $7; bi[$3] = $9; bo[$3] = $10; pids[$3] = $11
+                    split($8, nio, " / "); ni[$3] = sprintf("%.0f", bytes(nio[1])); no[$3] = sprintf("%.0f", bytes(nio[2])) }
         $1 == "V" { if (version == "") version = $3; ctxs = ctxs (ctxs ? "," : "") "\"" esc($2) "\"" }
         $1 == "E" { errs = errs (errs ? "; " : "") $2 ": " $3 }
         $1 == "C" { n++; c_ctx[n] = $2; c_id[n] = $3; c_line[n] = $0 }

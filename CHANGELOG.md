@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.21.1 – 2026-10-20
+### Opgelost
+- **Podman 5:** bij de meeste containers stonden CPU en RAM op "–"; alleen de eerste container had cijfers.
+  - Oorzaak: podman 5 heeft de velden `NetInput` en `NetOutput` weggehaald, en podman stopte daarna met de rest.
+  - De agent gebruikt nu `NetIO`, dat in podman 4 én 5 bestaat.
+  - Werk de agents bij met **⬆ Bijwerken**.
+
 ## 1.21.0 – 2026-10-20
 ### Nieuw
 - **L1nes: ook de checks als rijen.** Klap je een server uit, dan staan zijn checks als rijen eronder, net als de servers. Ze volgen de keuze Small/Large:
