@@ -7,6 +7,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.25.0 – 2026-10-20
+### Nieuw
+- **Meer controle over meldingen** (*Instellingen → 🔔 Meldingen*). Per status (warning, critical, onbekend, hersteld) stel je in:
+  - **wanneer:** nooit, direct, of pas na X minuten onafgebroken in die status. Hersteld: pas als het X minuten goed blijft; gaat het in die tijd weer mis, dan blijft het één storing;
+  - **herhalen:** elke Y minuten;
+  - **kanalen:** Pushover, e-mail en/of Home Assistant.
+- **Schakelaar "Melden bij ONBEKEND".**
+- **Per check te overschrijven:** in het checkformulier onder *🔔 Meldingen*. Checks met eigen regels hebben een 🔔 op het dashboard.
+- **Bundelen per server:** gaan op één server binnen 120 seconden (instelbaar, 0 = uit) meerdere checks mis of herstellen ze, dan komt er één bericht met alles erin. Ook herinneringen worden gebundeld. Home Assistant krijgt wel een bericht per check.
+
+### Gewijzigd
+- "Alarm na N fouten", "Ook melden bij WARNING", "Herhaal melding" en "Melden bij herstel" zijn vervangen door de tabel. Je oude instellingen zijn omgezet, zodat er niets verandert.
+- De webhook-keuze "alleen critical en herstel" is nu de kolom *Home Assistant* in de tabel.
+
 ## 1.24.0 – 2026-10-20
 ### Nieuw
 - **Home Assistant-checks** via de add-on (**＋ Check → Home Assistant**):

@@ -74,7 +74,9 @@ final class Installer
         ['checks', 'options', 'VARCHAR(500) NULL'],  // JSON, bv. service: diepere controle en extra test
         ['checks', 'maintenance_auto', 'TINYINT(1) NOT NULL DEFAULT 0'],  // onderhoud automatisch gezet na herhaalde meldingen
         ['users', 'role', "VARCHAR(10) NOT NULL DEFAULT 'admin'"],   // admin | user | readonly (bestaande accounts: admin)
-        ['results', 'vals', 'VARCHAR(255) NULL'],         // container: CPU, RAM en disk van één meting (JSON)
+        ['results', 'vals', 'VARCHAR(255) NULL'],
+        ['checks', 'notify', 'VARCHAR(1000) NULL'],        // eigen meldregels (JSON), anders de algemene
+        ['checks', 'status_since', 'DATETIME NULL'],       // sinds wanneer de huidige status geldt (voor "na X minuten")         // container: CPU, RAM en disk van één meting (JSON)
         ['users', 'email', 'VARCHAR(190) NULL'],         // voor "wachtwoord vergeten"
         ['users', 'pw_changed_at', 'DATETIME NULL'],     // sessies van vóór dit moment worden uitgelogd
         // Agent bijwerken vanuit RzMon: gevraagd (knop), naar de agent gestuurd, uitkomst, en hoe de agent dat kan
@@ -95,6 +97,7 @@ final class Installer
             }
         }
         self::mergeContainerChecks($pdo);
+        NotifyRules::migrate($pdo);
     }
 
     /**

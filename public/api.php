@@ -820,14 +820,20 @@ switch ($action) {
         $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
             'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log',
             'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
+        // Eigen meldregels voor deze check (null = de algemene uit Instellingen → Alarmgedrag)
+        $notify = null;
+        if (is_array($in['notify'] ?? null)) {
+            $notify = json_encode(['rules' => NotifyRules::cleanRules((array) ($in['notify']['rules'] ?? [])),
+                'channels' => NotifyRules::cleanChannels((array) ($in['notify']['channels'] ?? []))]);
+        }
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
-            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options];
+            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options, $notify];
         if (!empty($in['id'])) {
-            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ? WHERE id = ?',
+            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ?, notify = ? WHERE id = ?',
                 [...$params, (int) $in['id']]);
             $id = (int) $in['id'];
         } else {
-            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, notify, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [...$params, (int) ($in['host_id'] ?? 0)]);
             $id = (int) db()->lastInsertId();
         }
@@ -862,7 +868,20 @@ switch ($action) {
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
-            'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass'];
+            'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
+            'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds'];
+        // Meldregels en kanalen per status: alleen geldige waarden opslaan
+        if (isset($in['notify_rules'])) {
+            $in['notify_rules'] = json_encode(array_replace(NotifyRules::defaults()['rules'],
+                NotifyRules::cleanRules((array) (is_string($in['notify_rules']) ? json_decode($in['notify_rules'], true) : $in['notify_rules']))));
+        }
+        if (isset($in['notify_channels'])) {
+            $in['notify_channels'] = json_encode(array_replace(NotifyRules::defaults()['channels'],
+                NotifyRules::cleanChannels((array) (is_string($in['notify_channels']) ? json_decode($in['notify_channels'], true) : $in['notify_channels']))));
+        }
+        if (isset($in['notify_group_seconds'])) {
+            $in['notify_group_seconds'] = (string) max(0, min(3600, (int) $in['notify_group_seconds']));
+        }
         if (($in['ha_webhook_url'] ?? '') !== '' && !preg_match('#^https?://\S+$#i', trim((string) $in['ha_webhook_url']))) {
             out(['error' => 'Webhook-URL moet met http:// of https:// beginnen'], 422);
         }

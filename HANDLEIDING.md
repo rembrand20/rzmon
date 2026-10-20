@@ -364,13 +364,29 @@ echo '* * * * * www-data /usr/bin/php /var/www/rzmon/cron/run.php >/dev/null 2>&
 | Prioriteit warning | Normaal (0) | |
 | Geluid | (standaard) | Bijvoorbeeld `siren`, `alien`, `pushover` of `none` |
 
-### 6.2 Alarmgedrag
+### 6.2 Meldingen 🔔
+In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waarheen** een melding gaat:
+
+| Status | Melden | Herhalen | Kanalen |
+|---|---|---|---|
+| 🟠 Warning | Nooit, Direct, of Na X minuten | Elke Y minuten (0 = nooit) | Pushover / E-mail / Home Assistant |
+| 🔴 Critical | idem | idem | idem |
+| ⚪ Onbekend | idem; plus de schakelaar **Melden bij ONBEKEND** | idem | idem |
+| ✅ Hersteld | Nooit, Direct, of Na X minuten OK | – | idem |
+
+- **Na X minuten:** pas melden als de check X minuten **onafgebroken** in die status is. Herstelt hij eerder, dan komt er geen melding. Zo filter je korte pieken weg. Elke status heeft een eigen klok: een warning die critical wordt, meldt meteen als critical "Direct" is.
+- **Hersteld na X minuten OK:** de herstelmelding komt pas als het X minuten goed blijft. Gaat het in die tijd weer mis, dan blijft het dezelfde storing: geen nieuwe probleemmelding en geen herstelmelding.
+- **Kanalen:** per status aanvinken waar de melding heen gaat. Een kanaal dat uit staat, is gemarkeerd met *(uit)*.
+- **Bundelen per server** (standaard 120 seconden): gaan op één server binnen die tijd meerdere checks mis of herstellen ze, dan komt er **één bericht**, bijvoorbeeld *"🔴 CRITICAL: WebServer01 – 3 meldingen"* met alle checks erin. Ook herinneringen worden gebundeld (*"🔁 WebServer01: nog steeds 2 problemen"*). Het bericht krijgt de ergste status, en gaat naar alle kanalen die bij één van de checks horen. De eerste melding wacht daardoor hooguit zo lang; 0 = niet bundelen. Home Assistant krijgt wel een bericht per check.
+- **Ook herstel melden na een bevestigde storing:** standaard uit.
+
+**Per check aanpassen:** in het checkformulier (✎) staat **🔔 Meldingen**. Zet *Eigen meldregels* aan en pas de tabel aan; de algemene instellingen zijn het startpunt. Checks met eigen regels hebben een 🔔 op het dashboard. Bijvoorbeeld: een back-upcheck die pas na een dag meldt, of een ping die critical meteen meldt en herstel na 2 minuten.
+
+Bij de update naar 1.25.0 zijn je oude instellingen omgezet, zodat er niets veranderde. "Alarm na N fouten" werd "na N−1 minuten", "ook melden bij WARNING" uit werd "Nooit", en de webhook-keuze "alleen critical en herstel" werd de kolom Home Assistant.
+
+### 6.2b Alarmgedrag
 | Instelling | Standaard | Uitleg |
 |---|---|---|
-| Alarm na aantal opeenvolgende fouten | 2 | Hoe vaak achter elkaar een check moet falen voor er een melding komt. Zet hem op 3 of hoger als je last hebt van korte CPU-pieken |
-| Herhaal melding elke … minuten | 60 | Zolang het probleem blijft. 0 = nooit herhalen |
-| Ook melden bij WARNING | aan | Uit = alleen meldingen bij CRITICAL |
-| Melden bij herstel | aan | ✅-bericht met lage prioriteit |
 | Agent offline na … minuten | 5 | Na zoveel minuten zonder rapport worden de agent-checks CRITICAL |
 | Historie bewaren (dagen) | 30 | Meetwaarden. Meldingen worden 3× zo lang bewaard |
 
@@ -421,7 +437,7 @@ Vervang `notify.mobile_app_jouw_telefoon` en `light.bureau` door je eigen entite
 
 | Instelling | Uitleg |
 |---|---|
-| Versturen bij | *Alle meldingen*, of *Alleen critical en herstel* |
+| Welke meldingen | Stel je in bij *🔔 Meldingen*, kolom Home Assistant |
 | SSL-certificaat controleren | Uitzetten als HA via HTTPS met een self-signed certificaat draait |
 
 **Inhoud van het bericht** (`trigger.json` in Home Assistant):
@@ -567,7 +583,7 @@ Kies een duur (15 min, 30 min, 1 uur … 1 week), of een vast eindtijdstip, en v
 - **REST API:** checks in onderhoud tellen niet mee voor de totaalstatus. De sensor *RzMon alles OK* springt dus niet op rood door gepland onderhoud. `counts.maintenance` telt ze apart.
 
 #### Automatisch onderhoud na herhaalde meldingen
-Blijft een check fout, dan krijg je eerst gewoon meldingen: de eerste, en daarna herhalingen volgens *Herhaal melding elke … minuten*. Bij de **3e verstuurde melding** voor dezelfde storing gaat **die ene check** automatisch in onderhoud:
+Blijft een check fout, dan krijg je eerst gewoon meldingen: de eerste, en daarna herhalingen volgens *Herhalen* in 🔔 Meldingen. Bij de **3e verstuurde melding** voor dezelfde storing gaat **die ene check** automatisch in onderhoud:
 - je krijgt één melding *🔧 ONDERHOUD: server – check*, en daarna niets meer over die check;
 - de andere checks van de server melden gewoon door;
 - bij de check staat **🔧 auto, tot opgelost**;
@@ -577,7 +593,7 @@ Blijft een check fout, dan krijg je eerst gewoon meldingen: de eerste, en daarna
 Instellen gaat onder *Instellingen → Alarmgedrag*: aan/uit en het aantal meldingen (standaard aan, na 3).
 - **Wat telt mee:** alleen meldingen die via minstens één kanaal zijn aangekomen. Onderdrukte meldingen (afhankelijkheden) tellen niet mee.
 - **Bevestigd:** bevestig je een storing, dan stoppen de meldingen al, dus dan komt automatisch onderhoud niet aan de orde.
-- **Geen herhalingen:** staat *Herhaal melding* op 0, dan krijg je maar één melding per storing (plus een nieuwe als hij erger wordt), en wordt de drempel van 3 meestal niet gehaald.
+- **Geen herhalingen:** staat *Herhalen* op 0, dan krijg je maar één melding per storing (plus een nieuwe als hij erger wordt), en wordt de drempel van 3 meestal niet gehaald.
 
 ### 7.5 Storing bevestigen ✔
 Weet je van een storing en ben je ermee bezig? Bevestig hem, dan word je er niet meer over gestoord.

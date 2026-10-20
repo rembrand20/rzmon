@@ -198,13 +198,21 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="pushover-test">📲 Testbericht sturen</button>
         </div>
 
+        <div class="card notify-card">
+          <h2>🔔 Meldingen</h2>
+          <p class="muted small">Per status: <b>nooit</b>, <b>direct</b>, of pas <b>na X minuten</b> onafgebroken in die status. Herstelt het eerder, dan komt er geen melding. Hersteld: pas melden als het X minuten goed blijft. Per check kun je dit aanpassen (✎ → Meldingen).</p>
+          <label class="switch"><input type="checkbox" name="notify_unknown"><span></span> Melden bij ONBEKEND</label>
+          <div id="notify-editor"></div>
+          <input type="hidden" name="notify_rules"><input type="hidden" name="notify_channels">
+          <div class="row2">
+            <label>Meldingen per server bundelen binnen … seconden <span class="muted small">(0 = niet bundelen)</span><input type="number" name="notify_group_seconds" min="0" max="3600"></label>
+            <label class="switch" style="align-self:end"><input type="checkbox" name="notify_recovery_acked"><span></span> Ook herstel melden na een bevestigde storing</label>
+          </div>
+          <p class="muted small" style="margin-top:-.3rem">Bundelen: gaan op één server binnen deze tijd meerdere checks mis (of herstellen ze), dan komt er één bericht met alles erin. De eerste melding wacht daardoor hooguit zo lang. Home Assistant krijgt wel een bericht per check, voor je automatiseringen.</p>
+        </div>
+
         <div class="card">
           <h2>Alarmgedrag</h2>
-          <label>Alarm na aantal opeenvolgende fouten<input type="number" name="alert_after" min="1" max="20"></label>
-          <label>Herhaal melding elke … minuten <span class="muted small">(0 = nooit)</span><input type="number" name="repeat_minutes" min="0"></label>
-          <label class="switch"><input type="checkbox" name="notify_warn"><span></span> Ook melden bij WARNING</label>
-          <label class="switch"><input type="checkbox" name="notify_recovery"><span></span> Melden bij herstel</label>
-          <label class="switch"><input type="checkbox" name="notify_recovery_acked"><span></span> Ook herstel melden na een bevestigde storing</label>
           <label>Agent offline na … minuten zonder rapport<input type="number" name="agent_stale_minutes" min="1"></label>
           <label>Historie bewaren (dagen)<input type="number" name="retention_days" min="1"></label>
           <label>Waarschuwen als een disk binnen … dagen vol raakt <span class="muted small">(0 = uit)</span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
@@ -219,12 +227,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             Maak in HA een automatisering met trigger <b>Webhook</b> en plak de URL hieronder, bv. <code>http://homeassistant.local:8123/api/webhook/rzmon-…</code></p>
           <label class="switch"><input type="checkbox" name="ha_webhook_enabled"><span></span> Webhook aan</label>
           <label>Webhook-URL<input name="ha_webhook_url" type="url" spellcheck="false" placeholder="http://homeassistant.local:8123/api/webhook/rzmon-geheim-id"></label>
-          <label>Versturen bij
-            <select name="ha_webhook_events">
-              <option value="all">Alle meldingen (warning, critical, herhaling, herstel)</option>
-              <option value="crit">Alleen critical en herstel</option>
-            </select>
-          </label>
+          <p class="muted small">Welke meldingen naar Home Assistant gaan, stel je in bij <b>🔔 Meldingen</b> (kolom Home Assistant).</p>
           <label class="switch"><input type="checkbox" name="ha_webhook_verify_ssl"><span></span> SSL-certificaat controleren (uit bij self-signed)</label>
           <button type="button" class="btn" id="webhook-test">🏠 Testbericht naar Home Assistant</button>
         </div>

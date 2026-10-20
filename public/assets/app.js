@@ -610,7 +610,8 @@ function checkBits(c) {
   const ackTitle = c.acked_at ? `Bevestigd door ${c.acked_by || '?'} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. Klik om in te trekken.` : '';
   const flags = (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ bevestigd</button>` : '')
     + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">${c.maintenance.auto ? '🔧 auto, tot opgelost' : `🔧 tot ${esc(fmtUntil(c.maintenance.until))}`}</span>` : '')
-    + (c.suppressed_by ? ' <span class="supp-tag" title="Geen melding: een server erboven is onbereikbaar">🔕 onderdrukt</span>' : '');
+    + (c.suppressed_by ? ' <span class="supp-tag" title="Geen melding: een server erboven is onbereikbaar">🔕 onderdrukt</span>' : '')
+    + (c.notify ? ' <span class="own-notify" title="Deze check heeft eigen meldregels">🔔</span>' : '');
   const actions = `
       ${problem && !c.acked_at ? `<button class="icon-btn ack-btn need-user" title="Storing bevestigen: geen meldingen meer" data-act="ack" data-id="${c.id}">✔</button>` : ''}
       <button class="icon-btn need-user" title="Onderhoud" data-act="maint-check" data-id="${c.id}">🔧</button>
@@ -922,6 +923,11 @@ function checkForm(c, h, preset = {}) {
         <div class="svc-pick" id="svc-pick" role="listbox"></div>
       </div>
       <label>Naam <span class="hint">(optioneel)</span><input name="name" value="${esc(c.name)}"></label>
+      <details class="notify-own" ${c.notify ? 'open' : ''}>
+        <summary>🔔 Meldingen: <span id="notify-mode-label">${c.notify ? 'eigen regels' : 'standaard (algemene instellingen)'}</span></summary>
+        <label class="switch small"><input type="checkbox" id="notify-own" ${c.notify ? 'checked' : ''}><span></span> Eigen meldregels voor deze check</label>
+        <div id="notify-own-editor" ${c.notify ? '' : 'hidden'}></div>
+      </details>
       <div class="row3" id="thr-wrap">
         <label><span class="thr-word">Warning vanaf</span> <span class="hint unit"></span><input name="warn_threshold" type="number" step="any" value="${c.warn_threshold ?? ''}"></label>
         <label><span class="thr-word">Critical vanaf</span> <span class="hint unit"></span><input name="crit_threshold" type="number" step="any" value="${c.crit_threshold ?? ''}"></label>
@@ -958,13 +964,34 @@ function checkForm(c, h, preset = {}) {
       { label: isNew ? 'Toevoegen & checken' : 'Opslaan & checken', cls: 'primary', submit: true },
     ],
     onSubmit: async (d) => {
+      const notify = $('#notify-own').checked && ownEditor ? ownEditor.get() : null;
       const res = {};
       ['cpu', 'mem', 'disk'].forEach((k) => { res[k] = { on: !!d[`res_${k}`], warn: d[`res_${k}_warn`], crit: d[`res_${k}_crit`] }; });
-      await api('check_save', { ...d, res, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep });
+      await api('check_save', { ...d, res, notify, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep });
       toast('Check opgeslagen');
     },
   });
 
+  // Eigen meldregels: start met wat er al was, of met de algemene instellingen
+  let ownEditor = null;
+  const showOwn = async () => {
+    const on = $('#notify-own').checked;
+    $('#notify-own-editor').hidden = !on;
+    $('#notify-mode-label').textContent = on ? 'eigen regels' : 'standaard (algemene instellingen)';
+    if (on) $('#modal').classList.add('wide');   // de tabel heeft ruimte nodig
+    if (on && !ownEditor) {
+      // Basis: de algemene instellingen; daaroverheen wat deze check al zelf had
+      let own = null;
+      try { own = JSON.parse(c.notify || 'null'); } catch (e) { own = null; }
+      const g = await api('settings');
+      const parse = (v) => { try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
+      const cfg = { rules: { ...parse(g.notify_rules), ...((own && own.rules) || {}) }, channels: { ...parse(g.notify_channels), ...((own && own.channels) || {}) } };
+      ownEditor = notifyEditor($('#notify-own-editor'), cfg,
+        { pushover_enabled: g.pushover_enabled === '1', email_enabled: g.email_enabled === '1', ha_webhook_enabled: g.ha_webhook_enabled === '1' });
+    }
+  };
+  $('#notify-own').onchange = showOwn;
+  if (c.notify) showOwn();
   const typeSel = $('[name=type]', form);
   const haSel = $('[name=metric]', form);
   const update = (setDefaults) => {
@@ -1602,6 +1629,9 @@ async function loadSettings() {
     if (el.type === 'checkbox') el.checked = v === '1';
     else el.value = v ?? '';
   });
+  const parse = (v) => { try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
+  notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels) },
+    { pushover_enabled: s.pushover_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
   backupFormToggle();
   loadBackups();
   refresh();   // verse agentversies voor de kaart "Agents bijwerken"
@@ -1631,8 +1661,64 @@ async function updateAllAgents(e) {
   b.disabled = false;
 }
 
+// ---------------------------------------------------------------- Meldregels (algemeen en per check)
+const NOTIFY_ROWS = [
+  ['warn', '🟠 Warning'], ['crit', '🔴 Critical'], ['unknown', '⚪ Onbekend'], ['recovery', '✅ Hersteld'],
+];
+const NOTIFY_CHANNELS = [['pushover', 'Pushover', 'pushover_enabled'], ['email', 'E-mail', 'email_enabled'], ['webhook', 'Home Assistant', 'ha_webhook_enabled']];
+
+/** Tabel met per status: melden (nooit / direct / na X min), herhalen en kanalen. Geeft {get()} terug. */
+function notifyEditor(el, cfg, enabled = {}) {
+  const r = cfg.rules || {}, ch = cfg.channels || {};
+  el.innerHTML = `<div class="table-scroll"><table class="notify-table">
+    <thead><tr><th>Status</th><th>Melden</th><th>Herhalen</th>
+      ${NOTIFY_CHANNELS.map(([k, l, set]) => `<th class="nt-ch" title="${enabled[set] === false ? 'Dit kanaal staat uit (zie hieronder)' : ''}">${l}${enabled[set] === false ? ' <span class="muted">(uit)</span>' : ''}</th>`).join('')}</tr></thead>
+    <tbody>${NOTIFY_ROWS.map(([k, label]) => {
+      const x = r[k] || { mode: 'now', min: 0, repeat: 0 };
+      return `<tr data-k="${k}">
+        <td class="nt-label">${label}</td>
+        <td><div class="nt-when">
+          <select data-f="mode">
+            <option value="never" ${x.mode === 'never' ? 'selected' : ''}>Nooit</option>
+            <option value="now" ${x.mode === 'now' ? 'selected' : ''}>Direct</option>
+            <option value="after" ${x.mode === 'after' ? 'selected' : ''}>${k === 'recovery' ? 'Na … min OK' : 'Na … minuten'}</option>
+          </select>
+          <input type="number" data-f="min" min="1" max="10080" value="${x.mode === 'after' ? x.min : 5}" ${x.mode === 'after' ? '' : 'hidden'} title="minuten">
+        </div></td>
+        <td>${k === 'recovery' ? '<span class="muted small">–</span>'
+          : `<span class="nt-rep">elke <input type="number" data-f="repeat" min="0" max="10080" value="${x.repeat || 0}"> min</span>`}</td>
+        ${NOTIFY_CHANNELS.map(([c]) => `<td class="nt-ch"><input type="checkbox" data-c="${c}" ${(ch[k] || {})[c] !== false ? 'checked' : ''}></td>`).join('')}
+      </tr>`;
+    }).join('')}</tbody></table></div>
+    <p class="hint">Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).</p>`;
+  const sync = () => $$('tr[data-k]', el).forEach((tr) => {
+    const mode = $('[data-f=mode]', tr).value;
+    $('[data-f=min]', tr).hidden = mode !== 'after';
+    $$('input', tr).forEach((i) => { if (i.dataset.f !== 'min') i.disabled = mode === 'never' && i.dataset.f === 'repeat'; });
+  });
+  el.onchange = sync;
+  sync();
+  return {
+    get() {
+      const out = { rules: {}, channels: {} };
+      $$('tr[data-k]', el).forEach((tr) => {
+        const k = tr.dataset.k;
+        out.rules[k] = { mode: $('[data-f=mode]', tr).value, min: +$('[data-f=min]', tr).value || 1, repeat: +($('[data-f=repeat]', tr)?.value || 0) };
+        out.channels[k] = Object.fromEntries($$('[data-c]', tr).map((i) => [i.dataset.c, i.checked]));
+      });
+      return out;
+    },
+  };
+}
+let notifyGlobal = null;   // editor van de algemene meldregels
+
 function settingsData() {
   const f = $('#settings-form');
+  if (notifyGlobal) {
+    const n = notifyGlobal.get();
+    f.notify_rules.value = JSON.stringify(n.rules);
+    f.notify_channels.value = JSON.stringify(n.channels);
+  }
   const d = {};
   [...f.elements].forEach((el) => {
     if (!el.name) return;

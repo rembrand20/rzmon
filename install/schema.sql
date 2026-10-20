@@ -118,6 +118,23 @@ CREATE TABLE IF NOT EXISTS remember_tokens (
     INDEX idx_remember_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Meldingen die nog verstuurd moeten worden: per server gebundeld (Instellingen → Alarmgedrag)
+CREATE TABLE IF NOT EXISTS notify_queue (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    check_id   INT UNSIGNED NOT NULL,
+    status     TINYINT UNSIGNED NOT NULL,
+    event      VARCHAR(16) NOT NULL,
+    previous   TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    title      VARCHAR(250) NOT NULL,
+    message    VARCHAR(1000) NOT NULL,
+    priority   TINYINT NOT NULL DEFAULT 0,
+    value      DOUBLE NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_queue_host (host_id),
+    CONSTRAINT fk_queue_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Wachtwoord vergeten: herstellinks (alleen de SHA-256 hash) en een logboek van aanvragen
 CREATE TABLE IF NOT EXISTS password_resets (
     id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
