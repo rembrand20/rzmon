@@ -110,6 +110,16 @@ final class Installer
         }
         self::mergeContainerChecks($pdo);
         NotifyRules::migrate($pdo);
+        self::moveAccessLog($pdo);
+    }
+
+    /** 1.38.0: logins en sudo van de pagina Meldingen (alerts) naar IDS → Toegang (access_log). Eenmalig; daarna leeg. */
+    private static function moveAccessLog(PDO $pdo): void
+    {
+        $pdo->exec("INSERT INTO access_log (host_id, kind, type, title, message, detail, created_at)
+                    SELECT a.host_id, a.kind, COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.detail, '$.type')), ''), a.title, a.message, a.detail, a.created_at
+                    FROM alerts a JOIN hosts h ON h.id = a.host_id WHERE a.kind IN ('auth', 'authfail')");
+        $pdo->exec("DELETE FROM alerts WHERE kind IN ('auth', 'authfail')");
     }
 
     /**

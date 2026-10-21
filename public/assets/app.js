@@ -80,6 +80,10 @@ const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', 'onbekend'];
 let stats = { uptime: {}, sparks: {} };
 // Sorteren op de pagina Meldingen (per apparaat onthouden): { key: 'time'|'status'|'server'|'check'|'message'|'channels', dir: 1|-1 }
 const ALERT_SORTS = { time: 'Tijd', status: 'Status', server: 'Server', check: 'Check', message: 'Bericht', channels: 'Kanalen' };
+// IDS: tabblad, en Toegang (gegevens, filters, sorteren, open dagen)
+let idsTab = (() => { try { return localStorage.getItem('rzmon-ids-tab') || 'inc'; } catch (e) { return 'inc'; } })();
+let accData = null, accFilter = 'all', accHost = '', accDayOpen = {};
+let accSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-acc-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 let alertSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-alert-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 // Instellingen in L1nes (zie applySettingsLayout); hier bovenaan omdat de weergave al bij het opstarten wordt toegepast
 const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', email: 'meldingen', webhook: 'meldingen', mqtt: 'meldingen', alarm: 'monitoring',
@@ -99,7 +103,6 @@ let settingsLoaded = false;   // samenvattingen pas tonen als de instellingen ge
 let updateInfo = null;        // laatste update_info (voor de samenvatting in L1nes)
 let alertData = null;         // meldingen van de bewaartermijn (pagina Meldingen)
 const alertDayOpen = {};      // datum → open/dicht (anders: alleen vandaag open)
-let alertFilter = 'all';      // all | problems | auth
 let idsData = null;           // pagina 🛡️ IDS
 let idsFilter = 'open';       // open | all
 const idsDayOpen = {};
@@ -349,6 +352,41 @@ function init() {
     days.forEach((x) => { x.open = !all; });
   };
   $('#ids-block-add').onclick = () => idsBlockDialog();
+  $('#ids-tabs').onclick = (e) => {
+    const b = e.target.closest('[data-it]');
+    if (!b) return;
+    idsTab = b.dataset.it;
+    try { localStorage.setItem('rzmon-ids-tab', idsTab); } catch (ex) { /* alleen voor nu */ }
+    showIdsTab();
+  };
+  $('#acc-filter').onclick = (e) => {
+    const b = e.target.closest('[data-ac]');
+    if (!b) return;
+    accFilter = b.dataset.ac;
+    $$('#acc-filter .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+    renderAccess();
+  };
+  $('#acc-host').onchange = (e) => { accHost = e.target.value; renderAccess(); };
+  $('#acc-toggle').onclick = () => {
+    const days = $$('#ids-access .alert-day');
+    const all = days.every((x) => x.open);
+    days.forEach((x) => { x.open = !all; });
+  };
+  $('#ids-access').addEventListener('click', (e) => {
+    const th = e.target.closest('th[data-sort]');
+    if (th) {
+      const k = th.dataset.sort;
+      accSort = accSort.key !== k ? { key: k, dir: 1 } : accSort.dir > 0 ? { key: k, dir: -1 } : { key: '', dir: 1 };
+      try { localStorage.setItem('rzmon-acc-sort', JSON.stringify(accSort)); } catch (ex) { /* alleen voor nu */ }
+      return renderAccess();
+    }
+    const b = e.target.closest('[data-acc]');
+    if (!b) return;
+    const r = accData.rows.find((x) => +x.id === +b.dataset.id);
+    if (!r) return;
+    if (b.dataset.acc === 'block') return idsBlockDialog(accDet(r).ip, r.host_id, `${r.type === 'ssh' ? 'SSH' : r.type}: ${r.kind === 'authfail' ? 'mislukte pogingen' : 'login'}`);
+    if (b.dataset.acc === 'ignore') accIgnoreDialog(r);
+  });
   $('#tab-ids').addEventListener('click', async (e) => {
     const go = e.target.closest('[data-goto]');
     if (go) { e.preventDefault(); showTab(go.dataset.goto); setTimeout(() => $('#ids-card').scrollIntoView({ behavior: 'smooth' }), 400); return; }
@@ -368,13 +406,6 @@ function init() {
       loadIds();
     } catch (ex) { toast(ex.message, 'err'); }
   });
-  $('#alerts-filter').onclick = (e) => {
-    const b = e.target.closest('[data-af]');
-    if (!b) return;
-    alertFilter = b.dataset.af;
-    $$('#alerts-filter .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
-    renderAlerts();
-  };
   $('#alerts-toggle').onclick = () => {
     const days = $$('#alerts .alert-day');
     const all = days.every((x) => x.open);
@@ -735,7 +766,8 @@ function settingsSummaries() {
     sum.mqtt = f.mqtt_enabled.checked ? on(esc(txt('#mqtt-status').replace(/^✔ /, ''))) : off;
     sum.ids = !$('#ids-enabled').checked ? '<span class="muted">✘ uit</span>'
       : $('#ids-mode').checked ? '<span class="warn-txt">⛔ blokkeren</span>' : '<span class="good-txt">✔ aan</span> · leren (alleen melden)';
-    sum.alarm = esc(`agent offline na ${f.agent_stale_minutes.value} min · historie ${f.retention_days.value} dagen · meldingen ${f.alerts_days.value} dagen${f.auth_events.checked ? ' · 🔑 logins' : ''}`);
+    sum.ids += f.auth_events.checked ? ' · 🔑 toegang' : '';
+    sum.alarm = esc(`agent offline na ${f.agent_stale_minutes.value} min · historie ${f.retention_days.value} dagen · meldingen ${f.alerts_days.value} dagen`);
     if (updateInfo) {
       sum.update = (updateInfo.available ? `<span class="warn-txt">⬆ ${esc(updateInfo.latest)} beschikbaar</span>` : `✔ ${esc(updateInfo.current)}${updateInfo.latest ? ' · nieuwste versie' : ''}`)
         + (f.update_auto.checked ? ` · automatisch om ${esc(f.update_time.value)}` : '');
@@ -2168,8 +2200,117 @@ const IDS_FW = {
 };
 
 async function loadIds() {
-  try { idsData = await api('ids'); } catch (ex) { toast(ex.message, 'err'); return; }
+  try { [idsData, accData] = await Promise.all([api('ids'), api('ids_access')]); } catch (ex) { toast(ex.message, 'err'); return; }
   renderIds();
+  renderAccess();
+  showIdsTab();
+}
+
+function showIdsTab() {
+  if (!['inc', 'acc', 'blk'].includes(idsTab)) idsTab = 'inc';
+  $$('#ids-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab));
+  $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
+}
+
+// ---------------------------------------------------------------- IDS → Toegang
+const ACC_TYPES = { ssh: 'SSH', console: 'Console', sudo: 'sudo', su: 'su' };
+const ACC_COLS = { time: 'Tijd', type: 'Soort', server: 'Server', who: 'Wie', what: 'Wat / vanaf' };
+function accDet(r) { try { return JSON.parse(r.detail || '{}') || {}; } catch (e) { return {}; } }
+function accWho(r, d) {
+  const who = (d.users ? d.users.join(', ') : d.user) || '?';
+  return who + (d.as && (r.type === 'su' || r.type === 'sudo') ? ` → ${d.as}` : '');
+}
+
+function renderAccess() {
+  const d = accData;
+  const el = $('#ids-access');
+  if (!d) { el.innerHTML = '<p class="muted">Laden…</p>'; return; }
+  // Serverkeuze: alleen servers die in de lijst voorkomen
+  const hosts = [...new Map(d.rows.map((r) => [r.host_id, r.host_name])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'nl'));
+  $('#acc-host').innerHTML = '<option value="">Alle servers</option>' + hosts.map(([id, n]) => `<option value="${id}" ${+accHost === +id ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  const fails = d.rows.filter((r) => r.kind === 'authfail').length;
+  $('#it-n-acc').textContent = d.rows.length ? `(${d.rows.length})` : '';
+  $('#acc-info').textContent = `${d.rows.length - fails} gelukt · ${fails} mislukt · laatste ${d.days} dagen` + (d.truncated ? ' (alleen de nieuwste 10.000)' : '');
+  const off = d.enabled ? '' : '<p class="warn-txt small">Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings" data-goto="settings">Instellingen → 🛡️ IDS</a>.</p>';
+  const list = d.rows.filter((r) => (accFilter === 'all' || (accFilter === 'fail' ? r.kind === 'authfail' : r.type === accFilter))
+    && (!accHost || +r.host_id === +accHost));
+  if (!list.length) {
+    el.innerHTML = off + `<p class="muted">${d.rows.length ? 'Niets gevonden met dit filter.' : 'Nog geen logins, sudo of su.'}</p>`;
+    $('#acc-toggle').hidden = true;
+    return;
+  }
+  const byDay = new Map();
+  list.forEach((r) => { const day = r.created_at.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(r); });
+  const isOpen = (day) => accDayOpen[day] ?? day === d.today;
+  el.innerHTML = off + [...byDay].map(([day, rows]) => {
+    const nf = rows.filter((r) => r.kind === 'authfail').length;
+    return `<details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''}>
+      <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
+        <span class="ad-counts">${rows.length - nf ? `<span class="ad-count" title="gelukt">🔑 ${rows.length - nf}</span>` : ''}${nf ? `<span class="ad-count" title="mislukt">❌ ${nf}</span>` : ''}</span>
+        <span class="muted small ad-total">${rows.length} regel${rows.length === 1 ? '' : 's'}</span></summary>
+      <div class="ad-body">${isOpen(day) ? accTable(rows) : ''}</div></details>`;
+  }).join('');
+  $$('.alert-day', el).forEach((det) => det.addEventListener('toggle', () => {
+    accDayOpen[det.dataset.day] = det.open;
+    if (det.open && !$('.ad-body', det).innerHTML) $('.ad-body', det).innerHTML = accTable(byDay.get(det.dataset.day));
+    accToggleLabel();
+  }));
+  accToggleLabel();
+}
+
+function accToggleLabel() {
+  const days = $$('#ids-access .alert-day');
+  $('#acc-toggle').hidden = days.length < 2;
+  $('#acc-toggle').textContent = days.length && days.every((x) => x.open) ? '⊟ Alles sluiten' : '⊞ Alles openen';
+}
+
+function accTable(rows) {
+  const val = {
+    time: (r) => r.created_at, type: (r) => (r.kind === 'authfail' ? '1' : '0') + r.type, server: (r) => r.host_name,
+    who: (r) => accWho(r, accDet(r)), what: (r) => r.message,
+  }[accSort.key];
+  if (val) {
+    rows = rows.map((r) => [r, val(r)]).sort((p, q) => accSort.dir * String(p[1]).localeCompare(String(q[1]), 'nl', { numeric: true, sensitivity: 'base' })
+      || (q[0].created_at > p[0].created_at ? 1 : -1)).map(([r]) => r);
+  }
+  const th = (k) => `<th class="sortable${accSort.key === k ? ' sorted' : ''}" data-sort="${k}" title="Sorteren op ${ACC_COLS[k].toLowerCase()}">${ACC_COLS[k]}${accSort.key === k ? (accSort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
+  return `<div class="table-scroll"><table class="alert-table large acc-table"><thead><tr>${Object.keys(ACC_COLS).map(th).join('')}<th></th></tr></thead><tbody>
+    ${rows.map((r) => {
+      const det = accDet(r);
+      const fail = r.kind === 'authfail';
+      return `<tr class="${fail ? 's1' : 'auth'}">
+        <td class="at-time" title="${esc(r.created_at)}">${esc(r.created_at.slice(11, 16))}</td>
+        <td class="at-st">${fail ? '❌ ' : '🔑 '}${esc(ACC_TYPES[r.type] || r.type)}${fail && +det.n > 1 ? ` <span class="muted small">${+det.n}×</span>` : ''}</td>
+        <td>${esc(r.host_name)}</td>
+        <td>${esc(accWho(r, det))}</td>
+        <td class="at-msg">${esc(r.message)}</td>
+        <td class="acc-actions need-admin">
+          <button type="button" class="linkbtn" data-acc="ignore" data-id="${r.id}" title="Deze gebruiker of dit IP-adres voortaan niet meer tonen">🙈 Negeer</button>
+          ${det.ip ? `<button type="button" class="linkbtn" data-acc="block" data-id="${r.id}" title="IP-adres ${esc(det.ip)} blokkeren">⛔ Blokkeer</button>` : ''}
+        </td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+/** 🙈 Negeer: kies de gebruiker(s) en/of het IP-adres die voortaan niet meer getoond worden */
+function accIgnoreDialog(r) {
+  const det = accDet(r);
+  const users = [...new Set((det.users || [det.user]).filter((u) => u && u !== '?'))];
+  const opts = [...users.map((u) => ['user', u, `gebruiker <b>${esc(u)}</b>`]), ...(det.ip ? [['ip', det.ip, `IP-adres <code>${esc(det.ip)}</code>`]] : [])];
+  if (!opts.length) return toast('Geen gebruiker of IP-adres om te negeren', 'err');
+  modal({
+    title: '🙈 Negeren',
+    body: `<p style="margin-top:0">Wat wil je voortaan niet meer zien in <i>Toegang</i>? Ook de regels die er al staan, verdwijnen.</p>
+      ${opts.map(([k, v, l], i) => `<label class="switch small"><input type="checkbox" name="ign${i}" value="${esc(v)}" ${opts.length === 1 || k === 'ip' ? 'checked' : ''}><span></span> ${l}</label>`).join('')}
+      <p class="muted small">Een mislukte poging met meerdere gebruikers wordt alleen verborgen als <i>alle</i> gebruikers genegeerd worden, of het IP-adres. De lijst pas je aan onder <i>Instellingen → 🛡️ IDS → Negeren</i>. Brute-forcedetectie van het IDS blijft gewoon werken.</p>`,
+    buttons: [{ label: '🙈 Negeren', cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const add = Object.keys(d).filter((k) => k.startsWith('ign')).map((k) => d[k]);
+      if (!add.length) throw new Error('Kies minstens één gebruiker of IP-adres');
+      await api('ids_ignore', { add: add.join(' ') });
+      toast(`Genegeerd: ${add.join(', ')}`);
+      setTimeout(loadIds, 50);
+    },
+  });
 }
 
 function renderIds() {
@@ -2193,6 +2334,7 @@ function renderIds() {
   const list = d.incidents.filter((i) => idsFilter === 'all' || i.status === 'open');
   const open = d.incidents.filter((i) => i.status === 'open');
   $('#ids-info').textContent = `${open.length} open · ${d.incidents.length} in de laatste ${d.days} dagen`;
+  $('#it-n-inc').textContent = open.length ? `(${open.length})` : '';
   const el = $('#ids-incidents');
   if (!list.length) {
     el.innerHTML = `<p class="muted">${idsFilter === 'open' ? 'Geen open incidenten. 👌' : 'Nog geen incidenten.'}</p>`;
@@ -2214,6 +2356,7 @@ function renderIds() {
 
   // Blokkades
   $('#ids-block-info').textContent = `${d.blocks.length} actief`;
+  $('#it-n-blk').textContent = d.blocks.length ? `(${d.blocks.length})` : '';
   const row = (b, active) => `<tr>
       <td class="mono">${esc(b.ip)}</td><td>${esc(b.host_name)}</td><td>${esc(b.reason)}</td>
       <td class="at-time" title="${esc(b.created_at)}">${esc(fmtUntil(b.created_at))}</td>
@@ -2249,7 +2392,7 @@ function idsToggleLabel() {
   $('#ids-toggle').textContent = days.length && days.every((x) => x.open) ? '⊟ Alles sluiten' : '⊞ Alles openen';
 }
 
-function idsBlockDialog(ip = '', hostId = '') {
+function idsBlockDialog(ip = '', hostId = '', reason = '') {
   const hosts = ((idsData && idsData.hosts) || []).filter((h) => !h.ha);
   modal({
     title: '⛔ IP blokkeren',
@@ -2258,7 +2401,7 @@ function idsBlockDialog(ip = '', hostId = '') {
         <label>Op server<select name="host_id">${hosts.map((h) => `<option value="${h.id}" ${+h.id === +hostId ? 'selected' : ''}>${esc(h.name)}${h.fw_state === 'unsupported' ? ' (alleen detecteren)' : ''}</option>`).join('')}</select></label>
         <label>Hoe lang<select name="hours"><option value="24">24 uur</option><option value="168">7 dagen</option><option value="720">30 dagen</option><option value="0">Permanent</option></select></label>
       </div>
-      <label>Reden <span class="hint">(optioneel)</span><input name="reason" maxlength="200"></label>
+      <label>Reden <span class="hint">(optioneel)</span><input name="reason" maxlength="200" value="${esc(reason)}"></label>
       ${idsData && idsData.mode !== 'block' ? '<p class="warn-txt small">IDS staat op <i>leren</i>: de blokkade wordt vastgelegd, maar pas echt actief als je overschakelt naar <i>blokkeren</i>.</p>' : ''}
       <p class="muted small">Je eigen IP-adres (${esc((idsData && idsData.my_ip) || '?')}) kan niet geblokkeerd worden. Deblokkeren kan altijd hier; de agent past het binnen een minuut aan.</p>`,
     buttons: [{ label: '⛔ Blokkeren', cls: 'primary', submit: true }],
@@ -2377,9 +2520,7 @@ function renderAlerts() {
   $('#alerts-info').textContent = `${d.alerts.length} melding${d.alerts.length === 1 ? '' : 'en'} van de laatste ${d.days} dag${d.days === 1 ? '' : 'en'}`
     + (d.truncated ? ' (alleen de nieuwste 10.000)' : '');
   if (!d.alerts.length) { el.innerHTML = '<p class="muted">Nog geen meldingen. 👌</p>'; $('#alerts-toggle').hidden = true; return; }
-  const isAuth = (a) => a.kind === 'auth' || a.kind === 'authfail';
-  const shown = d.alerts.filter((a) => alertFilter === 'all' || (alertFilter === 'auth' ? isAuth(a) : !isAuth(a)));
-  if (!shown.length) { el.innerHTML = `<p class="muted">${alertFilter === 'auth' ? 'Geen logins of sudo in deze periode.' : 'Geen storingsmeldingen in deze periode. 👌'}</p>`; return; }
+  const shown = d.alerts;
   const byDay = new Map();
   shown.forEach((a) => {
     const day = a.created_at.slice(0, 10);

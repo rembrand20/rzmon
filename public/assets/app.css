@@ -780,3 +780,18 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .alert-table th.sorted { color: var(--primary); }
 .alert-table tr.clickable, .alert-item.clickable { cursor: pointer; }
 .alerts-sort { width: auto; max-width: 14rem; }
+
+/* IDS: tabbladen en Toegang */
+.ids-tabs { margin: 0 0 1rem; display: inline-flex; flex-wrap: wrap; }
+.ids-tabs .it-n { color: var(--muted); font-weight: 400; }
+.acc-table .acc-actions { white-space: nowrap; text-align: right; }
+.acc-table .acc-actions .linkbtn + .linkbtn { margin-left: .6rem; }
+.acc-table tr.s1 .at-st { color: var(--warn); }
+.set-sub { font-size: .95rem; margin: 1rem 0 .4rem; padding-top: .8rem; border-top: 1px solid var(--border); }
+@media (max-width: 720px) {
+  .acc-table tr { grid-template-columns: auto 1fr; }
+  .acc-table td:nth-child(3) { text-align: right; }
+  .acc-table td:nth-child(4), .acc-table .acc-actions { grid-column: 1 / -1; }
+  .acc-table .acc-actions { text-align: left; }
+  .table-scroll:has(.acc-table) { overflow-x: visible; }
+}

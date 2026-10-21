@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.38.0 – 2026-10-21
+### Nieuw
+- **Logins, sudo en su verhuizen naar de pagina 🛡️ IDS**, tabblad **🔑 Toegang**. De pagina Meldingen toont alleen nog storingen. Bestaande regels verhuizen bij de update automatisch mee.
+- De pagina IDS heeft nu drie tabbladen: **⚠️ Incidenten**, **🔑 Toegang** en **⛔ Blokkades**, met tellers. Het laatste tabblad wordt per apparaat onthouden.
+- **Toegang:** per dag, met filters (*SSH, Console, sudo, su, ❌ Mislukt*), een keuzelijst per server en sorteren op elke kolom. Per regel **🙈 Negeer** (gebruiker en/of IP-adres voortaan niet meer tonen) en **⛔ Blokkeer** (IP-adres).
+- Knop **⛔ IP blokkeren** bovenaan de pagina IDS, om zelf een IP-adres te blokkeren.
+- *Logins en sudo* staat in de instellingen nu onder **🛡️ IDS → 🔑 Toegang** (was *Alarmgedrag*), samen met de lijst *Negeren*. Het werkt ook als het IDS uit staat.
+- De agent hoeft niet bijgewerkt te worden.
+
 ## 1.37.0 – 2026-10-21
 ### Nieuw
 - **Popup per check:** klik op een check op het dashboard (Blox en L1nes) of op een melding. Je ziet de status en het bericht, de instellingen, de beschikbaarheid over 24 uur en 7 dagen, en de **laatste 5 statuswijzigingen**: van/naar, hoe lang, het bericht dat de wijziging veroorzaakte, en of er gemeld is (wanneer, via welke kanalen) of waarom niet. Met knoppen voor bevestigen, onderhoud, nu checken, grafiek en bewerken.

@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Logins (SSH, console), sudo en su van de agents, op de pagina Meldingen (alerts met kind auth/authfail).
- * Alleen tonen, niet versturen. Aan/uit en uitzonderingen: Instellingen → Alarmgedrag (auth_events, auth_ignore).
+ * Logins (SSH, console), sudo en su van de agents, op de pagina IDS → Toegang (tabel access_log, kind auth/authfail).
+ * Alleen tonen, niet versturen. Aan/uit en uitzonderingen: Instellingen → 🛡️ IDS (auth_events, auth_ignore).
  * Mislukte pogingen komen opgeteld binnen; per server, soort en IP/gebruiker één regel per uur.
  */
 final class AuthEvents
@@ -16,8 +16,8 @@ final class AuthEvents
         return setting('auth_events', '1') === '1';
     }
 
-    /** Gebruikers en IP-adressen (of netwerken) die niet gemeld worden. */
-    private static function ignored(array $users, string $ip): bool
+    /** Gebruikers en IP-adressen (of netwerken) die niet getoond worden. */
+    public static function ignored(array $users, string $ip): bool
     {
         $list = parse_list((string) setting('auth_ignore', ''));
         if (!$list) {
@@ -61,7 +61,7 @@ final class AuthEvents
                     . (($e['pwd'] ?? '') !== '' ? ' · in ' . $str($e['pwd'], 200) : '') . (($e['tty'] ?? '') !== '' ? ' · ' . $str($e['tty'], 30) : '')],
                 'su' => ["🔀 su: $u op $name → $as", "$u werd $as"],
             };
-            self::insert($host, 'auth', 0, $title, $msg, $when($e['t'] ?? 0),
+            self::insert($host, 'auth', $title, $msg, $when($e['t'] ?? 0),
                 ['type' => $k, 'user' => $u, 'ip' => $ip, 'as' => $as, 'cmd' => $str($e['cmd'] ?? '', 500)]);
             $n++;
         }
@@ -81,7 +81,7 @@ final class AuthEvents
             $cmd = $str($f['cmd'] ?? '', 300);
             // Zelfde soort mislukking op dezelfde server binnen een uur: optellen bij de bestaande regel
             $key = $k . '|' . match ($k) { 'ssh' => $ip, 'console' => $str($f['tty'] ?? ''), 'sudo' => ($users[0] ?? '') . "|$as|$cmd", 'su' => ($users[0] ?? '') . "|$as" };
-            $prev = q("SELECT id, detail FROM alerts WHERE host_id = ? AND kind = 'authfail' AND created_at >= NOW() - INTERVAL 1 HOUR
+            $prev = q("SELECT id, detail FROM access_log WHERE host_id = ? AND kind = 'authfail' AND created_at >= NOW() - INTERVAL 1 HOUR
                        AND JSON_UNQUOTE(JSON_EXTRACT(detail, '$.key')) = ? ORDER BY id DESC LIMIT 1", [$host['id'], $key])->fetch();
             if ($prev) {
                 $d = json_decode((string) $prev['detail'], true) ?: [];
@@ -98,21 +98,28 @@ final class AuthEvents
             };
             $detail = ['type' => $k, 'key' => $key, 'n' => $count, 'users' => $users, 'ip' => $ip, 'as' => $as, 'cmd' => $cmd, 'last' => $when($f['t'] ?? 0)];
             if ($prev) {
-                q('UPDATE alerts SET title = ?, message = ?, detail = ? WHERE id = ?',
+                q('UPDATE access_log SET title = ?, message = ?, detail = ? WHERE id = ?',
                     [mb_substr($title, 0, 250), mb_substr($msg, 0, 1000), json_encode($detail, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $prev['id']]);
             } else {
-                self::insert($host, 'authfail', STATUS_WARN, $title, $msg, $when($f['t'] ?? 0), $detail);
+                self::insert($host, 'authfail', $title, $msg, $when($f['t'] ?? 0), $detail);
             }
             $n++;
         }
         return $n;
     }
 
-    private static function insert(array $host, string $kind, int $status, string $title, string $msg, string $at, array $detail): void
+    private static function insert(array $host, string $kind, string $title, string $msg, string $at, array $detail): void
     {
-        q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, kind, detail, created_at) VALUES (NULL, ?, ?, ?, ?, 0, ?, ?, ?)', [
-            $host['id'], $status, mb_substr($title, 0, 250), mb_substr($msg, 0, 1000), $kind,
+        q('INSERT INTO access_log (host_id, kind, type, title, message, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [
+            $host['id'], $kind, $detail['type'], mb_substr($title, 0, 250), mb_substr($msg, 0, 1000),
             json_encode($detail, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $at,
         ]);
+    }
+
+    /** Is deze regel (nu) genegeerd? Voor regels die al bewaard waren voordat iets aan de lijst werd toegevoegd. */
+    public static function rowIgnored(array $row): bool
+    {
+        $d = json_decode((string) $row['detail'], true) ?: [];
+        return self::ignored(isset($d['users']) ? (array) $d['users'] : [(string) ($d['user'] ?? '')], (string) ($d['ip'] ?? ''));
     }
 }

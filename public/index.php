@@ -158,11 +158,6 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="alerts-head">
           <h2>Meldingen</h2>
           <span class="muted small" id="alerts-info"></span>
-          <div class="seg" role="group" aria-label="Filter" id="alerts-filter">
-            <button type="button" class="seg-btn active" data-af="all">Alles</button>
-            <button type="button" class="seg-btn" data-af="problems">⚠️ Storingen</button>
-            <button type="button" class="seg-btn" data-af="auth">🔑 Toegang</button>
-          </div>
           <select id="alerts-sort" class="alerts-sort" aria-label="Sorteren" title="Sorteren (binnen elke dag)">
             <option value="">Nieuwste eerst</option>
             <option value="time:1">Oudste eerst</option>
@@ -183,12 +178,18 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
     <section id="tab-ids" class="tab-panel" hidden>
       <div class="card">
-        <div class="alerts-head"><h2>🛡️ IDS</h2><span class="muted small" id="ids-status"></span></div>
+        <div class="alerts-head"><h2>🛡️ IDS</h2><span class="muted small" id="ids-status"></span>
+          <button type="button" class="btn need-admin" id="ids-block-add" style="margin-left:auto">⛔ IP blokkeren</button></div>
         <div class="ids-hosts" id="ids-hosts"></div>
       </div>
-      <div class="card">
+      <div class="seg ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
+        <button type="button" class="seg-btn active" data-it="inc">⚠️ Incidenten <span class="it-n" id="it-n-inc"></span></button>
+        <button type="button" class="seg-btn" data-it="acc">🔑 Toegang <span class="it-n" id="it-n-acc"></span></button>
+        <button type="button" class="seg-btn" data-it="blk">⛔ Blokkades <span class="it-n" id="it-n-blk"></span></button>
+      </div>
+      <div class="card ids-pane" data-pane="inc">
         <div class="alerts-head">
-          <h2>Incidenten</h2>
+          <h2>⚠️ Incidenten</h2>
           <span class="muted small" id="ids-info"></span>
           <div class="seg" role="group" aria-label="Filter" id="ids-filter">
             <button type="button" class="seg-btn active" data-if="open">Open</button>
@@ -198,11 +199,27 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         </div>
         <div id="ids-incidents" class="alert-list"></div>
       </div>
-      <div class="card">
+      <div class="card ids-pane" data-pane="acc" hidden>
+        <div class="alerts-head">
+          <h2>🔑 Toegang</h2>
+          <span class="muted small" id="acc-info"></span>
+          <div class="seg" role="group" aria-label="Soort" id="acc-filter">
+            <button type="button" class="seg-btn active" data-ac="all">Alles</button>
+            <button type="button" class="seg-btn" data-ac="ssh">SSH</button>
+            <button type="button" class="seg-btn" data-ac="console">Console</button>
+            <button type="button" class="seg-btn" data-ac="sudo">sudo</button>
+            <button type="button" class="seg-btn" data-ac="su">su</button>
+            <button type="button" class="seg-btn" data-ac="fail">❌ Mislukt</button>
+          </div>
+          <select id="acc-host" class="alerts-sort" aria-label="Server"><option value="">Alle servers</option></select>
+          <button type="button" class="btn" id="acc-toggle">⊞ Alles openen</button>
+        </div>
+        <div id="ids-access" class="alert-list"></div>
+      </div>
+      <div class="card ids-pane" data-pane="blk" hidden>
         <div class="alerts-head">
           <h2>⛔ Blokkades</h2>
           <span class="muted small" id="ids-block-info"></span>
-          <button type="button" class="btn need-admin" id="ids-block-add" style="margin-left:auto">＋ IP blokkeren</button>
         </div>
         <div id="ids-blocks"></div>
       </div>
@@ -285,10 +302,6 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label>Agent offline na … minuten zonder rapport<input type="number" name="agent_stale_minutes" min="1"></label>
           <label>Historie bewaren (dagen)<input type="number" name="retention_days" min="1"></label>
           <label>Meldingen bewaren (dagen) <span class="muted small">(de pagina Meldingen toont ze per dag)</span><input type="number" name="alerts_days" min="1" max="3650"></label>
-          <label class="switch"><input type="checkbox" name="auth_events"><span></span> 🔑 Logins en sudo tonen op de pagina Meldingen</label>
-          <p class="muted small" style="margin-top:-.4rem">Via de agent: inloggen via SSH en de console, <code>sudo</code> en <code>su</code>, ook mislukte pogingen (per IP-adres per uur opgeteld). Alleen op de pagina, er gaat geen melding uit. Op een server zelf uit te zetten met <code>AUTH_EVENTS=0</code>.</p>
-          <label>Negeren <span class="muted small">(gebruikers en/of IP-adressen of netwerken, gescheiden door spaties)</span>
-            <textarea name="auth_ignore" rows="2" placeholder="bv. ansible backup 192.168.2.5 10.0.0.0/8"></textarea></label>
           <label>Waarschuwen als een disk binnen … dagen vol raakt <span class="muted small">(0 = uit)</span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
           <label>Logbestanden: treffers tellen over de laatste … minuten <span class="muted small">(5–1440)</span><input type="number" name="log_window" min="5" max="1440"></label>
           <label class="switch"><input type="checkbox" name="auto_maint_enabled"><span></span> Automatisch onderhoud na herhaalde meldingen</label>
@@ -388,6 +401,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
           <label>Nooit blokkeren <span class="muted small">(IP-adressen of netwerken; je LAN en RzMon zelf worden nooit automatisch geblokkeerd)</span>
             <textarea name="ids_allow" rows="2" placeholder="bv. 203.0.113.10 198.51.100.0/24"></textarea></label>
+          <h3 class="set-sub">🔑 Toegang</h3>
+          <label class="switch"><input type="checkbox" name="auth_events"><span></span> Toegang bijhouden: logins, <code>sudo</code> en <code>su</code></label>
+          <p class="muted small" style="margin-top:-.4rem">Via de agent: inloggen via SSH en de console, <code>sudo</code> en <code>su</code>, ook mislukte pogingen (per IP-adres per uur opgeteld). Op de pagina <i>🛡️ IDS → Toegang</i>; er gaat geen melding uit. Werkt ook als het IDS uit staat. Op een server zelf uit te zetten met <code>AUTH_EVENTS=0</code>.</p>
+          <label>Negeren <span class="muted small">(gebruikers en/of IP-adressen of netwerken, gescheiden door spaties)</span>
+            <textarea name="auth_ignore" rows="2" placeholder="bv. ansible backup 192.168.2.5 10.0.0.0/8"></textarea></label>
         </div>
 
         <div data-sk="update" class="card" id="update-card">

@@ -449,7 +449,7 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'alerts', 'ids', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'state', 'alerts', 'ids', 'ids_access', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'user_email' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan' => 'user',
     default => 'admin',
@@ -537,7 +537,8 @@ switch ($action) {
         $days = Monitor::alertDays();
         $rows = q('SELECT a.*, c.name AS check_name, h.name AS host_name FROM alerts a
                    LEFT JOIN checks c ON c.id = a.check_id LEFT JOIN hosts h ON h.id = COALESCE(c.host_id, a.host_id)
-                   WHERE a.created_at >= CURDATE() - INTERVAL ? DAY ORDER BY a.created_at DESC, a.id DESC LIMIT 10000', [$days - 1])->fetchAll();
+                   WHERE a.created_at >= CURDATE() - INTERVAL ? DAY AND a.kind NOT IN (\'auth\', \'authfail\')
+                   ORDER BY a.created_at DESC, a.id DESC LIMIT 10000', [$days - 1])->fetchAll();
         out(['days' => $days, 'alerts' => $rows, 'today' => date('Y-m-d'), 'truncated' => count($rows) >= 10000]);
 
     // Popup van een check: gegevens, beschikbaarheid en de laatste 5 statuswijzigingen met hun meldingen
@@ -1397,6 +1398,27 @@ switch ($action) {
                             WHERE b.removed_at IS NOT NULL OR (b.until IS NOT NULL AND b.until <= NOW()) ORDER BY COALESCE(b.removed_at, b.until) DESC LIMIT 30')->fetchAll(),
             'my_ip' => client_ip(),
         ]);
+
+    // Toegang: logins, sudo en su (zonder wat inmiddels op de lijst Negeren staat)
+    case 'ids_access':
+        $days = Monitor::alertDays();
+        $rows = q('SELECT a.id, a.host_id, a.kind, a.type, a.title, a.message, a.detail, a.created_at, h.name AS host_name
+                   FROM access_log a JOIN hosts h ON h.id = a.host_id
+                   WHERE a.created_at >= CURDATE() - INTERVAL ? DAY ORDER BY a.created_at DESC, a.id DESC LIMIT 10000', [$days - 1])->fetchAll();
+        out(['enabled' => AuthEvents::enabled(), 'days' => $days, 'today' => date('Y-m-d'), 'truncated' => count($rows) >= 10000,
+             'rows' => array_values(array_filter($rows, fn($r) => !AuthEvents::rowIgnored($r)))]);
+
+    // Toegang: gebruiker of IP-adres voortaan niet meer tonen
+    case 'ids_ignore':
+        $add = array_filter(parse_list(mb_substr((string) (input()['add'] ?? ''), 0, 300)),
+            fn($x) => preg_match('/^[A-Za-z0-9._@\\$-]{1,64}$/', $x) || @inet_pton(explode('/', $x)[0]) !== false);
+        if (!$add) {
+            out(['error' => 'Niets om te negeren'], 422);
+        }
+        $list = array_values(array_unique(array_merge(parse_list((string) setting('auth_ignore', '')), $add)));
+        save_setting('auth_ignore', implode(' ', array_slice($list, 0, 100)));
+        AgentCommands::audit($user['username'], 'IDS: toegang negeren', implode(' ', $add));
+        out(['ok' => true, 'ignore' => setting('auth_ignore', '')]);
 
     case 'ids_set':
         $in = input();

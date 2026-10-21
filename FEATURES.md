@@ -61,7 +61,6 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Beschikbaarheid** per server over 24 uur, 7 dagen en 30 dagen.
 - **Zoeken** en het filter *Alleen problemen*.
 - **Overig:** licht en donker thema, werkt op je telefoon, ververst elke 20 seconden, en **↻ Alles nu checken**.
-- **🔑 Toegang:** op de pagina Meldingen ook wie er inlogt (SSH, console) en `sudo`/`su` gebruikt, met filterknoppen *Alles · Storingen · Toegang*.
 - **Meldingenoverzicht per dag:** elke verstuurde melding met de kanalen waarlangs hij ging, gegroepeerd per dag met tellers. Vandaag staat open. De bewaartermijn stel je zelf in. **Sorteren** op tijd, status, server, check, bericht of kanalen (klik op de kolomkop; in Blox een keuzelijst), en klik op een melding voor de popup van de check.
 
 ## 4. Meldingen
@@ -145,7 +144,8 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - meldt gewijzigde gevoelige bestanden, nieuwe gebruikers (en een tweede root), poorten, SUID-programma's en kernelmodules, verdachte processen, reverse shells, brute force, inlog na brute force, root-login en logins vanaf nieuwe IP's;
   - **critical** ook naar Pushover (ook tijdens stille uren), **warning** alleen op de pagina IDS;
   - **blokkeren** op de aangevallen server: automatisch bij brute force (24 uur, bij herhaling permanent) of met één klik, en **deblokkeren**; je LAN, RzMon en een eigen lijst nooit automatisch;
-  - TrueNAS SCALE alleen detecteren.
+  - TrueNAS SCALE alleen detecteren;
+  - drie tabbladen: **Incidenten**, **🔑 Toegang** (logins, sudo en su per dag, met filters, sorteren, 🙈 negeren en ⛔ blokkeren; los aan/uit te zetten) en **Blokkades**, plus een knop **⛔ IP blokkeren** voor een IP-adres naar keuze.
 - **Hulpdienst als root** voert alleen vaste taken uit. Hij weigert als de RzMon-map niet veilig is (ontgrendeld, of bestanden die niet van root zijn).
 
 ## 10. De agent (Linux)
@@ -182,7 +182,7 @@ Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt
   - **standaard uit**; aanzetten in RzMon (algemeen of per server) als `nobody` of als root, met je wachtwoord en een logboek;
   - de agent voert ze uit in een kale omgeving, met time-out en hooguit 4 KB uitvoer;
   - op de server zelf perkt `COMMANDS=0` of `COMMANDS=nobody` het altijd in.
-- **🔑 Logins en sudo:** SSH- en console-logins, `sudo` en `su` (wie, wat, als wie, waar vandaan), ook mislukte pogingen, opgeteld per IP per uur. Op de pagina Meldingen met het filter *Toegang*; wachtwoorden in commando's gemaskeerd; gebruikers/IP's te negeren; `AUTH_EVENTS=0` zet het op een server uit.
+- **🔑 Logins en sudo:** SSH- en console-logins, `sudo` en `su` (wie, wat, als wie, waar vandaan), ook mislukte pogingen, opgeteld per IP per uur. Op de pagina *IDS → Toegang*, met filters per soort en server, sorteren, 🙈 negeren en ⛔ blokkeren; wachtwoorden in commando's gemaskeerd; gebruikers/IP's te negeren; `AUTH_EVENTS=0` zet het op een server uit.
 - **🛡️ IDS** (standaard uit): controlegetallen van gevoelige bestanden (sudoers, authorized_keys, passwd, crontabs, sshd-config …), gebruikers, SUID-programma's, kernelmodules, gewijzigde pakketbestanden (`rpm -Va`/`debsums`), processen uit `/tmp` of zonder bestand, reverse shells en verbindingen naar malware-poorten. Bij *blokkeren* een eigen nftables-tabel `inet rzmon` met de geblokkeerde IP's; `IDS_BLOCK=0` zet blokkeren op een server uit.
 - **Tegen kapotte rapporten:** servicenamen worden gefilterd, en de uitvoer wordt veilig als JSON verstuurd (via een tijdelijk bestand).
 

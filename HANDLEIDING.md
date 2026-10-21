@@ -1104,7 +1104,14 @@ Hoe het werkt:
 - **Gebruik bij voorkeur HTTPS naar RzMon.** De lijst met commando's gaat van RzMon naar de agent; over gewone HTTP kan iemand op je netwerk die onderweg aanpassen.
 
 ### 8.11 Logins en sudo 🔑
-De agent meldt wie er op een server inlogt en wie `sudo` of `su` gebruikt. Je ziet het op de pagina **Meldingen**, in de dagblokken, met het filter **🔑 Toegang**. Er gaat geen Pushover-, mail- of Home Assistant-bericht uit.
+De agent meldt wie er op een server inlogt en wie `sudo` of `su` gebruikt. Je ziet het op de pagina **🛡️ IDS**, tabblad **🔑 Toegang** (tot en met 1.37.0 stond het op de pagina Meldingen; bij de update naar 1.38.0 verhuizen de bestaande regels mee). Er gaat geen Pushover-, mail- of Home Assistant-bericht uit.
+
+Op het tabblad **Toegang**:
+- **Per dag** een uitklapblok met tellers (🔑 gelukt, ❌ mislukt). *Vandaag* staat open.
+- **Filters:** *Alles · SSH · Console · sudo · su · ❌ Mislukt*, en een keuzelijst per server.
+- **Sorteren:** klik op een kolomkop (*Tijd, Soort, Server, Wie, Wat / vanaf*): oplopend ▲, aflopend ▼, de derde klik zet de standaard terug (nieuwste eerst). Per apparaat onthouden.
+- **🙈 Negeer:** kies de gebruiker(s) en/of het IP-adres van die regel. Die komen op de lijst *Negeren*, en ook de regels die er al staan verdwijnen.
+- **⛔ Blokkeer:** bij een regel met een IP-adres; opent het venster *IP blokkeren* met het IP en de server al ingevuld (zie §8.12).
 
 | Gebeurtenis | Voorbeeld |
 |---|---|
@@ -1116,8 +1123,8 @@ De agent meldt wie er op een server inlogt en wie `sudo` of `su` gebruikt. Je zi
 | Mislukte sudo of su | ❌ *mislukte sudo · gast*: 3 incorrect password attempts · als root: `cat /etc/shadow` |
 
 Goed om te weten:
-- **Aan/uit:** *Instellingen → Alarmgedrag → 🔑 Logins en sudo tonen* (standaard aan). Op een server zelf zet je het altijd uit met `AUTH_EVENTS=0` in de instellingen van de agent.
-- **Negeren:** in hetzelfde blok vul je gebruikers en/of IP-adressen of netwerken in die niet gemeld worden, bijvoorbeeld `ansible backup 192.168.2.5 10.0.0.0/8`. Een mislukte poging wordt alleen overgeslagen als *alle* gebruikers erin genegeerd zijn, of het IP-adres.
+- **Aan/uit:** *Instellingen → 🛡️ IDS → Toegang bijhouden* (standaard aan). Dit staat los van *IDS aan*: logins worden ook bijgehouden als het IDS uit staat. Op een server zelf zet je het altijd uit met `AUTH_EVENTS=0` in de instellingen van de agent.
+- **Negeren:** in hetzelfde blok vul je gebruikers en/of IP-adressen of netwerken in die niet getoond worden (of klik 🙈 bij een regel), bijvoorbeeld `ansible backup 192.168.2.5 10.0.0.0/8`. Een mislukte poging wordt alleen overgeslagen als *alle* gebruikers erin genegeerd zijn, of het IP-adres.
 - **Mislukte pogingen** worden opgeteld: per server, soort en IP-adres (of gebruiker) komt er per uur één regel, die bijgewerkt wordt (*37×*). Zo loopt de pagina niet vol als een server vanaf internet aangevallen wordt.
 - **Wachtwoorden** in sudo-commando's worden al op de server gemaskeerd, bijvoorbeeld `mysql -p••••` en `password=••••`.
 - **su vanuit diensten** (bijvoorbeeld logrotate) wordt niet gemeld; alleen su door een echte gebruiker.
@@ -1157,6 +1164,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 
 - **🔴 Critical** gaat ook naar **Pushover**, ook tijdens stille uren, en komt op de pagina Meldingen. **🟠 Warning** staat alleen op de pagina IDS.
 - Een rood bolletje op het tabblad **🛡️ IDS** telt de open critical incidenten.
+- De pagina heeft drie tabbladen: **⚠️ Incidenten**, **🔑 Toegang** (logins, sudo en su, zie [8.11](#811-logins-en-sudo-)) en **⛔ Blokkades**. Het laatst gekozen tabblad wordt per apparaat onthouden.
 - Dezelfde melding binnen 24 uur wordt niet opnieuw gestuurd; de teller loopt op (*5×*).
 
 **Basismeting**
@@ -1169,7 +1177,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - De agent gebruikt een **eigen nftables-tabel** (`inet rzmon`), naast firewalld of je eigen regels. Je bestaande firewall wordt niet aangepast. Bekijken op de server: `nft list table inet rzmon`.
 - Er wordt alleen geblokkeerd **op de server die aangevallen wordt**.
 - **Automatisch** bij brute force: **24 uur**; komt hetzelfde IP binnen **7 dagen** terug, dan **permanent**. Beide in te stellen.
-- **Handmatig** met **⛔ Blokkeer IP** bij een incident, of **＋ IP blokkeren**: 24 uur, 7 dagen, 30 dagen of permanent.
+- **Handmatig** met **⛔ Blokkeer IP** bij een incident of een regel in *Toegang*, of met de knop **⛔ IP blokkeren** bovenaan de pagina IDS (vul zelf een IP-adres in): 24 uur, 7 dagen, 30 dagen of permanent.
 - **Nooit automatisch geblokkeerd:** je LAN (privé-adressen), RzMon zelf en de lijst *Nooit blokkeren*. Een LAN-adres kun je wel zelf blokkeren; je eigen IP-adres niet.
 - **🔓 Deblokkeren** in het blok *Blokkades*. De agent past het binnen een minuut aan. Eerdere blokkades staan onder *Eerder geblokkeerd*.
 - **Terug naar leren** of **IDS uit**: de agent haalt zijn tabel meteen weg, alle blokkades vervallen op de servers. In RzMon blijven ze staan, zodat ze terugkomen als je weer blokkeert.
@@ -1182,7 +1190,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **TrueNAS SCALE: alleen detecteren.** De firewall hoort daar bij TrueNAS zelf; de agent blokkeert er niets.
 - **Niet in de Home Assistant-add-on.** Die draait in een container en ziet de gebruikers, bestanden, processen en firewall van Home Assistant OS zelf niet. Voor Home Assistant: zet `ip_ban_enabled: true` en `login_attempts_threshold` onder `http:` in `configuration.yaml`, en gebruik tweestapsverificatie.
 - De SUID-zoektocht draait één keer per uur en de pakketcontrole één keer per dag, op de achtergrond en met lage prioriteit. Container-opslag (`/var/lib/docker`, `/var/lib/containers`) wordt overgeslagen.
-- Het IDS gebruikt de logins uit [8.11](#811-logins-en-sudo-) (journal of `/var/log/secure`). Dat werkt ook als *Logins en sudo tonen* uit staat.
+- Het IDS gebruikt de logins uit [8.11](#811-logins-en-sudo-) (journal of `/var/log/secure`). Dat werkt ook als *Toegang bijhouden* uit staat, en de lijst *Negeren* telt daarvoor niet mee.
 - Incidenten worden net zo lang bewaard als de meldingen (*Meldingen bewaren (dagen)*).
 - Een IDS ziet veel, maar niet alles. Houd je servers bijgewerkt, gebruik SSH-sleutels en zet `PermitRootLogin no`.
 

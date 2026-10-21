@@ -95,6 +95,21 @@ CREATE TABLE IF NOT EXISTS status_changes (
     INDEX idx_sc_check_time (check_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Toegang (pagina IDS → Toegang): logins, sudo en su van de agents; mislukte pogingen per uur opgeteld
+CREATE TABLE IF NOT EXISTS access_log (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    kind       VARCHAR(10) NOT NULL,          -- auth (gelukt) | authfail (mislukt)
+    type       VARCHAR(10) NOT NULL,          -- ssh | console | sudo | su
+    title      VARCHAR(250) NOT NULL,
+    message    VARCHAR(1000) NOT NULL,
+    detail     TEXT NULL,                     -- JSON: user/users, ip, as, cmd, n, key
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_access_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE,
+    INDEX idx_access_time (created_at),
+    INDEX idx_access_host (host_id, kind, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Sleutels voor de REST API (alleen de SHA-256 hash wordt opgeslagen)
 CREATE TABLE IF NOT EXISTS api_keys (
     id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
