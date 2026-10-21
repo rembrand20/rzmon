@@ -488,7 +488,10 @@ switch ($action) {
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'alerts' => $alerts, 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
-             'version' => RZMON_VERSION, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current()]);
+             'version' => RZMON_VERSION, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(),
+             // Voor beheerders: label "⬆ x.y.z" bovenin als er een nieuwere versie is
+             'update' => $isAdmin && ($uc = json_decode((string) setting('update_cache', ''), true)) && !empty($uc['latest'])
+                 && version_compare($uc['latest'], RZMON_VERSION, '>') ? $uc['latest'] : null]);
 
     case 'history':
         $id = (int) ($_GET['check_id'] ?? 0);
@@ -860,7 +863,7 @@ switch ($action) {
         foreach (SECRET_SETTINGS as $k) {
             $s[$k] = ($s[$k] ?? '') !== '' ? '••••••••' : '';
         }
-        unset($s['ack_secret'], $s['mqtt_topics'], $s['mqtt_hash'], $s['stats_cache']);
+        unset($s['ack_secret'], $s['mqtt_topics'], $s['mqtt_hash'], $s['stats_cache'], $s['update_cache']);
         out($s);
 
     case 'settings_save':
@@ -872,7 +875,11 @@ switch ($action) {
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
-            'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_flap', 'notify_quiet'];
+            'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_flap', 'notify_quiet',
+            'update_auto', 'update_time', 'update_backup'];
+        if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
+            out(['error' => 'Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00'], 422);
+        }
         if (isset($in['notify_quiet'])) {
             $in['notify_quiet'] = json_encode(NotifyRules::cleanQuiet((array) (is_string($in['notify_quiet']) ? json_decode($in['notify_quiet'], true) : $in['notify_quiet'])));
         }
@@ -1252,6 +1259,32 @@ switch ($action) {
             'cli_cmd' => "sudo php $root/install/install.php --rotate-db-password",
             'helper_cmd' => "sudo bash $root/install/install-helper.sh",
         ]);
+
+    // ---------------------------------------------------------- RzMon bijwerken
+    case 'update_info':
+        $cache = Updater::check(!empty($_GET['force']));
+        out([
+            'current' => RZMON_VERSION,
+            'latest' => $cache['latest'] ?? null,
+            'available' => !empty($cache['latest']) && version_compare($cache['latest'], RZMON_VERSION, '>'),
+            'checked_at' => isset($cache['checked_at']) ? date('Y-m-d H:i:s', (int) $cache['checked_at']) : null,
+            'error' => $cache['error'] ?? null,
+            'notes' => $cache['notes'] ?? [],
+            'unavailable' => Updater::unavailable(),
+            'status' => Updater::status(),
+            'source' => implode('@', Updater::source()),
+            'install_dir' => SM_ROOT,
+        ]);
+
+    case 'update_start':
+        $backup = !empty(input()['backup']);
+        save_setting('update_backup', $backup ? '1' : '0');   // de schakelaar onthouden
+        $r = Updater::request($backup, $user['username']);
+        $r === true ? out(['ok' => true]) : out(['error' => $r], 409);
+
+    case 'update_status':
+        out(['status' => Updater::status(), 'version' => RZMON_VERSION,
+            'log' => is_readable(Installer::HELPER_DIR . '/update.log') ? mb_substr((string) file_get_contents(Installer::HELPER_DIR . '/update.log'), -6000) : '']);
 
     case 'db_rotate':
         $confirm('VERNIEUWEN');

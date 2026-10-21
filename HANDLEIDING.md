@@ -1247,6 +1247,21 @@ De nummering is *major.minor.patch*:
 
 De agents hebben hetzelfde versienummer. Elke agent geeft zijn versie door, en je ziet die op de servertegel (bijvoorbeeld `agent 1 min geleden · v1.6.0`). Is een agent ouder dan RzMon, dan staat er **⬆** achter. In het venster *Agent Manager* staat dan het commando om hem bij te werken. Met `rzmon-agent.sh --version` zie je de versie op de server zelf.
 
+### Bijwerken vanuit RzMon ⬆ (Rocky Linux, vanaf 1.29.0)
+Onder **Instellingen → ⬆ RzMon bijwerken** werk je RzMon bij zonder terminal.
+- **Is er een update?** RzMon kijkt één keer per dag op GitHub, of direct met **🔍 Nu controleren**. Is er een nieuwe versie, dan zie je bovenin naast het versienummer een groen label **⬆ 1.x.y**, en op de kaart **wat er nieuw is** (de changelog van alle versies sinds de jouwe).
+- **⬆ Nu bijwerken naar 1.x.y:** de hulpdienst op de server voert vaste stappen uit en je ziet de voortgang:
+  1. *Controleren:* de RzMon-map moet vergrendeld zijn en alle bestanden van root;
+  2. *Back-up maken:* als de schakelaar **Eerst een back-up maken** aan staat (standaard). De back-up staat daarna in de lijst onder *Back-up*;
+  3. *Nieuwste versie ophalen* (`git pull`);
+  4. *Installeren:* het installatiescript (`install-rocky.sh --yes`), net als wanneer je het commando zelf uitvoert: rechten, SELinux, hulpdienst en tabellen.
+
+  Daarna laadt de pagina vanzelf de nieuwe versie. Gaat er iets mis, dan zie je de foutmelding en het logboek; is het ophalen mislukt, dan is er niets veranderd.
+- **Automatisch bijwerken:** zet de schakelaar aan en kies een tijdstip (standaard 04:00). Is er een nieuwe versie, dan werkt RzMon zichzelf die dag in het uur na dat tijdstip bij, met een back-up vooraf als die schakelaar aan staat. De agents werk je apart bij (*⬆ Agents bijwerken*).
+- **Eenmalig nodig:** de hulpdienst voor bijwerken. Die zet `install-rocky.sh` klaar; voer na de update naar 1.29.0 het installatiecommando dus nog één keer uit. Controleren: `systemctl status rzmon-update.path`.
+- **Veiligheid:** de webpagina zet alleen een verzoek neer (`/var/lib/rzmon/update.request`). De hulpdienst (`/usr/local/sbin/rzmon-update`, als root) voert altijd dezelfde stappen uit, en weigert als de map ontgrendeld is (`--unlock`) of als een bestand niet van root is. Het logboek staat in `/var/lib/rzmon/update.log`.
+- Werkt alleen bij een installatie met `install-rocky.sh` (git). Bij een andere installatie zegt de kaart dat, en werk je handmatig bij zoals hieronder.
+
 ### Bijwerken met het installatiescript (Rocky Linux)
 ```bash
 git -C ~/rzmon pull && sudo bash ~/rzmon/install/install-rocky.sh --repo ~/rzmon

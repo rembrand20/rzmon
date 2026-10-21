@@ -454,6 +454,8 @@ sudo chown -R root:apache /var/www/rzmon
 sudo restorecon -Rv /var/www/rzmon
 sudo -u apache php install/install.php --upgrade
 ```
+Vanaf 1.29.0 kun je ook bijwerken met de knop **Instellingen → ⬆ RzMon bijwerken**, of RzMon zichzelf elke nacht laten bijwerken. Daarvoor zet het installatiescript de hulpdienst `rzmon-update` klaar.
+
 De laatste stap is eigenlijk niet meer nodig: sinds versie 1.6.0 werkt RzMon de database automatisch bij bij de eerste cron-run of het eerste bezoek aan het dashboard. Je kunt ook na de `git pull` op **Setup → ↻ Tabellen bijwerken** klikken. De versie staat in de topbalk, en wat er nieuw is lees je in `CHANGELOG.md`. Agents werk je bij met de knop onder *Instellingen → ⬆ Agents bijwerken* (agents van vóór 1.19.0 eenmalig met `sudo rzmon-agent-setup --update`).
 
 `config.php` staat niet in Git (`.gitignore`), dus `git pull` laat hem met rust.

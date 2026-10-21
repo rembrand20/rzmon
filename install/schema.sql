@@ -217,4 +217,8 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('backup_weekday', '7'),
     ('backup_keep', '7'),
     ('backup_history', '1'),
-    ('agent_auto_update', '0');
+    ('agent_auto_update', '0'),
+    -- RzMon bijwerken: met de knop; automatisch uit (anders om 04:00), altijd eerst een back-up
+    ('update_auto', '0'),
+    ('update_time', '04:00'),
+    ('update_backup', '1');

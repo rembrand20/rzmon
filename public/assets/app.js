@@ -273,6 +273,10 @@ function init() {
 
   $('#settings-form').addEventListener('submit', saveSettings);
   $('#backup-now').onclick = backupNow;
+  $('#update-start').onclick = startUpdate;
+  $('#settings-form').update_auto.addEventListener('change', backupFormToggle);
+  $('#update-check').onclick = async (e) => { const btn = e.currentTarget; btn.disabled = true; await loadUpdate(true); btn.disabled = false; };
+  $('#update-badge').onclick = () => { showTab('settings'); setTimeout(() => $('#update-card').scrollIntoView({ behavior: 'smooth', block: 'start' }), 300); };
   $('#agents-update-all').onclick = updateAllAgents;
   $('#backup-upload').onclick = () => $('#backup-file').click();
   $('#backup-file').onchange = (e) => backupUpload(e.target.files[0]);
@@ -322,6 +326,9 @@ async function refresh() {
     render();
     renderAlerts();
     if (isAdmin()) renderAgentUpdates();
+    const ub = $('#update-badge');
+    ub.hidden = !state.update;
+    if (state.update) ub.textContent = '⬆ ' + state.update;
   } catch (ex) {
     toast(ex.message, 'err');
   }
@@ -1751,6 +1758,7 @@ async function loadSettings() {
   quietGlobal = quietEditor($('#quiet-editor'), parse(s.notify_quiet), true);
   backupFormToggle();
   loadBackups();
+  loadUpdate(false);
   refresh();   // verse agentversies voor de kaart "Agents bijwerken"
 }
 
@@ -2194,6 +2202,93 @@ function showNewDbPassword(r) {
   loadDbInfo();
 }
 
+// ---------------------------------------------------------------- RzMon bijwerken
+let updatePoll = null;
+
+/** Changelog-tekst (Markdown) als eenvoudige HTML: kopjes, opsommingen, vet, cursief en code. */
+function mdLite(text) {
+  const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  let html = '', depth = 0;
+  for (const line of text.split('\n')) {
+    const m = line.match(/^(\s*)- (.*)$/);
+    const d = m ? Math.floor(m[1].length / 2) + 1 : 0;
+    while (depth < d) { html += '<ul>'; depth++; }
+    while (depth > d) { html += '</ul>'; depth--; }
+    if (m) html += `<li>${inline(m[2])}</li>`;
+    else if (/^### /.test(line)) html += `<h4>${inline(line.slice(4))}</h4>`;
+    else if (line.trim()) html += `<p>${inline(line)}</p>`;
+  }
+  while (depth-- > 0) html += '</ul>';
+  return html;
+}
+
+async function loadUpdate(force) {
+  const st = $('#update-status');
+  let u;
+  try { u = await api('update_info', null, force ? { force: 1 } : {}); } catch (ex) { st.textContent = ex.message; return; }
+  const parts = [`Je gebruikt <b>${esc(u.current)}</b>.`];
+  if (u.error) parts.push(`<b class="warn-txt">⚠️ ${esc(u.error)}</b>`);
+  else if (u.available) parts.push(`<b class="good-txt">Nieuwe versie beschikbaar: ${esc(u.latest)}</b>`);
+  else if (u.latest) parts.push('<span class="good-txt">✔ Dit is de nieuwste versie.</span>');
+  if (u.checked_at) parts.push(`<span class="muted">Gecontroleerd ${ago(u.checked_at)}.</span>`);
+  if (u.available && u.unavailable) {
+    parts.push(`<br><b class="warn-txt">Bijwerken vanuit RzMon kan nog niet:</b> ${esc(u.unavailable)}. Voer één keer uit op de server:`
+      + copyBox('cmd-update-setup', 'curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/install-rocky.sh -o install-rocky.sh && sudo bash install-rocky.sh'));
+  }
+  st.innerHTML = parts.join(' ');
+  $('#update-notes').innerHTML = u.available && u.notes.length ? `<details class="update-notes" open><summary>Wat is er nieuw (${u.notes.length} versie${u.notes.length === 1 ? '' : 's'})</summary>
+    ${u.notes.map((n) => `<div class="un-ver"><h3>${esc(n.version)} <span class="muted small">${esc(n.date)}</span></h3>${mdLite(n.text)}</div>`).join('')}</details>` : '';
+  const b = $('#update-start');
+  b.hidden = !u.available || !!u.unavailable;
+  b.textContent = `⬆ Nu bijwerken naar ${u.latest}`;
+  showUpdateProgress(u.status, '');
+  if (u.status && ['queued', 'running'].includes(u.status.state)) pollUpdate();
+}
+
+const UPDATE_STEPS = [['check', 'Controleren'], ['backup', 'Back-up maken'], ['download', 'Nieuwste versie ophalen'], ['install', 'Installeren'], ['klaar', 'Klaar']];
+
+function showUpdateProgress(s, log) {
+  const el = $('#update-progress');
+  // Een afgeronde update van langer dan een dag geleden niet meer tonen
+  if (!s || (['ok', 'error'].includes(s.state) && s.at < Date.now() / 1000 - 86400)) { el.hidden = true; return; }
+  el.hidden = false;
+  const cur = UPDATE_STEPS.findIndex(([k]) => k === s.step);
+  const icon = (i) => s.state === 'ok' || i < cur ? '✔' : i === cur ? (s.state === 'error' ? '✘' : '⏳') : '·';
+  el.innerHTML = `<div class="update-box ${s.state}">
+    <b>${s.state === 'ok' ? '✔ ' : s.state === 'error' ? '✘ ' : '⏳ '}${esc(s.message || '')}</b>
+    ${s.state === 'queued' && s.stuck ? '<p class="warn-txt small">De hulpdienst reageert niet. Controleer op de server: <code>systemctl status rzmon-update.path</code></p>' : ''}
+    ${s.state !== 'queued' ? `<ol class="update-steps">${UPDATE_STEPS.map(([k, l], i) => `<li class="${i === cur ? 'cur' : ''}">${icon(i)} ${l}</li>`).join('')}</ol>` : ''}
+    ${log ? `<details ${s.state === 'error' ? 'open' : ''}><summary>Logboek</summary><pre class="update-log">${esc(log)}</pre></details>` : ''}
+  </div>`;
+}
+
+function pollUpdate() {
+  clearTimeout(updatePoll);
+  updatePoll = setTimeout(async () => {
+    let r;
+    try { r = await api('update_status'); } catch (ex) { pollUpdate(); return; }   // even onbereikbaar tijdens het installeren
+    showUpdateProgress(r.status, r.log);
+    if (r.status && ['queued', 'running'].includes(r.status.state)) return pollUpdate();
+    if (r.status && r.status.state === 'ok') {
+      toast(r.status.message);
+      setTimeout(() => location.reload(), 2500);   // nieuwe versie laden
+    }
+  }, 2000);
+}
+
+async function startUpdate(e) {
+  const backup = $('#settings-form').update_backup.checked;
+  const btn = e.currentTarget;
+  if (!confirm(`RzMon bijwerken naar de nieuwste versie?${backup ? '\nEerst wordt er een back-up gemaakt.' : '\nZonder back-up vooraf.'}\n\nRzMon is daarna even niet bereikbaar.`)) return;
+  btn.disabled = true;
+  try {
+    await api('update_start', { backup });
+    showUpdateProgress({ state: 'queued', step: 'queued', message: 'Wachten op de hulpdienst…', at: Date.now() / 1000 }, '');
+    pollUpdate();
+  } catch (ex) { toast(ex.message, 'err'); }
+  btn.disabled = false;
+}
+
 // ---------------------------------------------------------------- Back-up
 let backupInfo = null;
 let backupUnlockedUntil = 0;   // downloaden zonder opnieuw te bevestigen tot dit moment
@@ -2204,6 +2299,7 @@ const fmtDateTime = (dt) => new Date(dt.replace(' ', 'T')).toLocaleString('nl-NL
 function backupFormToggle() {
   const f = $('#settings-form');
   $('.backup-weekday', f).hidden = f.backup_freq.value !== 'weekly';
+  $('.update-time', f).hidden = !f.update_auto.checked;   // tijdstip alleen bij automatisch bijwerken
 }
 
 async function loadBackups() {

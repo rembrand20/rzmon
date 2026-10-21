@@ -623,3 +623,23 @@ body[data-role="admin"] [data-role-only="nonadmin"] { display: none; }
 .quiet-tag { font-size: .72rem; padding: .05rem .35rem; border-radius: 99px; background: color-mix(in srgb, var(--maint) 18%, transparent); color: var(--maint); }
 .quiet-now b { color: var(--maint); }
 #quiet-mode { margin-bottom: .5rem; }
+
+/* ---------- RzMon bijwerken ---------- */
+.update-badge { margin-left: .4rem; font: inherit; font-size: .72rem; font-weight: 700; padding: .1rem .5rem; border-radius: 99px; cursor: pointer;
+  border: 1px solid var(--ok); background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); vertical-align: middle; }
+.update-badge:hover { background: color-mix(in srgb, var(--ok) 30%, transparent); }
+.update-actions { display: flex; gap: .6rem; flex-wrap: wrap; margin: .6rem 0 .2rem; }
+.update-notes { border: 1px solid var(--border); border-radius: 8px; padding: .5rem .8rem; margin: .6rem 0; max-height: 360px; overflow: auto; font-size: .86rem; }
+.update-notes summary { cursor: pointer; font-weight: 600; }
+.update-notes h3 { font-size: .95rem; margin: .8rem 0 .2rem; }
+.update-notes h4 { font-size: .85rem; margin: .5rem 0 .1rem; color: var(--muted); }
+.update-notes ul { margin: .2rem 0; padding-left: 1.2rem; }
+.update-notes p { margin: .3rem 0; }
+.update-box { border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 8px; padding: .6rem .8rem; margin: .6rem 0; font-size: .9rem; }
+.update-box.ok { border-left-color: var(--ok); } .update-box.error { border-left-color: var(--crit); }
+.update-steps { list-style: none; padding: 0; margin: .4rem 0 0; display: flex; flex-wrap: wrap; gap: .2rem 1rem; color: var(--muted); }
+.update-steps li.cur { color: var(--text); font-weight: 600; }
+.update-log { max-height: 220px; overflow: auto; font-size: .75rem; white-space: pre-wrap; background: var(--card-2); padding: .5rem; border-radius: 6px; }
+.update-time { flex-direction: row; align-items: center; gap: .5rem; flex-wrap: wrap; font-weight: 400; margin-left: 3.4rem; }
+.update-time[hidden] { display: none; }
+.update-time input { width: 8rem; }

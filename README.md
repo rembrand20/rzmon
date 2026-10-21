@@ -183,7 +183,9 @@ De add-on heeft alleen leesrechten: Supervisor-rol `default`, plus host-netwerk 
 ## Versie en upgraden
 De huidige versie staat in [`VERSION`](VERSION) en in de topbalk van RzMon. Wat er per versie veranderd is, lees je in [`CHANGELOG.md`](CHANGELOG.md).
 
-Upgraden gaat zo:
+**Vanaf 1.29.0 kan het met één knop:** *Instellingen → ⬆ RzMon bijwerken* (of automatisch op een vast tijdstip), met eerst een back-up. Dat werkt bij installaties met `install-rocky.sh`; voer daarvoor na de update naar 1.29.0 het installatiecommando één keer uit. Zie HANDLEIDING.md §12.
+
+Handmatig upgraden gaat zo:
 1. Zet de nieuwe bestanden eroverheen (`git pull`, of opnieuw `install-rocky.sh`), behalve `config.php`.
 2. De **database wordt automatisch bijgewerkt** bij de eerste cron-run of het eerste bezoek aan het dashboard. Handmatig kan ook: `sudo -u www-data php install/install.php --upgrade`, of *Setup → Tabellen bijwerken*.
 3. Werk de agents bij met één knop: *Instellingen → ⬆ Agents bijwerken* (of automatisch). Een verouderde agent herken je aan **⬆** op de servertegel. Agents van vóór 1.19.0 werk je één keer met de hand bij: `sudo rzmon-agent-setup --update`.

@@ -7,6 +7,9 @@
 #     php install/install.php --rotate-db-password --helper
 # De hulpdienst doet niets anders: hij voert geen commando's van de webpagina uit.
 #
+# Op Rocky/RHEL/AlmaLinux met een git-installatie (install-rocky.sh) ook de knop "RzMon bijwerken":
+# bij /var/lib/rzmon/update.request start /usr/local/sbin/rzmon-update (kopie van install/rzmon-update.sh).
+#
 #   sudo bash install/install-helper.sh              # installeren (webgroep automatisch)
 #   sudo bash install/install-helper.sh --group apache
 #   sudo bash install/install-helper.sh --uninstall
@@ -15,6 +18,8 @@ set -euo pipefail
 DIR=$(cd "$(dirname "$0")/.." && pwd)
 HELPER_DIR=/var/lib/rzmon
 UNIT=/etc/systemd/system/rzmon-helper
+UPD_UNIT=/etc/systemd/system/rzmon-update
+UPD_BIN=/usr/local/sbin/rzmon-update
 GROUP=""
 MODE=install
 
@@ -38,8 +43,10 @@ command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ] && HAS_SYSTEM
 if [ "$MODE" = uninstall ]; then
     if [ "$HAS_SYSTEMD" -eq 1 ]; then
         systemctl disable --now rzmon-helper.path >/dev/null 2>&1 || true
+        systemctl disable --now rzmon-update.path >/dev/null 2>&1 || true
     fi
-    rm -f "$UNIT.path" "$UNIT.service" "$HELPER_DIR/helper.installed" "$HELPER_DIR/rotate.request" "$HELPER_DIR/rotate.result"
+    rm -f "$UNIT.path" "$UNIT.service" "$HELPER_DIR/helper.installed" "$HELPER_DIR/rotate.request" "$HELPER_DIR/rotate.result" \
+        "$UPD_UNIT.path" "$UPD_UNIT.service" "$UPD_BIN" "$HELPER_DIR/update.installed" "$HELPER_DIR/update.request"
     [ "$HAS_SYSTEMD" -eq 1 ] && systemctl daemon-reload
     ok "Hulpdienst verwijderd (back-ups in $HELPER_DIR/backups blijven staan)"
     exit 0
@@ -100,6 +107,39 @@ systemctl enable --now rzmon-helper.path >/dev/null
 echo "$DIR" >"$HELPER_DIR/helper.installed"
 chmod 0644 "$HELPER_DIR/helper.installed"
 ok "systemd: rzmon-helper.path (actief) + rzmon-helper.service"
+
+# RzMon bijwerken vanuit de webinterface: alleen bij een git-installatie met install-rocky.sh
+os_id=$(. /etc/os-release 2>/dev/null; echo "${ID:-}")
+if [ -d "$DIR/.git" ] && [ -f "$DIR/install/rzmon-update.sh" ] && [[ "$os_id" =~ ^(rocky|rhel|almalinux)$ ]]; then
+    # Een eigen kopie buiten de RzMon-map: die kan de webserver niet aanpassen
+    install -m 0755 -o root -g root "$DIR/install/rzmon-update.sh" "$UPD_BIN"
+    cat >"$UPD_UNIT.path" <<UNIT_EOF
+[Unit]
+Description=RzMon-hulpdienst: wacht op "RzMon bijwerken" uit de webinterface
+
+[Path]
+PathExists=$HELPER_DIR/update.request
+
+[Install]
+WantedBy=multi-user.target
+UNIT_EOF
+    cat >"$UPD_UNIT.service" <<UNIT_EOF
+[Unit]
+Description=RzMon bijwerken (vanuit de webinterface)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=$UPD_BIN $DIR
+UNIT_EOF
+    systemctl daemon-reload
+    systemctl enable --now rzmon-update.path >/dev/null
+    echo "$DIR" >"$HELPER_DIR/update.installed"
+    chmod 0644 "$HELPER_DIR/update.installed"
+    ok "systemd: rzmon-update.path (actief): knop \"RzMon bijwerken\""
+else
+    rm -f "$HELPER_DIR/update.installed"
+fi
 echo
 echo "  De knop Instellingen → Database → \"Databasewachtwoord vernieuwen\" werkt nu,"
 echo "  en back-ups komen in $HELPER_DIR/backups."

@@ -103,7 +103,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   </main>
 <?php else: ?>
   <header class="topbar">
-    <div class="brand"><span class="logo">📡</span> RzMon <a class="version" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener" title="RzMon-versie – bekijk wat er nieuw is">v<?= htmlspecialchars(RZMON_VERSION) ?></a></div>
+    <div class="brand"><span class="logo">📡</span> RzMon <a class="version" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener" title="RzMon-versie – bekijk wat er nieuw is">v<?= htmlspecialchars(RZMON_VERSION) ?></a>
+      <button type="button" class="update-badge need-admin" id="update-badge" hidden title="Er is een nieuwe versie van RzMon: klik om bij te werken"></button></div>
     <nav class="tabs" role="tablist">
       <button class="tab active" data-tab="dashboard">Dashboard</button>
       <button class="tab" data-tab="alerts">Meldingen</button>
@@ -302,6 +303,22 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </details>
           <p class="small" id="mqtt-status"></p>
           <button type="button" class="btn" id="mqtt-test">📡 Verbinding testen &amp; publiceren</button>
+        </div>
+
+        <div class="card" id="update-card">
+          <h2>⬆ RzMon bijwerken</h2>
+          <p class="small" id="update-status">…</p>
+          <div id="update-notes"></div>
+          <div id="update-progress" hidden></div>
+          <div class="update-actions">
+            <button type="button" class="btn primary" id="update-start" hidden>⬆ Nu bijwerken</button>
+            <button type="button" class="btn" id="update-check">🔍 Nu controleren</button>
+          </div>
+          <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="update_backup"><span></span> Eerst een back-up maken</label>
+          <p class="muted small" style="margin-top:-.4rem">Database en instellingen, in de lijst onder <i>Back-up</i>. Geldt voor de knop en voor automatisch bijwerken.</p>
+          <label class="switch"><input type="checkbox" name="update_auto"><span></span> Automatisch bijwerken</label>
+          <label class="update-time">Elke dag om <input type="time" name="update_time"> als er een nieuwe versie is</label>
+          <p class="muted small" style="margin-top:-.2rem">RzMon kijkt één keer per dag op GitHub of er een nieuwe versie is. Bijwerken doet de hulpdienst op de server: eerst eventueel een back-up, dan de nieuwe versie ophalen en het installatiescript uitvoeren, net als het commando met <code>install-rocky.sh</code>. Je instellingen en gegevens blijven staan. De agents werk je apart bij (hieronder).</p>
         </div>
 
         <div class="card" id="agents-card">

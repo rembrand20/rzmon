@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.29.0 – 2026-10-21
+### Nieuw
+- **RzMon bijwerken vanuit de webinterface** (*Instellingen → ⬆ RzMon bijwerken*):
+  - RzMon kijkt één keer per dag op GitHub of er een nieuwe versie is (of direct met **🔍 Nu controleren**), en laat zien **wat er nieuw is**;
+  - bovenin staat voor beheerders een label **⬆ 1.x.y** als er een update is;
+  - **⬆ Nu bijwerken**: de hulpdienst op de server maakt eventueel eerst een back-up, haalt de nieuwe versie op en voert het installatiescript uit, net als het commando met `install-rocky.sh`. Je ziet de voortgang stap voor stap; daarna laadt de pagina de nieuwe versie;
+  - schakelaar **Eerst een back-up maken** (standaard aan), ook voor automatisch bijwerken;
+  - **Automatisch bijwerken**: elke dag op een tijdstip naar keuze (standaard 04:00), als er een nieuwe versie is.
+- Werkt bij installaties met `install-rocky.sh` (Rocky/RHEL/AlmaLinux 10). **Eenmalig**: voer na deze update het installatiecommando nog één keer uit; dat zet de hulpdienst voor bijwerken klaar.
+- Veilig: de webpagina zet alleen een verzoek klaar. De hulpdienst voert altijd dezelfde vaste stappen uit en weigert als de RzMon-map ontgrendeld is of bestanden niet van root zijn.
+
 ## 1.28.0 – 2026-10-21
 ### Nieuw
 - **🌙 Stille uren** (*Instellingen → 🔔 Meldingen*): periodes waarin geen meldingen uitgaan, ook geen critical.

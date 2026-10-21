@@ -52,3 +52,7 @@ if ($lock !== false) {
 if ($msg = Backup::runScheduled()) {
     echo date('c') . " $msg\n";
 }
+// Dagelijks kijken of er een nieuwe versie is; eventueel automatisch bijwerken (Instellingen → RzMon bijwerken)
+if ($msg = Updater::cron()) {
+    echo date('c') . " $msg\n";
+}
