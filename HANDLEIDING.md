@@ -1038,6 +1038,18 @@ Per server kun je dat anders instellen in de **Agent Manager** (*Commando-checks
 
 Deze regels blijven staan als je de agent opnieuw installeert.
 
+**Voorinstellingen:** in het checkformulier kies je bij *Voorinstelling* een kant-en-klare check; alles wordt ingevuld en je kunt het daarna nog aanpassen. De groep die bij de server past (herkend aan zijn services) staat bovenaan:
+
+| Groep | Voorinstellingen |
+|---|---|
+| 🗄️ TrueNAS / ZFS | ZFS-pools gezond · pools onder 80% vol · scrub zonder fouten · geen TrueNAS-meldingen (root) · apps (Docker) draaien (root) |
+| 🖥️ Proxmox VE | cluster heeft quorum (root) · opslag onder 85% vol (root) · laatste back-uptaak geslaagd (root) · Ceph gezond (root) · geen Proxmox-updates |
+| 🐧 Linux | geen mislukte services · geen herstart nodig (Debian/Ubuntu, of Rocky/RHEL met root) · updates (Debian/Ubuntu) · beveiligingsupdates (Rocky/RHEL, root) · klok gesynchroniseerd · inodes onder 90% · CPU-temperatuur · software-RAID heel · SMART (root) · Docker-containers draaien (root) |
+
+Voorinstellingen met *(root)* werken alleen als commando's op die server *als root* mogen; het formulier waarschuwt als dat niet zo is. De voorinstellingen voor TrueNAS en Proxmox zijn nog niet op een echt systeem getest. Klopt er een niet, laat het weten.
+
+**＋ Aanbevolen checks** (knop in de *Agent Manager*): RzMon herkent of de server een TrueNAS, Proxmox of gewone Linux-server is (en Debian- of RHEL-familie), en toont een lijst met vinkjes. De aanbevolen checks staan al aangevinkt; checks die er al zijn worden overgeslagen. Met één klik worden ze allemaal toegevoegd.
+
 **De check toevoegen:** *＋ Check → Commando*. Vul in:
 - het **commando**, bijvoorbeeld `zpool status -x`;
 - hoe het **vergeleken** wordt:

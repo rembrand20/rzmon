@@ -1129,6 +1129,8 @@ function checkForm(c, h, preset = {}) {
       </label>
       <div id="cmd-wrap" hidden>
         <p class="hint" id="cmd-mode-info"></p>
+        <label>Voorinstelling <select id="cmd-preset">${presetOptions('linux')}</select></label>
+        <p class="hint" id="cmd-preset-info"></p>
         <label>Commando <textarea name="cmd" class="mono" rows="2" maxlength="1000" placeholder="bv. zpool status -x">${esc(cmdCfg.cmd || '')}</textarea></label>
         <div class="row2">
           <label>Goed als de uitvoer
@@ -1309,8 +1311,14 @@ function checkForm(c, h, preset = {}) {
     $('#cmd-expect-wrap').hidden = $('[name=cmd_match]', form).value === 'exit0';
     if (isCmd && !cmdInfoLoaded) {
       cmdInfoLoaded = true;
+      api('agent_services', null, { id: h.id }).then((r) => {
+        const { platform } = detectPlatform(r.list);
+        const sel = $('#cmd-preset');
+        if (sel) sel.innerHTML = presetOptions(platform, sel.value);
+      }).catch(() => {});
       api('agent_commands').then((r) => {
         const m = (r.hosts.find((x) => x.id === +h.id) || {}).mode || 'off';
+        cmdMode = m;
         $('#cmd-mode-info').innerHTML = m === 'off'
           ? `<b class="warn-txt">⚠️ Commando's staan voor ${esc(h.name)} uit.</b> De check blijft onbekend tot je ze aanzet: Instellingen → ⬆ Agents bijwerken, of per server in de Agent Manager.`
           : `Commando's op ${esc(h.name)}: <b>${esc(CMD_MODES[m])}</b>.`;
@@ -1327,6 +1335,14 @@ function checkForm(c, h, preset = {}) {
     }
   };
   let cmdInfoLoaded = false;
+  let cmdMode = 'off';
+  const presetInfo = () => {
+    const p = CMD_PRESETS[$('#cmd-preset').value];
+    $('#cmd-preset-info').innerHTML = !p ? '' : [
+      p.root ? (cmdMode === 'root' ? 'Draait als root.' : `<b class="warn-txt">⚠️ Heeft root nodig</b>, en commando's op ${esc(h.name)} staan ${esc(CMD_MODES[cmdMode])}: zet ze op <i>als root</i> (Agent Manager), anders mislukt hij.`) : 'Werkt als nobody.',
+      p.tested ? '' : '<span class="muted">Nog niet op een echt systeem getest; laat weten als hij niet goed uitkomt.</span>',
+    ].filter(Boolean).join(' ');
+  };
   // Servicekiezer (agent-servers): alle services op de server, met status; filtert op wat je typt
   let svcList = null;
   const watched = new Set((h.checks || []).filter((x) => x.type === 'service' && (!c.id || +x.id !== +c.id)).map((x) => x.target));
@@ -1366,6 +1382,17 @@ function checkForm(c, h, preset = {}) {
   $$('#res-wrap input[type=checkbox]', form).forEach((cb) => (cb.onchange = () => update(false)));
   $('[name=test_type]', form).onchange = () => update(false);
   $('[name=cmd_match]', form).onchange = () => update(false);
+  $('#cmd-preset').onchange = (e) => {
+    const p = CMD_PRESETS[e.target.value];
+    if (p) {
+      const f = (n) => $(`[name=${n}]`, form);
+      f('cmd').value = p.cmd; f('cmd_match').value = p.match; f('cmd_expect').value = p.expect; f('cmd_fail').value = p.fail;
+      f('cmd_timeout').value = p.timeout; f('interval_sec').value = p.interval;
+      if (!f('name').value || Object.values(CMD_PRESETS).some((x) => x.name === f('name').value)) f('name').value = p.name;
+      update(false);
+    }
+    presetInfo();
+  };
   // Voorinstelling kiezen: bron, patroon, drempels en naam invullen
   $('[name=preset]', form).onchange = (e) => {
     const p = LOG_PRESETS[e.target.value];
@@ -1740,6 +1767,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
       </details>
       </div>`,
     buttons: [
+      ...(isAdmin() ? [{ label: '＋ Aanbevolen checks', style: 'margin-right:auto', onClick: () => recommendedChecks(findHost(h.id)) }] : []),
       { label: '↻ Nieuw token', onClick: async () => {
         if (!confirm('Nieuw token genereren? De oude agent werkt dan niet meer.')) return;
         await api('host_token', { id: h.id }); await refresh(); agentInstructions(findHost(h.id));
@@ -1785,6 +1813,48 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   // Raad Home Assistant bij een naam of agent-gegevens die erop wijzen
   if (/home.?assistant|hass|haos/i.test(h.name) || h.metrics.includes('service:homeassistant')) show('ha');
   else if (/truenas|freenas/i.test(h.name) || h.metrics.some((m) => m.startsWith('service:middlewared'))) show('truenas');
+}
+
+/** Aanbevolen commando-checks voor deze server (TrueNAS, Proxmox of Linux), met vinkjes; bestaande slaan we over. */
+async function recommendedChecks(h) {
+  let list = null, mode = 'off';
+  try { list = (await api('agent_services', null, { id: h.id })).list; } catch (e) { /* zonder lijst: Linux */ }
+  try { mode = ((await api('agent_commands')).hosts.find((x) => x.id === +h.id) || {}).mode || 'off'; } catch (e) { /* leeg */ }
+  const { platform, os } = detectPlatform(list);
+  const have = new Set(h.checks.filter((c) => c.type === 'command').map((c) => c.name));
+  const names = new Set((list || []).map((x) => x[0]));
+  // ZFS en Docker ook voorstellen als die diensten op de server draaien
+  const offered = (k, p) => platform in p.rec || (k === 'zfs_health' && names.has('zfs-zed')) || (k === 'docker' && names.has('docker'));
+  const items = Object.entries(CMD_PRESETS).filter(([k, p]) => offered(k, p) && (!p.os || !os || p.os === os));
+  // Standaard aangevinkt: aanbevolen voor dit platform (bij onbekende Linux-variant niet de distro-specifieke)
+  const checked = (k, p) => (p.rec[platform] && (!p.os || p.os === os)) || (k === 'zfs_health' && names.has('zfs-zed')) || (k === 'docker' && names.has('docker'));
+  const row = ([k, p]) => {
+    const exists = have.has(p.name);
+    return `<label class="rec-row ${exists ? 'muted' : ''}"><input type="checkbox" name="rec_${k}" ${!exists && checked(k, p) ? 'checked' : ''} ${exists ? 'disabled' : ''}>
+      <span><b>${esc(p.label)}</b>${p.root ? ' <span class="badge-root">root</span>' : ''}${exists ? ' · al aanwezig' : ''}<br>
+      <code class="small">${esc(p.cmd.length > 90 ? p.cmd.slice(0, 87) + '…' : p.cmd)}</code></span></label>`;
+  };
+  const needRoot = items.some(([, p]) => p.root);
+  modal({
+    title: `＋ Aanbevolen checks – ${h.name}`,
+    wide: true,
+    body: `<p style="margin-top:0">Herkend als <b>${CMD_GROUPS[platform]}</b>${os ? ` (${os === 'rhel' ? 'Rocky/RHEL' : 'Debian-familie'})` : ''}. Vink aan wat je wilt bewaken; elke regel wordt een <i>Commando</i>-check die je later nog kunt aanpassen.</p>
+      ${mode === 'off' ? `<p class="warn-txt small"><b>⚠️ Commando's staan voor ${esc(h.name)} uit.</b> De checks blijven onbekend tot je ze aanzet (Agent Manager → Commando-checks op deze server).</p>`
+        : mode === 'nobody' && needRoot ? '<p class="warn-txt small">⚠️ Checks met <b>root</b> werken alleen als commando\'s op deze server <i>als root</i> mogen.</p>' : ''}
+      <div class="rec-list">${items.map(row).join('')}</div>
+      <p class="muted small">Voorinstellingen voor TrueNAS en Proxmox zijn nog niet op een echt systeem getest; laat weten als er een niet goed uitkomt.</p>`,
+    buttons: [{ label: 'Toevoegen', cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const chosen = items.filter(([k]) => d['rec_' + k]);
+      if (!chosen.length) throw new Error('Vink minstens één check aan');
+      for (const [, p] of chosen) {
+        await api('check_save', { host_id: h.id, type: 'command', name: p.name, interval_sec: p.interval, enabled: true,
+          command: { cmd: p.cmd, expect: p.expect, match: p.match, timeout: p.timeout, fail: p.fail } });
+      }
+      toast(`${chosen.length} check(s) toegevoegd`);
+      refresh();
+    },
+  });
 }
 
 /** Versies vergelijken ("1.10.0" > "1.9.2"); negatief als a ouder is dan b. */
@@ -2474,6 +2544,47 @@ function wireCopy(root) {
 const CMD_MODES = { off: 'uit', nobody: 'als nobody', root: 'als root' };
 const CMD_MATCHES = { equals: 'is gelijk aan', contains: 'bevat', regex: 'komt overeen met (regex)', exit0: 'exitcode is 0' };
 const CMD_RANK = { off: 0, nobody: 1, root: 2 };
+const CMD_GROUPS = { truenas: '🗄️ TrueNAS SCALE / ZFS', proxmox: '🖥️ Proxmox VE', linux: '🐧 Linux' };
+// Kant-en-klare commando-checks. rec: in "Aanbevolen checks" voor dat platform (true = standaard aangevinkt);
+// os: alleen voor Debian/Ubuntu of Rocky/RHEL; root: werkt niet als nobody; tested: op een echt systeem getest.
+const CMD_PRESETS = {
+  zfs_health: {"group": "truenas", "label": "ZFS-pools gezond", "name": "ZFS-pools", "cmd": "zpool status -x", "match": "equals", "expect": "all pools are healthy", "fail": "crit", "root": false, "interval": 300, "rec": {"truenas": true, "proxmox": false}, "timeout": 10, "tested": false},
+  zfs_cap: {"group": "truenas", "label": "ZFS-pools onder 80% vol", "name": "ZFS-capaciteit", "cmd": "zpool list -H -o capacity | tr -d '%' | sort -n | tail -1", "match": "regex", "expect": "^[0-7]?[0-9]$", "fail": "warn", "root": false, "interval": 300, "rec": {"truenas": true}, "timeout": 10, "tested": false},
+  zfs_scrub: {"group": "truenas", "label": "Scrub zonder fouten", "name": "ZFS-scrub", "cmd": "out=$(zpool status) || exit 2; ! grep -E 'repaired [1-9]|with [1-9][0-9]* errors|errors: [0-9]+ data errors' <<<\"$out\"", "match": "exit0", "expect": "", "fail": "warn", "root": false, "interval": 900, "rec": {"truenas": true}, "timeout": 10, "tested": false},
+  truenas_alerts: {"group": "truenas", "label": "Geen TrueNAS-meldingen (ERROR/CRITICAL)", "name": "TrueNAS-meldingen", "cmd": "midclt call alert.list | python3 -c 'import json,sys; a=[x for x in json.load(sys.stdin) if not x.get(\"dismissed\") and x.get(\"level\") in (\"ERROR\",\"CRITICAL\",\"ALERT\",\"EMERGENCY\")]; print(len(a)); [print((x.get(\"formatted\") or x.get(\"klass\") or \"\")[:120]) for x in a[:3]]'", "match": "equals", "expect": "0", "fail": "warn", "root": true, "interval": 300, "rec": {"truenas": true}, "timeout": 10, "tested": false},
+  truenas_apps: {"group": "truenas", "label": "Apps (Docker) draaien", "name": "TrueNAS-apps", "cmd": "s=$(docker ps -a --filter status=exited --filter status=dead --format '{{.Names}}') || exit 2; [ -z \"$s\" ] || { echo \"gestopt: $(echo $s | head -c 200)\"; exit 1; }", "match": "exit0", "expect": "", "fail": "warn", "root": true, "interval": 300, "rec": {"truenas": false}, "timeout": 10, "tested": false},
+  pve_quorum: {"group": "proxmox", "label": "Cluster heeft quorum (alleen bij een cluster)", "name": "Proxmox-quorum", "cmd": "pvecm status | grep -q 'Quorate:.*Yes' && echo ok", "match": "equals", "expect": "ok", "fail": "crit", "root": true, "interval": 120, "rec": {"proxmox": false}, "timeout": 10, "tested": false},
+  pve_storage: {"group": "proxmox", "label": "Opslag onder 85% vol", "name": "Proxmox-opslag", "cmd": "pvesm status | awk 'NR>1 { p=$7; gsub(\"%\",\"\",p); if (p+0 > 85) { print $1 \" \" $7; f=1 } } END { exit f }'", "match": "exit0", "expect": "", "fail": "warn", "root": true, "interval": 300, "rec": {"proxmox": true}, "timeout": 10, "tested": false},
+  pve_backup: {"group": "proxmox", "label": "Laatste back-uptaak (vzdump) geslaagd", "name": "Proxmox-back-up", "cmd": "awk -F: '$6==\"vzdump\" {l=$0} END {n=split(l,a,\" \"); s=\"\"; for(i=3;i<=n;i++) s=s (i>3?\" \":\"\") a[i]; print (s==\"\"?\"geen back-uptaak gevonden\":s)}' /var/log/pve/tasks/index", "match": "equals", "expect": "OK", "fail": "crit", "root": true, "interval": 900, "rec": {"proxmox": true}, "timeout": 10, "tested": false},
+  pve_ceph: {"group": "proxmox", "label": "Ceph gezond (alleen met Ceph)", "name": "Ceph", "cmd": "ceph health", "match": "equals", "expect": "HEALTH_OK", "fail": "crit", "root": true, "interval": 120, "rec": {"proxmox": false}, "timeout": 10, "tested": false},
+  pve_updates: {"group": "proxmox", "label": "Geen Proxmox-updates", "name": "Proxmox-updates", "cmd": "apt list --upgradable 2>/dev/null | grep -c -E '^(pve|proxmox)'", "match": "equals", "expect": "0", "fail": "warn", "root": false, "interval": 3600, "rec": {"proxmox": true}, "timeout": 10, "tested": false},
+  failed_units: {"group": "linux", "label": "Geen mislukte services", "name": "Mislukte services", "cmd": "! systemctl --failed --no-legend --plain | awk '{print $1}' | grep .", "match": "exit0", "expect": "", "fail": "warn", "root": false, "interval": 300, "rec": {"linux": true, "proxmox": true}, "timeout": 10, "tested": false},
+  reboot_deb: {"group": "linux", "os": "debian", "label": "Geen herstart nodig (Debian/Ubuntu/Proxmox)", "name": "Herstart nodig", "cmd": "if [ -f /var/run/reboot-required ]; then echo \"herstart nodig\"; head -3 /var/run/reboot-required.pkgs 2>/dev/null; exit 1; fi", "match": "exit0", "expect": "", "fail": "warn", "root": false, "interval": 900, "rec": {"linux": true, "proxmox": true}, "timeout": 10, "tested": true},
+  reboot_rhel: {"group": "linux", "os": "rhel", "label": "Geen herstart nodig (Rocky/RHEL)", "name": "Herstart nodig", "cmd": "needs-restarting -r", "match": "exit0", "expect": "", "fail": "warn", "root": true, "interval": 900, "rec": {"linux": true}, "timeout": 10, "tested": false},
+  updates_deb: {"group": "linux", "os": "debian", "label": "Geen updates (Debian/Ubuntu)", "name": "Updates", "cmd": "apt list --upgradable 2>/dev/null | grep -c upgradable", "match": "equals", "expect": "0", "fail": "warn", "root": false, "interval": 3600, "rec": {"linux": true}, "timeout": 10, "tested": true},
+  security_rhel: {"group": "linux", "os": "rhel", "label": "Geen beveiligingsupdates (Rocky/RHEL)", "name": "Beveiligingsupdates", "cmd": "dnf -q updateinfo list --security 2>/dev/null | wc -l", "match": "equals", "expect": "0", "fail": "warn", "root": true, "interval": 3600, "timeout": 60, "rec": {"linux": true}, "tested": false},
+  ntp: {"group": "linux", "label": "Klok gesynchroniseerd (NTP)", "name": "Tijd (NTP)", "cmd": "timedatectl show -p NTPSynchronized --value", "match": "equals", "expect": "yes", "fail": "warn", "root": false, "interval": 900, "rec": {"linux": true, "proxmox": true, "truenas": true}, "timeout": 10, "tested": false},
+  inodes: {"group": "linux", "label": "Inodes onder 90% (alle disks)", "name": "Inodes", "cmd": "df --output=ipcent -x tmpfs -x devtmpfs -x squashfs -x overlay 2>/dev/null | tail -n +2 | tr -d ' %' | grep -v -- '-' | sort -n | tail -1", "match": "regex", "expect": "^[0-8]?[0-9]$", "fail": "warn", "root": false, "interval": 900, "rec": {"linux": true}, "timeout": 10, "tested": true},
+  temp: {"group": "linux", "label": "CPU-temperatuur onder 70 °C", "name": "Temperatuur", "cmd": "cat /sys/class/thermal/thermal_zone0/temp", "match": "regex", "expect": "^([0-9]{1,4}|[1-6][0-9]{4})$", "fail": "warn", "root": false, "interval": 300, "rec": {}, "timeout": 10, "tested": false},
+  mdadm: {"group": "linux", "label": "Software-RAID (mdadm) heel", "name": "RAID (mdadm)", "cmd": "if grep -q '\\[[U_]*_[U_]*\\]' /proc/mdstat 2>/dev/null; then grep -B1 '_' /proc/mdstat | head -4; exit 1; fi", "match": "exit0", "expect": "", "fail": "crit", "root": false, "interval": 300, "rec": {"linux": false}, "timeout": 10, "tested": true},
+  smart: {"group": "linux", "label": "SMART: alle fysieke schijven gezond", "name": "SMART", "cmd": "fail=; for d in $(lsblk -dno NAME -e 7,11); do o=$(smartctl -H /dev/$d 2>/dev/null); if grep -qE \"overall-health|Health Status\" <<<\"$o\" && ! grep -qE \"PASSED|: OK\" <<<\"$o\"; then fail=\"$fail $d\"; fi; done; [ -z \"$fail\" ] || { echo \"geen OK van:$fail\"; exit 1; }", "match": "exit0", "expect": "", "fail": "crit", "root": true, "interval": 3600, "timeout": 30, "rec": {"proxmox": true, "linux": false}, "tested": false},
+  docker: {"group": "linux", "label": "Docker-containers draaien", "name": "Docker-containers", "cmd": "s=$(docker ps -a --filter status=exited --filter status=dead --format '{{.Names}}') || exit 2; [ -z \"$s\" ] || { echo \"gestopt: $(echo $s | head -c 200)\"; exit 1; }", "match": "exit0", "expect": "", "fail": "warn", "root": true, "interval": 300, "rec": {"linux": false}, "timeout": 10, "tested": false},
+};
+
+/** Platform van een agent-server uit zijn servicelijst: TrueNAS, Proxmox of Linux, en Debian- of RHEL-familie. */
+function detectPlatform(list) {
+  const names = new Set((list || []).map((s) => s[0]));
+  const platform = names.has('middlewared') ? 'truenas' : (names.has('pvedaemon') || names.has('pve-cluster')) ? 'proxmox' : 'linux';
+  const os = names.has('apt-daily') || platform === 'proxmox' || platform === 'truenas' ? 'debian' : names.has('dnf-makecache') ? 'rhel' : null;
+  return { platform, os };
+}
+
+/** Keuzelijst met voorinstellingen; de groep van dit platform bovenaan. */
+function presetOptions(platform, selected = '') {
+  const order = [platform, ...Object.keys(CMD_GROUPS).filter((g) => g !== platform)];
+  return '<option value="">— Zelf invullen —</option>' + order.map((g) => `<optgroup label="${CMD_GROUPS[g]}">${Object.entries(CMD_PRESETS)
+    .filter(([, p]) => p.group === g).map(([k, p]) => `<option value="${k}" ${k === selected ? 'selected' : ''}>${esc(p.label)}${p.root ? ' (root)' : ''}</option>`).join('')}</optgroup>`).join('');
+}
 
 /**
  * Commando's algemeen (hostId null) of per server zetten. Ruimer maken (uit → nobody → root) vraagt om je

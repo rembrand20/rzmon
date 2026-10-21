@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.34.0 – 2026-10-21
+### Nieuw
+- **Voorinstellingen voor commando-checks**: 21 kant-en-klare checks in drie groepen. De groep die bij de server past, staat bovenaan.
+  - **TrueNAS/ZFS:** pools gezond, pools onder 80% vol, scrub zonder fouten, TrueNAS-meldingen, apps.
+  - **Proxmox:** quorum, opslag onder 85%, laatste back-uptaak, Ceph, updates.
+  - **Linux:** mislukte services, herstart nodig, (beveiligings)updates, NTP, inodes, temperatuur, RAID, SMART, Docker.
+- Bij elke voorinstelling staat of hij **root** nodig heeft; het formulier waarschuwt als commando's op die server alleen als nobody mogen.
+- **＋ Aanbevolen checks** in de Agent Manager: RzMon herkent TrueNAS, Proxmox of Linux (en Debian- of RHEL-familie) en stelt een set checks voor met vinkjes. Bestaande checks worden overgeslagen.
+- De voorinstellingen voor TrueNAS en Proxmox zijn nog niet op een echt systeem getest.
+
 ## 1.33.0 – 2026-10-21
 ### Nieuw
 - **🔑 Logins en sudo op de pagina Meldingen** (via de agent): SSH- en console-logins, `sudo` (met het commando, als wie en in welke map) en `su`. Ook mislukte pogingen (fout wachtwoord, *niet in sudoers*, mislukte SSH-logins); die worden per server en IP-adres per uur opgeteld. Per regel staat wie, wat en op welke server.

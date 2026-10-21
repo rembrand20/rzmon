@@ -729,3 +729,11 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .alert-item.auth, .alert-table tr.auth { --c: var(--primary); }
 #alerts-filter { margin-left: auto; }
 #alerts-filter + .btn { margin-left: 0; }
+
+/* Aanbevolen checks */
+.rec-list { display: flex; flex-direction: column; gap: .3rem; max-height: 55vh; overflow: auto; }
+.rec-row { flex-direction: row; align-items: flex-start; gap: .6rem; font-weight: 400; margin: 0; padding: .4rem .5rem; border-radius: 8px; cursor: pointer; }
+.rec-row:hover { background: var(--card-2); }
+.rec-row input { width: auto; margin-top: .25rem; }
+.rec-row code { color: var(--muted); word-break: break-all; }
+.badge-root { font-size: .7rem; font-weight: 700; padding: 0 .35rem; border-radius: 99px; background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
