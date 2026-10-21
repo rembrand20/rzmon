@@ -38,6 +38,8 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **🖥️ Commando-checks**: laat de agent een commando uitvoeren (bv. `zpool status -x`) en vergelijk de uitvoer met het verwachte antwoord. Standaard uit; aanzetten per agent als `nobody` of root, met wachtwoord en logboek.
 
+**⇄ Omgekeerde status**: per check zelf kiezen welke status hij krijgt als hij slaagt of mislukt, voor iets dat juist níet mag draaien of bereikbaar mag zijn.
+
 **🔑 Logins en sudo**: de agent meldt SSH- en console-logins, `sudo` en `su` (ook mislukte pogingen) op de pagina Meldingen: wie, wat, op welke server.
 
 **🛡️ IDS**: inbraakdetectie via de agents, op een eigen pagina. Gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen, reverse shells, brute force en inlog na brute force. Eerst *leren* (alleen melden), daarna eventueel *blokkeren*: aanvallers komen in een eigen firewalltabel op de server, met een knop om te deblokkeren. Critical ook via Pushover. Standaard uit.

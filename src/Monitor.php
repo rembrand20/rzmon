@@ -52,6 +52,7 @@ final class Monitor
         if ($row['type'] === 'disk') {
             $res = Stats::applyDiskForecast($row, $res);
         }
+        $res = Checks::reverse($row, $res);
         self::process($row, $res);
         return $res;
     }
@@ -115,7 +116,7 @@ final class Monitor
      */
     public static function hostUnreachable(int $hostId): bool
     {
-        $rows = q("SELECT type, status FROM checks WHERE host_id = ? AND enabled = 1 AND type IN ('ping','tcp','http')", [$hostId])->fetchAll();
+        $rows = q("SELECT type, status FROM checks WHERE host_id = ? AND enabled = 1 AND type IN ('ping','tcp','http') AND reverse_ok IS NULL", [$hostId])->fetchAll();
         $pings = array_filter($rows, fn($r) => $r['type'] === 'ping');
         $relevant = $pings ?: $rows;
         if (!$relevant) {
@@ -293,7 +294,7 @@ final class Monitor
                 $icon = [STATUS_WARN => '🟠', STATUS_CRIT => '🔴', STATUS_UNKNOWN => '⚪'][$status];
                 $prio = (int) ($isWarnish ? ($s['pushover_priority_warn'] ?? 0) : ($s['pushover_priority_crit'] ?? 1));
                 $extra = '';
-                if ($status === STATUS_CRIT && in_array($check['type'], ['ping', 'tcp', 'http'], true)) {
+                if ($status === STATUS_CRIT && in_array($check['type'], ['ping', 'tcp', 'http'], true) && $check['reverse_ok'] === null) {
                     $children = (int) q('SELECT COUNT(*) FROM hosts WHERE parent_id = ? AND enabled = 1', [$check['hid']])->fetchColumn();
                     if ($children > 0 && self::hostUnreachable((int) $check['hid'])) {
                         $extra = "\nMeldingen van $children afhankelijke server(s) worden onderdrukt.";

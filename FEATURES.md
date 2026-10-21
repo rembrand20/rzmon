@@ -38,6 +38,8 @@ Dit is een overzicht van wat RzMon en de agent kunnen, in het kort. Hoe je alles
 
 Elke check heeft eigen drempels voor warning en critical, een eigen interval en een minigrafiek van de laatste 24 uur.
 
+**⇄ Omgekeerde status** (ping, poort, HTTP, service, container, Podman, commando, Home Assistant): kies zelf de status als de check slaagt (OK, warning of critical) en als hij mislukt. Voor iets dat juist níet mag draaien of bereikbaar mag zijn, zoals telnet of een oude server. Telt niet mee voor de bereikbaarheid van een server.
+
 ## 2. Soorten servers
 - **Lokaal**: de RzMon-server zelf; alles wordt direct uitgelezen.
 - **Remote met agent**: een Linux-server, TrueNAS SCALE of Home Assistant die zelf gegevens doorstuurt. Stopt de agent, dan worden de checks na 5 minuten (instelbaar) critical.

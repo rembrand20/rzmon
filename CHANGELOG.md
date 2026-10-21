@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.36.0 – 2026-10-21
+### Nieuw
+- **⇄ Omgekeerde status per check.** In het checkformulier kies je *Status als de check slaagt* (OK, warning of critical) en, bij omgekeerd, *Status als de check mislukt* (standaard OK). Zo krijg je een melding als iets reageert dat juist níet mag draaien of bereikbaar mag zijn, bijvoorbeeld SSH, telnet of een oude server.
+- Kan bij ping, TCP-poort, HTTP(S), service, container, Podman, commando en Home Assistant. Een waarschuwing telt als "slaagt"; onbekend blijft onbekend.
+- Op het dashboard staat een **⇄** achter de naam van een omgekeerde check, en de melding begint met *⇄ Reageert (dat mag niet)* of *⇄ Reageert niet, zoals bedoeld*.
+- Omgekeerde ping-, poort- en HTTP-checks tellen niet mee voor *Bereikbaar*, de gezondheidsbalk en afhankelijke servers.
+- Bestaande checks blijven gewoon normaal. De agent hoeft niet bijgewerkt te worden.
+
 ## 1.35.1 – 2026-10-21
 ### Opgelost
 - Pagina IDS: bij een Home Assistant-add-on stond *nog geen IDS-rapport*, terwijl er daar nooit een komt. Nu staat er *niet beschikbaar in de Home Assistant-add-on*, en die server staat niet meer in de keuzelijst bij *IP blokkeren*.

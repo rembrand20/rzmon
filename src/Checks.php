@@ -39,6 +39,28 @@ final class Checks
         }
     }
 
+    /** Checktypes waarbij "omgekeerd" kan: werkt het wel of niet (geen drempels) */
+    public const REVERSIBLE = ['ping', 'tcp', 'http', 'service', 'container', 'podman', 'command', 'ha'];
+
+    /**
+     * Omgekeerde status: slaagt de check (OK of WARNING), dan krijgt hij reverse_ok;
+     * mislukt hij (CRITICAL), dan reverse_fail. UNKNOWN blijft UNKNOWN.
+     */
+    public static function reverse(array $check, array $res): array
+    {
+        if ($check['reverse_ok'] === null || !in_array($check['type'], self::REVERSIBLE, true) || $res['status'] === STATUS_UNKNOWN) {
+            return $res;
+        }
+        if ($res['status'] === STATUS_CRIT) {
+            $res['status'] = (int) ($check['reverse_fail'] ?? STATUS_OK);
+            $res['message'] = '⇄ Reageert niet' . ($res['status'] === STATUS_OK ? ', zoals bedoeld' : '') . ': ' . $res['message'];
+        } else {
+            $res['status'] = (int) $check['reverse_ok'];
+            $res['message'] = '⇄ Reageert' . ($res['status'] === STATUS_OK ? '' : ' (dat mag niet)') . ': ' . $res['message'];
+        }
+        return $res;
+    }
+
     private static function result(int $status, ?float $value, string $message): array
     {
         return ['status' => $status, 'value' => $value, 'message' => $message];

@@ -86,6 +86,9 @@ final class Installer
         ['checks', 'quiet', 'VARCHAR(1000) NULL'],         // stille uren voor deze check (JSON: mode global/own/never), anders algemeen
         ['checks', 'quiet_held', 'TINYINT NULL'],          // meldingen tegengehouden door stille uren: status die de gebruiker het laatst kreeg
         ['checks', 'flap_ended_at', 'DATETIME NULL'],      // weer stabiel: wisselingen van daarvoor tellen niet meer mee         // container: CPU, RAM en disk van één meting (JSON)
+        // Omgekeerde status: slaagt de check, dan deze status (NULL = normaal); mislukt hij, dan reverse_fail
+        ['checks', 'reverse_ok', 'TINYINT NULL'],
+        ['checks', 'reverse_fail', 'TINYINT NULL'],
         ['users', 'email', 'VARCHAR(190) NULL'],         // voor "wachtwoord vergeten"
         ['users', 'pw_changed_at', 'DATETIME NULL'],     // sessies van vóór dit moment worden uitgelogd
         // Agent bijwerken vanuit RzMon: gevraagd (knop), naar de agent gestuurd, uitkomst, en hoe de agent dat kan

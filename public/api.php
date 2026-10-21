@@ -896,14 +896,17 @@ switch ($action) {
         }
         // Stille uren: null = algemeen, of eigen vensters / nooit stil
         $quiet = is_array($in['quiet'] ?? null) && ($qo = NotifyRules::cleanQuietOwn($in['quiet'])) !== null ? json_encode($qo) : null;
+        // Omgekeerde status (alleen bij werkt-het-wel-of-niet-checks): status als hij slaagt / mislukt
+        $revOk = in_array($type, Checks::REVERSIBLE, true) && in_array((int) ($in['reverse_ok'] ?? 0), [STATUS_WARN, STATUS_CRIT], true) ? (int) $in['reverse_ok'] : null;
+        $revFail = $revOk !== null ? max(STATUS_OK, min(STATUS_CRIT, (int) ($in['reverse_fail'] ?? STATUS_OK))) : null;
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
-            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options, $notify, $quiet, $command];
+            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options, $notify, $quiet, $command, $revOk, $revFail];
         if (!empty($in['id'])) {
-            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ?, notify = ?, quiet = ?, command = ? WHERE id = ?',
+            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ?, notify = ?, quiet = ?, command = ?, reverse_ok = ?, reverse_fail = ? WHERE id = ?',
                 [...$params, (int) $in['id']]);
             $id = (int) $in['id'];
         } else {
-            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, notify, quiet, command, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, notify, quiet, command, reverse_ok, reverse_fail, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [...$params, (int) ($in['host_id'] ?? 0)]);
             $id = (int) db()->lastInsertId();
         }

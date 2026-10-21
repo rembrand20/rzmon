@@ -58,6 +58,8 @@ RzMon bestaat uit vier onderdelen:
 | **Logbestand (zoeken)** | Treffers van een zoekpatroon in een logbestand, het systemlog of kernelmeldingen (bv. mislukte logins, hardwarefouten) | Aantal treffers in de laatste 15 min (instelbaar) | Agent |
 | **Container (Podman)** | Eén check per container: altijd de status (incl. healthcheck en herstarts), plus naar keuze CPU, RAM en disk | Gestopt/ongezond = CRITICAL; CPU/RAM in %, disk in MB, elk met eigen drempels | Agent met podman |
 
+**⇄ Omgekeerde status:** bij ping, poort, HTTP, service, container, Podman, commando en Home Assistant kies je zelf welke status een check krijgt als hij slaagt (OK, warning of critical) en als hij mislukt. Zo bewaak je iets dat juist níet mag draaien of bereikbaar mag zijn (§7.2).
+
 ### Drie soorten servers
 - **Lokaal**: de RzMon-server zelf. Alles wordt direct uitgelezen.
 - **Remote met agent**: een Linux-server of Home Assistant die zelf gegevens doorstuurt. Stopt de agent met rapporteren, dan worden de checks na 5 minuten CRITICAL (instelbaar).
@@ -576,7 +578,30 @@ Klik op een serverkaart op **＋**. Per type:
 - **Interval:** minimaal 30 seconden. Omdat cron elke minuut draait, is **1 minuut** in de praktijk het kortste interval.
 - **Na opslaan** wordt de check direct uitgevoerd.
 - **Knoppen per check:** ↻ = nu checken, 📈 = grafiek, ✎ = bewerken of verwijderen.
+- **⇄ Omgekeerde status** (zie hieronder): voor iets dat juist níet mag draaien of bereikbaar mag zijn.
 - **Certificaat controleren** (bij HTTP(S) en SSL-certificaat): zet dit uit voor apparaten met een self-signed certificaat, zoals Proxmox of een NAS. De vervaldatum wordt dan nog steeds bewaakt.
+
+**⇄ Omgekeerde status**
+
+Soms wil je juist een melding als iets wél reageert: telnet of FTP mag niet luisteren, een oude server moet uit staan, of een website mag van buitenaf niet bereikbaar zijn. Daarvoor heeft het checkformulier twee keuzes:
+
+- **Status als de check slaagt:** *OK (normaal)*, *WARNING* of *CRITICAL*. Kies je WARNING of CRITICAL, dan is de check omgekeerd.
+- **Status als de check mislukt:** *OK* (standaard), *WARNING* of *CRITICAL*. Deze keuze verschijnt pas als de check omgekeerd is.
+
+Voorbeeld: een service-check op `sshd`, ingesteld op *slaagt = CRITICAL* en *mislukt = OK*:
+
+| Wat de check ziet | Normaal | Omgekeerd |
+|---|---|---|
+| sshd draait | ✅ OK | 🔴 CRITICAL: *⇄ Reageert (dat mag niet): …* |
+| sshd draait niet | 🔴 CRITICAL | ✅ OK: *⇄ Reageert niet, zoals bedoeld: …* |
+| Geen gegevens (agent stil) | ⚪ onbekend | ⚪ onbekend |
+
+Goed om te weten:
+- Kan bij **ping, TCP-poort, HTTP(S), service, container, Podman, commando en Home Assistant**. Bij checks met drempels (disk, CPU, RAM, logbestand, certificaat) kan het niet; daar zou het verwarrend zijn.
+- Een **waarschuwing telt als "slaagt"**: een trage website of een service die maar half door de diepere controle komt, reageert wel.
+- Op het dashboard staat een **⇄** achter de naam; met de muis erop zie je de instelling.
+- Meldingen, bevestigen, onderhoud, stille uren, grafieken en de API gebruiken gewoon de omgekeerde status.
+- Een omgekeerde ping-, poort- of HTTP-check telt **niet mee** voor *Bereikbaar*, de gezondheidsbalk (server onbereikbaar) en afhankelijke servers. Die gaan over of een server bereikbaar is, en daar zegt een omgekeerde check niets over.
 
 **Grafieken en beschikbaarheid**
 - Onder elke check staat een **minigrafiek** van de laatste 24 uur: de lijn is de meetwaarde, en de gekleurde streepjes eronder tonen de status. Klik erop (of op 📈) voor de grote grafiek, met minimum, gemiddelde en maximum.

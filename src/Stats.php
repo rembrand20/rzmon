@@ -16,7 +16,7 @@ final class Stats
                 SUM(r.created_at >= NOW() - INTERVAL 7 DAY) AS n7, SUM(r.created_at >= NOW() - INTERVAL 7 DAY AND r.status <> 2) AS ok7,
                 COUNT(*) AS n30, SUM(r.status <> 2) AS ok30
             FROM results r JOIN checks c ON c.id = r.check_id
-            WHERE c.enabled = 1 AND c.type IN ('ping', 'tcp', 'http') AND r.created_at >= NOW() - INTERVAL 30 DAY
+            WHERE c.enabled = 1 AND c.type IN ('ping', 'tcp', 'http') AND c.reverse_ok IS NULL AND r.created_at >= NOW() - INTERVAL 30 DAY
             GROUP BY c.host_id, is_ping")->fetchAll();
         $by = [];
         foreach ($rows as $r) {

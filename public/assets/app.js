@@ -71,6 +71,12 @@ function typeOf(c) {
 const MODES = { local: 'Lokaal (deze server)', agent: 'Remote met agent', remote: 'Remote (alleen netwerk)' };
 
 let state = { hosts: [], alerts: [] };
+// Omgekeerde status (zie Checks::REVERSIBLE)
+const REVERSIBLE = ['ping', 'tcp', 'http', 'service', 'container', 'podman', 'command', 'ha'];
+const REV_OK = [[0, 'OK (normaal)'], [1, '🟠 WARNING (omgekeerd)'], [2, '🔴 CRITICAL (omgekeerd)']];
+const REV_FAIL = [[0, '✅ OK'], [1, '🟠 WARNING'], [2, '🔴 CRITICAL']];
+const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', 'onbekend'];
+
 let stats = { uptime: {}, sparks: {} };
 // Instellingen in L1nes (zie applySettingsLayout); hier bovenaan omdat de weergave al bij het opstarten wordt toegepast
 const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', email: 'meldingen', webhook: 'meldingen', mqtt: 'meldingen', alarm: 'monitoring',
@@ -920,6 +926,7 @@ function checkBits(c) {
     + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">${c.maintenance.auto ? '🔧 auto, tot opgelost' : `🔧 tot ${esc(fmtUntil(c.maintenance.until))}`}</span>` : '')
     + (c.suppressed_by ? ' <span class="supp-tag" title="Geen melding: een server erboven is onbereikbaar">🔕 onderdrukt</span>' : '')
     + (c.notify ? ' <span class="own-notify" title="Deze check heeft eigen meldregels">🔔</span>' : '')
+    + (c.reverse_ok != null && REVERSIBLE.includes(c.type) ? ` <span class="rev-tag" title="Omgekeerd: reageert het, dan ${STATUS_WORD[c.reverse_ok]}; reageert het niet, dan ${STATUS_WORD[c.reverse_fail ?? 0]}">⇄</span>` : '')
     + ((q) => (q && q.mode === 'never' ? ' <span class="quiet-tag" title="Nooit stil: meldt ook tijdens de stille uren">🌙✕</span>'
       : q && q.mode === 'own' ? ` <span class="quiet-tag" title="Eigen stille uren: ${esc(quietText(q.windows))}">🌙</span>` : ''))(quietOf(c))
     + (c.flapping_since ? ` <span class="flap-tag" title="Wisselt steeds van status sinds ${esc(fmtUntil(c.flapping_since))}: per status hooguit één melding tot hij stabiel is">🔀 flapt</span>` : '');
@@ -1255,6 +1262,15 @@ function checkForm(c, h, preset = {}) {
         <div class="svc-pick" id="svc-pick" role="listbox"></div>
       </div>
       <label>Naam <span class="hint">(optioneel)</span><input name="name" value="${esc(c.name)}"></label>
+      <div id="rev-wrap" class="row2">
+        <label>Status als de check slaagt
+          <select name="reverse_ok">${REV_OK.map(([v, l]) => `<option value="${v}" ${+(c.reverse_ok ?? 0) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        </label>
+        <label id="rev-fail-wrap">Status als de check mislukt
+          <select name="reverse_fail">${REV_FAIL.map(([v, l]) => `<option value="${v}" ${+(c.reverse_fail ?? 0) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        </label>
+        <span class="hint" id="rev-hint" style="grid-column:1/-1"></span>
+      </div>
       <details class="notify-own" ${c.notify ? 'open' : ''}>
         <summary>🔔 Meldingen: <span id="notify-mode-label">${c.notify ? 'eigen regels' : 'standaard (algemene instellingen)'}</span></summary>
         <label class="switch small"><input type="checkbox" id="notify-own" ${c.notify ? 'checked' : ''}><span></span> Eigen meldregels voor deze check</label>
@@ -1352,6 +1368,7 @@ function checkForm(c, h, preset = {}) {
   showQuiet();
   const typeSel = $('[name=type]', form);
   const haSel = $('[name=metric]', form);
+  $('[name=reverse_ok]', form).onchange = () => update(false);
   const update = (setDefaults) => {
     const isContainer = typeSel.value === 'container';
     const isHa = typeSel.value === 'ha';
@@ -1371,6 +1388,14 @@ function checkForm(c, h, preset = {}) {
     words[0].textContent = t.low ? 'Warning onder' : 'Warning vanaf';
     words[1].textContent = t.low ? 'Critical onder' : 'Critical vanaf';
     $('#verify-wrap').hidden = !['http', 'ssl'].includes(typeSel.value);
+    // Omgekeerde status: alleen bij werkt-het-wel-of-niet-checks
+    const rev = REVERSIBLE.includes(typeSel.value);
+    $('#rev-wrap').hidden = !rev;
+    $('[name=reverse_ok]', form).disabled = !rev;
+    const revOn = rev && +$('[name=reverse_ok]', form).value > 0;
+    $('#rev-fail-wrap').hidden = !revOn;
+    $('[name=reverse_fail]', form).disabled = !revOn;
+    $('#rev-hint').innerHTML = revOn ? '⇄ <b>Omgekeerd:</b> reageert het (ook met een waarschuwing), dan krijgt de check de eerste status; reageert het niet, de tweede. Handig voor iets dat juist níet mag draaien of bereikbaar mag zijn. Onbekend blijft onbekend.' : '';
     // Diepere controle en extra test: alleen services op agent-servers
     const deep = typeSel.value === 'service' && h.mode === 'agent';
     $('#deep-wrap').hidden = !deep;

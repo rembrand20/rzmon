@@ -22,7 +22,7 @@ final class Health
     public static function current(?array $uptime = null): array
     {
         $hosts = q('SELECT id, name, mode, agent_seen FROM hosts WHERE enabled = 1 ORDER BY name')->fetchAll();
-        $checks = q('SELECT c.id, c.host_id, c.name, c.type, c.status, c.acked_at, c.problem_since, c.flapping_since, c.suppressed_by,
+        $checks = q('SELECT c.id, c.host_id, c.name, c.type, c.status, c.reverse_ok, c.acked_at, c.problem_since, c.flapping_since, c.suppressed_by,
                             c.maintenance_until, c.maintenance_reason, c.maintenance_auto,
                             h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.enabled = 1 AND h.enabled = 1')->fetchAll();
@@ -84,7 +84,7 @@ final class Health
             $reason = $agentSilent ? 'agent' : null;
             $acked = true;
             foreach ($active as $c) {
-                if ($c['suppressed_by'] !== null || ($c['type'] === 'ping' && (int) $c['status'] === STATUS_CRIT)) {
+                if ($c['suppressed_by'] !== null || ($c['type'] === 'ping' && $c['reverse_ok'] === null && (int) $c['status'] === STATUS_CRIT)) {
                     $reason ??= $c['suppressed_by'] !== null ? 'parent' : 'ping';
                     $acked = $acked && $c['acked_at'] !== null;
                 }
