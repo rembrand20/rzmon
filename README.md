@@ -35,6 +35,10 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **Dashboard**: bovenaan een **gezondheidsbalk** met de algehele status (🟢 Alles in orde, 🟠 Aandacht nodig, 🔴 Storing), een score van 0–100%, klikbare tellers als filter en het langst openstaande probleem; ook als sensor in Home Assistant (MQTT) en in de REST API. Kies onder *Instellingen → Weergave* tussen **Blox** (tegels) en **L1nes** (servers en hun checks onder elkaar als rijen, in Small of Large); de keuze geldt per apparaat, en ook voor de pagina's Instellingen en Meldingen.
 
+**🖥️ Commando-checks**: laat de agent een commando uitvoeren (bv. `zpool status -x`) en vergelijk de uitvoer met het verwachte antwoord. Standaard uit; aanzetten per agent als `nobody` of root, met wachtwoord en logboek.
+
+**🗄️ TrueNAS SCALE**: agent met één commando op je pool, met een cronjob van TrueNAS zelf; bijwerken met de knop.
+
 **🌙 Stille uren**: geen meldingen in vaste periodes (bv. 's nachts, meerdere vensters per dag van de week), algemeen of per check; na afloop één bericht met wat dan nog open is.
 
 **Storingen bevestigen**: ✔ bevestig een storing in het dashboard, via de link in de Pushover-melding, of in de Pushover-app (Emergency). Daarna krijg je er geen meldingen meer over; na herstel vervalt de bevestiging vanzelf.

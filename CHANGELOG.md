@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.31.0 – 2026-10-21
+### Nieuw
+- **Commando-check** (*＋ Check → Commando*): de agent voert een commando uit en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht (*is gelijk aan*, *bevat*, *regex* of *exitcode 0*). Klopt het niet, dan critical of warning (naar keuze); met time-out. Op het dashboard zie je wat er terugkwam. Bijvoorbeeld `zpool status -x` → `all pools are healthy`.
+- **Veilig aanzetten:** standaard voeren agents geen commando's uit. Aanzetten onder *Instellingen → ⬆ Agents bijwerken* (als `nobody` of als root), en per server anders in de Agent Manager. Ruimer maken vraagt om je wachtwoord; wijzigingen staan in een **logboek**. Op de server zelf blokkeert `COMMANDS=0` (of `COMMANDS=nobody`) het altijd.
+- **TrueNAS SCALE met één commando:** nieuw tabblad *🗄️ TrueNAS SCALE* in de Agent Manager. De installer zet de agent op je pool, maakt de cronjob via de TrueNAS-API aan (uitvoer verborgen) en stuurt een testrapport. Een handmatige installatie wordt overgenomen. **Bijwerken met de knop** werkt nu ook op TrueNAS.
+
+### Opgelost
+- Opnieuw installeren van de agent bewaart nu eigen regels in de instellingen (bv. `COMMANDS`, `LOG_DIRS`, `REMOTE_UPDATE`).
+
 ## 1.30.0 – 2026-10-21
 ### Nieuw
 - **De lay-out (Blox/L1nes, Small/Large) geldt nu ook voor Instellingen en Meldingen.**

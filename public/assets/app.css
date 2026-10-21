@@ -701,3 +701,10 @@ body[data-role="admin"] [data-role-only="nonadmin"] { display: none; }
   .alert-table td { border: 0; padding: 0; }
   .alert-table .at-msg { grid-column: 1 / -1; max-width: none; width: auto; }
 }
+
+/* ---------- Commando-checks ---------- */
+.cmd-box { border: 1px solid var(--border); border-radius: 8px; padding: .6rem .8rem .3rem; margin: .9rem 0; }
+.cmd-box h3 { margin: 0 0 .3rem; font-size: 1rem; }
+.cmd-host-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; font-size: .9rem; margin: .2rem 0 .9rem; }
+.cmd-host-row select { width: auto; }
+textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85rem; resize: vertical; }

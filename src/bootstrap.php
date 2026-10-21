@@ -50,6 +50,7 @@ require_once __DIR__ . '/PasswordReset.php';
 require_once __DIR__ . '/NotifyRules.php';
 require_once __DIR__ . '/Health.php';
 require_once __DIR__ . '/Updater.php';
+require_once __DIR__ . '/AgentCommands.php';
 
 function config(string $key, $default = null)
 {

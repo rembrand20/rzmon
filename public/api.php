@@ -98,6 +98,16 @@ function agent_tests_text(int $hostId): string
             $out[] = implode("\t", [$c['id'], $o['test_type'], str_replace(["\t", "\n"], ' ', $o['test_target']), str_replace(["\t", "\n"], ' ', (string) ($o['test_expect'] ?? ''))]);
         }
     }
+    // Commando-checks: id <tab> cmd <tab> commando (base64) <tab> time-out <tab> nobody|root <tab> interval
+    $mode = AgentCommands::modeFor(q('SELECT commands FROM hosts WHERE id = ?', [$hostId])->fetch() ?: []);
+    if ($mode !== 'off') {
+        foreach (q("SELECT id, command, interval_sec FROM checks WHERE host_id = ? AND type = 'command' AND enabled = 1", [$hostId]) as $c) {
+            $cfg = json_decode((string) $c['command'], true);
+            if (is_array($cfg) && ($cfg['cmd'] ?? '') !== '') {
+                $out[] = implode("\t", [$c['id'], 'cmd', base64_encode($cfg['cmd']), (int) ($cfg['timeout'] ?? 10), $mode, (int) $c['interval_sec']]);
+            }
+        }
+    }
     return $out ? implode("\n", $out) . "\n" : '';
 }
 
@@ -250,6 +260,21 @@ if ($action === 'agent') {
                 'last_hit' => $n > 0 ? time() : ($p['last_hit'] ?? null),
                 'error' => mb_substr((string) ($l['error'] ?? ''), 0, 250),
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
+        }
+    }
+    // Commando-checks: uitvoer en exitcode (RzMon vergelijkt met het verwachte antwoord)
+    foreach ((array) ($in['cmd'] ?? []) as $id => $r) {
+        if (ctype_digit((string) $id) && is_array($r)) {
+            $st->execute([$host['id'], 'cmd:' . $id, json_encode([
+                'rc' => isset($r['rc']) ? (int) $r['rc'] : null,
+                'out' => mb_substr((string) ($r['out'] ?? ''), 0, 4096),
+                'err' => mb_substr((string) ($r['err'] ?? ''), 0, 500),
+                'ms' => (int) ($r['ms'] ?? 0),
+                'as' => ($r['as'] ?? '') === 'root' ? 'root' : 'nobody',
+                'at' => (int) ($r['at'] ?? 0),
+                'blocked' => mb_substr((string) ($r['blocked'] ?? ''), 0, 200),
+                'error' => mb_substr((string) ($r['error'] ?? ''), 0, 200),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $now]);
         }
     }
     foreach ((array) ($in['svc_tests'] ?? []) as $id => $t) {
@@ -711,8 +736,22 @@ switch ($action) {
     case 'check_save':
         $in = input();
         $type = $in['type'] ?? '';
-        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha'], true)) {
+        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command'], true)) {
             out(['error' => 'Ongeldig type'], 422);
+        }
+        // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
+        $command = null;
+        if ($type === 'command') {
+            $cmdCfg = AgentCommands::clean((array) ($in['command'] ?? []));
+            if (is_string($cmdCfg)) {
+                out(['error' => $cmdCfg], 422);
+            }
+            $command = json_encode($cmdCfg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $prev = !empty($in['id']) ? q('SELECT command FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn() : null;
+            if ($prev !== $command) {
+                AgentCommands::audit($user['username'], empty($in['id']) ? 'commando-check aangemaakt' : 'commando-check gewijzigd',
+                    'server ' . (int) ($in['host_id'] ?? 0) . ': ' . $cmdCfg['cmd'] . ' → ' . AgentCommands::MATCHES[$cmdCfg['match']] . ' "' . $cmdCfg['expect'] . '"');
+            }
         }
         $metric = null;   // container: één check met status + gekozen resources (options.res)
         if ($type === 'ha') {
@@ -745,8 +784,11 @@ switch ($action) {
             && !preg_match('#^/[^\s\'"]+$#', $target)) {
             out(['error' => 'Geef een host op, eventueel met poort (example.com of example.com:8443), of het pad van een certificaatbestand dat de agent meldt'], 422);
         }
-        if (in_array($type, ['ping', 'cpu', 'ram', 'podman', 'ha'], true)) {
+        if (in_array($type, ['ping', 'cpu', 'ram', 'podman', 'ha', 'command'], true)) {
             $target = '';
+        }
+        if ($type === 'command') {
+            $warn = $crit = null;
         }
         if ($type === 'ha' && $metric === 'repairs') {
             $warn = $crit = null;   // systeemstatus: unhealthy = critical, de rest warning
@@ -821,7 +863,7 @@ switch ($action) {
             ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
         $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
-            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log',
+            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando',
             'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
         // Eigen meldregels voor deze check (null = de algemene uit Instellingen → Alarmgedrag)
         $notify = null;
@@ -833,13 +875,13 @@ switch ($action) {
         // Stille uren: null = algemeen, of eigen vensters / nooit stil
         $quiet = is_array($in['quiet'] ?? null) && ($qo = NotifyRules::cleanQuietOwn($in['quiet'])) !== null ? json_encode($qo) : null;
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
-            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options, $notify, $quiet];
+            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options, $notify, $quiet, $command];
         if (!empty($in['id'])) {
-            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ?, notify = ?, quiet = ? WHERE id = ?',
+            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ?, notify = ?, quiet = ?, command = ? WHERE id = ?',
                 [...$params, (int) $in['id']]);
             $id = (int) $in['id'];
         } else {
-            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, notify, quiet, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, notify, quiet, command, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [...$params, (int) ($in['host_id'] ?? 0)]);
             $id = (int) db()->lastInsertId();
         }
@@ -1259,6 +1301,47 @@ switch ($action) {
             'cli_cmd' => "sudo php $root/install/install.php --rotate-db-password",
             'helper_cmd' => "sudo bash $root/install/install-helper.sh",
         ]);
+
+    // ---------------------------------------------------------- Commando's op agents
+    case 'agent_commands':
+        $hosts = q("SELECT id, name, commands FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll();
+        out([
+            'global' => (string) setting('agent_commands', 'off'),
+            'hosts' => array_map(fn($h) => ['id' => (int) $h['id'], 'name' => $h['name'], 'own' => $h['commands'], 'mode' => AgentCommands::modeFor($h)], $hosts),
+            'log' => q('SELECT username, action, detail, ip, created_at FROM audit_log ORDER BY id DESC LIMIT 20')->fetchAll(),
+        ]);
+
+    case 'agent_commands_set':
+        $in = input();
+        $mode = (string) ($in['mode'] ?? '');
+        $hostId = (int) ($in['host_id'] ?? 0);
+        if ($hostId > 0) {
+            $h = q("SELECT id, name, commands FROM hosts WHERE id = ? AND mode = 'agent'", [$hostId])->fetch();
+            if (!$h) {
+                out(['error' => 'Server niet gevonden'], 404);
+            }
+            if ($mode !== 'global' && !isset(AgentCommands::MODES[$mode])) {
+                out(['error' => 'Ongeldige keuze'], 422);
+            }
+            $from = AgentCommands::modeFor($h);
+            $to = AgentCommands::modeFor(['commands' => $mode === 'global' ? null : $mode]);
+            if (AgentCommands::widens($from, $to)) {
+                $confirm('TOESTAAN');
+            }
+            q('UPDATE hosts SET commands = ? WHERE id = ?', [$mode === 'global' ? null : $mode, $hostId]);
+            AgentCommands::audit($user['username'], "commando's per server", "{$h['name']}: " . ($mode === 'global' ? 'algemene instelling' : AgentCommands::MODES[$mode]) . " (was: " . AgentCommands::MODES[$from] . ')');
+        } else {
+            if (!isset(AgentCommands::MODES[$mode])) {
+                out(['error' => 'Ongeldige keuze'], 422);
+            }
+            $from = (string) setting('agent_commands', 'off');
+            if (AgentCommands::widens($from, $mode)) {
+                $confirm('TOESTAAN');
+            }
+            save_setting('agent_commands', $mode);
+            AgentCommands::audit($user['username'], "commando's algemeen", AgentCommands::MODES[$mode] . ' (was: ' . (AgentCommands::MODES[$from] ?? $from) . ')');
+        }
+        out(['ok' => true]);
 
     // ---------------------------------------------------------- RzMon bijwerken
     case 'update_info':

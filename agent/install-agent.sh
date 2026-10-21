@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  RzMon agent – installatiescript voor Linux-servers
-#  (Rocky/RHEL/AlmaLinux/Fedora, Debian/Ubuntu/Raspberry Pi OS, Proxmox VE)
+#  (Rocky/RHEL/AlmaLinux/Fedora, Debian/Ubuntu/Raspberry Pi OS, Proxmox VE, TrueNAS SCALE)
 #
 #  Het makkelijkst: kopieer het commando uit RzMon (server → "Agent Manager"):
 #    curl -fsSL http://RZMON/api.php?action=agent_install | sudo bash -s -- --url http://RZMON --token TOKEN
@@ -12,6 +12,10 @@
 #    - instellingen in /etc/default/rzmon-agent (alleen leesbaar voor root)
 #    - elke minuut rapporteren via een systemd-timer (of cron als er geen systemd is)
 #    - een testrapport sturen en controleren of RzMon het accepteert
+#
+#  TrueNAS SCALE (automatisch herkend): /usr en /etc horen bij TrueNAS zelf, dus alles komt op een pool
+#  (standaard /mnt/<eerste pool>/rzmon-agent, of --pool NAAM / --dir PAD) en de agent draait via een
+#  cronjob van TrueNAS (System → Advanced → Cron Jobs), die ook na een TrueNAS-update blijft staan.
 #
 #  Opnieuw uitvoeren is veilig: bestaande instellingen blijven staan tenzij je ze meegeeft.
 # =============================================================================
@@ -36,6 +40,9 @@ ASSUME_YES=0
 MODE="install"        # install | update | uninstall
 SOURCE_FILE=""        # lokale rzmon-agent.sh i.p.v. downloaden
 RESULT_FILE=""        # bijwerken vanuit RzMon: uitkomst hierin voor de agent ("ok …" of "error …")
+TRUENAS=0             # 1 = TrueNAS SCALE (automatisch herkend, of --truenas)
+POOL=""               # TrueNAS: pool voor de agent (standaard de eerste, niet boot-pool)
+TN_DIR=""             # TrueNAS: map op de pool (standaard /mnt/<pool>/rzmon-agent)
 
 if [ -t 1 ]; then
     C_OK=$'\e[32m'; C_WARN=$'\e[33m'; C_ERR=$'\e[31m'; C_HEAD=$'\e[1;36m'; C_DIM=$'\e[2m'; C_OFF=$'\e[0m'
@@ -68,6 +75,9 @@ Gebruik: sudo bash install-agent.sh --url URL --token TOKEN [opties]
   --interval SEC       Rapporteren elke … seconden (30-3600, standaard 60)
   --insecure           Self-signed HTTPS-certificaat van RzMon accepteren
   --cron               Cron gebruiken in plaats van een systemd-timer
+  --truenas            TrueNAS SCALE (wordt normaal vanzelf herkend)
+  --pool NAAM          TrueNAS: de agent op deze pool zetten (standaard de eerste pool)
+  --dir PAD            TrueNAS: precies deze map gebruiken, bv. /mnt/tank/rzmon-agent
   --file PAD           Lokale rzmon-agent.sh gebruiken i.p.v. downloaden
   --result PAD         (intern) uitkomst van een update vanuit RzMon in dit bestand zetten
   -y, --yes            Niets vragen
@@ -88,6 +98,9 @@ while [ $# -gt 0 ]; do
         --interval) INTERVAL="${2:?}"; shift ;;
         --insecure) INSECURE=1 ;;
         --cron) SCHED="cron" ;;
+        --truenas) TRUENAS=1 ;;
+        --pool) POOL="${2:?}"; shift ;;
+        --dir) TN_DIR="${2:?}"; shift ;;
         --file) SOURCE_FILE="${2:?}"; shift ;;
         --result) RESULT_FILE="${2:?}"; shift ;;
         -y|--yes) ASSUME_YES=1 ;;
@@ -102,13 +115,60 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$MODE" = "version" ]; then
-    if [ -x "$BIN" ]; then "$BIN" --version 2>/dev/null || echo "rzmon-agent (oude versie, zonder versienummer)"; else echo "Agent niet geïnstalleerd"; fi
+    if [ -f "$BIN" ]; then bash "$BIN" --version 2>/dev/null || echo "rzmon-agent (oude versie, zonder versienummer)"; else echo "Agent niet geïnstalleerd"; fi
     exit 0
 fi
 
 [ "$(id -u)" -eq 0 ] || die "Voer dit uit als root (met sudo)."
 
 has_systemd() { [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; }
+
+# ----------------------------------------------------------------- TrueNAS SCALE
+# Herkennen aan midclt (de TrueNAS-API); dan alles in één map op een pool
+command -v midclt >/dev/null 2>&1 && [ -d /mnt ] && TRUENAS=1
+if [ "$TRUENAS" = 1 ]; then
+    # Welke map: --dir, anders AGENT_DIR (bijwerken vanuit RzMon), anders de map van dit script
+    # (als daar al een agent staat), anders --pool of de eerste pool
+    [ -n "$TN_DIR" ] || TN_DIR=${AGENT_DIR-}
+    if [ -z "$TN_DIR" ]; then
+        here=$(cd "$(dirname "${BASH_SOURCE[0]:-/nonexistent/x}")" 2>/dev/null && pwd || true)
+        [ -n "$here" ] && [ -f "$here/agent.conf" ] && TN_DIR=$here
+    fi
+    if [ -z "$TN_DIR" ]; then
+        [ -n "$POOL" ] || POOL=$(zpool list -H -o name 2>/dev/null | grep -vx 'boot-pool' | head -1 || true)
+        [ -n "$POOL" ] || die "Geen pool gevonden. Geef hem op met --pool NAAM"
+        [ -d "/mnt/$POOL" ] || die "Pool $POOL is niet gekoppeld onder /mnt/$POOL"
+        TN_DIR="/mnt/$POOL/rzmon-agent"
+    fi
+    TN_DIR=${TN_DIR%/}
+    [[ "$TN_DIR" =~ ^/mnt/[A-Za-z0-9._/-]+$ ]] || die "Ongeldige map: $TN_DIR (moet op een pool staan, onder /mnt/)"
+    BIN="$TN_DIR/rzmon-agent.sh"
+    CONF="$TN_DIR/agent.conf"
+    SETUP="$TN_DIR/rzmon-agent-setup"
+fi
+TN_CRON_DESC="RzMon agent"
+# Commando voor de cronjob van TrueNAS (instellingen inlezen, dan de agent)
+tn_command() { printf "bash -c 'set -a; . %s; bash %s'" "$CONF" "$BIN"; }
+# Id van onze cronjob in TrueNAS, of leeg
+tn_cron_id() {
+    midclt call cronjob.query "[[\"description\",\"=\",\"$TN_CRON_DESC\"]]" 2>/dev/null \
+        | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d[0]["id"] if d else "")' 2>/dev/null || true
+}
+# Cronjob aanmaken of bijwerken: als root, elke minuut (of elke N minuten), uitvoer verborgen (anders elke minuut een mail)
+tn_cron_set() {
+    local minute=$1 id payload
+    payload=$(TN_CMD="$(tn_command)" TN_MIN="$minute" TN_DESC="$TN_CRON_DESC" python3 -c '
+import json, os
+print(json.dumps({"description": os.environ["TN_DESC"], "command": os.environ["TN_CMD"], "user": "root", "enabled": True,
+                  "stdout": True, "stderr": True,
+                  "schedule": {"minute": os.environ["TN_MIN"], "hour": "*", "dom": "*", "month": "*", "dow": "*"}}))') || return 1
+    id=$(tn_cron_id)
+    if [ -n "$id" ]; then
+        midclt call cronjob.update "$id" "$payload" >/dev/null
+    else
+        midclt call cronjob.create "$payload" >/dev/null
+    fi
+}
 # Echt een terminal? (/dev/tty kan bestaan zonder te openen te zijn, bv. via Ansible of cron)
 interactive() { [ "$ASSUME_YES" -ne 1 ] && { : </dev/tty; } 2>/dev/null; }
 ask() {  # ask "vraag" "standaard" → antwoord op stdout
@@ -123,7 +183,10 @@ ask() {  # ask "vraag" "standaard" → antwoord op stdout
 # ----------------------------------------------------------------- verwijderen
 if [ "$MODE" = "uninstall" ]; then
     step "RzMon agent verwijderen"
-    if has_systemd; then
+    if [ "$TRUENAS" = 1 ]; then
+        id=$(tn_cron_id)
+        [ -n "$id" ] && midclt call cronjob.delete "$id" >/dev/null && ok "Cronjob \"$TN_CRON_DESC\" verwijderd"
+    elif has_systemd; then
         systemctl disable --now rzmon-agent.timer >/dev/null 2>&1 || true
         rm -f "$UNIT" "$TIMER"
         systemctl daemon-reload
@@ -137,6 +200,7 @@ if [ "$MODE" = "uninstall" ]; then
             rm -f "$CONF"
         fi
     fi
+    [ "$TRUENAS" = 1 ] && rmdir "$TN_DIR" 2>/dev/null || true
     ok "Agent verwijderd. Verwijder de server eventueel ook in RzMon."
     exit 0
 fi
@@ -164,9 +228,15 @@ INTERVAL=${INTERVAL:-60}
 # ----------------------------------------------------------------- verbindingstest
 if [ "$MODE" = "test" ]; then
     [ -f "$CONF" ] || die "Nog geen agent geïnstalleerd ($CONF ontbreekt)."
-    [ -x "$BIN" ] || die "$BIN ontbreekt. Installeer opnieuw (commando uit RzMon → Agent Manager)."
+    [ -f "$BIN" ] || die "$BIN ontbreekt. Installeer opnieuw (commando uit RzMon → Agent Manager)."
     printf '%sRzMon agent – planning%s\n' "$C_HEAD" "$C_OFF"
-    if has_systemd && [ -f "$TIMER" ]; then
+    if [ "$TRUENAS" = 1 ]; then
+        if [ -n "$(tn_cron_id)" ]; then
+            ok "TrueNAS-cronjob \"$TN_CRON_DESC\" aanwezig ($TN_DIR)"
+        else
+            warn "Geen TrueNAS-cronjob \"$TN_CRON_DESC\" gevonden: installeer opnieuw (commando uit RzMon → Agent Manager → TrueNAS)"
+        fi
+    elif has_systemd && [ -f "$TIMER" ]; then
         if [ "$(systemctl is-active rzmon-agent.timer 2>/dev/null)" = "active" ]; then
             ok "systemd-timer actief"
         else
@@ -199,7 +269,7 @@ if [ "$MODE" = "test" ]; then
     fi
     echo
     # shellcheck disable=SC1090
-    (set -a; . "$CONF"; "$BIN" --test)
+    (set -a; . "$CONF"; bash "$BIN" --test)
     exit $?
 fi
 
@@ -207,7 +277,7 @@ if [ "$MODE" = "update" ]; then
     [ -f "$CONF" ] || die "Nog geen agent geïnstalleerd ($CONF ontbreekt). Voer eerst een installatie uit."
 fi
 
-printf '%sRzMon agent – %s%s\n' "$C_HEAD" "$(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}")" "$C_OFF"
+printf '%sRzMon agent – %s%s\n' "$C_HEAD" "$( [ "$TRUENAS" = 1 ] && echo "TrueNAS SCALE ($TN_DIR)" || { . /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}"; })" "$C_OFF"
 
 # ----------------------------------------------------------------- URL en token
 if [ -z "$URL" ]; then
@@ -239,11 +309,16 @@ command -v openssl >/dev/null 2>&1 || need+=(openssl)   # vervaldatum van certif
 if ! command -v ss >/dev/null 2>&1; then
     case "$pm" in dnf|yum) need+=(iproute) ;; *) need+=(iproute2) ;; esac
 fi
-if [ "$SCHED" = "cron" ] || ! has_systemd; then
+if [ "$TRUENAS" = 0 ] && { [ "$SCHED" = "cron" ] || ! has_systemd; }; then
     # De map /etc/cron.d kan bestaan zonder cron-dienst: kijk naar het programma zelf
     if ! command -v crond >/dev/null 2>&1 && ! command -v cron >/dev/null 2>&1; then
         case "$pm" in dnf|yum|zypper) need+=(cronie) ;; apt-get) need+=(cron) ;; esac
     fi
+fi
+if [ "$TRUENAS" = 1 ]; then
+    need=()   # TrueNAS: pakketten installeren kan niet (en is niet nodig: curl, ss en openssl zijn er)
+    mkdir -p "$TN_DIR"
+    chmod 700 "$TN_DIR"
 fi
 if [ ${#need[@]} -gt 0 ]; then
     [ -n "$pm" ] || die "Installeer eerst: ${need[*]}"
@@ -276,7 +351,7 @@ fi
 rm -f /tmp/rzmon-agent-dl.err
 head -1 "$tmp" | grep -q '^#!/usr/bin/env bash' && grep -q 'RzMon agent' "$tmp" \
     || die "Het gedownloade bestand is geen RzMon-agent. Klopt het adres ($URL)?"
-old_version=$([ -x "$BIN" ] && "$BIN" --version 2>/dev/null | awk '{print $2}' || true)
+old_version=$([ -f "$BIN" ] && bash "$BIN" --version 2>/dev/null | awk '{print $2}' || true)
 new_version=$(sed -n 's/^AGENT_VERSION="\([^"]*\)".*/\1/p' "$tmp")
 install -m 755 -o root -g root "$tmp" "$BIN"
 command -v restorecon >/dev/null 2>&1 && restorecon "$BIN" 2>/dev/null || true
@@ -326,6 +401,8 @@ fi
 # ----------------------------------------------------------------- 4. instellingen + planning
 step "4/5 Instellen"
 if [ "$MODE" = "install" ]; then
+    # Eigen regels uit de bestaande instellingen (bv. COMMANDS=0, LOG_DIRS, REMOTE_UPDATE) bewaren
+    old_extra=$(grep -E '^[A-Z_]+=' "$CONF" 2>/dev/null | grep -vE '^(MONITOR_URL|TOKEN|SERVICES|CERTS|INSECURE|INTERVAL|AGENT_DIR|AGENT_SETUP)=' || true)
     umask 077
     cat > "$CONF" <<EOF
 # RzMon agent – aangemaakt door install-agent.sh op $(date '+%Y-%m-%d %H:%M')
@@ -338,13 +415,20 @@ CERTS="$CERTS"
 INSECURE="$INSECURE"
 INTERVAL="$INTERVAL"
 EOF
+    [ -n "$old_extra" ] && printf '# Eigen instellingen (overgenomen uit de vorige installatie)\n%s\n' "$old_extra" >>"$CONF"
     umask 022
     chmod 600 "$CONF"
     ok "$CONF (alleen leesbaar voor root)"
 fi
+if [ "$TRUENAS" = 1 ]; then
+    # Voor bijwerken vanuit RzMon: waar de agent en dit script staan (ook bij een oudere, handmatige installatie)
+    grep -q '^AGENT_DIR=' "$CONF" || printf '# TrueNAS: map van de agent en het installatiescript (bijwerken vanuit RzMon)\nAGENT_DIR="%s"\n' "$TN_DIR" >>"$CONF"
+    grep -q '^AGENT_SETUP=' "$CONF" || printf 'AGENT_SETUP="%s"\n' "$SETUP" >>"$CONF"
+    chmod 600 "$CONF"
+fi
 
 use_systemd=0
-if [ "$SCHED" != "cron" ] && has_systemd; then
+if [ "$TRUENAS" = 0 ] && [ "$SCHED" != "cron" ] && has_systemd; then
     use_systemd=1
 fi
 # Rootless podman (containers van gewone gebruikers) moet newuidmap kunnen gebruiken en lock-
@@ -357,7 +441,17 @@ NoNewPrivileges=no
 ProtectHome=no"
 fi
 
-if [ "$use_systemd" -eq 1 ]; then
+if [ "$TRUENAS" = 1 ]; then
+    minutes=$(( (INTERVAL + 59) / 60 ))
+    minute="*"; [ "$minutes" -gt 1 ] && minute="*/$minutes"
+    if tn_cron_set "$minute"; then
+        ok "TrueNAS-cronjob \"$TN_CRON_DESC\" (elke ${minutes} min, uitvoer verborgen); zie System → Advanced → Cron Jobs"
+    else
+        warn "De cronjob kon niet via de TrueNAS-API worden aangemaakt. Maak hem zelf aan onder"
+        warn "System → Advanced → Cron Jobs → Add, als root, elke minuut, met Hide Standard Output/Error aan:"
+        warn "  $(tn_command)"
+    fi
+elif [ "$use_systemd" -eq 1 ]; then
     cat > "$UNIT" <<EOF
 [Unit]
 Description=RzMon agent: rapport naar RzMon
@@ -418,14 +512,14 @@ rm -f "$tmp.setup"
 # ----------------------------------------------------------------- 5. testrapport
 step "5/5 Testrapport naar RzMon"
 # shellcheck disable=SC1090
-if out=$(set -a; . "$CONF"; "$BIN" 2>&1); then
+if out=$(set -a; . "$CONF"; bash "$BIN" 2>&1); then
     ok "RzMon antwoordt: $out"
 else
     warn "Rapport mislukt: $out"
     echo
     # Meteen de volledige diagnose tonen
     # shellcheck disable=SC1090
-    (set -a; . "$CONF"; "$BIN" --test) || true
+    (set -a; . "$CONF"; bash "$BIN" --test) || true
     die "De agent is geïnstalleerd, maar RzMon accepteert nog geen rapport. Los het bovenstaande op en test met: sudo rzmon-agent-setup --test"
 fi
 
@@ -433,6 +527,23 @@ if [ -n "$RESULT_FILE" ]; then
     # Bijgewerkt vanuit RzMon: uitkomst voor de agent (die meldt hem bij het volgende rapport) en opruimen
     printf 'ok %s %s\n' "${old_version:-}" "${new_version:-?}" >"$RESULT_FILE"
     rm -f "$(dirname "$RESULT_FILE")/update.lock" "$SOURCE_FILE" "$(dirname "$RESULT_FILE")/setup.new"
+    exit 0
+fi
+
+if [ "$TRUENAS" = 1 ]; then
+    cat <<EOF
+
+${C_OK}✔ De agent staat in $TN_DIR en rapporteert elke minuut aan ${URL}.${C_OFF}
+
+  Volgende stap in RzMon: klik bij deze server op ＋ en voeg checks toe
+  (CPU, RAM, Diskruimte: kies bv. /mnt/$(echo "$TN_DIR" | cut -d/ -f3), Service, Commando).
+
+  Planning        : TrueNAS → System → Advanced → Cron Jobs → "$TN_CRON_DESC"
+  Verbinding testen: bash $SETUP --test
+  Agent bijwerken : knop in RzMon (Agent Manager → Bijwerken), of bash $SETUP --update
+  Verwijderen     : bash $SETUP --uninstall
+
+EOF
     exit 0
 fi
 

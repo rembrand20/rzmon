@@ -14,10 +14,13 @@
 #   over op HA-modus: disk via de Supervisor, en "services" zijn Home Assistant Core, de Supervisor,
 #   elke add-on (addon:<slug>) en beschikbare updates. Vereist daarnaast: jq.
 #
+# TrueNAS SCALE: de agent staat op een pool (bv. /mnt/tank/rzmon-agent) en draait via een cronjob van
+#   TrueNAS zelf; install-agent.sh regelt dat (zie HANDLEIDING.md §8.9).
+#
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.30.0"
+AGENT_VERSION="1.31.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -65,12 +68,24 @@ PODMAN_USERS="${PODMAN_USERS-auto}"
 # (sudo rzmon-agent-setup --update). De nieuwe versie komt altijd van je eigen RzMon en wordt eerst
 # gecontroleerd (SHA-256, geldig script, juiste versie) voordat hij geïnstalleerd wordt.
 REMOTE_UPDATE="${REMOTE_UPDATE:-1}"
+# Installatiescript voor bijwerken vanuit RzMon (op TrueNAS staat het op de pool, naast de agent)
+AGENT_SETUP="${AGENT_SETUP:-/usr/local/sbin/rzmon-agent-setup}"
+# Commando-checks (＋ Check → Commando in RzMon): RzMon bepaalt of ze mogen en als welke gebruiker
+# (Instellingen → Agents). Hier op de server kun je dat inperken: COMMANDS=0 = nooit uitvoeren,
+# COMMANDS=nobody = nooit als root. Leeg = wat RzMon zegt.
+COMMANDS="${COMMANDS-}"
 SUPERVISOR_URL="${SUPERVISOR_URL:-http://supervisor}"
 
 HA_MODE=0
 [ -n "${SUPERVISOR_TOKEN:-}" ] && HA_MODE=1
 
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+# Willekeurige tekst (stdin, bv. uitvoer van een commando) als JSON-tekst: geldige UTF-8, tabs en
+# regeleindes als \t en \n, andere stuurtekens weg
+json_text() {
+    { if command -v iconv >/dev/null 2>&1; then iconv -f UTF-8 -t UTF-8 -c 2>/dev/null; else LC_ALL=C tr -cd '\11\12\15\40-\176'; fi; } |
+        sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | LC_ALL=C tr -d '\000-\010\013-\037' | awk 'NR > 1 { printf "\\n" } { printf "%s", $0 }'
+}
 
 # ---------------------------------------------------------------- Verbindingstest (--test)
 pass() { printf '  \e[32m✔\e[0m %s\n' "$*"; }
@@ -282,7 +297,8 @@ fi
 # Wat in RzMon is ingesteld: welke services bewaakt worden (service-checks), extra tests (URL/poort),
 # de eigen poorten of sockets van een service en de logzoekopdrachten. De lijst wordt elke 10 minuten
 # bij RzMon opgehaald, en meteen als RzMon meldt dat er iets veranderd is (tests_rev in het antwoord).
-# Er worden nooit commando's van RzMon uitgevoerd: alleen de status van services wordt opgevraagd.
+# Commando's van RzMon worden alleen uitgevoerd bij commando-checks, als RzMon ze voor deze server toestaat
+# en COMMANDS (hierboven) dat niet blokkeert; zie "Commando-checks" verderop.
 declare -A manual_ports=()
 rz_services=""
 if [ "$HA_MODE" = 0 ]; then
@@ -609,6 +625,62 @@ if [ "$HA_MODE" = 0 ]; then
     done <"$t_cache"
 fi
 
+# ---------------------------------------------------------------- Commando-checks
+# Regels "id <tab> cmd <tab> commando (base64) <tab> time-out <tab> nobody|root <tab> interval" uit RzMon.
+# Uitvoeren in een kale omgeving, met time-out, standaard als nobody; uitvoer en exitcode gaan naar RzMon,
+# dat ze vergelijkt met het verwachte antwoord. Volgens het interval van de check: tussendoor het vorige
+# resultaat opnieuw meesturen. Alle commando's samen hooguit ~40 s per rapport.
+cmd_results=""
+if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tcmd\t' "$t_cache"; then
+    c_dir="$t_dir/cmdstate"
+    mkdir -p "$c_dir" 2>/dev/null && chmod 700 "$c_dir" 2>/dev/null
+    c_budget=$(( $(date +%s) + 40 ))
+    while IFS=$'\t' read -r c_id c_type c_b64 c_timeout c_runas c_every; do
+        [ "$c_type" = cmd ] && [[ "$c_id" =~ ^[0-9]+$ ]] || continue
+        [[ "$c_timeout" =~ ^[0-9]+$ ]] && [ "$c_timeout" -ge 1 ] && [ "$c_timeout" -le 60 ] || c_timeout=10
+        [[ "$c_every" =~ ^[0-9]+$ ]] || c_every=60
+        [ "$c_runas" = root ] || c_runas=nobody
+        case "$COMMANDS" in
+            0|off|no|nee)
+                cmd_results+="\"$c_id\":{\"blocked\":\"COMMANDS=0 in de instellingen van de agent\"},"
+                continue ;;
+            nobody) c_runas=nobody ;;
+        esac
+        c_state="$c_dir/$c_id.json"
+        if [ -s "$c_state" ] && [ $(( $(date +%s) - $(stat -c %Y "$c_state") )) -lt $(( c_every - 5 )) ]; then
+            cmd_results+="\"$c_id\":$(cat "$c_state"),"
+            continue
+        fi
+        if [ "$(date +%s)" -ge "$c_budget" ]; then
+            cmd_results+="\"$c_id\":{\"error\":\"overgeslagen: de andere commando's duurden samen te lang\"},"
+            continue
+        fi
+        if ! c_cmd=$(printf '%s' "$c_b64" | base64 -d 2>/dev/null) || [ -z "$c_cmd" ]; then
+            cmd_results+="\"$c_id\":{\"error\":\"ongeldig commando ontvangen\"},"
+            continue
+        fi
+        c_run=()
+        if [ "$c_runas" = nobody ] && [ "$(id -u)" = 0 ]; then
+            if command -v runuser >/dev/null 2>&1; then c_run=(runuser -u nobody --)
+            elif command -v setpriv >/dev/null 2>&1; then c_run=(setpriv --reuid=nobody --regid=nogroup --init-groups --)
+            else
+                cmd_results+="\"$c_id\":{\"error\":\"kan niet als nobody uitvoeren (runuser ontbreekt)\"},"
+                continue
+            fi
+        fi
+        c_t0=$(date +%s%N)
+        (cd / && env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/ LANG=C.UTF-8 \
+            "${c_run[@]}" timeout -k 2 "$c_timeout" /bin/bash -c "$c_cmd") </dev/null >"$c_dir/$c_id.out" 2>"$c_dir/$c_id.err"
+        c_rc=$?
+        c_ms=$(( ($(date +%s%N) - c_t0) / 1000000 ))
+        printf '{"rc":%d,"out":"%s","err":"%s","ms":%d,"as":"%s","at":%d}' "$c_rc" \
+            "$(head -c 4096 "$c_dir/$c_id.out" | json_text)" "$(head -c 500 "$c_dir/$c_id.err" | json_text)" \
+            "$c_ms" "$c_runas" "$(date +%s)" >"$c_state"
+        rm -f "$c_dir/$c_id.out" "$c_dir/$c_id.err"
+        cmd_results+="\"$c_id\":$(cat "$c_state"),"
+    done <"$t_cache"
+fi
+
 # ---------------------------------------------------------------- Logbestanden doorzoeken
 # Per zoekopdracht (ingesteld in RzMon): alleen de nieuwe regels sinds de vorige keer lezen,
 # tellen hoeveel er op het patroon passen, en de laatste 5 treffers en de IP-adressen meesturen.
@@ -874,7 +946,7 @@ fi
 # Kan deze agent zichzelf bijwerken, en hoe? Gestart door systemd (afgeschermd: /usr is alleen-lezen)
 # → via systemd-run als aparte taak; via cron of met de hand → direct.
 upd_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
-upd_setup=/usr/local/sbin/rzmon-agent-setup
+upd_setup="$AGENT_SETUP"
 if [ "$TEST" = 1 ]; then
     upd_via="test"   # verbindingstest: RzMon stuurt dan geen update-opdracht
 elif [ "$HA_MODE" = 1 ]; then
@@ -939,7 +1011,7 @@ remote_update() {  # remote_update <antwoord van RzMon>
 }
 
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)
@@ -966,6 +1038,15 @@ if [ "$TEST" = 1 ]; then
                     "${pf:+ (dicht: $pf)}" "$( [ -n "$sf" ] && echo " · socket: ${sf//\"/}" || { [ -n "$so" ] && echo " · socket ${so//\"/} ok"; })" \
                     "${m:+ · $m}" "$( [ "$le" != null ] && [ "$le" != 0 ] && echo " · $le fout(en) in log")"
             done)
+    fi
+    if [ -n "$cmd_results" ]; then
+        pass "Commando-checks:"
+        while IFS= read -r line; do hint "$line"; done < <(sed 's/},"/}\n"/g' <<<"${cmd_results%,}" | sed -nE \
+            -e 's/^"([0-9]+)":\{"blocked":"([^"]*)".*/check \1: geblokkeerd (\2)/p' \
+            -e 's/^"([0-9]+)":\{"error":"([^"]*)".*/check \1: \2/p' \
+            -e 's/^"([0-9]+)":\{"rc":(-?[0-9]+),"out":"(([^"\\]|\\.){0,60}).*"ms":([0-9]+),"as":"([a-z]+)".*/check \1: exitcode \2 in \5 ms als \6: \3/p')
+    elif grep -q $'^[0-9]*\tcmd\t' "${t_cache:-/dev/null}" 2>/dev/null; then
+        hint "Commando-checks: nog niets uitgevoerd"
     fi
     if [ -n "$log_results" ]; then
         pass "Logbestanden doorzocht:"

@@ -335,6 +335,15 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="small" id="agents-status">…</p>
           <button type="button" class="btn" id="agents-update-all" hidden>⬆ Alle verouderde agents bijwerken</button>
           <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="agent_auto_update"><span></span> Agents automatisch bijwerken</label>
+          <div class="cmd-box" data-nodirty>
+            <h3>🖥️ Commando-checks</h3>
+            <p class="muted small">Met een <i>Commando</i>-check voert de agent een commando uit en vergelijkt RzMon de uitvoer met het antwoord dat je verwacht. Standaard staat dit uit. Aanzetten vraagt om je wachtwoord en komt in het logboek.
+              Op een server zelf blokkeer je het altijd met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent.</p>
+            <label>Commando's op agents
+              <select id="agent-commands"><option value="off">Uit</option><option value="nobody">Toestaan, als gebruiker nobody</option><option value="root">Toestaan, als root</option></select></label>
+            <p class="small" id="agent-commands-hosts"></p>
+            <details class="small api-docs"><summary>Logboek</summary><div id="audit-log"></div></details>
+          </div>
           <p class="muted small" style="margin-top:-.4rem">Verouderde agents werken zichzelf bij zonder dat je op de knop drukt (hooguit één poging per 6 uur). Home Assistant-add-ons werk je bij via de add-on winkel. Een server uitzonderen: <code>REMOTE_UPDATE=0</code> in <code>/etc/default/rzmon-agent</code>.</p>
         </div>
 

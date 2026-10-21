@@ -13,7 +13,7 @@ final class Checks
         if ($host['mode'] === 'remote' && in_array($check['type'], ['disk', 'service', 'cpu', 'ram'], true)) {
             return self::result(STATUS_UNKNOWN, null, 'Disk/service/CPU/RAM checks vereisen host-type lokaal of agent');
         }
-        if ($host['mode'] !== 'agent' && in_array($check['type'], ['podman', 'container', 'log'], true)) {
+        if ($host['mode'] !== 'agent' && in_array($check['type'], ['podman', 'container', 'log', 'command'], true)) {
             return self::result(STATUS_UNKNOWN, null, 'Deze check werkt via de agent: zet de server op type "Remote met agent" en installeer de agent');
         }
         try {
@@ -25,6 +25,7 @@ final class Checks
                 'podman' => self::podman($check, $host),
                 'container' => self::container($check, $host),
                 'log' => self::logCheck($check, $host),
+                'command' => self::commandCheck($check, $host),
                 'ha' => $host['mode'] === 'agent' ? self::haCheck($check, $host)
                     : self::result(STATUS_UNKNOWN, null, 'Deze check werkt via de Home Assistant-add-on: zet de server op type "Remote met agent"'),
                 'disk' => $host['mode'] === 'agent' ? self::agentDisk($check, $host) : self::localDisk($check),
@@ -460,6 +461,39 @@ final class Checks
      * Home Assistant (via de add-on): laatste back-up (dagen), integraties die niet geladen zijn (aantal),
      * of de systeemstatus van de Supervisor (unhealthy = CRITICAL, unsupported of meldingen = WARNING).
      */
+    /** Commando-check: wat de agent terugmeldde vergelijken met het verwachte antwoord (zie AgentCommands). */
+    private static function commandCheck(array $check, array $host): array
+    {
+        if ($stale = self::agentStale($host)) {
+            return $stale;
+        }
+        $cfg = json_decode((string) ($check['command'] ?? ''), true);
+        if (!is_array($cfg) || ($cfg['cmd'] ?? '') === '') {
+            return self::result(STATUS_UNKNOWN, null, 'Geen commando ingesteld (✎ bewerken)');
+        }
+        $h = q('SELECT commands FROM hosts WHERE id = ?', [$host['id']])->fetch() ?: [];
+        if (AgentCommands::modeFor($h) === 'off') {
+            return self::result(STATUS_UNKNOWN, null, "Commando's staan uit voor deze server. Zet ze aan onder Instellingen → ⬆ Agents bijwerken, of per server in de Agent Manager.");
+        }
+        $raw = self::agentMetric($host, 'cmd:' . $check['id']);
+        if ($raw === null) {
+            return self::result(STATUS_UNKNOWN, null, 'Nog geen resultaat: de agent voert het commando uit bij zijn volgende rapport (agent 1.31.0 of nieuwer nodig).');
+        }
+        $r = json_decode($raw, true) ?: [];
+        if (!empty($r['blocked'])) {
+            return self::result(STATUS_UNKNOWN, null, 'Geblokkeerd op de server: ' . $r['blocked']);
+        }
+        if (!empty($r['error'])) {
+            return self::result(STATUS_UNKNOWN, null, 'Niet uitgevoerd: ' . $r['error']);
+        }
+        $maxAge = max(600, 3 * (int) $check['interval_sec']);
+        if ((int) ($r['at'] ?? 0) < time() - $maxAge) {
+            return self::result(STATUS_UNKNOWN, null, 'Geen recent resultaat (laatst uitgevoerd ' . (empty($r['at']) ? 'nooit' : date('d-m H:i', (int) $r['at'])) . ')');
+        }
+        [$status, $msg] = AgentCommands::judge($cfg, $r);
+        return self::result($status, (float) (int) ($r['rc'] ?? 0), $msg);
+    }
+
     private static function haCheck(array $check, array $host): array
     {
         if ($stale = self::agentStale($host)) {

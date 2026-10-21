@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS hosts (
 CREATE TABLE IF NOT EXISTS checks (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     host_id         INT UNSIGNED NOT NULL,
-    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha') NOT NULL,
+    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command') NOT NULL,
     target          VARCHAR(255) NOT NULL DEFAULT '',
     name            VARCHAR(100) NOT NULL,
     warn_threshold  DOUBLE NULL,
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS password_reset_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
-ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha') NOT NULL;
+ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;
 
 INSERT IGNORE INTO settings (name, value) VALUES
@@ -221,4 +221,17 @@ INSERT IGNORE INTO settings (name, value) VALUES
     -- RzMon bijwerken: met de knop; automatisch uit (anders om 04:00), altijd eerst een back-up
     ('update_auto', '0'),
     ('update_time', '04:00'),
-    ('update_backup', '1');
+    ('update_backup', '1'),
+    -- Commando-checks op agents: uit tot je ze aanzet (uit | nobody | root), per server te overschrijven
+    ('agent_commands', 'off');
+
+-- Logboek van gevoelige wijzigingen (bv. commando's op agents toestaan, commando-checks wijzigen)
+CREATE TABLE IF NOT EXISTS audit_log (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    username   VARCHAR(100) NOT NULL,
+    action     VARCHAR(50) NOT NULL,
+    detail     VARCHAR(1000) NOT NULL,
+    ip         VARCHAR(45) NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_audit_time (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -568,6 +568,7 @@ Klik op een serverkaart op **＋**. Per type:
 | RAM | – | 85 / 95 % |
 | Podman (algemeen) | – (alleen agent-servers met podman) | – |
 | Container (Podman) | Containernaam, uit de lijst. Status altijd; vink CPU, RAM en/of disk aan, elk met eigen drempels | CPU 80 / 95 %, RAM 85 / 95 %, disk 5000 / 10000 MB |
+| Commando | Een commando en het antwoord dat je verwacht (gelijk aan, bevat, regex of exitcode 0); alleen als commando's voor die server aan staan (§8.10) | Afwijking = critical of warning, naar keuze |
 
 - **Interval:** minimaal 30 seconden. Omdat cron elke minuut draait, is **1 minuut** in de praktijk het kortste interval.
 - **Na opslaan** wordt de check direct uitgevoerd.
@@ -987,35 +988,72 @@ Klik op 📈 voor de grafiek van het aantal treffers en de **laatste 5 gevonden 
 ---
 
 ### 8.9 TrueNAS
-**TrueNAS SCALE** (Linux) kan de agent draaien, maar niet met het gewone installatiecommando: TrueNAS staat geen eigen bestanden in `/usr` toe, en wat je in `/etc` zet verdwijnt bij een TrueNAS-update. Zet de agent daarom op je pool en laat TrueNAS hem starten:
+**TrueNAS SCALE** (Linux) draait de agent op een eigen manier: `/usr` en `/etc` horen bij TrueNAS zelf, en wat je daar zet verdwijnt bij een TrueNAS-update. De installer zet de agent daarom op je **pool** en laat hem starten door een **cronjob van TrueNAS** zelf.
 
-1. Voeg in RzMon een server toe met type **Remote met agent** en kopieer het token uit de *Agent Manager*.
-2. Open in TrueNAS de **Shell** (als root) en vervang `tank` door de naam van je pool:
+1. Voeg in RzMon een server toe met type **Remote met agent**.
+2. Open de **Agent Manager** en kies het tabblad **🗄️ TrueNAS SCALE**. Kopieer het commando (adres en token zijn al ingevuld):
    ```bash
-   mkdir -p /mnt/tank/rzmon-agent
-   curl -fsSL "http://RZMON-ADRES/api.php?action=agent_script" -o /mnt/tank/rzmon-agent/rzmon-agent.sh
-   cat > /mnt/tank/rzmon-agent/agent.conf <<'EOF'
-   MONITOR_URL="http://RZMON-ADRES"
-   TOKEN="HET_TOKEN"
-   INSECURE="0"
-   EOF
-   chmod 600 /mnt/tank/rzmon-agent/agent.conf
+   curl -fsSL 'http://RZMON-ADRES/api.php?action=agent_install' | sudo bash -s -- --url 'http://RZMON-ADRES' --token 'TOKEN' --truenas
    ```
-   Let op de aanhalingstekens: gebruik gewone `"`, geen krul-aanhalingstekens (`”`). Die ontstaan makkelijk bij kopiëren vanaf een Mac of telefoon.
-3. Testen:
-   ```bash
-   bash -c 'set -a; . /mnt/tank/rzmon-agent/agent.conf; bash /mnt/tank/rzmon-agent/rzmon-agent.sh --test'
-   ```
-4. In TrueNAS: **System Settings → Advanced → Cron Jobs → Add**:
-   - *Command:* `bash -c 'set -a; . /mnt/tank/rzmon-agent/agent.conf; bash /mnt/tank/rzmon-agent/rzmon-agent.sh'`
-   - *Run As User:* `root`, *Schedule:* Custom `* * * * *` (elke minuut)
-   - zet **Hide Standard Output** en **Hide Standard Error** aan, anders krijg je elke minuut een mail.
+3. Voer het uit in TrueNAS onder **System → Shell** (of via SSH). Het script:
+   - kiest de eerste pool (niet `boot-pool`) en zet alles in `/mnt/<pool>/rzmon-agent`. Een andere pool kies je met `--pool naam`, een eigen map met `--dir /mnt/…`;
+   - schrijft de instellingen (`agent.conf`, alleen leesbaar voor root);
+   - maakt via de TrueNAS-API de cronjob **RzMon agent** aan: als root, elke minuut, met *Hide Standard Output/Error* aan. Je ziet hem onder *System → Advanced → Cron Jobs*;
+   - stuurt een testrapport naar RzMon.
+
+Had je de agent al met de hand geïnstalleerd (map, `agent.conf` en een cronjob met de naam *RzMon agent*)? Dan worden je instellingen en die cronjob overgenomen.
 
 Goed om te weten:
-- **Bijwerken:** de knop *⬆ Agents bijwerken* werkt hier niet. Voer de `curl`-regel uit stap 2 opnieuw uit.
+- **Bijwerken:** met de knop in RzMon (*Agent Manager* of *⬆ Agents bijwerken*), net als op andere servers. Met de hand: `bash /mnt/<pool>/rzmon-agent/rzmon-agent-setup --update`.
+- **Testen:** `bash /mnt/<pool>/rzmon-agent/rzmon-agent-setup --test`. **Verwijderen:** `… --uninstall`; dat haalt ook de cronjob weg.
+- **Lukt de cronjob via de API niet**, dan zegt het script dat en toont het het commando om hem zelf aan te maken.
 - **Disks:** je pools staan onder `/mnt/…`, bijvoorbeeld een diskcheck op `/mnt/tank`.
+- **Pools bewaken:** voeg een **Commando**-check toe (§8.10) met `zpool status -x` en verwacht antwoord `all pools are healthy`.
 - **Apps:** TrueNAS SCALE 24.10 en nieuwer gebruikt Docker; de agent kent alleen Podman, dus apps worden niet gemeld.
 - **TrueNAS CORE** (FreeBSD) kan de agent niet draaien. Voeg hem toe als **Remote** met ping, poorten (445 SMB, 2049 NFS, 22 SSH) en HTTP(S) op de webinterface.
+
+### 8.10 Commando-checks 🖥️
+Met een **Commando**-check voert de agent een commando uit op de server, en vergelijkt RzMon de uitvoer met het antwoord dat je verwacht. Voorbeelden:
+
+| Commando | Goed als de uitvoer | Verwacht antwoord |
+|---|---|---|
+| `zpool status -x` | is gelijk aan | `all pools are healthy` |
+| `systemctl is-active nginx` | is gelijk aan | `active` |
+| `cat /sys/class/thermal/thermal_zone0/temp` | komt overeen met (regex) | `^[1-6][0-9]{4}$` (onder 70 °C) |
+| `! test -f /var/run/reboot-required` | exitcode is 0 | *(niet nodig)*: OK zolang er geen herstart nodig is |
+| `curl -s localhost:8080/health` | bevat | `"status":"up"` |
+
+**Eerst aanzetten.** Standaard voert geen enkele agent commando's uit. Zet het aan onder **Instellingen → ⬆ Agents bijwerken → 🖥️ Commando-checks**:
+- *Uit* (standaard);
+- *Toestaan, als gebruiker nobody*: voor de meeste commando's genoeg;
+- *Toestaan, als root*: alleen als het echt nodig is.
+
+Per server kun je dat anders instellen in de **Agent Manager** (*Commando-checks op deze server*). Ruimer maken (uit → nobody → root) vraagt om je wachtwoord, en elke wijziging komt in het **logboek** (ook het aanmaken en wijzigen van commando-checks).
+
+**Op de server zelf** kun je het altijd inperken, wat RzMon ook zegt. Zet daarvoor in de instellingen van de agent (`/etc/default/rzmon-agent`, of `agent.conf` op TrueNAS):
+- `COMMANDS=0`: nooit commando's uitvoeren;
+- `COMMANDS=nobody`: nooit als root.
+
+Deze regels blijven staan als je de agent opnieuw installeert.
+
+**De check toevoegen:** *＋ Check → Commando*. Vul in:
+- het **commando**, bijvoorbeeld `zpool status -x`;
+- hoe het **vergeleken** wordt:
+  - *is gelijk aan*: spaties en regeleindes aan begin en eind tellen niet mee;
+  - *bevat*;
+  - *komt overeen met (regex)*: zonder scheidingstekens;
+  - *exitcode is 0*;
+- het **verwachte antwoord**;
+- of een afwijking **critical** of **warning** is;
+- de **time-out** (1–60 s, standaard 10).
+
+Hoe het werkt:
+- De agent voert het commando uit in `bash`, in een kale omgeving, zonder invoer, met een time-out en standaard als `nobody`. Hij stuurt de uitvoer (hooguit 4 KB) en de exitcode naar RzMon. Daar wordt vergeleken, dus een ander verwacht antwoord werkt meteen.
+- Het commando draait volgens het **interval** van de check. Alle commando's samen hooguit ongeveer 40 seconden per rapport.
+- Op het dashboard zie je wat er terugkwam, bijvoorbeeld *Antwoord: "degraded" – verwacht: is gelijk aan "all pools are healthy"*. Ook een time-out, *commando niet gevonden* en *geblokkeerd op de server* worden duidelijk gemeld.
+- In de verbindingstest (`rzmon-agent-setup --test`) staat per commando-check de exitcode, de tijd en als wie hij draaide.
+- Niet in de Home Assistant-add-on.
+- **Gebruik bij voorkeur HTTPS naar RzMon.** De lijst met commando's gaat van RzMon naar de agent; over gewone HTTP kan iemand op je netwerk die onderweg aanpassen.
 
 ## 9. Agent op Home Assistant OS
 

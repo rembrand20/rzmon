@@ -79,6 +79,8 @@ final class Installer
         ['checks', 'status_since', 'DATETIME NULL'],       // sinds wanneer de huidige status geldt (voor "na X minuten")
         ['checks', 'flapping_since', 'DATETIME NULL'],     // anti-flapping: check wisselt steeds van status
         ['checks', 'flap_notified', 'VARCHAR(20) NULL'],   // statussen die tijdens het flapperen al gemeld zijn
+        ['checks', 'command', 'TEXT NULL'],               // commando-check: JSON met cmd, expect, match, timeout, fail
+        ['hosts', 'commands', 'VARCHAR(10) NULL'],        // commando's op deze agent: off/nobody/root, NULL = algemene instelling
         ['checks', 'quiet', 'VARCHAR(1000) NULL'],         // stille uren voor deze check (JSON: mode global/own/never), anders algemeen
         ['checks', 'quiet_held', 'TINYINT NULL'],          // meldingen tegengehouden door stille uren: status die de gebruiker het laatst kreeg
         ['checks', 'flap_ended_at', 'DATETIME NULL'],      // weer stabiel: wisselingen van daarvoor tellen niet meer mee         // container: CPU, RAM en disk van één meting (JSON)

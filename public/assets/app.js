@@ -17,6 +17,7 @@ const TYPES = {
   podman:  { label: 'Podman (algemeen)', target: null, unit: null, help: 'Algehele status van Podman op deze server: draait podman, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.' },
   container: { label: 'Container (Podman)', target: 'Container', unit: null, ph: 'naam, of gebruiker/naam (rootless)', help: 'Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.' },
   log:     { label: 'Logbestand (zoeken)', target: 'Bron', unit: 'treffers', warn: 5, crit: 20, ph: '/var/log/secure, journal, journal:sshd of kernel', help: 'De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.' },
+  command: { label: 'Commando', target: null, unit: null, help: 'De agent voert een commando uit op de server, en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → ⬆ Agents bijwerken).' },
   ha:      { label: 'Home Assistant', target: null, unit: null, help: 'Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.' },
   service: { label: 'Service',       target: 'Servicenaam',   unit: null, ph: 'nginx', help: 'De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.' },
 };
@@ -290,6 +291,10 @@ function init() {
   $('#settings-form').addEventListener('submit', saveSettings);
   $('#backup-now').onclick = backupNow;
   $('#update-start').onclick = startUpdate;
+  $('#agent-commands').onchange = (e) => {
+    const sel = e.target;
+    setAgentCommands(null, sel.value, sel.dataset.current || 'off', 'alle agents', () => { showTab('settings'); loadAgentCommands(); });
+  };
   $('#alerts').addEventListener('click', (e) => { const td = e.target.closest('.alert-table.small .at-msg'); if (td) td.parentElement.classList.toggle('at-open'); });
   $('#tab-settings').addEventListener('click', (e) => {
     const h = e.target.closest('.set-l1nes [data-sk] > h2');
@@ -306,8 +311,8 @@ function init() {
     saveSetOpen();
     applySettingsLayout();
   };
-  $('#settings-form').addEventListener('input', () => { markSettingsDirty(true); settingsSummaries(); });
-  $('#settings-form').addEventListener('change', () => { markSettingsDirty(true); settingsSummaries(); });
+  $('#settings-form').addEventListener('input', (e) => { if (!e.target.closest('[data-nodirty]')) markSettingsDirty(true); settingsSummaries(); });
+  $('#settings-form').addEventListener('change', (e) => { if (!e.target.closest('[data-nodirty]')) markSettingsDirty(true); settingsSummaries(); });
   $('#settings-form').update_auto.addEventListener('change', backupFormToggle);
   $('#update-check').onclick = async (e) => { const btn = e.currentTarget; btn.disabled = true; await loadUpdate(true); btn.disabled = false; };
   $('#update-badge').onclick = () => { showTab('settings'); setTimeout(() => $('#update-card').scrollIntoView({ behavior: 'smooth', block: 'start' }), 300); };
@@ -624,7 +629,8 @@ function settingsSummaries() {
       sum.update = (updateInfo.available ? `<span class="warn-txt">⬆ ${esc(updateInfo.latest)} beschikbaar</span>` : `✔ ${esc(updateInfo.current)}${updateInfo.latest ? ' · nieuwste versie' : ''}`)
         + (f.update_auto.checked ? ` · automatisch om ${esc(f.update_time.value)}` : '');
     }
-    sum.agents = esc(txt('#agents-status'));
+    sum.agents = esc(txt('#agents-status')) + ($('#agent-commands').dataset.current && $('#agent-commands').dataset.current !== 'off'
+      ? ` · commando's ${esc(CMD_MODES[$('#agent-commands').dataset.current])}` : '');
     if (backupInfo && !backupInfo.problem) {
       const last = backupInfo.list[0];
       sum.backup = esc(f.backup_freq.value === 'off' ? 'automatisch uit' : `${opt(f.backup_freq).toLowerCase()} om ${f.backup_time.value}`)
@@ -1087,8 +1093,9 @@ function checkForm(c, h, preset = {}) {
   const isNew = !c;
   c = c || { type: 'ping', target: '', name: '', warn_threshold: TYPES.ping.warn, crit_threshold: TYPES.ping.crit, interval_sec: 60, enabled: 1, ...preset };
   const quietOwn = quietOf(c);
+  const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
   const allowed = h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl']
-    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha'].includes(k))
+    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command'].includes(k))
       .filter((k) => k !== 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor') || c?.type === 'ha');
   const disks = h.metrics.filter((m) => m.startsWith('disk:')).map((m) => m.slice(5));
   const svcs = h.metrics.filter((m) => m.startsWith('service:')).map((m) => m.slice(8));
@@ -1104,6 +1111,23 @@ function checkForm(c, h, preset = {}) {
         <select name="type">${allowed.map((k) => `<option value="${k}" ${c.type === k ? 'selected' : ''}>${TYPES[k].label}</option>`).join('')}</select>
         <span class="hint" id="type-help"></span>
       </label>
+      <div id="cmd-wrap" hidden>
+        <p class="hint" id="cmd-mode-info"></p>
+        <label>Commando <textarea name="cmd" class="mono" rows="2" maxlength="1000" placeholder="bv. zpool status -x">${esc(cmdCfg.cmd || '')}</textarea></label>
+        <div class="row2">
+          <label>Goed als de uitvoer
+            <select name="cmd_match">${Object.entries(CMD_MATCHES).map(([k, l]) => `<option value="${k}" ${(cmdCfg.match || 'equals') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+          </label>
+          <label id="cmd-expect-wrap">Verwacht antwoord <textarea name="cmd_expect" class="mono" rows="1" maxlength="1000" placeholder="bv. all pools are healthy">${esc(cmdCfg.expect || '')}</textarea></label>
+        </div>
+        <div class="row2">
+          <label>Klopt het niet, dan
+            <select name="cmd_fail"><option value="crit" ${cmdCfg.fail !== 'warn' ? 'selected' : ''}>🔴 Critical</option><option value="warn" ${cmdCfg.fail === 'warn' ? 'selected' : ''}>🟠 Warning</option></select>
+          </label>
+          <label>Time-out <span class="hint">seconden (1–60)</span><input name="cmd_timeout" type="number" min="1" max="60" value="${cmdCfg.timeout || 10}"></label>
+        </div>
+        <p class="hint">Spaties en regeleindes aan begin en eind tellen niet mee. Regex zonder scheidingstekens, bv. <code>^ok\\b</code> of <code>temp=[0-5][0-9]</code>. Het commando draait als <code>nobody</code>, of als root als dat voor deze server is toegestaan, in <code>bash</code>, zonder invoer.</p>
+      </div>
       <div id="log-wrap" hidden>
         <label>Voorinstelling
           <select name="preset">${Object.entries(LOG_PRESETS).map(([k, p]) => `<option value="${k}" ${(opts.preset || 'custom') === k ? 'selected' : ''}>${p.label}</option>`).join('')}</select>
@@ -1186,9 +1210,10 @@ function checkForm(c, h, preset = {}) {
       const qm = $('#quiet-mode').value;
       const quiet = qm === 'global' ? null : qm === 'never' ? { mode: 'never' } : { mode: 'own', windows: quietOwnEditor ? quietOwnEditor.get().windows : [] };
       if (qm === 'own' && !quiet.windows.length) throw new Error('Stille uren: vul minstens één venster in met een dag');
+      const command = d.type === 'command' ? { cmd: d.cmd, expect: d.cmd_expect, match: d.cmd_match, timeout: d.cmd_timeout, fail: d.cmd_fail } : undefined;
       const res = {};
       ['cpu', 'mem', 'disk'].forEach((k) => { res[k] = { on: !!d[`res_${k}`], warn: d[`res_${k}_warn`], crit: d[`res_${k}_crit`] }; });
-      await api('check_save', { ...d, res, notify, quiet, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep });
+      await api('check_save', { ...d, res, notify, quiet, command, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep });
       toast('Check opgeslagen');
     },
   });
@@ -1262,6 +1287,19 @@ function checkForm(c, h, preset = {}) {
     $('[name=target]', form).required = !!t.target && !['http', 'ssl'].includes(typeSel.value);
     const list = { disk: disks, service: svcs, ssl: certs, container: containers, log: LOG_SOURCES }[typeSel.value] || [];
     $('#log-wrap').hidden = typeSel.value !== 'log';
+    const isCmd = typeSel.value === 'command';
+    $('#cmd-wrap').hidden = !isCmd;
+    $('[name=cmd]', form).required = isCmd;
+    $('#cmd-expect-wrap').hidden = $('[name=cmd_match]', form).value === 'exit0';
+    if (isCmd && !cmdInfoLoaded) {
+      cmdInfoLoaded = true;
+      api('agent_commands').then((r) => {
+        const m = (r.hosts.find((x) => x.id === +h.id) || {}).mode || 'off';
+        $('#cmd-mode-info').innerHTML = m === 'off'
+          ? `<b class="warn-txt">⚠️ Commando's staan voor ${esc(h.name)} uit.</b> De check blijft onbekend tot je ze aanzet: Instellingen → ⬆ Agents bijwerken, of per server in de Agent Manager.`
+          : `Commando's op ${esc(h.name)}: <b>${esc(CMD_MODES[m])}</b>.`;
+      }).catch(() => {});
+    }
     $('[name=pattern]', form).required = typeSel.value === 'log';
     $('#target-list').innerHTML = list.map((v) => `<option value="${esc(v)}">`).join('');
     $('#svc-pick-wrap').hidden = !(typeSel.value === 'service' && h.mode === 'agent' && svcList);
@@ -1272,6 +1310,7 @@ function checkForm(c, h, preset = {}) {
       if (setDefaults !== 'metric') $('[name=target]', form).value = typeSel.value === 'disk' ? '/' : '';
     }
   };
+  let cmdInfoLoaded = false;
   // Servicekiezer (agent-servers): alle services op de server, met status; filtert op wat je typt
   let svcList = null;
   const watched = new Set((h.checks || []).filter((x) => x.type === 'service' && (!c.id || +x.id !== +c.id)).map((x) => x.target));
@@ -1310,6 +1349,7 @@ function checkForm(c, h, preset = {}) {
   haSel.onchange = () => update('metric');
   $$('#res-wrap input[type=checkbox]', form).forEach((cb) => (cb.onchange = () => update(false)));
   $('[name=test_type]', form).onchange = () => update(false);
+  $('[name=cmd_match]', form).onchange = () => update(false);
   // Voorinstelling kiezen: bron, patroon, drempels en naam invullen
   $('[name=preset]', form).onchange = (e) => {
     const p = LOG_PRESETS[e.target.value];
@@ -1611,14 +1651,33 @@ function agentInstructions(h) {
   const base = state.base_url || location.origin + location.pathname.replace(/\/[^/]*$/, '');
   const scriptUrl = location.origin + location.pathname.replace(/\/[^/]*$/, '') + '/api.php?action=agent_script';
   const installCmd = `curl -fsSL '${base}/api.php?action=agent_install' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}'`;
+  const truenasCmd = `curl -fsSL '${base}/api.php?action=agent_install' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}' --truenas`;
   modal({
     title: `Agent Manager – ${h.name}`,
     wide: true,
     body: `
       <div class="agent-live" id="agent-live"><span class="muted">Status ophalen…</span></div>
+      <div class="cmd-host-row need-admin">🖥️ Commando-checks op deze server:
+        <select id="host-commands"><option value="global">algemene instelling</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
+        <span class="muted small" id="host-commands-info"></span></div>
       <div class="seg" role="tablist">
         <button type="button" class="seg-btn active" data-seg="linux">🐧 Linux-server</button>
         <button type="button" class="seg-btn" data-seg="ha">🏠 Home Assistant OS</button>
+        <button type="button" class="seg-btn" data-seg="truenas">🗄️ TrueNAS SCALE</button>
+      </div>
+      <div data-pane="truenas" hidden>
+        <p>Op TrueNAS SCALE horen <code>/usr</code> en <code>/etc</code> bij TrueNAS zelf. De agent komt daarom op je <b>pool</b>
+          (<code>/mnt/&lt;pool&gt;/rzmon-agent</code>), en draait via een <b>cronjob van TrueNAS</b> die ook na een TrueNAS-update blijft staan.</p>
+        <ol class="steps">
+          <li>Open in TrueNAS <i>System → Shell</i> (of log in met SSH als beheerder).</li>
+          <li>Voer dit uit:
+            <div class="copy-line"><pre class="code" id="truenas-oneliner">${esc(truenasCmd)}</pre>
+              <button type="button" class="btn" id="copy-truenas">Kopieer</button></div></li>
+        </ol>
+        <p class="muted small">De eerste pool wordt gekozen (niet <code>boot-pool</code>); een andere kies je met <code>--pool naam</code>. Het script zet de agent en de instellingen op de pool,
+          maakt de cronjob <i>RzMon agent</i> aan (elke minuut, uitvoer verborgen) en stuurt een testrapport. Had je de agent al met de hand geïnstalleerd? Dan worden je instellingen en cronjob overgenomen.</p>
+        <p class="muted small">Daarna: bijwerken met de knop hierboven · testen: <code>bash /mnt/&lt;pool&gt;/rzmon-agent/rzmon-agent-setup --test</code> · verwijderen: <code>… --uninstall</code>.
+          Tip: een <b>Commando</b>-check met <code>zpool status -x</code> en verwacht antwoord <code>all pools are healthy</code> bewaakt je pools.</p>
       </div>
       <div data-pane="ha" hidden>
         <p>Op Home Assistant OS / Supervised draait de agent als <b>add-on</b>. Hij meldt CPU, RAM, de data-partitie, of Home Assistant Core en elke add-on draait, en welke updates er klaarstaan.</p>
@@ -1679,6 +1738,20 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   };
   $$('.seg-btn', body).forEach((b) => (b.onclick = () => show(b.dataset.seg)));
   pollAgentStatus(h.id);
+  if (isAdmin()) {
+    api('agent_commands').then((r) => {
+      const me = r.hosts.find((x) => x.id === +h.id);
+      if (!me) return;
+      const sel = $('#host-commands');
+      sel.value = me.own || 'global';
+      $('#host-commands-info').textContent = me.own ? '' : `(nu: ${CMD_MODES[me.mode]})`;
+      sel.onchange = () => setAgentCommands(h.id, sel.value, me.mode, h.name, () => agentInstructions(findHost(h.id)));
+    }).catch(() => {});
+  }
+  $('#copy-truenas').onclick = async () => {
+    try { await navigator.clipboard.writeText(truenasCmd); toast('Commando gekopieerd'); }
+    catch (ex) { getSelection().selectAllChildren($('#truenas-oneliner')); toast('Geselecteerd — druk Ctrl+C', 'err'); }
+  };
   $('#agent-live').onclick = async (e) => {
     const b = e.target.closest('[data-agent-upd]');
     if (!b) return;
@@ -1695,6 +1768,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   };
   // Raad Home Assistant bij een naam of agent-gegevens die erop wijzen
   if (/home.?assistant|hass|haos/i.test(h.name) || h.metrics.includes('service:homeassistant')) show('ha');
+  else if (/truenas|freenas/i.test(h.name) || h.metrics.some((m) => m.startsWith('service:middlewared'))) show('truenas');
 }
 
 /** Versies vergelijken ("1.10.0" > "1.9.2"); negatief als a ouder is dan b. */
@@ -1908,6 +1982,7 @@ async function loadSettings() {
   applySettingsLayout();
   loadBackups();
   loadUpdate(false);
+  loadAgentCommands();
   refresh();   // verse agentversies voor de kaart "Agents bijwerken"
 }
 
@@ -2299,6 +2374,50 @@ function wireCopy(root) {
 }
 
 /** Bevestigen met je eigen wachtwoord, of een woord typen als je automatisch beheerder bent op het LAN. */
+// ---------------------------------------------------------------- Commando-checks: aan/uit
+const CMD_MODES = { off: 'uit', nobody: 'als nobody', root: 'als root' };
+const CMD_MATCHES = { equals: 'is gelijk aan', contains: 'bevat', regex: 'komt overeen met (regex)', exit0: 'exitcode is 0' };
+const CMD_RANK = { off: 0, nobody: 1, root: 2 };
+
+/**
+ * Commando's algemeen (hostId null) of per server zetten. Ruimer maken (uit → nobody → root) vraagt om je
+ * wachtwoord; daarna terug naar wat erna moet gebeuren (then).
+ */
+async function setAgentCommands(hostId, mode, current, label, then) {
+  const target = mode === 'global' ? null : mode;
+  const widens = target !== null && CMD_RANK[target] > CMD_RANK[current];
+  if (!widens) {
+    try { await api('agent_commands_set', { host_id: hostId, mode }); toast('Opgeslagen'); } catch (ex) { toast(ex.message, 'err'); }
+    return then();
+  }
+  modal({
+    title: `🖥️ Commando's toestaan – ${label}`,
+    body: `<p style="margin-top:0">Hiermee mag RzMon commando's laten uitvoeren op ${esc(label)}, <b>${esc(CMD_MODES[target])}</b>.
+        Iedereen die in RzMon beheerder is, kan dan commando's op ${hostId ? 'deze server' : 'je agents'} draaien${target === 'root' ? ', <b>met volledige rechten</b>' : ''}.</p>
+      <p class="muted small">Op een server zelf kun je het altijd blokkeren met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent. Deze wijziging komt in het logboek.</p>
+      ${confirmField('TOESTAAN')}`,
+    buttons: [{ label: 'Toestaan', cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      await api('agent_commands_set', { host_id: hostId, mode, confirm: d.confirm });
+      toast('Opgeslagen');
+      setTimeout(then, 50);
+    },
+  });
+}
+
+async function loadAgentCommands() {
+  let r;
+  try { r = await api('agent_commands'); } catch (ex) { return; }
+  const sel = $('#agent-commands');
+  sel.value = r.global;
+  sel.dataset.current = r.global;
+  const own = r.hosts.filter((x) => x.own);
+  $('#agent-commands-hosts').innerHTML = own.length ? 'Per server anders: ' + own.map((x) => `<b>${esc(x.name)}</b> ${esc(CMD_MODES[x.own])}`).join(' · ') : '';
+  $('#audit-log').innerHTML = r.log.length ? r.log.map((l) => `<div class="key-row"><span class="grow small"><b>${esc(l.action)}</b>: ${esc(l.detail)}<br>
+      <span class="muted">${esc(fmtDateTime(l.created_at))} · ${esc(l.username)} · ${esc(l.ip)}</span></span></div>`).join('') : '<p class="muted small">Nog niets.</p>';
+  settingsSummaries();
+}
+
 function confirmField(word) {
   const lan = !!document.querySelector('.lan-badge');
   return `<label>${lan ? `Typ <b>${word}</b> om te bevestigen` : 'Bevestig met je eigen wachtwoord'}
