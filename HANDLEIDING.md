@@ -1057,6 +1057,29 @@ Hoe het werkt:
 - Niet in de Home Assistant-add-on.
 - **Gebruik bij voorkeur HTTPS naar RzMon.** De lijst met commando's gaat van RzMon naar de agent; over gewone HTTP kan iemand op je netwerk die onderweg aanpassen.
 
+### 8.11 Logins en sudo 🔑
+De agent meldt wie er op een server inlogt en wie `sudo` of `su` gebruikt. Je ziet het op de pagina **Meldingen**, in de dagblokken, met het filter **🔑 Toegang**. Er gaat geen Pushover-, mail- of Home Assistant-bericht uit.
+
+| Gebeurtenis | Voorbeeld |
+|---|---|
+| SSH-login | 🔑 *SSH · rehman* op RL02, vanaf 192.168.2.10 (sleutel) |
+| Console-login | 🔑 *Console · root* op RL03, aan de console |
+| sudo | 🔑 *sudo · rehman* op RL02: als root `systemctl restart nginx` · in /home/rehman · pts/0 |
+| su | 🔑 *su · rehman → root* op RL02 |
+| Mislukte SSH-login | ❌ *37× mislukte SSH-login* op RL02, vanaf 45.1.2.3 · gebruikers: root, admin, test |
+| Mislukte sudo of su | ❌ *mislukte sudo · gast*: 3 incorrect password attempts · als root: `cat /etc/shadow` |
+
+Goed om te weten:
+- **Aan/uit:** *Instellingen → Alarmgedrag → 🔑 Logins en sudo tonen* (standaard aan). Op een server zelf zet je het altijd uit met `AUTH_EVENTS=0` in de instellingen van de agent.
+- **Negeren:** in hetzelfde blok vul je gebruikers en/of IP-adressen of netwerken in die niet gemeld worden, bijvoorbeeld `ansible backup 192.168.2.5 10.0.0.0/8`. Een mislukte poging wordt alleen overgeslagen als *alle* gebruikers erin genegeerd zijn, of het IP-adres.
+- **Mislukte pogingen** worden opgeteld: per server, soort en IP-adres (of gebruiker) komt er per uur één regel, die bijgewerkt wordt (*37×*). Zo loopt de pagina niet vol als een server vanaf internet aangevallen wordt.
+- **Wachtwoorden** in sudo-commando's worden al op de server gemaskeerd, bijvoorbeeld `mysql -p••••` en `password=••••`.
+- **su vanuit diensten** (bijvoorbeeld logrotate) wordt niet gemeld; alleen su door een echte gebruiker.
+- **Bron:** het systemlog (journal), of zonder journald `/var/log/secure` (Rocky) of `/var/log/auth.log` (Debian). Een ander bestand kies je met `AUTH_LOGS="/pad/naar/log"`; met `AUTH_SOURCE=file` gebruikt de agent het bestand ook als er een journal is.
+- **Bij de eerste keer** begint de agent bij *nu*: oude logins komen er niet in.
+- **Bewaren:** net zo lang als de andere meldingen (*Meldingen bewaren (dagen)*).
+- **Werkt op** Linux-servers en TrueNAS SCALE, niet in de Home Assistant-add-on. Agent 1.33.0 of nieuwer nodig.
+
 ## 9. Agent op Home Assistant OS
 
 Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De agent draait daarom als **add-on**.

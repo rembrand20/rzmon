@@ -157,6 +157,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="alerts-head">
           <h2>Meldingen</h2>
           <span class="muted small" id="alerts-info"></span>
+          <div class="seg" role="group" aria-label="Filter" id="alerts-filter">
+            <button type="button" class="seg-btn active" data-af="all">Alles</button>
+            <button type="button" class="seg-btn" data-af="problems">⚠️ Storingen</button>
+            <button type="button" class="seg-btn" data-af="auth">🔑 Toegang</button>
+          </div>
           <button type="button" class="btn" id="alerts-toggle">⊞ Alles openen</button>
         </div>
         <div id="alerts" class="alert-list"></div>
@@ -240,6 +245,10 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label>Agent offline na … minuten zonder rapport<input type="number" name="agent_stale_minutes" min="1"></label>
           <label>Historie bewaren (dagen)<input type="number" name="retention_days" min="1"></label>
           <label>Meldingen bewaren (dagen) <span class="muted small">(de pagina Meldingen toont ze per dag)</span><input type="number" name="alerts_days" min="1" max="3650"></label>
+          <label class="switch"><input type="checkbox" name="auth_events"><span></span> 🔑 Logins en sudo tonen op de pagina Meldingen</label>
+          <p class="muted small" style="margin-top:-.4rem">Via de agent: inloggen via SSH en de console, <code>sudo</code> en <code>su</code>, ook mislukte pogingen (per IP-adres per uur opgeteld). Alleen op de pagina, er gaat geen melding uit. Op een server zelf uit te zetten met <code>AUTH_EVENTS=0</code>.</p>
+          <label>Negeren <span class="muted small">(gebruikers en/of IP-adressen of netwerken, gescheiden door spaties)</span>
+            <textarea name="auth_ignore" rows="2" placeholder="bv. ansible backup 192.168.2.5 10.0.0.0/8"></textarea></label>
           <label>Waarschuwen als een disk binnen … dagen vol raakt <span class="muted small">(0 = uit)</span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
           <label>Logbestanden: treffers tellen over de laatste … minuten <span class="muted small">(5–1440)</span><input type="number" name="log_window" min="5" max="1440"></label>
           <label class="switch"><input type="checkbox" name="auto_maint_enabled"><span></span> Automatisch onderhoud na herhaalde meldingen</label>

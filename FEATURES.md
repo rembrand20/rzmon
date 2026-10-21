@@ -58,6 +58,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Beschikbaarheid** per server over 24 uur, 7 dagen en 30 dagen.
 - **Zoeken** en het filter *Alleen problemen*.
 - **Overig:** licht en donker thema, werkt op je telefoon, ververst elke 20 seconden, en **↻ Alles nu checken**.
+- **🔑 Toegang:** op de pagina Meldingen ook wie er inlogt (SSH, console) en `sudo`/`su` gebruikt, met filterknoppen *Alles · Storingen · Toegang*.
 - **Meldingenoverzicht per dag:** elke verstuurde melding met de kanalen waarlangs hij ging, gegroepeerd per dag met tellers. Vandaag staat open. De bewaartermijn stel je zelf in.
 
 ## 4. Meldingen
@@ -171,6 +172,7 @@ Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt
   - **standaard uit**; aanzetten in RzMon (algemeen of per server) als `nobody` of als root, met je wachtwoord en een logboek;
   - de agent voert ze uit in een kale omgeving, met time-out en hooguit 4 KB uitvoer;
   - op de server zelf perkt `COMMANDS=0` of `COMMANDS=nobody` het altijd in.
+- **🔑 Logins en sudo:** SSH- en console-logins, `sudo` en `su` (wie, wat, als wie, waar vandaan), ook mislukte pogingen, opgeteld per IP per uur. Op de pagina Meldingen met het filter *Toegang*; wachtwoorden in commando's gemaskeerd; gebruikers/IP's te negeren; `AUTH_EVENTS=0` zet het op een server uit.
 - **Tegen kapotte rapporten:** servicenamen worden gefilterd, en de uitvoer wordt veilig als JSON verstuurd (via een tijdelijk bestand).
 
 ## 11. De agent op TrueNAS SCALE

@@ -724,3 +724,8 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .ad-total { margin-left: auto; }
 .ad-body { padding: 0 .9rem .4rem; background: var(--card); border-radius: 0 0 10px 10px; }
 .alert-day[open] .ad-body { border-top: 1px solid var(--border); }
+
+/* Logins en sudo op de pagina Meldingen */
+.alert-item.auth, .alert-table tr.auth { --c: var(--primary); }
+#alerts-filter { margin-left: auto; }
+#alerts-filter + .btn { margin-left: 0; }

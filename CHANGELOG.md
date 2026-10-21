@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.33.0 – 2026-10-21
+### Nieuw
+- **🔑 Logins en sudo op de pagina Meldingen** (via de agent): SSH- en console-logins, `sudo` (met het commando, als wie en in welke map) en `su`. Ook mislukte pogingen (fout wachtwoord, *niet in sudoers*, mislukte SSH-logins); die worden per server en IP-adres per uur opgeteld. Per regel staat wie, wat en op welke server.
+- **Filterknoppen** op de pagina Meldingen: *Alles · ⚠️ Storingen · 🔑 Toegang*, en tellers 🔑 en ❌ in de dagkop.
+- **Instellingen → Alarmgedrag:** aan/uit (standaard aan) en een lijst met gebruikers en IP-adressen om te negeren. Op een server zelf: `AUTH_EVENTS=0`.
+- Wachtwoorden in sudo-commando's (bv. `mysql -p…`, `password=…`) worden al op de server gemaskeerd. Er gaat geen Pushover-, mail- of HA-bericht uit.
+
 ## 1.32.0 – 2026-10-21
 ### Nieuw
 - **Meldingen per dag:** de pagina *Meldingen* groepeert alles per dag ("Vandaag", "Gisteren", "maandag 19 oktober"…), met tellers per dag (🔴 critical, 🟠 warning, ⚪ onbekend, ✅ hersteld, ✔ bevestigd). Vandaag staat open, de rest is dicht; **⊞ Alles openen** klapt alles in één keer open. Werkt in Blox en L1nes.

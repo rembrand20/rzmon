@@ -98,6 +98,10 @@ function agent_tests_text(int $hostId): string
             $out[] = implode("\t", [$c['id'], $o['test_type'], str_replace(["\t", "\n"], ' ', $o['test_target']), str_replace(["\t", "\n"], ' ', (string) ($o['test_expect'] ?? ''))]);
         }
     }
+    // Logins, sudo en su melden (Instellingen → Alarmgedrag): 0 <tab> auth <tab> 1
+    if (AuthEvents::enabled()) {
+        $out[] = implode("\t", [0, 'auth', 1]);
+    }
     // Commando-checks: id <tab> cmd <tab> commando (base64) <tab> time-out <tab> nobody|root <tab> interval
     $mode = AgentCommands::modeFor(q('SELECT commands FROM hosts WHERE id = ?', [$hostId])->fetch() ?: []);
     if ($mode !== 'off') {
@@ -261,6 +265,10 @@ if ($action === 'agent') {
                 'error' => mb_substr((string) ($l['error'] ?? ''), 0, 250),
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
         }
+    }
+    // Logins, sudo en su: naar de pagina Meldingen
+    if (is_array($in['auth'] ?? null)) {
+        AuthEvents::store($host, $in['auth']);
     }
     // Commando-checks: uitvoer en exitcode (RzMon vergelijkt met het verwachte antwoord)
     foreach ((array) ($in['cmd'] ?? []) as $id => $r) {
@@ -520,7 +528,7 @@ switch ($action) {
     case 'alerts':
         $days = Monitor::alertDays();
         $rows = q('SELECT a.*, c.name AS check_name, h.name AS host_name FROM alerts a
-                   LEFT JOIN checks c ON c.id = a.check_id LEFT JOIN hosts h ON h.id = c.host_id
+                   LEFT JOIN checks c ON c.id = a.check_id LEFT JOIN hosts h ON h.id = COALESCE(c.host_id, a.host_id)
                    WHERE a.created_at >= CURDATE() - INTERVAL ? DAY ORDER BY a.created_at DESC, a.id DESC LIMIT 10000', [$days - 1])->fetchAll();
         out(['days' => $days, 'alerts' => $rows, 'today' => date('Y-m-d'), 'truncated' => count($rows) >= 10000]);
 
@@ -918,7 +926,7 @@ switch ($action) {
     case 'settings_save':
         $in = input();
         $allowed = ['pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days', 'alerts_days',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -943,6 +951,9 @@ switch ($action) {
         if (isset($in['notify_channels'])) {
             $in['notify_channels'] = json_encode(array_replace(NotifyRules::defaults()['channels'],
                 NotifyRules::cleanChannels((array) (is_string($in['notify_channels']) ? json_decode($in['notify_channels'], true) : $in['notify_channels']))));
+        }
+        if (isset($in['auth_ignore'])) {
+            $in['auth_ignore'] = implode(' ', array_slice(parse_list(mb_substr((string) $in['auth_ignore'], 0, 2000)), 0, 100));
         }
         if (isset($in['alerts_days'])) {
             $in['alerts_days'] = (string) max(1, min(3650, (int) $in['alerts_days']));

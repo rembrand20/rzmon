@@ -38,6 +38,8 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **🖥️ Commando-checks**: laat de agent een commando uitvoeren (bv. `zpool status -x`) en vergelijk de uitvoer met het verwachte antwoord. Standaard uit; aanzetten per agent als `nobody` of root, met wachtwoord en logboek.
 
+**🔑 Logins en sudo**: de agent meldt SSH- en console-logins, `sudo` en `su` (ook mislukte pogingen) op de pagina Meldingen: wie, wat, op welke server.
+
 **🗄️ TrueNAS SCALE**: agent met één commando op je pool, met een cronjob van TrueNAS zelf; bijwerken met de knop.
 
 **🌙 Stille uren**: geen meldingen in vaste periodes (bv. 's nachts, meerdere vensters per dag van de week), algemeen of per check; na afloop één bericht met wat dan nog open is.

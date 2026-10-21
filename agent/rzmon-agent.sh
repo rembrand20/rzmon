@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.32.0"
+AGENT_VERSION="1.33.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -74,6 +74,11 @@ AGENT_SETUP="${AGENT_SETUP:-/usr/local/sbin/rzmon-agent-setup}"
 # (Instellingen → Agents). Hier op de server kun je dat inperken: COMMANDS=0 = nooit uitvoeren,
 # COMMANDS=nobody = nooit als root. Leeg = wat RzMon zegt.
 COMMANDS="${COMMANDS-}"
+# Logins (SSH en console), sudo en su melden op de pagina Meldingen, als dat in RzMon aan staat
+# (Instellingen → Alarmgedrag). AUTH_EVENTS=0 zet het op deze server altijd uit.
+AUTH_EVENTS="${AUTH_EVENTS-}"
+# Zonder journal (of met AUTH_SOURCE=file): deze logbestanden, de eerste die bestaat
+AUTH_LOGS="${AUTH_LOGS:-/var/log/secure /var/log/auth.log}"
 SUPERVISOR_URL="${SUPERVISOR_URL:-http://supervisor}"
 
 HA_MODE=0
@@ -760,6 +765,120 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_c
     done <"$t_cache"
 fi
 
+# ---------------------------------------------------------------- Logins, sudo en su
+# Als RzMon erom vraagt (regel "0 <tab> auth <tab> 1"): de nieuwe regels van het auth-log sinds de vorige
+# keer (journal, anders /var/log/secure of /var/log/auth.log). Geslaagde logins (SSH, console), sudo en su
+# gaan als losse gebeurtenissen naar RzMon; mislukte pogingen worden per soort/IP/gebruiker opgeteld.
+# Wachtwoorden in sudo-commando's (bv. mysql -pGeheim, password=…) worden hier al gemaskeerd.
+auth_json=""
+mask_secrets() {
+    sed -E 's/((password|passwd|pass|pwd|token|secret|apikey|api_key)[=:])[^ ]+/\1••••/Ig;
+            s/(--password[= ])[^ ]+/\1••••/g; s/((mysql|mariadb|mysqldump|mysqladmin)( [^|;&]*)? -p)[^ ]+/\1••••/g'
+}
+if [ "$HA_MODE" = 0 ] && [ "$AUTH_EVENTS" != 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\tauth\t1' "$t_cache"; then
+    a_state="$t_dir/authstate"
+    now_a=$(date +%s)
+    a_prev=$(cat "$a_state" 2>/dev/null)
+    a_lines=""   # regels "epoch <tab> programma <tab> bericht"
+    # Journal alleen als journald echt draait; anders (of met AUTH_SOURCE=file) de logbestanden
+    if [ "${AUTH_SOURCE:-}" != file ] && [ -d /run/systemd/journal ] && command -v journalctl >/dev/null 2>&1; then
+        since=${a_prev#journal|}; [[ "$since" =~ ^[0-9]+$ ]] || since=$((now_a - 60))
+        # Facility auth (4) en authpriv (10): sshd, login, sudo, su
+        a_lines=$(journalctl SYSLOG_FACILITY=4 SYSLOG_FACILITY=10 --since "@$since" --until "@$((now_a - 1))" -q --no-pager -o short-unix 2>/dev/null |
+            head -n 20000 | awk '{ t = $1; sub(/\..*/, "", t); id = $3; sub(/(\[[0-9]+\])?:$/, "", id)
+                                   if (match($0, /^[^ ]+ [^ ]+ [^ ]+ /)) print t "\t" id "\t" substr($0, RLENGTH + 1) }')
+        echo "journal|$now_a" >"$a_state"
+    else
+        for a_file in $AUTH_LOGS; do
+            [ -r "$a_file" ] || continue
+            # Verder lezen waar we gebleven waren (inode|positie); de eerste keer vanaf het einde
+            inode=$(stat -c %i "$a_file"); size=$(stat -c %s "$a_file")
+            p_inode=$(cut -d'|' -f2 <<<"$a_prev"); p_pos=$(cut -d'|' -f3 <<<"$a_prev")
+            if [[ "$a_prev" != file\|* ]]; then pos=$size
+            elif [ "$p_inode" != "$inode" ] || ! [[ "$p_pos" =~ ^[0-9]+$ ]] || [ "$p_pos" -gt "$size" ]; then pos=0
+            else pos=$p_pos; fi
+            # Hooguit 5 MB per keer en alleen volledige regels (een half geschreven regel komt de volgende keer)
+            a_tmp="$t_dir/auth.chunk"
+            tail -c +"$((pos + 1))" "$a_file" 2>/dev/null | head -c 5000000 >"$a_tmp"
+            nbytes=$(stat -c %s "$a_tmp")
+            if [ "$nbytes" -gt 0 ] && [ "$(tail -c 1 "$a_tmp" | od -An -tx1 | tr -d ' ')" != 0a ]; then
+                nbytes=$((nbytes - $(tail -n 1 "$a_tmp" | wc -c)))
+            fi
+            a_chunk=$(head -c "$nbytes" "$a_tmp"); rm -f "$a_tmp"
+            echo "file|$inode|$((pos + nbytes))" >"$a_state"
+            # "Oct 21 10:00:01 host sshd[12]: …" of "2026-10-21T10:00:01+02:00 host sshd[12]: …"; tijd = nu
+            a_lines=$(awk -v now="$now_a" '{
+                if ($1 ~ /^[0-9]{4}-/) { h = 3 } else { h = 5 }
+                id = $h; sub(/(\[[0-9]+\])?:$/, "", id)
+                msg = $0; for (i = 1; i <= h; i++) { if (match(msg, /^[^ ]+ +/)) msg = substr(msg, RLENGTH + 1) }
+                print now "\t" id "\t" msg }' <<<"$a_chunk")
+            break
+        done
+    fi
+
+    a_events=""; n_events=0
+    declare -A f_n=() f_users=() f_t=() f_extra=()
+    a_fail() {  # a_fail <sleutel> <tijd> <gebruiker> <extra json-velden>
+        f_n[$1]=$(( ${f_n[$1]:-0} + 1 )); f_t[$1]=$2; f_extra[$1]=$4
+        local list=" ${f_users[$1]:-} "
+        [ -n "$3" ] && [[ "$list" != *" $3 "* ]] && [ "$(wc -w <<<"${f_users[$1]:-}")" -lt 8 ] && f_users[$1]+=" $3"
+    }
+    a_event() {  # a_event <json-object zonder accolades>
+        [ "$n_events" -lt 300 ] || return 0
+        a_events+="{$1},"; n_events=$((n_events + 1))
+    }
+    re_ssh_ok='^Accepted ([^ ]+) for ([^ ]+) from ([^ ]+) port'
+    re_ssh_fail='^Failed ([^ ]+) for ([^ ]+) from ([^ ]+) port'
+    re_ssh_invalid='^Invalid user ([^ ]*) from ([^ ]+)'
+    re_login_ok='^pam_unix\(login:session\): session opened for user ([^ (]+)'
+    re_login_fail='^pam_unix\(login:auth\): authentication failure;.* tty=([^ ]*).* user=([^ ]+)'
+    re_sudo='^ *([^ ]+) : (.*)TTY=([^ ]+) ; PWD=(.*) ; USER=([^ ]+) ; (.* ; )?COMMAND=(.*)$'
+    re_su_ok='^pam_unix\(su(-l)?:session\): session opened for user ([^ (]+)(\(uid=[0-9]+\))? by ([^ (]*)'
+    re_su_fail='^pam_unix\(su(-l)?:auth\): authentication failure;.* logname=([^ ]*) .* tty=([^ ]*) .* user=([^ ]+)'
+    while IFS=$'\t' read -r a_t a_id a_msg; do
+        [ -n "$a_msg" ] || continue
+        case "$a_id" in
+            sshd|sshd-session)
+                if [[ "$a_msg" =~ $re_ssh_ok ]]; then
+                    a_event "\"t\":$a_t,\"k\":\"ssh\",\"u\":\"$(json_escape "${BASH_REMATCH[2]}")\",\"ip\":\"$(json_escape "${BASH_REMATCH[3]}")\",\"m\":\"$(json_escape "${BASH_REMATCH[1]}")\""
+                elif [[ "$a_msg" =~ $re_ssh_fail ]] && [ "${BASH_REMATCH[2]}" != invalid ]; then
+                    a_fail "ssh|${BASH_REMATCH[3]}" "$a_t" "${BASH_REMATCH[2]}" "\"ip\":\"$(json_escape "${BASH_REMATCH[3]}")\""
+                elif [[ "$a_msg" =~ $re_ssh_invalid ]]; then
+                    a_fail "ssh|${BASH_REMATCH[2]}" "$a_t" "${BASH_REMATCH[1]:-?}" "\"ip\":\"$(json_escape "${BASH_REMATCH[2]}")\""
+                fi ;;
+            login)
+                if [[ "$a_msg" =~ $re_login_ok ]]; then
+                    a_event "\"t\":$a_t,\"k\":\"console\",\"u\":\"$(json_escape "${BASH_REMATCH[1]}")\""
+                elif [[ "$a_msg" =~ $re_login_fail ]]; then
+                    a_fail "console|${BASH_REMATCH[1]}" "$a_t" "${BASH_REMATCH[2]}" "\"tty\":\"$(json_escape "${BASH_REMATCH[1]}")\""
+                fi ;;
+            sudo)
+                if [[ "$a_msg" =~ $re_sudo ]]; then
+                    s_user=${BASH_REMATCH[1]}; s_why=${BASH_REMATCH[2]% ; }; s_tty=${BASH_REMATCH[3]}; s_pwd=${BASH_REMATCH[4]}
+                    s_as=${BASH_REMATCH[5]}; s_cmd=$(printf '%s' "${BASH_REMATCH[7]:0:500}" | mask_secrets | json_text)
+                    if [ -z "$s_why" ]; then
+                        a_event "\"t\":$a_t,\"k\":\"sudo\",\"u\":\"$(json_escape "$s_user")\",\"as\":\"$(json_escape "$s_as")\",\"cmd\":\"$s_cmd\",\"tty\":\"$(json_escape "$s_tty")\",\"pwd\":\"$(json_escape "${s_pwd:0:200}")\""
+                    else
+                        a_fail "sudo|$s_user|$s_as|${s_cmd:0:200}" "$a_t" "$s_user" "\"as\":\"$(json_escape "$s_as")\",\"cmd\":\"$s_cmd\",\"why\":\"$(json_escape "${s_why:0:150}")\""
+                    fi
+                fi ;;
+            su|su-l)
+                # Alleen van een echte gebruiker: su vanuit diensten (bv. logrotate) heeft geen naam achter "by"
+                if [[ "$a_msg" =~ $re_su_ok ]] && [ -n "${BASH_REMATCH[4]}" ]; then
+                    a_event "\"t\":$a_t,\"k\":\"su\",\"u\":\"$(json_escape "${BASH_REMATCH[4]}")\",\"as\":\"$(json_escape "${BASH_REMATCH[2]}")\""
+                elif [[ "$a_msg" =~ $re_su_fail ]]; then
+                    a_fail "su|${BASH_REMATCH[2]}|${BASH_REMATCH[4]}" "$a_t" "${BASH_REMATCH[2]:-?}" "\"as\":\"$(json_escape "${BASH_REMATCH[4]}")\",\"tty\":\"$(json_escape "${BASH_REMATCH[3]}")\""
+                fi ;;
+        esac
+    done <<<"$a_lines"
+    a_fails=""
+    for key in "${!f_n[@]}"; do
+        users=""; for u in ${f_users[$key]:-}; do users+="\"$(json_escape "$u")\","; done
+        a_fails+="{\"k\":\"${key%%|*}\",\"n\":${f_n[$key]},\"t\":${f_t[$key]},\"users\":[${users%,}]${f_extra[$key]:+,${f_extra[$key]}}},"
+    done
+    auth_json="\"auth\":{\"events\":[${a_events%,}],\"fails\":[${a_fails%,}]},"
+fi
+
 # ---------------------------------------------------------------- Podman: containers, pods en opslag
 # Per context: versie, containers (status, health, herstarts, grootte, volumes), pods en opslag.
 # Volumegroottes (du) worden een uur bewaard: die kunnen groot zijn en veranderen langzaam.
@@ -1011,7 +1130,7 @@ remote_update() {  # remote_update <antwoord van RzMon>
 }
 
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)

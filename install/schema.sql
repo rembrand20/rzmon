@@ -223,7 +223,10 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('update_time', '04:00'),
     ('update_backup', '1'),
     -- Commando-checks op agents: uit tot je ze aanzet (uit | nobody | root), per server te overschrijven
-    ('agent_commands', 'off');
+    ('agent_commands', 'off'),
+    -- Logins (SSH, console), sudo en su van de agents op de pagina Meldingen; auth_ignore: gebruikers/IP's
+    ('auth_events', '1'),
+    ('auth_ignore', '');
 
 -- Logboek van gevoelige wijzigingen (bv. commando's op agents toestaan, commando-checks wijzigen)
 CREATE TABLE IF NOT EXISTS audit_log (

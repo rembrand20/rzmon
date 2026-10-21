@@ -90,6 +90,7 @@ let settingsLoaded = false;   // samenvattingen pas tonen als de instellingen ge
 let updateInfo = null;        // laatste update_info (voor de samenvatting in L1nes)
 let alertData = null;         // meldingen van de bewaartermijn (pagina Meldingen)
 const alertDayOpen = {};      // datum → open/dicht (anders: alleen vandaag open)
+let alertFilter = 'all';      // all | problems | auth
 
 // ---------------------------------------------------------------- API
 async function api(action, body, params = {}) {
@@ -296,6 +297,13 @@ function init() {
   $('#agent-commands').onchange = (e) => {
     const sel = e.target;
     setAgentCommands(null, sel.value, sel.dataset.current || 'off', 'alle agents', () => { showTab('settings'); loadAgentCommands(); });
+  };
+  $('#alerts-filter').onclick = (e) => {
+    const b = e.target.closest('[data-af]');
+    if (!b) return;
+    alertFilter = b.dataset.af;
+    $$('#alerts-filter .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+    renderAlerts();
   };
   $('#alerts-toggle').onclick = () => {
     const days = $$('#alerts .alert-day');
@@ -632,7 +640,7 @@ function settingsSummaries() {
     sum.email = f.email_enabled.checked ? on(esc(f.mail_to.value)) : off;
     sum.webhook = f.ha_webhook_enabled.checked ? on('') : off;
     sum.mqtt = f.mqtt_enabled.checked ? on(esc(txt('#mqtt-status').replace(/^✔ /, ''))) : off;
-    sum.alarm = esc(`agent offline na ${f.agent_stale_minutes.value} min · historie ${f.retention_days.value} dagen · meldingen ${f.alerts_days.value} dagen`);
+    sum.alarm = esc(`agent offline na ${f.agent_stale_minutes.value} min · historie ${f.retention_days.value} dagen · meldingen ${f.alerts_days.value} dagen${f.auth_events.checked ? ' · 🔑 logins' : ''}`);
     if (updateInfo) {
       sum.update = (updateInfo.available ? `<span class="warn-txt">⬆ ${esc(updateInfo.latest)} beschikbaar</span>` : `✔ ${esc(updateInfo.current)}${updateInfo.latest ? ' · nieuwste versie' : ''}`)
         + (f.update_auto.checked ? ` · automatisch om ${esc(f.update_time.value)}` : '');
@@ -1836,6 +1844,7 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
 
 // ---------------------------------------------------------------- Alerts
 function channelIcons(a) {
+  if (a.kind === 'auth' || a.kind === 'authfail') return '<span class="muted" title="Alleen op deze pagina, niet verstuurd">–</span>';
   if (a.kind === 'ack') return '<span title="Bevestiging">✔</span>';
   const out = [];
   if (+a.sent_ok) out.push('<span title="Verstuurd via Pushover">📲</span>');
@@ -1847,6 +1856,8 @@ function channelIcons(a) {
 
 /** "🔴 Critical", "✅ Hersteld", "✔ Bevestigd"… voor de meldingentabel */
 function alertStatusText(a) {
+  if (a.kind === 'auth') return '🔑 Toegang';
+  if (a.kind === 'authfail') return '❌ Mislukt';
   if (a.kind === 'ack') return '✔ Bevestigd';
   if (a.kind === 'maint') return '🔧 Onderhoud';
   const ev = (a.title.match(/^\S+ (HERSTELD|STABIEL|FLAPPEND)/) || [])[1];
@@ -1872,26 +1883,25 @@ function dayLabel(day, today) {
   return diff === 0 ? `Vandaag · ${date}` : diff === 1 ? `Gisteren · ${date}` : date.charAt(0).toUpperCase() + date.slice(1);
 }
 
-/** "🔴 Critical", "✅ Hersteld", "✔ Bevestigd"… voor de meldingentabel */
-function alertStatusText(a) {
-  if (a.kind === 'ack') return '✔ Bevestigd';
-  if (a.kind === 'maint') return '🔧 Onderhoud';
-  const ev = (a.title.match(/^\S+ (HERSTELD|STABIEL|FLAPPEND)/) || [])[1];
-  if (ev) return { HERSTELD: '✅ Hersteld', STABIEL: '⏸ Stabiel', FLAPPEND: '🔀 Flapt' }[ev];
-  return ['✅ OK', '🟠 Warning', '🔴 Critical', '⚪ Onbekend'][+a.status] || '';
+const AUTH_TYPES = { ssh: 'SSH', console: 'Console', sudo: 'sudo', su: 'su' };
+/** Extra gegevens van een login/sudo-regel (wie, wat, IP), of null */
+function alertDetail(a) {
+  if (a.kind !== 'auth' && a.kind !== 'authfail') return null;
+  try { return JSON.parse(a.detail || '{}'); } catch (e) { return {}; }
 }
 
 /** Tellers in de kop van een dag: hoeveel critical, warning, onbekend, hersteld en bevestigd */
 function alertDayCounts(list) {
-  const n = { crit: 0, warn: 0, unknown: 0, ok: 0, ack: 0 };
+  const n = { crit: 0, warn: 0, unknown: 0, ok: 0, ack: 0, auth: 0, authfail: 0 };
   list.forEach((a) => {
-    if (a.kind === 'ack') n.ack++;
+    if (a.kind === 'auth' || a.kind === 'authfail') n[a.kind]++;
+    else if (a.kind === 'ack') n.ack++;
     else if (+a.status === 2) n.crit++;
     else if (+a.status === 1) n.warn++;
     else if (+a.status === 3) n.unknown++;
     else n.ok++;
   });
-  return [['crit', '🔴', 'critical'], ['warn', '🟠', 'warning'], ['unknown', '⚪', 'onbekend'], ['ok', '✅', 'hersteld/OK'], ['ack', '✔', 'bevestigd']]
+  return [['crit', '🔴', 'critical'], ['warn', '🟠', 'warning'], ['unknown', '⚪', 'onbekend'], ['ok', '✅', 'hersteld/OK'], ['ack', '✔', 'bevestigd'], ['auth', '🔑', 'logins en sudo'], ['authfail', '❌', 'mislukte logins/sudo']]
     .filter(([k]) => n[k]).map(([k, i, t]) => `<span class="ad-count" title="${n[k]} ${t}">${i} ${n[k]}</span>`).join('');
 }
 
@@ -1902,8 +1912,11 @@ function alertRows(list, layout, density) {
       ${list.map((a) => {
         // Server en check; van een verwijderde check uit de titel ("🔴 CRITICAL: server – check")
         const t = a.title.match(/:\s*(.+?) – (.+)$/);
-        const host = a.host_name || (t ? t[1] : 'RzMon'), check = a.check_name || (t ? t[2] : '–');
-        return `<tr class="${a.kind === 'ack' ? 'ack' : 's' + a.status}">
+        const det = alertDetail(a);
+        const host = a.host_name || (t ? t[1] : 'RzMon');
+        const who = det ? (det.users ? det.users.join(', ') : det.user) || '?' : '';
+        const check = det ? `${AUTH_TYPES[det.type] || det.type} · ${who}${det.as && det.type === 'su' ? ' → ' + det.as : ''}` : a.check_name || (t ? t[2] : '–');
+        return `<tr class="${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : 's' + a.status}">
           <td class="at-time" title="${esc(a.created_at)}">${time(a)}</td>
           <td class="at-st">${alertStatusText(a)}</td>
           <td>${esc(host)}</td>
@@ -1913,7 +1926,7 @@ function alertRows(list, layout, density) {
       }).join('')}</tbody></table>`;
   }
   return list.map((a) => `
-    <div class="alert-item ${a.kind === 'ack' ? 'ack' : 's' + a.status}">
+    <div class="alert-item ${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : 's' + a.status}">
       <span class="dot"></span>
       <strong>${esc(a.title)}</strong>
       <span class="muted small" title="${esc(a.created_at)}">${time(a)} ${channelIcons(a)}</span>
@@ -1929,8 +1942,11 @@ function renderAlerts() {
   $('#alerts-info').textContent = `${d.alerts.length} melding${d.alerts.length === 1 ? '' : 'en'} van de laatste ${d.days} dag${d.days === 1 ? '' : 'en'}`
     + (d.truncated ? ' (alleen de nieuwste 10.000)' : '');
   if (!d.alerts.length) { el.innerHTML = '<p class="muted">Nog geen meldingen. 👌</p>'; $('#alerts-toggle').hidden = true; return; }
+  const isAuth = (a) => a.kind === 'auth' || a.kind === 'authfail';
+  const shown = d.alerts.filter((a) => alertFilter === 'all' || (alertFilter === 'auth' ? isAuth(a) : !isAuth(a)));
+  if (!shown.length) { el.innerHTML = `<p class="muted">${alertFilter === 'auth' ? 'Geen logins of sudo in deze periode.' : 'Geen storingsmeldingen in deze periode. 👌'}</p>`; return; }
   const byDay = new Map();
-  d.alerts.forEach((a) => {
+  shown.forEach((a) => {
     const day = a.created_at.slice(0, 10);
     if (!byDay.has(day)) byDay.set(day, []);
     byDay.get(day).push(a);
