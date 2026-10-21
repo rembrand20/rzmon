@@ -363,7 +363,7 @@ dialog[open] { animation: pop .18s ease-out; }
 .modal-inner > header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.2rem; border-bottom: 1px solid var(--border); }
 #modal-body { padding: 1.2rem 1.2rem .4rem; max-height: 70vh; overflow: auto; }
 .modal-inner > .form-error { margin: 0 1.2rem .8rem; }
-.modal-inner > footer { display: flex; justify-content: flex-end; gap: .6rem; padding: .9rem 1.2rem; border-top: 1px solid var(--border); background: var(--card-2); border-radius: 0 0 16px 16px; }
+.modal-inner > footer { display: flex; justify-content: flex-end; gap: .6rem; flex-wrap: wrap; padding: .9rem 1.2rem; border-top: 1px solid var(--border); background: var(--card-2); border-radius: 0 0 16px 16px; }
 .modal-inner > footer:empty { display: none; }
 pre.code { background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: .8rem; overflow-x: auto; font-size: .8rem; white-space: pre-wrap; word-break: break-all; }
 
@@ -753,3 +753,30 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .ids-blocks td { vertical-align: middle; }
 .alert-item.s2.ids-item, .alert-item.s1.ids-item { padding-left: .2rem; }
 .set-l1nes [data-sk=ids] { order: 22; }
+
+/* Popup van een check */
+.chk[data-cid] { cursor: pointer; }
+.ci-status { margin: 0 0 .8rem; padding: .6rem .8rem; border-radius: 8px; background: var(--card-2); border-left: 4px solid var(--muted); }
+.ci-status.s0 { border-left-color: var(--ok); }
+.ci-status.s1 { border-left-color: var(--warn); }
+.ci-status.s2 { border-left-color: var(--crit); }
+.ci-msg { overflow-wrap: anywhere; }
+.ci-grid { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; margin: 0 0 .5rem; font-size: .9rem; }
+.ci-grid dt { color: var(--muted); }
+.ci-grid dd { margin: 0; }
+.ci-tags { margin: .2rem 0 .8rem; }
+.ci-h { font-size: 1rem; margin: .4rem 0 .5rem; }
+.ci-changes { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.ci-change { padding: .5rem .7rem; border-radius: 8px; border-left: 4px solid var(--muted); background: var(--card-2); font-size: .9rem; }
+.ci-change.s0 { border-left-color: var(--ok); }
+.ci-change.s1 { border-left-color: var(--warn); }
+.ci-change.s2 { border-left-color: var(--crit); }
+.ci-ch-head { display: flex; flex-wrap: wrap; gap: .3rem .7rem; align-items: baseline; }
+.ci-when { font-variant-numeric: tabular-nums; color: var(--muted); }
+.ci-change .ci-msg { margin: .15rem 0; }
+/* Meldingen: sorteren en klikken */
+.alert-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.alert-table th.sortable:hover { color: var(--text); }
+.alert-table th.sorted { color: var(--primary); }
+.alert-table tr.clickable, .alert-item.clickable { cursor: pointer; }
+.alerts-sort { width: auto; max-width: 14rem; }

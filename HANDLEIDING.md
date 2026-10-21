@@ -74,7 +74,7 @@ RzMon bestaat uit vier onderdelen:
 - **Herstelmelding** ✅ als het weer goed gaat, met lage prioriteit dus zonder geluid.
 - **Prioriteit en geluid instelbaar**, apart voor critical en warning, inclusief *Emergency* (blijft herhalen tot je hem bevestigt).
 - **Testknoppen** voor elk kanaal, en een **meldingenlog** dat per melding toont via welk kanaal hij is verstuurd (📲 / 📧 / 🏠).
-- **Meldingen per dag** (pagina *Meldingen*): elke dag een uitklapblok met tellers (🔴 critical, 🟠 warning, ⚪ onbekend, ✅ hersteld, ✔ bevestigd). *Vandaag* staat open, de andere dagen dicht; **⊞ Alles openen** klapt alles open. Hoeveel dagen bewaard en getoond worden, stel je in onder *Instellingen → Alarmgedrag → Meldingen bewaren (dagen)*.
+- **Meldingen per dag** (pagina *Meldingen*): elke dag een uitklapblok met tellers (🔴 critical, 🟠 warning, ⚪ onbekend, ✅ hersteld, ✔ bevestigd). *Vandaag* staat open, de andere dagen dicht; **⊞ Alles openen** klapt alles open. Hoeveel dagen bewaard en getoond worden, stel je in onder *Instellingen → Alarmgedrag → Meldingen bewaren (dagen)*. **Sorteren:** in L1nes klik je op een kolomkop (Tijd, Status, Server, Check, Bericht, Kanalen); in Blox kies je *Sorteren op …*. Klik op een melding voor de popup van die check.
 
 ### Storingen bevestigen
 - **✔ Bevestigen** per check, of alle storingen van een server tegelijk, met een optionele opmerking. Daarna krijg je voor die storing **geen meldingen meer**: geen herhalingen, ook niet bij erger worden.
@@ -415,7 +415,7 @@ Bij de update naar 1.25.0 zijn je oude instellingen omgezet, zodat er niets vera
 |---|---|---|
 | Agent offline na … minuten | 5 | Na zoveel minuten zonder rapport worden de agent-checks CRITICAL |
 | Historie bewaren (dagen) | 30 | Meetwaarden voor de grafieken |
-| Meldingen bewaren (dagen) | 3× de historie (90) | Hoe lang verstuurde meldingen bewaard worden; de pagina *Meldingen* toont ze per dag. Oudere worden elk uur opgeruimd |
+| Meldingen bewaren (dagen) | 3× de historie (90) | Hoe lang verstuurde meldingen en de statuswijzigingen van checks bewaard worden; de pagina *Meldingen* toont ze per dag. Oudere worden elk uur opgeruimd |
 
 ---
 
@@ -578,6 +578,14 @@ Klik op een serverkaart op **＋**. Per type:
 - **Interval:** minimaal 30 seconden. Omdat cron elke minuut draait, is **1 minuut** in de praktijk het kortste interval.
 - **Na opslaan** wordt de check direct uitgevoerd.
 - **Knoppen per check:** ↻ = nu checken, 📈 = grafiek, ✎ = bewerken of verwijderen.
+- **Klik op een check** (op de naam of het bericht) voor een popup met meer informatie:
+  - de huidige status, sinds wanneer, en het bericht;
+  - type, doel, interval, drempels, laatste check en de beschikbaarheid over 24 uur en 7 dagen;
+  - of hij eigen meldregels, eigen stille uren, een omgekeerde status, onderhoud of een bevestiging heeft;
+  - de **laatste 5 statuswijzigingen**: van welke naar welke status, hoe lang die duurde, het bericht dat de wijziging veroorzaakte, en of er een melding is verstuurd (wanneer en via welke kanalen). Zo niet, dan staat erbij waarom niet: onderhoud, storing bevestigd, onderdrukt, of *te kort, flapt, stille uren of de meldregel staat uit*;
+  - knoppen voor bevestigen, onderhoud, nu checken, grafiek en bewerken.
+
+  De statuswijzigingen worden bijgehouden vanaf versie 1.37.0, ook als er geen melding uitging, en net zo lang bewaard als de meldingen. Je opent de popup ook door op een melding op de pagina *Meldingen* te klikken.
 - **⇄ Omgekeerde status** (zie hieronder): voor iets dat juist níet mag draaien of bereikbaar mag zijn.
 - **Certificaat controleren** (bij HTTP(S) en SSL-certificaat): zet dit uit voor apparaten met een self-signed certificaat, zoals Proxmox of een NAS. De vervaldatum wordt dan nog steeds bewaakt.
 

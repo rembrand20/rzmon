@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.37.0 – 2026-10-21
+### Nieuw
+- **Popup per check:** klik op een check op het dashboard (Blox en L1nes) of op een melding. Je ziet de status en het bericht, de instellingen, de beschikbaarheid over 24 uur en 7 dagen, en de **laatste 5 statuswijzigingen**: van/naar, hoe lang, het bericht dat de wijziging veroorzaakte, en of er gemeld is (wanneer, via welke kanalen) of waarom niet. Met knoppen voor bevestigen, onderhoud, nu checken, grafiek en bewerken.
+- Statuswijzigingen worden vanaf nu bewaard, ook als er geen melding uitging, net zo lang als de meldingen.
+- **Sorteren op de pagina Meldingen:** klik in L1nes op een kolomkop (Tijd, Status, Server, Check, Bericht, Kanalen): oplopend ▲, aflopend ▼, en de derde klik zet *nieuwste eerst* terug. In Blox een keuzelijst *Sorteren op*. Er wordt binnen elke dag gesorteerd; de keuze wordt per apparaat onthouden.
+
+### Opgelost
+- Knoppen onderin een venster lopen op een smal scherm door naar een tweede regel in plaats van buiten beeld te vallen.
+
 ## 1.36.0 – 2026-10-21
 ### Nieuw
 - **⇄ Omgekeerde status per check.** In het checkformulier kies je *Status als de check slaagt* (OK, warning of critical) en, bij omgekeerd, *Status als de check mislukt* (standaard OK). Zo krijg je een melding als iets reageert dat juist níet mag draaien of bereikbaar mag zijn, bijvoorbeeld SSH, telnet of een oude server.

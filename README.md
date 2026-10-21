@@ -38,6 +38,8 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **🖥️ Commando-checks**: laat de agent een commando uitvoeren (bv. `zpool status -x`) en vergelijk de uitvoer met het verwachte antwoord. Standaard uit; aanzetten per agent als `nobody` of root, met wachtwoord en logboek.
 
+**🔎 Popup per check**: klik op een check voor de laatste 5 statuswijzigingen, het bericht dat ze veroorzaakte en of er gemeld is. Op de pagina Meldingen sorteer je op elke kolom.
+
 **⇄ Omgekeerde status**: per check zelf kiezen welke status hij krijgt als hij slaagt of mislukt, voor iets dat juist níet mag draaien of bereikbaar mag zijn.
 
 **🔑 Logins en sudo**: de agent meldt SSH- en console-logins, `sudo` en `su` (ook mislukte pogingen) op de pagina Meldingen: wie, wat, op welke server.

@@ -449,7 +449,7 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'alerts', 'ids', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'state', 'alerts', 'ids', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'user_email' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan' => 'user',
     default => 'admin',
@@ -539,6 +539,31 @@ switch ($action) {
                    LEFT JOIN checks c ON c.id = a.check_id LEFT JOIN hosts h ON h.id = COALESCE(c.host_id, a.host_id)
                    WHERE a.created_at >= CURDATE() - INTERVAL ? DAY ORDER BY a.created_at DESC, a.id DESC LIMIT 10000', [$days - 1])->fetchAll();
         out(['days' => $days, 'alerts' => $rows, 'today' => date('Y-m-d'), 'truncated' => count($rows) >= 10000]);
+
+    // Popup van een check: gegevens, beschikbaarheid en de laatste 5 statuswijzigingen met hun meldingen
+    case 'check_info':
+        $id = (int) ($_GET['id'] ?? 0);
+        $c = q('SELECT c.*, h.name AS host_name, h.mode FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.id = ?', [$id])->fetch();
+        if (!$c) {
+            out(['error' => 'Deze check bestaat niet meer'], 404);
+        }
+        $up = q('SELECT SUM(created_at >= NOW() - INTERVAL 1 DAY) AS n1, SUM(created_at >= NOW() - INTERVAL 1 DAY AND status <> 2) AS ok1,
+                        COUNT(*) AS n7, SUM(status <> 2) AS ok7
+                 FROM results WHERE check_id = ? AND created_at >= NOW() - INTERVAL 7 DAY', [$id])->fetch();
+        $pct = static fn($ok, $n) => (int) $n > 0 ? round(100 * (int) $ok / (int) $n, 1) : null;
+        $changes = q('SELECT * FROM status_changes WHERE check_id = ? ORDER BY created_at DESC, id DESC LIMIT 5', [$id])->fetchAll();
+        $end = null;   // de wijziging erna (nieuwste eerst), of nu
+        foreach ($changes as &$ch) {
+            // Meldingen die bij deze wijziging horen: tussen deze en de volgende wijziging
+            $ch['alerts'] = q("SELECT id, kind, status, title, created_at, sent_ok, email_ok, webhook_ok FROM alerts
+                               WHERE check_id = ? AND created_at >= ?" . ($end ? ' AND created_at < ?' : '') . ' ORDER BY created_at, id LIMIT 5',
+                array_merge([$id, $ch['created_at']], $end ? [$end] : []))->fetchAll();
+            $ch['ended_at'] = $end;
+            $end = $ch['created_at'];
+        }
+        unset($ch);
+        out(['check' => $c, 'uptime' => ['d1' => $pct($up['ok1'], $up['n1']), 'd7' => $pct($up['ok7'], $up['n7'])],
+             'changes' => $changes, 'now' => now()]);
 
     case 'history':
         $id = (int) ($_GET['check_id'] ?? 0);

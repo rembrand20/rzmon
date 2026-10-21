@@ -81,6 +81,20 @@ CREATE TABLE IF NOT EXISTS alerts (
     INDEX idx_alerts_time (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Statuswijzigingen per check (voor de popup van een check), ook als er geen melding uitging
+CREATE TABLE IF NOT EXISTS status_changes (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    check_id    INT UNSIGNED NOT NULL,
+    from_status TINYINT UNSIGNED NOT NULL,
+    to_status   TINYINT UNSIGNED NOT NULL,
+    message     VARCHAR(500) NOT NULL DEFAULT '',
+    value       DOUBLE NULL,
+    note        VARCHAR(200) NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_sc_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE,
+    INDEX idx_sc_check_time (check_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Sleutels voor de REST API (alleen de SHA-256 hash wordt opgeslagen)
 CREATE TABLE IF NOT EXISTS api_keys (
     id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

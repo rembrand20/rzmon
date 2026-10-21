@@ -56,12 +56,13 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - **Blox**: tegels;
   - **L1nes**: rijen, in **Small** of **Large**.
 - **Per server:** de algehele status, de checks met problemen en mini-meters voor CPU, RAM en disk. Uitklappen toont alle checks, problemen bovenaan.
+- **Popup per check** (klik op een check): status en bericht, instellingen, beschikbaarheid en de **laatste 5 statuswijzigingen** met het bericht dat ze veroorzaakte en of en via welke kanalen er gemeld is (of waarom niet).
 - **Grafieken** van 6 uur tot 30 dagen, met minimum, gemiddelde en maximum, en bij disks de trend.
 - **Beschikbaarheid** per server over 24 uur, 7 dagen en 30 dagen.
 - **Zoeken** en het filter *Alleen problemen*.
 - **Overig:** licht en donker thema, werkt op je telefoon, ververst elke 20 seconden, en **↻ Alles nu checken**.
 - **🔑 Toegang:** op de pagina Meldingen ook wie er inlogt (SSH, console) en `sudo`/`su` gebruikt, met filterknoppen *Alles · Storingen · Toegang*.
-- **Meldingenoverzicht per dag:** elke verstuurde melding met de kanalen waarlangs hij ging, gegroepeerd per dag met tellers. Vandaag staat open. De bewaartermijn stel je zelf in.
+- **Meldingenoverzicht per dag:** elke verstuurde melding met de kanalen waarlangs hij ging, gegroepeerd per dag met tellers. Vandaag staat open. De bewaartermijn stel je zelf in. **Sorteren** op tijd, status, server, check, bericht of kanalen (klik op de kolomkop; in Blox een keuzelijst), en klik op een melding voor de popup van de check.
 
 ## 4. Meldingen
 - **Kanalen:**

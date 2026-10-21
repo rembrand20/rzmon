@@ -192,6 +192,13 @@ final class Monitor
         q('UPDATE checks SET status = ?, last_value = ?, last_message = ?, last_checked = ?, fail_count = ?, suppressed_by = ?, problem_since = ?, status_since = ? WHERE id = ?', [
             $status, $res['value'], mb_substr($message, 0, 500), now(), $failCount, $upstream['id'] ?? null, $problemSince, $statusSince, $check['id'],
         ]);
+        // Statuswijziging bewaren (popup van de check), met de reden als er zeker geen melding uitgaat
+        if ($status !== (int) $check['status']) {
+            $note = $upstream ? "onderdrukt: {$upstream['name']} is onbereikbaar"
+                : (self::maintenanceFor($check) !== null ? 'onderhoud' : ($acked && $status !== STATUS_OK ? 'storing bevestigd' : null));
+            q('INSERT INTO status_changes (check_id, from_status, to_status, message, value, note) VALUES (?, ?, ?, ?, ?, ?)',
+                [$check['id'], (int) $check['status'], $status, mb_substr($res['message'], 0, 500), $res['value'], $note]);
+        }
 
         $s = settings();
         $title = sprintf('%s – %s', $check['host_name'], $check['name']);
@@ -753,6 +760,7 @@ final class Monitor
         $days = max(1, (int) setting('retention_days', 30));
         q('DELETE FROM results WHERE created_at < NOW() - INTERVAL ? DAY', [$days]);
         q('DELETE FROM alerts WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
+        q('DELETE FROM status_changes WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
         q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
         q('DELETE FROM remember_tokens WHERE last_used < NOW() - INTERVAL ? DAY', [REMEMBER_DAYS]);
         PasswordReset::purge();

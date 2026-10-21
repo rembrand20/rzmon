@@ -78,6 +78,9 @@ const REV_FAIL = [[0, '✅ OK'], [1, '🟠 WARNING'], [2, '🔴 CRITICAL']];
 const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', 'onbekend'];
 
 let stats = { uptime: {}, sparks: {} };
+// Sorteren op de pagina Meldingen (per apparaat onthouden): { key: 'time'|'status'|'server'|'check'|'message'|'channels', dir: 1|-1 }
+const ALERT_SORTS = { time: 'Tijd', status: 'Status', server: 'Server', check: 'Check', message: 'Bericht', channels: 'Kanalen' };
+let alertSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-alert-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 // Instellingen in L1nes (zie applySettingsLayout); hier bovenaan omdat de weergave al bij het opstarten wordt toegepast
 const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', email: 'meldingen', webhook: 'meldingen', mqtt: 'meldingen', alarm: 'monitoring',
   ids: 'monitoring', update: 'systeem', agents: 'systeem', backup: 'systeem', db: 'systeem', access: 'toegang', users: 'toegang', api: 'toegang', account: 'toegang', password: 'toegang' };
@@ -377,7 +380,26 @@ function init() {
     const all = days.every((x) => x.open);
     days.forEach((x) => { x.open = !all; });   // het toggle-event bouwt de inhoud op en onthoudt de stand
   };
-  $('#alerts').addEventListener('click', (e) => { const td = e.target.closest('.alert-table.small .at-msg'); if (td) td.parentElement.classList.toggle('at-open'); });
+  $('#alerts').addEventListener('click', (e) => {
+    // Kolomkop: sorteren (oplopend → aflopend → standaard)
+    const th = e.target.closest('th[data-sort]');
+    if (th) {
+      const k = th.dataset.sort;
+      alertSort = alertSort.key !== k ? { key: k, dir: 1 } : alertSort.dir > 0 ? { key: k, dir: -1 } : { key: '', dir: 1 };
+      return saveAlertSort();
+    }
+    // Small: klik op het bericht klapt het hele bericht uit
+    const td = e.target.closest('.alert-table.small .at-msg');
+    if (td) return td.parentElement.classList.toggle('at-open');
+    // Anders: popup van de check
+    const row = e.target.closest('[data-cid]');
+    if (row && !e.target.closest('button, a')) checkInfo(row.dataset.cid);
+  });
+  $('#alerts-sort').onchange = (e) => {
+    const [key, dir] = e.target.value.split(':');
+    alertSort = { key, dir: +dir || 1 };
+    saveAlertSort();
+  };
   $('#tab-settings').addEventListener('click', (e) => {
     const h = e.target.closest('.set-l1nes [data-sk] > h2');
     if (h && !e.target.closest('a, button, input, label')) toggleSetting(h.parentElement);
@@ -949,7 +971,7 @@ function checkRow(c) {
   const b = checkBits(c);
   const bar = b.pctVal !== null ? `<div class="bar" title="${fmt(b.pctVal, '%')}"><i style="width:${b.pctVal}%"></i>${b.ticks}</div>` : '';
   return `
-  <li class="chk ${b.cls}" title="${b.title}">
+  <li class="chk ${b.cls}" title="${b.title}" data-cid="${c.id}">
     <span class="dot"></span>
     <span class="chk-name">${esc(c.name)}<span class="type">${b.t.label}${b.num ? ` · ${b.num}` : ''}</span>${b.flags}</span>
     <span class="chk-actions">${b.actions}
@@ -977,7 +999,7 @@ function checkLine(c, large) {
     ? `<span class="cl-meter" title="${fmt(b.pctVal, '%')}"><span class="bar"><i style="width:${b.pctVal}%"></i>${b.ticks}</span><b>${Math.round(b.pctVal)}%</b></span>`
     : b.num ? `<span class="cl-num">${b.num}</span>` : '<span class="muted">–</span>';
   return `
-  <div class="cl chk ${b.cls}" title="${b.title}">
+  <div class="cl chk ${b.cls}" title="${b.title}" data-cid="${c.id}">
     <span class="dot"></span>
     <span class="cl-name"><span class="cl-title">${esc(c.name)}</span>${large ? `<span class="type">${b.t.label}</span>` : ` <span class="type">${b.t.label}</span>`}${b.flags ? `<span class="cl-flags">${b.flags}</span>` : ''}</span>
     <span class="cl-value">${value}</span>
@@ -997,7 +1019,12 @@ function findCheck(id) {
 
 async function onHostsClick(e) {
   const b = e.target.closest('[data-act]');
-  if (!b) return;
+  if (!b) {
+    // Klik op een check (niet op een knop, link of de minigrafiek): popup met meer informatie
+    const chk = e.target.closest('[data-cid]');
+    if (chk && !e.target.closest('button, a, input, select, label')) checkInfo(chk.dataset.cid);
+    return;
+  }
   const id = b.dataset.id;
   switch (b.dataset.act) {
     case 'add-check': return checkForm(null, findHost(id));
@@ -1025,6 +1052,90 @@ async function onHostsClick(e) {
       } catch (ex) { toast(ex.message, 'err'); }
       b.disabled = false;
   }
+}
+
+// ---------------------------------------------------------------- Popup van een check
+const ST_ICON = ['✅', '🟠', '🔴', '⚪'];
+/** "37 min", "4 u 47 min", "3 d 2 u" */
+function durText(sec) {
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 60) return `${sec} s`;
+  const m = Math.floor(sec / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
+  return d ? `${d} d${h % 24 ? ` ${h % 24} u` : ''}` : h ? `${h} u${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`;
+}
+const fmtPct = (v) => `${(+v).toLocaleString('nl-NL', { maximumFractionDigits: 1 })}%`;
+const toTime = (dt) => new Date(dt.replace(' ', 'T')).getTime();
+/** Datum en tijd kort: "14:02" vandaag, anders "di 14 okt 14:02" */
+function whenText(dt) {
+  const d = new Date(dt.replace(' ', 'T'));
+  const today = new Date().toDateString() === d.toDateString();
+  return (today ? '' : d.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + dt.slice(11, 16);
+}
+
+async function checkInfo(id) {
+  let r;
+  try { r = await api('check_info', null, { id }); } catch (ex) { return toast(ex.message, 'err'); }
+  const c = r.check;
+  const [sc, h] = findCheck(c.id);   // dashboardgegevens (onderhoud, bevestigd) als die er zijn
+  const now = toTime(r.now);
+  const t = TYPES[c.type] || { label: c.type };
+  const st = +c.status;
+  const problem = st !== 0 && +c.enabled;
+  const unit = t.unit || '';
+  const rows = [
+    ['Type', `${esc(t.label)}${c.target ? ` · <code>${esc(c.target)}</code>` : ''}`],
+    ['Interval', `${+c.interval_sec} s`],
+    ...(unit && (c.warn_threshold !== null || c.crit_threshold !== null) ? [['Drempels', `${t.low ? 'onder ' : ''}${c.warn_threshold ?? '–'} / ${c.crit_threshold ?? '–'} ${esc(unit)}`]] : []),
+    ['Laatste check', c.last_checked ? ago(c.last_checked) : 'nog niet'],
+    ['Beschikbaar', r.uptime.d1 === null ? '<span class="muted">nog geen metingen</span>' : `24 u <b>${fmtPct(r.uptime.d1)}</b> · 7 d <b>${fmtPct(r.uptime.d7)}</b>`],
+  ];
+  const tags = [
+    c.notify ? '🔔 eigen meldregels' : '🔔 algemene meldregels',
+    (() => { const q = quietOf(c); return q ? (q.mode === 'never' ? '🌙✕ nooit stil' : '🌙 eigen stille uren') : '🌙 algemene stille uren'; })(),
+    c.reverse_ok != null && REVERSIBLE.includes(c.type) ? `⇄ omgekeerd: slaagt = ${STATUS_WORD[c.reverse_ok]}, mislukt = ${STATUS_WORD[c.reverse_fail ?? 0]}` : '',
+    sc && sc.maintenance ? `🔧 ${esc(maintLabel(sc.maintenance))}` : '',
+    c.acked_at ? `✔ bevestigd door ${esc(c.acked_by || '?')}` : '',
+    !+c.enabled ? '⏸ uitgeschakeld' : '',
+  ].filter(Boolean);
+  const changes = r.changes.map((ch, i) => {
+    const sent = ch.alerts.filter((a) => a.kind !== 'ack');
+    const acks = ch.alerts.filter((a) => a.kind === 'ack');
+    const dur = ((ch.ended_at ? toTime(ch.ended_at) : now) - toTime(ch.created_at)) / 1000;
+    const why = sent.length ? sent.map((a) => `📨 gemeld ${esc(whenText(a.created_at))} · ${channelIcons(a)}`).join('<br>')
+      : ch.note ? `<span class="muted">niet gemeld: ${esc(ch.note)}</span>`
+      : i === 0 && +ch.to_status !== 0 ? '<span class="muted">nog niet gemeld (wacht op de meldregel, of stille uren)</span>'
+      : `<span class="muted">niet gemeld${+ch.to_status === 0 ? '' : ' (te kort, flapt, stille uren of de meldregel staat uit)'}</span>`;
+    return `<li class="ci-change s${+ch.to_status}">
+      <div class="ci-ch-head"><span class="ci-when" title="${esc(ch.created_at)}">${esc(whenText(ch.created_at))}</span>
+        <b>${ST_ICON[+ch.from_status]} ${STATUS[+ch.from_status]} → ${ST_ICON[+ch.to_status]} ${STATUS[+ch.to_status]}</b>
+        <span class="muted small">${ch.ended_at ? 'duurde' : 'duurt nu'} ${durText(dur)}</span></div>
+      <div class="ci-msg">${esc(ch.message || '–')}</div>
+      <div class="small">${why}${acks.length ? `<br>✔ bevestigd ${esc(whenText(acks[0].created_at))}` : ''}</div></li>`;
+  }).join('');
+  const since = c.status_since ? ` sinds ${esc(whenText(c.status_since))} (${durText((now - toTime(c.status_since)) / 1000)})` : '';
+  const close = () => $('#modal').close();
+  const btns = [
+    ...(problem && !c.acked_at ? [{ label: '✔ Bevestigen', cls: 'need-user', onClick: () => ackDialog('check', c.id, `${c.host_name} – ${c.name}`, c.last_message) }] : []),
+    { label: '🔧 Onderhoud', cls: 'need-user', onClick: () => maintenanceDialog('check', c.id, `${c.host_name} – ${c.name}`, sc && sc.maintenance && sc.maintenance.scope === 'check' ? sc.maintenance : null) },
+    { label: '↻ Nu checken', cls: 'need-user', onClick: async (btn) => {
+      btn.disabled = true;
+      try { await api('check_run', { id: c.id }); await refresh(); checkInfo(c.id); } catch (ex) { toast(ex.message, 'err'); btn.disabled = false; }
+    } },
+    ...(sc ? [{ label: '📈 Grafiek', onClick: () => { close(); showHistory(sc, h); } }] : []),
+    ...(sc ? [{ label: '✎ Bewerken', cls: 'need-admin', onClick: () => checkForm(sc, h) }] : []),
+  ];
+  modal({
+    title: `${ST_ICON[st]} ${c.name} – ${c.host_name}`,
+    wide: true,
+    body: `<div class="ci">
+      <p class="ci-status s${st}"><b>${STATUS[st]}</b>${since}<br><span class="ci-msg">${esc(c.last_message || '–')}</span></p>
+      <dl class="ci-grid">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+      <p class="small muted ci-tags">${tags.join(' · ')}</p>
+      <h3 class="ci-h">Laatste 5 statuswijzigingen</h3>
+      ${changes ? `<ol class="ci-changes">${changes}</ol>` : '<p class="muted small">Nog geen statuswijzigingen bewaard. Ze worden bijgehouden vanaf versie 1.37.0.</p>'}
+    </div>`,
+    buttons: btns,
+  });
 }
 
 // ---------------------------------------------------------------- Modal helper
@@ -2190,18 +2301,52 @@ function alertDayCounts(list) {
     .filter(([k]) => n[k]).map(([k, i, t]) => `<span class="ad-count" title="${n[k]} ${t}">${i} ${n[k]}</span>`).join('');
 }
 
+/** Server en check van een melding; van een verwijderde check uit de titel ("🔴 CRITICAL: server – check") */
+function alertCols(a) {
+  const t = a.title.match(/:\s*(.+?) – (.+)$/);
+  const det = alertDetail(a);
+  const who = det ? (det.users ? det.users.join(', ') : det.user) || '?' : '';
+  return {
+    host: a.host_name || (t ? t[1] : 'RzMon'),
+    check: det ? `${AUTH_TYPES[det.type] || det.type} · ${who}${det.as && det.type === 'su' ? ' → ' + det.as : ''}` : a.check_name || (t ? t[2] : '–'),
+  };
+}
+
+/** Volgorde van de status: critical, warning, onbekend, OK/hersteld, bevestigd, logins */
+function alertRank(a) {
+  if (a.kind === 'authfail') return 5;
+  if (a.kind === 'auth') return 6;
+  if (a.kind === 'ack') return 4;
+  return [3, 1, 0, 2][+a.status] ?? 3;
+}
+/** Mislukte verzendingen tellen zwaar, daarna hoe weinig er verstuurd is */
+function alertChannelScore(a) {
+  if (a.kind === 'auth' || a.kind === 'authfail' || a.kind === 'ack') return 100;
+  const sent = +a.sent_ok + (+a.email_ok || 0) + (+a.webhook_ok || 0);
+  const failed = (a.email_ok !== null && a.email_ok !== undefined && !+a.email_ok ? 1 : 0) + (a.webhook_ok !== null && a.webhook_ok !== undefined && !+a.webhook_ok ? 1 : 0) + (sent ? 0 : 1);
+  return -failed * 10 + sent;
+}
+function sortAlerts(list) {
+  const { key, dir } = alertSort;
+  if (!ALERT_SORTS[key]) return list;
+  const val = {
+    time: (a) => a.created_at, status: alertRank, server: (a) => alertCols(a).host, check: (a) => alertCols(a).check,
+    message: (a) => a.message || '', channels: alertChannelScore,
+  }[key];
+  const cmp = (x, y) => (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'nl', { numeric: true, sensitivity: 'base' }));
+  return list.map((a) => [a, val(a)]).sort((p, q) => dir * cmp(p[1], q[1]) || (q[0].created_at > p[0].created_at ? 1 : -1)).map(([a]) => a);
+}
+
 function alertRows(list, layout, density) {
   const time = (a) => esc(a.created_at.slice(11, 16));
+  list = sortAlerts(list);
+  const cid = (a) => (a.check_id ? ` data-cid="${a.check_id}"` : '');
   if (layout === 'l1nes') {
-    return `<table class="alert-table ${density}"><thead><tr><th>Tijd</th><th>Status</th><th>Server</th><th>Check</th><th>Bericht</th><th>Kanalen</th></tr></thead><tbody>
+    const th = (k) => `<th class="sortable${alertSort.key === k ? ' sorted' : ''}" data-sort="${k}" title="Sorteren op ${ALERT_SORTS[k].toLowerCase()}">${ALERT_SORTS[k]}${alertSort.key === k ? (alertSort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
+    return `<table class="alert-table ${density}"><thead><tr>${Object.keys(ALERT_SORTS).map(th).join('')}</tr></thead><tbody>
       ${list.map((a) => {
-        // Server en check; van een verwijderde check uit de titel ("🔴 CRITICAL: server – check")
-        const t = a.title.match(/:\s*(.+?) – (.+)$/);
-        const det = alertDetail(a);
-        const host = a.host_name || (t ? t[1] : 'RzMon');
-        const who = det ? (det.users ? det.users.join(', ') : det.user) || '?' : '';
-        const check = det ? `${AUTH_TYPES[det.type] || det.type} · ${who}${det.as && det.type === 'su' ? ' → ' + det.as : ''}` : a.check_name || (t ? t[2] : '–');
-        return `<tr class="${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : 's' + a.status}">
+        const { host, check } = alertCols(a);
+        return `<tr class="${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : 's' + a.status}${a.check_id ? ' clickable' : ''}"${cid(a)}>
           <td class="at-time" title="${esc(a.created_at)}">${time(a)}</td>
           <td class="at-st">${alertStatusText(a)}</td>
           <td>${esc(host)}</td>
@@ -2211,7 +2356,7 @@ function alertRows(list, layout, density) {
       }).join('')}</tbody></table>`;
   }
   return list.map((a) => `
-    <div class="alert-item ${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : 's' + a.status}">
+    <div class="alert-item ${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : 's' + a.status}${a.check_id ? ' clickable' : ''}"${cid(a)}>
       <span class="dot"></span>
       <strong>${esc(a.title)}</strong>
       <span class="muted small" title="${esc(a.created_at)}">${time(a)} ${channelIcons(a)}</span>
@@ -2224,6 +2369,11 @@ function renderAlerts() {
   if (!alertData) { el.innerHTML = '<p class="muted">Laden…</p>'; return; }
   const { layout, density } = viewPrefs();
   const d = alertData;
+  // Blox heeft geen kolomkoppen: daar een keuzelijst om te sorteren
+  const sortSel = $('#alerts-sort');
+  sortSel.hidden = layout === 'l1nes';
+  sortSel.value = ALERT_SORTS[alertSort.key] ? `${alertSort.key}:${alertSort.dir}` : '';
+  if (sortSel.selectedIndex < 0) sortSel.value = '';
   $('#alerts-info').textContent = `${d.alerts.length} melding${d.alerts.length === 1 ? '' : 'en'} van de laatste ${d.days} dag${d.days === 1 ? '' : 'en'}`
     + (d.truncated ? ' (alleen de nieuwste 10.000)' : '');
   if (!d.alerts.length) { el.innerHTML = '<p class="muted">Nog geen meldingen. 👌</p>'; $('#alerts-toggle').hidden = true; return; }
@@ -2252,6 +2402,11 @@ function renderAlerts() {
   }));
   $('#alerts-toggle').hidden = byDay.size < 2;
   alertToggleLabel();
+}
+
+function saveAlertSort() {
+  try { localStorage.setItem('rzmon-alert-sort', JSON.stringify(alertSort)); } catch (e) { /* alleen voor deze sessie */ }
+  renderAlerts();
 }
 
 function alertToggleLabel() {

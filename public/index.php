@@ -163,6 +163,18 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <button type="button" class="seg-btn" data-af="problems">⚠️ Storingen</button>
             <button type="button" class="seg-btn" data-af="auth">🔑 Toegang</button>
           </div>
+          <select id="alerts-sort" class="alerts-sort" aria-label="Sorteren" title="Sorteren (binnen elke dag)">
+            <option value="">Nieuwste eerst</option>
+            <option value="time:1">Oudste eerst</option>
+            <option value="status:1">Status: ernstigste eerst</option>
+            <option value="status:-1">Status: OK eerst</option>
+            <option value="server:1">Server A–Z</option>
+            <option value="server:-1">Server Z–A</option>
+            <option value="check:1">Check A–Z</option>
+            <option value="check:-1">Check Z–A</option>
+            <option value="message:1">Bericht A–Z</option>
+            <option value="channels:1">Kanalen: mislukt eerst</option>
+          </select>
           <button type="button" class="btn" id="alerts-toggle">⊞ Alles openen</button>
         </div>
         <div id="alerts" class="alert-list"></div>
