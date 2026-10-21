@@ -2,6 +2,7 @@
 
 Lichtgewicht server-monitoring in PHP 8 + MariaDB met een moderne HTML5-interface, meldingen via Pushover, e-mail en Home Assistant, en MQTT discovery voor Home Assistant.
 
+✨ **Alle features van RzMon en de agent op een rij: [FEATURES.md](FEATURES.md)**
 📖 **Uitgebreide installatiehandleiding en uitleg van alle features: [HANDLEIDING.md](HANDLEIDING.md)**
 🐧 **Rocky Linux 10 / RHEL 10 / AlmaLinux 10 (met SELinux en firewalld): [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md)**, of in één keer met het installatiescript:
 ```bash

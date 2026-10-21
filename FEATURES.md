@@ -1,0 +1,194 @@
+# ✨ RzMon – overzicht van alle features
+
+Dit is een overzicht van wat RzMon en de agent kunnen, in het kort. Hoe je alles instelt en gebruikt, staat in de [HANDLEIDING.md](HANDLEIDING.md) (de §-nummers hieronder verwijzen daarnaar). Wat er per versie veranderd is, lees je in de [CHANGELOG.md](CHANGELOG.md).
+
+**Inhoud**
+1. [Checks](#1-checks)
+2. [Soorten servers](#2-soorten-servers)
+3. [Dashboard](#3-dashboard)
+4. [Meldingen](#4-meldingen)
+5. [Storingen, onderhoud en afhankelijkheden](#5-storingen-onderhoud-en-afhankelijkheden)
+6. [Home Assistant](#6-home-assistant)
+7. [REST API](#7-rest-api)
+8. [Beheer: installeren, bijwerken en back-up](#8-beheer-installeren-bijwerken-en-back-up)
+9. [Toegang en beveiliging](#9-toegang-en-beveiliging)
+10. [De agent (Linux)](#10-de-agent-linux)
+11. [De agent op TrueNAS SCALE](#11-de-agent-op-truenas-scale)
+12. [De Home Assistant-add-on](#12-de-home-assistant-add-on)
+
+---
+
+## 1. Checks
+
+| Check | Wat het controleert | Werkt op |
+|---|---|---|
+| **Ping** | Reageert de server (3 pings); gemiddelde responstijd, pakketverlies | Alle servers |
+| **TCP-poort** | Staat een dienst open (SSH, MariaDB, MQTT…), met verbindingstijd | Alle servers |
+| **HTTP(S)** | Website of API bereikbaar, statuscode, responstijd; waarschuwt ook als het certificaat bijna verloopt | Alle servers |
+| **SSL-certificaat** | Hoeveel dagen een certificaat nog geldig is: elke TLS-poort in je netwerk of op internet, of certificaatbestanden via de agent | Alle servers |
+| **Diskruimte** | % gebruikt per mount, plus een **voorspelling** wanneer de disk vol is | Lokaal, agent |
+| **CPU** | Gebruik over 2 seconden en load average | Lokaal, agent |
+| **RAM** | Geheugengebruik (cache telt niet mee) en swap | Lokaal, agent |
+| **Service** | Is een systemd-service actief? Via de agent ook de **diepere controle**: luistert hij op zijn poorten, antwoordt hij (HTTP, database, SSH, mail, DNS…), herstarts, fouten in het log, een extra URL- of poorttest of een eigen testscript (§8.7) | Lokaal, agent |
+| **Logbestand** | Treffers van een zoekpatroon in een logbestand, het systemlog of kernelmeldingen. Met voorinstellingen voor mislukte logins (SSH, sudo), disk- en hardwarefouten, SMART, geheugen vol (OOM) en crashes (§8.8) | Agent |
+| **Podman** | Overzicht: gestopte, ongezonde of gepauzeerde containers en pods | Agent met Podman |
+| **Container** | Eén check per container: status (healthcheck, herstarts), plus naar keuze CPU, RAM en disk, elk met eigen drempels; ook rootless containers (§8.6) | Agent met Podman |
+| **Home Assistant** | Laatste automatische back-up, integraties die niet geladen zijn, systeemstatus van de Supervisor | HA-add-on |
+| **🖥️ Commando** | De agent voert een commando uit; RzMon vergelijkt de uitvoer met het verwachte antwoord (*gelijk aan*, *bevat*, *regex* of *exitcode 0*), met time-out. Bijvoorbeeld `zpool status -x` → `all pools are healthy` (§8.10) | Agent |
+
+Elke check heeft eigen drempels voor warning en critical, een eigen interval en een minigrafiek van de laatste 24 uur.
+
+## 2. Soorten servers
+- **Lokaal**: de RzMon-server zelf; alles wordt direct uitgelezen.
+- **Remote met agent**: een Linux-server, TrueNAS SCALE of Home Assistant die zelf gegevens doorstuurt. Stopt de agent, dan worden de checks na 5 minuten (instelbaar) critical.
+- **Remote (alleen netwerk)**: routers, NAS, switches, printers en websites, met ping, TCP, HTTP(S) en certificaten.
+- **Poortscan**: zoek open TCP-poorten (bekende poorten, 1–1024 of een eigen lijst) en maak er met één klik een check van. Bij agent-servers zie je ook welke poorten lokaal luisteren, met procesnaam.
+
+## 3. Dashboard
+- **Gezondheidsbalk** bovenaan:
+  - de algehele status: 🟢 *Alles in orde*, 🟠 *Aandacht nodig* of 🔴 *Storing*;
+  - een **score van 0–100%**;
+  - **klikbare tellers** (OK, warning, critical, onbekend, onderhoud) om te filteren;
+  - een inforegel met servers bereikbaar, checks OK, het **langst openstaande probleem**, de beschikbaarheid over 24 uur, flappende checks en 🌙 *stil tot …*.
+- **Twee lay-outs**, per apparaat te kiezen, voor het dashboard, de meldingen en de instellingen:
+  - **Blox**: tegels;
+  - **L1nes**: rijen, in **Small** of **Large**.
+- **Per server:** de algehele status, de checks met problemen en mini-meters voor CPU, RAM en disk. Uitklappen toont alle checks, problemen bovenaan.
+- **Grafieken** van 6 uur tot 30 dagen, met minimum, gemiddelde en maximum, en bij disks de trend.
+- **Beschikbaarheid** per server over 24 uur, 7 dagen en 30 dagen.
+- **Zoeken** en het filter *Alleen problemen*.
+- **Overig:** licht en donker thema, werkt op je telefoon, ververst elke 20 seconden, en **↻ Alles nu checken**.
+- **Meldingenoverzicht:** elke verstuurde melding, met de kanalen waarlangs hij ging.
+
+## 4. Meldingen
+- **Kanalen:**
+  - **Pushover**, met prioriteit en geluid per status, inclusief *Emergency*;
+  - **e-mail**: altijd, of als reserve wanneer Pushover faalt;
+  - een **Home Assistant-webhook**.
+- **Per status** (warning, critical, onbekend, hersteld) stel je in:
+  - **wanneer**: nooit, direct of pas na *X* minuten onafgebroken;
+  - **herhalen**: elke *Y* minuten;
+  - **welke kanalen**.
+
+  Per check kun je dit **overschrijven**.
+- **Bundelen per server:** meerdere meldingen binnen 120 seconden (instelbaar) worden één bericht.
+- **Anti-flapping:** een check die steeds van status wisselt, geeft één melding *"staat te flappen"*. Daarna komt er per status hooguit één melding, tot hij stabiel is. De getallen stel je zelf in, algemeen en per check.
+- **🌙 Stille uren:**
+  - vensters (van–tot, per dag van de week, ook over middernacht) waarin geen meldingen uitgaan;
+  - algemeen, per check eigen vensters, of *nooit stil*;
+  - na afloop **één bericht** met alles wat dan nog open is.
+- **Herstelmelding** zodra het weer goed gaat. Een **nieuwe melding bij escalatie** (warning → critical).
+- **Automatisch onderhoud** na herhaalde meldingen voor dezelfde storing, tot hij is opgelost.
+- **Testknoppen** per kanaal.
+
+## 5. Storingen, onderhoud en afhankelijkheden
+- **✔ Bevestigen:**
+  - per check of per server, met een opmerking;
+  - ook via de link in de melding, of in de Pushover-app (*Emergency*);
+  - daarna komen er geen meldingen meer voor die storing;
+  - na herstel vervalt de bevestiging vanzelf.
+- **🔧 Onderhoud:**
+  - voor alles, per server of per check;
+  - met een duur of een eindtijd, en een reden;
+  - checks blijven draaien; wat na afloop nog mis is, wordt alsnog gemeld.
+- **🔗 Afhankelijkheden:** valt een router, switch, VPN of hypervisor uit, dan krijg je één melding in plaats van een melding per server erachter.
+
+## 6. Home Assistant
+- **MQTT discovery:** al je servers en checks verschijnen in Home Assistant als apparaten en sensoren, met de status en de meetwaarden. Er is ook een sensor **Algehele status** en een sensor **Gezondheid** (%). Stopt RzMon, dan worden de sensoren *niet beschikbaar*.
+- **Webhook:** elke melding gaat als JSON naar een HA-automatisering, met een bevestig-link.
+- **REST-sensoren** via de API (§11).
+- **Add-on** voor Home Assistant OS, zie hoofdstuk 12.
+
+## 7. REST API
+- **Alleen lezen** (JSON), met API-sleutels die je in de webinterface beheert.
+- **Endpoints:**
+  - `/status`, met de algehele gezondheid (`health`);
+  - `/hosts`, met de beschikbaarheid;
+  - `/checks`;
+  - `/checks/{id}/history`;
+  - `/alerts`.
+
+## 8. Beheer: installeren, bijwerken en back-up
+- **Installatie in één commando** op Rocky Linux / RHEL / AlmaLinux 10 (`install-rocky.sh`), inclusief SELinux, firewalld, Apache, PHP-FPM, MariaDB en cron. Debian/Ubuntu kan met de hand of via de setup-pagina.
+- **Setup-pagina:** een systeemcheck, de database instellen, tabellen installeren, de eerste beheerder aanmaken, en een PHP-instellingen-editor.
+- **⬆ RzMon bijwerken vanuit de webinterface:**
+  - een dagelijkse controle op GitHub, en **wat er nieuw is**;
+  - de knop **Nu bijwerken**, met voortgang en eventueel eerst een back-up;
+  - of **automatisch** op een tijdstip naar keuze.
+- **Database** wordt vanzelf bijgewerkt bij een nieuwe versie.
+- **💾 Back-up en herstel:**
+  - automatisch elke dag, week of maand, of met de hand;
+  - een zip met de database en `config.php`, versleuteld met AES-256;
+  - downloaden, uploaden en terugzetten in de webinterface, met een veiligheidsback-up vooraf en automatisch terugdraaien als het misgaat;
+  - ook via de terminal (`install.php --backup` / `--restore`).
+- **Databasewachtwoord vernieuwen** met één knop, via de hulpdienst.
+- **Agents bijwerken** met één knop (per server of allemaal), of automatisch.
+
+## 9. Toegang en beveiliging
+- **Gebruikers** met rollen (*beheerder*, *gebruiker*, *alleen lezen*) en **tweestapsverificatie** (TOTP).
+- **Wachtwoord vergeten:**
+  - een herstellink per e-mail, 30 minuten geldig en één keer te gebruiken;
+  - bij tweestapsverificatie ook de code nodig;
+  - met een logboek.
+- **Lokaal netwerk:** optioneel inloggen zonder wachtwoord op je LAN (*alleen lezen* of beheerder); van buitenaf blijft de login nodig.
+- **Reverse proxy** (Nginx Proxy Manager, Traefik, Cloudflare Tunnel): het echte IP wordt alleen vertrouwd van proxy's die je zelf opgeeft.
+- **Bescherming:** wachtwoorden met bcrypt, afremmen van inlogpogingen, CSRF-bescherming, veilige cookies, een eigen token per agent, en API-sleutels alleen als hash.
+- **Gevoelige acties** (back-up downloaden of terugzetten, databasewachtwoord, commando's toestaan) vragen om je wachtwoord.
+- **Logboek** van gevoelige wijzigingen.
+- **Hulpdienst als root** voert alleen vaste taken uit. Hij weigert als de RzMon-map niet veilig is (ontgrendeld, of bestanden die niet van root zijn).
+
+## 10. De agent (Linux)
+Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt. Het werkt op Rocky/RHEL/AlmaLinux/Fedora, Debian/Ubuntu, Raspberry Pi OS en Proxmox VE.
+
+**Installeren en beheren**
+- **Installatie met één commando** uit de *Agent Manager*:
+  - ontbrekende hulpprogramma's installeren;
+  - een systemd-timer met afscherming (of cron);
+  - een testrapport sturen.
+- **`rzmon-agent-setup`:**
+  - `--test`: een verbindingstest die stap voor stap zegt wat er mis is;
+  - `--update`;
+  - `--uninstall`;
+  - `--certs`.
+- **Bijwerken vanuit RzMon** (knop of automatisch): de agent haalt de nieuwe versie bij je eigen RzMon. Hij controleert het SHA-256-controlegetal, of het script geldig is en of het de juiste versie is, en meldt de uitkomst terug. `REMOTE_UPDATE=0` zet dit uit.
+- **Instellingen** in `/etc/default/rzmon-agent`, alleen leesbaar voor root. Eigen regels blijven staan bij opnieuw installeren.
+
+**Wat de agent meldt**
+- **Systeem:** CPU (gebruik, load, cores), geheugen en swap, disks per mount, luisterende poorten met procesnaam.
+- **Services:**
+  - de status van de services die je in RzMon kiest; de agent stuurt een lijst van alle services op de server mee voor de **servicekiezer**;
+  - de **diepere controle**: poorten, een protocoltest (HTTP, database, SSH, mail, DNS…), herstarts en logfouten, plus een extra URL- of poorttest;
+  - een eigen testscript in `/etc/rzmon-agent/tests/`.
+- **Certificaten:** certificaatbestanden (ook met wildcards, zoals Let's Encrypt) en `host:poort`, lokaal of op internet. Eén keer per uur uitgelezen.
+- **Logbestanden:**
+  - alleen de nieuwe regels sinds de vorige keer, met de laatste 5 treffers en de meest voorkomende IP-adressen;
+  - het systemlog (journal), per service, en kernelmeldingen;
+  - bestanden alleen binnen `LOG_DIRS` (standaard `/var/log`).
+- **Podman:**
+  - containers van root en van gewone gebruikers (rootless): status, healthcheck, herstarts, CPU, RAM, netwerk en disk (schrijflaag + volumes);
+  - pods en opslag.
+- **🖥️ Commando-checks:**
+  - **standaard uit**; aanzetten in RzMon (algemeen of per server) als `nobody` of als root, met je wachtwoord en een logboek;
+  - de agent voert ze uit in een kale omgeving, met time-out en hooguit 4 KB uitvoer;
+  - op de server zelf perkt `COMMANDS=0` of `COMMANDS=nobody` het altijd in.
+- **Tegen kapotte rapporten:** servicenamen worden gefilterd, en de uitvoer wordt veilig als JSON verstuurd (via een tijdelijk bestand).
+
+## 11. De agent op TrueNAS SCALE
+- **Eén commando** (tabblad *🗄️ TrueNAS SCALE* in de Agent Manager):
+  - de agent en de instellingen komen op je **pool** (`/mnt/<pool>/rzmon-agent`), omdat `/usr` en `/etc` bij TrueNAS zelf horen;
+  - een **cronjob van TrueNAS** wordt via de API aangemaakt (uitvoer verborgen); die blijft staan na een TrueNAS-update;
+  - een bestaande handmatige installatie wordt overgenomen.
+- **Bijwerken met de knop** in RzMon, net als op andere servers.
+- **Tip:** bewaak je pools met een commando-check `zpool status -x`.
+- **TrueNAS CORE** (FreeBSD) voeg je toe als *Remote* met netwerkchecks.
+
+## 12. De Home Assistant-add-on
+- **Installeren** via de add-on winkel (repository `https://github.com/rembrand20/rzmon`).
+- **Wat de add-on meldt:**
+  - CPU, RAM en de data-partitie (via de Supervisor);
+  - als services: Home Assistant Core, de Supervisor, elke add-on (`addon:<slug>`) en beschikbare updates;
+  - de **laatste automatische back-up** (HA 2025.2+);
+  - **integraties** die niet geladen zijn;
+  - de **systeemstatus** van de Supervisor.
+- **Alleen lezen:** er zijn geen extra rechten nodig. Commando-checks zijn in de add-on niet actief.
+- **Bijwerken** via de add-on winkel. De add-on heeft hetzelfde versienummer als RzMon.

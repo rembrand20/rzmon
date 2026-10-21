@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.31.1 – 2026-10-21
+### Nieuw
+- **[FEATURES.md](FEATURES.md)**: een overzicht van alle features van RzMon, de agent, TrueNAS en de Home Assistant-add-on, met verwijzingen naar de handleiding. Gelinkt vanuit de README.
+
 ## 1.31.0 – 2026-10-21
 ### Nieuw
 - **Commando-check** (*＋ Check → Commando*): de agent voert een commando uit en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht (*is gelijk aan*, *bevat*, *regex* of *exitcode 0*). Klopt het niet, dan critical of warning (naar keuze); met time-out. Op het dashboard zie je wat er terugkwam. Bijvoorbeeld `zpool status -x` → `all pools are healthy`.
