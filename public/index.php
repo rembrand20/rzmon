@@ -108,6 +108,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     <nav class="tabs" role="tablist">
       <button class="tab active" data-tab="dashboard">Dashboard</button>
       <button class="tab" data-tab="alerts">Meldingen</button>
+      <button class="tab" data-tab="ids">🛡️ IDS <span class="tab-badge" id="ids-badge" hidden></span></button>
       <button class="tab" data-tab="settings">Instellingen</button>
       <?php if ($role === 'admin'): ?><a class="tab" href="setup.php">Setup</a><?php endif; ?>
     </nav>
@@ -165,6 +166,33 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="alerts-toggle">⊞ Alles openen</button>
         </div>
         <div id="alerts" class="alert-list"></div>
+      </div>
+    </section>
+
+    <section id="tab-ids" class="tab-panel" hidden>
+      <div class="card">
+        <div class="alerts-head"><h2>🛡️ IDS</h2><span class="muted small" id="ids-status"></span></div>
+        <div class="ids-hosts" id="ids-hosts"></div>
+      </div>
+      <div class="card">
+        <div class="alerts-head">
+          <h2>Incidenten</h2>
+          <span class="muted small" id="ids-info"></span>
+          <div class="seg" role="group" aria-label="Filter" id="ids-filter">
+            <button type="button" class="seg-btn active" data-if="open">Open</button>
+            <button type="button" class="seg-btn" data-if="all">Alles</button>
+          </div>
+          <button type="button" class="btn" id="ids-toggle">⊞ Alles openen</button>
+        </div>
+        <div id="ids-incidents" class="alert-list"></div>
+      </div>
+      <div class="card">
+        <div class="alerts-head">
+          <h2>⛔ Blokkades</h2>
+          <span class="muted small" id="ids-block-info"></span>
+          <button type="button" class="btn need-admin" id="ids-block-add" style="margin-left:auto">＋ IP blokkeren</button>
+        </div>
+        <div id="ids-blocks"></div>
       </div>
     </section>
 
@@ -325,6 +353,29 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </details>
           <p class="small" id="mqtt-status"></p>
           <button type="button" class="btn" id="mqtt-test">📡 Verbinding testen &amp; publiceren</button>
+        </div>
+
+        <div data-sk="ids" class="card" id="ids-card">
+          <h2>🛡️ IDS</h2>
+          <p class="muted small">Intrusion detection via de agents: gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen en verbindingen, brute force en inbraak na brute force. Resultaten op de pagina <i>🛡️ IDS</i>; critical ook via Pushover (ook tijdens stille uren).</p>
+          <div data-nodirty>
+            <label class="switch"><input type="checkbox" id="ids-enabled"><span></span> <b>IDS aan</b></label>
+            <div class="mode-switch"><span id="ids-l-learn">🎓 Leren</span>
+              <label class="switch"><input type="checkbox" id="ids-mode"><span></span></label>
+              <span id="ids-l-block">⛔ Blokkeren</span></div>
+            <p class="muted small" id="ids-mode-info"></p>
+          </div>
+          <div class="row2">
+            <label>Basismeting (uren) <span class="muted small">eerst alleen vastleggen wat normaal is</span><input type="number" name="ids_baseline_hours" min="0" max="720"></label>
+            <label>Brute force bij … mislukte SSH-logins<input type="number" name="ids_fail_count" min="2" max="1000"></label>
+          </div>
+          <div class="row3">
+            <label>… binnen (minuten)<input type="number" name="ids_fail_minutes" min="1" max="1440"></label>
+            <label>Blokkeren (uren)<input type="number" name="ids_block_hours" min="1" max="8760"></label>
+            <label>Bij herhaling (dagen)<input type="number" name="ids_repeat_days" min="1" max="365"></label>
+          </div>
+          <label>Nooit blokkeren <span class="muted small">(IP-adressen of netwerken; je LAN en RzMon zelf worden nooit automatisch geblokkeerd)</span>
+            <textarea name="ids_allow" rows="2" placeholder="bv. 203.0.113.10 198.51.100.0/24"></textarea></label>
         </div>
 
         <div data-sk="update" class="card" id="update-card">

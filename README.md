@@ -40,6 +40,8 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **🔑 Logins en sudo**: de agent meldt SSH- en console-logins, `sudo` en `su` (ook mislukte pogingen) op de pagina Meldingen: wie, wat, op welke server.
 
+**🛡️ IDS**: inbraakdetectie via de agents, op een eigen pagina. Gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen, reverse shells, brute force en inlog na brute force. Eerst *leren* (alleen melden), daarna eventueel *blokkeren*: aanvallers komen in een eigen firewalltabel op de server, met een knop om te deblokkeren. Critical ook via Pushover. Standaard uit.
+
 **🗄️ TrueNAS SCALE**: agent met één commando op je pool, met een cronjob van TrueNAS zelf; bijwerken met de knop.
 
 **🌙 Stille uren**: geen meldingen in vaste periodes (bv. 's nachts, meerdere vensters per dag van de week), algemeen of per check; na afloop één bericht met wat dan nog open is.

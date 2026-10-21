@@ -737,3 +737,18 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .rec-row input { width: auto; margin-top: .25rem; }
 .rec-row code { color: var(--muted); word-break: break-all; }
 .badge-root { font-size: .7rem; font-weight: 700; padding: 0 .35rem; border-radius: 99px; background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+
+/* ---------- IDS ---------- */
+.tab-badge { display: inline-block; min-width: 1.2rem; padding: 0 .35rem; margin-left: .2rem; border-radius: 99px; background: var(--crit); color: #fff; font-size: .72rem; font-weight: 700; text-align: center; }
+.ids-hosts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: .6rem; }
+.ids-host { border: 1px solid var(--border); border-radius: 10px; padding: .6rem .8rem; display: flex; flex-direction: column; gap: .25rem; background: var(--card-2); }
+.ids-item { grid-template-columns: auto 1fr auto; }
+.ids-item .ids-actions { grid-column: 2 / 4; display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .2rem; }
+.ids-item.ids-done { opacity: .6; }
+.linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--primary); cursor: pointer; text-decoration: underline dotted; }
+.mode-switch { display: flex; align-items: center; gap: .6rem; margin: .2rem 0 .3rem; font-size: .9rem; color: var(--muted); }
+.mode-switch .switch { margin: 0; }
+.mode-switch span.active { color: var(--text); font-weight: 700; }
+.ids-blocks td { vertical-align: middle; }
+.alert-item.s2.ids-item, .alert-item.s1.ids-item { padding-left: .2rem; }
+.set-l1nes [data-sk=ids] { order: 22; }

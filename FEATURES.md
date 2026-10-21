@@ -136,6 +136,13 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Bescherming:** wachtwoorden met bcrypt, afremmen van inlogpogingen, CSRF-bescherming, veilige cookies, een eigen token per agent, en API-sleutels alleen als hash.
 - **Gevoelige acties** (back-up downloaden of terugzetten, databasewachtwoord, commando's toestaan) vragen om je wachtwoord.
 - **Logboek** van gevoelige wijzigingen.
+- **🛡️ IDS (intrusion detection)**, pagina *IDS*:
+  - standaard **uit**; met een schakelaar **leren** (alleen melden) of **blokkeren** (met je wachtwoord);
+  - een **basismeting** per server (standaard 24 uur), daarna alleen afwijkingen; *Dit is normaal* en *basismeting opnieuw*;
+  - meldt gewijzigde gevoelige bestanden, nieuwe gebruikers (en een tweede root), poorten, SUID-programma's en kernelmodules, verdachte processen, reverse shells, brute force, inlog na brute force, root-login en logins vanaf nieuwe IP's;
+  - **critical** ook naar Pushover (ook tijdens stille uren), **warning** alleen op de pagina IDS;
+  - **blokkeren** op de aangevallen server: automatisch bij brute force (24 uur, bij herhaling permanent) of met één klik, en **deblokkeren**; je LAN, RzMon en een eigen lijst nooit automatisch;
+  - TrueNAS SCALE alleen detecteren.
 - **Hulpdienst als root** voert alleen vaste taken uit. Hij weigert als de RzMon-map niet veilig is (ontgrendeld, of bestanden die niet van root zijn).
 
 ## 10. De agent (Linux)
@@ -173,6 +180,7 @@ Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt
   - de agent voert ze uit in een kale omgeving, met time-out en hooguit 4 KB uitvoer;
   - op de server zelf perkt `COMMANDS=0` of `COMMANDS=nobody` het altijd in.
 - **🔑 Logins en sudo:** SSH- en console-logins, `sudo` en `su` (wie, wat, als wie, waar vandaan), ook mislukte pogingen, opgeteld per IP per uur. Op de pagina Meldingen met het filter *Toegang*; wachtwoorden in commando's gemaskeerd; gebruikers/IP's te negeren; `AUTH_EVENTS=0` zet het op een server uit.
+- **🛡️ IDS** (standaard uit): controlegetallen van gevoelige bestanden (sudoers, authorized_keys, passwd, crontabs, sshd-config …), gebruikers, SUID-programma's, kernelmodules, gewijzigde pakketbestanden (`rpm -Va`/`debsums`), processen uit `/tmp` of zonder bestand, reverse shells en verbindingen naar malware-poorten. Bij *blokkeren* een eigen nftables-tabel `inet rzmon` met de geblokkeerde IP's; `IDS_BLOCK=0` zet blokkeren op een server uit.
 - **Tegen kapotte rapporten:** servicenamen worden gefilterd, en de uitvoer wordt veilig als JSON verstuurd (via een tijdelijk bestand).
 
 ## 11. De agent op TrueNAS SCALE
@@ -181,6 +189,7 @@ Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt
   - een **cronjob van TrueNAS** wordt via de API aangemaakt (uitvoer verborgen); die blijft staan na een TrueNAS-update;
   - een bestaande handmatige installatie wordt overgenomen.
 - **Bijwerken met de knop** in RzMon, net als op andere servers.
+- **🛡️ IDS:** alleen detecteren, niet blokkeren.
 - **Tip:** bewaak je pools met een commando-check `zpool status -x`.
 - **TrueNAS CORE** (FreeBSD) voeg je toe als *Remote* met netwerkchecks.
 

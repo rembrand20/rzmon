@@ -74,7 +74,7 @@ let state = { hosts: [], alerts: [] };
 let stats = { uptime: {}, sparks: {} };
 // Instellingen in L1nes (zie applySettingsLayout); hier bovenaan omdat de weergave al bij het opstarten wordt toegepast
 const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', email: 'meldingen', webhook: 'meldingen', mqtt: 'meldingen', alarm: 'monitoring',
-  update: 'systeem', agents: 'systeem', backup: 'systeem', db: 'systeem', access: 'toegang', users: 'toegang', api: 'toegang', account: 'toegang', password: 'toegang' };
+  ids: 'monitoring', update: 'systeem', agents: 'systeem', backup: 'systeem', db: 'systeem', access: 'toegang', users: 'toegang', api: 'toegang', account: 'toegang', password: 'toegang' };
 let setOpen = (() => { try { return JSON.parse(localStorage.getItem('rzmon-set-open') || '{}') || {}; } catch (e) { return {}; } })();
 function saveSetOpen() { try { localStorage.setItem('rzmon-set-open', JSON.stringify(setOpen)); } catch (e) {} }
 const setCards = () => $$('#tab-settings [data-sk]');
@@ -91,6 +91,9 @@ let updateInfo = null;        // laatste update_info (voor de samenvatting in L1
 let alertData = null;         // meldingen van de bewaartermijn (pagina Meldingen)
 const alertDayOpen = {};      // datum → open/dicht (anders: alleen vandaag open)
 let alertFilter = 'all';      // all | problems | auth
+let idsData = null;           // pagina 🛡️ IDS
+let idsFilter = 'open';       // open | all
+const idsDayOpen = {};
 
 // ---------------------------------------------------------------- API
 async function api(action, body, params = {}) {
@@ -294,10 +297,68 @@ function init() {
   $('#settings-form').addEventListener('submit', saveSettings);
   $('#backup-now').onclick = backupNow;
   $('#update-start').onclick = startUpdate;
+  $('#ids-enabled').onchange = async (e) => {
+    try { await api('ids_set', { enabled: e.target.checked }); toast(e.target.checked ? 'IDS aangezet' : 'IDS uitgezet'); }
+    catch (ex) { toast(ex.message, 'err'); e.target.checked = !e.target.checked; }
+    idsModeInfo();
+  };
+  $('#ids-mode').onchange = (e) => {
+    const block = e.target.checked;
+    e.target.checked = !block;   // pas omzetten als het gelukt is
+    if (!block) {
+      api('ids_set', { mode: 'learn' }).then(() => { $('#ids-mode').checked = false; idsModeInfo(); toast('IDS: leren (alleen melden)'); }).catch((ex) => toast(ex.message, 'err'));
+      return;
+    }
+    modal({
+      title: '⛔ IDS: blokkeren aanzetten',
+      body: `<p style="margin-top:0">RzMon gaat dan echt IP-adressen blokkeren op je servers (eigen nftables-tabel van de agent), bij brute force en als jij op ⛔ klikt.
+          Je LAN, RzMon zelf en de lijst <i>Nooit blokkeren</i> worden nooit automatisch geblokkeerd; op TrueNAS wordt alleen gedetecteerd.</p>
+        <p class="muted small">Op een server zelf zet je blokkeren altijd uit met <code>IDS_BLOCK=0</code> in de instellingen van de agent. Doe het eerste gebruik bij voorkeur terwijl je ook via de console kunt inloggen. Deze wijziging komt in het logboek.</p>
+        ${confirmField('BLOKKEREN')}`,
+      buttons: [{ label: 'Blokkeren aanzetten', cls: 'primary', submit: true }],
+      onSubmit: async (d) => {
+        await api('ids_set', { mode: 'block', confirm: d.confirm });
+        toast('IDS: blokkeren staat aan');
+        setTimeout(() => { showTab('settings'); }, 50);
+      },
+    });
+  };
   $('#agent-commands').onchange = (e) => {
     const sel = e.target;
     setAgentCommands(null, sel.value, sel.dataset.current || 'off', 'alle agents', () => { showTab('settings'); loadAgentCommands(); });
   };
+  $('#ids-filter').onclick = (e) => {
+    const b = e.target.closest('[data-if]');
+    if (!b) return;
+    idsFilter = b.dataset.if;
+    $$('#ids-filter .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+    renderIds();
+  };
+  $('#ids-toggle').onclick = () => {
+    const days = $$('#ids-incidents .alert-day');
+    const all = days.every((x) => x.open);
+    days.forEach((x) => { x.open = !all; });
+  };
+  $('#ids-block-add').onclick = () => idsBlockDialog();
+  $('#tab-ids').addEventListener('click', async (e) => {
+    const go = e.target.closest('[data-goto]');
+    if (go) { e.preventDefault(); showTab(go.dataset.goto); setTimeout(() => $('#ids-card').scrollIntoView({ behavior: 'smooth' }), 400); return; }
+    const b = e.target.closest('[data-ids], [data-unblock], [data-rebase]');
+    if (!b) return;
+    try {
+      if (b.dataset.ids === 'block') return idsBlockDialog(b.dataset.ip, b.dataset.host);
+      if (b.dataset.ids) await api('ids_incident', { id: +b.dataset.id, action: b.dataset.ids });
+      else if (b.dataset.unblock) {
+        if (!confirm('Deze blokkade opheffen?')) return;
+        await api('ids_unblock', { id: +b.dataset.unblock });
+        toast('Gedeblokkeerd; de agent past het binnen een minuut aan');
+      } else if (b.dataset.rebase) {
+        if (!confirm('Basismeting opnieuw doen? Wat er nu op de server staat wordt als normaal vastgelegd; tot het einde van de basismeting worden afwijkingen niet gemeld.')) return;
+        await api('ids_rebaseline', { host_id: +b.dataset.rebase });
+      }
+      loadIds();
+    } catch (ex) { toast(ex.message, 'err'); }
+  });
   $('#alerts-filter').onclick = (e) => {
     const b = e.target.closest('[data-af]');
     if (!b) return;
@@ -372,6 +433,7 @@ function showTab(name) {
   history.replaceState(null, '', '#' + name);
   if (name === 'settings') loadSettings();
   if (name === 'alerts') loadAlerts();
+  if (name === 'ids') loadIds();
 }
 
 async function refresh() {
@@ -380,6 +442,9 @@ async function refresh() {
     if (state.role && document.body.dataset.role !== state.role) location.reload();   // rol gewijzigd
     render();
     if (!$('#tab-alerts').hidden) loadAlerts();
+    if (!$('#tab-ids').hidden) loadIds();
+    $('#ids-badge').hidden = !state.ids_open;
+    $('#ids-badge').textContent = state.ids_open || '';
     if (isAdmin()) renderAgentUpdates();
     const ub = $('#update-badge');
     ub.hidden = !state.update;
@@ -640,6 +705,8 @@ function settingsSummaries() {
     sum.email = f.email_enabled.checked ? on(esc(f.mail_to.value)) : off;
     sum.webhook = f.ha_webhook_enabled.checked ? on('') : off;
     sum.mqtt = f.mqtt_enabled.checked ? on(esc(txt('#mqtt-status').replace(/^✔ /, ''))) : off;
+    sum.ids = !$('#ids-enabled').checked ? '<span class="muted">✘ uit</span>'
+      : $('#ids-mode').checked ? '<span class="warn-txt">⛔ blokkeren</span>' : '<span class="good-txt">✔ aan</span> · leren (alleen melden)';
     sum.alarm = esc(`agent offline na ${f.agent_stale_minutes.value} min · historie ${f.retention_days.value} dagen · meldingen ${f.alerts_days.value} dagen${f.auth_events.checked ? ' · 🔑 logins' : ''}`);
     if (updateInfo) {
       sum.update = (updateInfo.available ? `<span class="warn-txt">⬆ ${esc(updateInfo.latest)} beschikbaar</span>` : `✔ ${esc(updateInfo.current)}${updateInfo.latest ? ' · nieuwste versie' : ''}`)
@@ -660,6 +727,16 @@ function settingsSummaries() {
   }
   if (Array.isArray(users)) sum.users = `${users.length} gebruiker${users.length === 1 ? '' : 's'}`;
   setCards().forEach((card) => { const el = $('.set-sum', card); if (el) el.innerHTML = sum[card.dataset.sk] || ''; });
+}
+
+function idsModeInfo() {
+  const on = $('#ids-enabled').checked, block = $('#ids-mode').checked;
+  $('#ids-mode').disabled = !on;
+  $('#ids-l-learn').classList.toggle('active', !block);
+  $('#ids-l-block').classList.toggle('active', block);
+  $('#ids-mode-info').innerHTML = !on ? 'IDS staat uit: de agents verzamelen niets en er wordt niets geblokkeerd.'
+    : block ? '<b class="warn-txt">Blokkeren:</b> brute force wordt gemeld <b>en</b> geblokkeerd; met ⛔ blokkeer je zelf een IP.'
+    : '<b>Leren:</b> alles wordt gemeld, er wordt niets geblokkeerd.';
 }
 
 let settingsDirty = false;
@@ -1926,6 +2003,7 @@ function channelIcons(a) {
 
 /** "🔴 Critical", "✅ Hersteld", "✔ Bevestigd"… voor de meldingentabel */
 function alertStatusText(a) {
+  if (a.kind === 'ids') return '🛡️ IDS';
   if (a.kind === 'auth') return '🔑 Toegang';
   if (a.kind === 'authfail') return '❌ Mislukt';
   if (a.kind === 'ack') return '✔ Bevestigd';
@@ -1942,6 +2020,116 @@ function alertStatusText(a) {
 async function loadAlerts() {
   try { alertData = await api('alerts'); } catch (ex) { toast(ex.message, 'err'); return; }
   renderAlerts();
+}
+
+// ---------------------------------------------------------------- IDS
+const IDS_FW = {
+  active: (h) => `⛔ blokkeren actief${h.blocks ? ` · ${h.blocks} geblokkeerd` : ''}`,
+  off: () => 'alleen melden',
+  unsupported: () => 'TrueNAS: alleen detecteren',
+  disabled: () => 'blokkeren uit op de server (IDS_BLOCK=0)',
+  error: (h) => `<span class="bad">✘ firewall: ${esc(h.fw_error || 'fout')}</span>`,
+};
+
+async function loadIds() {
+  try { idsData = await api('ids'); } catch (ex) { toast(ex.message, 'err'); return; }
+  renderIds();
+}
+
+function renderIds() {
+  const d = idsData;
+  if (!d) return;
+  $('#ids-status').innerHTML = !d.enabled ? '<b class="warn-txt">IDS staat uit.</b> Zet het aan onder <a href="#settings" data-goto="settings">Instellingen → 🛡️ IDS</a>.'
+    : `Modus: <b>${d.mode === 'block' ? '⛔ blokkeren' : '🎓 leren (alleen melden)'}</b> · <a href="#settings" data-goto="settings">instellingen</a>`;
+  $('#ids-hosts').innerHTML = d.hosts.length ? d.hosts.map((h) => `
+    <div class="ids-host">
+      <div><b>${esc(h.name)}</b> <span class="muted small">${h.last_report ? 'IDS-rapport ' + ago(h.last_report) : d.enabled ? 'nog geen IDS-rapport (agent 1.35.0+)' : ''}</span></div>
+      <div class="small">${!h.baseline_until ? '' : h.learning ? `📏 basismeting tot ${esc(fmtUntil(h.baseline_until))}` : '✔ bewaakt'}
+        ${h.fw_state ? ' · ' + (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : ''}</div>
+      <div class="small">${h.open[2] ? `<span class="ad-count">🔴 ${h.open[2]}</span>` : ''} ${h.open[1] ? `<span class="ad-count">🟠 ${h.open[1]}</span>` : ''}
+        ${!h.open[1] && !h.open[2] ? '<span class="muted">geen open incidenten</span>' : ''}
+        ${h.baseline_until ? `<button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="Alles wat er nu is als normaal vastleggen">↺ basismeting opnieuw</button>` : ''}</div>
+    </div>`).join('') : '<p class="muted">Nog geen servers met agent.</p>';
+
+  // Incidenten per dag
+  const list = d.incidents.filter((i) => idsFilter === 'all' || i.status === 'open');
+  const open = d.incidents.filter((i) => i.status === 'open');
+  $('#ids-info').textContent = `${open.length} open · ${d.incidents.length} in de laatste ${d.days} dagen`;
+  const el = $('#ids-incidents');
+  if (!list.length) {
+    el.innerHTML = `<p class="muted">${idsFilter === 'open' ? 'Geen open incidenten. 👌' : 'Nog geen incidenten.'}</p>`;
+  } else {
+    const byDay = new Map();
+    list.forEach((i) => { const day = i.created_at.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(i); });
+    const isOpen = (day) => idsDayOpen[day] ?? (day === d.today || idsFilter === 'open');
+    el.innerHTML = [...byDay].map(([day, items]) => {
+      const n2 = items.filter((i) => +i.severity === 2).length, n1 = items.length - n2;
+      return `<details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''}>
+        <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
+          <span class="ad-counts">${n2 ? `<span class="ad-count">🔴 ${n2}</span>` : ''}${n1 ? `<span class="ad-count">🟠 ${n1}</span>` : ''}</span>
+          <span class="muted small ad-total">${items.length} incident${items.length === 1 ? '' : 'en'}</span></summary>
+        <div class="ad-body">${items.map(idsRow).join('')}</div></details>`;
+    }).join('');
+    $$('.alert-day', el).forEach((det) => det.addEventListener('toggle', () => { idsDayOpen[det.dataset.day] = det.open; idsToggleLabel(); }));
+  }
+  idsToggleLabel();
+
+  // Blokkades
+  $('#ids-block-info').textContent = `${d.blocks.length} actief`;
+  const row = (b, active) => `<tr>
+      <td class="mono">${esc(b.ip)}</td><td>${esc(b.host_name)}</td><td>${esc(b.reason)}</td>
+      <td class="at-time" title="${esc(b.created_at)}">${esc(fmtUntil(b.created_at))}</td>
+      <td class="at-time">${active ? (b.until ? esc(fmtUntil(b.until)) : '<b>permanent</b>') : b.removed_at ? 'gedeblokkeerd ' + esc(fmtUntil(b.removed_at)) + (b.removed_by ? ' door ' + esc(b.removed_by) : '') : 'verlopen'}</td>
+      <td>${+b.auto ? 'automatisch' : esc(b.created_by)}</td>
+      <td title="Tegengehouden pakketten sinds de laatste wijziging van de lijst">${+b.hits || 0}</td>
+      <td>${active ? `<button type="button" class="btn need-admin small-btn" data-unblock="${b.id}">🔓 Deblokkeren</button>` : ''}</td></tr>`;
+  const head = '<thead><tr><th>IP</th><th>Server</th><th>Reden</th><th>Sinds</th><th>Tot</th><th>Door</th><th>Pakketten</th><th></th></tr></thead>';
+  $('#ids-blocks').innerHTML = (d.blocks.length ? `<div class="table-scroll"><table class="alert-table large ids-blocks">${head}<tbody>${d.blocks.map((b) => row(b, true)).join('')}</tbody></table></div>`
+      : `<p class="muted">Niets geblokkeerd.${d.mode !== 'block' ? ' (Modus <i>leren</i>: er wordt niets geblokkeerd.)' : ''}</p>`)
+    + (d.removed.length ? `<details class="small api-docs"><summary>Eerder geblokkeerd (${d.removed.length})</summary>
+        <div class="table-scroll"><table class="alert-table large ids-blocks">${head}<tbody>${d.removed.map((b) => row(b, false)).join('')}</tbody></table></div></details>` : '');
+}
+
+function idsRow(i) {
+  const sev = +i.severity === 2 ? 2 : 1;
+  const done = i.status !== 'open';
+  return `<div class="alert-item ids-item s${sev} ${done ? 'ids-done' : ''}">
+    <span class="dot"></span>
+    <strong>${sev === 2 ? '🔴' : '🟠'} ${esc(i.title)}${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}</strong>
+    <span class="muted small" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))} · ${esc(i.host_name)}</span>
+    <span class="msg">${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>` : ''}${done ? ` · ✔ afgehandeld door ${esc(i.handled_by || '?')}` : ''}</span>
+    <span class="ids-actions need-admin">${done ? `<button type="button" class="linkbtn" data-ids="reopen" data-id="${i.id}">↺ heropenen</button>`
+      : `<button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">✔ Afhandelen</button>
+         <button type="button" class="btn small-btn" data-ids="normal" data-id="${i.id}" title="Afhandelen en dit voortaan niet meer melden">Dit is normaal</button>`}
+      ${i.ip ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}">⛔ Blokkeer IP</button>` : ''}</span>
+  </div>`;
+}
+
+function idsToggleLabel() {
+  const days = $$('#ids-incidents .alert-day');
+  $('#ids-toggle').hidden = days.length < 2;
+  $('#ids-toggle').textContent = days.length && days.every((x) => x.open) ? '⊟ Alles sluiten' : '⊞ Alles openen';
+}
+
+function idsBlockDialog(ip = '', hostId = '') {
+  const hosts = (idsData && idsData.hosts) || [];
+  modal({
+    title: '⛔ IP blokkeren',
+    body: `<label>IP-adres<input name="ip" class="mono" value="${esc(ip)}" required placeholder="bv. 203.0.113.9"></label>
+      <div class="row2">
+        <label>Op server<select name="host_id">${hosts.map((h) => `<option value="${h.id}" ${+h.id === +hostId ? 'selected' : ''}>${esc(h.name)}${h.fw_state === 'unsupported' ? ' (alleen detecteren)' : ''}</option>`).join('')}</select></label>
+        <label>Hoe lang<select name="hours"><option value="24">24 uur</option><option value="168">7 dagen</option><option value="720">30 dagen</option><option value="0">Permanent</option></select></label>
+      </div>
+      <label>Reden <span class="hint">(optioneel)</span><input name="reason" maxlength="200"></label>
+      ${idsData && idsData.mode !== 'block' ? '<p class="warn-txt small">IDS staat op <i>leren</i>: de blokkade wordt vastgelegd, maar pas echt actief als je overschakelt naar <i>blokkeren</i>.</p>' : ''}
+      <p class="muted small">Je eigen IP-adres (${esc((idsData && idsData.my_ip) || '?')}) kan niet geblokkeerd worden. Deblokkeren kan altijd hier; de agent past het binnen een minuut aan.</p>`,
+    buttons: [{ label: '⛔ Blokkeren', cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      await api('ids_block', { ip: d.ip, host_id: +d.host_id, hours: +d.hours, reason: d.reason });
+      toast(`${d.ip} geblokkeerd`);
+      setTimeout(loadIds, 50);
+    },
+  });
 }
 
 /** "Vandaag", "Gisteren" of "di 14 okt", met het jaar erbij als het niet dit jaar is */
@@ -2143,6 +2331,9 @@ async function loadSettings() {
   notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels), flap: parse(s.notify_flap) },
     { pushover_enabled: s.pushover_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
   quietGlobal = quietEditor($('#quiet-editor'), parse(s.notify_quiet), true);
+  $('#ids-enabled').checked = s.ids_enabled === '1';
+  $('#ids-mode').checked = s.ids_mode === 'block';
+  idsModeInfo();
   backupFormToggle();
   markSettingsDirty(false);
   applySettingsLayout();

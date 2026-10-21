@@ -98,10 +98,12 @@ function agent_tests_text(int $hostId): string
             $out[] = implode("\t", [$c['id'], $o['test_type'], str_replace(["\t", "\n"], ' ', $o['test_target']), str_replace(["\t", "\n"], ' ', (string) ($o['test_expect'] ?? ''))]);
         }
     }
-    // Logins, sudo en su melden (Instellingen → Alarmgedrag): 0 <tab> auth <tab> 1
-    if (AuthEvents::enabled()) {
+    // Logins, sudo en su: voor de pagina Meldingen en/of het IDS (0 <tab> auth <tab> 1)
+    if (AuthEvents::enabled() || Ids::enabled()) {
         $out[] = implode("\t", [0, 'auth', 1]);
     }
+    // IDS: aan + modus, en de IP's die de agent moet blokkeren
+    array_push($out, ...Ids::agentLines($hostId));
     // Commando-checks: id <tab> cmd <tab> commando (base64) <tab> time-out <tab> nobody|root <tab> interval
     $mode = AgentCommands::modeFor(q('SELECT commands FROM hosts WHERE id = ?', [$hostId])->fetch() ?: []);
     if ($mode !== 'off') {
@@ -269,6 +271,10 @@ if ($action === 'agent') {
     // Logins, sudo en su: naar de pagina Meldingen
     if (is_array($in['auth'] ?? null)) {
         AuthEvents::store($host, $in['auth']);
+    }
+    // IDS: vergelijken met de basismeting, incidenten, brute force blokkeren
+    if (is_array($in['ids'] ?? null)) {
+        Ids::process($host, $in['ids'], (array) ($in['auth'] ?? []), (array) ($in['ports'] ?? []));
     }
     // Commando-checks: uitvoer en exitcode (RzMon vergelijkt met het verwachte antwoord)
     foreach ((array) ($in['cmd'] ?? []) as $id => $r) {
@@ -443,7 +449,7 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'alerts', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'state', 'alerts', 'ids', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'user_email' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan' => 'user',
     default => 'admin',
@@ -520,6 +526,8 @@ switch ($action) {
         out(['hosts' => $hosts, 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
              'version' => RZMON_VERSION, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(),
+             // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
+             'ids_open' => Ids::enabled() ? (int) q("SELECT COUNT(*) FROM ids_incidents WHERE status = 'open' AND severity = 2")->fetchColumn() : 0,
              // Voor beheerders: label "⬆ x.y.z" bovenin als er een nieuwere versie is
              'update' => $isAdmin && ($uc = json_decode((string) setting('update_cache', ''), true)) && !empty($uc['latest'])
                  && version_compare($uc['latest'], RZMON_VERSION, '>') ? $uc['latest'] : null]);
@@ -926,7 +934,7 @@ switch ($action) {
     case 'settings_save':
         $in = input();
         $allowed = ['pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_allow',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -954,6 +962,15 @@ switch ($action) {
         }
         if (isset($in['auth_ignore'])) {
             $in['auth_ignore'] = implode(' ', array_slice(parse_list(mb_substr((string) $in['auth_ignore'], 0, 2000)), 0, 100));
+        }
+        foreach (['ids_baseline_hours' => [0, 720], 'ids_fail_count' => [2, 1000], 'ids_fail_minutes' => [1, 1440], 'ids_block_hours' => [1, 8760], 'ids_repeat_days' => [1, 365]] as $k => [$lo, $hi]) {
+            if (isset($in[$k])) {
+                $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
+            }
+        }
+        if (isset($in['ids_allow'])) {
+            $in['ids_allow'] = implode(' ', array_slice(array_filter(parse_list(mb_substr((string) $in['ids_allow'], 0, 2000)),
+                fn($x) => @inet_pton(explode('/', $x)[0]) !== false), 0, 100));
         }
         if (isset($in['alerts_days'])) {
             $in['alerts_days'] = (string) max(1, min(3650, (int) $in['alerts_days']));
@@ -1322,6 +1339,100 @@ switch ($action) {
             'cli_cmd' => "sudo php $root/install/install.php --rotate-db-password",
             'helper_cmd' => "sudo bash $root/install/install-helper.sh",
         ]);
+
+    // ---------------------------------------------------------- IDS
+    case 'ids':
+        $days = Monitor::alertDays();
+        $hosts = q("SELECT h.id, h.name, h.agent_seen, s.baseline_until, s.fw_state, s.fw_error, s.last_report
+                    FROM hosts h LEFT JOIN ids_state s ON s.host_id = h.id WHERE h.mode = 'agent' AND h.enabled = 1 ORDER BY h.name")->fetchAll();
+        $open = q("SELECT host_id, severity, COUNT(*) AS n FROM ids_incidents WHERE status = 'open' GROUP BY host_id, severity")->fetchAll();
+        $blocks = Ids::activeBlocks();
+        foreach ($hosts as &$h) {
+            $h['open'] = [1 => 0, 2 => 0];
+            foreach ($open as $o) {
+                if ((int) $o['host_id'] === (int) $h['id']) {
+                    $h['open'][(int) $o['severity']] = (int) $o['n'];
+                }
+            }
+            $h['blocks'] = count(array_filter($blocks, fn($b) => (int) $b['host_id'] === (int) $h['id']));
+            $h['learning'] = $h['baseline_until'] !== null && strtotime($h['baseline_until']) > time();
+        }
+        unset($h);
+        out([
+            'enabled' => Ids::enabled(), 'mode' => (string) setting('ids_mode', 'learn'), 'today' => date('Y-m-d'), 'days' => $days,
+            'hosts' => $hosts,
+            'incidents' => q('SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
+                              WHERE i.created_at >= CURDATE() - INTERVAL ? DAY ORDER BY i.created_at DESC, i.id DESC LIMIT 5000', [$days - 1])->fetchAll(),
+            'blocks' => $blocks,
+            'removed' => q('SELECT b.*, h.name AS host_name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
+                            WHERE b.removed_at IS NOT NULL OR (b.until IS NOT NULL AND b.until <= NOW()) ORDER BY COALESCE(b.removed_at, b.until) DESC LIMIT 30')->fetchAll(),
+            'my_ip' => client_ip(),
+        ]);
+
+    case 'ids_set':
+        $in = input();
+        if (array_key_exists('enabled', $in)) {
+            $on = !empty($in['enabled']);
+            save_setting('ids_enabled', $on ? '1' : '0');
+            AgentCommands::audit($user['username'], 'IDS', $on ? 'aangezet' : 'uitgezet');
+        }
+        if (isset($in['mode'])) {
+            $mode = $in['mode'] === 'block' ? 'block' : 'learn';
+            if ($mode === 'block' && setting('ids_mode', 'learn') !== 'block') {
+                $confirm('BLOKKEREN');
+            }
+            save_setting('ids_mode', $mode);
+            AgentCommands::audit($user['username'], 'IDS', $mode === 'block' ? 'modus blokkeren' : 'modus leren (alleen melden)');
+        }
+        out(['ok' => true]);
+
+    case 'ids_incident':
+        $in = input();
+        $inc = q('SELECT * FROM ids_incidents WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetch();
+        if (!$inc) {
+            out(['error' => 'Incident niet gevonden'], 404);
+        }
+        $act = (string) ($in['action'] ?? '');
+        if ($act === 'reopen') {
+            q("UPDATE ids_incidents SET status = 'open', handled_by = NULL, handled_at = NULL WHERE id = ?", [$inc['id']]);
+        } else {
+            q("UPDATE ids_incidents SET status = 'done', handled_by = ?, handled_at = NOW() WHERE id = ?", [$user['username'], $inc['id']]);
+            if ($act === 'normal') {
+                // Voortaan niet meer melden (deze soort met deze sleutel, op deze server)
+                q("INSERT IGNORE INTO ids_baseline (host_id, kind, item, value) VALUES (?, 'ignore', ?, ?)",
+                    [$inc['host_id'], mb_substr($inc['type'] . '|' . $inc['dkey'], 0, 255), mb_substr($user['username'], 0, 255)]);
+                AgentCommands::audit($user['username'], 'IDS: dit is normaal', "server {$inc['host_id']}: {$inc['title']}");
+            }
+        }
+        out(['ok' => true]);
+
+    case 'ids_block':
+        $in = input();
+        $hours = (int) ($in['hours'] ?? 24);
+        $r = Ids::block((int) ($in['host_id'] ?? 0), (string) ($in['ip'] ?? ''), $hours > 0 ? $hours : null, trim((string) ($in['reason'] ?? '')), $user['username'], client_ip());
+        if ($r !== true) {
+            out(['error' => $r], 422);
+        }
+        AgentCommands::audit($user['username'], 'IDS: geblokkeerd', ($in['ip'] ?? '') . ' op server ' . (int) $in['host_id'] . ($hours > 0 ? " voor $hours uur" : ' permanent'));
+        out(['ok' => true, 'active' => Ids::blocking()]);
+
+    case 'ids_unblock':
+        $b = q('SELECT * FROM ids_blocks WHERE id = ?', [(int) (input()['id'] ?? 0)])->fetch();
+        if (!$b) {
+            out(['error' => 'Blokkade niet gevonden'], 404);
+        }
+        q('UPDATE ids_blocks SET removed_at = NOW(), removed_by = ? WHERE id = ?', [$user['username'], $b['id']]);
+        // De pogingen tellen niet meer mee, anders volgt meteen een nieuwe automatische blokkade
+        q('DELETE FROM ids_attempts WHERE host_id = ? AND ip = ?', [$b['host_id'], $b['ip']]);
+        AgentCommands::audit($user['username'], 'IDS: gedeblokkeerd', "{$b['ip']} op server {$b['host_id']}");
+        out(['ok' => true]);
+
+    case 'ids_rebaseline':
+        $hid = (int) (input()['host_id'] ?? 0);
+        q("DELETE FROM ids_baseline WHERE host_id = ? AND kind <> 'ignore'", [$hid]);
+        q('DELETE FROM ids_state WHERE host_id = ?', [$hid]);
+        AgentCommands::audit($user['username'], 'IDS: basismeting opnieuw', "server $hid");
+        out(['ok' => true]);
 
     // ---------------------------------------------------------- Commando's op agents
     case 'agent_commands':

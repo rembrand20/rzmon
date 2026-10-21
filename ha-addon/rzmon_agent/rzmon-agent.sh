@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.34.0"
+AGENT_VERSION="1.35.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -77,6 +77,9 @@ COMMANDS="${COMMANDS-}"
 # Logins (SSH en console), sudo en su melden op de pagina Meldingen, als dat in RzMon aan staat
 # (Instellingen → Alarmgedrag). AUTH_EVENTS=0 zet het op deze server altijd uit.
 AUTH_EVENTS="${AUTH_EVENTS-}"
+# IDS (pagina 🛡️ IDS in RzMon): IDS_BLOCK=0 = op deze server nooit blokkeren, ook als RzMon op
+# "blokkeren" staat (detecteren gaat door).
+IDS_BLOCK="${IDS_BLOCK-}"
 # Zonder journal (of met AUTH_SOURCE=file): deze logbestanden, de eerste die bestaat
 AUTH_LOGS="${AUTH_LOGS:-/var/log/secure /var/log/auth.log}"
 SUPERVISOR_URL="${SUPERVISOR_URL:-http://supervisor}"
@@ -879,6 +882,166 @@ if [ "$HA_MODE" = 0 ] && [ "$AUTH_EVENTS" != 0 ] && [ -r "${t_cache-}" ] && grep
     auth_json="\"auth\":{\"events\":[${a_events%,}],\"fails\":[${a_fails%,}]},"
 fi
 
+# ---------------------------------------------------------------- IDS (intrusion detection)
+# Als RzMon erom vraagt (regel "0 <tab> ids <tab> learn|block"): wat RzMon nodig heeft om afwijkingen te zien.
+# Vergelijken gebeurt in RzMon (daar staat de basismeting, buiten bereik van een aanvaller op deze server).
+#  - gevoelige bestanden (SHA-256), gebruikers, kernelmodules, verdachte processen, verdachte verbindingen
+#  - SUID-bestanden (elk uur) en pakketcontrole rpm -Va / debsums (dagelijks), op de achtergrond
+#  - blokkeren: bij "block" de IP's uit RzMon in een eigen nftables-tabel "inet rzmon" (los van firewalld);
+#    bij "learn" of IDS uit wordt die tabel weer verwijderd
+ids_json=""
+ids_mode=""
+[ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && ids_mode=$(awk -F'\t' '$1 == "0" && $2 == "ids" { print $3; exit }' "$t_cache")
+ids_bg() {  # ids_bg <naam> <max. leeftijd in s> <commando>: op de achtergrond uitvoeren, uitvoer in $i_dir/<naam>
+    local name=$1 age=$2 cmd=$3 out="$i_dir/$1"
+    [ -f "$out" ] && [ $(( $(date +%s) - $(stat -c %Y "$out") )) -lt "$age" ] && return 0
+    [ -f "$out.lock" ] && [ $(( $(date +%s) - $(stat -c %Y "$out.lock") )) -lt 7200 ] && return 0
+    : >"$out.lock"
+    local job
+    job="nice -n 19 ionice -c3 bash -c $(printf '%q' "$cmd") >$(printf '%q' "$out.tmp") 2>/dev/null; mv -f $(printf '%q' "$out.tmp") $(printf '%q' "$out"); rm -f $(printf '%q' "$out.lock")"
+    if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
+        systemd-run --quiet --collect --unit="rzmon-ids-$name-$(date +%s)" /bin/bash -c "$job" >/dev/null 2>&1 || rm -f "$out.lock"
+    else
+        setsid bash -c "$job" </dev/null >/dev/null 2>&1 &
+    fi
+}
+if [ -n "$ids_mode" ]; then
+    i_dir="$t_dir/ids"
+    mkdir -p "$i_dir" 2>/dev/null && chmod 700 "$i_dir" 2>/dev/null
+    # 1. Gevoelige bestanden: inlog, sudo, SSH, cron, systemd-units, ld.so.preload (rootkits)
+    shopt -s nullglob
+    i_cand=(/etc/passwd /etc/shadow /etc/group /etc/gshadow /etc/sudoers /etc/sudoers.d/* /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*
+        /etc/crontab /etc/cron.d/* /var/spool/cron/* /var/spool/cron/crontabs/* /root/.ssh/authorized_keys /home/*/.ssh/authorized_keys
+        /etc/systemd/system/*.service /etc/systemd/system/*.timer /etc/ld.so.preload /etc/rc.local /etc/profile.d/*.sh)
+    shopt -u nullglob
+    i_files=()
+    for f in "${i_cand[@]}"; do [ -f "$f" ] && [ -r "$f" ] && i_files+=("$f"); done
+    files_json=""
+    if [ ${#i_files[@]} -gt 0 ]; then
+        while read -r h f; do
+            [[ "$h" =~ ^[0-9a-f]{64}$ ]] && files_json+="\"$(json_escape "$f")\":\"$h\","
+        done < <(sha256sum -- "${i_files[@]:0:1000}" 2>/dev/null)
+    fi
+    # 2. Gebruikers (naam en UID) en 3. kernelmodules
+    users_json=$(awk -F: '$1 ~ /^[A-Za-z0-9._-]+$/ { printf "[\"%s\",%d],", $1, $3 }' /etc/passwd 2>/dev/null)
+    mods_json=$(awk '$1 ~ /^[A-Za-z0-9_]+$/ { printf "\"%s\",", $1 }' /proc/modules 2>/dev/null)
+    # 4. SUID-bestanden (elk uur) en 5. pakketcontrole (dagelijks), op de achtergrond
+    # Container-images (docker, podman) overslaan: daar staan veel SUID-bestanden die niets met de server zelf te maken hebben
+    ids_bg suid 3600 "find / -xdev \\( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /var/lib/docker -o -path /var/lib/containers -o -path /var/lib/containerd -o -path '/home/*/.local/share/containers' \\) -prune -o -type f -perm -4000 -print 2>/dev/null | head -n 2000"
+    if command -v rpm >/dev/null 2>&1 && { [ -d /var/lib/rpm ] || [ -d /usr/lib/sysimage/rpm ]; }; then
+        # Inhoud (5) gewijzigd, geen configuratiebestanden, alleen programma's en bibliotheken
+        ids_bg pkgdiff 86400 "rpm -Va --noconfig --nomtime 2>/dev/null | awk '\$1 ~ /^..5/ { print \$NF }' | grep -E '^/(usr/)?(s?bin|lib|lib64)/' | head -n 100"
+    elif command -v debsums >/dev/null 2>&1; then
+        ids_bg pkgdiff 86400 "debsums -c 2>/dev/null | grep -E '^/(usr/)?(s?bin|lib|lib64)/' | head -n 100"
+    fi
+    suid_part=""
+    [ -f "$i_dir/suid" ] && suid_part=",\"suid\":[$(awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "\"%s\",", $0 }' "$i_dir/suid" | sed 's/,$//')]"
+    pkg_part=""
+    [ -f "$i_dir/pkgdiff" ] && pkg_part=",\"pkgdiff\":[$(awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "\"%s\",", $0 }' "$i_dir/pkgdiff" | sed 's/,$//')]"
+    # Laatste pakketactiviteit (dnf/apt): bestanden die dan veranderen zijn waarschijnlijk de update
+    pkg_t=0
+    for f in /var/log/dnf.rpm.log /var/log/dnf5.log /var/log/dpkg.log /var/log/apt/history.log; do
+        [ -f "$f" ] && t=$(stat -c %Y "$f") && [ "$t" -gt "$pkg_t" ] && pkg_t=$t
+    done
+    # 6. Verdachte processen: uit /tmp, /dev/shm of /var/tmp, zonder bestand (memfd), of programma verwijderd
+    procs_json=""; n_procs=0
+    for p in /proc/[0-9]*; do
+        exe=$(readlink "$p/exe" 2>/dev/null) || continue
+        flag=0
+        case "$exe" in
+            /tmp/*|/dev/shm/*|/var/tmp/*) flag=1 ;;
+            /memfd:*) case "$exe" in *runc*|*crun*|*containerd*) ;; *) flag=1 ;; esac ;;
+            *" (deleted)")
+                # Na een update draait een dienst vaak nog met het oude (verwijderde) programma: dat is normaal
+                case "${exe% (deleted)}" in /usr/*|/opt/*|/lib*|/bin/*|/sbin/*|/snap/*|/var/lib/*) ;; *) flag=1 ;; esac ;;
+        esac
+        [ "$flag" = 1 ] || continue
+        cmd=$(tr '\0' ' ' <"$p/cmdline" 2>/dev/null | head -c 300 | json_text)
+        procs_json+="{\"pid\":${p#/proc/},\"exe\":\"$(json_escape "$exe")\",\"user\":\"$(stat -c %U "$p" 2>/dev/null)\",\"cmd\":\"$cmd\"},"
+        n_procs=$((n_procs + 1)); [ "$n_procs" -ge 20 ] && break
+    done
+    # 7. Verbindingen: een shell (of nc/socat) met een verbinding naar buiten, of uitgaand naar een verdachte poort
+    conns_json=""
+    if command -v ss >/dev/null 2>&1; then
+        listen=" $(ss -Htln 2>/dev/null | awk '{ p = $4; sub(/.*:/, "", p); printf "%s ", p }')"
+        while IFS=$'\t' read -r c_procs c_pid c_local c_peer; do
+            c_proc=${c_procs%%,*}
+            peer_ip=${c_peer%:*}; peer_ip=${peer_ip#[}; peer_ip=${peer_ip%]}; peer_port=${c_peer##*:}; local_port=${c_local##*:}
+            case "$peer_ip" in 127.*|::1|::ffff:127.*) continue ;; esac
+            kind=""
+            # Een shell die de verbinding vasthoudt (ook als een ander proces, zoals sleep, hem deelt)
+            for c_name in ${c_procs//,/ }; do
+                case "$c_name" in bash|sh|dash|zsh|ksh|nc|ncat|netcat|socat|telnet) kind=shell; c_proc=$c_name ;; esac
+            done
+            if [ -z "$kind" ] && [[ "$listen" != *" $local_port "* ]]; then
+                [[ " 1337 4444 4445 5555 6666 6667 6697 12345 31337 " == *" $peer_port "* ]] && kind=port
+            fi
+            [ -n "$kind" ] && conns_json+="{\"kind\":\"$kind\",\"proc\":\"$(json_escape "$c_proc")\",\"pid\":${c_pid:-0},\"local\":\"$(json_escape "$c_local")\",\"peer\":\"$(json_escape "$c_peer")\"},"
+        done < <(ss -tnpH state established 2>/dev/null | awk '{ names = ""; pid = 0; rest = $0
+                while (match(rest, /\("[^"]+",pid=[0-9]+/)) { s = substr(rest, RSTART + 2, RLENGTH - 2); split(s, a, "\",pid=")
+                    names = names (names == "" ? "" : ",") a[1]; if (!pid) pid = a[2]; rest = substr(rest, RSTART + RLENGTH) }
+                if (names != "") print names "\t" pid "\t" $3 "\t" $4 }' | head -n 200)
+    fi
+    ids_json="\"ids\":{\"mode\":\"$ids_mode\",\"files\":{${files_json%,}},\"users\":[${users_json%,}],\"modules\":[${mods_json%,}]${suid_part}${pkg_part},\"pkg\":$pkg_t,\"procs\":[${procs_json%,}],\"conns\":[${conns_json%,}],"
+fi
+
+# Blokkeren: eigen nftables-tabel "inet rzmon" met de IP's uit RzMon (alleen in de modus blokkeren)
+fw_json=""
+if [ "$ids_mode" = block ]; then
+    if command -v midclt >/dev/null 2>&1; then
+        fw_json="\"fw\":{\"state\":\"unsupported\",\"err\":\"TrueNAS: alleen detecteren\"}"
+    elif [ "$IDS_BLOCK" = 0 ]; then
+        fw_json="\"fw\":{\"state\":\"disabled\",\"err\":\"IDS_BLOCK=0 op deze server\"}"
+    elif ! command -v nft >/dev/null 2>&1; then
+        fw_json="\"fw\":{\"state\":\"error\",\"err\":\"nft (nftables) ontbreekt\"}"
+    else
+        # Nooit het adres van RzMon zelf blokkeren
+        rz_host=${MONITOR_URL#*://}; rz_host=${rz_host%%/*}; rz_host=${rz_host%:*}; rz_host=${rz_host#[}; rz_host=${rz_host%]}
+        rz_ips=" $(getent ahosts "$rz_host" 2>/dev/null | awk '{ print $1 }' | sort -u | tr '\n' ' ') $rz_host "
+        want4=""; want6=""; now_f=$(date +%s)
+        while IFS=$'\t' read -r z t b_ip b_until; do
+            [ "$z" = 0 ] && [ "$t" = block ] || continue
+            [[ "$b_until" =~ ^[0-9]+$ ]] && [ "$b_until" != 0 ] && [ "$b_until" -le "$now_f" ] && continue
+            [[ "$rz_ips" == *" $b_ip "* ]] && continue
+            if [[ "$b_ip" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then want4+="$b_ip, "
+            elif [[ "$b_ip" =~ ^[0-9a-fA-F:]+$ ]] && [[ "$b_ip" == *:* ]]; then want6+="$b_ip, "; fi
+        done <"$t_cache"
+        sig=$(printf '%s|%s' "$want4" "$want6" | sha1sum | cut -c1-16)
+        fw_err=""
+        if ! nft list table inet rzmon >/dev/null 2>&1 || [ "$(cat "$i_dir/fw.sig" 2>/dev/null)" != "$sig" ]; then
+            # Elementen apart opbouwen: accolades binnen ${…:+…} zouden de expansie te vroeg afsluiten
+            el4=""; [ -n "$want4" ] && el4=" elements = { ${want4%, } };"
+            el6=""; [ -n "$want6" ] && el6=" elements = { ${want6%, } };"
+            fw_apply() {  # fw_apply <"counter;" of ""> : tabel in één keer opnieuw opbouwen
+                { echo "table inet rzmon"; echo "delete table inet rzmon"; echo "table inet rzmon {"
+                  echo "  set bl4 { type ipv4_addr; $1$el4 }"
+                  echo "  set bl6 { type ipv6_addr; $1$el6 }"
+                  echo "  chain input { type filter hook input priority -5; policy accept; ip saddr @bl4 drop; ip6 saddr @bl6 drop; }"
+                  echo "}"; } | nft -f - 2>"$i_dir/fw.err"
+            }
+            if fw_apply "counter;" || fw_apply ""; then
+                echo "$sig" >"$i_dir/fw.sig"
+            else
+                fw_err=$(head -c 200 "$i_dir/fw.err" | json_text)
+            fi
+        fi
+        if [ -n "$fw_err" ]; then
+            fw_json="\"fw\":{\"state\":\"error\",\"err\":\"$fw_err\"}"
+        else
+            hits=$(nft list table inet rzmon 2>/dev/null | grep -oE '[0-9a-fA-F:.]+ counter packets [0-9]+' | awk '{ printf "\"%s\":%s,", $1, $4 }')
+            fw_json="\"fw\":{\"state\":\"active\",\"n\":$(printf '%s%s' "$want4" "$want6" | grep -o ',' | wc -l),\"hits\":{${hits%,}}}"
+        fi
+    fi
+elif [ "$HA_MODE" = 0 ] && command -v nft >/dev/null 2>&1 && nft list table inet rzmon >/dev/null 2>&1; then
+    # Leren of IDS uit: niets meer blokkeren
+    nft delete table inet rzmon 2>/dev/null
+    rm -f "${i_dir:-$t_dir/ids}/fw.sig"
+fi
+if [ -n "$ids_json" ]; then
+    [ -n "$fw_json" ] || fw_json='"fw":{"state":"off"}'
+    ids_json+="$fw_json},"
+fi
+
 # ---------------------------------------------------------------- Podman: containers, pods en opslag
 # Per context: versie, containers (status, health, herstarts, grootte, volumes), pods en opslag.
 # Volumegroottes (du) worden een uur bewaard: die kunnen groot zijn en veranderen langzaam.
@@ -1130,7 +1293,7 @@ remote_update() {  # remote_update <antwoord van RzMon>
 }
 
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)

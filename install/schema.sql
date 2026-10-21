@@ -226,7 +226,16 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('agent_commands', 'off'),
     -- Logins (SSH, console), sudo en su van de agents op de pagina Meldingen; auth_ignore: gebruikers/IP's
     ('auth_events', '1'),
-    ('auth_ignore', '');
+    ('auth_ignore', ''),
+    -- IDS: standaard uit; mode learn = alleen melden, block = ook blokkeren (lokaal, nftables)
+    ('ids_enabled', '0'),
+    ('ids_mode', 'learn'),
+    ('ids_baseline_hours', '24'),
+    ('ids_fail_count', '10'),
+    ('ids_fail_minutes', '10'),
+    ('ids_block_hours', '24'),
+    ('ids_repeat_days', '7'),
+    ('ids_allow', '');
 
 -- Logboek van gevoelige wijzigingen (bv. commando's op agents toestaan, commando-checks wijzigen)
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -237,4 +246,74 @@ CREATE TABLE IF NOT EXISTS audit_log (
     ip         VARCHAR(45) NOT NULL DEFAULT '',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_audit_time (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- IDS: wat normaal is per server (bestanden, gebruikers, poorten, SUID, modules, login-IP's, uitzonderingen)
+CREATE TABLE IF NOT EXISTS ids_baseline (
+    host_id    INT UNSIGNED NOT NULL,
+    kind       VARCHAR(20) NOT NULL,
+    item       VARCHAR(255) NOT NULL,
+    value      VARCHAR(255) NOT NULL DEFAULT '',
+    first_seen DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (host_id, kind, item),
+    CONSTRAINT fk_idsb_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- IDS: toestand per server (basismeting tot, firewall van de agent)
+CREATE TABLE IF NOT EXISTS ids_state (
+    host_id        INT UNSIGNED NOT NULL PRIMARY KEY,
+    baseline_until DATETIME NOT NULL,
+    fw_state       VARCHAR(20) NOT NULL DEFAULT '',
+    fw_error       VARCHAR(255) NOT NULL DEFAULT '',
+    last_report    DATETIME NULL,
+    CONSTRAINT fk_idss_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- IDS: incidenten (severity 1 = warning, 2 = critical); dkey om herhalingen samen te voegen
+CREATE TABLE IF NOT EXISTS ids_incidents (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    severity   TINYINT UNSIGNED NOT NULL,
+    type       VARCHAR(30) NOT NULL,
+    dkey       VARCHAR(255) NOT NULL,
+    title      VARCHAR(250) NOT NULL,
+    detail     VARCHAR(1000) NOT NULL DEFAULT '',
+    ip         VARCHAR(45) NULL,
+    hits       INT UNSIGNED NOT NULL DEFAULT 1,
+    status     VARCHAR(10) NOT NULL DEFAULT 'open',
+    handled_by VARCHAR(100) NULL,
+    handled_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_idsi_time (created_at),
+    INDEX idx_idsi_key (host_id, type, dkey),
+    CONSTRAINT fk_idsi_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- IDS: geblokkeerde IP-adressen per server (until NULL = permanent; removed_at = gedeblokkeerd)
+CREATE TABLE IF NOT EXISTS ids_blocks (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    ip         VARCHAR(45) NOT NULL,
+    reason     VARCHAR(255) NOT NULL DEFAULT '',
+    auto       TINYINT(1) NOT NULL DEFAULT 0,
+    created_by VARCHAR(100) NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    until      DATETIME NULL,
+    hits       BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    removed_at DATETIME NULL,
+    removed_by VARCHAR(100) NULL,
+    INDEX idx_idsbl_host (host_id, removed_at),
+    CONSTRAINT fk_idsbl_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- IDS: mislukte inlogpogingen per server en IP (voor brute force), een dag bewaard
+CREATE TABLE IF NOT EXISTS ids_attempts (
+    id      BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id INT UNSIGNED NOT NULL,
+    ip      VARCHAR(45) NOT NULL,
+    n       INT UNSIGNED NOT NULL,
+    at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_idsa (host_id, ip, at),
+    CONSTRAINT fk_idsa_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -7,6 +7,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.35.0 – 2026-10-21
+### Nieuw
+- **🛡️ IDS (inbraakdetectie)**, een nieuwe pagina. De agents letten op:
+  - nieuwe of gewijzigde gevoelige bestanden (sudoers, `authorized_keys`, passwd/shadow, crontabs, sshd-config, systemd-services …);
+  - nieuwe gebruikers, een tweede root-account, nieuwe luisterende poorten, SUID-programma's en kernelmodules, en gewijzigde programmabestanden van pakketten;
+  - programma's die vanuit `/tmp` of zonder bestand draaien, mogelijke reverse shells en verbindingen naar bekende malware-poorten;
+  - brute force op SSH, een geslaagde inlog na brute force, root-logins en logins vanaf een nieuw IP-adres.
+- **Instellingen → 🛡️ IDS**: aan/uit (standaard **uit**) en **leren / blokkeren**. Leren meldt alleen; blokkeren blokkeert ook echt. Overschakelen naar blokkeren vraagt je wachtwoord en komt in het logboek.
+- Per server eerst een **basismeting** (standaard 24 uur); daarna alleen afwijkingen. Met **Dit is normaal** komt een melding niet meer terug.
+- **Critical** gaat ook naar Pushover, ook tijdens stille uren; een rood bolletje op het tabblad IDS telt de open critical incidenten.
+- **Blokkeren** op de aangevallen server, in een eigen nftables-tabel van de agent: automatisch bij brute force (24 uur, bij herhaling binnen 7 dagen permanent) of met **⛔ Blokkeer IP**. **🔓 Deblokkeren** op de pagina IDS. Je LAN, RzMon zelf en een eigen lijst worden nooit automatisch geblokkeerd.
+- Op een server blokkeren altijd uitzetten met `IDS_BLOCK=0`. TrueNAS SCALE: alleen detecteren.
+- Agent 1.35.0 of nieuwer nodig.
+
 ## 1.34.0 – 2026-10-21
 ### Nieuw
 - **Voorinstellingen voor commando-checks**: 21 kant-en-klare checks in drie groepen. De groep die bij de server past, staat bovenaan.

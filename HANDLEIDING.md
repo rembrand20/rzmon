@@ -122,6 +122,7 @@ RzMon bestaat uit vier onderdelen:
 - **Meerdere gebruikers**, elk met of zonder **tweestapsverificatie** (TOTP, met elke authenticator-app). Beheer en resetten via de instellingenpagina.
 - **Geen login op je lokale netwerk** (optioneel). Van buitenaf blijft de login nodig. Ga je met je telefoon van wifi naar 4G, dan word je automatisch uitgelogd.
 - **Reverse proxy:** ondersteuning voor Nginx Proxy Manager, Traefik en Cloudflare Tunnel, waarbij het echte bezoekers-IP alleen wordt vertrouwd van proxy's die je zelf instelt.
+- **🛡️ IDS (intrusion detection):** de agents letten op gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen en verbindingen, brute force en inbraak na brute force. Op de pagina *IDS* handel je incidenten af en blokkeer of deblokkeer je IP-adressen; critical gaat ook naar Pushover. Standaard uit; eerst *leren* (alleen melden), daarna eventueel *blokkeren*.
 - **Overige beveiliging:** CSRF-bescherming, HttpOnly/SameSite-cookies, een eigen token per agent en API-sleutels die alleen als hash worden opgeslagen.
 
 ### Setup-pagina
@@ -1091,6 +1092,66 @@ Goed om te weten:
 - **Bij de eerste keer** begint de agent bij *nu*: oude logins komen er niet in.
 - **Bewaren:** net zo lang als de andere meldingen (*Meldingen bewaren (dagen)*).
 - **Werkt op** Linux-servers en TrueNAS SCALE, niet in de Home Assistant-add-on. Agent 1.33.0 of nieuwer nodig.
+
+### 8.12 IDS: inbraakdetectie 🛡️
+De agent let op tekenen van een inbraak en RzMon vergelijkt dat met wat normaal is op die server. Alles komt op de pagina **🛡️ IDS**. Bij *blokkeren* zet de agent aanvallende IP-adressen ook echt in de firewall van die server.
+
+**Aanzetten** gaat op *Instellingen → 🛡️ IDS*:
+- **IDS aan/uit**: standaard **uit**. Uit = de agents verzamelen niets en er wordt niets geblokkeerd.
+- **🎓 Leren / ⛔ Blokkeren**:
+  - **Leren** (standaard): alles wordt gemeld, er wordt niets geblokkeerd.
+  - **Blokkeren**: brute force wordt automatisch geblokkeerd, en de knop **⛔ Blokkeer IP** werkt echt. Overschakelen vraagt je wachtwoord (op je LAN: typ `BLOKKEREN`) en komt in het logboek.
+
+Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over naar *blokkeren* als het klopt, en doe dat de eerste keer terwijl je ook via de console bij de server kunt.
+
+**Wat wordt gemeld**
+
+| Melding | Ernst |
+|---|---|
+| Nieuw of gewijzigd bestand: `/etc/sudoers(.d)`, `/root/.ssh/authorized_keys`, `/etc/ld.so.preload` | 🔴 critical |
+| Nieuw of gewijzigd bestand: `/etc/passwd`, `shadow`, `group`, sshd-config, crontabs en `/etc/cron.d`, `authorized_keys` van gebruikers, eigen systemd-services en -timers, `rc.local`, `/etc/profile.d` | 🟠 warning |
+| Tweede root-account (UID 0) | 🔴 critical |
+| Nieuwe gebruiker | 🟠 warning |
+| Nieuwe luisterende poort | 🟠 warning |
+| Nieuw SUID-programma, nieuwe kernelmodule, gewijzigd programmabestand van een pakket (`rpm -Va` / `debsums`, dagelijks) | 🟠 warning |
+| Programma dat draait vanuit `/tmp`, `/dev/shm` of `/var/tmp`, of van een verwijderd bestand | 🔴 critical |
+| Programma zonder bestand (memfd) | 🟠 warning |
+| Mogelijke reverse shell: een shell of `nc`/`socat` met een verbinding naar buiten | 🔴 critical |
+| Verbinding naar een bekende malware-poort (1337, 4444, 31337 …) | 🟠 warning |
+| Brute force op SSH: standaard 10 mislukte logins binnen 10 minuten vanaf één IP | 🟠 warning |
+| **Inlog na brute force**: eerst veel mislukte pogingen, daarna een geslaagde login vanaf hetzelfde IP | 🔴 critical |
+| Root-login via SSH, login vanaf een IP dat nog nooit eerder inlogde | 🟠 warning |
+
+- **🔴 Critical** gaat ook naar **Pushover**, ook tijdens stille uren, en komt op de pagina Meldingen. **🟠 Warning** staat alleen op de pagina IDS.
+- Een rood bolletje op het tabblad **🛡️ IDS** telt de open critical incidenten.
+- Dezelfde melding binnen 24 uur wordt niet opnieuw gestuurd; de teller loopt op (*5×*).
+
+**Basismeting**
+- Als het IDS voor het eerst een rapport van een server krijgt, legt RzMon eerst vast wat er normaal is: standaard **24 uur** (*Basismeting (uren)*). Wat er in die tijd verandert, wordt stil opgenomen.
+- **Dit is normaal** bij een incident: afhandelen, en die melding komt op die server niet meer terug.
+- **↺ basismeting opnieuw** (bij de server bovenaan de pagina IDS): na een grote wijziging, bijvoorbeeld een upgrade, alles opnieuw als normaal vastleggen.
+- Installeer je een pakket of werk je de server bij, dan zie je soms meldingen over gewijzigde bestanden. Klopt het, kies dan **✔ Afhandelen**.
+
+**Blokkeren**
+- De agent gebruikt een **eigen nftables-tabel** (`inet rzmon`), naast firewalld of je eigen regels. Je bestaande firewall wordt niet aangepast. Bekijken op de server: `nft list table inet rzmon`.
+- Er wordt alleen geblokkeerd **op de server die aangevallen wordt**.
+- **Automatisch** bij brute force: **24 uur**; komt hetzelfde IP binnen **7 dagen** terug, dan **permanent**. Beide in te stellen.
+- **Handmatig** met **⛔ Blokkeer IP** bij een incident, of **＋ IP blokkeren**: 24 uur, 7 dagen, 30 dagen of permanent.
+- **Nooit automatisch geblokkeerd:** je LAN (privé-adressen), RzMon zelf en de lijst *Nooit blokkeren*. Een LAN-adres kun je wel zelf blokkeren; je eigen IP-adres niet.
+- **🔓 Deblokkeren** in het blok *Blokkades*. De agent past het binnen een minuut aan. Eerdere blokkades staan onder *Eerder geblokkeerd*.
+- **Terug naar leren** of **IDS uit**: de agent haalt zijn tabel meteen weg, alle blokkades vervallen op de servers. In RzMon blijven ze staan, zodat ze terugkomen als je weer blokkeert.
+- **Op een server nooit blokkeren:** zet `IDS_BLOCK=0` in `/etc/default/rzmon-agent`. Die server meldt dan wel, maar blokkeert niet.
+- Bovenaan de pagina IDS zie je per server of de firewall werkt: *✔ bewaakt · blokkeren actief*, *alleen melden*, *alleen detecteren* of een foutmelding.
+- **Docker en Podman:** verkeer naar containers met gepubliceerde poorten loopt via *forward*, niet via *input*. Een blokkade geldt dus voor de server zelf (SSH en diensten op de host), niet altijd voor containers.
+
+**Goed om te weten**
+- Werkt op Linux-servers met agent **1.35.0** of nieuwer. Werk de agents bij met de knop in de Agent Manager.
+- **TrueNAS SCALE: alleen detecteren.** De firewall hoort daar bij TrueNAS zelf; de agent blokkeert er niets.
+- **Niet in de Home Assistant-add-on.**
+- De SUID-zoektocht draait één keer per uur en de pakketcontrole één keer per dag, op de achtergrond en met lage prioriteit. Container-opslag (`/var/lib/docker`, `/var/lib/containers`) wordt overgeslagen.
+- Het IDS gebruikt de logins uit [8.11](#811-logins-en-sudo-) (journal of `/var/log/secure`). Dat werkt ook als *Logins en sudo tonen* uit staat.
+- Incidenten worden net zo lang bewaard als de meldingen (*Meldingen bewaren (dagen)*).
+- Een IDS ziet veel, maar niet alles. Houd je servers bijgewerkt, gebruik SSH-sleutels en zet `PermitRootLogin no`.
 
 ## 9. Agent op Home Assistant OS
 

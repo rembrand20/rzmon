@@ -170,6 +170,8 @@ sudo firewall-cmd --list-services                   # bevat http (en https)
 
 ---
 
+> **IDS en firewalld.** Zet je het IDS op *blokkeren*, dan maakt de agent op een server een eigen nftables-tabel `inet rzmon` aan. Die werkt naast firewalld; je firewalld-instellingen blijven zoals ze zijn. Zie de [Handleiding, 8.12](HANDLEIDING.md#812-ids-inbraakdetectie-).
+
 ## 5. MariaDB instellen
 
 Optioneel maar aanbevolen: beveilig de standaardinstallatie. Daarbij worden de anonieme gebruikers en de testdatabase verwijderd.
