@@ -58,7 +58,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Beschikbaarheid** per server over 24 uur, 7 dagen en 30 dagen.
 - **Zoeken** en het filter *Alleen problemen*.
 - **Overig:** licht en donker thema, werkt op je telefoon, ververst elke 20 seconden, en **↻ Alles nu checken**.
-- **Meldingenoverzicht:** elke verstuurde melding, met de kanalen waarlangs hij ging.
+- **Meldingenoverzicht per dag:** elke verstuurde melding met de kanalen waarlangs hij ging, gegroepeerd per dag met tellers. Vandaag staat open. De bewaartermijn stel je zelf in.
 
 ## 4. Meldingen
 - **Kanalen:**

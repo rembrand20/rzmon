@@ -708,3 +708,19 @@ body[data-role="admin"] [data-role-only="nonadmin"] { display: none; }
 .cmd-host-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; font-size: .9rem; margin: .2rem 0 .9rem; }
 .cmd-host-row select { width: auto; }
 textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85rem; resize: vertical; }
+
+/* ---------- Meldingen per dag ---------- */
+.alerts-head { display: flex; align-items: baseline; gap: .4rem 1rem; flex-wrap: wrap; margin-bottom: .6rem; }
+.alerts-head h2 { margin: 0; }
+.alerts-head .btn { margin-left: auto; padding: .4rem .8rem; font-size: .85rem; }
+.alert-day { border: 1px solid var(--border); border-radius: 10px; margin-bottom: .5rem; background: var(--card-2); }
+.alert-day > summary { cursor: pointer; display: flex; align-items: center; gap: .4rem 1rem; flex-wrap: wrap; padding: .6rem .9rem; list-style: none; user-select: none; }
+.alert-day > summary::-webkit-details-marker { display: none; }
+.alert-day > summary::before { content: '›'; display: inline-block; width: .7rem; color: var(--muted); transition: transform .15s; }
+.alert-day[open] > summary::before { transform: rotate(90deg); }
+.alert-day > summary:hover .ad-title { color: var(--primary); }
+.ad-title { font-weight: 700; }
+.ad-counts { display: flex; gap: .5rem; flex-wrap: wrap; font-size: .85rem; }
+.ad-total { margin-left: auto; }
+.ad-body { padding: 0 .9rem .4rem; background: var(--card); border-radius: 0 0 10px 10px; }
+.alert-day[open] .ad-body { border-top: 1px solid var(--border); }

@@ -154,7 +154,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
     <section id="tab-alerts" class="tab-panel" hidden>
       <div class="card">
-        <h2>Laatste meldingen</h2>
+        <div class="alerts-head">
+          <h2>Meldingen</h2>
+          <span class="muted small" id="alerts-info"></span>
+          <button type="button" class="btn" id="alerts-toggle">⊞ Alles openen</button>
+        </div>
         <div id="alerts" class="alert-list"></div>
       </div>
     </section>
@@ -235,6 +239,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <h2>Alarmgedrag</h2>
           <label>Agent offline na … minuten zonder rapport<input type="number" name="agent_stale_minutes" min="1"></label>
           <label>Historie bewaren (dagen)<input type="number" name="retention_days" min="1"></label>
+          <label>Meldingen bewaren (dagen) <span class="muted small">(de pagina Meldingen toont ze per dag)</span><input type="number" name="alerts_days" min="1" max="3650"></label>
           <label>Waarschuwen als een disk binnen … dagen vol raakt <span class="muted small">(0 = uit)</span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
           <label>Logbestanden: treffers tellen over de laatste … minuten <span class="muted small">(5–1440)</span><input type="number" name="log_window" min="5" max="1440"></label>
           <label class="switch"><input type="checkbox" name="auto_maint_enabled"><span></span> Automatisch onderhoud na herhaalde meldingen</label>

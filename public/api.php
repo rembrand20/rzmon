@@ -435,7 +435,7 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'state', 'alerts', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'user_email' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan' => 'user',
     default => 'admin',
@@ -508,15 +508,21 @@ switch ($action) {
             }
             unset($h);
         }
-        $alerts = q('SELECT a.*, c.name AS check_name FROM alerts a LEFT JOIN checks c ON c.id = a.check_id
-                     ORDER BY a.id DESC LIMIT 50')->fetchAll();
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
-        out(['hosts' => $hosts, 'alerts' => $alerts, 'last_run' => $lastRun, 'user' => $user['username'],
+        out(['hosts' => $hosts, 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
              'version' => RZMON_VERSION, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(),
              // Voor beheerders: label "⬆ x.y.z" bovenin als er een nieuwere versie is
              'update' => $isAdmin && ($uc = json_decode((string) setting('update_cache', ''), true)) && !empty($uc['latest'])
                  && version_compare($uc['latest'], RZMON_VERSION, '>') ? $uc['latest'] : null]);
+
+    // Meldingen van de bewaartermijn (Instellingen → Alarmgedrag), nieuwste eerst; de pagina groepeert per dag
+    case 'alerts':
+        $days = Monitor::alertDays();
+        $rows = q('SELECT a.*, c.name AS check_name, h.name AS host_name FROM alerts a
+                   LEFT JOIN checks c ON c.id = a.check_id LEFT JOIN hosts h ON h.id = c.host_id
+                   WHERE a.created_at >= CURDATE() - INTERVAL ? DAY ORDER BY a.created_at DESC, a.id DESC LIMIT 10000', [$days - 1])->fetchAll();
+        out(['days' => $days, 'alerts' => $rows, 'today' => date('Y-m-d'), 'truncated' => count($rows) >= 10000]);
 
     case 'history':
         $id = (int) ($_GET['check_id'] ?? 0);
@@ -906,12 +912,13 @@ switch ($action) {
             $s[$k] = ($s[$k] ?? '') !== '' ? '••••••••' : '';
         }
         unset($s['ack_secret'], $s['mqtt_topics'], $s['mqtt_hash'], $s['stats_cache'], $s['update_cache']);
+        $s['alerts_days'] = (string) Monitor::alertDays();
         out($s);
 
     case 'settings_save':
         $in = input();
         $allowed = ['pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days', 'alerts_days',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -936,6 +943,9 @@ switch ($action) {
         if (isset($in['notify_channels'])) {
             $in['notify_channels'] = json_encode(array_replace(NotifyRules::defaults()['channels'],
                 NotifyRules::cleanChannels((array) (is_string($in['notify_channels']) ? json_decode($in['notify_channels'], true) : $in['notify_channels']))));
+        }
+        if (isset($in['alerts_days'])) {
+            $in['alerts_days'] = (string) max(1, min(3650, (int) $in['alerts_days']));
         }
         if (isset($in['notify_group_seconds'])) {
             $in['notify_group_seconds'] = (string) max(0, min(3600, (int) $in['notify_group_seconds']));

@@ -88,6 +88,8 @@ function setVisible(el) {
 
 let settingsLoaded = false;   // samenvattingen pas tonen als de instellingen geladen zijn
 let updateInfo = null;        // laatste update_info (voor de samenvatting in L1nes)
+let alertData = null;         // meldingen van de bewaartermijn (pagina Meldingen)
+const alertDayOpen = {};      // datum → open/dicht (anders: alleen vandaag open)
 
 // ---------------------------------------------------------------- API
 async function api(action, body, params = {}) {
@@ -295,6 +297,11 @@ function init() {
     const sel = e.target;
     setAgentCommands(null, sel.value, sel.dataset.current || 'off', 'alle agents', () => { showTab('settings'); loadAgentCommands(); });
   };
+  $('#alerts-toggle').onclick = () => {
+    const days = $$('#alerts .alert-day');
+    const all = days.every((x) => x.open);
+    days.forEach((x) => { x.open = !all; });   // het toggle-event bouwt de inhoud op en onthoudt de stand
+  };
   $('#alerts').addEventListener('click', (e) => { const td = e.target.closest('.alert-table.small .at-msg'); if (td) td.parentElement.classList.toggle('at-open'); });
   $('#tab-settings').addEventListener('click', (e) => {
     const h = e.target.closest('.set-l1nes [data-sk] > h2');
@@ -356,6 +363,7 @@ function showTab(name) {
   $$('.tab-panel').forEach((p) => (p.hidden = p.id !== 'tab-' + name));
   history.replaceState(null, '', '#' + name);
   if (name === 'settings') loadSettings();
+  if (name === 'alerts') loadAlerts();
 }
 
 async function refresh() {
@@ -363,7 +371,7 @@ async function refresh() {
     state = await api('state');
     if (state.role && document.body.dataset.role !== state.role) location.reload();   // rol gewijzigd
     render();
-    renderAlerts();
+    if (!$('#tab-alerts').hidden) loadAlerts();
     if (isAdmin()) renderAgentUpdates();
     const ub = $('#update-badge');
     ub.hidden = !state.update;
@@ -569,7 +577,7 @@ function showViewPrefs() {
   $$('[data-view-layout]').forEach((b) => b.classList.toggle('active', b.dataset.viewLayout === layout));
   $$('[data-view-density]').forEach((b) => { b.classList.toggle('active', b.dataset.viewDensity === density); b.disabled = layout !== 'l1nes'; });
   applySettingsLayout();
-  if (state.alerts) renderAlerts();
+  if (alertData) renderAlerts();
 }
 
 // ---------------------------------------------------------------- Instellingen in L1nes
@@ -624,7 +632,7 @@ function settingsSummaries() {
     sum.email = f.email_enabled.checked ? on(esc(f.mail_to.value)) : off;
     sum.webhook = f.ha_webhook_enabled.checked ? on('') : off;
     sum.mqtt = f.mqtt_enabled.checked ? on(esc(txt('#mqtt-status').replace(/^✔ /, ''))) : off;
-    sum.alarm = esc(`agent offline na ${f.agent_stale_minutes.value} min · historie ${f.retention_days.value} dagen`);
+    sum.alarm = esc(`agent offline na ${f.agent_stale_minutes.value} min · historie ${f.retention_days.value} dagen · meldingen ${f.alerts_days.value} dagen`);
     if (updateInfo) {
       sum.update = (updateInfo.available ? `<span class="warn-txt">⬆ ${esc(updateInfo.latest)} beschikbaar</span>` : `✔ ${esc(updateInfo.current)}${updateInfo.latest ? ' · nieuwste versie' : ''}`)
         + (f.update_auto.checked ? ` · automatisch om ${esc(f.update_time.value)}` : '');
@@ -1846,36 +1854,108 @@ function alertStatusText(a) {
   return ['✅ OK', '🟠 Warning', '🔴 Critical', '⚪ Onbekend'][+a.status] || '';
 }
 
-function renderAlerts() {
-  const el = $('#alerts');
-  if (!state.alerts.length) { el.innerHTML = '<p class="muted">Nog geen meldingen. 👌</p>'; return; }
-  const { layout, density } = viewPrefs();
+// ---------------------------------------------------------------- Meldingen, per dag
+// Alle meldingen van de bewaartermijn, per dag in een uitklapblok. Vandaag staat open; wat je open- of
+// dichtklapt blijft zo tot je de pagina herlaadt.
+
+async function loadAlerts() {
+  try { alertData = await api('alerts'); } catch (ex) { toast(ex.message, 'err'); return; }
+  renderAlerts();
+}
+
+/** "Vandaag", "Gisteren" of "di 14 okt", met het jaar erbij als het niet dit jaar is */
+function dayLabel(day, today) {
+  const d = new Date(day + 'T12:00:00'), t = new Date(today + 'T12:00:00');
+  const diff = Math.round((t - d) / 86400000);
+  const opts = { weekday: 'long', day: 'numeric', month: 'long', ...(d.getFullYear() !== t.getFullYear() ? { year: 'numeric' } : {}) };
+  const date = d.toLocaleDateString('nl-NL', opts);
+  return diff === 0 ? `Vandaag · ${date}` : diff === 1 ? `Gisteren · ${date}` : date.charAt(0).toUpperCase() + date.slice(1);
+}
+
+/** "🔴 Critical", "✅ Hersteld", "✔ Bevestigd"… voor de meldingentabel */
+function alertStatusText(a) {
+  if (a.kind === 'ack') return '✔ Bevestigd';
+  if (a.kind === 'maint') return '🔧 Onderhoud';
+  const ev = (a.title.match(/^\S+ (HERSTELD|STABIEL|FLAPPEND)/) || [])[1];
+  if (ev) return { HERSTELD: '✅ Hersteld', STABIEL: '⏸ Stabiel', FLAPPEND: '🔀 Flapt' }[ev];
+  return ['✅ OK', '🟠 Warning', '🔴 Critical', '⚪ Onbekend'][+a.status] || '';
+}
+
+/** Tellers in de kop van een dag: hoeveel critical, warning, onbekend, hersteld en bevestigd */
+function alertDayCounts(list) {
+  const n = { crit: 0, warn: 0, unknown: 0, ok: 0, ack: 0 };
+  list.forEach((a) => {
+    if (a.kind === 'ack') n.ack++;
+    else if (+a.status === 2) n.crit++;
+    else if (+a.status === 1) n.warn++;
+    else if (+a.status === 3) n.unknown++;
+    else n.ok++;
+  });
+  return [['crit', '🔴', 'critical'], ['warn', '🟠', 'warning'], ['unknown', '⚪', 'onbekend'], ['ok', '✅', 'hersteld/OK'], ['ack', '✔', 'bevestigd']]
+    .filter(([k]) => n[k]).map(([k, i, t]) => `<span class="ad-count" title="${n[k]} ${t}">${i} ${n[k]}</span>`).join('');
+}
+
+function alertRows(list, layout, density) {
+  const time = (a) => esc(a.created_at.slice(11, 16));
   if (layout === 'l1nes') {
-    // L1nes: één regel per melding (Small: bericht ingekort, klik om het hele bericht te zien; Large: alles)
-    const hostOf = (id) => (state.hosts.find((h) => h.checks.some((c) => +c.id === +id)) || {}).name || '';
-    el.innerHTML = `<table class="alert-table ${density}"><thead><tr><th>Tijd</th><th>Status</th><th>Server</th><th>Check</th><th>Bericht</th><th>Kanalen</th></tr></thead><tbody>
-      ${state.alerts.map((a) => {
-        const st = alertStatusText(a);
+    return `<table class="alert-table ${density}"><thead><tr><th>Tijd</th><th>Status</th><th>Server</th><th>Check</th><th>Bericht</th><th>Kanalen</th></tr></thead><tbody>
+      ${list.map((a) => {
         // Server en check; van een verwijderde check uit de titel ("🔴 CRITICAL: server – check")
         const t = a.title.match(/:\s*(.+?) – (.+)$/);
-        const where = { host: hostOf(a.check_id) || (t ? t[1] : 'RzMon'), check: a.check_name || (t ? t[2] : '–') };
+        const host = a.host_name || (t ? t[1] : 'RzMon'), check = a.check_name || (t ? t[2] : '–');
         return `<tr class="${a.kind === 'ack' ? 'ack' : 's' + a.status}">
-          <td class="at-time" title="${esc(a.created_at)}">${esc(fmtUntil(a.created_at))}</td>
-          <td class="at-st">${st}</td>
-          <td>${esc(where.host)}</td>
-          <td>${esc(where.check)}</td>
+          <td class="at-time" title="${esc(a.created_at)}">${time(a)}</td>
+          <td class="at-st">${alertStatusText(a)}</td>
+          <td>${esc(host)}</td>
+          <td>${esc(check)}</td>
           <td class="at-msg" title="${density === 'small' ? 'Klik voor het hele bericht' : ''}">${esc(a.message)}</td>
           <td class="at-ch">${channelIcons(a)}</td></tr>`;
       }).join('')}</tbody></table>`;
-    return;
   }
-  el.innerHTML = state.alerts.map((a) => `
+  return list.map((a) => `
     <div class="alert-item ${a.kind === 'ack' ? 'ack' : 's' + a.status}">
       <span class="dot"></span>
       <strong>${esc(a.title)}</strong>
-      <span class="muted small" title="${esc(a.created_at)}">${ago(a.created_at)} ${channelIcons(a)}</span>
+      <span class="muted small" title="${esc(a.created_at)}">${time(a)} ${channelIcons(a)}</span>
       <span class="msg">${esc(a.message)}</span>
     </div>`).join('');
+}
+
+function renderAlerts() {
+  const el = $('#alerts');
+  if (!alertData) { el.innerHTML = '<p class="muted">Laden…</p>'; return; }
+  const { layout, density } = viewPrefs();
+  const d = alertData;
+  $('#alerts-info').textContent = `${d.alerts.length} melding${d.alerts.length === 1 ? '' : 'en'} van de laatste ${d.days} dag${d.days === 1 ? '' : 'en'}`
+    + (d.truncated ? ' (alleen de nieuwste 10.000)' : '');
+  if (!d.alerts.length) { el.innerHTML = '<p class="muted">Nog geen meldingen. 👌</p>'; $('#alerts-toggle').hidden = true; return; }
+  const byDay = new Map();
+  d.alerts.forEach((a) => {
+    const day = a.created_at.slice(0, 10);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(a);
+  });
+  const isOpen = (day) => alertDayOpen[day] ?? day === d.today;
+  el.innerHTML = [...byDay].map(([day, list]) => `
+    <details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''}>
+      <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
+        <span class="ad-counts">${alertDayCounts(list)}</span>
+        <span class="muted small ad-total">${list.length} melding${list.length === 1 ? '' : 'en'}</span></summary>
+      <div class="ad-body">${isOpen(day) ? alertRows(list, layout, density) : ''}</div>
+    </details>`).join('');
+  // Pas bij openen opbouwen: snel, ook met duizenden meldingen
+  $$('.alert-day', el).forEach((det) => det.addEventListener('toggle', () => {
+    alertDayOpen[det.dataset.day] = det.open;
+    if (det.open && !$('.ad-body', det).innerHTML) $('.ad-body', det).innerHTML = alertRows(byDay.get(det.dataset.day), layout, density);
+    alertToggleLabel();
+  }));
+  $('#alerts-toggle').hidden = byDay.size < 2;
+  alertToggleLabel();
+}
+
+function alertToggleLabel() {
+  const days = $$('#alerts .alert-day');
+  $('#alerts-toggle').textContent = days.length && days.every((x) => x.open) ? '⊟ Alles sluiten' : '⊞ Alles openen';
 }
 
 // ---------------------------------------------------------------- Settings

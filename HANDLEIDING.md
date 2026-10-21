@@ -72,6 +72,7 @@ RzMon bestaat uit vier onderdelen:
 - **Herstelmelding** ✅ als het weer goed gaat, met lage prioriteit dus zonder geluid.
 - **Prioriteit en geluid instelbaar**, apart voor critical en warning, inclusief *Emergency* (blijft herhalen tot je hem bevestigt).
 - **Testknoppen** voor elk kanaal, en een **meldingenlog** dat per melding toont via welk kanaal hij is verstuurd (📲 / 📧 / 🏠).
+- **Meldingen per dag** (pagina *Meldingen*): elke dag een uitklapblok met tellers (🔴 critical, 🟠 warning, ⚪ onbekend, ✅ hersteld, ✔ bevestigd). *Vandaag* staat open, de andere dagen dicht; **⊞ Alles openen** klapt alles open. Hoeveel dagen bewaard en getoond worden, stel je in onder *Instellingen → Alarmgedrag → Meldingen bewaren (dagen)*.
 
 ### Storingen bevestigen
 - **✔ Bevestigen** per check, of alle storingen van een server tegelijk, met een optionele opmerking. Daarna krijg je voor die storing **geen meldingen meer**: geen herhalingen, ook niet bij erger worden.
@@ -410,7 +411,8 @@ Bij de update naar 1.25.0 zijn je oude instellingen omgezet, zodat er niets vera
 | Instelling | Standaard | Uitleg |
 |---|---|---|
 | Agent offline na … minuten | 5 | Na zoveel minuten zonder rapport worden de agent-checks CRITICAL |
-| Historie bewaren (dagen) | 30 | Meetwaarden. Meldingen worden 3× zo lang bewaard |
+| Historie bewaren (dagen) | 30 | Meetwaarden voor de grafieken |
+| Meldingen bewaren (dagen) | 3× de historie (90) | Hoe lang verstuurde meldingen bewaard worden; de pagina *Meldingen* toont ze per dag. Oudere worden elk uur opgeruimd |
 
 ---
 

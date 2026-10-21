@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.32.0 – 2026-10-21
+### Nieuw
+- **Meldingen per dag:** de pagina *Meldingen* groepeert alles per dag ("Vandaag", "Gisteren", "maandag 19 oktober"…), met tellers per dag (🔴 critical, 🟠 warning, ⚪ onbekend, ✅ hersteld, ✔ bevestigd). Vandaag staat open, de rest is dicht; **⊞ Alles openen** klapt alles in één keer open. Werkt in Blox en L1nes.
+- De pagina toont nu **alle** meldingen van de bewaartermijn, in plaats van alleen de laatste 50.
+- **Instelling *Meldingen bewaren (dagen)*** (*Instellingen → Alarmgedrag*). Zolang je die niet aanpast, blijft het zoals het was: 3× de historie (standaard 90 dagen).
+
 ## 1.31.1 – 2026-10-21
 ### Nieuw
 - **[FEATURES.md](FEATURES.md)**: een overzicht van alle features van RzMon, de agent, TrueNAS en de Home Assistant-add-on, met verwijzingen naar de handleiding. Gelinkt vanuit de README.

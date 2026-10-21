@@ -741,11 +741,17 @@ final class Monitor
         }
     }
 
+    /** Meldingen bewaren (dagen): de instelling, of zolang die niet gezet is historie × 3 (zoals vóór 1.32.0). */
+    public static function alertDays(): int
+    {
+        return max(1, min(3650, (int) setting('alerts_days', max(1, (int) setting('retention_days', 30)) * 3)));
+    }
+
     public static function purge(): void
     {
         $days = max(1, (int) setting('retention_days', 30));
         q('DELETE FROM results WHERE created_at < NOW() - INTERVAL ? DAY', [$days]);
-        q('DELETE FROM alerts WHERE created_at < NOW() - INTERVAL ? DAY', [$days * 3]);
+        q('DELETE FROM alerts WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
         q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
         q('DELETE FROM remember_tokens WHERE last_used < NOW() - INTERVAL ? DAY', [REMEMBER_DAYS]);
         PasswordReset::purge();
