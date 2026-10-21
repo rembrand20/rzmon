@@ -795,3 +795,13 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
   .acc-table .acc-actions { text-align: left; }
   .table-scroll:has(.acc-table) { overflow-x: visible; }
 }
+
+/* Checks in groepen onder een server */
+.chk-group + .chk-group { border-top: 1px solid var(--border); }
+.grp-head { display: flex; align-items: center; gap: .5rem; padding: .5rem 1rem; cursor: pointer; user-select: none; font-weight: 600; font-size: .9rem; background: var(--card-2); }
+.grp-head:hover .grp-title { color: var(--primary); }
+.grp-chev { color: var(--muted); width: .8rem; }
+.grp-sum { margin-left: auto; display: flex; align-items: center; gap: .4rem; font-weight: 400; }
+.chk-group.closed > .checks, .cl-group.closed > .cl-group-body { display: none; }
+.check-lines .grp-head { padding: .35rem .6rem; border-radius: 8px; margin-top: .3rem; }
+.cl-group-body { display: flex; flex-direction: column; gap: .3rem; margin-top: .3rem; }

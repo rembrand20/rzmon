@@ -94,6 +94,7 @@ RzMon bestaat uit vier onderdelen:
   - **Inforegel:** servers bereikbaar (met de naam van wie onbereikbaar is: geen ping, agent stil of achter een uitgevallen server), checks OK, het aantal open (onbevestigde) problemen en het **langst openstaande** probleem met de duur, de gemiddelde beschikbaarheid over 24 uur, en indien van toepassing 🔀 flappende checks en 🔧 checks in onderhoud. Klik op een servernaam en RzMon springt naar die server en klapt hem open.
 - **Overzicht:** per server een **tegel met de algehele status** ("Alles OK · 6 checks" of "1 kritiek · 1 waarschuwing"), de namen van de checks met een probleem en mini-meters voor CPU, RAM en disk. Servers met problemen staan bovenaan.
 - **Details:** klik op een tegel en hij klapt uit met alle checks per stuk, met balkjes en drempels en de knoppen (bevestigen, onderhoud, check toevoegen, poortscan, bewerken). Welke tegels open staan, wordt onthouden; **⊞ Alles openen** klapt alles in één keer open.
+- **Checks in groepen** (Blox en L1nes): heeft een server 5 of meer checks, dan staan ze onder kopjes, altijd in deze volgorde: **📊 Systeem** (CPU, RAM, disks), **🌐 Bereikbaarheid** (ping, poort, HTTP), **⚙️ Services**, **📦 Containers**, **🖥️ Commando's**, **📜 Logbestanden**, **🔒 Certificaten** en **🏠 Home Assistant**. Lege groepen zie je niet. In het kopje staan het aantal checks en de statussen die aandacht vragen (bv. *🔴 1 🟠 2*, of ✅). Klik op een kopje om de groep in of uit te klappen; dat wordt per server en per apparaat onthouden. Binnen een groep staan de problemen bovenaan (kritiek → waarschuwing → onbekend → OK → onderhoud → uit), daarna op naam; bij Systeem eerst CPU, dan RAM, dan de disks. Met minder dan 5 checks zijn er geen kopjes, maar wel dezelfde volgorde.
 - **Zoeken:** zoekveld (zoek je op een checknaam, dan klapt de server vanzelf open) en een filter **Alleen problemen**.
 - **Minigrafiek per check** van de laatste 24 uur; klik erop voor de grote **grafiek** over 6 uur tot 30 dagen, met beschikbaarheid, minimum, gemiddelde, maximum en bij disks de trend.
 - **Beschikbaarheid per server** over 24 uur, 7 dagen en 30 dagen.
@@ -104,7 +105,7 @@ RzMon bestaat uit vier onderdelen:
   - **L1nes:** alle servers onder elkaar, elk als balk over de volle breedte. Je kiest **Small** of **Large**:
     - **Small:** één regel met naam, adres, status en tellers.
     - **Large:** kolommen voor status, probleem-checks, CPU, RAM, disk, bereikbaarheid (7 dagen) en de laatste check.
-  - Klik op een balk om hem uit te klappen. De checks staan dan ook als **rijen** onder de server, **problemen bovenaan** (kritiek → waarschuwing → onbekend → OK → onderhoud → uit):
+  - Klik op een balk om hem uit te klappen. De checks staan dan ook als **rijen** onder de server, in dezelfde **groepen** als bij Blox (zie hierboven), met binnen elke groep de problemen bovenaan:
     - **Small:** één regel per check met naam, type, waarde (balk voor percentages), bericht en tijd.
     - **Large:** kolomkoppen, met per check ook de minigrafiek van 24 uur; het bericht mag over meer regels lopen.
     - De knoppen per check (✔ 🔧 ↻ 📈 ✎) verschijnen als je met de muis over de rij gaat; op een telefoon of tablet staan ze er altijd.

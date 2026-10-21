@@ -84,6 +84,19 @@ const ALERT_SORTS = { time: 'Tijd', status: 'Status', server: 'Server', check: '
 let idsTab = (() => { try { return localStorage.getItem('rzmon-ids-tab') || 'inc'; } catch (e) { return 'inc'; } })();
 let accData = null, accFilter = 'all', accHost = '', accDayOpen = {};
 let accSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-acc-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
+// Checks onder een server in groepen (vaste volgorde); dichtgeklapte groepen per server per apparaat onthouden
+const CHECK_GROUPS = [
+  ['sys', '📊 Systeem', ['cpu', 'ram', 'disk']],
+  ['net', '🌐 Bereikbaarheid', ['ping', 'tcp', 'http']],
+  ['svc', '⚙️ Services', ['service']],
+  ['cnt', '📦 Containers', ['podman', 'container']],
+  ['cmd', "🖥️ Commando's", ['command']],
+  ['log', '📜 Logbestanden', ['log']],
+  ['ssl', '🔒 Certificaten', ['ssl']],
+  ['ha', '🏠 Home Assistant', ['ha']],
+];
+const GROUP_MIN = 5;   // pas kopjes vanaf zoveel checks; daaronder alleen de volgorde
+let grpClosed = (() => { try { return JSON.parse(localStorage.getItem('rzmon-grp-closed') || '{}') || {}; } catch (e) { return {}; } })();
 let alertSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-alert-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 // Instellingen in L1nes (zie applySettingsLayout); hier bovenaan omdat de weergave al bij het opstarten wordt toegepast
 const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', email: 'meldingen', webhook: 'meldingen', mqtt: 'meldingen', alarm: 'monitoring',
@@ -870,9 +883,36 @@ function hostParts(h) {
 }
 
 /**
- * Uitgeklapt deel: knoppen en alle checks. Blox: checks als tegels. L1nes (lines = 'small' of 'large'):
- * checks als rijen, net als de servers, met problemen bovenaan.
+ * Uitgeklapt deel: knoppen en alle checks, in groepen (Systeem, Bereikbaarheid, Services…). Blox: checks als
+ * tegels. L1nes (lines = 'small' of 'large'): checks als rijen, net als de servers.
  */
+/**
+ * Checks van een server in groepen: [[sleutel, titel, checks], …]. Binnen een groep problemen eerst
+ * (kritiek → waarschuwing → onbekend → OK → onderhoud → uitgeschakeld), daarna (bij Systeem: CPU, RAM, disks) op naam.
+ */
+function groupChecks(checks) {
+  const rank = (c) => (+c.enabled ? STATUS_RANK[c.maintenance ? 4 : +c.status] : -1);
+  const name = (c) => (c.type === 'disk' ? `disk ${c.target}` : c.name);
+  const out = CHECK_GROUPS.map(([k, title, types]) => [k, title, checks.filter((c) => types.includes(c.type))
+    .sort((a, b) => rank(b) - rank(a) || types.indexOf(a.type) - types.indexOf(b.type)
+      || name(a).localeCompare(name(b), 'nl', { numeric: true, sensitivity: 'base' }))]);
+  const known = CHECK_GROUPS.flatMap((g) => g[2]);
+  const other = checks.filter((c) => !known.includes(c.type));
+  if (other.length) out.push(['other', 'Overig', other]);
+  return out.filter((g) => g[2].length);
+}
+
+/** Kop van een groep: titel, aantal en de statussen die aandacht vragen */
+function groupHead(h, k, title, list, tag) {
+  const n = { 2: 0, 1: 0, 3: 0 };
+  list.forEach((c) => { if (+c.enabled && !c.maintenance && n[+c.status] !== undefined) n[+c.status]++; });
+  const sum = [[2, '🔴'], [1, '🟠'], [3, '⚪']].filter(([s]) => n[s]).map(([s, i]) => `<span class="ad-count">${i} ${n[s]}</span>`).join('') || '<span class="ad-count">✅</span>';
+  const closed = !!grpClosed[`${h.id}:${k}`];
+  return `<${tag} class="grp-head" data-act="grp" data-id="${h.id}" data-g="${k}" role="button" tabindex="0" aria-expanded="${!closed}">
+    <span class="grp-chev">${closed ? '▸' : '▾'}</span><span class="grp-title">${title}</span>
+    <span class="grp-sum"><span class="muted small">${list.length}</span>${sum}</span></${tag}>`;
+}
+
 function hostDetail(h, lines = null) {
   const agentInfo = h.mode === 'agent'
     ? `<span class="muted small">Agent: ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}</span>
@@ -889,9 +929,7 @@ function hostDetail(h, lines = null) {
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
       </div>
       ${uptimeLine(h, false)}
-      ${lines ? checkLines(h, lines === 'large') : `<ul class="checks">
-        ${h.shown.length ? h.shown.map(checkRow).join('') : '<li class="empty small">Nog geen checks — klik op ＋ Check</li>'}
-      </ul>`}
+      ${lines ? checkLines(h, lines === 'large') : checkTiles(h)}
     </div>`;
 }
 
@@ -1014,15 +1052,29 @@ function checkRow(c) {
   </li>`;
 }
 
-// L1nes: checks als rijen onder de server, problemen bovenaan (kritiek → waarschuwing → onbekend → OK →
-// onderhoud → uitgeschakeld); binnen dezelfde status de volgorde waarin ze zijn toegevoegd.
+// Blox: checks als tegels, in groepen (zie groupChecks)
+function checkTiles(h) {
+  if (!h.shown.length) return '<ul class="checks"><li class="empty small">Nog geen checks — klik op ＋ Check</li></ul>';
+  const groups = groupChecks(h.shown);
+  if (h.shown.length < GROUP_MIN) return `<ul class="checks">${groups.flatMap((g) => g[2]).map(checkRow).join('')}</ul>`;
+  return `<div class="chk-groups">${groups.map(([k, title, list]) => `
+    <section class="chk-group${grpClosed[`${h.id}:${k}`] ? ' closed' : ''}">
+      ${groupHead(h, k, title, list, 'div')}
+      <ul class="checks">${list.map(checkRow).join('')}</ul>
+    </section>`).join('')}</div>`;
+}
+
+// L1nes: checks als rijen onder de server, in dezelfde groepen
 function checkLines(h, large) {
   if (!h.shown.length) return '<p class="empty small check-lines-empty">Nog geen checks — klik op ＋ Check</p>';
-  const rank = (c) => (+c.enabled ? STATUS_RANK[c.maintenance ? 4 : +c.status] : -1);
-  const sorted = h.shown.map((c, i) => [c, i]).sort((a, b) => rank(b[0]) - rank(a[0]) || a[1] - b[1]).map(([c]) => c);
+  const groups = groupChecks(h.shown);
   const head = large ? `<div class="cl-head" aria-hidden="true"><span></span><span>Check</span><span>Waarde</span><span class="cl-spark">24 uur</span>
     <span>Bericht</span><span class="cl-last">Laatst</span><span></span></div>` : '';
-  return `<div class="check-lines ${large ? 'large' : 'small'}">${head}${sorted.map((c) => checkLine(c, large)).join('')}</div>`;
+  const body = h.shown.length < GROUP_MIN ? groups.flatMap((g) => g[2]).map((c) => checkLine(c, large)).join('')
+    : groups.map(([k, title, list]) => `<div class="cl-group${grpClosed[`${h.id}:${k}`] ? ' closed' : ''}">
+        ${groupHead(h, k, title, list, 'div')}
+        <div class="cl-group-body">${list.map((c) => checkLine(c, large)).join('')}</div></div>`).join('');
+  return `<div class="check-lines ${large ? 'large' : 'small'}">${head}${body}</div>`;
 }
 
 function checkLine(c, large) {
@@ -1059,6 +1111,16 @@ async function onHostsClick(e) {
   }
   const id = b.dataset.id;
   switch (b.dataset.act) {
+    case 'grp': {
+      // Groep in- of uitklappen (zonder alles opnieuw op te bouwen)
+      const key = `${id}:${b.dataset.g}`;
+      if (grpClosed[key]) delete grpClosed[key]; else grpClosed[key] = true;
+      try { localStorage.setItem('rzmon-grp-closed', JSON.stringify(grpClosed)); } catch (ex) { /* alleen voor nu */ }
+      b.parentElement.classList.toggle('closed', !!grpClosed[key]);
+      b.setAttribute('aria-expanded', String(!grpClosed[key]));
+      $('.grp-chev', b).textContent = grpClosed[key] ? '▸' : '▾';
+      return;
+    }
     case 'add-check': return checkForm(null, findHost(id));
     case 'edit-host': return hostForm(findHost(id));
     case 'edit-check': { const [c, h] = findCheck(id); return checkForm(c, h); }

@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.39.0 – 2026-10-21
+### Nieuw
+- **Checks onder een server in groepen**, in Blox en L1nes: eerst **📊 Systeem** (CPU, RAM, disks), dan **🌐 Bereikbaarheid**, **⚙️ Services**, **📦 Containers**, **🖥️ Commando's**, **📜 Logbestanden**, **🔒 Certificaten** en **🏠 Home Assistant**.
+- Elk groepskopje toont het aantal checks en wat aandacht vraagt (🔴 🟠 ⚪, of ✅). Klik erop om de groep in of uit te klappen; dat wordt per server en per apparaat onthouden.
+- Binnen een groep staan problemen bovenaan, daarna op naam. Bij Systeem eerst CPU, dan RAM, dan de disks op volgorde van mount.
+- Servers met minder dan 5 checks krijgen geen kopjes, wel dezelfde volgorde.
+
 ## 1.38.0 – 2026-10-21
 ### Nieuw
 - **Logins, sudo en su verhuizen naar de pagina 🛡️ IDS**, tabblad **🔑 Toegang**. De pagina Meldingen toont alleen nog storingen. Bestaande regels verhuizen bij de update automatisch mee.
