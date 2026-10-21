@@ -391,6 +391,13 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - Is de status **15 minuten** niet veranderd, dan krijg je één melding *"STABIEL: … is 15 min OK/CRITICAL"*, en werkt alles weer normaal.
 - De drie getallen pas je aan in het blok *Anti-flapping*, en per check in de eigen meldregels.
 
+**🌙 Stille uren** (standaard uit): periodes waarin er **geen meldingen** uitgaan, bijvoorbeeld 's nachts.
+- Zet *Stille uren aan* en vul één of meer **vensters** in: *van* en *tot*, en de **dagen** waarop het venster begint. Over middernacht mag: *23:00 tot 07:00 op ma–vr* loopt van maandagavond tot dinsdagochtend. Van gelijk aan tot betekent 24 uur. Met **＋ Venster** voeg je er één toe, bijvoorbeeld in het weekend *00:00 tot 10:00*.
+- Tijdens stille uren gaat er niets naar Pushover, e-mail of Home Assistant, ook geen critical. Checks draaien gewoon door; het dashboard, MQTT en de API laten alles zien. In de gezondheidsbalk staat **🌙 Stil tot 07:00**.
+- **Na afloop** krijg je **één bericht** met alles wat dan nog mis is, van alle servers samen, bijvoorbeeld *"🌅 Na de stille uren: 2 problemen open"* met per regel de server, de check en sinds hoe laat. Kreeg je vóór de stille uren een melding over een probleem dat 's nachts herstelde, dan staat het herstel er ook in. Wat 's nachts misging en vanzelf weer goed kwam, wordt niet gemeld. Bevestigde checks en checks in onderhoud tellen niet mee.
+- **Per check** kies je in het checkformulier (✎) onder **🌙 Stille uren**: *algemeen*, *eigen vensters* of *nooit stil: altijd melden* (bijvoorbeeld voor je router). Checks met eigen stille uren hebben een 🌙 op het dashboard, checks die nooit stil zijn een 🌙✕.
+- Home Assistant krijgt na afloop per check een bericht met `"event": "quiet"` (nog open) of `"recovery"`.
+
 **Per check aanpassen:** in het checkformulier (✎) staat **🔔 Meldingen**. Zet *Eigen meldregels* aan en pas de tabel aan; de algemene instellingen zijn het startpunt. Checks met eigen regels hebben een 🔔 op het dashboard. Bijvoorbeeld: een back-upcheck die pas na een dag meldt, of een ping die critical meteen meldt en herstel na 2 minuten.
 
 Bij de update naar 1.25.0 zijn je oude instellingen omgezet, zodat er niets veranderde. "Alarm na N fouten" werd "na N−1 minuten", "ook melden bij WARNING" uit werd "Nooit", en de webhook-keuze "alleen critical en herstel" werd de kolom Home Assistant.
@@ -455,7 +462,7 @@ Vervang `notify.mobile_app_jouw_telefoon` en `light.bureau` door je eigen entite
 ```jsonc
 {
   "source": "rzmon",
-  "event": "problem",              // problem | reminder | recovery | maintenance | test
+  "event": "problem",              // problem | reminder | recovery | quiet (nog open na de stille uren) | maintenance | test
   "status": 2, "status_text": "CRITICAL",
   "previous_status": 0, "previous_status_text": "OK",
   "host": "NAS", "host_id": 2,

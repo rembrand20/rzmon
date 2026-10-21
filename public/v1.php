@@ -194,6 +194,7 @@ switch (true) {
             'status_text' => STATUS_LABELS[$overall],
             'counts' => $counts,
             'health' => (function (array $hl): array {   // algehele gezondheid: state, score (0-100), tellers
+                $hl['quiet_until'] = iso($hl['quiet_until']);
                 if ($hl['oldest_problem']) {
                     $hl['oldest_problem']['since'] = iso($hl['oldest_problem']['since']);
                 }

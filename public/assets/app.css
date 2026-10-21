@@ -603,3 +603,23 @@ body[data-role="admin"] [data-role-only="nonadmin"] { display: none; }
 .flap-fields input { width: 4.6rem; display: inline-block; margin: 0 .2rem; }
 .flap-fields.off { opacity: .45; }
 .flap-tag { font-size: .72rem; font-weight: 600; padding: .05rem .4rem; border-radius: 99px; background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+
+/* ---------- Stille uren ---------- */
+.quiet-box { border: 1px solid var(--border); border-radius: 8px; padding: .6rem .8rem .2rem; margin: .4rem 0 .9rem; }
+.quiet-box h3 { margin: 0 0 .3rem; font-size: 1rem; }
+.quiet-fields.off { opacity: .45; }
+.quiet-list { display: flex; flex-direction: column; gap: .45rem; margin: .5rem 0; }
+.quiet-row { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .9rem; }
+.quiet-time { font-size: .88rem; white-space: nowrap; }
+.quiet-time input { width: 7.2rem; display: inline-block; margin: 0 .2rem; }
+.quiet-days { display: flex; gap: .25rem; flex-wrap: wrap; }
+.day-chip { display: inline-flex; cursor: pointer; margin: 0; }
+.day-chip input { position: absolute; opacity: 0; width: 0; height: 0; }
+.day-chip span { display: inline-block; min-width: 2.2rem; text-align: center; padding: .2rem .4rem; border-radius: 99px; font-size: .8rem;
+  border: 1px solid var(--border); background: var(--card-2); color: var(--muted); }
+.day-chip input:checked + span { background: color-mix(in srgb, var(--primary) 22%, var(--card-2)); border-color: var(--primary); color: var(--text); font-weight: 600; }
+.day-chip input:focus-visible + span { outline: 2px solid var(--primary); }
+.small-btn { padding: .3rem .7rem; font-size: .85rem; }
+.quiet-tag { font-size: .72rem; padding: .05rem .35rem; border-radius: 99px; background: color-mix(in srgb, var(--maint) 18%, transparent); color: var(--maint); }
+.quiet-now b { color: var(--maint); }
+#quiet-mode { margin-bottom: .5rem; }

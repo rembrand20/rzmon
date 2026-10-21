@@ -144,6 +144,7 @@ final class Health
             'oldest_problem' => $oldest,
             'flapping' => $flapping,
             'availability_24h' => $avail,
+            'quiet_until' => ($q = NotifyRules::quietUntil(NotifyRules::quietGlobal())) ? date('Y-m-d H:i:s', $q) : null,   // stille uren (algemeen)
         ];
     }
 }

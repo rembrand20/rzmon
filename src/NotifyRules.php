@@ -64,6 +64,96 @@ final class NotifyRules
         ];
     }
 
+    // ------------------------------------------------------------------ stille uren
+
+    /**
+     * Stille uren: vensters waarin geen meldingen uitgaan. Dag 1 = maandag … 7 = zondag; een venster over
+     * middernacht (23:00–07:00) hoort bij de dag waarop het begint. Van = tot betekent de hele dag.
+     */
+    public static function cleanQuiet(array $in): array
+    {
+        $windows = [];
+        foreach (array_slice((array) ($in['windows'] ?? []), 0, 10) as $w) {
+            if (!is_array($w)) {
+                continue;
+            }
+            $t = static fn($v) => preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $v) ? (string) $v : null;
+            $days = array_values(array_unique(array_filter(array_map('intval', (array) ($w['days'] ?? [])), fn($d) => $d >= 1 && $d <= 7)));
+            sort($days);
+            if (($from = $t($w['from'] ?? '')) && ($to = $t($w['to'] ?? '')) && $days) {
+                $windows[] = ['from' => $from, 'to' => $to, 'days' => $days];
+            }
+        }
+        return ['on' => !empty($in['on']) && $windows !== [], 'windows' => $windows];
+    }
+
+    public static function quietGlobal(): array
+    {
+        return self::cleanQuiet((array) json_decode((string) setting('notify_quiet', ''), true));
+    }
+
+    /** Per check: mode global (algemeen), own (eigen vensters) of never (nooit stil). */
+    public static function cleanQuietOwn(array $in): ?array
+    {
+        $mode = $in['mode'] ?? 'global';
+        return match ($mode) {
+            'never' => ['mode' => 'never'],
+            'own' => ['mode' => 'own'] + self::cleanQuiet(['on' => true] + $in),
+            default => null,
+        };
+    }
+
+    /** De stille uren die voor deze check gelden. */
+    public static function quietFor(array $check): array
+    {
+        $own = json_decode((string) ($check['quiet'] ?? ''), true);
+        if (is_array($own) && ($own['mode'] ?? '') === 'never') {
+            return ['on' => false, 'windows' => []];
+        }
+        if (is_array($own) && ($own['mode'] ?? '') === 'own') {
+            return self::cleanQuiet(['on' => true] + $own);
+        }
+        return self::quietGlobal();
+    }
+
+    /** Valt dit moment in de stille uren? Geeft dan het einde (timestamp), anders null. */
+    public static function quietUntil(array $quiet, ?int $now = null): ?int
+    {
+        if (empty($quiet['on'])) {
+            return null;
+        }
+        $until = self::windowEnd($quiet['windows'], $now ?? time());
+        // Sluit er meteen een venster op aan (bv. 23:00–07:00 en 07:00–10:00)? Dan loopt de stilte door.
+        for ($i = 0; $until !== null && $i < 14 && ($next = self::windowEnd($quiet['windows'], $until)) !== null; $i++) {
+            $until = $next;
+        }
+        return $until;
+    }
+
+    /** Einde van het venster waar $now in valt (het langste bij overlap), of null. */
+    private static function windowEnd(array $windows, int $now): ?int
+    {
+        $until = null;
+        foreach ($windows as $w) {
+            // Het venster dat gisteren begon (over middernacht) en het venster dat vandaag begint
+            foreach ([-1, 0] as $offset) {
+                $day = date('Y-m-d', strtotime(date('Y-m-d', $now) . " $offset day"));
+                if (!in_array((int) date('N', strtotime($day)), $w['days'], true)) {
+                    continue;
+                }
+                $start = strtotime("$day {$w['from']}");
+                $end = strtotime("$day {$w['to']}");
+                if ($end <= $start) {
+                    $end = strtotime("$day {$w['to']} +1 day");
+                }
+                if ($now >= $start && $now < $end) {
+                    $until = max($until ?? 0, $end);
+                }
+            }
+        }
+        return $until;
+    }
+
     /** Alleen geldige waarden overhouden (invoer uit de browser of de database). */
     public static function cleanRules(array $in): array
     {

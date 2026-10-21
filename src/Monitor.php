@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class Monitor
 {
-    private const CHECK_SELECT = 'SELECT c.*, h.name AS host_name, h.address, h.mode, h.agent_seen, h.agent_version, h.id AS hid,
+    private const CHECK_SELECT = 'SELECT c.*, h.name AS host_name, h.address, h.mode, h.agent_seen, h.agent_version, h.id AS hid, h.enabled AS host_enabled,
                 h.parent_id, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                 FROM checks c JOIN hosts h ON h.id = c.host_id';
 
@@ -25,6 +25,7 @@ final class Monitor
         foreach ($rows as $row) {
             self::runOne($row);
         }
+        self::releaseQuiet();
         self::flushQueue();
         return count($rows);
     }
@@ -340,7 +341,10 @@ final class Monitor
                     continue;
                 }
                 $c = q(self::CHECK_SELECT . ' WHERE c.id = ?', [$it['check_id']])->fetch();
-                if ($c) {
+                if ($c && NotifyRules::quietUntil(NotifyRules::quietFor($c)) !== null) {
+                    // Stille uren: niet versturen. Onthouden wat de gebruiker het laatst kreeg; na afloop volgt één samenvatting.
+                    q('UPDATE checks SET quiet_held = COALESCE(quiet_held, ?) WHERE id = ?', [(int) $it['previous'], $c['id']]);
+                } elseif ($c) {
                     $items[] = ['item' => $it, 'check' => $c];
                 }
             }
@@ -351,6 +355,48 @@ final class Monitor
             } elseif ($items) {
                 self::sendGroup($items);
             }
+        }
+    }
+
+    /**
+     * Einde van de stille uren: wat er tijdens de stilte gemeld had moeten worden, in één bericht.
+     * Alleen wat nu nog mis is ("nog open sinds 02:14"), en herstel van een probleem dat je vóór de stilte al kreeg.
+     * Wat 's nachts misging en vanzelf herstelde, komt er niet in.
+     */
+    public static function releaseQuiet(): void
+    {
+        $s = settings();
+        $items = [];
+        foreach (q(self::CHECK_SELECT . ' WHERE c.quiet_held IS NOT NULL ORDER BY h.name, c.name')->fetchAll() as $c) {
+            if (NotifyRules::quietUntil(NotifyRules::quietFor($c)) !== null
+                || q('UPDATE checks SET quiet_held = NULL WHERE id = ? AND quiet_held IS NOT NULL', [$c['id']])->rowCount() !== 1) {
+                continue;   // nog stil, of een ander proces is ermee bezig
+            }
+            if (!(int) $c['enabled'] || !(int) $c['host_enabled'] || $c['acked_at'] !== null || self::maintenanceFor($c) !== null || $c['suppressed_by'] !== null) {
+                continue;
+            }
+            $st = (int) $c['status'];
+            $held = (int) $c['quiet_held'];
+            $rules = NotifyRules::forCheck($c)['rules'];
+            if ($st !== STATUS_OK) {
+                if ($rules[NotifyRules::KEYS[$st]]['mode'] === 'never' || ($st === STATUS_UNKNOWN && ($s['notify_unknown'] ?? '1') !== '1')) {
+                    continue;
+                }
+                $since = $c['problem_since'] ? date('H:i', strtotime($c['problem_since'])) : '?';
+                $prio = (int) ($st === STATUS_CRIT ? ($s['pushover_priority_crit'] ?? 1) : ($s['pushover_priority_warn'] ?? 0));
+                $items[] = ['check' => $c, 'item' => ['status' => $st, 'event' => 'quiet', 'previous' => $held, 'priority' => $prio, 'value' => $c['last_value'],
+                    'title' => sprintf('%s %s: %s – %s', [STATUS_WARN => '🟠', STATUS_CRIT => '🔴', STATUS_UNKNOWN => '⚪'][$st], STATUS_LABELS[$st], $c['host_name'], $c['name']),
+                    'message' => "Nog open sinds $since: " . $c['last_message']]];
+            } elseif ($held !== STATUS_OK && $rules['recovery']['mode'] !== 'never') {
+                $items[] = ['check' => $c, 'item' => ['status' => STATUS_OK, 'event' => 'recovery', 'previous' => $held, 'priority' => -1, 'value' => $c['last_value'],
+                    'title' => "✅ HERSTELD: {$c['host_name']} – {$c['name']}", 'message' => (string) $c['last_message']]];
+            }
+        }
+        if ($items) {
+            $open = count(array_filter($items, fn($x) => $x['item']['status'] !== STATUS_OK));
+            $fixed = count($items) - $open;
+            self::sendGroup($items, '🌅 Na de stille uren: ' . implode(', ', array_filter([
+                $open ? $open . ($open === 1 ? ' probleem' : ' problemen') . ' open' : '', $fixed ? "$fixed hersteld" : ''])));
         }
     }
 
@@ -369,8 +415,8 @@ final class Monitor
         }
     }
 
-    /** Meerdere meldingen van één server in één bericht, met de ergste status in de titel. */
-    private static function sendGroup(array $items): void
+    /** Meerdere meldingen in één bericht (per server, of na de stille uren van meerdere servers), met de ergste status in de titel. */
+    private static function sendGroup(array $items, ?string $title = null): void
     {
         $rank = [STATUS_OK => 0, STATUS_UNKNOWN => 1, STATUS_WARN => 2, STATUS_CRIT => 3];
         $icon = [STATUS_OK => '✅', STATUS_WARN => '🟠', STATUS_CRIT => '🔴', STATUS_UNKNOWN => '⚪'];
@@ -381,6 +427,7 @@ final class Monitor
         $channels = array_fill_keys(NotifyRules::CHANNELS, false);
         $lines = [];
         $acks = [];
+        $multi = $title !== null || count(array_unique(array_map(fn($x) => $x['check']['hid'], $items))) > 1;   // servernaam erbij
         foreach ($items as $x) {
             [$it, $c] = [$x['item'], $x['check']];
             $st = (int) $it['status'];
@@ -392,18 +439,19 @@ final class Monitor
             }
             $what = match ($it['event']) {
                 'recovery' => 'hersteld',
+                'quiet' => STATUS_LABELS[$st],
                 'reminder' => 'nog steeds ' . STATUS_LABELS[$st],
                 'flap' => '🔀 flapt, nu ' . STATUS_LABELS[$st],
                 'stable' => 'weer stabiel, ' . STATUS_LABELS[$st],
                 default => STATUS_LABELS[$st],
             };
-            $lines[] = $icon[$st] . " {$c['name']} ($what): " . strtok($it['message'], "\n");
+            $lines[] = $icon[$st] . ' ' . ($multi ? "{$c['host_name']} – " : '') . "{$c['name']} ($what): " . strtok($it['message'], "\n");
             if ($st !== STATUS_OK && ($u = self::ackUrl($c))) {
-                $acks[] = "✔ {$c['name']}: $u";
+                $acks[] = '✔ ' . ($multi ? "{$c['host_name']} – " : '') . "{$c['name']}: $u";
             }
         }
         $n = count($items);
-        $title = array_keys($events) === ['recovery'] ? "✅ HERSTELD: $host – $n checks"
+        $title ??= array_keys($events) === ['recovery'] ? "✅ HERSTELD: $host – $n checks"
             : (array_keys($events) === ['reminder'] ? "🔁 $host: nog steeds $n problemen" : "{$icon[$worst]} " . STATUS_LABELS[$worst] . ": $host – $n meldingen");
         $body = implode("\n", $lines);
         $errors = [];
