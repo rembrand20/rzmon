@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.30.0 – 2026-10-21
+### Nieuw
+- **De lay-out (Blox/L1nes, Small/Large) geldt nu ook voor Instellingen en Meldingen.**
+  - **Instellingen in L1nes:** elk onderdeel als rij over de volle breedte, in groepen (*Meldingen*, *Monitoring*, *Systeem*, *Toegang*), met achter de titel een korte samenvatting van hoe het staat. Klik om te openen; open rijen worden onthouden. Small = standaard dicht, Large = standaard open, plus **⊞ Alles openen**.
+  - De knop **💾 Instellingen opslaan** blijft in L1nes onderin in beeld, met *● niet opgeslagen wijzigingen*.
+  - **Meldingen in L1nes:** een tabel met één regel per melding (tijd, status, server, check, bericht, kanalen). Small kort het bericht in (klik voor alles), Large toont het helemaal.
+  - In Blox blijft alles zoals het was.
+
 ## 1.29.0 – 2026-10-21
 ### Nieuw
 - **RzMon bijwerken vanuit de webinterface** (*Instellingen → ⬆ RzMon bijwerken*):

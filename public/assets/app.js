@@ -71,6 +71,22 @@ const MODES = { local: 'Lokaal (deze server)', agent: 'Remote met agent', remote
 
 let state = { hosts: [], alerts: [] };
 let stats = { uptime: {}, sparks: {} };
+// Instellingen in L1nes (zie applySettingsLayout); hier bovenaan omdat de weergave al bij het opstarten wordt toegepast
+const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', email: 'meldingen', webhook: 'meldingen', mqtt: 'meldingen', alarm: 'monitoring',
+  update: 'systeem', agents: 'systeem', backup: 'systeem', db: 'systeem', access: 'toegang', users: 'toegang', api: 'toegang', account: 'toegang', password: 'toegang' };
+let setOpen = (() => { try { return JSON.parse(localStorage.getItem('rzmon-set-open') || '{}') || {}; } catch (e) { return {}; } })();
+function saveSetOpen() { try { localStorage.setItem('rzmon-set-open', JSON.stringify(setOpen)); } catch (e) {} }
+const setCards = () => $$('#tab-settings [data-sk]');
+/** Zichtbaar binnen de instellingen (niet verborgen door rechten of hidden), ook als het tabblad zelf dicht is. */
+function setVisible(el) {
+  for (let n = el; n && n.id !== 'tab-settings'; n = n.parentElement) {
+    if (n.hidden || getComputedStyle(n).display === 'none') return false;
+  }
+  return true;
+}
+
+let settingsLoaded = false;   // samenvattingen pas tonen als de instellingen geladen zijn
+let updateInfo = null;        // laatste update_info (voor de samenvatting in L1nes)
 
 // ---------------------------------------------------------------- API
 async function api(action, body, params = {}) {
@@ -274,6 +290,24 @@ function init() {
   $('#settings-form').addEventListener('submit', saveSettings);
   $('#backup-now').onclick = backupNow;
   $('#update-start').onclick = startUpdate;
+  $('#alerts').addEventListener('click', (e) => { const td = e.target.closest('.alert-table.small .at-msg'); if (td) td.parentElement.classList.toggle('at-open'); });
+  $('#tab-settings').addEventListener('click', (e) => {
+    const h = e.target.closest('.set-l1nes [data-sk] > h2');
+    if (h && !e.target.closest('a, button, input, label')) toggleSetting(h.parentElement);
+  });
+  $('#tab-settings').addEventListener('keydown', (e) => {
+    const h = e.target.closest('.set-l1nes [data-sk] > h2');
+    if (h && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleSetting(h.parentElement); }
+  });
+  $('#set-toggle-all').onclick = () => {
+    const shown = setCards().filter(setVisible);
+    const all = shown.every((c) => c.classList.contains('set-open'));
+    shown.forEach((c) => (setOpen[c.dataset.sk] = !all));
+    saveSetOpen();
+    applySettingsLayout();
+  };
+  $('#settings-form').addEventListener('input', () => { markSettingsDirty(true); settingsSummaries(); });
+  $('#settings-form').addEventListener('change', () => { markSettingsDirty(true); settingsSummaries(); });
   $('#settings-form').update_auto.addEventListener('change', backupFormToggle);
   $('#update-check').onclick = async (e) => { const btn = e.currentTarget; btn.disabled = true; await loadUpdate(true); btn.disabled = false; };
   $('#update-badge').onclick = () => { showTab('settings'); setTimeout(() => $('#update-card').scrollIntoView({ behavior: 'smooth', block: 'start' }), 300); };
@@ -529,6 +563,87 @@ function showViewPrefs() {
   const { layout, density } = viewPrefs();
   $$('[data-view-layout]').forEach((b) => b.classList.toggle('active', b.dataset.viewLayout === layout));
   $$('[data-view-density]').forEach((b) => { b.classList.toggle('active', b.dataset.viewDensity === density); b.disabled = layout !== 'l1nes'; });
+  applySettingsLayout();
+  if (state.alerts) renderAlerts();
+}
+
+// ---------------------------------------------------------------- Instellingen in L1nes
+// Blox: kaarten naast elkaar (zoals altijd). L1nes: rijen over de volle breedte in groepen, open te klappen;
+// Small = standaard dicht, Large = standaard open. Wat je open- of dichtklapt, wordt per apparaat onthouden.
+function applySettingsLayout() {
+  const { layout, density } = viewPrefs();
+  const lines = layout === 'l1nes';
+  const sec = $('#tab-settings');
+  if (!sec) return;
+  sec.classList.toggle('set-l1nes', lines);
+  setCards().forEach((card) => {
+    const h = $('h2', card);
+    if (!$('.set-sum', h)) h.insertAdjacentHTML('beforeend', '<span class="set-sum"></span>');
+    const open = !lines || (setOpen[card.dataset.sk] ?? density === 'large');
+    card.classList.toggle('set-open', open);
+    if (lines) { h.setAttribute('role', 'button'); h.tabIndex = 0; h.setAttribute('aria-expanded', open); }
+    else { h.removeAttribute('role'); h.removeAttribute('tabindex'); h.removeAttribute('aria-expanded'); }
+  });
+  // Een groep zonder zichtbare onderdelen (bv. voor een gebruiker zonder beheerrechten) niet tonen
+  $$('.set-group', sec).forEach((g) => {
+    g.hidden = !setCards().some((c) => SET_GROUPS[c.dataset.sk] === g.dataset.group && setVisible(c));
+  });
+  const shown = setCards().filter(setVisible);
+  $('#set-toggle-all').textContent = shown.length && shown.every((c) => c.classList.contains('set-open')) ? '⊟ Alles sluiten' : '⊞ Alles openen';
+  settingsSummaries();
+}
+
+function toggleSetting(card) {
+  setOpen[card.dataset.sk] = !card.classList.contains('set-open');
+  saveSetOpen();
+  applySettingsLayout();
+}
+
+/** Korte samenvatting achter elke titel in L1nes, uit wat er nu in het formulier staat. */
+function settingsSummaries() {
+  const f = $('#settings-form');
+  if (!settingsLoaded || !f || !$('#tab-settings').classList.contains('set-l1nes')) return;
+  const on = (x) => `<span class="good-txt">✔ aan</span>${x ? ' · ' + x : ''}`;
+  const off = '<span class="muted">✘ uit</span>';
+  const opt = (sel) => (sel && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent.trim() : '');
+  const when = (r) => (!r ? '?' : r.mode === 'never' ? 'nooit' : r.mode === 'now' ? 'direct' : `na ${r.min} min`);
+  const txt = (sel) => ($(sel) ? $(sel).textContent.replace(/\s+/g, ' ').trim() : '');
+  const sum = {};
+  if (isAdmin()) {
+    sum.pushover = f.pushover_enabled.checked ? on(`critical: ${opt(f.pushover_priority_crit)} · warning: ${opt(f.pushover_priority_warn)}`) : off;
+    if (notifyGlobal) {
+      const n = notifyGlobal.get(), q = quietGlobal ? quietGlobal.get() : null;
+      sum.notify = esc([`warning: ${when(n.rules.warn)}`, `critical: ${when(n.rules.crit)}`, n.rules.crit && n.rules.crit.repeat ? `herhalen elke ${n.rules.crit.repeat} min` : '',
+        q && q.on && q.windows.length ? `🌙 ${quietText(q.windows)}` : '', n.flap.on ? 'anti-flapping' : ''].filter(Boolean).join(' · '));
+    }
+    sum.email = f.email_enabled.checked ? on(esc(f.mail_to.value)) : off;
+    sum.webhook = f.ha_webhook_enabled.checked ? on('') : off;
+    sum.mqtt = f.mqtt_enabled.checked ? on(esc(txt('#mqtt-status').replace(/^✔ /, ''))) : off;
+    sum.alarm = esc(`agent offline na ${f.agent_stale_minutes.value} min · historie ${f.retention_days.value} dagen`);
+    if (updateInfo) {
+      sum.update = (updateInfo.available ? `<span class="warn-txt">⬆ ${esc(updateInfo.latest)} beschikbaar</span>` : `✔ ${esc(updateInfo.current)}${updateInfo.latest ? ' · nieuwste versie' : ''}`)
+        + (f.update_auto.checked ? ` · automatisch om ${esc(f.update_time.value)}` : '');
+    }
+    sum.agents = esc(txt('#agents-status'));
+    if (backupInfo && !backupInfo.problem) {
+      const last = backupInfo.list[0];
+      sum.backup = esc(f.backup_freq.value === 'off' ? 'automatisch uit' : `${opt(f.backup_freq).toLowerCase()} om ${f.backup_time.value}`)
+        + (last ? ` · laatste: ${ago(last.at)}` : '') + (backupInfo.last_error ? ' · <span class="warn-txt">✘ mislukt</span>' : '');
+    } else if (backupInfo) sum.backup = '<span class="warn-txt">⚠️ niet ingesteld</span>';
+    sum.db = esc(txt('#db-status').split(' · ')[0]);
+    const af = $('#access-form');
+    sum.access = af.lan_no_login.checked ? `LAN zonder inloggen${af.lan_as_admin.checked ? ' (als beheerder)' : ''}` : 'altijd inloggen';
+    const nKeys = $$('#api-keys .key-row').length;
+    sum.api = `${nKeys} sleutel${nKeys === 1 ? '' : 's'}`;
+  }
+  if (Array.isArray(users)) sum.users = `${users.length} gebruiker${users.length === 1 ? '' : 's'}`;
+  setCards().forEach((card) => { const el = $('.set-sum', card); if (el) el.innerHTML = sum[card.dataset.sk] || ''; });
+}
+
+let settingsDirty = false;
+function markSettingsDirty(dirty) {
+  settingsDirty = dirty;
+  $('#save-state').textContent = dirty ? '● niet opgeslagen wijzigingen' : '';
 }
 
 // ---------------------------------------------------------------- Server-tegels
@@ -1648,9 +1763,38 @@ function channelIcons(a) {
   return out.join(' ');
 }
 
+/** "🔴 Critical", "✅ Hersteld", "✔ Bevestigd"… voor de meldingentabel */
+function alertStatusText(a) {
+  if (a.kind === 'ack') return '✔ Bevestigd';
+  if (a.kind === 'maint') return '🔧 Onderhoud';
+  const ev = (a.title.match(/^\S+ (HERSTELD|STABIEL|FLAPPEND)/) || [])[1];
+  if (ev) return { HERSTELD: '✅ Hersteld', STABIEL: '⏸ Stabiel', FLAPPEND: '🔀 Flapt' }[ev];
+  return ['✅ OK', '🟠 Warning', '🔴 Critical', '⚪ Onbekend'][+a.status] || '';
+}
+
 function renderAlerts() {
   const el = $('#alerts');
   if (!state.alerts.length) { el.innerHTML = '<p class="muted">Nog geen meldingen. 👌</p>'; return; }
+  const { layout, density } = viewPrefs();
+  if (layout === 'l1nes') {
+    // L1nes: één regel per melding (Small: bericht ingekort, klik om het hele bericht te zien; Large: alles)
+    const hostOf = (id) => (state.hosts.find((h) => h.checks.some((c) => +c.id === +id)) || {}).name || '';
+    el.innerHTML = `<table class="alert-table ${density}"><thead><tr><th>Tijd</th><th>Status</th><th>Server</th><th>Check</th><th>Bericht</th><th>Kanalen</th></tr></thead><tbody>
+      ${state.alerts.map((a) => {
+        const st = alertStatusText(a);
+        // Server en check; van een verwijderde check uit de titel ("🔴 CRITICAL: server – check")
+        const t = a.title.match(/:\s*(.+?) – (.+)$/);
+        const where = { host: hostOf(a.check_id) || (t ? t[1] : 'RzMon'), check: a.check_name || (t ? t[2] : '–') };
+        return `<tr class="${a.kind === 'ack' ? 'ack' : 's' + a.status}">
+          <td class="at-time" title="${esc(a.created_at)}">${esc(fmtUntil(a.created_at))}</td>
+          <td class="at-st">${st}</td>
+          <td>${esc(where.host)}</td>
+          <td>${esc(where.check)}</td>
+          <td class="at-msg" title="${density === 'small' ? 'Klik voor het hele bericht' : ''}">${esc(a.message)}</td>
+          <td class="at-ch">${channelIcons(a)}</td></tr>`;
+      }).join('')}</tbody></table>`;
+    return;
+  }
   el.innerHTML = state.alerts.map((a) => `
     <div class="alert-item ${a.kind === 'ack' ? 'ack' : 's' + a.status}">
       <span class="dot"></span>
@@ -1671,6 +1815,7 @@ async function loadAccess() {
   f.trusted_proxies.value = a.trusted_proxies;
   $('#ip-status').innerHTML = `Jouw IP-adres: <code>${esc(a.client_ip)}</code>${a.client_ip !== a.remote_addr ? ` <span class="muted small">(via proxy ${esc(a.remote_addr)})</span>` : ''}
     — ${a.client_trusted ? '<b class="yes">valt binnen je lokale netwerken</b>' : '<b class="no">valt buiten je lokale netwerken</b>'}`;
+  settingsSummaries();
 }
 
 async function saveAccess(e) {
@@ -1702,6 +1847,7 @@ async function loadApiKeys() {
         <span class="muted small">Laatst gebruikt: ${k.last_used ? ago(k.last_used) : 'nooit'}</span></span>
       <button class="icon-btn" title="Intrekken" data-del="${k.id}" data-name="${esc(k.name)}">🗑</button>
     </div>`).join('') : '<p class="muted small">Nog geen sleutels.</p>';
+  settingsSummaries();
 }
 
 async function createApiKey(e) {
@@ -1736,6 +1882,7 @@ async function deleteApiKey(e) {
 function isAdmin() { return document.body.dataset.role === 'admin'; }
 
 async function loadSettings() {
+  settingsLoaded = true;
   loadUsers();
   if (!isAdmin()) return;   // de rest van de instellingen is alleen voor beheerders
   loadApiKeys();
@@ -1757,6 +1904,8 @@ async function loadSettings() {
     { pushover_enabled: s.pushover_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
   quietGlobal = quietEditor($('#quiet-editor'), parse(s.notify_quiet), true);
   backupFormToggle();
+  markSettingsDirty(false);
+  applySettingsLayout();
   loadBackups();
   loadUpdate(false);
   refresh();   // verse agentversies voor de kaart "Agents bijwerken"
@@ -1772,6 +1921,7 @@ function renderAgentUpdates() {
       : `<b class="good-txt">✔ Alle ${agents.length} agent(s) zijn up-to-date (${esc(state.version)})</b>`)
       + (busy.length ? ` · ⏳ ${busy.length} wordt bijgewerkt` : '');
   $('#agents-update-all').hidden = !old.length;
+  settingsSummaries();
 }
 
 async function updateAllAgents(e) {
@@ -1991,6 +2141,7 @@ async function loadUsers() {
         ${u.me ? '' : `<button class="icon-btn need-admin" data-uact="delete" data-id="${u.id}" title="Verwijderen">🗑</button>`}
       </span>
     </div>`).join('');
+  settingsSummaries();
 }
 
 /** Logboek van "wachtwoord vergeten": aanvragen, verstuurde links en herstelde wachtwoorden. */
@@ -2132,6 +2283,7 @@ async function loadDbInfo() {
   try { dbInfo = await api('db_info'); } catch (ex) { return; }
   $('#db-status').innerHTML = `Gebruiker <code>${esc(dbInfo.db.user)}</code> op <code>${esc(dbInfo.db.host)}</code>, database <code>${esc(dbInfo.db.name)}</code> · `
     + (dbInfo.helper ? '<b class="good-txt">hulpdienst actief</b>' : dbInfo.direct ? 'RzMon mag config.php zelf opslaan' : '<b class="warn-txt">hulpdienst niet geïnstalleerd</b>');
+  settingsSummaries();
 }
 
 /** Een commando met kopieerknop. */
@@ -2241,6 +2393,8 @@ async function loadUpdate(force) {
   const b = $('#update-start');
   b.hidden = !u.available || !!u.unavailable;
   b.textContent = `⬆ Nu bijwerken naar ${u.latest}`;
+  updateInfo = u;
+  settingsSummaries();
   showUpdateProgress(u.status, '');
   if (u.status && ['queued', 'running'].includes(u.status.state)) pollUpdate();
 }
@@ -2330,6 +2484,7 @@ async function loadBackups() {
       <button type="button" class="icon-btn" title="Terugzetten" data-bk="restore" data-file="${esc(x.file)}" ${x.valid ? '' : 'disabled'}>↺</button>
       <button type="button" class="icon-btn" title="Verwijderen" data-bk="del" data-file="${esc(x.file)}">🗑</button>
     </div>`).join('') : '<p class="muted small">Nog geen back-ups.</p>';
+  settingsSummaries();
 }
 
 async function backupNow(e) {

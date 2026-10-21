@@ -105,6 +105,10 @@ RzMon bestaat uit vier onderdelen:
     - **Small:** één regel per check met naam, type, waarde (balk voor percentages), bericht en tijd.
     - **Large:** kolomkoppen, met per check ook de minigrafiek van 24 uur; het bericht mag over meer regels lopen.
     - De knoppen per check (✔ 🔧 ↻ 📈 ✎) verschijnen als je met de muis over de rij gaat; op een telefoon of tablet staan ze er altijd.
+  - De lay-out geldt ook voor **Instellingen** en **Meldingen**:
+    - **Instellingen in L1nes:** elk onderdeel is een rij over de volle breedte, in groepen (*Meldingen*, *Monitoring*, *Systeem*, *Toegang*). Achter de titel staat een korte samenvatting (bijvoorbeeld *✔ aan · critical: Hoog*), zodat je zonder open te klikken ziet hoe het staat. Klik op een rij om hem te openen; welke rijen open staan, wordt onthouden. **Small:** standaard alles dicht. **Large:** standaard alles open. **⊞ Alles openen** klapt alles in één keer open. De knop **💾 Instellingen opslaan** blijft onderin in beeld, met *● niet opgeslagen wijzigingen* zolang je nog moet opslaan. De kaart *Weergave* staat altijd bovenaan open.
+    - **Meldingen in L1nes:** een tabel met één regel per melding: tijd, status, server, check, bericht en kanalen. **Small:** het bericht ingekort (klik erop voor het hele bericht). **Large:** het hele bericht.
+    - In **Blox** zien Instellingen en Meldingen eruit zoals altijd.
 
 ### Poortscan
 - **Scannen** naar open TCP-poorten: bekende poorten, poort 1-1024, of een eigen lijst zoals `22,80,8000-8100` (maximaal 4096 poorten).

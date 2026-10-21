@@ -162,7 +162,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     <section id="tab-settings" class="tab-panel" hidden>
       <div class="card view-card">
         <h2>Weergave</h2>
-        <p class="muted small">Hoe de servers op het dashboard staan. Geldt voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc) en wordt direct toegepast.</p>
+        <p class="muted small">Hoe het dashboard, de meldingen en deze instellingen eruitzien. Geldt voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc) en wordt direct toegepast.</p>
         <div class="view-row">
           <span class="view-label">Lay-out</span>
           <div class="seg" role="group" aria-label="Lay-out">
@@ -179,8 +179,16 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         </div>
       </div>
 
+      <div class="set-toolbar">
+        <span class="muted small">Klik op een onderdeel om het te openen of te sluiten.</span>
+        <button type="button" class="btn" id="set-toggle-all">⊞ Alles openen</button>
+      </div>
+      <h3 class="set-group" data-group="meldingen">🔔 Meldingen</h3>
+      <h3 class="set-group" data-group="monitoring">📈 Monitoring</h3>
+      <h3 class="set-group" data-group="systeem">⚙️ Systeem</h3>
+      <h3 class="set-group" data-group="toegang">🔐 Toegang</h3>
       <form id="settings-form" class="settings-grid need-admin">
-        <div class="card">
+        <div data-sk="pushover" class="card">
           <h2>Pushover</h2>
           <p class="muted small">Maak een applicatie aan op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> voor het API-token. Je user key staat op je Pushover dashboard.</p>
           <label class="switch"><input type="checkbox" name="pushover_enabled"><span></span> Pushover meldingen aan</label>
@@ -204,7 +212,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="pushover-test">📲 Testbericht sturen</button>
         </div>
 
-        <div class="card notify-card">
+        <div data-sk="notify" class="card notify-card">
           <h2>🔔 Meldingen</h2>
           <p class="muted small">Per status: <b>nooit</b>, <b>direct</b>, of pas <b>na X minuten</b> onafgebroken in die status. Herstelt het eerder, dan komt er geen melding. Hersteld: pas melden als het X minuten goed blijft. Per check kun je dit aanpassen (✎ → Meldingen).</p>
           <label class="switch"><input type="checkbox" name="notify_unknown"><span></span> Melden bij ONBEKEND</label>
@@ -223,7 +231,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="muted small" style="margin-top:-.3rem">Bundelen: gaan op één server binnen deze tijd meerdere checks mis (of herstellen ze), dan komt er één bericht met alles erin. De eerste melding wacht daardoor hooguit zo lang. Home Assistant krijgt wel een bericht per check, voor je automatiseringen.</p>
         </div>
 
-        <div class="card">
+        <div data-sk="alarm" class="card">
           <h2>Alarmgedrag</h2>
           <label>Agent offline na … minuten zonder rapport<input type="number" name="agent_stale_minutes" min="1"></label>
           <label>Historie bewaren (dagen)<input type="number" name="retention_days" min="1"></label>
@@ -233,7 +241,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label>… na zoveel meldingen voor dezelfde storing <span class="muted small">(alleen die check; stopt vanzelf als hij weer OK is)</span><input type="number" name="auto_maint_after" min="1" max="100"></label>
         </div>
 
-        <div class="card">
+        <div data-sk="webhook" class="card">
           <h2>Home Assistant-webhook</h2>
           <p class="muted small">Stuurt elke melding ook als JSON naar Home Assistant, zodat je er een automatisering op kunt starten: een lamp die rood kleurt, een TTS-melding, of een notificatie via de HA-app.
             Maak in HA een automatisering met trigger <b>Webhook</b> en plak de URL hieronder, bv. <code>http://homeassistant.local:8123/api/webhook/rzmon-…</code></p>
@@ -244,7 +252,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="webhook-test">🏠 Testbericht naar Home Assistant</button>
         </div>
 
-        <div class="card">
+        <div data-sk="email" class="card">
           <h2>E-mail</h2>
           <p class="muted small">Meldingen ook per e-mail, of alleen als reserve wanneer Pushover niet werkt. Bij Gmail, Outlook en iCloud heb je een <b>app-wachtwoord</b> nodig (niet je gewone wachtwoord).</p>
           <label class="switch"><input type="checkbox" name="email_enabled"><span></span> E-mailmeldingen aan</label>
@@ -277,7 +285,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="email-test">📧 Testmail sturen</button>
         </div>
 
-        <div class="card">
+        <div data-sk="mqtt" class="card">
           <h2>MQTT (Home Assistant)</h2>
           <p class="muted small">RzMon meldt zich via <b>MQTT discovery</b> bij Home Assistant: elke server wordt een apparaat met sensoren voor de status en meetwaarden van zijn checks. Je hebt een MQTT-broker nodig, bv. de <i>Mosquitto broker</i>-add-on, en de MQTT-integratie in HA.
             Gebruik bij Mosquitto een HA-gebruiker (of een aparte gebruiker) als login.</p>
@@ -305,7 +313,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="mqtt-test">📡 Verbinding testen &amp; publiceren</button>
         </div>
 
-        <div class="card" id="update-card">
+        <div data-sk="update" class="card" id="update-card">
           <h2>⬆ RzMon bijwerken</h2>
           <p class="small" id="update-status">…</p>
           <div id="update-notes"></div>
@@ -321,7 +329,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="muted small" style="margin-top:-.2rem">RzMon kijkt één keer per dag op GitHub of er een nieuwe versie is. Bijwerken doet de hulpdienst op de server: eerst eventueel een back-up, dan de nieuwe versie ophalen en het installatiescript uitvoeren, net als het commando met <code>install-rocky.sh</code>. Je instellingen en gegevens blijven staan. De agents werk je apart bij (hieronder).</p>
         </div>
 
-        <div class="card" id="agents-card">
+        <div data-sk="agents" class="card" id="agents-card">
           <h2>⬆ Agents bijwerken</h2>
           <p class="muted small">Bij een nieuwe versie van RzMon kun je de agents vanaf hier bijwerken: per server in het venster <i>Agent Manager</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzMon op, controleert hem en installeert hem zelf; zijn instellingen blijven staan. De eerste installatie gaat met het commando op de server.</p>
           <p class="small" id="agents-status">…</p>
@@ -330,7 +338,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="muted small" style="margin-top:-.4rem">Verouderde agents werken zichzelf bij zonder dat je op de knop drukt (hooguit één poging per 6 uur). Home Assistant-add-ons werk je bij via de add-on winkel. Een server uitzonderen: <code>REMOTE_UPDATE=0</code> in <code>/etc/default/rzmon-agent</code>.</p>
         </div>
 
-        <div class="card" id="backup-card">
+        <div data-sk="backup" class="card" id="backup-card">
           <h2>💾 Back-up</h2>
           <p class="muted small">Een zip met de hele database (servers, checks, instellingen, gebruikers) en <code>config.php</code>. De back-ups staan op deze server, buiten de webmap. Download er af en toe een, zodat je ook een kopie hebt als de server zelf stuk gaat.</p>
           <div class="row3">
@@ -362,11 +370,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div id="backup-list" class="key-list"></div>
         </div>
 
-        <div class="settings-save"><button class="btn primary">Instellingen opslaan</button></div>
+        <div class="settings-save"><button class="btn primary">💾 Instellingen opslaan</button> <span class="save-state" id="save-state"></span></div>
       </form>
 
       <div class="settings-grid" style="margin-top:1.25rem">
-      <form class="card need-admin" id="access-form">
+      <form data-sk="access" class="card need-admin" id="access-form">
         <h2>Toegang</h2>
         <div class="ip-status" id="ip-status">…</div>
         <label class="switch"><input type="checkbox" name="lan_no_login"><span></span> Geen login nodig op het lokale netwerk</label>
@@ -381,7 +389,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <button class="btn primary">Toegang opslaan</button>
       </form>
 
-      <div class="card need-admin" id="api-card">
+      <div data-sk="api" class="card need-admin" id="api-card">
         <h2>API-sleutels</h2>
         <p class="muted small">Lees statussen en meetwaarden uit via de REST API, bijvoorbeeld vanuit Home Assistant. Stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.</p>
         <p class="small">Basis-URL: <code id="api-base"></code></p>
@@ -402,7 +410,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         </details>
       </div>
 
-      <div class="card" id="users-card" <?= ($user['id'] ?? 0) === 0 ? 'hidden' : '' ?>>
+      <div data-sk="users" class="card" id="users-card" <?= ($user['id'] ?? 0) === 0 ? 'hidden' : '' ?>>
         <h2>Gebruikers</h2>
         <p class="muted small need-admin"><b>Beheerder</b>: alles. <b>Gebruiker</b>: storingen afhandelen (bevestigen, nu checken, onderhoud, poortscan), maar niets inrichten. <b>Alleen lezen</b>: kijken.
           Met <b>tweestapsverificatie</b> (TOTP) is naast het wachtwoord een code uit een authenticator-app nodig, zoals Google/Microsoft Authenticator, Authy, Bitwarden of 1Password.</p>
@@ -428,16 +436,16 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div>
 
       <?php if (($user['id'] ?? 0) === 0): ?>
-      <div class="card"><h2>Account</h2><p class="muted small">Je bent automatisch ingelogd via het lokale netwerk, met alleen-lezen-rechten. Klik rechtsboven op <b>Inloggen</b> om met je eigen account in te loggen.</p></div>
+      <div class="card" data-sk="account"><h2>Account</h2><p class="muted small">Je bent automatisch ingelogd via het lokale netwerk, met alleen-lezen-rechten. Klik rechtsboven op <b>Inloggen</b> om met je eigen account in te loggen.</p></div>
       <?php endif; ?>
-      <div class="card need-admin" id="db-card">
+      <div data-sk="db" class="card need-admin" id="db-card">
         <h2>Database</h2>
         <p class="muted small">RzMon gebruikt een eigen databasegebruiker. Met de knop maak je een nieuw, sterk wachtwoord en slaat RzMon het overal op. Alles blijft gewoon werken: dashboards, cron, API en agents.</p>
         <p class="small" id="db-status">…</p>
         <button type="button" class="btn" id="db-rotate">🔑 Databasewachtwoord vernieuwen</button>
       </div>
 
-      <form id="password-form" class="card" <?= ($user['id'] ?? 0) === 0 ? 'hidden' : '' ?>>
+      <form id="password-form" data-sk="password" class="card" <?= ($user['id'] ?? 0) === 0 ? 'hidden' : '' ?>>
         <h2>Wachtwoord wijzigen</h2>
         <label>Huidig wachtwoord<input type="password" name="current" autocomplete="current-password" required></label>
         <label>Nieuw wachtwoord<input type="password" name="new" minlength="8" autocomplete="new-password" required></label>
