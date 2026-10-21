@@ -12,6 +12,9 @@ declare(strict_types=1);
  *   Dezelfde gebeurtenis binnen 24 uur wordt opgeteld bij het bestaande incident.
  * - Blokkeren: per server, eerst ids_block_hours, bij herhaling ids_repeat_days. Nooit automatisch: privé-
  *   adressen (LAN), RzMon zelf en ids_allow. Met de hand kan ook een LAN-adres (behalve het eigen IP).
+ * - Bestanden bewaken (FIM): paden uit ids_fim (algemeen) en hosts.ids_fim (per server). De agent stuurt alleen
+ *   wat veranderd is; hier wordt altijd vergeleken met de eigen basismeting (kind 'fim': hash|grootte|rechten|eigenaar),
+ *   dus een rapport dat twee keer binnenkomt geeft geen dubbele incidenten.
  */
 final class Ids
 {
@@ -21,6 +24,9 @@ final class Ids
     // Diensten die bij elke start een willekeurige poort kiezen: alleen de naam telt
     private const RANDOM_PORT_PROCS = ['rpc.statd', 'rpc.mountd', 'rpcbind', 'rpc.rquotad', 'avahi-daemon', 'chronyd', 'dhclient', 'NetworkManager'];
     private const BAD_PORTS = [1337, 4444, 4445, 5555, 6666, 6667, 6697, 12345, 31337];
+    public const FIM_MAX_PATHS = 20;
+    // Meer dan zoveel wijzigingen onder één pad in één rapport: één incident met de lijst
+    private const FIM_BULK = 10;
 
     public static function enabled(): bool
     {
@@ -39,6 +45,18 @@ final class Ids
             return [];
         }
         $out = [implode("\t", [0, 'ids', self::blocking() ? 'block' : 'learn'])];
+        // Bestanden bewaken: e <tab> epoch, p <tab> ernst <tab> pad, x <tab> uitsluiten (base64, één regel)
+        $paths = self::fimPaths($hostId);
+        if ($paths) {
+            $cfg = "e\t" . (int) q('SELECT fim_epoch FROM ids_state WHERE host_id = ?', [$hostId])->fetchColumn() . "\n";
+            foreach ($paths as $p) {
+                $cfg .= "p\t{$p['s']}\t{$p['p']}\n";
+            }
+            foreach (parse_list((string) setting('ids_fim_exclude', '')) as $x) {
+                $cfg .= "x\t$x\n";
+            }
+            $out[] = implode("\t", [0, 'fim', base64_encode($cfg)]);
+        }
         if (self::blocking()) {
             foreach (self::activeBlocks($hostId) as $b) {
                 $out[] = implode("\t", [0, 'block', $b['ip'], $b['until'] ? strtotime($b['until']) : 0]);
@@ -66,7 +84,7 @@ final class Ids
         $st = q('SELECT * FROM ids_state WHERE host_id = ?', [$hid])->fetch();
         if (!$st) {
             $until = date('Y-m-d H:i:s', time() + 3600 * max(0, (int) setting('ids_baseline_hours', 24)));
-            q('INSERT INTO ids_state (host_id, baseline_until) VALUES (?, ?)', [$hid, $until]);
+            q('INSERT INTO ids_state (host_id, baseline_until, fim_epoch) VALUES (?, ?, ?)', [$hid, $until, time()]);
             $st = ['baseline_until' => $until];
         }
         $fw = (array) ($ids['fw'] ?? []);
@@ -108,6 +126,203 @@ final class Ids
             }
         }
         self::logins($ctx, $auth);
+        if (is_array($ids['fim'] ?? null)) {
+            q('UPDATE ids_state SET fim_count = ? WHERE host_id = ?', [max(0, (int) ($ids['fim']['n'] ?? 0)), $hid]);
+            self::fim($ctx, $ids['fim']);
+        } elseif (!self::fimPaths($hid)) {
+            q("DELETE FROM ids_baseline WHERE host_id = ? AND kind = 'fim'", [$hid]);   // niets meer bewaakt
+            q('UPDATE ids_state SET fim_count = NULL WHERE host_id = ?', [$hid]);
+        }
+        if (is_array($ids['fimc'] ?? null)) {
+            $cand = array_filter(array_map('strval', array_slice($ids['fimc'], 0, 30)), fn($p) => preg_match('#^/[A-Za-z0-9._/-]{1,100}$#', $p));
+            q('UPDATE ids_state SET fim_cand = ? WHERE host_id = ?', [mb_substr(implode(' ', $cand), 0, 1000), $hid]);
+        }
+    }
+
+    // ------------------------------------------------------------------ bestanden bewaken (FIM)
+
+    /** Lijst met paden opschonen: [['p' => '/pad', 's' => 1|2], …] (absoluut, niet /, /proc, /sys, /dev of /run). */
+    public static function cleanFim(mixed $list): array
+    {
+        $out = [];
+        foreach (array_slice(is_array($list) ? $list : [], 0, self::FIM_MAX_PATHS) as $e) {
+            $p = preg_replace('#/+#', '/', trim((string) (is_array($e) ? ($e['p'] ?? '') : $e)));
+            if ($p !== '/' && strlen($p) > 1) {
+                $p = rtrim($p, '/');
+            }
+            if ($p === '' || $p[0] !== '/' || $p === '/' || strlen($p) > 300 || preg_match('/[\x00-\x1f]/', $p)
+                || preg_match('#^/(proc|sys|dev|run)(/|$)#', $p) || isset($out[$p])) {
+                continue;
+            }
+            $out[$p] = ['p' => $p, 's' => (int) (is_array($e) ? ($e['s'] ?? 1) : 1) === 2 ? 2 : 1];
+        }
+        return array_values($out);
+    }
+
+    /** Uitsluiten: patronen gescheiden door spaties, bv. *.log cache/ */
+    public static function cleanFimExclude(string $v): string
+    {
+        return implode(' ', array_slice(array_filter(parse_list(mb_substr($v, 0, 2000)), fn($x) => strlen($x) <= 100 && !preg_match('/[\x00-\x1f]/', $x)), 0, 30));
+    }
+
+    /** Paden voor één server: de algemene lijst plus die van de server (de server wint bij hetzelfde pad). */
+    public static function fimPaths(int $hostId): array
+    {
+        $all = [];
+        foreach (self::cleanFim(json_decode((string) setting('ids_fim', '[]'), true)) as $p) {
+            $all[$p['p']] = $p;
+        }
+        $own = q('SELECT ids_fim FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
+        foreach (self::cleanFim(json_decode((string) $own, true)) as $p) {
+            $all[$p['p']] = $p;
+        }
+        return array_slice(array_values($all), 0, 2 * self::FIM_MAX_PATHS);
+    }
+
+    /**
+     * Rapport van de agent: c = nieuw of veranderd [pad, grootte, rechten, eigenaar, hash, ernst, bewaakt pad],
+     * d = verdwenen [pad, ernst, bewaakt pad], b = nieuw bewaakt pad (stil vastleggen), u = niet meer bewaakt,
+     * full = de hele lijst (eerste keer of na een nieuwe basismeting).
+     */
+    private static function fim(array $ctx, array $fim): void
+    {
+        $hid = (int) $ctx['host']['id'];
+        $full = !empty($fim['full']);
+        $known = q("SELECT item, value FROM ids_baseline WHERE host_id = ? AND kind = 'fim'", [$hid])->fetchAll(PDO::FETCH_KEY_PAIR);
+        $quiet = $ctx['learning'] || ($full && !$known);   // de eerste lijst is de basismeting
+        $up = db()->prepare("INSERT INTO ids_baseline (host_id, kind, item, value) VALUES (?, 'fim', ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)");
+        $del = db()->prepare("DELETE FROM ids_baseline WHERE host_id = ? AND kind = 'fim' AND item = ?");
+        $entry = static function (mixed $e): ?array {
+            $e = (array) $e;
+            $path = mb_substr((string) ($e[0] ?? ''), 0, 255);
+            if ($path === '' || $path[0] !== '/') {
+                return null;
+            }
+            return ['path' => $path, 'size' => max(0, (int) ($e[1] ?? 0)), 'mode' => preg_replace('/[^0-7]/', '', (string) ($e[2] ?? '')),
+                'owner' => mb_substr(preg_replace('/[^A-Za-z0-9._:-]/', '', (string) ($e[3] ?? '')), 0, 64),
+                'hash' => preg_replace('/[^0-9a-fm.]/', '', (string) ($e[4] ?? '')), 'sev' => (int) ($e[5] ?? 1) === 2 ? 2 : 1,
+                'root' => mb_substr((string) ($e[6] ?? ''), 0, 255)];
+        };
+        $val = static fn(array $x) => mb_substr("{$x['hash']}|{$x['size']}|{$x['mode']}|{$x['owner']}", 0, 255);
+
+        foreach (array_slice((array) ($fim['b'] ?? []), 0, 20000) as $e) {
+            if ($x = $entry($e)) {
+                $up->execute([$hid, $x['path'], $val($x)]);
+            }
+        }
+        foreach (array_slice((array) ($fim['u'] ?? []), 0, 20000) as $p) {
+            $del->execute([$hid, mb_substr((string) $p, 0, 255)]);
+        }
+        $events = [];
+        $seen = [];
+        foreach (array_slice((array) ($fim['c'] ?? []), 0, 20000) as $e) {
+            if (!($x = $entry($e))) {
+                continue;
+            }
+            $seen[$x['path']] = true;
+            $old = $known[$x['path']] ?? null;
+            if ($old === $val($x)) {
+                continue;
+            }
+            $up->execute([$hid, $x['path'], $val($x)]);
+            if (!$quiet) {
+                $events[$x['root']][] = ['op' => $old === null ? '+' : '~', 'x' => $x, 'old' => $old];
+            }
+        }
+        foreach (array_slice((array) ($fim['d'] ?? []), 0, 20000) as $e) {
+            $e = (array) $e;
+            $path = mb_substr((string) ($e[0] ?? ''), 0, 255);
+            if (!isset($known[$path])) {
+                continue;
+            }
+            $del->execute([$hid, $path]);
+            if (!$quiet) {
+                $x = ['path' => $path, 'sev' => (int) ($e[1] ?? 1) === 2 ? 2 : 1, 'root' => mb_substr((string) ($e[2] ?? ''), 0, 255)];
+                $events[$x['root']][] = ['op' => '-', 'x' => $x, 'old' => $known[$path]];
+            }
+        }
+        if ($full) {
+            // Volledige lijst: wat er niet in staat, wordt niet (meer) bewaakt
+            foreach (array_keys($known) as $p) {
+                if (!isset($seen[$p])) {
+                    $del->execute([$hid, $p]);
+                }
+            }
+        }
+        if (!$events) {
+            return;
+        }
+        $ignored = array_flip(q("SELECT item FROM ids_baseline WHERE host_id = ? AND kind = 'ignore' AND (item LIKE 'fim|%' OR item LIKE 'fim\_bulk|%')",
+            [$hid])->fetchAll(PDO::FETCH_COLUMN));
+        foreach ($events as $root => $list) {
+            if (isset($ignored["fim_bulk|$root"])) {
+                continue;   // "niet meer bewaken" bij een bundel: dit hele pad
+            }
+            $list = array_values(array_filter($list, fn($ev) => !isset($ignored['fim|' . $ev['x']['path']])));
+            if (!$list) {
+                continue;
+            }
+            if (count($list) > self::FIM_BULK) {
+                $n = ['+' => 0, '~' => 0, '-' => 0];
+                foreach ($list as $ev) {
+                    $n[$ev['op']]++;
+                }
+                $sum = implode(', ', array_filter([$n['+'] ? "{$n['+']} nieuw" : '', $n['~'] ? "{$n['~']} gewijzigd" : '', $n['-'] ? "{$n['-']} verwijderd" : '']));
+                $lines = array_map(fn($ev) => ['+' => '＋ ', '~' => '✎ ', '-' => '✕ '][$ev['op']] . $ev['x']['path'], array_slice($list, 0, 25));
+                self::incident($ctx, max(array_map([self::class, 'fimSev'], $list)), 'fim_bulk', $root, count($list) . " bestanden gewijzigd in $root",
+                    "$sum:\n" . implode("\n", $lines) . (count($list) > 25 ? "\n… en nog " . (count($list) - 25) : ''), null, false, true);
+            } else {
+                foreach ($list as $ev) {
+                    [$title, $detail] = self::fimText($ev);
+                    self::incident($ctx, self::fimSev($ev), 'fim', $ev['x']['path'], $title, $detail, null, false, true);
+                }
+            }
+        }
+    }
+
+    /** Ernst van een wijziging: die van het pad, of critical als er SUID/SGID bij kwam. */
+    private static function fimSev(array $ev): int
+    {
+        $sev = $ev['x']['sev'];
+        if ($ev['op'] !== '-') {
+            $oldMode = $ev['old'] !== null ? octdec((string) (explode('|', $ev['old'])[2] ?? '0') ?: '0') : 0;
+            if ((octdec($ev['x']['mode'] ?: '0') & 06000) & ~$oldMode) {
+                $sev = 2;
+            }
+        }
+        return $sev;
+    }
+
+    /** Titel en uitleg van één wijziging (nooit de inhoud, alleen hash, grootte, rechten en eigenaar). */
+    private static function fimText(array $ev): array
+    {
+        $x = $ev['x'];
+        $path = $x['path'];
+        $hash = static fn(string $h) => $h === '' ? '?' : (str_starts_with($h, 'm') ? 'te groot voor een hash' : substr($h, 0, 12) . '…');
+        $size = static fn($b) => Checks::bytes((float) $b);
+        if ($ev['op'] === '-') {
+            [, $s, $m, $o] = array_pad(explode('|', (string) $ev['old']), 4, '');
+            return ["Bestand verwijderd: $path", 'Was ' . $size($s) . " · rechten $m · eigenaar $o"];
+        }
+        if ($ev['op'] === '+') {
+            return ["Nieuw bestand: $path", 'Bestond nog niet. ' . $size($x['size']) . " · rechten {$x['mode']} · eigenaar {$x['owner']} · SHA-256 " . $hash($x['hash'])];
+        }
+        [$h, $s, $m, $o] = array_pad(explode('|', (string) $ev['old']), 4, '');
+        $parts = [];
+        if ($h !== $x['hash']) {
+            $parts[] = str_starts_with($x['hash'], 'm') ? 'Groot bestand: tijd of grootte gewijzigd' : 'Inhoud gewijzigd: SHA-256 ' . $hash($h) . ' → ' . $hash($x['hash']);
+        }
+        if ((string) $s !== (string) $x['size']) {
+            $parts[] = $size($s) . ' → ' . $size($x['size']);
+        }
+        if ($m !== $x['mode']) {
+            $parts[] = "rechten $m → {$x['mode']}";
+        }
+        if ($o !== $x['owner']) {
+            $parts[] = "eigenaar $o → {$x['owner']}";
+        }
+        $rights = $h === $x['hash'];
+        return [($rights ? 'Rechten gewijzigd: ' : 'Bestand gewijzigd: ') . $path, ucfirst(implode(' · ', $parts)) . '.'];
     }
 
     private static function files(array $ctx, array $files, bool $updating, bool $userChange): void
@@ -273,14 +488,16 @@ final class Ids
      * Incident vastleggen. Hetzelfde (server, soort, sleutel) binnen 24 uur: optellen bij het bestaande.
      * Uitzonderingen ("Dit is normaal") worden overgeslagen. Critical gaat ook naar Pushover.
      */
-    private static function incident(array $ctx, int $sev, string $type, string $key, string $title, string $detail, ?string $ip = null, bool $always = false): void
+    /** @param bool $openOnly alleen optellen bij een open incident (bestanden: na goedkeuren is een nieuwe wijziging een nieuw incident) */
+    private static function incident(array $ctx, int $sev, string $type, string $key, string $title, string $detail, ?string $ip = null, bool $always = false, bool $openOnly = false): void
     {
         $hid = (int) $ctx['host']['id'];
         $key = mb_substr($key, 0, 255);
         if (q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'ignore' AND item = ?", [$hid, mb_substr("$type|$key", 0, 255)])->fetchColumn()) {
             return;
         }
-        $prev = q('SELECT id FROM ids_incidents WHERE host_id = ? AND type = ? AND dkey = ? AND created_at >= NOW() - INTERVAL 1 DAY ORDER BY id DESC LIMIT 1',
+        $prev = q('SELECT id FROM ids_incidents WHERE host_id = ? AND type = ? AND dkey = ? AND created_at >= NOW() - INTERVAL 1 DAY'
+                  . ($openOnly ? " AND status = 'open'" : '') . ' ORDER BY id DESC LIMIT 1',
             [$hid, $type, $key])->fetchColumn();
         if ($prev) {
             q('UPDATE ids_incidents SET hits = hits + 1, last_seen = NOW(), title = ?, detail = ? WHERE id = ?',

@@ -264,7 +264,9 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('ids_fail_minutes', '10'),
     ('ids_block_hours', '24'),
     ('ids_repeat_days', '7'),
-    ('ids_allow', '');
+    ('ids_allow', ''),
+    ('ids_fim', '[]'),
+    ('ids_fim_exclude', '*.log *.tmp *.swp *.pid cache/ sessions/');
 
 -- Logboek van gevoelige wijzigingen (bv. commando's op agents toestaan, commando-checks wijzigen)
 CREATE TABLE IF NOT EXISTS audit_log (

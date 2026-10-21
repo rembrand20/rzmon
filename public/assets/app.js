@@ -780,6 +780,7 @@ function settingsSummaries() {
     sum.ids = !$('#ids-enabled').checked ? '<span class="muted">✘ uit</span>'
       : $('#ids-mode').checked ? '<span class="warn-txt">⛔ blokkeren</span>' : '<span class="good-txt">✔ aan</span> · leren (alleen melden)';
     sum.ids += f.auth_events.checked ? ' · 🔑 toegang' : '';
+    if (fimGlobal && fimGlobal.get().length) sum.ids += ` · 📁 ${fimGlobal.get().length} pad${fimGlobal.get().length === 1 ? '' : 'en'}`;
     sum.alarm = esc(`agent offline na ${f.agent_stale_minutes.value} min · historie ${f.retention_days.value} dagen · meldingen ${f.alerts_days.value} dagen`);
     if (updateInfo) {
       sum.update = (updateInfo.available ? `<span class="warn-txt">⬆ ${esc(updateInfo.latest)} beschikbaar</span>` : `✔ ${esc(updateInfo.current)}${updateInfo.latest ? ' · nieuwste versie' : ''}`)
@@ -1298,6 +1299,11 @@ function hostForm(h) {
         </select>
         <span class="hint">Bereikbaar via deze server, bv. een router, switch, VPN of hypervisor. Is die onbereikbaar, dan krijg je één melding voor die server en niet ook voor deze.</span>
       </label>
+      <details class="notify-own" id="fim-host-wrap" ${h.mode === 'agent' ? '' : 'hidden'}>
+        <summary>📁 Bestanden bewaken (IDS): <span id="fim-host-label">laden…</span></summary>
+        <p class="hint" style="margin-top:0">Extra paden voor deze server, bovenop de algemene lijst (<i>Instellingen → 🛡️ IDS</i>). Hetzelfde pad hier gaat voor, bv. om de ernst te veranderen.</p>
+        <div id="fim-host"></div>
+      </details>
       <label class="switch"><input type="checkbox" name="enabled" ${+h.enabled ? 'checked' : ''}><span></span> Actief</label>
       ${isNew ? '<label class="switch"><input type="checkbox" name="add_ping" checked><span></span> Direct een ping-check toevoegen</label>' : ''}`,
     buttons: [
@@ -1309,7 +1315,7 @@ function hostForm(h) {
       { label: 'Opslaan', cls: 'primary', submit: true },
     ],
     onSubmit: async (d) => {
-      const r = await api('host_save', { ...d, id: h.id, enabled: !!d.enabled, add_ping: !!d.add_ping });
+      const r = await api('host_save', { ...d, id: h.id, enabled: !!d.enabled, add_ping: !!d.add_ping, ...(fimHost ? { ids_fim: fimHost.get() } : {}) });
       toast('Server opgeslagen');
       if (isNew && d.mode === 'agent') {
         await refresh();
@@ -1317,6 +1323,28 @@ function hostForm(h) {
       }
     },
   });
+  hostFimInit(h);
+}
+
+/** Serverformulier: lijst "Bestanden bewaken" van deze server (alleen agent-servers, niet de HA-add-on) */
+let fimHost = null;
+async function hostFimInit(h) {
+  fimHost = null;
+  const wrap = $('#fim-host-wrap');
+  const sel = $('#modal [name=mode]');
+  const show = () => { wrap.hidden = sel.value !== 'agent'; };
+  sel.addEventListener('change', show);
+  show();
+  let own = [], ha = false;
+  if (h.id && isAdmin()) {
+    try { const x = (await api('ids')).hosts.find((y) => +y.id === +h.id); if (x) { own = JSON.parse(x.ids_fim || '[]') || []; ha = !!x.ha; } } catch (e) { /* leeg beginnen */ }
+  }
+  if (!$('#fim-host')) return;   // formulier al dicht
+  if (ha) { wrap.hidden = true; return; }
+  const label = () => { const n = fimHost.get().length; $('#fim-host-label').textContent = n ? `${n} extra pad${n === 1 ? '' : 'en'}` : 'alleen de algemene lijst'; };
+  fimHost = fimEditor($('#fim-host'), own, h.id || null, label);
+  label();
+  if (own.length) wrap.open = true;
 }
 
 /** Servers die als parent kunnen dienen: niet de server zelf en niets wat (indirect) eronder hangt. */
@@ -2274,6 +2302,86 @@ function showIdsTab() {
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
 }
 
+// ---------------------------------------------------------------- IDS: bestanden bewaken
+const FIM_SEV = [[1, '🟠 warning'], [2, '🔴 critical']];
+/** Voorstel per gangbare map (die de agent op de server heeft gezien): pad en ernst */
+function fimSuggest(dir) {
+  if (/^\/(var|srv)\/(www|http)$/.test(dir)) return { p: `${dir}/**/*.php`, s: 2, why: 'nieuwe of gewijzigde PHP-bestanden (webshells)' };
+  if (/\/s?bin$/.test(dir)) return { p: dir, s: 2, why: 'eigen programma\'s en scripts' };
+  return { p: dir, s: 1, why: dir === '/opt' ? 'eigen software' : 'configuratie' };
+}
+
+/**
+ * Lijst met paden en ernst. hostId: alleen voorstellen van die server (anders van alle servers).
+ * onChange na elke wijziging. @return {{ get: () => {p: string, s: number}[] }}
+ */
+function fimEditor(el, list, hostId, onChange) {
+  let rows = (Array.isArray(list) ? list : []).map((r) => ({ p: String(r.p || ''), s: +r.s === 2 ? 2 : 1 }));
+  const changed = () => { if (onChange) onChange(); };
+  const draw = () => {
+    el.innerHTML = `<div class="fim-rows">${rows.map((r, i) => `<div class="fim-row" data-i="${i}">
+        <input class="mono" data-f="p" value="${esc(r.p)}" placeholder="/usr/local/bin" maxlength="300" aria-label="Pad">
+        <select data-f="s" aria-label="Ernst">${FIM_SEV.map(([v, l]) => `<option value="${v}" ${r.s === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <button type="button" class="icon-btn" data-fim="del" title="Weghalen">✕</button></div>`).join('')
+      || '<p class="muted small fim-empty">Nog geen paden.</p>'}</div>
+      <div class="fim-tools"><button type="button" class="btn small-btn" data-fim="add" ${rows.length >= 20 ? 'disabled' : ''}>＋ Pad</button>
+        <button type="button" class="btn small-btn" data-fim="suggest">＋ Aanbevolen</button></div>`;
+  };
+  el.oninput = el.onchange = (e) => {
+    const row = e.target.closest('.fim-row');
+    if (!row || !e.target.dataset.f) return;
+    const r = rows[+row.dataset.i];
+    if (!r || !el.contains(row)) return;   // lijst is intussen opnieuw opgebouwd
+    if (e.target.dataset.f === 'p') { r.p = e.target.value.trim(); fimCheck(e.target); } else r.s = +e.target.value;
+    changed();
+  };
+  el.onclick = async (e) => {
+    const b = e.target.closest('[data-fim]');
+    if (!b) return;
+    if (b.dataset.fim === 'add') { rows.push({ p: '', s: 1 }); draw(); $$('.fim-row input', el).pop().focus(); }
+    else if (b.dataset.fim === 'del') { rows.splice(+b.closest('.fim-row').dataset.i, 1); draw(); changed(); }
+    else if (b.dataset.fim === 'suggest') {
+      let ids;
+      try { ids = await api('ids'); } catch (ex) { return toast(ex.message, 'err'); }
+      // Gangbare mappen die de agent(s) gezien hebben, met op welke servers
+      const where = new Map();
+      ids.hosts.filter((x) => !hostId || +x.id === +hostId).forEach((x) => (x.fim_cand || '').split(' ').filter(Boolean)
+        .forEach((d) => { if (!where.has(d)) where.set(d, []); where.get(d).push(x.name); }));
+      const have = new Set(rows.map((r) => r.p));
+      const sugg = [...where].map(([d, hosts]) => ({ ...fimSuggest(d), hosts })).sort((a, b) => b.s - a.s || a.p.localeCompare(b.p));
+      if (!sugg.length) return toast(ids.enabled ? 'Nog geen voorstellen: de agents (1.40.0+) melden binnen een paar minuten welke mappen er zijn' : 'Zet eerst het IDS aan: dan melden de agents welke mappen er zijn', 'err');
+      // Eigen venster bovenop het formulier (het formulier zelf blijft open)
+      const dlg = document.createElement('dialog');
+      dlg.className = 'fim-dlg';
+      dlg.innerHTML = `<form method="dialog" class="modal-inner"><header><h3>＋ Aanbevolen paden</h3></header>
+        <div class="fim-dlg-body"><p class="muted small" style="margin-top:0">Mappen die ${hostId ? 'de agent op deze server' : 'de agents'} gevonden ${hostId ? 'heeft' : 'hebben'}. Vink aan wat je wilt bewaken.</p>
+        ${sugg.map((x, i) => `<label class="switch small fim-sug"><input type="checkbox" name="s${i}" ${have.has(x.p) ? 'disabled' : 'checked'}><span></span>
+          <span class="fim-sug-t"><code>${esc(x.p)}</code> ${x.s === 2 ? '🔴' : '🟠'}<br><span class="muted small">${esc(x.why)}${hostId ? '' : ` · ${esc(x.hosts.join(', '))}`}${have.has(x.p) ? ' · staat er al' : ''}</span></span></label>`).join('')}</div>
+        <footer><button class="btn" value="cancel">Annuleren</button><button class="btn primary" value="ok">Toevoegen</button></footer></form>`;
+      document.body.append(dlg);
+      dlg.addEventListener('close', () => {
+        if (dlg.returnValue === 'ok') {
+          sugg.forEach((x, i) => { if (!have.has(x.p) && dlg.querySelector(`[name=s${i}]`).checked && rows.length < 20) rows.push({ p: x.p, s: x.s }); });
+          draw(); changed();
+        }
+        dlg.remove();
+      });
+      dlg.showModal();
+    }
+  };
+  draw();
+  $$('.fim-row input', el).forEach(fimCheck);
+  return { get: () => rows.filter((r) => r.p).map((r) => ({ p: r.p, s: r.s })) };
+}
+
+/** Pad controleren zoals RzMon dat doet (Ids::cleanFim), zodat je het meteen ziet */
+function fimCheck(input) {
+  const p = input.value.trim();
+  input.setCustomValidity(!p || (p.startsWith('/') && p.replace(/\/+$/, '') !== '' && !/^\/(proc|sys|dev|run)(\/|$)/.test(p)) ? ''
+    : 'Gebruik een volledig pad (begint met /), niet / zelf en niet onder /proc, /sys, /dev of /run');
+  input.title = input.validationMessage;
+}
+
 // ---------------------------------------------------------------- IDS → Toegang
 const ACC_TYPES = { ssh: 'SSH', console: 'Console', sudo: 'sudo', su: 'su' };
 const ACC_COLS = { time: 'Tijd', type: 'Soort', server: 'Server', who: 'Wie', what: 'Wat / vanaf' };
@@ -2386,7 +2494,7 @@ function renderIds() {
     <div class="ids-host">
       <div><b>${esc(h.name)}</b> <span class="muted small">${h.last_report ? 'IDS-rapport ' + ago(h.last_report) : d.enabled ? 'nog geen IDS-rapport (agent 1.35.0+)' : ''}</span></div>
       <div class="small">${!h.baseline_until ? '' : h.learning ? `📏 basismeting tot ${esc(fmtUntil(h.baseline_until))}` : '✔ bewaakt'}
-        ${h.fw_state ? ' · ' + (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : ''}</div>
+        ${h.fw_state ? ' · ' + (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : ''}${h.fim_count != null ? ` · 📁 ${(+h.fim_count).toLocaleString('nl-NL')} bestand${+h.fim_count === 1 ? '' : 'en'} bewaakt` : ''}</div>
       <div class="small">${h.open[2] ? `<span class="ad-count">🔴 ${h.open[2]}</span>` : ''} ${h.open[1] ? `<span class="ad-count">🟠 ${h.open[1]}</span>` : ''}
         ${!h.open[1] && !h.open[2] ? '<span class="muted">geen open incidenten</span>' : ''}
         ${h.baseline_until ? `<button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="Alles wat er nu is als normaal vastleggen">↺ basismeting opnieuw</button>` : ''}</div>
@@ -2436,14 +2544,18 @@ function renderIds() {
 function idsRow(i) {
   const sev = +i.severity === 2 ? 2 : 1;
   const done = i.status !== 'open';
+  const fim = i.type === 'fim' || i.type === 'fim_bulk';
+  const okLabel = fim ? (i.type === 'fim_bulk' ? '✔ Alles goedkeuren' : '✔ Wijziging goedkeuren') : '✔ Afhandelen';
+  const normal = fim ? ['🚫 Niet meer bewaken', i.type === 'fim_bulk' ? 'Goedkeuren en wijzigingen onder dit pad voortaan niet meer melden' : 'Goedkeuren en dit bestand voortaan niet meer bewaken']
+    : ['Dit is normaal', 'Afhandelen en dit voortaan niet meer melden'];
   return `<div class="alert-item ids-item s${sev} ${done ? 'ids-done' : ''}">
     <span class="dot"></span>
     <strong>${sev === 2 ? '🔴' : '🟠'} ${esc(i.title)}${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}</strong>
     <span class="muted small" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))} · ${esc(i.host_name)}</span>
     <span class="msg">${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>` : ''}${done ? ` · ✔ afgehandeld door ${esc(i.handled_by || '?')}` : ''}</span>
     <span class="ids-actions need-admin">${done ? `<button type="button" class="linkbtn" data-ids="reopen" data-id="${i.id}">↺ heropenen</button>`
-      : `<button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">✔ Afhandelen</button>
-         <button type="button" class="btn small-btn" data-ids="normal" data-id="${i.id}" title="Afhandelen en dit voortaan niet meer melden">Dit is normaal</button>`}
+      : `<button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">${okLabel}</button>
+         <button type="button" class="btn small-btn" data-ids="normal" data-id="${i.id}" title="${normal[1]}">${normal[0]}</button>`}
       ${i.ip ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}">⛔ Blokkeer IP</button>` : ''}</span>
   </div>`;
 }
@@ -2718,6 +2830,7 @@ async function loadSettings() {
   quietGlobal = quietEditor($('#quiet-editor'), parse(s.notify_quiet), true);
   $('#ids-enabled').checked = s.ids_enabled === '1';
   $('#ids-mode').checked = s.ids_mode === 'block';
+  fimGlobal = fimEditor($('#fim-editor'), parse(s.ids_fim || '[]'), null, () => { markSettingsDirty(true); settingsSummaries(); });
   idsModeInfo();
   backupFormToggle();
   markSettingsDirty(false);
@@ -2813,6 +2926,7 @@ function notifyEditor(el, cfg, enabled = {}) {
   };
 }
 let notifyGlobal = null;   // editor van de algemene meldregels
+let fimGlobal = null;      // editor van de algemene lijst 'Bestanden bewaken' (IDS)
 let quietGlobal = null;    // editor van de algemene stille uren
 
 // ---------------------------------------------------------------- Stille uren
@@ -2874,6 +2988,7 @@ function settingsData() {
     f.notify_flap.value = JSON.stringify(n.flap);
   }
   if (quietGlobal) f.notify_quiet.value = JSON.stringify(quietGlobal.get());
+  if (fimGlobal) f.ids_fim.value = JSON.stringify(fimGlobal.get());
   const d = {};
   [...f.elements].forEach((el) => {
     if (!el.name) return;

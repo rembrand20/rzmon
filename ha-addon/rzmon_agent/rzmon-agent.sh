@@ -20,12 +20,23 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.39.0"
+AGENT_VERSION="1.40.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
 if [ "${1-}" = "--version" ]; then
     echo "rzmon-agent $AGENT_VERSION"
+    exit 0
+fi
+# Voor het IDS (bestanden bewaken), op de achtergrond: alle bestanden uit de lijst opnieuw hashen.
+# Uitvoer: pad <tab> grootte <tab> tijd <tab> sha256; grootte en tijd zoals in de lijst, zodat een
+# uitkomst die inmiddels verouderd is (bestand sindsdien gewijzigd) herkend wordt.
+if [ "${1-}" = "--fim-rehash" ] && [ -r "${2-}" ]; then
+    while IFS=$'\t' read -r p s t _; do
+        [ "$s" -le 104857600 ] 2>/dev/null || continue
+        h=$(sha256sum -- "$p" 2>/dev/null) || continue
+        printf '%s\t%s\t%s\t%s\n' "$p" "$s" "$t" "${h%% *}"
+    done <"$2"
     exit 0
 fi
 
@@ -889,7 +900,9 @@ fi
 #  - SUID-bestanden (elk uur) en pakketcontrole rpm -Va / debsums (dagelijks), op de achtergrond
 #  - blokkeren: bij "block" de IP's uit RzMon in een eigen nftables-tabel "inet rzmon" (los van firewalld);
 #    bij "learn" of IDS uit wordt die tabel weer verwijderd
+#  - bestanden bewaken: hash, grootte, rechten en eigenaar van de paden uit RzMon (alleen wat veranderd is)
 ids_json=""
+fim_commit=""
 ids_mode=""
 [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && ids_mode=$(awk -F'\t' '$1 == "0" && $2 == "ids" { print $3; exit }' "$t_cache")
 ids_bg() {  # ids_bg <naam> <max. leeftijd in s> <commando>: op de achtergrond uitvoeren, uitvoer in $i_dir/<naam>
@@ -983,6 +996,84 @@ if [ -n "$ids_mode" ]; then
                 if (names != "") print names "\t" pid "\t" $3 "\t" $4 }' | head -n 200)
     fi
     ids_json="\"ids\":{\"mode\":\"$ids_mode\",\"files\":{${files_json%,}},\"users\":[${users_json%,}],\"modules\":[${mods_json%,}]${suid_part}${pkg_part},\"pkg\":$pkg_t,\"procs\":[${procs_json%,}],\"conns\":[${conns_json%,}],"
+
+    # 8. Bestanden bewaken (regel "0 <tab> fim <tab> base64" met e <tab> epoch, p <tab> ernst <tab> pad, x <tab> uitsluiten).
+    #    Elke run een snelle controle (grootte, tijd, rechten, eigenaar); alleen bij een verschil een nieuwe hash.
+    #    Eén keer per dag op de achtergrond alles opnieuw hashen, voor wie de tijd van een bestand terugzet.
+    #    Alleen wijzigingen gaan mee; de nieuwe stand wordt pas bewaard als RzMon het rapport heeft aangenomen.
+    fim_dir="$i_dir/fim"
+    fimc=""   # voorstellen voor "＋ Aanbevolen" in RzMon: gangbare mappen die hier bestaan en niet leeg zijn
+    for d in /usr/local/bin /usr/local/sbin /opt /etc/nginx /etc/httpd /etc/apache2 /etc/caddy /etc/haproxy /etc/postfix /var/www /srv/www /srv/http; do
+        [ -d "$d" ] && [ -n "$(ls -A "$d" 2>/dev/null | head -n 1)" ] && fimc+="\"$d\","
+    done
+    ids_json+="\"fimc\":[${fimc%,}],"
+    fim_b64=$(awk -F'\t' '$1 == "0" && $2 == "fim" { print $3; exit }' "$t_cache")
+    if [ -n "$fim_b64" ] && fim_cfg=$(printf '%s' "$fim_b64" | base64 -d 2>/dev/null) && mkdir -p "$fim_dir" 2>/dev/null; then
+        chmod 700 "$fim_dir"
+        fim_epoch=$(awk -F'\t' '$1 == "e" { print $2; exit }' <<<"$fim_cfg")
+        fim_x=()   # uitsluiten: *.log (naam), cache/ (map), /pad/* (pad)
+        while IFS=$'\t' read -r k a; do
+            [ "$k" = x ] && [ -n "$a" ] || continue
+            case "$a" in */) fim_x+=(! -path "*/${a%/}/*") ;; */*) fim_x+=(! -path "$a") ;; *) fim_x+=(! -name "$a") ;; esac
+        done <<<"$fim_cfg"
+        # Lijst: pad, grootte, tijd, rechten, eigenaar, ernst, bewaakt pad (max. 10.000 bestanden; per pad telt de eerste)
+        while IFS=$'\t' read -r k sev root; do
+            [ "$k" = p ] || continue
+            fmt="%p\t%s\t%T@\t%m\t%u:%g\t$sev\t${root//%/%%}\n"
+            base=${root%%[*?[]*}
+            if [ "$base" != "$root" ]; then
+                # Met jokertekens: zoeken vanaf de map vóór het eerste jokerteken; ** = elke diepte
+                base=${base%/*}
+                find "${base:-/}" -xdev -type f -path "${root//\*\*\//*}" "${fim_x[@]}" -printf "$fmt" 2>/dev/null
+            elif [ -d "$root" ]; then
+                find "$root" -xdev -type f "${fim_x[@]}" -printf "$fmt" 2>/dev/null
+            elif [ -f "$root" ]; then
+                find "$root" -maxdepth 0 -type f -printf "$fmt" 2>/dev/null
+            fi
+        done <<<"$fim_cfg" | awk -F'\t' 'NF == 7 && !seen[$1]++' | head -n 10000 >"$fim_dir/list"
+        # Vorige stand: niet bij de eerste keer of na een nieuwe basismeting in RzMon (andere epoch): dan alles sturen
+        fim_full=1; fim_old=/dev/null; fim_oldroots=/dev/null
+        if [ -f "$fim_dir/state" ] && [ "$(cat "$fim_dir/meta" 2>/dev/null)" = "$fim_epoch" ]; then
+            fim_full=0; fim_old="$fim_dir/state"; fim_oldroots="$fim_dir/roots"
+        fi
+        fim_rh=/dev/null
+        [ -f "$i_dir/rehash" ] && [ "$i_dir/rehash" -nt "$i_dir/rehash.used" ] && fim_rh="$i_dir/rehash"
+        # Hash overnemen als grootte en tijd niet veranderd zijn (of uit de dagelijkse controle); anders "?" = opnieuw hashen
+        awk -F'\t' -v OFS='\t' -v big=104857600 '
+            FILENAME == ARGV[1] { rs[$1] = $2 "|" $3; rh[$1] = $4; next }
+            FILENAME == ARGV[2] { os[$1] = $2 "|" $3; oh[$1] = $6; next }
+            { h = "?"
+              if ($2 + 0 > big) h = "m" int($3)
+              else if (($1 in rs) && rs[$1] == $2 "|" $3) h = rh[$1]
+              else if (($1 in os) && os[$1] == $2 "|" $3) h = oh[$1]
+              print $1, $2, $3, $4, $5, h, $6, $7 }' "$fim_rh" "$fim_old" "$fim_dir/list" >"$fim_dir/new0"
+        awk -F'\t' '$6 == "?" { print $1 }' "$fim_dir/new0" | tr '\n' '\0' | nice -n 19 xargs -0 -r sha256sum -- 2>/dev/null >"$fim_dir/hashes"
+        awk -F'\t' -v OFS='\t' 'FILENAME == ARGV[1] { nh[substr($0, 67)] = substr($0, 1, 64); next }
+            $6 == "?" { if (!($1 in nh)) next; $6 = nh[$1] } { print }' "$fim_dir/hashes" "$fim_dir/new0" >"$fim_dir/state.new"
+        # Wat RzMon moet weten: c = nieuw/gewijzigd, b = onder een nieuw bewaakt pad (basismeting), d = weg, u = niet meer bewaakt
+        fim_json=$(awk -F'\t' -v full="$fim_full" '
+            function j(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return "\"" s "\"" }
+            FILENAME == ARGV[1] { if ($1 == "p") cur[$3] = 1; next }
+            FILENAME == ARGV[2] { oldroot[$0] = 1; next }
+            FILENAME == ARGV[3] { old[$1] = $2 "|" $4 "|" $5 "|" $6; osev[$1] = $7; oroot[$1] = $8; next }
+            { seen[$1] = 1
+              e = "[" j($1) "," ($2 + 0) "," j($4) "," j($5) "," j($6) "," ($7 + 0) "," j($8) "]"
+              if (full) c = c e ","
+              else if (!($8 in oldroot)) b = b e ","
+              else if (!(($1 in old) && old[$1] == $2 "|" $4 "|" $5 "|" $6)) c = c e "," }
+            END { for (p in old) if (!(p in seen)) { if (oroot[p] in cur) d = d "[" j(p) "," (osev[p] + 0) "," j(oroot[p]) "],"; else u = u j(p) "," }
+                  sub(/,$/, "", c); sub(/,$/, "", b); sub(/,$/, "", d); sub(/,$/, "", u)
+                  printf "\"full\":%d,\"c\":[%s],\"b\":[%s],\"d\":[%s],\"u\":[%s]", full, c, b, d, u }' \
+            <(printf '%s\n' "$fim_cfg") "$fim_oldroots" "$fim_old" "$fim_dir/state.new")
+        ids_json+="\"fim\":{\"n\":$(wc -l <"$fim_dir/state.new"),$fim_json},"
+        printf '%s\n' "$fim_epoch" >"$fim_dir/meta.new"
+        awk -F'\t' '$1 == "p" { print $3 }' <<<"$fim_cfg" >"$fim_dir/roots.new"
+        fim_commit=1
+        # Dagelijks: alles opnieuw hashen, op de achtergrond
+        [ -f "$fim_dir/state" ] && ids_bg rehash 86400 "bash $(printf '%q' "$(readlink -f "$0")") --fim-rehash $(printf '%q' "$fim_dir/state")"
+    else
+        rm -rf "$fim_dir"   # niets (meer) te bewaken
+    fi
 fi
 
 # Blokkeren: eigen nftables-tabel "inet rzmon" met de IP's uit RzMon (alleen in de modus blokkeren)
@@ -1389,6 +1480,11 @@ printf '%s\n' "$resp"
 if [ "$rc" -eq 0 ]; then
     # Uitkomst is doorgegeven; vraagt RzMon om bij te werken?
     [ -n "$upd_result" ] && rm -f "$upd_dir/update.result"
+    # IDS, bestanden bewaken: RzMon heeft de wijzigingen; dit is nu de stand om mee te vergelijken
+    if [ -n "$fim_commit" ]; then
+        mv -f "$fim_dir/state.new" "$fim_dir/state" && mv -f "$fim_dir/meta.new" "$fim_dir/meta" && mv -f "$fim_dir/roots.new" "$fim_dir/roots"
+        [ "$fim_rh" != /dev/null ] && touch "$i_dir/rehash.used"
+    fi
     # Instellingen in RzMon gewijzigd (bv. een service-check toegevoegd)? Lijst bij de volgende run opnieuw ophalen.
     rev=$(sed -n 's/.*"tests_rev":[[:space:]]*"\([0-9a-f]\{8,64\}\)".*/\1/p' <<<"$resp")
     if [ -n "$rev" ] && [ -n "${t_cache-}" ] && [ -r "$t_cache" ] && [ "$(sha1sum "$t_cache" | cut -c1-12)" != "$rev" ]; then

@@ -7,6 +7,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.40.0 – 2026-10-21
+### Nieuw
+- **📁 Bestanden bewaken (IDS).** Onder *Instellingen → 🛡️ IDS* geef je paden op met een ernst (🟠 warning of 🔴 critical), bv. `/usr/local/bin`, `/etc/nginx` of `/var/www/**/*.php`. Per server voeg je er paden aan toe via *✎ Bewerken*.
+- De agent houdt per bestand de SHA-256-hash, grootte, rechten en eigenaar bij (nooit de inhoud). Hij meldt nieuwe, gewijzigde en verwijderde bestanden, en gewijzigde rechten. Komt er SUID of SGID bij, dan is het altijd 🔴.
+- Elke minuut een snelle controle; een volledige hash alleen bij een verschil, en dagelijks van alles op de achtergrond.
+- Meer dan 10 wijzigingen onder één pad tegelijk (bv. een website-update) worden één incident met de lijst.
+- Op de pagina IDS: **✔ Wijziging goedkeuren** / **✔ Alles goedkeuren** en **🚫 Niet meer bewaken**. Bij de server staat hoeveel bestanden er bewaakt worden.
+- **＋ Aanbevolen**: RzMon stelt paden voor die de agent op je servers heeft gevonden.
+- Uitsluiten van bijvoorbeeld `*.log` en `cache/`. Grenzen: 20 paden (algemeen en per server), 10.000 bestanden per server; bestanden boven 100 MB alleen op grootte en tijd.
+- Agent 1.40.0 nodig; werkt op Linux en TrueNAS SCALE, niet in de Home Assistant-add-on.
+
+### Opgelost
+- Handleiding en overzicht: blokkeren bij herhaling is **7 dagen** (als het IP de afgelopen 30 dagen al eens geblokkeerd was), niet permanent. Permanent blokkeren gaat met de hand.
+
 ## 1.39.0 – 2026-10-21
 ### Nieuw
 - **Checks onder een server in groepen**, in Blox en L1nes: eerst **📊 Systeem** (CPU, RAM, disks), dan **🌐 Bereikbaarheid**, **⚙️ Services**, **📦 Containers**, **🖥️ Commando's**, **📜 Logbestanden**, **🔒 Certificaten** en **🏠 Home Assistant**.

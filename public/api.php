@@ -657,6 +657,11 @@ switch ($action) {
         if ($mode === 'agent') {
             q('UPDATE hosts SET agent_token = COALESCE(agent_token, ?) WHERE id = ?', [bin2hex(random_bytes(20)), $id]);
         }
+        // IDS: extra bestanden bewaken op deze server
+        if (array_key_exists('ids_fim', $in)) {
+            $fimOwn = Ids::cleanFim($in['ids_fim']);
+            q('UPDATE hosts SET ids_fim = ? WHERE id = ?', [$fimOwn ? json_encode($fimOwn, JSON_UNESCAPED_SLASHES) : null, $id]);
+        }
         out(['ok' => true, 'id' => $id]);
 
     case 'agent_services':
@@ -963,7 +968,7 @@ switch ($action) {
     case 'settings_save':
         $in = input();
         $allowed = ['pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_allow',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_allow', 'ids_fim', 'ids_fim_exclude',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -996,6 +1001,12 @@ switch ($action) {
             if (isset($in[$k])) {
                 $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
             }
+        }
+        if (isset($in['ids_fim'])) {
+            $in['ids_fim'] = json_encode(Ids::cleanFim(is_array($in['ids_fim']) ? $in['ids_fim'] : json_decode((string) $in['ids_fim'], true)), JSON_UNESCAPED_SLASHES);
+        }
+        if (isset($in['ids_fim_exclude'])) {
+            $in['ids_fim_exclude'] = Ids::cleanFimExclude((string) $in['ids_fim_exclude']);
         }
         if (isset($in['ids_allow'])) {
             $in['ids_allow'] = implode(' ', array_slice(array_filter(parse_list(mb_substr((string) $in['ids_allow'], 0, 2000)),
@@ -1372,7 +1383,7 @@ switch ($action) {
     // ---------------------------------------------------------- IDS
     case 'ids':
         $days = Monitor::alertDays();
-        $hosts = q("SELECT h.id, h.name, h.agent_seen, h.agent_update_via = 'ha' AS ha, s.baseline_until, s.fw_state, s.fw_error, s.last_report
+        $hosts = q("SELECT h.id, h.name, h.agent_seen, h.agent_update_via = 'ha' AS ha, h.ids_fim, s.fim_count, s.fim_cand, s.baseline_until, s.fw_state, s.fw_error, s.last_report
                     FROM hosts h LEFT JOIN ids_state s ON s.host_id = h.id WHERE h.mode = 'agent' AND h.enabled = 1 ORDER BY h.name")->fetchAll();
         $open = q("SELECT host_id, severity, COUNT(*) AS n FROM ids_incidents WHERE status = 'open' GROUP BY host_id, severity")->fetchAll();
         $blocks = Ids::activeBlocks();
@@ -1390,6 +1401,7 @@ switch ($action) {
         unset($h);
         out([
             'enabled' => Ids::enabled(), 'mode' => (string) setting('ids_mode', 'learn'), 'today' => date('Y-m-d'), 'days' => $days,
+            'fim' => Ids::cleanFim(json_decode((string) setting('ids_fim', '[]'), true)),
             'hosts' => $hosts,
             'incidents' => q('SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
                               WHERE i.created_at >= CURDATE() - INTERVAL ? DAY ORDER BY i.created_at DESC, i.id DESC LIMIT 5000', [$days - 1])->fetchAll(),

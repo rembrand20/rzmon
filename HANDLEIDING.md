@@ -1177,7 +1177,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 **Blokkeren**
 - De agent gebruikt een **eigen nftables-tabel** (`inet rzmon`), naast firewalld of je eigen regels. Je bestaande firewall wordt niet aangepast. Bekijken op de server: `nft list table inet rzmon`.
 - Er wordt alleen geblokkeerd **op de server die aangevallen wordt**.
-- **Automatisch** bij brute force: **24 uur**; komt hetzelfde IP binnen **7 dagen** terug, dan **permanent**. Beide in te stellen.
+- **Automatisch** bij brute force: **24 uur** (*Blokkeren (uren)*). Was hetzelfde IP de afgelopen **30 dagen** al eens geblokkeerd, dan **7 dagen** (*Bij herhaling (dagen)*). Permanent blokkeren gaat alleen met de hand.
 - **Handmatig** met **⛔ Blokkeer IP** bij een incident of een regel in *Toegang*, of met de knop **⛔ IP blokkeren** bovenaan de pagina IDS (vul zelf een IP-adres in): 24 uur, 7 dagen, 30 dagen of permanent.
 - **Nooit automatisch geblokkeerd:** je LAN (privé-adressen), RzMon zelf en de lijst *Nooit blokkeren*. Een LAN-adres kun je wel zelf blokkeren; je eigen IP-adres niet.
 - **🔓 Deblokkeren** in het blok *Blokkades*. De agent past het binnen een minuut aan. Eerdere blokkades staan onder *Eerder geblokkeerd*.
@@ -1185,6 +1185,40 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **Op een server nooit blokkeren:** zet `IDS_BLOCK=0` in `/etc/default/rzmon-agent`. Die server meldt dan wel, maar blokkeert niet.
 - Bovenaan de pagina IDS zie je per server of de firewall werkt: *✔ bewaakt · blokkeren actief*, *alleen melden*, *alleen detecteren* of een foutmelding.
 - **Docker en Podman:** verkeer naar containers met gepubliceerde poorten loopt via *forward*, niet via *input*. Een blokkade geldt dus voor de server zelf (SSH en diensten op de host), niet altijd voor containers.
+
+**📁 Bestanden bewaken**
+
+Naast de vaste gevoelige bestanden kun je zelf paden laten bewaken, bijvoorbeeld je eigen scripts, je webroot of configuratie. De agent houdt per bestand de **SHA-256-hash**, de **grootte**, de **rechten** en de **eigenaar** bij. De inhoud wordt nooit verstuurd, dus ook geen wachtwoorden uit configbestanden.
+
+- **Instellen:** *Instellingen → 🛡️ IDS → 📁 Bestanden bewaken*: een pad per regel, met de ernst 🟠 warning of 🔴 critical. Die lijst geldt voor alle servers. Per server voeg je er paden aan toe via *✎ Bewerken* van de server (*📁 Bestanden bewaken (IDS)*); hetzelfde pad daar gaat voor, bijvoorbeeld om de ernst te veranderen.
+- **Paden:**
+  - een map, bv. `/usr/local/bin`, wordt helemaal doorzocht, ook de submappen;
+  - een bestand, bv. `/etc/nginx/nginx.conf`;
+  - jokertekens: `*` en `**` (elke diepte), bv. `/var/www/**/*.php`.
+  - Niet toegestaan: `/` zelf, `/proc`, `/sys`, `/dev` en `/run`. Het veld wordt dan rood.
+- **＋ Aanbevolen:** de agents melden welke gangbare mappen er op de server staan (`/usr/local/bin`, `/opt`, `/etc/nginx`, `/var/www`…). Je vinkt aan wat je wilt bewaken; bij een webroot wordt dat `…/**/*.php` als 🔴, om webshells te vangen.
+- **Uitsluiten:** namen (`*.log`), mappen (`cache/`) of paden, gescheiden door spaties. Standaard: `*.log *.tmp *.swp *.pid cache/ sessions/`.
+- **Grenzen:** maximaal 20 paden in de algemene lijst (en 20 per server) en 10.000 bestanden per server. Bestanden groter dan 100 MB krijgen geen hash; daarvan worden alleen de grootte en de tijd gecontroleerd.
+
+**Hoe vaak:** elke minuut een snelle controle op grootte, tijd, rechten en eigenaar. Alleen bij een verschil maakt de agent een nieuwe hash. Daarnaast hasht hij één keer per dag op de achtergrond alles opnieuw. Zo vangt hij ook een bestand waarvan iemand de inhoud heeft veranderd en de tijd heeft teruggezet.
+
+**Wat er gemeld wordt:**
+
+| Wijziging | Ernst |
+|---|---|
+| Nieuw bestand | die van het pad |
+| Inhoud gewijzigd (oude en nieuwe hash, grootte) | die van het pad |
+| Verwijderd | die van het pad |
+| Rechten of eigenaar gewijzigd | die van het pad; 🔴 als er SUID of SGID bij kwam (bv. `0755 → 4755`) |
+| Meer dan 10 wijzigingen onder één pad tegelijk | één incident *"23 bestanden gewijzigd in …"* met de lijst |
+
+- **✔ Wijziging goedkeuren** (of **✔ Alles goedkeuren** bij een bundel): de nieuwe stand is de norm. Verandert het bestand daarna weer, dan komt er een nieuw incident.
+- **🚫 Niet meer bewaken:** dit bestand voortaan overslaan. Bij een bundel: alle wijzigingen onder dat pad.
+- **Basismeting:** de eerste keer, en bij een nieuw toegevoegd pad, wordt alles stil vastgelegd. **↺ basismeting opnieuw** legt ook de bewaakte bestanden opnieuw vast.
+- Pakketupdates worden hier niet overgeslagen: in je eigen paden komen ze meestal niet.
+- Bovenaan de pagina IDS staat per server hoeveel bestanden er bewaakt worden (*📁 18 bestanden bewaakt*).
+- **Betrouwbaar:** de agent onthoudt de nieuwe stand pas als RzMon het rapport heeft ontvangen. Mislukt een rapport, dan komt de wijziging bij het volgende rapport alsnog binnen.
+- Werkt op Linux-servers en TrueNAS SCALE met agent **1.40.0** of nieuwer, niet in de Home Assistant-add-on.
 
 **Goed om te weten**
 - Werkt op Linux-servers met agent **1.35.0** of nieuwer. Werk de agents bij met de knop in de Agent Manager.

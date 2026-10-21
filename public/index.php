@@ -401,6 +401,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
           <label>Nooit blokkeren <span class="muted small">(IP-adressen of netwerken; je LAN en RzMon zelf worden nooit automatisch geblokkeerd)</span>
             <textarea name="ids_allow" rows="2" placeholder="bv. 203.0.113.10 198.51.100.0/24"></textarea></label>
+          <h3 class="set-sub">📁 Bestanden bewaken</h3>
+          <p class="muted small" style="margin-top:-.2rem">De agent houdt van deze paden de SHA-256-hash, grootte, rechten en eigenaar bij en meldt nieuwe, gewijzigde en verwijderde bestanden (nooit de inhoud). Mappen worden helemaal doorzocht; met jokertekens kies je bestanden, bv. <code>/var/www/**/*.php</code>. Geldt voor alle servers; per server voeg je er paden aan toe via <i>✎ Bewerken</i>. Maximaal 20 paden en 10.000 bestanden per server.</p>
+          <div id="fim-editor"></div>
+          <input type="hidden" name="ids_fim">
+          <label>Uitsluiten <span class="muted small">(namen als <code>*.log</code>, mappen als <code>cache/</code>, of paden; gescheiden door spaties)</span>
+            <input name="ids_fim_exclude" class="mono" placeholder="*.log *.tmp cache/"></label>
           <h3 class="set-sub">🔑 Toegang</h3>
           <label class="switch"><input type="checkbox" name="auth_events"><span></span> Toegang bijhouden: logins, <code>sudo</code> en <code>su</code></label>
           <p class="muted small" style="margin-top:-.4rem">Via de agent: inloggen via SSH en de console, <code>sudo</code> en <code>su</code>, ook mislukte pogingen (per IP-adres per uur opgeteld). Op de pagina <i>🛡️ IDS → Toegang</i>; er gaat geen melding uit. Werkt ook als het IDS uit staat. Op een server zelf uit te zetten met <code>AUTH_EVENTS=0</code>.</p>

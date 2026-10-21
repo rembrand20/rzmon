@@ -89,6 +89,11 @@ final class Installer
         // Omgekeerde status: slaagt de check, dan deze status (NULL = normaal); mislukt hij, dan reverse_fail
         ['checks', 'reverse_ok', 'TINYINT NULL'],
         ['checks', 'reverse_fail', 'TINYINT NULL'],
+        // IDS: bestanden bewaken (extra paden per server, JSON) en wat de agent daarvan meldt
+        ['hosts', 'ids_fim', 'TEXT NULL'],
+        ['ids_state', 'fim_epoch', 'INT UNSIGNED NULL'],     // verandert bij een nieuwe basismeting: agent stuurt dan alles opnieuw
+        ['ids_state', 'fim_count', 'INT UNSIGNED NULL'],
+        ['ids_state', 'fim_cand', 'VARCHAR(1000) NULL'],     // voorstellen die op de server bestaan (/usr/local/bin, /var/www…)
         ['users', 'email', 'VARCHAR(190) NULL'],         // voor "wachtwoord vergeten"
         ['users', 'pw_changed_at', 'DATETIME NULL'],     // sessies van vóór dit moment worden uitgelogd
         // Agent bijwerken vanuit RzMon: gevraagd (knop), naar de agent gestuurd, uitkomst, en hoe de agent dat kan

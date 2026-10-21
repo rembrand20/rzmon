@@ -805,3 +805,15 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .chk-group.closed > .checks, .cl-group.closed > .cl-group-body { display: none; }
 .check-lines .grp-head { padding: .35rem .6rem; border-radius: 8px; margin-top: .3rem; }
 .cl-group-body { display: flex; flex-direction: column; gap: .3rem; margin-top: .3rem; }
+
+/* IDS: bestanden bewaken */
+.fim-rows { display: grid; gap: .4rem; }
+.fim-row { display: grid; grid-template-columns: 1fr auto auto; gap: .4rem; align-items: center; }
+.fim-row input, .fim-row select { margin: 0; }
+.fim-tools { display: flex; gap: .4rem; margin: .5rem 0 .8rem; }
+.fim-empty { margin: 0; }
+.fim-dlg-body { padding: 1.2rem 1.2rem .4rem; max-height: 60vh; overflow: auto; }
+.fim-sug { display: flex; align-items: flex-start; gap: .6rem; margin: .5rem 0; }
+.fim-sug-t { flex: 1; line-height: 1.35; }
+.fim-row input:invalid { border-color: var(--crit); }
+.ids-item .msg { white-space: pre-line; overflow-wrap: anywhere; }
