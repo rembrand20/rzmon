@@ -2041,7 +2041,9 @@ function renderIds() {
   if (!d) return;
   $('#ids-status').innerHTML = !d.enabled ? '<b class="warn-txt">IDS staat uit.</b> Zet het aan onder <a href="#settings" data-goto="settings">Instellingen → 🛡️ IDS</a>.'
     : `Modus: <b>${d.mode === 'block' ? '⛔ blokkeren' : '🎓 leren (alleen melden)'}</b> · <a href="#settings" data-goto="settings">instellingen</a>`;
-  $('#ids-hosts').innerHTML = d.hosts.length ? d.hosts.map((h) => `
+  $('#ids-hosts').innerHTML = d.hosts.length ? d.hosts.map((h) => h.ha ? `
+    <div class="ids-host"><div><b>${esc(h.name)}</b></div>
+      <div class="small muted">niet beschikbaar in de Home Assistant-add-on: die draait in een container en ziet het systeem zelf niet</div></div>` : `
     <div class="ids-host">
       <div><b>${esc(h.name)}</b> <span class="muted small">${h.last_report ? 'IDS-rapport ' + ago(h.last_report) : d.enabled ? 'nog geen IDS-rapport (agent 1.35.0+)' : ''}</span></div>
       <div class="small">${!h.baseline_until ? '' : h.learning ? `📏 basismeting tot ${esc(fmtUntil(h.baseline_until))}` : '✔ bewaakt'}
@@ -2112,7 +2114,7 @@ function idsToggleLabel() {
 }
 
 function idsBlockDialog(ip = '', hostId = '') {
-  const hosts = (idsData && idsData.hosts) || [];
+  const hosts = ((idsData && idsData.hosts) || []).filter((h) => !h.ha);
   modal({
     title: '⛔ IP blokkeren',
     body: `<label>IP-adres<input name="ip" class="mono" value="${esc(ip)}" required placeholder="bv. 203.0.113.9"></label>

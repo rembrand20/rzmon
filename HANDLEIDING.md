@@ -1147,7 +1147,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 **Goed om te weten**
 - Werkt op Linux-servers met agent **1.35.0** of nieuwer. Werk de agents bij met de knop in de Agent Manager.
 - **TrueNAS SCALE: alleen detecteren.** De firewall hoort daar bij TrueNAS zelf; de agent blokkeert er niets.
-- **Niet in de Home Assistant-add-on.**
+- **Niet in de Home Assistant-add-on.** Die draait in een container en ziet de gebruikers, bestanden, processen en firewall van Home Assistant OS zelf niet. Voor Home Assistant: zet `ip_ban_enabled: true` en `login_attempts_threshold` onder `http:` in `configuration.yaml`, en gebruik tweestapsverificatie.
 - De SUID-zoektocht draait één keer per uur en de pakketcontrole één keer per dag, op de achtergrond en met lage prioriteit. Container-opslag (`/var/lib/docker`, `/var/lib/containers`) wordt overgeslagen.
 - Het IDS gebruikt de logins uit [8.11](#811-logins-en-sudo-) (journal of `/var/log/secure`). Dat werkt ook als *Logins en sudo tonen* uit staat.
 - Incidenten worden net zo lang bewaard als de meldingen (*Meldingen bewaren (dagen)*).

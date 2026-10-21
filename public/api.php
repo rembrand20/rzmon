@@ -1343,7 +1343,7 @@ switch ($action) {
     // ---------------------------------------------------------- IDS
     case 'ids':
         $days = Monitor::alertDays();
-        $hosts = q("SELECT h.id, h.name, h.agent_seen, s.baseline_until, s.fw_state, s.fw_error, s.last_report
+        $hosts = q("SELECT h.id, h.name, h.agent_seen, h.agent_update_via = 'ha' AS ha, s.baseline_until, s.fw_state, s.fw_error, s.last_report
                     FROM hosts h LEFT JOIN ids_state s ON s.host_id = h.id WHERE h.mode = 'agent' AND h.enabled = 1 ORDER BY h.name")->fetchAll();
         $open = q("SELECT host_id, severity, COUNT(*) AS n FROM ids_incidents WHERE status = 'open' GROUP BY host_id, severity")->fetchAll();
         $blocks = Ids::activeBlocks();
@@ -1355,6 +1355,7 @@ switch ($action) {
                 }
             }
             $h['blocks'] = count(array_filter($blocks, fn($b) => (int) $b['host_id'] === (int) $h['id']));
+            $h['ha'] = (bool) $h['ha'];   // Home Assistant-add-on: geen IDS mogelijk (container)
             $h['learning'] = $h['baseline_until'] !== null && strtotime($h['baseline_until']) > time();
         }
         unset($h);
