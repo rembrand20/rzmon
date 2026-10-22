@@ -1273,8 +1273,21 @@ Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De 
 | Home Assistant → **Laatste back-up** | Dagen sinds de laatste geslaagde automatische back-up (standaard warning 2, critical 7); ook WARNING als de laatste poging mislukt is. Nodig: HA 2025.2+ met automatische back-ups (*Instellingen → Systeem → Back-ups*) |
 | Home Assistant → **Integraties** | Aantal integraties dat niet geladen is (fout bij instellen, opnieuw proberen, uitladen mislukt), met de namen in het bericht. Uitgeschakelde integraties tellen niet mee |
 | Home Assistant → **Systeemstatus** | Reparaties van de Supervisor: *niet gezond* = CRITICAL; *niet ondersteund* of een melding (bv. weinig vrije ruimte) = WARNING |
+| Home Assistant → **Onverwachte herstart (HA OS)** | **CRITICAL met een melding** als Home Assistant OS opnieuw is opgestart zonder OS-update (stroomuitval, crash of een handmatige herstart). Blijft een uur CRITICAL, daarna vanzelf OK. Een herstart door een OS-update staat er alleen bij (*16.2 → 16.3*) |
+| Home Assistant → **Levensduur SD-kaart / eMMC** | Hoeveel procent van de opslag versleten is (standaard warning 75 %, critical 90 %). Alleen als je hardware dat meldt (eMMC zoals in de Green/Yellow/ODROID, sommige SD-kaarten en SSD's); anders ONBEKEND |
+| Home Assistant → **OS-update mislukt** | CRITICAL als een OS-update niet wilde opstarten en HA OS is teruggevallen op de vorige versie (A/B-bootslots). Oudere HA OS-versies melden geen bootslots; een mislukte update staat dan bij *Systeemstatus* |
+| Home Assistant → **USB-apparaat aanwezig** | Kies een apparaat (Zigbee- of Z-Wave-stick, Bluetooth) uit de lijst; is het weg, dan CRITICAL |
+| **Containers** (📦) | Core, Supervisor, de plugins (DNS, Audio, CLI, Multicast, Observer) en elke add-on, met CPU en RAM. Zelfde check als bij Podman: status (gestopt met een fout = CRITICAL, net herstart door de watchdog = WARNING) en naar keuze CPU en RAM met drempels. Overzicht via de knop **📦 Containers** bij de server |
+| Service `plugin:<naam>` | Draait een plugin van de Supervisor (`dns`, `audio`, `cli`, `multicast`, `observer`)? Plugin-updates staan ook bij `updates` |
+| **Logbestand** (zoeken) | Bronnen `ha:host` (systeemlog van HA OS), `ha:core`, `ha:supervisor` en `ha:addon:<slug>`, met voorinstellingen voor te lage voeding (Raspberry Pi), diskfouten en fouten in Core of de Supervisor |
 
-De Home Assistant-checks voeg je toe met **＋ Check → Home Assistant** en dan bij *Bewaken* wat je wilt. Services (Core, Supervisor, add-ons, Updates) kies je bij **＋ Check → Service** uit een lijst. De add-on haalt back-up, integraties en systeemstatus elke 5 minuten op, en leest alleen: hij heeft geen extra rechten nodig. Geeft je Home Assistant iets niet vrij, dan staat de check op ONBEKEND met de reden erbij.
+De Home Assistant-checks voeg je toe met **＋ Check → Home Assistant** en dan bij *Bewaken* wat je wilt. Services (Core, Supervisor, add-ons, plugins, Updates) kies je bij **＋ Check → Service** uit een lijst. Het snelst: *Agent Manager* → **＋ Aanbevolen checks**; dat stelt de checks hierboven voor, plus je USB-sticks en de belangrijkste containers en logs.
+
+De add-on haalt back-up, integraties en systeemstatus elke 5 minuten op, de rest elke tik. Hij leest alleen. Voor de statistieken per container, de logs en de USB-apparaten heeft hij vanaf 1.42.0 de Supervisor-rol **manager** nodig; Home Assistant toont dat bij de add-on. Geeft je Home Assistant iets niet vrij, dan staat de check op ONBEKEND met de reden erbij.
+
+**Herstarts van containers:** de Supervisor meldt geen herstarttellers. De add-on ziet een herstart aan de *watchdog* in het Supervisor-log (*"Watchdog found addon … is failed, restarting"*) en aan een container die tussen twee rapporten opnieuw is gestart. Een add-on die je zelf start of herstart, telt niet als automatische herstart.
+
+> Nog niet op een echte Home Assistant getest, alleen met een nagebootste Supervisor. Zie je iets vreemds (bijvoorbeeld een herstart die niet klopt), laat het dan weten.
 
 ### Installeren
 1. **RzMon:** **＋ Server** → naam "Home Assistant", adres = IP van HA, type **Remote met agent**. Kopieer het token via *Agent Manager*, tabblad **🏠 Home Assistant OS**.
@@ -1287,7 +1300,6 @@ De Home Assistant-checks voeg je toe met **＋ Check → Home Assistant** en dan
    ```yaml
    monitor_url: http://192.168.1.10
    token: <token uit RzMon>
-   interval: 60
    verify_ssl: true
    certs:                        # vervaldatum bewaken (optioneel)
      - /ssl/fullchain.pem        # Let's Encrypt- of DuckDNS-add-on
@@ -1304,7 +1316,7 @@ De Home Assistant-checks voeg je toe met **＋ Check → Home Assistant** en dan
 
 ### Goed om te weten
 - **Waarom een aparte monitor:** valt Home Assistant helemaal uit, dan stopt de agent ook. RzMon merkt dat binnen een paar minuten en stuurt een Pushover-bericht. Dat werkt dus ook als HA zelf geen meldingen meer kan sturen.
-- **Rechten:** de add-on kan alleen lezen. Hij gebruikt de Supervisor-rol `default` en het host-netwerk, en kan niets veranderen aan je installatie.
+- **Rechten:** de add-on gebruikt alleen leesfuncties. Hij heeft de Supervisor-rol `manager` (voor statistieken, logs en hardware) en het host-netwerk, en verandert niets aan je installatie.
 - **Ondersteunde hardware:** `aarch64` (Raspberry Pi 4/5, Green, Yellow), `amd64` (NUC, mini-pc, VM) en `armv7`.
 - **Foutmeldingen in het logboek:**
   - `403` → het token klopt niet, of de server staat in RzMon niet op type *Remote met agent*.

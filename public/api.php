@@ -312,8 +312,16 @@ if ($action === 'agent') {
     }
     // Home Assistant-add-on: laatste back-up, integraties en systeemstatus
     foreach ((array) ($in['ha'] ?? []) as $k => $v) {
-        if (in_array($k, ['backup', 'integrations', 'repairs'], true) && is_array($v)) {
+        if (in_array($k, ['backup', 'integrations', 'repairs', 'os'], true) && is_array($v)) {
             $st->execute([$host['id'], "ha:$k", json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
+        }
+    }
+    // Home Assistant: USB-apparaten (Zigbee-/Z-Wave-sticks, Bluetooth), elk een eigen regel om te kiezen en te bewaken
+    foreach (array_slice((array) ($in['usb'] ?? []), 0, 50) as $u) {
+        $uid = (string) ($u['id'] ?? '');
+        if (is_array($u) && preg_match('/^[A-Za-z0-9._:+@-]{1,150}$/', $uid)) {
+            $st->execute([$host['id'], 'usb:' . $uid, json_encode(['name' => mb_substr((string) ($u['name'] ?? ''), 0, 100),
+                'vendor' => mb_substr((string) ($u['vendor'] ?? ''), 0, 100), 'path' => mb_substr((string) ($u['path'] ?? ''), 0, 250)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
         }
     }
     // Overzicht van de services op de server (om bij "Check toevoegen" uit te kiezen): [naam, status, enabled]
@@ -837,8 +845,11 @@ switch ($action) {
         $metric = null;   // container: één check met status + gekozen resources (options.res)
         if ($type === 'ha') {
             $metric = (string) ($in['metric'] ?? '');
-            if (!in_array($metric, ['backup', 'integrations', 'repairs'], true)) {
+            if (!in_array($metric, ['backup', 'integrations', 'repairs', 'reboot', 'disklife', 'osupdate', 'usb'], true)) {
                 out(['error' => 'Kies wat je van Home Assistant wilt bewaken'], 422);
+            }
+            if ($metric === 'usb' && !preg_match('/^[A-Za-z0-9._:+@-]{1,150}$/', trim((string) ($in['target'] ?? '')))) {
+                out(['error' => 'Kies het USB-apparaat uit de lijst'], 422);
             }
         }
         $target = trim((string) ($in['target'] ?? ''));
@@ -904,8 +915,8 @@ switch ($action) {
         }
         if ($type === 'log') {
             // Bron: een logbestand (absoluut pad), het systemlog (journal), het log van één service, of kernelmeldingen
-            if (!preg_match('#^(/[A-Za-z0-9._/@+-]{1,250}|journal|journal:[A-Za-z0-9@._:-]{1,100}|kernel)$#', $target)) {
-                out(['error' => 'Bron: geef een logbestand (bv. /var/log/secure), "journal", "journal:sshd" of "kernel"'], 422);
+            if (!preg_match('#^(/[A-Za-z0-9._/@+-]{1,250}|journal|journal:[A-Za-z0-9@._:-]{1,100}|kernel|ha:(host|core|supervisor|addon:[a-z0-9_]{1,100}))$#', $target)) {
+                out(['error' => 'Bron: geef een logbestand (bv. /var/log/secure), "journal", "journal:sshd" of "kernel"; bij Home Assistant "ha:host", "ha:core", "ha:supervisor" of "ha:addon:<slug>"'], 422);
             }
             $pattern = trim((string) ($in['pattern'] ?? ''));
             if ($pattern === '' || mb_strlen($pattern) > 300) {
@@ -945,7 +956,8 @@ switch ($action) {
         }
         $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
             'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando',
-            'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
+            'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',
+                'disklife' => 'SD-kaart/eMMC', 'osupdate' => 'HA OS-update', 'usb' => 'USB'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
         // Eigen meldregels voor deze check (null = de algemene uit Instellingen → Alarmgedrag)
         $notify = null;
         if (is_array($in['notify'] ?? null)) {

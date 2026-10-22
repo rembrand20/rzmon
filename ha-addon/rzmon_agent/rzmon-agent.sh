@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.41.0"
+AGENT_VERSION="1.42.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -226,7 +226,7 @@ sv() { curl -fsS -m 10 -H "Authorization: Bearer $SUPERVISOR_TOKEN" "$SUPERVISOR
 # (tests_rev in het antwoord). Commando's van RzMon worden alleen uitgevoerd bij commando-checks, als RzMon
 # ze voor deze server toestaat en COMMANDS (hierboven) dat niet blokkeert; zie "Commando-checks" verderop.
 t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
-[ "$HA_MODE" = 1 ] && t_dir=/data/rzmon-cache   # add-on: /data blijft bewaard
+[ "$HA_MODE" = 1 ] && t_dir="${CACHE_DIRECTORY:-/data/rzmon-cache}"   # add-on: /data blijft bewaard
 mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
 t_cache="$t_dir/tests.cache"
 if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
@@ -380,12 +380,24 @@ if [ "$HA_MODE" = 1 ]; then
             <<<"$addons" | tr -d '\n')
     fi
 
-    # Beschikbare updates (Core, Supervisor, OS en add-ons) → WARNING in RzMon
+    # Plugins van de Supervisor (DNS, Audio, CLI, Multicast, Observer): draaien ze (statistieken beschikbaar)
+    # en is er een update. De statistieken worden hieronder ook voor de containers gebruikt.
+    declare -A pl_stats=()
+    plugin_upd=""
+    for p in dns audio cli multicast observer; do
+        p_info=$(sv "/$p/info") || continue
+        pl_stats[$p]=$(sv "/$p/stats" | jq -c '.data // empty' 2>/dev/null)
+        services+="\"plugin:$p\":\"$([ -n "${pl_stats[$p]}" ] && echo active || echo failed)\","
+        jq -e '.data.update_available == true' <<<"$p_info" >/dev/null 2>&1 && plugin_upd+=" Plugin-$p"
+    done
+
+    # Beschikbare updates (Core, Supervisor, OS, plugins en add-ons) → WARNING in RzMon
     updates=$( {
         sv /core/info | jq -r 'select(.data.update_available) | "Core \(.data.version_latest)"'
         jq -r 'select(.data.update_available) | "Supervisor"' <<<"$sup_info"
         sv /os/info | jq -r 'select(.data.update_available) | "OS \(.data.version_latest)"'
         [ -n "$addons" ] && jq -r '.data.addons[] | select(.update_available) | .name' <<<"$addons"
+        for p in $plugin_upd; do echo "$p"; done
     } 2>/dev/null | paste -sd, - | sed 's/,/, /g')
     if [ -n "$updates" ]; then
         services+="\"updates\":\"$(json_escape "update-available: $updates")\","
@@ -467,6 +479,97 @@ if [ "$HA_MODE" = 1 ]; then
         ha_json="{\"backup\":${ha_backup:-null},\"integrations\":${ha_integr:-null},\"repairs\":${ha_repair:-null}}"
         (umask 077; printf '%s' "$ha_json" >"$ha_cache") 2>/dev/null || true
     fi
+fi
+
+# Nieuwe logregels van de Supervisor sinds de vorige keer (/host/logs, /core/logs, /supervisor/logs, /addons/<slug>/logs).
+# Hooguit de laatste 500; de eerste keer alleen vastleggen waar we zijn. Kleurcodes eruit.
+ha_log_new() {  # ha_log_new <api-pad> <bestand met de laatst geziene regel>
+    local out last
+    out=$(curl -fsS -m 15 -H "Authorization: Bearer $SUPERVISOR_TOKEN" -H 'Accept: text/plain' -H 'Range: entries=:-499:' \
+        "$SUPERVISOR_URL$1" 2>/dev/null | tail -n 500 | sed 's/\x1b\[[0-9;]*m//g') || return 1
+    [ -n "$out" ] || return 0
+    last=$(cat "$2" 2>/dev/null)
+    tail -n 1 <<<"$out" >"$2"
+    [ -n "$last" ] || return 0
+    awk -v last="$last" '{ l[NR] = $0 } $0 == last { p = NR } END { for (i = p + 1; i <= NR; i++) print l[i] }' <<<"$out"
+}
+
+# ---------------------------------------------------------------- Home Assistant: OS en containers
+# OS: herstart (boot-tijd), levensduur van de SD-kaart/eMMC, de A/B-bootslots (mislukte OS-update) en USB-apparaten.
+# Containers: Core, Supervisor, plugins en add-ons met CPU en RAM (statistieken van de Supervisor), gemeld zoals
+# Podman-containers, zodat dezelfde checks en weergave werken. Herstarts: overgangen tussen twee rapporten en de
+# watchdog in het Supervisor-log. Alles alleen lezen; statistieken en logs vragen de rol "manager" van de add-on.
+usb_json=""
+podman_ha=""
+if [ "$HA_MODE" = 1 ]; then
+    ha_dir="$t_dir/ha"
+    mkdir -p "$ha_dir" 2>/dev/null
+    hi=${host_info:-}; [ -n "$hi" ] || hi='{}'
+    os_info=$(sv /os/info); [ -n "$os_info" ] || os_info='null'
+    # Boot-tijd (µs, ms of s sinds 1970) → seconden; verandert hij, dan is HA OS herstart.
+    # Met een andere OS-versie erna was het een OS-update (gepland), anders onverwacht.
+    boot=$(jq -r '(.data.boot_timestamp // 0) | tonumber | if . > 1e14 then . / 1e6 elif . > 1e11 then . / 1e3 else . end | floor' <<<"$hi" 2>/dev/null)
+    os_ver=$(jq -r '.data.version // ""' <<<"$os_info" 2>/dev/null)
+    p_boot=""; p_ver=""
+    [ -f "$ha_dir/os.state" ] && read -r p_boot p_ver _ <"$ha_dir/os.state"
+    if [[ "$boot" =~ ^[0-9]+$ ]] && [ "$boot" -gt 0 ]; then
+        if [[ "$p_boot" =~ ^[0-9]+$ ]] && [ $(( boot - p_boot )) -gt 60 ]; then
+            planned=false; [ -n "$os_ver" ] && [ -n "$p_ver" ] && [ "$os_ver" != "$p_ver" ] && planned=true
+            printf '{"t":%d,"prev":%d,"seen":%d,"planned":%s,"from":"%s","to":"%s"}' "$boot" "$p_boot" "$(date +%s)" "$planned" \
+                "$(json_escape "$p_ver")" "$(json_escape "$os_ver")" >"$ha_dir/reboot.json"
+        fi
+        echo "$boot ${os_ver:--}" >"$ha_dir/os.state"
+    fi
+    last_reboot=$(cat "$ha_dir/reboot.json" 2>/dev/null); [ -n "$last_reboot" ] || last_reboot=null
+    ha_os=$(jq -c --argjson boot "${boot:-0}" --argjson last "$last_reboot" '{boot: $boot, version: (.os.data.version? // null),
+            slot: (.os.data.boot? // null), slots: (.os.data.boot_slots? // null), board: (.os.data.board? // null),
+            disk_life: (.host.data.disk_life_time? // null), last_reboot: $last}' <<<"{\"os\":$os_info,\"host\":$hi}" 2>/dev/null)
+    [ -n "$ha_json" ] && ha_json="${ha_json:0:${#ha_json}-1},\"os\":${ha_os:-null}}"
+
+    # USB-apparaten (Zigbee/Z-Wave-sticks, Bluetooth): naam en vast pad (/dev/serial/by-id/…)
+    usb_json=$(sv /hardware/info | jq -c '[.data.devices[]? | select(((.by_id // "") | test("/by-id/")) or .subsystem == "bluetooth")
+        | {id: ((.by_id // .dev_path // .name) | split("/") | last), path: (.by_id // .dev_path // ""),
+           name: (.attributes.ID_MODEL_FROM_DATABASE // .attributes.ID_MODEL // .name // ""),
+           vendor: (.attributes.ID_VENDOR_FROM_DATABASE // .attributes.ID_VENDOR // "")}] | unique_by(.id)' 2>/dev/null)
+
+    # Containers: naam <tab> weergavenaam <tab> status <tab> statistieken (JSON)
+    ct_raw=$(
+        s=$(sv /core/stats | jq -c '.data // empty' 2>/dev/null)
+        printf '%s\t%s\t%s\t%s\n' homeassistant "Home Assistant Core" "$([ "$core_state" = active ] && echo running || echo stopped)" "${s:-null}"
+        s=$(sv /supervisor/stats | jq -c '.data // empty' 2>/dev/null)
+        printf '%s\t%s\t%s\t%s\n' hassio_supervisor Supervisor running "${s:-null}"
+        for p in dns audio cli multicast observer; do
+            [ -n "${pl_stats[$p]-}" ] && printf '%s\t%s\t%s\t%s\n' "hassio_$p" "Plugin $p" running "${pl_stats[$p]}"
+        done
+        [ -n "$addons" ] && jq -r '.data.addons[] | [.slug, .name, .state] | @tsv' <<<"$addons" 2>/dev/null |
+            while IFS=$'\t' read -r slug name state; do
+                s=""; [ "$state" = started ] && s=$(sv "/addons/$slug/stats" | jq -c '.data // empty' 2>/dev/null)
+                printf '%s\t%s\t%s\t%s\n' "addon_$slug" "$name" "$state" "${s:-null}"
+            done
+    )
+    [ -f "$ha_dir/ct.state" ] || : >"$ha_dir/ct.state"
+    # Herstarts: de watchdog van de Supervisor meldt "Watchdog found addon X is failed, restarting…"
+    wd=$(ha_log_new /supervisor/logs "$ha_dir/sup.mark" | grep -i 'watchdog' | grep -iE 'restart|fail|not running|problem' | tr '[:upper:]' '[:lower:]')
+    ct_tsv=$(awk -F'\t' -v OFS='\t' -v now="$(date +%s)" -v wd="$wd" -v state="$ha_dir/ct.state" '
+        FILENAME == ARGV[1] { ps[$1] = $2; pt[$1] = $3; pr[$1] = $4; next }
+        { run = ($3 == "running" || $3 == "started"); started = pt[$1] + 0; restarts = pr[$1] + 0
+          if (run && ps[$1] != "running") started = now                          # (weer) gestart sinds de vorige keer
+          # watchdog: per regel; Core = "home assistant" in een regel zonder "addon", anders de naam van de add-on
+          n = split(wd, wl, "\n"); hit = 0
+          for (i = 1; i <= n; i++) {
+              if ($1 == "homeassistant") { if (index(wl[i], "home assistant") && !index(wl[i], "addon")) hit = 1 }
+              else if ($1 ~ /^addon_/ && index(wl[i], tolower($2))) hit = 1
+          }
+          if (hit) { restarts++; started = now }
+          print $1, (run ? "running" : $3), started, restarts > state
+          print $1, $2, (run ? "running" : $3), started, restarts, $4 }' "$ha_dir/ct.state" <(printf '%s\n' "$ct_raw" | grep .) 2>/dev/null)
+    [ -f "$ha_dir/ct.state" ] || : >"$ha_dir/ct.state"
+    ct_json=$(jq -R -s -c '[split("\n")[] | select(length > 0) | split("\t") | (.[5] | fromjson? // null) as $s
+        | {name: .[0], image: .[1], state: (if .[2] == "running" then "running" else "exited" end),
+           exit_code: (if .[2] == "error" then 1 else 0 end), started: (.[3] | tonumber), restarts: (.[4] | tonumber)}
+        + (if $s then {cpu: $s.cpu_percent, mem: $s.memory_usage, mem_limit: $s.memory_limit, net_in: $s.network_rx,
+                       net_out: $s.network_tx, blk_in: $s.blk_read, blk_out: $s.blk_write} else {} end)]' <<<"$ct_tsv" 2>/dev/null)
+    [ -n "$ct_json" ] && [ "$ct_json" != "[]" ] && podman_ha="{\"version\":\"Home Assistant\",\"containers\":$ct_json}"
 fi
 
 # ---------------------------------------------------------------- Services: diepere controle
@@ -752,7 +855,7 @@ log_allowed() {  # log_allowed pad → 0 als het (echte) pad binnen LOG_DIRS val
     done
     return 1
 }
-if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_cache"; then
+if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_cache"; then
     l_dir="$t_dir/logstate"
     mkdir -p "$l_dir" 2>/dev/null
     now_l=$(date +%s)
@@ -802,6 +905,23 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_c
                     new_text=$(head -c "$nbytes" "$chunk"); rm -f "$chunk"
                     echo "$inode|$((pos + nbytes))" >"$st_file"
                 fi ;;
+            ha:*)
+                # Home Assistant-add-on: logs via de Supervisor
+                case "$l_src" in
+                    ha:host) l_api=/host/logs ;;
+                    ha:core) l_api=/core/logs ;;
+                    ha:supervisor) l_api=/supervisor/logs ;;
+                    ha:addon:*) l_api="/addons/${l_src#ha:addon:}/logs" ;;
+                    *) l_api="" ;;
+                esac
+                if [ "$HA_MODE" != 1 ]; then
+                    l_err="$l_src kan alleen in de Home Assistant-add-on"
+                elif [ -z "$l_api" ] || [[ "$l_api" == *[!A-Za-z0-9/_-]* ]]; then
+                    l_err="onbekende bron: $l_src"
+                elif ! new_text=$(ha_log_new "$l_api" "$st_file.mark"); then
+                    l_err="log van $l_src niet beschikbaar (heeft de add-on de rol manager? Werk de add-on bij)"
+                fi
+                touch "$st_file" ;;
             *) l_err="onbekende bron: $l_src" ;;
         esac
         hits=0; lines_json=""; ips_json=""
@@ -1428,7 +1548,7 @@ remote_update() {  # remote_update <antwoord van RzMon>
 }
 
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)

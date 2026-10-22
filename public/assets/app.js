@@ -43,6 +43,10 @@ const LOG_PRESETS = {
   weberr:   { label: '🌐 Webserver: foutlog', src: '/var/log/nginx/error.log', warn: 5, crit: 20, pat: '\\[(error|crit|alert|emerg)\\]' },
   mail:     { label: '✉️ Mail: mislukte logins', src: 'journal', warn: 5, crit: 20, pat: 'SASL [A-Z]+ authentication failed|auth failed|authentication failure.*(dovecot|postfix)' },
   db:       { label: '🗄️ Database: fouten', src: 'journal:mariadb', warn: 1, crit: 5, pat: '\\[ERROR\\]|Access denied for user|Aborted connection' },
+  ha_power: { label: '🏠 HA OS: te lage voeding (Raspberry Pi)', src: 'ha:host', warn: 1, crit: 5, pat: 'under-voltage|Undervoltage detected|voltage normalised' },
+  ha_disk:  { label: '🏠 HA OS: diskfouten (SD-kaart/SSD)', src: 'ha:host', warn: 1, crit: 5, pat: 'I/O error|mmc[0-9].*(error|timeout)|EXT4-fs error|blk_update_request' },
+  ha_core:  { label: '🏠 Home Assistant Core: fouten', src: 'ha:core', warn: 5, crit: 20, pat: ' ERROR | CRITICAL ' },
+  ha_sup:   { label: '🏠 Supervisor: fouten', src: 'ha:supervisor', warn: 1, crit: 5, pat: ' ERROR | CRITICAL ' },
   custom:   { label: '✏️ Zelf instellen', src: '', warn: 1, crit: 10, pat: '' },
 };
 const LOG_SOURCES = ['journal', 'journal:sshd', 'journal:ssh', 'kernel', '/var/log/secure', '/var/log/auth.log', '/var/log/messages',
@@ -61,7 +65,13 @@ const HA_METRICS = {
   backup:       { label: 'Laatste back-up', unit: 'dagen', warn: 2, crit: 7, help: 'Hoe oud de laatste geslaagde automatische back-up is (HA 2025.2 of nieuwer, met automatische back-ups). Ook WARNING als de laatste poging mislukt is.' },
   integrations: { label: 'Integraties', unit: 'stuks', warn: 1, crit: 3, help: 'Aantal integraties dat niet geladen is: fout bij instellen, opnieuw proberen of uitladen mislukt. Uitgeschakelde integraties tellen niet mee.' },
   repairs:      { label: 'Systeemstatus (reparaties)', unit: null, help: 'Reparaties van de Supervisor: "niet gezond" = CRITICAL; "niet ondersteund" of een openstaande melding (bv. weinig vrije ruimte) = WARNING.' },
+  reboot:       { label: 'Onverwachte herstart (HA OS)', unit: null, help: 'CRITICAL (een uur lang) als Home Assistant OS opnieuw is opgestart zonder OS-update: stroomuitval, crash of een handmatige herstart. Een herstart door een OS-update wordt alleen vermeld.' },
+  disklife:     { label: 'Levensduur SD-kaart / eMMC', unit: '%', warn: 75, crit: 90, help: 'Hoeveel procent van de levensduur van de opslag verbruikt is. Alleen als de hardware dat meldt (eMMC, sommige SD-kaarten en SSD\'s).' },
+  osupdate:     { label: 'OS-update mislukt (A/B-terugval)', unit: null, help: 'CRITICAL als een OS-update niet wilde opstarten en Home Assistant OS is teruggevallen op de vorige versie.' },
+  usb:          { label: 'USB-apparaat aanwezig', unit: null, target: 'USB-apparaat', ph: 'kies uit de lijst', help: 'CRITICAL als het apparaat (Zigbee- of Z-Wave-stick, Bluetooth) niet meer gezien wordt door Home Assistant OS.' },
 };
+/** Home Assistant-add-on? (meldt ha:-gegevens of de Supervisor) */
+function isHaHost(h) { return h.agent_update_via === 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor'); }
 /** Type-beschrijving van een check (container: één check met status + resources, geen eigen eenheid). */
 function typeOf(c) {
   if (c.type === 'ha') return { ...TYPES.ha, ...(HA_METRICS[c.metric] || {}), label: 'Home Assistant' };
@@ -1638,7 +1648,11 @@ function checkForm(c, h, preset = {}) {
     $('[name=test_target]', form).placeholder = tt === 'port' ? '8080 of localhost:8080' : 'http://localhost:8080/health';
     $('[name=test_target]', form).required = deep && !!tt;
     $('[name=target]', form).required = !!t.target && !['http', 'ssl'].includes(typeSel.value);
-    const list = { disk: disks, service: svcs, ssl: certs, container: containers, log: LOG_SOURCES }[typeSel.value] || [];
+    $('[name=target]', form).disabled = !t.target;   // niet meesturen als er geen doel is (bv. HA-checks zonder doel)
+    const haLogs = ['ha:host', 'ha:core', 'ha:supervisor', ...svcs.filter((x) => x.startsWith('addon:')).map((x) => `ha:${x}`)];
+    const usbs = h.metrics.filter((m) => m.startsWith('usb:')).map((m) => m.slice(4));
+    const list = isHa && haSel.value === 'usb' ? usbs
+      : { disk: disks, service: svcs, ssl: certs, container: containers, log: isHaHost(h) ? haLogs : LOG_SOURCES }[typeSel.value] || [];
     $('#log-wrap').hidden = typeSel.value !== 'log';
     const isCmd = typeSel.value === 'command';
     $('#cmd-wrap').hidden = !isCmd;
@@ -1980,23 +1994,25 @@ async function podmanOverview(h) {
       <td><span class="dot-inline ${stateCls(c)}"></span><b>${esc(c.key)}</b>${c.pod ? `<br><span class="muted small">pod ${esc(c.pod)}</span>` : ''}
         <br><span class="muted small mono">${esc(c.image)}</span></td>
       <td>${esc(stateText(c))}${+c.restarts ? `<br><span class="muted small">${c.restarts}× herstart</span>` : ''}</td>
-      <td class="num">${c.cpu !== null ? (Math.round(c.cpu * 10) / 10).toString().replace('.', ',') + '%' : '–'}</td>
+      <td class="num">${c.cpu !== null && c.cpu !== undefined ? (Math.round(c.cpu * 10) / 10).toString().replace('.', ',') + '%' : '–'}</td>
       <td class="num">${c.mem !== null ? fmtBytes(c.mem) : '–'}${memPct !== null ? `<br><span class="muted small">${memPct.toFixed(1).replace('.', ',')}% van ${fmtBytes(c.mem_limit)}</span>` : ''}</td>
       <td class="num">${fmtBytes(disk)}${c.volumes ? `<br><span class="muted small">volumes ${fmtBytes(c.volumes)}</span>` : ''}</td>
       <td class="pc-actions">${watch}</td>
     </tr>`;
   }).join('');
   const missing = d.containers.filter((c) => !checkOf(c.key));
+  const ha = sm.version === 'Home Assistant';
   body.innerHTML = `
-    <p class="scan-summary">Podman ${esc(sm.version || '?')} · ${d.containers.filter((c) => c.state === 'running').length} van ${d.containers.length} containers draaien
+    <p class="scan-summary">${ha ? 'Home Assistant: Core, Supervisor, plugins en add-ons' : `Podman ${esc(sm.version || '?')}`} · ${d.containers.filter((c) => c.state === 'running').length} van ${d.containers.length} containers draaien
       ${(sm.pods || []).length ? ' · pods: ' + sm.pods.map((p) => `${esc(p.name)} (${esc(p.status)})`).join(', ') : ''}
-      <br><span class="muted small">Images ${fmtBytes(sm.images_size)} · containers ${fmtBytes(sm.containers_size)} · volumes ${fmtBytes(sm.volumes_size)}
-      ${sm.reclaimable ? ` · ${fmtBytes(sm.reclaimable)} op te ruimen (<code>podman system prune</code>)` : ''} · gemeld ${ago(d.updated_at)}
+      <br><span class="muted small">${ha ? 'Gestopte add-ons met exitcode 0 zijn bewust uitgezet; een add-on met een fout staat als gestopt (exit 1).'
+        : `Images ${fmtBytes(sm.images_size)} · containers ${fmtBytes(sm.containers_size)} · volumes ${fmtBytes(sm.volumes_size)}
+      ${sm.reclaimable ? ` · ${fmtBytes(sm.reclaimable)} op te ruimen (<code>podman system prune</code>)` : ''}`} · gemeld ${ago(d.updated_at)}
       ${(sm.users || []).length > 1 ? ' · gebruikers: ' + sm.users.map(esc).join(', ') : ''}</span></p>
     ${sm.error ? `<p class="form-error">Podman-fout: ${esc(sm.error)}</p>` : ''}
     <div class="podman-actions">
-      ${d.checks.some((c) => c.type === 'podman') ? '<span class="muted small">✓ Podman-check aanwezig</span>'
-        : '<button type="button" class="btn need-admin" id="pc-overall">＋ Podman-check (algehele status)</button>'}
+      ${d.checks.some((c) => c.type === 'podman') ? `<span class="muted small">✓ ${ha ? 'Containers' : 'Podman'}-check aanwezig</span>`
+        : `<button type="button" class="btn need-admin" id="pc-overall">＋ ${ha ? 'Containers' : 'Podman'}-check (algehele status)</button>`}
       ${missing.length ? `<button type="button" class="btn need-admin" id="pc-all" title="Alleen de status; CPU, RAM en disk kun je daarna per container aanvinken">＋ ${missing.length === d.containers.length ? 'Alle' : 'De overige'} ${missing.length} container(s) bewaken</button>` : ''}
     </div>
     <div class="table-scroll"><table class="port-table podman-table">
@@ -2064,7 +2080,7 @@ function agentInstructions(h) {
           Tip: een <b>Commando</b>-check met <code>zpool status -x</code> en verwacht antwoord <code>all pools are healthy</code> bewaakt je pools.</p>
       </div>
       <div data-pane="ha" hidden>
-        <p>Op Home Assistant OS / Supervised draait de agent als <b>add-on</b>. Hij meldt CPU, RAM, de data-partitie, of Home Assistant Core en elke add-on draait, en welke updates er klaarstaan.</p>
+        <p>Op Home Assistant OS / Supervised draait de agent als <b>add-on</b>. Hij meldt CPU, RAM, de data-partitie, Core, Supervisor, plugins en add-ons (ook als containers met CPU/RAM), updates, back-ups, onverwachte herstarts, de SD-kaart, USB-sticks en logs. Daarna: <b>＋ Aanbevolen checks</b>.</p>
         <ol class="steps">
           <li>In Home Assistant: <i>Instellingen → Add-ons → Add-on winkel</i> → ⋮ → <b>Repositories</b> → voeg <code>https://github.com/rembrand20/rzmon</code> toe.
             <span class="muted small">(Of kopieer de map <code>ha-addon/rzmon_agent</code> naar de share <code>addons</code> met de <i>Samba share</i>-add-on.)</span></li>
@@ -2163,7 +2179,40 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
 }
 
 /** Aanbevolen commando-checks voor deze server (TrueNAS, Proxmox of Linux), met vinkjes; bestaande slaan we over. */
+/** Aanbevolen checks voor de Home Assistant-add-on: OS, containers, USB-sticks en logs */
+function haRecommended(h) {
+  const has = (type, metric, target = '') => h.checks.some((c) => c.type === type && (c.metric || '') === metric && (target === '' || c.target === target));
+  const items = [
+    ...['backup', 'integrations', 'repairs', 'reboot', 'disklife', 'osupdate'].map((m) => ({ key: `ha_${m}`, label: HA_METRICS[m].label, exists: has('ha', m),
+      data: { type: 'ha', metric: m, warn_threshold: HA_METRICS[m].warn ?? '', crit_threshold: HA_METRICS[m].crit ?? '' } })),
+    ...h.metrics.filter((m) => m.startsWith('usb:')).map((m) => ({ key: `usb_${m}`, label: `USB-apparaat ${m.slice(4)}`, exists: has('ha', 'usb', m.slice(4)),
+      data: { type: 'ha', metric: 'usb', target: m.slice(4) } })),
+    ...['homeassistant', 'hassio_supervisor'].filter((n) => h.metrics.includes(`container:${n}`)).map((n) => ({ key: `ct_${n}`,
+      label: `Container ${n === 'homeassistant' ? 'Home Assistant Core' : 'Supervisor'}: status, CPU en RAM`, exists: h.checks.some((c) => c.type === 'container' && c.target === n),
+      data: { type: 'container', target: n, name: n === 'homeassistant' ? '📦 Home Assistant Core' : '📦 Supervisor', res: { cpu: { on: true, warn: 80, crit: 95 }, mem: { on: true, warn: 85, crit: 95 }, disk: { on: false } } } })),
+    ...[['ha_power', 'ha:host'], ['ha_core', 'ha:core']].map(([p, src]) => ({ key: `log_${p}`, label: LOG_PRESETS[p].label, exists: h.checks.some((c) => c.type === 'log' && c.target === src),
+      data: { type: 'log', target: src, name: LOG_PRESETS[p].label.replace(/^\S+\s/, ''), preset: p, pattern: LOG_PRESETS[p].pat, warn_threshold: LOG_PRESETS[p].warn, crit_threshold: LOG_PRESETS[p].crit } })),
+  ];
+  modal({
+    title: `＋ Aanbevolen checks – ${h.name}`,
+    wide: true,
+    body: `<p style="margin-top:0">Herkend als <b>Home Assistant</b>. Vink aan wat je wilt bewaken; je kunt elke check later nog aanpassen.</p>
+      <div class="rec-list">${items.map((x) => `<label class="rec-row ${x.exists ? 'muted' : ''}"><input type="checkbox" name="rec_${esc(x.key)}" ${x.exists ? 'disabled' : 'checked'}>
+        <span><b>${esc(x.label)}</b>${x.exists ? ' · al aanwezig' : ''}</span></label>`).join('')}</div>
+      <p class="muted small">Containers, USB-apparaten en logs vragen add-on 1.42.0 of nieuwer met de rol <i>manager</i>. Nog niet op een echte Home Assistant getest: laat weten als iets niet goed uitkomt.</p>`,
+    buttons: [{ label: 'Toevoegen', cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const chosen = items.filter((x) => !x.exists && d['rec_' + x.key]);
+      if (!chosen.length) throw new Error('Vink minstens één check aan');
+      for (const x of chosen) await api('check_save', { host_id: h.id, enabled: true, interval_sec: 60, verify_ssl: true, ...x.data });
+      toast(`${chosen.length} check(s) toegevoegd`);
+      refresh();
+    },
+  });
+}
+
 async function recommendedChecks(h) {
+  if (isHaHost(h)) return haRecommended(h);
   let list = null, mode = 'off';
   try { list = (await api('agent_services', null, { id: h.id })).list; } catch (e) { /* zonder lijst: Linux */ }
   try { mode = ((await api('agent_commands')).hosts.find((x) => x.id === +h.id) || {}).mode || 'off'; } catch (e) { /* leeg */ }

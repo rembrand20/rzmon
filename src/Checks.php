@@ -522,9 +522,23 @@ final class Checks
             return $stale;
         }
         $m = (string) $check['metric'];
-        $raw = self::agentMetric($host, "ha:$m");
+        if ($m === 'usb') {
+            // USB-apparaat (Zigbee-/Z-Wave-stick…): weg = CRITICAL
+            $dev = $check['target'];
+            $raw = self::agentMetric($host, "usb:$dev");
+            if ($raw === null) {
+                return self::agentMetric($host, 'ha:os') === null
+                    ? self::result(STATUS_UNKNOWN, null, 'De add-on meldt nog geen USB-apparaten (bijwerken naar 1.42.0 of nieuwer, rol manager)')
+                    : self::result(STATUS_CRIT, null, "USB-apparaat $dev is WEG: losgeraakt, kapot of niet herkend door Home Assistant OS");
+            }
+            $u = json_decode($raw, true) ?: [];
+            return self::result(STATUS_OK, null, trim(($u['vendor'] ?? '') . ' ' . ($u['name'] ?? '')) . ' aanwezig' . (($u['path'] ?? '') !== '' ? " ({$u['path']})" : ''));
+        }
+        $raw = self::agentMetric($host, 'ha:' . (in_array($m, ['reboot', 'disklife', 'osupdate'], true) ? 'os' : $m));
         if ($raw === null) {
-            return self::result(STATUS_UNKNOWN, null, 'De agent meldt dit niet. Is het de Home Assistant-add-on, versie 1.24.0 of nieuwer? (bijwerken via de add-on winkel)');
+            return self::result(STATUS_UNKNOWN, null, in_array($m, ['reboot', 'disklife', 'osupdate'], true)
+                ? 'De add-on meldt dit nog niet: werk de RzMon-add-on bij naar 1.42.0 of nieuwer (add-on winkel)'
+                : 'De agent meldt dit niet. Is het de Home Assistant-add-on, versie 1.24.0 of nieuwer? (bijwerken via de add-on winkel)');
         }
         $d = json_decode($raw, true) ?: [];
         if (!empty($d['error'])) {
@@ -535,6 +549,49 @@ final class Checks
             $txt = $s < 3600 ? max(1, intdiv($s, 60)) . ' min' : ($s < 172800 ? intdiv($s, 3600) . ' uur' : intdiv($s, 86400) . ' dagen');
             return "$txt geleden (" . date('d-m H:i', $t) . ')';
         };
+
+        if ($m === 'reboot') {
+            // Onverwachte herstart van HA OS: een uur lang CRITICAL; door een OS-update: alleen vermelden
+            $up = !empty($d['boot']) ? ' · aan sinds ' . date('d-m H:i', (int) $d['boot']) : '';
+            $r = is_array($d['last_reboot'] ?? null) ? $d['last_reboot'] : null;
+            // Een uur vanaf het moment dat de add-on de herstart zag (start hij later dan HA OS, dan telt dat moment)
+            if ($r && empty($r['planned']) && max((int) $r['t'], (int) ($r['seen'] ?? 0)) > time() - 3600) {
+                return self::result(STATUS_CRIT, null, 'Home Assistant OS is ONVERWACHT herstart om ' . date('H:i', (int) $r['t'])
+                    . ' (stroom, crash of handmatig?) · vorige start ' . date('d-m H:i', (int) $r['prev']));
+            }
+            if ($r) {
+                return self::result(STATUS_OK, null, (!empty($r['planned']) ? 'Laatste herstart door de OS-update ' . ($r['from'] ?? '?') . ' → ' . ($r['to'] ?? '?')
+                    : 'Laatste onverwachte herstart') . ' op ' . date('d-m H:i', (int) $r['t']) . $up);
+            }
+            return self::result(STATUS_OK, null, 'Geen herstart gezien sinds de add-on meekijkt' . $up);
+        }
+        if ($m === 'disklife') {
+            if (!isset($d['disk_life']) || !is_numeric($d['disk_life'])) {
+                return self::result(STATUS_UNKNOWN, null, 'Deze hardware meldt geen slijtage van de opslag (alleen eMMC en sommige SD-kaarten/SSD\'s doen dat)');
+            }
+            $pct = round((float) $d['disk_life'], 1);
+            return self::result(self::threshold($pct, $check), $pct, "Opslag (SD-kaart/eMMC) is voor $pct % versleten"
+                . ($pct >= 90 ? ' — vervang hem en maak een back-up!' : ($pct >= 75 ? ' — plan vervanging' : '')));
+        }
+        if ($m === 'osupdate') {
+            // A/B-bootslots: een niet-actieve slot met status "bad" en een nieuwere versie = mislukte update, teruggevallen
+            $slots = is_array($d['slots'] ?? null) ? $d['slots'] : [];
+            if (!$slots) {
+                return self::result(($d['version'] ?? null) === null ? STATUS_UNKNOWN : STATUS_OK, null, ($d['version'] ?? null) === null
+                    ? 'Geen Home Assistant OS (Supervised of container): geen bootslots'
+                    : 'Home Assistant OS ' . $d['version'] . ' (deze versie meldt geen bootslots; mislukte updates staan ook bij Systeemstatus)');
+            }
+            foreach ($slots as $name => $sl) {
+                if (!is_array($sl) || ($sl['state'] ?? '') === 'active') {
+                    continue;
+                }
+                if (($sl['status'] ?? '') === 'bad' && version_compare((string) ($sl['version'] ?? '0'), (string) ($d['version'] ?? '0'), '>')) {
+                    return self::result(STATUS_CRIT, null, "OS-update naar {$sl['version']} is MISLUKT: teruggevallen op {$d['version']} (bootslot $name is \"bad\")");
+                }
+            }
+            return self::result(STATUS_OK, null, 'Home Assistant OS ' . ($d['version'] ?? '?') . ' draait van bootslot ' . ($d['slot'] ?? '?')
+                . (!empty($d['board']) ? " ({$d['board']})" : ''));
+        }
 
         if ($m === 'backup') {
             if (empty($d['found'])) {

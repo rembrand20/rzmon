@@ -18,6 +18,14 @@ Laat [RzMon](https://github.com/rembrand20/rzmon) je Home Assistant-systeem bewa
 | **Home Assistant → Laatste back-up** | Dagen sinds de laatste geslaagde automatische back-up; WARNING als de laatste poging mislukt is (HA 2025.2+, automatische back-ups aan) |
 | **Home Assistant → Integraties** | Integraties die niet geladen zijn, met hun namen |
 | **Home Assistant → Systeemstatus** | Reparaties van de Supervisor: niet gezond, niet ondersteund, of een melding zoals weinig vrije ruimte |
+| **Home Assistant → Onverwachte herstart** | CRITICAL (met melding) als HA OS opnieuw opstart zonder OS-update |
+| **Home Assistant → Levensduur SD-kaart / eMMC** | Slijtage van de opslag in %, als de hardware dat meldt |
+| **Home Assistant → OS-update mislukt** | CRITICAL als HA OS na een update is teruggevallen op de vorige versie |
+| **Home Assistant → USB-apparaat** | CRITICAL als je Zigbee-/Z-Wave-stick of Bluetooth-adapter weg is |
+| **Containers** | Core, Supervisor, plugins en add-ons: draait hij, CPU, RAM, gecrasht of herstart door de watchdog |
+| **Logbestand** | Zoeken in de logs van HA OS (`ha:host`), Core, de Supervisor en add-ons |
+
+De add-on gebruikt de Supervisor-rol **manager** om de statistieken, logs en hardware te kunnen lezen. Hij verandert niets.
 
 Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon zet de checks dan na een paar minuten op **CRITICAL**: precies het moment waarop je een melding wilt die *niet* via Home Assistant zelf loopt.
 

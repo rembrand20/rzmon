@@ -205,6 +205,10 @@ Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt
   - als services: Home Assistant Core, de Supervisor, elke add-on (`addon:<slug>`) en beschikbare updates;
   - de **laatste automatische back-up** (HA 2025.2+);
   - **integraties** die niet geladen zijn;
-  - de **systeemstatus** van de Supervisor.
-- **Alleen lezen:** er zijn geen extra rechten nodig. Commando-checks zijn in de add-on niet actief.
+  - de **systeemstatus** van de Supervisor;
+  - **onverwachte herstart** van HA OS (critical met melding), **levensduur van de SD-kaart/eMMC**, een **mislukte OS-update** (A/B-terugval) en **USB-apparaten** (Zigbee-/Z-Wave-stick weg = critical);
+  - **containers**: Core, Supervisor, plugins en add-ons met CPU en RAM, gecrasht of herstart door de watchdog, in hetzelfde overzicht en met dezelfde checks als Podman;
+  - **logbestanden** van HA OS, Core, de Supervisor en add-ons doorzoeken (bv. te lage voeding op een Raspberry Pi);
+  - *＋ Aanbevolen checks* voor Home Assistant.
+- **Alleen lezen**, met de Supervisor-rol `manager` (statistieken, logs, hardware). Commando-checks zijn in de add-on niet actief.
 - **Bijwerken** via de add-on winkel. De add-on heeft hetzelfde versienummer als RzMon.

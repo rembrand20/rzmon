@@ -1,7 +1,7 @@
 name: RzMon Agent
-version: "1.41.0"
+version: "1.42.0"
 slug: rzmon_agent
-description: Stuurt CPU, RAM, diskruimte, add-on status, updates, back-ups, integraties, systeemstatus, poorten en certificaten van Home Assistant naar RzMon
+description: Stuurt CPU, RAM, diskruimte, add-ons en containers, updates, back-ups, integraties, systeemstatus, herstarts, SD-kaart, USB-apparaten, logs, poorten en certificaten van Home Assistant naar RzMon
 url: https://github.com/rembrand20/rzmon
 arch:
   - aarch64
@@ -10,9 +10,10 @@ arch:
 init: false
 startup: services
 boot: auto
-# Supervisor API: host-info, add-ons, updates (alleen lezen)
+# Supervisor API (alleen lezen): host-info, add-ons, updates, en voor "manager" ook de statistieken per
+# container, de logs (OS, Core, Supervisor, add-ons) en de hardware (USB-apparaten)
 hassio_api: true
-hassio_role: default
+hassio_role: manager
 # Controleren of Home Assistant Core draait
 homeassistant_api: true
 # Nodig om de luisterende poorten van de host te zien

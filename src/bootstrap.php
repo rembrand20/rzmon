@@ -134,7 +134,7 @@ function agent_stale_seconds(?int $own): int
 function check_unit(array $check): ?string
 {
     if ($check['type'] === 'ha') {
-        return ['backup' => 'dagen', 'integrations' => 'stuks', 'repairs' => 'stuks'][$check['metric'] ?? ''] ?? null;
+        return ['backup' => 'dagen', 'integrations' => 'stuks', 'repairs' => 'stuks', 'disklife' => '%'][$check['metric'] ?? ''] ?? null;
     }
     if ($check['type'] === 'container') {
         return ['cpu' => '%', 'mem' => '%', 'disk' => 'MB'][$check['metric'] ?? ''] ?? null;

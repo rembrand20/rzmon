@@ -7,6 +7,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.42.0 – 2026-10-22
+### Nieuw
+Home Assistant: wat er op OS-niveau en met de containers gebeurt (add-on 1.42.0).
+- **Onverwachte herstart van HA OS:** CRITICAL met een melding (een uur lang), bij stroomuitval, een crash of een handmatige herstart. Een herstart door een OS-update staat er alleen bij.
+- **Levensduur van de SD-kaart of eMMC:** slijtage in % met drempels (75/90 %), als de hardware dat meldt.
+- **Mislukte OS-update:** CRITICAL als HA OS is teruggevallen op de vorige versie (A/B-bootslots).
+- **USB-apparaten:** kies je Zigbee- of Z-Wave-stick (of Bluetooth-adapter) uit een lijst; weg = CRITICAL.
+- **Containers:** Core, Supervisor, de plugins en elke add-on met CPU en RAM, in hetzelfde overzicht (📦 Containers) en met dezelfde checks als Podman. Gecrasht = CRITICAL, herstart door de watchdog = WARNING.
+- **Plugins** (DNS, Audio, CLI, Multicast, Observer) als service `plugin:<naam>`; hun updates staan bij `updates`.
+- **Logbestanden** van HA OS, Core, de Supervisor en add-ons doorzoeken (`ha:host`, `ha:core`, `ha:supervisor`, `ha:addon:<slug>`), met voorinstellingen voor te lage voeding, diskfouten en fouten.
+- **＋ Aanbevolen checks** voor Home Assistant in de Agent Manager.
+- De add-on krijgt de Supervisor-rol **manager** (alleen om te lezen). Home Assistant vraagt daar bij het bijwerken naar.
+- Getest met een nagebootste Supervisor, nog niet op een echte Home Assistant.
+
+### Opgelost
+- Containeroverzicht: geen "NaN%" meer bij een gestopte container.
+
 ## 1.41.0 – 2026-10-22
 ### Nieuw
 - **⏱ Hoe vaak een agent rapporteert, stel je nu in RzMon in:** 30 s, 60 s, 2 min of 5 min. De standaard (60 s) staat onder *Instellingen → ⬆ Agents bijwerken*; per server kies je het in de *Agent Manager*. De agent neemt het binnen een minuut over.
