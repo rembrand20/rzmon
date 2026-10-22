@@ -103,7 +103,11 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Add-on** voor Home Assistant OS, zie hoofdstuk 12.
 
 ## 7. REST API
-- **Alleen lezen** (JSON), met API-sleutels die je in de webinterface beheert.
+- JSON, met API-sleutels die je in de webinterface beheert.
+- **Rechten per sleutel:** 📖 status lezen, 🛡️ IDS lezen, ⛔ IDS blokkeren (met bevestiging) en ✔ checks bedienen; daarnaast optioneel **alleen vanaf** bepaalde IP's of netwerken, en een **geldigheid** van 6, 12 of 24 maanden (verlengen met ✎).
+- **IDS:** incidenten, blokkades en logins uitlezen, en IP's blokkeren of deblokkeren, bijvoorbeeld vanuit fail2ban. Je LAN, RzMon zelf en *Nooit blokkeren* weigert de API altijd; in de leerstand wordt een blokkade alleen vastgelegd.
+- **Checks bedienen:** bevestigen, onderhoud (check of server) en nu checken.
+- Alles wat een sleutel verandert komt in het logboek.
 - **Endpoints:**
   - `/status`, met de algehele gezondheid (`health`);
   - `/hosts`, met de beschikbaarheid;

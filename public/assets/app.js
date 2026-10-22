@@ -500,7 +500,7 @@ function init() {
     loadUsers();
   });
   $('#api-key-form').addEventListener('submit', createApiKey);
-  $('#api-keys').addEventListener('click', deleteApiKey);
+  $('#api-keys').addEventListener('click', apiKeyClick);
   $('#access-form').addEventListener('submit', saveAccess);
 
   refresh();
@@ -2865,41 +2865,131 @@ function apiBase() {
   return location.origin + location.pathname.replace(/\/[^/]*$/, '') + '/v1.php';
 }
 
+const API_RIGHTS = {
+  read: ['📖 Status lezen', 'servers, checks, meetwaarden, meldingen'],
+  ids_read: ['🛡️ IDS lezen', 'incidenten, blokkades, logins'],
+  ids_block: ['⛔ IDS blokkeren', "IP's blokkeren en deblokkeren"],
+  checks: ['✔ Checks bedienen', 'bevestigen, onderhoud, nu checken'],
+};
+
+/** Rechten, alleen vanaf en geldigheid; voor een nieuwe sleutel en voor ✎ (k = bestaande sleutel) */
+function apiKeyFields(k) {
+  const has = k ? String(k.rights || 'read').split(',') : ['read'];
+  return `<div class="api-rights">${Object.entries(API_RIGHTS).map(([r, [label, hint]]) => `
+      <label><input type="checkbox" name="rights" value="${r}" ${has.includes(r) ? 'checked' : ''}><span>${label}<small>${hint}</small></span></label>`).join('')}</div>
+    <div class="row2">
+      <label>Alleen vanaf <span class="hint">(optioneel; IP's of netwerken, bv. 192.168.1.10 10.0.0.0/24)</span>
+        <input name="allow_from" maxlength="500" spellcheck="false" value="${esc(k?.allow_from || '')}" placeholder="overal vandaan"></label>
+      <label>${k ? 'Verlengen' : 'Geldig'}
+        <select name="months">${k ? '<option value="0">niet verlengen</option>' : ''}
+          ${[6, 12, 24].map((m) => `<option value="${m}" ${!k && m === 12 ? 'selected' : ''}>${k ? 'met ' : ''}${m} maanden${k ? ' vanaf nu' : ''}</option>`).join('')}</select></label>
+    </div>`;
+}
+
+/** Wat het formulier stuurt: rights als lijst */
+function apiKeyData(form) {
+  const fd = new FormData(form);
+  return { ...Object.fromEntries(fd), rights: fd.getAll('rights') };
+}
+
+const fmtDay = (dt) => new Date(dt.replace(' ', 'T')).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+
+function apiKeyExpiry(k) {
+  if (!k.expires_at) return '<span class="muted">geen vervaldatum</span>';
+  const days = Math.floor((new Date(k.expires_at.replace(' ', 'T')) - Date.now()) / 86400000);
+  if (days < 0) return `<span class="crit-txt">verlopen op ${esc(fmtDay(k.expires_at))}</span>`;
+  return `<span class="${days <= 30 ? 'warn-txt' : 'muted'}">geldig tot ${esc(fmtDay(k.expires_at))}${days <= 30 ? ` (nog ${days} dag${days === 1 ? '' : 'en'})` : ''}</span>`;
+}
+
+let apiKeys = [];
 async function loadApiKeys() {
   $('#api-base').textContent = apiBase();
-  const keys = await api('api_keys');
-  $('#api-keys').innerHTML = keys.length ? keys.map((k) => `
+  if (!$('#api-key-fields').innerHTML) $('#api-key-fields').innerHTML = apiKeyFields();
+  apiKeys = await api('api_keys');
+  $('#api-keys').innerHTML = apiKeys.length ? apiKeys.map((k) => `
     <div class="key-row">
       <span class="grow"><strong>${esc(k.name)}</strong> <code class="muted">${esc(k.key_hint)}</code><br>
-        <span class="muted small">Laatst gebruikt: ${k.last_used ? ago(k.last_used) : 'nooit'}</span></span>
+        ${String(k.rights || 'read').split(',').map((r) => `<span class="api-right ${r}">${esc(API_RIGHTS[r]?.[0] || r)}</span>`).join('')}<br>
+        <span class="muted small">${k.allow_from ? `Alleen vanaf ${esc(k.allow_from)} · ` : ''}${apiKeyExpiry(k)} · laatst gebruikt: ${k.last_used ? ago(k.last_used) : 'nooit'}</span></span>
+      <button class="icon-btn" title="Rechten, adressen en geldigheid" data-edit="${k.id}">✎</button>
       <button class="icon-btn" title="Intrekken" data-del="${k.id}" data-name="${esc(k.name)}">🗑</button>
     </div>`).join('') : '<p class="muted small">Nog geen sleutels.</p>';
   settingsSummaries();
 }
 
-async function createApiKey(e) {
-  e.preventDefault();
-  try {
-    const r = await api('api_key_create', Object.fromEntries(new FormData(e.target)));
-    e.target.reset();
-    loadApiKeys();
-    modal({
-      title: 'Nieuwe API-sleutel',
-      body: `<p>Kopieer deze sleutel nu — hij wordt <b>niet</b> opnieuw getoond.</p>
-        <div class="new-key"><input id="new-key" readonly value="${esc(r.key)}"><button type="button" class="btn" id="copy-key">Kopieer</button></div>
-        <p class="muted small" style="margin-top:1rem">Test:</p>
-        <pre class="code">curl -H "Authorization: Bearer ${esc(r.key)}" ${esc(apiBase())}/status</pre>`,
-      buttons: [{ label: 'Klaar', cls: 'primary', submit: true }],
-    });
-    $('#copy-key').onclick = async () => {
-      $('#new-key').select();
-      try { await navigator.clipboard.writeText(r.key); } catch (ex) { document.execCommand('copy'); }
-      toast('Gekopieerd');
-    };
-  } catch (ex) { toast(ex.message, 'err'); }
+/** ⛔ blokkeren via de API vraagt om bevestiging; daarna (of meteen) opslaan */
+function apiKeyConfirm(title, data, save) {
+  modal({
+    title,
+    body: `<p style="margin-top:0">Met het recht <b>⛔ IDS blokkeren</b> kan wie deze sleutel heeft IP-adressen blokkeren op je servers (als het IDS op <i>blokkeren</i> staat; in de leerstand wordt het alleen vastgelegd).
+        Je LAN, RzMon zelf en de lijst <i>Nooit blokkeren</i> weigert de API altijd. Overweeg <i>Alleen vanaf</i> in te vullen.</p>
+      ${confirmField('BLOKKEREN')}`,
+    buttons: [{ label: 'Opslaan', cls: 'primary', submit: true }],
+    onSubmit: (d) => save({ ...data, confirm: d.confirm }),
+  });
 }
 
-async function deleteApiKey(e) {
+async function createApiKey(e) {
+  e.preventDefault();
+  const form = e.target;
+  const data = apiKeyData(form);
+  if (!data.rights.length) return toast('Kies minstens één recht', 'err');
+  const save = async (d) => {
+    const r = await api('api_key_create', d);
+    form.reset();
+    $('#api-key-fields').innerHTML = apiKeyFields();
+    loadApiKeys();
+    setTimeout(() => newApiKeyDialog(r.key, d.rights), 0);
+  };
+  if (data.rights.includes('ids_block')) return apiKeyConfirm('⛔ Sleutel met blokkeerrecht', data, save);
+  try { await save(data); } catch (ex) { toast(ex.message, 'err'); }
+}
+
+function apiKeyEdit(k) {
+  const before = String(k.rights || '').split(',');
+  modal({
+    title: `✎ API-sleutel ${k.name}`,
+    body: `<div class="api-key-form">${apiKeyFields(k)}<p class="muted small" style="margin:0">${apiKeyExpiry(k)}</p></div>`,
+    buttons: [{ label: 'Opslaan', cls: 'primary', submit: true }],
+    onSubmit: async (d, form) => {
+      const data = { ...apiKeyData(form), id: k.id };
+      if (!data.rights.length) throw new Error('Kies minstens één recht');
+      const save = async (x) => { await api('api_key_update', x); toast('Sleutel aangepast'); loadApiKeys(); };
+      if (data.rights.includes('ids_block') && !before.includes('ids_block')) {
+        setTimeout(() => apiKeyConfirm('⛔ Blokkeerrecht toevoegen', data, save), 0);
+        return;
+      }
+      await save(data);
+    },
+  });
+}
+
+function newApiKeyDialog(key, rights) {
+  const auth = `-H "Authorization: Bearer ${esc(key)}"`;
+  const ex = [];
+  if (rights.includes('read')) ex.push(`curl ${auth} ${esc(apiBase())}/status`);
+  if (rights.includes('ids_read')) ex.push(`curl ${auth} ${esc(apiBase())}/ids/incidents?status=open`);
+  if (rights.includes('ids_block')) ex.push(`curl ${auth} -H "Content-Type: application/json" \\
+  -d '{"host":"web01","ip":"203.0.113.7","hours":24,"reason":"fail2ban"}' ${esc(apiBase())}/ids/block`);
+  if (rights.includes('checks')) ex.push(`curl ${auth} -X POST -d '{"comment":"bezig"}' ${esc(apiBase())}/checks/1/ack`);
+  modal({
+    title: 'Nieuwe API-sleutel',
+    body: `<p>Kopieer deze sleutel nu — hij wordt <b>niet</b> opnieuw getoond.</p>
+      <div class="new-key"><input id="new-key" readonly value="${esc(key)}"><button type="button" class="btn" id="copy-key">Kopieer</button></div>
+      <p class="muted small" style="margin-top:1rem">Test:</p>
+      <pre class="code">${ex.join('\n\n')}</pre>`,
+    buttons: [{ label: 'Klaar', cls: 'primary', submit: true }],
+  });
+  $('#copy-key').onclick = async () => {
+    $('#new-key').select();
+    try { await navigator.clipboard.writeText(key); } catch (e) { document.execCommand('copy'); }
+    toast('Gekopieerd');
+  };
+}
+
+async function apiKeyClick(e) {
+  const ed = e.target.closest('[data-edit]');
+  if (ed) return apiKeyEdit(apiKeys.find((k) => String(k.id) === ed.dataset.edit));
   const b = e.target.closest('[data-del]');
   if (!b || !confirm(`API-sleutel "${b.dataset.name}" intrekken? Toepassingen die hem gebruiken verliezen direct toegang.`)) return;
   try { await api('api_key_delete', { id: b.dataset.del }); toast('Sleutel ingetrokken'); loadApiKeys(); }

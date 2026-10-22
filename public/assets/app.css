@@ -236,6 +236,14 @@ article.flash { animation: flash 1.6s; }
 .inline-form { display: flex; gap: .5rem; }
 .inline-form input { flex: 1; }
 .inline-form .btn { white-space: nowrap; }
+.api-key-form { display: grid; gap: .6rem; margin-top: .6rem; }
+.api-key-form > .btn { justify-self: start; }
+.api-rights { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .3rem .9rem; }
+.api-rights label { display: flex; flex-direction: row; gap: .45rem; align-items: flex-start; font-size: .88rem; font-weight: 500; margin: 0; }
+.api-rights input { margin-top: .2rem; width: auto; }
+.api-rights small { display: block; color: var(--muted); font-weight: 400; }
+.api-right { display: inline-block; font-size: .72rem; padding: 0 .4rem; border-radius: 99px; background: color-mix(in srgb, var(--muted) 15%, transparent); margin: .15rem .2rem 0 0; }
+.api-right.ids_block { background: color-mix(in srgb, var(--crit) 18%, transparent); color: var(--crit); }
 .api-docs { margin-top: 1rem; color: var(--muted); }
 .api-docs summary { cursor: pointer; font-weight: 600; color: var(--text); }
 .api-docs ul { padding-left: 1.1rem; margin: .5rem 0 0; }
@@ -546,7 +554,7 @@ body[data-role="admin"] [data-role-only="nonadmin"] { display: none; }
 .login-card .remember { margin: .2rem 0 .9rem; }
 .log-lines { white-space: pre-wrap; word-break: break-word; font-size: .78rem; max-height: 220px; overflow: auto; }
 #log-lines h4 { margin: 1rem 0 .4rem; }
-.good-txt { color: var(--ok); } .warn-txt { color: var(--warn); }
+.good-txt { color: var(--ok); } .warn-txt { color: var(--warn); } .crit-txt { color: var(--crit); }
 #new-db-pass { font-size: 1.05rem; letter-spacing: .03em; user-select: all; }
 
 /* Back-up */

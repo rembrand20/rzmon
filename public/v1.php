@@ -1,9 +1,12 @@
 <?php
 /**
- * RzMon REST API v1 (alleen lezen)
+ * RzMon REST API v1
  *
  * Authenticatie: header "Authorization: Bearer <sleutel>" of "X-API-Key: <sleutel>"
  * (of ?key=<sleutel>, minder veilig omdat het in logs belandt).
+ * Elke sleutel heeft rechten (Instellingen → API-sleutels): read (status lezen), ids_read (IDS lezen),
+ * ids_block (IP's blokkeren/deblokkeren) en checks (bevestigen, onderhoud, nu checken); eventueel
+ * "alleen vanaf" bepaalde IP's/netwerken, en een vervaldatum.
  *
  * Endpoints (pad via PATH_INFO of ?r=):
  *   GET /v1.php/status                     samenvatting, algehele gezondheid + status per host
@@ -13,6 +16,17 @@
  *   GET /v1.php/checks/{id}                één check
  *   GET /v1.php/checks/{id}/history        meetwaarden (?hours=24, max 720)
  *   GET /v1.php/alerts                     meldingen (?limit=50, max 500)
+ *   GET /v1.php/ids                        IDS-overzicht                                   [ids_read]
+ *   GET /v1.php/ids/incidents              incidenten (?status=open, ?severity=2, ?host_id, ?limit)  [ids_read]
+ *   GET /v1.php/ids/blocks                 actieve blokkades (?all=1: ook opgeheven/verlopen)      [ids_read]
+ *   GET /v1.php/ids/access                 logins, sudo, su (?host_id, ?type=ssh, ?failed=1, ?limit) [ids_read]
+ *   POST /v1.php/ids/block                 {"host"|"host_id", "ip", "hours" (0 = permanent), "reason"} [ids_block]
+ *   POST /v1.php/ids/unblock               {"id"} of {"host"|"host_id", "ip"}               [ids_block]
+ *   POST /v1.php/checks/{id}/ack           {"comment"}                                      [checks]
+ *   POST /v1.php/checks/{id}/unack                                                          [checks]
+ *   POST /v1.php/checks/{id}/maintenance   {"minutes" of "until", "reason"}; minutes 0 = einde  [checks]
+ *   POST /v1.php/hosts/{id}/maintenance    idem, voor een hele server                       [checks]
+ *   POST /v1.php/checks/{id}/run           nu checken                                       [checks]
  */
 declare(strict_types=1);
 
@@ -21,7 +35,8 @@ require __DIR__ . '/../src/bootstrap.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Headers: Authorization, X-API-Key');
+header('Access-Control-Allow-Headers: Authorization, X-API-Key, Content-Type');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 
 function respond($data, int $code = 200): never
 {
@@ -36,8 +51,9 @@ if (!is_configured()) {
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     respond(null, 204);
 }
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    respond(['error' => 'Alleen GET wordt ondersteund'], 405);
+$method = $_SERVER['REQUEST_METHOD'];
+if ($method !== 'GET' && $method !== 'POST') {
+    respond(['error' => 'Alleen GET en POST worden ondersteund'], 405);
 }
 
 // ---------- Authenticatie ----------
@@ -46,12 +62,30 @@ if (preg_match('/^Bearer\s+(\S+)$/i', $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER
     $key = $m[1];
 }
 $key = $key ?: ($_SERVER['HTTP_X_API_KEY'] ?? ($_GET['key'] ?? ''));
-$apiKey = $key !== '' ? q('SELECT id FROM api_keys WHERE key_hash = ?', [hash('sha256', $key)])->fetch() : false;
+$apiKey = $key !== '' ? q('SELECT id, name, rights, allow_from, expires_at FROM api_keys WHERE key_hash = ?', [hash('sha256', $key)])->fetch() : false;
 if (!$apiKey) {
     usleep(300000);
     respond(['error' => 'Ongeldige of ontbrekende API-sleutel'], 401);
 }
+if ($apiKey['expires_at'] !== null && strtotime($apiKey['expires_at']) <= time()) {
+    respond(['error' => 'Deze API-sleutel is verlopen op ' . date('d-m-Y', strtotime($apiKey['expires_at'])) . '; verleng hem in RzMon (Instellingen → API-sleutels)'], 401);
+}
+if ((string) $apiKey['allow_from'] !== '' && !ip_in_list(client_ip(), parse_list($apiKey['allow_from']))) {
+    respond(['error' => 'Deze API-sleutel mag niet gebruikt worden vanaf ' . client_ip()], 403);
+}
 q('UPDATE api_keys SET last_used = ? WHERE id = ?', [now(), $apiKey['id']]);
+$rights = explode(',', (string) $apiKey['rights']);
+/** Stopt met 403 als de sleutel dit recht niet heeft. */
+function need(string $right): void
+{
+    global $rights, $apiKey;
+    $label = ['read' => 'Status lezen', 'ids_read' => 'IDS lezen', 'ids_block' => 'IDS blokkeren', 'checks' => 'Checks bedienen'][$right] ?? $right;
+    if (!in_array($right, $rights, true)) {
+        respond(['error' => "Deze sleutel ({$apiKey['name']}) heeft het recht \"$label\" niet"], 403);
+    }
+}
+/** Wie het deed, voor het logboek en de blokkadelijst */
+$by = 'API: ' . $apiKey['name'];
 
 // ---------- Helpers ----------
 function iso(?string $dt): ?string
@@ -161,6 +195,214 @@ if ($path === '') {
 $path = trim($path !== '' ? $path : (string) ($_GET['r'] ?? ''), '/');
 $parts = $path === '' ? [] : explode('/', $path);
 
+// ---------- Schrijven (POST) ----------
+if ($method === 'POST') {
+    $body = json_decode((string) file_get_contents('php://input'), true);
+    $body = is_array($body) ? $body : $_POST;
+    /** Server uit "host_id" of "host" (naam, hoofdletters maken niet uit) */
+    $hostOf = static function (array $b): ?array {
+        if (!empty($b['host_id'])) {
+            return q('SELECT id, name, mode FROM hosts WHERE id = ?', [(int) $b['host_id']])->fetch() ?: null;
+        }
+        if (isset($b['host']) && (string) $b['host'] !== '') {
+            return q('SELECT id, name, mode FROM hosts WHERE LOWER(name) = LOWER(?)', [trim((string) $b['host'])])->fetch() ?: null;
+        }
+        return null;
+    };
+    /** Onderhoud: minuten of eindtijd; 0 minuten = einde. @return string|null eindtijd */
+    $maintUntil = static function (array $b): ?string {
+        $minutes = (int) ($b['minutes'] ?? 0);
+        if (!empty($b['until'])) {
+            $ts = strtotime((string) $b['until']);
+            if (!$ts || $ts <= time()) {
+                respond(['error' => 'Kies een eindtijd in de toekomst'], 422);
+            }
+            $minutes = (int) ceil(($ts - time()) / 60);
+        }
+        if ($minutes < 0 || $minutes > 60 * 24 * 90) {
+            respond(['error' => 'Onderhoud kan maximaal 90 dagen duren'], 422);
+        }
+        return $minutes > 0 ? date('Y-m-d H:i:s', time() + $minutes * 60) : null;
+    };
+    switch (true) {
+        case $parts === ['ids', 'block']:
+            need('ids_block');
+            $h = $hostOf($body);
+            if (!$h) {
+                respond(['error' => 'Onbekende server: geef "host" (naam) of "host_id"'], 404);
+            }
+            $ip = trim((string) ($body['ip'] ?? ''));
+            if (@inet_pton($ip) === false) {
+                respond(['error' => 'Ongeldig IP-adres'], 422);
+            }
+            // Via de API strenger dan met de hand: nooit je LAN, RzMon zelf of de lijst "Nooit blokkeren"
+            if (Ids::protectedIp($ip)) {
+                respond(['error' => "$ip wordt via de API niet geblokkeerd: LAN-adres, RzMon zelf of op de lijst \"Nooit blokkeren\""], 422);
+            }
+            $hours = max(0, min(8760, (int) ($body['hours'] ?? 24)));
+            $existing = q('SELECT id, until FROM ids_blocks WHERE host_id = ? AND ip = ? AND removed_at IS NULL AND (until IS NULL OR until > NOW())', [$h['id'], $ip])->fetch();
+            if ($existing) {
+                respond(['ok' => true, 'already' => true, 'id' => (int) $existing['id'], 'active' => Ids::blocking(), 'until' => iso($existing['until'])], 200);
+            }
+            $r = Ids::block((int) $h['id'], $ip, $hours ?: null, mb_substr(trim((string) ($body['reason'] ?? '')), 0, 200) ?: 'via de API', $by, client_ip());
+            if ($r !== true) {
+                respond(['error' => $r], 422);
+            }
+            $b = q('SELECT id, until FROM ids_blocks WHERE host_id = ? AND ip = ? ORDER BY id DESC LIMIT 1', [$h['id'], $ip])->fetch();
+            AgentCommands::audit($by, 'IDS: geblokkeerd', "$ip op {$h['name']}" . ($hours ? " voor $hours uur" : ' permanent') . ' (vanaf ' . client_ip() . ')');
+            respond(['ok' => true, 'id' => (int) $b['id'], 'host' => $h['name'], 'ip' => $ip, 'active' => Ids::blocking(), 'until' => iso($b['until']),
+                'note' => Ids::blocking() ? null : (Ids::enabled() ? 'Het IDS staat op "leren"' : 'Het IDS staat uit')
+                    . ': de blokkade is vastgelegd en wordt actief zodra het IDS aan staat op "blokkeren"'], 201);
+
+        case $parts === ['ids', 'unblock']:
+            need('ids_block');
+            $id = (int) ($body['id'] ?? 0);
+            if (!$id) {
+                $h = $hostOf($body);
+                $id = $h ? (int) q('SELECT id FROM ids_blocks WHERE host_id = ? AND ip = ? AND removed_at IS NULL AND (until IS NULL OR until > NOW()) ORDER BY id DESC LIMIT 1',
+                    [$h['id'], trim((string) ($body['ip'] ?? ''))])->fetchColumn() : 0;
+            }
+            $b = $id ? Ids::unblock($id, $by) : null;
+            if (!$b) {
+                respond(['error' => 'Geen (actieve) blokkade gevonden'], 404);
+            }
+            AgentCommands::audit($by, 'IDS: gedeblokkeerd', "{$b['ip']} op " . (q('SELECT name FROM hosts WHERE id = ?', [$b['host_id']])->fetchColumn() ?: "server {$b['host_id']}") . ' (vanaf ' . client_ip() . ')');
+            respond(['ok' => true, 'id' => (int) $b['id'], 'ip' => $b['ip']]);
+
+        case count($parts) === 3 && $parts[0] === 'checks' && ctype_digit($parts[1]) && in_array($parts[2], ['ack', 'unack', 'maintenance', 'run'], true):
+            need('checks');
+            $id = (int) $parts[1];
+            $c = q('SELECT c.id, c.name, h.name AS host FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.id = ?', [$id])->fetch();
+            if (!$c) {
+                respond(['error' => 'Check niet gevonden'], 404);
+            }
+            if ($parts[2] === 'ack') {
+                if (!Monitor::acknowledge($id, $by, mb_substr((string) ($body['comment'] ?? ''), 0, 200))) {
+                    respond(['error' => 'Deze check heeft geen storing (meer)'], 422);
+                }
+                AgentCommands::audit($by, 'Storing bevestigd', "{$c['host']} – {$c['name']}");
+                respond(['ok' => true]);
+            }
+            if ($parts[2] === 'unack') {
+                Monitor::unacknowledge($id);
+                respond(['ok' => true]);
+            }
+            if ($parts[2] === 'maintenance') {
+                $until = $maintUntil($body);
+                q('UPDATE checks SET maintenance_until = ?, maintenance_reason = ?, maintenance_auto = 0 WHERE id = ?',
+                    [$until, mb_substr(trim((string) ($body['reason'] ?? '')), 0, 200) ?: null, $id]);
+                AgentCommands::audit($by, 'Onderhoud', "{$c['host']} – {$c['name']}: " . ($until ? "tot $until" : 'beëindigd'));
+                respond(['ok' => true, 'until' => iso($until)]);
+            }
+            $r = Monitor::runCheckById($id);
+            respond(['ok' => true, 'status' => (int) ($r['status'] ?? 3), 'status_text' => STATUS_LABELS[(int) ($r['status'] ?? 3)], 'message' => $r['message'] ?? '']);
+
+        case count($parts) === 3 && $parts[0] === 'hosts' && ctype_digit($parts[1]) && $parts[2] === 'maintenance':
+            need('checks');
+            $h = q('SELECT id, name FROM hosts WHERE id = ?', [(int) $parts[1]])->fetch();
+            if (!$h) {
+                respond(['error' => 'Server niet gevonden'], 404);
+            }
+            $until = $maintUntil($body);
+            q('UPDATE hosts SET maintenance_until = ?, maintenance_reason = ? WHERE id = ?', [$until, mb_substr(trim((string) ($body['reason'] ?? '')), 0, 200) ?: null, $h['id']]);
+            AgentCommands::audit($by, 'Onderhoud', "{$h['name']}: " . ($until ? "tot $until" : 'beëindigd'));
+            respond(['ok' => true, 'until' => iso($until)]);
+
+        default:
+            respond(['error' => 'Onbekend endpoint voor POST', 'endpoints' => ['/ids/block', '/ids/unblock', '/checks/{id}/ack', '/checks/{id}/unack',
+                '/checks/{id}/maintenance', '/checks/{id}/run', '/hosts/{id}/maintenance']], 404);
+    }
+}
+
+// ---------- IDS lezen ----------
+if (($parts[0] ?? '') === 'ids') {
+    need('ids_read');
+    $limit = min(500, max(1, (int) ($_GET['limit'] ?? 100)));
+    $hostName = static fn(array $r) => $r['host_name'] ?? null;
+    switch (true) {
+        case $parts === ['ids']:
+            $open = q("SELECT host_id, severity, COUNT(*) AS n FROM ids_incidents WHERE status = 'open' GROUP BY host_id, severity")->fetchAll();
+            $blocks = Ids::activeBlocks();
+            $hosts = q("SELECT h.id, h.name, h.realtime, s.baseline_until, s.last_report, s.fw_state FROM hosts h LEFT JOIN ids_state s ON s.host_id = h.id
+                        WHERE h.mode = 'agent' AND h.enabled = 1 ORDER BY h.name")->fetchAll();
+            $count = static fn(int $hid, int $sev) => array_sum(array_map(fn($o) => (int) $o['host_id'] === $hid && (int) $o['severity'] === $sev ? (int) $o['n'] : 0, $open));
+            respond([
+                'enabled' => Ids::enabled(), 'mode' => (string) setting('ids_mode', 'learn'),
+                'open' => ['critical' => array_sum(array_map(fn($o) => (int) $o['severity'] === 2 ? (int) $o['n'] : 0, $open)),
+                           'warning' => array_sum(array_map(fn($o) => (int) $o['severity'] === 1 ? (int) $o['n'] : 0, $open))],
+                'blocks_active' => count($blocks),
+                'hosts' => array_map(fn($h) => ['id' => (int) $h['id'], 'name' => $h['name'],
+                    'learning' => $h['baseline_until'] !== null && strtotime($h['baseline_until']) > time(), 'last_report' => iso($h['last_report']),
+                    'firewall' => $h['fw_state'] ?: null, 'realtime' => (bool) $h['realtime'],
+                    'open' => ['critical' => $count((int) $h['id'], 2), 'warning' => $count((int) $h['id'], 1)],
+                    'blocks' => count(array_filter($blocks, fn($b) => (int) $b['host_id'] === (int) $h['id']))], $hosts),
+            ]);
+
+        case $parts === ['ids', 'incidents']:
+            $where = ['1'];
+            $params = [];
+            if (in_array($_GET['status'] ?? '', ['open', 'done'], true)) {
+                $where[] = 'i.status = ?';
+                $params[] = $_GET['status'];
+            }
+            if (in_array($_GET['severity'] ?? '', ['1', '2'], true)) {
+                $where[] = 'i.severity = ?';
+                $params[] = (int) $_GET['severity'];
+            }
+            if (!empty($_GET['host_id'])) {
+                $where[] = 'i.host_id = ?';
+                $params[] = (int) $_GET['host_id'];
+            }
+            $rows = q('SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE ' . implode(' AND ', $where)
+                . " ORDER BY i.created_at DESC, i.id DESC LIMIT $limit", $params)->fetchAll();
+            respond(array_map(fn($i) => ['id' => (int) $i['id'], 'host_id' => (int) $i['host_id'], 'host' => $hostName($i),
+                'severity' => (int) $i['severity'], 'severity_text' => Ids::SEVERITY[(int) $i['severity']] ?? '?', 'type' => $i['type'],
+                'title' => $i['title'], 'detail' => $i['detail'], 'ip' => $i['ip'], 'hits' => (int) $i['hits'], 'status' => $i['status'],
+                'handled_by' => $i['handled_by'], 'handled_at' => iso($i['handled_at']), 'time' => iso($i['created_at']), 'last_seen' => iso($i['last_seen'])], $rows));
+
+        case $parts === ['ids', 'blocks']:
+            $rows = !empty($_GET['all'])
+                ? q("SELECT b.*, h.name AS host_name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id ORDER BY b.id DESC LIMIT $limit")->fetchAll()
+                : Ids::activeBlocks();
+            respond(array_map(fn($b) => ['id' => (int) $b['id'], 'host_id' => (int) $b['host_id'], 'host' => $hostName($b), 'ip' => $b['ip'],
+                'reason' => $b['reason'], 'automatic' => (bool) $b['auto'], 'by' => $b['created_by'], 'since' => iso($b['created_at']),
+                'until' => iso($b['until']), 'permanent' => $b['until'] === null,
+                'active' => $b['removed_at'] === null && ($b['until'] === null || strtotime($b['until']) > time()),
+                'packets' => (int) ($b['hits'] ?? 0), 'removed_at' => iso($b['removed_at'] ?? null), 'removed_by' => $b['removed_by'] ?? null], $rows));
+
+        case $parts === ['ids', 'access']:
+            $where = ['1'];
+            $params = [];
+            if (!empty($_GET['host_id'])) {
+                $where[] = 'a.host_id = ?';
+                $params[] = (int) $_GET['host_id'];
+            }
+            if (in_array($_GET['type'] ?? '', ['ssh', 'console', 'sudo', 'su'], true)) {
+                $where[] = 'a.type = ?';
+                $params[] = $_GET['type'];
+            }
+            if (!empty($_GET['failed'])) {
+                $where[] = "a.kind = 'authfail'";
+            }
+            $rows = q('SELECT a.*, h.name AS host_name FROM access_log a JOIN hosts h ON h.id = a.host_id WHERE ' . implode(' AND ', $where)
+                . " ORDER BY a.created_at DESC, a.id DESC LIMIT $limit", $params)->fetchAll();
+            $rows = array_values(array_filter($rows, fn($r) => !AuthEvents::rowIgnored($r)));
+            respond(array_map(function ($r) use ($hostName) {
+                $d = json_decode((string) $r['detail'], true) ?: [];
+                return ['id' => (int) $r['id'], 'host_id' => (int) $r['host_id'], 'host' => $hostName($r), 'time' => iso($r['created_at']),
+                    'type' => $r['type'], 'failed' => $r['kind'] === 'authfail', 'count' => (int) ($d['n'] ?? 1),
+                    'user' => $d['user'] ?? null, 'users' => $d['users'] ?? null, 'as' => ($d['as'] ?? '') !== '' ? $d['as'] : null,
+                    'ip' => ($d['ip'] ?? '') !== '' ? $d['ip'] : null, 'command' => ($d['cmd'] ?? '') !== '' ? $d['cmd'] : null, 'message' => $r['message']];
+            }, $rows));
+
+        default:
+            respond(['error' => 'Onbekend endpoint', 'endpoints' => ['/ids', '/ids/incidents', '/ids/blocks', '/ids/access']], 404);
+    }
+}
+
+// ---------- Status lezen ----------
+need('read');
+
 switch (true) {
     case $parts === [] || $parts === ['status']:
         $hosts = loadHosts();
@@ -269,5 +511,6 @@ switch (true) {
     default:
         respond(['error' => 'Onbekend endpoint', 'endpoints' => [
             '/status', '/hosts', '/hosts/{id}', '/checks', '/checks/{id}', '/checks/{id}/history', '/alerts',
+            '/ids', '/ids/incidents', '/ids/blocks', '/ids/access',
         ]], 404);
 }

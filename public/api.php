@@ -1259,21 +1259,58 @@ switch ($action) {
         ]);
 
     case 'api_keys':
-        out(q('SELECT id, name, key_hint, last_used, created_at FROM api_keys ORDER BY id')->fetchAll());
+        out(q('SELECT id, name, key_hint, last_used, created_at, rights, allow_from, expires_at, created_by FROM api_keys ORDER BY id')->fetchAll());
 
+    // Sleutel maken of aanpassen: rechten, alleen vanaf (IP's/netwerken) en geldigheid (6, 12 of 24 maanden)
     case 'api_key_create':
-        $name = trim((string) (input()['name'] ?? ''));
-        if ($name === '') {
-            out(['error' => 'Geef de sleutel een naam (bv. "Home Assistant")'], 422);
+    case 'api_key_update':
+        $in = input();
+        $rights = array_values(array_intersect(API_RIGHTS, array_map('strval', (array) ($in['rights'] ?? []))));
+        if (!$rights) {
+            out(['error' => 'Kies minstens één recht'], 422);
         }
-        $key = 'rzm_' . bin2hex(random_bytes(20));
-        q('INSERT INTO api_keys (name, key_hash, key_hint) VALUES (?, ?, ?)', [
-            mb_substr($name, 0, 100), hash('sha256', $key), substr($key, 0, 8) . '…',
-        ]);
-        out(['ok' => true, 'key' => $key]);
+        $from = implode(' ', array_slice(array_filter(parse_list(mb_substr((string) ($in['allow_from'] ?? ''), 0, 500)),
+            fn($x) => @inet_pton(explode('/', $x)[0]) !== false), 0, 20));
+        $months = (int) ($in['months'] ?? 0);
+        if ($months && !in_array($months, [6, 12, 24], true)) {
+            out(['error' => 'Kies 6, 12 of 24 maanden'], 422);
+        }
+        if ($action === 'api_key_create') {
+            $name = trim((string) ($in['name'] ?? ''));
+            if ($name === '') {
+                out(['error' => 'Geef de sleutel een naam (bv. "Home Assistant")'], 422);
+            }
+            if (in_array('ids_block', $rights, true)) {
+                $confirm('BLOKKEREN');
+            }
+            $key = 'rzm_' . bin2hex(random_bytes(20));
+            q('INSERT INTO api_keys (name, key_hash, key_hint, rights, allow_from, expires_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)', [
+                mb_substr($name, 0, 100), hash('sha256', $key), substr($key, 0, 8) . '…', implode(',', $rights), $from ?: null,
+                date('Y-m-d H:i:s', strtotime('+' . ($months ?: 12) . ' months')), $user['username'],
+            ]);
+            AgentCommands::audit($user['username'], 'API-sleutel gemaakt', "$name: " . implode(', ', $rights) . ($from ? " · alleen vanaf $from" : '') . ' · ' . ($months ?: 12) . ' maanden');
+            out(['ok' => true, 'key' => $key]);
+        }
+        $k = q('SELECT * FROM api_keys WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetch();
+        if (!$k) {
+            out(['error' => 'Sleutel niet gevonden'], 404);
+        }
+        // Blokkeren erbij geven vraagt om je wachtwoord, net als bij een nieuwe sleutel
+        if (in_array('ids_block', $rights, true) && !in_array('ids_block', explode(',', (string) $k['rights']), true)) {
+            $confirm('BLOKKEREN');
+        }
+        q('UPDATE api_keys SET rights = ?, allow_from = ?, expires_at = ? WHERE id = ?', [implode(',', $rights), $from ?: null,
+            $months ? date('Y-m-d H:i:s', strtotime("+$months months")) : $k['expires_at'], $k['id']]);
+        AgentCommands::audit($user['username'], 'API-sleutel aangepast', "{$k['name']}: " . implode(', ', $rights) . ($from ? " · alleen vanaf $from" : '')
+            . ($months ? " · verlengd met $months maanden" : ''));
+        out(['ok' => true]);
 
     case 'api_key_delete':
+        $k = q('SELECT name FROM api_keys WHERE id = ?', [(int) (input()['id'] ?? 0)])->fetchColumn();
         q('DELETE FROM api_keys WHERE id = ?', [(int) (input()['id'] ?? 0)]);
+        if ($k !== false) {
+            AgentCommands::audit($user['username'], 'API-sleutel ingetrokken', (string) $k);
+        }
         out(['ok' => true]);
 
     // ---------- Gebruikers en tweestapsverificatie ----------
@@ -1551,13 +1588,10 @@ switch ($action) {
         out(['ok' => true, 'active' => Ids::blocking()]);
 
     case 'ids_unblock':
-        $b = q('SELECT * FROM ids_blocks WHERE id = ?', [(int) (input()['id'] ?? 0)])->fetch();
+        $b = Ids::unblock((int) (input()['id'] ?? 0), $user['username']);
         if (!$b) {
             out(['error' => 'Blokkade niet gevonden'], 404);
         }
-        q('UPDATE ids_blocks SET removed_at = NOW(), removed_by = ? WHERE id = ?', [$user['username'], $b['id']]);
-        // De pogingen tellen niet meer mee, anders volgt meteen een nieuwe automatische blokkade
-        q('DELETE FROM ids_attempts WHERE host_id = ? AND ip = ?', [$b['host_id'], $b['ip']]);
         AgentCommands::audit($user['username'], 'IDS: gedeblokkeerd', "{$b['ip']} op server {$b['host_id']}");
         out(['ok' => true]);
 

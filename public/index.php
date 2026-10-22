@@ -504,11 +504,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       <div data-sk="api" class="card need-admin" id="api-card">
         <h2>API-sleutels</h2>
-        <p class="muted small">Lees statussen en meetwaarden uit via de REST API, bijvoorbeeld vanuit Home Assistant. Stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.</p>
+        <p class="muted small">Lees statussen, meetwaarden en het IDS uit via de REST API, bijvoorbeeld vanuit Home Assistant, en blokkeer IP's of bevestig storingen vanuit een ander systeem.
+          Per sleutel kies je wat hij mag, eventueel vanaf welke adressen, en hoe lang hij geldig is. Stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.</p>
         <p class="small">Basis-URL: <code id="api-base"></code></p>
         <div id="api-keys" class="key-list"></div>
-        <form id="api-key-form" class="inline-form">
+        <form id="api-key-form" class="api-key-form">
           <input name="name" placeholder="Naam, bv. Home Assistant" required maxlength="100">
+          <div id="api-key-fields"></div>
           <button class="btn">＋ Sleutel maken</button>
         </form>
         <details class="small api-docs">
@@ -519,6 +521,24 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <li><code>GET /checks</code> – alle checks (<code>?status=2</code>, <code>?type=disk</code>, <code>?host_id=1</code>)</li>
             <li><code>GET /checks/{id}</code> · <code>/checks/{id}/history?hours=24</code></li>
             <li><code>GET /alerts?limit=50</code> – laatste meldingen</li>
+          </ul>
+          <p class="muted">🛡️ IDS lezen:</p>
+          <ul>
+            <li><code>GET /ids</code> – overzicht: open incidenten, actieve blokkades, servers</li>
+            <li><code>GET /ids/incidents</code> (<code>?status=open</code>, <code>?severity=2</code>, <code>?host_id=1</code>, <code>?limit=100</code>)</li>
+            <li><code>GET /ids/blocks</code> – actieve blokkades (<code>?all=1</code>: ook opgeheven en verlopen)</li>
+            <li><code>GET /ids/access</code> – logins, sudo en su (<code>?host_id=1</code>, <code>?type=ssh</code>, <code>?failed=1</code>)</li>
+          </ul>
+          <p class="muted">⛔ IDS blokkeren:</p>
+          <ul>
+            <li><code>POST /ids/block</code> – <code>{"host": "web01", "ip": "203.0.113.7", "hours": 24, "reason": "…"}</code> (<code>hours</code> 0 = permanent)</li>
+            <li><code>POST /ids/unblock</code> – <code>{"id": 12}</code> of <code>{"host": "web01", "ip": "203.0.113.7"}</code></li>
+          </ul>
+          <p class="muted">✔ Checks bedienen:</p>
+          <ul>
+            <li><code>POST /checks/{id}/ack</code> – <code>{"comment": "…"}</code> · <code>POST /checks/{id}/unack</code></li>
+            <li><code>POST /checks/{id}/maintenance</code> · <code>/hosts/{id}/maintenance</code> – <code>{"minutes": 60, "reason": "…"}</code> (0 = onderhoud beëindigen)</li>
+            <li><code>POST /checks/{id}/run</code> – nu checken</li>
           </ul>
         </details>
       </div>

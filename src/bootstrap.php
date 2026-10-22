@@ -114,6 +114,9 @@ function save_setting(string $name, string $value): void
     q('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)', [$name, $value]);
 }
 
+/** Rechten van een API-sleutel: status lezen, IDS lezen, IDS blokkeren, checks bedienen. */
+const API_RIGHTS = ['read', 'ids_read', 'ids_block', 'checks'];
+
 /** Keuzes voor hoe vaak een agent rapporteert (seconden). */
 const AGENT_TICKS = [30, 60, 120, 300];
 

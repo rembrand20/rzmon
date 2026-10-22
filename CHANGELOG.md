@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.45.0 – 2026-10-22
+### Nieuw
+- **Rechten per API-sleutel:** bij het maken kies je wat de sleutel mag: 📖 status lezen, 🛡️ IDS lezen, ⛔ IDS blokkeren en ✔ checks bedienen. Een sleutel met ⛔ vraagt om bevestiging met je wachtwoord.
+- **Alleen vanaf:** een sleutel kan beperkt worden tot bepaalde IP-adressen of netwerken.
+- **Geldigheid:** een nieuwe sleutel is 6, 12 of 24 maanden geldig (standaard 12). Met ✎ verleng je hem, en pas je rechten en adressen aan.
+- **IDS in de API:** `GET /ids`, `/ids/incidents`, `/ids/blocks` en `/ids/access`, en `POST /ids/block` en `/ids/unblock`. Zo kan bijvoorbeeld fail2ban zijn bans aan RzMon doorgeven (voorbeeld in de handleiding, §11). Je LAN, RzMon zelf en *Nooit blokkeren* weigert de API altijd; staat het IDS op *leren*, dan wordt de blokkade alleen vastgelegd.
+- **Checks bedienen via de API:** storing bevestigen of de bevestiging intrekken, onderhoud voor een check of een hele server, en een check nu uitvoeren.
+- Maken, aanpassen en intrekken van sleutels, en alles wat een sleutel verandert, komt in het logboek.
+- Bestaande sleutels houden alleen *Status lezen* en hebben geen vervaldatum; met ✎ geef je ze andere rechten.
+
 ## 1.44.0 – 2026-10-22
 ### Nieuw
 - **EPEL automatisch:** heeft de realtime-watcher `inotify-tools` nodig en ontbreekt het, dan kijkt de agent-setup op Rocky, Alma, RHEL en Oracle Linux of EPEL er is. Zo niet, dan installeert hij het eerst (Rocky/Alma: `epel-release`; RHEL: het officiële pakket van het Fedora-project; Oracle: `oracle-epel-release`). Dat gebeurt bij elke installatie en elke update. CRB wordt niet aangezet.

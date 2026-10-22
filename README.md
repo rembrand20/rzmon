@@ -210,9 +210,9 @@ Ontwikkelen: verhoog de versie met `tools/bump-version.sh patch|minor|major` en 
 
 ## REST API
 
-Read-only JSON API om statussen en meetwaarden uit te lezen, bv. voor Home Assistant, Grafana of eigen scripts.
+JSON API om statussen, meetwaarden en het IDS uit te lezen, IP's te blokkeren en checks te bedienen, bv. vanuit Home Assistant, Grafana, fail2ban of eigen scripts.
 
-1. Webinterface → *Instellingen* → *API-sleutels* → naam invullen → **Sleutel maken** (wordt maar één keer getoond).
+1. Webinterface → *Instellingen* → *API-sleutels* → naam invullen, rechten kiezen (📖 status lezen, 🛡️ IDS lezen, ⛔ IDS blokkeren, ✔ checks bedienen), eventueel *Alleen vanaf* en de geldigheid (6, 12 of 24 maanden) → **Sleutel maken** (wordt maar één keer getoond).
 2. Stuur de sleutel mee als header `Authorization: Bearer rzm_…` (of `X-API-Key: rzm_…`).
 
 | Endpoint | Beschrijving |
@@ -224,6 +224,11 @@ Read-only JSON API om statussen en meetwaarden uit te lezen, bv. voor Home Assis
 | `GET /v1.php/checks/{id}` | Eén check |
 | `GET /v1.php/checks/{id}/history?hours=24` | Meetwaarden (max 720 uur) |
 | `GET /v1.php/alerts?limit=50` | Laatste meldingen |
+| `GET /v1.php/ids` · `/ids/incidents` · `/ids/blocks` · `/ids/access` | IDS: overzicht, incidenten, blokkades, logins *(🛡️ IDS lezen)* |
+| `POST /v1.php/ids/block` · `/ids/unblock` | IP blokkeren of deblokkeren: `{"host":"web01","ip":"…","hours":24}` *(⛔ IDS blokkeren)* |
+| `POST /v1.php/checks/{id}/ack` · `/unack` · `/maintenance` · `/run` | Bevestigen, onderhoud, nu checken *(✔ Checks bedienen)*; ook `POST /hosts/{id}/maintenance` |
+
+Zie [HANDLEIDING.md §11](HANDLEIDING.md#11-rest-api-en-home-assistant-integratie) voor alle details en een fail2ban-voorbeeld.
 
 Status-codes: `0` OK · `1` WARNING · `2` CRITICAL · `3` UNKNOWN. Tijden in ISO 8601.
 Werkt `/v1.php/status` niet op je webserver (PATH_INFO uit)? Gebruik dan `/v1.php?r=status`.

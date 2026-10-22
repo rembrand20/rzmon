@@ -565,6 +565,18 @@ final class Ids
         return 'geblokkeerd voor ' . ($hours >= 48 ? intdiv($hours, 24) . ' dagen' : "$hours uur");
     }
 
+    /** Blokkade opheffen; ook de pogingen van dat IP vergeten (anders volgt meteen een nieuwe automatische). @return array|null de blokkade */
+    public static function unblock(int $id, string $by): ?array
+    {
+        $b = q('SELECT * FROM ids_blocks WHERE id = ?', [$id])->fetch();
+        if (!$b) {
+            return null;
+        }
+        q('UPDATE ids_blocks SET removed_at = NOW(), removed_by = ? WHERE id = ? AND removed_at IS NULL', [mb_substr($by, 0, 100), $b['id']]);
+        q('DELETE FROM ids_attempts WHERE host_id = ? AND ip = ?', [$b['host_id'], $b['ip']]);
+        return $b;
+    }
+
     /** Met de hand blokkeren. @return true|string */
     public static function block(int $hostId, string $ip, ?int $hours, string $reason, string $by, string $byIp): true|string
     {

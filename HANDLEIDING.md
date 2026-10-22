@@ -1444,10 +1444,22 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 ## 11. REST API en Home Assistant-integratie
 
 ### API-sleutel maken
-**Instellingen → API-sleutels**: vul een naam in, bijvoorbeeld "Home Assistant", en klik op **＋ Sleutel maken**.
+**Instellingen → API-sleutels**: vul een naam in, bijvoorbeeld "Home Assistant", kies de rechten en klik op **＋ Sleutel maken**.
 
-- De sleutel (`rzm_…`) wordt **één keer** getoond; kopieer hem meteen.
-- Per sleutel zie je wanneer hij voor het laatst gebruikt is. Met 🗑 trek je een sleutel in.
+| Recht | Mag |
+|---|---|
+| 📖 **Status lezen** (`read`) | Servers, checks, meetwaarden en meldingen uitlezen. Standaard aangevinkt. |
+| 🛡️ **IDS lezen** (`ids_read`) | Incidenten, blokkades en logins (sudo, su) van het IDS uitlezen. |
+| ⛔ **IDS blokkeren** (`ids_block`) | IP-adressen blokkeren en deblokkeren op je servers. Vraagt om bevestiging met je wachtwoord (op het LAN zonder login: typ BLOKKEREN). |
+| ✔ **Checks bedienen** (`checks`) | Storingen bevestigen, onderhoud aan- en uitzetten, een check nu uitvoeren. |
+
+- **Alleen vanaf** (optioneel): IP-adressen of netwerken, gescheiden door spaties, bijvoorbeeld `192.168.1.20 10.0.0.0/24`. Vanaf een ander adres weigert de API de sleutel (HTTP 403). Leeg = overal vandaan. Aanbevolen voor een sleutel met ⛔.
+- **Geldig:** 6, 12 (standaard) of 24 maanden. Daarna weigert de API hem (HTTP 401, met de datum). Binnen 30 dagen voor het einde staat er een oranje melding bij de sleutel.
+- De sleutel (`rzm_…`) wordt **één keer** getoond; kopieer hem meteen. Er staan meteen testcommando's bij voor de gekozen rechten.
+- Met **✎** pas je de rechten en *Alleen vanaf* aan, en **verleng** je de sleutel met 6, 12 of 24 maanden vanaf nu. De sleutel zelf blijft hetzelfde.
+- Per sleutel zie je de rechten, tot wanneer hij geldig is en wanneer hij voor het laatst gebruikt is. Met 🗑 trek je een sleutel in.
+- Maken, aanpassen en intrekken komt in het logboek (*Instellingen → Agents bijwerken → Logboek*); wat een sleutel doet ook, met als gebruiker `API: <naam>` en het IP-adres.
+- Sleutels van vóór 1.45.0 krijgen alleen *Status lezen* en hebben geen vervaldatum. Geef ze met ✎ andere rechten.
 
 ### Gebruik
 ```bash
@@ -1471,6 +1483,67 @@ In plaats van de `Authorization`-header kun je ook `X-API-Key: rzm_…` gebruike
 - **Tijden** in ISO 8601.
 - **Werkt `/v1.php/status` niet** (bijvoorbeeld Nginx zonder PATH_INFO)? Gebruik dan `/v1.php?r=status`.
 - **Check-id** vind je via `/v1.php/checks`.
+- Heeft de sleutel het recht niet, dan krijg je HTTP 403 met welk recht ontbreekt.
+
+### IDS uitlezen (🛡️ IDS lezen)
+| Endpoint | Resultaat |
+|---|---|
+| `GET /v1.php/ids` | Overzicht: IDS aan/uit, modus (`learn`/`block`), open incidenten per ernst, aantal actieve blokkades, servers met hun status |
+| `GET /v1.php/ids/incidents` | Incidenten, nieuwste eerst. Filters: `?status=open` (of `done`), `?severity=2` (of `1`), `?host_id=1`, `?limit=100` (max 500) |
+| `GET /v1.php/ids/blocks` | Actieve blokkades. `?all=1`: ook opgeheven en verlopen |
+| `GET /v1.php/ids/access` | Logins, sudo en su, zoals op het tabblad *Toegang*. Filters: `?host_id=1`, `?type=ssh`, `?failed=1`, `?limit=100` |
+
+### IP's blokkeren (⛔ IDS blokkeren)
+Stuur JSON met `POST`:
+```bash
+# blokkeren op server web01, 24 uur (hours 0 = permanent, max 8760)
+curl -H "Authorization: Bearer rzm_xxx" -H "Content-Type: application/json" \
+  -d '{"host":"web01","ip":"203.0.113.7","hours":24,"reason":"fail2ban sshd"}' \
+  http://192.168.1.10/v1.php/ids/block
+
+# opheffen: met het id uit het antwoord, of met server + IP
+curl -H "Authorization: Bearer rzm_xxx" -d '{"host":"web01","ip":"203.0.113.7"}' \
+  http://192.168.1.10/v1.php/ids/unblock
+```
+- De server geef je met `host` (naam, hoofdletters maken niet uit) of `host_id`.
+- Het antwoord bevat `id`, `active` en `until`. Staat het IDS op **leren** (of uit), dan wordt de blokkade wel vastgelegd, maar is `active` `false` en staat er een `note` bij; hij wordt actief zodra je het IDS op *blokkeren* zet.
+- Is het IP op die server al geblokkeerd, dan krijg je `"already": true` met de bestaande blokkade (er komt geen tweede).
+- **Nooit via de API:** je LAN (*Lokale netwerken*), het adres van RzMon zelf en de lijst *Nooit blokkeren* weigert de API altijd (HTTP 422).
+- Een opgeheven blokkade wist ook de mislukte pogingen van dat IP, net als ⛔ op de IDS-pagina.
+
+**Voorbeeld: fail2ban meldt zijn bans aan RzMon.** Maak `/etc/fail2ban/action.d/rzmon.conf`:
+```ini
+[Definition]
+actionban   = curl -fsS -m 10 -H "Authorization: Bearer <rzmon_key>" -d '{"host":"<rzmon_host>","ip":"<ip>","hours":24,"reason":"fail2ban <name>"}' <rzmon_url>/v1.php/ids/block
+actionunban = curl -fsS -m 10 -H "Authorization: Bearer <rzmon_key>" -d '{"host":"<rzmon_host>","ip":"<ip>"}' <rzmon_url>/v1.php/ids/unblock
+
+[Init]
+rzmon_url  = http://192.168.1.10
+rzmon_key  = rzm_xxx
+rzmon_host = web01
+```
+Zet in je jail `action = %(action_)s` en `rzmon` onder elkaar. Gebruik voor fail2ban een eigen sleutel met alleen ⛔ en *Alleen vanaf* het IP van die server.
+
+### Checks bedienen (✔ Checks bedienen)
+| Endpoint | Doet |
+|---|---|
+| `POST /v1.php/checks/{id}/ack` | Storing bevestigen, met optioneel `{"comment": "…"}` |
+| `POST /v1.php/checks/{id}/unack` | Bevestiging intrekken |
+| `POST /v1.php/checks/{id}/maintenance` | Onderhoud: `{"minutes": 60, "reason": "…"}` of `{"until": "2026-11-01T08:00"}`; `minutes` 0 = onderhoud beëindigen (max 90 dagen) |
+| `POST /v1.php/hosts/{id}/maintenance` | Idem, voor een hele server |
+| `POST /v1.php/checks/{id}/run` | De check nu uitvoeren; geeft de nieuwe status terug |
+
+Home Assistant, bijvoorbeeld voor een knop op je dashboard (`rest_command` in `configuration.yaml`):
+```yaml
+rest_command:
+  rzmon_onderhoud:
+    url: "http://192.168.1.10/v1.php/hosts/{{ host_id }}/maintenance"
+    method: POST
+    headers:
+      Authorization: !secret rzmon_bedienen
+    content_type: application/json
+    payload: '{"minutes": {{ minutes }}, "reason": "Home Assistant"}'
+```
 
 ### Home Assistant: sensoren
 In `secrets.yaml`:

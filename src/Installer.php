@@ -92,7 +92,12 @@ final class Installer
         // IDS: bestanden bewaken (extra paden per server, JSON) en wat de agent daarvan meldt
         ['hosts', 'ids_fim', 'TEXT NULL'],
         ['hosts', 'agent_tick', 'SMALLINT UNSIGNED NULL'],   // hoe vaak de agent rapporteert (s); NULL = algemene instelling
-        ['hosts', 'realtime', 'TINYINT(1) NOT NULL DEFAULT 0'],   // realtime-watcher aan (logins, services, bestanden direct)
+        ['hosts', 'realtime', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        // API-sleutels: rechten (read, ids_read, ids_block, checks), alleen vanaf (IP's/netwerken), geldig tot
+        ['api_keys', 'rights', "VARCHAR(60) NOT NULL DEFAULT 'read'"],
+        ['api_keys', 'allow_from', 'VARCHAR(500) NULL'],
+        ['api_keys', 'expires_at', 'DATETIME NULL'],
+        ['api_keys', 'created_by', 'VARCHAR(100) NULL'],   // realtime-watcher aan (logins, services, bestanden direct)
         ['ids_state', 'fim_epoch', 'INT UNSIGNED NULL'],     // verandert bij een nieuwe basismeting: agent stuurt dan alles opnieuw
         ['ids_state', 'fim_count', 'INT UNSIGNED NULL'],
         ['ids_state', 'fim_cand', 'VARCHAR(1000) NULL'],     // voorstellen die op de server bestaan (/usr/local/bin, /var/www…)

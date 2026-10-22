@@ -2,6 +2,9 @@
 
 Deze add-on heeft hetzelfde versienummer als RzMon. Het volledige overzicht staat in de [CHANGELOG van RzMon](https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md).
 
+## 1.45.0
+- Geen wijzigingen aan de agent (RzMon: rechten per API-sleutel en IDS in de API).
+
 ## 1.44.0
 - Geen wijzigingen voor de add-on (de agent meldt nu op servers of EPEL/inotify-tools ontbreekt).
 
