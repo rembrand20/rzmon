@@ -1804,7 +1804,7 @@ function checkForm(c, h, preset = {}) {
         <summary>🔔 ${L('Meldingen')}: <span id="notify-mode-label">${c.notify ? L('eigen regels') : L('standaard (algemene instellingen)')}</span><span class="muted" id="notify-fails-label">${c.notify_fails ? ' · ' + L('na {n}× mislukt', { n: +c.notify_fails }) : ''}</span></summary>
         <label>${L('Melden na … mislukte checks achter elkaar')} <span class="hint">${L('(leeg = standaard, nu {n})', { n: state.notify_fails || 1 })}</span>
           <input name="notify_fails" type="number" min="1" max="100" value="${c.notify_fails ?? ''}" placeholder="${state.notify_fails || 1}" style="max-width:8rem"></label>
-        <label class="switch small"><input type="checkbox" id="notify-own" ${c.notify ? 'checked' : ''}><span></span> ${L('Eigen meldregels voor deze check')}</label>
+        <label class="switch small"><input type="checkbox" id="notify-own" ${c.notify ? 'checked' : ''}><span></span> <span id="notify-own-label">${L('Eigen meldregels voor deze check')}</span></label>
         <div id="notify-own-editor" ${c.notify ? '' : 'hidden'}></div>
       </details>
       <details class="notify-own" ${quietOwn ? 'open' : ''}>
@@ -1864,8 +1864,9 @@ function checkForm(c, h, preset = {}) {
   let ownEditor = null;
   const showOwn = async () => {
     const on = $('#notify-own').checked;
+    const info = form.info_only.checked;
     $('#notify-own-editor').hidden = !on;
-    $('#notify-mode-label').textContent = on ? L('eigen regels') : L('standaard (algemene instellingen)');
+    $('#notify-mode-label').textContent = on ? (info ? L('eigen info-kanalen') : L('eigen regels')) : L('standaard (algemene instellingen)');
     if (on) $('#modal').classList.add('wide');   // de tabel heeft ruimte nodig
     if (on && !ownEditor) {
       // Basis: de algemene instellingen; daaroverheen wat deze check al zelf had
@@ -1878,8 +1879,17 @@ function checkForm(c, h, preset = {}) {
       ownEditor = notifyEditor($('#notify-own-editor'), cfg,
         { pushover_enabled: g.pushover_enabled === '1', email_enabled: g.email_enabled === '1', ha_webhook_enabled: g.ha_webhook_enabled === '1' });
     }
+    ownEditor?.infoOnly(info);
   };
   $('#notify-own').onchange = showOwn;
+  // Alleen info-meldingen: dan zijn alleen de info-kanalen van belang; uit = alles weer zichtbaar
+  const applyInfoOnly = () => {
+    const info = form.info_only.checked;
+    $('#notify-own-label').textContent = info ? L('Eigen info-kanalen voor deze check') : L('Eigen meldregels voor deze check');
+    showOwn();
+  };
+  form.info_only.onchange = applyInfoOnly;
+  if (+c.info_only) applyInfoOnly();
   $('[name=notify_fails]', form).oninput = (e) => { $('#notify-fails-label').textContent = e.target.value ? ' · ' + L('na {n}× mislukt', { n: +e.target.value }) : ''; };
   if (c.notify) showOwn();
   // Stille uren: algemeen, eigen vensters (start met de algemene) of nooit stil
@@ -3378,7 +3388,7 @@ const NOTIFY_CHANNELS = [['pushover', 'Pushover', 'pushover_enabled'], ['email',
 function notifyEditor(el, cfg, enabled = {}) {
   const r = cfg.rules || {}, ch = cfg.channels || {}, fl = cfg.flap || {};
   el.innerHTML = `<div class="table-scroll"><table class="notify-table">
-    <thead><tr><th>${L('Status')}</th><th>${L('Melden')}</th><th>${L('Herhalen')}</th>
+    <thead><tr><th>${L('Status')}</th><th>${L('Melden')}</th><th class="nt-rep">${L('Herhalen')}</th>
       ${NOTIFY_CHANNELS.map(([k, l, set]) => `<th class="nt-ch" title="${enabled[set] === false ? L('Dit kanaal staat uit (zie hieronder)') : ''}">${l}${enabled[set] === false ? ` <span class="muted">(${L('uit')})</span>` : ''}</th>`).join('')}
       <th class="nt-ch" title="${L('Alleen bij info: problemen staan altijd op de pagina Meldingen')}">📋 ${L('Meldingenpagina')}</th></tr></thead>
     <tbody>${NOTIFY_ROWS.map(([k, label]) => {
@@ -3393,13 +3403,13 @@ function notifyEditor(el, cfg, enabled = {}) {
           </select>
           <input type="number" data-f="min" min="1" max="10080" value="${x.mode === 'after' ? x.min : 5}" ${x.mode === 'after' ? '' : 'hidden'} title="${L('minuten')}">
         </div></td>
-        <td>${k === 'recovery' || k === 'info' ? '<span class="muted small">–</span>'
+        <td class="nt-rep">${k === 'recovery' || k === 'info' ? '<span class="muted small">–</span>'
           : `<span class="nt-rep">${L('elke {input} min', { input: `<input type="number" data-f="repeat" min="0" max="10080" value="${x.repeat || 0}">` })}</span>`}</td>
         ${NOTIFY_CHANNELS.map(([c]) => `<td class="nt-ch"><input type="checkbox" data-c="${c}" ${(ch[k] || {})[c] !== false ? 'checked' : ''}></td>`).join('')}
         <td class="nt-ch">${k === 'info' ? `<input type="checkbox" data-c="page" ${(ch.info || {}).page !== false ? 'checked' : ''}>` : `<span class="muted small" title="${L('Altijd')}">✓</span>`}</td>
       </tr>`;
     }).join('')}</tbody></table></div>
-    <p class="hint">${L('Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).')} ${L('Info: gebeurtenissen die geen storing zijn (herstart, vernieuwd certificaat, agent of RzMon bijgewerkt), stil via Pushover; tijdens stille uren niet verstuurd, wel op de pagina Meldingen.')}</p>
+    <p class="hint"><span class="nt-rep-hint">${L('Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).')}</span> ${L('Info: gebeurtenissen die geen storing zijn (herstart, vernieuwd certificaat, agent of RzMon bijgewerkt), stil via Pushover; tijdens stille uren niet verstuurd, wel op de pagina Meldingen.')}</p>
     <div class="flap-box">
       <label class="switch small"><input type="checkbox" data-flap="on" ${fl.on !== false ? 'checked' : ''}><span></span> <b>Anti-flapping</b></label>
       <div class="flap-fields">
@@ -3418,6 +3428,11 @@ function notifyEditor(el, cfg, enabled = {}) {
   el.onchange = sync;
   sync();
   return {
+    /** Info-check: alleen de rij Info tonen; de andere rijen blijven bewaard (weer zichtbaar als het uit gaat) */
+    infoOnly(on) {
+      $$('tr[data-k]', el).forEach((tr) => (tr.hidden = on && tr.dataset.k !== 'info'));
+      $$('.flap-box, .nt-rep-hint, th.nt-rep, td.nt-rep', el).forEach((x) => (x.hidden = on));
+    },
     get() {
       const out = { rules: {}, channels: {} };
       $$('tr[data-k]', el).forEach((tr) => {

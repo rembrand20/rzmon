@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.53.1 – 2026-10-22
+### Opgelost
+- Checkformulier: met **ℹ️ Alleen info-meldingen** aan zie je bij *🔔 Meldingen* alleen nog de rij **ℹ️ Info** (*Eigen info-kanalen voor deze check*); warning, critical, onbekend, hersteld en anti-flapping zijn dan verborgen. Zet je het uit, dan komt alles terug, met de instellingen die je eerder had.
+
 ## 1.53.0 – 2026-10-22
 ### Nieuw
 - **Info-checks:** in het checkformulier staat de schakelaar **ℹ️ Alleen info-meldingen**. Zo'n check telt nooit als storing. Bij een statuswissel komt er één info-melding (*"nu WARNING: …"*, *"weer OK: …"*) in plaats van warning, critical of hersteld; *melden na … mislukte checks* geldt ook hier. Op het dashboard heeft hij een blauwe stip met de echte status (*ℹ️ CRITICAL*); de server blijft groen en de check telt niet mee in de gezondheid, de tellers en *⚠️ Problemen*. MQTT en de REST API geven `"info": true`.

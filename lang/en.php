@@ -2087,4 +2087,6 @@ return [
     'Alleen bij info: problemen staan altijd op de pagina Meldingen' => 'Only for info: problems are always on the Alerts page',
     'Meldingenpagina' => 'Alerts page',
     'Altijd' => 'Always',
+    'eigen info-kanalen' => 'custom info channels',
+    'Eigen info-kanalen voor deze check' => 'Custom info channels for this check',
 ];

@@ -435,6 +435,7 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
   - op het dashboard een **blauwe stip** met **ℹ️ WARNING** (de echte status); de server blijft groen, en de check telt niet mee in de gezondheid, de tellers, *⚠️ Problemen* en de afhankelijkheid tussen servers;
   - MQTT en de REST API geven de echte status met `"info": true`, maar tellen hem niet als probleem;
   - de kanalen volgen de rij **ℹ️ Info** (algemeen of de eigen meldregels van de check). Info staat standaard uit, dus zet die rij op *Direct*.
+  - Staat *Alleen info-meldingen* aan, dan toont het checkformulier onder 🔔 Meldingen alleen nog de rij **ℹ️ Info** (*Eigen info-kanalen voor deze check*). Zet je het weer uit, dan zie je alle regels terug, met de instellingen die je eerder had.
 - Home Assistant krijgt `"event": "info"` met status 0.
 
 **🌙 Stille uren** (standaard uit): periodes waarin er **geen meldingen** uitgaan, bijvoorbeeld 's nachts.
