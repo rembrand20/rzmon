@@ -48,7 +48,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Poortscan**: zoek open TCP-poorten (bekende poorten, 1–1024 of een eigen lijst) en maak er met één klik een check van. Bij agent-servers zie je ook welke poorten lokaal luisteren, met procesnaam.
 
 ## 3. Dashboard
-- **Nederlands of Engels** 🌐: schuifje bovenaan *Instellingen* (EN links, NL rechts), per gebruiker onthouden. Nu vertaald: inloggen, bovenbalk, dashboard en meldingen; de rest volgt.
+- **Nederlands of Engels** 🌐: schuifje bovenaan *Instellingen* (EN links, NL rechts), per gebruiker onthouden. De hele interface is vertaald. Meldingen (Pushover, e-mail, Home Assistant, MQTT), checkberichten en de REST API volgen een eigen instelling: *Taal van meldingen en checkberichten*.
 - **Gezondheidsbalk** bovenaan:
   - de algehele status: 🟢 *Alles in orde*, 🟠 *Aandacht nodig* of 🔴 *Storing*;
   - een **score van 0–100%**;

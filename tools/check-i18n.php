@@ -8,7 +8,7 @@ declare(strict_types=1);
  *   php tools/check-i18n.php --list     # alle ontbrekende teksten, één per regel (om te vertalen)
  *   php tools/check-i18n.php --strict   # exitcode 1 als er iets ontbreekt
  *
- * Zoekt t('…') en th('…') in PHP en L('…') in public/assets/app.js, alleen met letterlijke tekst.
+ * Zoekt t('…') en th('…') in PHP en L('…') in public/assets/*.js, alleen met letterlijke tekst.
  */
 
 $root = dirname(__DIR__);
@@ -31,13 +31,14 @@ foreach ($files as $f) {
         $found[unquote($x[1], $x[2])][] = basename($f);
     }
 }
-$js = (string) file_get_contents("$root/public/assets/app.js");
-preg_match_all('/\bL\(\s*([\'"`])((?:(?!\1)[^\\\\]|\\\\.)*)\1/s', $js, $m, PREG_SET_ORDER);
-foreach ($m as $x) {
-    if ($x[1] === '`' && str_contains($x[2], '${')) {
-        continue;   // met ${…} is het geen vaste tekst
+foreach (glob("$root/public/assets/*.js") ?: [] as $f) {
+    preg_match_all('/\bL\(\s*([\'"`])((?:(?!\1)[^\\\\]|\\\\.)*)\1/s', (string) file_get_contents($f), $m, PREG_SET_ORDER);
+    foreach ($m as $x) {
+        if ($x[1] === '`' && str_contains($x[2], '${')) {
+            continue;   // met ${…} is het geen vaste tekst
+        }
+        $found[unquote($x[1], $x[2])][] = basename($f);
     }
-    $found[unquote($x[1], $x[2])][] = 'app.js';
 }
 
 $missing = array_values(array_filter(array_keys($found), static fn($k) => !isset($dict[$k])));

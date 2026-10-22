@@ -1,6 +1,12 @@
 'use strict';
 
 const $ = (s, el = document) => el.querySelector(s);
+/** Tekst in de taal van de pagina (vertalingen in window.I18N, zie setup.php) */
+function L(s, vars) {
+  let r = (window.I18N && window.I18N[s]) || s;
+  if (vars) Object.entries(vars).forEach(([k, v]) => { r = r.split(`{${k}}`).join(String(v)); });
+  return r;
+}
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CSRF = $('meta[name=csrf-token]').content;
 
@@ -41,13 +47,13 @@ function showError(form, msg) {
 /** Config niet schrijfbaar: toon de inhoud om handmatig te plaatsen. */
 function handleConfigResult(r) {
   if (r.written !== false) return true;
-  $('#modal-title').textContent = 'config.php handmatig plaatsen';
+  $('#modal-title').textContent = L('config.php handmatig plaatsen');
   $('#modal-body').innerHTML = `
     <div style="padding:1.2rem">
-      <p>De webserver mag <code>${esc(r.path)}</code> niet schrijven. Maak het bestand zelf aan met deze inhoud en herlaad daarna deze pagina:</p>
+      <p>${L('De webserver mag <code>{path}</code> niet schrijven. Maak het bestand zelf aan met deze inhoud en herlaad daarna deze pagina:', { path: esc(r.path) })}</p>
       <pre class="code" id="cfg-content">${esc(r.content)}</pre>
-      <button type="button" class="btn" data-copy="#cfg-content">Kopieer</button>
-      <p class="muted small">Of geef de webserver tijdelijk schrijfrechten en sla opnieuw op:<br>
+      <button type="button" class="btn" data-copy="#cfg-content">${L('Kopieer')}</button>
+      <p class="muted small">${L('Of geef de webserver tijdelijk schrijfrechten en sla opnieuw op:')}<br>
         <code>sudo chown ${esc(r.user || 'www-data')} ${esc(r.path.replace(/\/config\.php$/, ''))}</code><br>
         Rocky Linux / RHEL: <code>sudo bash ${esc(r.path.replace(/\/config\.php$/, ''))}/install/install-rocky.sh --unlock</code></p>
     </div>`;
@@ -75,7 +81,7 @@ $('#db-create').addEventListener('change', (e) => ($('#db-admin').hidden = !e.ta
 dbForm.addEventListener('submit', (e) => {
   e.preventDefault();
   submit(dbForm, 'db_save', {}, (r) => {
-    toast(r.message || 'Opgeslagen');
+    toast(r.message || L('Opgeslagen'));
     if (handleConfigResult(r)) setTimeout(() => location.reload(), 800);
   });
 });
@@ -88,9 +94,9 @@ dbForm.addEventListener('click', async (e) => {
   try {
     const r = await call(b.dataset.action, formData(dbForm));
     if (b.dataset.action === 'db_test') {
-      toast(`Verbonden met ${r.version}. Database "${dbForm.db_name.value}" ${r.db_exists ? 'bestaat' : 'bestaat nog niet'}.`);
+      toast(L(r.db_exists ? 'Verbonden met {version}. Database "{db}" bestaat.' : 'Verbonden met {version}. Database "{db}" bestaat nog niet.', { version: r.version, db: dbForm.db_name.value }));
     } else {
-      toast(r.message || 'Klaar');
+      toast(r.message || L('Klaar'));
     }
   } catch (ex) {
     showError(dbForm, ex.message);
@@ -103,7 +109,7 @@ const appForm = $('#app-form');
 appForm.addEventListener('submit', (e) => {
   e.preventDefault();
   submit(appForm, 'app_save', {}, (r) => {
-    toast('Instellingen opgeslagen');
+    toast(L('Instellingen opgeslagen'));
     if (handleConfigResult(r)) setTimeout(() => location.reload(), 800);
   });
 });
@@ -122,12 +128,12 @@ document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-copy]');
   if (!b) return;
   const text = $(b.dataset.copy).textContent;
-  try { await navigator.clipboard.writeText(text); toast('Gekopieerd'); }
+  try { await navigator.clipboard.writeText(text); toast(L('Gekopieerd')); }
   catch (ex) {
     const r = document.createRange();
     r.selectNodeContents($(b.dataset.copy));
     getSelection().removeAllRanges();
     getSelection().addRange(r);
-    toast('Geselecteerd — druk Ctrl+C', 'err');
+    toast(L('Geselecteerd — druk Ctrl+C'), 'err');
   }
 });

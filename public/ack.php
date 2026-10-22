@@ -14,6 +14,9 @@ header('X-Robots-Tag: noindex');
 header('Referrer-Policy: no-referrer');
 
 $e = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES);
+// Taal: de keuze op dit apparaat, anders die van de meldingen (deze pagina opent vanuit een melding)
+$cookieLang = (string) ($_COOKIE[I18n::COOKIE] ?? '');
+I18n::set(in_array($cookieLang, I18n::LANGS, true) ? $cookieLang : (is_configured() ? I18n::notifyLang() : I18n::browser()));
 $id = (int) ($_REQUEST['c'] ?? 0);
 $token = (string) ($_REQUEST['t'] ?? '');
 
@@ -38,14 +41,14 @@ if ($state === 'invalid') {
     usleep(300000);
     http_response_code(404);
 }
-$labels = ['OK', 'WARNING', 'CRITICAL', 'ONBEKEND'];
+$labels = ['OK', 'WARNING', 'CRITICAL', t('ONBEKEND')];
 ?>
 <!doctype html>
-<html lang="nl">
+<html lang="<?= I18n::lang() ?>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Storing bevestigen – RzMon</title>
+  <title><?= th('Storing bevestigen – RzMon') ?></title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
   <link rel="stylesheet" href="assets/app.css">
 </head>
@@ -63,16 +66,17 @@ $labels = ['OK', 'WARNING', 'CRITICAL', 'ONBEKEND'];
         <form method="post">
           <input type="hidden" name="c" value="<?= (int) $id ?>">
           <input type="hidden" name="t" value="<?= $e($token) ?>">
-          <label>Opmerking <span class="hint">(optioneel)</span><input name="comment" maxlength="200" placeholder="bv. ik kijk ernaar"></label>
-          <button class="btn primary block">✔ Bevestigen</button>
-          <p class="muted small" style="margin-bottom:0">Na bevestigen krijg je voor deze storing geen meldingen meer. Is het weer goed en gaat het later opnieuw mis, dan krijg je wel weer een melding.</p>
+          <label><?= th('Opmerking') ?> <span class="hint"><?= th('(optioneel)') ?></span><input name="comment" maxlength="200" placeholder="<?= th('bv. ik kijk ernaar') ?>"></label>
+          <button class="btn primary block"><?= th('✔ Bevestigen') ?></button>
+          <p class="muted small" style="margin-bottom:0"><?= th('Na bevestigen krijg je voor deze storing geen meldingen meer. Is het weer goed en gaat het later opnieuw mis, dan krijg je wel weer een melding.') ?></p>
         </form>
       <?php elseif ($state === 'done'): ?>
-        <p class="ack-ok">✔ Bevestigd. Je krijgt voor deze storing geen meldingen meer.</p>
+        <p class="ack-ok"><?= th('✔ Bevestigd. Je krijgt voor deze storing geen meldingen meer.') ?></p>
       <?php elseif ($state === 'already'): ?>
-        <p class="ack-ok">✔ Al bevestigd<?= $check['acked_by'] ? ' door ' . $e($check['acked_by']) : '' ?> op <?= $e(date('d-m-Y H:i', strtotime($check['acked_at']))) ?><?= $check['ack_comment'] ? ': ' . $e($check['ack_comment']) : '' ?>.</p>
+        <p class="ack-ok">✔ <?= $e($check['acked_by'] ? t('Al bevestigd door {who} op {time}', ['who' => $check['acked_by'], 'time' => date('d-m-Y H:i', strtotime($check['acked_at']))])
+          : t('Al bevestigd op {time}', ['time' => date('d-m-Y H:i', strtotime($check['acked_at']))])) ?><?= $check['ack_comment'] ? ': ' . $e($check['ack_comment']) : '' ?>.</p>
       <?php else: ?>
-        <p class="form-error">Deze link werkt niet (meer). Waarschijnlijk is de storing al opgelost: een bevestig-link geldt alleen zolang de storing waarvoor hij is verstuurd nog bezig is.</p>
+        <p class="form-error"><?= th('Deze link werkt niet (meer). Waarschijnlijk is de storing al opgelost: een bevestig-link geldt alleen zolang de storing waarvoor hij is verstuurd nog bezig is.') ?></p>
       <?php endif; ?>
     </div>
   </main>

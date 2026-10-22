@@ -368,7 +368,10 @@ RzMon is er in het **Nederlands** en het **Engels**. Bovenaan *Instellingen* sta
 - De keuze hoort bij je **account**, dus hij gaat mee naar elk apparaat waarop je inlogt. Zonder account (alleen lezen op het LAN) onthoudt RzMon hem op dat apparaat.
 - Bestaande accounts blijven Nederlands. Een nieuw account, en de inlogpagina, volgen de taal van de browser: Nederlands als de browser Nederlands is, anders Engels.
 - Datums en getallen volgen de taal (bijvoorbeeld *22 Oct 2026* en *99.98%* in het Engels).
-- **Nu vertaald:** inloggen, de bovenbalk, het dashboard en het tabblad *Meldingen*. De instellingenpagina, IDS, de vensters, de berichten van checks en de meldingen via Pushover, e-mail en Home Assistant volgen in een volgende versie; tot dan zijn die Nederlands.
+- De hele interface is vertaald: dashboard, meldingen, IDS, instellingen, alle vensters, foutmeldingen, de setup-pagina en de bevestig-pagina uit Pushover.
+- **Taal van meldingen en checkberichten** (*Instellingen → 🔔 Meldingen*): de taal van wat RzMon zelf schrijft en naar iedereen tegelijk gaat. Dat zijn de berichten via Pushover, e-mail, Home Assistant en MQTT, de berichten van checks (bijvoorbeeld *Poort 443 onbereikbaar*), IDS- en toegangsregels en de antwoorden van de REST API. Standaard Nederlands.
+- Wat al bewaard is, blijft in de taal van toen: oude meldingen in de lijst, het logboek en checkberichten tot de volgende controle. Wat de agent zelf meldt (bijvoorbeeld de tekst van een commando-check) komt van de server en wordt niet vertaald.
+- Mails voor *wachtwoord vergeten* gaan in de taal van het account.
 
 ### 6.1 Pushover koppelen
 1. Installeer de **Pushover**-app (iOS of Android). De app is na de proefperiode een eenmalige aankoop.

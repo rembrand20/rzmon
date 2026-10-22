@@ -53,6 +53,8 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **Storingen bevestigen**: ✔ bevestig een storing in het dashboard, via de link in de Pushover-melding, of in de Pushover-app (Emergency). Daarna krijg je er geen meldingen meer over; na herstel vervalt de bevestiging vanzelf.
 
+**🌐 Nederlands of Engels**: de interface per gebruiker in het Nederlands of Engels (schuifje bovenaan *Instellingen*). Meldingen, checkberichten en de REST API hebben een eigen taalinstelling (zie HANDLEIDING.md §6.0).
+
 **Home Assistant-webhook**: elke melding ook als JSON naar een HA-webhook, om automatiseringen te starten (zie HANDLEIDING.md §6.3).
 
 **Back-up en herstel**: automatisch elke dag, week of maand (tijd en aantal instelbaar), als zip met database en `config.php`, versleuteld met AES-256. Downloaden, uploaden en terugzetten in de webinterface, met een veiligheidsback-up vooraf (zie HANDLEIDING.md §13).
