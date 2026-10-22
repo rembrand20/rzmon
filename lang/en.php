@@ -2078,4 +2078,5 @@ return [
     'Info bij agent-updates:' => 'Info on agent updates:',
     'aan (volgt de algemene info-regel)' => 'on (follows the general info rule)',
     'Info: gebeurtenissen die geen storing zijn (herstart, vernieuwd certificaat, agent of RzMon bijgewerkt), stil via Pushover; tijdens stille uren niet verstuurd, wel op de pagina Meldingen.' => 'Info: events that are not an outage (restart, renewed certificate, agent or RzMon updated), silently via Pushover; not sent during quiet hours, but shown on the Alerts page.',
+    'Ook hier geldt "melden na … mislukte checks achter elkaar": zolang dat aantal niet gehaald wordt, flapt hij stil.' => 'The "notify after … failed checks in a row" setting applies here too: until that number is reached, it flaps silently.',
 ];

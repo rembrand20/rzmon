@@ -3401,7 +3401,7 @@ function notifyEditor(el, cfg, enabled = {}) {
           window: `<input type="number" data-flap="window" min="1" max="1440" value="${fl.window ?? 30}">`,
           stable: `<input type="number" data-flap="stable" min="1" max="1440" value="${fl.stable ?? 15}">` })}
       </div>
-      <p class="hint">${L('Flapt een check, dan krijg je één melding "staat te flappen", daarna per status (warning, critical, onbekend, hersteld) hooguit één melding, en een melding als hij weer stabiel is.')}</p>
+      <p class="hint">${L('Flapt een check, dan krijg je één melding "staat te flappen", daarna per status (warning, critical, onbekend, hersteld) hooguit één melding, en een melding als hij weer stabiel is.')} ${L('Ook hier geldt "melden na … mislukte checks achter elkaar": zolang dat aantal niet gehaald wordt, flapt hij stil.')}</p>
     </div>`;
   const sync = () => { $('.flap-fields', el).classList.toggle('off', !$('[data-flap=on]', el).checked); $$('tr[data-k]', el).forEach((tr) => {
     const mode = $('[data-f=mode]', tr).value;

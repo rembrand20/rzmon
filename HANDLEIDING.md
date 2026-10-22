@@ -53,6 +53,7 @@ RzMon bestaat uit vier onderdelen:
 | **Service** | Is een systemd-service `active`? Op agent-servers ook: luistert hij op zijn poorten, antwoordt hij, herstarts en log-fouten (§8.7) | Niet actief of antwoordt niet = CRITICAL; ≥ 3 herstarts/uur of fouten in het log = WARNING | Lokaal + agent |
 | **CPU** | CPU-gebruik over 2 seconden + load average | % gebruik | Lokaal + agent |
 | **RAM** | Geheugengebruik (cache telt niet mee) + swap | % gebruikt | Lokaal + agent |
+| **🔄 Herstart** | Ziet wanneer de server opnieuw is opgestart en stuurt dan een ℹ️ info-melding (§6.2) | Altijd OK; de uptime in uren is de waarde | Lokaal + agent (agent 1.46.0+) |
 | **Home Assistant** | Core, Supervisor, elke add-on en beschikbare updates | Niet actief = CRITICAL, update beschikbaar = WARNING | HA-add-on |
 | **Podman (algemeen)** | Draait podman; gestopte (foutcode), ongezonde of gepauzeerde containers; pods | Probleem = WARNING | Agent met podman |
 | **Logbestand (zoeken)** | Treffers van een zoekpatroon in een logbestand, het systemlog of kernelmeldingen (bv. mislukte logins, hardwarefouten) | Aantal treffers in de laatste 15 min (instelbaar) | Agent |
@@ -399,6 +400,7 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 | 🔴 Critical | idem | idem | idem |
 | ⚪ Onbekend | idem; plus de schakelaar **Melden bij ONBEKEND** | idem | idem |
 | ✅ Hersteld | Nooit, Direct, of Na X minuten OK | – | idem |
+| ℹ️ Info | Nooit of Direct (standaard **Nooit**) | – | idem |
 
 - **Na X minuten:** pas melden als de check X minuten **onafgebroken** in die status is. Herstelt hij eerder, dan komt er geen melding. Zo filter je korte pieken weg. Elke status heeft een eigen klok: een warning die critical wordt, meldt meteen als critical "Direct" is.
 - **Melden na … mislukte checks achter elkaar** (standaard 1): een melding gaat pas uit als de check zoveel keer **achter elkaar** dezelfde status gaf. Bij 3 en een interval van 60 s is dat na ongeveer 2 minuten; bij een interval van 300 s na ongeveer 10 minuten. Zo filter je haperingen weg, los van het interval.
@@ -416,7 +418,18 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - Een check **flapt** bij **4 statuswisselingen binnen 30 minuten**. Je krijgt dan één melding: *"🔀 FLAPPEND: … staat te flappen (5× gewisseld in 30 min)"*.
 - Zolang hij flapt, komt er **per status hooguit één melding**: de eerste warning, de eerste critical, de eerste onbekend en het eerste herstel. Verdere wisselingen en herinneringen worden niet gemeld. Op het dashboard staat **🔀 flapt** bij de check.
 - Is de status **15 minuten** niet veranderd, dan krijg je één melding *"STABIEL: … is 15 min OK/CRITICAL"*, en werkt alles weer normaal.
+- Ook bij flappen geldt **Melden na … mislukte checks achter elkaar**: zolang de check niet zo vaak achter elkaar mislukt, flapt hij **stil** (geen *FLAPPEND*, geen melding per status). Haalt hij het aantal wel, dan komt er één melding met *(flapt)* erbij. Is er niets gemeld en wordt hij stabiel OK, dan komt er ook geen *STABIEL*-melding.
 - De drie getallen pas je aan in het blok *Anti-flapping*, en per check in de eigen meldregels.
+
+**ℹ️ Info** (standaard uit): meldingen over gebeurtenissen die **geen storing** zijn.
+- **Server herstart:** met de check **🔄 Herstart** (＋ Check, groep 📊 Systeem; voor de RzMon-server zelf en agent-servers met agent 1.46.0 of nieuwer), de check *HA OS herstart* van Home Assistant (alleen een geplande herstart; een onverwachte is CRITICAL) en de SNMP-check *Uptime*. Bijvoorbeeld *"ℹ️ INFO: WebServer01 – Herstart: Herstart om 22-10 03:12 · was 41 d 6 u aan"*.
+- **SSL-certificaat vernieuwd:** bij een certificaat-check, als er ineens meer dagen over zijn dan bij de vorige controle.
+- **Agent bijgewerkt:** van welke naar welke versie (met de knop, automatisch, via de add-on winkel of met de hand), of ✘ als het bijwerken mislukte. Per server uit te zetten in de **Agent Manager** (*Info bij agent-updates*).
+- **RzMon bijgewerkt:** van welke naar welke versie.
+- Zet de rij **ℹ️ Info** op *Direct* en vink de kanalen aan. Per check kan het anders: ✎ → 🔔 Meldingen → *Eigen meldregels* → rij *Info* (bijvoorbeeld alleen voor de herstart van je NAS). Agent- en RzMon-updates horen niet bij een check en volgen de algemene regel.
+- Info gaat direct (niet gebundeld) en via Pushover **stil** (prioriteit -1: geen geluid of trilling). Tijdens **stille uren** en **onderhoud** wordt info niet verstuurd en komt hij niet in de samenvatting achteraf.
+- **Op de pagina Meldingen** staat elke info-melding altijd, met ℹ️ en een blauwe kleur, ook als hij niet verstuurd is (dan staat de reden erbij, bijvoorbeeld *[niet verzonden: info staat uit]*). Met de knoppen **Alles · Zonder info · ℹ️ Info** filter je de lijst.
+- Home Assistant krijgt `"event": "info"` met status 0.
 
 **🌙 Stille uren** (standaard uit): periodes waarin er **geen meldingen** uitgaan, bijvoorbeeld 's nachts.
 - Zet *Stille uren aan* en vul één of meer **vensters** in: *van* en *tot*, en de **dagen** waarop het venster begint. Over middernacht mag: *23:00 tot 07:00 op ma–vr* loopt van maandagavond tot dinsdagochtend. Van gelijk aan tot betekent 24 uur. Met **＋ Venster** voeg je er één toe, bijvoorbeeld in het weekend *00:00 tot 10:00*.
@@ -591,6 +604,7 @@ Klik op een serverkaart op **＋**. Per type:
 | Service | systemd-naam, bv. `nginx`. Bij een HA-agent: `homeassistant`, `supervisor`, `updates` of `addon:<slug>` | – |
 | CPU | – | 85 / 95 % |
 | RAM | – | 85 / 95 % |
+| 🔄 Herstart | – | Geen drempels: altijd OK, bij een herstart een ℹ️ info-melding |
 | Podman (algemeen) | – (alleen agent-servers met podman) | – |
 | Container (Podman) | Containernaam, uit de lijst. Status altijd; vink CPU, RAM en/of disk aan, elk met eigen drempels | CPU 80 / 95 %, RAM 85 / 95 %, disk 5000 / 10000 MB |
 | Commando | Een commando en het antwoord dat je verwacht (gelijk aan, bevat, regex of exitcode 0); alleen als commando's voor die server aan staan (§8.10) | Afwijking = critical of warning, naar keuze |

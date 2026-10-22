@@ -78,7 +78,8 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   Per check kun je dit **overschrijven**.
 - **Bundelen per server:** meerdere meldingen binnen 120 seconden (instelbaar) worden één bericht.
 - **Melden na N mislukte checks:** een melding pas als een check zoveel keer achter elkaar dezelfde status gaf (per status, onbekend telt mee). Algemeen in te stellen en per check anders; op het dashboard staat **⏳ 2/3** zolang hij nog niet gemeld is.
-- **Anti-flapping:** een check die steeds van status wisselt, geeft één melding *"staat te flappen"*. Daarna komt er per status hooguit één melding, tot hij stabiel is. De getallen stel je zelf in, algemeen en per check.
+- **Anti-flapping:** een check die steeds van status wisselt, geeft één melding *"staat te flappen"*. Daarna komt er per status hooguit één melding, tot hij stabiel is. Ook hier geldt *melden na N mislukte checks*: zolang dat aantal niet gehaald wordt, flapt hij stil. De getallen stel je zelf in, algemeen en per check.
+- **ℹ️ Info-meldingen** (standaard uit): gebeurtenissen die geen storing zijn: een server is herstart (nieuwe check **🔄 Herstart**, HA OS herstart, SNMP-uptime), een SSL-certificaat is vernieuwd, een agent of RzMon is bijgewerkt. Algemeen en per check in te stellen, stil via Pushover, niet tijdens stille uren of onderhoud; altijd zichtbaar op de pagina Meldingen, met een filter *Alles · Zonder info · ℹ️ Info*.
 - **🌙 Stille uren:**
   - vensters (van–tot, per dag van de week, ook over middernacht) waarin geen meldingen uitgaan;
   - algemeen, per check eigen vensters, of *nooit stil*;

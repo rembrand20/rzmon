@@ -7,6 +7,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.52.0 – 2026-10-22
+### Nieuw
+- **ℹ️ Info-meldingen** voor gebeurtenissen die geen storing zijn. In *Instellingen → 🔔 Meldingen* staat een nieuwe rij **ℹ️ Info** (nooit of direct, met de kanalen Pushover, e-mail en Home Assistant). Per check anders in te stellen (✎ → 🔔 Meldingen → *Eigen meldregels*). Na de update staat info **uit**, dus er verandert niets tot je het zelf aanzet.
+  - **Server herstart:** nieuwe check **🔄 Herstart** (＋ Check, groep Systeem) voor de RzMon-server en agent-servers; ook de checks *HA OS herstart* (geplande herstart) en SNMP *Uptime* geven info bij een herstart.
+  - **SSL-certificaat vernieuwd:** bij een certificaat-check.
+  - **Agent bijgewerkt** (of mislukt): per server uit te zetten in de Agent Manager (*Info bij agent-updates*).
+  - **RzMon bijgewerkt.**
+  - Info gaat direct en via Pushover stil (prioriteit -1). Tijdens stille uren en onderhoud wordt hij niet verstuurd en komt hij niet in de samenvatting achteraf.
+  - Op de pagina **Meldingen** staat elke info-melding altijd, in het blauw met ℹ️, met een filter *Alles · Zonder info · ℹ️ Info*. Home Assistant krijgt `"event": "info"`.
+- Nieuwe agent 1.46.0: stuurt zijn opstarttijd mee (nodig voor de check *Herstart* op agent-servers). Werk je agents bij met de knop in *Instellingen → ⬆ Agents bijwerken*.
+
+### Opgelost
+- **Anti-flapping hield geen rekening met "melden na … mislukte checks achter elkaar".** Een check die vaak wisselde, gaf meteen een melding *FLAPPEND* en per status een melding, ook als hij maar één keer mislukte. Nu flapt hij stil tot het ingestelde aantal gehaald is. Daardoor leek het of bestaande checks de instelling oversloegen en nieuwe niet.
+
 ## 1.51.1 – 2026-10-22
 ### Opgelost
 - Teksten die de agent zelf meestuurt, staan nu ook in het Engels als *Taal van meldingen en checkberichten* op English staat. Het gaat om de diepere servicecontrole (bijvoorbeeld *database antwoordt (ping)*), sockets, de extra test en de eigen test, en om fouten bij log-, commando-, Podman-, certificaat- en Home Assistant-checks en bij het bijwerken van een agent. RzMon vertaalt ze zelf: je hoeft de agent niet bij te werken.
