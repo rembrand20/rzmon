@@ -195,6 +195,7 @@ De add-on heeft alleen leesrechten: Supervisor-rol `default`, plus host-netwerk 
 
 ## Versie en upgraden
 De huidige versie staat in [`VERSION`](VERSION) en in de topbalk van RzMon. Wat er per versie veranderd is, lees je in [`CHANGELOG.md`](CHANGELOG.md).
+De agent (en de Home Assistant-add-on) heeft een eigen versienummer in [`agent/VERSION`](agent/VERSION), met een eigen [changelog](agent/CHANGELOG.md). Een update van RzMon verandert niets aan `config.php` of aan je instellingen, en een agent-update niets aan `/etc/default/rzmon-agent`.
 
 **Vanaf 1.29.0 kan het met één knop:** *Instellingen → ⬆ RzMon bijwerken* (of automatisch op een vast tijdstip), met eerst een back-up. Dat werkt bij installaties met `install-rocky.sh`; voer daarvoor na de update naar 1.29.0 het installatiecommando één keer uit. Zie HANDLEIDING.md §12.
 
@@ -204,7 +205,7 @@ Handmatig upgraden gaat zo:
 3. Werk de agents bij met één knop: *Instellingen → ⬆ Agents bijwerken* (of automatisch). Een verouderde agent herken je aan **⬆** op de servertegel. Agents van vóór 1.19.0 werk je één keer met de hand bij: `sudo rzmon-agent-setup --update`.
 4. Vanaf 1.17.0: installeer één keer de hulpdienst met `sudo bash /var/www/rzmon/install/install-helper.sh` (opnieuw `install-rocky.sh` draaien doet dat ook). Die is nodig voor de knop *Databasewachtwoord vernieuwen* en maakt de back-upmap aan. Voor back-ups (1.18.0) is ook de PHP-extensie `php-zip` nodig.
 
-Ontwikkelen: verhoog de versie met `tools/bump-version.sh patch|minor|major` en controleer met `tools/check-version.sh`.
+Ontwikkelen: verhoog de versie met `tools/bump-version.sh rzmon|agent patch|minor|major` (daarna `tools/bump-version.sh sync` voor de add-on) en controleer met `tools/check-version.sh`.
 
 > Kom je van de versie die nog *ServerMonitor* heette? Laat je bestaande `config.php` (met de oude databasenaam) gewoon staan. De agent heet nu `rzmon-agent.sh`; de oude `sm-agent.sh` blijft werken, maar vervang hem bij gelegenheid.
 

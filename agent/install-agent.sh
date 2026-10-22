@@ -17,7 +17,8 @@
 #  (standaard /mnt/<eerste pool>/rzmon-agent, of --pool NAAM / --dir PAD) en de agent draait via een
 #  cronjob van TrueNAS (System → Advanced → Cron Jobs), die ook na een TrueNAS-update blijft staan.
 #
-#  Opnieuw uitvoeren is veilig: bestaande instellingen blijven staan tenzij je ze meegeeft.
+#  Opnieuw uitvoeren is veilig: een bestaand instellingenbestand blijft precies zoals het is. Alleen wat je
+#  zelf meegeeft (bv. --url of --token) wordt aangepast, en dan alleen die ene regel.
 # =============================================================================
 set -Eeuo pipefail
 
@@ -117,6 +118,10 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+# Wat je nu zelf meegeeft: bij een bestaande installatie worden alleen díe regels in de instellingen aangepast
+ARG_URL=$URL ARG_TOKEN=$TOKEN ARG_SERVICES=$SERVICES ARG_INSECURE=$INSECURE ARG_INTERVAL=$INTERVAL ARG_CERTS=$CERTS_SET
+ARG_NO_EPEL=0; [ "$EPEL" = 0 ] && ARG_NO_EPEL=1
 
 if [ "$MODE" = "version" ]; then
     if [ -f "$BIN" ]; then bash "$BIN" --version 2>/dev/null || echo "rzmon-agent (oude versie, zonder versienummer)"; else echo "Agent niet geïnstalleerd"; fi
@@ -441,9 +446,32 @@ fi
 
 # ----------------------------------------------------------------- 4. instellingen + planning
 step "4/5 Instellen"
-if [ "$MODE" = "install" ]; then
-    # Eigen regels uit de bestaande instellingen (bv. COMMANDS=0, LOG_DIRS, REMOTE_UPDATE) bewaren
-    old_extra=$(grep -E '^[A-Z_]+=' "$CONF" 2>/dev/null | grep -vE '^(MONITOR_URL|TOKEN|SERVICES|CERTS|INSECURE|INTERVAL|AGENT_DIR|AGENT_SETUP)=' || true)
+# Eén regel in de bestaande instellingen zetten; de rest van het bestand blijft precies gelijk
+conf_set() {  # conf_set NAAM WAARDE
+    local tmp
+    if grep -q "^$1=" "$CONF"; then
+        tmp=$(mktemp "$CONF.XXXXXX")
+        awk -v k="$1=" -v line="$1=\"$2\"" 'index($0, k) == 1 { print line; next } { print }' "$CONF" >"$tmp"
+        chmod 600 "$tmp"
+        mv -f "$tmp" "$CONF"
+    else
+        printf '%s="%s"\n' "$1" "$2" >>"$CONF"
+    fi
+    ok "$CONF: $1 aangepast"
+    conf_changed=1
+}
+if [ "$MODE" = "install" ] && [ -f "$CONF" ]; then
+    # Bestaande installatie: het bestand niet opnieuw schrijven, alleen wat je nu meegeeft en anders is
+    conf_changed=0
+    if [ -n "$ARG_URL" ] && [ "$URL" != "${OLD_URL-}" ]; then conf_set MONITOR_URL "$URL"; fi
+    if [ -n "$ARG_TOKEN" ] && [ "$TOKEN" != "${OLD_TOKEN-}" ]; then conf_set TOKEN "$TOKEN"; fi
+    if [ -n "$ARG_SERVICES" ] && [ "$SERVICES" != "${OLD_SERVICES-}" ]; then conf_set SERVICES "$SERVICES"; fi
+    if [ "$ARG_CERTS" = 1 ] && [ "$CERTS" != "${OLD_CERTS-}" ]; then conf_set CERTS "$CERTS"; fi
+    if [ -n "$ARG_INSECURE" ] && [ "$INSECURE" != "${OLD_INSECURE-}" ]; then conf_set INSECURE "$INSECURE"; fi
+    if [ -n "$ARG_INTERVAL" ] && [ "$INTERVAL" != "${OLD_INTERVAL-}" ]; then conf_set INTERVAL "$INTERVAL"; fi
+    if [ "$ARG_NO_EPEL" = 1 ] && ! grep -qE '^EPEL="?0"?$' "$CONF"; then conf_set EPEL 0; fi
+    [ "$conf_changed" = 1 ] || ok "$CONF blijft ongewijzigd"
+elif [ "$MODE" = "install" ]; then
     umask 077
     cat > "$CONF" <<EOF
 # RzMon agent – aangemaakt door install-agent.sh op $(date '+%Y-%m-%d %H:%M')
@@ -457,17 +485,14 @@ INSECURE="$INSECURE"
 # Tik (seconden) als RzMon er geen doorgeeft; normaal stel je hem in RzMon in (Agent Manager)
 INTERVAL="$INTERVAL"
 EOF
-    [ -n "$old_extra" ] && printf '# Eigen instellingen (overgenomen uit de vorige installatie)\n%s\n' "$old_extra" >>"$CONF"
-    [ "$EPEL" = 0 ] && ! grep -q '^EPEL=' "$CONF" && printf '# Rocky/Alma/RHEL: EPEL niet installeren (geen bestanden in realtime)\nEPEL=0\n' >>"$CONF"
+    if [ "$EPEL" = 0 ]; then printf '# Rocky/Alma/RHEL: EPEL niet installeren (geen bestanden in realtime)\nEPEL=0\n' >>"$CONF"; fi
+    if [ "$TRUENAS" = 1 ]; then
+        # Voor bijwerken vanuit RzMon: waar de agent en dit script staan
+        printf '# TrueNAS: map van de agent en het installatiescript (bijwerken vanuit RzMon)\nAGENT_DIR="%s"\nAGENT_SETUP="%s"\n' "$TN_DIR" "$SETUP" >>"$CONF"
+    fi
     umask 022
     chmod 600 "$CONF"
     ok "$CONF (alleen leesbaar voor root)"
-fi
-if [ "$TRUENAS" = 1 ]; then
-    # Voor bijwerken vanuit RzMon: waar de agent en dit script staan (ook bij een oudere, handmatige installatie)
-    grep -q '^AGENT_DIR=' "$CONF" || printf '# TrueNAS: map van de agent en het installatiescript (bijwerken vanuit RzMon)\nAGENT_DIR="%s"\n' "$TN_DIR" >>"$CONF"
-    grep -q '^AGENT_SETUP=' "$CONF" || printf 'AGENT_SETUP="%s"\n' "$SETUP" >>"$CONF"
-    chmod 600 "$CONF"
 fi
 
 use_systemd=0

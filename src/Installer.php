@@ -16,11 +16,25 @@ final class Installer
     public static function runSchema(?PDO $pdo = null): void
     {
         $pdo ??= db();
+        // Bij een update blijven bestaande instellingen precies zoals ze waren (IDS aan, modus, meldingen…):
+        // het schema en de migraties mogen alleen ontbrekende instellingen toevoegen
+        try {
+            $before = $pdo->query('SELECT name, value FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR);
+        } catch (PDOException) {
+            $before = [];   // nieuwe installatie: de tabel bestaat nog niet
+        }
         $sql = preg_replace('/^\s*--.*$/m', '', (string) file_get_contents(SM_ROOT . '/install/schema.sql'));
         foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
             $pdo->exec($stmt);
         }
         self::migrate($pdo);
+        $restore = $pdo->prepare('UPDATE settings SET value = ? WHERE name = ?');
+        $after = $pdo->query('SELECT name, value FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR);
+        foreach ($before as $name => $value) {
+            if ($name !== 'db_version' && array_key_exists($name, $after) && $after[$name] !== $value) {
+                $restore->execute([$value, $name]);
+            }
+        }
         $pdo->prepare('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)')
             ->execute(['db_version', RZMON_VERSION]);
     }

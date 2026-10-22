@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Versienummers gelijk en changelog bijgewerkt
+      - name: Versienummers (RzMon en agent) en changelogs
         run: bash tools/check-version.sh
       - name: Syntaxcontrole shellscripts
         run: |

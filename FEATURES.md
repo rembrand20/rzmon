@@ -216,4 +216,4 @@ Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt
   - **logbestanden** van HA OS, Core, de Supervisor en add-ons doorzoeken (bv. te lage voeding op een Raspberry Pi);
   - *＋ Aanbevolen checks* voor Home Assistant.
 - **Alleen lezen**, met de Supervisor-rol `manager` (statistieken, logs, hardware). Commando-checks zijn in de add-on niet actief.
-- **Bijwerken** via de add-on winkel. De add-on heeft hetzelfde versienummer als RzMon.
+- **Bijwerken** via de add-on winkel. De add-on heeft hetzelfde versienummer als de agent (los van RzMon), dus er is alleen een update als de agent veranderd is.

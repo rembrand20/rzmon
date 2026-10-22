@@ -742,7 +742,7 @@ Het installatiescript blijft op de server staan als `rzmon-agent-setup`:
 | Nieuw token | `sudo rzmon-agent-setup --token <nieuw token>` |
 | Verwijderen | `sudo rzmon-agent-setup --uninstall` |
 
-Opnieuw uitvoeren is altijd veilig: wat je niet meegeeft, blijft zoals het was.
+Opnieuw uitvoeren is altijd veilig. Bij een bestaande installatie blijft `/etc/default/rzmon-agent` precies zoals het is, met je eigen regels en commentaar. Geef je zelf iets mee, bijvoorbeeld `--token` of `--interval`, dan wordt alleen die ene regel aangepast. Bijwerken (`--update` of de knop ⬆) verandert nooit iets aan de instellingen.
 
 #### 8.2.1 Bijwerken vanuit RzMon ⬆
 Na de eerste installatie (met het commando) werk je de agent bij met een knop:
@@ -1598,7 +1598,13 @@ De nummering is *major.minor.patch*:
 - **minor** (1.6 → 1.7): nieuwe functies, volledig compatibel;
 - **major** (1 → 2): er verandert iets waar je zelf iets voor moet doen. Dat staat dan in de changelog.
 
-De agents hebben hetzelfde versienummer. Elke agent geeft zijn versie door, en je ziet die op de servertegel (bijvoorbeeld `agent 1 min geleden · v1.6.0`). Is een agent ouder dan RzMon, dan staat er **⬆** achter. In het venster *Agent Manager* staat dan het commando om hem bij te werken. Met `rzmon-agent.sh --version` zie je de versie op de server zelf.
+**De agent heeft een eigen versienummer** (sinds RzMon 1.46.0 en agent 1.45.1), los van RzMon. Verandert er alleen iets in RzMon, dan blijft de agent op zijn versie en hoef je niets bij te werken. Wat er in de agent verandert, staat in [`agent/CHANGELOG.md`](agent/CHANGELOG.md). De Home Assistant-add-on heeft hetzelfde nummer als de agent.
+
+Elke agent geeft zijn versie door, en je ziet die op de servertegel (bijvoorbeeld `agent 1 min geleden · v1.45.1`). Is er een nieuwere agent, dan staat er **⬆** achter. In het venster *Agent Manager* zie je de versie van de agent en de nieuwste, met de knop om bij te werken. Met `rzmon-agent.sh --version` zie je de versie op de server zelf.
+
+**Bij een update blijven je instellingen staan:**
+- RzMon: `config.php` en alle instellingen in de database (bijvoorbeeld IDS aan en de modus, meldingen, back-up) blijven precies zoals ze waren. Het bijwerken van de database voegt alleen nieuwe instellingen toe; een bestaande instelling wordt nooit veranderd.
+- Agent: `/etc/default/rzmon-agent` blijft byte voor byte gelijk (zie 8.2).
 
 ### Bijwerken vanuit RzMon ⬆ (Rocky Linux, vanaf 1.29.0)
 Onder **Instellingen → ⬆ RzMon bijwerken** werk je RzMon bij zonder terminal.
@@ -1637,23 +1643,23 @@ Het script haalt de nieuwste versie op en meldt bijvoorbeeld `RzMon bijgewerkt v
    Of klik op **Setup → ↻ Tabellen bijwerken**.
 4. **Werk de agents bij:**
    - Linux-servers: *Instellingen → ⬆ Agents bijwerken* → **Alle verouderde agents bijwerken** (of automatisch, zie 8.2.1). Agents van vóór 1.19.0: één keer `sudo rzmon-agent-setup --update`.
-   - Home Assistant: ga naar de add-on winkel → ⋮ → *Controleren op updates* → *Bijwerken*. HA ziet de update omdat het versienummer van de add-on mee verhoogd wordt.
+   - Home Assistant: ga naar de add-on winkel → ⋮ → *Controleren op updates* → *Bijwerken*. Er is alleen een update als de agent zelf veranderd is.
+
+   Is de agent niet veranderd, dan hoef je hier niets te doen.
 5. **Ververs de browser** met Ctrl+F5.
 
 ### Voor ontwikkelaars: versie verhogen
-Elke wijziging aan RzMon krijgt een nieuw versienummer:
+RzMon en de agent hebben elk een eigen nummer. Verhoog alleen wat je veranderd hebt:
 ```bash
-tools/bump-version.sh patch      # of minor / major / 1.7.0
-# vul daarna de nieuwe sectie bovenaan CHANGELOG.md in
-tools/check-version.sh           # controleert of alles gelijk loopt
+tools/bump-version.sh rzmon minor   # RzMon: VERSION + lege sectie in CHANGELOG.md
+tools/bump-version.sh agent patch   # agent: agent/VERSION, AGENT_VERSION, add-on-versie + lege sectie in agent/CHANGELOG.md
+# vul de changelog(s) in, daarna:
+tools/bump-version.sh sync          # agent en agent/CHANGELOG.md naar de add-on kopiëren
+tools/check-version.sh              # controleert beide nummers en de changelogs
 ```
-`bump-version.sh` werkt deze plekken in één keer bij:
-- het bestand `VERSION`;
-- de agent;
-- de kopie van de agent in de HA-add-on;
-- de add-on-versie.
+Patch is voor reparaties, minor voor nieuwe functies, major als de gebruiker zelf iets moet aanpassen. Heeft een nieuwe functie in RzMon ook een nieuwere agent nodig, zet dat dan in de changelog van RzMon ("agent 1.x.y nodig").
 
-Op GitHub controleert een Action (`Versiecontrole`) bij elke push of de versies gelijk zijn en de changelog ingevuld is.
+Op GitHub controleert een Action (`Versiecontrole`) bij elke push of de nummers kloppen, de kopieën in de add-on gelijk zijn en de changelogs ingevuld zijn.
 
 > Kom je van de versie die nog *ServerMonitor* heette? Laat je `config.php` met de oude databasenaam staan. De agent heet nu `rzmon-agent.sh`; de oude `sm-agent.sh` blijft werken, maar vervang hem bij gelegenheid.
 

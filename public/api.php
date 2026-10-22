@@ -33,7 +33,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 // GitHub-repository privé is.
 if ($action === 'ping') {
     // Voor de verbindingstest van de agent: "draait hier RzMon?"
-    out(['ok' => true, 'app' => 'RzMon', 'version' => RZMON_VERSION, 'configured' => is_configured(), 'time' => date('c')]);
+    out(['ok' => true, 'app' => 'RzMon', 'agent_version' => AGENT_LATEST, 'version' => RZMON_VERSION, 'configured' => is_configured(), 'time' => date('c')]);
 }
 if ($action === 'agent_script' || $action === 'agent_install') {
     header('Content-Type: text/x-shellscript; charset=utf-8');
@@ -404,19 +404,19 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
         $req = null;
     }
 
-    $outdated = $version === null || version_compare($version, RZMON_VERSION, '<');
+    $outdated = $version === null || version_compare($version, AGENT_LATEST, '<');
     $wanted = ($req !== null && $sent === null) || ($req === null && $outdated && setting('agent_auto_update', '0') === '1'
         && ($sent === null || strtotime($sent) < time() - 6 * 3600));   // automatisch: hooguit elke 6 uur een poging
     $instruction = null;
     if ($wanted && in_array($via, ['systemd', 'direct'], true)) {
         $instruction = [
-            'version' => RZMON_VERSION,
+            'version' => AGENT_LATEST,
             'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
             'setup_sha256' => hash_file('sha256', SM_ROOT . '/agent/install-agent.sh'),
         ];
         $sent = now();
         $req ??= now();
-        $status = '⏳ Bijwerken naar ' . RZMON_VERSION . ' gestart…';
+        $status = '⏳ Bijwerken naar ' . AGENT_LATEST . ' gestart…';
     } elseif ($req !== null && $sent === null) {
         // Gevraagd, maar deze agent kan het niet: uitleggen waarom
         $status = '✘ ' . match ($via) {
@@ -567,7 +567,7 @@ switch ($action) {
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
-             'version' => RZMON_VERSION, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(),
+             'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(),
              'agent_tick' => agent_tick(null),
              // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
              'ids_open' => Ids::enabled() ? (int) q("SELECT COUNT(*) FROM ids_incidents WHERE status = 'open' AND severity = 2")->fetchColumn() : 0,
@@ -735,7 +735,7 @@ switch ($action) {
         if (!empty($in['all'])) {
             $ids = [];
             foreach (q("SELECT id, agent_version FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen IS NOT NULL") as $h) {
-                if ($h['agent_version'] === null || version_compare($h['agent_version'], RZMON_VERSION, '<')) {
+                if ($h['agent_version'] === null || version_compare($h['agent_version'], AGENT_LATEST, '<')) {
                     $ids[] = (int) $h['id'];
                 }
             }
@@ -767,7 +767,7 @@ switch ($action) {
                       AND (? IS NULL OR created_at > ?)
                     GROUP BY ip, reason ORDER BY MAX(id) DESC LIMIT 6', [$id, $h['agent_seen'], $h['agent_seen']])->fetchAll();
         out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now(),
-             'agent_version' => $h['agent_version'], 'version' => RZMON_VERSION,
+             'agent_version' => $h['agent_version'], 'version' => AGENT_LATEST,
              'update' => ['pending' => $h['agent_update_req'] !== null, 'status' => $h['agent_update_status'], 'via' => $h['agent_update_via']],
              'realtime' => ['on' => (bool) $h['realtime'], 'status' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'realtime'", [$id])->fetchColumn(), true),
                  'tools' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'tools'", [$id])->fetchColumn(), true)]]);

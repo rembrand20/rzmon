@@ -19,6 +19,8 @@ const SECRET_SETTINGS = ['pushover_token', 'smtp_pass', 'mqtt_pass', 'backup_pas
 const SM_CONFIG_FILE = SM_ROOT . '/config.php';
 // Versie van RzMon: de enige bron is het bestand VERSION (bijwerken met tools/bump-version.sh)
 define('RZMON_VERSION', trim((string) @file_get_contents(SM_ROOT . '/VERSION')) ?: '0.0.0');
+// Nieuwste agent: eigen nummer, los van RzMon (agent/VERSION; bijwerken met tools/bump-version.sh agent …)
+define('AGENT_LATEST', trim((string) @file_get_contents(SM_ROOT . '/agent/VERSION')) ?: RZMON_VERSION);
 
 // Zonder config.php draait de app in setup-modus (zie public/setup.php).
 // opcache: een gewijzigde config.php (bv. nieuw databasewachtwoord via de hulpdienst, een ander

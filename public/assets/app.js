@@ -2297,11 +2297,11 @@ function verCmp(a, b) {
   for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
   return 0;
 }
-/** Agent-versie als tekst, met ⬆ als de agent ouder is dan RzMon zelf. */
+/** Agent-versie als tekst, met ⬆ als er een nieuwere agent is (eigen nummer, los van RzMon). */
 function agentVer(h) {
   const busy = h.agent_update_req ? ' <span title="Wordt bijgewerkt">⏳</span>' : '';
   if (!h.agent_version) return h.agent_seen ? ` · versie onbekend ⬆${busy}` : '';
-  return ` · v${esc(h.agent_version)}${state.version && verCmp(h.agent_version, state.version) < 0 ? ' ⬆' : ''}${busy}`;
+  return ` · v${esc(h.agent_version)}${state.agent_latest && verCmp(h.agent_version, state.agent_latest) < 0 ? ' ⬆' : ''}${busy}`;
 }
 
 /** Live-status van de agent in het venster, elke 5 s zolang het open is. */
@@ -2323,7 +2323,7 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
       const old = !s.agent_version || verCmp(s.agent_version, s.version) < 0;
       const u = s.update || {};
       const canRemote = u.via === 'systemd' || u.via === 'direct';
-      html += `<div class="small">Agent-versie <b>${s.agent_version ? esc(s.agent_version) : 'onbekend (ouder dan 1.6.0)'}</b>, RzMon ${esc(s.version)}${old ? '' : ' ✔'}</div>`;
+      html += `<div class="small">Agent-versie <b>${s.agent_version ? esc(s.agent_version) : 'onbekend (ouder dan 1.6.0)'}</b>${old ? `, nieuwste agent ${esc(s.version)}` : ' ✔ nieuwste'}</div>`;
       if (u.status) html += `<div class="small agent-upd-status">${esc(u.status)}</div>`;
       html += `<div class="small">${realtimeText(s.realtime)}</div>`;
       const tw = toolsWarning(s.realtime && s.realtime.tools, s.update && s.update.via);
@@ -3036,11 +3036,11 @@ async function loadSettings() {
 /** Kaart "Agents": hoeveel agents verouderd zijn, en de knop om ze allemaal bij te werken. */
 function renderAgentUpdates() {
   const agents = state.hosts.filter((h) => h.mode === 'agent' && +h.enabled && h.agent_seen);
-  const old = agents.filter((h) => !h.agent_version || verCmp(h.agent_version, state.version) < 0);
+  const old = agents.filter((h) => !h.agent_version || verCmp(h.agent_version, state.agent_latest) < 0);
   const busy = agents.filter((h) => h.agent_update_req);
   $('#agents-status').innerHTML = !agents.length ? 'Nog geen agents.'
     : (old.length ? `<b class="warn-txt">${old.length} van ${agents.length} agent(s) verouderd</b>: ${old.map((h) => esc(h.name) + (h.agent_version ? ` (${esc(h.agent_version)})` : '')).join(', ')}`
-      : `<b class="good-txt">✔ Alle ${agents.length} agent(s) zijn up-to-date (${esc(state.version)})</b>`)
+      : `<b class="good-txt">✔ Alle ${agents.length} agent(s) zijn up-to-date (agent ${esc(state.agent_latest)})</b>`)
       + (busy.length ? ` · ⏳ ${busy.length} wordt bijgewerkt` : '');
   $('#agents-update-all').hidden = !old.length;
   settingsSummaries();

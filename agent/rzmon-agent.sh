@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.45.0"
+AGENT_VERSION="1.45.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -261,9 +261,11 @@ if [ "$TEST" = 1 ]; then
     old_rzmon=0
     if [ "$code" = 200 ] && [[ "$body" == *'"app":"RzMon"'* ]]; then
         rz_version=$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' <<<"$body")
+        # Nieuwste agent (eigen nummer sinds RzMon 1.46.0); oudere RzMon: gelijk aan de versie van RzMon
+        rz_agent=$(sed -n 's/.*"agent_version":"\([^"]*\)".*/\1/p' <<<"$body")
         pass "RzMon ${rz_version:+$rz_version }gevonden op $base"
-        if [ -n "$rz_version" ] && [ "$rz_version" != "$AGENT_VERSION" ]; then
-            hint "Agent is versie $AGENT_VERSION, RzMon $rz_version: bijwerken met  sudo rzmon-agent-setup --update"
+        if [ -n "${rz_agent:-$rz_version}" ] && [ "${rz_agent:-$rz_version}" != "$AGENT_VERSION" ]; then
+            hint "Agent is versie $AGENT_VERSION, de nieuwste is ${rz_agent:-$rz_version}: bijwerken met  sudo rzmon-agent-setup --update"
         fi
     elif [ "$code" = 401 ] && [[ "$body" == *'"error"'* ]]; then
         pass "RzMon gevonden op $base (oudere versie: werk RzMon bij voor een volledige test)"
@@ -317,10 +319,14 @@ t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
 [ "$HA_MODE" = 1 ] && t_dir="${CACHE_DIRECTORY:-/data/rzmon-cache}"   # add-on: /data blijft bewaard
 mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
 t_cache="$t_dir/tests.cache"
-if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
+if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ -e "$t_dir/tests.stale" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
     t_k=(); [ "$INSECURE" = 1 ] && t_k=(-k)
-    if t_list=$(curl -fsS "${t_k[@]}" -m 10 -H "X-Agent-Token: $TOKEN" "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null); then
-        (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null || true
+    # Alleen een complete lijst bewaren (met de vaste regel "0 <tab> tick"). Geeft RzMon iets anders terug,
+    # bijvoorbeeld tijdens een update, dan blijft de vorige lijst staan: anders zou de agent denken dat het
+    # IDS uit staat en de blokkades opheffen.
+    if t_list=$(curl -fsS "${t_k[@]}" -m 10 -H "X-Agent-Token: $TOKEN" "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null) \
+        && grep -q $'^0\ttick\t[0-9]' <<<"$t_list"; then
+        (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null && rm -f "$t_dir/tests.stale"
     fi
 fi
 # Tik: hoe vaak er een rapport uitgaat (regel "0 <tab> tick <tab> seconden", per server in RzMon in te stellen;
@@ -1380,8 +1386,9 @@ if [ "$ids_mode" = block ]; then
             fw_json="\"fw\":{\"state\":\"active\",\"n\":$(printf '%s%s' "$want4" "$want6" | grep -o ',' | wc -l),\"hits\":{${hits%,}}}"
         fi
     fi
-elif [ "$HA_MODE" = 0 ] && command -v nft >/dev/null 2>&1 && nft list table inet rzmon >/dev/null 2>&1; then
-    # Leren of IDS uit: niets meer blokkeren
+elif [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\ttick\t' "$t_cache" \
+    && command -v nft >/dev/null 2>&1 && nft list table inet rzmon >/dev/null 2>&1; then
+    # Leren of IDS uit volgens een complete lijst van RzMon: niets meer blokkeren (zonder lijst: niets aanraken)
     nft delete table inet rzmon 2>/dev/null
     rm -f "${i_dir:-$t_dir/ids}/fw.sig"
 fi
@@ -1774,7 +1781,7 @@ if [ "$rc" -eq 0 ]; then
     # Instellingen in RzMon gewijzigd (bv. een service-check toegevoegd)? Lijst bij de volgende run opnieuw ophalen.
     rev=$(sed -n 's/.*"tests_rev":[[:space:]]*"\([0-9a-f]\{8,64\}\)".*/\1/p' <<<"$resp")
     if [ -n "$rev" ] && [ -n "${t_cache-}" ] && [ -r "$t_cache" ] && [ "$(sha1sum "$t_cache" | cut -c1-12)" != "$rev" ]; then
-        rm -f "$t_cache"
+        : >"$t_dir/tests.stale" 2>/dev/null || rm -f "$t_cache"   # volgende run opnieuw ophalen; de oude lijst blijft tot dan
     fi
     [[ "$resp" =~ \"update\":[[:space:]]*\{ ]] && remote_update "$resp"
 fi

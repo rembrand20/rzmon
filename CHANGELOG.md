@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.46.0 – 2026-10-22
+### Nieuw
+- **Eigen versienummer voor de agent.** RzMon en de agent (met de Home Assistant-add-on) worden apart genummerd. Verandert er alleen iets in RzMon, dan zijn je agents niet meer "verouderd" en hoef je ze niet bij te werken. De agent staat nu op 1.45.1, met een eigen [changelog](agent/CHANGELOG.md). In de *Agent Manager* staat "Agent-versie 1.45.1 ✔ nieuwste" in plaats van een vergelijking met RzMon.
+- **Een update verandert je instellingen niet.** Het bijwerken van de database voegt alleen nieuwe instellingen toe. Een bestaande instelling, zoals IDS aan en de modus, wordt nooit meer veranderd; zou een update dat toch doen, dan zet RzMon de oude waarde direct terug. `config.php` bleef al staan.
+
+### Opgelost
+- Bij een herinstallatie met het installatiecommando werd `/etc/default/rzmon-agent` opnieuw geschreven (andere volgorde, commentaar weg). Nu blijft het bestand zoals het is; alleen wat je zelf meegeeft, zoals `--token`, wordt aangepast (agent 1.45.1).
+- Gaf RzMon tijdens een update even een onvolledig antwoord, dan kon de agent denken dat het IDS uit stond en de blokkades op de server opheffen. De agent bewaart nu alleen een volledige lijst en houdt anders de vorige (agent 1.45.1).
+
 ## 1.45.0 – 2026-10-22
 ### Nieuw
 - **Rechten per API-sleutel:** bij het maken kies je wat de sleutel mag: 📖 status lezen, 🛡️ IDS lezen, ⛔ IDS blokkeren en ✔ checks bedienen. Een sleutel met ⛔ vraagt om bevestiging met je wachtwoord.
