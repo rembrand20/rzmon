@@ -18,7 +18,7 @@ final class Pushover
         $user ??= (string) setting('pushover_user', '');
         $token ??= (string) setting('pushover_token', '');
         if ($user === '' || $token === '') {
-            return ['ok' => false, 'error' => 'Pushover user key of API token ontbreekt', 'receipt' => null];
+            return ['ok' => false, 'error' => t('Pushover user key of API token ontbreekt'), 'receipt' => null];
         }
 
         $data = [
@@ -56,7 +56,7 @@ final class Pushover
         curl_close($ch);
 
         if ($body === false) {
-            return ['ok' => false, 'error' => "cURL fout: $err", 'receipt' => null];
+            return ['ok' => false, 'error' => t('cURL-fout') . ": $err", 'receipt' => null];
         }
         $json = json_decode((string) $body, true);
         if ($code === 200 && ($json['status'] ?? 0) === 1) {

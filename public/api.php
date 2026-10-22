@@ -28,6 +28,17 @@ function num($v): ?float
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 
+// Taal: vóór het inloggen die van dit apparaat of de browser; een agent (geen gebruiker) krijgt de taal van
+// meldingen, want wat hij oplevert (checkberichten, IDS) gaat naar iedereen. Na het inloggen: die van de gebruiker.
+I18n::init(null);
+if (str_starts_with($action, 'agent_') && is_configured()) {
+    try {
+        I18n::set(I18n::notifyLang());
+    } catch (Throwable) {
+        // database nog niet klaar: dan de standaard
+    }
+}
+
 // ---------- Agent en installatiescript (openbaar: bevatten niets geheims) ----------
 // Zo kan een server de agent rechtstreeks van RzMon installeren, ook als de
 // GitHub-repository privé is.
@@ -1091,7 +1102,7 @@ switch ($action) {
             ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
         $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
-            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'snmp' => SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP',
+            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
             'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',
                 'disklife' => 'SD-kaart/eMMC', 'osupdate' => 'HA OS-update', 'usb' => 'USB'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
         // Eigen meldregels voor deze check (null = de algemene uit Instellingen → Alarmgedrag)
@@ -1152,7 +1163,7 @@ switch ($action) {
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
-            'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_fails', 'notify_flap', 'notify_quiet',
+            'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => 'Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00'], 422);
@@ -1198,6 +1209,9 @@ switch ($action) {
         }
         if (isset($in['notify_fails'])) {
             $in['notify_fails'] = (string) max(1, min(100, (int) $in['notify_fails']));
+        }
+        if (isset($in['notify_lang'])) {
+            $in['notify_lang'] = in_array($in['notify_lang'], I18n::LANGS, true) ? $in['notify_lang'] : 'nl';
         }
         if (isset($in['notify_group_seconds'])) {
             $in['notify_group_seconds'] = (string) max(0, min(3600, (int) $in['notify_group_seconds']));

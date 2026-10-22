@@ -55,11 +55,12 @@ final class AuthEvents
             }
             $as = $str($e['as'] ?? '');
             [$title, $msg] = match ($k) {
-                'ssh' => ["🔑 SSH-login: $u op $name", "vanaf $ip (" . (self::METHODS[$e['m'] ?? ''] ?? $str($e['m'] ?? '', 40)) . ')'],
-                'console' => ["🖥️ Console-login: $u op $name", 'aan de console'],
-                'sudo' => ["⚡ sudo: $u op $name", "als $as: " . $str($e['cmd'] ?? '', 500)
-                    . (($e['pwd'] ?? '') !== '' ? ' · in ' . $str($e['pwd'], 200) : '') . (($e['tty'] ?? '') !== '' ? ' · ' . $str($e['tty'], 30) : '')],
-                'su' => ["🔀 su: $u op $name → $as", "$u werd $as"],
+                'ssh' => ['🔑 ' . t('SSH-login: {u} op {host}', ['u' => $u, 'host' => $name]),
+                    t('vanaf {ip}', ['ip' => $ip]) . ' (' . (isset(self::METHODS[$e['m'] ?? '']) ? t(self::METHODS[$e['m']]) : $str($e['m'] ?? '', 40)) . ')'],
+                'console' => ['🖥️ ' . t('Console-login: {u} op {host}', ['u' => $u, 'host' => $name]), t('aan de console')],
+                'sudo' => ['⚡ ' . t('sudo: {u} op {host}', ['u' => $u, 'host' => $name]), t('als {as}', ['as' => $as]) . ': ' . $str($e['cmd'] ?? '', 500)
+                    . (($e['pwd'] ?? '') !== '' ? ' · ' . t('in') . ' ' . $str($e['pwd'], 200) : '') . (($e['tty'] ?? '') !== '' ? ' · ' . $str($e['tty'], 30) : '')],
+                'su' => ['🔀 ' . t('su: {u} op {host}', ['u' => $u, 'host' => $name]) . " → $as", t('{u} werd {as}', ['u' => $u, 'as' => $as])],
             };
             self::insert($host, 'auth', $title, $msg, $when($e['t'] ?? 0),
                 ['type' => $k, 'user' => $u, 'ip' => $ip, 'as' => $as, 'cmd' => $str($e['cmd'] ?? '', 500)]);
@@ -91,10 +92,13 @@ final class AuthEvents
             $who = implode(', ', $users) ?: '?';
             $times = $count === 1 ? '' : "{$count}× ";
             [$title, $msg] = match ($k) {
-                'ssh' => ["❌ {$times}mislukte SSH-login op $name", "vanaf $ip · gebruiker" . (count($users) === 1 ? '' : 's') . ": $who"],
-                'console' => ["❌ {$times}mislukte console-login op $name", "gebruiker: $who" . (($f['tty'] ?? '') !== '' ? ' · ' . $str($f['tty'], 30) : '')],
-                'sudo' => ["❌ {$times}mislukte sudo: $who op $name", $str($f['why'] ?? 'geweigerd', 150) . ($as !== '' ? " · als $as" : '') . ($cmd !== '' ? ": $cmd" : '')],
-                'su' => ["❌ {$times}mislukte su: $who op $name → $as", 'verkeerd wachtwoord'],
+                'ssh' => ["❌ $times" . t('mislukte SSH-login op {host}', ['host' => $name]),
+                    t('vanaf {ip}', ['ip' => $ip]) . ' · ' . (count($users) === 1 ? t('gebruiker') : t('gebruikers')) . ": $who"],
+                'console' => ["❌ $times" . t('mislukte console-login op {host}', ['host' => $name]),
+                    t('gebruiker') . ": $who" . (($f['tty'] ?? '') !== '' ? ' · ' . $str($f['tty'], 30) : '')],
+                'sudo' => ["❌ $times" . t('mislukte sudo: {u} op {host}', ['u' => $who, 'host' => $name]),
+                    (isset($f['why']) ? $str($f['why'], 150) : t('geweigerd')) . ($as !== '' ? ' · ' . t('als {as}', ['as' => $as]) : '') . ($cmd !== '' ? ": $cmd" : '')],
+                'su' => ["❌ $times" . t('mislukte su: {u} op {host}', ['u' => $who, 'host' => $name]) . " → $as", t('verkeerd wachtwoord')],
             };
             $detail = ['type' => $k, 'key' => $key, 'n' => $count, 'users' => $users, 'ip' => $ip, 'as' => $as, 'cmd' => $cmd, 'last' => $when($f['t'] ?? 0)];
             if ($prev) {

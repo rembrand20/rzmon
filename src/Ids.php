@@ -103,26 +103,26 @@ final class Ids
         $userChange = self::users($ctx, (array) ($ids['users'] ?? []));
         self::files($ctx, (array) ($ids['files'] ?? []), $updating, $userChange);
         self::ports($ctx, $ports);
-        self::simpleSet($ctx, 'suid', (array) ($ids['suid'] ?? []), 'suid_new', 'Nieuw SUID-bestand', 'Kan gebruikt worden om root te worden.', isset($ids['suid']));
-        self::simpleSet($ctx, 'module', (array) ($ids['modules'] ?? []), 'module_new', 'Nieuwe kernelmodule', 'Geladen sinds de vorige controle.', isset($ids['modules']));
-        self::simpleSet($ctx, 'pkg', array_slice((array) ($ids['pkgdiff'] ?? []), 0, 100), 'pkg_changed', 'Systeembestand wijkt af van het pakket',
-            'rpm -Va / debsums: de inhoud komt niet overeen met het geïnstalleerde pakket.', isset($ids['pkgdiff']));
+        self::simpleSet($ctx, 'suid', (array) ($ids['suid'] ?? []), 'suid_new', t('Nieuw SUID-bestand'), t('Kan gebruikt worden om root te worden.'), isset($ids['suid']));
+        self::simpleSet($ctx, 'module', (array) ($ids['modules'] ?? []), 'module_new', t('Nieuwe kernelmodule'), t('Geladen sinds de vorige controle.'), isset($ids['modules']));
+        self::simpleSet($ctx, 'pkg', array_slice((array) ($ids['pkgdiff'] ?? []), 0, 100), 'pkg_changed', t('Systeembestand wijkt af van het pakket'),
+            t('rpm -Va / debsums: de inhoud komt niet overeen met het geïnstalleerde pakket.'), isset($ids['pkgdiff']));
         foreach (array_slice((array) ($ids['procs'] ?? []), 0, 20) as $p) {
             $exe = (string) ($p['exe'] ?? '');
             $memfd = str_starts_with($exe, '/memfd:');
             self::incident($ctx, $memfd ? 1 : 2, 'proc_suspicious', $exe,
-                ($memfd ? 'Programma zonder bestand (memfd)' : 'Verdacht proces') . ': ' . $exe,
-                'pid ' . (int) ($p['pid'] ?? 0) . ' · gebruiker ' . ($p['user'] ?? '?') . ' · ' . mb_substr((string) ($p['cmd'] ?? ''), 0, 300));
+                ($memfd ? t('Programma zonder bestand (memfd)') : t('Verdacht proces')) . ': ' . $exe,
+                'pid ' . (int) ($p['pid'] ?? 0) . ' · ' . t('gebruiker') . ' ' . ($p['user'] ?? '?') . ' · ' . mb_substr((string) ($p['cmd'] ?? ''), 0, 300));
         }
         foreach (array_slice((array) ($ids['conns'] ?? []), 0, 20) as $c) {
             $peer = (string) ($c['peer'] ?? '');
             $ip = self::hostOf($peer);
             if (($c['kind'] ?? '') === 'shell') {
-                self::incident($ctx, 2, 'revshell', ($c['proc'] ?? '') . '|' . $ip, 'Mogelijke reverse shell: ' . ($c['proc'] ?? '?') . ' verbonden met ' . $peer,
-                    'pid ' . (int) ($c['pid'] ?? 0) . ' · lokaal ' . ($c['local'] ?? ''), $ip);
+                self::incident($ctx, 2, 'revshell', ($c['proc'] ?? '') . '|' . $ip, t('Mogelijke reverse shell: {proc} verbonden met {peer}', ['proc' => $c['proc'] ?? '?', 'peer' => $peer]),
+                    'pid ' . (int) ($c['pid'] ?? 0) . ' · ' . t('lokaal') . ' ' . ($c['local'] ?? ''), $ip);
             } else {
-                self::incident($ctx, 1, 'outbound', $peer, 'Verbinding naar verdachte poort: ' . $peer . ' (' . ($c['proc'] ?? '?') . ')',
-                    'Poorten als ' . implode(', ', self::BAD_PORTS) . ' worden vaak door malware gebruikt.', $ip);
+                self::incident($ctx, 1, 'outbound', $peer, t('Verbinding naar verdachte poort') . ': ' . $peer . ' (' . ($c['proc'] ?? '?') . ')',
+                    t('Poorten als {ports} worden vaak door malware gebruikt.', ['ports' => implode(', ', self::BAD_PORTS)]), $ip);
             }
         }
         self::logins($ctx, $auth);
@@ -267,10 +267,10 @@ final class Ids
                 foreach ($list as $ev) {
                     $n[$ev['op']]++;
                 }
-                $sum = implode(', ', array_filter([$n['+'] ? "{$n['+']} nieuw" : '', $n['~'] ? "{$n['~']} gewijzigd" : '', $n['-'] ? "{$n['-']} verwijderd" : '']));
+                $sum = implode(', ', array_filter([$n['+'] ? t('{n} nieuw', ['n' => $n['+']]) : '', $n['~'] ? t('{n} gewijzigd', ['n' => $n['~']]) : '', $n['-'] ? t('{n} verwijderd', ['n' => $n['-']]) : '']));
                 $lines = array_map(fn($ev) => ['+' => '＋ ', '~' => '✎ ', '-' => '✕ '][$ev['op']] . $ev['x']['path'], array_slice($list, 0, 25));
-                self::incident($ctx, max(array_map([self::class, 'fimSev'], $list)), 'fim_bulk', $root, count($list) . " bestanden gewijzigd in $root",
-                    "$sum:\n" . implode("\n", $lines) . (count($list) > 25 ? "\n… en nog " . (count($list) - 25) : ''), null, false, true);
+                self::incident($ctx, max(array_map([self::class, 'fimSev'], $list)), 'fim_bulk', $root, t('{n} bestanden gewijzigd in {root}', ['n' => count($list), 'root' => $root]),
+                    "$sum:\n" . implode("\n", $lines) . (count($list) > 25 ? "\n… " . t('en nog {n}', ['n' => count($list) - 25]) : ''), null, false, true);
             } else {
                 foreach ($list as $ev) {
                     [$title, $detail] = self::fimText($ev);
@@ -298,31 +298,31 @@ final class Ids
     {
         $x = $ev['x'];
         $path = $x['path'];
-        $hash = static fn(string $h) => $h === '' ? '?' : (str_starts_with($h, 'm') ? 'te groot voor een hash' : substr($h, 0, 12) . '…');
+        $hash = static fn(string $h) => $h === '' ? '?' : (str_starts_with($h, 'm') ? t('te groot voor een hash') : substr($h, 0, 12) . '…');
         $size = static fn($b) => Checks::bytes((float) $b);
         if ($ev['op'] === '-') {
             [, $s, $m, $o] = array_pad(explode('|', (string) $ev['old']), 4, '');
-            return ["Bestand verwijderd: $path", 'Was ' . $size($s) . " · rechten $m · eigenaar $o"];
+            return [t('Bestand verwijderd') . ": $path", t('Was {size} · rechten {mode} · eigenaar {owner}', ['size' => $size($s), 'mode' => $m, 'owner' => $o])];
         }
         if ($ev['op'] === '+') {
-            return ["Nieuw bestand: $path", 'Bestond nog niet. ' . $size($x['size']) . " · rechten {$x['mode']} · eigenaar {$x['owner']} · SHA-256 " . $hash($x['hash'])];
+            return [t('Nieuw bestand') . ": $path", t('Bestond nog niet.') . ' ' . t('{size} · rechten {mode} · eigenaar {owner}', ['size' => $size($x['size']), 'mode' => $x['mode'], 'owner' => $x['owner']]) . ' · SHA-256 ' . $hash($x['hash'])];
         }
         [$h, $s, $m, $o] = array_pad(explode('|', (string) $ev['old']), 4, '');
         $parts = [];
         if ($h !== $x['hash']) {
-            $parts[] = str_starts_with($x['hash'], 'm') ? 'Groot bestand: tijd of grootte gewijzigd' : 'Inhoud gewijzigd: SHA-256 ' . $hash($h) . ' → ' . $hash($x['hash']);
+            $parts[] = str_starts_with($x['hash'], 'm') ? t('Groot bestand: tijd of grootte gewijzigd') : t('Inhoud gewijzigd') . ': SHA-256 ' . $hash($h) . ' → ' . $hash($x['hash']);
         }
         if ((string) $s !== (string) $x['size']) {
             $parts[] = $size($s) . ' → ' . $size($x['size']);
         }
         if ($m !== $x['mode']) {
-            $parts[] = "rechten $m → {$x['mode']}";
+            $parts[] = t('rechten') . " $m → {$x['mode']}";
         }
         if ($o !== $x['owner']) {
-            $parts[] = "eigenaar $o → {$x['owner']}";
+            $parts[] = t('eigenaar') . " $o → {$x['owner']}";
         }
         $rights = $h === $x['hash'];
-        return [($rights ? 'Rechten gewijzigd: ' : 'Bestand gewijzigd: ') . $path, ucfirst(implode(' · ', $parts)) . '.'];
+        return [($rights ? t('Rechten gewijzigd') : t('Bestand gewijzigd')) . ': ' . $path, ucfirst(implode(' · ', $parts)) . '.'];
     }
 
     private static function files(array $ctx, array $files, bool $updating, bool $userChange): void
@@ -345,8 +345,8 @@ final class Ids
             }
             $crit = (bool) array_filter(self::CRIT_FILES, fn($re) => preg_match($re, $path));
             $new = !isset($known[$path]);
-            self::incident($ctx, $crit ? 2 : 1, 'file', $path, ($new ? 'Nieuw bestand: ' : 'Bestand gewijzigd: ') . $path,
-                $new ? 'Dit bestand bestond nog niet.' : 'De inhoud is veranderd (SHA-256), buiten een pakketupdate om.');
+            self::incident($ctx, $crit ? 2 : 1, 'file', $path, ($new ? t('Nieuw bestand') : t('Bestand gewijzigd')) . ': ' . $path,
+                $new ? t('Dit bestand bestond nog niet.') : t('De inhoud is veranderd (SHA-256), buiten een pakketupdate om.'));
         }
     }
 
@@ -367,7 +367,7 @@ final class Ids
             }
             // Tweede account met UID 0: altijd critical, ook tijdens de basismeting
             if ($uid === '0' && $name !== 'root') {
-                self::incident($ctx, 2, 'uid0', $name, "Tweede root-account: $name (UID 0)", 'Een account met UID 0 heeft volledige rechten; een klassieke achterdeur.', null, true);
+                self::incident($ctx, 2, 'uid0', $name, t('Tweede root-account: {name} (UID 0)', ['name' => $name]), t('Een account met UID 0 heeft volledige rechten; een klassieke achterdeur.'), null, true);
             }
             if (($known[$name] ?? null) === $uid) {
                 continue;
@@ -375,7 +375,7 @@ final class Ids
             $up->execute([$hid, $name, $uid]);
             $changed = true;
             if (!$ctx['learning'] && !isset($known[$name])) {
-                self::incident($ctx, 1, 'user_new', $name, "Nieuwe gebruiker: $name (UID $uid)", 'Toegevoegd aan /etc/passwd.');
+                self::incident($ctx, 1, 'user_new', $name, t('Nieuwe gebruiker: {name} (UID {uid})', ['name' => $name, 'uid' => $uid]), t('Toegevoegd aan /etc/passwd.'));
             }
         }
         return $changed;
@@ -403,7 +403,7 @@ final class Ids
             $known[$key] = true;
             $ins->execute([$hid, $key, $proc]);
             if (!$ctx['learning']) {
-                self::incident($ctx, 1, 'port_new', $key, "Nieuwe luisterende poort: $port ($proc)", 'Luistert op ' . ($p['addr'] ?? '?') . '.');
+                self::incident($ctx, 1, 'port_new', $key, t('Nieuwe luisterende poort: {port} ({proc})', ['port' => $port, 'proc' => $proc]), t('Luistert op {addr}.', ['addr' => $p['addr'] ?? '?']));
             }
         }
     }
@@ -447,9 +447,9 @@ final class Ids
             $n = (int) q('SELECT SUM(n) FROM ids_attempts WHERE host_id = ? AND ip = ? AND at >= NOW() - INTERVAL ? MINUTE', [$hid, $ip, $win])->fetchColumn();
             if ($n >= $limit) {
                 $users = implode(', ', array_slice((array) ($f['users'] ?? []), 0, 5));
-                $blocked = self::autoBlock($ctx['host'], $ip, "Brute force: $n mislukte SSH-logins in $win min");
-                self::incident($ctx, 1, 'bruteforce', $ip, "Brute force op SSH vanaf $ip ($n pogingen in $win min)",
-                    'Gebruikers: ' . ($users ?: '?') . ($blocked ? " · ⛔ $blocked" : ''), $ip);
+                $blocked = self::autoBlock($ctx['host'], $ip, t('Brute force: {n} mislukte SSH-logins in {win} min', ['n' => $n, 'win' => $win]));
+                self::incident($ctx, 1, 'bruteforce', $ip, t('Brute force op SSH vanaf {ip} ({n} pogingen in {win} min)', ['ip' => $ip, 'n' => $n, 'win' => $win]),
+                    t('Gebruikers') . ': ' . ($users ?: '?') . ($blocked ? " · ⛔ $blocked" : ''), $ip);
             }
         }
         foreach (array_slice((array) ($auth['events'] ?? []), 0, 300) as $e) {
@@ -461,17 +461,17 @@ final class Ids
             // Gelukt na veel mislukte pogingen vanaf hetzelfde IP (afgelopen uur): mogelijk ingebroken
             $fails = (int) q('SELECT COALESCE(SUM(n), 0) FROM ids_attempts WHERE host_id = ? AND ip = ? AND at >= NOW() - INTERVAL 1 HOUR', [$hid, $ip])->fetchColumn();
             if ($fails >= max(3, intdiv($limit, 2))) {
-                self::incident($ctx, 2, 'breakin', "$user|$ip", "Inlog na brute force: $user vanaf $ip",
-                    "Eerst $fails mislukte pogingen vanaf dit IP in het afgelopen uur, daarna een geslaagde login. Controleer of jij dit was.", $ip, true);
+                self::incident($ctx, 2, 'breakin', "$user|$ip", t('Inlog na brute force: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]),
+                    t('Eerst {n} mislukte pogingen vanaf dit IP in het afgelopen uur, daarna een geslaagde login. Controleer of jij dit was.', ['n' => $fails]), $ip, true);
             }
             if ($user === 'root') {
-                self::incident($ctx, 1, 'rootlogin', $ip, "Root-login via SSH vanaf $ip", 'Inloggen als root via SSH; liever als gewone gebruiker en daarna sudo.', $ip);
+                self::incident($ctx, 1, 'rootlogin', $ip, t('Root-login via SSH vanaf {ip}', ['ip' => $ip]), t('Inloggen als root via SSH; liever als gewone gebruiker en daarna sudo.'), $ip);
             }
             $known = q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'loginip' AND item = ?", [$hid, $ip])->fetchColumn();
             if (!$known && $ip !== '') {
                 q("INSERT IGNORE INTO ids_baseline (host_id, kind, item, value) VALUES (?, 'loginip', ?, ?)", [$hid, $ip, $user]);
                 if (!$ctx['learning']) {
-                    self::incident($ctx, 1, 'newip', $ip, "Login vanaf een nieuw IP: $user vanaf $ip", 'Vanaf dit adres is op deze server nog niet eerder ingelogd.', $ip);
+                    self::incident($ctx, 1, 'newip', $ip, t('Login vanaf een nieuw IP: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]), t('Vanaf dit adres is op deze server nog niet eerder ingelogd.'), $ip);
                 }
             }
         }
@@ -521,7 +521,7 @@ final class Ids
             $r = Pushover::send("🛡️ IDS: $title", $detail . "\n" . date('d-m-Y H:i:s'), min(1, (int) setting('pushover_priority_crit', 1)), null, null,
                 $base !== '' ? ['url' => "$base/#ids", 'url_title' => 'Open IDS'] : []);
             $sent = $r['ok'];
-            $err = $r['ok'] ? '' : ' [niet verzonden: Pushover: ' . $r['error'] . ']';
+            $err = $r['ok'] ? '' : ' [' . t('niet verzonden') . ': Pushover: ' . $r['error'] . ']';
         }
         q("INSERT INTO alerts (check_id, status, title, message, sent_ok, kind) VALUES (NULL, ?, ?, ?, ?, 'ids')",
             [STATUS_CRIT, mb_substr("🛡️ IDS: $title", 0, 250), mb_substr($detail . $err, 0, 1000), $sent ? 1 : 0]);
@@ -555,14 +555,14 @@ final class Ids
             return null;   // bv. TrueNAS: alleen melden
         }
         if (q('SELECT 1 FROM ids_blocks WHERE host_id = ? AND ip = ? AND removed_at IS NULL AND (until IS NULL OR until > NOW())', [$hid, $ip])->fetchColumn()) {
-            return 'al geblokkeerd';
+            return t('al geblokkeerd');
         }
         // Eerder geblokkeerd (laatste 30 dagen): langer
         $repeat = (bool) q('SELECT 1 FROM ids_blocks WHERE host_id = ? AND ip = ? AND created_at >= NOW() - INTERVAL 30 DAY', [$hid, $ip])->fetchColumn();
         $hours = $repeat ? 24 * max(1, (int) setting('ids_repeat_days', 7)) : max(1, (int) setting('ids_block_hours', 24));
         q('INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by, until) VALUES (?, ?, ?, 1, ?, ?)',
-            [$hid, $ip, mb_substr($reason . ($repeat ? ' (herhaling)' : ''), 0, 255), 'automatisch', date('Y-m-d H:i:s', time() + $hours * 3600)]);
-        return 'geblokkeerd voor ' . ($hours >= 48 ? intdiv($hours, 24) . ' dagen' : "$hours uur");
+            [$hid, $ip, mb_substr($reason . ($repeat ? ' (' . t('herhaling') . ')' : ''), 0, 255), t('automatisch'), date('Y-m-d H:i:s', time() + $hours * 3600)]);
+        return $hours >= 48 ? t('geblokkeerd voor {n} dagen', ['n' => intdiv($hours, 24)]) : t('geblokkeerd voor {n} uur', ['n' => $hours]);
     }
 
     /** Blokkade opheffen; ook de pogingen van dat IP vergeten (anders volgt meteen een nieuwe automatische). @return array|null de blokkade */
@@ -582,22 +582,22 @@ final class Ids
     {
         $ip = trim($ip);
         if (@inet_pton($ip) === false) {
-            return 'Ongeldig IP-adres';
+            return t('Ongeldig IP-adres');
         }
         if ($ip === $byIp) {
-            return 'Dit is het IP-adres waarmee je nu in RzMon zit; dat blokkeren we niet';
+            return t('Dit is het IP-adres waarmee je nu in RzMon zit; dat blokkeren we niet');
         }
         if (in_array($ip, ['127.0.0.1', '::1'], true)) {
-            return 'Localhost blokkeren kan niet';
+            return t('Localhost blokkeren kan niet');
         }
         if (!q("SELECT 1 FROM hosts WHERE id = ? AND mode = 'agent'", [$hostId])->fetchColumn()) {
-            return 'Kies een server met agent';
+            return t('Kies een server met agent');
         }
         if (q('SELECT 1 FROM ids_blocks WHERE host_id = ? AND ip = ? AND removed_at IS NULL AND (until IS NULL OR until > NOW())', [$hostId, $ip])->fetchColumn()) {
-            return 'Dit IP is op die server al geblokkeerd';
+            return t('Dit IP is op die server al geblokkeerd');
         }
         q('INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by, until) VALUES (?, ?, ?, 0, ?, ?)',
-            [$hostId, $ip, mb_substr($reason ?: 'met de hand', 0, 255), $by, $hours ? date('Y-m-d H:i:s', time() + $hours * 3600) : null]);
+            [$hostId, $ip, mb_substr($reason ?: t('met de hand'), 0, 255), $by, $hours ? date('Y-m-d H:i:s', time() + $hours * 3600) : null]);
         return true;
     }
 

@@ -199,6 +199,9 @@ CREATE TABLE IF NOT EXISTS snmp_state (
 -- Melden na zoveel mislukte checks achter elkaar (1 = zoals voorheen; per check aan te passen)
 INSERT IGNORE INTO settings (name, value) VALUES ('notify_fails', '1');
 
+-- Taal van meldingen en checkberichten (nl/en)
+INSERT IGNORE INTO settings (name, value) VALUES ('notify_lang', 'nl');
+
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
 ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;

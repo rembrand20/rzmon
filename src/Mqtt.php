@@ -31,8 +31,8 @@ final class Mqtt
         ]]);
         $fp = @stream_socket_client(($tls ? 'ssl://' : 'tcp://') . $cfg['mqtt_host'] . ':' . $port, $errno, $errstr, 10, STREAM_CLIENT_CONNECT, $ctx);
         if (!$fp) {
-            throw new RuntimeException("Geen verbinding met {$cfg['mqtt_host']}:$port" . ($errstr ? " ($errstr)" : '')
-                . ($tls && $verify ? ' — TLS-certificaat niet vertrouwd? Bij self-signed: zet certificaatcontrole uit' : ''));
+            throw new RuntimeException(t('Geen verbinding met {addr}', ['addr' => "{$cfg['mqtt_host']}:$port"]) . ($errstr ? " ($errstr)" : '')
+                . ($tls && $verify ? ' — ' . t('TLS-certificaat niet vertrouwd? Bij self-signed: zet certificaatcontrole uit') : ''));
         }
         $this->fp = $fp;
         stream_set_timeout($fp, 10);
@@ -51,11 +51,11 @@ final class Mqtt
 
         $ack = $this->read(4);
         if (strlen($ack) < 4 || ord($ack[0]) !== 0x20) {
-            throw new RuntimeException('Geen geldig antwoord van de broker (is dit wel een MQTT-poort?' . ($tls ? '' : ' Of verwacht de broker TLS?') . ')');
+            throw new RuntimeException(t('Geen geldig antwoord van de broker (is dit wel een MQTT-poort?') . ($tls ? '' : ' ' . t('Of verwacht de broker TLS?')) . ')');
         }
         $rc = ord($ack[3]);
         if ($rc !== 0) {
-            throw new RuntimeException('Broker weigert de verbinding: ' . ([
+            throw new RuntimeException(t('Broker weigert de verbinding') . ': ' . t([
                 1 => 'protocolversie niet ondersteund',
                 2 => 'client-ID geweigerd',
                 3 => 'broker niet beschikbaar',
@@ -83,7 +83,7 @@ final class Mqtt
         for ($done = 0; $done < strlen($data);) {
             $n = @fwrite($this->fp, substr($data, $done));
             if (!$n) {
-                throw new RuntimeException('Verbinding met de broker verbroken');
+                throw new RuntimeException(t('Verbinding met de broker verbroken'));
             }
             $done += $n;
         }
@@ -115,7 +115,7 @@ final class Mqtt
         $this->packet(0xE0, '');
         fclose($this->fp);
         if ($resp !== "\xD0\x00") {
-            throw new RuntimeException('De broker heeft de verbinding verbroken (geen schrijfrechten op deze topics?)');
+            throw new RuntimeException(t('De broker heeft de verbinding verbroken (geen schrijfrechten op deze topics?)'));
         }
     }
 
@@ -141,7 +141,7 @@ final class Mqtt
         $cfg['mqtt_prefix'] = trim($cfg['mqtt_prefix'], '/') ?: 'homeassistant';
         $cfg['mqtt_base_topic'] = trim($cfg['mqtt_base_topic'], '/') ?: 'rzmon';
         if ($cfg['mqtt_host'] === '') {
-            return ['ok' => false, 'error' => 'Geen MQTT-server ingesteld', 'entities' => 0, 'hosts' => 0];
+            return ['ok' => false, 'error' => t('Geen MQTT-server ingesteld'), 'entities' => 0, 'hosts' => 0];
         }
         try {
             [$discovery, $states] = self::build($cfg);
@@ -214,7 +214,7 @@ final class Mqtt
         foreach ($hosts as $h) {
             $hid = (int) $h['id'];
             $device = ['identifiers' => ["{$node}_host_$hid"], 'name' => $h['name'], 'manufacturer' => 'RzMon',
-                'model' => ['local' => 'Lokale server', 'agent' => 'Server met agent', 'remote' => 'Netwerkapparaat'][$h['mode']] ?? $h['mode'],
+                'model' => t(['local' => 'Lokale server', 'agent' => 'Server met agent', 'remote' => 'Netwerkapparaat'][$h['mode']] ?? $h['mode']),
                 'via_device' => "{$node}_hub"] + ($h['agent_version'] ? ['sw_version' => 'agent ' . $h['agent_version']] : [])
                 + ($url !== '' ? ['configuration_url' => $url . '/'] : []);
             $n = [0, 0, 0, 0, 0];
@@ -276,7 +276,7 @@ final class Mqtt
                 'agent_seen' => $iso($h['agent_seen']),
             ];
             $entity('binary_sensor', "host_{$hid}_problem", $device, [
-                'name' => 'Probleem', 'state_topic' => $topic, 'value_template' => '{{ value_json.problem }}',
+                'name' => t('Probleem'), 'state_topic' => $topic, 'value_template' => '{{ value_json.problem }}',
                 'device_class' => 'problem', 'json_attributes_topic' => $topic,
             ]);
             $entity('sensor', "host_{$hid}_status", $device, [
@@ -293,13 +293,13 @@ final class Mqtt
             'last_run' => date('c'),
             'version' => RZMON_VERSION,
         ];
-        $entity('binary_sensor', 'summary_problem', $hub, ['name' => 'Probleem', 'state_topic' => $topic,
+        $entity('binary_sensor', 'summary_problem', $hub, ['name' => t('Probleem'), 'state_topic' => $topic,
             'value_template' => '{{ value_json.problem }}', 'device_class' => 'problem', 'json_attributes_topic' => $topic]);
-        $entity('sensor', 'summary_critical', $hub, ['name' => 'Kritiek', 'state_topic' => $topic,
+        $entity('sensor', 'summary_critical', $hub, ['name' => t('Kritiek'), 'state_topic' => $topic,
             'value_template' => '{{ value_json.critical }}', 'state_class' => 'measurement', 'icon' => 'mdi:alert-octagon']);
-        $entity('sensor', 'summary_warning', $hub, ['name' => 'Waarschuwingen', 'state_topic' => $topic,
+        $entity('sensor', 'summary_warning', $hub, ['name' => t('Waarschuwingen'), 'state_topic' => $topic,
             'value_template' => '{{ value_json.warning }}', 'state_class' => 'measurement', 'icon' => 'mdi:alert']);
-        $entity('sensor', 'summary_last_run', $hub, ['name' => 'Laatste controle', 'state_topic' => $topic,
+        $entity('sensor', 'summary_last_run', $hub, ['name' => t('Laatste controle'), 'state_topic' => $topic,
             'value_template' => '{{ value_json.last_run }}', 'device_class' => 'timestamp', 'entity_category' => 'diagnostic']);
 
 
@@ -308,10 +308,10 @@ final class Mqtt
         $cache = json_decode((string) setting('stats_cache', ''), true);
         $health = Health::current(is_array($cache['uptime'] ?? null) ? $cache['uptime'] : null);
         $states[$topic] = ['status' => $health['label']] + $health;
-        $entity('sensor', 'health', $hub, ['name' => 'Algehele status', 'state_topic' => $topic,
+        $entity('sensor', 'health', $hub, ['name' => t('Algehele status'), 'state_topic' => $topic,
             'value_template' => '{{ value_json.status }}', 'json_attributes_topic' => $topic,
             'device_class' => 'enum', 'options' => array_values(Health::LABELS), 'icon' => 'mdi:heart-pulse']);
-        $entity('sensor', 'health_score', $hub, ['name' => 'Gezondheid', 'state_topic' => $topic,
+        $entity('sensor', 'health_score', $hub, ['name' => t('Gezondheid'), 'state_topic' => $topic,
             'value_template' => '{{ value_json.score }}', 'unit_of_measurement' => '%', 'state_class' => 'measurement', 'icon' => 'mdi:heart-pulse']);
 
         return [$disc, $states];

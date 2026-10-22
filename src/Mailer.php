@@ -20,14 +20,14 @@ final class Mailer
         $to ??= (string) $cfg['mail_to'];
         $recipients = array_values(array_filter(array_map('trim', preg_split('/[,;\s]+/', $to))));
         if ($cfg['smtp_host'] === '') {
-            return ['ok' => false, 'error' => 'Geen SMTP-server ingesteld'];
+            return ['ok' => false, 'error' => t('Geen SMTP-server ingesteld')];
         }
         if (!$recipients) {
-            return ['ok' => false, 'error' => 'Geen ontvanger ingesteld'];
+            return ['ok' => false, 'error' => t('Geen ontvanger ingesteld')];
         }
         foreach ($recipients as $r) {
             if (!filter_var($r, FILTER_VALIDATE_EMAIL)) {
-                return ['ok' => false, 'error' => "Ongeldig e-mailadres: $r"];
+                return ['ok' => false, 'error' => t('Ongeldig e-mailadres') . ": $r"];
             }
         }
         $from = $cfg['mail_from'];
@@ -39,7 +39,7 @@ final class Mailer
             }
         }
         if (!filter_var($from, FILTER_VALIDATE_EMAIL)) {
-            return ['ok' => false, 'error' => "Ongeldig afzenderadres: $from"];
+            return ['ok' => false, 'error' => t('Ongeldig afzenderadres') . ": $from"];
         }
 
         $m = new self();
@@ -85,8 +85,8 @@ final class Mailer
         $remote = ($security === 'ssl' ? 'ssl://' : 'tcp://') . $cfg['smtp_host'] . ':' . $port;
         $fp = @stream_socket_client($remote, $errno, $errstr, 10, STREAM_CLIENT_CONNECT, $ctx);
         if (!$fp) {
-            throw new RuntimeException("Kan geen verbinding maken met {$cfg['smtp_host']}:$port"
-                . ($errstr ? " ($errstr)" : '') . ($security === 'ssl' ? ' — klopt de poort (465) en het certificaat?' : ''));
+            throw new RuntimeException(t('Kan geen verbinding maken met {addr}', ['addr' => "{$cfg['smtp_host']}:$port"])
+                . ($errstr ? " ($errstr)" : '') . ($security === 'ssl' ? ' — ' . t('klopt de poort (465) en het certificaat?') : ''));
         }
         $this->fp = $fp;
         stream_set_timeout($fp, 15);
@@ -96,11 +96,11 @@ final class Mailer
 
         if ($security === 'starttls') {
             if (!preg_match('/STARTTLS/i', $caps)) {
-                throw new RuntimeException('De server ondersteunt geen STARTTLS; kies "SSL/TLS" (poort 465) of "geen"');
+                throw new RuntimeException(t('De server ondersteunt geen STARTTLS; kies "SSL/TLS" (poort 465) of "geen"'));
             }
             $this->cmd('STARTTLS', [220]);
             if (!@stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT)) {
-                throw new RuntimeException('TLS-handshake mislukt' . ($verify ? ' (self-signed certificaat? zet certificaatcontrole uit)' : ''));
+                throw new RuntimeException(t('TLS-handshake mislukt') . ($verify ? ' (' . t('self-signed certificaat? zet certificaatcontrole uit') . ')' : ''));
             }
             $caps = $this->cmd($ehlo, [250]);
         }
@@ -134,11 +134,11 @@ final class Mailer
         }
         $code = (int) substr($resp, 0, 3);
         if ($strict && !in_array($code, $ok, true)) {
-            $msg = trim($resp) !== '' ? trim(preg_replace('/\s+/', ' ', $resp)) : 'geen antwoord (time-out) — klopt de beveiliging? 465 = SSL/TLS, 587 = STARTTLS';
+            $msg = trim($resp) !== '' ? trim(preg_replace('/\s+/', ' ', $resp)) : t('geen antwoord (time-out) — klopt de beveiliging? 465 = SSL/TLS, 587 = STARTTLS');
             $hint = match (true) {
-                $code === 535 || $code === 534 => ' — gebruikersnaam/wachtwoord onjuist (bij Gmail/Outlook: gebruik een app-wachtwoord)',
-                $code === 530 => ' — de server wil eerst inloggen of TLS',
-                $code === 550 || $code === 553 || $code === 554 => ' — adres geweigerd; mag dit account met dit afzenderadres mailen?',
+                $code === 535 || $code === 534 => ' — ' . t('gebruikersnaam/wachtwoord onjuist (bij Gmail/Outlook: gebruik een app-wachtwoord)'),
+                $code === 530 => ' — ' . t('de server wil eerst inloggen of TLS'),
+                $code === 550 || $code === 553 || $code === 554 => ' — ' . t('adres geweigerd; mag dit account met dit afzenderadres mailen?'),
                 default => '',
             };
             throw new RuntimeException('SMTP: ' . mb_substr($msg, 0, 200) . $hint);

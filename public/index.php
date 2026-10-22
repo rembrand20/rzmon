@@ -291,6 +291,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <input type="number" name="notify_fails" min="1" max="100" style="max-width:8rem"></label>
           <p class="muted small" style="margin-top:-.4rem">Telt per status: wordt een warning critical, dan begint de telling opnieuw. Onbekend telt ook. Het aantal én de regel hieronder moeten allebei kloppen; wil je alleen het aantal, zet de regel dan op <i>direct</i>. Herstel wordt gemeld zoals hieronder ingesteld.</p>
           <label class="switch"><input type="checkbox" name="notify_unknown"><span></span> Melden bij ONBEKEND</label>
+          <label><?= th('Taal van meldingen en checkberichten') ?> <span class="muted small">(<?= th('Pushover, e-mail, Home Assistant en de berichten van checks; voor iedereen hetzelfde') ?>)</span>
+            <select name="notify_lang" style="max-width:12rem"><option value="nl">Nederlands</option><option value="en">English</option></select></label>
           <div id="notify-editor"></div>
           <input type="hidden" name="notify_rules"><input type="hidden" name="notify_channels"><input type="hidden" name="notify_flap"><input type="hidden" name="notify_quiet">
           <div class="quiet-box">

@@ -72,6 +72,31 @@ final class I18n
             'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
     }
 
+    /** Taal van meldingen en checkberichten (Instellingen → 🔔 Meldingen); die gaan naar iedereen tegelijk */
+    public static function notifyLang(): string
+    {
+        $l = (string) setting('notify_lang', 'nl');
+        return in_array($l, self::LANGS, true) ? $l : 'nl';
+    }
+
+    /** $fn uitvoeren in de taal van meldingen en checkberichten, daarna weer de taal van de gebruiker */
+    public static function forNotify(callable $fn): mixed
+    {
+        $prev = self::$lang;
+        self::set(self::notifyLang());
+        try {
+            return $fn();
+        } finally {
+            self::set($prev);
+        }
+    }
+
+    /** Decimaalteken: komma in het Nederlands, punt in het Engels */
+    public static function dec(string $v): string
+    {
+        return self::$lang === 'en' ? $v : str_replace('.', ',', $v);
+    }
+
     /** Locale voor datums en getallen in de browser */
     public static function locale(): string
     {

@@ -12,7 +12,7 @@ final class Webhook
         $url ??= trim((string) setting('ha_webhook_url', ''));
         $verifySsl ??= setting('ha_webhook_verify_ssl', '1') === '1';
         if ($url === '' || !preg_match('#^https?://#i', $url)) {
-            return ['ok' => false, 'error' => 'Geen geldige webhook-URL ingesteld'];
+            return ['ok' => false, 'error' => t('Geen geldige webhook-URL ingesteld')];
         }
 
         $ch = curl_init($url);
@@ -33,7 +33,7 @@ final class Webhook
         curl_close($ch);
 
         if ($body === false) {
-            return ['ok' => false, 'error' => "cURL fout: $err"];
+            return ['ok' => false, 'error' => t('cURL-fout') . ": $err"];
         }
         return $code >= 200 && $code < 300
             ? ['ok' => true, 'error' => null]

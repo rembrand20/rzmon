@@ -131,7 +131,7 @@ final class Health
         $active = $counts['ok'] + $counts['warning'] + $counts['critical'] + $counts['unknown'];
         return [
             'state' => $state,
-            'label' => self::LABELS[$state],
+            'label' => t(self::LABELS[$state]),
             'score' => $scores ? (int) round(array_sum($scores) / count($scores)) : 100,
             'counts' => $counts,
             'checks_total' => $active,

@@ -37,18 +37,18 @@ final class AgentCommands
     {
         $cmd = trim(str_replace("\r", '', (string) ($in['cmd'] ?? '')));
         if ($cmd === '' || str_contains($cmd, "\0")) {
-            return 'Vul een commando in';
+            return t('Vul een commando in');
         }
         if (mb_strlen($cmd) > 1000) {
-            return 'Het commando is te lang (hooguit 1000 tekens)';
+            return t('Het commando is te lang (hooguit 1000 tekens)');
         }
         $match = isset(self::MATCHES[$in['match'] ?? '']) ? $in['match'] : 'equals';
         $expect = str_replace("\r", '', (string) ($in['expect'] ?? ''));
         if (mb_strlen($expect) > 1000) {
-            return 'Het verwachte antwoord is te lang (hooguit 1000 tekens)';
+            return t('Het verwachte antwoord is te lang (hooguit 1000 tekens)');
         }
         if ($match === 'regex' && @preg_match(self::regex($expect), '') === false) {
-            return 'Ongeldige regex: ' . $expect;
+            return t('Ongeldige regex') . ': ' . $expect;
         }
         return [
             'cmd' => $cmd,
@@ -75,10 +75,10 @@ final class AgentCommands
         $shown = $short(trim(preg_replace('/\s+/u', ' ', $out)));
         $err = trim((string) ($r['err'] ?? ''));
         if (in_array($rc, [124, 137], true)) {
-            return [$fail, "Time-out: het commando duurde langer dan {$cfg['timeout']} s"];
+            return [$fail, t('Time-out: het commando duurde langer dan {n} s', ['n' => $cfg['timeout']])];
         }
         if ($rc === 127) {
-            return [$fail, 'Commando niet gevonden' . ($err !== '' ? ': ' . $short($err) : '')];
+            return [$fail, t('Commando niet gevonden') . ($err !== '' ? ': ' . $short($err) : '')];
         }
         $ok = match ($cfg['match']) {
             'exit0' => $rc === 0,
@@ -86,15 +86,15 @@ final class AgentCommands
             'regex' => preg_match(self::regex($cfg['expect']), $out) === 1,
             default => self::norm($out) === self::norm($cfg['expect']),
         };
-        $as = ($r['as'] ?? '') === 'root' ? ' (als root)' : '';
+        $as = ($r['as'] ?? '') === 'root' ? ' (' . t('als root') . ')' : '';
         if ($ok) {
-            return [STATUS_OK, ($cfg['match'] === 'exit0' ? 'Exitcode 0' : 'Antwoord klopt') . ($shown !== '' ? ": $shown" : '') . $as];
+            return [STATUS_OK, ($cfg['match'] === 'exit0' ? 'Exitcode 0' : t('Antwoord klopt')) . ($shown !== '' ? ": $shown" : '') . $as];
         }
         if ($cfg['match'] === 'exit0') {
             return [$fail, "Exitcode $rc" . ($shown !== '' ? ": $shown" : '') . ($err !== '' && $shown === '' ? ': ' . $short($err) : '')];
         }
         $want = $short(trim(preg_replace('/\s+/u', ' ', $cfg['expect'])));
-        return [$fail, 'Antwoord: ' . ($shown !== '' ? "\"$shown\"" : '(leeg)') . " – verwacht: " . self::MATCHES[$cfg['match']] . " \"$want\""
+        return [$fail, t('Antwoord') . ': ' . ($shown !== '' ? "\"$shown\"" : '(' . t('leeg') . ')') . ' – ' . t('verwacht') . ': ' . t(self::MATCHES[$cfg['match']]) . " \"$want\""
             . ($rc !== 0 ? " · exitcode $rc" : '') . ($err !== '' && $shown === '' ? ' · ' . $short($err) : '')];
     }
 

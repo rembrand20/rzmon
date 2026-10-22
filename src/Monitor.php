@@ -10,6 +10,11 @@ final class Monitor
     /** Voert alle checks uit die aan de beurt zijn (of alles bij $force). */
     public static function runDue(bool $force = false): int
     {
+        return I18n::forNotify(fn() => self::runDueInLang($force));
+    }
+
+    private static function runDueInLang(bool $force = false): int
+    {
         $sql = self::CHECK_SELECT . ' WHERE c.enabled = 1 AND h.enabled = 1';
         if (!$force) {
             $sql .= ' AND (c.last_checked IS NULL OR c.last_checked <= NOW() - INTERVAL c.interval_sec SECOND + INTERVAL 15 SECOND)';
@@ -40,6 +45,11 @@ final class Monitor
      */
     public static function runAgentHost(int $hostId): int
     {
+        return I18n::forNotify(fn() => self::runAgentHostInLang($hostId));
+    }
+
+    private static function runAgentHostInLang(int $hostId): int
+    {
         $types = "'" . implode("','", self::AGENT_TYPES) . "'";
         $rows = q(self::CHECK_SELECT . " WHERE c.host_id = ? AND c.enabled = 1 AND h.enabled = 1 AND h.mode = 'agent' AND c.type IN ($types)
                   AND (c.last_checked IS NULL OR c.last_checked <= NOW() - INTERVAL c.interval_sec SECOND + INTERVAL 15 SECOND)", [$hostId])->fetchAll();
@@ -59,6 +69,11 @@ final class Monitor
     }
 
     public static function runCheckById(int $id): ?array
+    {
+        return I18n::forNotify(fn() => self::runCheckByIdInLang($id));
+    }
+
+    private static function runCheckByIdInLang(int $id): ?array
     {
         $row = q(self::CHECK_SELECT . ' WHERE c.id = ?', [$id])->fetch();
         $res = $row ? self::runOne($row) : null;
@@ -197,7 +212,7 @@ final class Monitor
         // Onderdrukken: een server erboven is onbereikbaar → dat is al gemeld
         $upstream = $status !== STATUS_OK ? self::upstreamDown((int) $check['hid']) : null;
         if ($upstream) {
-            $message .= " (onderdrukt: {$upstream['name']} is onbereikbaar)";
+            $message .= ' (' . t('onderdrukt: {name} is onbereikbaar', ['name' => $upstream['name']]) . ')';
         }
         // Automatisch onderhoud (na herhaalde meldingen) stopt vanzelf zodra de check weer OK is;
         // dan gaat de herstelmelding hieronder gewoon uit.
@@ -226,8 +241,8 @@ final class Monitor
         ]);
         // Statuswijziging bewaren (popup van de check), met de reden als er zeker geen melding uitgaat
         if ($status !== (int) $check['status']) {
-            $note = $upstream ? "onderdrukt: {$upstream['name']} is onbereikbaar"
-                : (self::maintenanceFor($check) !== null ? 'onderhoud' : ($acked && $status !== STATUS_OK ? 'storing bevestigd' : null));
+            $note = $upstream ? t('onderdrukt: {name} is onbereikbaar', ['name' => $upstream['name']])
+                : (self::maintenanceFor($check) !== null ? t('onderhoud') : ($acked && $status !== STATUS_OK ? t('storing bevestigd') : null));
             q('INSERT INTO status_changes (check_id, from_status, to_status, message, value, note) VALUES (?, ?, ?, ?, ?, ?)',
                 [$check['id'], (int) $check['status'], $status, mb_substr($res['message'], 0, 500), $res['value'], $note]);
         }
@@ -269,9 +284,9 @@ final class Monitor
             // niets versturen
         } elseif ($flapEvent === 'start') {
             if (!$acked) {
-                self::enqueue($check, $status, 'flap', $notified, "🔀 FLAPPEND: $title",
-                    "$title staat te flappen: {$flapChanges}× van status gewisseld in {$flap['window']} min (nu " . STATUS_LABELS[$status] . '). '
-                    . "Per status komt er nog hooguit één melding, tot hij {$flap['stable']} min stabiel is.\n$message", $prioOf($status), $res['value']);
+                self::enqueue($check, $status, 'flap', $notified, '🔀 ' . t('FLAPPEND') . ": $title",
+                    t('{title} staat te flappen: {n}× van status gewisseld in {window} min (nu {status}). Per status komt er nog hooguit één melding, tot hij {stable} min stabiel is.',
+                        ['title' => $title, 'n' => $flapChanges, 'window' => $flap['window'], 'status' => STATUS_LABELS[$status], 'stable' => $flap['stable']]) . "\n$message", $prioOf($status), $res['value']);
             }
             $notified = $status;
             $notifiedAt = now();
@@ -282,8 +297,8 @@ final class Monitor
             if ($status !== $notified && !in_array($status, $flapSent, true)) {
                 if ($on && !$acked) {
                     self::enqueue($check, $status, $status === STATUS_OK ? 'recovery' : 'problem', $notified,
-                        $status === STATUS_OK ? "✅ HERSTELD: $title" : sprintf('%s %s: %s', $iconOf[$status], STATUS_LABELS[$status], $title),
-                        $message . ' (flapt: verdere wisselingen worden niet gemeld)', $prioOf($status), $res['value']);
+                        $status === STATUS_OK ? '✅ ' . t('HERSTELD') . ": $title" : sprintf('%s %s: %s', $iconOf[$status], STATUS_LABELS[$status], $title),
+                        $message . ' (' . t('flapt: verdere wisselingen worden niet gemeld') . ')', $prioOf($status), $res['value']);
                     $notified = $status;
                     $notifiedAt = now();
                 }
@@ -291,8 +306,8 @@ final class Monitor
             }
         } elseif ($flapEvent === 'stable') {
             if (!$acked || $status === STATUS_OK) {
-                self::enqueue($check, $status, 'stable', $notified, "{$iconOf[$status]} STABIEL: $title",
-                    "$title flapt niet meer: al {$flap['stable']} min " . STATUS_LABELS[$status] . ".\n$message", $prioOf($status), $res['value']);
+                self::enqueue($check, $status, 'stable', $notified, "{$iconOf[$status]} " . t('STABIEL') . ": $title",
+                    t('{title} flapt niet meer: al {min} min {status}.', ['title' => $title, 'min' => $flap['stable'], 'status' => STATUS_LABELS[$status]]) . "\n$message", $prioOf($status), $res['value']);
             }
             $notified = $status;
             $notifiedAt = $status === STATUS_OK ? null : now();
@@ -306,8 +321,8 @@ final class Monitor
                 $r = $cfg['rules']['recovery'];
                 $wanted = $r['mode'] !== 'never' && (!$acked || ($s['notify_recovery_acked'] ?? '0') === '1');
                 if ($autoEnded || ($wanted && ($r['mode'] === 'now' || $age >= $r['min'] * 60))) {
-                    self::enqueue($check, STATUS_OK, 'recovery', $notified, "✅ HERSTELD: $title",
-                        $message . ($autoEnded ? "\nAutomatisch onderhoud beëindigd." : ''), -1, $res['value']);
+                    self::enqueue($check, STATUS_OK, 'recovery', $notified, '✅ ' . t('HERSTELD') . ": $title",
+                        $message . ($autoEnded ? "\n" . t('Automatisch onderhoud beëindigd.') : ''), -1, $res['value']);
                     $notified = STATUS_OK;
                     $notifiedAt = null;
                 } elseif (!$wanted) {
@@ -337,7 +352,7 @@ final class Monitor
                 if ($status === STATUS_CRIT && in_array($check['type'], ['ping', 'tcp', 'http'], true) && $check['reverse_ok'] === null) {
                     $children = (int) q('SELECT COUNT(*) FROM hosts WHERE parent_id = ? AND enabled = 1', [$check['hid']])->fetchColumn();
                     if ($children > 0 && self::hostUnreachable((int) $check['hid'])) {
-                        $extra = "\nMeldingen van $children afhankelijke server(s) worden onderdrukt.";
+                        $extra = "\n" . t('Meldingen van {n} afhankelijke server(s) worden onderdrukt.', ['n' => $children]);
                     }
                 }
                 self::enqueue($check, $status, $isRepeat ? 'reminder' : 'problem', $notified,
@@ -376,6 +391,11 @@ final class Monitor
      */
     public static function flushQueue(): void
     {
+        I18n::forNotify(fn() => self::flushQueueInLang());
+    }
+
+    private static function flushQueueInLang(): void
+    {
         $win = max(0, (int) setting('notify_group_seconds', 120));
         foreach (q('SELECT host_id, UNIX_TIMESTAMP(MIN(created_at)) AS first FROM notify_queue GROUP BY host_id')->fetchAll() as $h) {
             if ($win > 0 && (int) $h['first'] > time() - $win) {
@@ -412,6 +432,11 @@ final class Monitor
      */
     public static function releaseQuiet(): void
     {
+        I18n::forNotify(fn() => self::releaseQuietInLang());
+    }
+
+    private static function releaseQuietInLang(): void
+    {
         $s = settings();
         $items = [];
         foreach (q(self::CHECK_SELECT . ' WHERE c.quiet_held IS NOT NULL ORDER BY h.name, c.name')->fetchAll() as $c) {
@@ -433,17 +458,17 @@ final class Monitor
                 $prio = (int) ($st === STATUS_CRIT ? ($s['pushover_priority_crit'] ?? 1) : ($s['pushover_priority_warn'] ?? 0));
                 $items[] = ['check' => $c, 'item' => ['status' => $st, 'event' => 'quiet', 'previous' => $held, 'priority' => $prio, 'value' => $c['last_value'],
                     'title' => sprintf('%s %s: %s – %s', [STATUS_WARN => '🟠', STATUS_CRIT => '🔴', STATUS_UNKNOWN => '⚪'][$st], STATUS_LABELS[$st], $c['host_name'], $c['name']),
-                    'message' => "Nog open sinds $since: " . $c['last_message']]];
+                    'message' => t('Nog open sinds {t}', ['t' => $since]) . ': ' . $c['last_message']]];
             } elseif ($held !== STATUS_OK && $rules['recovery']['mode'] !== 'never') {
                 $items[] = ['check' => $c, 'item' => ['status' => STATUS_OK, 'event' => 'recovery', 'previous' => $held, 'priority' => -1, 'value' => $c['last_value'],
-                    'title' => "✅ HERSTELD: {$c['host_name']} – {$c['name']}", 'message' => (string) $c['last_message']]];
+                    'title' => '✅ ' . t('HERSTELD') . ": {$c['host_name']} – {$c['name']}", 'message' => (string) $c['last_message']]];
             }
         }
         if ($items) {
             $open = count(array_filter($items, fn($x) => $x['item']['status'] !== STATUS_OK));
             $fixed = count($items) - $open;
-            self::sendGroup($items, '🌅 Na de stille uren: ' . implode(', ', array_filter([
-                $open ? $open . ($open === 1 ? ' probleem' : ' problemen') . ' open' : '', $fixed ? "$fixed hersteld" : ''])));
+            self::sendGroup($items, '🌅 ' . t('Na de stille uren') . ': ' . implode(', ', array_filter([
+                $open ? ($open === 1 ? t('1 probleem open') : t('{n} problemen open', ['n' => $open])) : '', $fixed ? t('{n} hersteld', ['n' => $fixed]) : ''])));
         }
     }
 
@@ -485,11 +510,11 @@ final class Monitor
                 $channels[$k] = $channels[$k] || $on;
             }
             $what = match ($it['event']) {
-                'recovery' => 'hersteld',
+                'recovery' => t('hersteld'),
                 'quiet' => STATUS_LABELS[$st],
-                'reminder' => 'nog steeds ' . STATUS_LABELS[$st],
-                'flap' => '🔀 flapt, nu ' . STATUS_LABELS[$st],
-                'stable' => 'weer stabiel, ' . STATUS_LABELS[$st],
+                'reminder' => t('nog steeds {status}', ['status' => STATUS_LABELS[$st]]),
+                'flap' => '🔀 ' . t('flapt, nu {status}', ['status' => STATUS_LABELS[$st]]),
+                'stable' => t('weer stabiel, {status}', ['status' => STATUS_LABELS[$st]]),
                 default => STATUS_LABELS[$st],
             };
             $lines[] = $icon[$st] . ' ' . ($multi ? "{$c['host_name']} – " : '') . "{$c['name']} ($what): " . strtok($it['message'], "\n");
@@ -498,8 +523,8 @@ final class Monitor
             }
         }
         $n = count($items);
-        $title ??= array_keys($events) === ['recovery'] ? "✅ HERSTELD: $host – $n checks"
-            : (array_keys($events) === ['reminder'] ? "🔁 $host: nog steeds $n problemen" : "{$icon[$worst]} " . STATUS_LABELS[$worst] . ": $host – $n meldingen");
+        $title ??= array_keys($events) === ['recovery'] ? '✅ ' . t('HERSTELD') . ": $host – $n checks"
+            : (array_keys($events) === ['reminder'] ? "🔁 $host: " . t('nog steeds {n} problemen', ['n' => $n]) : "{$icon[$worst]} " . STATUS_LABELS[$worst] . ": $host – " . t('{n} meldingen', ['n' => $n]));
         $body = implode("\n", $lines);
         $errors = [];
 
@@ -522,8 +547,8 @@ final class Monitor
         $email = null;
         if (setting('email_enabled', '0') === '1' && $channels['email'] && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
             $base = rtrim((string) config('base_url', ''), '/');
-            $r = Mailer::send($title, $body . "\n\nTijd: " . date('d-m-Y H:i:s')
-                . ($acks ? "\n\nBevestigen (geen meldingen meer voor die storing):\n" . implode("\n", $acks) : '')
+            $r = Mailer::send($title, $body . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s')
+                . ($acks ? "\n\n" . t('Bevestigen (geen meldingen meer voor die storing):') . "\n" . implode("\n", $acks) : '')
                 . ($base !== '' ? "\n\nRzMon: $base/" : ''));
             $email = $r['ok'];
             if (!$r['ok']) {
@@ -541,7 +566,7 @@ final class Monitor
             }
             q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
                 $c['id'], $st, mb_substr($it['title'], 0, 250),
-                mb_substr($it['message'] . " (gebundeld: $title)" . ($errors ? ' [niet verzonden: ' . implode('; ', $errors) . ']' : ''), 0, 1000),
+                mb_substr($it['message'] . ' (' . t('gebundeld') . ": $title)" . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
                 $pushover ? 1 : 0, $hook === null ? null : ($hook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), 'notify',
             ]);
             if (in_array($it['event'], ['problem', 'reminder'], true)) {
@@ -566,11 +591,11 @@ final class Monitor
         if ($sent < $after) {
             return;
         }
-        $reason = "Automatisch na $sent meldingen";
+        $reason = t('Automatisch na {n} meldingen', ['n' => $sent]);
         q('UPDATE checks SET maintenance_until = ?, maintenance_reason = ?, maintenance_auto = 1 WHERE id = ?', [self::AUTO_UNTIL, $reason, $check['id']]);
-        self::notify($check, $res, $status, "🔧 ONDERHOUD: $title",
-            "Na $sent meldingen staat deze check automatisch in onderhoud: geen meldingen meer tot hij weer OK is. "
-            . 'De andere checks van deze server melden gewoon door. Beëindigen kan in RzMon (🔧).', -1, 'maintenance', $status, 'maint');
+        self::notify($check, $res, $status, '🔧 ' . t('ONDERHOUD') . ": $title",
+            t('Na {n} meldingen staat deze check automatisch in onderhoud: geen meldingen meer tot hij weer OK is. De andere checks van deze server melden gewoon door. Beëindigen kan in RzMon (🔧).', ['n' => $sent]),
+            -1, 'maintenance', $status, 'maint');
     }
 
     /** "Tot het opgelost is": een datum ver weg; het onderhoud stopt bij herstel of handmatig. */
@@ -602,8 +627,8 @@ final class Monitor
         $email = null;
         if (setting('email_enabled', '0') === '1' && ($channels === null || $channels['email']) && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
             $base = rtrim((string) config('base_url', ''), '/');
-            $body = $message . "\n\nTijd: " . date('d-m-Y H:i:s')
-                . ($ackUrl ? "\n\n✔ Bevestigen (geen meldingen meer voor deze storing):\n$ackUrl" : '')
+            $body = $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s')
+                . ($ackUrl ? "\n\n✔ " . t('Bevestigen (geen meldingen meer voor deze storing):') . "\n$ackUrl" : '')
                 . ($base !== '' ? "\n\nRzMon: $base/" : '');
             $r = Mailer::send($title, $body);
             $email = $r['ok'];
@@ -622,12 +647,12 @@ final class Monitor
         }
 
         if ($pushover === null && $webhook === null && $email === null) {
-            $errors[] = 'geen meldkanaal ingeschakeld';
+            $errors[] = t('geen meldkanaal ingeschakeld');
         }
 
         q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
             $check['id'], $status, mb_substr($title, 0, 250),
-            mb_substr($message . ($errors ? ' [niet verzonden: ' . implode('; ', $errors) . ']' : ''), 0, 1000),
+            mb_substr($message . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
             $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), $kind,
         ]);
     }
@@ -637,6 +662,11 @@ final class Monitor
      * @param string $event problem | recovery
      */
     public static function notifySystem(string $title, string $message, int $status, string $event): void
+    {
+        I18n::forNotify(fn() => self::notifySystemInLang($title, $message, $status, $event));
+    }
+
+    private static function notifySystemInLang(string $title, string $message, int $status, string $event): void
     {
         $errors = [];
         $sent = false;
@@ -668,7 +698,7 @@ final class Monitor
         }
         q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)', [
             $status, mb_substr($title, 0, 250),
-            mb_substr($message . ($errors ? ' [niet verzonden: ' . implode('; ', $errors) . ']' : ''), 0, 1000),
+            mb_substr($message . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
             $sent ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), 'system',
         ]);
     }
@@ -742,6 +772,11 @@ final class Monitor
     /** Bevestigt een storing. Geeft false als de check (inmiddels) OK is. */
     public static function acknowledge(int $checkId, string $by, string $comment = ''): bool
     {
+        return I18n::forNotify(fn() => self::acknowledgeInLang($checkId, $by, $comment));
+    }
+
+    private static function acknowledgeInLang(int $checkId, string $by, string $comment = ''): bool
+    {
         $c = q('SELECT c.id, c.name, c.status, c.acked_at, c.pushover_receipt, h.name AS host_name
                 FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.id = ?', [$checkId])->fetch();
         if (!$c || (int) $c['status'] === STATUS_OK) {
@@ -751,8 +786,8 @@ final class Monitor
             $comment = mb_substr(trim($comment), 0, 200);
             q('UPDATE checks SET acked_at = ?, acked_by = ?, ack_comment = ? WHERE id = ?', [now(), mb_substr($by, 0, 64), $comment ?: null, $checkId]);
             q("INSERT INTO alerts (check_id, status, title, message, sent_ok, kind) VALUES (?, ?, ?, ?, 0, 'ack')", [
-                $checkId, (int) $c['status'], mb_substr("✔ BEVESTIGD: {$c['host_name']} – {$c['name']}", 0, 250),
-                mb_substr("Bevestigd door $by" . ($comment ? ": $comment" : '') . '. Geen meldingen meer tot herstel.', 0, 1000),
+                $checkId, (int) $c['status'], mb_substr('✔ ' . t('BEVESTIGD') . ": {$c['host_name']} – {$c['name']}", 0, 250),
+                mb_substr(t('Bevestigd door {who}', ['who' => $by]) . ($comment ? ": $comment" : '') . '. ' . t('Geen meldingen meer tot herstel.'), 0, 1000),
             ]);
         }
         if ($c['pushover_receipt']) {

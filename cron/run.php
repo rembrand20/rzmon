@@ -26,6 +26,8 @@ if ($lock === false) {
 if ($err = Installer::ensureSchema()) {
     fwrite(STDERR, "$err\n");
 }
+// Geen gebruiker: berichten (checks, meldingen, back-ups, IDS) in de taal van meldingen
+I18n::set(I18n::notifyLang());
 
 $force = in_array('--force', $argv, true);
 $n = Monitor::runDue($force);
