@@ -72,7 +72,7 @@ Gebruik: sudo bash install-agent.sh --url URL --token TOKEN [opties]
   --certs "a b c"      Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op
                        internet, bv. "/etc/letsencrypt/live/*/cert.pem localhost:8443 site.nl"
                        (standaard: automatisch voorstel; "" = geen)
-  --interval SEC       Rapporteren elke … seconden (30-3600, standaard 60)
+  --interval SEC       Tik als RzMon er geen doorgeeft (30-3600, standaard 60); normaal in RzMon instellen
   --insecure           Self-signed HTTPS-certificaat van RzMon accepteren
   --cron               Cron gebruiken in plaats van een systemd-timer
   --truenas            TrueNAS SCALE (wordt normaal vanzelf herkend)
@@ -413,6 +413,7 @@ SERVICES="$SERVICES"
 # Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op internet
 CERTS="$CERTS"
 INSECURE="$INSECURE"
+# Tik (seconden) als RzMon er geen doorgeeft; normaal stel je hem in RzMon in (Agent Manager)
 INTERVAL="$INTERVAL"
 EOF
     [ -n "$old_extra" ] && printf '# Eigen instellingen (overgenomen uit de vorige installatie)\n%s\n' "$old_extra" >>"$CONF"
@@ -442,10 +443,9 @@ ProtectHome=no"
 fi
 
 if [ "$TRUENAS" = 1 ]; then
-    minutes=$(( (INTERVAL + 59) / 60 ))
-    minute="*"; [ "$minutes" -gt 1 ] && minute="*/$minutes"
-    if tn_cron_set "$minute"; then
-        ok "TrueNAS-cronjob \"$TN_CRON_DESC\" (elke ${minutes} min, uitvoer verborgen); zie System → Advanced → Cron Jobs"
+    # Elke minuut starten; de agent rapporteert volgens de tik uit RzMon (minimaal elke minuut via cron)
+    if tn_cron_set "*"; then
+        ok "TrueNAS-cronjob \"$TN_CRON_DESC\" (elke minuut, uitvoer verborgen); zie System → Advanced → Cron Jobs"
     else
         warn "De cronjob kon niet via de TrueNAS-API worden aangemaakt. Maak hem zelf aan onder"
         warn "System → Advanced → Cron Jobs → Add, als root, elke minuut, met Hide Standard Output/Error aan:"
@@ -470,11 +470,11 @@ ProtectSystem=full
 EOF
     cat > "$TIMER" <<EOF
 [Unit]
-Description=RzMon agent elke ${INTERVAL}s
+Description=RzMon agent (start elke 30 s; rapporteert volgens de tik uit RzMon)
 
 [Timer]
 OnBootSec=30s
-OnUnitActiveSec=${INTERVAL}s
+OnUnitActiveSec=30s
 AccuracySec=5s
 Unit=rzmon-agent.service
 
@@ -484,10 +484,9 @@ EOF
     systemctl daemon-reload
     systemctl enable --now rzmon-agent.timer >/dev/null 2>&1
     rm -f "$CRON"   # oude cron-installatie opruimen
-    ok "systemd-timer actief (elke ${INTERVAL}s). Logboek: journalctl -u rzmon-agent"
+    ok "systemd-timer actief (start elke 30 s; rapporteert volgens de tik in RzMon). Logboek: journalctl -u rzmon-agent"
 else
-    minutes=$(( (INTERVAL + 59) / 60 ))
-    sched="* * * * *"; [ "$minutes" -gt 1 ] && sched="*/$minutes * * * *"
+    sched="* * * * *"   # elke minuut; de agent rapporteert volgens de tik uit RzMon
     printf '# RzMon agent\n%s root set -a; . %s; %s >/dev/null 2>&1\n' "$sched" "$CONF" "$BIN" > "$CRON"
     chmod 644 "$CRON"
     for svc in crond cron; do
@@ -549,7 +548,8 @@ fi
 
 cat <<EOF
 
-${C_OK}✔ De agent is geïnstalleerd en rapporteert elke ${INTERVAL}s aan ${URL}.${C_OFF}
+${C_OK}✔ De agent is geïnstalleerd en rapporteert aan ${URL}.${C_OFF}
+  Hoe vaak: in RzMon → Agent Manager (standaard elke 60 s).
 
   Volgende stap in RzMon: klik bij deze server op ＋ en voeg checks toe:
   CPU, RAM, Diskruimte (kies een mount), Service (kies uit de lijst van deze server;

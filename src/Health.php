@@ -21,7 +21,7 @@ final class Health
     /** @param array<int, array>|null $uptime Stats::uptime() voor de beschikbaarheid over 24 uur (optioneel) */
     public static function current(?array $uptime = null): array
     {
-        $hosts = q('SELECT id, name, mode, agent_seen FROM hosts WHERE enabled = 1 ORDER BY name')->fetchAll();
+        $hosts = q('SELECT id, name, mode, agent_seen, agent_tick FROM hosts WHERE enabled = 1 ORDER BY name')->fetchAll();
         $checks = q('SELECT c.id, c.host_id, c.name, c.type, c.status, c.reverse_ok, c.acked_at, c.problem_since, c.flapping_since, c.suppressed_by,
                             c.maintenance_until, c.maintenance_reason, c.maintenance_auto,
                             h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
@@ -43,7 +43,6 @@ final class Health
         foreach ($checks as $c) {
             $byHost[(int) $c['host_id']][] = $c;
         }
-        $stale = time() - (int) setting('agent_stale_minutes', 5) * 60;
         $counts = ['ok' => 0, 'warning' => 0, 'critical' => 0, 'unknown' => 0, 'maintenance' => 0];
         $keys = [STATUS_OK => 'ok', STATUS_WARN => 'warning', STATUS_CRIT => 'critical', STATUS_UNKNOWN => 'unknown'];
         $state = 'ok';
@@ -80,7 +79,8 @@ final class Health
                 continue;   // helemaal in onderhoud: telt niet mee in de score
             }
             // Onbereikbaar: ping CRITICAL, achter een uitgevallen server, of de agent rapporteert niet meer
-            $agentSilent = $h['mode'] === 'agent' && ($h['agent_seen'] === null || strtotime($h['agent_seen']) < $stale);
+            $agentSilent = $h['mode'] === 'agent' && ($h['agent_seen'] === null
+                || strtotime($h['agent_seen']) < time() - agent_stale_seconds(isset($h['agent_tick']) ? (int) $h['agent_tick'] : null));
             $reason = $agentSilent ? 'agent' : null;
             $acked = true;
             foreach ($active as $c) {

@@ -7,7 +7,7 @@ configuration:
     description: Token of this host in RzMon (host of type "Remote met agent" → "Agent installeren").
   interval:
     name: Interval (seconds)
-    description: How often the agent reports. RzMon marks checks CRITICAL when the agent stays silent for a few minutes.
+    description: Only for older RzMon versions. From RzMon 1.41.0 you set the interval in RzMon (Agent Manager → Report every …).
   verify_ssl:
     name: Verify SSL certificate
     description: Disable when RzMon uses a self-signed certificate.

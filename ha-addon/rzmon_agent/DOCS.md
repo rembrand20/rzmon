@@ -40,7 +40,7 @@ Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon 
 |---|---|
 | `monitor_url` | Adres van RzMon, zonder `/api.php` |
 | `token` | Agent-token van deze server in RzMon |
-| `interval` | Seconden tussen rapportages (30-3600, standaard 60) |
+| `interval` | Alleen voor oudere RzMon-versies. Vanaf RzMon 1.41.0 kies je in RzMon hoe vaak de add-on rapporteert (*Agent Manager → Rapporteren elke …*; standaard 60 s) |
 | `verify_ssl` | Uitzetten bij een self-signed certificaat |
 | `certs` | Certificaten waarvan RzMon de vervaldatum bewaakt: bestanden in `/ssl` (standaard `/ssl/fullchain.pem`, van de Let's Encrypt- of DuckDNS-add-on) en/of `host:poort`, ook op internet, bv. `mijndomein.duckdns.org:443`. Kies ze in RzMon bij een check van het type *SSL-certificaat* |
 

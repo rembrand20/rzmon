@@ -699,11 +699,10 @@ final class Checks
 
     private static function agentStale(array $host): ?array
     {
-        $staleMin = (int) setting('agent_stale_minutes', 5);
         if ($host['agent_seen'] === null) {
             return self::result(STATUS_UNKNOWN, null, 'Agent heeft nog nooit gerapporteerd');
         }
-        if (strtotime($host['agent_seen']) < time() - $staleMin * 60) {
+        if (strtotime($host['agent_seen']) < time() - agent_stale_seconds(isset($host['agent_tick']) ? (int) $host['agent_tick'] : null)) {
             return self::result(STATUS_CRIT, null, 'Agent stil sinds ' . $host['agent_seen']);
         }
         return null;

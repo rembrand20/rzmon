@@ -7,11 +7,12 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 MONITOR_URL=$(jq -r '.monitor_url // empty' "$OPTIONS")
 TOKEN=$(jq -r '.token // empty' "$OPTIONS")
+# Tik als RzMon er geen doorgeeft; normaal stel je hem in RzMon in (Agent Manager)
 INTERVAL=$(jq -r '.interval // 60' "$OPTIONS")
 INSECURE=$(jq -r 'if .verify_ssl == false then 1 else 0 end' "$OPTIONS")
 # Certificaten: bestanden in /ssl en/of host:poort (ook op internet)
 CERTS=$(jq -r '(.certs // []) | join(" ")' "$OPTIONS")
-export MONITOR_URL TOKEN INSECURE CERTS
+export MONITOR_URL TOKEN INSECURE CERTS INTERVAL
 
 if [ -z "$TOKEN" ] || [ -z "$MONITOR_URL" ]; then
     log "FOUT: vul 'monitor_url' en 'token' in op het tabblad Configuratie."
@@ -22,7 +23,9 @@ if [ -z "${SUPERVISOR_TOKEN:-}" ]; then
     log "WAARSCHUWING: geen SUPERVISOR_TOKEN; add-on/update-status wordt niet gerapporteerd."
 fi
 
-log "RzMon agent gestart: rapporteert elke ${INTERVAL}s aan ${MONITOR_URL}"
+log "RzMon agent gestart: rapporteert aan ${MONITOR_URL} (hoe vaak: in RzMon → Agent Manager)"
+# Elke 30 s starten; de agent rapporteert alleen als de tik uit RzMon om is (anders stopt hij meteen)
+BASE=30
 last_ok=""
 while true; do
     started=$(date +%s)
@@ -41,5 +44,5 @@ while true; do
         last_ok=0
     fi
     elapsed=$(( $(date +%s) - started ))
-    sleep $(( INTERVAL > elapsed ? INTERVAL - elapsed : 1 ))
+    sleep $(( BASE > elapsed ? BASE - elapsed : 1 ))
 done

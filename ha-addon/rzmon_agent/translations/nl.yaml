@@ -7,7 +7,7 @@ configuration:
     description: Token van deze server in RzMon (server met type "Remote met agent" → "Agent installeren").
   interval:
     name: Interval (seconden)
-    description: Hoe vaak de agent rapporteert. RzMon zet de checks op CRITICAL als de agent een paar minuten stil blijft.
+    description: Alleen voor oudere RzMon-versies. Vanaf RzMon 1.41.0 stel je de tik in RzMon in (Agent Manager → Rapporteren elke …).
   verify_ssl:
     name: SSL-certificaat controleren
     description: Uitzetten als RzMon een self-signed certificaat gebruikt.

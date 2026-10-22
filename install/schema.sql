@@ -266,6 +266,7 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('ids_repeat_days', '7'),
     ('ids_allow', ''),
     ('ids_fim', '[]'),
+    ('agent_tick', '60'),
     ('ids_fim_exclude', '*.log *.tmp *.swp *.pid cache/ sessions/');
 
 -- Logboek van gevoelige wijzigingen (bv. commando's op agents toestaan, commando-checks wijzigen)

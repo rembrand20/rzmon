@@ -2025,6 +2025,9 @@ async function podmanOverview(h) {
 }
 
 // ---------------------------------------------------------------- Agent
+/** "30 s", "2 min" */
+function tickText(t) { return +t >= 120 ? `${+t / 60} min` : `${+t} s`; }
+
 function agentInstructions(h) {
   const base = state.base_url || location.origin + location.pathname.replace(/\/[^/]*$/, '');
   const scriptUrl = location.origin + location.pathname.replace(/\/[^/]*$/, '') + '/api.php?action=agent_script';
@@ -2035,6 +2038,9 @@ function agentInstructions(h) {
     wide: true,
     body: `
       <div class="agent-live" id="agent-live"><span class="muted">Status ophalen…</span></div>
+      <div class="cmd-host-row need-admin">⏱ Rapporteren elke:
+        <select id="host-tick"><option value="0">standaard (${tickText(state.agent_tick)})</option>${[30, 60, 120, 300].map((t) => `<option value="${t}" ${+h.agent_tick === t ? 'selected' : ''}>${tickText(t)}</option>`).join('')}</select>
+        <span class="muted small" id="host-tick-info">${h.agent_update_via === 'direct' ? 'via cron/TrueNAS: minimaal elke minuut' : ''}</span></div>
       <div class="cmd-host-row need-admin">🖥️ Commando-checks op deze server:
         <select id="host-commands"><option value="global">algemene instelling</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
         <span class="muted small" id="host-commands-info"></span></div>
@@ -2067,7 +2073,6 @@ function agentInstructions(h) {
         </ol>
         <pre class="code">monitor_url: ${esc(base)}
 token: ${esc(h.agent_token || '')}
-interval: 60
 verify_ssl: true</pre>
         <ol class="steps" start="4">
           <li><b>Starten</b>. In het logboek moet <code>Verbonden met RzMon ✔</code> staan.</li>
@@ -2117,6 +2122,13 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   };
   $$('.seg-btn', body).forEach((b) => (b.onclick = () => show(b.dataset.seg)));
   pollAgentStatus(h.id);
+  $('#host-tick').onchange = async (e) => {
+    try {
+      const r = await api('host_tick', { id: h.id, tick: +e.target.value });
+      toast(`${h.name} rapporteert elke ${tickText(r.tick)}; de agent pakt het binnen een minuut op`);
+      refresh();
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
   if (isAdmin()) {
     api('agent_commands').then((r) => {
       const me = r.hosts.find((x) => x.id === +h.id);

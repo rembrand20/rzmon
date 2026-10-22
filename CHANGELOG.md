@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.41.0 – 2026-10-22
+### Nieuw
+- **⏱ Hoe vaak een agent rapporteert, stel je nu in RzMon in:** 30 s, 60 s, 2 min of 5 min. De standaard (60 s) staat onder *Instellingen → ⬆ Agents bijwerken*; per server kies je het in de *Agent Manager*. De agent neemt het binnen een minuut over.
+- De systemd-timer start de agent voortaan elke 30 s; is de tik nog niet om, dan stopt hij meteen. Bij cron en op TrueNAS is één minuut het minimum. De Home Assistant-add-on volgt de tik ook (de optie `interval` is alleen nog voor oudere RzMon-versies).
+- **Interval per check ook in de agent:** de diepere controle van een service, de extra test (URL/poort) en logbestanden doorzoeken gebeuren alleen als de check aan de beurt is. Tussendoor gaat het vorige resultaat mee; bij logbestanden gaat er niets verloren.
+- **Meteen beoordeeld:** agent-checks worden beoordeeld zodra het rapport binnen is, niet pas bij de volgende cron-minuut. Met een tik van 30 s komt een melding dus sneller.
+- *Agent offline* volgt de tik: een agent geldt pas als stil na minstens 3 gemiste tikken.
+- Agent 1.41.0 nodig voor de tik van 30 s (bijwerken met ⬆ Bijwerken); oudere agents blijven gewoon werken.
+
 ## 1.40.0 – 2026-10-21
 ### Nieuw
 - **📁 Bestanden bewaken (IDS).** Onder *Instellingen → 🛡️ IDS* geef je paden op met een ernst (🟠 warning of 🔴 critical), bv. `/usr/local/bin`, `/etc/nginx` of `/var/www/**/*.php`. Per server voeg je er paden aan toe via *✎ Bewerken*.

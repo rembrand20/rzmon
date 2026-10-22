@@ -164,6 +164,7 @@ Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt
   - `--certs`.
 - **Bijwerken vanuit RzMon** (knop of automatisch): de agent haalt de nieuwe versie bij je eigen RzMon. Hij controleert het SHA-256-controlegetal, of het script geldig is en of het de juiste versie is, en meldt de uitkomst terug. `REMOTE_UPDATE=0` zet dit uit.
 - **Instellingen** in `/etc/default/rzmon-agent`, alleen leesbaar voor root. Eigen regels blijven staan bij opnieuw installeren.
+- **⏱ Tik vanuit RzMon:** hoe vaak de agent rapporteert (30 s, 60 s, 2 min, 5 min), standaard in de instellingen en per server in de Agent Manager. Zware onderdelen (diepere controle, extra tests, logbestanden, commando's) volgen het interval van hun check. RzMon beoordeelt agent-checks meteen als het rapport binnenkomt.
 
 **Wat de agent meldt**
 - **Systeem:** CPU (gebruik, load, cores), geheugen en swap, disks per mount, luisterende poorten met procesnaam.

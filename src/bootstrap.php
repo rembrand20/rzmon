@@ -114,6 +114,22 @@ function save_setting(string $name, string $value): void
     q('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)', [$name, $value]);
 }
 
+/** Keuzes voor hoe vaak een agent rapporteert (seconden). */
+const AGENT_TICKS = [30, 60, 120, 300];
+
+/** Hoe vaak deze agent rapporteert: de eigen instelling van de server, anders de algemene (standaard 60 s). */
+function agent_tick(?int $own): int
+{
+    $t = $own ?: (int) setting('agent_tick', 60);
+    return in_array($t, AGENT_TICKS, true) ? $t : 60;
+}
+
+/** Na hoeveel seconden zonder rapport een agent "stil" is: de instelling, maar minstens 3 tikken. */
+function agent_stale_seconds(?int $own): int
+{
+    return max((int) setting('agent_stale_minutes', 5) * 60, 3 * agent_tick($own) + 30);
+}
+
 /** Eenheid van de meetwaarde van een check (null = geen getal om te tonen). */
 function check_unit(array $check): ?string
 {

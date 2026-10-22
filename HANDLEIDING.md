@@ -414,7 +414,7 @@ Bij de update naar 1.25.0 zijn je oude instellingen omgezet, zodat er niets vera
 ### 6.2b Alarmgedrag
 | Instelling | Standaard | Uitleg |
 |---|---|---|
-| Agent offline na … minuten | 5 | Na zoveel minuten zonder rapport worden de agent-checks CRITICAL |
+| Agent offline na … minuten | 5 | Na zoveel minuten zonder rapport worden de agent-checks CRITICAL. Minstens 3 tikken van die agent (bij een tik van 5 min dus ruim 15 min) |
 | Historie bewaren (dagen) | 30 | Meetwaarden voor de grafieken |
 | Meldingen bewaren (dagen) | 3× de historie (90) | Hoe lang verstuurde meldingen en de statuswijzigingen van checks bewaard worden; de pagina *Meldingen* toont ze per dag. Oudere worden elk uur opgeruimd |
 
@@ -766,6 +766,33 @@ Goed om te weten:
 - **Home Assistant-add-on:** bijwerken gaat via de add-on winkel.
 - **Veiligheid:** RzMon kan een agent alleen laten bijwerken met het agentscript van RzMon zelf; andere commando's zijn er niet. Wie beheerder is in RzMon, bepaalt wel welke agent er op je servers draait. Bescherm je beheerdersaccounts dus goed (sterk wachtwoord, 2FA).
 - **Mislukt?** Kijk op de server met `journalctl -u "rzmon-agent-update-*"` (systemd) of voer `sudo rzmon-agent-setup --update` uit; dan zie je alle stappen.
+
+#### Hoe vaak rapporteert de agent? ⏱
+De agent is **geen daemon**: hij wordt steeds opnieuw gestart, maakt een rapport en stopt weer. Zo kan hij niet vastlopen of geheugen lekken, en is een update meteen actief.
+
+| Systeem | Hoe hij start |
+|---|---|
+| Linux met systemd | systemd-timer `rzmon-agent.timer`, elke **30 s** |
+| Linux zonder systemd, TrueNAS SCALE | cron, elke **minuut** |
+| Home Assistant-add-on | een lus in de add-on, elke **30 s** |
+
+Hoe vaak er echt een **rapport** uitgaat, de **tik**, stel je in RzMon in. Is de tik nog niet om, dan stopt de agent meteen weer (dat kost een paar milliseconden).
+- **Standaard voor alle agents:** *Instellingen → ⬆ Agents bijwerken → Agents rapporteren standaard elke …*: 30 s, 60 s (standaard), 2 min of 5 min.
+- **Per server:** *Agent Manager → ⏱ Rapporteren elke …*. *standaard* volgt de algemene instelling.
+- De agent neemt een nieuwe tik binnen een minuut over. Bij cron en op TrueNAS is één minuut het minimum.
+- **Agent offline** volgt de tik: een agent geldt pas als stil na minstens 3 gemiste tikken.
+- `INTERVAL` in `/etc/default/rzmon-agent` (of `--interval` bij de setup) geldt alleen nog als RzMon geen tik doorgeeft, bijvoorbeeld als RzMon niet bereikbaar is.
+
+**Interval per check:** zware onderdelen voert de agent alleen uit als de check aan de beurt is (het *Interval* in het checkformulier). Tussendoor stuurt hij het vorige resultaat mee:
+- de **diepere controle** van een service (poorten, protocoltest, fouten in het log, eigen test) en de **extra test** (URL of poort);
+- **logbestanden doorzoeken**: er gaat niets verloren, want de volgende keer worden alle nieuwe regels sinds de vorige keer geteld;
+- **commando-checks** (al zo).
+
+Of een service draait, CPU, RAM, disks en poorten worden elke tik gemeten. Een service die stopt, zie je dus altijd bij de volgende tik.
+
+**Meteen beoordeeld:** de agent-checks van een server worden beoordeeld zodra het rapport binnen is, niet pas bij de volgende cron-minuut van RzMon. Met een tik van 30 s komt een melding dus hooguit ongeveer 30 s na het probleem (plus je eigen *pas melden na …*). Ping-, poort-, HTTP- en certificaatchecks doet RzMon zelf, elke minuut.
+
+> **Bestaande installaties:** de timer van 30 s komt mee met de agent-update (⬆ Bijwerken). Tot die tijd rapporteert de agent zoals zijn oude timer hem start (meestal elke 60 s).
 
 #### 8.2.2 Services kiezen in RzMon
 Welke services de agent bewaakt, stel je in RzMon in, niet meer op de server:

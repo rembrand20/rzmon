@@ -75,6 +75,12 @@ function agent_host(): array
 function agent_tests_text(int $hostId): string
 {
     $out = [];
+    // Hoe vaak de agent rapporteert: 0 <tab> tick <tab> seconden
+    $out[] = implode("\t", [0, 'tick', agent_tick((int) q('SELECT agent_tick FROM hosts WHERE id = ?', [$hostId])->fetchColumn() ?: null)]);
+    // Interval per check voor zware onderdelen (diepere controle, extra tests, logs): id <tab> ival <tab> seconden
+    foreach (q("SELECT id, interval_sec FROM checks WHERE host_id = ? AND type IN ('service', 'log') AND enabled = 1", [$hostId]) as $c) {
+        $out[] = implode("\t", [$c['id'], 'ival', max(30, (int) $c['interval_sec'])]);
+    }
     // Services met een service-check: id <tab> svc <tab> servicenaam
     foreach (q("SELECT id, target FROM checks WHERE host_id = ? AND type = 'service' AND enabled = 1", [$hostId]) as $c) {
         if (preg_match('/^[A-Za-z0-9@._:-]{1,100}$/', $c['target'])) {
@@ -246,6 +252,11 @@ if ($action === 'agent') {
             if (!ctype_digit((string) $id) || !is_array($l)) {
                 continue;
             }
+            if (!empty($l['skip'])) {
+                // Niet aan de beurt (interval van de check): vorige stand bewaren
+                q("UPDATE agent_data SET updated_at = ? WHERE host_id = ? AND metric = ?", [$now, $host['id'], 'logrun:' . $id]);
+                continue;
+            }
             $p = $prevLogs[$id] ?? [];
             $n = max(0, (int) ($l['new'] ?? 0));
             $ips = [];
@@ -324,6 +335,12 @@ if ($action === 'agent') {
         'certs' => count((array) ($in['certs'] ?? [])), 'containers' => count((array) ($in['podman']['containers'] ?? [])),
     ]];
     $resp['tests_rev'] = agent_tests_rev((int) $host['id']);
+    // Agent-checks van deze server meteen beoordelen (niet wachten op de volgende cron-minuut)
+    try {
+        Monitor::runAgentHost((int) $host['id']);
+    } catch (Throwable $e) {
+        error_log('RzMon: agent-checks direct beoordelen mislukt: ' . $e->getMessage());
+    }
     if ($u = agent_update_instruction($host['id'], $agentVersion, $in)) {
         $resp['update'] = $u;
     }
@@ -490,8 +507,8 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'state':
-        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, enabled, maintenance_until, maintenance_reason
-                    FROM hosts ORDER BY name')->fetchAll();
+        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick,
+                    enabled, maintenance_until, maintenance_reason FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
         $global = Monitor::globalMaintenance();
@@ -526,6 +543,7 @@ switch ($action) {
         out(['hosts' => $hosts, 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
              'version' => RZMON_VERSION, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(),
+             'agent_tick' => agent_tick(null),
              // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
              'ids_open' => Ids::enabled() ? (int) q("SELECT COUNT(*) FROM ids_incidents WHERE status = 'open' AND severity = 2")->fetchColumn() : 0,
              // Voor beheerders: label "⬆ x.y.z" bovenin als er een nieuwere versie is
@@ -663,6 +681,16 @@ switch ($action) {
             q('UPDATE hosts SET ids_fim = ? WHERE id = ?', [$fimOwn ? json_encode($fimOwn, JSON_UNESCAPED_SLASHES) : null, $id]);
         }
         out(['ok' => true, 'id' => $id]);
+
+    // Hoe vaak de agent van deze server rapporteert (0 = algemene instelling)
+    case 'host_tick':
+        $in = input();
+        $t = (int) ($in['tick'] ?? 0);
+        if ($t !== 0 && !in_array($t, AGENT_TICKS, true)) {
+            out(['error' => 'Kies 30, 60, 120 of 300 seconden'], 422);
+        }
+        q('UPDATE hosts SET agent_tick = ? WHERE id = ?', [$t ?: null, (int) ($in['id'] ?? 0)]);
+        out(['ok' => true, 'tick' => agent_tick($t ?: null)]);
 
     case 'agent_services':
         // Services op een agent-server, om bij "Check toevoegen" uit te kiezen
@@ -968,7 +996,7 @@ switch ($action) {
     case 'settings_save':
         $in = input();
         $allowed = ['pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_allow', 'ids_fim', 'ids_fim_exclude',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_allow', 'ids_fim', 'ids_fim_exclude',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -1001,6 +1029,9 @@ switch ($action) {
             if (isset($in[$k])) {
                 $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
             }
+        }
+        if (isset($in['agent_tick'])) {
+            $in['agent_tick'] = (string) (in_array((int) $in['agent_tick'], AGENT_TICKS, true) ? (int) $in['agent_tick'] : 60);
         }
         if (isset($in['ids_fim'])) {
             $in['ids_fim'] = json_encode(Ids::cleanFim(is_array($in['ids_fim']) ? $in['ids_fim'] : json_decode((string) $in['ids_fim'], true)), JSON_UNESCAPED_SLASHES);

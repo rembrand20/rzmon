@@ -2,6 +2,9 @@
 
 Deze add-on heeft hetzelfde versienummer als RzMon. Het volledige overzicht staat in de [CHANGELOG van RzMon](https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md).
 
+## 1.41.0
+- De add-on start de agent elke 30 s; hoe vaak hij echt rapporteert, stel je in RzMon in (Agent Manager → Rapporteren elke …). De optie `interval` geldt alleen nog voor oudere RzMon-versies.
+
 ## 1.40.0
 - Nieuw in de agent: IDS, bestanden bewaken. In de add-on niet actief; voor de add-on verandert er niets.
 

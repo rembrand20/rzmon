@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.40.0"
+AGENT_VERSION="1.41.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -219,6 +219,32 @@ fi
 # Supervisor API (alleen HA-modus)
 sv() { curl -fsS -m 10 -H "Authorization: Bearer $SUPERVISOR_TOKEN" "$SUPERVISOR_URL$1" 2>/dev/null; }
 
+# ---------------------------------------------------------------- Instellingen uit RzMon en de tik
+# Wat in RzMon is ingesteld: welke services bewaakt worden (service-checks), extra tests (URL/poort),
+# de eigen poorten of sockets van een service, de logzoekopdrachten, de intervallen per check en de tik.
+# De lijst wordt elke 10 minuten bij RzMon opgehaald, en meteen als RzMon meldt dat er iets veranderd is
+# (tests_rev in het antwoord). Commando's van RzMon worden alleen uitgevoerd bij commando-checks, als RzMon
+# ze voor deze server toestaat en COMMANDS (hierboven) dat niet blokkeert; zie "Commando-checks" verderop.
+t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
+[ "$HA_MODE" = 1 ] && t_dir=/data/rzmon-cache   # add-on: /data blijft bewaard
+mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
+t_cache="$t_dir/tests.cache"
+if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
+    t_k=(); [ "$INSECURE" = 1 ] && t_k=(-k)
+    if t_list=$(curl -fsS "${t_k[@]}" -m 10 -H "X-Agent-Token: $TOKEN" "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null); then
+        (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null || true
+    fi
+fi
+# Tik: hoe vaak er een rapport uitgaat (regel "0 <tab> tick <tab> seconden", per server in RzMon in te stellen;
+# anders INTERVAL). De timer start de agent vaker (elke 30 s); is de tik nog niet om, dan meteen stoppen.
+tick=$(awk -F'\t' '$1 == "0" && $2 == "tick" { print $3; exit }' "$t_cache" 2>/dev/null)
+[[ "$tick" =~ ^[0-9]+$ ]] && [ "$tick" -ge 30 ] || tick=${INTERVAL:-60}
+[[ "$tick" =~ ^[0-9]+$ ]] || tick=60
+if [ "$TEST" != 1 ] && [ -f "$t_dir/last.run" ] && [ $(( $(date +%s) - $(stat -c %Y "$t_dir/last.run") )) -lt $(( tick - 10 )) ]; then
+    exit 0
+fi
+touch "$t_dir/last.run" 2>/dev/null
+
 # ---------------------------------------------------------------- Disk
 disks=""
 hostname=$(hostname)
@@ -313,29 +339,25 @@ if command -v ss >/dev/null 2>&1; then
     }')
 fi
 
-# Wat in RzMon is ingesteld: welke services bewaakt worden (service-checks), extra tests (URL/poort),
-# de eigen poorten of sockets van een service en de logzoekopdrachten. De lijst wordt elke 10 minuten
-# bij RzMon opgehaald, en meteen als RzMon meldt dat er iets veranderd is (tests_rev in het antwoord).
-# Commando's van RzMon worden alleen uitgevoerd bij commando-checks, als RzMon ze voor deze server toestaat
-# en COMMANDS (hierboven) dat niet blokkeert; zie "Commando-checks" verderop.
+# Wat in RzMon is ingesteld (zie "Instellingen uit RzMon" bovenaan): hier alleen de regels voor services.
 declare -A manual_ports=()
+declare -A ival_by_id=()   # interval per check (s), voor zware onderdelen: diepere controle, extra tests, logs
 rz_services=""
-if [ "$HA_MODE" = 0 ]; then
-    t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
-    mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
-    t_cache="$t_dir/tests.cache"
-    if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
-        t_k=(); [ "$INSECURE" = 1 ] && t_k=(-k)
-        if t_list=$(curl -fsS "${t_k[@]}" -m 10 -H "X-Agent-Token: $TOKEN" "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null); then
-            (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null || true
-        fi
-    fi
-    # Regels "id <tab> ports <tab> service <tab> 8080 127.0.0.1:9000 /run/x.sock" en "id <tab> svc <tab> service"
-    [ -r "$t_cache" ] && while IFS=$'\t' read -r _ t_type t_target t_expect; do
-        [ "$t_type" = ports ] && manual_ports["$t_target"]+=" $t_expect"
-        [ "$t_type" = svc ] && [[ "$t_target" =~ ^[A-Za-z0-9@._:-]+$ ]] && rz_services+=" $t_target"
-    done <"$t_cache"
-fi
+[ -r "${t_cache-}" ] && while IFS=$'\t' read -r t_id t_type t_target t_expect; do
+    [ "$t_type" = ival ] && [[ "$t_id" =~ ^[0-9]+$ ]] && [[ "$t_target" =~ ^[0-9]+$ ]] && ival_by_id[$t_id]=$t_target
+    [ "$HA_MODE" = 0 ] || continue
+    [ "$t_type" = ports ] && manual_ports["$t_target"]+=" $t_expect"
+    [ "$t_type" = svc ] && [[ "$t_target" =~ ^[A-Za-z0-9@._:-]+$ ]] && rz_services+=" $t_target"
+done <"$t_cache"
+# Interval per service (via de check-id van de service-check; bij meer checks op dezelfde service: de kortste)
+declare -A ival_by_svc=()
+[ -r "${t_cache-}" ] && while IFS=$'\t' read -r t_id t_type t_target _; do
+    [ "$t_type" = svc ] && [ -n "${ival_by_id[$t_id]-}" ] || continue
+    [ -z "${ival_by_svc[$t_target]-}" ] || [ "${ival_by_id[$t_id]}" -lt "${ival_by_svc[$t_target]}" ] && ival_by_svc[$t_target]=${ival_by_id[$t_id]}
+done <"$t_cache"
+due_cached() {  # due_cached <bestand> <interval>: 0 = vorige uitkomst is nog vers genoeg (niet opnieuw doen)
+    [ -n "$2" ] && [ -s "$1" ] && [ $(( $(date +%s) - $(stat -c %Y "$1") )) -lt $(( $2 - 5 )) ]
+}
 # Te bewaken services: die met een service-check in RzMon, plus (verouderd) SERVICES uit de instellingen
 svc_all=$(printf '%s\n' $SERVICES $rz_services | awk 'NF && !seen[$0]++' | tr '\n' ' ')
 
@@ -548,10 +570,17 @@ if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "${svc_all// /}" ] && 
         while (match(s, /pid=[0-9]+/)) { pids = pids " " substr(s, RSTART + 4, RLENGTH - 4); s = substr(s, RSTART + RLENGTH) }
         print port "|" addr "|" pids }')
     read -r up_s _ < /proc/uptime
+    d_dir="$t_dir/svcdeep"
+    mkdir -p "$d_dir" 2>/dev/null
     for s in $svc_all; do
         info=$(systemctl show -p ActiveState -p SubState -p Type -p MainPID -p NRestarts -p ActiveEnterTimestampMonotonic -p ControlGroup "$s" 2>/dev/null)
         get() { sed -n "s/^$1=//p" <<<"$info"; }
-        [ "$(get ActiveState)" = active ] || { svc_detail+="\"$(json_escape "$s")\":{\"sub\":\"$(json_escape "$(get SubState)")\"},"; continue; }
+        [ "$(get ActiveState)" = active ] || { svc_detail+="\"$(json_escape "$s")\":{\"sub\":\"$(json_escape "$(get SubState)")\"},"; rm -f "$d_dir/$s"; continue; }
+        # Draait hij en is de vorige controle nog binnen het interval van de check? Dan die opnieuw meesturen.
+        if due_cached "$d_dir/$s" "${ival_by_svc[$s]-}"; then
+            svc_detail+=$(cat "$d_dir/$s")
+            continue
+        fi
         main=$(get MainPID); cg=$(get ControlGroup); mono=$(get ActiveEnterTimestampMonotonic)
         since=null
         [[ "$mono" =~ ^[0-9]+$ ]] && [ "$mono" -gt 0 ] && since=$(awk -v u="$up_s" -v m="$mono" -v n="$(date +%s)" 'BEGIN { printf "%d", n - (u - m / 1e6) }')
@@ -615,15 +644,23 @@ if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "${svc_all// /}" ] && 
             fi
         fi
         ports_json=$(tr ' ' '\n' <<<"${svc_ports# }" | grep . | paste -sd, -)
-        svc_detail+="\"$(json_escape "$s")\":{\"sub\":\"$(json_escape "$(get SubState)")\",\"type\":\"$(json_escape "$(get Type)")\",\"pid\":${main:-0},\"restarts\":$(get NRestarts | grep -E '^[0-9]+$' || echo null),\"since\":$since,\"ports\":[${ports_json}],\"ports_fail\":[${pfail%,}],\"manual\":[${man_show%,}],\"sockets\":[${sockets%,}],\"sockets_fail\":[${sfail%,}],\"probe\":\"$probe\",\"probe_rc\":${probe_rc:-null},\"probe_msg\":\"$(json_escape "$probe_msg")\",\"log_errors\":$log_n,\"log_last\":\"$(json_escape "$log_last")\",\"custom_rc\":$c_rc,\"custom_msg\":\"$(json_escape "$c_msg")\"},"
+        d_frag="\"$(json_escape "$s")\":{\"sub\":\"$(json_escape "$(get SubState)")\",\"type\":\"$(json_escape "$(get Type)")\",\"pid\":${main:-0},\"restarts\":$(get NRestarts | grep -E '^[0-9]+$' || echo null),\"since\":$since,\"ports\":[${ports_json}],\"ports_fail\":[${pfail%,}],\"manual\":[${man_show%,}],\"sockets\":[${sockets%,}],\"sockets_fail\":[${sfail%,}],\"probe\":\"$probe\",\"probe_rc\":${probe_rc:-null},\"probe_msg\":\"$(json_escape "$probe_msg")\",\"log_errors\":$log_n,\"log_last\":\"$(json_escape "$log_last")\",\"custom_rc\":$c_rc,\"custom_msg\":\"$(json_escape "$c_msg")\"},"
+        printf '%s' "$d_frag" >"$d_dir/$s" 2>/dev/null
+        svc_detail+=$d_frag
     done
 fi
 
 # Extra tests die in RzMon bij een service-check zijn ingesteld (URL of poort), zie hierboven.
 svc_tests=""
 if [ "$HA_MODE" = 0 ]; then
+    x_dir="$t_dir/svctest"
+    mkdir -p "$x_dir" 2>/dev/null
     [ -r "$t_cache" ] && while IFS=$'\t' read -r t_id t_type t_target t_expect; do
-        [[ "$t_id" =~ ^[0-9]+$ ]] || continue
+        [[ "$t_id" =~ ^[0-9]+$ ]] && { [ "$t_type" = url ] || [ "$t_type" = port ]; } || continue
+        if due_cached "$x_dir/$t_id" "${ival_by_id[$t_id]-}"; then
+            svc_tests+=$(cat "$x_dir/$t_id")
+            continue
+        fi
         ok=false; msg=""
         if [ "$t_type" = url ]; then
             body=$(curl -sk -m 10 -w '\n%{http_code} %{time_total}' "$t_target" 2>&1)
@@ -640,6 +677,7 @@ if [ "$HA_MODE" = 0 ]; then
         else
             continue
         fi
+        printf '%s' "\"$t_id\":{\"ok\":$ok,\"msg\":\"$(json_escape "$msg")\"}," >"$x_dir/$t_id" 2>/dev/null
         svc_tests+="\"$t_id\":{\"ok\":$ok,\"msg\":\"$(json_escape "$msg")\"},"
     done <"$t_cache"
 fi
@@ -721,6 +759,12 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_c
     while IFS=$'\t' read -r l_id l_type l_src l_pat; do
         [ "$l_type" = log ] && [[ "$l_id" =~ ^[0-9]+$ ]] || continue
         st_file="$l_dir/$l_id"
+        # Nog niet aan de beurt: "overgeslagen" melden (RzMon houdt de telling vast); de volgende keer
+        # worden alle nieuwe regels sinds de vorige keer geteld, dus er gaat niets verloren
+        if due_cached "$st_file" "${ival_by_id[$l_id]-}"; then
+            log_results+="\"$l_id\":{\"skip\":1},"
+            continue
+        fi
         prev=$(cat "$st_file" 2>/dev/null)
         new_text=""; l_err=""
         case "$l_src" in

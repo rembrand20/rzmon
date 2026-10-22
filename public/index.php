@@ -436,6 +436,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="small" id="agents-status">…</p>
           <button type="button" class="btn" id="agents-update-all" hidden>⬆ Alle verouderde agents bijwerken</button>
           <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="agent_auto_update"><span></span> Agents automatisch bijwerken</label>
+          <label style="margin-top:.9rem">⏱ Agents rapporteren standaard elke
+            <select name="agent_tick"><option value="30">30 seconden</option><option value="60">60 seconden</option><option value="120">2 minuten</option><option value="300">5 minuten</option></select>
+            <span class="muted small">Per server anders in te stellen in de <i>Agent Manager</i>. 30 s werkt met de systemd-timer (agent 1.41.0+); via cron of op TrueNAS minimaal elke minuut.</span></label>
           <div class="cmd-box" data-nodirty>
             <h3>🖥️ Commando-checks</h3>
             <p class="muted small">Met een <i>Commando</i>-check voert de agent een commando uit en vergelijkt RzMon de uitvoer met het antwoord dat je verwacht. Standaard staat dit uit. Aanzetten vraagt om je wachtwoord en komt in het logboek.

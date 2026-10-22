@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class Monitor
 {
-    private const CHECK_SELECT = 'SELECT c.*, h.name AS host_name, h.address, h.mode, h.agent_seen, h.agent_version, h.id AS hid, h.enabled AS host_enabled,
+    private const CHECK_SELECT = 'SELECT c.*, h.name AS host_name, h.address, h.mode, h.agent_seen, h.agent_version, h.agent_tick, h.id AS hid, h.enabled AS host_enabled,
                 h.parent_id, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                 FROM checks c JOIN hosts h ON h.id = c.host_id';
 
@@ -30,6 +30,34 @@ final class Monitor
         return count($rows);
     }
 
+    /** Checks die op gegevens van de agent draaien (niet ping/poort/HTTP/certificaat: die doet RzMon zelf). */
+    private const AGENT_TYPES = ['disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'command', 'ha'];
+
+    /**
+     * Net binnengekomen rapport van een agent: de agent-checks van die server die aan de beurt zijn meteen
+     * beoordelen, in plaats van bij de volgende cron-minuut. Een check wordt eerst "geclaimd" (last_checked),
+     * zodat cron hem niet tegelijk ook doet.
+     */
+    public static function runAgentHost(int $hostId): int
+    {
+        $types = "'" . implode("','", self::AGENT_TYPES) . "'";
+        $rows = q(self::CHECK_SELECT . " WHERE c.host_id = ? AND c.enabled = 1 AND h.enabled = 1 AND h.mode = 'agent' AND c.type IN ($types)
+                  AND (c.last_checked IS NULL OR c.last_checked <= NOW() - INTERVAL c.interval_sec SECOND + INTERVAL 15 SECOND)", [$hostId])->fetchAll();
+        $n = 0;
+        foreach ($rows as $row) {
+            $claim = q('UPDATE checks SET last_checked = NOW() WHERE id = ? AND (last_checked <=> ?)', [$row['id'], $row['last_checked']]);
+            if ($claim->rowCount() !== 1) {
+                continue;   // net door cron of een ander rapport gedaan
+            }
+            self::runOne($row);
+            $n++;
+        }
+        if ($n) {
+            self::flushQueue();
+        }
+        return $n;
+    }
+
     public static function runCheckById(int $id): ?array
     {
         $row = q(self::CHECK_SELECT . ' WHERE c.id = ?', [$id])->fetch();
@@ -47,6 +75,7 @@ final class Monitor
             'mode' => $row['mode'],
             'agent_seen' => $row['agent_seen'],
             'agent_version' => $row['agent_version'] ?? null,
+            'agent_tick' => $row['agent_tick'] ?? null,
         ];
         $res = Checks::run($row, $host);
         if ($row['type'] === 'disk') {
