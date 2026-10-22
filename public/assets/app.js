@@ -185,7 +185,8 @@ async function api(action, body, params = {}) {
   });
   const data = await res.json().catch(() => ({ error: L('Ongeldig antwoord van server') }));
   if (res.status === 401 && !action.startsWith('login')) { location.reload(); }
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  // status en data mee in de fout: zo hoeft niemand de (vertaalde) tekst te herkennen
+  if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status, data });
   return data;
 }
 
@@ -274,7 +275,7 @@ if (resetForm) {
     } catch (ex) {
       err.textContent = ex.message;
       err.hidden = false;
-      if (/verlopen|werkt niet meer/.test(ex.message)) $('#reset-fields').hidden = true;
+      if (ex.data?.dead) $('#reset-fields').hidden = true;
     }
     b.disabled = false;
   });
@@ -304,7 +305,7 @@ if (loginForm) {
     } catch (ex) {
       err.textContent = ex.message;
       err.hidden = false;
-      if (step2 && /opnieuw in/.test(ex.message)) {
+      if (step2 && ex.data?.restart) {
         $('#login-step1').hidden = false;
         $('#login-step2').hidden = true;
         $$('#login-step1 input').forEach((i) => (i.required = true));
@@ -3749,9 +3750,10 @@ async function loadAgentCommands() {
   settingsSummaries();
 }
 
+/** Bevestiging: je wachtwoord, of op het LAN een woord typen (de server accepteert het Nederlandse en het vertaalde woord) */
 function confirmField(word) {
   const lan = !!document.querySelector('.lan-badge');
-  return `<label>${lan ? L('Typ <b>{word}</b> om te bevestigen', { word }) : L('Bevestig met je eigen wachtwoord')}
+  return `<label>${lan ? L('Typ <b>{word}</b> om te bevestigen', { word: L(word) }) : L('Bevestig met je eigen wachtwoord')}
     <input name="confirm" type="${lan ? 'text' : 'password'}" required autocomplete="${lan ? 'off' : 'current-password'}" autofocus></label>`;
 }
 
@@ -3782,7 +3784,7 @@ function dbRotateDialog() {
       for (let i = 0; r.pending && i < 40; i++) {   // hulpdienst: even wachten op het resultaat
         await new Promise((res) => setTimeout(res, 750));
         try { r = await api('db_rotate_status'); }
-        catch (ex) { if (/hulpdienst reageert niet|Geen wachtwoordwissel/.test(ex.message)) throw ex; }   // tijdens de wissel kan één verzoek mislukken
+        catch (ex) { if (ex.status === 404 || ex.status === 504) throw ex; }   // tijdens de wissel kan één verzoek mislukken
       }
       if (r.pending) throw new Error(L('Geen antwoord van de hulpdienst'));
       setTimeout(() => showNewDbPassword(r), 50);

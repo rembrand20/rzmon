@@ -529,8 +529,8 @@ $ownOnly = static function (int $id) use ($user, $isAdmin): void {
 $confirm = static function (string $word) use ($user): void {
     $c = (string) (input()['confirm'] ?? '');
     if (is_lan_session()) {
-        if ($c !== $word) {
-            out(['error' => t('Typ {word} om te bevestigen', ['word' => $word])], 422);
+        if ($c !== $word && $c !== t($word)) {   // het Nederlandse woord, of het woord in de taal van de gebruiker
+            out(['error' => t('Typ {word} om te bevestigen', ['word' => t($word)])], 422);
         }
         return;
     }

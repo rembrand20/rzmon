@@ -1993,4 +1993,9 @@ return [
     'Software-RAID (mdadm) heel' => 'Software RAID (mdadm) intact',
     'SMART: alle fysieke schijven gezond' => 'SMART: all physical disks healthy',
     'Docker-containers draaien' => 'Docker containers running',
+    'BLOKKEREN' => 'BLOCK',
+    'TOESTAAN' => 'ALLOW',
+    'VERNIEUWEN' => 'RENEW',
+    'DOWNLOADEN' => 'DOWNLOAD',
+    'HERSTELLEN' => 'RESTORE',
 ];
