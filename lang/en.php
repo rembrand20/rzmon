@@ -2079,4 +2079,12 @@ return [
     'aan (volgt de algemene info-regel)' => 'on (follows the general info rule)',
     'Info: gebeurtenissen die geen storing zijn (herstart, vernieuwd certificaat, agent of RzMon bijgewerkt), stil via Pushover; tijdens stille uren niet verstuurd, wel op de pagina Meldingen.' => 'Info: events that are not an outage (restart, renewed certificate, agent or RzMon updated), silently via Pushover; not sent during quiet hours, but shown on the Alerts page.',
     'Ook hier geldt "melden na … mislukte checks achter elkaar": zolang dat aantal niet gehaald wordt, flapt hij stil.' => 'The "notify after … failed checks in a row" setting applies here too: until that number is reached, it flaps silently.',
+    'weer OK' => 'OK again',
+    'nu {status}' => 'now {status}',
+    'Info-check: geeft alleen ℹ️ info-meldingen en telt nooit als storing' => 'Info check: only gives ℹ️ info notifications and never counts as an outage',
+    'Alleen info-meldingen' => 'Info notifications only',
+    'Deze check telt nooit als storing: bij een statuswissel komt er een ℹ️ info-melding in plaats van warning, critical of hersteld. Welke kanalen dat zijn, staat bij de rij ℹ️ Info (Instellingen → 🔔 Meldingen, of eigen meldregels hieronder); standaard staat info uit.' => 'This check never counts as an outage: on a status change you get an ℹ️ info notification instead of warning, critical or recovered. The channels are set in the ℹ️ Info row (Settings → 🔔 Notifications, or custom rules below); info is off by default.',
+    'Alleen bij info: problemen staan altijd op de pagina Meldingen' => 'Only for info: problems are always on the Alerts page',
+    'Meldingenpagina' => 'Alerts page',
+    'Altijd' => 'Always',
 ];

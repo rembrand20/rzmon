@@ -203,6 +203,8 @@ article.flash { animation: flash 1.6s; }
 .chk { display: grid; grid-template-columns: auto 1fr auto; gap: .2rem .7rem; align-items: center; padding: .7rem 1rem; border-bottom: 1px solid var(--border); }
 .chk:last-child { border-bottom: 0; }
 .chk.s0 { --c: var(--ok); } .chk.s1 { --c: var(--warn); } .chk.s2 { --c: var(--crit); } .chk.s3 { --c: var(--unknown); }
+.chk.s-info { --c: #3b82f6; }   /* info-check met een andere status dan OK: geen storing */
+.info-tag { font-size: .72rem; color: #3b82f6; border: 1px solid color-mix(in srgb, #3b82f6 40%, transparent); border-radius: 999px; padding: 0 .4rem; margin-left: .25rem; white-space: nowrap; }
 .chk .dot { width: 9px; height: 9px; box-shadow: none; }
 .chk-name { font-weight: 600; font-size: .92rem; min-width: 0; }
 .chk-name .type { color: var(--muted); font-weight: 500; font-size: .75rem; margin-left: .35rem; }

@@ -400,7 +400,7 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 | 🔴 Critical | idem | idem | idem |
 | ⚪ Onbekend | idem; plus de schakelaar **Melden bij ONBEKEND** | idem | idem |
 | ✅ Hersteld | Nooit, Direct, of Na X minuten OK | – | idem |
-| ℹ️ Info | Nooit of Direct (standaard **Nooit**) | – | idem |
+| ℹ️ Info | Nooit of Direct (standaard **Nooit**) | – | idem, plus **📋 Meldingenpagina** |
 
 - **Na X minuten:** pas melden als de check X minuten **onafgebroken** in die status is. Herstelt hij eerder, dan komt er geen melding. Zo filter je korte pieken weg. Elke status heeft een eigen klok: een warning die critical wordt, meldt meteen als critical "Direct" is.
 - **Melden na … mislukte checks achter elkaar** (standaard 1): een melding gaat pas uit als de check zoveel keer **achter elkaar** dezelfde status gaf. Bij 3 en een interval van 60 s is dat na ongeveer 2 minuten; bij een interval van 300 s na ongeveer 10 minuten. Zo filter je haperingen weg, los van het interval.
@@ -428,7 +428,13 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - **RzMon bijgewerkt:** van welke naar welke versie.
 - Zet de rij **ℹ️ Info** op *Direct* en vink de kanalen aan. Per check kan het anders: ✎ → 🔔 Meldingen → *Eigen meldregels* → rij *Info* (bijvoorbeeld alleen voor de herstart van je NAS). Agent- en RzMon-updates horen niet bij een check en volgen de algemene regel.
 - Info gaat direct (niet gebundeld) en via Pushover **stil** (prioriteit -1: geen geluid of trilling). Tijdens **stille uren** en **onderhoud** wordt info niet verstuurd en komt hij niet in de samenvatting achteraf.
-- **Op de pagina Meldingen** staat elke info-melding altijd, met ℹ️ en een blauwe kleur, ook als hij niet verstuurd is (dan staat de reden erbij, bijvoorbeeld *[niet verzonden: info staat uit]*). Met de knoppen **Alles · Zonder info · ℹ️ Info** filter je de lijst.
+- **📋 Meldingenpagina** (kolom in de rij Info, standaard aan): info-meldingen staan op de pagina Meldingen, met ℹ️ en een blauwe kleur, ook als ze niet verstuurd zijn (dan staat de reden erbij, bijvoorbeeld *[niet verzonden: info staat uit]*). Zet je het uit, dan wordt info nergens bewaard. Met de knoppen **Alles · Zonder info · ℹ️ Info** filter je de lijst. Echte storingen staan altijd op de pagina Meldingen.
+- **ℹ️ Alleen info-meldingen (info-check):** een schakelaar in het checkformulier (✎ of ＋ Check). Zo'n check telt **nooit als storing**:
+  - bij een statuswissel komt er één info-melding in plaats van warning, critical of hersteld, bijvoorbeeld *"ℹ️ INFO: NAS – Back-up: nu WARNING: …"* en later *"weer OK: …"*;
+  - *melden na … mislukte checks achter elkaar* geldt ook hier; herinneringen, flapping-meldingen, bevestigen en automatisch onderhoud niet;
+  - op het dashboard een **blauwe stip** met **ℹ️ WARNING** (de echte status); de server blijft groen, en de check telt niet mee in de gezondheid, de tellers, *⚠️ Problemen* en de afhankelijkheid tussen servers;
+  - MQTT en de REST API geven de echte status met `"info": true`, maar tellen hem niet als probleem;
+  - de kanalen volgen de rij **ℹ️ Info** (algemeen of de eigen meldregels van de check). Info staat standaard uit, dus zet die rij op *Direct*.
 - Home Assistant krijgt `"event": "info"` met status 0.
 
 **🌙 Stille uren** (standaard uit): periodes waarin er **geen meldingen** uitgaan, bijvoorbeeld 's nachts.

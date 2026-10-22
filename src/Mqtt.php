@@ -222,7 +222,7 @@ final class Mqtt
             foreach ($byHost[$hid] ?? [] as $c) {
                 $cid = (int) $c['id'];
                 $maint = Monitor::maintenanceFor($c);
-                $st = $maint ? 4 : (int) $c['status'];
+                $st = $maint ? 4 : ((int) $c['info_only'] ? STATUS_OK : (int) $c['status']);   // info-check: telt als OK
                 $n[$st]++;
                 $total[$st]++;
                 // Ernst: OK < UNKNOWN < WARNING < CRITICAL (onderhoud telt niet mee)
@@ -231,7 +231,8 @@ final class Mqtt
                 }
                 $topic = "$base/check/$cid";
                 $states[$topic] = [
-                    'status' => self::STATES[$st],
+                    'status' => self::STATES[$maint ? 4 : (int) $c['status']],
+                    'info' => (bool) $c['info_only'],
                     'value' => $c['last_value'] !== null ? round((float) $c['last_value'], 2) : null,
                     'message' => (string) $c['last_message'],
                     'type' => $c['type'],

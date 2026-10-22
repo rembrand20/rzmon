@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.53.0 – 2026-10-22
+### Nieuw
+- **Info-checks:** in het checkformulier staat de schakelaar **ℹ️ Alleen info-meldingen**. Zo'n check telt nooit als storing. Bij een statuswissel komt er één info-melding (*"nu WARNING: …"*, *"weer OK: …"*) in plaats van warning, critical of hersteld; *melden na … mislukte checks* geldt ook hier. Op het dashboard heeft hij een blauwe stip met de echte status (*ℹ️ CRITICAL*); de server blijft groen en de check telt niet mee in de gezondheid, de tellers en *⚠️ Problemen*. MQTT en de REST API geven `"info": true`.
+- **📋 Meldingenpagina** als kanaal in de rij **ℹ️ Info** (algemeen en per check): of info-meldingen op de pagina Meldingen komen. Staat standaard aan, dus er verandert niets.
+- Info staat na de update nog steeds uit: zet de rij Info op *Direct* om info-meldingen te ontvangen.
+
 ## 1.52.0 – 2026-10-22
 ### Nieuw
 - **ℹ️ Info-meldingen** voor gebeurtenissen die geen storing zijn. In *Instellingen → 🔔 Meldingen* staat een nieuwe rij **ℹ️ Info** (nooit of direct, met de kanalen Pushover, e-mail en Home Assistant). Per check anders in te stellen (✎ → 🔔 Meldingen → *Eigen meldregels*). Na de update staat info **uit**, dus er verandert niets tot je het zelf aanzet.

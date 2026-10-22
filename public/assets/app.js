@@ -584,6 +584,8 @@ function showTab(name) {
 async function refresh() {
   try {
     state = await api('state');
+    // Info-check: telt nooit als storing. Voor tellers, filters en "Problemen" is hij OK; de echte status staat in info_status
+    state.hosts.forEach((h) => h.checks.forEach((c) => { if (+c.info_only && +c.status !== 0) { c.info_status = +c.status; c.status = 0; } }));
     if (state.role && document.body.dataset.role !== state.role) location.reload();   // rol gewijzigd
     render();
     if (!$('#tab-alerts').hidden) loadAlerts();
@@ -1126,6 +1128,7 @@ function checkBits(c) {
   const flags = pending + (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ ${L('bevestigd')}</button>` : '')
     + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">${c.maintenance.auto ? '🔧 ' + L('auto, tot opgelost') : `🔧 ${L('tot {t}', { t: esc(fmtUntil(c.maintenance.until)) })}`}</span>` : '')
     + (c.suppressed_by ? ` <span class="supp-tag" title="${L('Geen melding: een server erboven is onbereikbaar')}">🔕 ${L('onderdrukt')}</span>` : '')
+    + (+c.info_only ? ` <span class="info-tag" title="${L('Info-check: geeft alleen ℹ️ info-meldingen en telt nooit als storing')}">ℹ️ ${c.info_status ? STATUS_WORD[c.info_status] : 'info'}</span>` : '')
     + (c.notify ? ` <span class="own-notify" title="${L('Deze check heeft eigen meldregels')}">🔔</span>` : '')
     + (c.reverse_ok != null && REVERSIBLE.includes(c.type) ? ` <span class="rev-tag" title="${L('Omgekeerd: reageert het, dan {a}; reageert het niet, dan {b}', { a: STATUS_WORD[c.reverse_ok], b: STATUS_WORD[c.reverse_fail ?? 0] })}">⇄</span>` : '')
     + ((q) => (q && q.mode === 'never' ? ` <span class="quiet-tag" title="${L('Nooit stil: meldt ook tijdens de stille uren')}">🌙✕</span>`
@@ -1139,8 +1142,8 @@ function checkBits(c) {
       <button class="icon-btn need-admin" title="${L('Bewerken')}" data-act="edit-check" data-id="${c.id}">✎</button>`;
   return {
     t, s, pctVal, ticks, num, problem, flags, actions,
-    cls: `s${s} ${+c.enabled ? '' : 'disabled'} ${c.maintenance ? 'in-maint' : ''} ${problem && c.acked_at ? 'acked' : ''}`,
-    title: `${STATUS[s]} – ${L('laatst')} ${ago(c.last_checked)}`,
+    cls: `${c.info_status ? 's-info' : 's' + s} ${+c.enabled ? '' : 'disabled'} ${c.maintenance ? 'in-maint' : ''} ${problem && c.acked_at ? 'acked' : ''}`,
+    title: `${c.info_status ? 'ℹ️ ' + STATUS[c.info_status] : STATUS[s]} – ${L('laatst')} ${ago(c.last_checked)}`,
     msg: esc(c.last_message || L('Nog niet gecontroleerd')),
   };
 }
@@ -1301,7 +1304,7 @@ async function checkInfo(id) {
   const now = toTime(r.now);
   const t = TYPES[c.type] || { label: c.type };
   const st = +c.status;
-  const problem = st !== 0 && +c.enabled;
+  const problem = st !== 0 && +c.enabled && !+c.info_only;   // een info-check is nooit een storing
   const unit = t.unit || '';
   const rows = [
     ['Type', `${esc(t.label)}${c.target ? ` · <code>${esc(c.target)}</code>` : ''}`],
@@ -1795,6 +1798,8 @@ function checkForm(c, h, preset = {}) {
         </label>
         <span class="hint" id="rev-hint" style="grid-column:1/-1"></span>
       </div>
+      <label class="switch"><input type="checkbox" name="info_only" ${+c.info_only ? 'checked' : ''}><span></span> ℹ️ <b>${L('Alleen info-meldingen')}</b></label>
+      <p class="hint" style="margin-top:-.4rem">${L('Deze check telt nooit als storing: bij een statuswissel komt er een ℹ️ info-melding in plaats van warning, critical of hersteld. Welke kanalen dat zijn, staat bij de rij ℹ️ Info (Instellingen → 🔔 Meldingen, of eigen meldregels hieronder); standaard staat info uit.')}</p>
       <details class="notify-own" ${c.notify || c.notify_fails ? 'open' : ''}>
         <summary>🔔 ${L('Meldingen')}: <span id="notify-mode-label">${c.notify ? L('eigen regels') : L('standaard (algemene instellingen)')}</span><span class="muted" id="notify-fails-label">${c.notify_fails ? ' · ' + L('na {n}× mislukt', { n: +c.notify_fails }) : ''}</span></summary>
         <label>${L('Melden na … mislukte checks achter elkaar')} <span class="hint">${L('(leeg = standaard, nu {n})', { n: state.notify_fails || 1 })}</span>
@@ -1850,7 +1855,7 @@ function checkForm(c, h, preset = {}) {
       const command = d.type === 'command' ? { cmd: d.cmd, expect: d.cmd_expect, match: d.cmd_match, timeout: d.cmd_timeout, fail: d.cmd_fail } : undefined;
       const res = {};
       ['cpu', 'mem', 'disk'].forEach((k) => { res[k] = { on: !!d[`res_${k}`], warn: d[`res_${k}_warn`], crit: d[`res_${k}_crit`] }; });
-      await api('check_save', { ...d, res, notify, quiet, command, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep });
+      await api('check_save', { ...d, res, notify, quiet, command, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep, info_only: !!d.info_only });
       toast(L('Check opgeslagen'));
     },
   });
@@ -3374,7 +3379,8 @@ function notifyEditor(el, cfg, enabled = {}) {
   const r = cfg.rules || {}, ch = cfg.channels || {}, fl = cfg.flap || {};
   el.innerHTML = `<div class="table-scroll"><table class="notify-table">
     <thead><tr><th>${L('Status')}</th><th>${L('Melden')}</th><th>${L('Herhalen')}</th>
-      ${NOTIFY_CHANNELS.map(([k, l, set]) => `<th class="nt-ch" title="${enabled[set] === false ? L('Dit kanaal staat uit (zie hieronder)') : ''}">${l}${enabled[set] === false ? ` <span class="muted">(${L('uit')})</span>` : ''}</th>`).join('')}</tr></thead>
+      ${NOTIFY_CHANNELS.map(([k, l, set]) => `<th class="nt-ch" title="${enabled[set] === false ? L('Dit kanaal staat uit (zie hieronder)') : ''}">${l}${enabled[set] === false ? ` <span class="muted">(${L('uit')})</span>` : ''}</th>`).join('')}
+      <th class="nt-ch" title="${L('Alleen bij info: problemen staan altijd op de pagina Meldingen')}">📋 ${L('Meldingenpagina')}</th></tr></thead>
     <tbody>${NOTIFY_ROWS.map(([k, label]) => {
       const x = r[k] || { mode: k === 'info' ? 'never' : 'now', min: 0, repeat: 0 };   // info: standaard uit
       return `<tr data-k="${k}">
@@ -3390,6 +3396,7 @@ function notifyEditor(el, cfg, enabled = {}) {
         <td>${k === 'recovery' || k === 'info' ? '<span class="muted small">–</span>'
           : `<span class="nt-rep">${L('elke {input} min', { input: `<input type="number" data-f="repeat" min="0" max="10080" value="${x.repeat || 0}">` })}</span>`}</td>
         ${NOTIFY_CHANNELS.map(([c]) => `<td class="nt-ch"><input type="checkbox" data-c="${c}" ${(ch[k] || {})[c] !== false ? 'checked' : ''}></td>`).join('')}
+        <td class="nt-ch">${k === 'info' ? `<input type="checkbox" data-c="page" ${(ch.info || {}).page !== false ? 'checked' : ''}>` : `<span class="muted small" title="${L('Altijd')}">✓</span>`}</td>
       </tr>`;
     }).join('')}</tbody></table></div>
     <p class="hint">${L('Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).')} ${L('Info: gebeurtenissen die geen storing zijn (herstart, vernieuwd certificaat, agent of RzMon bijgewerkt), stil via Pushover; tijdens stille uren niet verstuurd, wel op de pagina Meldingen.')}</p>

@@ -1143,13 +1143,13 @@ switch ($action) {
         // Melden na zoveel mislukte checks achter elkaar; leeg = de algemene instelling
         $fails = trim((string) ($in['notify_fails'] ?? '')) === '' ? null : max(1, min(100, (int) $in['notify_fails']));
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
-            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options, $notify, $quiet, $command, $revOk, $revFail, $fails];
+            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options, $notify, $quiet, $command, $revOk, $revFail, $fails, !empty($in['info_only']) ? 1 : 0];
         if (!empty($in['id'])) {
-            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ?, notify = ?, quiet = ?, command = ?, reverse_ok = ?, reverse_fail = ?, notify_fails = ? WHERE id = ?',
+            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ?, notify = ?, quiet = ?, command = ?, reverse_ok = ?, reverse_fail = ?, notify_fails = ?, info_only = ? WHERE id = ?',
                 [...$params, (int) $in['id']]);
             $id = (int) $in['id'];
         } else {
-            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, notify, quiet, command, reverse_ok, reverse_fail, notify_fails, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, notify, quiet, command, reverse_ok, reverse_fail, notify_fails, info_only, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [...$params, (int) ($in['host_id'] ?? 0)]);
             $id = (int) db()->lastInsertId();
         }

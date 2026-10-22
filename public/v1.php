@@ -107,6 +107,7 @@ function fmtCheck(array $c): array
         'enabled' => (bool) $c['enabled'],
         'status' => (int) $c['status'],
         'status_text' => STATUS_LABELS[(int) $c['status']],
+        'info' => (bool) ($c['info_only'] ?? false),   // info-check: telt nooit als storing
         'value' => $c['last_value'] !== null ? (float) $c['last_value'] : null,
         'unit' => check_unit($c),
         'metric' => $c['metric'],
@@ -138,8 +139,9 @@ function worst(array $checks): int
     $maintenance = false;
     foreach ($checks as $c) {
         $maintenance = $maintenance || ($c['enabled'] && $c['in_maintenance']);
-        if ($c['enabled'] && !$c['in_maintenance'] && ($worst === null || $rank[$c['status']] > $rank[$worst])) {
-            $worst = $c['status'];
+        $st = $c['info'] ? STATUS_OK : $c['status'];
+        if ($c['enabled'] && !$c['in_maintenance'] && ($worst === null || $rank[$st] > $rank[$worst])) {
+            $worst = $st;
         }
     }
     // Alles in onderhoud = bewust stil, geen onbekende toestand
@@ -425,7 +427,7 @@ switch (true) {
                 if ($c['enabled'] && $c['in_maintenance']) {
                     $counts['maintenance']++;
                 } elseif ($c['enabled']) {
-                    $counts[$keys[$c['status']]]++;
+                    $counts[$keys[$c['info'] ? STATUS_OK : $c['status']]]++;
                     $counts['acknowledged'] += $c['acknowledged'] ? 1 : 0;
                     $all[] = $c;
                 }
@@ -447,7 +449,7 @@ switch (true) {
                 return $hl;
             })(Health::current(Stats::uptime())),
             'maintenance' => ($g = Monitor::globalMaintenance()) ? ['until' => iso($g['until']), 'reason' => $g['reason'] ?: null] : null,
-            'problems' => array_values(array_filter($all, fn($c) => $c['status'] !== STATUS_OK)),
+            'problems' => array_values(array_filter($all, fn($c) => $c['status'] !== STATUS_OK && !$c['info'])),
             'hosts' => array_map(fn($h) => array_diff_key($h, ['checks' => 1]), $hosts),
         ]);
 

@@ -14,6 +14,8 @@ final class NotifyRules
     public const CHANNELS = ['pushover', 'email', 'webhook'];
     /** Alle regels: de statussen hierboven en info */
     public const RULE_KEYS = ['warn', 'crit', 'unknown', 'recovery', 'info'];
+    /** Extra kanaal alleen bij info: de pagina Meldingen (problemen staan daar altijd) */
+    public const PAGE = 'page';
 
     /** Instellingen voor deze check: eigen regels als die er zijn, anders de algemene. */
     public static function forCheck(array $check): array
@@ -52,7 +54,7 @@ final class NotifyRules
                 'recovery' => ['mode' => 'now', 'min' => 0, 'repeat' => 0],
                 'info' => ['mode' => 'never', 'min' => 0, 'repeat' => 0],   // standaard uit
             ],
-            'channels' => array_fill_keys(self::RULE_KEYS, $on),
+            'channels' => array_fill_keys(self::RULE_KEYS, $on) + ['info' => $on + [self::PAGE => true]],
             // Anti-flapping: flapt bij `changes` statuswisselingen binnen `window` minuten; stabiel na `stable` minuten
             'flap' => ['on' => true, 'changes' => 4, 'window' => 30, 'stable' => 15],
         ];
@@ -184,7 +186,7 @@ final class NotifyRules
         $out = [];
         foreach (self::RULE_KEYS as $k) {
             if (isset($in[$k]) && is_array($in[$k])) {
-                foreach (self::CHANNELS as $c) {
+                foreach ($k === 'info' ? [...self::CHANNELS, self::PAGE] : self::CHANNELS as $c) {
                     $out[$k][$c] = !empty($in[$k][$c]);
                 }
             }

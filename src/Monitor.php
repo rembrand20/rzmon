@@ -161,7 +161,7 @@ final class Monitor
      */
     public static function hostUnreachable(int $hostId): bool
     {
-        $rows = q("SELECT type, status FROM checks WHERE host_id = ? AND enabled = 1 AND type IN ('ping','tcp','http') AND reverse_ok IS NULL", [$hostId])->fetchAll();
+        $rows = q("SELECT type, status FROM checks WHERE host_id = ? AND enabled = 1 AND type IN ('ping','tcp','http') AND reverse_ok IS NULL AND info_only = 0", [$hostId])->fetchAll();
         $pings = array_filter($rows, fn($r) => $r['type'] === 'ping');
         $relevant = $pings ?: $rows;
         if (!$relevant) {
@@ -255,6 +255,16 @@ final class Monitor
         $s = settings();
         $title = sprintf('%s – %s', $check['host_name'], $check['name']);
         $cfg = NotifyRules::forCheck($check);
+
+        // Info-check: nooit een storing; bij een echte statuswissel (na het ingestelde aantal mislukte checks) één info-melding
+        if ((int) ($check['info_only'] ?? 0) === 1) {
+            if ($upstream === null && $status !== $notified && ($status === STATUS_OK || $streak >= self::failsNeeded($check))) {
+                self::infoCheck($check, ($status === STATUS_OK ? t('weer OK') : t('nu {status}', ['status' => STATUS_LABELS[$status]])) . ': ' . $message);
+                $notified = $status;
+            }
+            q('UPDATE checks SET notified_status = ?, notified_at = NULL, flapping_since = NULL, flap_notified = NULL WHERE id = ?', [$notified, $check['id']]);
+            return;
+        }
 
         // Weer OK: Emergency-herhaling van Pushover meteen stoppen
         if ($status === STATUS_OK && $check['pushover_receipt']) {
@@ -795,6 +805,9 @@ final class Monitor
                     $errors[] = 'Webhook: ' . $r['error'];
                 }
             }
+        }
+        if (($channels[NotifyRules::PAGE] ?? true) === false) {
+            return;   // niet op de pagina Meldingen (kanaal uit)
         }
         q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $check['id'] ?? null, $hostId, STATUS_OK, mb_substr($title, 0, 250),
