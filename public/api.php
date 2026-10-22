@@ -460,7 +460,9 @@ if ($action === 'login_totp' && $method === 'POST') {
     if ($r === true) {
         out(['ok' => true, 'csrf' => csrf_token()]);
     }
-    out(['error' => $r], 401);
+    // restart: opnieuw beginnen met het wachtwoord (de browser kijkt hiernaar, niet naar de tekst)
+    $p = $_SESSION['pending_2fa'] ?? null;
+    out(['error' => $r, 'restart' => !$p || $p['tries'] >= 5], 401);
 }
 
 // ---------- Wachtwoord vergeten (zonder login) ----------
@@ -489,7 +491,8 @@ if ($action === 'pw_reset_check' && $method === 'POST') {
 if ($action === 'pw_reset' && $method === 'POST') {
     $in = input();
     $r = PasswordReset::reset((string) ($in['token'] ?? ''), (string) ($in['password'] ?? ''), (string) ($in['code'] ?? ''));
-    $r === true ? out(['ok' => true]) : out(['error' => $r], 422);
+    // dead: de link werkt niet meer (verlopen, gebruikt of te veel pogingen)
+    $r === true ? out(['ok' => true]) : out(['error' => $r, 'dead' => PasswordReset::check((string) ($in['token'] ?? '')) === null], 422);
 }
 
 $user = current_user();
