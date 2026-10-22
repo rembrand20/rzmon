@@ -83,7 +83,7 @@ final class PortScan
     {
         $ip = filter_var($host, FILTER_VALIDATE_IP) ? $host : gethostbyname($host);
         if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-            throw new RuntimeException("Kan $host niet resolven");
+            throw new RuntimeException(t('Kan {host} niet resolven', ['host' => $host]));
         }
         $addr = str_contains($ip, ':') ? "[$ip]" : $ip;
         $open = [];

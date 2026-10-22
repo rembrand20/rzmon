@@ -17,10 +17,10 @@ final class PasswordReset
     public static function unavailable(): ?string
     {
         if (trim((string) setting('smtp_host', '')) === '') {
-            return 'Er is geen SMTP-server ingesteld (Instellingen → E-mail)';
+            return t('Er is geen SMTP-server ingesteld (Instellingen → E-mail)');
         }
         if (!preg_match('#^https?://#i', (string) config('base_url', ''))) {
-            return 'Er is geen Basis-URL ingesteld (Setup); die is nodig voor de link in de mail';
+            return t('Er is geen Basis-URL ingesteld (Setup); die is nodig voor de link in de mail');
         }
         return null;
     }
@@ -67,13 +67,15 @@ final class PasswordReset
         ]);
         self::log((int) $u['id'], $ident, 'link verstuurd');
         $link = rtrim((string) config('base_url'), '/') . '/?reset=' . $token;
-        $body = "Hallo {$u['username']},\n\n"
-            . "Iemand (hopelijk jij) heeft gevraagd om het wachtwoord van je RzMon-account opnieuw in te stellen.\n\n"
-            . "Kies een nieuw wachtwoord via deze link (" . self::VALID_MINUTES . " minuten geldig, één keer te gebruiken):\n$link\n\n"
-            . "Heb je dit niet gevraagd? Dan hoef je niets te doen: je wachtwoord blijft hetzelfde.\n\n"
-            . "Aangevraagd vanaf IP-adres $ip op " . date('d-m-Y H:i') . '.';
-        return static function () use ($u, $body): void {
-            $r = Mailer::send('RzMon: wachtwoord opnieuw instellen', $body, null, (string) $u['email']);
+        // In de taal van het account, niet die van de browser waarmee de aanvraag gedaan is
+        [$subject, $body] = I18n::forUser((int) $u['id'], fn() => ['RzMon: ' . t('wachtwoord opnieuw instellen'),
+            t('Hallo {user},', ['user' => $u['username']]) . "\n\n"
+            . t('Iemand (hopelijk jij) heeft gevraagd om het wachtwoord van je RzMon-account opnieuw in te stellen.') . "\n\n"
+            . t('Kies een nieuw wachtwoord via deze link ({min} minuten geldig, één keer te gebruiken):', ['min' => self::VALID_MINUTES]) . "\n$link\n\n"
+            . t('Heb je dit niet gevraagd? Dan hoef je niets te doen: je wachtwoord blijft hetzelfde.') . "\n\n"
+            . t('Aangevraagd vanaf IP-adres {ip} op {time}.', ['ip' => $ip, 'time' => date('d-m-Y H:i')])]);
+        return static function () use ($u, $subject, $body): void {
+            $r = Mailer::send($subject, $body, null, (string) $u['email']);
             if (!$r['ok']) {
                 self::log((int) $u['id'], (string) $u['username'], 'mail mislukt: ' . mb_substr((string) $r['error'], 0, 150));
             }
@@ -109,10 +111,10 @@ final class PasswordReset
         $r = self::find($token);
         if (!$r) {
             usleep(300000);
-            return 'Deze link is verlopen of al gebruikt. Vraag een nieuwe aan via "Wachtwoord vergeten?".';
+            return t('Deze link is verlopen of al gebruikt. Vraag een nieuwe aan via "Wachtwoord vergeten?".');
         }
         if (mb_strlen($password) < 8) {
-            return 'Het wachtwoord moet minstens 8 tekens hebben';
+            return t('Het wachtwoord moet minstens 8 tekens hebben');
         }
         if ($r['totp_secret'] !== null) {
             $step = Totp::verify($r['totp_secret'], $code, $r['totp_last_step'] !== null ? (int) $r['totp_last_step'] : null);
@@ -120,7 +122,7 @@ final class PasswordReset
                 q('UPDATE password_resets SET tries = tries + 1 WHERE id = ?', [$r['id']]);
                 usleep(500000);
                 $left = self::MAX_TRIES - (int) $r['tries'] - 1;
-                return 'Onjuiste code uit je authenticator-app' . ($left > 0 ? " (nog $left poging" . ($left === 1 ? '' : 'en') . ')' : '; deze link werkt niet meer');
+                return t('Onjuiste code uit je authenticator-app') . ($left > 0 ? ' (' . ($left === 1 ? t('nog 1 poging') : t('nog {n} pogingen', ['n' => $left])) . ')' : '; ' . t('deze link werkt niet meer'));
             }
             q('UPDATE users SET totp_last_step = ? WHERE id = ?', [$step, $r['user_id']]);
         }
@@ -131,10 +133,12 @@ final class PasswordReset
         q('DELETE FROM remember_tokens WHERE user_id = ?', [$uid]);                        // onthouden apparaten vergeten
         self::log($uid, $r['username'], 'wachtwoord hersteld');
         if (filter_var((string) $r['email'], FILTER_VALIDATE_EMAIL)) {
-            Mailer::send('RzMon: je wachtwoord is gewijzigd',
-                "Hallo {$r['username']},\n\nHet wachtwoord van je RzMon-account is zojuist gewijzigd via \"Wachtwoord vergeten\" (IP-adres "
-                . client_ip() . ', ' . date('d-m-Y H:i') . ").\nApparaten waarop je ingelogd bleef, zijn uitgelogd.\n\n"
-                . 'Was jij dit niet? Neem dan direct contact op met je beheerder.', null, (string) $r['email']);
+            [$subject, $body] = I18n::forUser($uid, fn() => ['RzMon: ' . t('je wachtwoord is gewijzigd'),
+                t('Hallo {user},', ['user' => $r['username']]) . "\n\n"
+                . t('Het wachtwoord van je RzMon-account is zojuist gewijzigd via "Wachtwoord vergeten" (IP-adres {ip}, {time}).', ['ip' => client_ip(), 'time' => date('d-m-Y H:i')])
+                . "\n" . t('Apparaten waarop je ingelogd bleef, zijn uitgelogd.') . "\n\n"
+                . t('Was jij dit niet? Neem dan direct contact op met je beheerder.')]);
+            Mailer::send($subject, $body, null, (string) $r['email']);
         }
         return true;
     }

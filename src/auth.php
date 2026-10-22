@@ -139,18 +139,18 @@ function login_totp(string $code): true|string
     $p = $_SESSION['pending_2fa'] ?? null;
     if (!$p || $p['at'] < time() - 300 || $p['tries'] >= 5) {
         unset($_SESSION['pending_2fa']);
-        return 'Log opnieuw in met je wachtwoord';
+        return t('Log opnieuw in met je wachtwoord');
     }
     $u = q('SELECT id, username, role, totp_secret, totp_last_step FROM users WHERE id = ?', [$p['id']])->fetch();
     if (!$u || !$u['totp_secret']) {
         unset($_SESSION['pending_2fa']);
-        return 'Log opnieuw in met je wachtwoord';
+        return t('Log opnieuw in met je wachtwoord');
     }
     $step = Totp::verify($u['totp_secret'], $code, $u['totp_last_step'] !== null ? (int) $u['totp_last_step'] : null);
     if ($step === null) {
         $_SESSION['pending_2fa']['tries']++;
         usleep(500000);
-        return 'Onjuiste code' . ($_SESSION['pending_2fa']['tries'] >= 5 ? ' — log opnieuw in met je wachtwoord' : '');
+        return t('Onjuiste code') . ($_SESSION['pending_2fa']['tries'] >= 5 ? ' — ' . t('log opnieuw in met je wachtwoord') : '');
     }
     q('UPDATE users SET totp_last_step = ? WHERE id = ?', [$step, $u['id']]);
     finish_login($u, !empty($p['remember']));
@@ -284,7 +284,7 @@ function device_name(): string
         str_contains($ua, 'Mac OS X') || str_contains($ua, 'Macintosh') => 'Mac',
         str_contains($ua, 'CrOS') => 'Chromebook',
         str_contains($ua, 'Linux') => 'Linux',
-        default => 'onbekend systeem',
+        default => t('onbekend systeem'),
     };
     $browser = match (true) {
         str_contains($ua, 'Edg/') => 'Edge',
@@ -295,7 +295,7 @@ function device_name(): string
         str_contains($ua, 'Safari/') => 'Safari',
         default => 'Browser',
     };
-    return "$browser op $os";
+    return t('{browser} op {os}', ['browser' => $browser, 'os' => $os]);
 }
 
 function logout(): void

@@ -58,7 +58,7 @@ final class Installer
             self::runSchema();
             return null;
         } catch (Throwable $e) {
-            return 'Database bijwerken naar ' . RZMON_VERSION . ' mislukt: ' . $e->getMessage();
+            return t('Database bijwerken naar {v} mislukt', ['v' => RZMON_VERSION]) . ': ' . $e->getMessage();
         }
     }
 
@@ -226,7 +226,7 @@ final class Installer
             throw new InvalidArgumentException('Gebruikersnaam: 2-64 tekens, letters/cijfers/._@-');
         }
         if (strlen($password) < 8) {
-            throw new InvalidArgumentException('Wachtwoord moet minimaal 8 tekens zijn');
+            throw new InvalidArgumentException(t('Wachtwoord moet minimaal 8 tekens zijn'));
         }
         q('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)', [
             $username, password_hash($password, PASSWORD_DEFAULT), in_array($role, array_keys(ROLES), true) ? $role : 'admin',
@@ -265,7 +265,7 @@ final class Installer
     public static function createDatabase(array $db, string $adminUser, string $adminPass, ?PDO $admin = null): void
     {
         if (!preg_match('/^\w{1,64}$/', $db['name']) || !preg_match('/^[\w.-]{1,80}$/', $db['user'])) {
-            throw new InvalidArgumentException('Databasenaam/gebruiker mag alleen letters, cijfers en _ bevatten');
+            throw new InvalidArgumentException(t('Databasenaam/gebruiker mag alleen letters, cijfers en _ bevatten'));
         }
         $pdo = $admin ?? self::connect(['host' => $db['host'], 'port' => $db['port'] ?? 3306, 'user' => $adminUser, 'pass' => $adminPass], false);
         $host = in_array($db['host'], ['127.0.0.1', 'localhost', '::1'], true) ? 'localhost' : '%';
@@ -331,7 +331,7 @@ final class Installer
         $new = self::randomPassword(32);
         $warnings = [];
         if (!is_writable(SM_CONFIG_FILE) && !self::configWritable()) {
-            return ['ok' => false, 'password' => null, 'warnings' => [], 'error' => 'config.php kan niet worden opgeslagen (map vergrendeld). Gebruik de hulpdienst of de terminal (als root).'];
+            return ['ok' => false, 'password' => null, 'warnings' => [], 'error' => t('config.php kan niet worden opgeslagen (map vergrendeld). Gebruik de hulpdienst of de terminal (als root).')];
         }
 
         // Als root: met het MariaDB-beheeraccount (unix_socket, geen wachtwoord) alle accounts bijwerken
@@ -353,7 +353,7 @@ final class Installer
         try {
             $setPassword($new);
         } catch (PDOException $e) {
-            return ['ok' => false, 'password' => null, 'warnings' => [], 'error' => 'De database weigert de wijziging: ' . $e->getMessage()];
+            return ['ok' => false, 'password' => null, 'warnings' => [], 'error' => t('De database weigert de wijziging') . ': ' . $e->getMessage()];
         }
 
         // config.php bijwerken met dezelfde eigenaar, groep en rechten als het origineel
@@ -394,7 +394,7 @@ final class Installer
                 file_put_contents(SM_CONFIG_FILE, self::renderConfig($cfg), LOCK_EX);
             }
             return ['ok' => false, 'password' => null, 'warnings' => [],
-                'error' => !$written ? 'config.php kon niet worden opgeslagen; het oude wachtwoord is teruggezet' : 'Verbinden met het nieuwe wachtwoord mislukte; het oude wachtwoord is teruggezet'];
+                'error' => !$written ? t('config.php kon niet worden opgeslagen; het oude wachtwoord is teruggezet') : t('Verbinden met het nieuwe wachtwoord mislukte; het oude wachtwoord is teruggezet')];
         }
         $GLOBALS['sm_config']['db']['pass'] = $new;
 
@@ -403,7 +403,7 @@ final class Installer
             foreach (['localhost', '127.0.0.1'] as $h) {
                 try {
                     self::connect(['host' => $h, 'pass' => $old] + $db);
-                    $warnings[] = "Het oude wachtwoord werkt nog voor {$db['user']}@$h. Vernieuw via de hulpdienst of de terminal (als root), dan worden alle accounts bijgewerkt.";
+                    $warnings[] = t('Het oude wachtwoord werkt nog voor {account}. Vernieuw via de hulpdienst of de terminal (als root), dan worden alle accounts bijgewerkt.', ['account' => "{$db['user']}@$h"]);
                 } catch (PDOException) {
                 }
             }

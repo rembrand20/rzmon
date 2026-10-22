@@ -30,7 +30,7 @@ final class Backup
     public static function problem(): ?string
     {
         if (!class_exists('ZipArchive')) {
-            return 'De PHP-extensie zip ontbreekt';
+            return t('De PHP-extensie zip ontbreekt');
         }
         $d = self::dir();
         if (!is_dir($d) && @mkdir($d, 0770, true) && function_exists('posix_geteuid') && posix_geteuid() === 0) {
@@ -46,7 +46,7 @@ final class Backup
             }
         }
         if (!is_dir($d) || !is_writable($d)) {
-            return "De back-upmap $d bestaat niet of RzMon mag er niet in schrijven";
+            return t('De back-upmap {dir} bestaat niet of RzMon mag er niet in schrijven', ['dir' => $d]);
         }
         return null;
     }
@@ -98,7 +98,7 @@ final class Backup
             return ['ok' => false, 'file' => null, 'size' => 0, 'error' => $p];
         }
         if (!self::lock()) {
-            return ['ok' => false, 'file' => null, 'size' => 0, 'busy' => true, 'error' => 'Er loopt al een back-up of herstel; probeer het zo opnieuw'];
+            return ['ok' => false, 'file' => null, 'size' => 0, 'busy' => true, 'error' => t('Er loopt al een back-up of herstel; probeer het zo opnieuw')];
         }
         try {
             return self::make($type, $history ?? setting('backup_history', '1') === '1');
@@ -127,12 +127,12 @@ final class Backup
             $tables = self::dump($sql, $history);
             $pass = (string) setting('backup_pass', '');
             if ($pass !== '' && !self::encryptionSupported()) {
-                throw new RuntimeException('Deze PHP kan geen versleutelde zip maken (libzip te oud)');
+                throw new RuntimeException(t('Deze PHP kan geen versleutelde zip maken (libzip te oud)'));
             }
             $config = is_readable(SM_CONFIG_FILE) ? file_get_contents(SM_CONFIG_FILE) : false;
             $zip = new ZipArchive();
             if ($zip->open($tmp, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-                throw new RuntimeException('Kan het zip-bestand niet aanmaken');
+                throw new RuntimeException(t('Kan het zip-bestand niet aanmaken'));
             }
             $zip->addFile($sql, 'database.sql');
             if ($config !== false) {
@@ -142,15 +142,15 @@ final class Backup
             if ($pass !== '') {
                 foreach (['database.sql', 'config.php'] as $n) {
                     if ($zip->locateName($n) !== false && !$zip->setEncryptionName($n, ZipArchive::EM_AES_256, $pass)) {
-                        throw new RuntimeException('Versleutelen mislukt');
+                        throw new RuntimeException(t('Versleutelen mislukt'));
                     }
                 }
             }
             if (!$zip->close()) {
-                throw new RuntimeException('Zip opslaan mislukt: ' . $zip->getStatusString());
+                throw new RuntimeException(t('Zip opslaan mislukt') . ': ' . $zip->getStatusString());
             }
             if (!rename($tmp, "$dir/$file")) {
-                throw new RuntimeException('Zip opslaan mislukt');
+                throw new RuntimeException(t('Zip opslaan mislukt'));
             }
         } catch (Throwable $e) {
             @unlink($tmp);
@@ -176,7 +176,7 @@ final class Backup
         $pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);   // grote tabellen niet in het geheugen
         $fh = fopen($file, 'wb');
         if (!$fh) {
-            throw new RuntimeException("Kan niet schrijven in " . dirname($file));
+            throw new RuntimeException(t('Kan niet schrijven in {dir}', ['dir' => dirname($file)]));
         }
         fwrite($fh, self::SQL_HEADER . ' ' . RZMON_VERSION . ' ' . date('c') . "\nSET FOREIGN_KEY_CHECKS=0;\n");
         $tables = $pdo->query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'")->fetchAll(PDO::FETCH_COLUMN);
@@ -211,7 +211,7 @@ final class Backup
         }
         fwrite($fh, "SET FOREIGN_KEY_CHECKS=1;\n" . self::SQL_FOOTER . "\n");
         if (!fclose($fh)) {
-            throw new RuntimeException('Schrijven van de database-export mislukt (disk vol?)');
+            throw new RuntimeException(t('Schrijven van de database-export mislukt (disk vol?)'));
         }
         return $counts;
     }
@@ -280,7 +280,7 @@ final class Backup
             'at' => $at ? $at->format('Y-m-d H:i:s') : '',
             'size' => (int) filesize($path),
             'type' => $m[2],
-            'type_label' => self::TYPES[$m[2]],
+            'type_label' => t(self::TYPES[$m[2]]),
             'valid' => $valid,
             'version' => $meta['versie'] ?? null,
             'server' => $meta['server'] ?? null,
@@ -336,14 +336,14 @@ final class Backup
         }
         clearstatcache(true, $part);
         if ((is_file($part) ? filesize($part) : 0) !== $offset) {
-            return ['ok' => false, 'error' => 'Upload onderbroken; probeer het opnieuw', 'file' => null];
+            return ['ok' => false, 'error' => t('Upload onderbroken; probeer het opnieuw'), 'file' => null];
         }
         if ($offset + strlen($data) > self::MAX_UPLOAD) {
             @unlink($part);
-            return ['ok' => false, 'error' => 'Bestand is te groot (maximaal 2 GB)', 'file' => null];
+            return ['ok' => false, 'error' => t('Bestand is te groot (maximaal 2 GB)'), 'file' => null];
         }
         if (file_put_contents($part, $data, FILE_APPEND | LOCK_EX) === false) {
-            return ['ok' => false, 'error' => 'Opslaan mislukt (disk vol?)', 'file' => null];
+            return ['ok' => false, 'error' => t('Opslaan mislukt (disk vol?)'), 'file' => null];
         }
         if (!$final) {
             return ['ok' => true, 'error' => null, 'file' => null];
@@ -357,7 +357,7 @@ final class Backup
         }
         if (!$isBackup) {
             @unlink($part);
-            return ['ok' => false, 'error' => $ok ? 'Dit is geen RzMon-back-up (database.sql of info.txt ontbreekt)' : 'Dit is geen geldig zip-bestand', 'file' => null];
+            return ['ok' => false, 'error' => $ok ? t('Dit is geen RzMon-back-up (database.sql of info.txt ontbreekt)') : t('Dit is geen geldig zip-bestand'), 'file' => null];
         }
         $t = time();
         do {
@@ -382,7 +382,7 @@ final class Backup
             return ['ok' => false, 'error' => $p, 'safety' => null];
         }
         if (!self::lock()) {
-            return ['ok' => false, 'error' => 'Er loopt al een back-up of herstel; probeer het zo opnieuw', 'safety' => null];
+            return ['ok' => false, 'error' => t('Er loopt al een back-up of herstel; probeer het zo opnieuw'), 'safety' => null];
         }
         @set_time_limit(0);
         ignore_user_abort(true);
@@ -400,7 +400,7 @@ final class Backup
             if ($safety) {
                 $s = self::make('pre-restore', true, $undo);
                 if (!$s['ok']) {
-                    return ['ok' => false, 'error' => 'Veiligheidsback-up mislukt, er is niets veranderd: ' . $s['error'], 'safety' => null];
+                    return ['ok' => false, 'error' => t('Veiligheidsback-up mislukt, er is niets veranderd') . ': ' . $s['error'], 'safety' => null];
                 }
                 $safe = $s['file'];
             }
@@ -413,16 +413,16 @@ final class Backup
                 self::apply($tmp);
             } catch (Throwable $e) {
                 // Halverwege mislukt: de toestand van vlak ervoor terugzetten (alles of niets)
-                $msg = 'Herstellen mislukt: ' . $e->getMessage();
+                $msg = t('Herstellen mislukt') . ': ' . $e->getMessage();
                 if ($safe && is_file($undo)) {
                     try {
                         self::apply($undo);
-                        return ['ok' => false, 'safety' => $safe, 'error' => "$msg. Er is niets veranderd: de database is weer zoals hij was."];
+                        return ['ok' => false, 'safety' => $safe, 'error' => "$msg. " . t('Er is niets veranderd: de database is weer zoals hij was.')];
                     } catch (Throwable $e2) {
                         $msg .= '; ook terugdraaien mislukte: ' . $e2->getMessage();
                     }
                 }
-                return ['ok' => false, 'safety' => $safe, 'error' => $msg . ($safe ? " — zet de veiligheidsback-up $safe terug" : '')];
+                return ['ok' => false, 'safety' => $safe, 'error' => $msg . ($safe ? ' — ' . t('zet de veiligheidsback-up {file} terug', ['file' => $safe]) : '')];
             }
             foreach ($keepSettings as $s) {
                 save_setting($s['name'], (string) $s['value']);
@@ -444,11 +444,11 @@ final class Backup
     {
         $zip = new ZipArchive();
         if ($zip->open($path, ZipArchive::RDONLY) !== true) {
-            return ['ok' => false, 'error' => 'Dit is geen geldig zip-bestand'];
+            return ['ok' => false, 'error' => t('Dit is geen geldig zip-bestand')];
         }
         $st = $zip->statName($name);
         if ($st === false) {
-            return ['ok' => false, 'error' => "$name ontbreekt in de back-up"];
+            return ['ok' => false, 'error' => t('{file} ontbreekt in de back-up', ['file' => $name])];
         }
         $in = false;
         if (($st['encryption_method'] ?? 0) !== 0) {
@@ -462,9 +462,9 @@ final class Backup
             if (!$in) {
                 return ['ok' => false, 'need_password' => true,
                     'error' => match (true) {
-                        !$tries => 'Deze zip is versleuteld; vul het wachtwoord van de zip in',
-                        (string) $password === '' => 'Deze zip heeft een ander wachtwoord dan het ingestelde zip-wachtwoord; vul het wachtwoord van de zip in',
-                        default => 'Het wachtwoord van deze zip klopt niet',
+                        !$tries => t('Deze zip is versleuteld; vul het wachtwoord van de zip in'),
+                        (string) $password === '' => t('Deze zip heeft een ander wachtwoord dan het ingestelde zip-wachtwoord; vul het wachtwoord van de zip in'),
+                        default => t('Het wachtwoord van deze zip klopt niet'),
                     }];
             }
         } else {
@@ -472,13 +472,13 @@ final class Backup
         }
         $out = @fopen($dest, 'wb');
         if (!$in || !$out) {
-            return ['ok' => false, 'error' => 'Uitpakken mislukt'];
+            return ['ok' => false, 'error' => t('Uitpakken mislukt')];
         }
         $ok = stream_copy_to_stream($in, $out) !== false;
         fclose($in);
         $ok = fclose($out) && $ok;
         @chmod($dest, 0600);
-        return $ok ? ['ok' => true, 'error' => null] : ['ok' => false, 'error' => 'Uitpakken mislukt (beschadigde zip of verkeerd wachtwoord)'];
+        return $ok ? ['ok' => true, 'error' => null] : ['ok' => false, 'error' => t('Uitpakken mislukt (beschadigde zip of verkeerd wachtwoord)')];
     }
 
     /** Is dit een complete RzMon-export met alleen de statements die wij zelf schrijven? */
@@ -487,7 +487,7 @@ final class Backup
         $fh = fopen($file, 'rb');
         if (!str_starts_with((string) fgets($fh), self::SQL_HEADER)) {
             fclose($fh);
-            return 'database.sql is geen RzMon-export';
+            return t('database.sql is geen RzMon-export');
         }
         $last = '';
         $ok = true;
@@ -502,10 +502,10 @@ final class Backup
         $tail = (string) stream_get_contents($fh);
         fclose($fh);
         if (!$ok) {
-            return 'database.sql bevat onverwachte opdrachten; deze back-up wordt niet teruggezet';
+            return t('database.sql bevat onverwachte opdrachten; deze back-up wordt niet teruggezet');
         }
         if ($last !== 'SET FOREIGN_KEY_CHECKS=1' || !str_contains($tail, self::SQL_FOOTER)) {
-            return 'database.sql is onvolledig (afgebroken back-up?)';
+            return t('database.sql is onvolledig (afgebroken back-up?)');
         }
         return null;
     }
@@ -634,7 +634,7 @@ final class Backup
             save_setting('backup_retry_at', '');
             if (setting('backup_fail_notified', '0') === '1') {
                 save_setting('backup_fail_notified', '0');
-                Monitor::notifySystem('✅ RzMon: back-up weer gelukt', "De automatische back-up is weer gelukt ({$r['file']}).", STATUS_OK, 'recovery');
+                Monitor::notifySystem('✅ RzMon: ' . t('back-up weer gelukt'), t('De automatische back-up is weer gelukt ({file}).', ['file' => $r['file']]), STATUS_OK, 'recovery');
             }
             return "Back-up gemaakt: {$r['file']}";
         }
@@ -642,9 +642,9 @@ final class Backup
         save_setting('backup_retry_at', date('Y-m-d H:i:s', time() + 3600));
         if (setting('backup_fail_notified', '0') !== '1') {
             save_setting('backup_fail_notified', '1');
-            Monitor::notifySystem('❌ RzMon: back-up mislukt', "De automatische back-up is mislukt: {$r['error']}\n\nRzMon probeert het elk uur opnieuw. Zie Instellingen → Back-up.", STATUS_CRIT, 'problem');
+            Monitor::notifySystem('❌ RzMon: ' . t('back-up mislukt'), t('De automatische back-up is mislukt: {error}', ['error' => $r['error']]) . "\n\n" . t('RzMon probeert het elk uur opnieuw. Zie Instellingen → Back-up.'), STATUS_CRIT, 'problem');
         }
-        return "Back-up mislukt: {$r['error']}";
+        return t('Back-up mislukt') . ": {$r['error']}";
     }
 
     // ------------------------------------------------------------------ hulpjes

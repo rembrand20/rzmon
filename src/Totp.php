@@ -30,7 +30,7 @@ final class Totp
         foreach (str_split(strtoupper(rtrim($secret, '='))) as $c) {
             $i = strpos(self::ALPHABET, $c);
             if ($i === false) {
-                throw new InvalidArgumentException('Ongeldig TOTP-geheim');
+                throw new InvalidArgumentException(t('Ongeldig TOTP-geheim'));
             }
             $bits .= str_pad(decbin($i), 5, '0', STR_PAD_LEFT);
         }

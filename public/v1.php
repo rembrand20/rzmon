@@ -45,15 +45,17 @@ function respond($data, int $code = 200): never
     exit;
 }
 
+I18n::init(null);
 if (!is_configured()) {
-    respond(['error' => 'RzMon is nog niet ingesteld'], 503);
+    respond(['error' => t('RzMon is nog niet ingesteld')], 503);
 }
+I18n::set(I18n::notifyLang());   // de API spreekt de taal van meldingen en checkberichten
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     respond(null, 204);
 }
 $method = $_SERVER['REQUEST_METHOD'];
 if ($method !== 'GET' && $method !== 'POST') {
-    respond(['error' => 'Alleen GET en POST worden ondersteund'], 405);
+    respond(['error' => t('Alleen GET en POST worden ondersteund')], 405);
 }
 
 // ---------- Authenticatie ----------
@@ -65,13 +67,13 @@ $key = $key ?: ($_SERVER['HTTP_X_API_KEY'] ?? ($_GET['key'] ?? ''));
 $apiKey = $key !== '' ? q('SELECT id, name, rights, allow_from, expires_at FROM api_keys WHERE key_hash = ?', [hash('sha256', $key)])->fetch() : false;
 if (!$apiKey) {
     usleep(300000);
-    respond(['error' => 'Ongeldige of ontbrekende API-sleutel'], 401);
+    respond(['error' => t('Ongeldige of ontbrekende API-sleutel')], 401);
 }
 if ($apiKey['expires_at'] !== null && strtotime($apiKey['expires_at']) <= time()) {
-    respond(['error' => 'Deze API-sleutel is verlopen op ' . date('d-m-Y', strtotime($apiKey['expires_at'])) . '; verleng hem in RzMon (Instellingen → API-sleutels)'], 401);
+    respond(['error' => t('Deze API-sleutel is verlopen op {date}; verleng hem in RzMon (Instellingen → API-sleutels)', ['date' => date('d-m-Y', strtotime($apiKey['expires_at']))])], 401);
 }
 if ((string) $apiKey['allow_from'] !== '' && !ip_in_list(client_ip(), parse_list($apiKey['allow_from']))) {
-    respond(['error' => 'Deze API-sleutel mag niet gebruikt worden vanaf ' . client_ip()], 403);
+    respond(['error' => t('Deze API-sleutel mag niet gebruikt worden vanaf {ip}', ['ip' => client_ip()])], 403);
 }
 q('UPDATE api_keys SET last_used = ? WHERE id = ?', [now(), $apiKey['id']]);
 $rights = explode(',', (string) $apiKey['rights']);
@@ -79,9 +81,9 @@ $rights = explode(',', (string) $apiKey['rights']);
 function need(string $right): void
 {
     global $rights, $apiKey;
-    $label = ['read' => 'Status lezen', 'ids_read' => 'IDS lezen', 'ids_block' => 'IDS blokkeren', 'checks' => 'Checks bedienen'][$right] ?? $right;
+    $label = t(['read' => 'Status lezen', 'ids_read' => 'IDS lezen', 'ids_block' => 'IDS blokkeren', 'checks' => 'Checks bedienen'][$right] ?? $right);
     if (!in_array($right, $rights, true)) {
-        respond(['error' => "Deze sleutel ({$apiKey['name']}) heeft het recht \"$label\" niet"], 403);
+        respond(['error' => t('Deze sleutel ({name}) heeft het recht "{right}" niet', ['name' => $apiKey['name'], 'right' => $label])], 403);
     }
 }
 /** Wie het deed, voor het logboek en de blokkadelijst */
@@ -217,12 +219,12 @@ if ($method === 'POST') {
         if (!empty($b['until'])) {
             $ts = strtotime((string) $b['until']);
             if (!$ts || $ts <= time()) {
-                respond(['error' => 'Kies een eindtijd in de toekomst'], 422);
+                respond(['error' => t('Kies een eindtijd in de toekomst')], 422);
             }
             $minutes = (int) ceil(($ts - time()) / 60);
         }
         if ($minutes < 0 || $minutes > 60 * 24 * 90) {
-            respond(['error' => 'Onderhoud kan maximaal 90 dagen duren'], 422);
+            respond(['error' => t('Onderhoud kan maximaal 90 dagen duren')], 422);
         }
         return $minutes > 0 ? date('Y-m-d H:i:s', time() + $minutes * 60) : null;
     };
@@ -231,30 +233,30 @@ if ($method === 'POST') {
             need('ids_block');
             $h = $hostOf($body);
             if (!$h) {
-                respond(['error' => 'Onbekende server: geef "host" (naam) of "host_id"'], 404);
+                respond(['error' => t('Onbekende server: geef "host" (naam) of "host_id"')], 404);
             }
             $ip = trim((string) ($body['ip'] ?? ''));
             if (@inet_pton($ip) === false) {
-                respond(['error' => 'Ongeldig IP-adres'], 422);
+                respond(['error' => t('Ongeldig IP-adres')], 422);
             }
             // Via de API strenger dan met de hand: nooit je LAN, RzMon zelf of de lijst "Nooit blokkeren"
             if (Ids::protectedIp($ip)) {
-                respond(['error' => "$ip wordt via de API niet geblokkeerd: LAN-adres, RzMon zelf of op de lijst \"Nooit blokkeren\""], 422);
+                respond(['error' => t('{ip} wordt via de API niet geblokkeerd: LAN-adres, RzMon zelf of op de lijst "Nooit blokkeren"', ['ip' => $ip])], 422);
             }
             $hours = max(0, min(8760, (int) ($body['hours'] ?? 24)));
             $existing = q('SELECT id, until FROM ids_blocks WHERE host_id = ? AND ip = ? AND removed_at IS NULL AND (until IS NULL OR until > NOW())', [$h['id'], $ip])->fetch();
             if ($existing) {
                 respond(['ok' => true, 'already' => true, 'id' => (int) $existing['id'], 'active' => Ids::blocking(), 'until' => iso($existing['until'])], 200);
             }
-            $r = Ids::block((int) $h['id'], $ip, $hours ?: null, mb_substr(trim((string) ($body['reason'] ?? '')), 0, 200) ?: 'via de API', $by, client_ip());
+            $r = Ids::block((int) $h['id'], $ip, $hours ?: null, mb_substr(trim((string) ($body['reason'] ?? '')), 0, 200) ?: t('via de API'), $by, client_ip());
             if ($r !== true) {
                 respond(['error' => $r], 422);
             }
             $b = q('SELECT id, until FROM ids_blocks WHERE host_id = ? AND ip = ? ORDER BY id DESC LIMIT 1', [$h['id'], $ip])->fetch();
             AgentCommands::audit($by, 'IDS: geblokkeerd', "$ip op {$h['name']}" . ($hours ? " voor $hours uur" : ' permanent') . ' (vanaf ' . client_ip() . ')');
             respond(['ok' => true, 'id' => (int) $b['id'], 'host' => $h['name'], 'ip' => $ip, 'active' => Ids::blocking(), 'until' => iso($b['until']),
-                'note' => Ids::blocking() ? null : (Ids::enabled() ? 'Het IDS staat op "leren"' : 'Het IDS staat uit')
-                    . ': de blokkade is vastgelegd en wordt actief zodra het IDS aan staat op "blokkeren"'], 201);
+                'note' => Ids::blocking() ? null : (Ids::enabled() ? t('Het IDS staat op "leren"') : t('Het IDS staat uit'))
+                    . ': ' . t('de blokkade is vastgelegd en wordt actief zodra het IDS aan staat op "blokkeren"')], 201);
 
         case $parts === ['ids', 'unblock']:
             need('ids_block');
@@ -266,7 +268,7 @@ if ($method === 'POST') {
             }
             $b = $id ? Ids::unblock($id, $by) : null;
             if (!$b) {
-                respond(['error' => 'Geen (actieve) blokkade gevonden'], 404);
+                respond(['error' => t('Geen (actieve) blokkade gevonden')], 404);
             }
             AgentCommands::audit($by, 'IDS: gedeblokkeerd', "{$b['ip']} op " . (q('SELECT name FROM hosts WHERE id = ?', [$b['host_id']])->fetchColumn() ?: "server {$b['host_id']}") . ' (vanaf ' . client_ip() . ')');
             respond(['ok' => true, 'id' => (int) $b['id'], 'ip' => $b['ip']]);
@@ -276,11 +278,11 @@ if ($method === 'POST') {
             $id = (int) $parts[1];
             $c = q('SELECT c.id, c.name, h.name AS host FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.id = ?', [$id])->fetch();
             if (!$c) {
-                respond(['error' => 'Check niet gevonden'], 404);
+                respond(['error' => t('Check niet gevonden')], 404);
             }
             if ($parts[2] === 'ack') {
                 if (!Monitor::acknowledge($id, $by, mb_substr((string) ($body['comment'] ?? ''), 0, 200))) {
-                    respond(['error' => 'Deze check heeft geen storing (meer)'], 422);
+                    respond(['error' => t('Deze check heeft geen storing (meer)')], 422);
                 }
                 AgentCommands::audit($by, 'Storing bevestigd', "{$c['host']} – {$c['name']}");
                 respond(['ok' => true]);
@@ -303,7 +305,7 @@ if ($method === 'POST') {
             need('checks');
             $h = q('SELECT id, name FROM hosts WHERE id = ?', [(int) $parts[1]])->fetch();
             if (!$h) {
-                respond(['error' => 'Server niet gevonden'], 404);
+                respond(['error' => t('Server niet gevonden')], 404);
             }
             $until = $maintUntil($body);
             q('UPDATE hosts SET maintenance_until = ?, maintenance_reason = ? WHERE id = ?', [$until, mb_substr(trim((string) ($body['reason'] ?? '')), 0, 200) ?: null, $h['id']]);
@@ -311,7 +313,7 @@ if ($method === 'POST') {
             respond(['ok' => true, 'until' => iso($until)]);
 
         default:
-            respond(['error' => 'Onbekend endpoint voor POST', 'endpoints' => ['/ids/block', '/ids/unblock', '/checks/{id}/ack', '/checks/{id}/unack',
+            respond(['error' => t('Onbekend endpoint voor POST'), 'endpoints' => ['/ids/block', '/ids/unblock', '/checks/{id}/ack', '/checks/{id}/unack',
                 '/checks/{id}/maintenance', '/checks/{id}/run', '/hosts/{id}/maintenance']], 404);
     }
 }
@@ -398,7 +400,7 @@ if (($parts[0] ?? '') === 'ids') {
             }, $rows));
 
         default:
-            respond(['error' => 'Onbekend endpoint', 'endpoints' => ['/ids', '/ids/incidents', '/ids/blocks', '/ids/access']], 404);
+            respond(['error' => t('Onbekend endpoint'), 'endpoints' => ['/ids', '/ids/incidents', '/ids/blocks', '/ids/access']], 404);
     }
 }
 
@@ -454,7 +456,7 @@ switch (true) {
 
     case count($parts) === 2 && $parts[0] === 'hosts' && ctype_digit($parts[1]):
         $h = loadHosts((int) $parts[1]);
-        $h ? respond($h[0]) : respond(['error' => 'Host niet gevonden'], 404);
+        $h ? respond($h[0]) : respond(['error' => t('Host niet gevonden')], 404);
 
     case $parts === ['checks']:
         $where = ['1'];
@@ -475,12 +477,12 @@ switch (true) {
 
     case count($parts) === 2 && $parts[0] === 'checks' && ctype_digit($parts[1]):
         $c = loadChecks('c.id = ?', [(int) $parts[1]]);
-        $c ? respond($c[0]) : respond(['error' => 'Check niet gevonden'], 404);
+        $c ? respond($c[0]) : respond(['error' => t('Check niet gevonden')], 404);
 
     case count($parts) === 3 && $parts[0] === 'checks' && ctype_digit($parts[1]) && $parts[2] === 'history':
         $id = (int) $parts[1];
         if (!loadChecks('c.id = ?', [$id])) {
-            respond(['error' => 'Check niet gevonden'], 404);
+            respond(['error' => t('Check niet gevonden')], 404);
         }
         $hours = min(720, max(1, (int) ($_GET['hours'] ?? 24)));
         $rows = q('SELECT created_at, status, value FROM results
@@ -511,7 +513,7 @@ switch (true) {
         ], $rows));
 
     default:
-        respond(['error' => 'Onbekend endpoint', 'endpoints' => [
+        respond(['error' => t('Onbekend endpoint'), 'endpoints' => [
             '/status', '/hosts', '/hosts/{id}', '/checks', '/checks/{id}', '/checks/{id}/history', '/alerts',
             '/ids', '/ids/incidents', '/ids/blocks', '/ids/access',
         ]], 404);

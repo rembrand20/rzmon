@@ -54,7 +54,7 @@ if ($action === 'agent_script' || $action === 'agent_install') {
 }
 
 if (!is_configured()) {
-    out(['error' => 'RzMon is nog niet ingesteld', 'setup' => true], 503);
+    out(['error' => t('RzMon is nog niet ingesteld'), 'setup' => true], 503);
 }
 
 // ---------- Agent endpoint (token-auth, geen sessie) ----------
@@ -404,14 +404,14 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
     $result = trim((string) ($in['update_result'] ?? ''));
     if ($result !== '') {
         $status = preg_match('/^ok (\S*) (\S+)/', $result, $m)
-            ? '✔ ' . date('d-m H:i') . ' bijgewerkt' . ($m[1] !== '' && $m[1] !== $m[2] ? " van $m[1]" : '') . " naar $m[2]"
-            : '✘ ' . date('d-m H:i') . ' bijwerken mislukt: ' . mb_substr(preg_replace('/^error\s*/', '', $result), 0, 200);
+            ? '✔ ' . date('d-m H:i') . ' ' . ($m[1] !== '' && $m[1] !== $m[2] ? t('bijgewerkt van {from} naar {to}', ['from' => $m[1], 'to' => $m[2]]) : t('bijgewerkt naar {to}', ['to' => $m[2]]))
+            : '✘ ' . date('d-m H:i') . ' ' . t('bijwerken mislukt') . ': ' . mb_substr(preg_replace('/^error\s*/', '', $result), 0, 200);
         if (str_starts_with($result, 'ok')) {
             $sent = null;   // gelukt: een volgende RzMon-versie mag meteen weer automatisch
         }
         $req = null;
     } elseif ($req !== null && $sent !== null && strtotime($sent) < time() - 600) {
-        $status = '✘ Geen antwoord van de update na 10 minuten. Kijk op de server: journalctl -u "rzmon-agent-update-*"';
+        $status = '✘ ' . t('Geen antwoord van de update na 10 minuten. Kijk op de server: {cmd}', ['cmd' => 'journalctl -u "rzmon-agent-update-*"']);
         $req = null;
     }
 
@@ -427,14 +427,14 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
         ];
         $sent = now();
         $req ??= now();
-        $status = '⏳ Bijwerken naar ' . AGENT_LATEST . ' gestart…';
+        $status = '⏳ ' . t('Bijwerken naar {v} gestart…', ['v' => AGENT_LATEST]);
     } elseif ($req !== null && $sent === null) {
         // Gevraagd, maar deze agent kan het niet: uitleggen waarom
         $status = '✘ ' . match ($via) {
-            'off' => 'Bijwerken op afstand staat uit op deze server (REMOTE_UPDATE=0 in /etc/default/rzmon-agent)',
-            'ha' => 'Home Assistant-add-on: bijwerken via de add-on winkel',
-            'none' => 'De agent kan zichzelf hier niet bijwerken (geen root of rzmon-agent-setup ontbreekt): sudo rzmon-agent-setup --update',
-            default => 'Deze agent kent bijwerken op afstand nog niet. Werk hem één keer bij op de server: sudo rzmon-agent-setup --update',
+            'off' => t('Bijwerken op afstand staat uit op deze server (REMOTE_UPDATE=0 in /etc/default/rzmon-agent)'),
+            'ha' => t('Home Assistant-add-on: bijwerken via de add-on winkel'),
+            'none' => t('De agent kan zichzelf hier niet bijwerken (geen root of rzmon-agent-setup ontbreekt): sudo rzmon-agent-setup --update'),
+            default => t('Deze agent kent bijwerken op afstand nog niet. Werk hem één keer bij op de server: sudo rzmon-agent-setup --update'),
         };
         $req = null;
     }
@@ -453,7 +453,7 @@ if ($action === 'login' && $method === 'POST') {
     if ($r === 'ok') {
         out(['ok' => true, 'csrf' => csrf_token()]);
     }
-    out(['error' => 'Onjuiste gebruikersnaam of wachtwoord'], 401);
+    out(['error' => t('Onjuiste gebruikersnaam of wachtwoord')], 401);
 }
 if ($action === 'login_totp' && $method === 'POST') {
     $r = login_totp((string) (input()['code'] ?? ''));
@@ -484,7 +484,7 @@ if ($action === 'pw_forgot' && $method === 'POST') {
 }
 if ($action === 'pw_reset_check' && $method === 'POST') {
     $r = PasswordReset::check((string) (input()['token'] ?? ''));
-    $r ? out(['ok' => true] + $r) : out(['error' => 'Deze link is verlopen of al gebruikt. Vraag een nieuwe aan via "Wachtwoord vergeten?".'], 410);
+    $r ? out(['ok' => true] + $r) : out(['error' => t('Deze link is verlopen of al gebruikt. Vraag een nieuwe aan via "Wachtwoord vergeten?".')], 410);
 }
 if ($action === 'pw_reset' && $method === 'POST') {
     $in = input();
@@ -494,10 +494,10 @@ if ($action === 'pw_reset' && $method === 'POST') {
 
 $user = current_user();
 if (!$user) {
-    out(['error' => 'Niet ingelogd'], 401);
+    out(['error' => t('Niet ingelogd')], 401);
 }
 if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) {
-    out(['error' => 'Ongeldig CSRF token'], 403);
+    out(['error' => t('Ongeldig CSRF token')], 403);
 }
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
@@ -508,14 +508,14 @@ $need = match ($action) {
     default => 'admin',
 };
 if (!has_role($user, $need)) {
-    out(['error' => 'Daar heb je geen rechten voor (je bent ' . mb_strtolower(ROLE_LABELS[$user['role']] ?? '?') . ')'], 403);
+    out(['error' => t('Daar heb je geen rechten voor (je bent {role})', ['role' => mb_strtolower(t(ROLE_LABELS[$user['role']] ?? '?'))])], 403);
 }
 $isAdmin = has_role($user, 'admin');
 I18n::init($user);
 /** Niet-beheerders mogen alleen hun eigen account (2FA) beheren. */
 $ownOnly = static function (int $id) use ($user, $isAdmin): void {
     if (!$isAdmin && $id !== $user['id']) {
-        out(['error' => 'Je kunt alleen je eigen account beheren'], 403);
+        out(['error' => t('Je kunt alleen je eigen account beheren')], 403);
     }
 };
 
@@ -527,14 +527,14 @@ $confirm = static function (string $word) use ($user): void {
     $c = (string) (input()['confirm'] ?? '');
     if (is_lan_session()) {
         if ($c !== $word) {
-            out(['error' => "Typ $word om te bevestigen"], 422);
+            out(['error' => t('Typ {word} om te bevestigen', ['word' => $word])], 422);
         }
         return;
     }
     $hash = q('SELECT password_hash FROM users WHERE id = ?', [$user['id']])->fetchColumn();
     if (!$hash || !password_verify($c, $hash)) {
         usleep(500000);
-        out(['error' => 'Je wachtwoord klopt niet'], 422);
+        out(['error' => t('Je wachtwoord klopt niet')], 422);
     }
 };
 
@@ -603,7 +603,7 @@ switch ($action) {
         $id = (int) ($_GET['id'] ?? 0);
         $c = q('SELECT c.*, h.name AS host_name, h.mode FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.id = ?', [$id])->fetch();
         if (!$c) {
-            out(['error' => 'Deze check bestaat niet meer'], 404);
+            out(['error' => t('Deze check bestaat niet meer')], 404);
         }
         $up = q('SELECT SUM(created_at >= NOW() - INTERVAL 1 DAY) AS n1, SUM(created_at >= NOW() - INTERVAL 1 DAY AND status <> 2) AS ok1,
                         COUNT(*) AS n7, SUM(status <> 2) AS ok7
@@ -682,7 +682,7 @@ switch ($action) {
     case 'lang_set':
         $lang = (string) (input()['lang'] ?? '');
         if (!in_array($lang, I18n::LANGS, true)) {
-            out(['error' => 'Onbekende taal'], 422);
+            out(['error' => t('Onbekende taal')], 422);
         }
         if ((int) ($user['id'] ?? 0) > 0) {
             q('UPDATE users SET lang = ? WHERE id = ?', [$lang, (int) $user['id']]);
@@ -696,7 +696,7 @@ switch ($action) {
         $name = trim((string) ($in['name'] ?? ''));
         $addr = trim((string) ($in['address'] ?? ''));
         if ($name === '' || $addr === '' || !preg_match('/^[A-Za-z0-9.:\-\[\]]+$/', $addr)) {
-            out(['error' => 'Naam en geldig adres (hostname/IP) zijn verplicht'], 422);
+            out(['error' => t('Naam en geldig adres (hostname/IP) zijn verplicht')], 422);
         }
         $enabled = !empty($in['enabled']) ? 1 : 0;
         $parent = !empty($in['parent_id']) ? (int) $in['parent_id'] : null;
@@ -711,12 +711,12 @@ switch ($action) {
         }
         if ($parent !== null) {
             if (!q('SELECT 1 FROM hosts WHERE id = ?', [$parent])->fetchColumn()) {
-                out(['error' => 'Bovenliggende server bestaat niet'], 422);
+                out(['error' => t('Bovenliggende server bestaat niet')], 422);
             }
             // Geen kringen: de parent mag niet (indirect) onder deze server hangen
             for ($p = $parent, $i = 0; $p !== null && $i < 50; $i++) {
                 if (!empty($in['id']) && $p === (int) $in['id']) {
-                    out(['error' => 'Een server kan niet van zichzelf afhankelijk zijn (ook niet via een andere server)'], 422);
+                    out(['error' => t('Een server kan niet van zichzelf afhankelijk zijn (ook niet via een andere server)')], 422);
                 }
                 $next = q('SELECT parent_id FROM hosts WHERE id = ?', [$p])->fetchColumn();
                 $p = $next ? (int) $next : null;
@@ -752,10 +752,10 @@ switch ($action) {
         $cfg = SnmpMonitor::clean(['on' => 1] + (array) ($in['snmp'] ?? []), $old);
         $addr = trim((string) ($in['address'] ?? ''));
         if (is_string($cfg) || $cfg === null) {
-            out(['error' => $cfg ?: 'Vul de SNMP-instellingen in'], 422);
+            out(['error' => $cfg ?: t('Vul de SNMP-instellingen in')], 422);
         }
         if ($addr === '' || !preg_match('/^[A-Za-z0-9.:\-\[\]]+$/', $addr)) {
-            out(['error' => 'Vul eerst het adres van de server in'], 422);
+            out(['error' => t('Vul eerst het adres van de server in')], 422);
         }
         try {
             out(['ok' => true, 'sys' => SnmpMonitor::test($cfg, $addr)]);
@@ -768,7 +768,7 @@ switch ($action) {
         $h = q('SELECT address, snmp FROM hosts WHERE id = ?', [(int) ($_GET['id'] ?? 0)])->fetch();
         $cfg = $h ? SnmpMonitor::config($h['snmp']) : null;
         if (!$cfg) {
-            out(['error' => 'SNMP staat uit voor deze server (✎ Server bewerken → 📡 SNMP)'], 422);
+            out(['error' => t('SNMP staat uit voor deze server (✎ Server bewerken → 📡 SNMP)')], 422);
         }
         try {
             out(SnmpMonitor::discover($cfg, (string) $h['address']));
@@ -788,7 +788,7 @@ switch ($action) {
         $in = input();
         $t = (int) ($in['tick'] ?? 0);
         if ($t !== 0 && !in_array($t, AGENT_TICKS, true)) {
-            out(['error' => 'Kies 30, 60, 120 of 300 seconden'], 422);
+            out(['error' => t('Kies 30, 60, 120 of 300 seconden')], 422);
         }
         q('UPDATE hosts SET agent_tick = ? WHERE id = ?', [$t ?: null, (int) ($in['id'] ?? 0)]);
         out(['ok' => true, 'tick' => agent_tick($t ?: null)]);
@@ -811,7 +811,7 @@ switch ($action) {
         } else {
             $ids = q("SELECT id FROM hosts WHERE id = ? AND mode = 'agent'", [(int) ($in['id'] ?? 0)])->fetchAll(PDO::FETCH_COLUMN);
             if (!$ids) {
-                out(['error' => 'Geen agent-server gevonden'], 404);
+                out(['error' => t('Geen agent-server gevonden')], 404);
             }
         }
         foreach ($ids as $id) {
@@ -827,7 +827,7 @@ switch ($action) {
         $id = (int) ($_GET['id'] ?? 0);
         $h = q('SELECT agent_seen, agent_ip, agent_version, mode, agent_update_req, agent_update_status, agent_update_via, realtime FROM hosts WHERE id = ?', [$id])->fetch();
         if (!$h) {
-            out(['error' => 'Server niet gevonden'], 404);
+            out(['error' => t('Server niet gevonden')], 404);
         }
         // Geweigerde pogingen (laatste 24 uur, en ná het laatste geslaagde rapport): voor deze
         // server of met een onbekend token. Gelijke pogingen samengevoegd met een aantal.
@@ -846,7 +846,7 @@ switch ($action) {
         $id = (int) ($_GET['id'] ?? 0);
         $sum = q("SELECT value, updated_at FROM agent_data WHERE host_id = ? AND metric = 'podman'", [$id])->fetch();
         if (!$sum) {
-            out(['error' => 'Deze server meldt (nog) geen Podman'], 404);
+            out(['error' => t('Deze server meldt (nog) geen Podman')], 404);
         }
         $containers = [];
         foreach (q("SELECT metric, value FROM agent_data WHERE host_id = ? AND metric LIKE 'container:%' ORDER BY metric", [$id]) as $r) {
@@ -873,7 +873,7 @@ switch ($action) {
     case 'ack':
         $in = input();
         if (!Monitor::acknowledge((int) ($in['id'] ?? 0), $user['username'], (string) ($in['comment'] ?? ''))) {
-            out(['error' => 'Deze check heeft geen storing (meer)'], 422);
+            out(['error' => t('Deze check heeft geen storing (meer)')], 422);
         }
         out(['ok' => true]);
 
@@ -898,12 +898,12 @@ switch ($action) {
         if (!empty($in['until'])) {
             $ts = strtotime((string) $in['until']);
             if (!$ts || $ts <= time()) {
-                out(['error' => 'Kies een eindtijd in de toekomst'], 422);
+                out(['error' => t('Kies een eindtijd in de toekomst')], 422);
             }
             $minutes = (int) ceil(($ts - time()) / 60);
         }
         if ($minutes < 0 || $minutes > 60 * 24 * 90) {
-            out(['error' => 'Onderhoud kan maximaal 90 dagen duren'], 422);
+            out(['error' => t('Onderhoud kan maximaal 90 dagen duren')], 422);
         }
         $until = $minutes > 0 ? date('Y-m-d H:i:s', time() + $minutes * 60) : null;
         $reason = mb_substr(trim((string) ($in['reason'] ?? '')), 0, 200) ?: null;
@@ -913,7 +913,7 @@ switch ($action) {
             'host' => q('UPDATE hosts SET maintenance_until = ?, maintenance_reason = ? WHERE id = ?', [$until, $reason, $id]),
             // Handmatig ingesteld of beëindigd: niet (meer) automatisch
             'check' => q('UPDATE checks SET maintenance_until = ?, maintenance_reason = ?, maintenance_auto = 0 WHERE id = ?', [$until, $reason, $id]),
-            default => out(['error' => 'Onbekend bereik'], 422),
+            default => out(['error' => t('Onbekend bereik')], 422),
         };
         out(['ok' => true, 'until' => $until]);
 
@@ -921,7 +921,7 @@ switch ($action) {
         $in = input();
         $type = $in['type'] ?? '';
         if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp'], true)) {
-            out(['error' => 'Ongeldig type'], 422);
+            out(['error' => t('Ongeldig type')], 422);
         }
         // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
         $command = null;
@@ -941,10 +941,10 @@ switch ($action) {
         if ($type === 'ha') {
             $metric = (string) ($in['metric'] ?? '');
             if (!in_array($metric, ['backup', 'integrations', 'repairs', 'reboot', 'disklife', 'osupdate', 'usb'], true)) {
-                out(['error' => 'Kies wat je van Home Assistant wilt bewaken'], 422);
+                out(['error' => t('Kies wat je van Home Assistant wilt bewaken')], 422);
             }
             if ($metric === 'usb' && !preg_match('/^[A-Za-z0-9._:+@-]{1,150}$/', trim((string) ($in['target'] ?? '')))) {
-                out(['error' => 'Kies het USB-apparaat uit de lijst'], 422);
+                out(['error' => t('Kies het USB-apparaat uit de lijst')], 422);
             }
         }
         $target = trim((string) ($in['target'] ?? ''));
@@ -954,28 +954,28 @@ switch ($action) {
             $metric = (string) ($in['metric'] ?? '');
             $sm = SnmpMonitor::METRICS[$metric] ?? null;
             if (!$sm) {
-                out(['error' => 'Kies wat je via SNMP wilt bewaken'], 422);
+                out(['error' => t('Kies wat je via SNMP wilt bewaken')], 422);
             }
             if ($metric === 'oid') {
                 $target = ltrim($target, '.');
                 if (!preg_match('/^1(\.\d{1,10}){3,60}$/', $target)) {
-                    out(['error' => 'Geef een numerieke OID, bv. 1.3.6.1.4.1.6574.1.2.0 (namen als sysName.0 werken niet)'], 422);
+                    out(['error' => t('Geef een numerieke OID, bv. 1.3.6.1.4.1.6574.1.2.0 (namen als sysName.0 werken niet)')], 422);
                 }
             } elseif ($sm['index'] && !preg_match('/^\d{1,10}(\.\d{1,10}){0,10}$/', $target)) {
-                out(['error' => 'Kies de interface, schijf of voorraad via ＋ SNMP-checks'], 422);
+                out(['error' => t('Kies de interface, schijf of voorraad via ＋ SNMP-checks')], 422);
             } elseif (!$sm['index']) {
                 $target = '';
             }
             $snmpLow = $sm['low'];
         }
         if ($type === 'tcp' && ((int) $target < 1 || (int) $target > 65535)) {
-            out(['error' => 'Geef een geldige poort op (1-65535)'], 422);
+            out(['error' => t('Geef een geldige poort op (1-65535)')], 422);
         }
         if ($type === 'service' && !preg_match('/^[A-Za-z0-9@._:-]+$/', $target)) {
-            out(['error' => 'Geef een geldige servicenaam op'], 422);
+            out(['error' => t('Geef een geldige servicenaam op')], 422);
         }
         if ($type === 'container' && !preg_match('#^([a-z_][a-z0-9_.-]*/)?[A-Za-z0-9][A-Za-z0-9_.-]*$#', $target)) {
-            out(['error' => 'Geef de naam van een container op (rootless: gebruiker/naam)'], 422);
+            out(['error' => t('Geef de naam van een container op (rootless: gebruiker/naam)')], 422);
         }
         $warn = num($in['warn_threshold'] ?? null);
         $crit = num($in['crit_threshold'] ?? null);
@@ -989,7 +989,7 @@ switch ($action) {
                 $o['expect'] = mb_substr(trim((string) ($in['oid_expect'] ?? '')), 0, 150);
                 $o['fail'] = ($in['oid_fail'] ?? '') === 'warn' ? 'warn' : 'crit';
                 if ($o['match'] === 'regex' && @preg_match('~' . str_replace('~', '\\~', $o['expect']) . '~i', '') === false) {
-                    out(['error' => 'De regex klopt niet'], 422);
+                    out(['error' => t('De regex klopt niet')], 422);
                 }
                 $warn = $crit = null;
             } else {
@@ -1014,15 +1014,15 @@ switch ($action) {
         if ($type === 'ssl' || $snmpLow) {
             // Hier geldt "minder = slechter" (dagen, batterij, toner…)
             if ($warn !== null && $crit !== null && $warn < $crit) {
-                out(['error' => $type === 'ssl' ? 'Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel'
-                    : 'Hier is lager slechter: de warning-drempel moet hoger zijn dan de critical-drempel'], 422);
+                out(['error' => $type === 'ssl' ? t('Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel')
+                    : t('Hier is lager slechter: de warning-drempel moet hoger zijn dan de critical-drempel')], 422);
             }
         } elseif ($warn !== null && $crit !== null && $warn > $crit) {
-            out(['error' => 'Warning-drempel moet lager zijn dan critical-drempel'], 422);
+            out(['error' => t('Warning-drempel moet lager zijn dan critical-drempel')], 422);
         }
         if ($type === 'ssl' && $target !== '' && !preg_match('#^(https?://)?(\[[0-9a-fA-F:]+\]|[A-Za-z0-9.\-]+)(:\d{1,5})?/?$#', $target)
             && !preg_match('#^/[^\s\'"]+$#', $target)) {
-            out(['error' => 'Geef een host op, eventueel met poort (example.com of example.com:8443), of het pad van een certificaatbestand dat de agent meldt'], 422);
+            out(['error' => t('Geef een host op, eventueel met poort (example.com of example.com:8443), of het pad van een certificaatbestand dat de agent meldt')], 422);
         }
         if (in_array($type, ['ping', 'cpu', 'ram', 'podman', 'ha', 'command'], true)) {
             $target = '';
@@ -1045,10 +1045,10 @@ switch ($action) {
                 $w = num($r['warn'] ?? null);
                 $c = num($r['crit'] ?? null);
                 if ($w === null && $c === null) {
-                    out(['error' => 'Vul bij ' . ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'disk'][$k] . ' minstens één drempel in'], 422);
+                    out(['error' => t('Vul bij {what} minstens één drempel in', ['what' => ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'disk'][$k]])], 422);
                 }
                 if ($w !== null && $c !== null && $w > $c) {
-                    out(['error' => 'Bij ' . ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'disk'][$k] . ' moet de warning-drempel lager zijn dan de critical-drempel'], 422);
+                    out(['error' => t('Bij {what} moet de warning-drempel lager zijn dan de critical-drempel', ['what' => ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'disk'][$k]])], 422);
                 }
                 $res[$k] = [$w, $c];
             }
@@ -1057,20 +1057,20 @@ switch ($action) {
             $dup = q("SELECT id FROM checks WHERE host_id = ? AND type = 'container' AND target = ? AND id <> ?",
                 [(int) ($in['host_id'] ?? q('SELECT host_id FROM checks WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetchColumn()), $target, (int) ($in['id'] ?? 0)])->fetchColumn();
             if ($dup) {
-                out(['error' => "Container $target wordt al bewaakt. Pas die check aan (✎).", 'existing_id' => (int) $dup], 409);
+                out(['error' => t('Container {name} wordt al bewaakt. Pas die check aan (✎).', ['name' => $target]), 'existing_id' => (int) $dup], 409);
             }
         }
         if ($type === 'log') {
             // Bron: een logbestand (absoluut pad), het systemlog (journal), het log van één service, of kernelmeldingen
             if (!preg_match('#^(/[A-Za-z0-9._/@+-]{1,250}|journal|journal:[A-Za-z0-9@._:-]{1,100}|kernel|ha:(host|core|supervisor|addon:[a-z0-9_]{1,100}))$#', $target)) {
-                out(['error' => 'Bron: geef een logbestand (bv. /var/log/secure), "journal", "journal:sshd" of "kernel"; bij Home Assistant "ha:host", "ha:core", "ha:supervisor" of "ha:addon:<slug>"'], 422);
+                out(['error' => t('Bron: geef een logbestand (bv. /var/log/secure), "journal", "journal:sshd" of "kernel"; bij Home Assistant "ha:host", "ha:core", "ha:supervisor" of "ha:addon:<slug>"')], 422);
             }
             $pattern = trim((string) ($in['pattern'] ?? ''));
             if ($pattern === '' || mb_strlen($pattern) > 300) {
-                out(['error' => 'Geef aan waarnaar gezocht moet worden (maximaal 300 tekens)'], 422);
+                out(['error' => t('Geef aan waarnaar gezocht moet worden (maximaal 300 tekens)')], 422);
             }
             if (@preg_match('~' . str_replace('~', '\\~', $pattern) . '~i', '') === false) {
-                out(['error' => 'Het zoekpatroon klopt niet (regex). Tip: gebruik | tussen alternatieven, bv. Failed password|Invalid user'], 422);
+                out(['error' => t('Het zoekpatroon klopt niet (regex). Tip: gebruik | tussen alternatieven, bv. Failed password|Invalid user')], 422);
             }
             $options = json_encode(['pattern' => $pattern, 'preset' => mb_substr((string) ($in['preset'] ?? ''), 0, 30)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
@@ -1078,10 +1078,10 @@ switch ($action) {
             $testType = in_array($in['test_type'] ?? '', ['url', 'port'], true) ? $in['test_type'] : '';
             $testTarget = trim((string) ($in['test_target'] ?? ''));
             if ($testType === 'url' && !preg_match('#^https?://[^\s]+$#i', $testTarget)) {
-                out(['error' => 'Extra test: geef een URL die met http:// of https:// begint, bv. http://localhost:8080/health'], 422);
+                out(['error' => t('Extra test: geef een URL die met http:// of https:// begint, bv. http://localhost:8080/health')], 422);
             }
             if ($testType === 'port' && !preg_match('#^(([A-Za-z0-9.\-]+|\[[0-9a-fA-F:]+\]):)?\d{1,5}$#', $testTarget)) {
-                out(['error' => 'Extra test: geef een poort (8080) of host:poort (localhost:8080)'], 422);
+                out(['error' => t('Extra test: geef een poort (8080) of host:poort (localhost:8080)')], 422);
             }
             // Eigen poorten/sockets: "8080, 127.0.0.1:9000, [::1]:80, /run/php-fpm/www.sock" (max. 10)
             $ports = [];
@@ -1089,12 +1089,12 @@ switch ($action) {
                 $isSocket = preg_match('#^/[A-Za-z0-9._/@+-]{1,200}$#', $pt);
                 $isPort = preg_match('#^(([A-Za-z0-9.\-]+|\[[0-9a-fA-F:]+\]):)?(\d{1,5})$#', $pt, $pm) && (int) $pm[3] >= 1 && (int) $pm[3] <= 65535;
                 if (!$isSocket && !$isPort) {
-                    out(['error' => "Poort of socket \"$pt\" klopt niet. Gebruik bv. 8080, 127.0.0.1:9000 of /run/php-fpm/www.sock"], 422);
+                    out(['error' => t('Poort of socket "{p}" klopt niet. Gebruik bv. 8080, 127.0.0.1:9000 of /run/php-fpm/www.sock', ['p' => $pt])], 422);
                 }
                 $ports[] = $pt;
             }
             if (count($ports) > 10) {
-                out(['error' => 'Geef maximaal 10 poorten of sockets op'], 422);
+                out(['error' => t('Geef maximaal 10 poorten of sockets op')], 422);
             }
             $options = json_encode(['deep' => ($in['deep'] ?? true) ? 1 : 0] + ($ports ? ['ports' => implode(' ', array_unique($ports))] : []) + ($testType !== '' ? [
                 'test_type' => $testType, 'test_target' => mb_substr($testTarget, 0, 300),
@@ -1166,7 +1166,7 @@ switch ($action) {
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
-            out(['error' => 'Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00'], 422);
+            out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
         }
         if (isset($in['notify_quiet'])) {
             $in['notify_quiet'] = json_encode(NotifyRules::cleanQuiet((array) (is_string($in['notify_quiet']) ? json_decode($in['notify_quiet'], true) : $in['notify_quiet'])));
@@ -1217,36 +1217,36 @@ switch ($action) {
             $in['notify_group_seconds'] = (string) max(0, min(3600, (int) $in['notify_group_seconds']));
         }
         if (($in['ha_webhook_url'] ?? '') !== '' && !preg_match('#^https?://\S+$#i', trim((string) $in['ha_webhook_url']))) {
-            out(['error' => 'Webhook-URL moet met http:// of https:// beginnen'], 422);
+            out(['error' => t('Webhook-URL moet met http:// of https:// beginnen')], 422);
         }
         if (($in['ha_webhook_enabled'] ?? '0') === '1' && trim((string) ($in['ha_webhook_url'] ?? '')) === '') {
-            out(['error' => 'Vul een webhook-URL in of zet de webhook uit'], 422);
+            out(['error' => t('Vul een webhook-URL in of zet de webhook uit')], 422);
         }
         if (($in['email_enabled'] ?? '0') === '1' && (trim((string) ($in['smtp_host'] ?? '')) === '' || trim((string) ($in['mail_to'] ?? '')) === '')) {
-            out(['error' => 'Vul de SMTP-server en een ontvanger in, of zet e-mail uit'], 422);
+            out(['error' => t('Vul de SMTP-server en een ontvanger in, of zet e-mail uit')], 422);
         }
         if (($in['mqtt_enabled'] ?? '0') === '1' && trim((string) ($in['mqtt_host'] ?? '')) === '') {
-            out(['error' => 'Vul de MQTT-server in, of zet MQTT uit'], 422);
+            out(['error' => t('Vul de MQTT-server in, of zet MQTT uit')], 422);
         }
         foreach (['mqtt_prefix', 'mqtt_base_topic'] as $k) {
             if (isset($in[$k]) && !preg_match('#^[A-Za-z0-9_\-/]{1,64}$#', trim((string) $in[$k]))) {
-                out(['error' => 'Een MQTT-topic mag alleen letters, cijfers, _ - en / bevatten'], 422);
+                out(['error' => t('Een MQTT-topic mag alleen letters, cijfers, _ - en / bevatten')], 422);
             }
         }
         if (isset($in['backup_freq']) && !in_array($in['backup_freq'], ['off', 'daily', 'weekly', 'monthly'], true)) {
-            out(['error' => 'Ongeldige back-upfrequentie'], 422);
+            out(['error' => t('Ongeldige back-upfrequentie')], 422);
         }
         if (isset($in['backup_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['backup_time'])) {
-            out(['error' => 'Vul de back-uptijd in als uu:mm, bv. 03:15'], 422);
+            out(['error' => t('Vul de back-uptijd in als uu:mm, bv. 03:15')], 422);
         }
         if (isset($in['backup_keep']) && ((int) $in['backup_keep'] < 1 || (int) $in['backup_keep'] > 365)) {
-            out(['error' => 'Aantal back-ups bewaren: 1 tot 365'], 422);
+            out(['error' => t('Aantal back-ups bewaren: 1 tot 365')], 422);
         }
         if (isset($in['backup_weekday']) && ((int) $in['backup_weekday'] < 1 || (int) $in['backup_weekday'] > 7)) {
-            out(['error' => 'Ongeldige dag voor de back-up'], 422);
+            out(['error' => t('Ongeldige dag voor de back-up')], 422);
         }
         if (($in['backup_pass'] ?? '') !== '' && $in['backup_pass'] !== '••••••••' && mb_strlen((string) $in['backup_pass']) < 8) {
-            out(['error' => 'Het back-upwachtwoord moet minstens 8 tekens hebben'], 422);
+            out(['error' => t('Het back-upwachtwoord moet minstens 8 tekens hebben')], 422);
         }
         // Schema gewijzigd: tellen vanaf nu (anders volgt meteen een "ingehaalde" back-up)
         foreach (['backup_freq', 'backup_time', 'backup_weekday'] as $k) {
@@ -1272,9 +1272,9 @@ switch ($action) {
         $in = input();
         $url = trim((string) ($in['ha_webhook_url'] ?? '')) ?: null;
         $verify = isset($in['ha_webhook_verify_ssl']) ? $in['ha_webhook_verify_ssl'] === '1' : null;
-        $fake = ['id' => 0, 'hid' => 0, 'host_name' => 'RzMon', 'name' => 'Testmelding', 'type' => 'ping', 'target' => ''];
+        $fake = ['id' => 0, 'hid' => 0, 'host_name' => 'RzMon', 'name' => t('Testmelding'), 'type' => 'ping', 'target' => ''];
         $res = Webhook::send(Monitor::webhookPayload($fake, ['value' => null], STATUS_OK, '🧪 RzMon test',
-            'Als je dit in Home Assistant ziet, werkt de webhook! 🎉', 'test', STATUS_OK), $url, $verify);
+            t('Als je dit in Home Assistant ziet, werkt de webhook! 🎉'), 'test', STATUS_OK), $url, $verify);
         out($res, $res['ok'] ? 200 : 422);
 
     case 'email_test':
@@ -1287,7 +1287,7 @@ switch ($action) {
             }
         }
         session_write_close();
-        $res = Mailer::send('🧪 RzMon test', "Als je dit leest, werken e-mailmeldingen van RzMon! 🎉\n\nVerstuurd op " . date('d-m-Y H:i:s') . '.', $cfg);
+        $res = Mailer::send('🧪 RzMon test', t('Als je dit leest, werken e-mailmeldingen van RzMon! 🎉') . "\n\n" . t('Verstuurd op {time}.', ['time' => date('d-m-Y H:i:s')]), $cfg);
         out($res, $res['ok'] ? 200 : 422);
 
     case 'mqtt_test':
@@ -1303,13 +1303,13 @@ switch ($action) {
         if (!$r['ok']) {
             out(['error' => $r['error']], 422);
         }
-        out(['ok' => true, 'message' => "Verbonden ✔ — {$r['entities']} sensoren voor {$r['hosts']} server(s) naar Home Assistant gestuurd"]);
+        out(['ok' => true, 'message' => t('Verbonden ✔ — {n} sensoren voor {hosts} server(s) naar Home Assistant gestuurd', ['n' => $r['entities'], 'hosts' => $r['hosts']])]);
 
     case 'pushover_test':
         $in = input();
         $token = ($in['pushover_token'] ?? '') === '••••••••' || ($in['pushover_token'] ?? '') === ''
             ? (string) setting('pushover_token', '') : (string) $in['pushover_token'];
-        $res = Pushover::send('🧪 RzMon test', 'Als je dit leest werkt Pushover! 🎉', 0,
+        $res = Pushover::send('🧪 RzMon test', t('Als je dit leest werkt Pushover! 🎉'), 0,
             trim((string) ($in['pushover_user'] ?? '')) ?: null, $token ?: null);
         out($res, $res['ok'] ? 200 : 422);
 
@@ -1333,16 +1333,16 @@ switch ($action) {
             [$ip, $bits] = array_pad(explode('/', $cidr, 2), 2, null);
             $max = str_contains($ip, ':') ? 128 : 32;
             if (!filter_var($ip, FILTER_VALIDATE_IP) || ($bits !== null && (!ctype_digit($bits) || (int) $bits > $max))) {
-                out(['error' => "Ongeldig netwerk: $cidr (gebruik bv. 192.168.1.0/24 of 10.0.0.5)"], 422);
+                out(['error' => t('Ongeldig netwerk: {net} (gebruik bv. 192.168.1.0/24 of 10.0.0.5)', ['net' => $cidr])], 422);
             }
         }
         $enable = !empty($in['lan_no_login']);
         if ($enable && !$networks) {
-            out(['error' => 'Geef minimaal één lokaal netwerk op'], 422);
+            out(['error' => t('Geef minimaal één lokaal netwerk op')], 422);
         }
         foreach ($networks as $cidr) {
             if (str_ends_with($cidr, '/0')) {
-                out(['error' => "$cidr zou iedereen op internet zonder wachtwoord binnenlaten"], 422);
+                out(['error' => t('{net} zou iedereen op internet zonder wachtwoord binnenlaten', ['net' => $cidr])], 422);
             }
         }
         save_setting('lan_no_login', $enable ? '1' : '0');
@@ -1355,7 +1355,7 @@ switch ($action) {
         $in = input();
         $host = q('SELECT id, address, mode FROM hosts WHERE id = ?', [(int) ($in['host_id'] ?? 0)])->fetch();
         if (!$host) {
-            out(['error' => 'Server niet gevonden'], 404);
+            out(['error' => t('Server niet gevonden')], 404);
         }
         try {
             $ports = PortScan::presetPorts((string) ($in['preset'] ?? 'common'), (string) ($in['ports'] ?? ''));
@@ -1363,7 +1363,7 @@ switch ($action) {
             out(['error' => $e->getMessage()], 422);
         }
         if (!$ports) {
-            out(['error' => 'Geen poorten opgegeven'], 422);
+            out(['error' => t('Geen poorten opgegeven')], 422);
         }
         session_write_close(); // andere verzoeken niet blokkeren tijdens de scan
         set_time_limit(180);
@@ -1396,18 +1396,18 @@ switch ($action) {
         $in = input();
         $rights = array_values(array_intersect(API_RIGHTS, array_map('strval', (array) ($in['rights'] ?? []))));
         if (!$rights) {
-            out(['error' => 'Kies minstens één recht'], 422);
+            out(['error' => t('Kies minstens één recht')], 422);
         }
         $from = implode(' ', array_slice(array_filter(parse_list(mb_substr((string) ($in['allow_from'] ?? ''), 0, 500)),
             fn($x) => @inet_pton(explode('/', $x)[0]) !== false), 0, 20));
         $months = (int) ($in['months'] ?? 0);
         if ($months && !in_array($months, [6, 12, 24], true)) {
-            out(['error' => 'Kies 6, 12 of 24 maanden'], 422);
+            out(['error' => t('Kies 6, 12 of 24 maanden')], 422);
         }
         if ($action === 'api_key_create') {
             $name = trim((string) ($in['name'] ?? ''));
             if ($name === '') {
-                out(['error' => 'Geef de sleutel een naam (bv. "Home Assistant")'], 422);
+                out(['error' => t('Geef de sleutel een naam (bv. "Home Assistant")')], 422);
             }
             if (in_array('ids_block', $rights, true)) {
                 $confirm('BLOKKEREN');
@@ -1422,7 +1422,7 @@ switch ($action) {
         }
         $k = q('SELECT * FROM api_keys WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetch();
         if (!$k) {
-            out(['error' => 'Sleutel niet gevonden'], 404);
+            out(['error' => t('Sleutel niet gevonden')], 404);
         }
         // Blokkeren erbij geven vraagt om je wachtwoord, net als bij een nieuwe sleutel
         if (in_array('ids_block', $rights, true) && !in_array('ids_block', explode(',', (string) $k['rights']), true)) {
@@ -1459,13 +1459,13 @@ switch ($action) {
         $email = trim((string) ($in['email'] ?? ''));
         try {
             if (q('SELECT 1 FROM users WHERE username = ?', [trim((string) ($in['username'] ?? ''))])->fetchColumn()) {
-                throw new InvalidArgumentException('Deze gebruikersnaam bestaat al');
+                throw new InvalidArgumentException(t('Deze gebruikersnaam bestaat al'));
             }
             if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                throw new InvalidArgumentException('Ongeldig e-mailadres');
+                throw new InvalidArgumentException(t('Ongeldig e-mailadres'));
             }
             if ($email !== '' && q('SELECT 1 FROM users WHERE LOWER(email) = LOWER(?)', [$email])->fetchColumn()) {
-                throw new InvalidArgumentException('Dit e-mailadres hoort al bij een ander account');
+                throw new InvalidArgumentException(t('Dit e-mailadres hoort al bij een ander account'));
             }
             Installer::saveUser(trim((string) ($in['username'] ?? '')), (string) ($in['password'] ?? ''),
                 in_array($in['role'] ?? '', array_keys(ROLES), true) ? $in['role'] : 'user');
@@ -1481,7 +1481,7 @@ switch ($action) {
     case 'user_password':
         $in = input();
         if (strlen((string) ($in['password'] ?? '')) < 8) {
-            out(['error' => 'Wachtwoord moet minimaal 8 tekens zijn'], 422);
+            out(['error' => t('Wachtwoord moet minimaal 8 tekens zijn')], 422);
         }
         q('UPDATE users SET password_hash = ?, pw_changed_at = ? WHERE id = ?', [password_hash((string) $in['password'], PASSWORD_DEFAULT), now(), (int) ($in['id'] ?? 0)]);
         if ((int) ($in['id'] ?? 0) === $user['id']) {
@@ -1497,10 +1497,10 @@ switch ($action) {
         $ownOnly($id);
         $email = trim((string) (input()['email'] ?? ''));
         if ($email !== '' && (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 190)) {
-            out(['error' => 'Ongeldig e-mailadres'], 422);
+            out(['error' => t('Ongeldig e-mailadres')], 422);
         }
         if ($email !== '' && q('SELECT 1 FROM users WHERE LOWER(email) = LOWER(?) AND id <> ?', [$email, $id])->fetchColumn()) {
-            out(['error' => 'Dit e-mailadres hoort al bij een ander account'], 422);
+            out(['error' => t('Dit e-mailadres hoort al bij een ander account')], 422);
         }
         q('UPDATE users SET email = ? WHERE id = ?', [$email !== '' ? $email : null, $id]);
         out(['ok' => true]);
@@ -1515,14 +1515,14 @@ switch ($action) {
         $id = (int) ($in['id'] ?? 0);
         $role = (string) ($in['role'] ?? '');
         if (!isset(ROLES[$role])) {
-            out(['error' => 'Onbekende rol'], 422);
+            out(['error' => t('Onbekende rol')], 422);
         }
         if ($id === $user['id']) {
-            out(['error' => 'Je kunt je eigen rol niet wijzigen (laat een andere beheerder dat doen)'], 422);
+            out(['error' => t('Je kunt je eigen rol niet wijzigen (laat een andere beheerder dat doen)')], 422);
         }
         if ($role !== 'admin' && q("SELECT role FROM users WHERE id = ?", [$id])->fetchColumn() === 'admin'
             && (int) q("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn() <= 1) {
-            out(['error' => 'Er moet minimaal één beheerder overblijven'], 422);
+            out(['error' => t('Er moet minimaal één beheerder overblijven')], 422);
         }
         q('UPDATE users SET role = ? WHERE id = ?', [$role, $id]);
         out(['ok' => true]);
@@ -1530,14 +1530,14 @@ switch ($action) {
     case 'user_delete':
         $id = (int) (input()['id'] ?? 0);
         if ($id === $user['id']) {
-            out(['error' => 'Je kunt jezelf niet verwijderen'], 422);
+            out(['error' => t('Je kunt jezelf niet verwijderen')], 422);
         }
         if ((int) q('SELECT COUNT(*) FROM users')->fetchColumn() <= 1) {
-            out(['error' => 'Er moet minimaal één gebruiker overblijven'], 422);
+            out(['error' => t('Er moet minimaal één gebruiker overblijven')], 422);
         }
         if (q("SELECT role FROM users WHERE id = ?", [$id])->fetchColumn() === 'admin'
             && (int) q("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn() <= 1) {
-            out(['error' => 'Er moet minimaal één beheerder overblijven'], 422);
+            out(['error' => t('Er moet minimaal één beheerder overblijven')], 422);
         }
         q('DELETE FROM users WHERE id = ?', [$id]);
         out(['ok' => true]);
@@ -1547,7 +1547,7 @@ switch ($action) {
         $ownOnly((int) (input()['id'] ?? 0));
         $u = q('SELECT id, username FROM users WHERE id = ?', [(int) (input()['id'] ?? 0)])->fetch();
         if (!$u) {
-            out(['error' => 'Gebruiker niet gevonden'], 404);
+            out(['error' => t('Gebruiker niet gevonden')], 404);
         }
         $secret = Totp::newSecret();
         $_SESSION['totp_setup'][(int) $u['id']] = $secret;
@@ -1560,11 +1560,11 @@ switch ($action) {
         $ownOnly($id);
         $secret = $_SESSION['totp_setup'][$id] ?? null;
         if (!$secret) {
-            out(['error' => 'Begin opnieuw met instellen'], 422);
+            out(['error' => t('Begin opnieuw met instellen')], 422);
         }
         $step = Totp::verify($secret, (string) ($in['code'] ?? ''));
         if ($step === null) {
-            out(['error' => 'Code klopt niet. Staat de klok van je telefoon goed?'], 422);
+            out(['error' => t('Code klopt niet. Staat de klok van je telefoon goed?')], 422);
         }
         q('UPDATE users SET totp_secret = ?, totp_last_step = ? WHERE id = ?', [$secret, $step, $id]);
         unset($_SESSION['totp_setup'][$id]);
@@ -1585,7 +1585,7 @@ switch ($action) {
         $id = (int) (input()['id'] ?? 0);
         $owner = q('SELECT user_id FROM remember_tokens WHERE id = ?', [$id])->fetchColumn();
         if ($owner === false) {
-            out(['error' => 'Apparaat niet gevonden'], 404);
+            out(['error' => t('Apparaat niet gevonden')], 404);
         }
         $ownOnly((int) $owner);
         q('DELETE FROM remember_tokens WHERE id = ?', [$id]);
@@ -1662,7 +1662,7 @@ switch ($action) {
         $add = array_filter(parse_list(mb_substr((string) (input()['add'] ?? ''), 0, 300)),
             fn($x) => preg_match('/^[A-Za-z0-9._@\\$-]{1,64}$/', $x) || @inet_pton(explode('/', $x)[0]) !== false);
         if (!$add) {
-            out(['error' => 'Niets om te negeren'], 422);
+            out(['error' => t('Niets om te negeren')], 422);
         }
         $list = array_values(array_unique(array_merge(parse_list((string) setting('auth_ignore', '')), $add)));
         save_setting('auth_ignore', implode(' ', array_slice($list, 0, 100)));
@@ -1690,7 +1690,7 @@ switch ($action) {
         $in = input();
         $inc = q('SELECT * FROM ids_incidents WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetch();
         if (!$inc) {
-            out(['error' => 'Incident niet gevonden'], 404);
+            out(['error' => t('Incident niet gevonden')], 404);
         }
         $act = (string) ($in['action'] ?? '');
         if ($act === 'reopen') {
@@ -1719,7 +1719,7 @@ switch ($action) {
     case 'ids_unblock':
         $b = Ids::unblock((int) (input()['id'] ?? 0), $user['username']);
         if (!$b) {
-            out(['error' => 'Blokkade niet gevonden'], 404);
+            out(['error' => t('Blokkade niet gevonden')], 404);
         }
         AgentCommands::audit($user['username'], 'IDS: gedeblokkeerd', "{$b['ip']} op server {$b['host_id']}");
         out(['ok' => true]);
@@ -1747,10 +1747,10 @@ switch ($action) {
         if ($hostId > 0) {
             $h = q("SELECT id, name, commands FROM hosts WHERE id = ? AND mode = 'agent'", [$hostId])->fetch();
             if (!$h) {
-                out(['error' => 'Server niet gevonden'], 404);
+                out(['error' => t('Server niet gevonden')], 404);
             }
             if ($mode !== 'global' && !isset(AgentCommands::MODES[$mode])) {
-                out(['error' => 'Ongeldige keuze'], 422);
+                out(['error' => t('Ongeldige keuze')], 422);
             }
             $from = AgentCommands::modeFor($h);
             $to = AgentCommands::modeFor(['commands' => $mode === 'global' ? null : $mode]);
@@ -1761,7 +1761,7 @@ switch ($action) {
             AgentCommands::audit($user['username'], "commando's per server", "{$h['name']}: " . ($mode === 'global' ? 'algemene instelling' : AgentCommands::MODES[$mode]) . " (was: " . AgentCommands::MODES[$from] . ')');
         } else {
             if (!isset(AgentCommands::MODES[$mode])) {
-                out(['error' => 'Ongeldige keuze'], 422);
+                out(['error' => t('Ongeldige keuze')], 422);
             }
             $from = (string) setting('agent_commands', 'off');
             if (AgentCommands::widens($from, $mode)) {
@@ -1806,7 +1806,7 @@ switch ($action) {
             @unlink("$h/rotate.result");
             $nonce = bin2hex(random_bytes(16));
             if (file_put_contents("$h/rotate.request", $nonce) === false) {
-                out(['error' => "Kan geen verzoek neerzetten in $h"], 500);
+                out(['error' => t('Kan geen verzoek neerzetten in {dir}', ['dir' => $h])], 500);
             }
             $_SESSION['db_rotate'] = ['nonce' => $nonce, 'at' => time()];
             out(['ok' => true, 'pending' => true]);
@@ -1816,13 +1816,13 @@ switch ($action) {
             $r = Installer::rotateDbPassword();
             out($r, $r['ok'] ? 200 : 422);
         }
-        out(['error' => 'De RzMon-map is vergrendeld en de hulpdienst is niet geïnstalleerd', 'need_helper' => true], 409);
+        out(['error' => t('De RzMon-map is vergrendeld en de hulpdienst is niet geïnstalleerd'), 'need_helper' => true], 409);
 
     case 'db_rotate_status':
         $p = $_SESSION['db_rotate'] ?? null;
         $h = Installer::HELPER_DIR;
         if (!$p) {
-            out(['error' => 'Geen wachtwoordwissel bezig'], 404);
+            out(['error' => t('Geen wachtwoordwissel bezig')], 404);
         }
         $res = json_decode((string) @file_get_contents("$h/rotate.result"), true);
         if ($res && hash_equals($p['nonce'], (string) ($res['nonce'] ?? ''))) {
@@ -1834,7 +1834,7 @@ switch ($action) {
         if (time() - $p['at'] > 30) {
             unset($_SESSION['db_rotate']);
             @unlink("$h/rotate.request");
-            out(['error' => 'De hulpdienst reageert niet. Controleer op de server: systemctl status rzmon-helper.path'], 504);
+            out(['error' => t('De hulpdienst reageert niet. Controleer op de server: systemctl status rzmon-helper.path')], 504);
         }
         out(['pending' => true]);
 
@@ -1856,7 +1856,7 @@ switch ($action) {
             'max_upload' => Backup::MAX_UPLOAD,
             'list' => Backup::problem() === null ? Backup::list() : [],
             'cli_backup' => "sudo php $root/install/install.php --backup",
-            'cli_restore' => "sudo php $root/install/install.php --restore /pad/naar/rzmon-backup-….zip",
+            'cli_restore' => "sudo php $root/install/install.php --restore /" . t('pad/naar') . '/rzmon-backup-….zip',
         ]);
 
     case 'backup_create':
@@ -1866,7 +1866,7 @@ switch ($action) {
 
     case 'backup_delete':
         if (!Backup::delete((string) (input()['file'] ?? ''))) {
-            out(['error' => 'Back-up niet gevonden'], 404);
+            out(['error' => t('Back-up niet gevonden')], 404);
         }
         out(['ok' => true]);
 
@@ -1879,10 +1879,10 @@ switch ($action) {
     case 'backup_download':
         $path = Backup::path((string) ($_GET['file'] ?? ''));
         if ((int) ($_SESSION['backup_unlock'] ?? 0) < time() - 600) {
-            out(['error' => 'Bevestig eerst met je wachtwoord'], 403);
+            out(['error' => t('Bevestig eerst met je wachtwoord')], 403);
         }
         if ($path === null) {
-            out(['error' => 'Back-up niet gevonden'], 404);
+            out(['error' => t('Back-up niet gevonden')], 404);
         }
         session_write_close();
         header('Content-Type: application/zip');
@@ -1903,7 +1903,7 @@ switch ($action) {
         $confirm('HERSTELLEN');
         $path = Backup::path((string) (input()['file'] ?? ''));
         if ($path === null) {
-            out(['error' => 'Back-up niet gevonden'], 404);
+            out(['error' => t('Back-up niet gevonden')], 404);
         }
         session_write_close();
         $r = Backup::restore($path, trim((string) (input()['zip_pass'] ?? '')) ?: null);
@@ -1911,15 +1911,15 @@ switch ($action) {
 
     case 'password':
         if ($user['id'] === 0) {
-            out(['error' => 'Je bent automatisch ingelogd (lokaal netwerk). Log in met je eigen account om je wachtwoord te wijzigen.'], 422);
+            out(['error' => t('Je bent automatisch ingelogd (lokaal netwerk). Log in met je eigen account om je wachtwoord te wijzigen.')], 422);
         }
         $in = input();
         $row = q('SELECT password_hash FROM users WHERE id = ?', [$user['id']])->fetch();
         if (!$row || !password_verify((string) ($in['current'] ?? ''), $row['password_hash'])) {
-            out(['error' => 'Huidig wachtwoord onjuist'], 422);
+            out(['error' => t('Huidig wachtwoord onjuist')], 422);
         }
         if (strlen((string) ($in['new'] ?? '')) < 8) {
-            out(['error' => 'Nieuw wachtwoord moet minimaal 8 tekens zijn'], 422);
+            out(['error' => t('Nieuw wachtwoord moet minimaal 8 tekens zijn')], 422);
         }
         // Andere sessies van dit account worden uitgelogd (pw_changed_at); deze blijft
         q('UPDATE users SET password_hash = ?, pw_changed_at = ? WHERE id = ?', [password_hash((string) $in['new'], PASSWORD_DEFAULT), now(), $user['id']]);
@@ -1929,5 +1929,5 @@ switch ($action) {
         out(['ok' => true]);
 
     default:
-        out(['error' => 'Onbekende actie'], 404);
+        out(['error' => t('Onbekende actie')], 404);
 }

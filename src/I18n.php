@@ -91,6 +91,18 @@ final class I18n
         }
     }
 
+    /** $fn uitvoeren in de taal van een account (bv. voor een mail aan die gebruiker), daarna weer de huidige taal */
+    public static function forUser(int $id, callable $fn): mixed
+    {
+        $prev = self::$lang;
+        self::init(['id' => $id]);
+        try {
+            return $fn();
+        } finally {
+            self::set($prev);
+        }
+    }
+
     /** Decimaalteken: komma in het Nederlands, punt in het Engels */
     public static function dec(string $v): string
     {

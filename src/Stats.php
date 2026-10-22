@@ -87,14 +87,14 @@ final class Stats
             return $res;
         }
         $days = $f['days_to_full'];
-        $when = $days < 1 ? 'binnen een dag' : 'over ~' . (int) round($days) . ' dagen';
-        $rate = sprintf('(+%s%%/dag)', str_replace('.', ',', (string) round($f['per_day'], 2)));
+        $when = $days < 1 ? t('binnen een dag') : t('over ~{n} dagen', ['n' => (int) round($days)]);
+        $rate = '(+' . I18n::dec((string) round($f['per_day'], 2)) . '%/' . t('dag') . ')';
         $limit = (int) setting('disk_forecast_days', 7);
         if ($limit > 0 && $days <= $limit && $res['status'] === STATUS_OK) {
             $res['status'] = STATUS_WARN;
-            $res['message'] = "Raakt $when vol $rate: " . $res['message'];
+            $res['message'] = t('Raakt {when} vol', ['when' => $when]) . " $rate: " . $res['message'];
         } else {
-            $res['message'] .= " · vol $when $rate";
+            $res['message'] .= ' · ' . t('vol {when}', ['when' => $when]) . " $rate";
         }
         return $res;
     }

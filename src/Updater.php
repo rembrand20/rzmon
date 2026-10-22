@@ -41,7 +41,7 @@ final class Updater
         $version = self::fetch("$base/VERSION");
         $cache = ['checked_at' => time(), 'latest' => null, 'notes' => [], 'error' => null];
         if ($version === null || !preg_match('/^\d+\.\d+\.\d+$/', trim($version))) {
-            $cache['error'] = "Kan de nieuwste versie niet ophalen van github.com/$repo";
+            $cache['error'] = t('Kan de nieuwste versie niet ophalen van {url}', ['url' => "github.com/$repo"]);
         } else {
             $cache['latest'] = trim($version);
             if (version_compare($cache['latest'], RZMON_VERSION, '>')) {
@@ -83,13 +83,13 @@ final class Updater
     public static function unavailable(): ?string
     {
         if (!is_dir(SM_ROOT . '/.git')) {
-            return 'RzMon is niet met install-rocky.sh (git) geïnstalleerd; werk handmatig bij';
+            return t('RzMon is niet met install-rocky.sh (git) geïnstalleerd; werk handmatig bij');
         }
         if (!is_file(self::DIR . '/update.installed')) {
-            return 'De hulpdienst voor bijwerken is nog niet geïnstalleerd';
+            return t('De hulpdienst voor bijwerken is nog niet geïnstalleerd');
         }
         if (!is_writable(self::DIR)) {
-            return 'RzMon kan niet schrijven in ' . self::DIR;
+            return t('RzMon kan niet schrijven in {dir}', ['dir' => self::DIR]);
         }
         return null;
     }
@@ -101,7 +101,7 @@ final class Updater
         if (is_file(self::DIR . '/update.request')) {
             // Verzoek staat klaar; de hulpdienst heeft het nog niet opgepakt
             $at = (int) @filemtime(self::DIR . '/update.request');
-            return ['state' => 'queued', 'step' => 'queued', 'message' => 'Wachten op de hulpdienst…', 'at' => $at,
+            return ['state' => 'queued', 'step' => 'queued', 'message' => t('Wachten op de hulpdienst…'), 'at' => $at,
                 'stuck' => $at < time() - 120];
         }
         return is_array($st) ? $st : null;
@@ -121,11 +121,11 @@ final class Updater
             return $why;
         }
         if (self::running()) {
-            return 'Er loopt al een update';
+            return t('Er loopt al een update');
         }
         $tmp = self::DIR . '/update.request.tmp';
         if (file_put_contents($tmp, json_encode(['backup' => $backup, 'by' => $by, 'at' => time()])) === false || !rename($tmp, self::DIR . '/update.request')) {
-            return 'Kan het verzoek niet neerzetten in ' . self::DIR;
+            return t('Kan geen verzoek neerzetten in {dir}', ['dir' => self::DIR]);
         }
         save_setting('update_requested', json_encode(['from' => RZMON_VERSION, 'by' => $by, 'at' => time()]));
         return true;
@@ -146,6 +146,6 @@ final class Updater
         }
         save_setting('update_auto_day', date('Y-m-d'));
         $r = self::request(setting('update_backup', '1') === '1', 'automatisch');
-        return $r === true ? "Automatische update naar {$cache['latest']} gestart" : "Automatische update niet gestart: $r";
+        return $r === true ? t('Automatische update naar {v} gestart', ['v' => $cache['latest']]) : t('Automatische update niet gestart') . ": $r";
     }
 }

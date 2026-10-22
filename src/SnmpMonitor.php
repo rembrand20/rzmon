@@ -897,7 +897,7 @@ final class SnmpConn
             throw new SnmpDown(t('Geen antwoord via SNMP van {peer}: controleer of SNMP aan staat op het apparaat, en de versie, community of v3-gebruiker en of RzMon toegang heeft', ['peer' => $this->peer]));
         }
         if ($no === SNMP::ERRNO_GENERIC) {
-            throw new SnmpDown('SNMP-fout: ' . $this->s->getError());
+            throw new SnmpDown(t('SNMP-fout') . ': ' . $this->s->getError());
         }
     }
 }
