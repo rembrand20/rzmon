@@ -31,6 +31,11 @@ foreach ($files as $f) {
         $found[unquote($x[1], $x[2])][] = basename($f);
     }
 }
+// Vaste agentteksten (AgentText::PATTERNS: patroon => Nederlandse tekst)
+preg_match_all('/=>\s*\'((?:[^\'\\\\]|\\\\.)*)\',/', (string) file_get_contents("$root/src/AgentText.php"), $m, PREG_SET_ORDER);
+foreach ($m as $x) {
+    $found[unquote("'", $x[1])][] = 'AgentText.php';
+}
 foreach (glob("$root/public/assets/*.js") ?: [] as $f) {
     preg_match_all('/\bL\(\s*([\'"`])((?:(?!\1)[^\\\\]|\\\\.)*)\1/s', (string) file_get_contents($f), $m, PREG_SET_ORDER);
     foreach ($m as $x) {

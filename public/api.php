@@ -405,7 +405,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
     if ($result !== '') {
         $status = preg_match('/^ok (\S*) (\S+)/', $result, $m)
             ? '✔ ' . date('d-m H:i') . ' ' . ($m[1] !== '' && $m[1] !== $m[2] ? t('bijgewerkt van {from} naar {to}', ['from' => $m[1], 'to' => $m[2]]) : t('bijgewerkt naar {to}', ['to' => $m[2]]))
-            : '✘ ' . date('d-m H:i') . ' ' . t('bijwerken mislukt') . ': ' . mb_substr(preg_replace('/^error\s*/', '', $result), 0, 200);
+            : '✘ ' . date('d-m H:i') . ' ' . t('bijwerken mislukt') . ': ' . AgentText::tr(mb_substr(preg_replace('/^error\s*/', '', $result), 0, 200));
         if (str_starts_with($result, 'ok')) {
             $sent = null;   // gelukt: een volgende RzMon-versie mag meteen weer automatisch
         }

@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.51.1 – 2026-10-22
+### Opgelost
+- Teksten die de agent zelf meestuurt, staan nu ook in het Engels als *Taal van meldingen en checkberichten* op English staat. Het gaat om de diepere servicecontrole (bijvoorbeeld *database antwoordt (ping)*), sockets, de extra test en de eigen test, en om fouten bij log-, commando-, Podman-, certificaat- en Home Assistant-checks en bij het bijwerken van een agent. RzMon vertaalt ze zelf: je hoeft de agent niet bij te werken.
+
 ## 1.51.0 – 2026-10-22
 ### Nieuw
 - **⚠️ Problemen bovenaan per server.** Checks in warning, critical of onbekend staan op het dashboard bovenaan de server in de groep *⚠️ Problemen*, met een kopje per status (🔴 Critical, 🟠 Warning, ⚪ Onbekend) en onderaan *✔ Bevestigd*. Ze staan niet ook nog in hun gewone groep; zodra een check weer OK is, gaat hij daar vanzelf naar terug. Werkt in Blox en L1nes, ook bij servers met weinig checks.

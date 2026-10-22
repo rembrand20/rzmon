@@ -236,7 +236,7 @@ final class Checks
             return $stale;
         }
         if (($d['error'] ?? '') !== '' || empty($d['not_after'])) {
-            return self::result(STATUS_CRIT, null, 'Agent: ' . ($d['error'] ?: t('geen certificaatgegevens')));
+            return self::result(STATUS_CRIT, null, 'Agent: ' . ($d['error'] ? AgentText::tr((string) $d['error']) : t('geen certificaatgegevens')));
         }
         $invalid = null;
         if ((int) ($check['verify_ssl'] ?? 1) === 1 && isset($d['verify']) && $d['verify'] !== 'ok') {
@@ -331,7 +331,7 @@ final class Checks
             $msg .= ' (' . t('{size} op te ruimen', ['size' => self::siBytes((float) $p['reclaimable'])]) . ')';
         }
         if (($p['error'] ?? '') !== '') {
-            return self::result(count($all) ? STATUS_WARN : STATUS_CRIT, (float) count($running), t('Podman-fout') . ": {$p['error']} · $msg");
+            return self::result(count($all) ? STATUS_WARN : STATUS_CRIT, (float) count($running), t('Podman-fout') . ': ' . AgentText::tr((string) $p['error']) . " · $msg");
         }
         if ($problems) {
             return self::result(STATUS_WARN, (float) count($running), implode(', ', $problems) . " · $msg");
@@ -507,7 +507,7 @@ final class Checks
             return self::result(STATUS_UNKNOWN, null, t('Geblokkeerd op de server') . ': ' . $r['blocked']);
         }
         if (!empty($r['error'])) {
-            return self::result(STATUS_UNKNOWN, null, t('Niet uitgevoerd') . ': ' . $r['error']);
+            return self::result(STATUS_UNKNOWN, null, t('Niet uitgevoerd') . ': ' . AgentText::tr((string) $r['error']));
         }
         $maxAge = max(600, 3 * (int) $check['interval_sec']);
         if ((int) ($r['at'] ?? 0) < time() - $maxAge) {
@@ -543,7 +543,7 @@ final class Checks
         }
         $d = json_decode($raw, true) ?: [];
         if (!empty($d['error'])) {
-            return self::result(STATUS_UNKNOWN, null, t('Niet beschikbaar') . ': ' . $d['error']);
+            return self::result(STATUS_UNKNOWN, null, t('Niet beschikbaar') . ': ' . AgentText::tr((string) $d['error']));
         }
         $ago = static function (int $t): string {
             $s = max(0, time() - $t);
@@ -678,7 +678,7 @@ final class Checks
         }
         $d = json_decode($raw, true) ?: [];
         if (($d['error'] ?? '') !== '') {
-            return self::result(STATUS_UNKNOWN, null, 'Agent: ' . $d['error']);
+            return self::result(STATUS_UNKNOWN, null, 'Agent: ' . AgentText::tr((string) $d['error']));
         }
         $window = max(5, min(1440, (int) setting('log_window', 15)));
         $count = 0;
@@ -837,7 +837,7 @@ final class Checks
         }
         // Zelf opgegeven sockets (bv. php-fpm): bestaat de socket en neemt hij verbindingen aan?
         if (!empty($d['sockets_fail'])) {
-            $raise(STATUS_CRIT, 'socket ' . implode(', ', $d['sockets_fail']));
+            $raise(STATUS_CRIT, 'socket ' . implode(', ', array_map(fn($x) => AgentText::tr((string) $x), $d['sockets_fail'])));
         } elseif (!empty($d['sockets'])) {
             $info[] = t('socket {s} neemt verbindingen aan', ['s' => implode(', ', $d['sockets'])]);
         }
@@ -848,9 +848,9 @@ final class Checks
         if (isset($d['probe_rc']) && $d['probe_rc'] !== null) {
             $rc = (int) $d['probe_rc'];
             if ($rc === 0) {
-                $info[] = (string) $d['probe_msg'];
+                $info[] = AgentText::tr((string) $d['probe_msg']);
             } else {
-                $raise($rc >= 2 ? STATUS_CRIT : STATUS_WARN, (string) $d['probe_msg']);
+                $raise($rc >= 2 ? STATUS_CRIT : STATUS_WARN, AgentText::tr((string) $d['probe_msg']));
             }
         }
         if (($opt['ports'] ?? '') !== '' && empty($d['manual']) && empty($d['sockets'])) {
@@ -862,15 +862,15 @@ final class Checks
             if (!$t) {
                 $info[] = t('extra test: nog geen resultaat (de agent haalt nieuwe tests binnen 10 minuten op)');
             } elseif ($t['ok']) {
-                $info[] = $t['msg'];
+                $info[] = AgentText::tr((string) $t['msg']);
             } else {
-                $raise(STATUS_CRIT, $t['msg']);
+                $raise(STATUS_CRIT, AgentText::tr((string) $t['msg']));
             }
         }
         // Eigen test op de server (/etc/rzmon-agent/tests/<service>), in Nagios-stijl: 0/1/2
         if (isset($d['custom_rc']) && $d['custom_rc'] !== null) {
             $rc = (int) $d['custom_rc'];
-            $msg = t('eigen test') . ': ' . ($d['custom_msg'] !== '' ? $d['custom_msg'] : "exitcode $rc");
+            $msg = t('eigen test') . ': ' . ($d['custom_msg'] !== '' ? AgentText::tr((string) $d['custom_msg']) : "exitcode $rc");
             if ($rc === 0) {
                 $info[] = $msg;
             } else {

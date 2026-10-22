@@ -371,7 +371,7 @@ RzMon is er in het **Nederlands** en het **Engels**. Bovenaan *Instellingen* sta
 - Datums en getallen volgen de taal (bijvoorbeeld *22 Oct 2026* en *99.98%* in het Engels).
 - De hele interface is vertaald: dashboard, meldingen, IDS, instellingen, alle vensters, foutmeldingen, de setup-pagina en de bevestig-pagina uit Pushover.
 - **Taal van meldingen en checkberichten** (*Instellingen → 🔔 Meldingen*): de taal van wat RzMon zelf schrijft en naar iedereen tegelijk gaat. Dat zijn de berichten via Pushover, e-mail, Home Assistant en MQTT, de berichten van checks (bijvoorbeeld *Poort 443 onbereikbaar*), IDS- en toegangsregels en de antwoorden van de REST API. Standaard Nederlands.
-- Wat al bewaard is, blijft in de taal van toen: oude meldingen in de lijst, het logboek en checkberichten tot de volgende controle. Wat de agent zelf meldt (bijvoorbeeld de tekst van een commando-check) komt van de server en wordt niet vertaald.
+- Wat al bewaard is, blijft in de taal van toen: oude meldingen in de lijst, het logboek en checkberichten tot de volgende controle. De vaste teksten van de agent (bijvoorbeeld *database antwoordt (ping)* bij de diepere servicecontrole, of een socket die niet bestaat) vertaalt RzMon zelf; daarvoor hoeft de agent niet bijgewerkt te worden. Alleen de uitvoer van je eigen commando's en systeemmeldingen (bijvoorbeeld een SSH-banner) blijven zoals de server ze geeft.
 - Mails voor *wachtwoord vergeten* gaan in de taal van het account.
 
 ### 6.1 Pushover koppelen
