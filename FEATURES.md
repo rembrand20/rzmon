@@ -48,6 +48,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Poortscan**: zoek open TCP-poorten (bekende poorten, 1–1024 of een eigen lijst) en maak er met één klik een check van. Bij agent-servers zie je ook welke poorten lokaal luisteren, met procesnaam.
 
 ## 3. Dashboard
+- **Nederlands of Engels** 🌐: schuifje bovenaan *Instellingen* (EN links, NL rechts), per gebruiker onthouden. Nu vertaald: inloggen, bovenbalk, dashboard en meldingen; de rest volgt.
 - **Gezondheidsbalk** bovenaan:
   - de algehele status: 🟢 *Alles in orde*, 🟠 *Aandacht nodig* of 🔴 *Storing*;
   - een **score van 0–100%**;
@@ -119,7 +120,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 
 ## 8. Beheer: installeren, bijwerken en back-up
 - **Installatie in één commando** op Rocky Linux / RHEL / AlmaLinux 10 (`install-rocky.sh`), inclusief SELinux, firewalld, Apache, PHP-FPM, MariaDB en cron. Debian/Ubuntu kan met de hand of via de setup-pagina.
-- **Setup-pagina:** een systeemcheck, de database instellen, tabellen installeren, de eerste beheerder aanmaken, en een PHP-instellingen-editor.
+- **Setup-pagina** (alleen beheerders, via ⚙️ Setup op *Instellingen*): een systeemcheck, de database instellen, tabellen installeren, de eerste beheerder aanmaken, en een PHP-instellingen-editor.
 - **⬆ RzMon bijwerken vanuit de webinterface:**
   - een dagelijkse controle op GitHub, en **wat er nieuw is**;
   - de knop **Nu bijwerken**, met voortgang en eventueel eerst een back-up;

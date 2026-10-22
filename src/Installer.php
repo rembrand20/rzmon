@@ -88,39 +88,40 @@ final class Installer
         ['checks', 'options', 'VARCHAR(500) NULL'],  // JSON, bv. service: diepere controle en extra test
         ['checks', 'maintenance_auto', 'TINYINT(1) NOT NULL DEFAULT 0'],  // onderhoud automatisch gezet na herhaalde meldingen
         ['users', 'role', "VARCHAR(10) NOT NULL DEFAULT 'admin'"],   // admin | user | readonly (bestaande accounts: admin)
-        ['results', 'vals', 'VARCHAR(255) NULL'],
+        ['results', 'vals', 'VARCHAR(255) NULL'],          // container: CPU, RAM en disk van één meting (JSON)
         ['checks', 'notify', 'VARCHAR(1000) NULL'],        // eigen meldregels (JSON), anders de algemene
         ['checks', 'status_since', 'DATETIME NULL'],       // sinds wanneer de huidige status geldt (voor "na X minuten")
         ['checks', 'flapping_since', 'DATETIME NULL'],     // anti-flapping: check wisselt steeds van status
         ['checks', 'flap_notified', 'VARCHAR(20) NULL'],   // statussen die tijdens het flapperen al gemeld zijn
-        ['checks', 'command', 'TEXT NULL'],
+        ['checks', 'command', 'TEXT NULL'],                // commando-check: JSON met cmd, expect, match, timeout, fail
         ['alerts', 'host_id', 'INT UNSIGNED NULL'],        // logins/sudo: van welke server (er hoort geen check bij)
-        ['alerts', 'detail', 'TEXT NULL'],                 // logins/sudo: wie, wat, IP (JSON)               // commando-check: JSON met cmd, expect, match, timeout, fail
+        ['alerts', 'detail', 'TEXT NULL'],                 // logins/sudo: wie, wat, IP (JSON)
         ['hosts', 'commands', 'VARCHAR(10) NULL'],        // commando's op deze agent: off/nobody/root, NULL = algemene instelling
         ['checks', 'quiet', 'VARCHAR(1000) NULL'],         // stille uren voor deze check (JSON: mode global/own/never), anders algemeen
         ['checks', 'quiet_held', 'TINYINT NULL'],          // meldingen tegengehouden door stille uren: status die de gebruiker het laatst kreeg
-        ['checks', 'flap_ended_at', 'DATETIME NULL'],      // weer stabiel: wisselingen van daarvoor tellen niet meer mee         // container: CPU, RAM en disk van één meting (JSON)
+        ['checks', 'flap_ended_at', 'DATETIME NULL'],      // weer stabiel: wisselingen van daarvoor tellen niet meer mee
         // Omgekeerde status: slaagt de check, dan deze status (NULL = normaal); mislukt hij, dan reverse_fail
         ['checks', 'reverse_ok', 'TINYINT NULL'],
         ['checks', 'reverse_fail', 'TINYINT NULL'],
         // IDS: bestanden bewaken (extra paden per server, JSON) en wat de agent daarvan meldt
         ['hosts', 'ids_fim', 'TEXT NULL'],
         ['hosts', 'agent_tick', 'SMALLINT UNSIGNED NULL'],   // hoe vaak de agent rapporteert (s); NULL = algemene instelling
-        ['hosts', 'realtime', 'TINYINT(1) NOT NULL DEFAULT 0'],
-        ['hosts', 'snmp', 'TEXT NULL'],
+        ['hosts', 'realtime', 'TINYINT(1) NOT NULL DEFAULT 0'],   // realtime-watcher aan (logins, services, bestanden direct)
+        ['hosts', 'snmp', 'TEXT NULL'],   // SNMP: versie, poort, community of v3-gebruiker (JSON); NULL = uit
         // Melden na N mislukte checks: hoe vaak achter elkaar dezelfde status, en per check een eigen N (NULL = algemeen)
         ['checks', 'status_streak', 'INT UNSIGNED NOT NULL DEFAULT 0'],
-        ['checks', 'notify_fails', 'SMALLINT UNSIGNED NULL'],   // SNMP: versie, poort, community of v3-gebruiker (JSON); NULL = uit
+        ['checks', 'notify_fails', 'SMALLINT UNSIGNED NULL'],
         // API-sleutels: rechten (read, ids_read, ids_block, checks), alleen vanaf (IP's/netwerken), geldig tot
         ['api_keys', 'rights', "VARCHAR(60) NOT NULL DEFAULT 'read'"],
         ['api_keys', 'allow_from', 'VARCHAR(500) NULL'],
         ['api_keys', 'expires_at', 'DATETIME NULL'],
-        ['api_keys', 'created_by', 'VARCHAR(100) NULL'],   // realtime-watcher aan (logins, services, bestanden direct)
+        ['api_keys', 'created_by', 'VARCHAR(100) NULL'],
         ['ids_state', 'fim_epoch', 'INT UNSIGNED NULL'],     // verandert bij een nieuwe basismeting: agent stuurt dan alles opnieuw
         ['ids_state', 'fim_count', 'INT UNSIGNED NULL'],
         ['ids_state', 'fim_cand', 'VARCHAR(1000) NULL'],     // voorstellen die op de server bestaan (/usr/local/bin, /var/www…)
         ['users', 'email', 'VARCHAR(190) NULL'],         // voor "wachtwoord vergeten"
         ['users', 'pw_changed_at', 'DATETIME NULL'],     // sessies van vóór dit moment worden uitgelogd
+        ['users', 'lang', 'VARCHAR(5) NULL'],            // taal van de interface (nl/en); NULL = die van de browser
         // Agent bijwerken vanuit RzMon: gevraagd (knop), naar de agent gestuurd, uitkomst, en hoe de agent dat kan
         ['hosts', 'agent_update_req', 'DATETIME NULL'],
         ['hosts', 'agent_update_sent', 'DATETIME NULL'],
@@ -136,6 +137,9 @@ final class Installer
             $st->execute([$table, $column]);
             if (!(int) $st->fetchColumn()) {
                 $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+                if ("$table.$column" === 'users.lang') {
+                    $pdo->exec("UPDATE users SET lang = 'nl'");   // bestaande accounts blijven Nederlands
+                }
             }
         }
         self::mergeContainerChecks($pdo);

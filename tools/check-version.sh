@@ -48,4 +48,6 @@ check "agent/CHANGELOG.md (bovenste versie)" "$(top agent/CHANGELOG.md)" "$agent
 filled agent/CHANGELOG.md "$agent"
 same agent/rzmon-agent.sh "$ADDON/rzmon-agent.sh"
 same agent/CHANGELOG.md "$ADDON/CHANGELOG.md"
+echo "Vertaling (Engels):"
+if command -v php >/dev/null 2>&1; then php tools/check-i18n.php; else echo "  · php niet gevonden: overgeslagen"; fi
 exit "$fail"

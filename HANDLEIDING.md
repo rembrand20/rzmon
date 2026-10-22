@@ -129,6 +129,7 @@ RzMon bestaat uit vier onderdelen:
 - **Overige beveiliging:** CSRF-bescherming, HttpOnly/SameSite-cookies, een eigen token per agent en API-sleutels die alleen als hash worden opgeslagen.
 
 ### Setup-pagina
+Alleen voor **beheerders**: via de knop **⚙️ Setup** rechtsboven op de pagina *Instellingen*. Andere gebruikers zien de knop niet, en de pagina zelf weigert ze ook.
 - **Systeemcheck:** PHP, extensies, ping, systemctl, schrijfrechten, database en cron.
 - **Database instellen:** verbinding testen, en optioneel de database en gebruiker laten aanmaken.
 - **Tabellen** installeren en bijwerken.
@@ -361,6 +362,13 @@ echo '* * * * * www-data /usr/bin/php /var/www/rzmon/cron/run.php >/dev/null 2>&
 ---
 
 ## 6. Eerste configuratie
+
+### 6.0 Taal / Language 🌐
+RzMon is er in het **Nederlands** en het **Engels**. Bovenaan *Instellingen* staat een schuifje: **EN** links, **NL** rechts.
+- De keuze hoort bij je **account**, dus hij gaat mee naar elk apparaat waarop je inlogt. Zonder account (alleen lezen op het LAN) onthoudt RzMon hem op dat apparaat.
+- Bestaande accounts blijven Nederlands. Een nieuw account, en de inlogpagina, volgen de taal van de browser: Nederlands als de browser Nederlands is, anders Engels.
+- Datums en getallen volgen de taal (bijvoorbeeld *22 Oct 2026* en *99.98%* in het Engels).
+- **Nu vertaald:** inloggen, de bovenbalk, het dashboard en het tabblad *Meldingen*. De instellingenpagina, IDS, de vensters, de berichten van checks en de meldingen via Pushover, e-mail en Home Assistant volgen in een volgende versie; tot dan zijn die Nederlands.
 
 ### 6.1 Pushover koppelen
 1. Installeer de **Pushover**-app (iOS of Android). De app is na de proefperiode een eenmalige aankoop.

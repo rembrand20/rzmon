@@ -492,7 +492,7 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
     'state', 'alerts', 'ids', 'ids_access', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
-    'devices', 'device_forget', 'device_forget_all', 'user_email' => 'readonly',
+    'devices', 'device_forget', 'device_forget_all', 'user_email', 'lang_set' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan' => 'user',
     default => 'admin',
 };
@@ -500,6 +500,7 @@ if (!has_role($user, $need)) {
     out(['error' => 'Daar heb je geen rechten voor (je bent ' . mb_strtolower(ROLE_LABELS[$user['role']] ?? '?') . ')'], 403);
 }
 $isAdmin = has_role($user, 'admin');
+I18n::init($user);
 /** Niet-beheerders mogen alleen hun eigen account (2FA) beheren. */
 $ownOnly = static function (int $id) use ($user, $isAdmin): void {
     if (!$isAdmin && $id !== $user['id']) {
@@ -665,6 +666,18 @@ switch ($action) {
             save_setting('stats_cache', json_encode($cache));
         }
         out($cache);
+
+    // Taal van de interface: bij je account (op elk apparaat), en op dit apparaat (ook zonder account)
+    case 'lang_set':
+        $lang = (string) (input()['lang'] ?? '');
+        if (!in_array($lang, I18n::LANGS, true)) {
+            out(['error' => 'Onbekende taal'], 422);
+        }
+        if ((int) ($user['id'] ?? 0) > 0) {
+            q('UPDATE users SET lang = ? WHERE id = ?', [$lang, (int) $user['id']]);
+        }
+        I18n::remember($lang);
+        out(['ok' => true, 'lang' => $lang]);
 
     case 'host_save':
         $in = input();

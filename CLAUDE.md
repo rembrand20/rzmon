@@ -24,6 +24,12 @@ RzMon en de agent hebben **elk een eigen versienummer**. Verhoog alleen het numm
 - Een update van RzMon laat `config.php` en bestaande rijen in `settings` ongemoeid: `Installer::runSchema` zet elke bestaande instelling terug die het schema of een migratie zou veranderen. Nieuwe standaardwaarden gaan met `INSERT IGNORE`.
 - `install-agent.sh` schrijft `/etc/default/rzmon-agent` alleen bij een nieuwe installatie. Bij een bestaande installatie past het alleen de regels aan die je zelf meegeeft (`--url`, `--token` …).
 
+## Teksten in de interface (Nederlands en Engels)
+- Schrijf teksten in het **Nederlands** in de code, via `t('…')` / `th('…')` (PHP, `th` = met HTML-escaping) of `L('…')` (JavaScript). Variabele delen als `{naam}`: `L('{n} meldingen', { n })`.
+- Zet de Engelse vertaling in `lang/en.php` (Nederlands => Engels). Ontbreekt die, dan blijft de tekst Nederlands.
+- `php tools/check-i18n.php --list` toont teksten zonder vertaling; `tools/check-version.sh` meldt het aantal.
+- Datums en getallen in JavaScript met `LOCALE` (niet `'nl-NL'`), en decimalen met `dec()`.
+
 ## Overige afspraken
 - `ha-addon/rzmon_agent/rzmon-agent.sh` en `ha-addon/rzmon_agent/CHANGELOG.md` zijn kopieën van `agent/rzmon-agent.sh` en `agent/CHANGELOG.md`. Wijzig altijd het origineel en kopieer daarna met `tools/bump-version.sh sync`.
 - Nieuwe databasekolommen gaan via `Installer::COLUMNS` (`src/Installer.php`), niet met `ADD COLUMN IF NOT EXISTS` (dat werkt niet op MySQL). Nieuwe tabellen gaan in `install/schema.sql` met `CREATE TABLE IF NOT EXISTS`. De database wordt automatisch bijgewerkt zodra `VERSION` (van RzMon) verandert; een wijziging aan de database vraagt dus altijd een nieuwe RzMon-versie.

@@ -85,7 +85,7 @@ Stel de webserver in (hieronder) en open **`http://<server>/`** vanaf je lokale 
 4. **Beheerder** – eerste gebruikersnaam en wachtwoord.
 5. **Cron** – kant-en-klare regel om te kopiëren.
 
-Daarna is de setup altijd bereikbaar via de tab **Setup** (alleen ingelogd). Zolang de installatie niet af is, of als de database onbereikbaar is, werkt de setup **alleen vanaf een privé-netwerk** (192.168.x, 10.x, 172.16-31.x, localhost).
+Daarna is de setup bereikbaar voor beheerders via de knop **⚙️ Setup** op de pagina *Instellingen*. Zolang de installatie niet af is, of als de database onbereikbaar is, werkt de setup **alleen vanaf een privé-netwerk** (192.168.x, 10.x, 172.16-31.x, localhost).
 
 > Mag de webserver `config.php` niet schrijven? Dan toont de setup de inhoud, die je zelf in `/var/www/rzmon/config.php` plaatst. Daarna kun je de schrijfrechten weer intrekken: `sudo chown root /var/www/rzmon`.
 

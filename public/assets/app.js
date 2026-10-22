@@ -4,51 +4,61 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CSRF = $('meta[name=csrf-token]')?.content;
-const STATUS = ['OK', 'WARNING', 'CRITICAL', 'ONBEKEND'];
+// Taal: teksten staan in het Nederlands in de code; L() zoekt de Engelse vertaling op (lang/en.php), {naam} wordt ingevuld
+const LANG = window.LANG || 'nl';
+const LOCALE = LANG === 'en' ? 'en-GB' : 'nl-NL';
+/** Decimaalteken: komma in het Nederlands, punt in het Engels */
+const dec = (v) => (LANG === 'en' ? String(v) : String(v).replace('.', ','));
+function L(s, vars) {
+  let r = (window.I18N && window.I18N[s]) || s;
+  if (vars) Object.entries(vars).forEach(([k, v]) => { r = r.split(`{${k}}`).join(String(v)); });
+  return r;
+}
+const STATUS = ['OK', 'WARNING', 'CRITICAL', L('ONBEKEND')];
 
 const TYPES = {
-  ping:    { label: 'Ping',          target: null,            unit: 'ms', warn: 100, crit: 500, help: 'Gemiddelde responstijd van 3 pings. Geen antwoord = CRITICAL.' },
-  tcp:     { label: 'TCP poort',     target: 'Poort',         unit: 'ms', warn: 500, crit: 2000, ph: '22', help: 'Controleert of de poort open staat (bv. 22 SSH, 3306 MariaDB, 443 HTTPS).' },
-  http:    { label: 'HTTP(S)',       target: 'URL of pad',    unit: 'ms', warn: 1000, crit: 3000, ph: 'https://example.com/ of /status', help: 'HTTP status ≥ 400 = CRITICAL. SSL-certificaat < 14 dagen = WARNING (voor eigen drempels: gebruik de check SSL-certificaat).' },
-  ssl:     { label: 'SSL-certificaat', target: 'Host[:poort]', unit: 'dagen', warn: 21, crit: 7, low: true, ph: 'example.com of nas.lan:5001', help: 'Waarschuwt als het certificaat bijna verloopt. Leeg = adres van de server op poort 443. Werkt op elke TLS-poort (8443, 993, 8883…), ook op internet. Bij een agent-server kun je ook kiezen uit de certificaten die de agent meldt (bestanden en adressen gezien vanaf die server).' },
-  disk:    { label: 'Diskruimte',    target: 'Mount / pad',   unit: '%',  warn: 80, crit: 90, ph: '/', help: 'Percentage gebruikt. Op agent-servers: mount zoals de agent meldt.' },
-  cpu:     { label: 'CPU',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'CPU-gebruik gemeten over 2 seconden, met load average in het bericht. Tip: zet "alarm na N fouten" op 3+ om korte pieken te negeren.' },
-  ram:     { label: 'RAM',           target: null,            unit: '%',  warn: 85, crit: 95, help: 'Percentage geheugen in gebruik (op basis van MemAvailable, dus cache telt niet mee). Swap staat in het bericht.' },
-  podman:  { label: 'Podman (algemeen)', target: null, unit: null, help: 'Algehele status van Podman op deze server: draait podman, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.' },
-  container: { label: 'Container (Podman)', target: 'Container', unit: null, ph: 'naam, of gebruiker/naam (rootless)', help: 'Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.' },
-  log:     { label: 'Logbestand (zoeken)', target: 'Bron', unit: 'treffers', warn: 5, crit: 20, ph: '/var/log/secure, journal, journal:sshd of kernel', help: 'De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.' },
-  command: { label: 'Commando', target: null, unit: null, help: 'De agent voert een commando uit op de server, en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → ⬆ Agents bijwerken).' },
-  ha:      { label: 'Home Assistant', target: null, unit: null, help: 'Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.' },
-  snmp:    { label: 'SNMP',          target: null,            unit: null, help: 'RzMon leest het apparaat zelf uit via SNMP (switches, access points, NAS, UPS, printers, Proxmox…). Interfaces, schijven en voorraden kies je het makkelijkst via 📡 SNMP-checks bij de server.' },
-  service: { label: 'Service',       target: 'Servicenaam',   unit: null, ph: 'nginx', help: 'De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.' },
+  ping:    { label: L('Ping'),          target: null,            unit: 'ms', warn: 100, crit: 500, help: L('Gemiddelde responstijd van 3 pings. Geen antwoord = CRITICAL.') },
+  tcp:     { label: L('TCP poort'),     target: L('Poort'),         unit: 'ms', warn: 500, crit: 2000, ph: '22', help: L('Controleert of de poort open staat (bv. 22 SSH, 3306 MariaDB, 443 HTTPS).') },
+  http:    { label: L('HTTP(S)'),       target: L('URL of pad'),    unit: 'ms', warn: 1000, crit: 3000, ph: 'https://example.com/ of /status', help: L('HTTP status ≥ 400 = CRITICAL. SSL-certificaat < 14 dagen = WARNING (voor eigen drempels: gebruik de check SSL-certificaat).') },
+  ssl:     { label: L('SSL-certificaat'), target: L('Host[:poort]'), unit: 'dagen', warn: 21, crit: 7, low: true, ph: 'example.com of nas.lan:5001', help: L('Waarschuwt als het certificaat bijna verloopt. Leeg = adres van de server op poort 443. Werkt op elke TLS-poort (8443, 993, 8883…), ook op internet. Bij een agent-server kun je ook kiezen uit de certificaten die de agent meldt (bestanden en adressen gezien vanaf die server).') },
+  disk:    { label: L('Diskruimte'),    target: L('Mount / pad'),   unit: '%',  warn: 80, crit: 90, ph: '/', help: L('Percentage gebruikt. Op agent-servers: mount zoals de agent meldt.') },
+  cpu:     { label: L('CPU'),           target: null,            unit: '%',  warn: 85, crit: 95, help: L('CPU-gebruik gemeten over 2 seconden, met load average in het bericht. Tip: zet "alarm na N fouten" op 3+ om korte pieken te negeren.') },
+  ram:     { label: L('RAM'),           target: null,            unit: '%',  warn: 85, crit: 95, help: L('Percentage geheugen in gebruik (op basis van MemAvailable, dus cache telt niet mee). Swap staat in het bericht.') },
+  podman:  { label: L('Podman (algemeen)'), target: null, unit: null, help: L('Algehele status van Podman op deze server: draait podman, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.') },
+  container: { label: L('Container (Podman)'), target: L('Container'), unit: null, ph: 'naam, of gebruiker/naam (rootless)', help: L('Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.') },
+  log:     { label: L('Logbestand (zoeken)'), target: L('Bron'), unit: 'treffers', warn: 5, crit: 20, ph: '/var/log/secure, journal, journal:sshd of kernel', help: L('De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.') },
+  command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → ⬆ Agents bijwerken).') },
+  ha:      { label: L('Home Assistant'), target: null, unit: null, help: L('Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.') },
+  snmp:    { label: L('SNMP'),          target: null,            unit: null, help: L('RzMon leest het apparaat zelf uit via SNMP (switches, access points, NAS, UPS, printers, Proxmox…). Interfaces, schijven en voorraden kies je het makkelijkst via 📡 SNMP-checks bij de server.') },
+  service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
 const LOG_PRESETS = {
-  ssh:      { label: '🔐 Mislukte logins (SSH)', src: 'journal', warn: 5, crit: 20,
+  ssh:      { label: L('🔐 Mislukte logins (SSH)'), src: 'journal', warn: 5, crit: 20,
               pat: 'Failed password|Invalid user|authentication failure|Connection closed by authenticating user|maximum authentication attempts' },
-  sudo:     { label: '🔐 Mislukte sudo / su', src: 'journal', warn: 1, crit: 5,
+  sudo:     { label: L('🔐 Mislukte sudo / su'), src: 'journal', warn: 1, crit: 5,
               pat: 'incorrect password attempt|sudo:.*authentication failure|FAILED SU|su:.*authentication failure' },
-  disk:     { label: '💾 Diskfouten', src: 'kernel', warn: 1, crit: 5,
+  disk:     { label: L('💾 Diskfouten'), src: 'kernel', warn: 1, crit: 5,
               pat: 'I/O error|blk_update_request|Buffer I/O error|medium error|ata[0-9.]+: (exception|error|failed command)|EXT4-fs error|XFS .*(error|corrupt)|BTRFS .*(error|corrupt)|nvme.*(timeout|reset|error)' },
-  hardware: { label: '🔥 Hardwarefouten (CPU, geheugen, PCIe, temperatuur)', src: 'kernel', warn: 1, crit: 3,
+  hardware: { label: L('🔥 Hardwarefouten (CPU, geheugen, PCIe, temperatuur)'), src: 'kernel', warn: 1, crit: 3,
               pat: 'Machine check|mce: |EDAC|Hardware Error|PCIe Bus Error|AER: |temperature above threshold|thermal.*throttl|Corrected error|Uncorrected error' },
-  smart:    { label: '💽 SMART-waarschuwingen (smartd)', src: 'journal:smartd', warn: 1, crit: 3,
+  smart:    { label: L('💽 SMART-waarschuwingen (smartd)'), src: 'journal:smartd', warn: 1, crit: 3,
               pat: 'FAILURE|Prefailure|Currently unreadable|Offline uncorrectable|failed self-test|SMART Failure' },
-  oom:      { label: '🧠 Geheugen vol (OOM)', src: 'kernel', warn: 1, crit: 3, pat: 'Out of memory|oom-kill|Killed process' },
-  crash:    { label: '💥 Programma\'s gecrasht', src: 'kernel', warn: 1, crit: 5, pat: 'segfault|general protection|core dumped|traps: .* trap' },
-  failed:   { label: '⚙️ Mislukte services (systemd)', src: 'journal', warn: 1, crit: 5, pat: 'Failed to start|failed with result|Main process exited, code=(exited|killed|dumped), status=[1-9]' },
-  fw:       { label: '🧱 Firewall-blokkades', src: 'kernel', warn: 100, crit: 1000, pat: 'REJECT|DROP|filter_IN_.*(REJECT|DROP)|nft.*(drop|reject)' },
-  f2b:      { label: '🚫 Fail2ban-bans', src: '/var/log/fail2ban.log', warn: 5, crit: 20, pat: ' Ban ' },
-  web5xx:   { label: '🌐 Webserver: serverfouten (5xx)', src: '/var/log/nginx/access.log', warn: 10, crit: 50, pat: '" 5[0-9][0-9] ' },
-  web404:   { label: '🌐 Webserver: niet gevonden (404, scans)', src: '/var/log/nginx/access.log', warn: 100, crit: 500, pat: '" 404 ' },
-  weberr:   { label: '🌐 Webserver: foutlog', src: '/var/log/nginx/error.log', warn: 5, crit: 20, pat: '\\[(error|crit|alert|emerg)\\]' },
-  mail:     { label: '✉️ Mail: mislukte logins', src: 'journal', warn: 5, crit: 20, pat: 'SASL [A-Z]+ authentication failed|auth failed|authentication failure.*(dovecot|postfix)' },
-  db:       { label: '🗄️ Database: fouten', src: 'journal:mariadb', warn: 1, crit: 5, pat: '\\[ERROR\\]|Access denied for user|Aborted connection' },
-  ha_power: { label: '🏠 HA OS: te lage voeding (Raspberry Pi)', src: 'ha:host', warn: 1, crit: 5, pat: 'under-voltage|Undervoltage detected|voltage normalised' },
-  ha_disk:  { label: '🏠 HA OS: diskfouten (SD-kaart/SSD)', src: 'ha:host', warn: 1, crit: 5, pat: 'I/O error|mmc[0-9].*(error|timeout)|EXT4-fs error|blk_update_request' },
-  ha_core:  { label: '🏠 Home Assistant Core: fouten', src: 'ha:core', warn: 5, crit: 20, pat: ' ERROR | CRITICAL ' },
-  ha_sup:   { label: '🏠 Supervisor: fouten', src: 'ha:supervisor', warn: 1, crit: 5, pat: ' ERROR | CRITICAL ' },
-  custom:   { label: '✏️ Zelf instellen', src: '', warn: 1, crit: 10, pat: '' },
+  oom:      { label: L('🧠 Geheugen vol (OOM)'), src: 'kernel', warn: 1, crit: 3, pat: 'Out of memory|oom-kill|Killed process' },
+  crash:    { label: L('💥 Programma\'s gecrasht'), src: 'kernel', warn: 1, crit: 5, pat: 'segfault|general protection|core dumped|traps: .* trap' },
+  failed:   { label: L('⚙️ Mislukte services (systemd)'), src: 'journal', warn: 1, crit: 5, pat: 'Failed to start|failed with result|Main process exited, code=(exited|killed|dumped), status=[1-9]' },
+  fw:       { label: L('🧱 Firewall-blokkades'), src: 'kernel', warn: 100, crit: 1000, pat: 'REJECT|DROP|filter_IN_.*(REJECT|DROP)|nft.*(drop|reject)' },
+  f2b:      { label: L('🚫 Fail2ban-bans'), src: '/var/log/fail2ban.log', warn: 5, crit: 20, pat: ' Ban ' },
+  web5xx:   { label: L('🌐 Webserver: serverfouten (5xx)'), src: '/var/log/nginx/access.log', warn: 10, crit: 50, pat: '" 5[0-9][0-9] ' },
+  web404:   { label: L('🌐 Webserver: niet gevonden (404, scans)'), src: '/var/log/nginx/access.log', warn: 100, crit: 500, pat: '" 404 ' },
+  weberr:   { label: L('🌐 Webserver: foutlog'), src: '/var/log/nginx/error.log', warn: 5, crit: 20, pat: '\\[(error|crit|alert|emerg)\\]' },
+  mail:     { label: L('✉️ Mail: mislukte logins'), src: 'journal', warn: 5, crit: 20, pat: 'SASL [A-Z]+ authentication failed|auth failed|authentication failure.*(dovecot|postfix)' },
+  db:       { label: L('🗄️ Database: fouten'), src: 'journal:mariadb', warn: 1, crit: 5, pat: '\\[ERROR\\]|Access denied for user|Aborted connection' },
+  ha_power: { label: L('🏠 HA OS: te lage voeding (Raspberry Pi)'), src: 'ha:host', warn: 1, crit: 5, pat: 'under-voltage|Undervoltage detected|voltage normalised' },
+  ha_disk:  { label: L('🏠 HA OS: diskfouten (SD-kaart/SSD)'), src: 'ha:host', warn: 1, crit: 5, pat: 'I/O error|mmc[0-9].*(error|timeout)|EXT4-fs error|blk_update_request' },
+  ha_core:  { label: L('🏠 Home Assistant Core: fouten'), src: 'ha:core', warn: 5, crit: 20, pat: ' ERROR | CRITICAL ' },
+  ha_sup:   { label: L('🏠 Supervisor: fouten'), src: 'ha:supervisor', warn: 1, crit: 5, pat: ' ERROR | CRITICAL ' },
+  custom:   { label: L('✏️ Zelf instellen'), src: '', warn: 1, crit: 10, pat: '' },
 };
 const LOG_SOURCES = ['journal', 'journal:sshd', 'journal:ssh', 'kernel', '/var/log/secure', '/var/log/auth.log', '/var/log/messages',
   '/var/log/syslog', '/var/log/kern.log', '/var/log/fail2ban.log', '/var/log/nginx/access.log', '/var/log/nginx/error.log',
@@ -56,32 +66,32 @@ const LOG_SOURCES = ['journal', 'journal:sshd', 'journal:ssh', 'kernel', '/var/l
 
 // Container-checks: wat er gemeten wordt (eigen eenheid en drempels)
 const METRICS = {
-  status: { label: 'Status (draait, healthcheck, herstarts)', unit: null, help: 'OK als de container draait. CRITICAL als hij gestopt of ongezond (healthcheck) is. WARNING als hij gepauzeerd is, of in het afgelopen kwartier automatisch herstart is (crash).' },
-  cpu:    { label: 'CPU-gebruik', unit: '%', warn: 80, crit: 95, help: 'CPU-gebruik zoals podman stats het toont: 100% = één volledige core (kan dus boven 100% komen).' },
-  mem:    { label: 'Geheugen (RAM)', unit: '%', warn: 85, crit: 95, help: 'Percentage van de geheugenlimiet van de container, of van het totale geheugen als er geen limiet is.' },
-  disk:   { label: 'Diskgebruik', unit: 'MB', warn: 5000, crit: 10000, help: 'Schrijflaag van de container plus de grootte van zijn volumes (volumes worden elk uur gemeten).' },
+  status: { label: L('Status (draait, healthcheck, herstarts)'), unit: null, help: L('OK als de container draait. CRITICAL als hij gestopt of ongezond (healthcheck) is. WARNING als hij gepauzeerd is, of in het afgelopen kwartier automatisch herstart is (crash).') },
+  cpu:    { label: L('CPU-gebruik'), unit: '%', warn: 80, crit: 95, help: L('CPU-gebruik zoals podman stats het toont: 100% = één volledige core (kan dus boven 100% komen).') },
+  mem:    { label: L('Geheugen (RAM)'), unit: '%', warn: 85, crit: 95, help: L('Percentage van de geheugenlimiet van de container, of van het totale geheugen als er geen limiet is.') },
+  disk:   { label: L('Diskgebruik'), unit: 'MB', warn: 5000, crit: 10000, help: L('Schrijflaag van de container plus de grootte van zijn volumes (volumes worden elk uur gemeten).') },
 };
 // Home Assistant (add-on): wat er bewaakt kan worden, met standaarddrempels
 // Wat een SNMP-check kan bewaken (zie SnmpMonitor::METRICS); low = lager is slechter
 const SNMP_METRICS = {
-  uptime:        { label: 'Uptime (herstart)', short: 'Uptime', unit: 'uur', warn: 1, crit: null, low: true, help: 'WARNING zolang het apparaat korter aan staat dan de drempel: zo zie je een herstart. Bij Linux en Proxmox de uptime van het systeem, anders die van de SNMP-agent.' },
-  if:            { label: 'Interface', short: 'Interface', target: 'Interface-index', unit: '%', warn: 80, crit: 95, help: 'Down terwijl de poort aan staat = CRITICAL; uitgeschakeld = OK. Drempels: bezetting in % van de linksnelheid (in of uit, de hoogste). Het verkeer staat in het bericht.' },
-  cpu:           { label: 'CPU', short: 'CPU', unit: '%', warn: 85, crit: 95, help: 'Gemiddelde belasting over alle cores (HOST-RESOURCES), of de CPU-meting van TP-Link of net-snmp.' },
-  mem:           { label: 'Geheugen', short: 'Geheugen', unit: '%', warn: 85, crit: 95, help: 'Geheugen in gebruik. Bij Linux en Proxmox (net-snmp) zonder buffers en cache.' },
-  storage:       { label: 'Opslag (schijf of volume)', short: 'Opslag', target: 'Opslag-index', unit: '%', warn: 80, crit: 90, help: 'Percentage gebruikt van een schijf of volume (HOST-RESOURCES).' },
-  load:          { label: 'Load (5 min)', short: 'Load', unit: 'load', warn: 4, crit: 8, help: 'Load average over 5 minuten (net-snmp: Linux, Proxmox). Vuistregel: boven het aantal cores wordt het druk.' },
-  temp:          { label: 'Temperatuur', short: 'Temperatuur', unit: '°C', warn: 60, crit: 75, help: 'MikroTik, of de warmste sensor via lm-sensors (Linux en Proxmox met net-snmp).' },
-  ups_status:    { label: 'UPS status', short: 'UPS', unit: null, help: 'Op batterij of bypass = WARNING; batterij bijna leeg, leeg of in storing = CRITICAL; batterij vervangen (APC) of actieve alarmen = WARNING. UPS-MIB (Eaton, CyberPower, Riello…) of APC.' },
-  ups_charge:    { label: 'UPS batterijlading', short: 'UPS', unit: '%', warn: 50, crit: 20, low: true, help: 'Lading van de accu in %.' },
-  ups_runtime:   { label: 'UPS looptijd', short: 'UPS', unit: 'min', warn: 15, crit: 5, low: true, help: 'Hoe lang de UPS de huidige belasting nog op batterij kan dragen.' },
-  ups_load:      { label: 'UPS belasting', short: 'UPS', unit: '%', warn: 80, crit: 95, help: 'Belasting van de uitgang. Hoe hoger, hoe korter de looptijd op batterij.' },
-  ups_temp:      { label: 'UPS batterijtemperatuur', short: 'UPS', unit: '°C', warn: 35, crit: 45, help: 'Warmte is de grootste vijand van een loodaccu: elke 10 °C boven 25 °C halveert de levensduur ongeveer.' },
-  syno_system:   { label: 'Synology systeem', short: 'Synology', unit: '°C', warn: 60, crit: 70, help: 'Systeem, voeding en ventilatoren (defect = CRITICAL), en de systeemtemperatuur met drempels. Meldt ook een DSM-update.' },
-  syno_raid:     { label: 'Synology volume (RAID)', short: 'Synology', target: 'Volume-index', unit: '%', warn: 80, crit: 90, help: 'Degraded of crashed = CRITICAL, wordt hersteld = WARNING; drempels op de vulling.' },
-  syno_disk:     { label: 'Synology schijf', short: 'Synology', target: 'Schijf-index', unit: '°C', warn: 50, crit: 60, help: 'Status en gezondheid van de schijf (DSM 7) en de temperatuur.' },
-  printer:       { label: 'Printer (toner, inkt, drum)', short: 'Printer', target: 'Voorraad-index', unit: '%', warn: 20, crit: 5, low: true, help: 'Niveau van toner, inkt, drum of afvalbak in %.' },
-  unifi_clients: { label: 'UniFi clients', short: 'UniFi', unit: 'clients', warn: null, crit: null, help: 'Aantal verbonden clients op een UniFi access point. Drempels zijn optioneel (meer = drukker).' },
-  oid:           { label: 'Eigen OID', short: 'OID', target: 'OID', ph: '1.3.6.1.4.1.…', unit: '', warn: null, crit: null, help: 'Elke OID die het apparaat kent (numeriek): als getal met drempels, als teller (waarde per seconde) of als tekst die je vergelijkt. Tip: zoek de OID op met snmpwalk of in de MIB van de fabrikant.' },
+  uptime:        { label: L('Uptime (herstart)'), short: L('Uptime'), unit: 'uur', warn: 1, crit: null, low: true, help: L('WARNING zolang het apparaat korter aan staat dan de drempel: zo zie je een herstart. Bij Linux en Proxmox de uptime van het systeem, anders die van de SNMP-agent.') },
+  if:            { label: L('Interface'), short: L('Interface'), target: L('Interface-index'), unit: '%', warn: 80, crit: 95, help: L('Down terwijl de poort aan staat = CRITICAL; uitgeschakeld = OK. Drempels: bezetting in % van de linksnelheid (in of uit, de hoogste). Het verkeer staat in het bericht.') },
+  cpu:           { label: L('CPU'), short: L('CPU'), unit: '%', warn: 85, crit: 95, help: L('Gemiddelde belasting over alle cores (HOST-RESOURCES), of de CPU-meting van TP-Link of net-snmp.') },
+  mem:           { label: L('Geheugen'), short: L('Geheugen'), unit: '%', warn: 85, crit: 95, help: L('Geheugen in gebruik. Bij Linux en Proxmox (net-snmp) zonder buffers en cache.') },
+  storage:       { label: L('Opslag (schijf of volume)'), short: L('Opslag'), target: L('Opslag-index'), unit: '%', warn: 80, crit: 90, help: L('Percentage gebruikt van een schijf of volume (HOST-RESOURCES).') },
+  load:          { label: L('Load (5 min)'), short: L('Load'), unit: 'load', warn: 4, crit: 8, help: L('Load average over 5 minuten (net-snmp: Linux, Proxmox). Vuistregel: boven het aantal cores wordt het druk.') },
+  temp:          { label: L('Temperatuur'), short: L('Temperatuur'), unit: '°C', warn: 60, crit: 75, help: L('MikroTik, of de warmste sensor via lm-sensors (Linux en Proxmox met net-snmp).') },
+  ups_status:    { label: L('UPS status'), short: L('UPS'), unit: null, help: L('Op batterij of bypass = WARNING; batterij bijna leeg, leeg of in storing = CRITICAL; batterij vervangen (APC) of actieve alarmen = WARNING. UPS-MIB (Eaton, CyberPower, Riello…) of APC.') },
+  ups_charge:    { label: L('UPS batterijlading'), short: L('UPS'), unit: '%', warn: 50, crit: 20, low: true, help: L('Lading van de accu in %.') },
+  ups_runtime:   { label: L('UPS looptijd'), short: L('UPS'), unit: 'min', warn: 15, crit: 5, low: true, help: L('Hoe lang de UPS de huidige belasting nog op batterij kan dragen.') },
+  ups_load:      { label: L('UPS belasting'), short: L('UPS'), unit: '%', warn: 80, crit: 95, help: L('Belasting van de uitgang. Hoe hoger, hoe korter de looptijd op batterij.') },
+  ups_temp:      { label: L('UPS batterijtemperatuur'), short: L('UPS'), unit: '°C', warn: 35, crit: 45, help: L('Warmte is de grootste vijand van een loodaccu: elke 10 °C boven 25 °C halveert de levensduur ongeveer.') },
+  syno_system:   { label: L('Synology systeem'), short: L('Synology'), unit: '°C', warn: 60, crit: 70, help: L('Systeem, voeding en ventilatoren (defect = CRITICAL), en de systeemtemperatuur met drempels. Meldt ook een DSM-update.') },
+  syno_raid:     { label: L('Synology volume (RAID)'), short: L('Synology'), target: L('Volume-index'), unit: '%', warn: 80, crit: 90, help: L('Degraded of crashed = CRITICAL, wordt hersteld = WARNING; drempels op de vulling.') },
+  syno_disk:     { label: L('Synology schijf'), short: L('Synology'), target: L('Schijf-index'), unit: '°C', warn: 50, crit: 60, help: L('Status en gezondheid van de schijf (DSM 7) en de temperatuur.') },
+  printer:       { label: L('Printer (toner, inkt, drum)'), short: L('Printer'), target: L('Voorraad-index'), unit: '%', warn: 20, crit: 5, low: true, help: L('Niveau van toner, inkt, drum of afvalbak in %.') },
+  unifi_clients: { label: L('UniFi clients'), short: L('UniFi'), unit: 'clients', warn: null, crit: null, help: L('Aantal verbonden clients op een UniFi access point. Drempels zijn optioneel (meer = drukker).') },
+  oid:           { label: L('Eigen OID'), short: L('OID'), target: L('OID'), ph: '1.3.6.1.4.1.…', unit: '', warn: null, crit: null, help: L('Elke OID die het apparaat kent (numeriek): als getal met drempels, als teller (waarde per seconde) of als tekst die je vergelijkt. Tip: zoek de OID op met snmpwalk of in de MIB van de fabrikant.') },
 };
 const OID_MATCHES = { equals: 'is precies', contains: 'bevat', not_contains: 'bevat niet', regex: 'past op regex' };
 /** Type en eenheid van een SNMP-check; bij een eigen OID uit de opties */
@@ -94,13 +104,13 @@ function snmpType(c) {
 }
 
 const HA_METRICS = {
-  backup:       { label: 'Laatste back-up', unit: 'dagen', warn: 2, crit: 7, help: 'Hoe oud de laatste geslaagde automatische back-up is (HA 2025.2 of nieuwer, met automatische back-ups). Ook WARNING als de laatste poging mislukt is.' },
-  integrations: { label: 'Integraties', unit: 'stuks', warn: 1, crit: 3, help: 'Aantal integraties dat niet geladen is: fout bij instellen, opnieuw proberen of uitladen mislukt. Uitgeschakelde integraties tellen niet mee.' },
-  repairs:      { label: 'Systeemstatus (reparaties)', unit: null, help: 'Reparaties van de Supervisor: "niet gezond" = CRITICAL; "niet ondersteund" of een openstaande melding (bv. weinig vrije ruimte) = WARNING.' },
-  reboot:       { label: 'Onverwachte herstart (HA OS)', unit: null, help: 'CRITICAL (een uur lang) als Home Assistant OS opnieuw is opgestart zonder OS-update: stroomuitval, crash of een handmatige herstart. Een herstart door een OS-update wordt alleen vermeld.' },
-  disklife:     { label: 'Levensduur SD-kaart / eMMC', unit: '%', warn: 75, crit: 90, help: 'Hoeveel procent van de levensduur van de opslag verbruikt is. Alleen als de hardware dat meldt (eMMC, sommige SD-kaarten en SSD\'s).' },
-  osupdate:     { label: 'OS-update mislukt (A/B-terugval)', unit: null, help: 'CRITICAL als een OS-update niet wilde opstarten en Home Assistant OS is teruggevallen op de vorige versie.' },
-  usb:          { label: 'USB-apparaat aanwezig', unit: null, target: 'USB-apparaat', ph: 'kies uit de lijst', help: 'CRITICAL als het apparaat (Zigbee- of Z-Wave-stick, Bluetooth) niet meer gezien wordt door Home Assistant OS.' },
+  backup:       { label: L('Laatste back-up'), unit: 'dagen', warn: 2, crit: 7, help: L('Hoe oud de laatste geslaagde automatische back-up is (HA 2025.2 of nieuwer, met automatische back-ups). Ook WARNING als de laatste poging mislukt is.') },
+  integrations: { label: L('Integraties'), unit: 'stuks', warn: 1, crit: 3, help: L('Aantal integraties dat niet geladen is: fout bij instellen, opnieuw proberen of uitladen mislukt. Uitgeschakelde integraties tellen niet mee.') },
+  repairs:      { label: L('Systeemstatus (reparaties)'), unit: null, help: L('Reparaties van de Supervisor: "niet gezond" = CRITICAL; "niet ondersteund" of een openstaande melding (bv. weinig vrije ruimte) = WARNING.') },
+  reboot:       { label: L('Onverwachte herstart (HA OS)'), unit: null, help: L('CRITICAL (een uur lang) als Home Assistant OS opnieuw is opgestart zonder OS-update: stroomuitval, crash of een handmatige herstart. Een herstart door een OS-update wordt alleen vermeld.') },
+  disklife:     { label: L('Levensduur SD-kaart / eMMC'), unit: '%', warn: 75, crit: 90, help: L('Hoeveel procent van de levensduur van de opslag verbruikt is. Alleen als de hardware dat meldt (eMMC, sommige SD-kaarten en SSD\'s).') },
+  osupdate:     { label: L('OS-update mislukt (A/B-terugval)'), unit: null, help: L('CRITICAL als een OS-update niet wilde opstarten en Home Assistant OS is teruggevallen op de vorige versie.') },
+  usb:          { label: L('USB-apparaat aanwezig'), unit: null, target: L('USB-apparaat'), ph: 'kies uit de lijst', help: L('CRITICAL als het apparaat (Zigbee- of Z-Wave-stick, Bluetooth) niet meer gezien wordt door Home Assistant OS.') },
 };
 /** Home Assistant-add-on? (meldt ha:-gegevens of de Supervisor) */
 function isHaHost(h) { return h.agent_update_via === 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor'); }
@@ -118,26 +128,26 @@ let state = { hosts: [], alerts: [] };
 const REVERSIBLE = ['ping', 'tcp', 'http', 'service', 'container', 'podman', 'command', 'ha'];
 const REV_OK = [[0, 'OK (normaal)'], [1, '🟠 WARNING (omgekeerd)'], [2, '🔴 CRITICAL (omgekeerd)']];
 const REV_FAIL = [[0, '✅ OK'], [1, '🟠 WARNING'], [2, '🔴 CRITICAL']];
-const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', 'onbekend'];
+const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', L('onbekend')];
 
 let stats = { uptime: {}, sparks: {} };
 // Sorteren op de pagina Meldingen (per apparaat onthouden): { key: 'time'|'status'|'server'|'check'|'message'|'channels', dir: 1|-1 }
-const ALERT_SORTS = { time: 'Tijd', status: 'Status', server: 'Server', check: 'Check', message: 'Bericht', channels: 'Kanalen' };
+const ALERT_SORTS = { time: L('Tijd'), status: 'Status', server: 'Server', check: 'Check', message: L('Bericht'), channels: L('Kanalen') };
 // IDS: tabblad, en Toegang (gegevens, filters, sorteren, open dagen)
 let idsTab = (() => { try { return localStorage.getItem('rzmon-ids-tab') || 'inc'; } catch (e) { return 'inc'; } })();
 let accData = null, accFilter = 'all', accHost = '', accDayOpen = {};
 let accSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-acc-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 // Checks onder een server in groepen (vaste volgorde); dichtgeklapte groepen per server per apparaat onthouden
 const CHECK_GROUPS = [
-  ['sys', '📊 Systeem', ['cpu', 'ram', 'disk']],
-  ['net', '🌐 Bereikbaarheid', ['ping', 'tcp', 'http']],
-  ['svc', '⚙️ Services', ['service']],
-  ['cnt', '📦 Containers', ['podman', 'container']],
-  ['cmd', "🖥️ Commando's", ['command']],
-  ['log', '📜 Logbestanden', ['log']],
-  ['ssl', '🔒 Certificaten', ['ssl']],
-  ['ha', '🏠 Home Assistant', ['ha']],
-  ['snmp', '📡 SNMP', ['snmp']],
+  ['sys', L('📊 Systeem'), ['cpu', 'ram', 'disk']],
+  ['net', L('🌐 Bereikbaarheid'), ['ping', 'tcp', 'http']],
+  ['svc', L('⚙️ Services'), ['service']],
+  ['cnt', L('📦 Containers'), ['podman', 'container']],
+  ['cmd', L("🖥️ Commando's"), ['command']],
+  ['log', L('📜 Logbestanden'), ['log']],
+  ['ssl', L('🔒 Certificaten'), ['ssl']],
+  ['ha', L('🏠 Home Assistant'), ['ha']],
+  ['snmp', L('📡 SNMP'), ['snmp']],
 ];
 const GROUP_MIN = 5;   // pas kopjes vanaf zoveel checks; daaronder alleen de volgorde
 let grpClosed = (() => { try { return JSON.parse(localStorage.getItem('rzmon-grp-closed') || '{}') || {}; } catch (e) { return {}; } })();
@@ -173,7 +183,7 @@ async function api(action, body, params = {}) {
     body: body ? JSON.stringify(body) : undefined,
     credentials: 'same-origin',
   });
-  const data = await res.json().catch(() => ({ error: 'Ongeldig antwoord van server' }));
+  const data = await res.json().catch(() => ({ error: L('Ongeldig antwoord van server') }));
   if (res.status === 401 && !action.startsWith('login')) { location.reload(); }
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
@@ -188,12 +198,13 @@ function toast(msg, type = 'ok') {
 }
 
 function ago(dt) {
-  if (!dt) return 'nooit';
+  if (!dt) return L('nooit');
   const s = Math.round((Date.now() - new Date(dt.replace(' ', 'T')).getTime()) / 1000);
-  if (s < 60) return `${Math.max(0, s)}s geleden`;
-  if (s < 3600) return `${Math.floor(s / 60)} min geleden`;
-  if (s < 86400) return `${Math.floor(s / 3600)} uur geleden`;
-  return `${Math.floor(s / 86400)} dagen geleden`;
+  if (s < 60) return L('{n}s geleden', { n: Math.max(0, s) });
+  if (s < 3600) return L('{n} min geleden', { n: Math.floor(s / 60) });
+  if (s < 86400) return L('{n} uur geleden', { n: Math.floor(s / 3600) });
+  const d = Math.floor(s / 86400);
+  return d === 1 ? L('1 dag geleden') : L('{n} dagen geleden', { n: d });
 }
 
 const fmt = (v, unit) => (v === null || v === undefined ? '' : `${Math.round(v * 10) / 10}${unit ? ' ' + unit : ''}`);
@@ -222,8 +233,8 @@ if (forgotForm) {
       $('#forgot-fields').hidden = true;
       $('#forgot-done').hidden = false;
       $('#forgot-done').innerHTML = r.no_mail
-        ? '⚠️ RzMon kan op dit moment geen e-mail versturen. <b>Vraag een beheerder</b> om je wachtwoord opnieuw in te stellen.'
-        : '✉️ Als dit account bestaat en een e-mailadres heeft, is er een mail met een herstellink verstuurd. Kijk ook in je spammap. De link is 30 minuten geldig.';
+        ? '⚠️ ' + L('RzMon kan op dit moment geen e-mail versturen. <b>Vraag een beheerder</b> om je wachtwoord opnieuw in te stellen.')
+        : '✉️ ' + L('Als dit account bestaat en een e-mailadres heeft, is er een mail met een herstellink verstuurd. Kijk ook in je spammap. De link is 30 minuten geldig.');
       err.hidden = true;
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
     b.disabled = false;
@@ -307,7 +318,9 @@ if (loginForm) {
     }
   });
 } else if (!resetForm) {
-  init();
+  // Pas starten als het hele script geladen is: opent de pagina direct op een tabblad (bv. #settings),
+  // dan gebruikt dat ook constanten die verderop in dit bestand staan
+  queueMicrotask(init);
 }
 
 // ---------------------------------------------------------------- App
@@ -326,7 +339,7 @@ function init() {
   $('#add-host').onclick = () => hostForm();
   $('#run-all').onclick = async (e) => {
     e.target.disabled = true;
-    try { const r = await api('run_all', {}); toast(`${r.count} checks uitgevoerd`); await refresh(); }
+    try { const r = await api('run_all', {}); toast(L('{n} checks uitgevoerd', { n: r.count })); await refresh(); }
     catch (ex) { toast(ex.message, 'err'); }
     e.target.disabled = false;
   };
@@ -517,7 +530,7 @@ function init() {
   $('#webhook-test').onclick = testWebhook;
   $('#email-test').onclick = (e) => testChannel(e, 'email_test', 'Testmail verstuurd 📧', 'E-mail');
   $('#mqtt-test').onclick = (e) => testChannel(e, 'mqtt_test', null, 'MQTT');
-  $('#maint-all').onclick = () => maintenanceDialog('all', 0, 'alle servers', state.maintenance);
+  $('#maint-all').onclick = () => maintenanceDialog('all', 0, L('alle servers'), state.maintenance);
   $('#maint-banner').addEventListener('click', (e) => e.target.closest('[data-maint-end]') && endMaintenance('all', 0));
   $('#password-form').addEventListener('submit', changePassword);
   $('#user-form').addEventListener('submit', createUser);
@@ -533,6 +546,14 @@ function init() {
     catch (ex) { toast(ex.message, 'err'); }
     loadUsers();
   });
+  // Taal: EN links, NL rechts; bewaard bij je account, daarna de pagina opnieuw laden
+  const langToggle = $('#lang-toggle');
+  if (langToggle) {
+    langToggle.onchange = async () => {
+      try { await api('lang_set', { lang: langToggle.checked ? 'nl' : 'en' }); location.reload(); }
+      catch (ex) { toast(ex.message, 'err'); langToggle.checked = !langToggle.checked; }
+    };
+  }
   $('#api-key-form').addEventListener('submit', createApiKey);
   $('#api-keys').addEventListener('click', apiKeyClick);
   $('#access-form').addEventListener('submit', saveAccess);
@@ -572,15 +593,15 @@ async function refresh() {
   try { stats = await api('stats'); render(); } catch (ex) { /* niet kritiek */ }
 }
 
-const pct = (v) => (v === null || v === undefined ? '–' : (v >= 99.995 ? '100' : v.toFixed(v >= 99 ? 2 : 1)).replace('.', ',') + '%');
+const pct = (v) => (v === null || v === undefined ? '–' : dec(v >= 99.995 ? '100' : v.toFixed(v >= 99 ? 2 : 1)) + '%');
 
 /** Beschikbaarheid van een server (24 u / 7 d / 30 d), of '' zonder netwerkchecks. */
 function uptimeLine(h, short) {
   const u = stats.uptime[h.id];
   if (!u) return '';
-  if (short) return ` · <span title="Bereikbaar afgelopen 7 dagen">⏱ ${pct(u.d7)}</span>`;
-  return `<span class="uptime" title="Percentage van de metingen (ping, of anders poort/HTTP) dat de server bereikbaar was">
-    Bereikbaar: 24 u <b>${pct(u.h24)}</b> · 7 d <b>${pct(u.d7)}</b> · 30 d <b>${pct(u.d30)}</b></span>`;
+  if (short) return ` · <span title="${L('Bereikbaar afgelopen 7 dagen')}">⏱ ${pct(u.d7)}</span>`;
+  return `<span class="uptime" title="${L('Percentage van de metingen (ping, of anders poort/HTTP) dat de server bereikbaar was')}">
+    ${L('Bereikbaar')}: ${L('24 u')} <b>${pct(u.h24)}</b> · ${L('7 d')} <b>${pct(u.d7)}</b> · ${L('30 d')} <b>${pct(u.d30)}</b></span>`;
 }
 
 /** Minigrafiek van de laatste 24 uur: lijn voor de waarde, gekleurde streepjes voor de status. */
@@ -600,7 +621,7 @@ function sparkSvg(c) {
   });
   const strip = data.map((d, i) => (d ? `<rect class="s${d[1]}" x="${x(i) - W / 96}" y="${H - 3}" width="${W / 48 + .3}" height="3"/>` : '')).join('');
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-act="history" data-id="${c.id}" role="img">
-    <title>Laatste 24 uur – klik voor de grafiek</title>${t.unit && vals.length ? `<path d="${line}"/>` : ''}<g>${strip}</g></svg>`;
+    <title>${L('Laatste 24 uur – klik voor de grafiek')}</title>${t.unit && vals.length ? `<path d="${line}"/>` : ''}<g>${strip}</g></svg>`;
 }
 
 // 4 = alles in onderhoud
@@ -620,29 +641,29 @@ const STATUS_RANK = { 2: 4, 1: 3, 3: 2, 0: 1, 4: 0 };
 /** "14:30" voor vandaag, anders "di 21 okt 14:30" */
 function fmtUntil(dt) {
   const d = new Date(dt.replace(' ', 'T'));
-  const time = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+  const time = d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
   return d.toDateString() === new Date().toDateString()
-    ? time : d.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + time;
+    ? time : d.toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + time;
 }
 
 function maintLabel(m) {
   // Automatisch onderhoud loopt "tot opgelost" (de datum is een placeholder ver in de toekomst)
-  if (m.auto) return `🔧 automatisch, tot opgelost${m.reason ? ' – ' + m.reason : ''}`;
-  return `🔧 tot ${fmtUntil(m.until)}${m.reason ? ' – ' + m.reason : ''}`;
+  if (m.auto) return `🔧 ${L('automatisch, tot opgelost')}${m.reason ? ' – ' + m.reason : ''}`;
+  return `🔧 ${L('tot {t}', { t: fmtUntil(m.until) })}${m.reason ? ' – ' + m.reason : ''}`;
 }
 
 // ---------------------------------------------------------------- Algehele gezondheid
 // De toestand en score komen van de server (Health.php); hier alleen weergave en filters.
 let statusFilter = null;   // null, of 0-3 (status) / 4 (onderhoud): alleen die checks tonen
 const HEALTH_COUNTS = [[0, 'ok', 'OK'], [1, 'warning', 'W'], [2, 'critical', 'C'], [3, 'unknown', '?'], [4, 'maintenance', '🔧']];
-const HEALTH_TITLES = { 0: 'OK', 1: 'warning', 2: 'critical', 3: 'onbekend', 4: 'in onderhoud' };
+const HEALTH_TITLES = { 0: 'OK', 1: 'warning', 2: 'critical', 3: L('onbekend'), 4: L('in onderhoud') };
 
 /** "12 min", "2 u 14 min", "3 d 4 u" */
 function dur(dt) {
   const m = Math.max(0, Math.round((Date.now() - new Date(dt.replace(' ', 'T')).getTime()) / 60000));
   if (m < 60) return `${m} min`;
-  if (m < 1440) return `${Math.floor(m / 60)} u${m % 60 ? ` ${m % 60} min` : ''}`;
-  return `${Math.floor(m / 1440)} d${Math.floor(m % 1440 / 60) ? ` ${Math.floor(m % 1440 / 60)} u` : ''}`;
+  if (m < 1440) return `${Math.floor(m / 60)} ${L('u')}${m % 60 ? ` ${m % 60} min` : ''}`;
+  return `${Math.floor(m / 1440)} ${L('d')}${Math.floor(m % 1440 / 60) ? ` ${Math.floor(m % 1440 / 60)} ${L('u')}` : ''}`;
 }
 
 function renderHealth() {
@@ -650,36 +671,36 @@ function renderHealth() {
   if (!hl) return;
   const box = $('#health');
   box.className = 'summary health h-' + hl.state;
-  $('#health-label').textContent = { ok: '🟢', attention: '🟠', outage: '🔴' }[hl.state] + ' ' + hl.label;
-  $('#health-state').title = $('#only-problems').checked ? 'Klik: alles weer tonen' : 'Klik: alleen problemen tonen';
+  $('#health-label').textContent = { ok: '🟢', attention: '🟠', outage: '🔴' }[hl.state] + ' ' + L(hl.label);
+  $('#health-state').title = $('#only-problems').checked ? L('Klik: alles weer tonen') : L('Klik: alleen problemen tonen');
   $('#health-pct').textContent = hl.score + '%';
   $('#health-bar').style.width = hl.score + '%';
   $('#health-counts').innerHTML = HEALTH_COUNTS.map(([st, key, short]) => {
     const n = hl.counts[key];
     if (st === 4 && !n) return '';
     return `<button type="button" class="hc s${st} ${statusFilter === st ? 'on' : ''} ${n ? '' : 'zero'}" data-st="${st}"
-      title="${n} check${n === 1 ? '' : 's'} ${HEALTH_TITLES[st]}${statusFilter === st ? ' – klik om het filter op te heffen' : ' – klik om alleen deze te tonen'}">
+      title="${n} check${n === 1 ? '' : 's'} ${HEALTH_TITLES[st]}${statusFilter === st ? ' – ' + L('klik om het filter op te heffen') : ' – ' + L('klik om alleen deze te tonen')}">
       ${st === 4 ? '' : '<span class="hc-dot"></span>'}<b>${n}</b> ${short}</button>`;
   }).join('');
 
   const parts = [];
-  if (hl.quiet_until) parts.push(`<span class="quiet-now" title="Stille uren: er gaan geen meldingen uit. Daarna volgt één bericht met wat dan nog open is.">🌙 <b>Stil tot ${esc(fmtUntil(hl.quiet_until))}</b></span>`);
+  if (hl.quiet_until) parts.push(`<span class="quiet-now" title="${L('Stille uren: er gaan geen meldingen uit. Daarna volgt één bericht met wat dan nog open is.')}">🌙 <b>${L('Stil tot {t}', { t: esc(fmtUntil(hl.quiet_until)) })}</b></span>`);
   const hostLink = (id, text) => `<button type="button" class="hl-link" data-host="${id}">${esc(text)}</button>`;
-  const why = { agent: 'agent stil', parent: 'achter uitgevallen server' };
+  const why = { agent: L('agent stil'), parent: L('achter uitgevallen server') };
   const downs = hl.down.map((d) => hostLink(d.id, d.name) + (why[d.reason] ? ` (${why[d.reason]})` : '') + (d.acknowledged ? ' ✔' : '')).join(', ');
-  parts.push(`<span class="${hl.down.length ? 'bad' : ''}" title="Servers die reageren (ping, of de agent rapporteert)">🖥 Servers bereikbaar <b>${hl.hosts_up}/${hl.hosts_total}</b>${downs ? ` – onbereikbaar: ${downs}` : ''}</span>`);
-  parts.push(`<span title="Actieve checks met status OK (checks in onderhoud tellen niet mee)">✔ Checks OK <b>${hl.checks_ok}/${hl.checks_total}</b></span>`);
+  parts.push(`<span class="${hl.down.length ? 'bad' : ''}" title="${L('Servers die reageren (ping, of de agent rapporteert)')}">🖥 ${L('Servers bereikbaar')} <b>${hl.hosts_up}/${hl.hosts_total}</b>${downs ? ` – ${L('onbereikbaar')}: ${downs}` : ''}</span>`);
+  parts.push(`<span title="${L('Actieve checks met status OK (checks in onderhoud tellen niet mee)')}">✔ ${L('Checks OK')} <b>${hl.checks_ok}/${hl.checks_total}</b></span>`);
   if (hl.open_problems) {
     const o = hl.oldest_problem;
-    parts.push(`<span title="Problemen die nog niet bevestigd zijn">⏳ <b>${hl.open_problems}</b> open ${hl.open_problems === 1 ? 'probleem' : 'problemen'}${o
-      ? ` · langst: ${hostLink(o.host_id, o.host + ' – ' + o.check)} (${dur(o.since)})` : ''}</span>`);
+    parts.push(`<span title="${L('Problemen die nog niet bevestigd zijn')}">⏳ <b>${hl.open_problems}</b> ${hl.open_problems === 1 ? L('open probleem') : L('open problemen')}${o
+      ? ` · ${L('langst')}: ${hostLink(o.host_id, o.host + ' – ' + o.check)} (${dur(o.since)})` : ''}</span>`);
   } else if (hl.state === 'ok') {
-    parts.push('<span>Geen open problemen</span>');
+    parts.push(`<span>${L('Geen open problemen')}</span>`);
   }
   const u = Object.values(stats.uptime).map((x) => x.h24).filter((v) => v !== null && v !== undefined);
-  if (u.length) parts.push(`<span title="Gemiddelde bereikbaarheid van alle servers over de afgelopen 24 uur">📈 24 u beschikbaar <b>${pct(u.reduce((a, b) => a + b, 0) / u.length)}</b></span>`);
-  if (hl.flapping) parts.push(`<span title="Checks die steeds van status wisselen">🔀 <b>${hl.flapping}</b> flapt</span>`);
-  if (hl.counts.maintenance) parts.push(`<span title="Checks in onderhoud: geen meldingen">🔧 <b>${hl.counts.maintenance}</b> in onderhoud</span>`);
+  if (u.length) parts.push(`<span title="${L('Gemiddelde bereikbaarheid van alle servers over de afgelopen 24 uur')}">📈 ${L('24 u beschikbaar')} <b>${pct(u.reduce((a, b) => a + b, 0) / u.length)}</b></span>`);
+  if (hl.flapping) parts.push(`<span title="${L('Checks die steeds van status wisselen')}">🔀 <b>${hl.flapping}</b> ${L('flapt')}</span>`);
+  if (hl.counts.maintenance) parts.push(`<span title="${L('Checks in onderhoud: geen meldingen')}">🔧 <b>${hl.counts.maintenance}</b> ${L('in onderhoud')}</span>`);
   $('#health-info').innerHTML = parts.join('<span class="hl-sep">·</span>');
 }
 
@@ -704,11 +725,11 @@ function render() {
   const banner = $('#maint-banner');
   banner.hidden = !state.maintenance;
   if (state.maintenance) {
-    banner.innerHTML = `<span><b>🔧 Onderhoud actief</b> tot ${esc(fmtUntil(state.maintenance.until))}${state.maintenance.reason ? ' – ' + esc(state.maintenance.reason) : ''}.
-      Checks draaien door, maar er gaan geen meldingen uit.</span>
-      <button class="btn need-user" data-maint-end="all">Beëindigen</button>`;
+    banner.innerHTML = `<span><b>🔧 ${L('Onderhoud actief')}</b> ${L('tot {t}', { t: esc(fmtUntil(state.maintenance.until)) })}${state.maintenance.reason ? ' – ' + esc(state.maintenance.reason) : ''}.
+      ${L('Checks draaien door, maar er gaan geen meldingen uit.')}</span>
+      <button class="btn need-user" data-maint-end="all">${L('Beëindigen')}</button>`;
   }
-  $('#last-run').textContent = state.last_run ? 'Laatste check: ' + ago(state.last_run) : '';
+  $('#last-run').textContent = state.last_run ? L('Laatste check') + ': ' + ago(state.last_run) : '';
   let open = 0;
   state.hosts.forEach((h) => +h.enabled && h.checks.forEach((c) => +c.enabled && !c.maintenance && +c.status === 2 && !c.acked_at && open++));
   document.title = (open ? `(${open}) ` : '') + 'RzMon';
@@ -730,12 +751,12 @@ function render() {
 
   const el = $('#hosts');
   if (!state.hosts.length) {
-    el.innerHTML = `<div class="card empty">Nog geen servers. Klik op <b>＋ Server</b> om te beginnen.</div>`;
+    el.innerHTML = `<div class="card empty">${L('Nog geen servers. Klik op <b>＋ Server</b> om te beginnen.')}</div>`;
     return;
   }
   if (!hosts.length) {
-    el.innerHTML = `<div class="card empty">${statusFilter !== null ? `Geen checks met status ${HEALTH_COUNTS.find((k) => k[0] === statusFilter)[2]}.`
-      : onlyProblems ? '🎉 Geen problemen gevonden!' : 'Niets gevonden.'}</div>`;
+    el.innerHTML = `<div class="card empty">${statusFilter !== null ? L('Geen checks met status {s}.', { s: HEALTH_COUNTS.find((k) => k[0] === statusFilter)[2] })
+      : onlyProblems ? '🎉 ' + L('Geen problemen gevonden!') : L('Niets gevonden.')}</div>`;
     return;
   }
   const { layout, density } = viewPrefs();
@@ -743,7 +764,7 @@ function render() {
   el.innerHTML = layout === 'l1nes'
     ? (density === 'large' ? lineHeader() : '') + hosts.map((h) => hostLine(h, density === 'large')).join('')
     : hosts.map(hostCard).join('');
-  $('#toggle-all').textContent = state.hosts.length && state.hosts.every((h) => openHosts.has(+h.id)) ? '⊟ Alles sluiten' : '⊞ Alles openen';
+  $('#toggle-all').textContent = state.hosts.length && state.hosts.every((h) => openHosts.has(+h.id)) ? '⊟ ' + L('Alles sluiten') : '⊞ ' + L('Alles openen');
 }
 
 // ---------------------------------------------------------------- Weergave (per apparaat)
@@ -875,18 +896,18 @@ function toggleHost(id) {
 
 function hostSummary(h) {
   const enabled = h.checks.filter((c) => +c.enabled);
-  if (!enabled.length) return { text: 'Nog geen checks', cls: 's3' };
+  if (!enabled.length) return { text: L('Nog geen checks'), cls: 's3' };
   const active = enabled.filter((c) => !c.maintenance);
-  if (!active.length) return { text: '🔧 In onderhoud', cls: 's4' };
+  if (!active.length) return { text: '🔧 ' + L('In onderhoud'), cls: 's4' };
   const n = [0, 0, 0, 0];
   active.forEach((c) => n[+c.status]++);
   const acked = active.filter((c) => +c.status !== 0 && c.acked_at).length;
   const parts = [];
-  if (n[2]) parts.push(`${n[2]} kritiek`);
-  if (n[1]) parts.push(`${n[1]} waarschuwing`);
-  if (n[3]) parts.push(`${n[3]} onbekend`);
-  if (!parts.length) return { text: `Alles OK · ${active.length} check${active.length === 1 ? '' : 's'}`, cls: 's0' };
-  return { text: parts.join(' · ') + (acked ? ` (${acked} bevestigd)` : ''), cls: 's' + hostStatus(h) };
+  if (n[2]) parts.push(L('{n} kritiek', { n: n[2] }));
+  if (n[1]) parts.push(L('{n} waarschuwing', { n: n[1] }));
+  if (n[3]) parts.push(L('{n} onbekend', { n: n[3] }));
+  if (!parts.length) return { text: `${L('Alles OK')} · ${active.length} check${active.length === 1 ? '' : 's'}`, cls: 's0' };
+  return { text: parts.join(' · ') + (acked ? ` (${L('{n} bevestigd', { n: acked })})` : ''), cls: 's' + hostStatus(h) };
 }
 
 /** Mini-meters voor CPU, RAM en de volste disk */
@@ -920,8 +941,8 @@ function hostParts(h) {
     chips,
     counts,
     lastChecked: h.checks.reduce((m, c) => (c.last_checked && (!m || c.last_checked > m) ? c.last_checked : m), null),
-    title: `${esc(h.name)} <span class="badge">${esc(h.mode)}</span>${+h.enabled ? '' : '<span class="badge">uit</span>'}`,
-    via: parent ? ` <span class="via" title="Afhankelijk van ${esc(parent.name)}: geen aparte meldingen als die onbereikbaar is">↳ via ${esc(parent.name)}</span>` : '',
+    title: `${esc(h.name)} <span class="badge">${esc(h.mode)}</span>${+h.enabled ? '' : `<span class="badge">${L('uit')}</span>`}`,
+    via: parent ? ` <span class="via" title="${L('Afhankelijk van {name}: geen aparte meldingen als die onbereikbaar is', { name: esc(parent.name) })}">↳ via ${esc(parent.name)}</span>` : '',
     maint: h.maintenance ? `<span class="maint-tag">${esc(maintLabel(h.maintenance))}</span>` : '',
     cls: `card host s${hostStatus(h)} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''} ${openHosts.has(+h.id) || h.autoOpen ? 'open' : ''}`,
   };
@@ -940,10 +961,10 @@ function groupChecks(checks) {
   const name = (c) => (c.type === 'disk' ? `disk ${c.target}` : c.name);
   const out = CHECK_GROUPS.map(([k, title, types]) => [k, title, checks.filter((c) => types.includes(c.type))
     .sort((a, b) => rank(b) - rank(a) || types.indexOf(a.type) - types.indexOf(b.type)
-      || name(a).localeCompare(name(b), 'nl', { numeric: true, sensitivity: 'base' }))]);
+      || name(a).localeCompare(name(b), LANG, { numeric: true, sensitivity: 'base' }))]);
   const known = CHECK_GROUPS.flatMap((g) => g[2]);
   const other = checks.filter((c) => !known.includes(c.type));
-  if (other.length) out.push(['other', 'Overig', other]);
+  if (other.length) out.push(['other', L('Overig'), other]);
   return out.filter((g) => g[2].length);
 }
 
@@ -960,18 +981,18 @@ function groupHead(h, k, title, list, tag) {
 
 function hostDetail(h, lines = null) {
   const agentInfo = h.mode === 'agent'
-    ? `<span class="muted small">Agent: ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}</span>
+    ? `<span class="muted small">Agent: ${h.agent_seen ? ago(h.agent_seen) : L('nog niet gezien')}</span>
        <button class="btn need-admin" data-act="agent" data-id="${h.id}">Agent Manager</button>` : '';
   return `
     <div class="host-detail">
       <div class="detail-bar">
-        ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="btn ack-btn need-user" data-act="ack-host" data-id="${h.id}">✔ Alles bevestigen</button>` : ''}
-        <button class="btn need-user" data-act="maint-host" data-id="${h.id}">🔧 Onderhoud</button>
+        ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="btn ack-btn need-user" data-act="ack-host" data-id="${h.id}">✔ ${L('Alles bevestigen')}</button>` : ''}
+        <button class="btn need-user" data-act="maint-host" data-id="${h.id}">🔧 ${L('Onderhoud')}</button>
         <button class="btn need-admin" data-act="add-check" data-id="${h.id}">＋ Check</button>
-        <button class="btn need-user" data-act="scan" data-id="${h.id}">🔍 Poorten</button>
-        ${h.snmp ? `<button class="btn need-admin" data-act="snmp" data-id="${h.id}">📡 SNMP-checks</button>` : ''}
+        <button class="btn need-user" data-act="scan" data-id="${h.id}">🔍 ${L('Poorten')}</button>
+        ${h.snmp ? `<button class="btn need-admin" data-act="snmp" data-id="${h.id}">📡 ${L('SNMP-checks')}</button>` : ''}
         ${h.metrics.includes('podman') ? `<button class="btn" data-act="podman" data-id="${h.id}">📦 Containers</button>` : ''}
-        <button class="btn need-admin" data-act="edit-host" data-id="${h.id}">✎ Bewerken</button>
+        <button class="btn need-admin" data-act="edit-host" data-id="${h.id}">✎ ${L('Bewerken')}</button>
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
       </div>
       ${uptimeLine(h, false)}
@@ -985,7 +1006,7 @@ function hostCard(h) {
   return `
   <article class="${p.cls} tile">
     <div class="host-head" data-act="toggle" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${p.isOpen}"
-         title="${p.isOpen ? 'Inklappen' : 'Klik voor alle checks'}">
+         title="${p.isOpen ? L('Inklappen') : L('Klik voor alle checks')}">
       <span class="dot"></span>
       <div class="host-title">
         <strong>${p.title}</strong>
@@ -999,7 +1020,7 @@ function hostCard(h) {
       <div class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</div>
       ${p.chips(4) ? `<div class="chips">${p.chips(4)}</div>` : ''}
       ${hostMeters(h) ? `<div class="meters">${hostMeters(h)}</div>` : ''}
-      <div class="muted small sum-foot">${p.lastChecked ? 'Laatste check ' + ago(p.lastChecked) : ''}${h.mode === 'agent' ? ` · agent ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}${agentVer(h)}` : ''}${uptimeLine(h, true)}</div>
+      <div class="muted small sum-foot">${p.lastChecked ? L('Laatste check') + ' ' + ago(p.lastChecked) : ''}${h.mode === 'agent' ? ` · agent ${h.agent_seen ? ago(h.agent_seen) : L('nog niet gezien')}${agentVer(h)}` : ''}${uptimeLine(h, true)}</div>
     </div>
     ${p.isOpen ? hostDetail(h) : ''}
   </article>`;
@@ -1018,20 +1039,20 @@ function meterCell(h, type) {
 function hostLine(h, large) {
   const p = hostParts(h);
   const u = stats.uptime[h.id];
-  const agent = h.mode === 'agent' ? `agent ${h.agent_seen ? ago(h.agent_seen) : 'nog niet gezien'}${agentVer(h)}` : '';
+  const agent = h.mode === 'agent' ? `agent ${h.agent_seen ? ago(h.agent_seen) : L('nog niet gezien')}${agentVer(h)}` : '';
   const cells = large
     ? `<span class="lc-status"><span class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</span>${p.chips(5) ? `<span class="chips">${p.chips(5)}</span>` : ''}</span>
        <span class="lc-m">${meterCell(h, 'cpu')}</span>
        <span class="lc-m">${meterCell(h, 'ram')}</span>
        <span class="lc-m">${meterCell(h, 'disk')}</span>
-       <span class="lc-up" title="Bereikbaar afgelopen 7 dagen">${u ? pct(u.d7) : '<span class="muted">–</span>'}</span>
+       <span class="lc-up" title="${L('Bereikbaar afgelopen 7 dagen')}">${u ? pct(u.d7) : '<span class="muted">–</span>'}</span>
        <span class="lc-last muted small">${p.lastChecked ? ago(p.lastChecked) : ''}${agent ? `<br>${agent}` : ''}</span>`
     : `<span class="lc-status"><span class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</span></span>
        <span class="counts">${p.counts}</span>`;
   return `
   <article class="${p.cls} line ${large ? 'large' : 'small'}">
     <div class="line-row" data-act="toggle" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${p.isOpen}"
-         title="${p.isOpen ? 'Inklappen' : 'Klik voor alle checks'}">
+         title="${p.isOpen ? L('Inklappen') : L('Klik voor alle checks')}">
       <span class="dot"></span>
       <span class="lc-name"><strong>${p.title}</strong>${large ? `<span class="muted mono small">${esc(h.address)}</span>${p.via}${p.maint}` : ''}</span>
       ${large ? '' : `<span class="lc-addr muted mono small">${esc(h.address)}</span>`}
@@ -1045,7 +1066,7 @@ function hostLine(h, large) {
 /** Koppen boven de kolommen van L1nes Large. */
 function lineHeader() {
   return `<div class="line-head" aria-hidden="true"><span></span><span>Server</span><span>Status</span>
-    <span class="lc-m">CPU</span><span class="lc-m">RAM</span><span class="lc-m">Disk</span><span class="lc-up">Bereikbaar</span><span class="lc-last">Laatste check</span><span></span></div>`;
+    <span class="lc-m">CPU</span><span class="lc-m">RAM</span><span class="lc-m">Disk</span><span class="lc-up">${L('Bereikbaar')}</span><span class="lc-last">${L('Laatste check')}</span><span></span></div>`;
 }
 
 /** Wat een check-tegel (Blox) en een check-rij (L1nes) allebei tonen. */
@@ -1056,33 +1077,33 @@ function checkBits(c) {
   const ticks = (pctVal !== null ? (c.warn_threshold !== null ? `<b style="left:${+c.warn_threshold}%"></b>` : '')
     + (c.crit_threshold !== null ? `<b style="left:${+c.crit_threshold}%"></b>` : '') : '');
   const num = (['ms', 'dagen', 'MB', 'treffers', 'stuks'].includes(t.unit) || (c.type === 'snmp' && t.unit !== null && t.unit !== '%')) && c.last_value !== null
-    ? (t.unit === 'dagen' && c.type !== 'ha' ? Math.floor(c.last_value) + ' dagen' : fmt(c.last_value, t.unit).replace('.', ',')) : '';
+    ? (t.unit === 'dagen' && c.type !== 'ha' ? Math.floor(c.last_value) + ' ' + L('dagen') : dec(fmt(c.last_value, t.unit ? L(t.unit) : t.unit))) : '';
   const own = c.maintenance && c.maintenance.scope === 'check';
   const problem = s !== 0 && +c.enabled;
-  const ackTitle = c.acked_at ? `Bevestigd door ${c.acked_by || '?'} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. Klik om in te trekken.` : '';
+  const ackTitle = c.acked_at ? `${L('Bevestigd door {who}', { who: c.acked_by || '?' })} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. ${L('Klik om in te trekken.')}` : '';
   // Nog niet gemeld: wacht op meer mislukte checks achter elkaar (melden na N)
   const need = +c.notify_fails || +state.notify_fails || 1;
   const pending = problem && !c.acked_at && !c.maintenance && +c.notified_status !== s && need > 1 && +c.status_streak < need
-    ? ` <span class="pend-tag" title="${esc(`Nog niet gemeld: een melding volgt na ${need} mislukte checks achter elkaar met deze status (nu ${+c.status_streak})`)}">⏳ ${+c.status_streak}/${need}</span>` : '';
-  const flags = pending + (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ bevestigd</button>` : '')
-    + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">${c.maintenance.auto ? '🔧 auto, tot opgelost' : `🔧 tot ${esc(fmtUntil(c.maintenance.until))}`}</span>` : '')
-    + (c.suppressed_by ? ' <span class="supp-tag" title="Geen melding: een server erboven is onbereikbaar">🔕 onderdrukt</span>' : '')
-    + (c.notify ? ' <span class="own-notify" title="Deze check heeft eigen meldregels">🔔</span>' : '')
-    + (c.reverse_ok != null && REVERSIBLE.includes(c.type) ? ` <span class="rev-tag" title="Omgekeerd: reageert het, dan ${STATUS_WORD[c.reverse_ok]}; reageert het niet, dan ${STATUS_WORD[c.reverse_fail ?? 0]}">⇄</span>` : '')
-    + ((q) => (q && q.mode === 'never' ? ' <span class="quiet-tag" title="Nooit stil: meldt ook tijdens de stille uren">🌙✕</span>'
-      : q && q.mode === 'own' ? ` <span class="quiet-tag" title="Eigen stille uren: ${esc(quietText(q.windows))}">🌙</span>` : ''))(quietOf(c))
-    + (c.flapping_since ? ` <span class="flap-tag" title="Wisselt steeds van status sinds ${esc(fmtUntil(c.flapping_since))}: per status hooguit één melding tot hij stabiel is">🔀 flapt</span>` : '');
+    ? ` <span class="pend-tag" title="${esc(L('Nog niet gemeld: een melding volgt na {need} mislukte checks achter elkaar met deze status (nu {n})', { need, n: +c.status_streak }))}">⏳ ${+c.status_streak}/${need}</span>` : '';
+  const flags = pending + (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ ${L('bevestigd')}</button>` : '')
+    + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">${c.maintenance.auto ? '🔧 ' + L('auto, tot opgelost') : `🔧 ${L('tot {t}', { t: esc(fmtUntil(c.maintenance.until)) })}`}</span>` : '')
+    + (c.suppressed_by ? ` <span class="supp-tag" title="${L('Geen melding: een server erboven is onbereikbaar')}">🔕 ${L('onderdrukt')}</span>` : '')
+    + (c.notify ? ` <span class="own-notify" title="${L('Deze check heeft eigen meldregels')}">🔔</span>` : '')
+    + (c.reverse_ok != null && REVERSIBLE.includes(c.type) ? ` <span class="rev-tag" title="${L('Omgekeerd: reageert het, dan {a}; reageert het niet, dan {b}', { a: STATUS_WORD[c.reverse_ok], b: STATUS_WORD[c.reverse_fail ?? 0] })}">⇄</span>` : '')
+    + ((q) => (q && q.mode === 'never' ? ` <span class="quiet-tag" title="${L('Nooit stil: meldt ook tijdens de stille uren')}">🌙✕</span>`
+      : q && q.mode === 'own' ? ` <span class="quiet-tag" title="${L('Eigen stille uren')}: ${esc(quietText(q.windows))}">🌙</span>` : ''))(quietOf(c))
+    + (c.flapping_since ? ` <span class="flap-tag" title="${L('Wisselt steeds van status sinds {t}: per status hooguit één melding tot hij stabiel is', { t: esc(fmtUntil(c.flapping_since)) })}">🔀 ${L('flapt')}</span>` : '');
   const actions = `
-      ${problem && !c.acked_at ? `<button class="icon-btn ack-btn need-user" title="Storing bevestigen: geen meldingen meer" data-act="ack" data-id="${c.id}">✔</button>` : ''}
-      <button class="icon-btn need-user" title="Onderhoud" data-act="maint-check" data-id="${c.id}">🔧</button>
-      <button class="icon-btn need-user" title="Nu checken" data-act="run" data-id="${c.id}">↻</button>
-      <button class="icon-btn" title="Historie" data-act="history" data-id="${c.id}">📈</button>
-      <button class="icon-btn need-admin" title="Bewerken" data-act="edit-check" data-id="${c.id}">✎</button>`;
+      ${problem && !c.acked_at ? `<button class="icon-btn ack-btn need-user" title="${L('Storing bevestigen: geen meldingen meer')}" data-act="ack" data-id="${c.id}">✔</button>` : ''}
+      <button class="icon-btn need-user" title="${L('Onderhoud')}" data-act="maint-check" data-id="${c.id}">🔧</button>
+      <button class="icon-btn need-user" title="${L('Nu checken')}" data-act="run" data-id="${c.id}">↻</button>
+      <button class="icon-btn" title="${L('Historie')}" data-act="history" data-id="${c.id}">📈</button>
+      <button class="icon-btn need-admin" title="${L('Bewerken')}" data-act="edit-check" data-id="${c.id}">✎</button>`;
   return {
     t, s, pctVal, ticks, num, problem, flags, actions,
     cls: `s${s} ${+c.enabled ? '' : 'disabled'} ${c.maintenance ? 'in-maint' : ''} ${problem && c.acked_at ? 'acked' : ''}`,
-    title: `${STATUS[s]} – laatst ${ago(c.last_checked)}`,
-    msg: esc(c.last_message || 'Nog niet gecontroleerd'),
+    title: `${STATUS[s]} – ${L('laatst')} ${ago(c.last_checked)}`,
+    msg: esc(c.last_message || L('Nog niet gecontroleerd')),
   };
 }
 
@@ -1104,7 +1125,7 @@ function checkRow(c) {
 
 // Blox: checks als tegels, in groepen (zie groupChecks)
 function checkTiles(h) {
-  if (!h.shown.length) return '<ul class="checks"><li class="empty small">Nog geen checks — klik op ＋ Check</li></ul>';
+  if (!h.shown.length) return `<ul class="checks"><li class="empty small">${L('Nog geen checks — klik op ＋ Check')}</li></ul>`;
   const groups = groupChecks(h.shown);
   if (h.shown.length < GROUP_MIN) return `<ul class="checks">${groups.flatMap((g) => g[2]).map(checkRow).join('')}</ul>`;
   return `<div class="chk-groups">${groups.map(([k, title, list]) => `
@@ -1116,10 +1137,10 @@ function checkTiles(h) {
 
 // L1nes: checks als rijen onder de server, in dezelfde groepen
 function checkLines(h, large) {
-  if (!h.shown.length) return '<p class="empty small check-lines-empty">Nog geen checks — klik op ＋ Check</p>';
+  if (!h.shown.length) return `<p class="empty small check-lines-empty">${L('Nog geen checks — klik op ＋ Check')}</p>`;
   const groups = groupChecks(h.shown);
-  const head = large ? `<div class="cl-head" aria-hidden="true"><span></span><span>Check</span><span>Waarde</span><span class="cl-spark">24 uur</span>
-    <span>Bericht</span><span class="cl-last">Laatst</span><span></span></div>` : '';
+  const head = large ? `<div class="cl-head" aria-hidden="true"><span></span><span>Check</span><span>${L('Waarde')}</span><span class="cl-spark">${L('24 uur')}</span>
+    <span>${L('Bericht')}</span><span class="cl-last">${L('Laatst')}</span><span></span></div>` : '';
   const body = h.shown.length < GROUP_MIN ? groups.flatMap((g) => g[2]).map((c) => checkLine(c, large)).join('')
     : groups.map(([k, title, list]) => `<div class="cl-group${grpClosed[`${h.id}:${k}`] ? ' closed' : ''}">
         ${groupHead(h, k, title, list, 'div')}
@@ -1181,10 +1202,10 @@ async function onHostsClick(e) {
     case 'podman': return podmanOverview(findHost(id));
     case 'toggle': return toggleHost(id);
     case 'ack': { const [c, h] = findCheck(id); return ackDialog('check', id, `${h.name} – ${c.name}`, c.last_message); }
-    case 'ack-host': { const h = findHost(id); const n = h.checks.filter((c) => +c.enabled && +c.status !== 0 && !c.acked_at).length; return ackDialog('host', id, h.name, `${n} onbevestigde storing(en)`); }
+    case 'ack-host': { const h = findHost(id); const n = h.checks.filter((c) => +c.enabled && +c.status !== 0 && !c.acked_at).length; return ackDialog('host', id, h.name, L('{n} onbevestigde storing(en)', { n })); }
     case 'unack':
-      if (!confirm('Bevestiging intrekken? Er worden dan weer meldingen verstuurd voor deze storing.')) return;
-      try { await api('unack', { id }); toast('Bevestiging ingetrokken'); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+      if (!confirm(L('Bevestiging intrekken? Er worden dan weer meldingen verstuurd voor deze storing.'))) return;
+      try { await api('unack', { id }); toast(L('Bevestiging ingetrokken')); refresh(); } catch (ex) { toast(ex.message, 'err'); }
       return;
     case 'maint-host': { const h = findHost(id); return maintenanceDialog('host', id, h.name, h.maintenance && h.maintenance.scope === 'host' ? h.maintenance : null); }
     case 'maint-check': { const [c, h] = findCheck(id); return maintenanceDialog('check', id, `${h.name} – ${c.name}`, c.maintenance && c.maintenance.scope === 'check' ? c.maintenance : null); }
@@ -1206,15 +1227,15 @@ function durText(sec) {
   sec = Math.max(0, Math.round(sec));
   if (sec < 60) return `${sec} s`;
   const m = Math.floor(sec / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
-  return d ? `${d} d${h % 24 ? ` ${h % 24} u` : ''}` : h ? `${h} u${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`;
+  return d ? `${d} ${L('d')}${h % 24 ? ` ${h % 24} ${L('u')}` : ''}` : h ? `${h} ${L('u')}${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`;
 }
-const fmtPct = (v) => `${(+v).toLocaleString('nl-NL', { maximumFractionDigits: 1 })}%`;
+const fmtPct = (v) => `${(+v).toLocaleString(LOCALE, { maximumFractionDigits: 1 })}%`;
 const toTime = (dt) => new Date(dt.replace(' ', 'T')).getTime();
 /** Datum en tijd kort: "14:02" vandaag, anders "di 14 okt 14:02" */
 function whenText(dt) {
   const d = new Date(dt.replace(' ', 'T'));
   const today = new Date().toDateString() === d.toDateString();
-  return (today ? '' : d.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + dt.slice(11, 16);
+  return (today ? '' : d.toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + dt.slice(11, 16);
 }
 
 async function checkInfo(id) {
@@ -2069,13 +2090,13 @@ function chartSvg(pts, c, t, hours, H = 260) {
   svg += '<g class="strip">';
   pts.forEach((p, i) => {
     const x1 = x(p.t), x2 = i < pts.length - 1 ? x(pts[i + 1].t) : x(t1);
-    svg += `<rect class="s${p.s}" x="${x1}" y="${sy}" width="${Math.max(1, x2 - x1)}" height="10"><title>${STATUS[p.s]} – ${new Date(p.t * 1000).toLocaleString('nl-NL')}${p.v !== null ? ' – ' + fmt(p.v, t.unit) : ''}</title></rect>`;
+    svg += `<rect class="s${p.s}" x="${x1}" y="${sy}" width="${Math.max(1, x2 - x1)}" height="10"><title>${STATUS[p.s]} – ${new Date(p.t * 1000).toLocaleString(LOCALE)}${p.v !== null ? ' – ' + fmt(p.v, t.unit) : ''}</title></rect>`;
   });
   svg += '</g>';
   for (let i = 0; i <= 4; i++) {
     const ts = t0 + ((t1 - t0) / 4) * i;
     const d = new Date(ts * 1000);
-    const lbl = hours > 24 ? d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+    const lbl = hours > 24 ? d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }) : d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
     svg += `<text x="${x(ts)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}">${lbl}</text>`;
   }
   return svg + '</svg>';
@@ -2275,7 +2296,7 @@ function realtimeText(rt) {
   }
   const parts = [s.journal === 'ok' ? 'systemlog ✔' : s.journal === 'supervisor' ? 'Supervisor ✔' : 'systemlog –',
     s.files === 'ok' ? 'bestanden ✔' : s.files === 'missing' ? 'bestanden: inotify-tools ontbreekt' : null].filter(Boolean);
-  return `<span class="good">⚡ Realtime actief</span> <span class="muted">sinds ${new Date(s.since * 1000).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${parts.join(' · ')}</span>`;
+  return `<span class="good">⚡ Realtime actief</span> <span class="muted">sinds ${new Date(s.since * 1000).toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${parts.join(' · ')}</span>`;
 }
 
 /**
@@ -2576,26 +2597,28 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
 
 // ---------------------------------------------------------------- Alerts
 function channelIcons(a) {
-  if (a.kind === 'auth' || a.kind === 'authfail') return '<span class="muted" title="Alleen op deze pagina, niet verstuurd">–</span>';
-  if (a.kind === 'ack') return '<span title="Bevestiging">✔</span>';
+  const tip = (title, icon) => `<span title="${L(title)}">${icon}</span>`;
+  if (a.kind === 'auth' || a.kind === 'authfail') return `<span class="muted" title="${L('Alleen op deze pagina, niet verstuurd')}">–</span>`;
+  if (a.kind === 'ack') return tip('Bevestiging', '✔');
   const out = [];
-  if (+a.sent_ok) out.push('<span title="Verstuurd via Pushover">📲</span>');
-  if (a.email_ok !== null && a.email_ok !== undefined) out.push(+a.email_ok ? '<span title="Verstuurd per e-mail">📧</span>' : '<span title="E-mail mislukt">📧✕</span>');
-  if (a.webhook_ok !== null) out.push(+a.webhook_ok ? '<span title="Verstuurd naar Home Assistant">🏠</span>' : '<span title="Webhook mislukt">🏠✕</span>');
-  if (!out.length) out.push('<span title="Niet verzonden">✉️✕</span>');
+  if (+a.sent_ok) out.push(tip('Verstuurd via Pushover', '📲'));
+  if (a.email_ok !== null && a.email_ok !== undefined) out.push(+a.email_ok ? tip('Verstuurd per e-mail', '📧') : tip('E-mail mislukt', '📧✕'));
+  if (a.webhook_ok !== null) out.push(+a.webhook_ok ? tip('Verstuurd naar Home Assistant', '🏠') : tip('Webhook mislukt', '🏠✕'));
+  if (!out.length) out.push(tip('Niet verzonden', '✉️✕'));
   return out.join(' ');
 }
 
 /** "🔴 Critical", "✅ Hersteld", "✔ Bevestigd"… voor de meldingentabel */
 function alertStatusText(a) {
   if (a.kind === 'ids') return '🛡️ IDS';
-  if (a.kind === 'auth') return '🔑 Toegang';
-  if (a.kind === 'authfail') return '❌ Mislukt';
-  if (a.kind === 'ack') return '✔ Bevestigd';
-  if (a.kind === 'maint') return '🔧 Onderhoud';
-  const ev = (a.title.match(/^\S+ (HERSTELD|STABIEL|FLAPPEND)/) || [])[1];
-  if (ev) return { HERSTELD: '✅ Hersteld', STABIEL: '⏸ Stabiel', FLAPPEND: '🔀 Flapt' }[ev];
-  return ['✅ OK', '🟠 Warning', '🔴 Critical', '⚪ Onbekend'][+a.status] || '';
+  if (a.kind === 'auth') return '🔑 ' + L('Toegang');
+  if (a.kind === 'authfail') return '❌ ' + L('Mislukt');
+  if (a.kind === 'ack') return '✔ ' + L('Bevestigd');
+  if (a.kind === 'maint') return '🔧 ' + L('Onderhoud');
+  const ev = (a.title.match(/^\S+ (HERSTELD|STABIEL|FLAPPEND|RECOVERED|STABLE|FLAPPING)/) || [])[1];
+  if (ev) return { HERSTELD: '✅ ' + L('Hersteld'), RECOVERED: '✅ ' + L('Hersteld'), STABIEL: '⏸ ' + L('Stabiel'), STABLE: '⏸ ' + L('Stabiel'),
+    FLAPPEND: '🔀 ' + L('Flapt'), FLAPPING: '🔀 ' + L('Flapt') }[ev];
+  return ['✅ OK', '🟠 Warning', '🔴 Critical', '⚪ ' + L('Onbekend')][+a.status] || '';
 }
 
 // ---------------------------------------------------------------- Meldingen, per dag
@@ -2821,7 +2844,7 @@ function renderIds() {
     <div class="ids-host">
       <div><b>${esc(h.name)}</b> <span class="muted small">${h.last_report ? 'IDS-rapport ' + ago(h.last_report) : d.enabled ? 'nog geen IDS-rapport (agent 1.35.0+)' : ''}</span></div>
       <div class="small">${!h.baseline_until ? '' : h.learning ? `📏 basismeting tot ${esc(fmtUntil(h.baseline_until))}` : '✔ bewaakt'}
-        ${h.fw_state ? ' · ' + (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : ''}${h.fim_count != null ? ` · 📁 ${(+h.fim_count).toLocaleString('nl-NL')} bestand${+h.fim_count === 1 ? '' : 'en'} bewaakt` : ''}${+h.realtime ? ((x) => (x && x.state === 'active' ? ' · <span class="good" title="Realtime-watcher actief">⚡ realtime</span>' : ' · <span class="warn-txt" title="Realtime staat aan, maar de watcher is niet actief">⚡ niet actief</span>'))(JSON.parse(h.rt || 'null')) : ''}${+h.realtime ? ((t) => (t && !t.inotify ? ` · <span class="warn-txt" title="Bestanden worden niet in realtime gevolgd; zie de Agent Manager">${t.family === 'rhel' && !t.epel ? 'EPEL ontbreekt' : 'inotify-tools ontbreekt'}</span>` : ''))(JSON.parse(h.tools || 'null')) : ''}</div>
+        ${h.fw_state ? ' · ' + (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : ''}${h.fim_count != null ? ` · 📁 ${(+h.fim_count).toLocaleString(LOCALE)} bestand${+h.fim_count === 1 ? '' : 'en'} bewaakt` : ''}${+h.realtime ? ((x) => (x && x.state === 'active' ? ' · <span class="good" title="Realtime-watcher actief">⚡ realtime</span>' : ' · <span class="warn-txt" title="Realtime staat aan, maar de watcher is niet actief">⚡ niet actief</span>'))(JSON.parse(h.rt || 'null')) : ''}${+h.realtime ? ((t) => (t && !t.inotify ? ` · <span class="warn-txt" title="Bestanden worden niet in realtime gevolgd; zie de Agent Manager">${t.family === 'rhel' && !t.epel ? 'EPEL ontbreekt' : 'inotify-tools ontbreekt'}</span>` : ''))(JSON.parse(h.tools || 'null')) : ''}</div>
       <div class="small">${h.open[2] ? `<span class="ad-count">🔴 ${h.open[2]}</span>` : ''} ${h.open[1] ? `<span class="ad-count">🟠 ${h.open[1]}</span>` : ''}
         ${!h.open[1] && !h.open[2] ? '<span class="muted">geen open incidenten</span>' : ''}
         ${h.baseline_until ? `<button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="Alles wat er nu is als normaal vastleggen">↺ basismeting opnieuw</button>` : ''}</div>
@@ -2919,8 +2942,8 @@ function dayLabel(day, today) {
   const d = new Date(day + 'T12:00:00'), t = new Date(today + 'T12:00:00');
   const diff = Math.round((t - d) / 86400000);
   const opts = { weekday: 'long', day: 'numeric', month: 'long', ...(d.getFullYear() !== t.getFullYear() ? { year: 'numeric' } : {}) };
-  const date = d.toLocaleDateString('nl-NL', opts);
-  return diff === 0 ? `Vandaag · ${date}` : diff === 1 ? `Gisteren · ${date}` : date.charAt(0).toUpperCase() + date.slice(1);
+  const date = d.toLocaleDateString(LOCALE, opts);
+  return diff === 0 ? `${L('Vandaag')} · ${date}` : diff === 1 ? `${L('Gisteren')} · ${date}` : date.charAt(0).toUpperCase() + date.slice(1);
 }
 
 const AUTH_TYPES = { ssh: 'SSH', console: 'Console', sudo: 'sudo', su: 'su' };
@@ -2941,7 +2964,7 @@ function alertDayCounts(list) {
     else if (+a.status === 3) n.unknown++;
     else n.ok++;
   });
-  return [['crit', '🔴', 'critical'], ['warn', '🟠', 'warning'], ['unknown', '⚪', 'onbekend'], ['ok', '✅', 'hersteld/OK'], ['ack', '✔', 'bevestigd'], ['auth', '🔑', 'logins en sudo'], ['authfail', '❌', 'mislukte logins/sudo']]
+  return [['crit', '🔴', 'critical'], ['warn', '🟠', 'warning'], ['unknown', '⚪', L('onbekend')], ['ok', '✅', L('hersteld/OK')], ['ack', '✔', L('bevestigd')], ['auth', '🔑', L('logins en sudo')], ['authfail', '❌', L('mislukte logins/sudo')]]
     .filter(([k]) => n[k]).map(([k, i, t]) => `<span class="ad-count" title="${n[k]} ${t}">${i} ${n[k]}</span>`).join('');
 }
 
@@ -2977,7 +3000,7 @@ function sortAlerts(list) {
     time: (a) => a.created_at, status: alertRank, server: (a) => alertCols(a).host, check: (a) => alertCols(a).check,
     message: (a) => a.message || '', channels: alertChannelScore,
   }[key];
-  const cmp = (x, y) => (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'nl', { numeric: true, sensitivity: 'base' }));
+  const cmp = (x, y) => (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), LANG, { numeric: true, sensitivity: 'base' }));
   return list.map((a) => [a, val(a)]).sort((p, q) => dir * cmp(p[1], q[1]) || (q[0].created_at > p[0].created_at ? 1 : -1)).map(([a]) => a);
 }
 
@@ -2986,7 +3009,7 @@ function alertRows(list, layout, density) {
   list = sortAlerts(list);
   const cid = (a) => (a.check_id ? ` data-cid="${a.check_id}"` : '');
   if (layout === 'l1nes') {
-    const th = (k) => `<th class="sortable${alertSort.key === k ? ' sorted' : ''}" data-sort="${k}" title="Sorteren op ${ALERT_SORTS[k].toLowerCase()}">${ALERT_SORTS[k]}${alertSort.key === k ? (alertSort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
+    const th = (k) => `<th class="sortable${alertSort.key === k ? ' sorted' : ''}" data-sort="${k}" title="${L('Sorteren op {k}', { k: ALERT_SORTS[k].toLowerCase() })}">${ALERT_SORTS[k]}${alertSort.key === k ? (alertSort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
     return `<table class="alert-table ${density}"><thead><tr>${Object.keys(ALERT_SORTS).map(th).join('')}</tr></thead><tbody>
       ${list.map((a) => {
         const { host, check } = alertCols(a);
@@ -2995,7 +3018,7 @@ function alertRows(list, layout, density) {
           <td class="at-st">${alertStatusText(a)}</td>
           <td>${esc(host)}</td>
           <td>${esc(check)}</td>
-          <td class="at-msg" title="${density === 'small' ? 'Klik voor het hele bericht' : ''}">${esc(a.message)}</td>
+          <td class="at-msg" title="${density === 'small' ? L('Klik voor het hele bericht') : ''}">${esc(a.message)}</td>
           <td class="at-ch">${channelIcons(a)}</td></tr>`;
       }).join('')}</tbody></table>`;
   }
@@ -3010,7 +3033,7 @@ function alertRows(list, layout, density) {
 
 function renderAlerts() {
   const el = $('#alerts');
-  if (!alertData) { el.innerHTML = '<p class="muted">Laden…</p>'; return; }
+  if (!alertData) { el.innerHTML = `<p class="muted">${L('Laden…')}</p>`; return; }
   const { layout, density } = viewPrefs();
   const d = alertData;
   // Blox heeft geen kolomkoppen: daar een keuzelijst om te sorteren
@@ -3018,9 +3041,10 @@ function renderAlerts() {
   sortSel.hidden = layout === 'l1nes';
   sortSel.value = ALERT_SORTS[alertSort.key] ? `${alertSort.key}:${alertSort.dir}` : '';
   if (sortSel.selectedIndex < 0) sortSel.value = '';
-  $('#alerts-info').textContent = `${d.alerts.length} melding${d.alerts.length === 1 ? '' : 'en'} van de laatste ${d.days} dag${d.days === 1 ? '' : 'en'}`
-    + (d.truncated ? ' (alleen de nieuwste 10.000)' : '');
-  if (!d.alerts.length) { el.innerHTML = '<p class="muted">Nog geen meldingen. 👌</p>'; $('#alerts-toggle').hidden = true; return; }
+  $('#alerts-info').textContent = (d.alerts.length === 1 ? L('1 melding') : L('{n} meldingen', { n: d.alerts.length }))
+    + ' ' + (d.days === 1 ? L('van de laatste dag') : L('van de laatste {n} dagen', { n: d.days }))
+    + (d.truncated ? ' ' + L('(alleen de nieuwste 10.000)') : '');
+  if (!d.alerts.length) { el.innerHTML = `<p class="muted">${L('Nog geen meldingen.')} 👌</p>`; $('#alerts-toggle').hidden = true; return; }
   const shown = d.alerts;
   const byDay = new Map();
   shown.forEach((a) => {
@@ -3033,7 +3057,7 @@ function renderAlerts() {
     <details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''}>
       <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
         <span class="ad-counts">${alertDayCounts(list)}</span>
-        <span class="muted small ad-total">${list.length} melding${list.length === 1 ? '' : 'en'}</span></summary>
+        <span class="muted small ad-total">${list.length === 1 ? L('1 melding') : L('{n} meldingen', { n: list.length })}</span></summary>
       <div class="ad-body">${isOpen(day) ? alertRows(list, layout, density) : ''}</div>
     </details>`).join('');
   // Pas bij openen opbouwen: snel, ook met duizenden meldingen
@@ -3053,7 +3077,7 @@ function saveAlertSort() {
 
 function alertToggleLabel() {
   const days = $$('#alerts .alert-day');
-  $('#alerts-toggle').textContent = days.length && days.every((x) => x.open) ? '⊟ Alles sluiten' : '⊞ Alles openen';
+  $('#alerts-toggle').textContent = days.length && days.every((x) => x.open) ? '⊟ ' + L('Alles sluiten') : '⊞ ' + L('Alles openen');
 }
 
 // ---------------------------------------------------------------- Settings
@@ -3117,7 +3141,7 @@ function apiKeyData(form) {
   return { ...Object.fromEntries(fd), rights: fd.getAll('rights') };
 }
 
-const fmtDay = (dt) => new Date(dt.replace(' ', 'T')).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+const fmtDay = (dt) => new Date(dt.replace(' ', 'T')).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
 
 function apiKeyExpiry(k) {
   if (!k.expires_at) return '<span class="muted">geen vervaldatum</span>';
@@ -3881,7 +3905,7 @@ async function startUpdate(e) {
 let backupInfo = null;
 let backupUnlockedUntil = 0;   // downloaden zonder opnieuw te bevestigen tot dit moment
 const fmtSize = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(b / 1024))} kB`);
-const fmtDateTime = (dt) => new Date(dt.replace(' ', 'T')).toLocaleString('nl-NL',
+const fmtDateTime = (dt) => new Date(dt.replace(' ', 'T')).toLocaleString(LOCALE,
   { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 function backupFormToggle() {

@@ -27,6 +27,7 @@ try {
         unset($_SESSION['no_lan_auto']);
     }
     $user = current_user();
+    I18n::init($user);
 } catch (PDOException $e) {
     header('Location: setup.php');
     exit;
@@ -38,7 +39,7 @@ $resetToken = preg_match('/^[0-9a-f]{64}$/', (string) ($_GET['reset'] ?? '')) ? 
 $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.css');
 ?>
 <!doctype html>
-<html lang="nl">
+<html lang="<?= I18n::lang() ?>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -54,101 +55,100 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <main class="login-wrap">
     <form id="reset-form" class="card login-card" data-token="<?= htmlspecialchars($resetToken) ?>">
       <div class="brand big"><span class="logo">📡</span> RzMon</div>
-      <h2 style="margin:0 0 .6rem">Nieuw wachtwoord</h2>
+      <h2 style="margin:0 0 .6rem"><?= th('Nieuw wachtwoord') ?></h2>
       <div id="reset-fields" hidden>
-        <p class="muted small" style="margin-top:0">Kies een nieuw wachtwoord voor <b id="reset-user"></b>. Daarna worden alle apparaten waarop dit account ingelogd bleef, uitgelogd.</p>
+        <p class="muted small" style="margin-top:0"><?= t('Kies een nieuw wachtwoord voor {user}. Daarna worden alle apparaten waarop dit account ingelogd bleef, uitgelogd.', ['user' => '<b id="reset-user"></b>']) ?></p>
         <input type="text" name="username" autocomplete="username" hidden>
-        <label>Nieuw wachtwoord <span class="hint">(minstens 8 tekens)</span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
-        <label>Nog een keer<input name="password2" type="password" autocomplete="new-password" minlength="8" required></label>
-        <label id="reset-code-wrap" hidden>Code uit je authenticator-app<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" class="mono totp-input"></label>
-        <button class="btn primary block">Wachtwoord opslaan</button>
+        <label><?= th('Nieuw wachtwoord') ?> <span class="hint"><?= th('(minstens 8 tekens)') ?></span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label><?= th('Nog een keer') ?><input name="password2" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label id="reset-code-wrap" hidden><?= th('Code uit je authenticator-app') ?><input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" class="mono totp-input"></label>
+        <button class="btn primary block"><?= th('Wachtwoord opslaan') ?></button>
       </div>
-      <p class="muted small" id="reset-status">Link controleren…</p>
+      <p class="muted small" id="reset-status"><?= th('Link controleren…') ?></p>
       <p class="form-error" hidden></p>
-      <p class="small login-links"><a href="index.php?login=1">Naar inloggen</a></p>
+      <p class="small login-links"><a href="index.php?login=1"><?= th('Naar inloggen') ?></a></p>
     </form>
   </main>
 <?php elseif (!$user): ?>
   <main class="login-wrap">
     <form id="login-form" class="card login-card">
-      <div class="brand big"><span class="logo">📡</span> RzMon <span class="version" title="RzMon-versie">v<?= htmlspecialchars(RZMON_VERSION) ?></span></div>
+      <div class="brand big"><span class="logo">📡</span> RzMon <span class="version" title="<?= th('RzMon-versie') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></span></div>
       <div id="login-step1">
-        <label>Gebruikersnaam<input name="username" autocomplete="username" required autofocus></label>
-        <label>Wachtwoord<input name="password" type="password" autocomplete="current-password" required></label>
-        <label class="switch small remember"><input type="checkbox" name="remember"><span></span> Onthoud mij op dit apparaat <small class="muted">(30 dagen)</small></label>
+        <label><?= th('Gebruikersnaam') ?><input name="username" autocomplete="username" required autofocus></label>
+        <label><?= th('Wachtwoord') ?><input name="password" type="password" autocomplete="current-password" required></label>
+        <label class="switch small remember"><input type="checkbox" name="remember"><span></span> <?= th('Onthoud mij op dit apparaat') ?> <small class="muted"><?= th('(30 dagen)') ?></small></label>
       </div>
       <div id="login-step2" hidden>
-        <p class="muted small" style="margin-top:0">🔐 Voer de 6-cijferige code uit je authenticator-app in.</p>
-        <label>Code<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" class="mono totp-input"></label>
+        <p class="muted small" style="margin-top:0">🔐 <?= th('Voer de 6-cijferige code uit je authenticator-app in.') ?></p>
+        <label><?= th('Code') ?><input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" class="mono totp-input"></label>
       </div>
       <p class="form-error" hidden></p>
-      <button class="btn primary block">Inloggen</button>
-      <p class="small login-links"><a href="#" id="forgot-link">Wachtwoord vergeten?</a></p>
+      <button class="btn primary block"><?= th('Inloggen') ?></button>
+      <p class="small login-links"><a href="#" id="forgot-link"><?= th('Wachtwoord vergeten?') ?></a></p>
       <?php if (lan_login_allowed()): ?>
-        <p class="small" style="text-align:center;margin:.9rem 0 0"><a href="index.php?lan=1">Verder zonder inloggen (alleen lezen)</a></p>
+        <p class="small" style="text-align:center;margin:.9rem 0 0"><a href="index.php?lan=1"><?= th('Verder zonder inloggen (alleen lezen)') ?></a></p>
       <?php endif; ?>
     </form>
     <form id="forgot-form" class="card login-card" hidden>
       <div class="brand big"><span class="logo">📡</span> RzMon</div>
-      <h2 style="margin:0 0 .6rem">Wachtwoord vergeten</h2>
+      <h2 style="margin:0 0 .6rem"><?= th('Wachtwoord vergeten') ?></h2>
       <div id="forgot-fields">
-        <p class="muted small" style="margin-top:0">Vul je gebruikersnaam of e-mailadres in. Je krijgt een mail met een link om een nieuw wachtwoord te kiezen (30 minuten geldig).</p>
-        <label>Gebruikersnaam of e-mailadres<input name="ident" autocomplete="username" required maxlength="190"></label>
-        <button class="btn primary block">Stuur herstellink</button>
+        <p class="muted small" style="margin-top:0"><?= th('Vul je gebruikersnaam of e-mailadres in. Je krijgt een mail met een link om een nieuw wachtwoord te kiezen (30 minuten geldig).') ?></p>
+        <label><?= th('Gebruikersnaam of e-mailadres') ?><input name="ident" autocomplete="username" required maxlength="190"></label>
+        <button class="btn primary block"><?= th('Stuur herstellink') ?></button>
       </div>
       <p class="small" id="forgot-done" hidden></p>
       <p class="form-error" hidden></p>
-      <p class="small login-links"><a href="#" id="forgot-back">← Terug naar inloggen</a></p>
+      <p class="small login-links"><a href="#" id="forgot-back">← <?= th('Terug naar inloggen') ?></a></p>
     </form>
   </main>
 <?php else: ?>
   <header class="topbar">
-    <div class="brand"><span class="logo">📡</span> RzMon <a class="version" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener" title="RzMon-versie – bekijk wat er nieuw is">v<?= htmlspecialchars(RZMON_VERSION) ?></a>
-      <button type="button" class="update-badge need-admin" id="update-badge" hidden title="Er is een nieuwe versie van RzMon: klik om bij te werken"></button></div>
+    <div class="brand"><span class="logo">📡</span> RzMon <a class="version" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener" title="<?= th('RzMon-versie – bekijk wat er nieuw is') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></a>
+      <button type="button" class="update-badge need-admin" id="update-badge" hidden title="<?= th('Er is een nieuwe versie van RzMon: klik om bij te werken') ?>"></button></div>
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="dashboard">Dashboard</button>
-      <button class="tab" data-tab="alerts">Meldingen</button>
+      <button class="tab active" data-tab="dashboard"><?= th('Dashboard') ?></button>
+      <button class="tab" data-tab="alerts"><?= th('Meldingen') ?></button>
       <button class="tab" data-tab="ids">🛡️ IDS <span class="tab-badge" id="ids-badge" hidden></span></button>
-      <button class="tab" data-tab="settings">Instellingen</button>
-      <?php if ($role === 'admin'): ?><a class="tab" href="setup.php">Setup</a><?php endif; ?>
+      <button class="tab" data-tab="settings"><?= th('Instellingen') ?></button>
     </nav>
     <div class="top-actions">
-      <?php if (is_lan_session()): ?><span class="lan-badge" title="Ingelogd zonder wachtwoord omdat je op het lokale netwerk zit">🏠 Lokaal netwerk</span><?php endif; ?>
-      <?php if ($role !== 'admin'): ?><span class="role-badge" title="Je rechten: <?= $role === 'user' ? 'storingen afhandelen, niets inrichten' : 'alleen kijken' ?>"><?= $role === 'user' ? '👤 Gebruiker' : '👁 Alleen lezen' ?></span><?php endif; ?>
-      <?php if (is_lan_session()): ?><a class="btn small-btn" href="index.php?login=1" title="Inloggen met je eigen account voor je eigen rechten">Inloggen</a><?php endif; ?>
-      <button class="icon-btn" id="theme-toggle" title="Thema wisselen">🌓</button>
-      <?php if (!is_lan_session()): ?><button class="icon-btn" id="logout" title="Uitloggen (<?= htmlspecialchars($user['username']) ?>)">⏻</button><?php endif; ?>
+      <?php if (is_lan_session()): ?><span class="lan-badge" title="<?= th('Ingelogd zonder wachtwoord omdat je op het lokale netwerk zit') ?>">🏠 <?= th('Lokaal netwerk') ?></span><?php endif; ?>
+      <?php if ($role !== 'admin'): ?><span class="role-badge" title="<?= th('Je rechten:') ?> <?= $role === 'user' ? th('storingen afhandelen, niets inrichten') : th('alleen kijken') ?>"><?= $role === 'user' ? '👤 ' . th('Gebruiker') : '👁 ' . th('Alleen lezen') ?></span><?php endif; ?>
+      <?php if (is_lan_session()): ?><a class="btn small-btn" href="index.php?login=1" title="<?= th('Inloggen met je eigen account voor je eigen rechten') ?>"><?= th('Inloggen') ?></a><?php endif; ?>
+      <button class="icon-btn" id="theme-toggle" title="<?= th('Thema wisselen') ?>">🌓</button>
+      <?php if (!is_lan_session()): ?><button class="icon-btn" id="logout" title="<?= th('Uitloggen ({user})', ['user' => $user['username']]) ?>">⏻</button><?php endif; ?>
     </div>
   </header>
 
   <main class="container">
     <section id="tab-dashboard" class="tab-panel">
 <?php if ($schemaError): ?>
-      <div class="schema-banner">⚠ <?= htmlspecialchars($schemaError) ?> — controleer de databaserechten of voer <code>php install/install.php</code> uit.</div>
+      <div class="schema-banner">⚠ <?= htmlspecialchars($schemaError) ?> — <?= t('controleer de databaserechten of voer {cmd} uit.', ['cmd' => '<code>php install/install.php</code>']) ?></div>
 <?php endif; ?>
       <div class="maint-banner" id="maint-banner" hidden></div>
       <div class="summary health" id="health">
         <div class="health-main">
-          <button class="health-state" id="health-state" type="button" title="Klik: alleen problemen tonen">
-            <b id="health-label">Laden…</b>
+          <button class="health-state" id="health-state" type="button" title="<?= th('Klik: alleen problemen tonen') ?>">
+            <b id="health-label"><?= th('Laden…') ?></b>
           </button>
-          <div class="health-score" title="Gezondheidsscore: 100% = alles OK. Een critical telt zwaarder dan een warning, een onbereikbare server het zwaarst.">
+          <div class="health-score" title="<?= th('Gezondheidsscore: 100% = alles OK. Een critical telt zwaarder dan een warning, een onbereikbare server het zwaarst.') ?>">
             <b id="health-pct">–</b><span class="meter-bar"><i id="health-bar"></i></span>
           </div>
-          <div class="health-counts" id="health-counts" role="group" aria-label="Filter op status"></div>
+          <div class="health-counts" id="health-counts" role="group" aria-label="<?= th('Filter op status') ?>"></div>
         </div>
         <div class="health-info" id="health-info"></div>
         <div class="summary-actions">
           <span class="muted small" id="last-run"></span>
-          <button class="btn need-user" id="maint-all" title="Alle meldingen tijdelijk pauzeren">🔧 Onderhoud</button>
-          <button class="btn need-user" id="run-all">↻ Alles nu checken</button>
-          <button class="btn primary need-admin" id="add-host">＋ Server</button>
+          <button class="btn need-user" id="maint-all" title="<?= th('Alle meldingen tijdelijk pauzeren') ?>">🔧 <?= th('Onderhoud') ?></button>
+          <button class="btn need-user" id="run-all">↻ <?= th('Alles nu checken') ?></button>
+          <button class="btn primary need-admin" id="add-host">＋ <?= th('Server') ?></button>
         </div>
       </div>
       <div class="filter-row">
-        <input type="search" id="filter" placeholder="Zoek server of check…">
-        <label class="switch small"><input type="checkbox" id="only-problems"><span></span> Alleen problemen</label>
-        <button class="btn" id="toggle-all" type="button">⊞ Alles openen</button>
+        <input type="search" id="filter" placeholder="<?= th('Zoek server of check…') ?>">
+        <label class="switch small"><input type="checkbox" id="only-problems"><span></span> <?= th('Alleen problemen') ?></label>
+        <button class="btn" id="toggle-all" type="button">⊞ <?= th('Alles openen') ?></button>
       </div>
       <div id="hosts" class="hosts"></div>
     </section>
@@ -156,21 +156,21 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     <section id="tab-alerts" class="tab-panel" hidden>
       <div class="card">
         <div class="alerts-head">
-          <h2>Meldingen</h2>
+          <h2><?= th('Meldingen') ?></h2>
           <span class="muted small" id="alerts-info"></span>
-          <select id="alerts-sort" class="alerts-sort" aria-label="Sorteren" title="Sorteren (binnen elke dag)">
-            <option value="">Nieuwste eerst</option>
-            <option value="time:1">Oudste eerst</option>
-            <option value="status:1">Status: ernstigste eerst</option>
-            <option value="status:-1">Status: OK eerst</option>
-            <option value="server:1">Server A–Z</option>
-            <option value="server:-1">Server Z–A</option>
-            <option value="check:1">Check A–Z</option>
-            <option value="check:-1">Check Z–A</option>
-            <option value="message:1">Bericht A–Z</option>
-            <option value="channels:1">Kanalen: mislukt eerst</option>
+          <select id="alerts-sort" class="alerts-sort" aria-label="<?= th('Sorteren') ?>" title="<?= th('Sorteren (binnen elke dag)') ?>">
+            <option value=""><?= th('Nieuwste eerst') ?></option>
+            <option value="time:1"><?= th('Oudste eerst') ?></option>
+            <option value="status:1"><?= th('Status: ernstigste eerst') ?></option>
+            <option value="status:-1"><?= th('Status: OK eerst') ?></option>
+            <option value="server:1"><?= th('Server A–Z') ?></option>
+            <option value="server:-1"><?= th('Server Z–A') ?></option>
+            <option value="check:1"><?= th('Check A–Z') ?></option>
+            <option value="check:-1"><?= th('Check Z–A') ?></option>
+            <option value="message:1"><?= th('Bericht A–Z') ?></option>
+            <option value="channels:1"><?= th('Kanalen: mislukt eerst') ?></option>
           </select>
-          <button type="button" class="btn" id="alerts-toggle">⊞ Alles openen</button>
+          <button type="button" class="btn" id="alerts-toggle">⊞ <?= th('Alles openen') ?></button>
         </div>
         <div id="alerts" class="alert-list"></div>
       </div>
@@ -226,6 +226,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     </section>
 
     <section id="tab-settings" class="tab-panel" hidden>
+      <div class="settings-top">
+        <div class="lang-switch" role="group" aria-label="Language / Taal" title="Language / Taal">
+          <span>🌐 EN</span><label class="switch"><input type="checkbox" id="lang-toggle" <?= I18n::lang() === 'nl' ? 'checked' : '' ?>><span></span></label><span>NL</span>
+        </div>
+        <?php if ($role === 'admin'): ?><a class="btn" href="setup.php" title="<?= th('Database, configuratie en tabellen') ?>">⚙️ Setup</a><?php endif; ?>
+      </div>
       <div class="card view-card">
         <h2>Weergave</h2>
         <p class="muted small">Hoe het dashboard, de meldingen en deze instellingen eruitzien. Geldt voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc) en wordt direct toegepast.</p>
@@ -605,6 +611,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 <?php if ($user): ?>
   <script src="assets/vendor/qrcode.js?v=1.4.4"></script>
 <?php endif; ?>
+  <script>window.LANG = <?= json_encode(I18n::lang()) ?>; window.I18N = <?= I18n::lang() === 'en' ? json_encode(I18n::dict(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) : '{}' ?>;</script>
   <script src="assets/app.js?v=<?= $v ?>"></script>
 </body>
 </html>

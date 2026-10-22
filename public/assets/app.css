@@ -236,6 +236,10 @@ article.flash { animation: flash 1.6s; }
 .inline-form { display: flex; gap: .5rem; }
 .inline-form input { flex: 1; }
 .inline-form .btn { white-space: nowrap; }
+.settings-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.lang-switch { display: flex; align-items: center; gap: .55rem; font-weight: 600; font-size: .9rem; }
+.lang-switch .switch { margin: 0; }
+.settings-top a.btn { text-decoration: none; }
 .pend-tag { font-size: .72rem; font-weight: 600; padding: 0 .4rem; border-radius: 99px; background: color-mix(in srgb, var(--muted) 18%, transparent); color: var(--muted); white-space: nowrap; }
 .snmp-test-row { display: flex; gap: .7rem; align-items: center; margin: .2rem 0 .6rem; }
 .snmp-test-row .btn { white-space: nowrap; }

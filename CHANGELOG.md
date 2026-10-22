@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.49.0 – 2026-10-22
+### Nieuw
+- **Engelse interface (deel 1).** Bovenaan *Instellingen* staat een schuifje **EN ◯ NL**. De keuze hoort bij je account en gaat mee naar elk apparaat. Bestaande accounts blijven Nederlands; nieuwe accounts en de inlogpagina volgen de taal van de browser.
+- Vertaald: inloggen en wachtwoord vergeten, de bovenbalk, het dashboard (gezondheidsbalk, servers, checks) en het tabblad *Meldingen*. Datums en getallen volgen de taal. De rest (instellingen, IDS, vensters, checkberichten en meldingen) volgt in een volgende versie.
+- **Setup** staat niet meer in de bovenbalk, maar als knop **⚙️ Setup** op de pagina *Instellingen*, en alleen voor beheerders.
+
+### Opgelost
+- Opende je RzMon direct op *Instellingen* (bijvoorbeeld na herladen), dan gaf de pagina een fout en bleven de API-sleutels leeg.
+- "1 dagen geleden" is nu "1 dag geleden".
+
+
 ## 1.48.0 – 2026-10-22
 ### Nieuw
 - **Melden na N mislukte checks.** Onder *Instellingen → 🔔 Meldingen* stel je in hoe vaak een check achter elkaar mag mislukken voordat er een melding uitgaat. Per check kun je een eigen aantal kiezen (✎ → 🔔 Meldingen); leeg = de algemene instelling.
