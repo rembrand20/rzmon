@@ -2,6 +2,9 @@
 
 Deze add-on heeft hetzelfde versienummer als RzMon. Het volledige overzicht staat in de [CHANGELOG van RzMon](https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md).
 
+## 1.43.0
+- Realtime (aan/uit in RzMon, Agent Manager): de add-on kijkt elke 5 s of er iets verandert aan de add-ons, Core of de boot-tijd van HA OS, en rapporteert dan meteen.
+
 ## 1.42.0
 - Nieuw: onverwachte herstart van HA OS, levensduur van de SD-kaart/eMMC, mislukte OS-update, USB-apparaten, containers (Core, Supervisor, plugins, add-ons) met CPU/RAM en herstarts, plugins, en logs van HA OS, Core, Supervisor en add-ons.
 - De add-on heeft nu de Supervisor-rol `manager` (alleen lezen) en de pakketten `gawk` en `sed`.

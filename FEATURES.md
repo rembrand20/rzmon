@@ -165,6 +165,7 @@ Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt
 - **Bijwerken vanuit RzMon** (knop of automatisch): de agent haalt de nieuwe versie bij je eigen RzMon. Hij controleert het SHA-256-controlegetal, of het script geldig is en of het de juiste versie is, en meldt de uitkomst terug. `REMOTE_UPDATE=0` zet dit uit.
 - **Instellingen** in `/etc/default/rzmon-agent`, alleen leesbaar voor root. Eigen regels blijven staan bij opnieuw installeren.
 - **⏱ Tik vanuit RzMon:** hoe vaak de agent rapporteert (30 s, 60 s, 2 min, 5 min), standaard in de instellingen en per server in de Agent Manager. Zware onderdelen (diepere controle, extra tests, logbestanden, commando's) volgen het interval van hun check. RzMon beoordeelt agent-checks meteen als het rapport binnenkomt.
+- **⚡ Realtime-watcher** (per server aan/uit, standaard uit): de dienst `rzmon-watch` volgt het systemlog (logins, sudo, su, services die stoppen of crashen) en met inotify de 🔴-paden van *Bestanden bewaken*, en start bij een gebeurtenis meteen een rapport. Binnen enkele seconden in RzMon. `REALTIME=0` zet het op een server uit; niet op TrueNAS of via cron. In de Home Assistant-add-on: elke 5 s kijken of add-ons, Core of de boot-tijd veranderen.
 
 **Wat de agent meldt**
 - **Systeem:** CPU (gebruik, load, cores), geheugen en swap, disks per mount, luisterende poorten met procesnaam.

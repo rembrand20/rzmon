@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.42.0"
+AGENT_VERSION="1.43.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -94,9 +94,97 @@ IDS_BLOCK="${IDS_BLOCK-}"
 # Zonder journal (of met AUTH_SOURCE=file): deze logbestanden, de eerste die bestaat
 AUTH_LOGS="${AUTH_LOGS:-/var/log/secure /var/log/auth.log}"
 SUPERVISOR_URL="${SUPERVISOR_URL:-http://supervisor}"
+# Realtime-watcher (dienst rzmon-watch, aan/uit per server in RzMon): REALTIME=0 zet hem op deze server altijd uit.
+REALTIME="${REALTIME-}"
 
 HA_MODE=0
 [ -n "${SUPERVISOR_TOKEN:-}" ] && HA_MODE=1
+
+# ---------------------------------------------------------------- Realtime-watcher (--watch)
+# Draait als aparte dienst (rzmon-watch). Doet zelf geen analyse: hij let alleen op en start bij een
+# gebeurtenis meteen een gewone agent-run, die alles verwerkt (logins, brute force, IDS, services, bestanden)
+# en die RzMon direct beoordeelt. Alleen als RzMon realtime voor deze server aanzet (regel "0 <tab> realtime <tab> 1")
+# en REALTIME niet 0 is; anders wacht hij en kijkt elke minuut opnieuw.
+#  - systemlog (journalctl -f): SSH-logins en mislukte pogingen, sudo, su, console, en meldingen van systemd
+#    over de services die RzMon bewaakt (gestopt, gecrasht, herstart);
+#  - bestanden (inotifywait, uit inotify-tools): de 🔴-paden van "Bestanden bewaken".
+# Hooguit één extra run per 10 seconden, ook als er veel gebeurt (bv. tijdens een brute-force-aanval).
+if [ "${1-}" = "--watch" ]; then
+    w_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
+    mkdir -p "$w_dir" 2>/dev/null
+    w_cache="$w_dir/tests.cache"
+    w_self=$(readlink -f "$0")
+    w_status() { printf '%s %s %s %s\n' "$1" "$(date +%s)" "$2" "$3" >"$w_dir/watch.state" 2>/dev/null; }
+    w_pids=()
+    w_stop() { [ ${#w_pids[@]} -gt 0 ] && kill "${w_pids[@]}" 2>/dev/null; w_pids=(); }
+    trap 'w_stop; w_status off - -; exit 0' TERM INT
+    while true; do
+        if [ "$REALTIME" = 0 ] || ! grep -q $'^0\trealtime\t1' "$w_cache" 2>/dev/null; then
+            w_status off - -
+            sleep 60
+            continue
+        fi
+        w_sig=$(grep -E $'^(0\t(realtime|fim)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)
+        units=$(awk -F'\t' '$2 == "svc" && $3 ~ /^[A-Za-z0-9@._:-]+$/ { gsub(/\./, "\\.", $3); printf "%s%s", (n++ ? "|" : ""), $3 }' "$w_cache")
+        pat='(sshd|sshd-session)\[[0-9]+\]: (Accepted|Failed|Invalid user|Connection closed by authenticating)|sudo(\[[0-9]+\])?: |[ :]su(\[[0-9]+\])?: |login\[[0-9]+\]: '
+        [ -n "$units" ] && pat+="|systemd\\[1\\]: .*($units)(\\.service)?[: ]"
+        fifo="$w_dir/watch.fifo"
+        rm -f "$fifo"; mkfifo -m 600 "$fifo"
+        exec 7<>"$fifo"
+        j=-; i=-
+        if [ -d /run/systemd/journal ] && command -v journalctl >/dev/null 2>&1; then
+            journalctl -f -n 0 -q -o short 2>/dev/null | grep --line-buffered -E "$pat" >&7 &
+            w_pids+=($!); j=ok
+        else
+            # Zonder journald: het eerste logbestand uit AUTH_LOGS dat bestaat (zoals de agent zelf)
+            for f in $AUTH_LOGS; do
+                [ -r "$f" ] || continue
+                tail -n 0 -F "$f" 2>/dev/null | grep --line-buffered -E "$pat" >&7 &
+                w_pids+=($!); j=ok
+                break
+            done
+        fi
+        # 🔴-paden uit "Bestanden bewaken" (bij jokertekens: de map ervoor), alleen die bestaan
+        roots=()
+        fim_b64=$(awk -F'\t' '$1 == "0" && $2 == "fim" { print $3; exit }' "$w_cache")
+        if [ -n "$fim_b64" ]; then
+            while IFS=$'\t' read -r k sev root; do
+                [ "$k" = p ] && [ "$sev" = 2 ] || continue
+                base=${root%%[*?[]*}; [ "$base" != "$root" ] && base=${base%/*}
+                [ -e "${base:-/}" ] && roots+=("${base:-/}")
+            done < <(printf '%s' "$fim_b64" | base64 -d 2>/dev/null)
+        fi
+        if [ ${#roots[@]} -gt 0 ]; then
+            if command -v inotifywait >/dev/null 2>&1; then
+                inotifywait -m -r -q -e create,modify,attrib,moved_to,delete --format '%w%f' "${roots[@]}" >&7 2>/dev/null &
+                w_pids+=($!); i=ok
+            else
+                i=missing   # inotify-tools ontbreekt: bestanden alleen via de gewone runs
+            fi
+        fi
+        w_status active "$j" "$i"
+        last_run=0; pending=0; next_check=$(( $(date +%s) + 60 ))
+        while true; do
+            IFS= read -r -t 5 _ <&7 && pending=1
+            now=$(date +%s)
+            if [ "$pending" = 1 ] && [ $(( now - last_run )) -ge 10 ]; then
+                RZ_FORCE=1 "$w_self" >/dev/null 2>&1
+                last_run=$(date +%s); pending=0
+            fi
+            if [ "$now" -ge "$next_check" ]; then
+                next_check=$(( now + 60 ))
+                # Instellingen in RzMon veranderd, realtime uitgezet, of een volger gestopt: opnieuw opbouwen
+                [ "$(grep -E $'^(0\t(realtime|fim)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)" = "$w_sig" ] || break
+                w_dead=0
+                for p in "${w_pids[@]}"; do kill -0 "$p" 2>/dev/null || w_dead=1; done
+                [ "$w_dead" = 1 ] && break
+            fi
+        done
+        w_stop
+        exec 7<&-
+        rm -f "$fifo"
+    done
+fi
 
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 # Willekeurige tekst (stdin, bv. uitvoer van een commando) als JSON-tekst: geldige UTF-8, tabs en
@@ -240,8 +328,13 @@ fi
 tick=$(awk -F'\t' '$1 == "0" && $2 == "tick" { print $3; exit }' "$t_cache" 2>/dev/null)
 [[ "$tick" =~ ^[0-9]+$ ]] && [ "$tick" -ge 30 ] || tick=${INTERVAL:-60}
 [[ "$tick" =~ ^[0-9]+$ ]] || tick=60
-if [ "$TEST" != 1 ] && [ -f "$t_dir/last.run" ] && [ $(( $(date +%s) - $(stat -c %Y "$t_dir/last.run") )) -lt $(( tick - 10 )) ]; then
+if [ "$TEST" != 1 ] && [ "${RZ_FORCE-}" != 1 ] && [ -f "$t_dir/last.run" ] && [ $(( $(date +%s) - $(stat -c %Y "$t_dir/last.run") )) -lt $(( tick - 10 )) ]; then
     exit 0
+fi
+# Nooit twee runs tegelijk (timer en realtime-watcher): even wachten op een run die al bezig is
+if [ "$TEST" != 1 ] && command -v flock >/dev/null 2>&1; then
+    exec 9>"$t_dir/run.lock"
+    flock -w 25 9 || exit 0
 fi
 touch "$t_dir/last.run" 2>/dev/null
 
@@ -1547,8 +1640,19 @@ remote_update() {  # remote_update <antwoord van RzMon>
     fi
 }
 
+# ---------------------------------------------------------------- Realtime-watcher: status
+# state (active/off) <spatie> sinds <spatie> systemlog (ok/-) <spatie> bestanden (ok/missing/-), van de watcher zelf
+rt_json=""
+rt_line=""
+[ -r "$t_dir/watch.state" ] && rt_line=$(head -n 1 "$t_dir/watch.state")
+[ -n "${RT_HA-}" ] && rt_line=$RT_HA   # Home Assistant-add-on: de lus in run.sh geeft de status door
+if [ -n "$rt_line" ]; then
+    read -r rt_s rt_t rt_j rt_i _ <<<"$rt_line"
+    [[ "$rt_t" =~ ^[0-9]+$ ]] && rt_json="{\"state\":\"$(json_escape "$rt_s")\",\"since\":$rt_t,\"journal\":\"$(json_escape "$rt_j")\",\"files\":\"$(json_escape "$rt_i")\"}"
+fi
+
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)

@@ -25,6 +25,8 @@ Laat [RzMon](https://github.com/rembrand20/rzmon) je Home Assistant-systeem bewa
 | **Containers** | Core, Supervisor, plugins en add-ons: draait hij, CPU, RAM, gecrasht of herstart door de watchdog |
 | **Logbestand** | Zoeken in de logs van HA OS (`ha:host`), Core, de Supervisor en add-ons |
 
+**⚡ Realtime** (aan/uit in RzMon, *Agent Manager*): de add-on kijkt dan elke 5 seconden of er iets verandert aan de add-ons, Core of de boot-tijd, en rapporteert meteen.
+
 De add-on gebruikt de Supervisor-rol **manager** om de statistieken, logs en hardware te kunnen lezen. Hij verandert niets.
 
 Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon zet de checks dan na een paar minuten op **CRITICAL**: precies het moment waarop je een melding wilt die *niet* via Home Assistant zelf loopt.

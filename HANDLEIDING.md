@@ -794,6 +794,24 @@ Of een service draait, CPU, RAM, disks en poorten worden elke tik gemeten. Een s
 
 > **Bestaande installaties:** de timer van 30 s komt mee met de agent-update (⬆ Bijwerken). Tot die tijd rapporteert de agent zoals zijn oude timer hem start (meestal elke 60 s).
 
+#### Realtime-watcher ⚡
+Normaal ziet RzMon een gebeurtenis bij de volgende tik. Met **realtime** weet RzMon het binnen een paar seconden:
+
+| Wat | Hoe de watcher het ziet |
+|---|---|
+| SSH-login of mislukte poging, sudo, su, console | het systemlog live volgen (`journalctl -f`; zonder journald het logbestand uit `AUTH_LOGS`) |
+| Een bewaakte service stopt, crasht of wordt herstart | meldingen van systemd in het systemlog |
+| Nieuw of gewijzigd bestand onder een **🔴-pad** van *Bestanden bewaken* (IDS) | inotify (`inotifywait`) |
+
+- **Aanzetten:** per server in de *Agent Manager* → **⚡ Realtime: aan**. Standaard staat het uit. De agent neemt het binnen een minuut over.
+- **Hoe het werkt:** de dienst `rzmon-watch` analyseert zelf niets. Hij let alleen op, en start bij een gebeurtenis meteen een gewone agent-run. Die verwerkt alles zoals altijd (logins, brute force, IDS, services, bestanden), en RzMon beoordeelt het rapport direct. Hooguit één extra run per 10 seconden, ook tijdens een brute-force-aanval.
+- **Status:** in de *Agent Manager* staat *⚡ Realtime actief · systemlog ✔ · bestanden ✔*, en op de IDS-pagina *⚡ realtime* bij de server.
+- **Dienst:** `rzmon-watch` wordt bij het installeren of bijwerken van de agent aangemaakt (alleen met systemd). Hij draait altijd, maar doet niets zolang realtime uit staat. Stopt hij, dan start systemd hem opnieuw; en valt hij helemaal weg, dan doet de gewone timer alles nog, alleen trager. Bekijken: `systemctl status rzmon-watch`.
+- **inotify-tools** (voor bestanden) installeert de setup automatisch. Op Rocky/RHEL staat het in **EPEL**: lukt het niet, installeer dan eerst EPEL (`sudo dnf install epel-release`) en werk de agent bij. Zonder inotify-tools werkt realtime voor logins en services gewoon; bestanden worden dan bij de gewone runs gecontroleerd.
+- **Op een server altijd uit:** `REALTIME=0` in `/etc/default/rzmon-agent`.
+- **Niet beschikbaar** via cron of op TrueNAS SCALE (daar kun je geen blijvende eigen dienst toevoegen).
+- **Home Assistant-add-on:** daar kijkt de add-on elke 5 seconden of er iets verandert aan de add-ons, Core of de boot-tijd van HA OS; zo ja, dan volgt meteen een rapport.
+
 #### 8.2.2 Services kiezen in RzMon
 Welke services de agent bewaakt, stel je in RzMon in, niet meer op de server:
 

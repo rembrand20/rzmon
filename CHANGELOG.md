@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.43.0 – 2026-10-22
+### Nieuw
+- **⚡ Realtime-watcher**, per server aan te zetten in de *Agent Manager* (standaard uit). Logins, mislukte pogingen, sudo, su, services die stoppen of crashen, en nieuwe of gewijzigde bestanden onder een 🔴-pad van *Bestanden bewaken* staan binnen een paar seconden in RzMon, in plaats van bij de volgende tik.
+- De nieuwe dienst `rzmon-watch` volgt het systemlog (of het logbestand zonder journald) en, met inotify-tools, de bestanden. Bij een gebeurtenis start hij meteen een gewone agent-run (hooguit één per 10 s), zodat alle bestaande logica (IDS, brute force, meldingen) gewoon werkt.
+- De status staat in de Agent Manager (*⚡ Realtime actief · systemlog ✔ · bestanden ✔*) en op de IDS-pagina.
+- De setup maakt de dienst aan en installeert inotify-tools. Op Rocky/RHEL staat dat in EPEL; lukt het niet, dan werkt realtime voor logins en services nog steeds.
+- `REALTIME=0` zet het op een server altijd uit. Niet via cron of op TrueNAS.
+- **Home Assistant-add-on:** met realtime aan kijkt de add-on elke 5 s of er iets verandert aan de add-ons, Core of de boot-tijd, en rapporteert dan meteen.
+- Twee agent-runs lopen nooit meer tegelijk (de tweede wacht even).
+- Agent 1.43.0 nodig (bijwerken met ⬆; de dienst wordt bij het bijwerken aangemaakt).
+
 ## 1.42.0 – 2026-10-22
 ### Nieuw
 Home Assistant: wat er op OS-niveau en met de containers gebeurt (add-on 1.42.0).

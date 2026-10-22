@@ -25,6 +25,7 @@ BIN="/usr/local/bin/rzmon-agent.sh"
 CONF="/etc/default/rzmon-agent"
 UNIT="/etc/systemd/system/rzmon-agent.service"
 TIMER="/etc/systemd/system/rzmon-agent.timer"
+WATCH="/etc/systemd/system/rzmon-watch.service"   # realtime-watcher (alleen actief als RzMon het aanzet)
 CRON="/etc/cron.d/rzmon-agent"
 SETUP="/usr/local/sbin/rzmon-agent-setup"   # dit script, voor later --update/--uninstall
 
@@ -187,8 +188,8 @@ if [ "$MODE" = "uninstall" ]; then
         id=$(tn_cron_id)
         [ -n "$id" ] && midclt call cronjob.delete "$id" >/dev/null && ok "Cronjob \"$TN_CRON_DESC\" verwijderd"
     elif has_systemd; then
-        systemctl disable --now rzmon-agent.timer >/dev/null 2>&1 || true
-        rm -f "$UNIT" "$TIMER"
+        systemctl disable --now rzmon-agent.timer rzmon-watch.service >/dev/null 2>&1 || true
+        rm -f "$UNIT" "$TIMER" "$WATCH"
         systemctl daemon-reload
     fi
     rm -f "$CRON" "$BIN" "$SETUP"
@@ -328,6 +329,17 @@ if [ ${#need[@]} -gt 0 ]; then
         apk) apk add --no-cache "${need[@]}" >/dev/null ;;
         *) "$pm" -y -q install "${need[@]}" >/dev/null ;;
     esac
+fi
+# inotify-tools voor de realtime-watcher (bestanden). Mag mislukken (op Rocky/RHEL staat het in EPEL):
+# dan werkt realtime voor logins en services wel, en bestanden alleen via de gewone runs.
+if [ "$TRUENAS" = 0 ] && has_systemd && ! command -v inotifywait >/dev/null 2>&1 && [ -n "$pm" ]; then
+    case "$pm" in
+        apt-get) DEBIAN_FRONTEND=noninteractive apt-get install -y -qq inotify-tools >/dev/null 2>&1 || true ;;
+        apk) apk add --no-cache inotify-tools >/dev/null 2>&1 || true ;;
+        *) "$pm" -y -q install inotify-tools >/dev/null 2>&1 || true ;;
+    esac
+    command -v inotifywait >/dev/null 2>&1 && ok "inotify-tools geïnstalleerd (bestanden in realtime)" \
+        || warn "inotify-tools niet beschikbaar (Rocky/RHEL: eerst EPEL, dnf install epel-release); bestanden worden dan alleen bij de gewone runs gecontroleerd"
 fi
 command -v curl >/dev/null 2>&1 || die "curl ontbreekt"
 ok "curl$(command -v ss >/dev/null 2>&1 && echo ', ss')$(command -v openssl >/dev/null 2>&1 && echo ', openssl') aanwezig"
@@ -481,10 +493,35 @@ Unit=rzmon-agent.service
 [Install]
 WantedBy=timers.target
 EOF
+    # Realtime-watcher: draait altijd, maar doet pas iets als realtime voor deze server in RzMon aan staat
+    cat > "$WATCH" <<EOF
+[Unit]
+Description=RzMon realtime-watcher (alleen actief als het in RzMon aan staat)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=$CONF
+ExecStart=$BIN --watch
+Restart=always
+RestartSec=10
+Nice=10
+$hardening
+PrivateTmp=yes
+CacheDirectory=rzmon-agent
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
+EOF
     systemctl daemon-reload
     systemctl enable --now rzmon-agent.timer >/dev/null 2>&1
+    systemctl enable rzmon-watch.service >/dev/null 2>&1 || true
+    systemctl restart rzmon-watch.service >/dev/null 2>&1 || true   # nieuwe versie van de agent meteen gebruiken
     rm -f "$CRON"   # oude cron-installatie opruimen
     ok "systemd-timer actief (start elke 30 s; rapporteert volgens de tik in RzMon). Logboek: journalctl -u rzmon-agent"
+    ok "realtime-watcher rzmon-watch klaar (aan/uit per server in RzMon → Agent Manager)"
 else
     sched="* * * * *"   # elke minuut; de agent rapporteert volgens de tik uit RzMon
     printf '# RzMon agent\n%s root set -a; . %s; %s >/dev/null 2>&1\n' "$sched" "$CONF" "$BIN" > "$CRON"

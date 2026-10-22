@@ -2041,6 +2041,18 @@ async function podmanOverview(h) {
 }
 
 // ---------------------------------------------------------------- Agent
+/** Status van de realtime-watcher, voor de Agent Manager en de IDS-pagina */
+function realtimeText(rt) {
+  if (!rt || !rt.on) return '<span class="muted">⚡ Realtime: uit</span>';
+  const s = rt.status;
+  if (!s || s.state !== 'active') {
+    return '<span class="warn-txt">⚡ Realtime: aan, maar de watcher is (nog) niet actief</span> <span class="muted">— agent 1.43.0 met systemd nodig; bijwerken met ⬆, of REALTIME=0 op de server</span>';
+  }
+  const parts = [s.journal === 'ok' ? 'systemlog ✔' : s.journal === 'supervisor' ? 'Supervisor ✔' : 'systemlog –',
+    s.files === 'ok' ? 'bestanden ✔' : s.files === 'missing' ? 'bestanden: inotify-tools ontbreekt' : null].filter(Boolean);
+  return `<span class="good">⚡ Realtime actief</span> <span class="muted">sinds ${new Date(s.since * 1000).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${parts.join(' · ')}</span>`;
+}
+
 /** "30 s", "2 min" */
 function tickText(t) { return +t >= 120 ? `${+t / 60} min` : `${+t} s`; }
 
@@ -2057,6 +2069,9 @@ function agentInstructions(h) {
       <div class="cmd-host-row need-admin">⏱ Rapporteren elke:
         <select id="host-tick"><option value="0">standaard (${tickText(state.agent_tick)})</option>${[30, 60, 120, 300].map((t) => `<option value="${t}" ${+h.agent_tick === t ? 'selected' : ''}>${tickText(t)}</option>`).join('')}</select>
         <span class="muted small" id="host-tick-info">${h.agent_update_via === 'direct' ? 'via cron/TrueNAS: minimaal elke minuut' : ''}</span></div>
+      <div class="cmd-host-row need-admin">⚡ Realtime:
+        <select id="host-realtime"><option value="0" ${+h.realtime ? '' : 'selected'}>uit</option><option value="1" ${+h.realtime ? 'selected' : ''}>aan</option></select>
+        <span class="muted small" id="host-realtime-info">${h.agent_update_via === 'direct' ? 'werkt alleen met systemd (niet via cron of op TrueNAS)' : 'logins, sudo, services en 🔴-bestanden meteen'}</span></div>
       <div class="cmd-host-row need-admin">🖥️ Commando-checks op deze server:
         <select id="host-commands"><option value="global">algemene instelling</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
         <span class="muted small" id="host-commands-info"></span></div>
@@ -2138,6 +2153,13 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   };
   $$('.seg-btn', body).forEach((b) => (b.onclick = () => show(b.dataset.seg)));
   pollAgentStatus(h.id);
+  $('#host-realtime').onchange = async (e) => {
+    try {
+      await api('host_realtime', { id: h.id, on: e.target.value === '1' });
+      toast(`Realtime ${e.target.value === '1' ? 'aan' : 'uit'} voor ${h.name}; de agent pakt het binnen een minuut op`);
+      refresh();
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
   $('#host-tick').onchange = async (e) => {
     try {
       const r = await api('host_tick', { id: h.id, tick: +e.target.value });
@@ -2287,6 +2309,7 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
       const canRemote = u.via === 'systemd' || u.via === 'direct';
       html += `<div class="small">Agent-versie <b>${s.agent_version ? esc(s.agent_version) : 'onbekend (ouder dan 1.6.0)'}</b>, RzMon ${esc(s.version)}${old ? '' : ' ✔'}</div>`;
       if (u.status) html += `<div class="small agent-upd-status">${esc(u.status)}</div>`;
+      html += `<div class="small">${realtimeText(s.realtime)}</div>`;
       if (isAdmin() && u.pending) {
         html += '<div class="btn-row agent-upd"><button type="button" class="btn" data-agent-upd="cancel">Bijwerken annuleren</button></div>';
       } else if (isAdmin() && (old || canRemote)) {
@@ -2555,7 +2578,7 @@ function renderIds() {
     <div class="ids-host">
       <div><b>${esc(h.name)}</b> <span class="muted small">${h.last_report ? 'IDS-rapport ' + ago(h.last_report) : d.enabled ? 'nog geen IDS-rapport (agent 1.35.0+)' : ''}</span></div>
       <div class="small">${!h.baseline_until ? '' : h.learning ? `📏 basismeting tot ${esc(fmtUntil(h.baseline_until))}` : '✔ bewaakt'}
-        ${h.fw_state ? ' · ' + (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : ''}${h.fim_count != null ? ` · 📁 ${(+h.fim_count).toLocaleString('nl-NL')} bestand${+h.fim_count === 1 ? '' : 'en'} bewaakt` : ''}</div>
+        ${h.fw_state ? ' · ' + (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : ''}${h.fim_count != null ? ` · 📁 ${(+h.fim_count).toLocaleString('nl-NL')} bestand${+h.fim_count === 1 ? '' : 'en'} bewaakt` : ''}${+h.realtime ? ((x) => (x && x.state === 'active' ? ' · <span class="good" title="Realtime-watcher actief">⚡ realtime</span>' : ' · <span class="warn-txt" title="Realtime staat aan, maar de watcher is niet actief">⚡ niet actief</span>'))(JSON.parse(h.rt || 'null')) : ''}</div>
       <div class="small">${h.open[2] ? `<span class="ad-count">🔴 ${h.open[2]}</span>` : ''} ${h.open[1] ? `<span class="ad-count">🟠 ${h.open[1]}</span>` : ''}
         ${!h.open[1] && !h.open[2] ? '<span class="muted">geen open incidenten</span>' : ''}
         ${h.baseline_until ? `<button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="Alles wat er nu is als normaal vastleggen">↺ basismeting opnieuw</button>` : ''}</div>

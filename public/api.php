@@ -76,7 +76,12 @@ function agent_tests_text(int $hostId): string
 {
     $out = [];
     // Hoe vaak de agent rapporteert: 0 <tab> tick <tab> seconden
-    $out[] = implode("\t", [0, 'tick', agent_tick((int) q('SELECT agent_tick FROM hosts WHERE id = ?', [$hostId])->fetchColumn() ?: null)]);
+    $hr = q('SELECT agent_tick, realtime FROM hosts WHERE id = ?', [$hostId])->fetch() ?: [];
+    $out[] = implode("\t", [0, 'tick', agent_tick((int) ($hr['agent_tick'] ?? 0) ?: null)]);
+    // Realtime-watcher aan voor deze server: 0 <tab> realtime <tab> 1
+    if (!empty($hr['realtime'])) {
+        $out[] = implode("\t", [0, 'realtime', 1]);
+    }
     // Interval per check voor zware onderdelen (diepere controle, extra tests, logs): id <tab> ival <tab> seconden
     foreach (q("SELECT id, interval_sec FROM checks WHERE host_id = ? AND type IN ('service', 'log') AND enabled = 1", [$hostId]) as $c) {
         $out[] = implode("\t", [$c['id'], 'ival', max(30, (int) $c['interval_sec'])]);
@@ -316,6 +321,12 @@ if ($action === 'agent') {
             $st->execute([$host['id'], "ha:$k", json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
         }
     }
+    // Realtime-watcher: draait hij, en volgt hij het systemlog en de bestanden?
+    if (is_array($in['realtime'] ?? null)) {
+        $rt = $in['realtime'];
+        $st->execute([$host['id'], 'realtime', json_encode(['state' => mb_substr((string) ($rt['state'] ?? ''), 0, 20), 'since' => (int) ($rt['since'] ?? 0),
+            'journal' => mb_substr((string) ($rt['journal'] ?? ''), 0, 20), 'files' => mb_substr((string) ($rt['files'] ?? ''), 0, 20)]), $now]);
+    }
     // Home Assistant: USB-apparaten (Zigbee-/Z-Wave-sticks, Bluetooth), elk een eigen regel om te kiezen en te bewaken
     foreach (array_slice((array) ($in['usb'] ?? []), 0, 50) as $u) {
         $uid = (string) ($u['id'] ?? '');
@@ -515,7 +526,7 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'state':
-        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick,
+        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime,
                     enabled, maintenance_until, maintenance_reason FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
@@ -690,6 +701,13 @@ switch ($action) {
         }
         out(['ok' => true, 'id' => $id]);
 
+    // Realtime-watcher voor deze server aan of uit (standaard uit)
+    case 'host_realtime':
+        $in = input();
+        q('UPDATE hosts SET realtime = ? WHERE id = ?', [!empty($in['on']) ? 1 : 0, (int) ($in['id'] ?? 0)]);
+        AgentCommands::audit($user['username'], 'Realtime', (!empty($in['on']) ? 'aan' : 'uit') . ' voor server ' . (int) ($in['id'] ?? 0));
+        out(['ok' => true]);
+
     // Hoe vaak de agent van deze server rapporteert (0 = algemene instelling)
     case 'host_tick':
         $in = input();
@@ -732,7 +750,7 @@ switch ($action) {
 
     case 'agent_status':
         $id = (int) ($_GET['id'] ?? 0);
-        $h = q('SELECT agent_seen, agent_ip, agent_version, mode, agent_update_req, agent_update_status, agent_update_via FROM hosts WHERE id = ?', [$id])->fetch();
+        $h = q('SELECT agent_seen, agent_ip, agent_version, mode, agent_update_req, agent_update_status, agent_update_via, realtime FROM hosts WHERE id = ?', [$id])->fetch();
         if (!$h) {
             out(['error' => 'Server niet gevonden'], 404);
         }
@@ -744,7 +762,8 @@ switch ($action) {
                     GROUP BY ip, reason ORDER BY MAX(id) DESC LIMIT 6', [$id, $h['agent_seen'], $h['agent_seen']])->fetchAll();
         out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now(),
              'agent_version' => $h['agent_version'], 'version' => RZMON_VERSION,
-             'update' => ['pending' => $h['agent_update_req'] !== null, 'status' => $h['agent_update_status'], 'via' => $h['agent_update_via']]]);
+             'update' => ['pending' => $h['agent_update_req'] !== null, 'status' => $h['agent_update_status'], 'via' => $h['agent_update_via']],
+             'realtime' => ['on' => (bool) $h['realtime'], 'status' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'realtime'", [$id])->fetchColumn(), true)]]);
 
     case 'podman':
         // Overzicht van alle containers die de agent van deze server meldt
@@ -1426,7 +1445,8 @@ switch ($action) {
     // ---------------------------------------------------------- IDS
     case 'ids':
         $days = Monitor::alertDays();
-        $hosts = q("SELECT h.id, h.name, h.agent_seen, h.agent_update_via = 'ha' AS ha, h.ids_fim, s.fim_count, s.fim_cand, s.baseline_until, s.fw_state, s.fw_error, s.last_report
+        $hosts = q("SELECT h.id, h.name, h.agent_seen, h.agent_update_via = 'ha' AS ha, h.ids_fim, h.realtime,
+                           (SELECT value FROM agent_data ad WHERE ad.host_id = h.id AND ad.metric = 'realtime') AS rt, s.fim_count, s.fim_cand, s.baseline_until, s.fw_state, s.fw_error, s.last_report
                     FROM hosts h LEFT JOIN ids_state s ON s.host_id = h.id WHERE h.mode = 'agent' AND h.enabled = 1 ORDER BY h.name")->fetchAll();
         $open = q("SELECT host_id, severity, COUNT(*) AS n FROM ids_incidents WHERE status = 'open' GROUP BY host_id, severity")->fetchAll();
         $blocks = Ids::activeBlocks();
