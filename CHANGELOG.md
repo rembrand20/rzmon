@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.47.0 – 2026-10-22
+### Nieuw
+- **📡 SNMP.** Per server zet je bij ✎ Bewerken SNMP aan (v2c met community, of v3 met gebruiker, SHA/SHA-256 en AES). RzMon leest het apparaat dan zelf uit, ook zonder agent: switches, UniFi, TP-Link, MikroTik, Synology, een UPS, printers of Proxmox.
+- **🔍 Test SNMP** in het serverformulier toont meteen de naam, de fabrikant en de uptime, of wat er mis is.
+- **📡 SNMP-checks:** RzMon doorzoekt het apparaat en toont wat er te bewaken valt, om aan te vinken: uptime (herstart), CPU, geheugen, load, temperatuur, elke interface (up/down, verkeer, bezetting), elke schijf of elk volume, UPS (status, lading, looptijd, belasting, accutemperatuur; UPS-MIB en APC), Synology (systeem en ventilatoren, volumes degraded/crashed, schijfgezondheid), printervoorraden en UniFi-clients.
+- **Eigen OID:** elke numerieke OID als getal met drempels (met omrekening en "lager is slechter"), als teller (waarde per seconde) of als tekst om te vergelijken.
+- Community en wachtwoorden gaan nooit terug naar de browser.
+- `install-rocky.sh` installeert `php-snmp` en `net-snmp-utils` (voor `snmpwalk`). Bij een update gebeurt dat ook; met de hand: `sudo dnf -y install php-snmp net-snmp-utils && sudo systemctl restart php-fpm`.
+
+
 ## 1.46.1 – 2026-10-22
 ### Opgelost
 - Nieuwe agent **1.45.2**: de Home Assistant-add-on (en een agent op Alpine Linux) stuurde sinds agent 1.43.0 geen rapporten meer, waardoor Home Assistant in RzMon op *onbereikbaar (agent stil)* stond. Werk de add-on bij in de add-on winkel; Linux-servers werk je bij met ⬆ zoals altijd.

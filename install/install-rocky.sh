@@ -227,7 +227,8 @@ dnf -y install \
 ok "httpd, PHP-FPM, MariaDB en hulpprogramma's geïnstalleerd"
 
 # Handig maar niet noodzakelijk: niet afbreken als een pakket ontbreekt
-for pkg in php-intl php-xml php-gd; do
+# (php-snmp: apparaten uitlezen via SNMP; net-snmp-utils: snmpwalk om zelf OID's op te zoeken)
+for pkg in php-intl php-xml php-gd php-snmp net-snmp-utils; do
     dnf -y install "$pkg" >/dev/null 2>&1 && info "extra: $pkg" || warn "Optioneel pakket $pkg niet beschikbaar (geen probleem)"
 done
 

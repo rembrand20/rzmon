@@ -55,6 +55,7 @@ require_once __DIR__ . '/Updater.php';
 require_once __DIR__ . '/AgentCommands.php';
 require_once __DIR__ . '/AuthEvents.php';
 require_once __DIR__ . '/Ids.php';
+require_once __DIR__ . '/SnmpMonitor.php';
 
 function config(string $key, $default = null)
 {
@@ -143,6 +144,14 @@ function check_unit(array $check): ?string
     }
     if ($check['type'] === 'container') {
         return ['cpu' => '%', 'mem' => '%', 'disk' => 'MB'][$check['metric'] ?? ''] ?? null;
+    }
+    if ($check['type'] === 'snmp') {
+        if (($check['metric'] ?? '') === 'oid') {
+            $o = json_decode((string) ($check['options'] ?? ''), true) ?: [];
+            return ($o['mode'] ?? 'gauge') === 'text' ? null : (($o['unit'] ?? '') . (($o['mode'] ?? '') === 'counter' ? '/s' : '') ?: null);
+        }
+        return ['uptime' => 'uur', 'if' => '%', 'cpu' => '%', 'mem' => '%', 'storage' => '%', 'temp' => '°C', 'ups_charge' => '%', 'ups_runtime' => 'min',
+            'ups_load' => '%', 'ups_temp' => '°C', 'syno_system' => '°C', 'syno_raid' => '%', 'syno_disk' => '°C', 'printer' => '%', 'unifi_clients' => 'clients'][$check['metric'] ?? ''] ?? null;
     }
     return ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'ssl' => 'dagen', 'disk' => '%', 'cpu' => '%', 'ram' => '%', 'log' => 'treffers'][$check['type']] ?? null;
 }

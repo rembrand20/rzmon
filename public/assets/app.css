@@ -236,6 +236,10 @@ article.flash { animation: flash 1.6s; }
 .inline-form { display: flex; gap: .5rem; }
 .inline-form input { flex: 1; }
 .inline-form .btn { white-space: nowrap; }
+.snmp-test-row { display: flex; gap: .7rem; align-items: center; margin: .2rem 0 .6rem; }
+.snmp-test-row .btn { white-space: nowrap; }
+.snmp-grp { margin: .6rem 0 .1rem; }
+.snmp-grp:first-child { margin-top: 0; }
 .api-key-form { display: grid; gap: .6rem; margin-top: .6rem; }
 .api-key-form > .btn { justify-self: start; }
 .api-rights { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .3rem .9rem; }

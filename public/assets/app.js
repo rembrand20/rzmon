@@ -19,6 +19,7 @@ const TYPES = {
   log:     { label: 'Logbestand (zoeken)', target: 'Bron', unit: 'treffers', warn: 5, crit: 20, ph: '/var/log/secure, journal, journal:sshd of kernel', help: 'De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.' },
   command: { label: 'Commando', target: null, unit: null, help: 'De agent voert een commando uit op de server, en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → ⬆ Agents bijwerken).' },
   ha:      { label: 'Home Assistant', target: null, unit: null, help: 'Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.' },
+  snmp:    { label: 'SNMP',          target: null,            unit: null, help: 'RzMon leest het apparaat zelf uit via SNMP (switches, access points, NAS, UPS, printers, Proxmox…). Interfaces, schijven en voorraden kies je het makkelijkst via 📡 SNMP-checks bij de server.' },
   service: { label: 'Service',       target: 'Servicenaam',   unit: null, ph: 'nginx', help: 'De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.' },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
@@ -61,6 +62,37 @@ const METRICS = {
   disk:   { label: 'Diskgebruik', unit: 'MB', warn: 5000, crit: 10000, help: 'Schrijflaag van de container plus de grootte van zijn volumes (volumes worden elk uur gemeten).' },
 };
 // Home Assistant (add-on): wat er bewaakt kan worden, met standaarddrempels
+// Wat een SNMP-check kan bewaken (zie SnmpMonitor::METRICS); low = lager is slechter
+const SNMP_METRICS = {
+  uptime:        { label: 'Uptime (herstart)', short: 'Uptime', unit: 'uur', warn: 1, crit: null, low: true, help: 'WARNING zolang het apparaat korter aan staat dan de drempel: zo zie je een herstart. Bij Linux en Proxmox de uptime van het systeem, anders die van de SNMP-agent.' },
+  if:            { label: 'Interface', short: 'Interface', target: 'Interface-index', unit: '%', warn: 80, crit: 95, help: 'Down terwijl de poort aan staat = CRITICAL; uitgeschakeld = OK. Drempels: bezetting in % van de linksnelheid (in of uit, de hoogste). Het verkeer staat in het bericht.' },
+  cpu:           { label: 'CPU', short: 'CPU', unit: '%', warn: 85, crit: 95, help: 'Gemiddelde belasting over alle cores (HOST-RESOURCES), of de CPU-meting van TP-Link of net-snmp.' },
+  mem:           { label: 'Geheugen', short: 'Geheugen', unit: '%', warn: 85, crit: 95, help: 'Geheugen in gebruik. Bij Linux en Proxmox (net-snmp) zonder buffers en cache.' },
+  storage:       { label: 'Opslag (schijf of volume)', short: 'Opslag', target: 'Opslag-index', unit: '%', warn: 80, crit: 90, help: 'Percentage gebruikt van een schijf of volume (HOST-RESOURCES).' },
+  load:          { label: 'Load (5 min)', short: 'Load', unit: 'load', warn: 4, crit: 8, help: 'Load average over 5 minuten (net-snmp: Linux, Proxmox). Vuistregel: boven het aantal cores wordt het druk.' },
+  temp:          { label: 'Temperatuur', short: 'Temperatuur', unit: '°C', warn: 60, crit: 75, help: 'MikroTik, of de warmste sensor via lm-sensors (Linux en Proxmox met net-snmp).' },
+  ups_status:    { label: 'UPS status', short: 'UPS', unit: null, help: 'Op batterij of bypass = WARNING; batterij bijna leeg, leeg of in storing = CRITICAL; batterij vervangen (APC) of actieve alarmen = WARNING. UPS-MIB (Eaton, CyberPower, Riello…) of APC.' },
+  ups_charge:    { label: 'UPS batterijlading', short: 'UPS', unit: '%', warn: 50, crit: 20, low: true, help: 'Lading van de accu in %.' },
+  ups_runtime:   { label: 'UPS looptijd', short: 'UPS', unit: 'min', warn: 15, crit: 5, low: true, help: 'Hoe lang de UPS de huidige belasting nog op batterij kan dragen.' },
+  ups_load:      { label: 'UPS belasting', short: 'UPS', unit: '%', warn: 80, crit: 95, help: 'Belasting van de uitgang. Hoe hoger, hoe korter de looptijd op batterij.' },
+  ups_temp:      { label: 'UPS batterijtemperatuur', short: 'UPS', unit: '°C', warn: 35, crit: 45, help: 'Warmte is de grootste vijand van een loodaccu: elke 10 °C boven 25 °C halveert de levensduur ongeveer.' },
+  syno_system:   { label: 'Synology systeem', short: 'Synology', unit: '°C', warn: 60, crit: 70, help: 'Systeem, voeding en ventilatoren (defect = CRITICAL), en de systeemtemperatuur met drempels. Meldt ook een DSM-update.' },
+  syno_raid:     { label: 'Synology volume (RAID)', short: 'Synology', target: 'Volume-index', unit: '%', warn: 80, crit: 90, help: 'Degraded of crashed = CRITICAL, wordt hersteld = WARNING; drempels op de vulling.' },
+  syno_disk:     { label: 'Synology schijf', short: 'Synology', target: 'Schijf-index', unit: '°C', warn: 50, crit: 60, help: 'Status en gezondheid van de schijf (DSM 7) en de temperatuur.' },
+  printer:       { label: 'Printer (toner, inkt, drum)', short: 'Printer', target: 'Voorraad-index', unit: '%', warn: 20, crit: 5, low: true, help: 'Niveau van toner, inkt, drum of afvalbak in %.' },
+  unifi_clients: { label: 'UniFi clients', short: 'UniFi', unit: 'clients', warn: null, crit: null, help: 'Aantal verbonden clients op een UniFi access point. Drempels zijn optioneel (meer = drukker).' },
+  oid:           { label: 'Eigen OID', short: 'OID', target: 'OID', ph: '1.3.6.1.4.1.…', unit: '', warn: null, crit: null, help: 'Elke OID die het apparaat kent (numeriek): als getal met drempels, als teller (waarde per seconde) of als tekst die je vergelijkt. Tip: zoek de OID op met snmpwalk of in de MIB van de fabrikant.' },
+};
+const OID_MATCHES = { equals: 'is precies', contains: 'bevat', not_contains: 'bevat niet', regex: 'past op regex' };
+/** Type en eenheid van een SNMP-check; bij een eigen OID uit de opties */
+function snmpType(c) {
+  const m = SNMP_METRICS[c.metric] || SNMP_METRICS.oid;
+  if (c.metric !== 'oid') return { ...TYPES.snmp, ...m, label: `SNMP · ${m.short}` };
+  let o = {};
+  try { o = JSON.parse(c.options || '{}') || {}; } catch (e) { o = {}; }
+  return { ...TYPES.snmp, ...m, label: 'SNMP · OID', unit: o.mode === 'text' ? null : (o.unit || ''), low: !!o.low };
+}
+
 const HA_METRICS = {
   backup:       { label: 'Laatste back-up', unit: 'dagen', warn: 2, crit: 7, help: 'Hoe oud de laatste geslaagde automatische back-up is (HA 2025.2 of nieuwer, met automatische back-ups). Ook WARNING als de laatste poging mislukt is.' },
   integrations: { label: 'Integraties', unit: 'stuks', warn: 1, crit: 3, help: 'Aantal integraties dat niet geladen is: fout bij instellen, opnieuw proberen of uitladen mislukt. Uitgeschakelde integraties tellen niet mee.' },
@@ -74,6 +106,7 @@ const HA_METRICS = {
 function isHaHost(h) { return h.agent_update_via === 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor'); }
 /** Type-beschrijving van een check (container: één check met status + resources, geen eigen eenheid). */
 function typeOf(c) {
+  if (c.type === 'snmp') return snmpType(c);
   if (c.type === 'ha') return { ...TYPES.ha, ...(HA_METRICS[c.metric] || {}), label: 'Home Assistant' };
   return c.type === 'container' && c.metric ? { ...TYPES.container, ...METRICS[c.metric], label: TYPES.container.label } : TYPES[c.type];
 }
@@ -104,6 +137,7 @@ const CHECK_GROUPS = [
   ['log', '📜 Logbestanden', ['log']],
   ['ssl', '🔒 Certificaten', ['ssl']],
   ['ha', '🏠 Home Assistant', ['ha']],
+  ['snmp', '📡 SNMP', ['snmp']],
 ];
 const GROUP_MIN = 5;   // pas kopjes vanaf zoveel checks; daaronder alleen de volgorde
 let grpClosed = (() => { try { return JSON.parse(localStorage.getItem('rzmon-grp-closed') || '{}') || {}; } catch (e) { return {}; } })();
@@ -935,6 +969,7 @@ function hostDetail(h, lines = null) {
         <button class="btn need-user" data-act="maint-host" data-id="${h.id}">🔧 Onderhoud</button>
         <button class="btn need-admin" data-act="add-check" data-id="${h.id}">＋ Check</button>
         <button class="btn need-user" data-act="scan" data-id="${h.id}">🔍 Poorten</button>
+        ${h.snmp ? `<button class="btn need-admin" data-act="snmp" data-id="${h.id}">📡 SNMP-checks</button>` : ''}
         ${h.metrics.includes('podman') ? `<button class="btn" data-act="podman" data-id="${h.id}">📦 Containers</button>` : ''}
         <button class="btn need-admin" data-act="edit-host" data-id="${h.id}">✎ Bewerken</button>
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
@@ -1020,7 +1055,7 @@ function checkBits(c) {
   const pctVal = t.unit === '%' && c.last_value !== null ? Math.min(100, +c.last_value) : null;
   const ticks = (pctVal !== null ? (c.warn_threshold !== null ? `<b style="left:${+c.warn_threshold}%"></b>` : '')
     + (c.crit_threshold !== null ? `<b style="left:${+c.crit_threshold}%"></b>` : '') : '');
-  const num = ['ms', 'dagen', 'MB', 'treffers', 'stuks'].includes(t.unit) && c.last_value !== null
+  const num = (['ms', 'dagen', 'MB', 'treffers', 'stuks'].includes(t.unit) || (c.type === 'snmp' && t.unit !== null && t.unit !== '%')) && c.last_value !== null
     ? (t.unit === 'dagen' && c.type !== 'ha' ? Math.floor(c.last_value) + ' dagen' : fmt(c.last_value, t.unit).replace('.', ',')) : '';
   const own = c.maintenance && c.maintenance.scope === 'check';
   const problem = s !== 0 && +c.enabled;
@@ -1138,6 +1173,7 @@ async function onHostsClick(e) {
     case 'history': { const [c, h] = findCheck(id); return showHistory(c, h); }
     case 'agent': return agentInstructions(findHost(id));
     case 'scan': return portScan(findHost(id));
+    case 'snmp': return snmpChecks(findHost(id));
     case 'podman': return podmanOverview(findHost(id));
     case 'toggle': return toggleHost(id);
     case 'ack': { const [c, h] = findCheck(id); return ackDialog('check', id, `${h.name} – ${c.name}`, c.last_message); }
@@ -1309,6 +1345,7 @@ function hostForm(h) {
         </select>
         <span class="hint">Bereikbaar via deze server, bv. een router, switch, VPN of hypervisor. Is die onbereikbaar, dan krijg je één melding voor die server en niet ook voor deze.</span>
       </label>
+      ${snmpHostFields(h.snmp)}
       <details class="notify-own" id="fim-host-wrap" ${h.mode === 'agent' ? '' : 'hidden'}>
         <summary>📁 Bestanden bewaken (IDS): <span id="fim-host-label">laden…</span></summary>
         <p class="hint" style="margin-top:0">Extra paden voor deze server, bovenop de algemene lijst (<i>Instellingen → 🛡️ IDS</i>). Hetzelfde pad hier gaat voor, bv. om de ernst te veranderen.</p>
@@ -1325,8 +1362,15 @@ function hostForm(h) {
       { label: 'Opslaan', cls: 'primary', submit: true },
     ],
     onSubmit: async (d) => {
-      const r = await api('host_save', { ...d, id: h.id, enabled: !!d.enabled, add_ping: !!d.add_ping, ...(fimHost ? { ids_fim: fimHost.get() } : {}) });
+      const snmp = snmpData(d);
+      const r = await api('host_save', { ...d, id: h.id, enabled: !!d.enabled, add_ping: !!d.add_ping, snmp, ...(fimHost ? { ids_fim: fimHost.get() } : {}) });
       toast('Server opgeslagen');
+      if (snmp.on && !h.snmp) {
+        // SNMP net aangezet: meteen laten zien wat er te bewaken valt
+        await refresh();
+        setTimeout(() => snmpChecks(findHost(r.id)), 50);
+        return;
+      }
       if (isNew && d.mode === 'agent') {
         await refresh();
         setTimeout(() => agentInstructions(findHost(r.id)), 50);
@@ -1334,6 +1378,136 @@ function hostForm(h) {
     },
   });
   hostFimInit(h);
+  snmpHostInit(h);
+}
+
+// ---------------------------------------------------------------- SNMP
+/** Blok "📡 SNMP" in het serverformulier; geheimen staan er gemaskeerd in (••••••••) */
+function snmpHostFields(s) {
+  const c = s || { v: '2c', port: 161, community: '', level: 'authPriv', auth_proto: 'SHA', priv_proto: 'AES' };
+  const opt = (list, cur) => list.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('');
+  return `<details class="notify-own" id="snmp-wrap" ${s ? 'open' : ''}>
+    <summary>📡 SNMP: <span id="snmp-label">${s ? `aan (v${esc(s.v)})` : 'uit'}</span></summary>
+    <label class="switch"><input type="checkbox" name="snmp_on" ${s ? 'checked' : ''}><span></span> SNMP gebruiken</label>
+    <div id="snmp-fields">
+      <div class="row2">
+        <label>Versie <select name="snmp_v">${opt([['2c', 'v2c (community)'], ['3', 'v3 (gebruiker en wachtwoorden)']], c.v)}</select></label>
+        <label>Poort <input name="snmp_port" type="number" min="1" max="65535" value="${+c.port || 161}"></label>
+      </div>
+      <label data-snmp-v="2c">Community <span class="hint">(alleen lezen; liever niet "public")</span>
+        <input name="snmp_community" class="mono" autocomplete="off" spellcheck="false" maxlength="100" value="${esc(c.community || '')}"></label>
+      <div data-snmp-v="3">
+        <div class="row2">
+          <label>Gebruiker <input name="snmp_user" class="mono" autocomplete="off" spellcheck="false" maxlength="64" value="${esc(c.user || '')}"></label>
+          <label>Beveiliging <select name="snmp_level">${opt([['authPriv', 'Inloggen + versleutelen (aanbevolen)'], ['authNoPriv', 'Alleen inloggen'], ['noAuthNoPriv', 'Geen']], c.level || 'authPriv')}</select></label>
+        </div>
+        <div class="row2" data-snmp-lvl="auth">
+          <label>Auth-protocol <select name="snmp_auth_proto">${opt([['SHA', 'SHA'], ['SHA256', 'SHA-256'], ['SHA512', 'SHA-512'], ['MD5', 'MD5 (verouderd)']], c.auth_proto || 'SHA')}</select></label>
+          <label>Auth-wachtwoord <input name="snmp_auth_pass" type="password" autocomplete="new-password" value="${esc(c.auth_pass || '')}"></label>
+        </div>
+        <div class="row2" data-snmp-lvl="priv">
+          <label>Privacy-protocol <select name="snmp_priv_proto">${opt([['AES', 'AES'], ['DES', 'DES (verouderd)']], c.priv_proto || 'AES')}</select></label>
+          <label>Privacy-wachtwoord <input name="snmp_priv_pass" type="password" autocomplete="new-password" value="${esc(c.priv_pass || '')}"></label>
+        </div>
+      </div>
+      <div class="snmp-test-row"><button type="button" class="btn" id="snmp-test">🔍 Test SNMP</button><span class="small" id="snmp-test-out"></span></div>
+      <p class="hint" style="margin:0">RzMon leest het apparaat zelf uit (UDP-poort 161): zet SNMP aan op het apparaat en geef het IP-adres van RzMon toegang. Daarna kies je bij de server via <b>📡 SNMP-checks</b> wat je wilt bewaken. De community en wachtwoorden worden niet teruggestuurd naar de browser.</p>
+    </div>
+  </details>`;
+}
+
+/** SNMP-velden uit het formulier, zoals host_save en snmp_test ze verwachten */
+function snmpData(d) {
+  return { on: !!d.snmp_on, v: d.snmp_v, port: d.snmp_port, community: d.snmp_community, user: d.snmp_user, level: d.snmp_level,
+    auth_proto: d.snmp_auth_proto, auth_pass: d.snmp_auth_pass, priv_proto: d.snmp_priv_proto, priv_pass: d.snmp_priv_pass };
+}
+
+function snmpHostInit(h) {
+  const form = $('#modal-form');
+  const f = (n) => $(`[name=${n}]`, form);
+  const show = () => {
+    const on = f('snmp_on').checked, v = f('snmp_v').value, lvl = f('snmp_level').value;
+    $('#snmp-fields').hidden = !on;
+    $$('[data-snmp-v]', form).forEach((el) => { el.hidden = el.dataset.snmpV !== v; });
+    $('[data-snmp-lvl=auth]', form).hidden = lvl === 'noAuthNoPriv';
+    $('[data-snmp-lvl=priv]', form).hidden = lvl !== 'authPriv';
+    $('#snmp-label').textContent = on ? `aan (v${v})` : 'uit';
+  };
+  ['snmp_on', 'snmp_v', 'snmp_level'].forEach((n) => { f(n).onchange = show; });
+  show();
+  $('#snmp-test').onclick = async () => {
+    const out = $('#snmp-test-out');
+    out.className = 'small muted';
+    out.textContent = 'Bezig…';
+    try {
+      const d = Object.fromEntries(new FormData(form));
+      const r = await api('snmp_test', { id: h && h.id, address: d.address, snmp: snmpData(d) });
+      const s = r.sys;
+      out.className = 'small good';
+      out.innerHTML = `✔ ${esc(s.name || '(geen naam)')}${s.vendor ? ` · ${esc(s.vendor)}` : ''}${s.uptime !== null ? ` · aan sinds ${esc(fmtDur(s.uptime))}` : ''}<br><span class="muted">${esc(s.descr)}</span>`;
+    } catch (ex) {
+      out.className = 'small bad';
+      out.textContent = '✘ ' + ex.message;
+    }
+  };
+}
+
+/** "3 d 4 u", "2 u 10 min" */
+function fmtDur(sec) {
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  return d > 0 ? `${d} d ${h} u` : h > 0 ? `${h} u ${m} min` : `${m} min`;
+}
+
+/** 📡 SNMP-checks: het apparaat doorzoeken en aanvinken wat je wilt bewaken; bestaande checks staan er al bij */
+async function snmpChecks(h) {
+  modal({ title: `📡 SNMP-checks – ${h.name}`, wide: true, body: '<p class="muted">Het apparaat wordt doorzocht…</p>', buttons: [] });
+  let r;
+  try {
+    r = await api('snmp_discover', null, { id: h.id });
+  } catch (ex) {
+    modal({ title: `📡 SNMP-checks – ${h.name}`, body: `<p class="bad">✘ ${esc(ex.message)}</p><p class="muted small">Controleer de SNMP-instellingen bij ✎ Bewerken (🔍 Test SNMP).</p>`,
+      buttons: [{ label: 'Sluiten', cls: 'primary', submit: true }] });
+    return;
+  }
+  const have = new Set(h.checks.filter((c) => c.type === 'snmp').map((c) => `${c.metric}|${c.target || ''}`));
+  const groups = {};
+  r.items.forEach((it, i) => { (groups[it.group] = groups[it.group] || []).push([i, it]); });
+  const s = r.sys;
+  modal({
+    title: `📡 SNMP-checks – ${h.name}`,
+    wide: true,
+    body: `<p style="margin-top:0"><b>${esc(s.name || h.name)}</b>${s.vendor ? ` · ${esc(s.vendor)}` : ''}${s.uptime !== null ? ` · aan sinds ${esc(fmtDur(s.uptime))}` : ''}${s.location ? ` · ${esc(s.location)}` : ''}<br>
+        <span class="muted small">${esc(s.descr)}</span></p>
+      <p class="small">Vink aan wat je wilt bewaken. De drempels kun je daarna per check aanpassen (✎). Iets anders nodig? Gebruik <b>＋ Eigen OID</b>.</p>
+      <div class="rec-list">${Object.entries(groups).map(([g, list]) => `
+        <div class="snmp-grp"><label class="switch small"><input type="checkbox" data-snmp-grp="${esc(g)}"><span></span> <b>${esc(g)}</b> <span class="muted small">(${list.length})</span></label></div>
+        ${list.map(([i, it]) => {
+          const exists = have.has(`${it.metric}|${it.target}`);
+          return `<label class="rec-row" data-grp="${esc(g)}"><input type="checkbox" name="snmp_${i}" ${exists ? 'disabled' : it.checked ? 'checked' : ''}>
+            <span><b>${esc(it.name)}</b> <span class="muted small">${esc(SNMP_METRICS[it.metric].label)}${it.target !== '' ? ` · ${esc(it.target)}` : ''}${exists ? ' · wordt al bewaakt' : ''}</span><br>
+            <span class="small muted">${esc(it.info)}</span></span></label>`;
+        }).join('')}`).join('')}</div>`,
+    buttons: [
+      { label: '＋ Eigen OID', style: 'margin-right:auto', onClick: () => checkForm(null, h, { type: 'snmp', metric: 'oid', warn_threshold: null, crit_threshold: null }) },
+      { label: 'Toevoegen', cls: 'primary', submit: true },
+    ],
+    onSubmit: async (d) => {
+      const chosen = r.items.filter((it, i) => d['snmp_' + i]);
+      if (!chosen.length) throw new Error('Vink minstens één check aan');
+      for (const it of chosen) {
+        const m = SNMP_METRICS[it.metric];
+        await api('check_save', { host_id: h.id, type: 'snmp', metric: it.metric, target: it.target, name: it.name, interval_sec: 60, enabled: true,
+          warn_threshold: m.warn ?? '', crit_threshold: m.crit ?? '' });
+      }
+      toast(`${chosen.length} SNMP-check(s) toegevoegd`);
+    },
+  });
+  // Groep in één keer aan of uit
+  $$('[data-snmp-grp]').forEach((g) => {
+    const rows = $$(`.rec-row[data-grp="${CSS.escape(g.dataset.snmpGrp)}"] input:not(:disabled)`);
+    g.checked = rows.length > 0 && rows.every((x) => x.checked);
+    g.onchange = () => rows.forEach((x) => { x.checked = g.checked; });
+  });
 }
 
 /** Serverformulier: lijst "Bestanden bewaken" van deze server (alleen agent-servers, niet de HA-add-on) */
@@ -1437,9 +1611,10 @@ function checkForm(c, h, preset = {}) {
   c = c || { type: 'ping', target: '', name: '', warn_threshold: TYPES.ping.warn, crit_threshold: TYPES.ping.crit, interval_sec: 60, enabled: 1, ...preset };
   const quietOwn = quietOf(c);
   const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
-  const allowed = h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl']
+  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'snmp']
     : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command'].includes(k))
-      .filter((k) => k !== 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor') || c?.type === 'ha');
+      .filter((k) => k !== 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor') || c?.type === 'ha'))
+    .filter((k) => k !== 'snmp' || h.snmp || c?.type === 'snmp');
   const disks = h.metrics.filter((m) => m.startsWith('disk:')).map((m) => m.slice(5));
   const svcs = h.metrics.filter((m) => m.startsWith('service:')).map((m) => m.slice(8));
   let opts = {};
@@ -1481,11 +1656,38 @@ function checkForm(c, h, preset = {}) {
           <input name="pattern" class="mono" value="${esc(opts.pattern || '')}" placeholder="bv. Failed password|Invalid user"></label>
         <span class="hint">Bron: een logbestand (alleen in mappen die op de server zijn toegestaan, standaard /var/log), <code>journal</code> (systemlog), <code>journal:sshd</code> (log van één service) of <code>kernel</code>. Drempels: aantal treffers in de periode.</span>
       </div>
+      <label id="snmp-metric-wrap" hidden>Bewaken
+        <select name="metric" id="snmp-metric">${Object.entries(SNMP_METRICS).map(([k, m]) => `<option value="${k}" ${(c.metric || 'uptime') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+        <span class="hint" id="snmp-help"></span>
+      </label>
       <label id="target-wrap"><span id="target-label"></span><input name="target" value="${esc(c.target)}" list="target-list" class="mono"></label>
       <label id="ha-wrap" hidden>Bewaken
         <select name="metric">${Object.entries(HA_METRICS).map(([k, m]) => `<option value="${k}" ${(c.metric || 'backup') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
         <span class="hint" id="ha-help"></span>
       </label>
+      <div id="snmp-wrap-chk" hidden>
+        <div id="oid-wrap" hidden>
+          <div class="row2">
+            <label>Soort waarde
+              <select name="oid_mode">${[['gauge', 'Getal (met drempels)'], ['counter', 'Teller (waarde per seconde)'], ['text', 'Tekst vergelijken']].map(([v, l]) => `<option value="${v}" ${(opts.mode || 'gauge') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+            </label>
+            <label data-oid="num">Eenheid <span class="hint">(optioneel)</span><input name="oid_unit" maxlength="12" value="${esc(opts.unit || '')}" placeholder="bv. °C, W, V"></label>
+          </div>
+          <div class="row2" data-oid="num">
+            <label>Vermenigvuldigen met <span class="hint">(bv. 0.1 als het apparaat tienden geeft)</span><input name="oid_scale" type="number" step="any" value="${opts.scale ?? 1}"></label>
+            <label class="switch" style="align-self:end"><input type="checkbox" name="oid_low" ${opts.low ? 'checked' : ''}><span></span> Lager is slechter</label>
+          </div>
+          <div class="row2" data-oid="text">
+            <label>Goed als de waarde
+              <select name="oid_match">${Object.entries(OID_MATCHES).map(([v, l]) => `<option value="${v}" ${(opts.match || 'equals') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+            </label>
+            <label>Verwacht <input name="oid_expect" class="mono" maxlength="150" value="${esc(opts.expect || '')}"></label>
+          </div>
+          <label data-oid="text">Klopt het niet, dan
+            <select name="oid_fail"><option value="crit" ${opts.fail !== 'warn' ? 'selected' : ''}>🔴 Critical</option><option value="warn" ${opts.fail === 'warn' ? 'selected' : ''}>🟠 Warning</option></select>
+          </label>
+        </div>
+      </div>
       <div id="res-wrap" hidden>
         <p class="hint" style="margin-top:0">✓ De <b>status</b> wordt altijd bewaakt: gestopt of ongezond = CRITICAL, gepauzeerd of net automatisch herstart = WARNING. Vink aan wat je daarnaast wilt bewaken:</p>
         ${['cpu', 'mem', 'disk'].map((k) => {
@@ -1610,14 +1812,26 @@ function checkForm(c, h, preset = {}) {
   $('#quiet-mode').onchange = showQuiet;
   showQuiet();
   const typeSel = $('[name=type]', form);
-  const haSel = $('[name=metric]', form);
+  const haSel = $('#ha-wrap [name=metric]', form);
   $('[name=reverse_ok]', form).onchange = () => update(false);
+  const snmpSel = $('#snmp-metric');
   const update = (setDefaults) => {
     const isContainer = typeSel.value === 'container';
     const isHa = typeSel.value === 'ha';
-    const t = isHa ? { ...TYPES.ha, ...HA_METRICS[haSel.value] } : TYPES[typeSel.value];
+    const isSnmp = typeSel.value === 'snmp';
+    const oidMode = $('[name=oid_mode]', form).value;
+    const t = isHa ? { ...TYPES.ha, ...HA_METRICS[haSel.value] }
+      : isSnmp ? snmpType({ metric: snmpSel.value, options: JSON.stringify({ mode: oidMode, unit: $('[name=oid_unit]', form).value, low: $('[name=oid_low]', form).checked }) })
+        : TYPES[typeSel.value];
     $('#ha-wrap').hidden = !isHa;
     haSel.disabled = !isHa;   // niet meesturen bij andere types
+    $('#snmp-wrap-chk').hidden = !isSnmp;
+    $('#snmp-metric-wrap').hidden = !isSnmp;
+    snmpSel.disabled = !isSnmp;
+    $('#snmp-help').textContent = isSnmp ? SNMP_METRICS[snmpSel.value].help : '';
+    const isOid = isSnmp && snmpSel.value === 'oid';
+    $('#oid-wrap').hidden = !isOid;
+    $$('#oid-wrap [data-oid]', form).forEach((el) => { el.hidden = (el.dataset.oid === 'text') !== (oidMode === 'text'); });
     $('#ha-help').textContent = isHa ? HA_METRICS[haSel.value].help : '';
     $('#type-help').textContent = TYPES[typeSel.value].help;
     $('#res-wrap').hidden = !isContainer;
@@ -1728,6 +1942,10 @@ function checkForm(c, h, preset = {}) {
   }
   typeSel.onchange = () => update(true);
   haSel.onchange = () => update('metric');
+  snmpSel.onchange = () => update('metric');
+  $('[name=oid_mode]', form).onchange = () => update(false);
+  $('[name=oid_low]', form).onchange = () => update(false);
+  $('[name=oid_unit]', form).oninput = () => update(false);
   $$('#res-wrap input[type=checkbox]', form).forEach((cb) => (cb.onchange = () => update(false)));
   $('[name=test_type]', form).onchange = () => update(false);
   $('[name=cmd_match]', form).onchange = () => update(false);

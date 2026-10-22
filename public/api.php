@@ -533,7 +533,7 @@ switch ($action) {
 
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime,
-                    enabled, maintenance_until, maintenance_reason FROM hosts ORDER BY name')->fetchAll();
+                    enabled, maintenance_until, maintenance_reason, snmp FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
         $global = Monitor::globalMaintenance();
@@ -555,6 +555,7 @@ switch ($action) {
             $own = $h['maintenance_until'] && strtotime($h['maintenance_until']) > time()
                 ? ['scope' => 'host', 'until' => $h['maintenance_until'], 'reason' => (string) $h['maintenance_reason']] : null;
             $h['maintenance'] = $global ?? $own;
+            $h['snmp'] = SnmpMonitor::masked($h['snmp']);   // community en wachtwoorden gaan nooit naar de browser
         }
         unset($h);
         if (!$isAdmin) {
@@ -674,6 +675,15 @@ switch ($action) {
         }
         $enabled = !empty($in['enabled']) ? 1 : 0;
         $parent = !empty($in['parent_id']) ? (int) $in['parent_id'] : null;
+        // SNMP: alleen als het formulier het meestuurt; gemaskeerde geheimen blijven zoals ze waren
+        $snmp = false;
+        if (array_key_exists('snmp', $in)) {
+            $oldSnmp = !empty($in['id']) ? SnmpMonitor::config(q('SELECT snmp FROM hosts WHERE id = ?', [(int) $in['id']])->fetchColumn() ?: null) : null;
+            $snmp = SnmpMonitor::clean($in['snmp'], $oldSnmp);
+            if (is_string($snmp)) {
+                out(['error' => $snmp], 422);
+            }
+        }
         if ($parent !== null) {
             if (!q('SELECT 1 FROM hosts WHERE id = ?', [$parent])->fetchColumn()) {
                 out(['error' => 'Bovenliggende server bestaat niet'], 422);
@@ -700,12 +710,46 @@ switch ($action) {
         if ($mode === 'agent') {
             q('UPDATE hosts SET agent_token = COALESCE(agent_token, ?) WHERE id = ?', [bin2hex(random_bytes(20)), $id]);
         }
+        if ($snmp !== false) {
+            q('UPDATE hosts SET snmp = ? WHERE id = ?', [$snmp ? json_encode($snmp, JSON_UNESCAPED_UNICODE) : null, $id]);
+        }
         // IDS: extra bestanden bewaken op deze server
         if (array_key_exists('ids_fim', $in)) {
             $fimOwn = Ids::cleanFim($in['ids_fim']);
             q('UPDATE hosts SET ids_fim = ? WHERE id = ?', [$fimOwn ? json_encode($fimOwn, JSON_UNESCAPED_SLASHES) : null, $id]);
         }
         out(['ok' => true, 'id' => $id]);
+
+    // SNMP testen met de instellingen uit het formulier (nog niet opgeslagen; gemaskeerde geheimen van de server zelf)
+    case 'snmp_test':
+        $in = input();
+        $old = !empty($in['id']) ? SnmpMonitor::config(q('SELECT snmp FROM hosts WHERE id = ?', [(int) $in['id']])->fetchColumn() ?: null) : null;
+        $cfg = SnmpMonitor::clean(['on' => 1] + (array) ($in['snmp'] ?? []), $old);
+        $addr = trim((string) ($in['address'] ?? ''));
+        if (is_string($cfg) || $cfg === null) {
+            out(['error' => $cfg ?: 'Vul de SNMP-instellingen in'], 422);
+        }
+        if ($addr === '' || !preg_match('/^[A-Za-z0-9.:\-\[\]]+$/', $addr)) {
+            out(['error' => 'Vul eerst het adres van de server in'], 422);
+        }
+        try {
+            out(['ok' => true, 'sys' => SnmpMonitor::test($cfg, $addr)]);
+        } catch (Throwable $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    // Wat er via SNMP op deze server te bewaken valt (＋ SNMP-checks)
+    case 'snmp_discover':
+        $h = q('SELECT address, snmp FROM hosts WHERE id = ?', [(int) ($_GET['id'] ?? 0)])->fetch();
+        $cfg = $h ? SnmpMonitor::config($h['snmp']) : null;
+        if (!$cfg) {
+            out(['error' => 'SNMP staat uit voor deze server (✎ Server bewerken → 📡 SNMP)'], 422);
+        }
+        try {
+            out(SnmpMonitor::discover($cfg, (string) $h['address']));
+        } catch (Throwable $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
 
     // Realtime-watcher voor deze server aan of uit (standaard uit)
     case 'host_realtime':
@@ -851,7 +895,7 @@ switch ($action) {
     case 'check_save':
         $in = input();
         $type = $in['type'] ?? '';
-        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command'], true)) {
+        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp'], true)) {
             out(['error' => 'Ongeldig type'], 422);
         }
         // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -879,6 +923,26 @@ switch ($action) {
             }
         }
         $target = trim((string) ($in['target'] ?? ''));
+        // SNMP: wat (metric) en, waar nodig, de index uit de discovery of de eigen OID
+        $snmpLow = false;
+        if ($type === 'snmp') {
+            $metric = (string) ($in['metric'] ?? '');
+            $sm = SnmpMonitor::METRICS[$metric] ?? null;
+            if (!$sm) {
+                out(['error' => 'Kies wat je via SNMP wilt bewaken'], 422);
+            }
+            if ($metric === 'oid') {
+                $target = ltrim($target, '.');
+                if (!preg_match('/^1(\.\d{1,10}){3,60}$/', $target)) {
+                    out(['error' => 'Geef een numerieke OID, bv. 1.3.6.1.4.1.6574.1.2.0 (namen als sysName.0 werken niet)'], 422);
+                }
+            } elseif ($sm['index'] && !preg_match('/^\d{1,10}(\.\d{1,10}){0,10}$/', $target)) {
+                out(['error' => 'Kies de interface, schijf of voorraad via ＋ SNMP-checks'], 422);
+            } elseif (!$sm['index']) {
+                $target = '';
+            }
+            $snmpLow = $sm['low'];
+        }
         if ($type === 'tcp' && ((int) $target < 1 || (int) $target > 65535)) {
             out(['error' => 'Geef een geldige poort op (1-65535)'], 422);
         }
@@ -890,10 +954,43 @@ switch ($action) {
         }
         $warn = num($in['warn_threshold'] ?? null);
         $crit = num($in['crit_threshold'] ?? null);
-        if ($type === 'ssl') {
-            // Hier geldt "minder dagen = slechter"
+        $options = null;
+        if ($type === 'snmp' && $metric === 'oid') {
+            // Eigen OID: getal, teller (per seconde) of tekst vergelijken
+            $mode = in_array($in['oid_mode'] ?? '', ['gauge', 'counter', 'text'], true) ? $in['oid_mode'] : 'gauge';
+            $o = ['mode' => $mode];
+            if ($mode === 'text') {
+                $o['match'] = in_array($in['oid_match'] ?? '', ['equals', 'contains', 'not_contains', 'regex'], true) ? $in['oid_match'] : 'equals';
+                $o['expect'] = mb_substr(trim((string) ($in['oid_expect'] ?? '')), 0, 150);
+                $o['fail'] = ($in['oid_fail'] ?? '') === 'warn' ? 'warn' : 'crit';
+                if ($o['match'] === 'regex' && @preg_match('~' . str_replace('~', '\\~', $o['expect']) . '~i', '') === false) {
+                    out(['error' => 'De regex klopt niet'], 422);
+                }
+                $warn = $crit = null;
+            } else {
+                $scale = num($in['oid_scale'] ?? null);
+                if ($scale !== null && $scale != 1) {
+                    $o['scale'] = $scale;
+                }
+                $unit = mb_substr(trim((string) ($in['oid_unit'] ?? '')), 0, 12);
+                if ($unit !== '') {
+                    $o['unit'] = $unit;
+                }
+                if (!empty($in['oid_low'])) {
+                    $o['low'] = 1;
+                    $snmpLow = true;
+                }
+            }
+            $options = json_encode($o, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+        if ($type === 'snmp' && $metric === 'ups_status') {
+            $warn = $crit = null;   // UPS-status: geen drempels
+        }
+        if ($type === 'ssl' || $snmpLow) {
+            // Hier geldt "minder = slechter" (dagen, batterij, toner…)
             if ($warn !== null && $crit !== null && $warn < $crit) {
-                out(['error' => 'Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel'], 422);
+                out(['error' => $type === 'ssl' ? 'Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel'
+                    : 'Hier is lager slechter: de warning-drempel moet hoger zijn dan de critical-drempel'], 422);
             }
         } elseif ($warn !== null && $crit !== null && $warn > $crit) {
             out(['error' => 'Warning-drempel moet lager zijn dan critical-drempel'], 422);
@@ -911,7 +1008,6 @@ switch ($action) {
         if ($type === 'ha' && $metric === 'repairs') {
             $warn = $crit = null;   // systeemstatus: unhealthy = critical, de rest warning
         }
-        $options = null;
         if ($type === 'container') {
             // Status altijd; CPU, RAM en disk alleen als aangevinkt, elk met eigen drempels
             $warn = $crit = null;
@@ -981,7 +1077,7 @@ switch ($action) {
             ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
         $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
-            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando',
+            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'snmp' => SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP',
             'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',
                 'disklife' => 'SD-kaart/eMMC', 'osupdate' => 'HA OS-update', 'usb' => 'USB'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
         // Eigen meldregels voor deze check (null = de algemene uit Instellingen → Alarmgedrag)

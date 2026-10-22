@@ -1,0 +1,901 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * SNMP: apparaten uitlezen vanaf RzMon zelf (switches, routers, access points, NAS, UPS, printers, Proxmox…).
+ *
+ * - Per server aan te zetten: hosts.snmp (JSON) met versie (2c of 3), poort, community of v3-gebruiker.
+ * - Checks van type "snmp": metric = wat (zie METRICS), target = index uit de discovery (interface, schijf…)
+ *   of, bij "oid", de OID zelf. Tellers (verkeer, eigen OID als teller) bewaren hun vorige meting in snmp_state.
+ * - Vereist de PHP-extensie snmp (Rocky: dnf install php-snmp; install-rocky.sh doet dat).
+ * - Geeft een apparaat geen antwoord, dan wordt de check UNKNOWN; of het apparaat bereikbaar is, bepaalt de ping.
+ */
+final class SnmpMonitor
+{
+    public const MASK = '••••••••';
+    public const SECRETS = ['community', 'auth_pass', 'priv_pass'];
+    public const AUTH = ['SHA', 'SHA256', 'SHA512', 'MD5'];
+    public const PRIV = ['AES', 'DES'];
+    public const LEVELS = ['noAuthNoPriv', 'authNoPriv', 'authPriv'];
+
+    /** Wat een SNMP-check kan bewaken: label, index nodig (target), lager = slechter, standaarddrempels. */
+    public const METRICS = [
+        'uptime' => ['label' => 'Uptime', 'index' => false, 'low' => true, 'warn' => 1, 'crit' => null],
+        'if' => ['label' => 'Interface', 'index' => true, 'low' => false, 'warn' => 80, 'crit' => 95],
+        'cpu' => ['label' => 'CPU', 'index' => false, 'low' => false, 'warn' => 85, 'crit' => 95],
+        'mem' => ['label' => 'Geheugen', 'index' => false, 'low' => false, 'warn' => 85, 'crit' => 95],
+        'storage' => ['label' => 'Opslag', 'index' => true, 'low' => false, 'warn' => 80, 'crit' => 90],
+        'load' => ['label' => 'Load', 'index' => false, 'low' => false, 'warn' => 4, 'crit' => 8],
+        'temp' => ['label' => 'Temperatuur', 'index' => false, 'low' => false, 'warn' => 60, 'crit' => 75],
+        'ups_status' => ['label' => 'UPS status', 'index' => false, 'low' => false, 'warn' => null, 'crit' => null],
+        'ups_charge' => ['label' => 'UPS batterij', 'index' => false, 'low' => true, 'warn' => 50, 'crit' => 20],
+        'ups_runtime' => ['label' => 'UPS looptijd', 'index' => false, 'low' => true, 'warn' => 15, 'crit' => 5],
+        'ups_load' => ['label' => 'UPS belasting', 'index' => false, 'low' => false, 'warn' => 80, 'crit' => 95],
+        'ups_temp' => ['label' => 'UPS batterijtemperatuur', 'index' => false, 'low' => false, 'warn' => 35, 'crit' => 45],
+        'syno_system' => ['label' => 'Synology systeem', 'index' => false, 'low' => false, 'warn' => 60, 'crit' => 70],
+        'syno_raid' => ['label' => 'Synology volume', 'index' => true, 'low' => false, 'warn' => 80, 'crit' => 90],
+        'syno_disk' => ['label' => 'Synology schijf', 'index' => true, 'low' => false, 'warn' => 50, 'crit' => 60],
+        'printer' => ['label' => 'Printer', 'index' => true, 'low' => true, 'warn' => 20, 'crit' => 5],
+        'unifi_clients' => ['label' => 'UniFi clients', 'index' => false, 'low' => false, 'warn' => null, 'crit' => null],
+        'oid' => ['label' => 'OID', 'index' => true, 'low' => false, 'warn' => null, 'crit' => null],
+    ];
+
+    // Vaste OID's (zonder punt vooraan)
+    private const SYS = ['descr' => '1.3.6.1.2.1.1.1.0', 'object' => '1.3.6.1.2.1.1.2.0', 'uptime' => '1.3.6.1.2.1.1.3.0',
+        'name' => '1.3.6.1.2.1.1.5.0', 'location' => '1.3.6.1.2.1.1.6.0'];
+    private const HR_UPTIME = '1.3.6.1.2.1.25.1.1.0';               // hrSystemUptime: van het systeem zelf (sysUpTime is bij net-snmp die van snmpd)
+    private const HR_CPU = '1.3.6.1.2.1.25.3.3.1.2';                 // hrProcessorLoad (per core, %)
+    private const HR_STORAGE = '1.3.6.1.2.1.25.2.3.1';               // hrStorageEntry: 2 type, 3 descr, 4 units, 5 size, 6 used
+    private const HR_RAM = '.1.3.6.1.2.1.25.2.1.2';
+    private const HR_DISK = ['.1.3.6.1.2.1.25.2.1.4', '.1.3.6.1.2.1.25.2.1.10'];   // vaste schijf, netwerkschijf
+    private const UCD_CPU_IDLE = '1.3.6.1.4.1.2021.11.11.0';
+    private const UCD_MEM = ['total' => '1.3.6.1.4.1.2021.4.5.0', 'avail' => '1.3.6.1.4.1.2021.4.6.0',
+        'buffer' => '1.3.6.1.4.1.2021.4.14.0', 'cached' => '1.3.6.1.4.1.2021.4.15.0'];
+    private const UCD_LOAD = '1.3.6.1.4.1.2021.10.1.3';              // .1/.2/.3 = 1/5/15 minuten
+    private const UCD_SENSORS = '1.3.6.1.4.1.2021.13.16.2.1';        // lm-sensors: 2 naam, 3 temperatuur (m°C)
+    private const TPL_CPU = '1.3.6.1.4.1.11863.6.4.1.1.1.1.3';      // TP-Link: CPU 1 minuut (%)
+    private const TPL_MEM = '1.3.6.1.4.1.11863.6.4.1.2.1.1.2';      // TP-Link: geheugen (%)
+    private const MT_TEMP = '1.3.6.1.4.1.14988.1.1.3.10.0';         // MikroTik: temperatuur (×10 °C)
+    private const UNIFI_STATIONS = '1.3.6.1.4.1.41112.1.6.1.2.1.8'; // UniFi AP: clients per radio/SSID
+    private const IF = '1.3.6.1.2.1.2.2.1';                          // ifEntry: 2 descr, 3 type, 5 speed, 7 admin, 8 oper, 10/16 octets, 13/19 discards, 14/20 errors
+    private const IFX = '1.3.6.1.2.1.31.1.1.1';                      // ifXEntry: 1 name, 6/10 HC octets, 15 highspeed, 18 alias
+    private const UPS = '1.3.6.1.2.1.33.1';                          // UPS-MIB (RFC 1628): Eaton, CyberPower, Riello…
+    private const APC = '1.3.6.1.4.1.318.1.1.1';                     // APC PowerNet
+    private const SYNO = '1.3.6.1.4.1.6574';
+    private const PRT = '1.3.6.1.2.1.43.11.1.1';                     // printer-supplies: 6 naam, 8 max, 9 niveau
+
+    /** Fabrikant aan het enterprise-nummer in sysObjectID */
+    private const VENDORS = [8072 => 'Linux (net-snmp)', 41112 => 'Ubiquiti UniFi', 11863 => 'TP-Link', 6574 => 'Synology', 24681 => 'QNAP',
+        318 => 'APC', 534 => 'Eaton', 3808 => 'CyberPower', 14988 => 'MikroTik', 9 => 'Cisco', 4526 => 'Netgear', 11 => 'HP', 674 => 'Dell',
+        2636 => 'Juniper', 12356 => 'Fortinet', 25461 => 'Palo Alto', 171 => 'D-Link', 2011 => 'Huawei', 30065 => 'Arista', 4413 => 'Ubiquiti EdgeSwitch',
+        10002 => 'Ubiquiti', 1588 => 'Brocade', 6876 => 'VMware', 311 => 'Microsoft', 2435 => 'Brother', 367 => 'Ricoh', 1602 => 'Canon', 18334 => 'Konica Minolta',
+        1347 => 'Kyocera', 253 => 'Xerox', 641 => 'Lexmark', 1248 => 'Epson'];
+
+    /** Servers waarvan SNMP in deze run al niet antwoordde: andere checks daarvan niet ook laten wachten */
+    private static array $down = [];
+
+    public static function available(): bool
+    {
+        return class_exists('SNMP');
+    }
+
+    /** Instellingen van een server (hosts.snmp), of null als SNMP uit staat */
+    public static function config(?string $json): ?array
+    {
+        $c = json_decode((string) $json, true);
+        return is_array($c) && in_array($c['v'] ?? '', ['2c', '3'], true) ? $c : null;
+    }
+
+    /** Voor de browser: zonder community en wachtwoorden (alleen of ze ingevuld zijn) */
+    public static function masked(?string $json): ?array
+    {
+        $c = self::config($json);
+        if ($c === null) {
+            return null;
+        }
+        foreach (self::SECRETS as $k) {
+            $c[$k] = ($c[$k] ?? '') !== '' ? self::MASK : '';
+        }
+        return $c;
+    }
+
+    /**
+     * Instellingen uit het formulier controleren. Gemaskeerde geheimen ($old) blijven staan.
+     * @return array|string|null de instellingen, een foutmelding, of null (SNMP uit)
+     */
+    public static function clean(mixed $in, ?array $old): array|string|null
+    {
+        if (!is_array($in) || empty($in['on'])) {
+            return null;
+        }
+        $v = in_array($in['v'] ?? '', ['2c', '3'], true) ? $in['v'] : '2c';
+        $port = (int) ($in['port'] ?? 161);
+        if ($port < 1 || $port > 65535) {
+            return 'SNMP: kies een poort van 1 tot 65535 (standaard 161)';
+        }
+        $c = ['v' => $v, 'port' => $port];
+        $keep = static fn(string $k): string => ($in[$k] ?? '') === self::MASK ? (string) ($old[$k] ?? '') : (string) ($in[$k] ?? '');
+        if ($v === '2c') {
+            $c['community'] = $keep('community');
+            if ($c['community'] === '' || mb_strlen($c['community']) > 100) {
+                return 'SNMP: vul de community in (vaak "public"; liever een eigen naam)';
+            }
+            return $c;
+        }
+        $c['user'] = trim((string) ($in['user'] ?? ''));
+        if (!preg_match('/^[\w.@-]{1,64}$/u', $c['user'])) {
+            return 'SNMP v3: vul de gebruikersnaam in (letters, cijfers, . _ - @)';
+        }
+        $c['level'] = in_array($in['level'] ?? '', self::LEVELS, true) ? $in['level'] : 'authPriv';
+        if ($c['level'] !== 'noAuthNoPriv') {
+            $c['auth_proto'] = in_array($in['auth_proto'] ?? '', self::AUTH, true) ? $in['auth_proto'] : 'SHA';
+            $c['auth_pass'] = $keep('auth_pass');
+            if (strlen($c['auth_pass']) < 8) {
+                return 'SNMP v3: het auth-wachtwoord moet minstens 8 tekens hebben';
+            }
+        }
+        if ($c['level'] === 'authPriv') {
+            $c['priv_proto'] = in_array($in['priv_proto'] ?? '', self::PRIV, true) ? $in['priv_proto'] : 'AES';
+            $c['priv_pass'] = $keep('priv_pass');
+            if (strlen($c['priv_pass']) < 8) {
+                return 'SNMP v3: het privacy-wachtwoord moet minstens 8 tekens hebben';
+            }
+        }
+        return $c;
+    }
+
+    // ------------------------------------------------------------------ verbinding
+
+    private static function session(array $cfg, string $address): SnmpConn
+    {
+        if (!self::available()) {
+            throw new RuntimeException('De PHP-extensie snmp ontbreekt op de RzMon-server. Rocky Linux: sudo dnf install php-snmp en herstart PHP (of voer install-rocky.sh opnieuw uit)');
+        }
+        $addr = trim($address, '[]');
+        $peer = (str_contains($addr, ':') ? "udp6:[$addr]" : $addr) . ':' . (int) ($cfg['port'] ?? 161);
+        if (($cfg['v'] ?? '2c') === '3') {
+            $s = new SNMP(SNMP::VERSION_3, $peer, (string) ($cfg['user'] ?? ''), 1500000, 1);
+            $level = $cfg['level'] ?? 'authPriv';
+            $ok = @$s->setSecurity($level,
+                $level === 'noAuthNoPriv' ? '' : (string) ($cfg['auth_proto'] ?? 'SHA'), $level === 'noAuthNoPriv' ? '' : (string) ($cfg['auth_pass'] ?? ''),
+                $level === 'authPriv' ? (string) ($cfg['priv_proto'] ?? 'AES') : '', $level === 'authPriv' ? (string) ($cfg['priv_pass'] ?? '') : '');
+            if ($ok === false) {
+                throw new RuntimeException('SNMP v3: deze combinatie van beveiliging wordt niet ondersteund (' . $s->getError() . ')');
+            }
+        } else {
+            $s = new SNMP(SNMP::VERSION_2c, $peer, (string) ($cfg['community'] ?? ''), 1500000, 1);
+        }
+        $s->valueretrieval = SNMP_VALUE_PLAIN;
+        $s->oid_output_format = SNMP_OID_OUTPUT_NUMERIC;
+        $s->quick_print = true;
+        return new SnmpConn($s, $peer);
+    }
+
+    /** Systeeminformatie (voor 🔍 Test SNMP): naam, beschrijving, uptime, fabrikant */
+    public static function test(array $cfg, string $address): array
+    {
+        $c = self::session($cfg, $address);
+        $sys = $c->get(array_values(self::SYS));
+        if (!$sys) {
+            throw new RuntimeException('Het apparaat antwoordt, maar geeft geen systeeminformatie (SNMPv2-MIB)');
+        }
+        return self::sysInfo($sys);
+    }
+
+    private static function sysInfo(array $sys): array
+    {
+        $object = (string) ($sys[self::SYS['object']] ?? '');
+        $ent = preg_match('/^\.?1\.3\.6\.1\.4\.1\.(\d+)/', $object, $m) ? (int) $m[1] : 0;
+        $descr = trim((string) ($sys[self::SYS['descr']] ?? ''));
+        $vendor = self::VENDORS[$ent] ?? ($ent ? "enterprise $ent" : '');
+        if (preg_match('/-pve\b/', $descr)) {
+            $vendor = 'Proxmox VE';
+        }
+        return ['name' => (string) ($sys[self::SYS['name']] ?? ''), 'descr' => mb_substr($descr, 0, 300), 'location' => (string) ($sys[self::SYS['location']] ?? ''),
+            'uptime' => isset($sys[self::SYS['uptime']]) ? (int) floor((int) $sys[self::SYS['uptime']] / 100) : null, 'object' => $object, 'vendor' => $vendor];
+    }
+
+    // ------------------------------------------------------------------ check uitvoeren
+
+    public static function check(array $check, array $host): array
+    {
+        $cfg = self::config($host['snmp'] ?? null);
+        if ($cfg === null) {
+            return self::res(STATUS_UNKNOWN, null, 'SNMP staat uit voor deze server (✎ Server bewerken → 📡 SNMP)');
+        }
+        if (isset(self::$down[$host['id']])) {
+            return self::res(STATUS_UNKNOWN, null, self::$down[$host['id']]);
+        }
+        try {
+            $c = self::session($cfg, (string) $host['address']);
+            $m = (string) $check['metric'];
+            return match ($m) {
+                'uptime' => self::uptime($c, $check),
+                'if' => self::iface($c, $check),
+                'cpu' => self::cpu($c, $check),
+                'mem' => self::mem($c, $check),
+                'storage' => self::storage($c, $check),
+                'load' => self::load($c, $check),
+                'temp' => self::temp($c, $check),
+                'ups_status' => self::upsStatus($c),
+                'ups_charge', 'ups_runtime', 'ups_load', 'ups_temp' => self::upsValue($c, $check, $m),
+                'syno_system' => self::synoSystem($c, $check),
+                'syno_raid' => self::synoRaid($c, $check),
+                'syno_disk' => self::synoDisk($c, $check),
+                'printer' => self::printer($c, $check),
+                'unifi_clients' => self::unifi($c, $check),
+                'oid' => self::oid($c, $check),
+                default => self::res(STATUS_UNKNOWN, null, 'Onbekende SNMP-meting'),
+            };
+        } catch (SnmpDown $e) {
+            self::$down[$host['id']] = $e->getMessage();
+            return self::res(STATUS_UNKNOWN, null, $e->getMessage());
+        }
+    }
+
+    private static function res(int $status, ?float $value, string $message): array
+    {
+        return ['status' => $status, 'value' => $value, 'message' => $message];
+    }
+
+    /** Status volgens de drempels; bij "low" is lager slechter */
+    private static function level(?float $v, array $check, bool $low): int
+    {
+        if ($v === null) {
+            return STATUS_OK;
+        }
+        $w = $check['warn_threshold'];
+        $cr = $check['crit_threshold'];
+        if ($low) {
+            return $cr !== null && $v < (float) $cr ? STATUS_CRIT : ($w !== null && $v < (float) $w ? STATUS_WARN : STATUS_OK);
+        }
+        return $cr !== null && $v >= (float) $cr ? STATUS_CRIT : ($w !== null && $v >= (float) $w ? STATUS_WARN : STATUS_OK);
+    }
+
+    private static function num(mixed $v): ?float
+    {
+        return is_numeric($v) ? (float) $v : null;
+    }
+
+    private static function missing(string $what): array
+    {
+        return self::res(STATUS_UNKNOWN, null, "$what: het apparaat geeft deze gegevens niet (meer) via SNMP");
+    }
+
+    private static function uptime(SnmpConn $c, array $check): array
+    {
+        $r = $c->get([self::HR_UPTIME, self::SYS['uptime']]);
+        $t = self::num($r[self::HR_UPTIME] ?? $r[self::SYS['uptime']] ?? null);
+        if ($t === null) {
+            return self::missing('Uptime');
+        }
+        $s = (int) floor($t / 100);
+        $h = round($s / 3600, 1);
+        $st = self::level($h, $check, true);
+        return self::res($st, $h, ($st !== STATUS_OK ? 'Net herstart · ' : '') . 'uptime ' . self::duration($s)
+            . ($s > 497 * 86400 * 0.95 ? ' (de teller loopt na 497 dagen over: dat is geen herstart)' : ''));
+    }
+
+    private static function iface(SnmpConn $c, array $check): array
+    {
+        $i = (string) $check['target'];
+        $o = [
+            'descr' => self::IF . ".2.$i", 'speed' => self::IF . ".5.$i", 'admin' => self::IF . ".7.$i", 'oper' => self::IF . ".8.$i",
+            'in' => self::IF . ".10.$i", 'out' => self::IF . ".16.$i", 'indisc' => self::IF . ".13.$i", 'inerr' => self::IF . ".14.$i",
+            'outdisc' => self::IF . ".19.$i", 'outerr' => self::IF . ".20.$i",
+            'name' => self::IFX . ".1.$i", 'hcin' => self::IFX . ".6.$i", 'hcout' => self::IFX . ".10.$i", 'high' => self::IFX . ".15.$i", 'alias' => self::IFX . ".18.$i",
+        ];
+        $r = $c->get(array_values($o));
+        $g = static fn(string $k) => $r[$o[$k]] ?? null;
+        if ($g('oper') === null) {
+            return self::res(STATUS_UNKNOWN, null, "Interface $i bestaat niet (meer) op dit apparaat; kies hem opnieuw via ＋ SNMP-checks");
+        }
+        $name = (string) ($g('name') ?: $g('descr') ?: "interface $i");
+        $alias = trim((string) $g('alias'));
+        $label = $name . ($alias !== '' && $alias !== $name ? " ($alias)" : '');
+        if ((int) $g('admin') === 2) {
+            return self::res(STATUS_OK, null, "$label is uitgeschakeld (admin down)");
+        }
+        $oper = (int) $g('oper');
+        $operTxt = [1 => 'up', 2 => 'down', 3 => 'testing', 4 => 'onbekend', 5 => 'dormant', 6 => 'niet aanwezig', 7 => 'lower layer down'][$oper] ?? (string) $oper;
+        if (!in_array($oper, [1, 5], true)) {
+            return self::res(STATUS_CRIT, null, "$label is $operTxt");
+        }
+        $speed = (float) $g('high') > 0 ? (float) $g('high') * 1e6 : (float) ($g('speed') ?? 0);
+        $hc = $g('hcin') !== null && $g('hcout') !== null;
+        $now = microtime(true);
+        $cur = ['t' => $now, 'in' => (float) ($hc ? $g('hcin') : $g('in')), 'out' => (float) ($hc ? $g('hcout') : $g('out')), 'hc' => $hc,
+            'err' => (float) $g('inerr') + (float) $g('outerr') + (float) $g('indisc') + (float) $g('outdisc')];
+        $prev = self::state((int) $check['id']);
+        self::saveState((int) $check['id'], $cur);
+        $msg = "$label $operTxt" . ($speed > 0 ? ' · ' . self::bits($speed) : '');
+        if (!$prev || ($prev['hc'] ?? null) !== $hc || $now - (float) $prev['t'] < 1) {
+            return self::res(STATUS_OK, null, "$msg · verkeer volgt na de volgende meting");
+        }
+        $dt = $now - (float) $prev['t'];
+        $rate = static function (float $a, float $b) use ($hc, $dt): ?float {
+            $d = $a - $b;
+            if ($d < 0) {
+                if ($hc) {
+                    return null;   // teller opnieuw begonnen (herstart)
+                }
+                $d += 4294967296;   // 32-bits teller liep over
+            }
+            return $d * 8 / $dt;
+        };
+        $in = $rate($cur['in'], (float) $prev['in']);
+        $out = $rate($cur['out'], (float) $prev['out']);
+        if ($in === null || $out === null) {
+            return self::res(STATUS_OK, null, "$msg · tellers opnieuw begonnen (herstart?)");
+        }
+        $util = $speed > 0 ? round(max($in, $out) / $speed * 100, 1) : null;
+        $errs = max(0, $cur['err'] - (float) ($prev['err'] ?? 0));
+        $msg .= ' · ↓ ' . self::bits($in) . ' · ↑ ' . self::bits($out) . ($util !== null ? " · {$util}% bezet" : '')
+            . ($errs > 0 ? ' · ' . (int) $errs . ' fout' . ($errs == 1 ? '' : 'en') . '/verloren' : '');
+        return self::res(self::level($util, $check, false), $util, $msg);
+    }
+
+    private static function cpu(SnmpConn $c, array $check): array
+    {
+        [$pct, $info] = self::cpuValue($c);
+        if ($pct === null) {
+            return self::missing('CPU');
+        }
+        return self::res(self::level($pct, $check, false), $pct, "CPU $pct%$info");
+    }
+
+    /** CPU in %: HOST-RESOURCES (per core), TP-Link, of net-snmp (100 − idle) */
+    private static function cpuValue(SnmpConn $c): array
+    {
+        $avg = static fn(array $a) => $a ? round(array_sum(array_map('floatval', $a)) / count($a), 1) : null;
+        $hr = array_filter($c->walk(self::HR_CPU), 'is_numeric');
+        if ($hr) {
+            return [$avg($hr), count($hr) > 1 ? ' (' . count($hr) . ' cores)' : ''];
+        }
+        $tp = array_filter($c->walk(self::TPL_CPU), 'is_numeric');
+        if ($tp) {
+            return [$avg($tp), ' (1 min)'];
+        }
+        $idle = self::num($c->one(self::UCD_CPU_IDLE));
+        return $idle !== null ? [round(100 - $idle, 1), ''] : [null, ''];
+    }
+
+    private static function mem(SnmpConn $c, array $check): array
+    {
+        [$pct, $info] = self::memValue($c);
+        if ($pct === null) {
+            return self::missing('Geheugen');
+        }
+        return self::res(self::level($pct, $check, false), $pct, "Geheugen $pct% in gebruik$info");
+    }
+
+    /** Geheugen in %: net-snmp (zonder buffers/cache), TP-Link, of HOST-RESOURCES (RAM-regel) */
+    private static function memValue(SnmpConn $c): array
+    {
+        $u = $c->get(array_values(self::UCD_MEM));
+        $total = self::num($u[self::UCD_MEM['total']] ?? null);
+        if ($total > 0) {
+            $used = $total - (float) ($u[self::UCD_MEM['avail']] ?? 0) - (float) ($u[self::UCD_MEM['buffer']] ?? 0) - (float) ($u[self::UCD_MEM['cached']] ?? 0);
+            return [round(max(0, $used) / $total * 100, 1), ' van ' . self::bytes($total * 1024) . ' (zonder buffers/cache)'];
+        }
+        $tp = array_filter($c->walk(self::TPL_MEM), 'is_numeric');
+        if ($tp) {
+            return [round(array_sum(array_map('floatval', $tp)) / count($tp), 1), ''];
+        }
+        foreach ($c->walk(self::HR_STORAGE . '.2') as $i => $type) {
+            if ($type === self::HR_RAM) {
+                $s = self::hrStorage($c, (string) $i);
+                if ($s && $s['size'] > 0) {
+                    return [round($s['used'] / $s['size'] * 100, 1), ' van ' . self::bytes($s['size'])];
+                }
+            }
+        }
+        return [null, ''];
+    }
+
+    private static function hrStorage(SnmpConn $c, string $i): ?array
+    {
+        $o = ['descr' => self::HR_STORAGE . ".3.$i", 'units' => self::HR_STORAGE . ".4.$i", 'size' => self::HR_STORAGE . ".5.$i", 'used' => self::HR_STORAGE . ".6.$i"];
+        $r = $c->get(array_values($o));
+        if (!isset($r[$o['size']])) {
+            return null;
+        }
+        $units = max(1, (float) ($r[$o['units']] ?? 1));
+        // Teller van 32 bits: grote volumes kunnen negatief overlopen
+        $fix = static fn(float $v) => $v < 0 ? $v + 4294967296 : $v;
+        return ['descr' => (string) ($r[$o['descr']] ?? ''), 'size' => $fix((float) $r[$o['size']]) * $units, 'used' => $fix((float) ($r[$o['used']] ?? 0)) * $units];
+    }
+
+    private static function storage(SnmpConn $c, array $check): array
+    {
+        $s = self::hrStorage($c, (string) $check['target']);
+        if (!$s) {
+            return self::res(STATUS_UNKNOWN, null, 'Opslag ' . $check['target'] . ' bestaat niet (meer) op dit apparaat; kies hem opnieuw via ＋ SNMP-checks');
+        }
+        if ($s['size'] <= 0) {
+            return self::res(STATUS_UNKNOWN, null, "{$s['descr']}: grootte onbekend");
+        }
+        $pct = round($s['used'] / $s['size'] * 100, 1);
+        return self::res(self::level($pct, $check, false), $pct,
+            sprintf('%s %s%% van %s in gebruik (vrij %s)', $s['descr'], $pct, self::bytes($s['size']), self::bytes($s['size'] - $s['used'])));
+    }
+
+    private static function load(SnmpConn $c, array $check): array
+    {
+        $r = $c->get([self::UCD_LOAD . '.1', self::UCD_LOAD . '.2', self::UCD_LOAD . '.3']);
+        $l5 = self::num($r[self::UCD_LOAD . '.2'] ?? null);
+        if ($l5 === null) {
+            return self::missing('Load');
+        }
+        return self::res(self::level($l5, $check, false), $l5, sprintf('Load %s (5 min) · %s %s %s',
+            $l5, $r[self::UCD_LOAD . '.1'] ?? '?', $l5, $r[self::UCD_LOAD . '.3'] ?? '?'));
+    }
+
+    private static function temp(SnmpConn $c, array $check): array
+    {
+        [$t, $src] = self::tempValue($c);
+        if ($t === null) {
+            return self::missing('Temperatuur');
+        }
+        return self::res(self::level($t, $check, false), $t, "Temperatuur $t °C$src");
+    }
+
+    /** Temperatuur: MikroTik, of de warmste sensor van lm-sensors (Linux/Proxmox met net-snmp) */
+    private static function tempValue(SnmpConn $c): array
+    {
+        $mt = self::num($c->one(self::MT_TEMP));
+        if ($mt !== null) {
+            return [round($mt / 10, 1), ''];
+        }
+        $vals = array_filter($c->walk(self::UCD_SENSORS . '.3'), 'is_numeric');
+        if ($vals) {
+            $i = array_keys($vals, max($vals))[0];
+            $name = (string) $c->one(self::UCD_SENSORS . ".2.$i");
+            return [round(max($vals) / 1000, 1), $name !== '' ? " ($name, warmste sensor)" : ''];
+        }
+        return [null, ''];
+    }
+
+    // ------------------------------------------------------------------ UPS
+
+    /** Status van de UPS: op batterij, batterij bijna leeg, vervangen, alarmen (UPS-MIB of APC) */
+    private static function upsStatus(SnmpConn $c): array
+    {
+        $u = $c->get([self::UPS . '.2.1.0', self::UPS . '.2.2.0', self::UPS . '.4.1.0', self::UPS . '.6.1.0']);
+        if (isset($u[self::UPS . '.2.1.0']) || isset($u[self::UPS . '.4.1.0'])) {
+            $bat = (int) ($u[self::UPS . '.2.1.0'] ?? 2);
+            $src = (int) ($u[self::UPS . '.4.1.0'] ?? 3);
+            $alarms = (int) ($u[self::UPS . '.6.1.0'] ?? 0);
+            $st = STATUS_OK;
+            $msg = [];
+            if ($src === 5) {
+                $st = STATUS_WARN;
+                $secs = (int) ($u[self::UPS . '.2.2.0'] ?? 0);
+                $msg[] = 'op batterij' . ($secs > 0 ? ' sinds ' . self::duration($secs) : '');
+            } elseif ($src === 4) {
+                $st = STATUS_WARN;
+                $msg[] = 'op bypass (niet beschermd)';
+            } elseif ($src === 2) {
+                $st = STATUS_CRIT;
+                $msg[] = 'geen uitgangsspanning';
+            } else {
+                $msg[] = ['op net', 'op net', 'op net', 'op net', 'op net', 'op batterij', 'boost (lage netspanning)', 'buck (hoge netspanning)'][$src] ?? 'op net';
+            }
+            if ($bat === 3 || $bat === 4) {
+                $st = STATUS_CRIT;
+                $msg[] = $bat === 3 ? 'batterij bijna leeg' : 'batterij leeg';
+            }
+            if ($alarms > 0) {
+                $st = max($st, STATUS_WARN);
+                $msg[] = "$alarms alarm" . ($alarms === 1 ? '' : 'en') . ' actief';
+            }
+            return self::res($st, null, 'UPS ' . implode(' · ', $msg));
+        }
+        $a = $c->get([self::APC . '.4.1.1.0', self::APC . '.2.1.1.0', self::APC . '.2.2.4.0']);
+        if (!$a) {
+            return self::missing('UPS');
+        }
+        $out = (int) ($a[self::APC . '.4.1.1.0'] ?? 2);
+        $bat = (int) ($a[self::APC . '.2.1.1.0'] ?? 2);
+        $st = STATUS_OK;
+        $msg = [[2 => 'op net', 3 => 'op batterij', 4 => 'smart boost', 5 => 'uit (gepland)', 6 => 'software bypass', 7 => 'uit',
+            9 => 'hardware bypass', 10 => 'uit (slaapstand)', 12 => 'smart trim'][$out] ?? "status $out"];
+        if (in_array($out, [3, 6, 9], true)) {
+            $st = STATUS_WARN;
+        } elseif (in_array($out, [5, 7, 10], true)) {
+            $st = STATUS_CRIT;
+        }
+        if ($bat === 3 || $bat === 4) {
+            $st = STATUS_CRIT;
+            $msg[] = $bat === 3 ? 'batterij bijna leeg' : 'batterijfout';
+        }
+        if ((int) ($a[self::APC . '.2.2.4.0'] ?? 1) === 2) {
+            $st = max($st, STATUS_WARN);
+            $msg[] = 'batterij moet vervangen worden';
+        }
+        return self::res($st, null, 'UPS ' . implode(' · ', $msg));
+    }
+
+    private static function upsValue(SnmpConn $c, array $check, string $m): array
+    {
+        $map = [   // UPS-MIB, APC, omrekening APC
+            'ups_charge' => [self::UPS . '.2.4.0', self::APC . '.2.2.1.0', 1, '%', 'Batterij %s%% geladen'],
+            'ups_runtime' => [self::UPS . '.2.3.0', self::APC . '.2.2.3.0', 1 / 6000, 'min', 'Nog %s min op batterij'],
+            'ups_load' => [self::UPS . '.4.4.1.5.1', self::APC . '.4.2.3.0', 1, '%', 'Belasting %s%%'],
+            'ups_temp' => [self::UPS . '.2.7.0', self::APC . '.2.2.2.0', 1, '°C', 'Batterijtemperatuur %s °C'],
+        ][$m];
+        $r = $c->get([$map[0], $map[1]]);
+        $v = self::num($r[$map[0]] ?? null);
+        if ($v === null && ($apc = self::num($r[$map[1]] ?? null)) !== null) {
+            $v = $apc * $map[2];
+        }
+        if ($v === null) {
+            return self::missing(self::METRICS[$m]['label']);
+        }
+        $v = round($v, 1);
+        $msg = sprintf($map[4], $v);
+        if ($m === 'ups_temp' && $v > 25) {
+            $msg .= ' (warmer dan 25 °C verkort de levensduur van de accu)';
+        }
+        return self::res(self::level($v, $check, self::METRICS[$m]['low']), $v, $msg);
+    }
+
+    // ------------------------------------------------------------------ Synology
+
+    private static function synoSystem(SnmpConn $c, array $check): array
+    {
+        $o = ['status' => self::SYNO . '.1.1.0', 'temp' => self::SYNO . '.1.2.0', 'power' => self::SYNO . '.1.3.0', 'fan' => self::SYNO . '.1.4.1.0',
+            'cpufan' => self::SYNO . '.1.4.2.0', 'model' => self::SYNO . '.1.5.1.0', 'version' => self::SYNO . '.1.5.3.0', 'upgrade' => self::SYNO . '.1.5.4.0'];
+        $r = $c->get(array_values($o));
+        if (!isset($r[$o['status']])) {
+            return self::missing('Synology');
+        }
+        $bad = [];
+        foreach (['status' => 'systeem', 'power' => 'voeding', 'fan' => 'systeemventilator', 'cpufan' => 'CPU-ventilator'] as $k => $l) {
+            if ((int) ($r[$o[$k]] ?? 1) === 2) {
+                $bad[] = "$l defect";
+            }
+        }
+        $t = self::num($r[$o['temp']] ?? null);
+        $st = $bad ? STATUS_CRIT : self::level($t, $check, false);
+        $msg = trim(($r[$o['model']] ?? 'Synology') . ' ' . ($r[$o['version']] ?? ''))
+            . ($bad ? ' · ' . implode(', ', $bad) : ' · systeem, voeding en ventilatoren in orde')
+            . ($t !== null ? " · $t °C" : '') . ((int) ($r[$o['upgrade']] ?? 2) === 1 ? ' · DSM-update beschikbaar' : '');
+        return self::res($st, $t, $msg);
+    }
+
+    private static function synoRaid(SnmpConn $c, array $check): array
+    {
+        $i = (string) $check['target'];
+        $o = ['name' => self::SYNO . ".3.1.1.2.$i", 'status' => self::SYNO . ".3.1.1.3.$i", 'free' => self::SYNO . ".3.1.1.4.$i", 'total' => self::SYNO . ".3.1.1.5.$i"];
+        $r = $c->get(array_values($o));
+        if (!isset($r[$o['status']])) {
+            return self::res(STATUS_UNKNOWN, null, "Volume $i bestaat niet (meer); kies hem opnieuw via ＋ SNMP-checks");
+        }
+        $s = (int) $r[$o['status']];
+        $names = [1 => 'normaal', 2 => 'wordt hersteld', 3 => 'wordt gemigreerd', 4 => 'wordt uitgebreid', 5 => 'wordt verwijderd', 6 => 'wordt aangemaakt',
+            7 => 'synchroniseert', 8 => 'pariteitscontrole', 9 => 'wordt samengesteld', 10 => 'wordt geannuleerd', 11 => 'DEGRADED (schijf defect of ontbreekt)',
+            12 => 'CRASHED', 13 => 'data scrubbing', 21 => 'status onbekend'];
+        $st = match (true) {
+            in_array($s, [11, 12], true) => STATUS_CRIT,
+            $s === 2 => STATUS_WARN,
+            $s === 21 => STATUS_UNKNOWN,
+            default => STATUS_OK,
+        };
+        $total = (float) ($r[$o['total']] ?? 0);
+        $pct = $total > 0 ? round(($total - (float) ($r[$o['free']] ?? 0)) / $total * 100, 1) : null;
+        $st = max($st, self::level($pct, $check, false));
+        return self::res($st, $pct, ($r[$o['name']] ?? "Volume $i") . ' ' . ($names[$s] ?? "status $s")
+            . ($pct !== null ? " · $pct% van " . self::bytes($total) . ' in gebruik' : ''));
+    }
+
+    private static function synoDisk(SnmpConn $c, array $check): array
+    {
+        $i = (string) $check['target'];
+        $o = ['id' => self::SYNO . ".2.1.1.2.$i", 'model' => self::SYNO . ".2.1.1.3.$i", 'status' => self::SYNO . ".2.1.1.5.$i",
+            'temp' => self::SYNO . ".2.1.1.6.$i", 'health' => self::SYNO . ".2.1.1.13.$i"];
+        $r = $c->get(array_values($o));
+        if (!isset($r[$o['status']])) {
+            return self::res(STATUS_UNKNOWN, null, "Schijf $i bestaat niet (meer); kies hem opnieuw via ＋ SNMP-checks");
+        }
+        $s = (int) $r[$o['status']];
+        $h = isset($r[$o['health']]) ? (int) $r[$o['health']] : null;
+        $st = in_array($s, [4, 5], true) || in_array($h, [3, 4], true) ? STATUS_CRIT : ($h === 2 || $s === 3 ? STATUS_WARN : STATUS_OK);
+        $t = self::num($r[$o['temp']] ?? null);
+        $st = max($st, self::level($t, $check, false));
+        $txt = [1 => 'normaal', 2 => 'geïnitialiseerd', 3 => 'niet geïnitialiseerd', 4 => 'systeempartitie defect', 5 => 'CRASHED'][$s] ?? "status $s";
+        $htxt = [2 => 'gezondheid: waarschuwing', 3 => 'gezondheid: kritiek', 4 => 'gezondheid: falend'][$h] ?? '';
+        return self::res($st, $t, trim(($r[$o['id']] ?? "Schijf $i") . ' ' . ($r[$o['model']] ?? '')) . " · $txt" . ($htxt ? " · $htxt" : '') . ($t !== null ? " · $t °C" : ''));
+    }
+
+    // ------------------------------------------------------------------ overig
+
+    private static function printer(SnmpConn $c, array $check): array
+    {
+        $i = (string) $check['target'];
+        $o = ['name' => self::PRT . ".6.1.$i", 'max' => self::PRT . ".8.1.$i", 'level' => self::PRT . ".9.1.$i"];
+        $r = $c->get(array_values($o));
+        if (!isset($r[$o['level']])) {
+            return self::res(STATUS_UNKNOWN, null, "Printervoorraad $i bestaat niet (meer); kies hem opnieuw via ＋ SNMP-checks");
+        }
+        $name = trim((string) ($r[$o['name']] ?? "Voorraad $i"));
+        $lvl = (float) $r[$o['level']];
+        $max = (float) ($r[$o['max']] ?? -2);
+        if ($lvl === -3.0) {
+            return self::res(STATUS_OK, null, "$name: nog voldoende (de printer geeft geen percentage)");
+        }
+        if ($lvl < 0) {
+            return self::res(STATUS_UNKNOWN, null, "$name: niveau onbekend");
+        }
+        $pct = $max > 0 ? round($lvl / $max * 100, 1) : round($lvl, 1);
+        return self::res(self::level($pct, $check, true), $pct, "$name: $pct% over");
+    }
+
+    private static function unifi(SnmpConn $c, array $check): array
+    {
+        $vals = array_filter($c->walk(self::UNIFI_STATIONS), 'is_numeric');
+        if (!$vals) {
+            return self::missing('UniFi clients');
+        }
+        $n = (float) array_sum(array_map('intval', $vals));
+        return self::res(self::level($n, $check, false), $n, sprintf('%d client%s verbonden (%d SSID/radio\'s)', $n, $n == 1 ? '' : 's', count($vals)));
+    }
+
+    /** Eigen OID: getal (met drempels), teller (per seconde) of tekst (vergelijken) */
+    private static function oid(SnmpConn $c, array $check): array
+    {
+        $oid = ltrim((string) $check['target'], '.');
+        $o = json_decode((string) $check['options'], true) ?: [];
+        $raw = $c->one($oid);
+        if ($raw === null) {
+            return self::res(STATUS_UNKNOWN, null, "OID $oid: het apparaat kent deze OID niet (of geeft hem niet met deze community/gebruiker)");
+        }
+        $unit = (string) ($o['unit'] ?? '');
+        $mode = $o['mode'] ?? 'gauge';
+        if ($mode === 'text') {
+            $expect = (string) ($o['expect'] ?? '');
+            $ok = match ($o['match'] ?? 'equals') {
+                'contains' => $expect === '' || stripos($raw, $expect) !== false,
+                'not_contains' => $expect !== '' && stripos($raw, $expect) === false,
+                'regex' => @preg_match('~' . str_replace('~', '\\~', $expect) . '~i', $raw) === 1,
+                default => trim($raw) === trim($expect),
+            };
+            $fail = ($o['fail'] ?? 'crit') === 'warn' ? STATUS_WARN : STATUS_CRIT;
+            return self::res($ok ? STATUS_OK : $fail, null, 'Waarde: "' . mb_substr($raw, 0, 200) . '"' . ($ok ? '' : ' (verwacht: ' . self::matchText($o) . ')'));
+        }
+        if (!is_numeric($raw)) {
+            return self::res(STATUS_UNKNOWN, null, 'Waarde is geen getal: "' . mb_substr($raw, 0, 100) . '" (kies "tekst vergelijken")');
+        }
+        $scale = (float) ($o['scale'] ?? 1) ?: 1.0;
+        if ($mode === 'counter') {
+            $now = microtime(true);
+            $prev = self::state((int) $check['id']);
+            self::saveState((int) $check['id'], ['t' => $now, 'v' => (float) $raw]);
+            if (!$prev || $now - (float) $prev['t'] < 1) {
+                return self::res(STATUS_OK, null, 'Teller ' . $raw . ' · waarde per seconde volgt na de volgende meting');
+            }
+            $d = (float) $raw - (float) $prev['v'];
+            if ($d < 0) {
+                return self::res(STATUS_OK, null, 'Teller opnieuw begonnen (herstart of overloop)');
+            }
+            $v = round($d / ($now - (float) $prev['t']) * $scale, 3);
+            return self::res(self::level($v, $check, !empty($o['low'])), $v, "$v" . ($unit !== '' ? " $unit" : '') . '/s');
+        }
+        $v = round((float) $raw * $scale, 3);
+        return self::res(self::level($v, $check, !empty($o['low'])), $v, "$v" . ($unit !== '' ? " $unit" : ''));
+    }
+
+    private static function matchText(array $o): string
+    {
+        $e = '"' . ($o['expect'] ?? '') . '"';
+        return ['contains' => "bevat $e", 'not_contains' => "bevat niet $e", 'regex' => "past op $e"][$o['match'] ?? ''] ?? "precies $e";
+    }
+
+    // ------------------------------------------------------------------ discovery
+
+    /**
+     * Wat er op dit apparaat te bewaken valt (＋ SNMP-checks): systeeminfo en een lijst voorstellen
+     * [metric, target, name, info, checked, group].
+     */
+    public static function discover(array $cfg, string $address): array
+    {
+        $c = self::session($cfg, $address);
+        $sys = self::sysInfo($c->get(array_values(self::SYS)));
+        $items = [];
+        $add = static function (string $group, string $metric, string $target, string $name, string $info, bool $checked) use (&$items): void {
+            $items[] = compact('group', 'metric', 'target', 'name', 'info', 'checked');
+        };
+        $add('Systeem', 'uptime', '', 'Uptime', 'WARNING als het apparaat net herstart is', true);
+        if (($cpu = self::cpuValue($c))[0] !== null) {
+            $add('Systeem', 'cpu', '', 'CPU', "nu {$cpu[0]}%{$cpu[1]}", true);
+        }
+        if (($mem = self::memValue($c))[0] !== null) {
+            $add('Systeem', 'mem', '', 'Geheugen', "nu {$mem[0]}%{$mem[1]}", true);
+        }
+        if (($l = self::num($c->one(self::UCD_LOAD . '.2'))) !== null) {
+            $add('Systeem', 'load', '', 'Load', "nu $l (5 min)", false);
+        }
+        if (($t = self::tempValue($c))[0] !== null) {
+            $add('Systeem', 'temp', '', 'Temperatuur', "nu {$t[0]} °C{$t[1]}", true);
+        }
+
+        // Opslag (HOST-RESOURCES): vaste schijven en netwerkschijven; systeemmappen standaard niet aangevinkt
+        $types = $c->walk(self::HR_STORAGE . '.2');
+        foreach ($types as $i => $type) {
+            if (!in_array($type, self::HR_DISK, true) || !($s = self::hrStorage($c, (string) $i)) || $s['size'] <= 0) {
+                continue;
+            }
+            $sysPath = (bool) preg_match('#^/(run|dev|sys|proc|snap|boot|var/lib/docker|tmp)(/|$)#', $s['descr']);
+            $add('Opslag', 'storage', (string) $i, $s['descr'], round($s['used'] / $s['size'] * 100) . '% van ' . self::bytes($s['size']), !$sysPath);
+        }
+
+        // Interfaces: alle behalve loopback; aangevinkt als ze up zijn en geen virtuele interface
+        $descr = $c->walk(self::IF . '.2');
+        if ($descr) {
+            $name = $c->walk(self::IFX . '.1');
+            $alias = $c->walk(self::IFX . '.18');
+            $type = $c->walk(self::IF . '.3');
+            $oper = $c->walk(self::IF . '.8');
+            $admin = $c->walk(self::IF . '.7');
+            $high = $c->walk(self::IFX . '.15');
+            foreach ($descr as $i => $d) {
+                if ((int) ($type[$i] ?? 0) === 24) {
+                    continue;   // loopback
+                }
+                $n = (string) (($name[$i] ?? '') !== '' ? $name[$i] : $d);
+                $up = (int) ($oper[$i] ?? 2) === 1;
+                $virtual = (bool) preg_match('/^(veth|docker|br-|virbr|tap|fwbr|fwpr|fwln|cali|flannel|cni|vnet|ifb|dummy|tun|wg|sit|ip6tnl|gre|bond_slave)/i', $n);
+                $speed = (float) ($high[$i] ?? 0);
+                $info = ($up ? 'up' : ((int) ($admin[$i] ?? 1) === 2 ? 'uitgeschakeld' : 'down')) . ($speed > 0 ? ' · ' . self::bits($speed * 1e6) : '')
+                    . (($alias[$i] ?? '') !== '' ? ' · ' . $alias[$i] : '');
+                $add('Interfaces', 'if', (string) $i, $n, $info, $up && !$virtual);
+            }
+        }
+
+        // UPS (UPS-MIB of APC)
+        $ups = $c->get([self::UPS . '.2.1.0', self::UPS . '.2.4.0', self::UPS . '.2.7.0', self::UPS . '.4.4.1.5.1']);
+        $apc = $ups ? [] : $c->get([self::APC . '.2.2.1.0', self::APC . '.2.2.2.0', self::APC . '.4.2.3.0']);
+        if ($ups || $apc) {
+            $add('UPS', 'ups_status', '', 'UPS status', 'op batterij, batterij bijna leeg, vervangen, alarmen', true);
+            $add('UPS', 'ups_charge', '', 'UPS batterij', 'lading in %', true);
+            $add('UPS', 'ups_runtime', '', 'UPS looptijd', 'resterende minuten op batterij', true);
+            if (isset($ups[self::UPS . '.4.4.1.5.1']) || isset($apc[self::APC . '.4.2.3.0'])) {
+                $add('UPS', 'ups_load', '', 'UPS belasting', 'belasting van de uitgang in %', false);
+            }
+            if (isset($ups[self::UPS . '.2.7.0']) || isset($apc[self::APC . '.2.2.2.0'])) {
+                $add('UPS', 'ups_temp', '', 'UPS batterijtemperatuur', 'warmte verkort de levensduur van de accu', true);
+            }
+        }
+
+        // Synology
+        if ($c->one(self::SYNO . '.1.1.0') !== null) {
+            $add('Synology', 'syno_system', '', 'Synology systeem', 'systeem, voeding, ventilatoren en temperatuur', true);
+            foreach ($c->walk(self::SYNO . '.3.1.1.2') as $i => $n) {
+                $add('Synology', 'syno_raid', (string) $i, (string) $n, 'status (degraded/crashed) en vulling', true);
+            }
+            $models = $c->walk(self::SYNO . '.2.1.1.3');
+            foreach ($c->walk(self::SYNO . '.2.1.1.2') as $i => $n) {
+                $add('Synology', 'syno_disk', (string) $i, (string) $n, trim((string) ($models[$i] ?? '')) . ' · status, gezondheid en temperatuur', true);
+            }
+        }
+
+        // Printer: toner, inkt, drum…
+        foreach ($c->walk(self::PRT . '.6.1') as $i => $n) {
+            $add('Printer', 'printer', (string) $i, trim((string) $n) ?: "Voorraad $i", 'niveau in %', true);
+        }
+
+        // UniFi access point
+        if ($c->walk(self::UNIFI_STATIONS)) {
+            $add('UniFi', 'unifi_clients', '', 'UniFi clients', 'aantal verbonden clients', false);
+        }
+        return ['sys' => $sys, 'items' => $items];
+    }
+
+    // ------------------------------------------------------------------ hulpjes
+
+    private static function state(int $checkId): ?array
+    {
+        $v = q('SELECT data FROM snmp_state WHERE check_id = ?', [$checkId])->fetchColumn();
+        return $v !== false ? (json_decode((string) $v, true) ?: null) : null;
+    }
+
+    private static function saveState(int $checkId, array $data): void
+    {
+        q('INSERT INTO snmp_state (check_id, data, updated_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW()',
+            [$checkId, json_encode($data)]);
+    }
+
+    private static function bits(float $bps): string
+    {
+        foreach ([1e9 => 'Gbit/s', 1e6 => 'Mbit/s', 1e3 => 'kbit/s'] as $f => $u) {
+            if ($bps >= $f) {
+                return round($bps / $f, 1) . " $u";
+            }
+        }
+        return round($bps) . ' bit/s';
+    }
+
+    private static function bytes(float $b): string
+    {
+        return Checks::bytes($b);
+    }
+
+    private static function duration(int $s): string
+    {
+        $d = intdiv($s, 86400);
+        $h = intdiv($s % 86400, 3600);
+        $m = intdiv($s % 3600, 60);
+        return $d > 0 ? "{$d} d {$h} u" : ($h > 0 ? "{$h} u {$m} min" : "{$m} min");
+    }
+}
+
+/** Geen antwoord van het apparaat (time-out, verkeerde community/gebruiker) */
+final class SnmpDown extends RuntimeException
+{
+}
+
+/** Eén SNMP-verbinding, met OID's zonder punt vooraan; ontbrekende OID's worden overgeslagen */
+final class SnmpConn
+{
+    public function __construct(private SNMP $s, private string $peer)
+    {
+    }
+
+    /** @return array<string,string> OID => waarde (alleen wat het apparaat kent) */
+    public function get(array $oids): array
+    {
+        $out = [];
+        foreach (array_chunk($oids, 20) as $part) {
+            $r = @$this->s->get($part);
+            if ($r === false) {
+                $this->check();
+                // Bij SNMPv1 laat één onbekende OID de hele vraag mislukken: dan één voor één
+                if (count($part) > 1) {
+                    foreach ($part as $o) {
+                        $one = @$this->s->get($o);
+                        if ($one !== false) {
+                            $out[$o] = (string) $one;
+                        }
+                    }
+                }
+                continue;
+            }
+            foreach ((array) $r as $k => $v) {
+                $out[ltrim((string) $k, '.')] = (string) $v;
+            }
+        }
+        return $out;
+    }
+
+    public function one(string $oid): ?string
+    {
+        return $this->get([$oid])[$oid] ?? null;
+    }
+
+    /** @return array<string,string> index (achter de basis-OID) => waarde */
+    public function walk(string $base): array
+    {
+        $r = @$this->s->walk($base, true, 50);
+        if ($r === false) {
+            $this->check();
+            return [];
+        }
+        $out = [];
+        foreach ($r as $k => $v) {
+            $out[ltrim((string) $k, '.')] = (string) $v;
+        }
+        return $out;
+    }
+
+    /** Geen antwoord of geweigerd: de hele check (en de andere van deze server) stoppen */
+    private function check(): void
+    {
+        $no = $this->s->getErrno();
+        if ($no === SNMP::ERRNO_TIMEOUT) {
+            throw new SnmpDown("Geen antwoord via SNMP van {$this->peer}: controleer of SNMP aan staat op het apparaat, en de versie, community of v3-gebruiker en of RzMon toegang heeft");
+        }
+        if ($no === SNMP::ERRNO_GENERIC) {
+            throw new SnmpDown('SNMP-fout: ' . $this->s->getError());
+        }
+    }
+}

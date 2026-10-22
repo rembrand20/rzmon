@@ -34,6 +34,7 @@ Dit is een overzicht van wat RzMon en de agent kunnen, in het kort. Hoe je alles
 | **Podman** | Overzicht: gestopte, ongezonde of gepauzeerde containers en pods | Agent met Podman |
 | **Container** | Eén check per container: status (healthcheck, herstarts), plus naar keuze CPU, RAM en disk, elk met eigen drempels; ook rootless containers (§8.6) | Agent met Podman |
 | **Home Assistant** | Laatste automatische back-up, integraties die niet geladen zijn, systeemstatus van de Supervisor | HA-add-on |
+| **📡 SNMP** | RzMon leest het apparaat zelf uit (v2c of v3): uptime en herstart, CPU, geheugen, load, temperatuur, interfaces (up/down, verkeer, bezetting), opslag, UPS (status, lading, looptijd, belasting, accutemperatuur), Synology (systeem, volumes, schijven), printers (toner, inkt) en UniFi-clients. Met **📡 SNMP-checks** (het apparaat doorzoeken en aanvinken) en **eigen OID's** als getal, teller of tekst (§7.7) | Alle servers met SNMP aan |
 | **🖥️ Commando** (met 21 voorinstellingen voor TrueNAS, Proxmox en Linux, en *＋ Aanbevolen checks*) | De agent voert een commando uit; RzMon vergelijkt de uitvoer met het verwachte antwoord (*gelijk aan*, *bevat*, *regex* of *exitcode 0*), met time-out. Bijvoorbeeld `zpool status -x` → `all pools are healthy` (§8.10) | Agent |
 
 Elke check heeft eigen drempels voor warning en critical, een eigen interval en een minigrafiek van de laatste 24 uur.

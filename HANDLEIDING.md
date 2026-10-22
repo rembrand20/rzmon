@@ -556,6 +556,7 @@ Klik op **＋ Server** en vul in:
 - **Naam**, bijvoorbeeld "NAS" of "Webserver".
 - **Hostname of IP-adres**.
 - **Type**: Lokaal, Remote met agent of Remote (alleen netwerk).
+- **📡 SNMP** (optioneel): voor switches, access points, NAS, UPS en printers, zie 7.7.
 
 Laat het vinkje *Direct een ping-check toevoegen* aan staan.
 
@@ -698,6 +699,49 @@ Je kunt meerdere lagen maken, bijvoorbeeld *Internet → Router → Switch → N
 - **Zonder netwerkchecks** telt een server nooit als onbereikbaar.
 
 Bovenliggende servers worden in elke ronde als eerste gecontroleerd, zodat de onderdrukking meteen klopt.
+
+### 7.7 SNMP 📡
+Op apparaten waar geen agent op kan, zoals switches, access points, een NAS, een UPS of een printer, leest RzMon de gegevens zelf uit via SNMP. Het kan ook op servers met een agent, bijvoorbeeld Proxmox of een syslog-server met `snmpd`.
+
+**Op het apparaat**
+- Zet SNMP aan (alleen lezen) en geef het IP-adres van RzMon toegang. RzMon vraagt op UDP-poort 161.
+- Kies **v2c** met een eigen community (liever niet `public`), of beter **v3** met een gebruiker, *SHA* en *AES*.
+- Waar het zit verschilt per merk en versie: bij UniFi in de Network-app (instellingen, SNMP), bij TP-Link Omada of JetStream onder de systeeminstellingen (SNMP), bij Synology: *Configuratiescherm → Terminal & SNMP → SNMP*; Proxmox/Debian: `apt install snmpd` en in `/etc/snmp/snmpd.conf` bijvoorbeeld `rocommunity <community> <IP van RzMon>` en `agentAddress udp:161`.
+
+**In RzMon**
+1. ✎ Bewerk de server (of ＋ Server) en open **📡 SNMP**: zet *SNMP gebruiken* aan, kies de versie en vul de community of de v3-gebruiker met wachtwoorden in.
+2. Klik op **🔍 Test SNMP**. Je ziet de naam, de fabrikant en hoe lang het apparaat aan staat, of een duidelijke fout (geen antwoord, verkeerde community…).
+3. Sla op. RzMon doorzoekt het apparaat meteen en toont **📡 SNMP-checks**: vink aan wat je wilt bewaken en klik op **Toevoegen**. Later open je die lijst met de knop **📡 SNMP-checks** bij de server; wat al bewaakt wordt, staat er grijs bij.
+
+**Wat RzMon herkent**
+| Groep | Checks | Standaard |
+|---|---|---|
+| Systeem | Uptime (herstart), CPU, geheugen, load, temperatuur | herstart < 1 uur = WARNING · CPU/geheugen 85/95 % |
+| Interfaces | Per poort: up/down, verkeer in en uit, bezetting, fouten | down terwijl aan = CRITICAL · bezetting 80/95 % van de linksnelheid |
+| Opslag | Per schijf of volume: % gebruikt | 80/90 % |
+| UPS (UPS-MIB: Eaton, CyberPower, Riello… en APC) | Status (op batterij, batterij bijna leeg, vervangen, alarmen), lading, looptijd, belasting, accutemperatuur | lading onder 50/20 % · looptijd onder 15/5 min · accu 35/45 °C |
+| Synology | Systeem, voeding en ventilatoren, temperatuur; per volume degraded/crashed en vulling; per schijf status, gezondheid en temperatuur | volume 80/90 % · schijf 50/60 °C |
+| Printer | Toner, inkt, drum, afvalbak in % | onder 20/5 % |
+| UniFi | Aantal verbonden clients per access point | geen drempels |
+
+- CPU en geheugen komen uit HOST-RESOURCES (Proxmox, Linux, MikroTik, UniFi en veel switches), uit de eigen MIB van TP-Link, of uit net-snmp. Bij Linux en Proxmox telt geheugen zonder buffers en cache, en is de uptime die van het systeem, niet van `snmpd`.
+- Een **accutemperatuur** boven 25 °C kost levensduur: bij een loodaccu (VRLA) halveert die ongeveer per 10 °C warmer. Daarom staat de standaard-waarschuwing op 35 °C.
+- **Interfaceverkeer** is het verschil tussen twee metingen. Na het toevoegen staat er dus eerst *verkeer volgt na de volgende meting*.
+- De onderdelen voor TP-Link, UniFi, MikroTik, APC en printers zijn gemaakt met de MIB's van de fabrikant, maar nog niet op elk merk echt getest. RzMon biedt alleen aan wat het apparaat echt beantwoordt; klopt er iets niet, laat het weten.
+
+**Eigen OID**
+Wil je iets anders uitlezen, gebruik dan **＋ Eigen OID** in de lijst, of ＋ Check → *SNMP* → *Eigen OID*:
+- **Getal**, met drempels. *Vermenigvuldigen met* rekent om, bijvoorbeeld `0.1` als het apparaat tienden van graden geeft. Zet *Lager is slechter* aan voor iets als een batterijpercentage.
+- **Teller**: RzMon maakt er een waarde per seconde van, bijvoorbeeld octets × 8 = bit/s.
+- **Tekst vergelijken**: *is precies*, *bevat*, *bevat niet* of *past op regex*, met warning of critical als het niet klopt.
+- Geef de OID **numeriek**, bijvoorbeeld `1.3.6.1.4.1.14988.1.1.3.10.0`. Opzoeken kan met `snmpwalk -v2c -c <community> <apparaat> 1.3.6.1.4.1` (pakket `net-snmp-utils`, dat `install-rocky.sh` meeinstalleert).
+
+**Goed om te weten**
+- Geeft het apparaat geen antwoord, dan worden de SNMP-checks **onbekend**. Of het apparaat bereikbaar is, blijft de ping bepalen; voeg dus ook een ping-check toe.
+- Antwoordt een apparaat niet, dan wachten de andere SNMP-checks van die server in dezelfde ronde niet ook (hooguit 3 seconden per apparaat).
+- De community en wachtwoorden staan in de database van RzMon en gaan nooit terug naar de browser; in het formulier zie je `••••••••`.
+- RzMon heeft hiervoor de PHP-extensie **php-snmp** nodig. `install-rocky.sh` installeert die; bij een oudere installatie: `sudo dnf -y install php-snmp net-snmp-utils && sudo systemctl restart php-fpm`. Ontbreekt hij, dan zegt de check of de testknop dat.
+- Traps (meldingen die het apparaat zelf stuurt) worden niet ontvangen; RzMon vraagt de waarden zelf op, standaard elke minuut.
 
 ---
 

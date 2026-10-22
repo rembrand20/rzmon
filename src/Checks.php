@@ -32,6 +32,7 @@ final class Checks
                 'service' => $host['mode'] === 'agent' ? self::agentService($check, $host) : self::localService($check),
                 'cpu' => $host['mode'] === 'agent' ? self::agentCpu($check, $host) : self::localCpu($check),
                 'ram' => $host['mode'] === 'agent' ? self::agentRam($check, $host) : self::localRam($check),
+                'snmp' => SnmpMonitor::check($check, $host),
                 default => self::result(STATUS_UNKNOWN, null, 'Onbekend checktype'),
             };
         } catch (Throwable $e) {

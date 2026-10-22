@@ -137,6 +137,7 @@ sudo dnf -y install \
 | `php-mbstring` | Tekstfuncties |
 | `php-process` | `posix`-functies (gebruikt door de systeemcheck) |
 | `php-zip` | Back-ups als (versleutelde) zip |
+| `php-snmp` (optioneel) | Apparaten uitlezen via SNMP (switches, NAS, UPS, printers…). `install-rocky.sh` installeert hem mee; met de hand: `sudo dnf -y install php-snmp net-snmp-utils && sudo systemctl restart php-fpm` |
 | `mariadb-server` | Database |
 | `iputils`, `iproute` | `ping` en `ss` |
 | `cronie` | Cron, om elke minuut de checks te draaien |

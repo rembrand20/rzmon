@@ -107,6 +107,7 @@ final class Installer
         ['hosts', 'ids_fim', 'TEXT NULL'],
         ['hosts', 'agent_tick', 'SMALLINT UNSIGNED NULL'],   // hoe vaak de agent rapporteert (s); NULL = algemene instelling
         ['hosts', 'realtime', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['hosts', 'snmp', 'TEXT NULL'],   // SNMP: versie, poort, community of v3-gebruiker (JSON); NULL = uit
         // API-sleutels: rechten (read, ids_read, ids_block, checks), alleen vanaf (IP's/netwerken), geldig tot
         ['api_keys', 'rights', "VARCHAR(60) NOT NULL DEFAULT 'read'"],
         ['api_keys', 'allow_from', 'VARCHAR(500) NULL'],
