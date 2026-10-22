@@ -281,6 +281,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div data-sk="notify" class="card notify-card">
           <h2>🔔 Meldingen</h2>
           <p class="muted small">Per status: <b>nooit</b>, <b>direct</b>, of pas <b>na X minuten</b> onafgebroken in die status. Herstelt het eerder, dan komt er geen melding. Hersteld: pas melden als het X minuten goed blijft. Per check kun je dit aanpassen (✎ → Meldingen).</p>
+          <label>Melden na … mislukte checks achter elkaar <span class="muted small">(1 = bij de eerste; per check aan te passen)</span>
+            <input type="number" name="notify_fails" min="1" max="100" style="max-width:8rem"></label>
+          <p class="muted small" style="margin-top:-.4rem">Telt per status: wordt een warning critical, dan begint de telling opnieuw. Onbekend telt ook. Het aantal én de regel hieronder moeten allebei kloppen; wil je alleen het aantal, zet de regel dan op <i>direct</i>. Herstel wordt gemeld zoals hieronder ingesteld.</p>
           <label class="switch"><input type="checkbox" name="notify_unknown"><span></span> Melden bij ONBEKEND</label>
           <div id="notify-editor"></div>
           <input type="hidden" name="notify_rules"><input type="hidden" name="notify_channels"><input type="hidden" name="notify_flap"><input type="hidden" name="notify_quiet">

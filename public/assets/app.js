@@ -1060,7 +1060,11 @@ function checkBits(c) {
   const own = c.maintenance && c.maintenance.scope === 'check';
   const problem = s !== 0 && +c.enabled;
   const ackTitle = c.acked_at ? `Bevestigd door ${c.acked_by || '?'} – ${ago(c.acked_at)}${c.ack_comment ? ': ' + c.ack_comment : ''}. Klik om in te trekken.` : '';
-  const flags = (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ bevestigd</button>` : '')
+  // Nog niet gemeld: wacht op meer mislukte checks achter elkaar (melden na N)
+  const need = +c.notify_fails || +state.notify_fails || 1;
+  const pending = problem && !c.acked_at && !c.maintenance && +c.notified_status !== s && need > 1 && +c.status_streak < need
+    ? ` <span class="pend-tag" title="${esc(`Nog niet gemeld: een melding volgt na ${need} mislukte checks achter elkaar met deze status (nu ${+c.status_streak})`)}">⏳ ${+c.status_streak}/${need}</span>` : '';
+  const flags = pending + (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ bevestigd</button>` : '')
     + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">${c.maintenance.auto ? '🔧 auto, tot opgelost' : `🔧 tot ${esc(fmtUntil(c.maintenance.until))}`}</span>` : '')
     + (c.suppressed_by ? ' <span class="supp-tag" title="Geen melding: een server erboven is onbereikbaar">🔕 onderdrukt</span>' : '')
     + (c.notify ? ' <span class="own-notify" title="Deze check heeft eigen meldregels">🔔</span>' : '')
@@ -1716,8 +1720,10 @@ function checkForm(c, h, preset = {}) {
         </label>
         <span class="hint" id="rev-hint" style="grid-column:1/-1"></span>
       </div>
-      <details class="notify-own" ${c.notify ? 'open' : ''}>
-        <summary>🔔 Meldingen: <span id="notify-mode-label">${c.notify ? 'eigen regels' : 'standaard (algemene instellingen)'}</span></summary>
+      <details class="notify-own" ${c.notify || c.notify_fails ? 'open' : ''}>
+        <summary>🔔 Meldingen: <span id="notify-mode-label">${c.notify ? 'eigen regels' : 'standaard (algemene instellingen)'}</span><span class="muted" id="notify-fails-label">${c.notify_fails ? ` · na ${+c.notify_fails}× mislukt` : ''}</span></summary>
+        <label>Melden na … mislukte checks achter elkaar <span class="hint">(leeg = standaard, nu ${state.notify_fails || 1})</span>
+          <input name="notify_fails" type="number" min="1" max="100" value="${c.notify_fails ?? ''}" placeholder="${state.notify_fails || 1}" style="max-width:8rem"></label>
         <label class="switch small"><input type="checkbox" id="notify-own" ${c.notify ? 'checked' : ''}><span></span> Eigen meldregels voor deze check</label>
         <div id="notify-own-editor" ${c.notify ? '' : 'hidden'}></div>
       </details>
@@ -1794,6 +1800,7 @@ function checkForm(c, h, preset = {}) {
     }
   };
   $('#notify-own').onchange = showOwn;
+  $('[name=notify_fails]', form).oninput = (e) => { $('#notify-fails-label').textContent = e.target.value ? ` · na ${+e.target.value}× mislukt` : ''; };
   if (c.notify) showOwn();
   // Stille uren: algemeen, eigen vensters (start met de algemene) of nooit stil
   let quietOwnEditor = null;

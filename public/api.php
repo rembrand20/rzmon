@@ -570,6 +570,7 @@ switch ($action) {
              'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
              'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(),
              'agent_tick' => agent_tick(null),
+             'notify_fails' => max(1, (int) setting('notify_fails', '1')),
              // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
              'ids_open' => Ids::enabled() ? (int) q("SELECT COUNT(*) FROM ids_incidents WHERE status = 'open' AND severity = 2")->fetchColumn() : 0,
              // Voor beheerders: label "⬆ x.y.z" bovenin als er een nieuwere versie is
@@ -1092,14 +1093,16 @@ switch ($action) {
         // Omgekeerde status (alleen bij werkt-het-wel-of-niet-checks): status als hij slaagt / mislukt
         $revOk = in_array($type, Checks::REVERSIBLE, true) && in_array((int) ($in['reverse_ok'] ?? 0), [STATUS_WARN, STATUS_CRIT], true) ? (int) $in['reverse_ok'] : null;
         $revFail = $revOk !== null ? max(STATUS_OK, min(STATUS_CRIT, (int) ($in['reverse_fail'] ?? STATUS_OK))) : null;
+        // Melden na zoveel mislukte checks achter elkaar; leeg = de algemene instelling
+        $fails = trim((string) ($in['notify_fails'] ?? '')) === '' ? null : max(1, min(100, (int) $in['notify_fails']));
         $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
-            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options, $notify, $quiet, $command, $revOk, $revFail];
+            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options, $notify, $quiet, $command, $revOk, $revFail, $fails];
         if (!empty($in['id'])) {
-            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ?, notify = ?, quiet = ?, command = ?, reverse_ok = ?, reverse_fail = ? WHERE id = ?',
+            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ?, notify = ?, quiet = ?, command = ?, reverse_ok = ?, reverse_fail = ?, notify_fails = ? WHERE id = ?',
                 [...$params, (int) $in['id']]);
             $id = (int) $in['id'];
         } else {
-            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, notify, quiet, command, reverse_ok, reverse_fail, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, notify, quiet, command, reverse_ok, reverse_fail, notify_fails, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [...$params, (int) ($in['host_id'] ?? 0)]);
             $id = (int) db()->lastInsertId();
         }
@@ -1136,7 +1139,7 @@ switch ($action) {
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
-            'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_flap', 'notify_quiet',
+            'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_fails', 'notify_flap', 'notify_quiet',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => 'Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00'], 422);
@@ -1179,6 +1182,9 @@ switch ($action) {
         }
         if (isset($in['alerts_days'])) {
             $in['alerts_days'] = (string) max(1, min(3650, (int) $in['alerts_days']));
+        }
+        if (isset($in['notify_fails'])) {
+            $in['notify_fails'] = (string) max(1, min(100, (int) $in['notify_fails']));
         }
         if (isset($in['notify_group_seconds'])) {
             $in['notify_group_seconds'] = (string) max(0, min(3600, (int) $in['notify_group_seconds']));

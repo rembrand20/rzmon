@@ -389,6 +389,12 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 | ✅ Hersteld | Nooit, Direct, of Na X minuten OK | – | idem |
 
 - **Na X minuten:** pas melden als de check X minuten **onafgebroken** in die status is. Herstelt hij eerder, dan komt er geen melding. Zo filter je korte pieken weg. Elke status heeft een eigen klok: een warning die critical wordt, meldt meteen als critical "Direct" is.
+- **Melden na … mislukte checks achter elkaar** (standaard 1): een melding gaat pas uit als de check zoveel keer **achter elkaar** dezelfde status gaf. Bij 3 en een interval van 60 s is dat na ongeveer 2 minuten; bij een interval van 300 s na ongeveer 10 minuten. Zo filter je haperingen weg, los van het interval.
+  - Het telt **per status**: wordt een warning critical, dan begint de telling opnieuw. *Onbekend* telt ook als mislukt. Eén goede check zet de teller op 0.
+  - Het aantal én de regel (*direct* of *na X minuten*) moeten allebei kloppen. Wil je alleen op het aantal letten, zet de regel dan op *Direct*.
+  - **Per check** anders: ✎ → 🔔 Meldingen → *Melden na … mislukte checks achter elkaar* (leeg = de algemene instelling). Bijvoorbeeld 5 voor een onrustige wifi-ping, 1 voor een UPS-status.
+  - Op het dashboard staat **⏳ 2/3** bij een check die nog niet gemeld is: dat is de tweede mislukte check van de drie. Met de muis erop zie je de uitleg.
+  - De herstelmelding telt niet mee: die volgt de regel bij *Hersteld*.
 - **Hersteld na X minuten OK:** de herstelmelding komt pas als het X minuten goed blijft. Gaat het in die tijd weer mis, dan blijft het dezelfde storing: geen nieuwe probleemmelding en geen herstelmelding.
 - **Kanalen:** per status aanvinken waar de melding heen gaat. Een kanaal dat uit staat, is gemarkeerd met *(uit)*.
 - **Bundelen per server** (standaard 120 seconden): gaan op één server binnen die tijd meerdere checks mis of herstellen ze, dan komt er **één bericht**, bijvoorbeeld *"🔴 CRITICAL: WebServer01 – 3 meldingen"* met alle checks erin. Ook herinneringen worden gebundeld (*"🔁 WebServer01: nog steeds 2 problemen"*). Het bericht krijgt de ergste status, en gaat naar alle kanalen die bij één van de checks horen. De eerste melding wacht daardoor hooguit zo lang; 0 = niet bundelen. Home Assistant krijgt wel een bericht per check.

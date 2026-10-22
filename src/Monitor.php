@@ -185,6 +185,8 @@ final class Monitor
     {
         $status = $res['status'];
         $failCount = $status === STATUS_OK ? 0 : (int) $check['fail_count'] + 1;
+        // Hoe vaak achter elkaar deze status (per status: van warning naar critical begint de telling opnieuw)
+        $streak = $status === STATUS_OK ? 0 : ($status === (int) $check['status'] ? (int) ($check['status_streak'] ?? 0) + 1 : 1);
         $notified = (int) $check['notified_status'];
         $notifiedAt = $check['notified_at'];
         $message = $res['message'];
@@ -219,8 +221,8 @@ final class Monitor
         $age = time() - (int) strtotime($statusSince);
 
         // Status eerst opslaan: meldingen kijken (via hostUnreachable) naar de actuele status
-        q('UPDATE checks SET status = ?, last_value = ?, last_message = ?, last_checked = ?, fail_count = ?, suppressed_by = ?, problem_since = ?, status_since = ? WHERE id = ?', [
-            $status, $res['value'], mb_substr($message, 0, 500), now(), $failCount, $upstream['id'] ?? null, $problemSince, $statusSince, $check['id'],
+        q('UPDATE checks SET status = ?, last_value = ?, last_message = ?, last_checked = ?, fail_count = ?, status_streak = ?, suppressed_by = ?, problem_since = ?, status_since = ? WHERE id = ?', [
+            $status, $res['value'], mb_substr($message, 0, 500), now(), $failCount, $streak, $upstream['id'] ?? null, $problemSince, $statusSince, $check['id'],
         ]);
         // Statuswijziging bewaren (popup van de check), met de reden als er zeker geen melding uitgaat
         if ($status !== (int) $check['status']) {
@@ -323,9 +325,10 @@ final class Monitor
             $r = $cfg['rules'][NotifyRules::KEYS[$status]];
             $enabled = $r['mode'] !== 'never' && ($status !== STATUS_UNKNOWN || ($s['notify_unknown'] ?? '1') === '1');
             $isRepeat = $status === $notified;
+            // Eerste melding: de regel (direct / na X minuten) én zoveel mislukte checks achter elkaar in deze status
             $due = $enabled && ($isRepeat
                 ? $r['repeat'] > 0 && $notifiedAt !== null && strtotime($notifiedAt) <= time() - $r['repeat'] * 60
-                : $r['mode'] === 'now' || $age >= $r['min'] * 60);
+                : ($r['mode'] === 'now' || $age >= $r['min'] * 60) && $streak >= self::failsNeeded($check));
             if ($due) {
                 $isWarnish = $status !== STATUS_CRIT;
                 $icon = [STATUS_WARN => '🟠', STATUS_CRIT => '🔴', STATUS_UNKNOWN => '⚪'][$status];
@@ -348,6 +351,12 @@ final class Monitor
             $notified, $notifiedAt, $flapping ? ($check['flapping_since'] ?: now()) : null, $flapping ? implode(',', array_unique($flapSent)) : null,
             $flapEvent === 'stable' ? date('Y-m-d H:i:s', time() - $age) : $check['flap_ended_at'], $check['id'],
         ]);
+    }
+
+    /** Zoveel mislukte checks achter elkaar voordat er een melding uitgaat: van de check zelf, anders algemeen */
+    public static function failsNeeded(array $check): int
+    {
+        return max(1, min(100, (int) ($check['notify_fails'] ?? 0) ?: (int) setting('notify_fails', '1')));
     }
 
     // ------------------------------------------------------------------ wachtrij en bundelen

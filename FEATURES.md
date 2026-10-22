@@ -76,6 +76,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 
   Per check kun je dit **overschrijven**.
 - **Bundelen per server:** meerdere meldingen binnen 120 seconden (instelbaar) worden één bericht.
+- **Melden na N mislukte checks:** een melding pas als een check zoveel keer achter elkaar dezelfde status gaf (per status, onbekend telt mee). Algemeen in te stellen en per check anders; op het dashboard staat **⏳ 2/3** zolang hij nog niet gemeld is.
 - **Anti-flapping:** een check die steeds van status wisselt, geeft één melding *"staat te flappen"*. Daarna komt er per status hooguit één melding, tot hij stabiel is. De getallen stel je zelf in, algemeen en per check.
 - **🌙 Stille uren:**
   - vensters (van–tot, per dag van de week, ook over middernacht) waarin geen meldingen uitgaan;

@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.48.0 – 2026-10-22
+### Nieuw
+- **Melden na N mislukte checks.** Onder *Instellingen → 🔔 Meldingen* stel je in hoe vaak een check achter elkaar mag mislukken voordat er een melding uitgaat. Per check kun je een eigen aantal kiezen (✎ → 🔔 Meldingen); leeg = de algemene instelling.
+- Het telt per status (warning en critical apart, onbekend telt mee) en werkt samen met *direct* / *na X minuten*: beide moeten kloppen. De herstelmelding verandert niet.
+- Op het dashboard staat **⏳ 2/3** bij een check die nog niet gemeld is.
+- Na de update staat het aantal op 1, dus alles werkt zoals voorheen tot je het zelf aanpast.
+- De REST API geeft per check `status_streak` en `notify_fails`.
+
+
 ## 1.47.0 – 2026-10-22
 ### Nieuw
 - **📡 SNMP.** Per server zet je bij ✎ Bewerken SNMP aan (v2c met community, of v3 met gebruiker, SHA/SHA-256 en AES). RzMon leest het apparaat dan zelf uit, ook zonder agent: switches, UniFi, TP-Link, MikroTik, Synology, een UPS, printers of Proxmox.

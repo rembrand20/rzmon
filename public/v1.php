@@ -113,6 +113,8 @@ function fmtCheck(array $c): array
         'crit_threshold' => $c['crit_threshold'] !== null ? (float) $c['crit_threshold'] : null,
         'interval_sec' => (int) $c['interval_sec'],
         'fail_count' => (int) $c['fail_count'],
+        'status_streak' => (int) ($c['status_streak'] ?? 0),
+        'notify_fails' => Monitor::failsNeeded($c),
         'last_checked' => iso($c['last_checked']),
         'in_maintenance' => ($m = Monitor::maintenanceFor($c)) !== null,
         'maintenance_until' => $m && empty($m['auto']) ? iso($m['until']) : null,
