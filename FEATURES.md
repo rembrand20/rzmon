@@ -57,7 +57,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Twee lay-outs**, per apparaat te kiezen, voor het dashboard, de meldingen en de instellingen:
   - **Blox**: tegels;
   - **L1nes**: rijen, in **Small** of **Large**.
-- **Per server:** de algehele status, de checks met problemen en mini-meters voor CPU, RAM en disk. Uitklappen toont alle checks in **groepen** (📊 Systeem met CPU, RAM en disks, 🌐 Bereikbaarheid, ⚙️ Services, 📦 Containers, 🖥️ Commando's, 📜 Logbestanden, 🔒 Certificaten, 🏠 Home Assistant), elke groep in en uit te klappen, problemen bovenaan.
+- **Per server:** de algehele status, de checks met problemen en mini-meters voor CPU, RAM en disk. Uitklappen toont alle checks in **groepen** (📊 Systeem met CPU, RAM en disks, 🌐 Bereikbaarheid, ⚙️ Services, 📦 Containers, 🖥️ Commando's, 📜 Logbestanden, 🔒 Certificaten, 🏠 Home Assistant), elke groep in en uit te klappen. Problemen staan bovenaan in de groep **⚠️ Problemen**, per status (critical, warning, onbekend, bevestigd); een nieuw probleem klapt die groep vanzelf open.
 - **Popup per check** (klik op een check): status en bericht, instellingen, beschikbaarheid en de **laatste 5 statuswijzigingen** met het bericht dat ze veroorzaakte en of en via welke kanalen er gemeld is (of waarom niet).
 - **Grafieken** van 6 uur tot 30 dagen, met minimum, gemiddelde en maximum, en bij disks de trend.
 - **Beschikbaarheid** per server over 24 uur, 7 dagen en 30 dagen.

@@ -1998,4 +1998,7 @@ return [
     'VERNIEUWEN' => 'RENEW',
     'DOWNLOADEN' => 'DOWNLOAD',
     'HERSTELLEN' => 'RESTORE',
+    'Problemen' => 'Problems',
+    'Critical' => 'Critical',
+    'Warning' => 'Warning',
 ];

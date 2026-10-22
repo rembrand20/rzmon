@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.51.0 – 2026-10-22
+### Nieuw
+- **⚠️ Problemen bovenaan per server.** Checks in warning, critical of onbekend staan op het dashboard bovenaan de server in de groep *⚠️ Problemen*, met een kopje per status (🔴 Critical, 🟠 Warning, ⚪ Onbekend) en onderaan *✔ Bevestigd*. Ze staan niet ook nog in hun gewone groep; zodra een check weer OK is, gaat hij daar vanzelf naar terug. Werkt in Blox en L1nes, ook bij servers met weinig checks.
+- Checks in onderhoud blijven in hun gewone groep.
+- De groep *Problemen* is in te klappen; komt er een nieuw probleem bij, dan gaat hij vanzelf weer open.
+
 ## 1.50.0 – 2026-10-22
 ### Nieuw
 - **Engelse interface (deel 2): nu helemaal vertaald.** Ook de instellingen, IDS, alle vensters (check, server, Agent Manager, SNMP, poortscan, back-up …), foutmeldingen, de setup-pagina en de bevestig-pagina uit Pushover.

@@ -819,7 +819,11 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .grp-head:hover .grp-title { color: var(--primary); }
 .grp-chev { color: var(--muted); width: .8rem; }
 .grp-sum { margin-left: auto; display: flex; align-items: center; gap: .4rem; font-weight: 400; }
-.chk-group.closed > .checks, .cl-group.closed > .cl-group-body { display: none; }
+.chk-group.closed > .checks, .chk-group.closed > .prob-body, .cl-group.closed > .cl-group-body { display: none; }
+/* Groep "Problemen" bovenaan een server, met een kopje per status */
+.grp-head.grp-problems { background: color-mix(in srgb, var(--crit, #dc2626) 8%, var(--card-2)); }
+.prob-sub { font-size: .8rem; font-weight: 600; color: var(--muted); padding: .45rem 1rem 0; }
+.check-lines .prob-sub { padding: .35rem .2rem 0; }
 .check-lines .grp-head { padding: .35rem .6rem; border-radius: 8px; margin-top: .3rem; }
 .cl-group-body { display: flex; flex-direction: column; gap: .3rem; margin-top: .3rem; }
 

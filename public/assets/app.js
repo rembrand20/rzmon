@@ -968,13 +968,43 @@ function groupChecks(checks) {
   return out.filter((g) => g[2].length);
 }
 
+/** Een probleem: aan, niet in onderhoud en warning, critical of onbekend */
+const isProblem = (c) => +c.enabled && !c.maintenance && +c.status !== 0;
+
+/**
+ * Groep "⚠️ Problemen" bovenaan een server: [[sleutel, titel, checks], …] per status (critical → warning → onbekend),
+ * bevestigde storingen onderaan apart. Binnen een status op naam.
+ */
+function problemGroups(list) {
+  const byName = (a, b) => a.name.localeCompare(b.name, LANG, { numeric: true, sensitivity: 'base' });
+  const open = list.filter((c) => !c.acked_at);
+  return [
+    ['2', '🔴 ' + L('Critical'), open.filter((c) => +c.status === 2).sort(byName)],
+    ['1', '🟠 ' + L('Warning'), open.filter((c) => +c.status === 1).sort(byName)],
+    ['3', '⚪ ' + L('Onbekend'), open.filter((c) => +c.status === 3).sort(byName)],
+    ['ack', '✔ ' + L('Bevestigd'), list.filter((c) => c.acked_at).sort((a, b) => STATUS_RANK[+b.status] - STATUS_RANK[+a.status] || byName(a, b))],
+  ].filter((g) => g[2].length);
+}
+
+/**
+ * Is de groep Problemen ingeklapt? Bij inklappen onthouden we welke checks er toen in stonden;
+ * komt er een nieuw probleem bij, dan gaat de groep vanzelf weer open.
+ */
+function problemsClosed(h, list) {
+  const was = grpClosed[`${h.id}:problems`];
+  if (typeof was !== 'string') return false;
+  const ids = was.split(',');
+  return list.every((c) => ids.includes(String(c.id)));
+}
+
 /** Kop van een groep: titel, aantal en de statussen die aandacht vragen */
 function groupHead(h, k, title, list, tag) {
   const n = { 2: 0, 1: 0, 3: 0 };
   list.forEach((c) => { if (+c.enabled && !c.maintenance && n[+c.status] !== undefined) n[+c.status]++; });
   const sum = [[2, '🔴'], [1, '🟠'], [3, '⚪']].filter(([s]) => n[s]).map(([s, i]) => `<span class="ad-count">${i} ${n[s]}</span>`).join('') || '<span class="ad-count">✅</span>';
-  const closed = !!grpClosed[`${h.id}:${k}`];
-  return `<${tag} class="grp-head" data-act="grp" data-id="${h.id}" data-g="${k}" role="button" tabindex="0" aria-expanded="${!closed}">
+  const closed = k === 'problems' ? problemsClosed(h, list) : !!grpClosed[`${h.id}:${k}`];
+  const sig = k === 'problems' ? ` data-sig="${list.map((c) => c.id).join(',')}"` : '';
+  return `<${tag} class="grp-head${k === 'problems' ? ' grp-problems' : ''}" data-act="grp" data-id="${h.id}" data-g="${k}"${sig} role="button" tabindex="0" aria-expanded="${!closed}">
     <span class="grp-chev">${closed ? '▸' : '▾'}</span><span class="grp-title">${title}</span>
     <span class="grp-sum"><span class="muted small">${list.length}</span>${sum}</span></${tag}>`;
 }
@@ -1123,12 +1153,21 @@ function checkRow(c) {
   </li>`;
 }
 
-// Blox: checks als tegels, in groepen (zie groupChecks)
+// Blox: checks als tegels; problemen bovenaan, de rest in groepen (zie groupChecks)
 function checkTiles(h) {
   if (!h.shown.length) return `<ul class="checks"><li class="empty small">${L('Nog geen checks — klik op ＋ Check')}</li></ul>`;
-  const groups = groupChecks(h.shown);
-  if (h.shown.length < GROUP_MIN) return `<ul class="checks">${groups.flatMap((g) => g[2]).map(checkRow).join('')}</ul>`;
-  return `<div class="chk-groups">${groups.map(([k, title, list]) => `
+  const probs = h.shown.filter(isProblem);
+  const top = probs.length ? `
+    <section class="chk-group grp-problems${problemsClosed(h, probs) ? ' closed' : ''}">
+      ${groupHead(h, 'problems', '⚠️ ' + L('Problemen'), probs, 'div')}
+      <div class="prob-body">${problemGroups(probs).map(([s, title, list]) => `
+        <div class="prob-sub s${s}">${title} <span class="muted">(${list.length})</span></div>
+        <ul class="checks">${list.map(checkRow).join('')}</ul>`).join('')}</div>
+    </section>` : '';
+  const rest = h.shown.filter((c) => !isProblem(c));
+  const groups = groupChecks(rest);
+  if (h.shown.length < GROUP_MIN) return `<div class="chk-groups">${top}${rest.length ? `<ul class="checks">${groups.flatMap((g) => g[2]).map(checkRow).join('')}</ul>` : ''}</div>`;
+  return `<div class="chk-groups">${top}${groups.map(([k, title, list]) => `
     <section class="chk-group${grpClosed[`${h.id}:${k}`] ? ' closed' : ''}">
       ${groupHead(h, k, title, list, 'div')}
       <ul class="checks">${list.map(checkRow).join('')}</ul>
@@ -1138,13 +1177,19 @@ function checkTiles(h) {
 // L1nes: checks als rijen onder de server, in dezelfde groepen
 function checkLines(h, large) {
   if (!h.shown.length) return `<p class="empty small check-lines-empty">${L('Nog geen checks — klik op ＋ Check')}</p>`;
-  const groups = groupChecks(h.shown);
+  const probs = h.shown.filter(isProblem);
+  const rest = h.shown.filter((c) => !isProblem(c));
+  const groups = groupChecks(rest);
   const head = large ? `<div class="cl-head" aria-hidden="true"><span></span><span>Check</span><span>${L('Waarde')}</span><span class="cl-spark">${L('24 uur')}</span>
     <span>${L('Bericht')}</span><span class="cl-last">${L('Laatst')}</span><span></span></div>` : '';
-  const body = h.shown.length < GROUP_MIN ? groups.flatMap((g) => g[2]).map((c) => checkLine(c, large)).join('')
+  const top = probs.length ? `<div class="cl-group grp-problems${problemsClosed(h, probs) ? ' closed' : ''}">
+        ${groupHead(h, 'problems', '⚠️ ' + L('Problemen'), probs, 'div')}
+        <div class="cl-group-body">${problemGroups(probs).map(([s, title, list]) => `<div class="prob-sub s${s}">${title} <span class="muted">(${list.length})</span></div>
+          ${list.map((c) => checkLine(c, large)).join('')}`).join('')}</div></div>` : '';
+  const body = top + (h.shown.length < GROUP_MIN ? groups.flatMap((g) => g[2]).map((c) => checkLine(c, large)).join('')
     : groups.map(([k, title, list]) => `<div class="cl-group${grpClosed[`${h.id}:${k}`] ? ' closed' : ''}">
         ${groupHead(h, k, title, list, 'div')}
-        <div class="cl-group-body">${list.map((c) => checkLine(c, large)).join('')}</div></div>`).join('');
+        <div class="cl-group-body">${list.map((c) => checkLine(c, large)).join('')}</div></div>`).join(''));
   return `<div class="check-lines ${large ? 'large' : 'small'}">${head}${body}</div>`;
 }
 
@@ -1185,11 +1230,13 @@ async function onHostsClick(e) {
     case 'grp': {
       // Groep in- of uitklappen (zonder alles opnieuw op te bouwen)
       const key = `${id}:${b.dataset.g}`;
-      if (grpClosed[key]) delete grpClosed[key]; else grpClosed[key] = true;
+      // Problemen: onthouden welke checks er bij het inklappen in stonden (een nieuw probleem klapt weer open)
+      const closing = !b.parentElement.classList.contains('closed');
+      if (closing) grpClosed[key] = b.dataset.sig ?? true; else delete grpClosed[key];
       try { localStorage.setItem('rzmon-grp-closed', JSON.stringify(grpClosed)); } catch (ex) { /* alleen voor nu */ }
-      b.parentElement.classList.toggle('closed', !!grpClosed[key]);
-      b.setAttribute('aria-expanded', String(!grpClosed[key]));
-      $('.grp-chev', b).textContent = grpClosed[key] ? '▸' : '▾';
+      b.parentElement.classList.toggle('closed', closing);
+      b.setAttribute('aria-expanded', String(!closing));
+      $('.grp-chev', b).textContent = closing ? '▸' : '▾';
       return;
     }
     case 'add-check': return checkForm(null, findHost(id));
