@@ -2,6 +2,9 @@
 
 Deze add-on heeft hetzelfde versienummer als RzMon. Het volledige overzicht staat in de [CHANGELOG van RzMon](https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md).
 
+## 1.44.0
+- Geen wijzigingen voor de add-on (de agent meldt nu op servers of EPEL/inotify-tools ontbreekt).
+
 ## 1.43.0
 - Realtime (aan/uit in RzMon, Agent Manager): de add-on kijkt elke 5 s of er iets verandert aan de add-ons, Core of de boot-tijd van HA OS, en rapporteert dan meteen.
 

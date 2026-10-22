@@ -722,9 +722,10 @@ Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-
 | Optie | Uitleg |
 |---|---|
 | `--services "sshd nginx"` | *Verouderd.* Services kies je in RzMon (8.2.2); wat je hier opgeeft wordt ook gemeld |
-| `--interval 120` | Rapporteren elke … seconden (30-3600, standaard 60) |
+| `--interval 120` | Tik als RzMon er geen doorgeeft (30-3600, standaard 60); normaal stel je dit in RzMon in |
 | `--insecure` | Self-signed HTTPS-certificaat van RzMon accepteren (gebruik dan ook `curl -k`) |
 | `--cron` | Cron gebruiken in plaats van een systemd-timer |
+| `--no-epel` | Rocky/Alma/RHEL/Oracle: EPEL niet installeren (wordt bewaard als `EPEL=0`); dan geen bestanden in realtime |
 | `-y` | Niets vragen (handig voor Ansible e.d.) |
 
 ### 8.2 Beheren
@@ -807,7 +808,13 @@ Normaal ziet RzMon een gebeurtenis bij de volgende tik. Met **realtime** weet Rz
 - **Hoe het werkt:** de dienst `rzmon-watch` analyseert zelf niets. Hij let alleen op, en start bij een gebeurtenis meteen een gewone agent-run. Die verwerkt alles zoals altijd (logins, brute force, IDS, services, bestanden), en RzMon beoordeelt het rapport direct. Hooguit één extra run per 10 seconden, ook tijdens een brute-force-aanval.
 - **Status:** in de *Agent Manager* staat *⚡ Realtime actief · systemlog ✔ · bestanden ✔*, en op de IDS-pagina *⚡ realtime* bij de server.
 - **Dienst:** `rzmon-watch` wordt bij het installeren of bijwerken van de agent aangemaakt (alleen met systemd). Hij draait altijd, maar doet niets zolang realtime uit staat. Stopt hij, dan start systemd hem opnieuw; en valt hij helemaal weg, dan doet de gewone timer alles nog, alleen trager. Bekijken: `systemctl status rzmon-watch`.
-- **inotify-tools** (voor bestanden) installeert de setup automatisch. Op Rocky/RHEL staat het in **EPEL**: lukt het niet, installeer dan eerst EPEL (`sudo dnf install epel-release`) en werk de agent bij. Zonder inotify-tools werkt realtime voor logins en services gewoon; bestanden worden dan bij de gewone runs gecontroleerd.
+- **inotify-tools** (voor bestanden) installeert de setup automatisch, bij elke installatie en elke update. Op Rocky, Alma, RHEL en Oracle Linux staat het in **EPEL**; de setup kijkt of EPEL er is en installeert het zo nodig eerst:
+  - Rocky, Alma: `dnf install epel-release` (uit de standaardrepository *extras*);
+  - RHEL: het officiële pakket van het Fedora-project (`epel-release-latest-<versie>.noarch.rpm`);
+  - Oracle Linux: `oracle-epel-release-el<versie>`.
+
+  CRB (CodeReady Builder) wordt niet aangezet; dat is voor `inotify-tools` niet nodig. Lukt het niet, bijvoorbeeld zonder internet, dan gaat de installatie gewoon door. Wil je geen EPEL: `--no-epel` bij de setup, of `EPEL=0` in `/etc/default/rzmon-agent`.
+- **Melding in RzMon:** ontbreekt EPEL of `inotify-tools`, dan staat er in de *Agent Manager* een waarschuwing met de oplossing: **⬆ Opnieuw installeren** (de agent doet het dan zelf, als de server internet heeft), of het commando voor op de server. Op de IDS-pagina staat bij de server *EPEL ontbreekt*. Zonder inotify-tools werkt realtime voor logins en services gewoon; bestanden worden dan bij de gewone runs gecontroleerd.
 - **Op een server altijd uit:** `REALTIME=0` in `/etc/default/rzmon-agent`.
 - **Niet beschikbaar** via cron of op TrueNAS SCALE (daar kun je geen blijvende eigen dienst toevoegen).
 - **Home Assistant-add-on:** daar kijkt de add-on elke 5 seconden of er iets verandert aan de add-ons, Core of de boot-tijd van HA OS; zo ja, dan volgt meteen een rapport.

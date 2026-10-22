@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.43.0"
+AGENT_VERSION="1.44.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1640,6 +1640,24 @@ remote_update() {  # remote_update <antwoord van RzMon>
     fi
 }
 
+# ---------------------------------------------------------------- Benodigdheden voor realtime (elk uur)
+# Is inotify-tools er (bestanden in realtime), en op Rocky/Alma/RHEL: staat EPEL erop? RzMon toont het in de Agent Manager.
+tools_json=""
+if [ "$HA_MODE" = 0 ] && [ -n "${INVOCATION_ID-}" ]; then   # alleen met systemd (realtime werkt niet via cron)
+    tf="$t_dir/tools.json"
+    if [ ! -s "$tf" ] || [ $(( $(date +%s) - $(stat -c %Y "$tf") )) -ge 3600 ]; then
+        ino=0; command -v inotifywait >/dev/null 2>&1 && ino=1
+        epel=null; fam=other
+        if command -v rpm >/dev/null 2>&1 && { command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; }; then
+            fam=rhel; epel=0
+            { rpm -q epel-release >/dev/null 2>&1 || rpm -qa 2>/dev/null | grep -q '^oracle-epel-release'; } && epel=1
+        fi
+        no_epel=0; [ "${EPEL-}" = 0 ] && no_epel=1
+        printf '{"inotify":%d,"epel":%s,"family":"%s","no_epel":%d}' "$ino" "$epel" "$fam" "$no_epel" >"$tf" 2>/dev/null
+    fi
+    tools_json=$(cat "$tf" 2>/dev/null)
+fi
+
 # ---------------------------------------------------------------- Realtime-watcher: status
 # state (active/off) <spatie> sinds <spatie> systemlog (ok/-) <spatie> bestanden (ok/missing/-), van de watcher zelf
 rt_json=""
@@ -1652,7 +1670,7 @@ if [ -n "$rt_line" ]; then
 fi
 
 # ---------------------------------------------------------------- Versturen
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)

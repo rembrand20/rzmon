@@ -321,6 +321,12 @@ if ($action === 'agent') {
             $st->execute([$host['id'], "ha:$k", json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
         }
     }
+    // Wat er voor realtime nodig is (inotify-tools, EPEL op Rocky/Alma/RHEL)
+    if (is_array($in['tools'] ?? null)) {
+        $tl = $in['tools'];
+        $st->execute([$host['id'], 'tools', json_encode(['inotify' => !empty($tl['inotify']), 'epel' => isset($tl['epel']) ? (bool) $tl['epel'] : null,
+            'family' => ($tl['family'] ?? '') === 'rhel' ? 'rhel' : 'other', 'no_epel' => !empty($tl['no_epel'])]), $now]);
+    }
     // Realtime-watcher: draait hij, en volgt hij het systemlog en de bestanden?
     if (is_array($in['realtime'] ?? null)) {
         $rt = $in['realtime'];
@@ -763,7 +769,8 @@ switch ($action) {
         out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now(),
              'agent_version' => $h['agent_version'], 'version' => RZMON_VERSION,
              'update' => ['pending' => $h['agent_update_req'] !== null, 'status' => $h['agent_update_status'], 'via' => $h['agent_update_via']],
-             'realtime' => ['on' => (bool) $h['realtime'], 'status' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'realtime'", [$id])->fetchColumn(), true)]]);
+             'realtime' => ['on' => (bool) $h['realtime'], 'status' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'realtime'", [$id])->fetchColumn(), true),
+                 'tools' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'tools'", [$id])->fetchColumn(), true)]]);
 
     case 'podman':
         // Overzicht van alle containers die de agent van deze server meldt
@@ -1446,7 +1453,8 @@ switch ($action) {
     case 'ids':
         $days = Monitor::alertDays();
         $hosts = q("SELECT h.id, h.name, h.agent_seen, h.agent_update_via = 'ha' AS ha, h.ids_fim, h.realtime,
-                           (SELECT value FROM agent_data ad WHERE ad.host_id = h.id AND ad.metric = 'realtime') AS rt, s.fim_count, s.fim_cand, s.baseline_until, s.fw_state, s.fw_error, s.last_report
+                           (SELECT value FROM agent_data ad WHERE ad.host_id = h.id AND ad.metric = 'realtime') AS rt,
+                           (SELECT value FROM agent_data ad WHERE ad.host_id = h.id AND ad.metric = 'tools') AS tools, s.fim_count, s.fim_cand, s.baseline_until, s.fw_state, s.fw_error, s.last_report
                     FROM hosts h LEFT JOIN ids_state s ON s.host_id = h.id WHERE h.mode = 'agent' AND h.enabled = 1 ORDER BY h.name")->fetchAll();
         $open = q("SELECT host_id, severity, COUNT(*) AS n FROM ids_incidents WHERE status = 'open' GROUP BY host_id, severity")->fetchAll();
         $blocks = Ids::activeBlocks();

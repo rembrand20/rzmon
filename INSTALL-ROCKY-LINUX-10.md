@@ -170,7 +170,7 @@ sudo firewall-cmd --list-services                   # bevat http (en https)
 
 ---
 
-> **Realtime-watcher en EPEL.** Voor bestanden in realtime heeft de agent `inotify-tools` nodig; op Rocky Linux staat dat in EPEL (`sudo dnf install epel-release`). Zonder EPEL werkt realtime voor logins en services wel. Zie de [Handleiding, 8.2](HANDLEIDING.md#realtime-watcher-).
+> **Realtime-watcher en EPEL.** Voor bestanden in realtime heeft de agent `inotify-tools` nodig; op Rocky Linux staat dat in EPEL. De agent-setup installeert EPEL en `inotify-tools` zelf als de server internet heeft (niet met `--no-epel`). Lukt dat niet, dan zie je in RzMon in de *Agent Manager* een melding met de oplossing. Zie de [Handleiding, 8.2](HANDLEIDING.md#realtime-watcher-).
 
 > **IDS en firewalld.** Zet je het IDS op *blokkeren*, dan maakt de agent op een server een eigen nftables-tabel `inet rzmon` aan. Die werkt naast firewalld; je firewalld-instellingen blijven zoals ze zijn. Zie de [Handleiding, 8.12](HANDLEIDING.md#812-ids-inbraakdetectie-).
 

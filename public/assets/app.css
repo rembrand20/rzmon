@@ -817,3 +817,6 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .fim-sug-t { flex: 1; line-height: 1.35; }
 .fim-row input:invalid { border-color: var(--crit); }
 .ids-item .msg { white-space: pre-line; overflow-wrap: anywhere; }
+
+.tools-warn { margin-top: .3rem; line-height: 1.5; }
+.tools-warn code { white-space: normal; overflow-wrap: anywhere; }

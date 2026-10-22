@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.44.0 – 2026-10-22
+### Nieuw
+- **EPEL automatisch:** heeft de realtime-watcher `inotify-tools` nodig en ontbreekt het, dan kijkt de agent-setup op Rocky, Alma, RHEL en Oracle Linux of EPEL er is. Zo niet, dan installeert hij het eerst (Rocky/Alma: `epel-release`; RHEL: het officiële pakket van het Fedora-project; Oracle: `oracle-epel-release`). Dat gebeurt bij elke installatie en elke update. CRB wordt niet aangezet.
+- Lukt het niet (geen internet), dan gaat de installatie gewoon door.
+- **Melding in RzMon:** ontbreekt EPEL of `inotify-tools`, dan staat er in de *Agent Manager* een waarschuwing met de oplossing (⬆ Opnieuw installeren, of het commando voor op de server). Op de IDS-pagina staat bij de server *EPEL ontbreekt*.
+- Geen EPEL willen: `--no-epel` bij de setup (wordt bewaard als `EPEL=0`).
+
 ## 1.43.0 – 2026-10-22
 ### Nieuw
 - **⚡ Realtime-watcher**, per server aan te zetten in de *Agent Manager* (standaard uit). Logins, mislukte pogingen, sudo, su, services die stoppen of crashen, en nieuwe of gewijzigde bestanden onder een 🔴-pad van *Bestanden bewaken* staan binnen een paar seconden in RzMon, in plaats van bij de volgende tik.

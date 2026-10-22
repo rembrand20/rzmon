@@ -37,6 +37,7 @@ CERTS_SET=0           # --certs meegegeven (ook leeg = geen certificaten)
 INSECURE=""
 INTERVAL=""
 SCHED="auto"          # auto | systemd | cron
+EPEL="${EPEL-}"       # 0 = nooit EPEL installeren (--no-epel of EPEL=0 in de instellingen)
 ASSUME_YES=0
 MODE="install"        # install | update | uninstall
 SOURCE_FILE=""        # lokale rzmon-agent.sh i.p.v. downloaden
@@ -76,6 +77,7 @@ Gebruik: sudo bash install-agent.sh --url URL --token TOKEN [opties]
   --interval SEC       Tik als RzMon er geen doorgeeft (30-3600, standaard 60); normaal in RzMon instellen
   --insecure           Self-signed HTTPS-certificaat van RzMon accepteren
   --cron               Cron gebruiken in plaats van een systemd-timer
+  --no-epel            Rocky/Alma/RHEL: EPEL niet installeren (dan geen bestanden in realtime)
   --truenas            TrueNAS SCALE (wordt normaal vanzelf herkend)
   --pool NAAM          TrueNAS: de agent op deze pool zetten (standaard de eerste pool)
   --dir PAD            TrueNAS: precies deze map gebruiken, bv. /mnt/tank/rzmon-agent
@@ -99,6 +101,7 @@ while [ $# -gt 0 ]; do
         --interval) INTERVAL="${2:?}"; shift ;;
         --insecure) INSECURE=1 ;;
         --cron) SCHED="cron" ;;
+        --no-epel) EPEL=0 ;;
         --truenas) TRUENAS=1 ;;
         --pool) POOL="${2:?}"; shift ;;
         --dir) TN_DIR="${2:?}"; shift ;;
@@ -330,16 +333,42 @@ if [ ${#need[@]} -gt 0 ]; then
         *) "$pm" -y -q install "${need[@]}" >/dev/null ;;
     esac
 fi
-# inotify-tools voor de realtime-watcher (bestanden). Mag mislukken (op Rocky/RHEL staat het in EPEL):
-# dan werkt realtime voor logins en services wel, en bestanden alleen via de gewone runs.
+# inotify-tools voor de realtime-watcher (bestanden). Op Rocky, Alma, RHEL en Oracle Linux staat het in EPEL:
+# dat wordt dan eerst geïnstalleerd (niet met --no-epel of EPEL=0). Mag mislukken (bv. zonder internet):
+# dan werkt realtime voor logins en services wel, bestanden alleen bij de gewone runs, en meldt RzMon het.
+[ -f "$CONF" ] && grep -qE '^EPEL="?0"?$' "$CONF" && EPEL=0
+# (grep zonder -q: met pipefail zou een vroeg stoppende grep de pijplijn als mislukt laten gelden)
+epel_present() { rpm -q epel-release >/dev/null 2>&1 || rpm -qa 2>/dev/null | grep '^oracle-epel-release' >/dev/null || "$pm" repolist enabled 2>/dev/null | grep -i epel >/dev/null; }
 if [ "$TRUENAS" = 0 ] && has_systemd && ! command -v inotifywait >/dev/null 2>&1 && [ -n "$pm" ]; then
     case "$pm" in
         apt-get) DEBIAN_FRONTEND=noninteractive apt-get install -y -qq inotify-tools >/dev/null 2>&1 || true ;;
         apk) apk add --no-cache inotify-tools >/dev/null 2>&1 || true ;;
+        dnf|yum)
+            info "inotify-tools ontbreekt; staat in EPEL (Extra Packages for Enterprise Linux)"
+            if epel_present; then
+                :
+            elif [ "$EPEL" = 0 ]; then
+                warn "EPEL wordt niet geïnstalleerd (--no-epel / EPEL=0): bestanden alleen bij de gewone runs"
+            else
+                os_id=$(. /etc/os-release 2>/dev/null; echo "${ID:-}")
+                os_ver=$(. /etc/os-release 2>/dev/null; echo "${VERSION_ID:-}"); os_ver=${os_ver%%.*}
+                case "$os_id" in
+                    rhel) epel_pkg="https://dl.fedoraproject.org/pub/epel/epel-release-latest-${os_ver}.noarch.rpm" ;;   # officieel, van het Fedora-project
+                    ol) epel_pkg="oracle-epel-release-el${os_ver}" ;;
+                    *) epel_pkg="epel-release" ;;   # Rocky, Alma, CentOS Stream: in de standaardrepository "extras"
+                esac
+                info "EPEL installeren: $pm install $epel_pkg"
+                if "$pm" -y -q install "$epel_pkg" >/dev/null 2>&1; then
+                    ok "EPEL geïnstalleerd"
+                else
+                    warn "EPEL installeren mislukt (geen internet?). Later: sudo $pm install $epel_pkg && sudo $pm install inotify-tools, of ⬆ Opnieuw installeren in RzMon"
+                fi
+            fi
+            epel_present && { "$pm" -y -q install inotify-tools >/dev/null 2>&1 || true; } ;;
         *) "$pm" -y -q install inotify-tools >/dev/null 2>&1 || true ;;
     esac
     command -v inotifywait >/dev/null 2>&1 && ok "inotify-tools geïnstalleerd (bestanden in realtime)" \
-        || warn "inotify-tools niet beschikbaar (Rocky/RHEL: eerst EPEL, dnf install epel-release); bestanden worden dan alleen bij de gewone runs gecontroleerd"
+        || warn "inotify-tools niet beschikbaar: bestanden worden alleen bij de gewone runs gecontroleerd (RzMon meldt dit in de Agent Manager)"
 fi
 command -v curl >/dev/null 2>&1 || die "curl ontbreekt"
 ok "curl$(command -v ss >/dev/null 2>&1 && echo ', ss')$(command -v openssl >/dev/null 2>&1 && echo ', openssl') aanwezig"
@@ -429,6 +458,7 @@ INSECURE="$INSECURE"
 INTERVAL="$INTERVAL"
 EOF
     [ -n "$old_extra" ] && printf '# Eigen instellingen (overgenomen uit de vorige installatie)\n%s\n' "$old_extra" >>"$CONF"
+    [ "$EPEL" = 0 ] && ! grep -q '^EPEL=' "$CONF" && printf '# Rocky/Alma/RHEL: EPEL niet installeren (geen bestanden in realtime)\nEPEL=0\n' >>"$CONF"
     umask 022
     chmod 600 "$CONF"
     ok "$CONF (alleen leesbaar voor root)"

@@ -2053,6 +2053,22 @@ function realtimeText(rt) {
   return `<span class="good">⚡ Realtime actief</span> <span class="muted">sinds ${new Date(s.since * 1000).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${parts.join(' · ')}</span>`;
 }
 
+/**
+ * Ontbreekt er iets voor bestanden in realtime (inotify-tools, op Rocky/Alma/RHEL via EPEL)? Melding met de oplossing,
+ * of '' als alles er is. via: hoe de agent zichzelf bijwerkt (alleen dan helpt "Opnieuw installeren").
+ */
+function toolsWarning(t, via) {
+  if (!t || t.inotify) return '';
+  const fix = via === 'systemd' || via === 'direct' ? 'klik hierboven op <b>⬆ Opnieuw installeren</b> (de agent installeert het dan zelf, als de server internet heeft), of op de server:' : 'op de server:';
+  if (t.family === 'rhel' && !t.epel) {
+    return t.no_epel ? '<span class="muted">⚠️ EPEL staat uit (EPEL=0): bestanden worden niet in realtime gevolgd, alleen bij de gewone runs.</span>'
+      : `<span class="warn-txt">⚠️ EPEL is niet geïnstalleerd:</span> bestanden worden niet in realtime gevolgd (logins en services wel). Oplossen: ${fix}
+        <code>sudo dnf install epel-release &amp;&amp; sudo dnf install inotify-tools</code>`;
+  }
+  return `<span class="warn-txt">⚠️ inotify-tools ontbreekt:</span> bestanden worden niet in realtime gevolgd (logins en services wel). Oplossen: ${fix}
+    <code>${t.family === 'rhel' ? 'sudo dnf install inotify-tools' : 'sudo apt install inotify-tools'}</code>`;
+}
+
 /** "30 s", "2 min" */
 function tickText(t) { return +t >= 120 ? `${+t / 60} min` : `${+t} s`; }
 
@@ -2310,6 +2326,8 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
       html += `<div class="small">Agent-versie <b>${s.agent_version ? esc(s.agent_version) : 'onbekend (ouder dan 1.6.0)'}</b>, RzMon ${esc(s.version)}${old ? '' : ' ✔'}</div>`;
       if (u.status) html += `<div class="small agent-upd-status">${esc(u.status)}</div>`;
       html += `<div class="small">${realtimeText(s.realtime)}</div>`;
+      const tw = toolsWarning(s.realtime && s.realtime.tools, s.update && s.update.via);
+      if (tw) html += `<div class="small tools-warn">${tw}</div>`;
       if (isAdmin() && u.pending) {
         html += '<div class="btn-row agent-upd"><button type="button" class="btn" data-agent-upd="cancel">Bijwerken annuleren</button></div>';
       } else if (isAdmin() && (old || canRemote)) {
@@ -2578,7 +2596,7 @@ function renderIds() {
     <div class="ids-host">
       <div><b>${esc(h.name)}</b> <span class="muted small">${h.last_report ? 'IDS-rapport ' + ago(h.last_report) : d.enabled ? 'nog geen IDS-rapport (agent 1.35.0+)' : ''}</span></div>
       <div class="small">${!h.baseline_until ? '' : h.learning ? `📏 basismeting tot ${esc(fmtUntil(h.baseline_until))}` : '✔ bewaakt'}
-        ${h.fw_state ? ' · ' + (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : ''}${h.fim_count != null ? ` · 📁 ${(+h.fim_count).toLocaleString('nl-NL')} bestand${+h.fim_count === 1 ? '' : 'en'} bewaakt` : ''}${+h.realtime ? ((x) => (x && x.state === 'active' ? ' · <span class="good" title="Realtime-watcher actief">⚡ realtime</span>' : ' · <span class="warn-txt" title="Realtime staat aan, maar de watcher is niet actief">⚡ niet actief</span>'))(JSON.parse(h.rt || 'null')) : ''}</div>
+        ${h.fw_state ? ' · ' + (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : ''}${h.fim_count != null ? ` · 📁 ${(+h.fim_count).toLocaleString('nl-NL')} bestand${+h.fim_count === 1 ? '' : 'en'} bewaakt` : ''}${+h.realtime ? ((x) => (x && x.state === 'active' ? ' · <span class="good" title="Realtime-watcher actief">⚡ realtime</span>' : ' · <span class="warn-txt" title="Realtime staat aan, maar de watcher is niet actief">⚡ niet actief</span>'))(JSON.parse(h.rt || 'null')) : ''}${+h.realtime ? ((t) => (t && !t.inotify ? ` · <span class="warn-txt" title="Bestanden worden niet in realtime gevolgd; zie de Agent Manager">${t.family === 'rhel' && !t.epel ? 'EPEL ontbreekt' : 'inotify-tools ontbreekt'}</span>` : ''))(JSON.parse(h.tools || 'null')) : ''}</div>
       <div class="small">${h.open[2] ? `<span class="ad-count">🔴 ${h.open[2]}</span>` : ''} ${h.open[1] ? `<span class="ad-count">🟠 ${h.open[1]}</span>` : ''}
         ${!h.open[1] && !h.open[2] ? '<span class="muted">geen open incidenten</span>' : ''}
         ${h.baseline_until ? `<button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="Alles wat er nu is als normaal vastleggen">↺ basismeting opnieuw</button>` : ''}</div>
