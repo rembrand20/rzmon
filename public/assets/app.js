@@ -208,7 +208,7 @@ function ago(dt) {
   return d === 1 ? L('1 dag geleden') : L('{n} dagen geleden', { n: d });
 }
 
-const fmt = (v, unit) => (v === null || v === undefined ? '' : `${Math.round(v * 10) / 10}${unit ? ' ' + unit : ''}`);
+const fmt = (v, unit) => (v === null || v === undefined ? '' : `${Math.round(v * 10) / 10}${unit ? ' ' + L(unit) : ''}`);
 
 // ---------------------------------------------------------------- Wachtwoord vergeten
 const forgotForm = $('#forgot-form');
@@ -1865,7 +1865,7 @@ function checkForm(c, h, preset = {}) {
     $('#target-wrap').hidden = !t.target;
     $('#target-label').textContent = t.target || '';
     $('[name=target]', form).placeholder = t.ph || '';
-    $$('.unit', form).forEach((u) => (u.textContent = t.unit || ''));
+    $$('.unit', form).forEach((u) => (u.textContent = t.unit ? L(t.unit) : ''));
     $$('#thr-wrap label', form).slice(0, 2).forEach((l) => (l.hidden = !t.unit));
     const words = $$('.thr-word', form);
     words[0].textContent = t.low ? L('Warning onder') : L('Warning vanaf');

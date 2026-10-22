@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.50.0 – 2026-10-22
+### Nieuw
+- **Engelse interface (deel 2): nu helemaal vertaald.** Ook de instellingen, IDS, alle vensters (check, server, Agent Manager, SNMP, poortscan, back-up …), foutmeldingen, de setup-pagina en de bevestig-pagina uit Pushover.
+- **Taal van meldingen en checkberichten** (*Instellingen → 🔔 Meldingen*): Nederlands of English. Geldt voor Pushover, e-mail, Home Assistant en MQTT, de berichten van checks, IDS- en toegangsregels en de antwoorden van de REST API. Na de update staat dit op Nederlands, dus er verandert niets tot je het zelf aanpast.
+- Mails voor *wachtwoord vergeten* gaan in de taal van het account.
+- Op het lokale netwerk (zonder wachtwoord) typ je ter bevestiging het woord in je eigen taal, bijvoorbeeld *BLOCK* of *BLOKKEREN*; beide worden geaccepteerd.
+- Wat al bewaard is (oude meldingen, het logboek), blijft in de taal van toen.
+
+### Opgelost
+- De inlogcode (tweestapsverificatie) en de link voor een nieuw wachtwoord herkenden "opnieuw inloggen" en "link verlopen" aan de tekst van de foutmelding; dat werkt nu ook in het Engels.
+
 ## 1.49.0 – 2026-10-22
 ### Nieuw
 - **Engelse interface (deel 1).** Bovenaan *Instellingen* staat een schuifje **EN ◯ NL**. De keuze hoort bij je account en gaat mee naar elk apparaat. Bestaande accounts blijven Nederlands; nieuwe accounts en de inlogpagina volgen de taal van de browser.
