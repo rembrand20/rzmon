@@ -179,46 +179,46 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     <section id="tab-ids" class="tab-panel" hidden>
       <div class="card">
         <div class="alerts-head"><h2>🛡️ IDS</h2><span class="muted small" id="ids-status"></span>
-          <button type="button" class="btn need-admin" id="ids-block-add" style="margin-left:auto">⛔ IP blokkeren</button></div>
+          <button type="button" class="btn need-admin" id="ids-block-add" style="margin-left:auto"><?= th('⛔ IP blokkeren') ?></button></div>
         <div class="ids-hosts" id="ids-hosts"></div>
       </div>
       <div class="seg ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
-        <button type="button" class="seg-btn active" data-it="inc">⚠️ Incidenten <span class="it-n" id="it-n-inc"></span></button>
-        <button type="button" class="seg-btn" data-it="acc">🔑 Toegang <span class="it-n" id="it-n-acc"></span></button>
-        <button type="button" class="seg-btn" data-it="blk">⛔ Blokkades <span class="it-n" id="it-n-blk"></span></button>
+        <button type="button" class="seg-btn active" data-it="inc"><?= th('⚠️ Incidenten') ?> <span class="it-n" id="it-n-inc"></span></button>
+        <button type="button" class="seg-btn" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
+        <button type="button" class="seg-btn" data-it="blk"><?= th('⛔ Blokkades') ?> <span class="it-n" id="it-n-blk"></span></button>
       </div>
       <div class="card ids-pane" data-pane="inc">
         <div class="alerts-head">
-          <h2>⚠️ Incidenten</h2>
+          <h2><?= th('⚠️ Incidenten') ?></h2>
           <span class="muted small" id="ids-info"></span>
           <div class="seg" role="group" aria-label="Filter" id="ids-filter">
             <button type="button" class="seg-btn active" data-if="open">Open</button>
-            <button type="button" class="seg-btn" data-if="all">Alles</button>
+            <button type="button" class="seg-btn" data-if="all"><?= th('Alles') ?></button>
           </div>
-          <button type="button" class="btn" id="ids-toggle">⊞ Alles openen</button>
+          <button type="button" class="btn" id="ids-toggle"><?= th('⊞ Alles openen') ?></button>
         </div>
         <div id="ids-incidents" class="alert-list"></div>
       </div>
       <div class="card ids-pane" data-pane="acc" hidden>
         <div class="alerts-head">
-          <h2>🔑 Toegang</h2>
+          <h2><?= th('🔑 Toegang') ?></h2>
           <span class="muted small" id="acc-info"></span>
-          <div class="seg" role="group" aria-label="Soort" id="acc-filter">
-            <button type="button" class="seg-btn active" data-ac="all">Alles</button>
+          <div class="seg" role="group" aria-label="<?= th('Soort') ?>" id="acc-filter">
+            <button type="button" class="seg-btn active" data-ac="all"><?= th('Alles') ?></button>
             <button type="button" class="seg-btn" data-ac="ssh">SSH</button>
             <button type="button" class="seg-btn" data-ac="console">Console</button>
             <button type="button" class="seg-btn" data-ac="sudo">sudo</button>
             <button type="button" class="seg-btn" data-ac="su">su</button>
-            <button type="button" class="seg-btn" data-ac="fail">❌ Mislukt</button>
+            <button type="button" class="seg-btn" data-ac="fail"><?= th('❌ Mislukt') ?></button>
           </div>
-          <select id="acc-host" class="alerts-sort" aria-label="Server"><option value="">Alle servers</option></select>
-          <button type="button" class="btn" id="acc-toggle">⊞ Alles openen</button>
+          <select id="acc-host" class="alerts-sort" aria-label="Server"><option value=""><?= th('Alle servers') ?></option></select>
+          <button type="button" class="btn" id="acc-toggle"><?= th('⊞ Alles openen') ?></button>
         </div>
         <div id="ids-access" class="alert-list"></div>
       </div>
       <div class="card ids-pane" data-pane="blk" hidden>
         <div class="alerts-head">
-          <h2>⛔ Blokkades</h2>
+          <h2><?= th('⛔ Blokkades') ?></h2>
           <span class="muted small" id="ids-block-info"></span>
         </div>
         <div id="ids-blocks"></div>
@@ -233,367 +233,361 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <?php if ($role === 'admin'): ?><a class="btn" href="setup.php" title="<?= th('Database, configuratie en tabellen') ?>">⚙️ Setup</a><?php endif; ?>
       </div>
       <div class="card view-card">
-        <h2>Weergave</h2>
-        <p class="muted small">Hoe het dashboard, de meldingen en deze instellingen eruitzien. Geldt voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc) en wordt direct toegepast.</p>
+        <h2><?= th('Weergave') ?></h2>
+        <p class="muted small"><?= t('Hoe het dashboard, de meldingen en deze instellingen eruitzien. Geldt voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc) en wordt direct toegepast.') ?></p>
         <div class="view-row">
-          <span class="view-label">Lay-out</span>
-          <div class="seg" role="group" aria-label="Lay-out">
-            <button type="button" class="seg-btn" data-view-layout="blox" title="Een tegel per server">▦ Blox</button>
-            <button type="button" class="seg-btn" data-view-layout="l1nes" title="Servers onder elkaar, als een tabel">☰ L1nes</button>
+          <span class="view-label"><?= th('Lay-out') ?></span>
+          <div class="seg" role="group" aria-label="<?= th('Lay-out') ?>">
+            <button type="button" class="seg-btn" data-view-layout="blox" title="<?= th('Een tegel per server') ?>">▦ Blox</button>
+            <button type="button" class="seg-btn" data-view-layout="l1nes" title="<?= th('Servers onder elkaar, als een tabel') ?>">☰ L1nes</button>
           </div>
         </div>
         <div class="view-row">
-          <span class="view-label">Grootte <span class="hint">(bij L1nes)</span></span>
-          <div class="seg" role="group" aria-label="Grootte">
-            <button type="button" class="seg-btn" data-view-density="small" title="Eén compacte regel per server">Small</button>
-            <button type="button" class="seg-btn" data-view-density="large" title="Meer informatie: CPU, RAM, disk, bereikbaarheid">Large</button>
+          <span class="view-label"><?= th('Grootte') ?> <span class="hint"><?= th('(bij L1nes)') ?></span></span>
+          <div class="seg" role="group" aria-label="<?= th('Grootte') ?>">
+            <button type="button" class="seg-btn" data-view-density="small" title="<?= th('Eén compacte regel per server') ?>">Small</button>
+            <button type="button" class="seg-btn" data-view-density="large" title="<?= th('Meer informatie: CPU, RAM, disk, bereikbaarheid') ?>">Large</button>
           </div>
         </div>
       </div>
 
       <div class="set-toolbar">
-        <span class="muted small">Klik op een onderdeel om het te openen of te sluiten.</span>
-        <button type="button" class="btn" id="set-toggle-all">⊞ Alles openen</button>
+        <span class="muted small"><?= th('Klik op een onderdeel om het te openen of te sluiten.') ?></span>
+        <button type="button" class="btn" id="set-toggle-all"><?= th('⊞ Alles openen') ?></button>
       </div>
-      <h3 class="set-group" data-group="meldingen">🔔 Meldingen</h3>
-      <h3 class="set-group" data-group="monitoring">📈 Monitoring</h3>
-      <h3 class="set-group" data-group="systeem">⚙️ Systeem</h3>
-      <h3 class="set-group" data-group="toegang">🔐 Toegang</h3>
+      <h3 class="set-group" data-group="meldingen"><?= th('🔔 Meldingen') ?></h3>
+      <h3 class="set-group" data-group="monitoring"><?= th('📈 Monitoring') ?></h3>
+      <h3 class="set-group" data-group="systeem"><?= th('⚙️ Systeem') ?></h3>
+      <h3 class="set-group" data-group="toegang"><?= th('🔐 Toegang') ?></h3>
       <form id="settings-form" class="settings-grid need-admin">
         <div data-sk="pushover" class="card">
           <h2>Pushover</h2>
-          <p class="muted small">Maak een applicatie aan op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> voor het API-token. Je user key staat op je Pushover dashboard.</p>
-          <label class="switch"><input type="checkbox" name="pushover_enabled"><span></span> Pushover meldingen aan</label>
+          <p class="muted small"><?= t('Maak een applicatie aan op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> voor het API-token. Je user key staat op je Pushover dashboard.') ?></p>
+          <label class="switch"><input type="checkbox" name="pushover_enabled"><span></span> <?= th('Pushover meldingen aan') ?></label>
           <label>User key<input name="pushover_user" autocomplete="off" spellcheck="false"></label>
           <label>API token<input name="pushover_token" autocomplete="off" spellcheck="false"></label>
           <div class="row2">
-            <label>Prioriteit critical
+            <label><?= th('Prioriteit critical') ?>
               <select name="pushover_priority_crit">
-                <option value="-1">Laag (-1)</option><option value="0">Normaal (0)</option>
-                <option value="1">Hoog (1)</option><option value="2">Emergency (2)</option>
+                <option value="-1"><?= th('Laag (-1)') ?></option><option value="0"><?= th('Normaal (0)') ?></option>
+                <option value="1"><?= th('Hoog (1)') ?></option><option value="2"><?= th('Emergency (2)') ?></option>
               </select>
             </label>
-            <label>Prioriteit warning
+            <label><?= th('Prioriteit warning') ?>
               <select name="pushover_priority_warn">
-                <option value="-1">Laag (-1)</option><option value="0">Normaal (0)</option>
-                <option value="1">Hoog (1)</option>
+                <option value="-1"><?= th('Laag (-1)') ?></option><option value="0"><?= th('Normaal (0)') ?></option>
+                <option value="1"><?= th('Hoog (1)') ?></option>
               </select>
             </label>
           </div>
-          <label>Geluid <span class="muted small">(leeg = standaard, bv. siren, alien, pushover)</span><input name="pushover_sound"></label>
-          <button type="button" class="btn" id="pushover-test">📲 Testbericht sturen</button>
+          <label><?= th('Geluid') ?> <span class="muted small"><?= th('(leeg = standaard, bv. siren, alien, pushover)') ?></span><input name="pushover_sound"></label>
+          <button type="button" class="btn" id="pushover-test"><?= th('📲 Testbericht sturen') ?></button>
         </div>
 
         <div data-sk="notify" class="card notify-card">
-          <h2>🔔 Meldingen</h2>
-          <p class="muted small">Per status: <b>nooit</b>, <b>direct</b>, of pas <b>na X minuten</b> onafgebroken in die status. Herstelt het eerder, dan komt er geen melding. Hersteld: pas melden als het X minuten goed blijft. Per check kun je dit aanpassen (✎ → Meldingen).</p>
-          <label>Melden na … mislukte checks achter elkaar <span class="muted small">(1 = bij de eerste; per check aan te passen)</span>
+          <h2><?= th('🔔 Meldingen') ?></h2>
+          <p class="muted small"><?= t('Per status: <b>nooit</b>, <b>direct</b>, of pas <b>na X minuten</b> onafgebroken in die status. Herstelt het eerder, dan komt er geen melding. Hersteld: pas melden als het X minuten goed blijft. Per check kun je dit aanpassen (✎ → Meldingen).') ?></p>
+          <label><?= th('Melden na … mislukte checks achter elkaar') ?> <span class="muted small"><?= th('(1 = bij de eerste; per check aan te passen)') ?></span>
             <input type="number" name="notify_fails" min="1" max="100" style="max-width:8rem"></label>
-          <p class="muted small" style="margin-top:-.4rem">Telt per status: wordt een warning critical, dan begint de telling opnieuw. Onbekend telt ook. Het aantal én de regel hieronder moeten allebei kloppen; wil je alleen het aantal, zet de regel dan op <i>direct</i>. Herstel wordt gemeld zoals hieronder ingesteld.</p>
-          <label class="switch"><input type="checkbox" name="notify_unknown"><span></span> Melden bij ONBEKEND</label>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Telt per status: wordt een warning critical, dan begint de telling opnieuw. Onbekend telt ook. Het aantal én de regel hieronder moeten allebei kloppen; wil je alleen het aantal, zet de regel dan op <i>direct</i>. Herstel wordt gemeld zoals hieronder ingesteld.') ?></p>
+          <label class="switch"><input type="checkbox" name="notify_unknown"><span></span> <?= th('Melden bij ONBEKEND') ?></label>
           <label><?= th('Taal van meldingen en checkberichten') ?> <span class="muted small">(<?= th('Pushover, e-mail, Home Assistant en de berichten van checks; voor iedereen hetzelfde') ?>)</span>
             <select name="notify_lang" style="max-width:12rem"><option value="nl">Nederlands</option><option value="en">English</option></select></label>
           <div id="notify-editor"></div>
           <input type="hidden" name="notify_rules"><input type="hidden" name="notify_channels"><input type="hidden" name="notify_flap"><input type="hidden" name="notify_quiet">
           <div class="quiet-box">
-            <h3>🌙 Stille uren</h3>
-            <p class="muted small">In deze periodes gaan er geen meldingen uit (Pushover, e-mail en Home Assistant). Checks draaien gewoon door en het dashboard blijft alles tonen.
-              Is er na afloop nog iets mis, dan krijg je <b>één bericht</b> met alle open problemen. Wat in de tussentijd vanzelf herstelde, wordt niet gemeld. Per check aan te passen (✎ → Stille uren).</p>
+            <h3><?= th('🌙 Stille uren') ?></h3>
+            <p class="muted small"><?= t('In deze periodes gaan er geen meldingen uit (Pushover, e-mail en Home Assistant). Checks draaien gewoon door en het dashboard blijft alles tonen. Is er na afloop nog iets mis, dan krijg je <b>één bericht</b> met alle open problemen. Wat in de tussentijd vanzelf herstelde, wordt niet gemeld. Per check aan te passen (✎ → Stille uren).') ?></p>
             <div id="quiet-editor"></div>
           </div>
           <div class="row2">
-            <label>Meldingen per server bundelen binnen … seconden <span class="muted small">(0 = niet bundelen)</span><input type="number" name="notify_group_seconds" min="0" max="3600"></label>
-            <label class="switch" style="align-self:end"><input type="checkbox" name="notify_recovery_acked"><span></span> Ook herstel melden na een bevestigde storing</label>
+            <label><?= th('Meldingen per server bundelen binnen … seconden') ?> <span class="muted small"><?= th('(0 = niet bundelen)') ?></span><input type="number" name="notify_group_seconds" min="0" max="3600"></label>
+            <label class="switch" style="align-self:end"><input type="checkbox" name="notify_recovery_acked"><span></span> <?= th('Ook herstel melden na een bevestigde storing') ?></label>
           </div>
-          <p class="muted small" style="margin-top:-.3rem">Bundelen: gaan op één server binnen deze tijd meerdere checks mis (of herstellen ze), dan komt er één bericht met alles erin. De eerste melding wacht daardoor hooguit zo lang. Home Assistant krijgt wel een bericht per check, voor je automatiseringen.</p>
+          <p class="muted small" style="margin-top:-.3rem"><?= th('Bundelen: gaan op één server binnen deze tijd meerdere checks mis (of herstellen ze), dan komt er één bericht met alles erin. De eerste melding wacht daardoor hooguit zo lang. Home Assistant krijgt wel een bericht per check, voor je automatiseringen.') ?></p>
         </div>
 
         <div data-sk="alarm" class="card">
-          <h2>Alarmgedrag</h2>
-          <label>Agent offline na … minuten zonder rapport<input type="number" name="agent_stale_minutes" min="1"></label>
-          <label>Historie bewaren (dagen)<input type="number" name="retention_days" min="1"></label>
-          <label>Meldingen bewaren (dagen) <span class="muted small">(de pagina Meldingen toont ze per dag)</span><input type="number" name="alerts_days" min="1" max="3650"></label>
-          <label>Waarschuwen als een disk binnen … dagen vol raakt <span class="muted small">(0 = uit)</span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
-          <label>Logbestanden: treffers tellen over de laatste … minuten <span class="muted small">(5–1440)</span><input type="number" name="log_window" min="5" max="1440"></label>
-          <label class="switch"><input type="checkbox" name="auto_maint_enabled"><span></span> Automatisch onderhoud na herhaalde meldingen</label>
-          <label>… na zoveel meldingen voor dezelfde storing <span class="muted small">(alleen die check; stopt vanzelf als hij weer OK is)</span><input type="number" name="auto_maint_after" min="1" max="100"></label>
+          <h2><?= th('Alarmgedrag') ?></h2>
+          <label><?= th('Agent offline na … minuten zonder rapport') ?><input type="number" name="agent_stale_minutes" min="1"></label>
+          <label><?= th('Historie bewaren (dagen)') ?><input type="number" name="retention_days" min="1"></label>
+          <label><?= th('Meldingen bewaren (dagen)') ?> <span class="muted small"><?= th('(de pagina Meldingen toont ze per dag)') ?></span><input type="number" name="alerts_days" min="1" max="3650"></label>
+          <label><?= th('Waarschuwen als een disk binnen … dagen vol raakt') ?> <span class="muted small"><?= th('(0 = uit)') ?></span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
+          <label><?= th('Logbestanden: treffers tellen over de laatste … minuten') ?> <span class="muted small">(5–1440)</span><input type="number" name="log_window" min="5" max="1440"></label>
+          <label class="switch"><input type="checkbox" name="auto_maint_enabled"><span></span> <?= th('Automatisch onderhoud na herhaalde meldingen') ?></label>
+          <label><?= th('… na zoveel meldingen voor dezelfde storing') ?> <span class="muted small"><?= th('(alleen die check; stopt vanzelf als hij weer OK is)') ?></span><input type="number" name="auto_maint_after" min="1" max="100"></label>
         </div>
 
         <div data-sk="webhook" class="card">
-          <h2>Home Assistant-webhook</h2>
-          <p class="muted small">Stuurt elke melding ook als JSON naar Home Assistant, zodat je er een automatisering op kunt starten: een lamp die rood kleurt, een TTS-melding, of een notificatie via de HA-app.
-            Maak in HA een automatisering met trigger <b>Webhook</b> en plak de URL hieronder, bv. <code>http://homeassistant.local:8123/api/webhook/rzmon-…</code></p>
-          <label class="switch"><input type="checkbox" name="ha_webhook_enabled"><span></span> Webhook aan</label>
-          <label>Webhook-URL<input name="ha_webhook_url" type="url" spellcheck="false" placeholder="http://homeassistant.local:8123/api/webhook/rzmon-geheim-id"></label>
-          <p class="muted small">Welke meldingen naar Home Assistant gaan, stel je in bij <b>🔔 Meldingen</b> (kolom Home Assistant).</p>
-          <label class="switch"><input type="checkbox" name="ha_webhook_verify_ssl"><span></span> SSL-certificaat controleren (uit bij self-signed)</label>
-          <button type="button" class="btn" id="webhook-test">🏠 Testbericht naar Home Assistant</button>
+          <h2><?= th('Home Assistant-webhook') ?></h2>
+          <p class="muted small"><?= t('Stuurt elke melding ook als JSON naar Home Assistant, zodat je er een automatisering op kunt starten: een lamp die rood kleurt, een TTS-melding, of een notificatie via de HA-app. Maak in HA een automatisering met trigger <b>Webhook</b> en plak de URL hieronder, bv. <code>http://homeassistant.local:8123/api/webhook/rzmon-…</code>') ?></p>
+          <label class="switch"><input type="checkbox" name="ha_webhook_enabled"><span></span> <?= th('Webhook aan') ?></label>
+          <label><?= th('Webhook-URL') ?><input name="ha_webhook_url" type="url" spellcheck="false" placeholder="http://homeassistant.local:8123/api/webhook/rzmon-geheim-id"></label>
+          <p class="muted small"><?= t('Welke meldingen naar Home Assistant gaan, stel je in bij <b>🔔 Meldingen</b> (kolom Home Assistant).') ?></p>
+          <label class="switch"><input type="checkbox" name="ha_webhook_verify_ssl"><span></span> <?= th('SSL-certificaat controleren (uit bij self-signed)') ?></label>
+          <button type="button" class="btn" id="webhook-test"><?= th('🏠 Testbericht naar Home Assistant') ?></button>
         </div>
 
         <div data-sk="email" class="card">
           <h2>E-mail</h2>
-          <p class="muted small">Meldingen ook per e-mail, of alleen als reserve wanneer Pushover niet werkt. Bij Gmail, Outlook en iCloud heb je een <b>app-wachtwoord</b> nodig (niet je gewone wachtwoord).</p>
-          <label class="switch"><input type="checkbox" name="email_enabled"><span></span> E-mailmeldingen aan</label>
-          <label>Versturen
+          <p class="muted small"><?= t('Meldingen ook per e-mail, of alleen als reserve wanneer Pushover niet werkt. Bij Gmail, Outlook en iCloud heb je een <b>app-wachtwoord</b> nodig (niet je gewone wachtwoord).') ?></p>
+          <label class="switch"><input type="checkbox" name="email_enabled"><span></span> <?= th('E-mailmeldingen aan') ?></label>
+          <label><?= th('Versturen') ?>
             <select name="email_mode">
-              <option value="always">Altijd (naast Pushover)</option>
-              <option value="fallback">Alleen als Pushover uit staat of mislukt</option>
+              <option value="always"><?= th('Altijd (naast Pushover)') ?></option>
+              <option value="fallback"><?= th('Alleen als Pushover uit staat of mislukt') ?></option>
             </select>
           </label>
           <div class="row3 smtp-row">
-            <label>SMTP-server<input name="smtp_host" spellcheck="false" placeholder="smtp.gmail.com"></label>
-            <label>Poort<input name="smtp_port" type="number" min="1" max="65535" placeholder="587" title="587 = STARTTLS, 465 = SSL/TLS, 25 = geen"></label>
-            <label>Beveiliging
+            <label><?= th('SMTP-server') ?><input name="smtp_host" spellcheck="false" placeholder="smtp.gmail.com"></label>
+            <label><?= th('Poort') ?><input name="smtp_port" type="number" min="1" max="65535" placeholder="587" title="<?= th('587 = STARTTLS, 465 = SSL/TLS, 25 = geen') ?>"></label>
+            <label><?= th('Beveiliging') ?>
               <select name="smtp_security">
                 <option value="starttls">STARTTLS</option>
-                <option value="ssl">SSL/TLS</option>
-                <option value="none">Geen</option>
+                <option value="ssl"><?= th('SSL/TLS') ?></option>
+                <option value="none"><?= th('Geen') ?></option>
               </select>
             </label>
           </div>
           <div class="row2">
-            <label>Gebruikersnaam<input name="smtp_user" autocomplete="off" spellcheck="false" placeholder="leeg = zonder inloggen"></label>
-            <label>Wachtwoord<input name="smtp_pass" type="password" autocomplete="new-password"></label>
+            <label><?= th('Gebruikersnaam') ?><input name="smtp_user" autocomplete="off" spellcheck="false" placeholder="<?= th('leeg = zonder inloggen') ?>"></label>
+            <label><?= th('Wachtwoord') ?><input name="smtp_pass" type="password" autocomplete="new-password"></label>
           </div>
           <div class="row2">
-            <label>Afzender <span class="hint">(leeg = gebruikersnaam)</span><input name="mail_from" type="email" spellcheck="false" placeholder="rzmon@example.com"></label>
-            <label>Ontvanger(s) <span class="hint">(komma tussen meerdere)</span><input name="mail_to" spellcheck="false" placeholder="jij@example.com"></label>
+            <label><?= th('Afzender') ?> <span class="hint"><?= th('(leeg = gebruikersnaam)') ?></span><input name="mail_from" type="email" spellcheck="false" placeholder="rzmon@example.com"></label>
+            <label><?= th('Ontvanger(s)') ?> <span class="hint"><?= th('(komma tussen meerdere)') ?></span><input name="mail_to" spellcheck="false" placeholder="jij@example.com"></label>
           </div>
-          <label class="switch"><input type="checkbox" name="smtp_verify_ssl"><span></span> SSL-certificaat controleren (uit bij self-signed)</label>
-          <button type="button" class="btn" id="email-test">📧 Testmail sturen</button>
+          <label class="switch"><input type="checkbox" name="smtp_verify_ssl"><span></span> <?= th('SSL-certificaat controleren (uit bij self-signed)') ?></label>
+          <button type="button" class="btn" id="email-test"><?= th('📧 Testmail sturen') ?></button>
         </div>
 
         <div data-sk="mqtt" class="card">
-          <h2>MQTT (Home Assistant)</h2>
-          <p class="muted small">RzMon meldt zich via <b>MQTT discovery</b> bij Home Assistant: elke server wordt een apparaat met sensoren voor de status en meetwaarden van zijn checks. Je hebt een MQTT-broker nodig, bv. de <i>Mosquitto broker</i>-add-on, en de MQTT-integratie in HA.
-            Gebruik bij Mosquitto een HA-gebruiker (of een aparte gebruiker) als login.</p>
-          <label class="switch"><input type="checkbox" name="mqtt_enabled"><span></span> MQTT aan</label>
+          <h2><?= th('MQTT (Home Assistant)') ?></h2>
+          <p class="muted small"><?= t('RzMon meldt zich via <b>MQTT discovery</b> bij Home Assistant: elke server wordt een apparaat met sensoren voor de status en meetwaarden van zijn checks. Je hebt een MQTT-broker nodig, bv. de <i>Mosquitto broker</i>-add-on, en de MQTT-integratie in HA. Gebruik bij Mosquitto een HA-gebruiker (of een aparte gebruiker) als login.') ?></p>
+          <label class="switch"><input type="checkbox" name="mqtt_enabled"><span></span> <?= th('MQTT aan') ?></label>
           <div class="row3 smtp-row">
-            <label>MQTT-server<input name="mqtt_host" spellcheck="false" placeholder="homeassistant.local"></label>
-            <label>Poort<input name="mqtt_port" type="number" min="1" max="65535" placeholder="1883" title="1883 = geen versleuteling, 8883 = TLS"></label>
-            <label>Versleuteling
-              <select name="mqtt_tls"><option value="0">Geen</option><option value="1">TLS</option></select>
+            <label><?= th('MQTT-server') ?><input name="mqtt_host" spellcheck="false" placeholder="homeassistant.local"></label>
+            <label><?= th('Poort') ?><input name="mqtt_port" type="number" min="1" max="65535" placeholder="1883" title="<?= th('1883 = geen versleuteling, 8883 = TLS') ?>"></label>
+            <label><?= th('Versleuteling') ?>
+              <select name="mqtt_tls"><option value="0"><?= th('Geen') ?></option><option value="1">TLS</option></select>
             </label>
           </div>
           <div class="row2">
-            <label>Gebruikersnaam<input name="mqtt_user" autocomplete="off" spellcheck="false"></label>
-            <label>Wachtwoord<input name="mqtt_pass" type="password" autocomplete="new-password"></label>
+            <label><?= th('Gebruikersnaam') ?><input name="mqtt_user" autocomplete="off" spellcheck="false"></label>
+            <label><?= th('Wachtwoord') ?><input name="mqtt_pass" type="password" autocomplete="new-password"></label>
           </div>
           <details class="small api-docs">
-            <summary>Geavanceerd</summary>
+            <summary><?= th('Geavanceerd') ?></summary>
             <div class="row2">
-              <label>Discovery-prefix<input name="mqtt_prefix" spellcheck="false" placeholder="homeassistant"></label>
-              <label>Basis-topic<input name="mqtt_base_topic" spellcheck="false" placeholder="rzmon"></label>
+              <label><?= th('Discovery-prefix') ?><input name="mqtt_prefix" spellcheck="false" placeholder="homeassistant"></label>
+              <label><?= th('Basis-topic') ?><input name="mqtt_base_topic" spellcheck="false" placeholder="rzmon"></label>
             </div>
-            <label class="switch"><input type="checkbox" name="mqtt_verify_ssl"><span></span> TLS-certificaat controleren</label>
+            <label class="switch"><input type="checkbox" name="mqtt_verify_ssl"><span></span> <?= th('TLS-certificaat controleren') ?></label>
           </details>
           <p class="small" id="mqtt-status"></p>
-          <button type="button" class="btn" id="mqtt-test">📡 Verbinding testen &amp; publiceren</button>
+          <button type="button" class="btn" id="mqtt-test"><?= t('📡 Verbinding testen &amp; publiceren') ?></button>
         </div>
 
         <div data-sk="ids" class="card" id="ids-card">
           <h2>🛡️ IDS</h2>
-          <p class="muted small">Intrusion detection via de agents: gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen en verbindingen, brute force en inbraak na brute force. Resultaten op de pagina <i>🛡️ IDS</i>; critical ook via Pushover (ook tijdens stille uren).</p>
+          <p class="muted small"><?= t('Intrusion detection via de agents: gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen en verbindingen, brute force en inbraak na brute force. Resultaten op de pagina <i>🛡️ IDS</i>; critical ook via Pushover (ook tijdens stille uren).') ?></p>
           <div data-nodirty>
-            <label class="switch"><input type="checkbox" id="ids-enabled"><span></span> <b>IDS aan</b></label>
-            <div class="mode-switch"><span id="ids-l-learn">🎓 Leren</span>
+            <label class="switch"><input type="checkbox" id="ids-enabled"><span></span> <?= t('<b>IDS aan</b>') ?></label>
+            <div class="mode-switch"><span id="ids-l-learn"><?= th('🎓 Leren') ?></span>
               <label class="switch"><input type="checkbox" id="ids-mode"><span></span></label>
-              <span id="ids-l-block">⛔ Blokkeren</span></div>
+              <span id="ids-l-block"><?= th('⛔ Blokkeren') ?></span></div>
             <p class="muted small" id="ids-mode-info"></p>
           </div>
           <div class="row2">
-            <label>Basismeting (uren) <span class="muted small">eerst alleen vastleggen wat normaal is</span><input type="number" name="ids_baseline_hours" min="0" max="720"></label>
-            <label>Brute force bij … mislukte SSH-logins<input type="number" name="ids_fail_count" min="2" max="1000"></label>
+            <label><?= th('Basismeting (uren)') ?> <span class="muted small"><?= th('eerst alleen vastleggen wat normaal is') ?></span><input type="number" name="ids_baseline_hours" min="0" max="720"></label>
+            <label><?= th('Brute force bij … mislukte SSH-logins') ?><input type="number" name="ids_fail_count" min="2" max="1000"></label>
           </div>
           <div class="row3">
-            <label>… binnen (minuten)<input type="number" name="ids_fail_minutes" min="1" max="1440"></label>
-            <label>Blokkeren (uren)<input type="number" name="ids_block_hours" min="1" max="8760"></label>
-            <label>Bij herhaling (dagen)<input type="number" name="ids_repeat_days" min="1" max="365"></label>
+            <label><?= th('… binnen (minuten)') ?><input type="number" name="ids_fail_minutes" min="1" max="1440"></label>
+            <label><?= th('Blokkeren (uren)') ?><input type="number" name="ids_block_hours" min="1" max="8760"></label>
+            <label><?= th('Bij herhaling (dagen)') ?><input type="number" name="ids_repeat_days" min="1" max="365"></label>
           </div>
-          <label>Nooit blokkeren <span class="muted small">(IP-adressen of netwerken; je LAN en RzMon zelf worden nooit automatisch geblokkeerd)</span>
-            <textarea name="ids_allow" rows="2" placeholder="bv. 203.0.113.10 198.51.100.0/24"></textarea></label>
-          <h3 class="set-sub">📁 Bestanden bewaken</h3>
-          <p class="muted small" style="margin-top:-.2rem">De agent houdt van deze paden de SHA-256-hash, grootte, rechten en eigenaar bij en meldt nieuwe, gewijzigde en verwijderde bestanden (nooit de inhoud). Mappen worden helemaal doorzocht; met jokertekens kies je bestanden, bv. <code>/var/www/**/*.php</code>. Geldt voor alle servers; per server voeg je er paden aan toe via <i>✎ Bewerken</i>. Maximaal 20 paden en 10.000 bestanden per server.</p>
+          <label><?= th('Nooit blokkeren') ?> <span class="muted small"><?= th('(IP-adressen of netwerken; je LAN en RzMon zelf worden nooit automatisch geblokkeerd)') ?></span>
+            <textarea name="ids_allow" rows="2" placeholder="<?= th('bv. 203.0.113.10 198.51.100.0/24') ?>"></textarea></label>
+          <h3 class="set-sub"><?= th('📁 Bestanden bewaken') ?></h3>
+          <p class="muted small" style="margin-top:-.2rem"><?= t('De agent houdt van deze paden de SHA-256-hash, grootte, rechten en eigenaar bij en meldt nieuwe, gewijzigde en verwijderde bestanden (nooit de inhoud). Mappen worden helemaal doorzocht; met jokertekens kies je bestanden, bv. <code>/var/www/**/*.php</code>. Geldt voor alle servers; per server voeg je er paden aan toe via <i>✎ Bewerken</i>. Maximaal 20 paden en 10.000 bestanden per server.') ?></p>
           <div id="fim-editor"></div>
           <input type="hidden" name="ids_fim">
-          <label>Uitsluiten <span class="muted small">(namen als <code>*.log</code>, mappen als <code>cache/</code>, of paden; gescheiden door spaties)</span>
+          <label><?= th('Uitsluiten') ?> <span class="muted small"><?= t('(namen als <code>*.log</code>, mappen als <code>cache/</code>, of paden; gescheiden door spaties)') ?></span>
             <input name="ids_fim_exclude" class="mono" placeholder="*.log *.tmp cache/"></label>
-          <h3 class="set-sub">🔑 Toegang</h3>
-          <label class="switch"><input type="checkbox" name="auth_events"><span></span> Toegang bijhouden: logins, <code>sudo</code> en <code>su</code></label>
-          <p class="muted small" style="margin-top:-.4rem">Via de agent: inloggen via SSH en de console, <code>sudo</code> en <code>su</code>, ook mislukte pogingen (per IP-adres per uur opgeteld). Op de pagina <i>🛡️ IDS → Toegang</i>; er gaat geen melding uit. Werkt ook als het IDS uit staat. Op een server zelf uit te zetten met <code>AUTH_EVENTS=0</code>.</p>
-          <label>Negeren <span class="muted small">(gebruikers en/of IP-adressen of netwerken, gescheiden door spaties)</span>
-            <textarea name="auth_ignore" rows="2" placeholder="bv. ansible backup 192.168.2.5 10.0.0.0/8"></textarea></label>
+          <h3 class="set-sub"><?= th('🔑 Toegang') ?></h3>
+          <label class="switch"><input type="checkbox" name="auth_events"><span></span> <?= t('Toegang bijhouden: logins, <code>sudo</code> en <code>su</code>') ?></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Via de agent: inloggen via SSH en de console, <code>sudo</code> en <code>su</code>, ook mislukte pogingen (per IP-adres per uur opgeteld). Op de pagina <i>🛡️ IDS → Toegang</i>; er gaat geen melding uit. Werkt ook als het IDS uit staat. Op een server zelf uit te zetten met <code>AUTH_EVENTS=0</code>.') ?></p>
+          <label><?= th('Negeren') ?> <span class="muted small"><?= th('(gebruikers en/of IP-adressen of netwerken, gescheiden door spaties)') ?></span>
+            <textarea name="auth_ignore" rows="2" placeholder="<?= th('bv. ansible backup 192.168.2.5 10.0.0.0/8') ?>"></textarea></label>
         </div>
 
         <div data-sk="update" class="card" id="update-card">
-          <h2>⬆ RzMon bijwerken</h2>
+          <h2><?= th('⬆ RzMon bijwerken') ?></h2>
           <p class="small" id="update-status">…</p>
           <div id="update-notes"></div>
           <div id="update-progress" hidden></div>
           <div class="update-actions">
-            <button type="button" class="btn primary" id="update-start" hidden>⬆ Nu bijwerken</button>
-            <button type="button" class="btn" id="update-check">🔍 Nu controleren</button>
+            <button type="button" class="btn primary" id="update-start" hidden><?= th('⬆ Nu bijwerken') ?></button>
+            <button type="button" class="btn" id="update-check"><?= th('🔍 Nu controleren') ?></button>
           </div>
-          <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="update_backup"><span></span> Eerst een back-up maken</label>
-          <p class="muted small" style="margin-top:-.4rem">Database en instellingen, in de lijst onder <i>Back-up</i>. Geldt voor de knop en voor automatisch bijwerken.</p>
-          <label class="switch"><input type="checkbox" name="update_auto"><span></span> Automatisch bijwerken</label>
-          <label class="update-time">Elke dag om <input type="time" name="update_time"> als er een nieuwe versie is</label>
-          <p class="muted small" style="margin-top:-.2rem">RzMon kijkt één keer per dag op GitHub of er een nieuwe versie is. Bijwerken doet de hulpdienst op de server: eerst eventueel een back-up, dan de nieuwe versie ophalen en het installatiescript uitvoeren, net als het commando met <code>install-rocky.sh</code>. Je instellingen en gegevens blijven staan. De agents werk je apart bij (hieronder).</p>
+          <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="update_backup"><span></span> <?= th('Eerst een back-up maken') ?></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Database en instellingen, in de lijst onder <i>Back-up</i>. Geldt voor de knop en voor automatisch bijwerken.') ?></p>
+          <label class="switch"><input type="checkbox" name="update_auto"><span></span> <?= th('Automatisch bijwerken') ?></label>
+          <label class="update-time"><?= th('Elke dag om') ?> <input type="time" name="update_time"> <?= th('als er een nieuwe versie is') ?></label>
+          <p class="muted small" style="margin-top:-.2rem"><?= t('RzMon kijkt één keer per dag op GitHub of er een nieuwe versie is. Bijwerken doet de hulpdienst op de server: eerst eventueel een back-up, dan de nieuwe versie ophalen en het installatiescript uitvoeren, net als het commando met <code>install-rocky.sh</code>. Je instellingen en gegevens blijven staan. De agents werk je apart bij (hieronder).') ?></p>
         </div>
 
         <div data-sk="agents" class="card" id="agents-card">
-          <h2>⬆ Agents bijwerken</h2>
-          <p class="muted small">Bij een nieuwe versie van RzMon kun je de agents vanaf hier bijwerken: per server in het venster <i>Agent Manager</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzMon op, controleert hem en installeert hem zelf; zijn instellingen blijven staan. De eerste installatie gaat met het commando op de server.</p>
+          <h2><?= th('⬆ Agents bijwerken') ?></h2>
+          <p class="muted small"><?= t('Bij een nieuwe versie van RzMon kun je de agents vanaf hier bijwerken: per server in het venster <i>Agent Manager</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzMon op, controleert hem en installeert hem zelf; zijn instellingen blijven staan. De eerste installatie gaat met het commando op de server.') ?></p>
           <p class="small" id="agents-status">…</p>
-          <button type="button" class="btn" id="agents-update-all" hidden>⬆ Alle verouderde agents bijwerken</button>
-          <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="agent_auto_update"><span></span> Agents automatisch bijwerken</label>
-          <label style="margin-top:.9rem">⏱ Agents rapporteren standaard elke
-            <select name="agent_tick"><option value="30">30 seconden</option><option value="60">60 seconden</option><option value="120">2 minuten</option><option value="300">5 minuten</option></select>
-            <span class="muted small">Per server anders in te stellen in de <i>Agent Manager</i>. 30 s werkt met de systemd-timer (agent 1.41.0+); via cron of op TrueNAS minimaal elke minuut.</span></label>
+          <button type="button" class="btn" id="agents-update-all" hidden><?= th('⬆ Alle verouderde agents bijwerken') ?></button>
+          <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="agent_auto_update"><span></span> <?= th('Agents automatisch bijwerken') ?></label>
+          <label style="margin-top:.9rem"><?= th('⏱ Agents rapporteren standaard elke') ?>
+            <select name="agent_tick"><option value="30"><?= th('30 seconden') ?></option><option value="60"><?= th('60 seconden') ?></option><option value="120"><?= th('2 minuten') ?></option><option value="300"><?= th('5 minuten') ?></option></select>
+            <span class="muted small"><?= t('Per server anders in te stellen in de <i>Agent Manager</i>. 30 s werkt met de systemd-timer (agent 1.41.0+); via cron of op TrueNAS minimaal elke minuut.') ?></span></label>
           <div class="cmd-box" data-nodirty>
-            <h3>🖥️ Commando-checks</h3>
-            <p class="muted small">Met een <i>Commando</i>-check voert de agent een commando uit en vergelijkt RzMon de uitvoer met het antwoord dat je verwacht. Standaard staat dit uit. Aanzetten vraagt om je wachtwoord en komt in het logboek.
-              Op een server zelf blokkeer je het altijd met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent.</p>
-            <label>Commando's op agents
-              <select id="agent-commands"><option value="off">Uit</option><option value="nobody">Toestaan, als gebruiker nobody</option><option value="root">Toestaan, als root</option></select></label>
+            <h3><?= th('🖥️ Commando-checks') ?></h3>
+            <p class="muted small"><?= t('Met een <i>Commando</i>-check voert de agent een commando uit en vergelijkt RzMon de uitvoer met het antwoord dat je verwacht. Standaard staat dit uit. Aanzetten vraagt om je wachtwoord en komt in het logboek. Op een server zelf blokkeer je het altijd met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent.') ?></p>
+            <label><?= th('Commando\'s op agents') ?>
+              <select id="agent-commands"><option value="off"><?= th('Uit') ?></option><option value="nobody"><?= th('Toestaan, als gebruiker nobody') ?></option><option value="root"><?= th('Toestaan, als root') ?></option></select></label>
             <p class="small" id="agent-commands-hosts"></p>
-            <details class="small api-docs"><summary>Logboek</summary><div id="audit-log"></div></details>
+            <details class="small api-docs"><summary><?= th('Logboek') ?></summary><div id="audit-log"></div></details>
           </div>
-          <p class="muted small" style="margin-top:-.4rem">Verouderde agents werken zichzelf bij zonder dat je op de knop drukt (hooguit één poging per 6 uur). Home Assistant-add-ons werk je bij via de add-on winkel. Een server uitzonderen: <code>REMOTE_UPDATE=0</code> in <code>/etc/default/rzmon-agent</code>.</p>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Verouderde agents werken zichzelf bij zonder dat je op de knop drukt (hooguit één poging per 6 uur). Home Assistant-add-ons werk je bij via de add-on winkel. Een server uitzonderen: <code>REMOTE_UPDATE=0</code> in <code>/etc/default/rzmon-agent</code>.') ?></p>
         </div>
 
         <div data-sk="backup" class="card" id="backup-card">
-          <h2>💾 Back-up</h2>
-          <p class="muted small">Een zip met de hele database (servers, checks, instellingen, gebruikers) en <code>config.php</code>. De back-ups staan op deze server, buiten de webmap. Download er af en toe een, zodat je ook een kopie hebt als de server zelf stuk gaat.</p>
+          <h2><?= th('💾 Back-up') ?></h2>
+          <p class="muted small"><?= t('Een zip met de hele database (servers, checks, instellingen, gebruikers) en <code>config.php</code>. De back-ups staan op deze server, buiten de webmap. Download er af en toe een, zodat je ook een kopie hebt als de server zelf stuk gaat.') ?></p>
           <div class="row3">
-            <label>Automatisch
+            <label><?= th('Automatisch') ?>
               <select name="backup_freq">
-                <option value="off">Uit</option><option value="daily">Elke dag</option>
-                <option value="weekly">Elke week</option><option value="monthly">Elke maand (de 1e)</option>
+                <option value="off"><?= th('Uit') ?></option><option value="daily"><?= th('Elke dag') ?></option>
+                <option value="weekly"><?= th('Elke week') ?></option><option value="monthly"><?= th('Elke maand (de 1e)') ?></option>
               </select>
             </label>
-            <label>Om<input type="time" name="backup_time"></label>
-            <label>Bewaren <span class="hint">(aantal)</span><input type="number" name="backup_keep" min="1" max="365"></label>
+            <label><?= th('Om') ?><input type="time" name="backup_time"></label>
+            <label><?= th('Bewaren') ?> <span class="hint"><?= th('(aantal)') ?></span><input type="number" name="backup_keep" min="1" max="365"></label>
           </div>
-          <label class="backup-weekday">Op
+          <label class="backup-weekday"><?= th('Op') ?>
             <select name="backup_weekday">
-              <option value="1">maandag</option><option value="2">dinsdag</option><option value="3">woensdag</option><option value="4">donderdag</option>
-              <option value="5">vrijdag</option><option value="6">zaterdag</option><option value="7">zondag</option>
+              <option value="1"><?= th('maandag') ?></option><option value="2"><?= th('dinsdag') ?></option><option value="3"><?= th('woensdag') ?></option><option value="4"><?= th('donderdag') ?></option>
+              <option value="5"><?= th('vrijdag') ?></option><option value="6"><?= th('zaterdag') ?></option><option value="7"><?= th('zondag') ?></option>
             </select>
           </label>
-          <label class="switch"><input type="checkbox" name="backup_history"><span></span> Meethistorie meenemen</label>
-          <p class="muted small" style="margin-top:-.4rem">De meetresultaten achter de grafieken. Uit = een veel kleinere zip; bij terugzetten blijft de huidige historie dan staan.</p>
-          <label>Zip-wachtwoord <span class="hint">(minstens 8 tekens; versleutelt met AES-256)</span><input name="backup_pass" type="password" autocomplete="new-password"></label>
-          <p class="muted small" style="margin-top:-.4rem">Nodig om een zip te openen (met 7-Zip) of terug te zetten op een andere server. <b>Bewaar het goed</b>: zonder wachtwoord is de back-up onbruikbaar. Wijzigen geldt voor nieuwe back-ups.</p>
+          <label class="switch"><input type="checkbox" name="backup_history"><span></span> <?= th('Meethistorie meenemen') ?></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= th('De meetresultaten achter de grafieken. Uit = een veel kleinere zip; bij terugzetten blijft de huidige historie dan staan.') ?></p>
+          <label><?= th('Zip-wachtwoord') ?> <span class="hint"><?= th('(minstens 8 tekens; versleutelt met AES-256)') ?></span><input name="backup_pass" type="password" autocomplete="new-password"></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Nodig om een zip te openen (met 7-Zip) of terug te zetten op een andere server. <b>Bewaar het goed</b>: zonder wachtwoord is de back-up onbruikbaar. Wijzigen geldt voor nieuwe back-ups.') ?></p>
           <p class="small" id="backup-status">…</p>
           <div class="btn-row">
-            <button type="button" class="btn" id="backup-now">💾 Nu back-up maken</button>
-            <button type="button" class="btn" id="backup-upload">⬆ Zip uploaden</button>
+            <button type="button" class="btn" id="backup-now"><?= th('💾 Nu back-up maken') ?></button>
+            <button type="button" class="btn" id="backup-upload"><?= th('⬆ Zip uploaden') ?></button>
             <input type="file" id="backup-file" accept=".zip,application/zip" hidden>
           </div>
           <div id="backup-list" class="key-list"></div>
         </div>
 
-        <div class="settings-save"><button class="btn primary">💾 Instellingen opslaan</button> <span class="save-state" id="save-state"></span></div>
+        <div class="settings-save"><button class="btn primary"><?= th('💾 Instellingen opslaan') ?></button> <span class="save-state" id="save-state"></span></div>
       </form>
 
       <div class="settings-grid" style="margin-top:1.25rem">
       <form data-sk="access" class="card need-admin" id="access-form">
-        <h2>Toegang</h2>
+        <h2><?= th('Toegang') ?></h2>
         <div class="ip-status" id="ip-status">…</div>
-        <label class="switch"><input type="checkbox" name="lan_no_login"><span></span> Geen login nodig op het lokale netwerk</label>
-        <label class="switch"><input type="checkbox" name="lan_as_admin"><span></span> Op het lokale netwerk als <b>beheerder</b> inloggen</label>
-        <p class="muted small" style="margin-top:-.3rem">Uit: op het lokale netwerk kom je binnen als <b>alleen lezen</b>, en met <i>Inloggen</i> rechtsboven krijg je de rechten van je eigen account. Van buitenaf is altijd een gebruikersnaam en wachtwoord nodig.</p>
-        <label>Lokale netwerken <span class="hint">(één per regel, bv. 192.168.1.0/24)</span>
+        <label class="switch"><input type="checkbox" name="lan_no_login"><span></span> <?= th('Geen login nodig op het lokale netwerk') ?></label>
+        <label class="switch"><input type="checkbox" name="lan_as_admin"><span></span> <?= t('Op het lokale netwerk als <b>beheerder</b> inloggen') ?></label>
+        <p class="muted small" style="margin-top:-.3rem"><?= t('Uit: op het lokale netwerk kom je binnen als <b>alleen lezen</b>, en met <i>Inloggen</i> rechtsboven krijg je de rechten van je eigen account. Van buitenaf is altijd een gebruikersnaam en wachtwoord nodig.') ?></p>
+        <label><?= th('Lokale netwerken') ?> <span class="hint"><?= th('(één per regel, bv. 192.168.1.0/24)') ?></span>
           <textarea name="trusted_networks" rows="5" spellcheck="false"></textarea></label>
-        <label>Reverse proxy IP's <span class="hint">(optioneel — alleen invullen als RzMon achter Nginx Proxy Manager, Traefik, Cloudflare tunnel e.d. staat)</span>
+        <label><?= th('Reverse proxy IP\'s') ?> <span class="hint"><?= th('(optioneel — alleen invullen als RzMon achter Nginx Proxy Manager, Traefik, Cloudflare tunnel e.d. staat)') ?></span>
           <textarea name="trusted_proxies" rows="2" spellcheck="false"></textarea></label>
-        <p class="callout">⚠️ Staat RzMon achter een reverse proxy of port-forward waarbij álle bezoekers het IP van je router/proxy krijgen? Vul dat proxy-IP dan in bij <i>Reverse proxy IP's</i> en zet het <b>niet</b> bij lokale netwerken — anders kan iedereen van buitenaf zonder wachtwoord binnen.</p>
+        <p class="callout"><?= t('⚠️ Staat RzMon achter een reverse proxy of port-forward waarbij álle bezoekers het IP van je router/proxy krijgen? Vul dat proxy-IP dan in bij <i>Reverse proxy IP\'s</i> en zet het <b>niet</b> bij lokale netwerken — anders kan iedereen van buitenaf zonder wachtwoord binnen.') ?></p>
         <p class="form-error" hidden></p>
-        <button class="btn primary">Toegang opslaan</button>
+        <button class="btn primary"><?= th('Toegang opslaan') ?></button>
       </form>
 
       <div data-sk="api" class="card need-admin" id="api-card">
-        <h2>API-sleutels</h2>
-        <p class="muted small">Lees statussen, meetwaarden en het IDS uit via de REST API, bijvoorbeeld vanuit Home Assistant, en blokkeer IP's of bevestig storingen vanuit een ander systeem.
-          Per sleutel kies je wat hij mag, eventueel vanaf welke adressen, en hoe lang hij geldig is. Stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.</p>
-        <p class="small">Basis-URL: <code id="api-base"></code></p>
+        <h2><?= th('API-sleutels') ?></h2>
+        <p class="muted small"><?= t('Lees statussen, meetwaarden en het IDS uit via de REST API, bijvoorbeeld vanuit Home Assistant, en blokkeer IP\'s of bevestig storingen vanuit een ander systeem. Per sleutel kies je wat hij mag, eventueel vanaf welke adressen, en hoe lang hij geldig is. Stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.') ?></p>
+        <p class="small"><?= th('Basis-URL:') ?> <code id="api-base"></code></p>
         <div id="api-keys" class="key-list"></div>
         <form id="api-key-form" class="api-key-form">
-          <input name="name" placeholder="Naam, bv. Home Assistant" required maxlength="100">
+          <input name="name" placeholder="<?= th('Naam, bv. Home Assistant') ?>" required maxlength="100">
           <div id="api-key-fields"></div>
-          <button class="btn">＋ Sleutel maken</button>
+          <button class="btn"><?= th('＋ Sleutel maken') ?></button>
         </form>
         <details class="small api-docs">
-          <summary>Endpoints</summary>
+          <summary><?= th('Endpoints') ?></summary>
           <ul>
-            <li><code>GET /status</code> – samenvatting, problemen en status per server</li>
-            <li><code>GET /hosts</code> · <code>/hosts/{id}</code> – servers met checks</li>
-            <li><code>GET /checks</code> – alle checks (<code>?status=2</code>, <code>?type=disk</code>, <code>?host_id=1</code>)</li>
-            <li><code>GET /checks/{id}</code> · <code>/checks/{id}/history?hours=24</code></li>
-            <li><code>GET /alerts?limit=50</code> – laatste meldingen</li>
+            <li><?= t('<code>GET /status</code> – samenvatting, problemen en status per server') ?></li>
+            <li><?= t('<code>GET /hosts</code> · <code>/hosts/{id}</code> – servers met checks') ?></li>
+            <li><?= t('<code>GET /checks</code> – alle checks (<code>?status=2</code>, <code>?type=disk</code>, <code>?host_id=1</code>)') ?></li>
+            <li><?= t('<code>GET /checks/{id}</code> · <code>/checks/{id}/history?hours=24</code>') ?></li>
+            <li><?= t('<code>GET /alerts?limit=50</code> – laatste meldingen') ?></li>
           </ul>
-          <p class="muted">🛡️ IDS lezen:</p>
+          <p class="muted"><?= th('🛡️ IDS lezen:') ?></p>
           <ul>
-            <li><code>GET /ids</code> – overzicht: open incidenten, actieve blokkades, servers</li>
-            <li><code>GET /ids/incidents</code> (<code>?status=open</code>, <code>?severity=2</code>, <code>?host_id=1</code>, <code>?limit=100</code>)</li>
-            <li><code>GET /ids/blocks</code> – actieve blokkades (<code>?all=1</code>: ook opgeheven en verlopen)</li>
-            <li><code>GET /ids/access</code> – logins, sudo en su (<code>?host_id=1</code>, <code>?type=ssh</code>, <code>?failed=1</code>)</li>
+            <li><?= t('<code>GET /ids</code> – overzicht: open incidenten, actieve blokkades, servers') ?></li>
+            <li><?= t('<code>GET /ids/incidents</code> (<code>?status=open</code>, <code>?severity=2</code>, <code>?host_id=1</code>, <code>?limit=100</code>)') ?></li>
+            <li><?= t('<code>GET /ids/blocks</code> – actieve blokkades (<code>?all=1</code>: ook opgeheven en verlopen)') ?></li>
+            <li><?= t('<code>GET /ids/access</code> – logins, sudo en su (<code>?host_id=1</code>, <code>?type=ssh</code>, <code>?failed=1</code>)') ?></li>
           </ul>
-          <p class="muted">⛔ IDS blokkeren:</p>
+          <p class="muted"><?= th('⛔ IDS blokkeren:') ?></p>
           <ul>
-            <li><code>POST /ids/block</code> – <code>{"host": "web01", "ip": "203.0.113.7", "hours": 24, "reason": "…"}</code> (<code>hours</code> 0 = permanent)</li>
-            <li><code>POST /ids/unblock</code> – <code>{"id": 12}</code> of <code>{"host": "web01", "ip": "203.0.113.7"}</code></li>
+            <li><?= t('<code>POST /ids/block</code> – <code>{"host": "web01", "ip": "203.0.113.7", "hours": 24, "reason": "…"}</code> (<code>hours</code> 0 = permanent)') ?></li>
+            <li><?= t('<code>POST /ids/unblock</code> – <code>{"id": 12}</code> of <code>{"host": "web01", "ip": "203.0.113.7"}</code>') ?></li>
           </ul>
-          <p class="muted">✔ Checks bedienen:</p>
+          <p class="muted"><?= th('✔ Checks bedienen:') ?></p>
           <ul>
-            <li><code>POST /checks/{id}/ack</code> – <code>{"comment": "…"}</code> · <code>POST /checks/{id}/unack</code></li>
-            <li><code>POST /checks/{id}/maintenance</code> · <code>/hosts/{id}/maintenance</code> – <code>{"minutes": 60, "reason": "…"}</code> (0 = onderhoud beëindigen)</li>
-            <li><code>POST /checks/{id}/run</code> – nu checken</li>
+            <li><?= t('<code>POST /checks/{id}/ack</code> – <code>{"comment": "…"}</code> · <code>POST /checks/{id}/unack</code>') ?></li>
+            <li><?= t('<code>POST /checks/{id}/maintenance</code> · <code>/hosts/{id}/maintenance</code> – <code>{"minutes": 60, "reason": "…"}</code> (0 = onderhoud beëindigen)') ?></li>
+            <li><?= t('<code>POST /checks/{id}/run</code> – nu checken') ?></li>
           </ul>
         </details>
       </div>
 
       <div data-sk="users" class="card" id="users-card" <?= ($user['id'] ?? 0) === 0 ? 'hidden' : '' ?>>
-        <h2>Gebruikers</h2>
-        <p class="muted small need-admin"><b>Beheerder</b>: alles. <b>Gebruiker</b>: storingen afhandelen (bevestigen, nu checken, onderhoud, poortscan), maar niets inrichten. <b>Alleen lezen</b>: kijken.
-          Met <b>tweestapsverificatie</b> (TOTP) is naast het wachtwoord een code uit een authenticator-app nodig, zoals Google/Microsoft Authenticator, Authy, Bitwarden of 1Password.</p>
-        <p class="muted small" data-role-only="nonadmin">Je account. Hier stel je je tweestapsverificatie in; je wachtwoord wijzig je hieronder.</p>
+        <h2><?= th('Gebruikers') ?></h2>
+        <p class="muted small need-admin"><?= t('<b>Beheerder</b>: alles. <b>Gebruiker</b>: storingen afhandelen (bevestigen, nu checken, onderhoud, poortscan), maar niets inrichten. <b>Alleen lezen</b>: kijken. Met <b>tweestapsverificatie</b> (TOTP) is naast het wachtwoord een code uit een authenticator-app nodig, zoals Google/Microsoft Authenticator, Authy, Bitwarden of 1Password.') ?></p>
+        <p class="muted small" data-role-only="nonadmin"><?= th('Je account. Hier stel je je tweestapsverificatie in; je wachtwoord wijzig je hieronder.') ?></p>
         <div id="users" class="key-list"></div>
         <p class="small need-admin" id="pw-reset-info"></p>
         <form id="user-form" class="user-form need-admin">
           <div class="row2">
-            <input name="username" placeholder="Gebruikersnaam" required maxlength="64" autocomplete="off">
-            <input name="password" type="password" placeholder="Wachtwoord (min. 8 tekens)" required minlength="8" autocomplete="new-password">
+            <input name="username" placeholder="<?= th('Gebruikersnaam') ?>" required maxlength="64" autocomplete="off">
+            <input name="password" type="password" placeholder="<?= th('Wachtwoord (min. 8 tekens)') ?>" required minlength="8" autocomplete="new-password">
           </div>
-          <input name="email" type="email" placeholder="E-mailadres (optioneel, voor wachtwoord vergeten)" maxlength="190" autocomplete="off">
-          <label>Rol
+          <input name="email" type="email" placeholder="<?= th('E-mailadres (optioneel, voor wachtwoord vergeten)') ?>" maxlength="190" autocomplete="off">
+          <label><?= th('Rol') ?>
             <select name="role">
-              <option value="user">👤 Gebruiker – storingen afhandelen</option>
-              <option value="readonly">👁 Alleen lezen – kijken</option>
-              <option value="admin">🔑 Beheerder – alles</option>
+              <option value="user"><?= th('👤 Gebruiker – storingen afhandelen') ?></option>
+              <option value="readonly"><?= th('👁 Alleen lezen – kijken') ?></option>
+              <option value="admin"><?= th('🔑 Beheerder – alles') ?></option>
             </select>
           </label>
-          <label class="switch small"><input type="checkbox" name="totp"><span></span> Direct tweestapsverificatie instellen</label>
-          <button class="btn">＋ Gebruiker toevoegen</button>
+          <label class="switch small"><input type="checkbox" name="totp"><span></span> <?= th('Direct tweestapsverificatie instellen') ?></label>
+          <button class="btn"><?= th('＋ Gebruiker toevoegen') ?></button>
         </form>
       </div>
 
       <?php if (($user['id'] ?? 0) === 0): ?>
-      <div class="card" data-sk="account"><h2>Account</h2><p class="muted small">Je bent automatisch ingelogd via het lokale netwerk, met alleen-lezen-rechten. Klik rechtsboven op <b>Inloggen</b> om met je eigen account in te loggen.</p></div>
+      <div class="card" data-sk="account"><h2><?= th('Account') ?></h2><p class="muted small"><?= t('Je bent automatisch ingelogd via het lokale netwerk, met alleen-lezen-rechten. Klik rechtsboven op <b>Inloggen</b> om met je eigen account in te loggen.') ?></p></div>
       <?php endif; ?>
       <div data-sk="db" class="card need-admin" id="db-card">
-        <h2>Database</h2>
-        <p class="muted small">RzMon gebruikt een eigen databasegebruiker. Met de knop maak je een nieuw, sterk wachtwoord en slaat RzMon het overal op. Alles blijft gewoon werken: dashboards, cron, API en agents.</p>
+        <h2><?= th('Database') ?></h2>
+        <p class="muted small"><?= th('RzMon gebruikt een eigen databasegebruiker. Met de knop maak je een nieuw, sterk wachtwoord en slaat RzMon het overal op. Alles blijft gewoon werken: dashboards, cron, API en agents.') ?></p>
         <p class="small" id="db-status">…</p>
-        <button type="button" class="btn" id="db-rotate">🔑 Databasewachtwoord vernieuwen</button>
+        <button type="button" class="btn" id="db-rotate"><?= th('🔑 Databasewachtwoord vernieuwen') ?></button>
       </div>
 
       <form id="password-form" data-sk="password" class="card" <?= ($user['id'] ?? 0) === 0 ? 'hidden' : '' ?>>
-        <h2>Wachtwoord wijzigen</h2>
-        <label>Huidig wachtwoord<input type="password" name="current" autocomplete="current-password" required></label>
-        <label>Nieuw wachtwoord<input type="password" name="new" minlength="8" autocomplete="new-password" required></label>
-        <button class="btn">Wijzigen</button>
+        <h2><?= th('Wachtwoord wijzigen') ?></h2>
+        <label><?= th('Huidig wachtwoord') ?><input type="password" name="current" autocomplete="current-password" required></label>
+        <label><?= th('Nieuw wachtwoord') ?><input type="password" name="new" minlength="8" autocomplete="new-password" required></label>
+        <button class="btn"><?= th('Wijzigen') ?></button>
       </form>
       </div>
     </section>
