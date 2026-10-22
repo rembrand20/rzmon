@@ -247,6 +247,11 @@ final class Monitor
                 [$check['id'], (int) $check['status'], $status, mb_substr($res['message'], 0, 500), $res['value'], $note]);
         }
 
+        // Info van de check zelf (herstart, vernieuwd certificaat); onderdrukt door een onbereikbare server erboven: niet melden
+        if (!empty($res['info']) && $upstream === null) {
+            self::infoCheck($check, (string) $res['info']);
+        }
+
         $s = settings();
         $title = sprintf('%s – %s', $check['host_name'], $check['name']);
         $cfg = NotifyRules::forCheck($check);
@@ -280,8 +285,13 @@ final class Monitor
         $prioOf = static fn(int $st) => $st === STATUS_OK ? -1 : (int) ($st === STATUS_CRIT ? ($s['pushover_priority_crit'] ?? 1) : ($s['pushover_priority_warn'] ?? 0));
         $iconOf = [STATUS_OK => '✅', STATUS_WARN => '🟠', STATUS_CRIT => '🔴', STATUS_UNKNOWN => '⚪'];
 
+        // Ook bij flappen geldt "melden na N mislukte checks"; herstel alleen als er een probleem gemeld was
+        $countOk = $status === STATUS_OK ? $notified !== STATUS_OK : $streak >= self::failsNeeded($check);
         if ($silenced) {
             // niets versturen
+        } elseif ($flapEvent === 'start' && !$countOk) {
+            // flapt, maar nog te kort mis: stil bijhouden; de melding komt pas als het aantal gehaald is
+            $flapSent = [];
         } elseif ($flapEvent === 'start') {
             if (!$acked) {
                 self::enqueue($check, $status, 'flap', $notified, '🔀 ' . t('FLAPPEND') . ": $title",
@@ -294,7 +304,7 @@ final class Monitor
             // Per status (warning, critical, onbekend, hersteld) hooguit één melding zolang hij flapt
             $r = $cfg['rules'][NotifyRules::KEYS[$status]];
             $on = $r['mode'] !== 'never' && ($status !== STATUS_UNKNOWN || ($s['notify_unknown'] ?? '1') === '1');
-            if ($status !== $notified && !in_array($status, $flapSent, true)) {
+            if ($status !== $notified && !in_array($status, $flapSent, true) && $countOk) {
                 if ($on && !$acked) {
                     self::enqueue($check, $status, $status === STATUS_OK ? 'recovery' : 'problem', $notified,
                         $status === STATUS_OK ? '✅ ' . t('HERSTELD') . ": $title" : sprintf('%s %s: %s', $iconOf[$status], STATUS_LABELS[$status], $title),
@@ -305,7 +315,8 @@ final class Monitor
                 $flapSent[] = $status;
             }
         } elseif ($flapEvent === 'stable') {
-            if (!$acked || $status === STATUS_OK) {
+            // Stil geflapt (niets gemeld) en nu stabiel OK: dan ook geen "stabiel"-melding
+            if ((!$acked || $status === STATUS_OK) && ($status !== STATUS_OK || $flapSent || $notified !== STATUS_OK)) {
                 self::enqueue($check, $status, 'stable', $notified, "{$iconOf[$status]} " . t('STABIEL') . ": $title",
                     t('{title} flapt niet meer: al {min} min {status}.', ['title' => $title, 'min' => $flap['stable'], 'status' => STATUS_LABELS[$status]]) . "\n$message", $prioOf($status), $res['value']);
             }
@@ -712,11 +723,91 @@ final class Monitor
         return setting('ha_webhook_events', 'all') !== 'crit' || $status === STATUS_CRIT || $event === 'recovery';
     }
 
+    // ------------------------------------------------------------------ info
+
+    /**
+     * Info-melding van een check (herstart, vernieuwd certificaat): volgt de info-regel van de check (✎ → 🔔 Meldingen),
+     * anders de algemene. Gaat direct (niet gebundeld) met lage prioriteit; tijdens stille uren, onderhoud of als info
+     * uit staat niet verstuurd, maar wel op de pagina Meldingen.
+     */
+    private static function infoCheck(array $check, string $message): void
+    {
+        $cfg = NotifyRules::forCheck($check);
+        $hold = self::maintenanceFor($check) !== null ? t('onderhoud')
+            : (NotifyRules::quietUntil(NotifyRules::quietFor($check)) !== null ? t('stille uren') : null);
+        self::sendInfo($check, (int) $check['hid'], "ℹ️ INFO: {$check['host_name']} – {$check['name']}", $message,
+            $cfg['rules']['info']['mode'] === 'now', $cfg['channels']['info'], $hold);
+    }
+
+    /** Info bij een server (agent bijgewerkt): de algemene info-regel, tenzij info voor deze server uit staat */
+    public static function infoHost(array $host, callable $message): void
+    {
+        I18n::forNotify(function () use ($host, $message) {
+            $cfg = NotifyRules::global();
+            $on = $cfg['rules']['info']['mode'] === 'now' && (int) ($host['info_agent'] ?? 1) === 1;
+            $hold = NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null ? t('stille uren') : null;
+            self::sendInfo(null, (int) $host['id'], 'ℹ️ INFO: ' . $host['name'], $message(), $on, $cfg['channels']['info'], $hold, (string) $host['name']);
+        });
+    }
+
+    /** Info van RzMon zelf (bijgewerkt): de algemene info-regel */
+    public static function infoSystem(callable $message): void
+    {
+        I18n::forNotify(function () use ($message) {
+            $cfg = NotifyRules::global();
+            $hold = NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null ? t('stille uren') : null;
+            self::sendInfo(null, null, 'ℹ️ INFO: RzMon', $message(), $cfg['rules']['info']['mode'] === 'now', $cfg['channels']['info'], $hold);
+        });
+    }
+
+    /** @param string|null $hold reden om niet te versturen (stille uren, onderhoud) */
+    private static function sendInfo(?array $check, ?int $hostId, string $title, string $message, bool $on, array $channels, ?string $hold, ?string $hostName = null): void
+    {
+        $errors = [];
+        [$pushover, $email, $webhook] = [null, null, null];
+        if (!$on) {
+            $errors[] = t('info staat uit');
+        } elseif ($hold !== null) {
+            $errors[] = $hold;
+        } else {
+            if (setting('pushover_enabled', '0') === '1' && $channels['pushover']) {
+                $r = Pushover::send($title, $message . "\n" . date('d-m-Y H:i:s'), -1);   // stil: geen geluid of trilling
+                $pushover = $r['ok'];
+                if (!$r['ok']) {
+                    $errors[] = 'Pushover: ' . $r['error'];
+                }
+            }
+            if (setting('email_enabled', '0') === '1' && $channels['email'] && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
+                $base = rtrim((string) config('base_url', ''), '/');
+                $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzMon: $base/" : ''));
+                $email = $r['ok'];
+                if (!$r['ok']) {
+                    $errors[] = 'E-mail: ' . $r['error'];
+                }
+            }
+            if (setting('ha_webhook_enabled', '0') === '1' && $channels['webhook']) {
+                $payload = $check ? self::webhookPayload($check, ['value' => $check['last_value'] ?? null], STATUS_OK, $title, $message, 'info', (int) $check['status'])
+                    : ['source' => 'rzmon', 'event' => 'info', 'status' => STATUS_OK, 'status_text' => STATUS_LABELS[STATUS_OK], 'host' => $hostName, 'host_id' => $hostId,
+                        'check' => null, 'title' => $title, 'message' => $message, 'time' => date('c'), 'url' => config('base_url', '') ?: null];
+                $r = Webhook::send($payload);
+                $webhook = $r['ok'];
+                if (!$r['ok']) {
+                    $errors[] = 'Webhook: ' . $r['error'];
+                }
+            }
+        }
+        q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+            $check['id'] ?? null, $hostId, STATUS_OK, mb_substr($title, 0, 250),
+            mb_substr($message . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
+            $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), 'info',
+        ]);
+    }
+
     public static function webhookPayload(array $check, array $res, int $status, string $title, string $message, string $event, int $previous): array
     {
         return [
             'source' => 'rzmon',
-            'event' => $event,                       // problem | reminder | recovery | test
+            'event' => $event,                       // problem | reminder | recovery | info | test
             'status' => $status,
             'status_text' => STATUS_LABELS[$status],
             'previous_status' => $previous,

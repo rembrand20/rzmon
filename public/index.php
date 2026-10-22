@@ -158,6 +158,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="alerts-head">
           <h2><?= th('Meldingen') ?></h2>
           <span class="muted small" id="alerts-info"></span>
+          <div class="seg" role="group" aria-label="<?= th('Filter') ?>" id="alerts-filter">
+            <button type="button" class="seg-btn active" data-af="all"><?= th('Alles') ?></button>
+            <button type="button" class="seg-btn" data-af="noinfo"><?= th('Zonder info') ?></button>
+            <button type="button" class="seg-btn" data-af="info">ℹ️ Info</button>
+          </div>
           <select id="alerts-sort" class="alerts-sort" aria-label="<?= th('Sorteren') ?>" title="<?= th('Sorteren (binnen elke dag)') ?>">
             <option value=""><?= th('Nieuwste eerst') ?></option>
             <option value="time:1"><?= th('Oudste eerst') ?></option>

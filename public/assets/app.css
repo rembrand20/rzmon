@@ -745,6 +745,7 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 
 /* Logins en sudo op de pagina Meldingen */
 .alert-item.auth, .alert-table tr.auth { --c: var(--primary); }
+.alert-item.info, .alert-table tr.info { --c: #3b82f6; }   /* ℹ️ info: geen storing */
 #alerts-filter { margin-left: auto; }
 #alerts-filter + .btn { margin-left: 0; }
 

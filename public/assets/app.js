@@ -30,6 +30,7 @@ const TYPES = {
   command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → ⬆ Agents bijwerken).') },
   ha:      { label: L('Home Assistant'), target: null, unit: null, help: L('Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.') },
   snmp:    { label: L('SNMP'),          target: null,            unit: null, help: L('RzMon leest het apparaat zelf uit via SNMP (switches, access points, NAS, UPS, printers, Proxmox…). Interfaces, schijven en voorraden kies je het makkelijkst via 📡 SNMP-checks bij de server.') },
+  reboot:  { label: L('🔄 Herstart'), target: null, unit: 'uur', help: L('Ziet wanneer de server opnieuw is opgestart (de uptime wordt korter) en stuurt dan een ℹ️ info-melding. De check zelf is altijd OK. Info staat standaard uit: zet hem aan bij Instellingen → 🔔 Meldingen (rij Info), of alleen voor deze check bij 🔔 Meldingen hieronder. Op agent-servers is agent 1.46.0 of nieuwer nodig.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
@@ -139,7 +140,7 @@ let accData = null, accFilter = 'all', accHost = '', accDayOpen = {};
 let accSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-acc-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 // Checks onder een server in groepen (vaste volgorde); dichtgeklapte groepen per server per apparaat onthouden
 const CHECK_GROUPS = [
-  ['sys', L('📊 Systeem'), ['cpu', 'ram', 'disk']],
+  ['sys', L('📊 Systeem'), ['cpu', 'ram', 'disk', 'reboot']],
   ['net', L('🌐 Bereikbaarheid'), ['ping', 'tcp', 'http']],
   ['svc', L('⚙️ Services'), ['service']],
   ['cnt', L('📦 Containers'), ['podman', 'container']],
@@ -151,6 +152,8 @@ const CHECK_GROUPS = [
 ];
 const GROUP_MIN = 5;   // pas kopjes vanaf zoveel checks; daaronder alleen de volgorde
 let grpClosed = (() => { try { return JSON.parse(localStorage.getItem('rzmon-grp-closed') || '{}') || {}; } catch (e) { return {}; } })();
+// Filter op de pagina Meldingen: all, noinfo (zonder ℹ️ info) of info; per apparaat onthouden
+let alertFilter = (() => { try { return localStorage.getItem('rzmon-alert-filter') || 'all'; } catch (e) { return 'all'; } })();
 let alertSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-alert-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 // Instellingen in L1nes (zie applySettingsLayout); hier bovenaan omdat de weergave al bij het opstarten wordt toegepast
 const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', email: 'meldingen', webhook: 'meldingen', mqtt: 'meldingen', alarm: 'monitoring',
@@ -496,6 +499,11 @@ function init() {
     const row = e.target.closest('[data-cid]');
     if (row && !e.target.closest('button, a')) checkInfo(row.dataset.cid);
   });
+  $$('#alerts-filter .seg-btn').forEach((b) => (b.onclick = () => {
+    alertFilter = b.dataset.af;
+    try { localStorage.setItem('rzmon-alert-filter', alertFilter); } catch (ex) { /* alleen voor nu */ }
+    renderAlerts();
+  }));
   $('#alerts-sort').onchange = (e) => {
     const [key, dir] = e.target.value.split(':');
     alertSort = { key, dir: +dir || 1 };
@@ -1311,7 +1319,7 @@ async function checkInfo(id) {
     !+c.enabled ? '⏸ ' + L('uitgeschakeld') : '',
   ].filter(Boolean);
   const changes = r.changes.map((ch, i) => {
-    const sent = ch.alerts.filter((a) => a.kind !== 'ack');
+    const sent = ch.alerts.filter((a) => a.kind !== 'ack' && a.kind !== 'info');
     const acks = ch.alerts.filter((a) => a.kind === 'ack');
     const dur = ((ch.ended_at ? toTime(ch.ended_at) : now) - toTime(ch.created_at)) / 1000;
     const why = sent.length ? sent.map((a) => `📨 ${L('gemeld {t}', { t: esc(whenText(a.created_at)) })} · ${channelIcons(a)}`).join('<br>')
@@ -1683,6 +1691,7 @@ function checkForm(c, h, preset = {}) {
   const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
   const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'snmp']
     : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command'].includes(k))
+      .filter((k) => k !== 'reboot' || h.mode !== 'remote' || c?.type === 'reboot')
       .filter((k) => k !== 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor') || c?.type === 'ha'))
     .filter((k) => k !== 'snmp' || h.snmp || c?.type === 'snmp');
   const disks = h.metrics.filter((m) => m.startsWith('disk:')).map((m) => m.slice(5));
@@ -2377,6 +2386,8 @@ function agentInstructions(h) {
       <div class="cmd-host-row need-admin">⚡ Realtime:
         <select id="host-realtime"><option value="0" ${+h.realtime ? '' : 'selected'}>${L('uit')}</option><option value="1" ${+h.realtime ? 'selected' : ''}>${L('aan')}</option></select>
         <span class="muted small" id="host-realtime-info">${h.agent_update_via === 'direct' ? L('werkt alleen met systemd (niet via cron of op TrueNAS)') : L('logins, sudo, services en 🔴-bestanden meteen')}</span></div>
+      <div class="cmd-host-row need-admin">ℹ️ ${L('Info bij agent-updates:')}
+        <select id="host-info-agent"><option value="1" ${+(h.info_agent ?? 1) ? 'selected' : ''}>${L('aan (volgt de algemene info-regel)')}</option><option value="0" ${+(h.info_agent ?? 1) ? '' : 'selected'}>${L('uit')}</option></select></div>
       <div class="cmd-host-row need-admin">🖥️ ${L('Commando-checks op deze server:')}
         <select id="host-commands"><option value="global">${L('algemene instelling')}</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
         <span class="muted small" id="host-commands-info"></span></div>
@@ -2460,6 +2471,10 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
       toast(e.target.value === '1' ? L('Realtime aan voor {name}; de agent pakt het binnen een minuut op', { name: h.name }) : L('Realtime uit voor {name}; de agent pakt het binnen een minuut op', { name: h.name }));
       refresh();
     } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#host-info-agent').onchange = async (e) => {
+    try { await api('host_info_agent', { id: h.id, on: e.target.value === '1' }); toast(L('Opgeslagen')); refresh(); }
+    catch (ex) { toast(ex.message, 'err'); }
   };
   $('#host-tick').onchange = async (e) => {
     try {
@@ -2654,6 +2669,7 @@ function alertStatusText(a) {
   if (a.kind === 'authfail') return '❌ ' + L('Mislukt');
   if (a.kind === 'ack') return '✔ ' + L('Bevestigd');
   if (a.kind === 'maint') return '🔧 ' + L('Onderhoud');
+  if (a.kind === 'info') return 'ℹ️ Info';
   const ev = (a.title.match(/^\S+ (HERSTELD|STABIEL|FLAPPEND|RECOVERED|STABLE|FLAPPING)/) || [])[1];
   if (ev) return { HERSTELD: '✅ ' + L('Hersteld'), RECOVERED: '✅ ' + L('Hersteld'), STABIEL: '⏸ ' + L('Stabiel'), STABLE: '⏸ ' + L('Stabiel'),
     FLAPPEND: '🔀 ' + L('Flapt'), FLAPPING: '🔀 ' + L('Flapt') }[ev];
@@ -2994,16 +3010,16 @@ function alertDetail(a) {
 
 /** Tellers in de kop van een dag: hoeveel critical, warning, onbekend, hersteld en bevestigd */
 function alertDayCounts(list) {
-  const n = { crit: 0, warn: 0, unknown: 0, ok: 0, ack: 0, auth: 0, authfail: 0 };
+  const n = { crit: 0, warn: 0, unknown: 0, ok: 0, info: 0, ack: 0, auth: 0, authfail: 0 };
   list.forEach((a) => {
-    if (a.kind === 'auth' || a.kind === 'authfail') n[a.kind]++;
+    if (a.kind === 'auth' || a.kind === 'authfail' || a.kind === 'info') n[a.kind]++;
     else if (a.kind === 'ack') n.ack++;
     else if (+a.status === 2) n.crit++;
     else if (+a.status === 1) n.warn++;
     else if (+a.status === 3) n.unknown++;
     else n.ok++;
   });
-  return [['crit', '🔴', 'critical'], ['warn', '🟠', 'warning'], ['unknown', '⚪', L('onbekend')], ['ok', '✅', L('hersteld/OK')], ['ack', '✔', L('bevestigd')], ['auth', '🔑', L('logins en sudo')], ['authfail', '❌', L('mislukte logins/sudo')]]
+  return [['crit', '🔴', 'critical'], ['warn', '🟠', 'warning'], ['unknown', '⚪', L('onbekend')], ['ok', '✅', L('hersteld/OK')], ['info', 'ℹ️', 'info'], ['ack', '✔', L('bevestigd')], ['auth', '🔑', L('logins en sudo')], ['authfail', '❌', L('mislukte logins/sudo')]]
     .filter(([k]) => n[k]).map(([k, i, t]) => `<span class="ad-count" title="${n[k]} ${t}">${i} ${n[k]}</span>`).join('');
 }
 
@@ -3023,6 +3039,7 @@ function alertRank(a) {
   if (a.kind === 'authfail') return 5;
   if (a.kind === 'auth') return 6;
   if (a.kind === 'ack') return 4;
+  if (a.kind === 'info') return 3.5;
   return [3, 1, 0, 2][+a.status] ?? 3;
 }
 /** Mislukte verzendingen tellen zwaar, daarna hoe weinig er verstuurd is */
@@ -3052,7 +3069,7 @@ function alertRows(list, layout, density) {
     return `<table class="alert-table ${density}"><thead><tr>${Object.keys(ALERT_SORTS).map(th).join('')}</tr></thead><tbody>
       ${list.map((a) => {
         const { host, check } = alertCols(a);
-        return `<tr class="${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : 's' + a.status}${a.check_id ? ' clickable' : ''}"${cid(a)}>
+        return `<tr class="${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : a.kind === 'info' ? 'info' : 's' + a.status}${a.check_id ? ' clickable' : ''}"${cid(a)}>
           <td class="at-time" title="${esc(a.created_at)}">${time(a)}</td>
           <td class="at-st">${alertStatusText(a)}</td>
           <td>${esc(host)}</td>
@@ -3062,7 +3079,7 @@ function alertRows(list, layout, density) {
       }).join('')}</tbody></table>`;
   }
   return list.map((a) => `
-    <div class="alert-item ${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : 's' + a.status}${a.check_id ? ' clickable' : ''}"${cid(a)}>
+    <div class="alert-item ${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : a.kind === 'info' ? 'info' : 's' + a.status}${a.check_id ? ' clickable' : ''}"${cid(a)}>
       <span class="dot"></span>
       <strong>${esc(a.title)}</strong>
       <span class="muted small" title="${esc(a.created_at)}">${time(a)} ${channelIcons(a)}</span>
@@ -3083,8 +3100,9 @@ function renderAlerts() {
   $('#alerts-info').textContent = (d.alerts.length === 1 ? L('1 melding') : L('{n} meldingen', { n: d.alerts.length }))
     + ' ' + (d.days === 1 ? L('van de laatste dag') : L('van de laatste {n} dagen', { n: d.days }))
     + (d.truncated ? ' ' + L('(alleen de nieuwste 10.000)') : '');
-  if (!d.alerts.length) { el.innerHTML = `<p class="muted">${L('Nog geen meldingen.')} 👌</p>`; $('#alerts-toggle').hidden = true; return; }
-  const shown = d.alerts;
+  $$('#alerts-filter .seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.af === alertFilter));
+  const shown = d.alerts.filter((a) => alertFilter === 'all' || (alertFilter === 'info') === (a.kind === 'info'));
+  if (!shown.length) { el.innerHTML = `<p class="muted">${d.alerts.length ? L('Geen meldingen met dit filter.') : L('Nog geen meldingen.') + ' 👌'}</p>`; $('#alerts-toggle').hidden = true; return; }
   const byDay = new Map();
   shown.forEach((a) => {
     const day = a.created_at.slice(0, 10);
@@ -3347,7 +3365,7 @@ async function updateAllAgents(e) {
 
 // ---------------------------------------------------------------- Meldregels (algemeen en per check)
 const NOTIFY_ROWS = [
-  ['warn', '🟠 Warning'], ['crit', '🔴 Critical'], ['unknown', '⚪ ' + L('Onbekend')], ['recovery', '✅ ' + L('Hersteld')],
+  ['warn', '🟠 Warning'], ['crit', '🔴 Critical'], ['unknown', '⚪ ' + L('Onbekend')], ['recovery', '✅ ' + L('Hersteld')], ['info', 'ℹ️ Info'],
 ];
 const NOTIFY_CHANNELS = [['pushover', 'Pushover', 'pushover_enabled'], ['email', L('E-mail'), 'email_enabled'], ['webhook', 'Home Assistant', 'ha_webhook_enabled']];
 
@@ -3358,23 +3376,23 @@ function notifyEditor(el, cfg, enabled = {}) {
     <thead><tr><th>${L('Status')}</th><th>${L('Melden')}</th><th>${L('Herhalen')}</th>
       ${NOTIFY_CHANNELS.map(([k, l, set]) => `<th class="nt-ch" title="${enabled[set] === false ? L('Dit kanaal staat uit (zie hieronder)') : ''}">${l}${enabled[set] === false ? ` <span class="muted">(${L('uit')})</span>` : ''}</th>`).join('')}</tr></thead>
     <tbody>${NOTIFY_ROWS.map(([k, label]) => {
-      const x = r[k] || { mode: 'now', min: 0, repeat: 0 };
+      const x = r[k] || { mode: k === 'info' ? 'never' : 'now', min: 0, repeat: 0 };   // info: standaard uit
       return `<tr data-k="${k}">
         <td class="nt-label">${label}</td>
         <td><div class="nt-when">
           <select data-f="mode">
             <option value="never" ${x.mode === 'never' ? 'selected' : ''}>${L('Nooit')}</option>
             <option value="now" ${x.mode === 'now' ? 'selected' : ''}>${L('Direct')}</option>
-            <option value="after" ${x.mode === 'after' ? 'selected' : ''}>${k === 'recovery' ? L('Na … min OK') : L('Na … minuten')}</option>
+            ${k === 'info' ? '' : `<option value="after" ${x.mode === 'after' ? 'selected' : ''}>${k === 'recovery' ? L('Na … min OK') : L('Na … minuten')}</option>`}
           </select>
           <input type="number" data-f="min" min="1" max="10080" value="${x.mode === 'after' ? x.min : 5}" ${x.mode === 'after' ? '' : 'hidden'} title="${L('minuten')}">
         </div></td>
-        <td>${k === 'recovery' ? '<span class="muted small">–</span>'
+        <td>${k === 'recovery' || k === 'info' ? '<span class="muted small">–</span>'
           : `<span class="nt-rep">${L('elke {input} min', { input: `<input type="number" data-f="repeat" min="0" max="10080" value="${x.repeat || 0}">` })}</span>`}</td>
         ${NOTIFY_CHANNELS.map(([c]) => `<td class="nt-ch"><input type="checkbox" data-c="${c}" ${(ch[k] || {})[c] !== false ? 'checked' : ''}></td>`).join('')}
       </tr>`;
     }).join('')}</tbody></table></div>
-    <p class="hint">${L('Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).')}</p>
+    <p class="hint">${L('Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).')} ${L('Info: gebeurtenissen die geen storing zijn (herstart, vernieuwd certificaat, agent of RzMon bijgewerkt), stil via Pushover; tijdens stille uren niet verstuurd, wel op de pagina Meldingen.')}</p>
     <div class="flap-box">
       <label class="switch small"><input type="checkbox" data-flap="on" ${fl.on !== false ? 'checked' : ''}><span></span> <b>Anti-flapping</b></label>
       <div class="flap-fields">

@@ -56,9 +56,27 @@ final class Installer
         }
         try {
             self::runSchema();
+            self::infoUpdated($current);
             return null;
         } catch (Throwable $e) {
             return t('Database bijwerken naar {v} mislukt', ['v' => RZMON_VERSION]) . ': ' . $e->getMessage();
+        }
+    }
+
+    /** Info-melding "RzMon bijgewerkt" (niet bij een nieuwe installatie); één keer, ook als meerdere processen tegelijk bijwerken */
+    private static function infoUpdated(string|false $from): void
+    {
+        if ($from === false || $from === '' || !Installer::userCount()) {
+            return;
+        }
+        try {
+            // 1 = nieuw, 2 = gewijzigd, 0 = een ander proces was eerst
+            $n = q("INSERT INTO settings (name, value) VALUES ('info_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", [RZMON_VERSION])->rowCount();
+            if ($n > 0) {
+                Monitor::infoSystem(fn() => t('RzMon bijgewerkt van {from} naar {to}', ['from' => $from, 'to' => RZMON_VERSION]));
+            }
+        } catch (Throwable) {
+            // een melding mag het bijwerken nooit tegenhouden
         }
     }
 
@@ -111,6 +129,8 @@ final class Installer
         // Melden na N mislukte checks: hoe vaak achter elkaar dezelfde status, en per check een eigen N (NULL = algemeen)
         ['checks', 'status_streak', 'INT UNSIGNED NOT NULL DEFAULT 0'],
         ['checks', 'notify_fails', 'SMALLINT UNSIGNED NULL'],
+        // Info-meldingen: per server uit te zetten voor agent-updates (1 = volgt de algemene info-regel)
+        ['hosts', 'info_agent', 'TINYINT(1) NOT NULL DEFAULT 1'],
         // API-sleutels: rechten (read, ids_read, ids_block, checks), alleen vanaf (IP's/netwerken), geldig tot
         ['api_keys', 'rights', "VARCHAR(60) NOT NULL DEFAULT 'read'"],
         ['api_keys', 'allow_from', 'VARCHAR(500) NULL'],

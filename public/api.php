@@ -63,7 +63,7 @@ function agent_host(): array
 {
     $token = trim((string) ($_SERVER['HTTP_X_AGENT_TOKEN'] ?? ''));
     $ip = client_ip();
-    $host = $token !== '' ? q('SELECT id, name, mode FROM hosts WHERE agent_token = ?', [$token])->fetch() : false;
+    $host = $token !== '' ? q('SELECT id, name, mode, agent_version, info_agent FROM hosts WHERE agent_token = ?', [$token])->fetch() : false;
     $reason = match (true) {
         $token === '' => 'geen token meegestuurd',
         !$host => 'onbekend token (verkeerd gekopieerd, of in RzMon vernieuwd?)',
@@ -183,6 +183,10 @@ if ($action === 'agent') {
             $st->execute([$host['id'], mb_substr('disk:' . $d['mount'], 0, 190),
                 json_encode(['total' => (float) ($d['total'] ?? 0), 'avail' => (float) ($d['avail'] ?? 0)]), $now]);
         }
+    }
+    // Opstarttijd (agent 1.46.0+): voor de check Herstart
+    if (isset($in['boot']) && is_numeric($in['boot']) && (int) $in['boot'] > 0) {
+        $st->execute([$host['id'], 'boot', (string) (int) $in['boot'], $now]);
     }
     if (isset($in['cpu']['pct'])) {
         $st->execute([$host['id'], 'cpu', json_encode([
@@ -366,6 +370,11 @@ if ($action === 'agent') {
     q('DELETE FROM agent_data WHERE host_id = ? AND updated_at < ?', [$host['id'], $now]);
     $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
     q('UPDATE hosts SET agent_seen = ?, agent_ip = ?, agent_version = ? WHERE id = ?', [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $host['id']]);
+    // Andere versie dan vorige keer: bijgewerkt (met de knop, automatisch, via de add-on winkel of met de hand) → info
+    if ($agentVersion !== null && $host['agent_version'] !== null && $agentVersion !== $host['agent_version']) {
+        $from = (string) $host['agent_version'];
+        Monitor::infoHost($host, fn() => t('Agent bijgewerkt van {from} naar {to}', ['from' => $from, 'to' => $agentVersion]));
+    }
     $resp = ['ok' => true, 'host' => $host['name'], 'rzmon_version' => RZMON_VERSION, 'received' => [
         'disks' => count($in['disks'] ?? []), 'services' => count($in['services'] ?? []), 'ports' => count($in['ports'] ?? []),
         'certs' => count((array) ($in['certs'] ?? [])), 'containers' => count((array) ($in['podman']['containers'] ?? [])),
@@ -395,7 +404,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
         return null;   // verbindingstest (rzmon-agent-setup --test): niets veranderen
     }
     $via = in_array($via, ['systemd', 'direct', 'off', 'ha', 'none'], true) ? $via : null;   // null: agent van vóór 1.19.0
-    $h = q('SELECT agent_update_req, agent_update_sent, agent_update_status FROM hosts WHERE id = ?', [$hostId])->fetch();
+    $h = q('SELECT id, name, info_agent, agent_update_req, agent_update_sent, agent_update_status FROM hosts WHERE id = ?', [$hostId])->fetch();
     $status = null;
     $req = $h['agent_update_req'];
     $sent = $h['agent_update_sent'];
@@ -407,11 +416,15 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
             ? '✔ ' . date('d-m H:i') . ' ' . ($m[1] !== '' && $m[1] !== $m[2] ? t('bijgewerkt van {from} naar {to}', ['from' => $m[1], 'to' => $m[2]]) : t('bijgewerkt naar {to}', ['to' => $m[2]]))
             : '✘ ' . date('d-m H:i') . ' ' . t('bijwerken mislukt') . ': ' . AgentText::tr(mb_substr(preg_replace('/^error\s*/', '', $result), 0, 200));
         if (str_starts_with($result, 'ok')) {
-            $sent = null;   // gelukt: een volgende RzMon-versie mag meteen weer automatisch
+            $sent = null;   // gelukt: een volgende RzMon-versie mag meteen weer automatisch (de info gaat bij de versiewissel)
+        } else {
+            $why = mb_substr(preg_replace('/^error\s*/', '', $result), 0, 200);
+            Monitor::infoHost($h, fn() => '✘ ' . t('Agent bijwerken mislukt') . ': ' . AgentText::tr($why));
         }
         $req = null;
     } elseif ($req !== null && $sent !== null && strtotime($sent) < time() - 600) {
         $status = '✘ ' . t('Geen antwoord van de update na 10 minuten. Kijk op de server: {cmd}', ['cmd' => 'journalctl -u "rzmon-agent-update-*"']);
+        Monitor::infoHost($h, fn() => '✘ ' . t('Agent bijwerken: geen antwoord na 10 minuten'));
         $req = null;
     }
 
@@ -547,7 +560,7 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'state':
-        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime,
+        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent,
                     enabled, maintenance_until, maintenance_reason, snmp FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
@@ -786,6 +799,13 @@ switch ($action) {
         AgentCommands::audit($user['username'], 'Realtime', (!empty($in['on']) ? 'aan' : 'uit') . ' voor server ' . (int) ($in['id'] ?? 0));
         out(['ok' => true]);
 
+    // Info-melding bij agent-updates van deze server (volgt verder de algemene info-regel)
+    case 'host_info_agent':
+        $in = input();
+        q('UPDATE hosts SET info_agent = ? WHERE id = ?', [!empty($in['on']) ? 1 : 0, (int) ($in['id'] ?? 0)]);
+        AgentCommands::audit($user['username'], 'Info bij agent-updates', (!empty($in['on']) ? 'aan' : 'uit') . ' voor server ' . (int) ($in['id'] ?? 0));
+        out(['ok' => true]);
+
     // Hoe vaak de agent van deze server rapporteert (0 = algemene instelling)
     case 'host_tick':
         $in = input();
@@ -923,7 +943,7 @@ switch ($action) {
     case 'check_save':
         $in = input();
         $type = $in['type'] ?? '';
-        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp'], true)) {
+        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot'], true)) {
             out(['error' => t('Ongeldig type')], 422);
         }
         // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -1027,11 +1047,11 @@ switch ($action) {
             && !preg_match('#^/[^\s\'"]+$#', $target)) {
             out(['error' => t('Geef een host op, eventueel met poort (example.com of example.com:8443), of het pad van een certificaatbestand dat de agent meldt')], 422);
         }
-        if (in_array($type, ['ping', 'cpu', 'ram', 'podman', 'ha', 'command'], true)) {
+        if (in_array($type, ['ping', 'cpu', 'ram', 'podman', 'ha', 'command', 'reboot'], true)) {
             $target = '';
         }
-        if ($type === 'command') {
-            $warn = $crit = null;
+        if ($type === 'command' || $type === 'reboot') {
+            $warn = $crit = null;   // geen drempels: een commando vergelijkt tekst, een herstart geeft alleen info
         }
         if ($type === 'ha' && $metric === 'repairs') {
             $warn = $crit = null;   // systeemstatus: unhealthy = critical, de rest warning
@@ -1105,7 +1125,7 @@ switch ($action) {
             ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
         $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
-            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
+            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
             'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',
                 'disklife' => 'SD-kaart/eMMC', 'osupdate' => 'HA OS-update', 'usb' => 'USB'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
         // Eigen meldregels voor deze check (null = de algemene uit Instellingen → Alarmgedrag)

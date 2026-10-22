@@ -2,7 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Wanneer en waarheen meldingen gaan, per status: warning, critical, onbekend en hersteld.
+ * Wanneer en waarheen meldingen gaan, per status: warning, critical, onbekend en hersteld, plus info
+ * (gebeurtenissen die geen storing zijn, zoals een herstart of een vernieuwd certificaat: alleen uit of direct).
  * Per status: nooit, direct, of pas na X minuten onafgebroken in die status (hersteld: X minuten OK),
  * een herhaling elke Y minuten (0 = nooit), en de kanalen (Pushover, e-mail, Home Assistant-webhook).
  * Algemeen in de instellingen (notify_rules, notify_channels); per check te vervangen (checks.notify).
@@ -11,6 +12,8 @@ final class NotifyRules
 {
     public const KEYS = [STATUS_WARN => 'warn', STATUS_CRIT => 'crit', STATUS_UNKNOWN => 'unknown', STATUS_OK => 'recovery'];
     public const CHANNELS = ['pushover', 'email', 'webhook'];
+    /** Alle regels: de statussen hierboven en info */
+    public const RULE_KEYS = ['warn', 'crit', 'unknown', 'recovery', 'info'];
 
     /** Instellingen voor deze check: eigen regels als die er zijn, anders de algemene. */
     public static function forCheck(array $check): array
@@ -47,8 +50,9 @@ final class NotifyRules
                 'crit' => ['mode' => 'after', 'min' => 1, 'repeat' => 60],
                 'unknown' => ['mode' => 'after', 'min' => 1, 'repeat' => 60],
                 'recovery' => ['mode' => 'now', 'min' => 0, 'repeat' => 0],
+                'info' => ['mode' => 'never', 'min' => 0, 'repeat' => 0],   // standaard uit
             ],
-            'channels' => array_fill_keys(array_values(self::KEYS), $on),
+            'channels' => array_fill_keys(self::RULE_KEYS, $on),
             // Anti-flapping: flapt bij `changes` statuswisselingen binnen `window` minuten; stabiel na `stable` minuten
             'flap' => ['on' => true, 'changes' => 4, 'window' => 30, 'stable' => 15],
         ];
@@ -158,16 +162,18 @@ final class NotifyRules
     public static function cleanRules(array $in): array
     {
         $out = [];
-        foreach (array_values(self::KEYS) as $k) {
+        foreach (self::RULE_KEYS as $k) {
             if (!isset($in[$k]) || !is_array($in[$k])) {
                 continue;
             }
             $r = $in[$k];
-            $mode = in_array($r['mode'] ?? '', ['never', 'now', 'after'], true) ? $r['mode'] : 'now';
+            // info: alleen uit of direct (een gebeurtenis duurt niet, dus geen "na X minuten" of herhalen)
+            $modes = $k === 'info' ? ['never', 'now'] : ['never', 'now', 'after'];
+            $mode = in_array($r['mode'] ?? '', $modes, true) ? $r['mode'] : ($k === 'info' ? 'never' : 'now');
             $out[$k] = [
                 'mode' => $mode,
                 'min' => $mode === 'after' ? max(1, min(10080, (int) ($r['min'] ?? 1))) : 0,
-                'repeat' => $k === 'recovery' ? 0 : max(0, min(10080, (int) ($r['repeat'] ?? 0))),
+                'repeat' => in_array($k, ['recovery', 'info'], true) ? 0 : max(0, min(10080, (int) ($r['repeat'] ?? 0))),
             ];
         }
         return $out;
@@ -176,7 +182,7 @@ final class NotifyRules
     public static function cleanChannels(array $in): array
     {
         $out = [];
-        foreach (array_values(self::KEYS) as $k) {
+        foreach (self::RULE_KEYS as $k) {
             if (isset($in[$k]) && is_array($in[$k])) {
                 foreach (self::CHANNELS as $c) {
                     $out[$k][$c] = !empty($in[$k][$c]);

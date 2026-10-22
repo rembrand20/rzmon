@@ -272,8 +272,10 @@ final class SnmpMonitor
         $s = (int) floor($t / 100);
         $h = round($s / 3600, 1);
         $st = self::level($h, $check, true);
-        return self::res($st, $h, ($st !== STATUS_OK ? t('Net herstart') . ' · ' : '') . 'uptime ' . self::duration($s)
+        $res = self::res($st, $h, ($st !== STATUS_OK ? t('Net herstart') . ' · ' : '') . 'uptime ' . self::duration($s)
             . ($s > 497 * 86400 * 0.95 ? ' (' . t('de teller loopt na 497 dagen over: dat is geen herstart') . ')' : ''));
+        // Korter dan de vorige keer = herstart (info); niet als de teller net is overgelopen
+        return ($info = Checks::restartInfo($check, $h, 497 * 24.0)) ? $res + ['info' => $info] : $res;
     }
 
     private static function iface(SnmpConn $c, array $check): array
@@ -821,7 +823,7 @@ final class SnmpMonitor
         return Checks::bytes($b);
     }
 
-    private static function duration(int $s): string
+    public static function duration(int $s): string
     {
         $d = intdiv($s, 86400);
         $h = intdiv($s % 86400, 3600);

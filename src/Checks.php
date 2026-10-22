@@ -10,7 +10,7 @@ final class Checks
 {
     public static function run(array $check, array $host): array
     {
-        if ($host['mode'] === 'remote' && in_array($check['type'], ['disk', 'service', 'cpu', 'ram'], true)) {
+        if ($host['mode'] === 'remote' && in_array($check['type'], ['disk', 'service', 'cpu', 'ram', 'reboot'], true)) {
             return self::result(STATUS_UNKNOWN, null, t('Disk/service/CPU/RAM checks vereisen host-type lokaal of agent'));
         }
         if ($host['mode'] !== 'agent' && in_array($check['type'], ['podman', 'container', 'log', 'command'], true)) {
@@ -33,11 +33,52 @@ final class Checks
                 'cpu' => $host['mode'] === 'agent' ? self::agentCpu($check, $host) : self::localCpu($check),
                 'ram' => $host['mode'] === 'agent' ? self::agentRam($check, $host) : self::localRam($check),
                 'snmp' => SnmpMonitor::check($check, $host),
+                'reboot' => self::reboot($check, $host),
                 default => self::result(STATUS_UNKNOWN, null, t('Onbekend checktype')),
             };
         } catch (Throwable $e) {
             return self::result(STATUS_UNKNOWN, null, t('Fout') . ': ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Herstart: de uptime in uren is de waarde (de check is altijd OK). Is hij korter dan bij de vorige controle,
+     * dan is de server herstart: een info-melding (Instellingen of ✎ → 🔔 Meldingen → Info).
+     */
+    private static function reboot(array $check, array $host): array
+    {
+        if ($host['mode'] === 'agent') {
+            if ($stale = self::agentStale($host)) {
+                return $stale;
+            }
+            $boot = (int) self::agentMetric($host, 'boot');
+            if ($boot <= 0) {
+                return self::result(STATUS_UNKNOWN, null, t('De agent meldt zijn opstarttijd nog niet: werk de agent bij (1.46.0 of nieuwer)'));
+            }
+        } else {
+            $up = (float) explode(' ', (string) @file_get_contents('/proc/uptime'))[0];
+            if ($up <= 0) {
+                return self::result(STATUS_UNKNOWN, null, t('Kan de uptime van deze server niet lezen (/proc/uptime)'));
+            }
+            $boot = (int) round(time() - $up);
+        }
+        $s = max(0, time() - $boot);
+        $h = round($s / 3600, 2);
+        $res = self::result(STATUS_OK, $h, t('Aan sinds {t} · uptime {dur}', ['t' => date('d-m-Y H:i', $boot), 'dur' => SnmpMonitor::duration($s)]));
+        return ($info = self::restartInfo($check, $h)) ? $res + ['info' => $info] : $res;
+    }
+
+    /**
+     * Herstart gezien? De uptime (in uren) is korter dan bij de vorige controle. Geeft de tekst voor de info-melding.
+     * @param float|null $wrap teller die overloopt (SNMP: na 497 dagen); vlak daarvoor is een kortere uptime geen herstart
+     */
+    public static function restartInfo(array $check, float $hours, ?float $wrap = null): ?string
+    {
+        $prev = $check['last_value'] ?? null;
+        if ($prev === null || !is_numeric($prev) || $hours >= (float) $prev - 0.01 || ($wrap !== null && (float) $prev > $wrap * 0.95)) {
+            return null;
+        }
+        return t('Herstart om {t} · was {dur} aan', ['t' => date('d-m H:i', time() - (int) round($hours * 3600)), 'dur' => SnmpMonitor::duration((int) round((float) $prev * 3600))]);
     }
 
     /** Checktypes waarbij "omgekeerd" kan: werkt het wel of niet (geen drempels) */
@@ -266,7 +307,14 @@ final class Checks
             $status = STATUS_CRIT;
             $msg = t("Ongeldig: {why} — bewust self-signed? Zet dan 'certificaat controleren' uit", ['why' => $invalid]) . " · $msg";
         }
-        return self::result($status, floor($days * 10) / 10, $msg);  // afronden naar beneden, net als de tekst
+        $value = floor($days * 10) / 10;   // afronden naar beneden, net als de tekst
+        $res = self::result($status, $value, $msg);
+        // Vernieuwd: er zijn ineens meer dagen over dan bij de vorige controle (info-melding)
+        $prev = $check['last_value'] ?? null;
+        if ($prev !== null && is_numeric($prev) && $value > (float) $prev + 1.5) {
+            $res['info'] = t('Certificaat vernieuwd') . ': ' . $msg;
+        }
+        return $res;
     }
 
     /** "host", "host:poort", "[ipv6]:poort" of een URL → [host, poort], of null. */
@@ -560,11 +608,14 @@ final class Checks
                 return self::result(STATUS_CRIT, null, t('Home Assistant OS is ONVERWACHT herstart om {t} (stroom, crash of handmatig?) · vorige start {prev}',
                     ['t' => date('H:i', (int) $r['t']), 'prev' => date('d-m H:i', (int) $r['prev'])]));
             }
+            // Uptime als waarde: korter dan de vorige keer = herstart (info; een onverwachte herstart is hierboven al CRITICAL)
+            $hours = !empty($d['boot']) ? round(max(0, time() - (int) $d['boot']) / 3600, 2) : null;
+            $info = $hours !== null ? self::restartInfo($check, $hours) : null;
             if ($r) {
-                return self::result(STATUS_OK, null, (!empty($r['planned']) ? t('Laatste herstart door de OS-update {from} → {to}', ['from' => $r['from'] ?? '?', 'to' => $r['to'] ?? '?'])
+                return ['info' => $info] + self::result(STATUS_OK, $hours, (!empty($r['planned']) ? t('Laatste herstart door de OS-update {from} → {to}', ['from' => $r['from'] ?? '?', 'to' => $r['to'] ?? '?'])
                     : t('Laatste onverwachte herstart')) . ' ' . t('op {t}', ['t' => date('d-m H:i', (int) $r['t'])]) . $up);
             }
-            return self::result(STATUS_OK, null, t('Geen herstart gezien sinds de add-on meekijkt') . $up);
+            return ['info' => $info] + self::result(STATUS_OK, $hours, t('Geen herstart gezien sinds de add-on meekijkt') . $up);
         }
         if ($m === 'disklife') {
             if (!isset($d['disk_life']) || !is_numeric($d['disk_life'])) {
