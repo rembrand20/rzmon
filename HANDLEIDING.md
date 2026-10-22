@@ -1657,7 +1657,7 @@ tools/bump-version.sh agent patch   # agent: agent/VERSION, AGENT_VERSION, add-o
 tools/bump-version.sh sync          # agent en agent/CHANGELOG.md naar de add-on kopiëren
 tools/check-version.sh              # controleert beide nummers en de changelogs
 ```
-Patch is voor reparaties, minor voor nieuwe functies, major als de gebruiker zelf iets moet aanpassen. Heeft een nieuwe functie in RzMon ook een nieuwere agent nodig, zet dat dan in de changelog van RzMon ("agent 1.x.y nodig").
+Patch is voor reparaties, minor voor nieuwe functies, major als de gebruiker zelf iets moet aanpassen. Heeft een nieuwe functie in RzMon ook een nieuwere agent nodig, zet dat dan in de changelog van RzMon ("agent 1.x.y nodig"). Een nieuwe agent krijgt altijd ook een patch-versie van RzMon: RzMon levert de agent aan je servers, en ⬆ *RzMon bijwerken* kijkt alleen naar het nummer van RzMon.
 
 Op GitHub controleert een Action (`Versiecontrole`) bij elke push of de nummers kloppen, de kopieën in de add-on gelijk zijn en de changelogs ingevuld zijn.
 

@@ -18,6 +18,7 @@ RzMon en de agent hebben **elk een eigen versienummer**. Verhoog alleen het numm
 - `rzmon` werkt `VERSION` bij. `agent` werkt `agent/VERSION`, `AGENT_VERSION` in `agent/rzmon-agent.sh`, de agent-kopie in `ha-addon/rzmon_agent/` en `version` in `ha-addon/rzmon_agent/config.yaml` in één keer bij. Pas die nooit los aan.
 - De HA-add-on heeft het nummer van de agent. RzMon vergelijkt agents met `AGENT_LATEST` (uit `agent/VERSION`), niet met de versie van RzMon.
 - Heeft iets in RzMon een nieuwere agent nodig, zet dat in `CHANGELOG.md` ("agent 1.x.y nodig").
+- Een nieuwe agent krijgt ook een nieuwe **patch-versie van RzMon** (met een regel "Nieuwe agent 1.x.y" in `CHANGELOG.md`). RzMon levert de agent aan de servers en zoekt updates alleen op basis van `VERSION`; zonder RzMon-versie komt de nieuwe agent nooit bij de gebruiker.
 
 ## Updates veranderen geen instellingen
 - Een update van RzMon laat `config.php` en bestaande rijen in `settings` ongemoeid: `Installer::runSchema` zet elke bestaande instelling terug die het schema of een migratie zou veranderen. Nieuwe standaardwaarden gaan met `INSERT IGNORE`.

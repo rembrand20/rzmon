@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.46.1 – 2026-10-22
+### Opgelost
+- Nieuwe agent **1.45.2**: de Home Assistant-add-on (en een agent op Alpine Linux) stuurde sinds agent 1.43.0 geen rapporten meer, waardoor Home Assistant in RzMon op *onbereikbaar (agent stil)* stond. Werk de add-on bij in de add-on winkel; Linux-servers werk je bij met ⬆ zoals altijd.
+
 ## 1.46.0 – 2026-10-22
 ### Nieuw
 - **Eigen versienummer voor de agent.** RzMon en de agent (met de Home Assistant-add-on) worden apart genummerd. Verandert er alleen iets in RzMon, dan zijn je agents niet meer "verouderd" en hoef je ze niet bij te werken. De agent staat nu op 1.45.1, met een eigen [changelog](agent/CHANGELOG.md). In de *Agent Manager* staat "Agent-versie 1.45.1 ✔ nieuwste" in plaats van een vergelijking met RzMon.

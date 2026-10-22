@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.45.2 – 2026-10-22
+- **Home Assistant-add-on rapporteerde niet meer (sinds 1.43.0).** In de add-on is `flock` de BusyBox-versie, en die kent de optie om te wachten (`-w`) niet. Daardoor stopte de agent elke keer meteen zonder rapport, en stond Home Assistant in RzMon op *onbereikbaar (agent stil)*. Nu probeert de agent het dan zonder te wachten. Hetzelfde gold voor servers met Alpine Linux.
+- Add-on: in het log staat *Verbonden met RzMon ✔* pas als er echt een rapport is aangekomen, niet meer ook als de agent zijn beurt overslaat.
+
 ## 1.45.1 – 2026-10-22
 - Eerste versie met een eigen nummer, los van RzMon (RzMon 1.46.0).
 - Bijwerken of opnieuw installeren verandert niets meer aan `/etc/default/rzmon-agent`. Geef je zelf een optie mee, zoals `--token`, dan wordt alleen die regel aangepast.

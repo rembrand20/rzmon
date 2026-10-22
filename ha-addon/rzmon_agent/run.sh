@@ -48,9 +48,11 @@ while true; do
     if [ "$force" = 1 ]; then export RZ_FORCE=1; else unset RZ_FORCE; fi
     force=0
     if out=$(/usr/local/bin/rzmon-agent.sh 2>&1); then
-        # Alleen loggen bij de eerste keer en na herstel, anders loopt het log vol
-        [ "$last_ok" != 1 ] && log "Verbonden met RzMon ✔"
-        last_ok=1
+        # Alleen loggen bij het eerste echte rapport en na herstel (niet als de tik nog niet om was)
+        if [[ "$out" == *'"ok":true'* ]]; then
+            [ "$last_ok" != 1 ] && log "Verbonden met RzMon ✔ (rapport ontvangen)"
+            last_ok=1
+        fi
     else
         case "$out" in
             *"error: 403"*) hint=" → token onjuist, of de server staat in RzMon niet op type 'Remote met agent'" ;;

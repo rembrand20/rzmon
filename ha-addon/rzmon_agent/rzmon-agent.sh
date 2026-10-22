@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.45.1"
+AGENT_VERSION="1.45.2"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -340,7 +340,11 @@ fi
 # Nooit twee runs tegelijk (timer en realtime-watcher): even wachten op een run die al bezig is
 if [ "$TEST" != 1 ] && command -v flock >/dev/null 2>&1; then
     exec 9>"$t_dir/run.lock"
-    flock -w 25 9 || exit 0
+    # BusyBox-flock (Alpine, de Home Assistant-add-on) kent -w niet: dan zonder wachten proberen.
+    # Lukt het allebei niet, dan loopt er al een run en slaan we deze keer over.
+    if ! flock -w 25 9 2>/dev/null && ! flock -n 9 2>/dev/null; then
+        exit 0
+    fi
 fi
 touch "$t_dir/last.run" 2>/dev/null
 
