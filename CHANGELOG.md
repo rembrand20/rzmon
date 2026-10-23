@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.65.1 – 2026-10-23
+### Opgelost
+- **E-mail aanzetten gaf "Vul de SMTP-server en een ontvanger in, of zet e-mail uit"**, ook als die al ingevuld waren, en daarna bleef alles in die kaart op *✘ niet opgeslagen* staan. Sinds het meteen opslaan (1.61.0) gaat alleen het gewijzigde veld naar de server, en die controleerde alleen dat ene verzoek. Nu kijkt hij voor de rest naar de opgeslagen waarden. Hetzelfde gold voor de Home Assistant-webhook en MQTT.
+
 ## 1.65.0 – 2026-10-23
 ### Nieuw
 - **📌 Certificaat vastzetten** en **🌐 alleen vanaf het bekende IP-adres** zijn nu ook **per agent** in te stellen: *algemene instelling*, *aan* of *uit*. In de Agent Manager en in de tabel bij *Instellingen → Agents → Beveiligde verbinding* (kolom 📌 · 🌐). Uitzetten waar het nu geldt vraagt om je wachtwoord.

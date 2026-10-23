@@ -1703,13 +1703,16 @@ switch ($action) {
         if (($in['ha_webhook_url'] ?? '') !== '' && !preg_match('#^https?://\S+$#i', trim((string) $in['ha_webhook_url']))) {
             out(['error' => t('Webhook-URL moet met http:// of https:// beginnen')], 422);
         }
-        if (($in['ha_webhook_enabled'] ?? '0') === '1' && trim((string) ($in['ha_webhook_url'] ?? '')) === '') {
+        // Velden die samen moeten kloppen: er komt (bij meteen opslaan) alleen mee wat veranderd is, dus voor de rest
+        // de opgeslagen waarde gebruiken. Anders lukt bv. "e-mail aan" nooit, ook al staan server en ontvanger er al.
+        $eff = static fn(string $k): string => trim((string) (array_key_exists($k, $in) ? $in[$k] : setting($k, '')));
+        if ($eff('ha_webhook_enabled') === '1' && $eff('ha_webhook_url') === '') {
             out(['error' => t('Vul een webhook-URL in of zet de webhook uit')], 422);
         }
-        if (($in['email_enabled'] ?? '0') === '1' && (trim((string) ($in['smtp_host'] ?? '')) === '' || trim((string) ($in['mail_to'] ?? '')) === '')) {
+        if ($eff('email_enabled') === '1' && ($eff('smtp_host') === '' || $eff('mail_to') === '')) {
             out(['error' => t('Vul de SMTP-server en een ontvanger in, of zet e-mail uit')], 422);
         }
-        if (($in['mqtt_enabled'] ?? '0') === '1' && trim((string) ($in['mqtt_host'] ?? '')) === '') {
+        if ($eff('mqtt_enabled') === '1' && $eff('mqtt_host') === '') {
             out(['error' => t('Vul de MQTT-server in, of zet MQTT uit')], 422);
         }
         foreach (['mqtt_prefix', 'mqtt_base_topic'] as $k) {
