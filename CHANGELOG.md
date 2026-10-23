@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.65.2 – 2026-10-23
+### Opgelost
+- **TrueNAS: agent bijwerken mislukte met "Fout op regel 351"**. Het installatiescript maakte de map van de agent op de pool ook bij een update opnieuw aan (`mkdir`) en zette de rechten op 700. Op sommige datasets lukt dat niet. Een map die al bestaat wordt nu niet meer aangemaakt, en lukken de rechten niet (ACL's), dan is dat alleen een waarschuwing. Kan de map echt niet gemaakt worden, dan staat de reden in de melding.
+- Een fout in het installatiescript noemt nu ook het **commando** dat misging (bij bijwerken vanuit RzMon was alleen het regelnummer te zien).
+
 ## 1.65.1 – 2026-10-23
 ### Opgelost
 - **E-mail aanzetten gaf "Vul de SMTP-server en een ontvanger in, of zet e-mail uit"**, ook als die al ingevuld waren, en daarna bleef alles in die kaart op *✘ niet opgeslagen* staan. Sinds het meteen opslaan (1.61.0) gaat alleen het gewijzigde veld naar de server, en die controleerde alleen dat ene verzoek. Nu kijkt hij voor de rest naar de opgeslagen waarden. Hetzelfde gold voor de Home Assistant-webhook en MQTT.

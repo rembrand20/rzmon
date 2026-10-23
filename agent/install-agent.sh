@@ -66,7 +66,8 @@ die()  {
     [ -n "$RESULT_FILE" ] && printf 'error %s\n' "$*" >"$RESULT_FILE" 2>/dev/null
     exit 1
 }
-trap 'die "Fout op regel $LINENO. Het script kan veilig opnieuw worden uitgevoerd."' ERR
+# Met het commando dat misging: bij bijwerken vanuit RzMon is de uitvoer niet te zien, alleen deze regel
+trap 'die "Fout op regel $LINENO ($BASH_COMMAND). Het script kan veilig opnieuw worden uitgevoerd."' ERR
 
 usage() {
     cat <<EOF
@@ -348,8 +349,11 @@ if [ "$TRUENAS" = 0 ] && { [ "$SCHED" = "cron" ] || ! has_systemd; }; then
 fi
 if [ "$TRUENAS" = 1 ]; then
     need=()   # TrueNAS: pakketten installeren kan niet (en is niet nodig: curl, ss en openssl zijn er)
-    mkdir -p "$TN_DIR"
-    chmod 700 "$TN_DIR"
+    # Bestaat de map al (bijwerken), dan niets aanmaken. Rechten 700 lukt niet op elke dataset (ACL's): geen reden om te stoppen.
+    if [ ! -d "$TN_DIR" ]; then
+        mk_err=$(mkdir -p "$TN_DIR" 2>&1) || die "Kan de map $TN_DIR niet aanmaken: ${mk_err#mkdir: } (staat de pool op alleen-lezen, of is hij versleuteld en op slot?)"
+    fi
+    chmod 700 "$TN_DIR" 2>/dev/null || warn "Rechten van $TN_DIR niet op 700 te zetten (ACL van de dataset?); de agent werkt wel"
 fi
 if [ ${#need[@]} -gt 0 ]; then
     [ -n "$pm" ] || die "Installeer eerst: ${need[*]}"
