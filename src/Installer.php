@@ -179,6 +179,9 @@ final class Installer
         ['hosts', 'agent_ips', 'VARCHAR(255) NULL'],                 // toegestane IP-adressen van de agent (spatie-gescheiden)
         ['hosts', 'agent_ip_new', 'VARCHAR(45) NULL'],               // geweigerd: nieuw IP-adres, wacht op toestemming
         ['hosts', 'agent_ip_new_at', 'DATETIME NULL'],
+        // Per server (1.65.0): certificaat vastzetten en vast IP-adres; NULL = algemene instelling, of on / off
+        ['hosts', 'pin_mode', 'VARCHAR(3) NULL'],
+        ['hosts', 'ip_lock', 'VARCHAR(3) NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

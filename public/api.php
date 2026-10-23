@@ -86,7 +86,7 @@ function agent_host(): array
     }
     $ip = client_ip();
     $cols = 'id, name, mode, agent_version, info_agent, agent_seen, agent_ip, agent_tick, enc, agent_token,
-             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips';
+             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock';
     if ($kid !== '') {
         $host = q("SELECT $cols FROM hosts WHERE agent_key_id = ? OR (agent_key_old_id = ? AND agent_key_old_until > ?) LIMIT 1", [$kid, $kid, now()])->fetch();
         $reason = $host ? null : t('onbekende sleutel (vernieuwd of opnieuw gekoppeld?): koppel de agent opnieuw met een koppelcode');
@@ -202,7 +202,7 @@ function agent_enc_fields(array $host, ?string $agentVersion): array
             $out['agent_key'] = AgentCrypto::newHostKey((int) $host['id'], true);     // vernieuwen; de huidige nog 24 uur geldig
         }
         // Zag de agent een ander certificaat? Dan opnieuw bepalen, niet uit de cache
-        $pin = AgentCrypto::pin(!empty($_SERVER['HTTP_X_AGENT_PIN_FAIL']));
+        $pin = AgentCrypto::pin(!empty($_SERVER['HTTP_X_AGENT_PIN_FAIL']), true, $host);
         if ($pin !== null) {
             $out['pin'] = $pin;
         }
@@ -313,7 +313,7 @@ if ($action === 'agent_pair') {
     AgentCommands::audit('agent', 'Agent gekoppeld', "{$host['name']} vanaf $ip (agent $ver)");
     Monitor::sysInfo('agent_connect', (int) $host['id'], (string) $host['name'], 'ℹ️ ' . t('Agent gekoppeld: {name}', ['name' => $host['name']]),
         fn() => t('Agent op {name} is gekoppeld met een koppelcode en heeft een eigen sleutel', ['name' => $host['name']]) . " · IP $ip · agent $ver", $ip);
-    out(['ok' => true, 'host' => $host['name'], 'agent_key' => $key, 'token' => $host['agent_token'], 'pin' => AgentCrypto::pin() ?? '',
+    out(['ok' => true, 'host' => $host['name'], 'agent_key' => $key, 'token' => $host['agent_token'], 'pin' => AgentCrypto::pin(false, true, $host) ?? '',
         'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh')]);
 }
 
@@ -808,7 +808,7 @@ switch ($action) {
 
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen,
-                    agent_key_seen, agent_key_at, agent_ip_new,
+                    agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock,
                     enabled, maintenance_until, maintenance_reason, snmp FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
@@ -853,6 +853,7 @@ switch ($action) {
              'update_running' => $isAdmin && Updater::running(),
              // Voor het installatiecommando in de Agent Manager (--key): alleen beheerders, net als de tokens
              'enc_key' => $isAdmin && AgentCrypto::globalMode() !== 'off' ? (AgentCrypto::key() ?: null) : null,
+             'conn_pin' => AgentCrypto::pinOn(), 'conn_ip_lock' => AgentCrypto::ipLockOn(),
              'update' => $isAdmin && ($uc = json_decode((string) setting('update_cache', ''), true)) && !empty($uc['latest'])
                  && version_compare($uc['latest'], RZMON_VERSION, '>') ? $uc['latest'] : null]);
 
@@ -1120,10 +1121,10 @@ switch ($action) {
             'enc' => ['mode' => AgentCrypto::globalMode(), 'key' => $key, 'key_id' => $key !== '' ? AgentCrypto::keyId($key) : null,
                 'old_until' => $until > time() ? date('Y-m-d H:i:s', $until) : null, 'agent_min' => AgentCrypto::AGENT_MIN],
             'hosts' => array_map(static fn($h) => $h + ['key_days' => $h['agent_key_at'] ? (int) floor((time() - strtotime($h['agent_key_at'])) / 86400) : null],
-                q("SELECT id, name, agent_version, agent_seen, agent_ip, enc, enc_seen, agent_key_seen, agent_key_at, agent_ips, agent_ip_new, agent_ip_new_at,
+                q("SELECT id, name, agent_version, agent_seen, agent_ip, enc, enc_seen, agent_key_seen, agent_key_at, agent_ips, agent_ip_new, agent_ip_new_at, pin_mode, ip_lock,
                           (pair_until > NOW()) AS pairing FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll()),
             'conn' => ['key_days' => (int) setting('agent_key_days', '30'), 'pin' => setting('agent_pin', '1') === '1', 'ip_lock' => setting('agent_ip_lock', '1') === '1',
-                'pin_value' => AgentCrypto::pin(false, false), 'https' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https',
+                'pin_value' => AgentCrypto::pin(false, false, ['pin_mode' => 'on']), 'https' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https',
                 'ownkey_min' => AgentCrypto::OWNKEY_MIN],
             'blocks' => Security::blocks(),
             'my_ip' => client_ip(),
@@ -1181,14 +1182,40 @@ switch ($action) {
     // Koppelcode voor een server (15 minuten geldig) en wat er nodig is voor het installatiecommando
     case 'agent_pair_code':
         $id = (int) (input()['id'] ?? 0);
-        $name = q("SELECT name FROM hosts WHERE id = ? AND mode = 'agent'", [$id])->fetchColumn();
-        if ($name === false) {
+        $ph = q("SELECT name, pin_mode FROM hosts WHERE id = ? AND mode = 'agent'", [$id])->fetch();
+        if (!$ph) {
             out(['error' => t('Server niet gevonden')], 404);
         }
+        $name = $ph['name'];
         $p = AgentCrypto::pairCreate($id);
         AgentCommands::audit($user['username'], 'Koppelcode gemaakt', (string) $name);
         out($p + ['setup_sha256' => hash_file('sha256', SM_ROOT . '/agent/install-agent.sh'), 'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
-            'pin' => AgentCrypto::pin(false, false) ?? '', 'minutes' => AgentCrypto::PAIR_MINUTES]);
+            'pin' => AgentCrypto::pin(false, false, $ph) ?? '', 'minutes' => AgentCrypto::PAIR_MINUTES]);
+
+    // Per server: certificaat vastzetten en vast IP-adres ('' = algemene instelling, on, off).
+    // Uitzetten (waar het nu geldt) maakt de verbinding minder veilig: dan om je wachtwoord vragen.
+    case 'host_conn':
+        $in = input();
+        $h = q("SELECT id, name, pin_mode, ip_lock FROM hosts WHERE id = ? AND mode = 'agent'", [(int) ($in['host_id'] ?? 0)])->fetch();
+        if (!$h) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        $new = $h;
+        foreach (['pin_mode' => 'pin', 'ip_lock' => 'ip_lock'] as $col => $k) {
+            if (array_key_exists($k, $in)) {
+                $v = (string) $in[$k];
+                if (!in_array($v, ['', 'on', 'off'], true)) {
+                    out(['error' => t('Ongeldige keuze')], 422);
+                }
+                $new[$col] = $v === '' ? null : $v;
+            }
+        }
+        if ((AgentCrypto::pinOn($h) && !AgentCrypto::pinOn($new)) || (AgentCrypto::ipLockOn($h) && !AgentCrypto::ipLockOn($new))) {
+            $confirm('UITZETTEN');
+        }
+        q('UPDATE hosts SET pin_mode = ?, ip_lock = ? WHERE id = ?', [$new['pin_mode'], $new['ip_lock'], $h['id']]);
+        AgentCommands::audit($user['username'], 'Beveiligde verbinding per server', "{$h['name']}: vastzetten " . ($new['pin_mode'] ?? 'algemeen') . ', IP-slot ' . ($new['ip_lock'] ?? 'algemeen'));
+        out(['ok' => true]);
 
     case 'agent_key_renew':
         $id = (int) (input()['id'] ?? 0);

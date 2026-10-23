@@ -2545,11 +2545,12 @@ function renderSecurity() {
     : h.agent_version && verCmp(h.agent_version, c.ownkey_min) < 0 ? `<span class="warn-txt">${L('agent {v} nodig', { v: c.ownkey_min })}</span>`
     : `<span class="warn-txt">${L('nog geen eigen sleutel')}</span>`;
   $('#enc-hosts').innerHTML = secInfo.hosts.length ? `<div class="table-scroll"><table class="vuln-table enc-table">
-    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Sleutel')}</th><th>${L('IP-adres')}</th><th>${L('Versleuteld versturen')}</th><th>${L('Laatste rapport')}</th><th></th></tr></thead><tbody>
+    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Sleutel')}</th><th>${L('IP-adres')}</th><th>${L('Versleuteld versturen')}</th><th title="${esc(L('Certificaat vastzetten · alleen vanaf het bekende IP-adres'))}">📌 · 🌐</th><th>${L('Laatste rapport')}</th><th></th></tr></thead><tbody>
     ${secInfo.hosts.map((h) => `<tr><td>${esc(h.name)}</td><td class="mono small">${esc(h.agent_version || '–')}</td>
       <td class="small">${keyText(h)}</td>
       <td class="small mono">${h.agent_ips ? esc(h.agent_ips) : `<span class="muted">${L('nog niet bekend')}</span>`}${h.agent_ips ? ` <button type="button" class="icon-btn" data-ip-reset="${h.id}" title="${esc(L('Vergeten: het volgende IP-adres van deze agent wordt het bekende'))}">↺</button>` : ''}</td>
       <td><select data-enc-host="${h.id}">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${k === '' ? `${l} (${ENC_MODES.find((m) => m[0] === e.mode)[1].split(' (')[0].toLowerCase()})` : l}</option>`).join('')}</select></td>
+      <td class="conn-cell">📌 ${connSelect('pin', h, c.pin, true)}<br>🌐 ${connSelect('ip', h, c.ip_lock, true)}</td>
       <td class="small">${encSeenText(h)}</td>
       <td class="nowrap"><button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗</button>${+h.agent_key_seen === 1 ? ` <button type="button" class="btn small-btn" data-key-renew="${h.id}" title="${esc(L('Nieuwe sleutel; de agent krijgt hem bij zijn volgende rapport'))}">🔄</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '';
   const b = secInfo.blocks;
@@ -2615,6 +2616,8 @@ function initSecurity() {
     } catch (ex) { toast(ex.message, 'err'); }
   });
   $('#enc-hosts').addEventListener('change', async (e) => {
+    const hc = e.target.closest('[data-host-conn]');
+    if (hc) return saveHostConn(hc, () => { loadSecurity(); refresh(); });
     const sel = e.target.closest('[data-enc-host]');
     if (!sel) return;
     try { await api('host_enc', { host_id: +sel.dataset.encHost, enc: sel.value }); toast(L('Opgeslagen; de agent pakt het op bij zijn volgende rapport')); refresh(); }
@@ -2660,6 +2663,28 @@ function encSeenText(h) {
   return '🔓 ' + L('laatste rapport niet versleuteld') + (h.agent_version && verCmp(h.agent_version, '1.49.0') < 0 ? ' · ' + L('agent {v} of nieuwer nodig', { v: '1.49.0' }) : '');
 }
 
+/** Keuzelijst per server voor 📌 vastzetten of 🌐 vast IP-adres: algemene instelling (nu aan/uit), aan of uit */
+function connSelect(kind, h, globalOn, short = false) {
+  const cur = (kind === 'pin' ? h.pin_mode : h.ip_lock) || '';
+  return `<select data-host-conn="${kind}" data-host="${h.id}" title="${esc(kind === 'pin' ? L('Certificaat van RzMon vastzetten') : L('Alleen vanaf het bekende IP-adres'))}">`
+    + [['', `${short ? L('algemeen') : L('algemene instelling')} (${globalOn ? L('aan') : L('uit')})`], ['on', L('aan')], ['off', L('uit')]]
+      .map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${l}</option>`).join('') + '</select>';
+}
+/** Wijziging per server opslaan; uitzetten waar het nu geldt vraagt om je wachtwoord */
+async function saveHostConn(sel, done) {
+  const send = (extra = {}) => api('host_conn', { host_id: +sel.dataset.host, [sel.dataset.hostConn === 'ip' ? 'ip_lock' : 'pin']: sel.value, ...extra });
+  try { await send(); savedFlag(sel, true); done(); }
+  catch (ex) {
+    if (!/UITZETTEN|wachtwoord|password|confirm/i.test(ex.message)) { toast(ex.message, 'err'); done(); return; }
+    modal({
+      title: '⚠️ ' + L('Minder veilig maken?'),
+      body: `<p style="margin-top:0">${sel.dataset.hostConn === 'pin' ? L('Zonder vastgezet certificaat accepteert deze agent met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzMon.') : L('Deze agent wordt dan vanaf elk IP-adres geaccepteerd (met zijn sleutel).')}</p>${confirmField('UITZETTEN')}`,
+      buttons: [{ label: L('Annuleren'), onClick: () => { $('#modal').close(); done(); } }, { label: L('Uitzetten'), cls: 'danger', submit: true }],
+      onSubmit: async (d) => { await send({ confirm: d.confirm }); toast(L('Opgeslagen')); done(); },
+    });
+  }
+}
+
 /** "30 s", "2 min" */
 function tickText(t) { return +t >= 120 ? `${+t / 60} min` : `${+t} s`; }
 
@@ -2698,6 +2723,8 @@ function agentInstructions(h, pairNow = false) {
       <div class="cmd-host-row need-admin">🔐 ${L('Versleuteld versturen:')}
         <select id="host-enc">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <span class="muted small">${encSeenText(h)} · ${+h.agent_key_seen === 1 ? '🔑 ' + L('eigen sleutel') : L('nog geen eigen sleutel: maak hieronder een koppelcode')}</span></div>
+      <div class="cmd-host-row need-admin">📌 ${L('Certificaat van RzMon vastzetten:')} ${connSelect('pin', h, state.conn_pin)}</div>
+      <div class="cmd-host-row need-admin">🌐 ${L('Alleen vanaf het bekende IP-adres:')} ${connSelect('ip', h, state.conn_ip_lock)}</div>
       ${h.agent_ip_new ? `<div class="callout need-admin">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents → Beveiligde verbinding.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
       <div class="cmd-host-row need-admin">🖥️ ${L('Commando-checks op deze server:')}
         <select id="host-commands"><option value="global">${L('algemene instelling')}</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
@@ -2843,6 +2870,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
     try { await navigator.clipboard.writeText(c.dataset.copy); toast(L('Gekopieerd')); }
     catch (ex) { getSelection().selectAllChildren(c.previousElementSibling); toast(L('Geselecteerd — druk Ctrl+C'), 'err'); }
   });
+  $$('[data-host-conn]', body).forEach((sel) => (sel.onchange = () => saveHostConn(sel, () => { refresh(); loadSecurity(); })));
   if (pairNow && isAdmin()) makePair();
   $('#agent-live').onclick = async (e) => {
     const b = e.target.closest('[data-agent-upd]');

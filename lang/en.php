@@ -2548,4 +2548,12 @@ return [
     'verlopen: maak een nieuwe koppelcode' => 'expired: create a new pairing code',
     'Beveiligde verbinding' => 'Secure connection',
     '🔐 Beveiligde verbinding' => '🔐 Secure connection',
+    'Certificaat vastzetten · alleen vanaf het bekende IP-adres' => 'Pin certificate · only from the known IP address',
+    'Certificaat van RzMon vastzetten' => 'Pin RzMon\'s certificate',
+    'Alleen vanaf het bekende IP-adres' => 'Only from the known IP address',
+    'algemeen' => 'general',
+    'Zonder vastgezet certificaat accepteert deze agent met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzMon.' => 'Without a pinned certificate this agent with <code>INSECURE=1</code> accepts any certificate, including that of a fake RzMon.',
+    'Deze agent wordt dan vanaf elk IP-adres geaccepteerd (met zijn sleutel).' => 'This agent is then accepted from any IP address (with its key).',
+    'Certificaat van RzMon vastzetten:' => 'Pin RzMon\'s certificate:',
+    'Alleen vanaf het bekende IP-adres:' => 'Only from the known IP address:',
 ];

@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.65.0 – 2026-10-23
+### Nieuw
+- **📌 Certificaat vastzetten** en **🌐 alleen vanaf het bekende IP-adres** zijn nu ook **per agent** in te stellen: *algemene instelling*, *aan* of *uit*. In de Agent Manager en in de tabel bij *Instellingen → Agents → Beveiligde verbinding* (kolom 📌 · 🌐). Uitzetten waar het nu geldt vraagt om je wachtwoord.
+
 ## 1.64.0 – 2026-10-23
 ### Nieuw
 - **🔐 Beveiligde verbinding met de agents** (Instellingen → Agents → *Beveiligde verbinding*; **Nieuwe agent 1.50.0**):

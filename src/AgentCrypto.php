@@ -250,9 +250,9 @@ final class AgentCrypto
      * De beheerpagina (misschien via een ander adres, bv. http op het LAN) leest de bewaarde waarde; is er nog
      * niets bewaard, dan bepaalt hij hem alleen voor zichzelf (voor het installatiecommando).
      */
-    public static function pin(bool $fresh = false, bool $agent = true): ?string
+    public static function pin(bool $fresh = false, bool $agent = true, ?array $host = null): ?string
     {
-        if (setting('agent_pin', '1') !== '1') {
+        if (!self::pinOn($host)) {
             return '';
         }
         $at = (int) setting('agent_pin_at', '0');
@@ -266,6 +266,20 @@ final class AgentCrypto
             save_setting('agent_pin_at', (string) time());
         }
         return $v;
+    }
+
+    /** Geldt vastzetten (voor deze server)? Zijn eigen keuze (hosts.pin_mode), anders de algemene */
+    public static function pinOn(?array $host = null): bool
+    {
+        $m = $host['pin_mode'] ?? null;
+        return in_array($m, ['on', 'off'], true) ? $m === 'on' : setting('agent_pin', '1') === '1';
+    }
+
+    /** Geldt het vaste IP-adres (voor deze server)? Zijn eigen keuze (hosts.ip_lock), anders de algemene */
+    public static function ipLockOn(?array $host = null): bool
+    {
+        $m = $host['ip_lock'] ?? null;
+        return in_array($m, ['on', 'off'], true) ? $m === 'on' : setting('agent_ip_lock', '1') === '1';
     }
 
     /** Het certificaat ophalen bij het adres waarop dit verzoek binnenkwam */
@@ -311,7 +325,7 @@ final class AgentCrypto
     /** Mag deze server vanaf dit IP? Leert het eerste adres; een nieuw adres wacht op toestemming (Instellingen). */
     public static function ipAllowed(array $host, string $ip): bool
     {
-        if (setting('agent_ip_lock', '1') !== '1') {
+        if (!self::ipLockOn($host)) {
             return true;
         }
         $ips = preg_split('/\s+/', trim((string) ($host['agent_ips'] ?? '')), -1, PREG_SPLIT_NO_EMPTY);

@@ -1123,3 +1123,5 @@ details.adv[open] { padding-bottom: .6rem; }
 .ip-wait .btn { margin-left: auto; }
 .enc-table .small-btn { padding: .2rem .45rem; }
 .nowrap { white-space: nowrap; }
+.conn-cell { white-space: nowrap; font-size: .85rem; }
+.conn-cell select { padding: .15rem .4rem; font-size: .8rem; margin: .1rem 0; }
