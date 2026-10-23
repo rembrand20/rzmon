@@ -1595,7 +1595,14 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - **⚠️ Niet-geautoriseerde verbinding** (warning, **altijd naar Pushover**, ook tijdens stille uren): een agent met een onbekend of fout token, een verkeerde sleutel of handtekening, een oud of opnieuw afgespeeld bericht, of onversleuteld terwijl het verplicht is; een verkeerde, verlopen of niet toegestane **API-sleutel**; en het aantal mislukte logins uit de **inlogbeveiliging** (standaard 3 binnen 10 minuten). Per IP en soort één melding (en één Pushover) per uur; daarna loopt de teller op (*4×*). Met **⛔ blokkeren** zet je het IP (of het netwerk) direct op de blokkadelijst.
 - **ℹ️ Logins in RzMon:** elke geslaagde login (wie, vanaf welk IP, welk apparaat, met wachtwoord, met 2FA of via een onthouden apparaat), en losse mislukte pogingen (per IP één regel per uur met een teller).
 - **ℹ️ Agent verbonden:** als een agent voor het eerst verbindt, weer verbindt na stil te zijn geweest, of vanaf een ander IP-adres, met 🔒 of 🔓.
-- Deze ℹ️-meldingen staan **altijd** op de pagina Meldingen; Pushover, e-mail en Home Assistant volgen de rij **Info** bij *🔔 Meldingen*.
+- Waar deze meldingen heen gaan, kies je **per melding** bij *Instellingen → ℹ️ Systeeminfo* (zie hieronder).
+
+**ℹ️ Systeeminfo** (*Instellingen*, groep *Meldingen*, vanaf 1.59.0)
+- Een tabel met alle meldingen van RzMon zelf (geen checks): *RzMon bijgewerkt*; *Agent bijgewerkt*, *Agent bijwerken mislukt*, *Agent verbonden*; *Ingelogd*, *Mislukte login*; *Account geblokkeerd*, *Account gedeblokkeerd*, *IP geblokkeerd*, *Blokkade opgeheven*; *Nieuwe kwetsbaarheden*, *Pakketten bijgewerkt of mislukt*; en ⚠️ *Niet-geautoriseerde verbinding*.
+- Per melding vink je aan: **📲 Pushover**, **📧 E-mail**, **🏠 Home Assistant** en **📄 Meldingenpagina**, en bij Pushover **🔕 stil** (zonder geluid) of **🔔 normaal**. Staat een kanaal helemaal uit, dan staat *(uit)* in de kop. Opslaan met *💾 Instellingen opslaan*.
+- **Stille uren:** er gaat niets naar buiten, maar de melding komt wel op de meldingenpagina (als die aangevinkt is). Uitzondering: ⚠️ *Niet-geautoriseerde verbinding* gaat ook tijdens stille uren, en staat altijd op de meldingenpagina (daar telt RzMon de pogingen per IP).
+- **🧪** stuurt een voorbeeld van die melding naar wat je nu aangevinkt hebt, ook tijdens stille uren.
+- Na de update naar 1.59.0 is alles ingesteld zoals het werkte. De rij **Info** bij de meldregels heet nu *Info (checks)* en geldt alleen nog voor checks (info-checks, herstart, certificaten). *Info bij agent-updates* per server (Agent Manager) blijft: staat dat uit, dan komen agent-updates van die server alleen op de meldingenpagina.
 
 ## 11. REST API en Home Assistant-integratie
 

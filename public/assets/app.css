@@ -809,6 +809,7 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .mode-switch span.active { color: var(--text); font-weight: 700; }
 .ids-blocks td { vertical-align: middle; }
 .alert-item.s2.ids-item, .alert-item.s1.ids-item { padding-left: .2rem; }
+.set-l1nes [data-sk=sysinfo] { order: 12; }
 .set-l1nes [data-sk=enc] { order: 46; } .set-l1nes [data-sk=blocks] { order: 47; }
 .set-l1nes [data-sk=ids] { order: 22; } .set-l1nes [data-sk=vulns] { order: 23; }
 
@@ -929,7 +930,7 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .block-add { display: flex; gap: .5rem; flex-wrap: wrap; margin: .6rem 0; }
 .block-add input { flex: 1 1 12rem; min-width: 0; }
 .alert-item.sec, .alert-table tr.sec { --c: var(--warn); }
-#enc-card, #blocks-card { grid-column: 1 / -1; }   /* tabellen per server en per blokkade: de volle breedte */
+#enc-card, #blocks-card, #sysinfo-card { grid-column: 1 / -1; }   /* tabellen per server en per blokkade: de volle breedte */
 label.radio-row { display: flex; flex-direction: row; align-items: center; gap: .5rem; font-weight: 500; margin: .3rem 0; text-align: left; }
 label.radio-row input { width: auto; margin: 0; flex: none; }
 
@@ -937,3 +938,12 @@ label.radio-row input { width: auto; margin: 0; flex: none; }
 .lock-row { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin: .4rem 0 .7rem; font-size: .9rem; }
 .num-in { width: 5.5rem; }
 .locked-tag { font-size: .75rem; color: var(--crit); border: 1px solid color-mix(in srgb, var(--crit) 40%, transparent); border-radius: 999px; padding: 0 .45rem; margin-left: .25rem; white-space: nowrap; }
+
+/* ℹ️ Systeeminfo: per melding de kanalen */
+.sysinfo-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.sysinfo-table th { text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); padding: .4rem .5rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.sysinfo-table td { padding: .35rem .5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.sysinfo-table .si-ch { text-align: center; }
+.sysinfo-table .si-ch input { width: 1.1rem; height: 1.1rem; }
+.sysinfo-table tr.si-group td { font-weight: 700; padding-top: .8rem; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; border-bottom: 0; }
+.sysinfo-table select { padding: .25rem .4rem; font-size: .82rem; min-width: 7rem; }

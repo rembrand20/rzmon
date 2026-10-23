@@ -156,7 +156,7 @@ let grpClosed = (() => { try { return JSON.parse(localStorage.getItem('rzmon-grp
 let alertFilter = (() => { try { return localStorage.getItem('rzmon-alert-filter') || 'all'; } catch (e) { return 'all'; } })();
 let alertSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-alert-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 // Instellingen in L1nes (zie applySettingsLayout); hier bovenaan omdat de weergave al bij het opstarten wordt toegepast
-const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', email: 'meldingen', webhook: 'meldingen', mqtt: 'meldingen', alarm: 'monitoring',
+const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', sysinfo: 'meldingen', email: 'meldingen', webhook: 'meldingen', mqtt: 'meldingen', alarm: 'monitoring',
   ids: 'monitoring', vulns: 'monitoring', update: 'systeem', agents: 'systeem', backup: 'systeem', db: 'systeem', access: 'toegang', enc: 'toegang', blocks: 'toegang', users: 'toegang', api: 'toegang', account: 'toegang', password: 'toegang' };
 let setOpen = (() => { try { return JSON.parse(localStorage.getItem('rzmon-set-open') || '{}') || {}; } catch (e) { return {}; } })();
 function saveSetOpen() { try { localStorage.setItem('rzmon-set-open', JSON.stringify(setOpen)); } catch (e) {} }
@@ -585,6 +585,7 @@ function init() {
   }
   $('#api-key-form').addEventListener('submit', createApiKey);
   initSecurity();
+  initSysinfo();
   $('#api-keys').addEventListener('click', apiKeyClick);
   $('#access-form').addEventListener('submit', saveAccess);
 
@@ -901,6 +902,11 @@ function settingsSummaries() {
     sum.ids += f.auth_events.checked ? ' · 🔑 ' + L('toegang') : '';
     if (fimGlobal && fimGlobal.get().length) sum.ids += ' · 📁 ' + (fimGlobal.get().length === 1 ? L('{n} pad', { n: 1 }) : L('{n} paden', { n: fimGlobal.get().length }));
     if ($('#vuln-enabled')) sum.vulns = $('#vuln-enabled').checked ? on(esc(L('dagelijks om {t}', { t: f.vuln_time.value }))) : off;
+    if (sysinfoCfg) {
+      const all = SYSINFO_ROWS.flatMap(([, rows]) => rows.map(([k]) => k));
+      const out = all.filter((k) => sysinfoCfg[k] && (sysinfoCfg[k].pushover || sysinfoCfg[k].email || sysinfoCfg[k].webhook)).length;
+      sum.sysinfo = esc(L('{n} van {t} naar buiten', { n: out, t: all.length })) + ' · ' + esc(L('{n} op de meldingenpagina', { n: all.filter((k) => sysinfoCfg[k] && sysinfoCfg[k].page).length }));
+    }
     if (secInfo) {
       sum.enc = !secInfo.enc.key ? `<span class="warn-txt">⚠️ ${L('geen sleutel')}</span>` : secInfo.enc.mode === 'off' ? off
         : `<span class="good-txt">🔒 ${esc(ENC_MODES.find((m) => m[0] === secInfo.enc.mode)[1].split(' (')[0])}</span> · ${L('{n} van {t} versleuteld', { n: secInfo.hosts.filter((h) => +h.enc_seen === 1).length, t: secInfo.hosts.length })}`;
@@ -3558,6 +3564,8 @@ async function loadSettings() {
   notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels), flap: parse(s.notify_flap) },
     { pushover_enabled: s.pushover_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
   quietGlobal = quietEditor($('#quiet-editor'), parse(s.notify_quiet), true);
+  sysinfoCfg = parse(s.sysinfo);
+  renderSysinfo();
   vulnExcludeEditor();
   $('#vuln-enabled').checked = s.vuln_enabled === '1';
   $('#ids-enabled').checked = s.ids_enabled === '1';
@@ -3600,7 +3608,7 @@ async function updateAllAgents(e) {
 
 // ---------------------------------------------------------------- Meldregels (algemeen en per check)
 const NOTIFY_ROWS = [
-  ['warn', '🟠 Warning'], ['crit', '🔴 Critical'], ['unknown', '⚪ ' + L('Onbekend')], ['recovery', '✅ ' + L('Hersteld')], ['info', 'ℹ️ Info'],
+  ['warn', '🟠 Warning'], ['crit', '🔴 Critical'], ['unknown', '⚪ ' + L('Onbekend')], ['recovery', '✅ ' + L('Hersteld')], ['info', 'ℹ️ ' + L('Info (checks)')],
 ];
 const NOTIFY_CHANNELS = [['pushover', 'Pushover', 'pushover_enabled'], ['email', L('E-mail'), 'email_enabled'], ['webhook', 'Home Assistant', 'ha_webhook_enabled']];
 
@@ -3719,6 +3727,66 @@ function quietEditor(el, cfg, withSwitch) {
   };
 }
 
+// ---------------------------------------------------------------- ℹ️ Systeeminfo: per melding de kanalen
+const SYSINFO_ROWS = [
+  ['RzMon', [['rzmon_update', '⬆ ' + L('RzMon bijgewerkt')]]],
+  [L('Agents'), [['agent_update', '⬆ ' + L('Agent bijgewerkt')], ['agent_update_fail', '✘ ' + L('Agent bijwerken mislukt')], ['agent_connect', '🔌 ' + L('Agent verbonden')]]],
+  [L('Inloggen'), [['login_ok', '🔑 ' + L('Ingelogd')], ['login_fail', '❌ ' + L('Mislukte login')]]],
+  [L('Blokkades'), [['account_lock', '🔒 ' + L('Account geblokkeerd')], ['account_unlock', '🔓 ' + L('Account gedeblokkeerd')],
+    ['ip_block', '⛔ ' + L('IP geblokkeerd')], ['ip_unblock', '✅ ' + L('Blokkade opgeheven')]]],
+  [L('Kwetsbaarheden'), [['vuln_new', '🐞 ' + L('Nieuwe kwetsbaarheden')], ['vuln_upgrade', '📦 ' + L('Pakketten bijgewerkt of mislukt')]]],
+  [L('Beveiliging'), [['sec', '⚠️ ' + L('Niet-geautoriseerde verbinding')]]],
+];
+const SYSINFO_CH = [['pushover', '📲 Pushover', 'pushover_enabled'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
+let sysinfoCfg = null;
+
+function renderSysinfo() {
+  const t = $('#sysinfo');
+  if (!t || !sysinfoCfg) return;
+  const f = $('#settings-form');
+  const off = (k) => k && f[k] && !f[k].checked;   // kanaal staat helemaal uit
+  t.innerHTML = `<thead><tr><th>${L('Melding')}</th>${SYSINFO_CH.map(([, l, k]) => `<th class="si-ch">${l}${off(k) ? ` <span class="muted small">(${L('uit')})</span>` : ''}</th>`).join('')}
+    <th>${L('Pushover-geluid')}</th><th></th></tr></thead><tbody>
+    ${SYSINFO_ROWS.map(([group, rows]) => `<tr class="si-group"><td colspan="7">${esc(group)}</td></tr>` + rows.map(([k, label]) => {
+      const c = sysinfoCfg[k] || {};
+      return `<tr data-si="${k}"><td>${esc(label)}${k === 'sec' ? `<div class="muted small">${L('ook tijdens stille uren')}</div>` : ''}</td>
+        ${SYSINFO_CH.map(([ch]) => {
+          const fixed = k === 'sec' && ch === 'page';   // de telling per IP staat op de meldingenpagina
+          return `<td class="si-ch"><input type="checkbox" data-ch="${ch}" ${c[ch] || fixed ? 'checked' : ''} ${fixed ? `disabled title="${esc(L('Altijd: hier telt RzMon de pogingen per IP'))}"` : ''}></td>`;
+        }).join('')}
+        <td><select data-prio ${c.pushover ? '' : 'disabled'}><option value="-1" ${+c.prio < 0 ? 'selected' : ''}>🔕 ${L('stil')}</option><option value="0" ${+c.prio >= 0 ? 'selected' : ''}>🔔 ${L('normaal')}</option></select></td>
+        <td><button type="button" class="icon-btn" data-si-test title="${esc(L('Testmelding sturen naar de aangevinkte kanalen'))}">🧪</button></td></tr>`;
+    }).join('')).join('')}</tbody>`;
+}
+
+function initSysinfo() {
+  const t = $('#sysinfo');
+  if (!t) return;
+  t.addEventListener('change', (e) => {
+    const tr = e.target.closest('tr[data-si]');
+    if (!tr || !sysinfoCfg) return;
+    const c = (sysinfoCfg[tr.dataset.si] ||= {});
+    if (e.target.dataset.ch) c[e.target.dataset.ch] = e.target.checked;
+    if (e.target.matches('[data-prio]')) c.prio = +e.target.value;
+    $('[data-prio]', tr).disabled = !c.pushover;
+  });
+  t.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-si-test]');
+    if (!b) return;
+    const tr = b.closest('tr[data-si]');
+    const label = $('td', tr).firstChild.textContent.trim();
+    const c = sysinfoCfg[tr.dataset.si];
+    const to = SYSINFO_CH.filter(([ch]) => c[ch] || (tr.dataset.si === 'sec' && ch === 'page')).map(([, l]) => l);
+    if (!to.length) return toast(L('Vink eerst minstens één kanaal aan'), 'err');
+    b.disabled = true;
+    try { await api('sysinfo_test', { event: tr.dataset.si, label, cfg: c }); toast(L('Testmelding verstuurd naar: {to}', { to: to.join(', ') })); }
+    catch (ex) { toast(ex.message, 'err'); }
+    b.disabled = false;
+  });
+  // Kanaal aan/uit (Pushover, e-mail, webhook): "(uit)" in de kop bijwerken
+  ['pushover_enabled', 'email_enabled', 'ha_webhook_enabled'].forEach((k) => $('#settings-form')[k] && $('#settings-form')[k].addEventListener('change', renderSysinfo));
+}
+
 function settingsData() {
   const f = $('#settings-form');
   if (notifyGlobal) {
@@ -3728,6 +3796,7 @@ function settingsData() {
     f.notify_flap.value = JSON.stringify(n.flap);
   }
   if (quietGlobal) f.notify_quiet.value = JSON.stringify(quietGlobal.get());
+  if (sysinfoCfg) f.sysinfo.value = JSON.stringify(sysinfoCfg);
   if (fimGlobal) f.ids_fim.value = JSON.stringify(fimGlobal.get());
   const d = {};
   [...f.elements].forEach((el) => {

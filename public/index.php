@@ -341,6 +341,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="muted small" style="margin-top:-.3rem"><?= th('Bundelen: gaan op één server binnen deze tijd meerdere checks mis (of herstellen ze), dan komt er één bericht met alles erin. De eerste melding wacht daardoor hooguit zo lang. Home Assistant krijgt wel een bericht per check, voor je automatiseringen.') ?></p>
         </div>
 
+        <div data-sk="sysinfo" class="card" id="sysinfo-card">
+          <h2>ℹ️ <?= th('Systeeminfo') ?></h2>
+          <p class="muted small"><?= t('Meldingen van RzMon zelf (geen checks): per melding waar hij heen gaat. Tijdens <b>stille uren</b> gaat er niets naar buiten, maar komt hij wel op de meldingenpagina. Pushover: <i>stil</i> (zonder geluid) of <i>normaal</i>. Met 🧪 stuur je een voorbeeld naar de aangevinkte kanalen. Infomeldingen van checks stel je in bij de rij <i>Info (checks)</i> hierboven, of per check.') ?></p>
+          <div class="table-scroll"><table class="sysinfo-table" id="sysinfo"></table></div>
+          <input type="hidden" name="sysinfo">
+        </div>
+
         <div data-sk="alarm" class="card">
           <h2><?= th('Alarmgedrag') ?></h2>
           <label><?= th('Agent offline na … minuten zonder rapport') ?><input type="number" name="agent_stale_minutes" min="1"></label>

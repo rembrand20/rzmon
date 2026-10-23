@@ -749,38 +749,39 @@ final class Monitor
             $cfg['rules']['info']['mode'] === 'now', $cfg['channels']['info'], $hold);
     }
 
-    /** Info bij een server (agent bijgewerkt): de algemene info-regel, tenzij info voor deze server uit staat */
-    public static function infoHost(array $host, callable $message): void
+    /** Info bij een server (agent bijgewerkt of mislukt, kwetsbaarheden): de rij van die melding bij ℹ️ Systeeminfo */
+    public static function infoHost(array $host, callable $message, string $event = 'agent_update'): void
     {
-        I18n::forNotify(function () use ($host, $message) {
-            $cfg = NotifyRules::global();
-            $on = $cfg['rules']['info']['mode'] === 'now' && (int) ($host['info_agent'] ?? 1) === 1;
-            $hold = NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null ? t('stille uren') : null;
-            self::sendInfo(null, (int) $host['id'], 'ℹ️ INFO: ' . $host['name'], $message(), $on, $cfg['channels']['info'], $hold, (string) $host['name']);
-        });
+        // Agent-updates per server uit te zetten (Agent Manager): dan alleen nog op de meldingenpagina
+        $pageOnly = in_array($event, ['agent_update', 'agent_update_fail'], true) && (int) ($host['info_agent'] ?? 1) !== 1;
+        self::sysInfo($event, (int) $host['id'], (string) $host['name'], 'ℹ️ INFO: ' . $host['name'], $message, null, null, $pageOnly);
     }
 
-    /** Info van RzMon zelf (bijgewerkt): de algemene info-regel */
-    public static function infoSystem(callable $message): void
+    /** Info van RzMon zelf (bijgewerkt) */
+    public static function infoSystem(callable $message, string $event = 'rzmon_update'): void
     {
-        I18n::forNotify(function () use ($message) {
-            $cfg = NotifyRules::global();
-            $hold = NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null ? t('stille uren') : null;
-            self::sendInfo(null, null, 'ℹ️ INFO: RzMon', $message(), $cfg['rules']['info']['mode'] === 'now', $cfg['channels']['info'], $hold);
-        });
+        self::sysInfo($event, null, null, 'ℹ️ INFO: RzMon', $message);
     }
 
     /**
-     * Info die altijd op de pagina Meldingen komt (logins, agents die verbinden), ook als het kanaal Meldingen of de
-     * rij Info uit staat; Pushover, e-mail en Home Assistant volgen wel de rij Info.
+     * Systeeminfo (geen check) versturen volgens zijn eigen rij bij Instellingen → 🔔 Meldingen → ℹ️ Systeeminfo:
+     * Pushover (stil of normaal), e-mail, Home Assistant en de meldingenpagina. Tijdens stille uren gaat er niets naar
+     * buiten, maar komt de melding wel op de pagina (als die aangevinkt is). $cfg/$test: voor de testknop.
      */
-    public static function infoAlways(?int $hostId, ?string $hostName, string $title, callable $message, ?string $ip = null, ?array $detail = null): void
+    public static function sysInfo(string $event, ?int $hostId, ?string $hostName, string $title, callable $message, ?string $ip = null, ?array $detail = null,
+        bool $pageOnly = false, ?array $cfg = null, bool $test = false): void
     {
         try {
-            I18n::forNotify(function () use ($hostId, $hostName, $title, $message, $ip, $detail) {
-                $cfg = NotifyRules::global();
-                $hold = NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null ? t('stille uren') : null;
-                self::sendInfo(null, $hostId, $title, $message(), $cfg['rules']['info']['mode'] === 'now', $cfg['channels']['info'], $hold, $hostName, true, $ip, $detail);
+            I18n::forNotify(function () use ($event, $hostId, $hostName, $title, $message, $ip, $detail, $pageOnly, $cfg, $test) {
+                $c = $cfg ?? (NotifyRules::sysinfo()[$event] ?? null);
+                if (!$c) {
+                    return;
+                }
+                if ($pageOnly) {
+                    $c['pushover'] = $c['email'] = $c['webhook'] = false;
+                }
+                $hold = !$test && ($c['pushover'] || $c['email'] || $c['webhook']) && NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null ? t('stille uren') : null;
+                self::sendInfo(null, $hostId, $title, $message(), true, $c, $hold, $hostName, false, $ip, $detail, (int) ($c['prio'] ?? -1));
             });
         } catch (Throwable) {
             // Een melding mag een login of rapport nooit laten mislukken
@@ -789,7 +790,7 @@ final class Monitor
 
     /** @param string|null $hold reden om niet te versturen (stille uren, onderhoud) */
     private static function sendInfo(?array $check, ?int $hostId, string $title, string $message, bool $on, array $channels, ?string $hold, ?string $hostName = null,
-        bool $always = false, ?string $ip = null, ?array $detail = null): void
+        bool $always = false, ?string $ip = null, ?array $detail = null, int $prio = -1): void
     {
         $errors = [];
         [$pushover, $email, $webhook] = [null, null, null];
@@ -801,7 +802,7 @@ final class Monitor
             $errors[] = $hold;
         } else {
             if (setting('pushover_enabled', '0') === '1' && $channels['pushover']) {
-                $r = Pushover::send($title, $message . "\n" . date('d-m-Y H:i:s'), -1);   // stil: geen geluid of trilling
+                $r = Pushover::send($title, $message . "\n" . date('d-m-Y H:i:s'), $prio);   // -1 = stil (geen geluid of trilling), 0 = normaal
                 $pushover = $r['ok'];
                 if (!$r['ok']) {
                     $errors[] = 'Pushover: ' . $r['error'];

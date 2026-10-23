@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.59.0 – 2026-10-23
+### Nieuw
+- **ℹ️ Systeeminfo per melding** (*Instellingen → Meldingen → ℹ️ Systeeminfo*): voor elke melding van RzMon zelf kies je **Pushover**, **e-mail**, **Home Assistant** en de **meldingenpagina**, en of Pushover **stil** of **met geluid** komt. Dat zijn: RzMon bijgewerkt; agent bijgewerkt, agent bijwerken mislukt, agent verbonden; ingelogd, mislukte login; account geblokkeerd en gedeblokkeerd, IP geblokkeerd en blokkade opgeheven; nieuwe kwetsbaarheden, pakketten bijgewerkt of mislukt; en ⚠️ niet-geautoriseerde verbinding. Met 🧪 stuur je per melding een voorbeeld.
+- Tijdens stille uren gaat systeeminfo niet naar buiten, maar wel op de meldingenpagina. ⚠️ *Niet-geautoriseerde verbinding* gaat ook tijdens stille uren, en kan nu ook naar e-mail of Home Assistant.
+- Na de update werkt alles zoals voorheen: de keuzes zijn overgenomen uit de rij Info. Die rij heet nu **Info (checks)** en geldt alleen nog voor checks.
+
 ## 1.58.2 – 2026-10-23
 ### Nieuw
 - Ook het **opheffen** van een blokkade staat als ℹ️-melding in *Meldingen*: *🔓 Account gedeblokkeerd* en *✅ Blokkade opgeheven*, met wie het deed (ook via de terminal met `--unlock` of `--unblock-all`) of dat de ingestelde tijd voorbij was. Verlopen blokkades worden nu binnen een minuut opgeruimd (en verdwijnen uit de lijst ⛔ *Blokkades*).

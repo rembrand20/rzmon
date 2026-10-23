@@ -698,7 +698,7 @@ final class Vulns
                     $n = count($uniq);
                     return ($n === 1 ? t('Nieuwe kwetsbaarheid') : t('{n} nieuwe kwetsbaarheden', ['n' => $n])) . ': '
                         . implode(' · ', array_slice($uniq, 0, 5)) . ($n > 5 ? ' · ' . t('en {n} meer', ['n' => $n - 5]) : '');
-                });
+                }, 'vuln_new');
             }
         }
         q('UPDATE vuln_findings SET notified = 1 WHERE notified = 0 AND (first_seen < NOW() - INTERVAL 7 DAY OR id IN (SELECT id FROM (SELECT f.id FROM vuln_findings f
@@ -812,7 +812,7 @@ final class Vulns
         $last = trim((string) strrchr("\n" . trim($log), "\n"));
         Monitor::infoHost(['info_agent' => 1] + $host, fn() => $ok
             ? '✔ ' . t('Pakketten bijgewerkt: {p}', ['p' => $pkgs])
-            : '✘ ' . t('Pakketten bijwerken mislukt: {p}', ['p' => $pkgs]) . ($last !== '' ? ' – ' . mb_substr(AgentText::tr($last), 0, 200) : ''));
+            : '✘ ' . t('Pakketten bijwerken mislukt: {p}', ['p' => $pkgs]) . ($last !== '' ? ' – ' . mb_substr(AgentText::tr($last), 0, 200) : ''), 'vuln_upgrade');
     }
 
     /** Het commando om het zelf te doen, per pakketbeheerder */

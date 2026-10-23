@@ -194,6 +194,58 @@ final class NotifyRules
         return $out;
     }
 
+    // ------------------------------------------------------------------ systeeminfo (1.59.0)
+
+    /** Systeeminfo-meldingen (geen checks), elk met eigen kanalen en Pushover-prioriteit (Instellingen → ℹ️ Systeeminfo) */
+    public const SYSINFO = ['rzmon_update', 'agent_update', 'agent_update_fail', 'agent_connect', 'login_ok', 'login_fail',
+        'account_lock', 'account_unlock', 'ip_block', 'ip_unblock', 'vuln_new', 'vuln_upgrade', 'sec'];
+    /** Tot 1.58 altijd op de meldingenpagina, ook als de rij Info dat niet zei */
+    private const SYSINFO_ALWAYS_PAGE = ['agent_connect', 'login_ok', 'login_fail', 'account_lock', 'account_unlock', 'ip_block', 'ip_unblock'];
+
+    /**
+     * Zoals het tot 1.58 werkte, uit de rij Info van de meldregels: wat toen naar een kanaal ging, blijft aangevinkt.
+     * ⚠️ Niet-geautoriseerd ging altijd naar Pushover (met geluid) en op de pagina.
+     */
+    public static function sysinfoDefaults(?string $rulesJson, ?string $channelsJson): array
+    {
+        $rules = array_replace(self::defaults()['rules'], self::cleanRules((array) json_decode((string) $rulesJson, true)));
+        $ch = array_replace(self::defaults()['channels'], self::cleanChannels((array) json_decode((string) $channelsJson, true)))['info'];
+        $on = $rules['info']['mode'] === 'now';
+        $out = [];
+        foreach (self::SYSINFO as $k) {
+            $out[$k] = $k === 'sec'
+                ? ['pushover' => true, 'email' => false, 'webhook' => false, self::PAGE => true, 'prio' => 0]
+                : ['pushover' => $on && $ch['pushover'], 'email' => $on && $ch['email'], 'webhook' => $on && $ch['webhook'],
+                    self::PAGE => in_array($k, self::SYSINFO_ALWAYS_PAGE, true) || ($ch[self::PAGE] ?? true), 'prio' => -1];
+        }
+        return $out;
+    }
+
+    /** Netjes maken: alleen bekende meldingen, kanalen als ja/nee, prioriteit stil (-1) of normaal (0). ⚠️ staat altijd op de pagina. */
+    public static function cleanSysinfo(array $in, ?array $base = null): array
+    {
+        $base ??= self::sysinfoDefaults(setting('notify_rules', ''), setting('notify_channels', ''));
+        foreach (self::SYSINFO as $k) {
+            if (isset($in[$k]) && is_array($in[$k])) {
+                foreach ([...self::CHANNELS, self::PAGE] as $c) {
+                    if (array_key_exists($c, $in[$k])) {
+                        $base[$k][$c] = !empty($in[$k][$c]);
+                    }
+                }
+                if (isset($in[$k]['prio'])) {
+                    $base[$k]['prio'] = (int) $in[$k]['prio'] >= 0 ? 0 : -1;
+                }
+            }
+        }
+        $base['sec'][self::PAGE] = true;   // de telling per IP (één melding per uur) staat op de meldingenpagina
+        return $base;
+    }
+
+    public static function sysinfo(): array
+    {
+        return self::cleanSysinfo((array) json_decode((string) setting('sysinfo', ''), true));
+    }
+
     /**
      * Eenmalig (1.25.0): de oude instellingen omzetten, zodat er niets verandert.
      * "Alarm na N fouten" → na N-1 minuten (de N-de meting van een check die elke minuut draait),
@@ -208,6 +260,9 @@ final class NotifyRules
         }
         // 1.26.0: anti-flapping standaard aan
         $pdo->prepare('INSERT IGNORE INTO settings (name, value) VALUES (?, ?)')->execute(['notify_flap', json_encode(self::defaults()['flap'])]);
+        // 1.59.0: systeeminfo per melding; eenmalig vastleggen zoals het werkte (de rij Info geldt daarna alleen voor checks)
+        $pdo->prepare('INSERT IGNORE INTO settings (name, value) VALUES (?, ?)')->execute(['sysinfo',
+            json_encode(self::sysinfoDefaults($s['notify_rules'] ?? null, $s['notify_channels'] ?? null))]);
         if (isset($s['notify_rules'])) {
             return;
         }

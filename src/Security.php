@@ -98,7 +98,7 @@ final class Security
             [$n, mb_substr(trim($reason), 0, 200) ?: null, mb_substr($by, 0, 64), now(), $until, $auto ? 1 : 0]);
         AgentCommands::audit($by, 'IP geblokkeerd', $n . ($reason !== '' ? " ($reason)" : ''));
         // ℹ️ in Meldingen: wat, door wie, waarom en tot wanneer
-        Monitor::infoAlways(null, null, '⛔ ' . t('IP geblokkeerd: {net}', ['net' => $n]), fn() => t('{net} is geblokkeerd door {by}', ['net' => $n, 'by' => $auto ? t('de inlogbeveiliging') : $by])
+        Monitor::sysInfo('ip_block', null, null, '⛔ ' . t('IP geblokkeerd: {net}', ['net' => $n]), fn() => t('{net} is geblokkeerd door {by}', ['net' => $n, 'by' => $auto ? t('de inlogbeveiliging') : $by])
             . (trim($reason) !== '' ? ' · ' . t('reden') . ': ' . trim($reason) : '') . ' · ' . ($until ? t('tot {t}', ['t' => date('d-m H:i', strtotime($until))]) : t('tot een beheerder deblokkeert')),
             str_contains($n, '/') ? null : $n);
         return true;
@@ -117,7 +117,7 @@ final class Security
     /** ℹ️ in Meldingen: een IP-blokkade is opgeheven (met de hand of verlopen) */
     private static function liftedInfo(string $net, string $how): void
     {
-        Monitor::infoAlways(null, null, '✅ ' . t('Blokkade opgeheven: {net}', ['net' => $net]),
+        Monitor::sysInfo('ip_unblock', null, null, '✅ ' . t('Blokkade opgeheven: {net}', ['net' => $net]),
             fn() => t('{net} heeft weer toegang tot RzMon', ['net' => $net]) . " · $how", str_contains($net, '/') ? null : $net);
     }
 
@@ -140,7 +140,7 @@ final class Security
     /** ℹ️ in Meldingen: een account kan weer inloggen */
     private static function unlockedInfo(string $user, string $how): void
     {
-        Monitor::infoAlways(null, null, '🔓 ' . t('Account gedeblokkeerd: {user}', ['user' => $user]),
+        Monitor::sysInfo('account_unlock', null, null, '🔓 ' . t('Account gedeblokkeerd: {user}', ['user' => $user]),
             fn() => t('{user} kan weer overal inloggen', ['user' => $user]) . " · $how");
     }
 
@@ -175,17 +175,32 @@ final class Security
             }
             I18n::forNotify(function () use ($what, $ip, $msg, $key, $label) {
                 $title = '⚠️ ' . t('Niet-geautoriseerde verbinding') . ": $label – $ip";
+                // Kanalen en prioriteit: de rij ⚠️ bij ℹ️ Systeeminfo (standaard Pushover met geluid). Ook tijdens stille uren.
+                $c = NotifyRules::sysinfo()['sec'];
                 $sent = null;
-                $err = '';
-                if (setting('pushover_enabled', '0') === '1') {
-                    $base = rtrim((string) config('base_url', ''), '/');
-                    $r = Pushover::send($title, $msg . "\n" . date('d-m-Y H:i:s'), max(0, min(1, (int) setting('pushover_priority_warn', 0))), null, null,
+                $mail = $hook = null;
+                $err = [];
+                $base = rtrim((string) config('base_url', ''), '/');
+                if ($c['pushover'] && setting('pushover_enabled', '0') === '1') {
+                    $r = Pushover::send($title, $msg . "\n" . date('d-m-Y H:i:s'), (int) $c['prio'], null, null,
                         $base !== '' ? ['url' => "$base/#alerts", 'url_title' => t('Open RzMon')] : []);
                     $sent = $r['ok'];
-                    $err = $r['ok'] ? '' : ' [' . t('niet verzonden') . ': Pushover: ' . $r['error'] . ']';
+                    $r['ok'] || $err[] = 'Pushover: ' . $r['error'];
                 }
-                q("INSERT INTO alerts (check_id, status, title, message, sent_ok, kind, ip, detail) VALUES (NULL, ?, ?, ?, ?, 'sec', ?, ?)", [
-                    STATUS_WARN, mb_substr($title, 0, 250), mb_substr($msg . $err, 0, 1000), $sent ? 1 : 0, mb_substr($ip, 0, 45),
+                if ($c['email'] && setting('email_enabled', '0') === '1') {
+                    $r = Mailer::send($title, $msg . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzMon: $base/" : ''));
+                    $mail = $r['ok'];
+                    $r['ok'] || $err[] = 'E-mail: ' . $r['error'];
+                }
+                if ($c['webhook'] && setting('ha_webhook_enabled', '0') === '1') {
+                    $r = Webhook::send(['source' => 'rzmon', 'event' => 'unauthorized', 'status' => STATUS_WARN, 'status_text' => STATUS_LABELS[STATUS_WARN],
+                        'host' => null, 'ip' => $ip, 'title' => $title, 'message' => $msg, 'time' => date('c'), 'url' => $base ?: null]);
+                    $hook = $r['ok'];
+                    $r['ok'] || $err[] = 'Webhook: ' . $r['error'];
+                }
+                $err = $err ? ' [' . t('niet verzonden') . ': ' . implode('; ', $err) . ']' : '';
+                q("INSERT INTO alerts (check_id, status, title, message, sent_ok, email_ok, webhook_ok, kind, ip, detail) VALUES (NULL, ?, ?, ?, ?, ?, ?, 'sec', ?, ?)", [
+                    STATUS_WARN, mb_substr($title, 0, 250), mb_substr($msg . $err, 0, 1000), $sent ? 1 : 0, $mail === null ? null : (int) $mail, $hook === null ? null : (int) $hook, mb_substr($ip, 0, 45),
                     json_encode(['key' => $key, 'what' => $what, 'n' => 1, 'last' => now()], JSON_UNESCAPED_UNICODE)]);
             });
         } catch (Throwable) {
@@ -204,7 +219,7 @@ final class Security
         } catch (Throwable) {
         }
         $dev = function_exists('device_name') ? device_name() : '';
-        Monitor::infoAlways(null, null, 'ℹ️ ' . t('Ingelogd: {user}', ['user' => $u['username']]),
+        Monitor::sysInfo('login_ok', null, null, 'ℹ️ ' . t('Ingelogd: {user}', ['user' => $u['username']]),
             fn() => t('{user} logde in vanaf {ip} ({how})', ['user' => $u['username'], 'ip' => $ip, 'how' => t($how)]) . ($dev !== '' ? " · $dev" : ''), $ip);
     }
 
@@ -271,7 +286,7 @@ final class Security
                 && q('UPDATE users SET locked_at = ?, locked_until = ?, locked_ip = ? WHERE username = ? AND (locked_at IS NULL OR (locked_until IS NOT NULL AND locked_until <= NOW()))',
                     [now(), $until, mb_substr($ip, 0, 45), $user])->rowCount() > 0) {
                 $done[] = '🔒 ' . t('account {user} geblokkeerd', ['user' => $user]);
-                Monitor::infoAlways(null, null, '🔒 ' . t('Account geblokkeerd: {user}', ['user' => $user]),
+                Monitor::sysInfo('account_lock', null, null, '🔒 ' . t('Account geblokkeerd: {user}', ['user' => $user]),
                     fn() => t('Account {user} is geblokkeerd na {n} mislukte logins binnen {m} minuten (laatste vanaf {ip})', ['user' => $user, 'n' => $nUser, 'm' => $cfg['window'], 'ip' => $ip])
                         . ' · ' . ($until ? t('tot {t}', ['t' => date('d-m H:i', strtotime($until))]) : t('tot een beheerder deblokkeert')) . ' · ' . t('vanaf het lokale netwerk kan inloggen nog wel'), $ip);
             }
@@ -298,7 +313,7 @@ final class Security
                     json_encode($d, JSON_UNESCAPED_UNICODE), $prev['id']]);
                 return;
             }
-            Monitor::infoAlways(null, null, 'ℹ️ ' . t('Mislukte login') . " – $ip",
+            Monitor::sysInfo('login_fail', null, null, 'ℹ️ ' . t('Mislukte login') . " – $ip",
                 fn() => t('Mislukte login vanaf {ip}: {why}', ['ip' => $ip, 'why' => t($why)]) . ' · ' . t('gebruiker') . ": $user", $ip,
                 ['key' => 'loginfail', 'n' => 1, 'users' => [$user]]);
         } catch (Throwable) {
@@ -325,7 +340,7 @@ final class Security
         if ($why === null) {
             return;
         }
-        Monitor::infoAlways((int) $prev['id'], (string) $prev['name'], 'ℹ️ ' . t('Agent verbonden: {name}', ['name' => $prev['name']]),
+        Monitor::sysInfo('agent_connect', (int) $prev['id'], (string) $prev['name'], 'ℹ️ ' . t('Agent verbonden: {name}', ['name' => $prev['name']]),
             fn() => t('Agent op {name} {why}', ['name' => $prev['name'], 'why' => $why]) . " · IP $ip · " . ($encrypted ? '🔒 ' . t('versleuteld') : '🔓 ' . t('niet versleuteld')), $ip);
     }
 
