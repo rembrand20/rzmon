@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.57.1 – 2026-10-23
+### Opgelost
+- Op de pagina Meldingen stond bij een melding die nergens heen gestuurd is (kanaal of meldregel uit) het icoontje ✉️✕. Dat leek op een mislukte e-mail, ook als e-mail uit staat. Dat is nu 🔕 (*niet verstuurd, alleen op deze pagina*). RzMon probeerde nooit een mail te sturen als e-mail uit staat.
+
 ## 1.57.0 – 2026-10-23
 ### Nieuw
 - **🔐 Versleutelde agents** (*Instellingen → Toegang → Versleuteling van de agents*). Met **🎲 Sleutel genereren** maak je één sleutel; agents vanaf **1.49.0** krijgen hem bij hun volgende rapport en versturen daarna alles versleuteld (AES-256 met een handtekening): het rapport, de voortgang van pakketten bijwerken en het ophalen van hun instellingen. Het antwoord van RzMon komt ook versleuteld terug. Oude of opnieuw afgespeelde berichten en een verkeerde sleutel worden geweigerd. Kies *Uit*, *Aan* (standaard; oude agents werken nog) of *Verplicht*, en per server een eigen keuze in de Agent Manager. Een nieuwe sleutel: de vorige blijft nog 24 uur geldig. Het installatiecommando in de Agent Manager geeft de sleutel mee (`--key`). **Nieuwe agent 1.49.0** nodig om te versleutelen.

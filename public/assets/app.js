@@ -2844,7 +2844,8 @@ function channelIcons(a) {
   if (+a.sent_ok) out.push(tip('Verstuurd via Pushover', '📲'));
   if (a.email_ok !== null && a.email_ok !== undefined) out.push(+a.email_ok ? tip('Verstuurd per e-mail', '📧') : tip('E-mail mislukt', '📧✕'));
   if (a.webhook_ok !== null) out.push(+a.webhook_ok ? tip('Verstuurd naar Home Assistant', '🏠') : tip('Webhook mislukt', '🏠✕'));
-  if (!out.length) out.push(tip('Niet verzonden', '✉️✕'));
+  // Nergens heen verstuurd (kanaal of regel staat uit): alleen op deze pagina. Geen ✉️, dat leek op een mislukte e-mail.
+  if (!out.length) out.push(tip('Niet verstuurd: alleen op deze pagina (zie de meldregels)', '🔕'));
   return out.join(' ');
 }
 

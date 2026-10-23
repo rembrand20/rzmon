@@ -74,7 +74,7 @@ RzMon bestaat uit vier onderdelen:
 - **Herhaalmelding** elke X minuten zolang het probleem blijft (standaard 60, 0 = uit).
 - **Herstelmelding** ✅ als het weer goed gaat, met lage prioriteit dus zonder geluid.
 - **Prioriteit en geluid instelbaar**, apart voor critical en warning, inclusief *Emergency* (blijft herhalen tot je hem bevestigt).
-- **Testknoppen** voor elk kanaal, en een **meldingenlog** dat per melding toont via welk kanaal hij is verstuurd (📲 / 📧 / 🏠).
+- **Testknoppen** voor elk kanaal, en een **meldingenlog** dat per melding toont via welk kanaal hij is verstuurd: 📲 Pushover, 📧 e-mail, 🏠 Home Assistant (met ✕ = mislukt), of 🔕 = niet verstuurd, alleen op de pagina (kanaal of meldregel staat uit).
 - **Meldingen per dag** (pagina *Meldingen*): elke dag een uitklapblok met tellers (🔴 critical, 🟠 warning, ⚪ onbekend, ✅ hersteld, ✔ bevestigd). *Vandaag* staat open, de andere dagen dicht; **⊞ Alles openen** klapt alles open. Hoeveel dagen bewaard en getoond worden, stel je in onder *Instellingen → Alarmgedrag → Meldingen bewaren (dagen)*. **Sorteren:** in L1nes klik je op een kolomkop (Tijd, Status, Server, Check, Bericht, Kanalen); in Blox kies je *Sorteren op …*. Klik op een melding voor de popup van die check.
 
 ### Storingen bevestigen

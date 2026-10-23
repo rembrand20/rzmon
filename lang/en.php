@@ -2337,4 +2337,5 @@ return [
     'verkeerde 2FA-code' => 'wrong 2FA code',
     'geen token meegestuurd' => 'no token sent',
     'onbekend token (verkeerd gekopieerd, of in RzMon vernieuwd?)' => 'unknown token (copied wrongly, or renewed in RzMon?)',
+    'Niet verstuurd: alleen op deze pagina (zie de meldregels)' => 'Not sent: only on this page (see the notification rules)',
 ];
