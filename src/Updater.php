@@ -104,7 +104,20 @@ final class Updater
             return ['state' => 'queued', 'step' => 'queued', 'message' => t('Wachten op de hulpdienst…'), 'at' => $at,
                 'stuck' => $at < time() - 120];
         }
-        return is_array($st) ? $st : null;
+        if (!is_array($st)) {
+            return null;
+        }
+        // Loopt hij nog? Het script (vanaf 1.56.1, "hb") raakt het statusbestand elke 10 seconden aan. Zonder dat
+        // teken van leven (afgebroken, server herstart) blijft de status anders altijd "bezig".
+        if ($st['state'] === 'running') {
+            $age = time() - (int) @filemtime(self::DIR . '/update.status');
+            if ($age > (!empty($st['hb']) ? 90 : 1200)) {
+                $st['state'] = 'error';
+                $st['stale'] = true;
+                $st['message'] = t('De update geeft al {n} minuten geen teken van leven (afgebroken?). Kijk in het logboek; RzMon zelf werkt gewoon door.', ['n' => max(1, intdiv($age, 60))]);
+            }
+        }
+        return $st;
     }
 
     public static function running(): bool

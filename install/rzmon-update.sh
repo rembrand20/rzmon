@@ -36,14 +36,21 @@ chmod 0640 "$LOG"
 
 json_str() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\000-\037'; }
 status() {   # status <state> <stap> <tekst> [procent] [onderdeel, bv. "3/9 Diensten starten"]
-    printf '{"state":"%s","step":"%s","message":"%s","pct":%s,"detail":"%s","from":"%s","to":"%s","started":%s,"at":%s}\n' \
+    printf '{"state":"%s","step":"%s","message":"%s","pct":%s,"detail":"%s","from":"%s","to":"%s","started":%s,"at":%s,"hb":10}\n' \
         "$1" "$2" "$(json_str "$3")" "${4:-null}" "$(json_str "${5:-}")" "$(json_str "$from")" "$(json_str "${to:-}")" "$started" "$(date +%s)" >"$STATUS.tmp"
     chgrp "$GROUP" "$STATUS.tmp"
     chmod 0640 "$STATUS.tmp"
     mv -f "$STATUS.tmp" "$STATUS"
     printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$3" >>"$LOG"
 }
-fail() { status error "${step:-}" "$1"; exit 1; }
+fail() { status error "${step:-}" "$1"; finished=1; exit 1; }
+
+# Teken van leven: elke 10 seconden het statusbestand aanraken, zodat RzMon ziet dat de update nog loopt.
+# Stopt het script onverwacht (zonder ok of fout), dan zegt het dat zelf.
+( while sleep 10; do touch -c "$STATUS" 2>/dev/null; done ) &
+hb_pid=$!
+finished=0
+trap 'kill "$hb_pid" 2>/dev/null; [ "$finished" = 1 ] || status error "${step:-}" "Bijwerken onverwacht gestopt (zie het logboek)"' EXIT
 
 # Veiligheid: dit script draait als root. Kan de webserver iets in de map veranderen (ontgrendeld met
 # --unlock, of bestanden van een andere eigenaar), dan zou hij zo code als root kunnen laten uitvoeren.
@@ -90,4 +97,5 @@ fi
 
 step=klaar
 status ok klaar "RzMon bijgewerkt van $from naar $to" 100
+finished=1
 exit 0

@@ -2250,4 +2250,7 @@ return [
     'Opnieuw gescand: de lijst met kwetsbaarheden is bijgewerkt.' => 'Rescanned: the list of vulnerabilities has been updated.',
     'RzMon scant opnieuw zodra de agent de nieuwe softwarelijst stuurt (meestal binnen een paar minuten).' => 'RzMon rescans as soon as the agent sends the new software list (usually within a few minutes).',
     'Deze agent meldt geen tussenstand. Werk hem bij naar {v} voor een voortgangsbalk.' => 'This agent does not report progress. Update it to {v} for a progress bar.',
+    'De update geeft al {n} minuten geen teken van leven (afgebroken?). Kijk in het logboek; RzMon zelf werkt gewoon door.' => 'The update has shown no sign of life for {n} minutes (aborted?). Check the log; RzMon itself keeps running.',
+    'Controleer op de server:' => 'Check on the server:',
+    'en' => 'and',
 ];

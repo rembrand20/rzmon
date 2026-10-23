@@ -4020,17 +4020,21 @@ function showUpdateProgress(s, log) {
 }
 
 let updateFails = 0;   // opeenvolgende keren geen antwoord (RzMon wordt herstart)
+let updatePollAt = 0;  // laatste vraag die een antwoord (of fout) kreeg; voor de waakhond hieronder
 function pollUpdate() {
   clearTimeout(updatePoll);
   updatePoll = setTimeout(async () => {
     let r;
-    try { r = await api('update_status'); updateFails = 0; }
+    // Hooguit 10 seconden wachten: tijdens het herstarten van PHP of Apache kan een verzoek anders blijven hangen
+    try { r = await Promise.race([api('update_status'), new Promise((res, rej) => setTimeout(() => rej(new Error('timeout')), 10000))]); updateFails = 0; }
     catch (ex) {   // even onbereikbaar tijdens het installeren
+      updatePollAt = Date.now();
       updateFails++;
       if (updateDialogShown()) $('#upd-now').innerHTML = '🔄 ' + L('Even geduld, RzMon wordt herstart…');
       pollUpdate();
       return;
     }
+    updatePollAt = Date.now();
     showUpdateProgress(r.status, r.log);
     showUpdateDialog(r.status, r.log);
     if (r.status && ['queued', 'running'].includes(r.status.state)) return pollUpdate();
@@ -4040,6 +4044,10 @@ function pollUpdate() {
     }
   }, 1500);
 }
+
+// Waakhond: staat het venster open maar kwam er 20 seconden geen antwoord (bv. de telefoon sliep), dan opnieuw beginnen
+setInterval(() => { if (updateDialogShown() && Date.now() - updatePollAt > 20000) { updatePollAt = Date.now(); pollUpdate(); } }, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && updateDialogShown()) pollUpdate(); });
 
 // ---------------------------------------------------------------- Update-venster: vraag, voortgangsbalk en wat er gebeurt
 const updateDialogShown = () => $('#modal').open && !!$('#modal-body .upd-dlg');
@@ -4112,6 +4120,7 @@ function showUpdateDialog(s, log, force = false) {
       <ol class="update-steps">${UPDATE_STEPS.map(([k, l], i) => `<li class="${i === cur ? 'cur' : ''}">${icon(i)} ${l}</li>`).join('')}</ol>
       <p class="upd-now" id="upd-now">${now}</p>
       ${s.state === 'queued' && s.stuck ? `<p class="warn-txt small">${L('De hulpdienst reageert niet. Controleer op de server:')} <code>systemctl status rzmon-update.path</code></p>` : ''}
+      ${s.stale ? `<p class="small">${L('Controleer op de server:')} <code>systemctl status rzmon-update.service</code> ${L('en')} <code>tail -30 /var/lib/rzmon/update.log</code></p>` : ''}
       ${tail ? `<pre class="update-log upd-log">${esc(tail)}</pre>` : ''}
     </div>`,
     buttons: s.state === 'ok' ? []

@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.56.1 – 2026-10-23
+### Opgelost
+- **Het update-venster kon blijven hangen op *Installeren*.** Tijdens het installeren worden PHP en Apache herstart; een vraag om de voortgang die op dat moment liep, kon dan eeuwig blijven wachten, waarna het venster niets meer ververste. Nu wacht elke vraag hooguit 10 seconden, en komt er 20 seconden niets binnen (of kom je terug in de app op je telefoon), dan vraagt het venster opnieuw.
+- **Een afgebroken update bleef altijd "bezig".** Het update-script geeft nu elke 10 seconden een teken van leven, en stopt het onverwacht, dan meldt het dat zelf. Blijft het teken van leven uit (90 seconden, of 20 minuten bij een update die nog met het oude script loopt), dan zegt het venster dat de update niet meer reageert, met het logboek en wat je op de server kunt controleren. Daarna kun je opnieuw bijwerken.
+- Het teken van leven werkt vanaf de update ná deze, omdat het update-script zelf tijdens deze update wordt vernieuwd. De rest werkt meteen.
+
 ## 1.56.0 – 2026-10-23
 ### Nieuw
 - **Voortgang bij bijwerken op de pagina 🐞 Kwetsbaarheden.** Na *⬆ Bijwerken* blijft het venster open met een voortgangsbalk, de stappen (*Wachten op de agent → Pakketlijst ophalen → Downloaden → Installeren → Klaar*), waar de server nu mee bezig is (bv. *Installeren: openssl*) en de laatste regels van apt of dnf. Met *Op de achtergrond* sluit je het; bij de server staat dan *⏳ Bezig met bijwerken 45%* om het weer te openen. **Agent 1.48.0 nodig** voor het percentage; met een oudere agent zie je een bewegende balk.
