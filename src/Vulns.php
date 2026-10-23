@@ -183,7 +183,9 @@ final class Vulns
             }
             $n = 0;
             $ex = self::excluded();
-            foreach (q('SELECT host_id FROM vuln_inventory WHERE scanned_at IS NULL ORDER BY updated_at')->fetchAll(PDO::FETCH_COLUMN) as $hid) {
+            // Nog niet gescand, of de vorige keer mislukt (dan elk uur opnieuw proberen)
+            foreach (q('SELECT host_id FROM vuln_inventory WHERE scanned_at IS NULL OR (scan_error IS NOT NULL AND ecosystem IS NOT NULL AND scanned_at < NOW() - INTERVAL 1 HOUR)
+                        ORDER BY scanned_at IS NOT NULL, updated_at')->fetchAll(PDO::FETCH_COLUMN) as $hid) {
                 if (time() >= $end) {
                     break;
                 }
@@ -248,9 +250,12 @@ final class Vulns
                 $all += $ids;
             }
             self::fetchVulns($all);
-        } catch (RuntimeException $e) {
+        } catch (VulnFetchError $e) {
             $done(t('OSV.dev niet bereikbaar') . ': ' . $e->getMessage());
             return t('Kwetsbaarheden: OSV.dev niet bereikbaar') . ': ' . $e->getMessage();
+        } catch (Throwable $e) {
+            $done(mb_substr(t('Scannen mislukt') . ': ' . $e->getMessage(), 0, 300));
+            return t('Kwetsbaarheden: scannen mislukt') . ': ' . $e->getMessage();
         }
 
         $cache = [];
@@ -292,7 +297,7 @@ final class Vulns
     private static function fetchVulns(array $modifiedById): void
     {
         $need = [];
-        foreach (array_chunk(array_keys($modifiedById), 500, true) as $chunk) {
+        foreach (array_chunk(array_map('strval', array_keys($modifiedById)), 500) as $chunk) {
             $have = q('SELECT vuln_id, modified FROM vuln_cache WHERE vuln_id IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')', $chunk)->fetchAll(PDO::FETCH_KEY_PAIR);
             foreach ($chunk as $id) {
                 if (!isset($have[$id]) || ($modifiedById[$id] !== '' && $have[$id] !== $modifiedById[$id])) {
@@ -593,7 +598,7 @@ final class Vulns
     {
         try {
             $r = self::http('GET', self::KEV);
-        } catch (RuntimeException) {
+        } catch (VulnFetchError) {
             return;   // morgen opnieuw
         }
         $map = [];
@@ -627,7 +632,7 @@ final class Vulns
             }
             try {
                 $r = self::http('GET', self::EPSS . '?cve=' . implode(',', $chunk));
-            } catch (RuntimeException) {
+            } catch (VulnFetchError) {
                 break;
             }
             $got = [];
@@ -649,7 +654,7 @@ final class Vulns
             }
             try {
                 $r = self::http('GET', self::NVD . '?cveId=' . rawurlencode($cve));
-            } catch (RuntimeException) {
+            } catch (VulnFetchError) {
                 return;
             }
             $m = $r['vulnerabilities'][0]['cve']['metrics'] ?? [];
@@ -953,7 +958,7 @@ final class Vulns
         $err = curl_error($ch);
         curl_close($ch);
         if ($raw === false || $code >= 400 || $code === 0) {
-            throw new RuntimeException($err ?: "HTTP $code");
+            throw new VulnFetchError($err ?: "HTTP $code");
         }
         return (array) json_decode((string) $raw, true);
     }
@@ -985,8 +990,13 @@ final class Vulns
         }
         curl_multi_close($mh);
         if ($urls && !array_filter($out)) {
-            throw new RuntimeException(t('geen antwoord'));
+            throw new VulnFetchError(t('geen antwoord'));
         }
         return $out;
     }
+}
+
+/** Een externe bron (OSV.dev, CISA, FIRST, NVD) gaf geen (goed) antwoord; andere fouten zijn geen netwerkprobleem */
+final class VulnFetchError extends RuntimeException
+{
 }

@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.54.2 – 2026-10-23
+### Opgelost
+- **Kwetsbaarheden: scannen mislukte bij servers met veel kwetsbaarheden** (meer dan 500, bijvoorbeeld Debian of Proxmox) met *SQLSTATE[HY093]: Invalid parameter number*. Dat kwam door het opslaan in de database, niet door OSV.dev; toch stond er *OSV.dev niet bereikbaar*. Beide zijn opgelost: andere fouten heten nu *Scannen mislukt*.
+- Een server waarvan de scan mislukte, wordt nu elk uur opnieuw geprobeerd in plaats van pas bij de dagelijkse scan. Na de update komt het dus vanzelf goed; met *🔍 Nu scannen* meteen.
+- Op de telefoon stond het pijltje ▸ bij een server op een eigen regel.
+
 ## 1.54.1 – 2026-10-23
 ### Opgelost
 - De schakelaar **Kwetsbaarheden aan** (*Instellingen → 🐞 Kwetsbaarheden*) deed niets zolang je niet ook op *💾 Instellingen opslaan* klikte. Nu werkt hij direct, net als de schakelaar van het IDS: je ziet *Kwetsbaarheden aangezet*, en na een tel staat het tabblad 🐞 Kwetsbaarheden in de bovenbalk (of is het weg bij uitzetten).

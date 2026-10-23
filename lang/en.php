@@ -2218,4 +2218,6 @@ return [
     '{n} met een fout' => '{n} with an error',
     'Kwetsbaarheden aangezet' => 'Vulnerabilities turned on',
     'Kwetsbaarheden uitgezet' => 'Vulnerabilities turned off',
+    'Scannen mislukt' => 'Scan failed',
+    'Kwetsbaarheden: scannen mislukt' => 'Vulnerabilities: scan failed',
 ];

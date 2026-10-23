@@ -859,9 +859,9 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .vuln-host { padding: 0; overflow: hidden; }
 .vuln-host > summary { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .8rem 1rem; cursor: pointer; list-style: none; }
 .vuln-host > summary::-webkit-details-marker { display: none; }
-.vuln-host > summary::before { content: '▸'; color: var(--muted); }
-.vuln-host[open] > summary::before { content: '▾'; }
-.vh-name { flex: 1 1 auto; min-width: 0; }
+.vuln-host > summary .vh-name::before { content: '▸ '; color: var(--muted); }   /* pijltje vast aan de naam (ook op de telefoon) */
+.vuln-host[open] > summary .vh-name::before { content: '▾ '; }
+.vh-name { flex: 1 1 260px; min-width: 0; }
 .vh-counts { display: flex; gap: .3rem; flex-wrap: wrap; }
 .vh-notes, .vh-actions { margin: 0; padding: 0 1rem .6rem; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 .vh-notes:empty, .vh-actions:empty { display: none; }
