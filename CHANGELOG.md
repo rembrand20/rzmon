@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.58.1 – 2026-10-23
+### Nieuw
+- Elke blokkade staat nu ook als **ℹ️-melding** in *Meldingen*: *🔒 Account geblokkeerd* (inlogbeveiliging) en *⛔ IP geblokkeerd* (door de inlogbeveiliging of met de hand), met de reden, door wie en tot wanneer. De ⚠️-melding met Pushover blijft zoals hij was.
+
 ## 1.58.0 – 2026-10-23
 ### Nieuw
 - **🔐 Inlogbeveiliging** (*Instellingen → Toegang*, standaard aan): na **3** mislukte pogingen (ook een verkeerde 2FA-code) binnen **10** minuten wordt het **account** geblokkeerd en het **IP-adres**, als dat niet uit je lokale netwerken komt. Aantal, tijd en wat er geblokkeerd wordt stel je zelf in.

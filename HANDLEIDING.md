@@ -1589,6 +1589,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - **Blokkade opheffen na [60] minuten** (account en IP); **0** = tot een beheerder deblokkeert.
 - **Deblokkeren** (beheerders): bij *Gebruikers* staat 🔒 *geblokkeerd tot …* met **🔓 Deblokkeren**; IP-adressen bij ⛔ *Blokkades* (🗑). Op de server: `sudo php install/install.php --unlock <gebruiker>` en `--unblock-all`.
 - Bij het blokkeren krijg je een **⚠️-melding met Pushover**: hoeveel pogingen, welk account en welk IP, en tot wanneer.
+- Daarnaast staat elke blokkade als **ℹ️-melding** in *Meldingen*: *🔒 Account geblokkeerd: …* en *⛔ IP geblokkeerd: …* (ook als je zelf een IP blokkeert), met de reden, door wie en tot wanneer.
 
 **Meldingen** (pagina *Meldingen*)
 - **⚠️ Niet-geautoriseerde verbinding** (warning, **altijd naar Pushover**, ook tijdens stille uren): een agent met een onbekend of fout token, een verkeerde sleutel of handtekening, een oud of opnieuw afgespeeld bericht, of onversleuteld terwijl het verplicht is; een verkeerde, verlopen of niet toegestane **API-sleutel**; en het aantal mislukte logins uit de **inlogbeveiliging** (standaard 3 binnen 10 minuten). Per IP en soort één melding (en één Pushover) per uur; daarna loopt de teller op (*4×*). Met **⛔ blokkeren** zet je het IP (of het netwerk) direct op de blokkadelijst.

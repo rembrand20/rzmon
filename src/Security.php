@@ -97,6 +97,10 @@ final class Security
            ON DUPLICATE KEY UPDATE reason = VALUES(reason), created_by = VALUES(created_by), created_at = VALUES(created_at), until = VALUES(until), auto = VALUES(auto)',
             [$n, mb_substr(trim($reason), 0, 200) ?: null, mb_substr($by, 0, 64), now(), $until, $auto ? 1 : 0]);
         AgentCommands::audit($by, 'IP geblokkeerd', $n . ($reason !== '' ? " ($reason)" : ''));
+        // ℹ️ in Meldingen: wat, door wie, waarom en tot wanneer
+        Monitor::infoAlways(null, null, '⛔ ' . t('IP geblokkeerd: {net}', ['net' => $n]), fn() => t('{net} is geblokkeerd door {by}', ['net' => $n, 'by' => $auto ? t('de inlogbeveiliging') : $by])
+            . (trim($reason) !== '' ? ' · ' . t('reden') . ': ' . trim($reason) : '') . ' · ' . ($until ? t('tot {t}', ['t' => date('d-m H:i', strtotime($until))]) : t('tot een beheerder deblokkeert')),
+            str_contains($n, '/') ? null : $n);
         return true;
     }
 
@@ -232,6 +236,9 @@ final class Security
                 && q('UPDATE users SET locked_at = ?, locked_until = ?, locked_ip = ? WHERE username = ? AND (locked_at IS NULL OR (locked_until IS NOT NULL AND locked_until <= NOW()))',
                     [now(), $until, mb_substr($ip, 0, 45), $user])->rowCount() > 0) {
                 $done[] = '🔒 ' . t('account {user} geblokkeerd', ['user' => $user]);
+                Monitor::infoAlways(null, null, '🔒 ' . t('Account geblokkeerd: {user}', ['user' => $user]),
+                    fn() => t('Account {user} is geblokkeerd na {n} mislukte logins binnen {m} minuten (laatste vanaf {ip})', ['user' => $user, 'n' => $nUser, 'm' => $cfg['window'], 'ip' => $ip])
+                        . ' · ' . ($until ? t('tot {t}', ['t' => date('d-m H:i', strtotime($until))]) : t('tot een beheerder deblokkeert')) . ' · ' . t('vanaf het lokale netwerk kan inloggen nog wel'), $ip);
             }
             if ($cfg['ip'] && $nIp >= $cfg['fails'] && !self::fromLan() && !self::blockFor($ip)
                 && self::block($ip, t('automatisch: {n} mislukte logins ({user})', ['n' => $nIp, 'user' => $user]), 'automatisch', $until, true) === true) {

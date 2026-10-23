@@ -2359,4 +2359,11 @@ return [
     'Te veel mislukte pogingen vanaf {ip}; vanaf het lokale netwerk kan inloggen nog wel' => 'Too many failed attempts from {ip}; logging in from the local network still works',
     'geblokkeerd tot {t}' => 'locked until {t}',
     '{user} gedeblokkeerd' => '{user} unlocked',
+    'IP geblokkeerd: {net}' => 'IP blocked: {net}',
+    '{net} is geblokkeerd door {by}' => '{net} was blocked by {by}',
+    'de inlogbeveiliging' => 'login protection',
+    'reden' => 'reason',
+    'Account geblokkeerd: {user}' => 'Account locked: {user}',
+    'Account {user} is geblokkeerd na {n} mislukte logins binnen {m} minuten (laatste vanaf {ip})' => 'Account {user} was locked after {n} failed logins within {m} minutes (last from {ip})',
+    'vanaf het lokale netwerk kan inloggen nog wel' => 'logging in from the local network still works',
 ];
