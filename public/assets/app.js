@@ -340,6 +340,7 @@ function init() {
     b.disabled = false;
   };
   $$('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
+  initMainTabs();
   showTab(location.hash.slice(1) || 'dashboard');
 
   initAccountMenu();
@@ -598,6 +599,7 @@ function showTab(name) {
   if (name === 'settings' && !isAdmin()) name = $('#tab-account') ? 'account' : 'dashboard';   // instellingen: alleen beheerders
   if (!$('#tab-' + name)) name = 'dashboard';
   $$('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+  moveTabIndicator();
   $$('.tab-panel').forEach((p) => (p.hidden = p.id !== 'tab-' + name));
   history.replaceState(null, '', '#' + name);
   if (name === 'settings') { loadSettings(); showSettingsSection(sub || setSection); }
@@ -3622,6 +3624,36 @@ function initAccountMenu() {
 function markTheme() {
   const cur = document.documentElement.dataset.theme || 'auto';
   $$('[data-theme-set]').forEach((b) => b.classList.toggle('active', b.dataset.themeSet === cur));
+}
+
+// ---------------------------------------------------------------- Tabbladen bovenaan: een vlak dat naar het actieve tabblad schuift
+function moveTabIndicator(anim = true) {
+  const ind = $('#main-tabs .tab-ind');
+  if (!ind) return;
+  const t = $('#main-tabs .tab.active');
+  ind.classList.toggle('no-anim', !anim);
+  // Instellingen of Mijn account: geen tabblad actief, dan ook geen vlak
+  ind.style.opacity = t ? '1' : '0';
+  if (t) { ind.style.width = t.offsetWidth + 'px'; ind.style.transform = `translateX(${t.offsetLeft}px)`; }
+}
+
+function initMainTabs() {
+  const nav = $('#main-tabs');
+  if (!nav) return;
+  moveTabIndicator(false);
+  let rt;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => moveTabIndicator(false), 100); });
+  if (document.fonts) document.fonts.ready.then(() => moveTabIndicator(false));
+  // Teller omhoog: het bolletje pulseert even
+  $$('.tab-badge', nav).forEach((b) => {
+    let last = parseInt(b.textContent, 10) || 0;
+    new MutationObserver(() => {
+      const n = b.hidden ? 0 : parseInt(b.textContent, 10) || 0;
+      if (n > last) { b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); }
+      last = n;
+      moveTabIndicator();   // met een teller wordt het tabblad breder
+    }).observe(b, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+  });
 }
 
 // ---------------------------------------------------------------- Instellingen: zijbalk met onderdelen

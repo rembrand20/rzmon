@@ -2478,4 +2478,5 @@ return [
     'Klik op een punt om het meteen te regelen. Grijze punten zijn optioneel en tellen niet mee.' => 'Click an item to fix it right away. Grey items are optional and do not count.',
     'meer uitleg' => 'more',
     'minder' => 'less',
+    'CVE\'s' => 'CVEs',
 ];

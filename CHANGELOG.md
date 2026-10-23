@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.63.0 – 2026-10-23
+### Nieuw
+- **Nieuwe tabbladen**: Dashboard, Meldingen, IDS en Kwetsbaarheden in één afgeronde balk midden in de bovenbalk, met eigen lijn-iconen en een vlak dat naar het actieve tabblad schuift. De bovenbalk blijft staan als je scrolt.
+- **Op de telefoon een tabbalk onderaan het scherm**, zoals in de Home Assistant-app: icoon met kort label, niets valt meer weg.
+- De tellers zijn bolletjes op het icoon, in de kleur van het ergste probleem, en pulseren kort als het aantal omhooggaat.
+
 ## 1.62.0 – 2026-10-23
 ### Nieuw
 - **✅ Hoe staat het ervoor?** (stap 3 van de vernieuwing van de instellingen): het eerste onderdeel van Instellingen, met een score en een lijst aandachtspunten: meldkanaal, automatische back-up, 2FA voor beheerders, inlogbeveiliging, nieuwe RzMon-versie, verouderde of onversleutelde agents, HTTPS, kwetsbaarheden en IDS. Klik op een punt en je staat bij de instelling. Een groep met een aandachtspunt krijgt een oranje of rood bolletje in de zijbalk.

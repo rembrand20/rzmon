@@ -57,6 +57,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Twee lay-outs**, per apparaat te kiezen (*Mijn account → Weergave*), voor het dashboard en de meldingen:
   - **Blox**: tegels, in **Small** (compact, meer servers in beeld) of **Large**;
   - **L1nes**: rijen, in **Small** of **Large**.
+- **Tabbladen in één balk** (Dashboard, Meldingen, IDS, Kwetsbaarheden) met eigen lijn-iconen en een vlak dat naar het actieve tabblad schuift; de bovenbalk blijft staan als je scrolt. Op de telefoon een **tabbalk onderaan het scherm**, zoals in een app.
 - **Tellers op de tabbladen** Dashboard (nieuwe problemen, in de kleur van het ergste) en Meldingen (nieuwe meldingen), sinds je laatste bezoek; per gebruiker onthouden en ook in de titel van het browsertabblad.
 - **Per server:** de algehele status, de checks met problemen en mini-meters voor CPU, RAM en disk. Uitklappen toont alle checks in **groepen** (📊 Systeem met CPU, RAM en disks, 🌐 Bereikbaarheid, ⚙️ Services, 📦 Containers, 🖥️ Commando's, 📜 Logbestanden, 🔒 Certificaten, 🏠 Home Assistant), elke groep in en uit te klappen. Problemen staan bovenaan in de groep **⚠️ Problemen**, per status (critical, warning, onbekend, bevestigd); een nieuw probleem klapt die groep vanzelf open.
 - **Popup per check** (klik op een check): status en bericht, instellingen, beschikbaarheid en de **laatste 5 statuswijzigingen** met het bericht dat ze veroorzaakte en of en via welke kanalen er gemeld is (of waarom niet).
