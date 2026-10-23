@@ -49,7 +49,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **🛡️ IDS**: inbraakdetectie via de agents, op een eigen pagina. Gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen, reverse shells, brute force en inlog na brute force. Eerst *leren* (alleen melden), daarna eventueel *blokkeren*: aanvallers komen in een eigen firewalltabel op de server, met een knop om te deblokkeren. Ook je eigen paden bewaken (hash, rechten, eigenaar), bv. `/usr/local/bin` of `/var/www/**/*.php`. Critical ook via Pushover. Standaard uit.
 
-**🔐 Beveiliging van RzMon zelf**: agents (1.49.0+) versturen alles **versleuteld** met een sleutel die je met één klik maakt (per agent aan of uit te zetten), een **blokkadelijst** op IP-adres of netwerk voor heel RzMon, ⚠️ + Pushover bij een niet-geautoriseerde verbinding (fout token, verkeerde sleutel of API-sleutel, 3 mislukte logins), en ℹ️ bij elke login en als een agent verbindt.
+**🔐 Beveiliging van RzMon zelf**: elke agent (1.50.0+) heeft een **eigen sleutel** en versturt alles **versleuteld en ondertekend** (geen token meer over de lijn, per agent aan of uit te zetten); nieuwe agents koppel je met een eenmalige **koppelcode**, sleutels worden vanzelf vernieuwd, het **certificaat van RzMon** wordt vastgezet bij een eigen certificaat, en een agent van een **onbekend IP-adres** wordt geweigerd tot je hem toestaat; een **blokkadelijst** op IP-adres of netwerk voor heel RzMon, ⚠️ + Pushover bij een niet-geautoriseerde verbinding (fout token, verkeerde sleutel of API-sleutel, 3 mislukte logins), en ℹ️ bij elke login en als een agent verbindt.
 
 **🐞 Kwetsbaarheden**: welke software er op je servers staat en welke bekende kwetsbaarheden (CVE's) daarbij horen, via OSV.dev met de adviezen van de distributie zelf. Per server: wat bereikbaar is via het netwerk, wat actief misbruikt wordt, in welke versie het is opgelost en het commando om bij te werken, of bijwerken met één knop via de agent. Standaard uit.
 
@@ -167,13 +167,13 @@ Bij agent-servers zie je ook de **luisterende poorten volgens de agent** (via `s
 > Scan alleen je eigen servers. Op sommige netwerken (hosting, bedrijfsnetwerk) kan een poortscan als aanval worden gezien.
 
 ### Agent op remote servers
-Voeg in de webinterface een server toe met type **Remote met agent** en klik *Agent Manager* — je krijgt de kant-en-klare commando's met het token. Welke services bewaakt worden, kies je daarna in RzMon (＋ Check → Service, uit een lijst van de server). Kort gezegd:
+Voeg in de webinterface een server toe met type **Remote met agent** en klik *Agent Manager* — met **🔗 Koppelcode maken** krijg je het kant-en-klare commando (met een eenmalige koppelcode en controle van het script). Welke services bewaakt worden, kies je daarna in RzMon (＋ Check → Service, uit een lijst van de server). Kort gezegd:
 
 ```bash
 sudo install -m 755 rzmon-agent.sh /usr/local/bin/rzmon-agent.sh
 sudo tee /etc/default/rzmon-agent <<'EOF'
 MONITOR_URL="http://rzmon.example.lan"
-TOKEN="<token uit de webinterface>"
+PAIR_CODE="<koppelcode uit de Agent Manager>"   # eenmalig; de agent haalt er zijn eigen sleutel mee op
 EOF
 echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh >/dev/null 2>&1' | sudo tee /etc/cron.d/rzmon-agent
 ```
@@ -192,10 +192,10 @@ Op Home Assistant OS kun je geen cron-scripts op de host zetten. Daarom zit de a
 | Poortscan | Luisterende poorten van de host |
 
 Installeren:
-1. Voeg in RzMon een server toe met type **Remote met agent** (adres = IP van Home Assistant) en kopieer het token.
+1. Voeg in RzMon een server toe met type **Remote met agent** (adres = IP van Home Assistant) en maak in de Agent Manager een koppelcode (🏠 Home Assistant OS → 🔗 Koppelcode maken).
 2. Kopieer de map `ha-addon/rzmon_agent` naar de share **`addons`** (met de Samba share-add-on) of naar `/addons/` (met de SSH-add-on).
 3. *Instellingen → Add-ons → Add-on winkel* → ⋮ → **Controleren op updates** → **RzMon Agent** (onder *Lokale add-ons*) → Installeren.
-4. Op het tabblad Configuratie vul je `monitor_url` en `token` in → Starten. Het logboek toont `Verbonden met RzMon ✔`.
+4. Op het tabblad Configuratie vul je `monitor_url` en `pair_code` in → Starten. Het logboek toont `Gekoppeld met RzMon` en `Verbonden met RzMon ✔`.
 
 **Makkelijker:** voeg deze GitHub-repository toe als add-on-repository: *Add-on winkel* → ⋮ → *Repositories* → `https://github.com/rembrand20/rzmon`. De repository moet daarvoor openbaar zijn. Updates van de agent komen dan via de add-on winkel binnen.
 De add-on heeft alleen leesrechten: Supervisor-rol `default`, plus host-netwerk voor de poortlijst. Meer uitleg staat in `ha-addon/rzmon_agent/DOCS.md`; die zie je in HA ook op het tabblad *Documentatie*.

@@ -2,9 +2,15 @@ configuration:
   monitor_url:
     name: RzMon URL
     description: Adres van je RzMon-server, bv. http://192.168.1.10 of https://rzmon.mijndomein.nl
+  pair_code:
+    name: Koppelcode
+    description: Koppelcode van deze server in RzMon (Agent Manager → 🔗 Koppelcode, 15 minuten geldig). De add-on haalt daarmee zijn eigen sleutel op; daarna mag het veld blijven staan of leeg.
+  pin:
+    name: Vingerafdruk certificaat
+    description: Alleen bij een eigen (self-signed) certificaat van RzMon; staat bij de koppelcode. Dan accepteert de add-on alleen dat certificaat.
   token:
-    name: Agent token
-    description: Token van deze server in RzMon (server met type "Remote met agent" → "Agent installeren").
+    name: Agent token (oude manier)
+    description: Alleen nodig zonder koppelcode (agent ouder dan 1.50.0 of RzMon ouder dan 1.64.0).
   interval:
     name: Interval (seconden)
     description: Alleen voor oudere RzMon-versies. Vanaf RzMon 1.41.0 stel je de tik in RzMon in (Agent Manager → Rapporteren elke …).

@@ -70,29 +70,76 @@ if (!is_configured()) {
 }
 
 // ---------- Agent endpoint (token-auth, geen sessie) ----------
-/** Zoekt de server bij een agent-token; bij een fout: logboek + 403 met de reden. */
+/**
+ * Zoekt de server bij een agent-verzoek; bij een fout: logboek, ⚠️-melding en 403 met de reden.
+ * Agent 1.50.0+ met een eigen sleutel stuurt geen token, alleen het kenmerk van zijn sleutel (X-Agent-Key bij een
+ * versleuteld bericht, X-Agent-Auth bij een GET); oudere agents het token (X-Agent-Token). Heeft een server een eigen
+ * sleutel in gebruik, dan is een token alleen niet meer genoeg (tenzij versleuteling voor die server uit staat).
+ * Daarna: komt de agent van een bekend IP-adres (Instellingen → Agents → Beveiligde verbinding)?
+ */
 function agent_host(): array
 {
     $token = trim((string) ($_SERVER['HTTP_X_AGENT_TOKEN'] ?? ''));
-    $ip = client_ip();
-    $host = $token !== '' ? q('SELECT id, name, mode, agent_version, info_agent, agent_seen, agent_ip, agent_tick, enc FROM hosts WHERE agent_token = ?', [$token])->fetch() : false;
-    $reason = match (true) {
-        $token === '' => 'geen token meegestuurd',
-        !$host => 'onbekend token (verkeerd gekopieerd, of in RzMon vernieuwd?)',
-        $host['mode'] !== 'agent' => "server '{$host['name']}' staat niet op type 'Remote met agent'",
-        default => null,
-    };
-    if ($reason !== null) {
-        q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'] ?? null, mb_substr($ip, 0, 45), $reason]);
-        Security::unauthorized('agent', t($reason), $host ? [t('server') => $host['name']] : []);
-        out(['error' => "Geweigerd: $reason", 'reason' => $reason], 403);
+    $kid = (string) ($_SERVER['HTTP_X_AGENT_KEY'] ?? '');
+    if (!preg_match('/^[0-9a-f]{16}$/', $kid)) {
+        $kid = preg_match('/^([0-9a-f]{16}):/', (string) ($_SERVER['HTTP_X_AGENT_AUTH'] ?? ''), $m) ? $m[1] : '';
     }
+    $ip = client_ip();
+    $cols = 'id, name, mode, agent_version, info_agent, agent_seen, agent_ip, agent_tick, enc, agent_token,
+             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips';
+    if ($kid !== '') {
+        $host = q("SELECT $cols FROM hosts WHERE agent_key_id = ? OR (agent_key_old_id = ? AND agent_key_old_until > ?) LIMIT 1", [$kid, $kid, now()])->fetch();
+        $reason = $host ? null : t('onbekende sleutel (vernieuwd of opnieuw gekoppeld?): koppel de agent opnieuw met een koppelcode');
+    } else {
+        $host = $token !== '' ? q("SELECT $cols FROM hosts WHERE agent_token = ?", [$token])->fetch() : false;
+        $reason = match (true) {
+            $token === '' => t('geen token meegestuurd'),
+            !$host => t('onbekend token (verkeerd gekopieerd, of in RzMon vernieuwd?)'),
+            (int) $host['agent_key_seen'] === 1 && AgentCrypto::hostMode($host) !== 'off'
+                => t('alleen een token, maar deze server heeft een eigen sleutel: koppel de agent opnieuw met een koppelcode'),
+            default => null,
+        };
+    }
+    if ($reason === null && $host['mode'] !== 'agent') {
+        $reason = t("server '{name}' staat niet op type 'Remote met agent'", ['name' => $host['name']]);
+    }
+    if ($reason === null && !AgentCrypto::ipAllowed($host, $ip)) {
+        $reason = t('nieuw IP-adres {ip} (bekend: {known}); toestaan kan bij Instellingen → Agents → Beveiligde verbinding',
+            ['ip' => $ip, 'known' => trim((string) $host['agent_ips'])]);
+    }
+    if ($reason !== null) {
+        q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'] ?? null, mb_substr($ip, 0, 45), mb_substr($reason, 0, 255)]);
+        Security::unauthorized('agent', $reason, $host ? [t('server') => $host['name']] : []);
+        out(['error' => t('Geweigerd') . ": $reason", 'reason' => $reason], 403);
+    }
+    // Welke sleutels gelden: de eigen van deze server, of (token) de algemene
+    $GLOBALS['agent_own'] = $kid !== '';
+    $GLOBALS['agent_keys'] = $kid !== '' ? AgentCrypto::hostKeys($host) : AgentCrypto::keys();
     return $host;
+}
+
+/**
+ * GET-verzoek van een agent met een eigen sleutel: de handtekening (X-Agent-Auth) controleren.
+ * @return array{0:string,1:string}|null [sleutel, nonce] voor het versleutelde antwoord; null = agent met een token
+ */
+function agent_get_auth(array $host, string $action): ?array
+{
+    if (empty($GLOBALS['agent_own'])) {
+        return null;
+    }
+    try {
+        return AgentCrypto::verifyGet((string) ($_SERVER['HTTP_X_AGENT_AUTH'] ?? ''), $GLOBALS['agent_keys'], $action);
+    } catch (RuntimeException $e) {
+        q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'], mb_substr(client_ip(), 0, 45), mb_substr($e->getMessage(), 0, 255)]);
+        Security::unauthorized('agent', $e->getMessage(), [t('server') => $host['name']]);
+        out(['error' => t('Geweigerd') . ': ' . $e->getMessage(), 'enc_error' => true], 403);
+    }
 }
 
 /**
  * Bericht van een agent: versleuteld (controleren en uitpakken) of gewoon. Versleuteld = het antwoord gaat ook
  * versleuteld terug. Moet deze server versleutelen en doet hij dat niet, of klopt de handtekening niet: 403 en ⚠️.
+ * Een agent met een eigen sleutel moet altijd versleutelen (zijn sleutel is ook zijn handtekening).
  */
 function agent_body(array $host): bool
 {
@@ -104,13 +151,20 @@ function agent_body(array $host): bool
     };
     if (AgentCrypto::isEnvelope($raw)) {
         try {
-            [$plain, $key, $nonce] = AgentCrypto::open($raw);
+            [$plain, $key, $nonce] = AgentCrypto::open($raw, $GLOBALS['agent_keys'] ?? null);
         } catch (RuntimeException $e) {
             $refuse($e->getMessage(), ['enc_error' => true]);
         }
         $GLOBALS['agent_plain'] = $plain;
         $GLOBALS['agent_seal'] = [$key, $nonce];
+        // De agent gebruikt zijn eigen sleutel: vanaf nu is een token alleen niet meer genoeg
+        if ($key === ($host['agent_key'] ?? null) && (int) $host['agent_key_seen'] !== 1) {
+            q('UPDATE hosts SET agent_key_seen = 1 WHERE id = ?', [$host['id']]);
+        }
         return true;
+    }
+    if (!empty($GLOBALS['agent_own'])) {
+        $refuse(t('onversleuteld bericht met een sleutelkenmerk'), ['enc_error' => true]);
     }
     if (AgentCrypto::hostMode($host) === 'required') {
         $refuse(t('onversleuteld bericht, maar versleuteling is verplicht voor deze server'), ['enc_required' => true]);
@@ -119,21 +173,43 @@ function agent_body(array $host): bool
     return false;
 }
 
-/** Velden voor het antwoord: de sleutel uitdelen (nog niet, of nog de oude), of zeggen dat versleutelen uit staat */
+/**
+ * Velden voor het (versleutelde) antwoord. Agent 1.50.0+: zijn eigen sleutel (de eerste keer, opnieuw als hij nog een
+ * oude gebruikt, of een nieuwe als hij aan vernieuwing toe is) en de vingerafdruk van het certificaat van RzMon.
+ * Agent 1.49.x: de algemene sleutel. Een sleutel gaat nooit leesbaar over de lijn: zonder versleuteling niets
+ * (dan koppel je de agent met een koppelcode).
+ */
 function agent_enc_fields(array $host, ?string $agentVersion): array
 {
     if (!$agentVersion || version_compare($agentVersion, AgentCrypto::AGENT_MIN, '<')) {
         return [];   // oudere agent: kan nog niet versleutelen
     }
-    $mode = AgentCrypto::hostMode($host);
-    if ($mode === 'off') {
+    if (AgentCrypto::hostMode($host) === 'off') {
         return ['enc' => 'off'];
     }
-    $key = AgentCrypto::key();
-    if ($key === '' || ($GLOBALS['agent_seal'][0] ?? null) === $key) {
+    $used = $GLOBALS['agent_seal'][0] ?? null;
+    if ($used === null) {
         return [];
     }
-    return ['enc_key' => $key];
+    if (version_compare($agentVersion, AgentCrypto::OWNKEY_MIN, '>=')) {
+        $out = [];
+        $cur = (string) ($host['agent_key'] ?? '');
+        if ($cur === '') {
+            $out['agent_key'] = AgentCrypto::newHostKey((int) $host['id'], false);   // overstap van de algemene sleutel
+        } elseif ($used !== $cur) {
+            $out['agent_key'] = $cur;                                                  // gebruikt nog de vorige of de algemene
+        } elseif (AgentCrypto::rotateDue($host)) {
+            $out['agent_key'] = AgentCrypto::newHostKey((int) $host['id'], true);     // vernieuwen; de huidige nog 24 uur geldig
+        }
+        // Zag de agent een ander certificaat? Dan opnieuw bepalen, niet uit de cache
+        $pin = AgentCrypto::pin(!empty($_SERVER['HTTP_X_AGENT_PIN_FAIL']));
+        if ($pin !== null) {
+            $out['pin'] = $pin;
+        }
+        return $out;
+    }
+    $key = AgentCrypto::key();
+    return $key === '' || $used === $key ? [] : ['enc_key' => $key];
 }
 
 // Extra tests (URL of poort) die bij service-checks van deze server zijn ingesteld, voor de agent.
@@ -205,11 +281,52 @@ function agent_tests_rev(int $hostId): string
     return substr(sha1(rtrim(agent_tests_text($hostId), "\n") . "\n"), 0, 12);
 }
 
+// Koppelen met een koppelcode (agent 1.50.0+): het bericht is versleuteld met een sleutel uit de koppelcode (X-Agent-Pair:
+// het kenmerk daarvan). Het antwoord, ook versleuteld, bevat de eigen sleutel van de agent. De code werkt één keer.
+if ($action === 'agent_pair') {
+    $pid = (string) ($_SERVER['HTTP_X_AGENT_PAIR'] ?? '');
+    $host = preg_match('/^[0-9a-f]{16}$/', $pid) ? AgentCrypto::pairHost($pid) : null;
+    $ip = client_ip();
+    $deny = static function (string $reason, ?array $h = null) use ($ip): never {
+        q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$h['id'] ?? null, mb_substr($ip, 0, 45), mb_substr($reason, 0, 255)]);
+        Security::unauthorized('agent', $reason, $h ? [t('server') => $h['name']] : []);
+        out(['error' => t('Geweigerd') . ": $reason", 'reason' => $reason], 403);
+    };
+    if (!$host) {
+        $deny(t('ongeldige of verlopen koppelcode'));
+    }
+    if ($host['mode'] !== 'agent') {
+        $deny(t("server '{name}' staat niet op type 'Remote met agent'", ['name' => $host['name']]), $host);
+    }
+    try {
+        [$plain, $pkey, $nonce] = AgentCrypto::open((string) file_get_contents('php://input'), [$host['pair_key']]);
+    } catch (RuntimeException $e) {
+        $deny($e->getMessage(), $host);
+    }
+    $in = json_decode($plain, true) ?: [];
+    $GLOBALS['agent_seal'] = [$pkey, $nonce];
+    // Nieuwe sleutel (de vorige vervalt meteen), het IP-adres van nu wordt het bekende, de code is op
+    $key = AgentCrypto::newHostKey((int) $host['id'], false);
+    q('UPDATE hosts SET agent_key_seen = 1, pair_key = NULL, pair_until = NULL, agent_ips = ?, agent_ip_new = NULL, agent_ip_new_at = NULL WHERE id = ?',
+        [mb_substr($ip, 0, 45), $host['id']]);
+    $ver = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : '?';
+    AgentCommands::audit('agent', 'Agent gekoppeld', "{$host['name']} vanaf $ip (agent $ver)");
+    Monitor::sysInfo('agent_connect', (int) $host['id'], (string) $host['name'], 'ℹ️ ' . t('Agent gekoppeld: {name}', ['name' => $host['name']]),
+        fn() => t('Agent op {name} is gekoppeld met een koppelcode en heeft een eigen sleutel', ['name' => $host['name']]) . " · IP $ip · agent $ver", $ip);
+    out(['ok' => true, 'host' => $host['name'], 'agent_key' => $key, 'token' => $host['agent_token'], 'pin' => AgentCrypto::pin() ?? '',
+        'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh')]);
+}
+
 if ($action === 'agent_tests') {
     $host = agent_host();
-    // Agent met een sleutel (header X-Agent-Enc: kenmerk:nonce): de lijst gaat versleuteld terug
-    $hdr = (string) ($_SERVER['HTTP_X_AGENT_ENC'] ?? '');
-    $key = preg_match('/^([0-9a-f]{16}):([0-9a-f]{32})$/', $hdr, $m) ? AgentCrypto::keyById($m[1]) : null;
+    // Eigen sleutel: ondertekend verzoek. Anders (token) een agent met de algemene sleutel (header X-Agent-Enc: kenmerk:nonce).
+    // Met een sleutel gaat de lijst versleuteld terug.
+    if ($auth = agent_get_auth($host, 'agent_tests')) {
+        [$key, $m[2]] = $auth;
+    } else {
+        $hdr = (string) ($_SERVER['HTTP_X_AGENT_ENC'] ?? '');
+        $key = preg_match('/^([0-9a-f]{16}):([0-9a-f]{32})$/', $hdr, $m) ? AgentCrypto::keyById($m[1]) : null;
+    }
     if ($key === null && AgentCrypto::hostMode($host) === 'required') {
         Security::unauthorized('agent', t('onversleuteld bericht, maar versleuteling is verplicht voor deze server'), [t('server') => $host['name']]);
         out(['error' => t('Geweigerd')], 403);
@@ -223,7 +340,10 @@ if ($action === 'agent_tests') {
 // Alleen het token controleren, zonder gegevens te versturen (verbindingstest)
 if ($action === 'agent_check') {
     $host = agent_host();
-    out(['ok' => true, 'host' => $host['name'], 'your_ip' => client_ip()]);
+    if ($auth = agent_get_auth($host, 'agent_check')) {
+        $GLOBALS['agent_seal'] = $auth;   // antwoord versleuteld: zo weet de agent dat hij echt met RzMon praat
+    }
+    out(['ok' => true, 'host' => $host['name'], 'your_ip' => client_ip(), 'own_key' => (bool) $auth]);
 }
 
 // Voortgang van "pakketten bijwerken" (agent 1.48.0+): elke paar seconden tijdens apt/dnf, en aan het eind de uitkomst
@@ -515,8 +635,10 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
     }
 
     $outdated = $version === null || version_compare($version, AGENT_LATEST, '<');
+    // Automatisch alleen via een versleutelde verbinding (dan kan niemand onderweg de opdracht of het controlegetal
+    // vervalsen); onversleuteld alleen als je zelf op de knop drukt
     $wanted = ($req !== null && $sent === null) || ($req === null && $outdated && setting('agent_auto_update', '0') === '1'
-        && ($sent === null || strtotime($sent) < time() - 6 * 3600));   // automatisch: hooguit elke 6 uur een poging
+        && isset($GLOBALS['agent_seal']) && ($sent === null || strtotime($sent) < time() - 6 * 3600));   // automatisch: hooguit elke 6 uur een poging
     $instruction = null;
     if ($wanted && in_array($via, ['systemd', 'direct'], true)) {
         $instruction = [
@@ -686,6 +808,7 @@ switch ($action) {
 
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen,
+                    agent_key_seen, agent_key_at, agent_ip_new,
                     enabled, maintenance_until, maintenance_reason, snmp FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
@@ -964,7 +1087,7 @@ switch ($action) {
         $newer = !empty($cache['latest']) && version_compare($cache['latest'], RZMON_VERSION, '>');
         $add('update', $newer ? 'warn' : 'ok', t('RzMon-versie'), $newer
             ? t('{v} staat klaar (je hebt {cur})', ['v' => $cache['latest'], 'cur' => RZMON_VERSION]) : t('{cur} is de nieuwste', ['cur' => RZMON_VERSION]), 'update');
-        $agents = q("SELECT name, agent_version, enc, enc_seen FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen IS NOT NULL")->fetchAll();
+        $agents = q("SELECT name, agent_version, enc, enc_seen, agent_key_seen, agent_ip_new FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen IS NOT NULL")->fetchAll();
         if ($agents) {
             $old = array_column(array_filter($agents, static fn($h) => $h['agent_version'] && version_compare($h['agent_version'], AGENT_LATEST, '<')), 'name');
             $add('agents', $old ? 'warn' : 'ok', t('Agents bijgewerkt'), $old
@@ -976,6 +1099,15 @@ switch ($action) {
                 ? t('staat uit of er is nog geen sleutel') : ($plain
                     ? t('{n} onversleuteld: {names}', ['n' => count($plain), 'names' => implode(', ', array_slice($plain, 0, 5)) . (count($plain) > 5 ? ' …' : '')])
                     : t('alle agents versleuteld')), 'enc');
+            $nokey = array_column(array_filter($agents, static fn($h) => (int) $h['agent_key_seen'] !== 1), 'name');
+            $add('ownkey', $nokey ? 'warn' : 'ok', t('Eigen sleutel per agent'), $nokey
+                ? t('{n} nog zonder eigen sleutel: {names} (agent {v} nodig; anders opnieuw koppelen)', ['n' => count($nokey), 'v' => AgentCrypto::OWNKEY_MIN,
+                    'names' => implode(', ', array_slice($nokey, 0, 5)) . (count($nokey) > 5 ? ' …' : '')])
+                : t('alle agents hebben een eigen sleutel'), 'enc');
+            $newip = array_column(array_filter($agents, static fn($h) => !empty($h['agent_ip_new'])), 'name');
+            if ($newip) {
+                $add('agent_ip', 'bad', t('Agent van een nieuw IP-adres'), t('geweigerd, wacht op je toestemming: {names}', ['names' => implode(', ', $newip)]), 'enc');
+            }
         }
         $add('vulns', Vulns::enabled() ? 'ok' : 'info', t('Kwetsbaarheden'), Vulns::enabled() ? t('scan staat aan') : t('scan staat uit'), 'vulns');
         $add('ids', Ids::enabled() ? 'ok' : 'info', 'IDS', Ids::enabled() ? t('staat aan') : t('staat uit'), 'ids');
@@ -987,7 +1119,12 @@ switch ($action) {
         out([
             'enc' => ['mode' => AgentCrypto::globalMode(), 'key' => $key, 'key_id' => $key !== '' ? AgentCrypto::keyId($key) : null,
                 'old_until' => $until > time() ? date('Y-m-d H:i:s', $until) : null, 'agent_min' => AgentCrypto::AGENT_MIN],
-            'hosts' => q("SELECT id, name, agent_version, agent_seen, enc, enc_seen FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll(),
+            'hosts' => array_map(static fn($h) => $h + ['key_days' => $h['agent_key_at'] ? (int) floor((time() - strtotime($h['agent_key_at'])) / 86400) : null],
+                q("SELECT id, name, agent_version, agent_seen, agent_ip, enc, enc_seen, agent_key_seen, agent_key_at, agent_ips, agent_ip_new, agent_ip_new_at,
+                          (pair_until > NOW()) AS pairing FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll()),
+            'conn' => ['key_days' => (int) setting('agent_key_days', '30'), 'pin' => setting('agent_pin', '1') === '1', 'ip_lock' => setting('agent_ip_lock', '1') === '1',
+                'pin_value' => AgentCrypto::pin(false, false), 'https' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https',
+                'ownkey_min' => AgentCrypto::OWNKEY_MIN],
             'blocks' => Security::blocks(),
             'my_ip' => client_ip(),
         ]);
@@ -1017,6 +1154,60 @@ switch ($action) {
         }
         q('UPDATE hosts SET enc = ? WHERE id = ?', [$m === '' ? null : $m, (int) $in['host_id']]);
         AgentCommands::audit($user['username'], 'Versleuteling agent', "$name: " . ($m ?: 'algemeen'));
+        out(['ok' => true]);
+
+    // Beveiligde verbinding: sleutels vernieuwen na X dagen, certificaat vastzetten, vast IP-adres.
+    // Iets uitzetten maakt de verbinding minder veilig: dan om je wachtwoord vragen.
+    case 'conn_save':
+        $in = input();
+        $days = (int) ($in['key_days'] ?? 30);
+        if (!in_array($days, [0, 7, 30, 90], true)) {
+            out(['error' => t('Ongeldige keuze')], 422);
+        }
+        $pin = !empty($in['pin']) ? '1' : '0';
+        $lock = !empty($in['ip_lock']) ? '1' : '0';
+        if (($pin === '0' && setting('agent_pin', '1') === '1') || ($lock === '0' && setting('agent_ip_lock', '1') === '1')) {
+            $confirm('UITZETTEN');
+        }
+        foreach (['agent_key_days' => (string) $days, 'agent_pin' => $pin, 'agent_ip_lock' => $lock] as $k => $v) {
+            if (setting($k, '') !== $v) {
+                save_setting($k, $v);
+                AgentCommands::audit($user['username'], 'Beveiligde verbinding', "$k = $v");
+            }
+        }
+        save_setting('agent_pin_at', '0');   // vingerafdruk opnieuw bepalen
+        out(['ok' => true]);
+
+    // Koppelcode voor een server (15 minuten geldig) en wat er nodig is voor het installatiecommando
+    case 'agent_pair_code':
+        $id = (int) (input()['id'] ?? 0);
+        $name = q("SELECT name FROM hosts WHERE id = ? AND mode = 'agent'", [$id])->fetchColumn();
+        if ($name === false) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        $p = AgentCrypto::pairCreate($id);
+        AgentCommands::audit($user['username'], 'Koppelcode gemaakt', (string) $name);
+        out($p + ['setup_sha256' => hash_file('sha256', SM_ROOT . '/agent/install-agent.sh'), 'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
+            'pin' => AgentCrypto::pin(false, false) ?? '', 'minutes' => AgentCrypto::PAIR_MINUTES]);
+
+    case 'agent_key_renew':
+        $id = (int) (input()['id'] ?? 0);
+        $h = q("SELECT name, agent_key FROM hosts WHERE id = ? AND mode = 'agent'", [$id])->fetch();
+        if (!$h || !$h['agent_key']) {
+            out(['error' => t('Deze server heeft nog geen eigen sleutel')], 409);
+        }
+        AgentCrypto::newHostKey($id, true);
+        AgentCommands::audit($user['username'], 'Sleutel van de agent vernieuwd', $h['name'] . ' (de vorige nog 24 uur geldig)');
+        out(['ok' => true]);
+
+    case 'agent_ip_allow':
+        $ip = AgentCrypto::ipAllow((int) (input()['id'] ?? 0), $user['username']);
+        $ip !== null ? out(['ok' => true, 'ip' => $ip]) : out(['error' => t('Er wacht geen nieuw IP-adres')], 409);
+
+    case 'agent_ip_reset':
+        $id = (int) (input()['id'] ?? 0);
+        q('UPDATE hosts SET agent_ips = NULL, agent_ip_new = NULL, agent_ip_new_at = NULL WHERE id = ?', [$id]);
+        AgentCommands::audit($user['username'], 'IP-adressen van de agent vergeten', (string) $id);
         out(['ok' => true]);
 
     case 'block_add':

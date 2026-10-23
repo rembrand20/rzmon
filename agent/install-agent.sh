@@ -4,7 +4,8 @@
 #  (Rocky/RHEL/AlmaLinux/Fedora, Debian/Ubuntu/Raspberry Pi OS, Proxmox VE, TrueNAS SCALE)
 #
 #  Het makkelijkst: kopieer het commando uit RzMon (server → "Agent Manager"):
-#    curl -fsSL http://RZMON/api.php?action=agent_install | sudo bash -s -- --url http://RZMON --token TOKEN
+#    In RzMon: server → Agent Manager → 🔗 Koppelcode geeft het volledige commando (met controle van dit script):
+#    curl -fsSL http://RZMON/api.php?action=agent_install -o rzmon-install.sh && sudo bash rzmon-install.sh --url http://RZMON --pair CODE
 #
 #  Wat het doet:
 #    - ontbrekende hulpprogramma's installeren (curl, ss)
@@ -33,6 +34,9 @@ SETUP="/usr/local/sbin/rzmon-agent-setup"   # dit script, voor later --update/--
 URL=""
 TOKEN=""
 ENC_KEY=""          # sleutel voor versleutelde rapporten (Instellingen → 🔐 Versleuteling)
+PAIR=""             # koppelcode (RzMon → Agent Manager → 🔗 Koppelcode): de agent haalt zijn eigen sleutel op
+PIN=""              # vingerafdruk van het eigen (self-signed) certificaat van RzMon: alleen dat certificaat accepteren
+AGENT_SHA=""        # SHA-256 van de agent zoals RzMon hem levert: de download wordt daarmee gecontroleerd
 SERVICES=""
 CERTS=""
 CERTS_SET=0           # --certs meegegeven (ook leeg = geen certificaten)
@@ -68,10 +72,14 @@ usage() {
     cat <<EOF
 RzMon agent installeren
 
-Gebruik: sudo bash install-agent.sh --url URL --token TOKEN [opties]
+Gebruik: sudo bash install-agent.sh --url URL --pair KOPPELCODE [opties]
 
   --url URL            Adres van RzMon, bv. http://192.168.1.10
-  --token TOKEN        Agent-token van deze server (RzMon → server → "Agent Manager")
+  --pair CODE          Koppelcode van deze server (RzMon → server → Agent Manager → 🔗 Koppelcode;
+                       eenmalig, 15 minuten geldig). De agent krijgt dan zijn eigen sleutel.
+  --pin VINGERAFDRUK   Alleen dit certificaat van RzMon accepteren (bij een eigen, self-signed certificaat)
+  --agent-sha SHA256   De gedownloade agent hiermee controleren
+  --token TOKEN        (oude manier) Agent-token van deze server, in plaats van een koppelcode
   --key SLEUTEL        Sleutel voor versleutelde rapporten (RzMon → Instellingen → 🔐 Versleuteling)
   --services "a b c"   (verouderd) Extra systemd-services; services kies je nu in RzMon
   --certs "a b c"      Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op
@@ -100,6 +108,9 @@ while [ $# -gt 0 ]; do
         --url) URL="${2:?}"; shift ;;
         --token) TOKEN="${2:?}"; shift ;;
         --key) ENC_KEY="${2:?}"; shift ;;
+        --pair) PAIR="${2:?}"; shift ;;
+        --pin) PIN="${2:?}"; shift ;;
+        --agent-sha) AGENT_SHA="${2:?}"; shift ;;
         --services) SERVICES="${2-}"; shift ;;
         --certs) CERTS="${2-}"; CERTS_SET=1; shift ;;
         --interval) INTERVAL="${2:?}"; shift ;;
@@ -123,7 +134,7 @@ while [ $# -gt 0 ]; do
 done
 
 # Wat je nu zelf meegeeft: bij een bestaande installatie worden alleen díe regels in de instellingen aangepast
-ARG_URL=$URL ARG_TOKEN=$TOKEN ARG_KEY=$ENC_KEY ARG_SERVICES=$SERVICES ARG_INSECURE=$INSECURE ARG_INTERVAL=$INTERVAL ARG_CERTS=$CERTS_SET
+ARG_URL=$URL ARG_TOKEN=$TOKEN ARG_KEY=$ENC_KEY ARG_PAIR=$PAIR ARG_PIN=$PIN ARG_SERVICES=$SERVICES ARG_INSECURE=$INSECURE ARG_INTERVAL=$INTERVAL ARG_CERTS=$CERTS_SET
 ARG_NO_EPEL=0; [ "$EPEL" = 0 ] && ARG_NO_EPEL=1
 
 if [ "$MODE" = "version" ]; then
@@ -204,7 +215,7 @@ if [ "$MODE" = "uninstall" ]; then
         systemctl daemon-reload
     fi
     rm -f "$CRON" "$BIN" "$SETUP"
-    rm -rf /var/cache/rzmon-agent
+    rm -rf /var/cache/rzmon-agent /var/lib/rzmon-agent   # ook de eigen sleutel: opnieuw installeren = opnieuw koppelen
     if [ -f "$CONF" ]; then
         if interactive && [ "$(ask 'Ook de instellingen (URL en token) verwijderen? j/n' 'j')" != "n" ]; then
             rm -f "$CONF"
@@ -212,7 +223,7 @@ if [ "$MODE" = "uninstall" ]; then
             rm -f "$CONF"
         fi
     fi
-    [ "$TRUENAS" = 1 ] && rmdir "$TN_DIR" 2>/dev/null || true
+    [ "$TRUENAS" = 1 ] && { rm -rf "$TN_DIR/keys"; rmdir "$TN_DIR" 2>/dev/null; } || true
     ok "Agent verwijderd. Verwijder de server eventueel ook in RzMon."
     exit 0
 fi
@@ -296,19 +307,26 @@ if [ -z "$URL" ]; then
     interactive || die "Geef het adres van RzMon mee: --url http://…"
     URL=$(ask "Adres van RzMon (bv. http://192.168.1.10)" "")
 fi
-if [ -z "$TOKEN" ]; then
-    interactive || die "Geef het agent-token mee: --token … (RzMon → server → Agent Manager)"
-    TOKEN=$(ask "Agent-token (RzMon → server → Agent Manager)" "")
+if [ -z "$TOKEN" ] && [ -z "$PAIR" ]; then
+    interactive || die "Geef de koppelcode mee: --pair … (RzMon → server → Agent Manager → 🔗 Koppelcode)"
+    PAIR=$(ask "Koppelcode (RzMon → server → Agent Manager → 🔗 Koppelcode)" "")
 fi
 URL=${URL%/}
 URL=${URL%/api.php*}
 [[ "$URL" =~ ^https?://[^[:space:]\"\'\\\$\`]+$ ]] || die "Ongeldig adres: $URL (moet met http:// of https:// beginnen)"
-[[ "$TOKEN" =~ ^[A-Za-z0-9]{16,128}$ ]] || die "Ongeldig token (alleen letters en cijfers, zoals RzMon het toont)"
+[ -z "$TOKEN" ] || [[ "$TOKEN" =~ ^[A-Za-z0-9]{16,128}$ ]] || die "Ongeldig token (alleen letters en cijfers, zoals RzMon het toont)"
+[ -z "$PAIR" ] || [[ "$PAIR" =~ ^[A-Za-z0-9-]{20,40}$ ]] || die "Ongeldige koppelcode (bv. K7QF-M2XA-9RTD-HC4P-WE8N, zoals RzMon hem toont)"
+[ -z "$PIN" ] || [[ "$PIN" =~ ^[A-Za-z0-9+/]{43}=$ ]] || die "Ongeldige vingerafdruk (--pin), kopieer het commando opnieuw uit RzMon"
+[ -z "$AGENT_SHA" ] || [[ "$AGENT_SHA" =~ ^[0-9a-f]{64}$ ]] || die "Ongeldige --agent-sha"
 [ -z "$ENC_KEY" ] || [[ "$ENC_KEY" =~ ^[0-9a-f]{64}$ ]] || die "Ongeldige sleutel (64 tekens 0-9 en a-f, zoals RzMon hem toont)"
 [[ "$INTERVAL" =~ ^[0-9]+$ ]] && [ "$INTERVAL" -ge 30 ] && [ "$INTERVAL" -le 3600 ] || die "--interval moet tussen 30 en 3600 liggen"
 
 CURL_OPTS=(-fsS --max-time 20)
-[ "$INSECURE" = 1 ] && CURL_OPTS+=(-k)
+if [ -n "$PIN" ] && [[ "$URL" == https://* ]]; then
+    CURL_OPTS+=(-k --pinnedpubkey "sha256//$PIN")   # alleen het certificaat met deze vingerafdruk
+elif [ "$INSECURE" = 1 ]; then
+    CURL_OPTS+=(-k)
+fi
 
 # ----------------------------------------------------------------- 1. hulpprogramma's
 step "1/5 Benodigde programma's"
@@ -401,6 +419,11 @@ fi
 rm -f /tmp/rzmon-agent-dl.err
 head -1 "$tmp" | grep -q '^#!/usr/bin/env bash' && grep -q 'RzMon agent' "$tmp" \
     || die "Het gedownloade bestand is geen RzMon-agent. Klopt het adres ($URL)?"
+if [ -n "$AGENT_SHA" ]; then
+    [ "$(sha256sum "$tmp" | cut -d' ' -f1)" = "$AGENT_SHA" ] \
+        || die "Controlegetal (SHA-256) van de agent klopt niet: onderweg gewijzigd, of RzMon is intussen bijgewerkt. Kopieer het commando opnieuw uit RzMon."
+    ok "Controlegetal van de agent klopt"
+fi
 old_version=$([ -f "$BIN" ] && bash "$BIN" --version 2>/dev/null | awk '{print $2}' || true)
 new_version=$(sed -n 's/^AGENT_VERSION="\([^"]*\)".*/\1/p' "$tmp")
 install -m 755 -o root -g root "$tmp" "$BIN"
@@ -470,6 +493,8 @@ if [ "$MODE" = "install" ] && [ -f "$CONF" ]; then
     if [ -n "$ARG_URL" ] && [ "$URL" != "${OLD_URL-}" ]; then conf_set MONITOR_URL "$URL"; fi
     if [ -n "$ARG_TOKEN" ] && [ "$TOKEN" != "${OLD_TOKEN-}" ]; then conf_set TOKEN "$TOKEN"; fi
     if [ -n "$ARG_KEY" ] && ! grep -qx "ENC_KEY=\"$ENC_KEY\"" "$CONF"; then conf_set ENC_KEY "$ENC_KEY"; fi
+    if [ -n "$ARG_PAIR" ] && ! grep -qx "PAIR_CODE=\"$PAIR\"" "$CONF"; then conf_set PAIR_CODE "$PAIR"; fi
+    if [ -n "$ARG_PIN" ] && ! grep -qx "PIN=\"$PIN\"" "$CONF"; then conf_set PIN "$PIN"; fi
     if [ -n "$ARG_SERVICES" ] && [ "$SERVICES" != "${OLD_SERVICES-}" ]; then conf_set SERVICES "$SERVICES"; fi
     if [ "$ARG_CERTS" = 1 ] && [ "$CERTS" != "${OLD_CERTS-}" ]; then conf_set CERTS "$CERTS"; fi
     if [ -n "$ARG_INSECURE" ] && [ "$INSECURE" != "${OLD_INSECURE-}" ]; then conf_set INSECURE "$INSECURE"; fi
@@ -482,7 +507,11 @@ elif [ "$MODE" = "install" ]; then
 # RzMon agent – aangemaakt door install-agent.sh op $(date '+%Y-%m-%d %H:%M')
 MONITOR_URL="$URL"
 TOKEN="$TOKEN"
-# Sleutel voor versleutelde rapporten (leeg: de agent krijgt hem van RzMon; zie Instellingen → 🔐 Versleuteling)
+# Koppelcode (eenmalig): daarmee haalt de agent zijn eigen sleutel op. Daarna is hij niet meer nodig.
+PAIR_CODE="$PAIR"
+# Vingerafdruk van het certificaat van RzMon (eigen certificaat); RzMon stuurt een nieuwe vanzelf mee
+PIN="$PIN"
+# (oude manier) Algemene sleutel voor versleutelde rapporten; met een koppelcode niet nodig
 ENC_KEY="$ENC_KEY"
 # Services stel je in RzMon in (＋ Check → Service). SERVICES is verouderd: wat hier staat wordt ook gemeld.
 SERVICES="$SERVICES"
@@ -598,7 +627,8 @@ fi
 
 # Dit installatiescript bewaren voor later (bij "curl | bash" staat het nergens op schijf).
 # Vanuit RzMon bijgewerkt: dit script is al door de agent gecontroleerd, dus dat bewaren.
-if [ -n "$RESULT_FILE" ] && [ -f "${BASH_SOURCE[0]:-}" ]; then
+# Vanaf een bestand gestart (het commando uit RzMon controleert dat bestand eerst): dat bewaren.
+if [ -f "${BASH_SOURCE[0]:-}" ] && { [ -n "$RESULT_FILE" ] || [ -n "$ARG_PAIR" ]; } && [ "$(realpath "${BASH_SOURCE[0]}")" != "$SETUP" ]; then
     install -m 755 -o root -g root "${BASH_SOURCE[0]}" "$SETUP"
 elif curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_install" -o "$tmp.setup" 2>/dev/null && grep -q 'RzMon agent' "$tmp.setup"; then
     install -m 755 -o root -g root "$tmp.setup" "$SETUP"

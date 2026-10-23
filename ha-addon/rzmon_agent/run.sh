@@ -7,16 +7,19 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 MONITOR_URL=$(jq -r '.monitor_url // empty' "$OPTIONS")
 TOKEN=$(jq -r '.token // empty' "$OPTIONS")
+# Koppelcode (eenmalig) en de vingerafdruk van het certificaat van RzMon (agent 1.50.0+)
+PAIR_CODE=$(jq -r '.pair_code // empty' "$OPTIONS")
+PIN=$(jq -r '.pin // empty' "$OPTIONS")
 # Tik als RzMon er geen doorgeeft; normaal stel je hem in RzMon in (Agent Manager)
 INTERVAL=$(jq -r '.interval // 60' "$OPTIONS")
 INSECURE=$(jq -r 'if .verify_ssl == false then 1 else 0 end' "$OPTIONS")
 # Certificaten: bestanden in /ssl en/of host:poort (ook op internet)
 CERTS=$(jq -r '(.certs // []) | join(" ")' "$OPTIONS")
-export MONITOR_URL TOKEN INSECURE CERTS INTERVAL
+export MONITOR_URL TOKEN INSECURE CERTS INTERVAL PAIR_CODE PIN
 
-if [ -z "$TOKEN" ] || [ -z "$MONITOR_URL" ]; then
-    log "FOUT: vul 'monitor_url' en 'token' in op het tabblad Configuratie."
-    log "Het token vind je in RzMon bij de server (type 'Remote met agent') → 'Agent Manager'."
+if [ -z "$MONITOR_URL" ] || { [ -z "$TOKEN" ] && [ -z "$PAIR_CODE" ] && [ ! -s /data/rzmon-keys/agent.key ]; }; then
+    log "FOUT: vul 'monitor_url' en 'pair_code' in op het tabblad Configuratie."
+    log "De koppelcode maak je in RzMon bij de server (type 'Remote met agent') → 'Agent Manager' → 🔗 Koppelcode."
     exit 1
 fi
 if [ -z "${SUPERVISOR_TOKEN:-}" ]; then
@@ -55,7 +58,8 @@ while true; do
         fi
     else
         case "$out" in
-            *"error: 403"*) hint=" → token onjuist, of de server staat in RzMon niet op type 'Remote met agent'" ;;
+            *"Koppelen mislukt"*) hint=" → maak een nieuwe koppelcode in RzMon (Agent Manager → 🔗 Koppelcode) en vul hem in bij pair_code" ;;
+            *"error: 403"*) hint=" → geweigerd: kijk bij Meldingen in RzMon waarom (sleutel, token, nieuw IP-adres)" ;;
             *"Could not resolve"*|*"Failed to connect"*|*"timed out"*) hint=" → RzMon niet bereikbaar, controleer monitor_url" ;;
             *"SSL"*|*"certificate"*) hint=" → certificaatprobleem; zet verify_ssl uit bij een self-signed certificaat" ;;
             *) hint="" ;;

@@ -578,16 +578,25 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </form>
 
       <div data-sk="enc" class="card need-admin" id="enc-card">
-        <h2>🔐 <?= th('Versleuteling van de agents') ?></h2>
-        <p class="muted small"><?= t('Met een sleutel versturen de agents (1.49.0 of nieuwer) hun rapporten <b>versleuteld</b> (AES-256 met een handtekening), en komt het antwoord van RzMon versleuteld terug. Dat komt bovenop HTTPS en helpt vooral als agents via HTTP of een proxy verbinden. Een bericht met een verkeerde sleutel of handtekening, of dat ouder is dan 5 minuten, wordt geweigerd en geeft een ⚠️-melding.') ?></p>
+        <h2>🔐 <?= th('Beveiligde verbinding met de agents') ?></h2>
+        <p class="muted small"><?= t('Elke agent (1.50.0 of nieuwer) heeft een <b>eigen sleutel</b>. Daarmee is alles wat hij verstuurt versleuteld en ondertekend (AES-256 met een handtekening), ook het antwoord van RzMon. Er gaat geen token meer over de lijn, en een sleutel nooit leesbaar: een nieuwe agent koppel je met een <b>koppelcode</b> (Agent Manager → 🔗 Koppelcode, eenmalig en 15 minuten geldig). Agents die al met de algemene sleutel werkten, krijgen hun eigen sleutel vanzelf. Een bericht met een verkeerde sleutel, een oude handtekening of van een onbekend IP-adres wordt geweigerd en geeft een ⚠️-melding.') ?></p>
+        <div id="conn-ipwait"></div>
         <label><?= th('Versleutelen') ?> <select id="enc-mode"></select></label>
-        <label><?= th('Sleutel') ?> <span class="hint"><?= th('(64 tekens; de agents krijgen hem vanzelf bij hun volgende rapport)') ?></span>
-          <span class="enc-key-row"><input id="enc-key" type="password" readonly class="mono" placeholder="<?= th('nog geen sleutel') ?>">
-            <button type="button" class="btn" id="enc-show" title="<?= th('Tonen') ?>">👁</button>
-            <button type="button" class="btn" id="enc-copy" title="<?= th('Kopiëren') ?>">📋</button></span></label>
-        <div class="btn-row"><button type="button" class="btn" id="enc-generate">🎲 <?= th('Sleutel genereren') ?></button> <span class="muted small" id="enc-info"></span></div>
-        <p class="muted small"><?= t('Per server kies je in de <b>Agent Manager</b> (of hieronder) een eigen instelling. <i>Verplicht</i> weigert onversleutelde berichten: zet dat pas aan als 🔒 bij alle servers staat. Agents die nog geen sleutel hebben, krijgen hem bij een onversleuteld rapport; gebruik daarvoor bij voorkeur HTTPS, of geef hem mee met <code>--key</code> bij het installeren.') ?></p>
+        <label><?= th('Sleutels van de agents vernieuwen') ?>
+          <select id="conn-days"><option value="7"><?= th('elke 7 dagen') ?></option><option value="30"><?= th('elke 30 dagen') ?></option><option value="90"><?= th('elke 90 dagen') ?></option><option value="0"><?= th('alleen met de hand') ?></option></select></label>
+        <label class="switch"><input type="checkbox" id="conn-pin"><span></span> <?= t('📌 <b>Certificaat van RzMon vastzetten</b> (bij een eigen, self-signed certificaat)') ?></label>
+        <p class="muted small" id="conn-pin-info" style="margin-top:-.4rem"></p>
+        <label class="switch"><input type="checkbox" id="conn-iplock"><span></span> <?= t('🌐 Agents alleen vanaf hun <b>bekende IP-adres</b>') ?></label>
+        <p class="muted small" style="margin-top:-.4rem"><?= t('Het eerste IP-adres van een agent wordt onthouden. Komt hij van een ander adres, dan weigert RzMon hem en krijg je een melding; hierboven kun je het nieuwe adres dan <b>toestaan</b>.') ?></p>
         <div id="enc-hosts"></div>
+        <details class="adv"><summary><?= th('Algemene sleutel (agents 1.49.x)') ?></summary>
+          <p class="muted small"><?= t('Agents van versie 1.49.x versleutelen met één algemene sleutel. Nieuwere agents gebruiken die alleen nog om over te stappen op hun eigen sleutel.') ?></p>
+          <label><?= th('Sleutel') ?> <span class="hint"><?= th('(64 tekens)') ?></span>
+            <span class="enc-key-row"><input id="enc-key" type="password" readonly class="mono" placeholder="<?= th('nog geen sleutel') ?>">
+              <button type="button" class="btn" id="enc-show" title="<?= th('Tonen') ?>">👁</button>
+              <button type="button" class="btn" id="enc-copy" title="<?= th('Kopiëren') ?>">📋</button></span></label>
+          <div class="btn-row"><button type="button" class="btn" id="enc-generate">🎲 <?= th('Sleutel genereren') ?></button> <span class="muted small" id="enc-info"></span></div>
+        </details>
       </div>
 
       <div data-sk="blocks" class="card need-admin" id="blocks-card">

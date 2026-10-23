@@ -461,6 +461,11 @@ CREATE TABLE IF NOT EXISTS agent_nonces (
 -- Versleuteling van de agents: off | on (wie een sleutel heeft, versleutelt) | required; de sleutel maak je zelf aan
 INSERT IGNORE INTO settings (name, value) VALUES ('enc_mode', 'on'), ('enc_key', ''), ('enc_key_old', ''), ('enc_key_old_until', '');
 
+-- Beveiligde verbinding (1.64.0): sleutel per agent na zoveel dagen vernieuwen (0 = alleen met de hand), het certificaat
+-- van RzMon vastzetten bij een eigen (self-signed) certificaat, en agents alleen vanaf hun bekende IP-adres
+INSERT IGNORE INTO settings (name, value) VALUES ('agent_key_days', '30'), ('agent_pin', '1'), ('agent_pin_value', ''), ('agent_pin_at', '0'),
+    ('agent_ip_lock', '1');
+
 -- Inlogbeveiliging (1.58.0): na N mislukte pogingen binnen M minuten het account en/of het IP (van buiten het LAN) blokkeren,
 -- voor X minuten (0 = tot een beheerder deblokkeert)
 INSERT IGNORE INTO settings (name, value) VALUES ('login_lock_fails', '3'), ('login_lock_window', '10'), ('login_lock_account', '1'),

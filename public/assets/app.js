@@ -2527,11 +2527,31 @@ function renderSecurity() {
   $('#enc-info').innerHTML = e.key
     ? `${L('Kenmerk')}: <code>${esc(e.key_id)}</code>${e.old_until ? ' · ' + L('de vorige sleutel geldt nog tot {t}', { t: esc(fmtDateTime(e.old_until)) }) : ''}`
     : `<span class="warn-txt">${L('Nog geen sleutel: de agents versturen alles onversleuteld.')}</span>`;
+  // Beveiligde verbinding: vernieuwen, certificaat vastzetten, vast IP-adres
+  const c = secInfo.conn;
+  $('#conn-days').value = String(c.key_days);
+  $('#conn-pin').checked = c.pin;
+  $('#conn-iplock').checked = c.ip_lock;
+  $('#conn-pin-info').innerHTML = !c.pin ? L('Uit: agents met <code>INSECURE=1</code> accepteren elk certificaat.')
+    : c.pin_value ? `${L('Vingerafdruk van RzMon')}: <code>sha256//${esc(c.pin_value.slice(0, 16))}…</code> · ${L('de agents krijgen hem vanzelf (versleuteld); bij een nieuw certificaat controleren ze het met hun sleutel')}`
+    : c.pin_value === '' ? (c.https ? L('Niet nodig: het certificaat van RzMon is geldig (bekende uitgever), de agents controleren het gewoon.') : L('Niet nodig: je opent RzMon via http. Met https en een eigen certificaat zet RzMon het vanzelf vast.'))
+    : L('De vingerafdruk is nog niet te bepalen (bv. achter een proxy); dat gebeurt bij het volgende rapport van een agent.');
+  const wait = secInfo.hosts.filter((h) => h.agent_ip_new);
+  $('#conn-ipwait').innerHTML = wait.map((h) => `<div class="callout ip-wait">⚠️ ${L('<b>{name}</b> wil verbinden vanaf <code>{ip}</code> en is geweigerd (bekend: {known}).', { name: esc(h.name), ip: esc(h.agent_ip_new), known: `<code>${esc(h.agent_ips || '–')}</code>` })}
+      <span class="muted small">${esc(ago(h.agent_ip_new_at))}</span>
+      <button type="button" class="btn primary" data-ip-allow="${h.id}">✔ ${L('Toestaan')}</button></div>`).join('');
+  const keyText = (h) => +h.agent_key_seen === 1 ? `🔑 ${L('eigen sleutel')}${h.key_days != null ? ` <span class="muted">· ${L('{n} d oud', { n: h.key_days })}</span>` : ''}`
+    : h.pairing ? `⏳ ${L('koppelcode klaar')}`
+    : h.agent_version && verCmp(h.agent_version, c.ownkey_min) < 0 ? `<span class="warn-txt">${L('agent {v} nodig', { v: c.ownkey_min })}</span>`
+    : `<span class="warn-txt">${L('nog geen eigen sleutel')}</span>`;
   $('#enc-hosts').innerHTML = secInfo.hosts.length ? `<div class="table-scroll"><table class="vuln-table enc-table">
-    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Versleuteld versturen')}</th><th>${L('Laatste rapport')}</th></tr></thead><tbody>
+    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Sleutel')}</th><th>${L('IP-adres')}</th><th>${L('Versleuteld versturen')}</th><th>${L('Laatste rapport')}</th><th></th></tr></thead><tbody>
     ${secInfo.hosts.map((h) => `<tr><td>${esc(h.name)}</td><td class="mono small">${esc(h.agent_version || '–')}</td>
+      <td class="small">${keyText(h)}</td>
+      <td class="small mono">${h.agent_ips ? esc(h.agent_ips) : `<span class="muted">${L('nog niet bekend')}</span>`}${h.agent_ips ? ` <button type="button" class="icon-btn" data-ip-reset="${h.id}" title="${esc(L('Vergeten: het volgende IP-adres van deze agent wordt het bekende'))}">↺</button>` : ''}</td>
       <td><select data-enc-host="${h.id}">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${k === '' ? `${l} (${ENC_MODES.find((m) => m[0] === e.mode)[1].split(' (')[0].toLowerCase()})` : l}</option>`).join('')}</select></td>
-      <td class="small">${encSeenText(h)}</td></tr>`).join('')}</tbody></table></div>` : '';
+      <td class="small">${encSeenText(h)}</td>
+      <td class="nowrap"><button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗</button>${+h.agent_key_seen === 1 ? ` <button type="button" class="btn small-btn" data-key-renew="${h.id}" title="${esc(L('Nieuwe sleutel; de agent krijgt hem bij zijn volgende rapport'))}">🔄</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '';
   const b = secInfo.blocks;
   $('#blocks-list').innerHTML = b.length ? `<div class="table-scroll"><table class="vuln-table">
     <thead><tr><th>${L('IP-adres of netwerk')}</th><th>${L('Reden')}</th><th>${L('Door')}</th><th>${L('Sinds')}</th><th>${L('Geweigerd')}</th><th></th></tr></thead><tbody>
@@ -2559,6 +2579,40 @@ function initSecurity() {
       : L('RzMon maakt een willekeurige sleutel van 32 bytes. De agents (1.49.0 of nieuwer) krijgen hem bij hun volgende rapport en versturen daarna alles versleuteld.')}</p>${confirmField('SLEUTEL')}`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '🎲 ' + L('Genereren'), cls: 'primary', submit: true }],
     onSubmit: async (d) => { await api('enc_generate', { confirm: d.confirm }); toast(L('Nieuwe sleutel opgeslagen')); loadSecurity(); },
+  });
+  const connSave = (extra = {}) => api('conn_save', { key_days: +$('#conn-days').value, pin: $('#conn-pin').checked, ip_lock: $('#conn-iplock').checked, ...extra });
+  const connChange = async (e) => {
+    const off = (e.target.id === 'conn-pin' && !e.target.checked && secInfo.conn.pin) || (e.target.id === 'conn-iplock' && !e.target.checked && secInfo.conn.ip_lock);
+    if (!off) {
+      try { await connSave(); savedFlag(e.target, true); loadSecurity(); } catch (ex) { savedFlag(e.target, false, ex.message); toast(ex.message, 'err'); }
+      return;
+    }
+    // Uitzetten maakt de verbinding minder veilig: eerst bevestigen
+    modal({
+      title: '⚠️ ' + L('Minder veilig maken?'),
+      body: `<p style="margin-top:0">${e.target.id === 'conn-pin' ? L('Zonder vastgezet certificaat accepteren agents met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzMon.') : L('Agents worden dan vanaf elk IP-adres geaccepteerd (met hun sleutel).')}</p>${confirmField('UITZETTEN')}`,
+      buttons: [{ label: L('Annuleren'), onClick: () => { $('#modal').close(); loadSecurity(); } }, { label: L('Uitzetten'), cls: 'danger', submit: true }],
+      onSubmit: async (d) => { await connSave({ confirm: d.confirm }); toast(L('Opgeslagen')); loadSecurity(); },
+    });
+  };
+  ['#conn-days', '#conn-pin', '#conn-iplock'].forEach((id) => ($(id).onchange = connChange));
+  $('#conn-ipwait').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-ip-allow]');
+    if (!b) return;
+    try { const r = await api('agent_ip_allow', { id: +b.dataset.ipAllow }); toast(L('{ip} toegestaan; de agent komt bij zijn volgende rapport weer binnen', { ip: r.ip })); loadSecurity(); refresh(); }
+    catch (ex) { toast(ex.message, 'err'); }
+  });
+  $('#enc-hosts').addEventListener('click', async (e) => {
+    const pair = e.target.closest('[data-pair]'), renew = e.target.closest('[data-key-renew]'), reset = e.target.closest('[data-ip-reset]');
+    try {
+      if (pair) { const h = findHost(+pair.dataset.pair); if (h) agentInstructions(h, true); }
+      if (renew && confirm(L('Nieuwe sleutel voor deze agent? Hij krijgt hem bij zijn volgende rapport; de huidige blijft nog 24 uur geldig.'))) {
+        await api('agent_key_renew', { id: +renew.dataset.keyRenew }); toast(L('Nieuwe sleutel klaar')); loadSecurity();
+      }
+      if (reset && confirm(L('Bekende IP-adressen van deze agent vergeten? Het volgende adres waarvan hij rapporteert, wordt het bekende.'))) {
+        await api('agent_ip_reset', { id: +reset.dataset.ipReset }); toast(L('Vergeten')); loadSecurity();
+      }
+    } catch (ex) { toast(ex.message, 'err'); }
   });
   $('#enc-hosts').addEventListener('change', async (e) => {
     const sel = e.target.closest('[data-enc-host]');
@@ -2609,13 +2663,25 @@ function encSeenText(h) {
 /** "30 s", "2 min" */
 function tickText(t) { return +t >= 120 ? `${+t / 60} min` : `${+t} s`; }
 
-function agentInstructions(h) {
+/**
+ * Installatiecommando met een koppelcode: eerst het installatiescript downloaden en controleren (SHA-256), dan
+ * installeren; het script controleert de agent ook. Bij een eigen certificaat alleen dat certificaat (--pinnedpubkey).
+ */
+function pairCommand(base, r, extra = '') {
+  const pin = r.pin && base.startsWith('https') ? r.pin : '';
+  return `curl -fsSL${pin ? ` -k --pinnedpubkey 'sha256//${pin}'` : ''} '${base}/api.php?action=agent_install' -o rzmon-install.sh`
+    + ` && echo '${r.setup_sha256}  rzmon-install.sh' | sha256sum -c -`
+    + ` && sudo bash rzmon-install.sh --url '${base}' --pair '${r.code}' --agent-sha '${r.agent_sha256}'${pin ? ` --pin '${pin}'` : ''}${extra}`;
+}
+const pairButton = () => `<div class="pair-box"><button type="button" class="btn primary" data-make-pair>🔗 ${L('Koppelcode maken')}</button>
+  <span class="muted small">${L('Eenmalig en 15 minuten geldig. De agent haalt er zijn eigen sleutel mee op; er gaat geen token of sleutel leesbaar over de lijn.')}</span></div>`;
+
+function agentInstructions(h, pairNow = false) {
   const base = state.base_url || location.origin + location.pathname.replace(/\/[^/]*$/, '');
   const scriptUrl = location.origin + location.pathname.replace(/\/[^/]*$/, '') + '/api.php?action=agent_script';
-  // Met een sleutel (Instellingen → 🔐 Versleuteling) gaat die mee, zodat de agent meteen versleuteld verstuurt
+  // De oude manier (token, en eventueel de algemene sleutel), voor agents ouder dan 1.50.0
   const keyArg = state.enc_key && h.enc !== 'off' ? ` --key '${state.enc_key}'` : '';
   const installCmd = `curl -fsSL '${base}/api.php?action=agent_install' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}'${keyArg}`;
-  const truenasCmd = `curl -fsSL '${base}/api.php?action=agent_install' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}'${keyArg} --truenas`;
   modal({
     title: `Agent Manager – ${h.name}`,
     wide: true,
@@ -2631,7 +2697,8 @@ function agentInstructions(h) {
         <select id="host-info-agent"><option value="1" ${+(h.info_agent ?? 1) ? 'selected' : ''}>${L('aan (volgt de algemene info-regel)')}</option><option value="0" ${+(h.info_agent ?? 1) ? '' : 'selected'}>${L('uit')}</option></select></div>
       <div class="cmd-host-row need-admin">🔐 ${L('Versleuteld versturen:')}
         <select id="host-enc">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
-        <span class="muted small">${encSeenText(h)}</span></div>
+        <span class="muted small">${encSeenText(h)} · ${+h.agent_key_seen === 1 ? '🔑 ' + L('eigen sleutel') : L('nog geen eigen sleutel: maak hieronder een koppelcode')}</span></div>
+      ${h.agent_ip_new ? `<div class="callout need-admin">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents → Beveiligde verbinding.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
       <div class="cmd-host-row need-admin">🖥️ ${L('Commando-checks op deze server:')}
         <select id="host-commands"><option value="global">${L('algemene instelling')}</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
         <span class="muted small" id="host-commands-info"></span></div>
@@ -2644,9 +2711,8 @@ function agentInstructions(h) {
         <p>${L('Op TrueNAS SCALE horen <code>/usr</code> en <code>/etc</code> bij TrueNAS zelf. De agent komt daarom op je <b>pool</b> (<code>/mnt/&lt;pool&gt;/rzmon-agent</code>), en draait via een <b>cronjob van TrueNAS</b> die ook na een TrueNAS-update blijft staan.')}</p>
         <ol class="steps">
           <li>${L('Open in TrueNAS <i>System → Shell</i> (of log in met SSH als beheerder).')}</li>
-          <li>${L('Voer dit uit:')}
-            <div class="copy-line"><pre class="code" id="truenas-oneliner">${esc(truenasCmd)}</pre>
-              <button type="button" class="btn" id="copy-truenas">${L('Kopieer')}</button></div></li>
+          <li>${L('Maak een koppelcode en voer het commando uit:')}
+            <div data-pair-pane="truenas">${pairButton()}</div></li>
         </ol>
         <p class="muted small">${L('De eerste pool wordt gekozen (niet <code>boot-pool</code>); een andere kies je met <code>--pool naam</code>. Het script zet de agent en de instellingen op de pool, maakt de cronjob <i>RzMon agent</i> aan (elke minuut, uitvoer verborgen) en stuurt een testrapport. Had je de agent al met de hand geïnstalleerd? Dan worden je instellingen en cronjob overgenomen.')}</p>
         <p class="muted small">${L('Daarna: bijwerken met de knop hierboven · testen: <code>bash /mnt/&lt;pool&gt;/rzmon-agent/rzmon-agent-setup --test</code> · verwijderen: <code>… --uninstall</code>. Tip: een <b>Commando</b>-check met <code>zpool status -x</code> en verwacht antwoord <code>all pools are healthy</code> bewaakt je pools.')}</p>
@@ -2657,11 +2723,9 @@ function agentInstructions(h) {
           <li>${L('In Home Assistant: <i>Instellingen → Add-ons → Add-on winkel</i> → ⋮ → <b>Repositories</b> → voeg <code>https://github.com/rembrand20/rzmon</code> toe.')}
             <span class="muted small">${L('(Of kopieer de map <code>ha-addon/rzmon_agent</code> naar de share <code>addons</code> met de <i>Samba share</i>-add-on.)')}</span></li>
           <li>${L('⋮ → <b>Controleren op updates</b> en installeer <b>RzMon Agent</b>.')}</li>
-          <li>${L('Tabblad <b>Configuratie</b>:')}</li>
+          <li>${L('Tabblad <b>Configuratie</b>: vul de koppelcode in (eenmalig, 15 minuten geldig):')}</li>
         </ol>
-        <pre class="code">monitor_url: ${esc(base)}
-token: ${esc(h.agent_token || '')}
-verify_ssl: true</pre>
+        <div data-pair-pane="ha">${pairButton()}</div>
         <ol class="steps" start="4">
           <li>${L('<b>Starten</b>. In het logboek moet <code>Verbonden met RzMon ✔</code> staan.')}</li>
           <li>${L('Voeg hier checks toe met <b>＋</b>: <i>Service</i> <code>homeassistant</code>, <code>supervisor</code>, <code>updates</code> of <code>addon:&lt;slug&gt;</code>, en <i>Diskruimte</i> <code>/data</code>.')}</li>
@@ -2670,12 +2734,16 @@ verify_ssl: true</pre>
       </div>
       <div data-pane="linux">
       <p>${L('Voer dit één commando uit op <b>{name}</b> (Rocky/RHEL/Alma, Debian/Ubuntu, Raspberry Pi OS, Proxmox). Het installeert de agent, stelt de services voor die er draaien, zet een systemd-timer aan en stuurt een testrapport.', { name: esc(h.name) })}</p>
-      <div class="copy-line"><pre class="code" id="agent-oneliner">${esc(installCmd)}</pre>
-        <button type="button" class="btn" id="copy-oneliner">${L('Kopieer')}</button></div>
-      ${base.startsWith('https') ? `<p class="muted small">${L('Self-signed certificaat op RzMon? Voeg <code>-k</code> toe aan curl en <code>--insecure</code> aan het eind.')}</p>` : ''}
+      <div data-pair-pane="linux">${pairButton()}</div>
       <p class="muted small">${L('Daarna: klik hier op <b>＋</b> en voeg checks toe (CPU, RAM, diskruimte, services). Bijwerken gaat daarna met de knop hierboven (of <code>sudo rzmon-agent-setup --update</code>) · verwijderen: <code>sudo rzmon-agent-setup --uninstall</code>.')}</p>
       <p class="muted small">🩺 ${L('<b>Komt er niets binnen?</b> Voer op de server <code>sudo rzmon-agent-setup --test</code> uit. Die controleert stap voor stap planning, netwerk, adres, token en een proefrapport, en zegt wat er mis is.')}</p>
       <p class="muted small">⚠️ ${L('De server moet RzMon kunnen bereiken op <code>{url}</code>. Klopt dat adres niet, pas dan de <i>Basis-URL</i> aan in Setup.', { url: esc(base) })}</p>
+      <details class="small api-docs">
+        <summary>${L('Oude manier: met het token (agent ouder dan 1.50.0)')}</summary>
+      <p class="muted small">${L('Zonder koppelcode: de agent stuurt dan zijn token mee. Een agent van 1.50.0 of nieuwer krijgt bij zijn eerste versleutelde rapport alsnog een eigen sleutel.')}</p>
+      <div class="copy-line"><pre class="code" id="agent-oneliner">${esc(installCmd)}</pre>
+        <button type="button" class="btn" id="copy-oneliner">${L('Kopieer')}</button></div>
+      </details>
       <details class="small api-docs">
         <summary>${L('Liever handmatig installeren?')}</summary>
       <p class="muted small">${L('1. Download <a href="{url}" target="_blank">rzmon-agent.sh</a> en kopieer het naar de server.', { url: esc(scriptUrl) })}</p>
@@ -2741,10 +2809,41 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
       sel.onchange = () => setAgentCommands(h.id, sel.value, me.mode, h.name, () => agentInstructions(findHost(h.id)));
     }).catch(() => {});
   }
-  $('#copy-truenas').onclick = async () => {
-    try { await navigator.clipboard.writeText(truenasCmd); toast(L('Commando gekopieerd')); }
-    catch (ex) { getSelection().selectAllChildren($('#truenas-oneliner')); toast(L('Geselecteerd — druk Ctrl+C'), 'err'); }
+  // Koppelcode: één code voor alle drie de manieren; daarna wachten tot de agent gekoppeld is
+  const makePair = async () => {
+    let r;
+    try { r = await api('agent_pair_code', { id: h.id }); } catch (ex) { toast(ex.message, 'err'); return; }
+    const copyLine = (txt) => `<div class="copy-line"><pre class="code">${esc(txt)}</pre><button type="button" class="btn" data-copy="${esc(txt)}">${L('Kopieer')}</button></div>`;
+    const head = `<div class="pair-code"><span class="muted small">${L('Koppelcode')}</span> <b class="mono">${esc(r.code)}</b> <span class="pair-status muted small"></span></div>`;
+    const ha = `monitor_url: ${base}\npair_code: ${r.code}${r.pin && base.startsWith('https') ? `\npin: ${r.pin}` : ''}`;
+    $$('[data-pair-pane]', body).forEach((p) => {
+      const k = p.dataset.pairPane;
+      p.innerHTML = head + (k === 'ha' ? copyLine(ha) : copyLine(pairCommand(base, r, k === 'truenas' ? ' --truenas' : '')))
+        + `<p class="muted small">${k === 'ha' ? L('Opslaan en de add-on (her)starten. In het logboek moet <code>Gekoppeld met RzMon</code> staan.')
+          : L('Het commando controleert eerst het installatiescript en de agent (SHA-256)')}${r.pin ? ' · 📌 ' + L('alleen het certificaat van deze RzMon') : ''}</p>`;
+    });
+    const until = Date.now() + r.minutes * 60000;
+    const tick = async () => {
+      if (!$('#modal').open || !$('.pair-status', body)) return;
+      const left = Math.max(0, Math.round((until - Date.now()) / 1000));
+      let done = false;
+      try { const me = (await api('security')).hosts.find((x) => +x.id === +h.id); done = me && !+me.pairing && +me.agent_key_seen === 1; } catch (ex) { /* volgende keer */ }
+      $$('.pair-status', body).forEach((el) => {
+        el.className = 'pair-status small ' + (done ? 'good-txt' : left ? 'muted' : 'warn-txt');
+        el.textContent = done ? '✔ ' + L('Gekoppeld: de agent heeft zijn eigen sleutel') : left ? '⏳ ' + L('wacht op de agent · nog {t}', { t: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` }) : L('verlopen: maak een nieuwe koppelcode');
+      });
+      if (done) { refresh(); loadSecurity(); } else if (left) setTimeout(tick, 3000);
+    };
+    tick();
   };
+  body.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-make-pair]')) return makePair();
+    const c = e.target.closest('[data-copy]');
+    if (!c) return;
+    try { await navigator.clipboard.writeText(c.dataset.copy); toast(L('Gekopieerd')); }
+    catch (ex) { getSelection().selectAllChildren(c.previousElementSibling); toast(L('Geselecteerd — druk Ctrl+C'), 'err'); }
+  });
+  if (pairNow && isAdmin()) makePair();
   $('#agent-live').onclick = async (e) => {
     const b = e.target.closest('[data-agent-upd]');
     if (!b) return;
@@ -3663,7 +3762,7 @@ const SET_NAV = [
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'mqtt']], ['rules', L('Meldregels en stille uren'), ['notify']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['monitoring', '📈', L('Monitoring'), [['alarm', L('Alarmgedrag'), ['alarm']], ['vulns', L('Kwetsbaarheden'), ['vulns']], ['ids', 'IDS', ['ids']]]],
   ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['users', L('Gebruikers'), ['users']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades'), ['blocks']]]],
-  ['agents', '🖥️', L('Agents'), [['agents', L('Agents bijwerken en commando\'s'), ['agents']], ['enc', L('Versleuteling'), ['enc']]]],
+  ['agents', '🖥️', L('Agents'), [['agents', L('Agents bijwerken en commando\'s'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']]]],
   ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['backup', L('Back-up'), ['backup']], ['db', L('Database'), ['db']], ['setup', 'Setup', ['setup']]]],
 ];
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();

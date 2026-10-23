@@ -7,6 +7,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.64.0 – 2026-10-23
+### Nieuw
+- **🔐 Beveiligde verbinding met de agents** (Instellingen → Agents → *Beveiligde verbinding*; **Nieuwe agent 1.50.0**):
+  - **Eigen sleutel per agent**: geen token meer over de lijn, elk verzoek versleuteld of ondertekend. Wordt één server gehackt, dan geldt dat alleen voor die server. Agents die al versleutelden, stappen vanzelf over; een verzoek met alleen het token wordt dan geweigerd (⚠️).
+  - **Koppelcode** (Agent Manager → 🔗 *Koppelcode maken*): eenmalig en 15 minuten geldig. Het installatiecommando controleert eerst het installatiescript en de agent (SHA-256). Het venster meldt *✔ Gekoppeld*. Ook voor de Home Assistant-add-on (`pair_code`).
+  - **Sleutels vernieuwen**: vanzelf elke 30 dagen (of 7, 90, alleen met de hand), zonder onderbreking; 🔄 per server.
+  - **📌 Certificaat van RzMon vastzetten** bij een eigen (self-signed) certificaat: de agents accepteren alleen dat certificaat; bij een nieuw certificaat controleren ze het met hun sleutel. Aan en uit te zetten.
+  - **🌐 Alleen vanaf het bekende IP-adres**: een agent van een ander adres wordt geweigerd, met een ⚠️-melding en Pushover; met **✔ Toestaan** laat je hem weer toe. Aan en uit te zetten.
+  - Uitzetten van vastzetten of het IP-slot vraagt om je wachtwoord.
+  - *Hoe staat het ervoor?* toont agents zonder eigen sleutel en agents die op toestemming wachten.
+- Agents werken zichzelf **automatisch** alleen nog bij via een versleutelde verbinding; onversleuteld alleen met de knop.
+- Een sleutel gaat nooit meer leesbaar over de lijn: agents zonder sleutel koppel je met een koppelcode (de algemene sleutel voor agents 1.49.x geef je zo nodig mee met `--key`).
+
 ## 1.63.0 – 2026-10-23
 ### Nieuw
 - **Nieuwe tabbladen**: Dashboard, Meldingen, IDS en Kwetsbaarheden in één afgeronde balk midden in de bovenbalk, met eigen lijn-iconen en een vlak dat naar het actieve tabblad schuift. De bovenbalk blijft staan als je scrolt.

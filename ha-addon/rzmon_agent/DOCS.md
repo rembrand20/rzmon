@@ -33,9 +33,9 @@ Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon 
 
 ## Installatie
 
-1. **In RzMon:** voeg een server toe met type **Remote met agent** en als adres het IP van je Home Assistant (bv. `192.168.1.20`). Kopieer het **token** uit het venster *Agent Manager*.
+1. **In RzMon:** voeg een server toe met type **Remote met agent** en als adres het IP van je Home Assistant (bv. `192.168.1.20`). Klik in het venster *Agent Manager* op **🏠 Home Assistant OS → 🔗 Koppelcode maken** (eenmalig, 15 minuten geldig).
 2. **In Home Assistant:** zet deze add-on in de map `/addons` (zie hieronder), ga naar *Instellingen → Add-ons → Add-on winkel*, klik rechtsboven op ⋮ → **Controleren op updates** en installeer **RzMon Agent** onder *Lokale add-ons*.
-3. Tabblad **Configuratie**: vul `monitor_url` (bv. `http://192.168.1.10`) en `token` in en sla op.
+3. Tabblad **Configuratie**: vul `monitor_url` (bv. `http://192.168.1.10`) en `pair_code` in en sla op. De add-on haalt daarmee zijn eigen sleutel op (in het logboek: *Gekoppeld met RzMon*); daarna is alles versleuteld en ondertekend.
 4. **Start** de add-on. Het logboek moet `Verbonden met RzMon ✔` tonen.
 5. **In RzMon:** klik bij de server op **＋** en voeg checks toe. Bij *Diskruimte* en *Service* kun je kiezen uit wat de agent meldt.
 
@@ -49,7 +49,9 @@ Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon 
 | Optie | Uitleg |
 |---|---|
 | `monitor_url` | Adres van RzMon, zonder `/api.php` |
-| `token` | Agent-token van deze server in RzMon |
+| `pair_code` | Koppelcode van deze server in RzMon (Agent Manager → 🔗 Koppelcode) |
+| `pin` | Alleen bij een eigen (self-signed) certificaat van RzMon: de vingerafdruk (staat bij de koppelcode) |
+| `token` | Oude manier: agent-token, alleen zonder koppelcode |
 | `interval` | Alleen voor oudere RzMon-versies. Vanaf RzMon 1.41.0 kies je in RzMon hoe vaak de add-on rapporteert (*Agent Manager → Rapporteren elke …*; standaard 60 s) |
 | `verify_ssl` | Uitzetten bij een self-signed certificaat |
 | `certs` | Certificaten waarvan RzMon de vervaldatum bewaakt: bestanden in `/ssl` (standaard `/ssl/fullchain.pem`, van de Let's Encrypt- of DuckDNS-add-on) en/of `host:poort`, ook op internet, bv. `mijndomein.duckdns.org:443`. Kies ze in RzMon bij een check van het type *SSL-certificaat* |

@@ -166,6 +166,19 @@ final class Installer
         ['security_fails', 'user', 'VARCHAR(64) NULL'],
         ['rz_blocks', 'until', 'DATETIME NULL'],                     // automatische blokkade: tot wanneer (NULL = blijvend)
         ['rz_blocks', 'auto', 'TINYINT(1) NOT NULL DEFAULT 0'],      // door de inlogbeveiliging gezet
+        // Beveiligde verbinding (1.64.0): een eigen sleutel per agent (kenmerk = AgentCrypto::keyId), de vorige nog 24 uur geldig
+        ['hosts', 'agent_key', 'VARCHAR(64) NULL'],
+        ['hosts', 'agent_key_id', 'CHAR(16) NULL'],
+        ['hosts', 'agent_key_at', 'DATETIME NULL'],                  // wanneer de huidige sleutel is gemaakt (vernieuwen na X dagen)
+        ['hosts', 'agent_key_seen', 'TINYINT NULL'],                 // 1 = de agent gebruikt zijn eigen sleutel (dan geldt een token alleen niet meer)
+        ['hosts', 'agent_key_old', 'VARCHAR(64) NULL'],
+        ['hosts', 'agent_key_old_id', 'CHAR(16) NULL'],
+        ['hosts', 'agent_key_old_until', 'DATETIME NULL'],
+        ['hosts', 'pair_key', 'VARCHAR(64) NULL'],                   // koppelcode (afgeleide sleutel), eenmalig en kort geldig
+        ['hosts', 'pair_until', 'DATETIME NULL'],
+        ['hosts', 'agent_ips', 'VARCHAR(255) NULL'],                 // toegestane IP-adressen van de agent (spatie-gescheiden)
+        ['hosts', 'agent_ip_new', 'VARCHAR(45) NULL'],               // geweigerd: nieuw IP-adres, wacht op toestemming
+        ['hosts', 'agent_ip_new_at', 'DATETIME NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

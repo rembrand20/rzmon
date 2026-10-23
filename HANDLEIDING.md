@@ -121,7 +121,7 @@ RzMon bestaat uit vier onderdelen:
 ### Accountmenu, Mijn account en Instellingen (vanaf 1.60.0)
 - **Rechtsboven** staat je naam met een menu: **👤 Mijn account**, **⚙️ Instellingen** (alleen beheerders), het **thema** (auto, licht of donker), de **taal** (NL of EN) en **⏻ Uitloggen**. Ben je zonder wachtwoord binnen via het lokale netwerk, dan staat er **🏠 Lokaal netwerk** met **Inloggen met je account**; *Mijn account* is er dan niet.
 - **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave op dit apparaat** (Blox of L1nes, Small of Large).
-- **Instellingen** (alleen beheerders; het tabblad in de bovenbalk is weg): links een **zijbalk** met de groepen **🔔 Meldingen** (Kanalen · Meldregels en stille uren · Systeeminfo), **📈 Monitoring** (Alarmgedrag · Kwetsbaarheden · IDS), **🔐 Beveiliging** (Toegang en inlogbeveiliging · Gebruikers · API-sleutels · Blokkades), **🖥️ Agents** (Agents bijwerken en commando's · Versleuteling) en **🛠️ Systeem** (RzMon bijwerken · Back-up · Database · Setup). Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan.
+- **Instellingen** (alleen beheerders; het tabblad in de bovenbalk is weg): links een **zijbalk** met de groepen **🔔 Meldingen** (Kanalen · Meldregels en stille uren · Systeeminfo), **📈 Monitoring** (Alarmgedrag · Kwetsbaarheden · IDS), **🔐 Beveiliging** (Toegang en inlogbeveiliging · Gebruikers · API-sleutels · Blokkades), **🖥️ Agents** (Agents bijwerken en commando's · Beveiligde verbinding) en **🛠️ Systeem** (RzMon bijwerken · Back-up · Database · Setup). Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan.
   - **✅ Hoe staat het ervoor?** (vanaf 1.62.0) is het eerste onderdeel; via het accountmenu kom je altijd hier. Een cirkel met een score (0–100%) en een lijst: ✔ groen is in orde, **!** oranje is een aandachtspunt, ✘ rood moet je regelen, grijs is optioneel (telt niet mee). RzMon kijkt naar: een **meldkanaal** (Pushover of e-mail aan en ingevuld), **automatische back-up** (en de laatste niet ouder dan een week), **2FA** voor alle beheerders, **inlogbeveiliging**, een **nieuwe RzMon-versie**, **agents** op een oudere versie of **onversleuteld**, **HTTPS** (zoals jij RzMon nu opent), en of **kwetsbaarheden** en **IDS** aan staan. Klik op een punt en je staat bij de instelling. In de zijbalk krijgt een groep met een aandachtspunt een oranje (of rood) bolletje.
   - **🔍 Zoek een instelling…** bovenaan de zijbalk (op de telefoon boven de keuzelijst) zoekt in de namen van de onderdelen én in alle velden, schakelaars en koppen, ook ingeklapte. Met **Enter** (of een klik op een resultaat) spring je naar het veld: het licht even op en een ingeklapt *Geavanceerd* gaat open. **Esc** wist de zoekterm.
   - Lange uitleg is ingekort tot twee regels, met **ⓘ meer uitleg** om alles te lezen. Een lange toelichting bij een veld is een **ⓘ**: wijs hem aan (of tik erop) voor de tooltip.
@@ -804,10 +804,13 @@ Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-
 
 ### 8.1 Installeren met één commando
 1. Voeg in RzMon een server toe met type **Remote met agent**.
-2. Klap de server open en klik op **Agent Manager** → tabblad **🐧 Linux-server**. Klik op **Kopieer** bij het commando; daarin staan het adres van RzMon en het token van deze server al ingevuld:
+2. Klap de server open en klik op **Agent Manager** → tabblad **🐧 Linux-server** → **🔗 Koppelcode maken**. Klik op **Kopieer** bij het commando (vanaf 1.64.0); daarin staan het adres van RzMon, een **koppelcode** (eenmalig, 15 minuten geldig) en de controlegetallen al ingevuld:
    ```bash
-   curl -fsSL 'http://192.168.1.10/api.php?action=agent_install' | sudo bash -s -- --url 'http://192.168.1.10' --token '<token>'
+   curl -fsSL 'http://192.168.1.10/api.php?action=agent_install' -o rzmon-install.sh \
+     && echo '<sha256>  rzmon-install.sh' | sha256sum -c - \
+     && sudo bash rzmon-install.sh --url 'http://192.168.1.10' --pair 'K7QF-M2XA-9RTD-HC4P-WE8N' --agent-sha '<sha256>'
    ```
+   Het commando controleert eerst het installatiescript, en het script daarna de agent (SHA-256): onderweg gewijzigd = stoppen. Met de koppelcode haalt de agent zijn **eigen sleutel** op; er gaat geen token of sleutel leesbaar over de lijn (zie [10.1](#101-versleutelde-agents-blokkades-en-beveiligingsmeldingen-vanaf-1570)). Onder het venster wacht RzMon op de agent en meldt **✔ Gekoppeld**. De oude manier met het token staat onder *Oude manier* (voor agents ouder dan 1.50.0).
 3. Plak het op de server die je wilt bewaken. Het script:
    - installeert wat ontbreekt (`curl`, `ss`);
    - haalt de agent op **van je eigen RzMon**, dus het werkt ook als de GitHub-repository privé is;
@@ -820,7 +823,11 @@ Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-
 |---|---|
 | `--services "sshd nginx"` | *Verouderd.* Services kies je in RzMon (8.2.2); wat je hier opgeeft wordt ook gemeld |
 | `--interval 120` | Tik als RzMon er geen doorgeeft (30-3600, standaard 60); normaal stel je dit in RzMon in |
-| `--insecure` | Self-signed HTTPS-certificaat van RzMon accepteren (gebruik dan ook `curl -k`) |
+| `--pair CODE` | Koppelcode uit de Agent Manager (eenmalig, 15 minuten geldig) |
+| `--pin VINGERAFDRUK` | Alleen het certificaat van RzMon met deze vingerafdruk accepteren (eigen, self-signed certificaat); staat vanzelf in het commando |
+| `--agent-sha SHA256` | De gedownloade agent hiermee controleren; staat vanzelf in het commando |
+| `--token TOKEN` | Oude manier, in plaats van een koppelcode |
+| `--insecure` | Self-signed HTTPS-certificaat van RzMon accepteren (gebruik dan ook `curl -k`); met `--pin` niet nodig |
 | `--cron` | Cron gebruiken in plaats van een systemd-timer |
 | `--no-epel` | Rocky/Alma/RHEL/Oracle: EPEL niet installeren (wordt bewaard als `EPEL=0`); dan geen bestanden in realtime |
 | `-y` | Niets vragen (handig voor Ansible e.d.) |
@@ -1458,7 +1465,7 @@ De add-on haalt back-up, integraties en systeemstatus elke 5 minuten op, de rest
 4. **Tabblad Configuratie:**
    ```yaml
    monitor_url: http://192.168.1.10
-   token: <token uit RzMon>
+   pair_code: K7QF-M2XA-9RTD-HC4P-WE8N   # Agent Manager → 🏠 Home Assistant OS → 🔗 Koppelcode maken
    verify_ssl: true
    certs:                        # vervaldatum bewaken (optioneel)
      - /ssl/fullchain.pem        # Let's Encrypt- of DuckDNS-add-on
@@ -1577,11 +1584,21 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 
 ### 10.1 Versleutelde agents, blokkades en beveiligingsmeldingen (vanaf 1.57.0)
 
-**🔐 Versleuteling van de agents** (*Instellingen → Toegang*, alleen beheerders)
+**🔐 Beveiligde verbinding** (vanaf 1.64.0, agent 1.50.0; *Instellingen → 🖥️ Agents → Beveiligde verbinding*, alleen beheerders)
+- **Eigen sleutel per agent.** Elke agent heeft een eigen sleutel (in `/var/lib/rzmon-agent/agent.key`, alleen root; in de HA-add-on in `/data/rzmon-keys`, op TrueNAS in de map van de agent). Daarmee versleutelt en ondertekent hij alles, en antwoordt RzMon ook versleuteld. Hij stuurt **geen token** meer mee, alleen het kenmerk van zijn sleutel; een verzoek met alleen het token wordt dan geweigerd (⚠️). Wordt één server gehackt, dan geldt dat alleen voor die server: maak een nieuwe koppelcode en de oude sleutel vervalt meteen.
+- **Overstap:** een agent die al met de algemene sleutel werkte, krijgt zijn eigen sleutel vanzelf bij zijn volgende rapport (in het versleutelde antwoord). Je hoeft niets te doen; werk alleen de agents bij naar 1.50.0. Een sleutel gaat **nooit leesbaar** over de lijn: een agent zonder sleutel koppel je met een koppelcode.
+- **Koppelcode:** *Agent Manager* → **🔗 Koppelcode maken** (of 🔗 in de tabel). Eenmalig en **15 minuten** geldig. De agent versleutelt zijn eerste bericht met een sleutel uit de code en krijgt zijn eigen sleutel versleuteld terug. Een verlopen of al gebruikte code wordt geweigerd (⚠️). Het venster meldt **✔ Gekoppeld** zodra het gelukt is.
+- **Sleutels vernieuwen:** standaard **elke 30 dagen** (of 7, 90, of alleen met de hand), vanzelf en zonder onderbreking: de agent krijgt de nieuwe in het versleutelde antwoord, de vorige blijft nog 24 uur geldig. Met **🔄** in de tabel vernieuw je hem meteen.
+- **📌 Certificaat van RzMon vastzetten** (standaard aan): draait RzMon met https en een **eigen (self-signed) certificaat**, dan accepteert de agent alleen dát certificaat (`curl --pinnedpubkey`), ook met `INSECURE=1`. RzMon bepaalt de vingerafdruk zelf en geeft hem versleuteld aan de agents; in het installatiecommando staat hij als `--pin`. Bij een **nieuw certificaat** controleert de agent het met zijn sleutel (alleen de echte RzMon kan dan correct antwoorden) en neemt hij de nieuwe vingerafdruk over. Een nep-RzMon met een ander certificaat krijgt niets. Met een geldig certificaat (Let's Encrypt) of via http is vastzetten niet nodig. Uitzetten vraagt om je wachtwoord. Agents hebben curl 7.44 of nieuwer nodig.
+- **🌐 Alleen vanaf het bekende IP-adres** (standaard aan): RzMon onthoudt het eerste IP-adres van elke agent (bij het koppelen: het adres van dat moment). Komt een agent van een **ander adres**, dan weigert RzMon hem, met een ⚠️-melding (ook via Pushover). Bovenaan de kaart staat dan *„… wil verbinden vanaf … en is geweigerd“* met de knop **✔ Toestaan**; daarna komt hij weer binnen (een server mag tot 5 adressen hebben, bv. IPv4 en IPv6). Met **↺** vergeet je de adressen; het volgende wordt het bekende. Uitzetten vraagt om je wachtwoord.
+- **Agents bijwerken** gaat automatisch alleen nog via een **versleutelde** verbinding; een onversleutelde agent werk je bij met de knop. Een agent met een sleutel negeert een antwoord dat niet versleuteld is.
+- *Hoe staat het ervoor?* toont agents zonder eigen sleutel en agents die wachten op toestemming voor een nieuw IP-adres.
+
+**🔐 Algemene sleutel** (agents 1.49.x; op dezelfde kaart onder *Algemene sleutel*)
 - Klik op **🎲 Sleutel genereren**. Agents vanaf **1.49.0** krijgen de sleutel bij hun volgende rapport, en versturen daarna alles **versleuteld**: het rapport, de voortgang van pakketten bijwerken, en het ophalen van hun instellingen. Het antwoord van RzMon komt ook versleuteld terug.
 - **Hoe:** AES-256-CBC met een handtekening (HMAC-SHA256), met `openssl` op de server. RzMon controleert eerst de handtekening en pakt het bericht pas daarna uit. Een bericht ouder dan 5 minuten, of dat al eens binnenkwam (opnieuw afgespeeld), wordt geweigerd. Het antwoord is gebonden aan het verzoek, zodat een oud antwoord niet opnieuw te gebruiken is.
 - **Versleutelen:** *Uit*, **Aan** (standaard: wie een sleutel heeft, versleutelt; oude agents werken nog) of *Verplicht* (onversleuteld wordt geweigerd). Per server kies je een eigen instelling in de **Agent Manager** of in de tabel op de kaart: *algemene instelling*, *aan*, *verplicht* of *uit*. Daar zie je ook of het laatste rapport 🔒 versleuteld was.
-- **De sleutel bij de agent:** een agent zonder sleutel krijgt hem met het antwoord op een onversleuteld rapport (gebruik daarvoor bij voorkeur HTTPS), of je geeft hem mee bij het installeren: het installatiecommando in de Agent Manager bevat dan `--key …`. De agent bewaart hem in `/var/cache/rzmon-agent/enc.key` (alleen root); `ENC_KEY=` in `/etc/default/rzmon-agent` kan ook.
+- **De sleutel bij de agent:** vanaf 1.64.0 gaat de algemene sleutel alleen nog versleuteld over de lijn. Een agent 1.49.x zonder sleutel geef je hem mee bij het installeren (`--key …`, *Oude manier* in de Agent Manager), of werk hem bij naar 1.50.0 en koppel hem. De agent bewaart hem in `/var/cache/rzmon-agent/enc.key` (alleen root); `ENC_KEY=` in `/etc/default/rzmon-agent` kan ook.
 - **Nieuwe sleutel:** de vorige blijft nog **24 uur** geldig. Elke agent krijgt de nieuwe bij zijn volgende rapport (versleuteld met de oude). Is een agent langer offline, dan gooit hij na 3 geweigerde rapporten zijn oude sleutel weg en haalt hij de nieuwe op (bij *Aan*); bij *Verplicht* geef je hem met `--key` opnieuw mee.
 - Zet *Verplicht* pas aan als 🔒 bij alle servers staat. Versleuteling komt **bovenop** HTTPS: het helpt vooral als agents via HTTP of een proxy verbinden, en het bewijst dat een rapport echt van een agent met de sleutel komt.
 
@@ -1925,7 +1942,7 @@ Opnieuw `install-rocky.sh` draaien doet beide ook.
 - [ ] "Geen login op LAN" aan? Dan getest via 4G dat je een loginscherm krijgt.
 - [ ] Ongebruikte API-sleutels zijn ingetrokken.
 - [ ] Inlogbeveiliging aan (*Instellingen → Toegang*), en je lokale netwerken kloppen (vanaf daar kun je altijd nog inloggen).
-- [ ] Agents versleutelen (*Instellingen → 🔐 Versleuteling*: sleutel gemaakt, 🔒 bij alle servers, daarna eventueel *Verplicht*).
+- [ ] Agents beveiligen (*Instellingen → Agents → Beveiligde verbinding*: 🔑 eigen sleutel en 🔒 bij alle servers, daarna eventueel *Verplicht*).
 - [ ] De MariaDB-gebruiker `rzmon` mag alleen inloggen vanaf `localhost`.
 - [ ] `display_errors` staat uit.
 

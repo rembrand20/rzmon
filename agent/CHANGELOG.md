@@ -5,6 +5,15 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.50.0 – 2026-10-23
+- **Eigen sleutel** (RzMon 1.64.0 nodig): de agent krijgt een eigen sleutel, vanzelf (als hij al versleutelde) of met een **koppelcode**. Daarna stuurt hij geen token meer mee en is elk verzoek versleuteld of ondertekend, ook het ophalen van zijn instellingen. De sleutel staat in `/var/lib/rzmon-agent` (add-on: `/data/rzmon-keys`, TrueNAS: de map van de agent), niet meer in de cache. Vernieuwt RzMon de sleutel, dan neemt de agent hem vanzelf over.
+- **Koppelen**: `install-agent.sh --pair CODE` (of `PAIR_CODE=` in de instellingen, of `pair_code` in de add-on). Het eerste bericht is versleuteld met een sleutel uit de code; de agent krijgt zijn eigen sleutel versleuteld terug. Een code wordt maar één keer gebruikt.
+- **Certificaat van RzMon vastzetten** bij een eigen (self-signed) certificaat: de agent accepteert alleen dat certificaat (`--pinnedpubkey`, curl 7.44+). De vingerafdruk komt uit het installatiecommando (`--pin`, of `pin` in de add-on) en daarna versleuteld van RzMon. Bij een nieuw certificaat controleert de agent het met zijn sleutel en neemt hij de nieuwe vingerafdruk over.
+- **Strenger**: een onversleuteld antwoord op een versleuteld verzoek wordt genegeerd (geen update, geen nieuwe sleutel). De eigen sleutel gooit de agent nooit weg. Het logboek toont geen sleutels meer.
+- **Installatiescript**: `--pair`, `--pin` en `--agent-sha` (de gedownloade agent wordt met SHA-256 gecontroleerd); een token is met een koppelcode niet meer nodig. `--uninstall` verwijdert ook de sleutel.
+- **Verbindingstest** (`--test`): controleert de eigen sleutel (het antwoord van RzMon moet ermee ondertekend zijn) en het vastgezette certificaat.
+- **Add-on**: nieuwe opties `pair_code` en `pin`; `token` is niet meer verplicht.
+
 ## 1.49.1 – 2026-10-23
 - **Pakketten bijwerken (pagina 🐞 Kwetsbaarheden) mislukte meteen** met *_: line 34: : command not found* (agent 1.48.0 en 1.49.0, op servers met systemd). `systemd-run` vult zelf alles in wat op `${…}` lijkt in de opdrachtregel, en het bijwerk-script stond daar als tekst in; zo werd het dnf- of apt-commando leeg. Het script staat nu in een bestand (alleen leesbaar voor root) en `systemd-run` start alleen dat bestand.
 - Hetzelfde voor de IDS-taken op de achtergrond (SUID-bestanden, pakketcontrole, bestanden opnieuw hashen).

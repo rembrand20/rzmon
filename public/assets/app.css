@@ -1114,3 +1114,12 @@ details.adv[open] { padding-bottom: .6rem; }
   .main-tabs .tab-lbl-s { display: inline; }
   #toasts { bottom: calc(76px + env(safe-area-inset-bottom)); }
 }
+
+/* ---------------------------------------------------------------- 1.64.0: beveiligde verbinding, koppelcode */
+.pair-box { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; margin: .4rem 0 .8rem; }
+.pair-code { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; margin: .4rem 0; }
+.pair-code b { font-size: 1.25rem; letter-spacing: .06em; }
+.ip-wait { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.ip-wait .btn { margin-left: auto; }
+.enc-table .small-btn { padding: .2rem .45rem; }
+.nowrap { white-space: nowrap; }
