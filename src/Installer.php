@@ -133,6 +133,9 @@ final class Installer
         ['hosts', 'info_agent', 'TINYINT(1) NOT NULL DEFAULT 1'],
         // Info-check: geeft alleen info-meldingen, telt nooit als storing
         ['checks', 'info_only', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        // Kwetsbaarheden: pakketten bijwerken via de agent (opdracht als JSON, en de uitkomst)
+        ['hosts', 'vuln_upgrade_req', 'TEXT NULL'],
+        ['hosts', 'vuln_upgrade_status', 'TEXT NULL'],
         // API-sleutels: rechten (read, ids_read, ids_block, checks), alleen vanaf (IP's/netwerken), geldig tot
         ['api_keys', 'rights', "VARCHAR(60) NOT NULL DEFAULT 'read'"],
         ['api_keys', 'allow_from', 'VARCHAR(500) NULL'],

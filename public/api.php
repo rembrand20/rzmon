@@ -389,6 +389,12 @@ if ($action === 'agent') {
     if ($u = agent_update_instruction($host['id'], $agentVersion, $in)) {
         $resp['update'] = $u;
     }
+    // Kwetsbaarheden: softwarelijst opslaan, uitkomst van "bijwerken", en eventueel een nieuwe opdracht
+    try {
+        $resp += Vulns::agentReport($host, $in);
+    } catch (Throwable $e) {
+        error_log('RzMon: softwarelijst verwerken mislukt: ' . $e->getMessage());
+    }
     out($resp);
 }
 
@@ -520,7 +526,7 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
 $need = match ($action) {
     'state', 'alerts', 'ids', 'ids_access', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'user_email', 'lang_set' => 'readonly',
-    'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan' => 'user',
+    'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1187,6 +1193,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
+            'vuln_enabled', 'vuln_time', 'vuln_min_severity', 'vuln_exclude',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -1232,6 +1239,15 @@ switch ($action) {
         }
         if (isset($in['notify_fails'])) {
             $in['notify_fails'] = (string) max(1, min(100, (int) $in['notify_fails']));
+        }
+        if (isset($in['vuln_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['vuln_time'])) {
+            out(['error' => t('Scantijd voor kwetsbaarheden: gebruik uu:mm, bv. 03:30')], 422);
+        }
+        if (isset($in['vuln_min_severity'])) {
+            $in['vuln_min_severity'] = (string) max(0, min(4, (int) $in['vuln_min_severity']));
+        }
+        if (isset($in['vuln_exclude'])) {
+            $in['vuln_exclude'] = implode(',', array_unique(array_filter(array_map('intval', is_array($in['vuln_exclude']) ? $in['vuln_exclude'] : explode(',', (string) $in['vuln_exclude'])))));
         }
         if (isset($in['notify_lang'])) {
             $in['notify_lang'] = in_array($in['notify_lang'], I18n::LANGS, true) ? $in['notify_lang'] : 'nl';
@@ -1672,6 +1688,65 @@ switch ($action) {
         ]);
 
     // Toegang: logins, sudo en su (zonder wat inmiddels op de lijst Negeren staat)
+    // ---------- Kwetsbaarheden (beheerders en gebruikers; bijwerken en scannen alleen beheerders) ----------
+    case 'vulns':
+        out(Vulns::enabled() ? Vulns::overview() : ['enabled' => false]);
+
+    case 'vuln_packages':
+        out(['packages' => Vulns::packages((int) ($_GET['host_id'] ?? 0))]);
+
+    case 'vuln_detail':
+        $d = Vulns::detail(mb_substr(trim((string) ($_GET['cve'] ?? '')), 0, 80));
+        $d ? out($d) : out(['error' => t('Kwetsbaarheid niet gevonden')], 404);
+
+    case 'vuln_ignore':
+        $in = input();
+        $cve = mb_substr(trim((string) ($in['cve'] ?? '')), 0, 40);
+        if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9:._-]+$/', $cve)) {
+            out(['error' => t('Ongeldige kwetsbaarheid')], 422);
+        }
+        $pkg = trim((string) ($in['package'] ?? '')) ?: null;
+        $hid = (int) ($in['host_id'] ?? 0) ?: null;
+        q('INSERT INTO vuln_ignore (cve, package, host_id, reason, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+            [$cve, $pkg !== null ? mb_substr($pkg, 0, 150) : null, $hid, mb_substr(trim((string) ($in['reason'] ?? '')), 0, 300), $user['username'], now()]);
+        AgentCommands::audit($user['username'], 'Kwetsbaarheid: risico geaccepteerd', $cve . ($pkg ? " · $pkg" : '') . ($hid ? " · server $hid" : ' · alle servers'));
+        out(['ok' => true]);
+
+    case 'vuln_unignore':
+        $in = input();
+        q('DELETE FROM vuln_ignore WHERE id = ?', [(int) ($in['id'] ?? 0)]);
+        AgentCommands::audit($user['username'], 'Kwetsbaarheid: niet meer genegeerd', '#' . (int) ($in['id'] ?? 0));
+        out(['ok' => true]);
+
+    case 'vuln_scan':
+        if (!Vulns::enabled()) {
+            out(['error' => t('Kwetsbaarheden staat uit (Instellingen → 🐞 Kwetsbaarheden)')], 422);
+        }
+        session_write_close();
+        q('UPDATE vuln_inventory SET scanned_at = NULL');
+        $msg = Vulns::cron(25);
+        out(['ok' => true, 'message' => $msg, 'pending' => (int) q('SELECT COUNT(*) FROM vuln_inventory WHERE scanned_at IS NULL')->fetchColumn()]);
+
+    case 'vuln_upgrade':
+        $in = input();
+        $h = q('SELECT id, name, mode, agent_version, agent_update_via, commands FROM hosts WHERE id = ?', [(int) ($in['host_id'] ?? 0)])->fetch();
+        if (!$h) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        $confirm('BIJWERKEN');
+        $inv = q('SELECT mgr, packages FROM vuln_inventory WHERE host_id = ?', [$h['id']])->fetch();
+        // Welke pakketten: de meegegeven bevindingen, of alles waarvoor een oplossing is
+        $names = !empty($in['all'])
+            ? q('SELECT DISTINCT package FROM vuln_findings WHERE host_id = ? AND fixed_version IS NOT NULL', [$h['id']])->fetchAll(PDO::FETCH_COLUMN)
+            : array_map('strval', array_slice((array) ($in['packages'] ?? []), 0, 200));
+        $bins = $inv ? Vulns::binaries((array) json_decode((string) $inv['packages'], true), (string) $inv['mgr'], $names) : [];
+        $r = Vulns::requestUpgrade($h, $bins, $user['username']);
+        if ($r !== true) {
+            out(['error' => $r, 'command' => $inv && $bins ? Vulns::upgradeCommand((string) $inv['mgr'], $bins) : null], 422);
+        }
+        AgentCommands::audit($user['username'], 'Pakketten bijwerken gevraagd', "{$h['name']}: " . implode(' ', $bins));
+        out(['ok' => true, 'packages' => $bins]);
+
     case 'ids_access':
         $days = Monitor::alertDays();
         $rows = q('SELECT a.id, a.host_id, a.kind, a.type, a.title, a.message, a.detail, a.created_at, h.name AS host_name

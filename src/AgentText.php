@@ -70,6 +70,11 @@ final class AgentText
         '/^geen antwoord binnen 15 seconden$/' => 'geen antwoord binnen 15 seconden',
         // Home Assistant
         '/^integratielijst niet beschikbaar voor de add-on \((.*)\)$/' => 'integratielijst niet beschikbaar voor de add-on ({a})',
+        // pakketten bijwerken (Kwetsbaarheden)
+        '/^geblokkeerd op de server \(COMMANDS=(.*) in \/etc\/default\/rzmon-agent\)$/' => 'geblokkeerd op de server (COMMANDS={a} in /etc/default/rzmon-agent)',
+        '/^de agent draait niet als root$/' => 'de agent draait niet als root',
+        '/^geen geldige pakketnamen ontvangen$/' => 'geen geldige pakketnamen ontvangen',
+        '/^systemd-run mislukt$/' => 'systemd-run mislukt',
         // bijwerken
         '/^downloaden van de nieuwe versie bij RzMon mislukt$/' => 'downloaden van de nieuwe versie bij RzMon mislukt',
         '/^controlegetal \(SHA-256\) klopt niet: download onvolledig of onderweg gewijzigd$/' => 'controlegetal (SHA-256) klopt niet: download onvolledig of onderweg gewijzigd',

@@ -109,7 +109,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 
 ## 7. REST API
 - JSON, met API-sleutels die je in de webinterface beheert.
-- **Rechten per sleutel:** 📖 status lezen, 🛡️ IDS lezen, ⛔ IDS blokkeren (met bevestiging) en ✔ checks bedienen; daarnaast optioneel **alleen vanaf** bepaalde IP's of netwerken, en een **geldigheid** van 6, 12 of 24 maanden (verlengen met ✎).
+- **Rechten per sleutel:** 📖 status lezen, 🛡️ IDS lezen, 🐞 kwetsbaarheden lezen, ⛔ IDS blokkeren (met bevestiging) en ✔ checks bedienen; daarnaast optioneel **alleen vanaf** bepaalde IP's of netwerken, en een **geldigheid** van 6, 12 of 24 maanden (verlengen met ✎).
 - **IDS:** incidenten, blokkades en logins uitlezen, en IP's blokkeren of deblokkeren, bijvoorbeeld vanuit fail2ban. Je LAN, RzMon zelf en *Nooit blokkeren* weigert de API altijd; in de leerstand wordt een blokkade alleen vastgelegd.
 - **Checks bedienen:** bevestigen, onderhoud (check of server) en nu checken.
 - Alles wat een sleutel verandert komt in het logboek.
@@ -156,6 +156,13 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - **📁 bestanden bewaken** (FIM): eigen paden (algemeen en per server, met jokertekens zoals `/var/www/**/*.php`), met hash, grootte, rechten en eigenaar; nieuw, gewijzigd, verwijderd of SUID erbij; elke minuut snel, dagelijks volledig; veel wijzigingen tegelijk als één incident; *＋ Aanbevolen*, *goedkeuren* en *niet meer bewaken*;
   - TrueNAS SCALE alleen detecteren;
   - drie tabbladen: **Incidenten**, **🔑 Toegang** (logins, sudo en su per dag, met filters, sorteren, 🙈 negeren en ⛔ blokkeren; los aan/uit te zetten) en **Blokkades**, plus een knop **⛔ IP blokkeren** voor een IP-adres naar keuze.
+- **🐞 Kwetsbaarheden**, pagina *Kwetsbaarheden* (standaard **uit**):
+  - de agents (1.47.0+) sturen hun pakketlijst mee (dpkg of rpm), RzMon leest die van zichzelf; RzMon zoekt de CVE's op bij **OSV.dev** met de adviezen van de distributie (geen vals alarm door backports; alleen pakketnaam, versie en distributie gaan naar OSV);
+  - per server: pakket, geïnstalleerde versie, **opgelost in**, CVE's per ernst, **🌐 bereikbaar** (luistert op het netwerk), **⚠️ actief misbruikt** (CISA KEV), **↻ herstart nodig**; tellers, zoeken en filters, en de hele softwarelijst;
+  - klik op een CVE: omschrijving, CVSS met uitleg, EPSS, adviezen en links, en per server het commando om bij te werken;
+  - **bijwerken via de agent** per pakket of *alle beveiligingsupdates* (beheerders, met wachtwoord, alleen als commando's als root aan staan; anders het commando om zelf uit te voeren);
+  - **risico accepteren** met een reden; ℹ️ info bij een nieuwe critical of actief misbruikte CVE; REST API (`/vulnerabilities`) en MQTT-sensoren;
+  - ondersteund: Debian, Ubuntu, Rocky Linux, AlmaLinux (en RHEL/CentOS), Alpine.
 - **Hulpdienst als root** voert alleen vaste taken uit. Hij weigert als de RzMon-map niet veilig is (ontgrendeld, of bestanden die niet van root zijn).
 
 ## 10. De agent (Linux)

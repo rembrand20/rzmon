@@ -157,7 +157,7 @@ let alertFilter = (() => { try { return localStorage.getItem('rzmon-alert-filter
 let alertSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-alert-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 // Instellingen in L1nes (zie applySettingsLayout); hier bovenaan omdat de weergave al bij het opstarten wordt toegepast
 const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', email: 'meldingen', webhook: 'meldingen', mqtt: 'meldingen', alarm: 'monitoring',
-  ids: 'monitoring', update: 'systeem', agents: 'systeem', backup: 'systeem', db: 'systeem', access: 'toegang', users: 'toegang', api: 'toegang', account: 'toegang', password: 'toegang' };
+  ids: 'monitoring', vulns: 'monitoring', update: 'systeem', agents: 'systeem', backup: 'systeem', db: 'systeem', access: 'toegang', users: 'toegang', api: 'toegang', account: 'toegang', password: 'toegang' };
 let setOpen = (() => { try { return JSON.parse(localStorage.getItem('rzmon-set-open') || '{}') || {}; } catch (e) { return {}; } })();
 function saveSetOpen() { try { localStorage.setItem('rzmon-set-open', JSON.stringify(setOpen)); } catch (e) {} }
 const setCards = () => $$('#tab-settings [data-sk]');
@@ -329,6 +329,16 @@ if (loginForm) {
 
 // ---------------------------------------------------------------- App
 function init() {
+  if ($('#tab-vulns')) initVulns();
+  $('#vuln-scan-now').onclick = async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    try {
+      const r = await api('vuln_scan', {});
+      $('#vuln-scan-info').textContent = r.message || (r.pending ? L('Scan gestart: nog {n} server(s) te gaan, de rest volgt binnen een paar minuten', { n: r.pending }) : L('Scan klaar'));
+    } catch (ex) { $('#vuln-scan-info').textContent = ex.message; }
+    b.disabled = false;
+  };
   $$('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
   showTab(location.hash.slice(1) || 'dashboard');
 
@@ -579,6 +589,7 @@ function showTab(name) {
   if (name === 'settings') loadSettings();
   if (name === 'alerts') loadAlerts();
   if (name === 'ids') loadIds();
+  if (name === 'vulns') loadVulns();
 }
 
 async function refresh() {
@@ -590,6 +601,7 @@ async function refresh() {
     render();
     if (!$('#tab-alerts').hidden) loadAlerts();
     if (!$('#tab-ids').hidden) loadIds();
+    if ($('#tab-vulns') && !$('#tab-vulns').hidden) loadVulns();
     $('#ids-badge').hidden = !state.ids_open;
     $('#ids-badge').textContent = state.ids_open || '';
     if (isAdmin()) renderAgentUpdates();
@@ -3189,6 +3201,7 @@ function apiBase() {
 const API_RIGHTS = {
   read: [L('📖 Status lezen'), L('servers, checks, meetwaarden, meldingen')],
   ids_read: [L('🛡️ IDS lezen'), L('incidenten, blokkades, logins')],
+  vulns_read: [L('🐞 Kwetsbaarheden lezen'), L('CVE\'s per server')],
   ids_block: [L('⛔ IDS blokkeren'), L('IP\'s blokkeren en deblokkeren')],
   checks: [L('✔ Checks bedienen'), L('bevestigen, onderhoud, nu checken')],
 };
@@ -3289,6 +3302,7 @@ function newApiKeyDialog(key, rights) {
   const ex = [];
   if (rights.includes('read')) ex.push(`curl ${auth} ${esc(apiBase())}/status`);
   if (rights.includes('ids_read')) ex.push(`curl ${auth} ${esc(apiBase())}/ids/incidents?status=open`);
+  if (rights.includes('vulns_read')) ex.push(`curl ${auth} ${esc(apiBase())}/vulnerabilities`);
   if (rights.includes('ids_block')) ex.push(`curl ${auth} -H "Content-Type: application/json" \\
   -d '{"host":"web01","ip":"203.0.113.7","hours":24,"reason":"fail2ban"}' ${esc(apiBase())}/ids/block`);
   if (rights.includes('checks')) ex.push(`curl ${auth} -X POST -d '{"comment":"bezig"}' ${esc(apiBase())}/checks/1/ack`);
@@ -3340,6 +3354,7 @@ async function loadSettings() {
   notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels), flap: parse(s.notify_flap) },
     { pushover_enabled: s.pushover_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
   quietGlobal = quietEditor($('#quiet-editor'), parse(s.notify_quiet), true);
+  vulnExcludeEditor();
   $('#ids-enabled').checked = s.ids_enabled === '1';
   $('#ids-mode').checked = s.ids_mode === 'block';
   fimGlobal = fimEditor($('#fim-editor'), parse(s.ids_fim || '[]'), null, () => { markSettingsDirty(true); settingsSummaries(); });
@@ -3519,7 +3534,11 @@ function settingsData() {
 
 async function saveSettings(e) {
   e.preventDefault();
-  try { await api('settings_save', settingsData()); toast(L('Instellingen opgeslagen')); loadSettings(); }
+  try {
+    await api('settings_save', settingsData()); toast(L('Instellingen opgeslagen'));
+    if (!!$('#tab-vulns') !== $('#settings-form').vuln_enabled.checked) return setTimeout(() => location.reload(), 600);   // tabblad Kwetsbaarheden erbij of eraf
+    loadSettings();
+  }
   catch (ex) { toast(ex.message, 'err'); }
 }
 
@@ -4136,4 +4155,300 @@ async function backupUpload(file) {
   btn.disabled = false;
   btn.textContent = '⬆ ' + L('Zip uploaden');
   $('#backup-file').value = '';
+}
+
+// ---------------------------------------------------------------- Kwetsbaarheden
+const VULN_SEV = [['⚪', L('onbekend')], ['🔵', 'low'], ['🟡', 'medium'], ['🟠', 'high'], ['🔴', 'critical']];
+let vulnData = null;
+let vulnFilter = 'all';
+const vulnOpen = new Set();
+
+function initVulns() {
+  $('#vuln-search').oninput = () => renderVulns();
+  $('#vuln-sev').onchange = () => renderVulns();
+  $$('#vuln-filter .seg-btn').forEach((b) => (b.onclick = () => {
+    vulnFilter = b.dataset.vf;
+    $$('#vuln-filter .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+    renderVulns();
+  }));
+  $('#vuln-scan').onclick = (e) => vulnScan(e.currentTarget);
+  $('#vuln-hosts').addEventListener('click', vulnClick);
+}
+
+async function loadVulns() {
+  try {
+    vulnData = await api('vulns');
+    renderVulns();
+  } catch (ex) { $('#vuln-hosts').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; }
+}
+
+async function vulnScan(btn) {
+  btn.disabled = true;
+  try {
+    const r = await api('vuln_scan', {});
+    toast(r.message || (r.pending ? L('Scan gestart: nog {n} server(s) te gaan, de rest volgt binnen een paar minuten', { n: r.pending }) : L('Scan klaar')));
+    loadVulns();
+  } catch (ex) { toast(ex.message, 'err'); }
+  btn.disabled = false;
+}
+
+/** Bevindingen die nu zichtbaar zijn (zoeken, filter, ernst; minimum uit de instellingen) */
+function vulnVisible() {
+  const q = $('#vuln-search').value.trim().toLowerCase();
+  const sev = Math.max(+$('#vuln-sev').value || 0, vulnData.min_severity || 0);
+  const hostName = Object.fromEntries(vulnData.hosts.map((h) => [h.id, h.name.toLowerCase()]));
+  const exposed = Object.fromEntries(vulnData.hosts.map((h) => [h.id, h.exposed || {}]));
+  return vulnData.findings.filter((f) => {
+    if (vulnFilter === 'ignored' ? !f.ignored : f.ignored) return false;
+    if (f.severity < sev && !(sev && f.kev)) return false;
+    if (vulnFilter === 'exposed' && !exposed[f.host_id][f.package]) return false;
+    if (vulnFilter === 'fix' && !f.fixed) return false;
+    if (vulnFilter === 'kev' && !f.kev) return false;
+    return !q || f.package.toLowerCase().includes(q) || f.cve.toLowerCase().includes(q) || f.vuln_id.toLowerCase().includes(q)
+      || (f.binaries || '').toLowerCase().includes(q) || hostName[f.host_id].includes(q) || (f.summary || '').toLowerCase().includes(q);
+  });
+}
+
+function vulnChip(f) {
+  const [icon] = VULN_SEV[f.severity] || VULN_SEV[0];
+  return `<button type="button" class="cve-chip sev${f.severity}${f.kev ? ' kev' : ''}" data-cve="${esc(f.cve)}"
+    title="${esc((f.summary || f.vuln_id) + (f.cvss ? ` · CVSS ${f.cvss}` : '') + (f.kev ? ' · ' + L('actief misbruikt') : ''))}">${icon} ${esc(f.cve)}${f.kev ? ' ⚠️' : ''}</button>`;
+}
+
+function renderVulns() {
+  if (!vulnData) return;
+  const d = vulnData;
+  const list = vulnVisible();
+  // Tellers per ernst (unieke CVE's per server), zonder geaccepteerde
+  const live = d.findings.filter((f) => !f.ignored);
+  const uniq = (fs) => new Set(fs.map((f) => f.host_id + '|' + f.cve));
+  const n = [0, 1, 2, 3, 4].map((s) => uniq(live.filter((f) => f.severity === s)).size);
+  const kev = uniq(live.filter((f) => f.kev)).size;
+  $('#vuln-counts').innerHTML = [[4, n[4]], [3, n[3]], [2, n[2]], [1, n[1]], [0, n[0]]].filter(([s, c]) => c || s >= 2)
+    .map(([s, c]) => `<span class="vc sev${s}">${VULN_SEV[s][0]} ${c} ${VULN_SEV[s][1]}</span>`).join('')
+    + (kev ? `<span class="vc kev">⚠️ ${L('{n} actief misbruikt', { n: kev })}</span>` : '');
+  const scanned = d.hosts.filter((h) => h.scanned_at && !h.error);
+  const failed = d.hosts.filter((h) => h.error).length;
+  $('#vuln-info').textContent = d.hosts.length
+    ? L('{n} van {m} server(s) gescand', { n: scanned.length, m: d.hosts.length }) + (failed ? ' · ⚠️ ' + L('{n} met een fout', { n: failed }) : '')
+      + (d.last_scan ? ' · ' + L('laatste scan {t}', { t: ago(d.last_scan) }) : '') + ' · ' + L('dagelijks om {t}', { t: d.scan_time })
+    : '';
+  $('#vuln-badge').hidden = !(n[4] + kev);
+  $('#vuln-badge').textContent = n[4] + kev || '';
+  if (!d.hosts.length) {
+    $('#vuln-hosts').innerHTML = `<div class="card"><p class="muted">${L('Nog geen softwarelijsten. Werk de agents bij naar {v} of nieuwer: dan sturen ze hun pakketten mee.', { v: '1.47.0' })}</p></div>`;
+    return;
+  }
+  const byHost = {};
+  list.forEach((f) => (byHost[f.host_id] ||= []).push(f));
+  $('#vuln-hosts').innerHTML = d.hosts.map((h) => vulnHostCard(h, byHost[h.id] || [])).join('');
+}
+
+function vulnHostCard(h, fs) {
+  // Per pakket: alle CVE's, ernstigste eerst; pakketten met de ergste en bereikbare bovenaan
+  const pk = {};
+  fs.forEach((f) => (pk[f.package] ||= { name: f.package, version: f.version, fixed: f.fixed, binaries: f.binaries, list: [] }).list.push(f));
+  const rank = (p) => Math.max(...p.list.map((f) => f.severity * 2 + (f.kev ? 10 : 0))) + (h.exposed[p.name] ? 1 : 0);
+  const pkgs = Object.values(pk).sort((a, b) => rank(b) - rank(a) || a.name.localeCompare(b.name));
+  pkgs.forEach((p) => {
+    p.list.sort((a, b) => (b.kev - a.kev) || (b.severity - a.severity) || (b.cvss || 0) - (a.cvss || 0));
+    p.fixed = p.list.map((f) => f.fixed).filter(Boolean).sort().pop() || null;
+  });
+  const cnt = [4, 3, 2, 1].map((s) => [s, new Set(fs.filter((f) => f.severity === s).map((f) => f.cve)).size]).filter(([, c]) => c);
+  const open = vulnOpen.has(h.id) || (vulnOpen.size === 0 && fs.some((f) => f.severity >= 3 || f.kev));
+  const up = h.upgrade;
+  const upTxt = !up ? '' : up.state === 'queued' ? `⏳ ${L('Bijwerken gevraagd; de agent pakt het op bij zijn volgende rapport')}`
+    : up.state === 'running' ? `⏳ ${L('Bezig met bijwerken: {p}', { p: esc((up.pkgs || []).join(' ')) })}`
+    : up.state === 'ok' ? `<span class="good-txt">✔ ${L('Bijgewerkt {t}', { t: ago(up.at) })}: ${esc((up.pkgs || []).join(' '))}</span>`
+    : `<span class="bad">✘ ${L('Bijwerken mislukt {t}', { t: ago(up.at) })}</span>`;
+  const notes = [
+    h.error ? `<span class="warn-txt">⚠️ ${esc(h.error)}</span>` : '',   // ook in de kop; hier volledig
+    h.agent_old ? `<span class="warn-txt">⬆ ${L('Agent {v} of nieuwer nodig voor de softwarelijst', { v: '1.47.0' })}</span>` : '',
+    h.reboot ? `<span class="warn-txt" title="${esc(L('Draait: {a} · geïnstalleerd: {b}', { a: h.kernel, b: h.reboot }))}">↻ ${L('Herstart nodig voor de nieuwe kernel')}</span>` : '',
+    h.restart && h.restart.length ? `<span class="warn-txt" title="${esc(h.restart.join(', '))}">↻ ${L('{n} service(s) draaien nog met oude bestanden', { n: h.restart.length })}</span>` : '',
+    upTxt,
+  ].filter(Boolean).join(' · ');
+  const fixable = pkgs.filter((p) => p.fixed).map((p) => p.name);
+  return `<details class="card vuln-host" data-host="${h.id}" ${open ? 'open' : ''}>
+    <summary><span class="vh-name"><b>${esc(h.name)}</b> <span class="muted small">${esc(h.os || '')}${h.packages ? ' · ' + L('{n} pakketten', { n: h.packages }) : ''}${h.scanned_at ? ' · ' + L('gescand {t}', { t: ago(h.scanned_at) }) : ''}</span></span>
+      <span class="vh-counts">${h.error ? `<span class="warn-txt small" title="${esc(h.error)}">⚠️ ${esc(h.error.length > 70 ? h.error.slice(0, 70) + '…' : h.error)}</span>` : ''}${cnt.length ? cnt.map(([s, c]) => `<span class="vc sev${s}">${VULN_SEV[s][0]} ${c}</span>`).join('') : (h.scanned_at && !h.error ? `<span class="good-txt">✔ ${L('geen bekende kwetsbaarheden')}</span>` : '')}</span></summary>
+    ${notes ? `<p class="small vh-notes">${notes}${up && up.log ? ` <details class="small"><summary>${L('Uitvoer')}</summary><pre class="code">${esc(up.log)}</pre></details>` : ''}</p>` : ''}
+    <div class="vh-actions">
+      ${fixable.length ? `<button type="button" class="btn need-admin" data-vact="upgrade-all" data-host="${h.id}">⬆ ${L('Alle beveiligingsupdates installeren ({n})', { n: fixable.length })}</button>` : ''}
+      ${h.packages ? `<button type="button" class="btn" data-vact="software" data-host="${h.id}">📦 ${L('Alle software')}</button>` : ''}
+    </div>
+    ${pkgs.length ? `<div class="table-scroll"><table class="vuln-table">
+      <thead><tr><th>${L('Pakket')}</th><th>${L('Geïnstalleerd')}</th><th>${L('Opgelost in')}</th><th>CVE's</th><th></th></tr></thead>
+      <tbody>${pkgs.map((p) => `<tr>
+        <td><b>${esc(p.name)}</b>${h.exposed[p.name] ? ` <span class="exp-tag" title="${esc(L('Luistert op het netwerk: {p}', { p: h.exposed[p.name].join(', ') }))}">🌐 ${esc(h.exposed[p.name].join(', '))}</span>` : ''}
+          ${p.binaries && p.binaries !== p.name ? `<div class="muted small" title="${esc(p.binaries)}">${esc(p.binaries.length > 60 ? p.binaries.slice(0, 60) + '…' : p.binaries)}</div>` : ''}</td>
+        <td class="mono small">${esc(p.version)}</td>
+        <td class="mono small">${p.fixed ? esc(p.fixed) : `<span class="muted">${L('nog geen oplossing')}</span>`}</td>
+        <td class="cve-cell">${p.list.slice(0, 6).map(vulnChip).join(' ')}${p.list.length > 6 ? ` <button type="button" class="cve-more" data-vact="more" data-host="${h.id}" data-pkg="${esc(p.name)}">+${p.list.length - 6}</button>` : ''}</td>
+        <td>${p.fixed ? `<button type="button" class="icon-btn need-admin" title="${esc(L('Bijwerken'))}" data-vact="upgrade" data-host="${h.id}" data-pkg="${esc(p.name)}">⬆</button>` : ''}</td>
+      </tr>`).join('')}</tbody></table></div>` : (h.scanned_at ? `<p class="muted small">${vulnFilter === 'all' && !$('#vuln-search').value ? L('Geen kwetsbaarheden gevonden.') : L('Niets met dit filter.')}</p>` : `<p class="muted small">${L('Nog niet gescand.')}</p>`)}
+  </details>`;
+}
+
+function vulnClick(e) {
+  const det = e.target.closest('details.vuln-host');
+  if (e.target.closest('summary') && det) {   // open/dicht onthouden
+    setTimeout(() => { const id = +det.dataset.host; if (det.open) vulnOpen.add(id); else vulnOpen.delete(id); }, 0);
+    return;
+  }
+  const chip = e.target.closest('[data-cve]');
+  if (chip) return vulnDetail(chip.dataset.cve);
+  const b = e.target.closest('[data-vact]');
+  if (!b) return;
+  const h = vulnData.hosts.find((x) => x.id === +b.dataset.host);
+  if (b.dataset.vact === 'upgrade') return vulnUpgrade(h, [b.dataset.pkg]);
+  if (b.dataset.vact === 'upgrade-all') return vulnUpgrade(h, null);
+  if (b.dataset.vact === 'software') return vulnSoftware(h);
+  if (b.dataset.vact === 'more') {
+    const fs = vulnVisible().filter((f) => f.host_id === h.id && f.package === b.dataset.pkg);
+    b.parentElement.innerHTML = fs.map(vulnChip).join(' ');
+  }
+}
+
+/** CVSS-vector in gewone woorden: hoe is hij te misbruiken? */
+function cvssWords(v) {
+  if (!v) return '';
+  const m = Object.fromEntries(v.split('/').map((p) => p.split(':')));
+  return [
+    { N: L('via het netwerk'), A: L('vanaf het lokale netwerk'), L: L('alleen lokaal op de server'), P: L('alleen met fysieke toegang') }[m.AV],
+    { N: L('zonder in te loggen'), L: L('met een gewoon account'), H: L('met beheerdersrechten') }[m.PR],
+    { N: L('zonder dat een gebruiker iets doet'), R: L('een gebruiker moet iets doen (bv. een link openen)'), P: L('een gebruiker moet iets doen') }[m.UI],
+    m.AC === 'H' ? L('moeilijk uit te voeren') : null,
+  ].filter(Boolean).join(' · ');
+}
+
+async function vulnDetail(cve) {
+  let d;
+  try { d = await api('vuln_detail', null, { cve }); } catch (ex) { return toast(ex.message, 'err'); }
+  const [icon, word] = VULN_SEV[d.severity] || VULN_SEV[0];
+  const rows = [
+    [L('Ernst'), `${icon} <b>${esc(word)}</b>${d.cvss !== null ? ` · CVSS <b>${dec(d.cvss)}</b>` : ''}${d.vector ? `<div class="muted small">${esc(cvssWords(d.vector))}</div><div class="mono small muted">${esc(d.vector)}</div>` : ''}`],
+    [L('Actief misbruikt'), d.kev ? `<b class="bad">⚠️ ${L('ja')}</b>${d.kev_added ? ' · ' + L('op de lijst van CISA sinds {t}', { t: esc(d.kev_added) }) : ''}` : L('niet bekend')],
+    [L('Kans op misbruik'), d.epss !== null ? L('{p} in de komende 30 dagen (EPSS)', { p: dec((d.epss * 100).toFixed(d.epss < 0.01 ? 2 : 1)) + '%' }) : '–'],
+    [L('Gepubliceerd'), d.published ? esc(fmtDateTime(d.published.slice(0, 19).replace('T', ' '))) : '–'],
+    ...(d.aliases.length ? [[L('Ook bekend als'), d.aliases.map(esc).join(', ')]] : []),
+  ];
+  const hostRows = d.hosts.map((x, i) => `<div class="vd-host">
+      <div><b>${esc(x.host)}</b> · <span class="mono small">${esc(x.package)} ${esc(x.version)}</span> → ${x.fixed ? `<span class="mono small good-txt">${esc(x.fixed)}</span>` : `<span class="muted">${L('nog geen oplossing')}</span>`}
+        ${x.ignored ? ` · <span class="muted">${L('geaccepteerd')}</span>` : ''}</div>
+      ${x.command ? copyBox('vd-cmd-' + i, x.command) : ''}
+      ${x.fixed ? (x.upgrade_blocked ? `<p class="muted small">${L('Bijwerken via de agent kan hier niet: {why}. Voer het commando hierboven zelf uit op de server.', { why: esc(x.upgrade_blocked) })}</p>`
+        : `<button type="button" class="btn need-admin" data-vd-up="${i}">⬆ ${L('Bijwerken via de agent')}</button>`) : ''}
+    </div>`).join('');
+  const { form } = modal({
+    title: `${icon} ${cve}`, wide: true,
+    body: `<div style="padding:1rem 1.2rem">
+      ${d.summary ? `<p><b>${esc(d.summary)}</b></p>` : ''}
+      ${d.details ? `<details class="vd-details" ${d.details.length < 600 ? 'open' : ''}><summary>${L('Omschrijving')}</summary><p class="small" style="white-space:pre-wrap">${esc(d.details)}</p></details>` : ''}
+      <table class="kv">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
+      <h3>${L('Zo los je het op')}</h3>
+      <p class="muted small">${L('Installeer de nieuwe versie uit de eigen pakketbron van de distributie (zoals hieronder); een download bij de maker is daarvoor niet nodig. Bij de kernel of een bibliotheek is daarna een herstart van de server of van de services nodig.')}</p>
+      ${hostRows}
+      <h3>${L('Meer informatie en adviezen')}</h3>
+      <ul class="vd-links">${d.links.map((l) => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a> <span class="muted small">${esc(l.url.replace(/^https?:\/\//, '').slice(0, 70))}</span></li>`).join('')}</ul>
+    </div>`,
+    buttons: [
+      { label: '✔ ' + L('Risico accepteren…'), cls: 'need-user', style: 'margin-right:auto', onClick: () => vulnIgnore(d) },
+      { label: L('Sluiten'), cls: 'primary', submit: true },
+    ],
+  });
+  wireCopy(form);
+  $$('[data-vd-up]', form).forEach((b) => (b.onclick = () => {
+    const x = d.hosts[+b.dataset.vdUp];
+    vulnUpgrade(vulnData.hosts.find((h) => h.id === x.host_id) || { id: x.host_id, name: x.host }, [x.package]);
+  }));
+}
+
+function vulnIgnore(d) {
+  modal({
+    title: L('Risico accepteren: {cve}', { cve: d.cve }),
+    body: `<div style="padding:1rem 1.2rem">
+      <p class="muted small">${L('Een geaccepteerde kwetsbaarheid telt niet meer mee en geeft geen melding. Je ziet hem terug onder het filter Geaccepteerd.')}</p>
+      <label>${L('Waarvoor')}<select name="scope">
+        <option value="all">${L('Alle servers')}</option>
+        ${d.hosts.map((x, i) => `<option value="${i}">${esc(x.host)} · ${esc(x.package)}</option>`).join('')}
+      </select></label>
+      <label>${L('Reden')} <span class="hint">${L('(bv. niet bereikbaar van buitenaf)')}</span><input name="reason" maxlength="300"></label>
+    </div>`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '✔ ' + L('Accepteren'), cls: 'primary', submit: true }],
+    onSubmit: async (v) => {
+      const x = v.scope === 'all' ? null : d.hosts[+v.scope];
+      await api('vuln_ignore', { cve: d.cve, reason: v.reason, host_id: x ? x.host_id : null, package: x ? x.package : null });
+      toast(L('Geaccepteerd'));
+      loadVulns();
+    },
+  });
+}
+
+/** Bijwerken via de agent (beheerders); kan dat niet, dan het commando om zelf uit te voeren */
+function vulnUpgrade(h, pkgs) {
+  const all = pkgs === null;
+  modal({
+    title: all ? L('Alle beveiligingsupdates installeren op {name}', { name: h.name }) : L('Bijwerken op {name}', { name: h.name }),
+    body: `<div style="padding:1rem 1.2rem">
+      <p>${all ? L('De agent installeert de nieuwe versie van alle pakketten waarvoor een oplossing is.') : L('De agent installeert de nieuwe versie van: {p}', { p: `<b>${esc(pkgs.join(' '))}</b>` })}</p>
+      <p class="muted small">${L('Dit gebeurt bij het volgende rapport van de agent, met de pakketbeheerder van de server (dnf of apt), en komt in het logboek. Er wordt niets herstart; is dat nodig, dan zie je ↻ bij de server.')}</p>
+      ${h.upgrade_blocked ? `<p class="warn-txt">${L('Bijwerken via de agent kan hier niet: {why}.', { why: esc(h.upgrade_blocked) })}</p>` : confirmField('BIJWERKEN')}
+      <div id="vu-cmd"></div>
+    </div>`,
+    buttons: h.upgrade_blocked ? [{ label: L('Commando tonen'), cls: 'primary', submit: true }] : [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '⬆ ' + L('Bijwerken'), cls: 'primary', submit: true }],
+    onSubmit: async (v, form) => {
+      try {
+        await api('vuln_upgrade', { host_id: h.id, all, packages: pkgs || [], confirm: v.confirm });
+        toast(L('Bijwerken gevraagd; de agent pakt het op bij zijn volgende rapport'));
+        loadVulns();
+      } catch (ex) {
+        // Kan het niet via de agent? Dan het commando tonen om zelf uit te voeren
+        if (ex.data && ex.data.command) {
+          $('#vu-cmd', form).innerHTML = `<p class="muted small">${L('Voer dit zelf uit op de server:')}</p>${copyBox('vu-cmd-line', ex.data.command)}`;
+          wireCopy(form);
+          throw new Error(ex.message);
+        }
+        throw ex;
+      }
+    },
+  });
+}
+
+async function vulnSoftware(h) {
+  let r;
+  try { r = await api('vuln_packages', null, { host_id: h.id }); } catch (ex) { return toast(ex.message, 'err'); }
+  const { form } = modal({
+    title: L('Alle software op {name}', { name: h.name }), wide: true,
+    body: `<div style="padding:1rem 1.2rem">
+      <p class="muted small">${esc(h.os || '')} · ${L('{n} pakketten', { n: r.packages.length })}</p>
+      <input type="search" id="vs-search" placeholder="${L('Zoek pakket…')}" autocomplete="off">
+      <div class="table-scroll" style="max-height:55vh"><table class="vuln-table" id="vs-table"></table></div>
+    </div>`,
+    buttons: [{ label: L('Sluiten'), cls: 'primary', submit: true }],
+  });
+  const draw = () => {
+    const q = $('#vs-search', form).value.trim().toLowerCase();
+    const list = r.packages.filter((p) => !q || p.name.toLowerCase().includes(q) || p.source.toLowerCase().includes(q)).slice(0, 2000);
+    $('#vs-table', form).innerHTML = `<thead><tr><th>${L('Pakket')}</th><th>${L('Versie')}</th><th>${L('Architectuur')}</th><th>${L('Bron')}</th><th></th></tr></thead><tbody>
+      ${list.map((p) => `<tr><td>${esc(p.name)}</td><td class="mono small">${esc(p.version)}</td><td class="small">${esc(p.arch)}</td><td class="small muted">${p.source !== p.name ? esc(p.source) : ''}</td>
+        <td>${p.vulns ? `<span class="vc sev3">🐞 ${p.vulns}</span>` : ''}</td></tr>`).join('')}</tbody>`;
+  };
+  $('#vs-search', form).oninput = draw;
+  draw();
+}
+
+/** Instellingen: welke servers niet gescand worden (vinkjes → verborgen veld vuln_exclude) */
+function vulnExcludeEditor() {
+  const f = $('#settings-form');
+  const el = $('#vuln-exclude-list');
+  if (!f || !el || !f.vuln_exclude) return;
+  const ex = new Set(String(f.vuln_exclude.value || '').split(',').filter(Boolean).map(Number));
+  const hosts = state.hosts.filter((h) => h.mode !== 'remote');
+  el.innerHTML = hosts.length ? hosts.map((h) => `<label class="chk-inline"><input type="checkbox" data-vex="${h.id}" ${ex.has(+h.id) ? 'checked' : ''}> ${esc(h.name)}</label>`).join(' ')
+    : `<span class="muted small">${L('geen servers met een agent')}</span>`;
+  $$('[data-vex]', el).forEach((c) => (c.onchange = () => {
+    f.vuln_exclude.value = $$('[data-vex]', el).filter((x) => x.checked).map((x) => x.dataset.vex).join(',');
+    markSettingsDirty(true);
+  }));
 }

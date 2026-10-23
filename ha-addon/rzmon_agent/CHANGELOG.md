@@ -5,6 +5,12 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.47.0 – 2026-10-23
+- Voor de nieuwe pagina **🐞 Kwetsbaarheden** in RzMon (1.54.0 of nieuwer) stuurt de agent zijn **softwarelijst** mee: de pakketten (dpkg of rpm) en de distributie. De hele lijst één keer per dag, of eerder als er pakketten veranderen; anders alleen een controlegetal. Alleen als *Kwetsbaarheden* in RzMon aan staat, wordt de lijst bewaard.
+- Ook meegestuurd: welke pakketten op het netwerk luisteren (🌐 bereikbaar), en of een herstart nodig is (nieuwere kernel geïnstalleerd, of services met oude bestanden via `needs-restarting` of `needrestart`).
+- Nieuwe opdracht uit RzMon: **pakketten bijwerken** (`dnf upgrade` of `apt-get install --only-upgrade`) van precies de meegestuurde pakketnamen, alleen als root en als commando's als root zijn toegestaan. Op de server zelf blokkeer je het met `COMMANDS=0` of `COMMANDS=nobody`. Er wordt niets herstart.
+- Home Assistant-add-on: geen merkbare wijzigingen (stuurt geen softwarelijst).
+
 ## 1.46.0 – 2026-10-22
 - De agent stuurt zijn **opstarttijd** mee. Daarmee ziet RzMon (1.52.0 of nieuwer) met de nieuwe check *🔄 Herstart* wanneer de server opnieuw is opgestart, en kan het een ℹ️ info-melding sturen.
 - Home Assistant-add-on: stuurt ook de opstarttijd mee; verder geen merkbare wijzigingen.

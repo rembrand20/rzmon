@@ -47,6 +47,8 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **🛡️ IDS**: inbraakdetectie via de agents, op een eigen pagina. Gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen, reverse shells, brute force en inlog na brute force. Eerst *leren* (alleen melden), daarna eventueel *blokkeren*: aanvallers komen in een eigen firewalltabel op de server, met een knop om te deblokkeren. Ook je eigen paden bewaken (hash, rechten, eigenaar), bv. `/usr/local/bin` of `/var/www/**/*.php`. Critical ook via Pushover. Standaard uit.
 
+**🐞 Kwetsbaarheden**: welke software er op je servers staat en welke bekende kwetsbaarheden (CVE's) daarbij horen, via OSV.dev met de adviezen van de distributie zelf. Per server: wat bereikbaar is via het netwerk, wat actief misbruikt wordt, in welke versie het is opgelost en het commando om bij te werken, of bijwerken met één knop via de agent. Standaard uit.
+
 **🗄️ TrueNAS SCALE**: agent met één commando op je pool, met een cronjob van TrueNAS zelf; bijwerken met de knop.
 
 **🌙 Stille uren**: geen meldingen in vaste periodes (bv. 's nachts, meerdere vensters per dag van de week), algemeen of per check; na afloop één bericht met wat dan nog open is.

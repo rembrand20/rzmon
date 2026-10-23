@@ -315,6 +315,28 @@ final class Mqtt
         $entity('sensor', 'health_score', $hub, ['name' => t('Gezondheid'), 'state_topic' => $topic,
             'value_template' => '{{ value_json.score }}', 'unit_of_measurement' => '%', 'state_class' => 'measurement', 'icon' => 'mdi:heart-pulse']);
 
+        // Kwetsbaarheden (Instellingen → 🐞 Kwetsbaarheden): per server en in totaal
+        if (Vulns::enabled()) {
+            $vt = ['critical' => 0, 'high' => 0, 'exploited' => 0];
+            $names = ['critical' => [t('Kwetsbaarheden critical'), 'mdi:bug'], 'high' => [t('Kwetsbaarheden high'), 'mdi:bug-outline'],
+                'exploited' => [t('Kwetsbaarheden actief misbruikt'), 'mdi:shield-alert']];
+            foreach (Vulns::summary() as $v) {
+                $topic = "$base/vulns/{$v['host_id']}";
+                $states[$topic] = $v;
+                $dev = ['identifiers' => ["{$node}_host_{$v['host_id']}"], 'name' => $v['host']];
+                foreach ($names as $k => [$n, $icon]) {
+                    $entity('sensor', "host_{$v['host_id']}_vuln_$k", $dev, ['name' => $n, 'state_topic' => $topic, 'value_template' => "{{ value_json.$k }}",
+                        'state_class' => 'measurement', 'icon' => $icon, 'json_attributes_topic' => $topic]);
+                    $vt[$k] += $v[$k];
+                }
+            }
+            $topic = "$base/vulns";
+            $states[$topic] = $vt;
+            foreach ($names as $k => [$n, $icon]) {
+                $entity('sensor', "vulns_$k", $hub, ['name' => $n, 'state_topic' => $topic, 'value_template' => "{{ value_json.$k }}", 'state_class' => 'measurement', 'icon' => $icon]);
+            }
+        }
+
         return [$disc, $states];
     }
 }

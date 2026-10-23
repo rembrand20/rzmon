@@ -1364,6 +1364,41 @@ Naast de vaste gevoelige bestanden kun je zelf paden laten bewaken, bijvoorbeeld
 - Incidenten worden net zo lang bewaard als de meldingen (*Meldingen bewaren (dagen)*).
 - Een IDS ziet veel, maar niet alles. Houd je servers bijgewerkt, gebruik SSH-sleutels en zet `PermitRootLogin no`.
 
+### 8.13 Kwetsbaarheden 🐞
+Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).
+
+**Hoe het werkt**
+- De agent (**1.47.0 of nieuwer**) stuurt zijn pakketlijst mee (`dpkg` of `rpm`, met de distributie uit `/etc/os-release`): de hele lijst één keer per dag, of eerder als er pakketten veranderen. Voor de RzMon-server zelf leest RzMon de lijst direct.
+- RzMon zoekt de kwetsbaarheden op bij **[OSV.dev](https://osv.dev)**. Daarin staan de beveiligingsadviezen van de distributies zelf (Debian, Ubuntu, Rocky Linux, AlmaLinux, Alpine). Zo telt een reparatie die de distributie in een "oud" versienummer heeft teruggezet (backport) niet als kwetsbaar. RHEL en CentOS gebruiken de adviezen van AlmaLinux (zelfde pakketten en versies).
+- Naar OSV.dev gaan alleen **pakketnamen, versies en de distributie**, geen servernamen of IP-adressen.
+- Daarnaast: **⚠️ actief misbruikt** (de lijst *Known Exploited Vulnerabilities* van CISA, dagelijks), de **kans op misbruik** (EPSS van FIRST.org) en zo nodig de **CVSS-score** van NVD.
+- RzMon scant elke dag op het ingestelde tijdstip (standaard 03:30), en meteen als de pakketlijst van een server verandert. Met **🔍 Nu scannen** start je het zelf.
+- Nodig op de RzMon-server: uitgaand HTTPS naar `api.osv.dev`, `www.cisa.gov`, `api.first.org` en `services.nvd.nist.gov`. Kan dat niet, dan staat bij de server *OSV.dev niet bereikbaar*.
+
+**De pagina**
+- Bovenaan de tellers (critical, high, medium, low, actief misbruikt), zoeken, de filters **Alles · 🌐 Bereikbaar · Met oplossing · ⚠️ Actief misbruikt · Geaccepteerd** en de ernst.
+- Per server: elk pakket met kwetsbaarheden, de geïnstalleerde versie, de versie waarin het is **opgelost**, en de CVE's als knopjes (🔴 critical, 🟠 high, 🟡 medium, 🔵 low, ⚪ onbekend). Bij Debian en Ubuntu staat het **bronpakket** (bv. `openssh`), met de pakketten die erbij horen eronder.
+- **🌐 bereikbaar**: het programma van dat pakket luistert op het netwerk (niet alleen op localhost), met de poort erbij. Die los je als eerste op.
+- **↻ herstart nodig**: er is een nieuwere kernel geïnstalleerd dan er draait, of services draaien nog met oude bestanden (als `needs-restarting` of `needrestart` op de server staat).
+- **📦 Alle software**: de volledige pakketlijst van de server, met zoeken.
+
+**Klik op een CVE** voor meer informatie: de omschrijving, de **CVSS-score** met uitleg in gewone woorden (bv. *via het netwerk · zonder in te loggen*), of hij **actief misbruikt** wordt, de **kans op misbruik**, de publicatiedatum, en per server de geïnstalleerde en de opgeloste versie. Onder **Zo los je het op** staat het commando om te kopiëren (bv. `sudo dnf upgrade openssh` of `sudo apt update && sudo apt install --only-upgrade openssh-server`), en onder **Meer informatie** de adviezen van de distributie, OSV en NVD. Installeer de nieuwe versie uit de pakketbron van de distributie; een download bij de maker is daarvoor niet nodig.
+
+**Bijwerken via de agent** (beheerders)
+- Met **⬆** bij een pakket, of **⬆ Alle beveiligingsupdates installeren** bij een server, voert de agent bij zijn volgende rapport `dnf upgrade` of `apt-get install --only-upgrade` uit voor precies die pakketten. Je bevestigt met je wachtwoord (op het LAN zonder wachtwoord: typ **BIJWERKEN**); het komt in het logboek, en de uitkomst (met de uitvoer) zie je bij de server.
+- Dat kan alleen als **commando's als root** aan staan voor die server (*Instellingen → 🖥️ Commando-checks*, of per server in de Agent Manager) en de agent als root draait. Op de server zelf blokkeer je het altijd met `COMMANDS=0` of `COMMANDS=nobody` in `/etc/default/rzmon-agent`. Kan het niet, dan krijg je het commando om zelf uit te voeren.
+- Er wordt nooit iets herstart. De pakketnamen worden aan beide kanten gecontroleerd; vrije commando's zijn niet mogelijk.
+
+**Risico accepteren**: in het venster van een CVE, voor alle servers of voor één pakket op één server, met een reden. Een geaccepteerde kwetsbaarheid telt niet meer mee en geeft geen melding; je ziet hem terug onder *Geaccepteerd*.
+
+**Meldingen**: bij een **nieuwe critical of actief misbruikte** kwetsbaarheid komt er één ℹ️ info-melding per server (*"ℹ️ INFO: WebServer01 – 2 nieuwe kwetsbaarheden: CVE-… (openssh, critical, actief misbruikt) · …"*). Die volgt de rij **Info** bij *🔔 Meldingen* (standaard uit).
+
+**REST API en Home Assistant**: `GET /v1.php/vulnerabilities` (tellers per server) en `GET /v1.php/vulnerabilities/{id}` (de kwetsbaarheden van een server), met het nieuwe recht *🐞 Kwetsbaarheden lezen*. Via MQTT krijgt elke server de sensoren *Kwetsbaarheden critical*, *high* en *actief misbruikt*, en RzMon de totalen.
+
+**Instellingen → 🐞 Kwetsbaarheden**: aan/uit, de scantijd, *tonen vanaf* (ernst) en welke servers niet gescand worden.
+
+**Nog niet**: de Home Assistant-add-on, Podman-containers, en software die niet via de pakketbeheerder is geïnstalleerd (zelf gecompileerd, pip, npm…). Fedora en openSUSE worden nog niet ondersteund.
+
 ## 9. Agent op Home Assistant OS
 
 Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De agent draait daarom als **add-on**.

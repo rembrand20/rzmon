@@ -363,3 +363,71 @@ CREATE TABLE IF NOT EXISTS ids_attempts (
     INDEX idx_idsa (host_id, ip, at),
     CONSTRAINT fk_idsa_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Kwetsbaarheden: softwarelijst per server (van de agent), bevindingen, gegevens per kwetsbaarheid en per CVE, negeerlijst
+CREATE TABLE IF NOT EXISTS vuln_inventory (
+    host_id        INT UNSIGNED NOT NULL PRIMARY KEY,
+    mgr            VARCHAR(10) NOT NULL,
+    os_id          VARCHAR(40) NOT NULL DEFAULT '',
+    os_version     VARCHAR(40) NOT NULL DEFAULT '',
+    os_name        VARCHAR(120) NOT NULL DEFAULT '',
+    ecosystem      VARCHAR(60) NULL,
+    hash           CHAR(16) NOT NULL,
+    packages       MEDIUMTEXT NOT NULL,
+    exposed        TEXT NULL,
+    restart_svc    TEXT NULL,
+    kernel_running VARCHAR(100) NULL,
+    kernel_latest  VARCHAR(100) NULL,
+    updated_at     DATETIME NOT NULL,
+    scanned_at     DATETIME NULL,
+    scan_error     VARCHAR(300) NULL,
+    CONSTRAINT fk_vinv_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS vuln_findings (
+    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id       INT UNSIGNED NOT NULL,
+    package       VARCHAR(150) NOT NULL,
+    version       VARCHAR(120) NOT NULL,
+    source        VARCHAR(150) NOT NULL,
+    vuln_id       VARCHAR(80) NOT NULL,
+    cve           VARCHAR(40) NOT NULL,
+    fixed_version VARCHAR(120) NULL,
+    first_seen    DATETIME NOT NULL,
+    notified      TINYINT(1) NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_vf (host_id, package, vuln_id),
+    INDEX idx_vf_cve (cve),
+    CONSTRAINT fk_vf_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS vuln_cache (
+    vuln_id    VARCHAR(80) NOT NULL PRIMARY KEY,
+    modified   VARCHAR(40) NOT NULL DEFAULT '',
+    data       MEDIUMTEXT NOT NULL,
+    fetched_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS vuln_cve (
+    cve        VARCHAR(40) NOT NULL PRIMARY KEY,
+    severity   TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    cvss       DECIMAL(3,1) NULL,
+    vector     VARCHAR(200) NULL,
+    epss       DECIMAL(6,5) NULL,
+    kev        TINYINT(1) NOT NULL DEFAULT 0,
+    kev_added  DATE NULL,
+    nvd_at     DATETIME NULL,
+    epss_at    DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS vuln_ignore (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    cve        VARCHAR(40) NOT NULL,
+    package    VARCHAR(150) NULL,
+    host_id    INT UNSIGNED NULL,
+    reason     VARCHAR(300) NOT NULL DEFAULT '',
+    created_by VARCHAR(100) NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL,
+    INDEX idx_vi_cve (cve)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO settings (name, value) VALUES ('vuln_enabled', '0'), ('vuln_time', '03:30'), ('vuln_min_severity', '0'), ('vuln_exclude', '');

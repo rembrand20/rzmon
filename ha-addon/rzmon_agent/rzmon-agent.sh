@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.46.0"
+AGENT_VERSION="1.47.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1583,6 +1583,130 @@ if [ -n "$CERTS" ]; then
     fi
 fi
 
+# ---------------------------------------------------------------- Software (Kwetsbaarheden in RzMon)
+# Geïnstalleerde pakketten met de distributie: RzMon zoekt er de bekende kwetsbaarheden (CVE's) bij.
+# De hele lijst één keer per dag, of eerder als de pakketdatabase verandert; anders alleen het controlegetal.
+pkgs_json=""; pk_hash=""; pk_mgr=""
+pk_dir="$t_dir/pkgs"
+if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && mkdir -p "$pk_dir" 2>/dev/null && [ -w "$pk_dir" ]; then
+    pk_db=""
+    if command -v dpkg-query >/dev/null 2>&1 && [ -f /var/lib/dpkg/status ]; then
+        pk_mgr=dpkg; pk_db=/var/lib/dpkg/status
+    elif command -v rpm >/dev/null 2>&1; then
+        pk_mgr=rpm
+        for f in /var/lib/rpm/rpmdb.sqlite /var/lib/rpm/Packages /usr/lib/sysimage/rpm/rpmdb.sqlite; do [ -f "$f" ] && pk_db=$f && break; done
+    fi
+    pk_list="$pk_dir/list.json"
+    if [ -n "$pk_mgr" ] && { [ ! -s "$pk_list" ] || [ -f "$pk_dir/resend" ] || { [ -n "$pk_db" ] && [ "$pk_db" -nt "$pk_list" ]; } \
+            || [ $(( $(date +%s) - $(stat -c %Y "$pk_list" 2>/dev/null || echo 0) )) -ge 86400 ]; }; then
+        rm -f "$pk_dir/resend"
+        # [naam, versie, architectuur, bronpakket, bronversie]
+        if [ "$pk_mgr" = dpkg ]; then
+            pk_rows=$(dpkg-query -W -f='${db:Status-Abbrev}\t${Package}\t${Version}\t${Architecture}\t${source:Package}\t${source:Version}\n' 2>/dev/null \
+                | awk -F'\t' '$1 ~ /^ii/ { printf "[\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"],", $2, $3, $4, $5, $6 }')
+        else
+            pk_rows=$(rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{SOURCERPM}\n' 2>/dev/null \
+                | awk -F'\t' '$1 != "gpg-pubkey" { v = $2; sub(/^0:/, "", v); s = $4; sub(/-[^-]+-[^-]+\.src\.rpm$/, "", s)
+                    printf "[\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"],", $1, v, $3, s, v }')
+        fi
+        pk_os=$( (. /etc/os-release 2>/dev/null; printf '{"id":"%s","version":"%s","like":"%s","name":"%s"}' \
+            "$(json_escape "${ID-}")" "$(json_escape "${VERSION_ID-}")" "$(json_escape "${ID_LIKE-}")" "$(json_escape "${PRETTY_NAME-}")") )
+        # Bereikbaar via het netwerk: pakketten van programma's die op een poort luisteren (niet alleen op localhost)
+        pk_exp=""
+        if command -v ss >/dev/null 2>&1 && [ "$(id -u)" = 0 ]; then
+            declare -A pk_owner=()
+            while read -r proto local pids; do
+                for pid in $pids; do
+                    exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null) || continue
+                    [ -n "$exe" ] || continue
+                    if [ -z "${pk_owner[$exe]+x}" ]; then
+                        if [ "$pk_mgr" = dpkg ]; then
+                            o=$(dpkg -S "$exe" 2>/dev/null | head -1 | cut -d: -f1)
+                            [ -z "$o" ] && o=$(dpkg -S "${exe#/usr}" 2>/dev/null | head -1 | cut -d: -f1)   # /usr-merge
+                        else
+                            o=$(rpm -qf --qf '%{NAME}\n' "$exe" 2>/dev/null | head -1)
+                            [[ "$o" == *" "* ]] && o=""
+                        fi
+                        pk_owner[$exe]=$o
+                    fi
+                    [ -n "${pk_owner[$exe]}" ] && pk_exp+="[\"${pk_owner[$exe]}\",${local##*:},\"$proto\"],"
+                done
+            done < <(ss -Htulnp 2>/dev/null | awk '{
+                    local = $5; if (local !~ /:[0-9]+$/) next
+                    addr = local; sub(/:[0-9]+$/, "", addr); gsub(/[\[\]]/, "", addr); sub(/%.*/, "", addr)
+                    if (addr ~ /^127\./ || addr == "::1" || addr == "localhost") next
+                    pids = ""; s = $0
+                    while (match(s, /pid=[0-9]+/)) { pids = pids " " substr(s, RSTART + 4, RLENGTH - 4); s = substr(s, RSTART + RLENGTH) }
+                    if (pids != "") print $1, local, pids }' | sort -u)
+        fi
+        # Herstart nodig: nieuwere kernel geïnstalleerd dan er draait; services met oude bibliotheken (als de hulpmiddelen er zijn)
+        pk_kern=$(find /boot -maxdepth 1 -name 'vmlinuz-*' -printf '%f\n' 2>/dev/null | sed 's/^vmlinuz-//' | grep -v rescue | sort -V | tail -1)
+        pk_rs=""
+        if command -v needs-restarting >/dev/null 2>&1; then
+            pk_rs=$(timeout 60 needs-restarting -s 2>/dev/null | grep -E '^[A-Za-z0-9@._:-]+$' | head -50)
+        elif command -v needrestart >/dev/null 2>&1; then
+            pk_rs=$(timeout 60 needrestart -b -r l 2>/dev/null | sed -n 's/^NEEDRESTART-SVC: *//p' | grep -E '^[A-Za-z0-9@._:-]+$' | head -50)
+        fi
+        pk_rs_json=$(printf '%s\n' $pk_rs | awk 'NF { printf "\"%s\",", $0 }')
+        printf '{"mgr":"%s","os":%s,"kernel":{"running":"%s","latest":"%s"},"restart":[%s],"exposed":[%s],"list":[%s]}' \
+            "$pk_mgr" "${pk_os:-{\}}" "$(uname -r)" "$pk_kern" "${pk_rs_json%,}" "${pk_exp%,}" "${pk_rows%,}" >"$pk_list.tmp" && mv -f "$pk_list.tmp" "$pk_list"
+    fi
+    if [ -s "$pk_list" ]; then
+        pk_hash=$(sha1sum "$pk_list" | cut -c1-16)
+        # Alles meesturen als RzMon deze stand nog niet heeft; anders alleen het controlegetal
+        if [ "$(cat "$pk_dir/sent" 2>/dev/null)" != "$pk_hash" ]; then
+            pkgs_json="{\"hash\":\"$pk_hash\",\"data\":$(cat "$pk_list")}"
+        else
+            pkgs_json="{\"hash\":\"$pk_hash\"}"
+        fi
+    fi
+fi
+# Uitkomst van "pakketten bijwerken" (opdracht uit RzMon) terugmelden: id, ok/error en het einde van de uitvoer (base64)
+pkg_result=""
+if [ -r "$pk_dir/upgrade.result" ]; then
+    IFS=$'\t' read -r pr_id pr_st pr_log <"$pk_dir/upgrade.result"
+    [[ "$pr_id" =~ ^[0-9a-f]{8,32}$ ]] && [[ "$pr_log" =~ ^[A-Za-z0-9+/=]*$ ]] \
+        && pkg_result="{\"id\":\"$pr_id\",\"ok\":$([ "$pr_st" = ok ] && echo true || echo false),\"log_b64\":\"$pr_log\"}"
+fi
+
+pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade" van de meegestuurde pakketnamen, als root
+    local id names n=() out="$pk_dir/upgrade.result" why=""
+    id=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"id":[[:space:]]*"\([0-9a-f]\{8,32\}\)".*/\1/p' <<<"$1")
+    names=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"pkgs":[[:space:]]*\[\([^]]*\)\].*/\1/p' <<<"$1" | tr -d '"' | tr ',' ' ')
+    [ -n "$id" ] && [ -d "$pk_dir" ] || return 0
+    for p in $names; do
+        [[ "$p" =~ ^[A-Za-z0-9][A-Za-z0-9.+_:~-]{0,99}$ ]] && n+=("$p")
+    done
+    case "$COMMANDS" in 0|off|no|nee|nobody) why="geblokkeerd op de server (COMMANDS=$COMMANDS in /etc/default/rzmon-agent)" ;; esac
+    [ "$(id -u)" = 0 ] || why="de agent draait niet als root"
+    [ "${#n[@]}" -gt 0 ] || why="geen geldige pakketnamen ontvangen"
+    if [ -n "$why" ]; then
+        printf '%s\terror\t%s\n' "$id" "$(printf '%s' "$why" | base64 -w0)" >"$out"
+        return 0
+    fi
+    # Loopt er al een (minder dan 30 minuten geleden gestart)? Dan niet nog een.
+    if [ -f "$pk_dir/upgrade.lock" ] && [ $(( $(date +%s) - $(stat -c %Y "$pk_dir/upgrade.lock") )) -lt 1800 ]; then return 0; fi
+    : >"$pk_dir/upgrade.lock"
+    # shellcheck disable=SC2016  # het script krijgt zijn waarden als argumenten mee, niet via de tekst
+    local script='id=$1; mgr=$2; dir=$3; shift 3
+        if [ "$mgr" = rpm ]; then
+            if command -v dnf >/dev/null 2>&1; then log=$(dnf -y upgrade "$@" 2>&1); else log=$(yum -y update "$@" 2>&1); fi
+        else
+            export DEBIAN_FRONTEND=noninteractive
+            log=$( { apt-get update -q && apt-get install -y -q --only-upgrade -o Dpkg::Options::=--force-confold "$@"; } 2>&1 )
+        fi
+        rc=$?
+        printf "%s\t%s\t%s\n" "$id" "$([ "$rc" = 0 ] && echo ok || echo error)" "$(printf "%s" "$log" | tail -c 1500 | base64 -w0)" >"$dir/upgrade.result.tmp" \
+            && mv -f "$dir/upgrade.result.tmp" "$dir/upgrade.result"
+        rm -f "$dir/upgrade.lock"'
+    if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
+        systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash -c "$script" _ "$id" "$pk_mgr" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
+            || { printf '%s\terror\t%s\n' "$id" "$(printf 'systemd-run mislukt' | base64 -w0)" >"$out"; rm -f "$pk_dir/upgrade.lock"; }
+    else
+        setsid /bin/bash -c "$script" _ "$id" "$pk_mgr" "$pk_dir" "${n[@]}" </dev/null >/dev/null 2>&1 &
+    fi
+}
+
 # ---------------------------------------------------------------- Bijwerken op afstand
 # Kan deze agent zichzelf bijwerken, en hoe? Gestart door systemd (afgeschermd: /usr is alleen-lezen)
 # → via systemd-run als aparte taak; via cron of met de hand → direct.
@@ -1684,7 +1808,7 @@ fi
 # Opstarttijd (epoch) voor de check Herstart in RzMon
 read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}}"
 
 curl_opts=(-fsS -m 20 -X POST)
 [ "$INSECURE" = 1 ] && curl_opts+=(-k)
@@ -1791,5 +1915,12 @@ if [ "$rc" -eq 0 ]; then
         : >"$t_dir/tests.stale" 2>/dev/null || rm -f "$t_cache"   # volgende run opnieuw ophalen; de oude lijst blijft tot dan
     fi
     [[ "$resp" =~ \"update\":[[:space:]]*\{ ]] && remote_update "$resp"
+    # Softwarelijst: RzMon heeft deze stand nu (of vraagt om alles opnieuw); uitkomst van het bijwerken is doorgegeven
+    if [ -n "$pk_hash" ]; then
+        if [[ "$resp" =~ \"packages_resend\":[[:space:]]*true ]]; then : >"$pk_dir/resend"; rm -f "$pk_dir/sent"
+        elif [[ "$resp" =~ \"packages_ok\":[[:space:]]*true ]]; then printf '%s' "$pk_hash" >"$pk_dir/sent"; fi
+    fi
+    [ -n "$pkg_result" ] && rm -f "$pk_dir/upgrade.result"
+    [[ "$resp" =~ \"pkg_upgrade\":[[:space:]]*\{ ]] && [ -n "$pk_mgr" ] && pkg_upgrade "$resp"
 fi
 exit "$rc"

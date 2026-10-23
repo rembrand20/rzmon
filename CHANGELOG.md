@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.54.0 – 2026-10-23
+### Nieuw
+- **🐞 Kwetsbaarheden**: een nieuwe pagina met de software per server en de bekende kwetsbaarheden (CVE's) daarbij. Standaard **uit**; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Zichtbaar voor beheerders en gebruikers.
+  - RzMon zoekt de kwetsbaarheden op bij OSV.dev, met de adviezen van de distributie zelf (Debian, Ubuntu, Rocky Linux, AlmaLinux en Alpine; RHEL en CentOS via AlmaLinux). Alleen pakketnamen, versies en de distributie gaan naar OSV.dev.
+  - Per server: pakket, geïnstalleerde versie, *opgelost in*, de CVE's per ernst, **🌐 bereikbaar**, **⚠️ actief misbruikt** (CISA) en **↻ herstart nodig**. Met tellers, zoeken, filters en de hele softwarelijst.
+  - Klik op een CVE voor de omschrijving, de CVSS-score met uitleg, de kans op misbruik (EPSS), de adviezen, en per server het commando om bij te werken.
+  - **Bijwerken via de agent** per pakket of alle beveiligingsupdates tegelijk (beheerders, met je wachtwoord, als commando's als root aan staan voor die server). Anders krijg je het commando om zelf uit te voeren.
+  - **Risico accepteren** met een reden, ℹ️ info bij een nieuwe critical of actief misbruikte kwetsbaarheid, de REST API (`/v1.php/vulnerabilities`, nieuw recht *Kwetsbaarheden lezen*) en MQTT-sensoren per server.
+  - Nodig: uitgaand HTTPS naar `api.osv.dev`, `www.cisa.gov`, `api.first.org` en `services.nvd.nist.gov`.
+- Nieuwe agent 1.47.0: stuurt de softwarelijst mee en kan pakketten bijwerken. Agent 1.47.0 nodig voor *Kwetsbaarheden* op agent-servers.
+
 ## 1.53.1 – 2026-10-22
 ### Opgelost
 - Checkformulier: met **ℹ️ Alleen info-meldingen** aan zie je bij *🔔 Meldingen* alleen nog de rij **ℹ️ Info** (*Eigen info-kanalen voor deze check*); warning, critical, onbekend, hersteld en anti-flapping zijn dan verborgen. Zet je het uit, dan komt alles terug, met de instellingen die je eerder had.

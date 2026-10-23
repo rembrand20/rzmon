@@ -58,3 +58,11 @@ if ($msg = Backup::runScheduled()) {
 if ($msg = Updater::cron()) {
     echo date('c') . " $msg\n";
 }
+// Kwetsbaarheden: dagelijkse scan en servers waarvan de softwarelijst veranderde (Instellingen → 🐞 Kwetsbaarheden)
+try {
+    if ($msg = Vulns::cron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Kwetsbaarheden: ' . $e->getMessage() . "\n");
+}

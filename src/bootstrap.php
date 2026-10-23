@@ -58,6 +58,7 @@ require_once __DIR__ . '/Ids.php';
 require_once __DIR__ . '/SnmpMonitor.php';
 require_once __DIR__ . '/I18n.php';
 require_once __DIR__ . '/AgentText.php';
+require_once __DIR__ . '/Vulns.php';
 
 function config(string $key, $default = null)
 {
@@ -120,7 +121,7 @@ function save_setting(string $name, string $value): void
 }
 
 /** Rechten van een API-sleutel: status lezen, IDS lezen, IDS blokkeren, checks bedienen. */
-const API_RIGHTS = ['read', 'ids_read', 'ids_block', 'checks'];
+const API_RIGHTS = ['read', 'ids_read', 'vulns_read', 'ids_block', 'checks'];
 
 /** Keuzes voor hoe vaak een agent rapporteert (seconden). */
 const AGENT_TICKS = [30, 60, 120, 300];

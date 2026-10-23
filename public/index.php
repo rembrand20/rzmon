@@ -110,6 +110,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <button class="tab active" data-tab="dashboard"><?= th('Dashboard') ?></button>
       <button class="tab" data-tab="alerts"><?= th('Meldingen') ?></button>
       <button class="tab" data-tab="ids">🛡️ IDS <span class="tab-badge" id="ids-badge" hidden></span></button>
+      <?php if (Vulns::enabled() && $role !== 'readonly'): ?><button class="tab" data-tab="vulns">🐞 <?= th('Kwetsbaarheden') ?> <span class="tab-badge" id="vuln-badge" hidden></span></button><?php endif; ?>
       <button class="tab" data-tab="settings"><?= th('Instellingen') ?></button>
     </nav>
     <div class="top-actions">
@@ -229,6 +230,34 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div id="ids-blocks"></div>
       </div>
     </section>
+
+    <?php if (Vulns::enabled() && $role !== 'readonly'): ?>
+    <section id="tab-vulns" class="tab-panel" hidden>
+      <div class="card">
+        <div class="alerts-head">
+          <h2>🐞 <?= th('Kwetsbaarheden') ?></h2>
+          <span class="muted small" id="vuln-info"></span>
+          <button type="button" class="btn need-admin" id="vuln-scan" style="margin-left:auto">🔍 <?= th('Nu scannen') ?></button>
+        </div>
+        <div class="vuln-counts" id="vuln-counts"></div>
+        <div class="vuln-tools">
+          <input type="search" id="vuln-search" placeholder="<?= th('Zoek pakket, CVE of server…') ?>" autocomplete="off">
+          <div class="seg" role="group" aria-label="<?= th('Filter') ?>" id="vuln-filter">
+            <button type="button" class="seg-btn active" data-vf="all"><?= th('Alles') ?></button>
+            <button type="button" class="seg-btn" data-vf="exposed">🌐 <?= th('Bereikbaar') ?></button>
+            <button type="button" class="seg-btn" data-vf="fix"><?= th('Met oplossing') ?></button>
+            <button type="button" class="seg-btn" data-vf="kev">⚠️ <?= th('Actief misbruikt') ?></button>
+            <button type="button" class="seg-btn" data-vf="ignored"><?= th('Geaccepteerd') ?></button>
+          </div>
+          <select id="vuln-sev" aria-label="<?= th('Ernst') ?>">
+            <option value="0"><?= th('Alle ernst') ?></option><option value="2"><?= th('Vanaf medium') ?></option>
+            <option value="3"><?= th('Vanaf high') ?></option><option value="4"><?= th('Alleen critical') ?></option>
+          </select>
+        </div>
+      </div>
+      <div id="vuln-hosts"></div>
+    </section>
+    <?php endif; ?>
 
     <section id="tab-settings" class="tab-panel" hidden>
       <div class="settings-top">
@@ -427,6 +456,21 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <textarea name="auth_ignore" rows="2" placeholder="<?= th('bv. ansible backup 192.168.2.5 10.0.0.0/8') ?>"></textarea></label>
         </div>
 
+        <div data-sk="vulns" class="card" id="vulns-card">
+          <h2>🐞 <?= th('Kwetsbaarheden') ?></h2>
+          <p class="muted small"><?= t('De agents (1.47.0 of nieuwer) sturen hun softwarelijst mee; voor de RzMon-server leest RzMon hem zelf. RzMon zoekt daar de bekende kwetsbaarheden (CVE\'s) bij op <b>OSV.dev</b>, met de adviezen van de distributie zelf, plus <i>actief misbruikt</i> (CISA) en de kans op misbruik (EPSS). Naar OSV.dev gaan alleen pakketnamen, versies en de distributie, geen servernamen of IP-adressen. Ondersteund: Debian, Ubuntu, Rocky Linux, AlmaLinux (en RHEL/CentOS via AlmaLinux) en Alpine.') ?></p>
+          <label class="switch"><input type="checkbox" name="vuln_enabled"><span></span> <?= t('<b>Kwetsbaarheden aan</b> (tabblad 🐞 Kwetsbaarheden)') ?></label>
+          <div class="row2">
+            <label><?= th('Dagelijks scannen om') ?><input type="time" name="vuln_time"></label>
+            <label><?= th('Tonen vanaf') ?>
+              <select name="vuln_min_severity"><option value="0"><?= th('alles') ?></option><option value="1">low</option><option value="2">medium</option><option value="3">high</option><option value="4">critical</option></select></label>
+          </div>
+          <input type="hidden" name="vuln_exclude">
+          <div class="vuln-exclude"><span class="muted small"><?= th('Niet scannen:') ?></span> <span id="vuln-exclude-list"></span></div>
+          <p class="muted small"><?= t('Nodig: uitgaand HTTPS naar <code>api.osv.dev</code>, <code>www.cisa.gov</code>, <code>api.first.org</code> en <code>services.nvd.nist.gov</code>. Een ℹ️ info-melding bij een nieuwe critical of actief misbruikte kwetsbaarheid volgt de rij Info bij 🔔 Meldingen. Bijwerken via de agent kan als commando\'s als root aan staan voor die server; anders krijg je het commando om zelf uit te voeren.') ?></p>
+          <div class="btn-row"><button type="button" class="btn" id="vuln-scan-now">🔍 <?= th('Nu scannen') ?></button> <span class="muted small" id="vuln-scan-info"></span></div>
+        </div>
+
         <div data-sk="update" class="card" id="update-card">
           <h2><?= th('⬆ RzMon bijwerken') ?></h2>
           <p class="small" id="update-status">…</p>
@@ -539,6 +583,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <li><?= t('<code>GET /ids/incidents</code> (<code>?status=open</code>, <code>?severity=2</code>, <code>?host_id=1</code>, <code>?limit=100</code>)') ?></li>
             <li><?= t('<code>GET /ids/blocks</code> – actieve blokkades (<code>?all=1</code>: ook opgeheven en verlopen)') ?></li>
             <li><?= t('<code>GET /ids/access</code> – logins, sudo en su (<code>?host_id=1</code>, <code>?type=ssh</code>, <code>?failed=1</code>)') ?></li>
+          </ul>
+          <p class="muted"><?= th('🐞 Kwetsbaarheden lezen:') ?></p>
+          <ul>
+            <li><?= t('<code>GET /vulnerabilities</code> – per server: aantal critical, high, medium, low, actief misbruikt, met oplossing') ?></li>
+            <li><?= t('<code>GET /vulnerabilities/{id}</code> – de kwetsbaarheden van één server (<code>?all=1</code>: ook geaccepteerde)') ?></li>
           </ul>
           <p class="muted"><?= th('⛔ IDS blokkeren:') ?></p>
           <ul>

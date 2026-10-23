@@ -4,7 +4,7 @@
  *
  * Authenticatie: header "Authorization: Bearer <sleutel>" of "X-API-Key: <sleutel>"
  * (of ?key=<sleutel>, minder veilig omdat het in logs belandt).
- * Elke sleutel heeft rechten (Instellingen → API-sleutels): read (status lezen), ids_read (IDS lezen),
+ * Elke sleutel heeft rechten (Instellingen → API-sleutels): read (status lezen), ids_read (IDS lezen), vulns_read (kwetsbaarheden),
  * ids_block (IP's blokkeren/deblokkeren) en checks (bevestigen, onderhoud, nu checken); eventueel
  * "alleen vanaf" bepaalde IP's/netwerken, en een vervaldatum.
  *
@@ -16,6 +16,8 @@
  *   GET /v1.php/checks/{id}                één check
  *   GET /v1.php/checks/{id}/history        meetwaarden (?hours=24, max 720)
  *   GET /v1.php/alerts                     meldingen (?limit=50, max 500)
+ *   GET /v1.php/vulnerabilities            kwetsbaarheden: tellers per server              [vulns_read]
+ *   GET /v1.php/vulnerabilities/{host_id}  kwetsbaarheden van één server (?all=1: ook geaccepteerde) [vulns_read]
  *   GET /v1.php/ids                        IDS-overzicht                                   [ids_read]
  *   GET /v1.php/ids/incidents              incidenten (?status=open, ?severity=2, ?host_id, ?limit)  [ids_read]
  *   GET /v1.php/ids/blocks                 actieve blokkades (?all=1: ook opgeheven/verlopen)      [ids_read]
@@ -81,7 +83,7 @@ $rights = explode(',', (string) $apiKey['rights']);
 function need(string $right): void
 {
     global $rights, $apiKey;
-    $label = t(['read' => 'Status lezen', 'ids_read' => 'IDS lezen', 'ids_block' => 'IDS blokkeren', 'checks' => 'Checks bedienen'][$right] ?? $right);
+    $label = t(['read' => 'Status lezen', 'ids_read' => 'IDS lezen', 'vulns_read' => 'Kwetsbaarheden lezen', 'ids_block' => 'IDS blokkeren', 'checks' => 'Checks bedienen'][$right] ?? $right);
     if (!in_array($right, $rights, true)) {
         respond(['error' => t('Deze sleutel ({name}) heeft het recht "{right}" niet', ['name' => $apiKey['name'], 'right' => $label])], 403);
     }
@@ -318,6 +320,37 @@ if ($method === 'POST') {
             respond(['error' => t('Onbekend endpoint voor POST'), 'endpoints' => ['/ids/block', '/ids/unblock', '/checks/{id}/ack', '/checks/{id}/unack',
                 '/checks/{id}/maintenance', '/checks/{id}/run', '/hosts/{id}/maintenance']], 404);
     }
+}
+
+// ---------- Kwetsbaarheden lezen ----------
+if (($parts[0] ?? '') === 'vulnerabilities') {
+    need('vulns_read');
+    if (!Vulns::enabled()) {
+        respond(['error' => t('Kwetsbaarheden staat uit (Instellingen → 🐞 Kwetsbaarheden)')], 404);
+    }
+    $o = Vulns::overview();
+    if (count($parts) === 1) {
+        $sum = Vulns::summary($o);
+        respond(['last_scan' => iso($o['last_scan']), 'totals' => array_combine(['critical', 'high', 'medium', 'low', 'exploited'],
+            array_map(fn($k) => array_sum(array_column($sum, $k)), ['critical', 'high', 'medium', 'low', 'exploited'])),
+            'hosts' => array_map(fn($h) => ['scanned_at' => iso($h['scanned_at'])] + $h, $sum)]);
+    }
+    if (count($parts) === 2 && ctype_digit($parts[1])) {
+        $hid = (int) $parts[1];
+        $h = array_values(array_filter($o['hosts'], fn($x) => $x['id'] === $hid))[0] ?? null;
+        if (!$h) {
+            respond(['error' => t('Server niet gevonden')], 404);
+        }
+        $all = !empty($_GET['all']);
+        respond(['host_id' => $hid, 'host' => $h['name'], 'os' => $h['os'], 'scanned_at' => iso($h['scanned_at']), 'reboot_required' => $h['reboot'] !== null || (bool) $h['restart'],
+            'findings' => array_values(array_map(fn($f) => [
+                'package' => $f['package'], 'version' => $f['version'], 'fixed_version' => $f['fixed'], 'cve' => $f['cve'], 'advisory' => $f['vuln_id'],
+                'severity' => Vulns::SEVERITY[$f['severity']] === 'onbekend' ? 'unknown' : Vulns::SEVERITY[$f['severity']], 'cvss' => $f['cvss'],
+                'exploited' => $f['kev'], 'epss' => $f['epss'], 'exposed' => isset($h['exposed'][$f['package']]), 'accepted' => $f['ignored'],
+                'first_seen' => iso($f['first_seen']), 'summary' => $f['summary'],
+            ], array_filter($o['findings'], fn($f) => $f['host_id'] === $hid && ($all || !$f['ignored']))))]);
+    }
+    respond(['error' => t('Onbekend endpoint'), 'endpoints' => ['/vulnerabilities', '/vulnerabilities/{host_id}']], 404);
 }
 
 // ---------- IDS lezen ----------
