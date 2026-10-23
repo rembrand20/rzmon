@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.57.4 – 2026-10-23
+### Opgelost
+- **Het venster van pakketten bijwerken (Kwetsbaarheden) werd na een paar seconden vervangen door dat van de RzMon-update.** Beide vensters hebben dezelfde opmaak, en de controle van de RzMon-update (die het venster bij een hangende verbinding opnieuw opvraagt) zag het venster van Kwetsbaarheden voor het zijne aan. Nu kijkt die alleen naar het eigen venster.
+
 ## 1.57.3 – 2026-10-23
 ### Opgelost
 - **Opengeklapte onderdelen gingen steeds weer dicht.** De pagina's Meldingen, IDS en Kwetsbaarheden worden elke 20 seconden ververst; daarbij klapte alles weer in, zoals *Uitvoer* (het logboek) bij een server, een andere dag bij Meldingen of een uitgeklapt bericht. Nu blijft open wat je openzette, en blijft de pagina op dezelfde plek staan.

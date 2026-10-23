@@ -4198,7 +4198,8 @@ setInterval(() => { if (updateDialogShown() && Date.now() - updatePollAt > 20000
 document.addEventListener('visibilitychange', () => { if (!document.hidden && updateDialogShown()) pollUpdate(); });
 
 // ---------------------------------------------------------------- Update-venster: vraag, voortgangsbalk en wat er gebeurt
-const updateDialogShown = () => $('#modal').open && !!$('#modal-body .upd-dlg');
+// Alleen het venster van de RzMon-update; dat van pakketten bijwerken (Kwetsbaarheden) heeft dezelfde opmaak, maar is vu-dlg
+const updateDialogShown = () => $('#modal').open && !!$('#modal-body .upd-dlg:not(.vu-dlg)');
 let updatePct = 0;   // de balk gaat tijdens één update nooit terug
 
 /** Vraag "wil je bijwerken?" (met back-up), of meteen de voortgang als er al een update loopt. */
