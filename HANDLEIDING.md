@@ -100,10 +100,14 @@ RzMon bestaat uit vier onderdelen:
 - **Zoeken:** zoekveld (zoek je op een checknaam, dan klapt de server vanzelf open) en een filter **Alleen problemen**.
 - **Minigrafiek per check** van de laatste 24 uur; klik erop voor de grote **grafiek** over 6 uur tot 30 dagen, met beschikbaarheid, minimum, gemiddelde, maximum en bij disks de trend.
 - **Beschikbaarheid per server** over 24 uur, 7 dagen en 30 dagen.
+- **Tellers op de tabbladen:** achter **Dashboard** staat het aantal **nieuwe problemen** sinds je het dashboard voor het laatst zag: checks die sindsdien warning, critical of onbekend werden en dat nog zijn (geen info-checks, onderhoud of bevestigde problemen). De kleur volgt het ergste: rood, oranje of grijs. Achter **Meldingen** staat het aantal **nieuwe meldingen** sinds je die pagina voor het laatst opende (warning, critical, onbekend, hersteld en IDS; geen info en geen bevestigingen). Open je het tabblad, dan gaat de teller naar 0. Dit wordt **per gebruiker** onthouden, dus ook op je andere apparaten. Het totaal staat ook in de titel van het browsertabblad, bijvoorbeeld *(3) RzMon*.
 - **Bijwerken:** de pagina ververst zichzelf elke 20 seconden. Met **↻ Alles nu checken** draai je direct alle checks.
 - **Weergave:** donker en licht thema, werkt ook op je telefoon.
 - **Twee lay-outs** (*Instellingen → Weergave*, per apparaat):
-  - **Blox:** een tegel per server (standaard).
+  - **Blox:** een tegel per server (standaard). Je kiest **Small** of **Large**:
+    - **Large** (standaard): de tegels zoals altijd, met CPU-, RAM- en diskmeters, de laatste check en de agent.
+    - **Small:** compacte tegels met alleen naam, status, tellers en de checks met problemen, zodat er meer servers tegelijk in beeld passen. Een uitgeklapte tegel krijgt de hele breedte.
+    - Blox en L1nes onthouden elk hun eigen keuze.
   - **L1nes:** alle servers onder elkaar, elk als balk over de volle breedte. Je kiest **Small** of **Large**:
     - **Small:** één regel met naam, adres, status en tellers.
     - **Large:** kolommen voor status, probleem-checks, CPU, RAM, disk, bereikbaarheid (7 dagen) en de laatste check.
@@ -114,7 +118,7 @@ RzMon bestaat uit vier onderdelen:
   - De lay-out geldt ook voor **Instellingen** en **Meldingen**:
     - **Instellingen in L1nes:** elk onderdeel is een rij over de volle breedte, in groepen (*Meldingen*, *Monitoring*, *Systeem*, *Toegang*). Achter de titel staat een korte samenvatting (bijvoorbeeld *✔ aan · critical: Hoog*), zodat je zonder open te klikken ziet hoe het staat. Klik op een rij om hem te openen; welke rijen open staan, wordt onthouden. **Small:** standaard alles dicht. **Large:** standaard alles open. **⊞ Alles openen** klapt alles in één keer open. De knop **💾 Instellingen opslaan** blijft onderin in beeld, met *● niet opgeslagen wijzigingen* zolang je nog moet opslaan. De kaart *Weergave* staat altijd bovenaan open.
     - **Meldingen in L1nes:** een tabel met één regel per melding: tijd, status, server, check, bericht en kanalen. **Small:** het bericht ingekort (klik erop voor het hele bericht). **Large:** het hele bericht.
-    - In **Blox** zien Instellingen en Meldingen eruit zoals altijd.
+    - In **Blox** zien de Instellingen eruit zoals altijd. **Meldingen in Blox Small:** één regel per melding (op de telefoon twee); **Large:** zoals altijd, met het hele bericht.
 
 ### Poortscan
 - **Scannen** naar open TCP-poorten: bekende poorten, poort 1-1024, of een eigen lijst zoals `22,80,8000-8100` (maximaal 4096 poorten).
@@ -1727,13 +1731,13 @@ Elke agent geeft zijn versie door, en je ziet die op de servertegel (bijvoorbeel
 ### Bijwerken vanuit RzMon ⬆ (Rocky Linux, vanaf 1.29.0)
 Onder **Instellingen → ⬆ RzMon bijwerken** werk je RzMon bij zonder terminal.
 - **Is er een update?** RzMon kijkt één keer per dag op GitHub, of direct met **🔍 Nu controleren**. Is er een nieuwe versie, dan zie je bovenin naast het versienummer een groen label **⬆ 1.x.y**, en op de kaart **wat er nieuw is** (de changelog van alle versies sinds de jouwe).
-- **⬆ Nu bijwerken naar 1.x.y:** de hulpdienst op de server voert vaste stappen uit en je ziet de voortgang:
+- **⬆ Nu bijwerken naar 1.x.y** (of klik op het groene label **⬆ 1.x.y** bovenin): een venster vraagt of je wilt bijwerken, met wat er nieuw is en de schakelaar **Eerst een back-up maken**. Na **⬆ Bijwerken** zie je in hetzelfde venster een **voortgangsbalk** met percentage, de stappen, en daaronder **waar de installatie nu mee bezig is** (bij *Installeren* ook het onderdeel, bv. *Database (4/9)*) en de laatste regels van het logboek. Tijdens het herstarten is RzMon even niet bereikbaar; het venster zegt dan *Even geduld, RzMon wordt herstart…* en wacht. Met **Op de achtergrond** sluit je het venster; het label bovenin toont dan *⏳ Bijwerken…*, en na herladen of in een ander tabblad gaat het venster vanzelf weer open. De hulpdienst op de server voert vaste stappen uit:
   1. *Controleren:* de RzMon-map moet vergrendeld zijn en alle bestanden van root;
   2. *Back-up maken:* als de schakelaar **Eerst een back-up maken** aan staat (standaard). De back-up staat daarna in de lijst onder *Back-up*;
   3. *Nieuwste versie ophalen* (`git pull`);
   4. *Installeren:* het installatiescript (`install-rocky.sh --yes`), net als wanneer je het commando zelf uitvoert: rechten, SELinux, hulpdienst en tabellen.
 
-  Daarna laadt de pagina vanzelf de nieuwe versie. Gaat er iets mis, dan zie je de foutmelding en het logboek; is het ophalen mislukt, dan is er niets veranderd.
+  Daarna laadt de pagina vanzelf de nieuwe versie. (De onderdelen van *Installeren* zie je vanaf de update ná 1.55.0: de hulpdienst zelf wordt bij het installeren bijgewerkt.) Gaat er iets mis, dan zie je de foutmelding en het logboek; is het ophalen mislukt, dan is er niets veranderd.
 - **Automatisch bijwerken:** zet de schakelaar aan en kies een tijdstip (standaard 04:00). Is er een nieuwe versie, dan werkt RzMon zichzelf die dag in het uur na dat tijdstip bij, met een back-up vooraf als die schakelaar aan staat. De agents werk je apart bij (*⬆ Agents bijwerken*).
 - **Eenmalig nodig:** de hulpdienst voor bijwerken. Die zet `install-rocky.sh` klaar; voer na de update naar 1.29.0 het installatiecommando dus nog één keer uit. Controleren: `systemctl status rzmon-update.path`.
 - **Veiligheid:** de webpagina zet alleen een verzoek neer (`/var/lib/rzmon/update.request`). De hulpdienst (`/usr/local/sbin/rzmon-update`, als root) voert altijd dezelfde stappen uit, en weigert als de map ontgrendeld is (`--unlock`) of als een bestand niet van root is. Het logboek staat in `/var/lib/rzmon/update.log`.

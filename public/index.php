@@ -107,8 +107,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     <div class="brand"><span class="logo">📡</span> RzMon <a class="version" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener" title="<?= th('RzMon-versie – bekijk wat er nieuw is') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></a>
       <button type="button" class="update-badge need-admin" id="update-badge" hidden title="<?= th('Er is een nieuwe versie van RzMon: klik om bij te werken') ?>"></button></div>
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="dashboard"><?= th('Dashboard') ?></button>
-      <button class="tab" data-tab="alerts"><?= th('Meldingen') ?></button>
+      <button class="tab active" data-tab="dashboard"><?= th('Dashboard') ?> <span class="tab-badge" id="dash-badge" hidden></span></button>
+      <button class="tab" data-tab="alerts"><?= th('Meldingen') ?> <span class="tab-badge" id="alerts-badge" hidden></span></button>
       <button class="tab" data-tab="ids">🛡️ IDS <span class="tab-badge" id="ids-badge" hidden></span></button>
       <?php if (Vulns::enabled() && $role !== 'readonly'): ?><button class="tab" data-tab="vulns">🐞 <?= th('Kwetsbaarheden') ?> <span class="tab-badge" id="vuln-badge" hidden></span></button><?php endif; ?>
       <button class="tab" data-tab="settings"><?= th('Instellingen') ?></button>
@@ -277,9 +277,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
         </div>
         <div class="view-row">
-          <span class="view-label"><?= th('Grootte') ?> <span class="hint"><?= th('(bij L1nes)') ?></span></span>
+          <span class="view-label"><?= th('Grootte') ?> <span class="hint"><?= th('(per lay-out)') ?></span></span>
           <div class="seg" role="group" aria-label="<?= th('Grootte') ?>">
-            <button type="button" class="seg-btn" data-view-density="small" title="<?= th('Eén compacte regel per server') ?>">Small</button>
+            <button type="button" class="seg-btn" data-view-density="small" title="<?= th('Compact: meer servers tegelijk in beeld') ?>">Small</button>
             <button type="button" class="seg-btn" data-view-density="large" title="<?= th('Meer informatie: CPU, RAM, disk, bereikbaarheid') ?>">Large</button>
           </div>
         </div>

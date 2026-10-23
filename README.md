@@ -35,7 +35,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **Onderhoud & afhankelijkheden**: 🔧 meldingen pauzeren voor alles, een server of een check (bv. tijdens updates). 🔗 Servers achter een router/switch/VPN geven geen eigen melding als die onbereikbaar is: één melding in plaats van tientallen.
 
-**Dashboard**: bovenaan een **gezondheidsbalk** met de algehele status (🟢 Alles in orde, 🟠 Aandacht nodig, 🔴 Storing), een score van 0–100%, klikbare tellers als filter en het langst openstaande probleem; ook als sensor in Home Assistant (MQTT) en in de REST API. Kies onder *Instellingen → Weergave* tussen **Blox** (tegels) en **L1nes** (servers en hun checks onder elkaar als rijen, in Small of Large); de keuze geldt per apparaat, en ook voor de pagina's Instellingen en Meldingen.
+**Dashboard**: bovenaan een **gezondheidsbalk** met de algehele status (🟢 Alles in orde, 🟠 Aandacht nodig, 🔴 Storing), een score van 0–100%, klikbare tellers als filter en het langst openstaande probleem; ook als sensor in Home Assistant (MQTT) en in de REST API. Kies onder *Instellingen → Weergave* tussen **Blox** (tegels) en **L1nes** (servers en hun checks onder elkaar als rijen), allebei in Small of Large; de keuze geldt per apparaat, en ook voor de pagina's Instellingen en Meldingen.
 
 **🖥️ Commando-checks**: laat de agent een commando uitvoeren (bv. `zpool status -x`) en vergelijk de uitvoer met het verwachte antwoord. Standaard uit; aanzetten per agent als `nobody` of root, met wachtwoord en logboek.
 

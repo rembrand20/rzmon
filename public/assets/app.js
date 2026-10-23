@@ -392,7 +392,7 @@ function init() {
 
   $('#settings-form').addEventListener('submit', saveSettings);
   $('#backup-now').onclick = backupNow;
-  $('#update-start').onclick = startUpdate;
+  $('#update-start').onclick = openUpdateDialog;
   // Kwetsbaarheden aan/uit: meteen opslaan (zoals het IDS); het tabblad komt erbij of gaat weg, dus de pagina herladen
   $('#vuln-enabled').onchange = async (e) => {
     try {
@@ -546,7 +546,7 @@ function init() {
   $('#settings-form').addEventListener('change', (e) => { if (!e.target.closest('[data-nodirty]')) markSettingsDirty(true); settingsSummaries(); });
   $('#settings-form').update_auto.addEventListener('change', backupFormToggle);
   $('#update-check').onclick = async (e) => { const btn = e.currentTarget; btn.disabled = true; await loadUpdate(true); btn.disabled = false; };
-  $('#update-badge').onclick = () => { showTab('settings'); setTimeout(() => $('#update-card').scrollIntoView({ behavior: 'smooth', block: 'start' }), 300); };
+  $('#update-badge').onclick = openUpdateDialog;
   $('#agents-update-all').onclick = updateAllAgents;
   $('#backup-upload').onclick = () => $('#backup-file').click();
   $('#backup-file').onchange = (e) => backupUpload(e.target.files[0]);
@@ -596,13 +596,16 @@ function showTab(name) {
   history.replaceState(null, '', '#' + name);
   if (name === 'settings') loadSettings();
   if (name === 'alerts') loadAlerts();
+  if ((name === 'dashboard' || name === 'alerts') && state.badges) refresh();   // tab gezien: teller naar 0
   if (name === 'ids') loadIds();
   if (name === 'vulns') loadVulns();
 }
 
 async function refresh() {
   try {
-    state = await api('state');
+    // Openstaande tab (Dashboard of Meldingen) telt als gezien, maar alleen als je echt kijkt
+    const seen = document.hidden ? '' : ['dashboard', 'alerts'].find((t) => !$('#tab-' + t).hidden) || '';
+    state = await api('state', null, seen ? { seen } : {});
     // Info-check: telt nooit als storing. Voor tellers, filters en "Problemen" is hij OK; de echte status staat in info_status
     state.hosts.forEach((h) => h.checks.forEach((c) => { if (+c.info_only && +c.status !== 0) { c.info_status = +c.status; c.status = 0; } }));
     if (state.role && document.body.dataset.role !== state.role) location.reload();   // rol gewijzigd
@@ -610,17 +613,29 @@ async function refresh() {
     if (!$('#tab-alerts').hidden) loadAlerts();
     if (!$('#tab-ids').hidden) loadIds();
     if ($('#tab-vulns') && !$('#tab-vulns').hidden) loadVulns();
+    renderTabBadges();
     $('#ids-badge').hidden = !state.ids_open;
     $('#ids-badge').textContent = state.ids_open || '';
     if (isAdmin()) renderAgentUpdates();
     const ub = $('#update-badge');
-    ub.hidden = !state.update;
-    if (state.update) ub.textContent = '⬆ ' + state.update;
+    ub.hidden = !state.update && !state.update_running;
+    ub.textContent = state.update_running ? '⏳ ' + L('Bijwerken…') : state.update ? '⬆ ' + state.update : '';
+    // Loopt er een update (ook na herladen of in een ander tabblad): het voortgangsvenster weer openen
+    if (state.update_running && !$('#modal').open) { showUpdateDialog({ state: 'queued', step: 'queued', message: '' }, ''); pollUpdate(); }
   } catch (ex) {
     toast(ex.message, 'err');
   }
   // Beschikbaarheid en minigrafieken apart: mag iets langer duren
   try { stats = await api('stats'); render(); } catch (ex) { /* niet kritiek */ }
+}
+
+/** Tellers op de tabs Dashboard (nieuwe problemen, kleur van het ergste) en Meldingen (nieuwe meldingen). */
+function renderTabBadges() {
+  const b = state.badges || { dashboard: 0, alerts: 0 };
+  const set = (el, n, title) => { el.hidden = !n; el.textContent = n > 99 ? '99+' : n || ''; el.title = title; };
+  set($('#dash-badge'), b.dashboard, L('{n} nieuwe problemen sinds je laatste bezoek', { n: b.dashboard }));
+  $('#dash-badge').className = 'tab-badge s' + (b.dashboard_status ?? 2);
+  set($('#alerts-badge'), b.alerts, L('{n} nieuwe meldingen sinds je laatste bezoek', { n: b.alerts }));
 }
 
 const pct = (v) => (v === null || v === undefined ? '–' : dec(v >= 99.995 ? '100' : v.toFixed(v >= 99 ? 2 : 1)) + '%');
@@ -761,7 +776,8 @@ function render() {
   }
   $('#last-run').textContent = state.last_run ? L('Laatste check') + ': ' + ago(state.last_run) : '';
   let open = 0;
-  state.hosts.forEach((h) => +h.enabled && h.checks.forEach((c) => +c.enabled && !c.maintenance && +c.status === 2 && !c.acked_at && open++));
+  if (state.badges) open = state.badges.dashboard + state.badges.alerts;   // nieuwe problemen + nieuwe meldingen
+  else state.hosts.forEach((h) => +h.enabled && h.checks.forEach((c) => +c.enabled && !c.maintenance && +c.status === 2 && !c.acked_at && open++));
   document.title = (open ? `(${open}) ` : '') + 'RzMon';
 
   const f = $('#filter').value.trim().toLowerCase();
@@ -790,24 +806,28 @@ function render() {
     return;
   }
   const { layout, density } = viewPrefs();
-  el.className = 'hosts layout-' + layout + (layout === 'l1nes' ? ' density-' + density : '');
+  el.className = 'hosts layout-' + layout + ' density-' + density;
   el.innerHTML = layout === 'l1nes'
     ? (density === 'large' ? lineHeader() : '') + hosts.map((h) => hostLine(h, density === 'large')).join('')
-    : hosts.map(hostCard).join('');
+    : hosts.map((h) => hostCard(h, density === 'small')).join('');
   $('#toggle-all').textContent = state.hosts.length && state.hosts.every((h) => openHosts.has(+h.id)) ? '⊟ ' + L('Alles sluiten') : '⊞ ' + L('Alles openen');
 }
 
 // ---------------------------------------------------------------- Weergave (per apparaat)
-// Blox = tegels (standaard), L1nes = balken onder elkaar; L1nes in Small of Large.
+// Blox = tegels (standaard), L1nes = balken onder elkaar; allebei in Small of Large, elk met een eigen keuze.
+// Blox staat standaard op Large (de tegels zoals altijd), L1nes op Small.
 function viewPrefs() {
-  let layout = 'blox', density = 'small';
+  let layout = 'blox', density = 'large';
   try {
     layout = localStorage.getItem('rzmon-layout') === 'l1nes' ? 'l1nes' : 'blox';
-    density = localStorage.getItem('rzmon-density') === 'large' ? 'large' : 'small';
+    density = layout === 'l1nes'
+      ? (localStorage.getItem('rzmon-density') === 'large' ? 'large' : 'small')
+      : (localStorage.getItem('rzmon-blox-density') === 'small' ? 'small' : 'large');
   } catch (e) { /* geen opslag: standaard */ }
   return { layout, density };
 }
 function setViewPref(key, value) {
+  if (key === 'density' && viewPrefs().layout === 'blox') key = 'blox-density';
   try { localStorage.setItem('rzmon-' + key, value); } catch (e) {}
   showViewPrefs();
   render();
@@ -815,7 +835,7 @@ function setViewPref(key, value) {
 function showViewPrefs() {
   const { layout, density } = viewPrefs();
   $$('[data-view-layout]').forEach((b) => b.classList.toggle('active', b.dataset.viewLayout === layout));
-  $$('[data-view-density]').forEach((b) => { b.classList.toggle('active', b.dataset.viewDensity === density); b.disabled = layout !== 'l1nes'; });
+  $$('[data-view-density]').forEach((b) => { b.classList.toggle('active', b.dataset.viewDensity === density); });
   applySettingsLayout();
   if (alertData) renderAlerts();
 }
@@ -1061,8 +1081,25 @@ function hostDetail(h, lines = null) {
 }
 
 // Blox: een tegel per server
-function hostCard(h) {
+/** Blox-tegel. Small: compacte tegel (naam, status, problemen), meer per rij; Large: met meters en details. */
+function hostCard(h, small) {
   const p = hostParts(h);
+  if (small) {
+    return `
+  <article class="${p.cls} tile tile-small">
+    <div class="host-head" data-act="toggle" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${p.isOpen}"
+         title="${esc(h.address)} · ${p.isOpen ? L('Inklappen') : L('Klik voor alle checks')}">
+      <span class="dot"></span>
+      <div class="host-title">
+        <strong>${esc(h.name)}</strong>
+        <span class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</span>${p.maint}
+      </div>
+      <span class="counts">${p.counts}</span>
+    </div>
+    ${p.chips(3) ? `<div class="host-sum" data-act="toggle" data-id="${h.id}"><div class="chips">${p.chips(3)}</div></div>` : ''}
+    ${p.isOpen ? hostDetail(h) : ''}
+  </article>`;
+  }
   return `
   <article class="${p.cls} tile">
     <div class="host-head" data-act="toggle" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${p.isOpen}"
@@ -3114,7 +3151,7 @@ function alertRows(list, layout, density) {
       }).join('')}</tbody></table>`;
   }
   return list.map((a) => `
-    <div class="alert-item ${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : a.kind === 'info' ? 'info' : 's' + a.status}${a.check_id ? ' clickable' : ''}"${cid(a)}>
+    <div class="alert-item ${density === 'small' ? 'compact ' : ''}${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : a.kind === 'info' ? 'info' : 's' + a.status}${a.check_id ? ' clickable' : ''}"${cid(a)}>
       <span class="dot"></span>
       <strong>${esc(a.title)}</strong>
       <span class="muted small" title="${esc(a.created_at)}">${time(a)} ${channelIcons(a)}</span>
@@ -3981,31 +4018,107 @@ function showUpdateProgress(s, log) {
   </div>`;
 }
 
+let updateFails = 0;   // opeenvolgende keren geen antwoord (RzMon wordt herstart)
 function pollUpdate() {
   clearTimeout(updatePoll);
   updatePoll = setTimeout(async () => {
     let r;
-    try { r = await api('update_status'); } catch (ex) { pollUpdate(); return; }   // even onbereikbaar tijdens het installeren
+    try { r = await api('update_status'); updateFails = 0; }
+    catch (ex) {   // even onbereikbaar tijdens het installeren
+      updateFails++;
+      if (updateDialogShown()) $('#upd-now').innerHTML = '🔄 ' + L('Even geduld, RzMon wordt herstart…');
+      pollUpdate();
+      return;
+    }
     showUpdateProgress(r.status, r.log);
+    showUpdateDialog(r.status, r.log);
     if (r.status && ['queued', 'running'].includes(r.status.state)) return pollUpdate();
     if (r.status && r.status.state === 'ok') {
       toast(r.status.message);
-      setTimeout(() => location.reload(), 2500);   // nieuwe versie laden
+      setTimeout(() => location.reload(), 3000);   // nieuwe versie laden
     }
-  }, 2000);
+  }, 1500);
 }
 
-async function startUpdate(e) {
-  const backup = $('#settings-form').update_backup.checked;
-  const btn = e.currentTarget;
-  if (!confirm(L('RzMon bijwerken naar de nieuwste versie?') + '\n' + (backup ? L('Eerst wordt er een back-up gemaakt.') : L('Zonder back-up vooraf.')) + '\n\n' + L('RzMon is daarna even niet bereikbaar.'))) return;
-  btn.disabled = true;
-  try {
-    await api('update_start', { backup });
-    showUpdateProgress({ state: 'queued', step: 'queued', message: L('Wachten op de hulpdienst…'), at: Date.now() / 1000 }, '');
-    pollUpdate();
-  } catch (ex) { toast(ex.message, 'err'); }
-  btn.disabled = false;
+// ---------------------------------------------------------------- Update-venster: vraag, voortgangsbalk en wat er gebeurt
+const updateDialogShown = () => $('#modal').open && !!$('#modal-body .upd-dlg');
+let updatePct = 0;   // de balk gaat tijdens één update nooit terug
+
+/** Vraag "wil je bijwerken?" (met back-up), of meteen de voortgang als er al een update loopt. */
+async function openUpdateDialog() {
+  let u = updateInfo;
+  try { u = await api('update_info'); updateInfo = u; } catch (ex) { if (!u) { toast(ex.message, 'err'); return; } }
+  if (u.status && ['queued', 'running'].includes(u.status.state)) { showUpdateDialog(u.status, '', true); pollUpdate(); return; }
+  if (!u.available || u.unavailable) {
+    // Niets bij te werken, of het kan (nog) niet vanuit RzMon: de uitleg staat bij Instellingen
+    showTab('settings');
+    setTimeout(() => $('#update-card').scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    return;
+  }
+  modal({
+    title: '⬆ ' + L('RzMon bijwerken'),
+    body: `<p style="margin-top:0">${L('RzMon bijwerken van <b>{from}</b> naar <b>{to}</b>?', { from: esc(u.current), to: esc(u.latest) })}</p>
+      ${u.notes.length ? `<details class="update-notes upd-notes"><summary>${u.notes.length === 1 ? L('Wat is er nieuw (1 versie)') : L('Wat is er nieuw ({n} versies)', { n: u.notes.length })}</summary>
+        ${u.notes.map((n) => `<div class="un-ver"><h3>${esc(n.version)} <span class="muted small">${esc(n.date)}</span></h3>${mdLite(n.text)}</div>`).join('')}</details>` : ''}
+      <label class="switch"><input type="checkbox" name="backup" ${u.backup ? 'checked' : ''}><span></span> ${L('Eerst een back-up maken')}</label>
+      <p class="muted small">${L('RzMon is tijdens het installeren even niet bereikbaar. Dit venster laat zien hoe ver de installatie is.')}</p>`,
+    buttons: [
+      { label: L('Annuleren'), onClick: () => $('#modal').close() },
+      { label: '⬆ ' + L('Bijwerken'), cls: 'primary', onClick: async (btn) => {
+        const backup = $('#modal-form').backup.checked;
+        btn.disabled = true;
+        try {
+          await api('update_start', { backup });
+          if ($('#settings-form')) $('#settings-form').update_backup.checked = backup;   // keuze is opgeslagen
+          updatePct = 0;
+          const s = { state: 'queued', step: 'queued', message: L('Wachten op de hulpdienst…'), at: Date.now() / 1000 };
+          showUpdateDialog(s, '', true);
+          showUpdateProgress(s, '');
+          pollUpdate();
+        } catch (ex) { modalError(ex.message); btn.disabled = false; }
+      } },
+    ],
+  });
+}
+
+/** Percentage van de balk: van het script (pct), anders een schatting per stap. */
+function updatePercent(s) {
+  if (s.state === 'ok') return 100;
+  const guess = { queued: 2, check: 4, backup: 10, download: 30, install: 45, klaar: 100 }[s.step] ?? 2;
+  updatePct = Math.max(updatePct, typeof s.pct === 'number' ? s.pct : guess);
+  return updatePct;
+}
+
+/** Het voortgangsvenster bijwerken (of openen, als er geen ander venster openstaat). */
+function showUpdateDialog(s, log, force = false) {
+  if (!s) return;
+  if (!force && $('#modal').open && !updateDialogShown()) return;   // niet over een ander venster heen
+  const pct = updatePercent(s);
+  const cur = UPDATE_STEPS.findIndex(([k]) => k === s.step);
+  const icon = (i) => (s.state === 'ok' || i < cur ? '✔' : i === cur ? (s.state === 'error' ? '✘' : '⏳') : '·');
+  // Waar de installatie nu mee bezig is: de stap, en bij Installeren het onderdeel van het installatiescript
+  const part = (s.detail || '').match(/^(\d+\/\d+) (.*)$/);
+  const step = s.state === 'queued' ? L('Wachten op de hulpdienst…') : cur >= 0 ? UPDATE_STEPS[cur][1] : esc(s.message || '');
+  const now = s.state === 'ok' ? '✔ ' + L('Bijgewerkt naar {v}. De pagina wordt zo herladen…', { v: esc(s.to || '') })
+    : s.state === 'error' ? '✘ ' + esc(s.message || L('Bijwerken mislukt'))
+    : '⏳ ' + step + (part ? `: ${esc(L(part[2]))} <span class="muted">(${part[1]})</span>` : '');
+  const tail = (log || '').trim().split('\n').slice(-8).join('\n');
+  modal({
+    title: '⬆ ' + L('RzMon bijwerken') + (s.from && s.to ? ` ${esc(s.from)} → ${esc(s.to)}` : ''),
+    body: `<div class="upd-dlg ${s.state}">
+      <div class="upd-top"><b>${s.state === 'ok' ? L('Klaar') : s.state === 'error' ? L('Mislukt') : L('Bezig met bijwerken…')}</b><b>${pct}%</b></div>
+      <div class="upd-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>
+      <ol class="update-steps">${UPDATE_STEPS.map(([k, l], i) => `<li class="${i === cur ? 'cur' : ''}">${icon(i)} ${l}</li>`).join('')}</ol>
+      <p class="upd-now" id="upd-now">${now}</p>
+      ${s.state === 'queued' && s.stuck ? `<p class="warn-txt small">${L('De hulpdienst reageert niet. Controleer op de server:')} <code>systemctl status rzmon-update.path</code></p>` : ''}
+      ${tail ? `<pre class="update-log upd-log">${esc(tail)}</pre>` : ''}
+    </div>`,
+    buttons: s.state === 'ok' ? []
+      : s.state === 'error' ? [{ label: L('Sluiten'), cls: 'primary', onClick: () => $('#modal').close() }]
+      : [{ label: L('Op de achtergrond'), onClick: () => $('#modal').close() }],
+  });
+  const lg = $('#modal-body .upd-log');
+  if (lg) lg.scrollTop = lg.scrollHeight;
 }
 
 // ---------------------------------------------------------------- Back-up

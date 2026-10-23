@@ -469,6 +469,28 @@ code.secret { font-size: .95rem; letter-spacing: .05em; user-select: all; }
 .seg-btn:disabled { opacity: .45; cursor: not-allowed; }
 
 /* ---------- L1nes: servers onder elkaar, als een tabel ---------- */
+/* Blox Small: compacte tegels, meer per rij; een opengeklapte tegel krijgt de hele breedte */
+.hosts.layout-blox.density-small { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: .6rem; grid-auto-flow: row dense; }
+.tile-small .host-head { padding: .55rem .75rem; gap: .5rem; border-bottom: 0; }
+.tile-small .host-title .sum-line { display: block; font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-small .dot { width: 10px; height: 10px; }
+.tile-small .counts { font-size: .75rem; }
+.host.tile-small .host-sum { padding: 0 .75rem .55rem 1.9rem; }
+.tile-small.open { grid-column: 1 / -1; }
+.tile-small.open .host-head { border-bottom: 1px solid var(--border); }
+/* Meldingen in Blox Small: één regel per melding */
+.alert-item.compact { grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto; padding: .35rem 0; gap: .6rem; }
+.alert-item.compact > * { grid-row: 1; }
+.alert-item.compact > .dot { grid-column: 1; }
+.alert-item.compact > strong { grid-column: 2; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+.alert-item.compact > .msg { grid-column: 3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .8rem; }
+.alert-item.compact > .small { grid-column: 4; white-space: nowrap; }
+@media (max-width: 600px) {   /* telefoon: bericht op een tweede regel */
+  .alert-item.compact { grid-template-columns: auto minmax(0, 1fr) auto; row-gap: .1rem; }
+  .alert-item.compact > strong { max-width: none; }
+  .alert-item.compact > .small { grid-column: 3; }
+  .alert-item.compact > .msg { grid-column: 2 / 4; grid-row: 2; }
+}
 .hosts.layout-l1nes { display: flex; flex-direction: column; align-items: stretch; gap: .5rem; }
 .hosts.layout-l1nes > .host { width: 100%; }
 .hosts.layout-l1nes.density-small { gap: .35rem; }
@@ -659,6 +681,19 @@ body[data-role="admin"] [data-role-only="nonadmin"] { display: none; }
 .update-box.ok { border-left-color: var(--ok); } .update-box.error { border-left-color: var(--crit); }
 .update-steps { list-style: none; padding: 0; margin: .4rem 0 0; display: flex; flex-wrap: wrap; gap: .2rem 1rem; color: var(--muted); }
 .update-steps li.cur { color: var(--text); font-weight: 600; }
+.upd-dlg { min-width: min(520px, 80vw); }
+.upd-top { display: flex; justify-content: space-between; margin-bottom: .4rem; }
+.upd-bar { height: 14px; border-radius: 99px; background: var(--card-2); border: 1px solid var(--border); overflow: hidden; }
+.upd-bar i { display: block; height: 100%; background: var(--primary); transition: width .6s ease;
+  background-image: linear-gradient(45deg, rgba(255,255,255,.18) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.18) 50%, rgba(255,255,255,.18) 75%, transparent 75%);
+  background-size: 18px 18px; animation: upd-stripes 1s linear infinite; }
+.upd-dlg.ok .upd-bar i { background-color: var(--ok); animation: none; background-image: none; }
+.upd-dlg.error .upd-bar i { background-color: var(--crit); animation: none; background-image: none; }
+@keyframes upd-stripes { to { background-position: 18px 0; } }
+.upd-now { margin: .7rem 0 .4rem; font-weight: 600; }
+.upd-dlg.error .upd-now { color: var(--crit); } .upd-dlg.ok .upd-now { color: var(--ok); }
+.upd-log { max-height: 160px; margin: 0; }
+.upd-notes { max-height: 260px; overflow: auto; margin-bottom: .8rem; }
 .update-log { max-height: 220px; overflow: auto; font-size: .75rem; white-space: pre-wrap; background: var(--card-2); padding: .5rem; border-radius: 6px; }
 .update-time { flex-direction: row; align-items: center; gap: .5rem; flex-wrap: wrap; font-weight: 400; margin-left: 3.4rem; }
 .update-time[hidden] { display: none; }
@@ -761,6 +796,7 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 
 /* ---------- IDS ---------- */
 .tab-badge { display: inline-block; min-width: 1.2rem; padding: 0 .35rem; margin-left: .2rem; border-radius: 99px; background: var(--crit); color: #fff; font-size: .72rem; font-weight: 700; text-align: center; }
+.tab-badge.s1 { background: var(--warn); color: #1a1a1a; } .tab-badge.s3 { background: var(--unknown); }
 .ids-hosts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: .6rem; }
 .ids-host { border: 1px solid var(--border); border-radius: 10px; padding: .6rem .8rem; display: flex; flex-direction: column; gap: .25rem; background: var(--card-2); }
 .ids-item { grid-template-columns: auto 1fr auto; }

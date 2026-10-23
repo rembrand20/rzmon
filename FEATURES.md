@@ -55,8 +55,9 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - **klikbare tellers** (OK, warning, critical, onbekend, onderhoud) om te filteren;
   - een inforegel met servers bereikbaar, checks OK, het **langst openstaande probleem**, de beschikbaarheid over 24 uur, flappende checks en 🌙 *stil tot …*.
 - **Twee lay-outs**, per apparaat te kiezen, voor het dashboard, de meldingen en de instellingen:
-  - **Blox**: tegels;
+  - **Blox**: tegels, in **Small** (compact, meer servers in beeld) of **Large**;
   - **L1nes**: rijen, in **Small** of **Large**.
+- **Tellers op de tabbladen** Dashboard (nieuwe problemen, in de kleur van het ergste) en Meldingen (nieuwe meldingen), sinds je laatste bezoek; per gebruiker onthouden en ook in de titel van het browsertabblad.
 - **Per server:** de algehele status, de checks met problemen en mini-meters voor CPU, RAM en disk. Uitklappen toont alle checks in **groepen** (📊 Systeem met CPU, RAM en disks, 🌐 Bereikbaarheid, ⚙️ Services, 📦 Containers, 🖥️ Commando's, 📜 Logbestanden, 🔒 Certificaten, 🏠 Home Assistant), elke groep in en uit te klappen. Problemen staan bovenaan in de groep **⚠️ Problemen**, per status (critical, warning, onbekend, bevestigd); een nieuw probleem klapt die groep vanzelf open.
 - **Popup per check** (klik op een check): status en bericht, instellingen, beschikbaarheid en de **laatste 5 statuswijzigingen** met het bericht dat ze veroorzaakte en of en via welke kanalen er gemeld is (of waarom niet).
 - **Grafieken** van 6 uur tot 30 dagen, met minimum, gemiddelde en maximum, en bij disks de trend.
@@ -125,7 +126,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Setup-pagina** (alleen beheerders, via ⚙️ Setup op *Instellingen*): een systeemcheck, de database instellen, tabellen installeren, de eerste beheerder aanmaken, en een PHP-instellingen-editor.
 - **⬆ RzMon bijwerken vanuit de webinterface:**
   - een dagelijkse controle op GitHub, en **wat er nieuw is**;
-  - de knop **Nu bijwerken**, met voortgang en eventueel eerst een back-up;
+  - de knop **Nu bijwerken** (of het label ⬆ bovenin): een venster met de vraag, eventueel eerst een back-up, en daarna een **voortgangsbalk** met waar de installatie mee bezig is;
   - of **automatisch** op een tijdstip naar keuze.
 - **Database** wordt vanzelf bijgewerkt bij een nieuwe versie.
 - **💾 Back-up en herstel:**

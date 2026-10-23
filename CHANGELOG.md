@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.55.0 – 2026-10-23
+### Nieuw
+- **Tellers op de tabbladen Dashboard en Meldingen**, net als bij 🛡️ IDS. *Dashboard*: het aantal nieuwe problemen sinds je laatste bezoek (checks die warning, critical of onbekend werden en dat nog zijn), in de kleur van het ergste. *Meldingen*: het aantal nieuwe meldingen sinds je die pagina voor het laatst opende (zonder info en bevestigingen). Open je het tabblad, dan gaat de teller naar 0. Dit wordt per gebruiker onthouden, dus ook op je telefoon. Het totaal staat ook in de titel van het browsertabblad, bv. *(3) RzMon*.
+- **Blox in Small en Large**, net als L1nes (*Instellingen → Weergave*). *Small*: compacte tegels met naam, status en de checks met problemen, zodat er meer servers in beeld passen; meldingen op één regel. *Large*: zoals altijd. Blox en L1nes onthouden elk hun eigen keuze; Blox blijft standaard op Large.
+- **Bijwerken in een venster met voortgangsbalk.** *Nu bijwerken* of het label **⬆** bovenin opent een venster met de vraag of je wilt bijwerken (met wat er nieuw is en *Eerst een back-up maken*). Daarna zie je een voortgangsbalk met percentage, de stappen, waar de installatie nu mee bezig is en de laatste regels van het logboek. Herstart RzMon even, dan wacht het venster; na herladen gaat het vanzelf weer open. Klaar: de pagina laadt de nieuwe versie.
+- De hulpdienst geeft bij *Installeren* nu ook het onderdeel door (bv. *Database (4/9)*). Dat zie je vanaf de volgende update, omdat de hulpdienst zelf tijdens deze update wordt vernieuwd.
+
 ## 1.54.2 – 2026-10-23
 ### Opgelost
 - **Kwetsbaarheden: scannen mislukte bij servers met veel kwetsbaarheden** (meer dan 500, bijvoorbeeld Debian of Proxmox) met *SQLSTATE[HY093]: Invalid parameter number*. Dat kwam door het opslaan in de database, niet door OSV.dev; toch stond er *OSV.dev niet bereikbaar*. Beide zijn opgelost: andere fouten heten nu *Scannen mislukt*.

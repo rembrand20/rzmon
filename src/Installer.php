@@ -152,6 +152,9 @@ final class Installer
         ['hosts', 'agent_update_sent', 'DATETIME NULL'],
         ['hosts', 'agent_update_status', 'VARCHAR(255) NULL'],
         ['hosts', 'agent_update_via', 'VARCHAR(16) NULL'],   // systemd | direct | off | ha | none (null = oude agent)
+        // Tellers op de tabs: wanneer de gebruiker het Dashboard en de Meldingen voor het laatst zag
+        ['users', 'seen_dashboard', 'DATETIME NULL'],
+        ['users', 'seen_alerts', 'DATETIME NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

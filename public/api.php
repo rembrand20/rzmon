@@ -542,6 +542,42 @@ $ownOnly = static function (int $id) use ($user, $isAdmin): void {
 };
 
 /**
+ * Tellers op de tabs Dashboard en Meldingen: wat er nieuw is sinds de gebruiker die tab voor het laatst zag.
+ * $seen = 'dashboard' of 'alerts': die tab staat nu open, dus alles daar is gezien.
+ */
+function tab_badges(array $user, array $hosts, string $seen): ?array
+{
+    if (empty($user['id'])) {
+        return null;   // lokaal netwerk zonder account: niets om te onthouden
+    }
+    if (in_array($seen, ['dashboard', 'alerts'], true)) {
+        q("UPDATE users SET seen_$seen = NOW() WHERE id = ?", [$user['id']]);
+    }
+    q('UPDATE users SET seen_dashboard = COALESCE(seen_dashboard, NOW()), seen_alerts = COALESCE(seen_alerts, NOW()) WHERE id = ?', [$user['id']]);
+    $u = q('SELECT seen_dashboard, seen_alerts FROM users WHERE id = ?', [$user['id']])->fetch();
+    if (!$u) {
+        return null;
+    }
+    // Dashboard: checks die sinds het laatste bezoek een probleem werden en dat nog zijn (geen info-check, onderhoud of bevestigd)
+    $dash = 0;
+    $worst = 0;
+    $rank = [0 => 0, 3 => 1, 1 => 2, 2 => 3];
+    foreach ($hosts as $h) {
+        foreach ($h['checks'] as $c) {
+            $s = (int) $c['status'];
+            if ((int) $h['enabled'] && (int) $c['enabled'] && !(int) $c['info_only'] && $s !== 0 && empty($c['maintenance'])
+                && !$c['acked_at'] && $c['status_since'] && $c['status_since'] > $u['seen_dashboard']) {
+                $dash++;
+                $worst = $rank[$s] > $rank[$worst] ? $s : $worst;
+            }
+        }
+    }
+    // Meldingen: warning, critical, unknown en herstel (geen info en geen bevestigingen)
+    $alerts = (int) q("SELECT COUNT(*) FROM alerts WHERE created_at > ? AND kind IN ('notify', 'ids')", [$u['seen_alerts']])->fetchColumn();
+    return ['dashboard' => $dash, 'dashboard_status' => $worst, 'alerts' => $alerts];
+}
+
+/**
  * Bevestiging voor een gevoelige actie: je eigen wachtwoord, of een woord typen
  * als je automatisch beheerder bent via het LAN (dan heb je geen wachtwoord ingevuld).
  */
@@ -600,7 +636,7 @@ switch ($action) {
             unset($h);
         }
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
-        out(['hosts' => $hosts, 'last_run' => $lastRun, 'user' => $user['username'],
+        out(['hosts' => $hosts, 'badges' => tab_badges($user, $hosts, (string) ($_GET['seen'] ?? '')), 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
              'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(),
              'agent_tick' => agent_tick(null),
@@ -608,6 +644,7 @@ switch ($action) {
              // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
              'ids_open' => Ids::enabled() ? (int) q("SELECT COUNT(*) FROM ids_incidents WHERE status = 'open' AND severity = 2")->fetchColumn() : 0,
              // Voor beheerders: label "⬆ x.y.z" bovenin als er een nieuwere versie is
+             'update_running' => $isAdmin && Updater::running(),
              'update' => $isAdmin && ($uc = json_decode((string) setting('update_cache', ''), true)) && !empty($uc['latest'])
                  && version_compare($uc['latest'], RZMON_VERSION, '>') ? $uc['latest'] : null]);
 
@@ -1889,6 +1926,7 @@ switch ($action) {
             'notes' => $cache['notes'] ?? [],
             'unavailable' => Updater::unavailable(),
             'status' => Updater::status(),
+            'backup' => setting('update_backup', '1') === '1',
             'source' => implode('@', Updater::source()),
             'install_dir' => SM_ROOT,
         ]);
