@@ -160,7 +160,7 @@ const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', sysinfo: 'meldi
   ids: 'monitoring', vulns: 'monitoring', update: 'systeem', agents: 'systeem', backup: 'systeem', db: 'systeem', access: 'toegang', enc: 'toegang', blocks: 'toegang', users: 'toegang', api: 'toegang', account: 'toegang', password: 'toegang' };
 let setOpen = (() => { try { return JSON.parse(localStorage.getItem('rzmon-set-open') || '{}') || {}; } catch (e) { return {}; } })();
 function saveSetOpen() { try { localStorage.setItem('rzmon-set-open', JSON.stringify(setOpen)); } catch (e) {} }
-const setCards = () => $$('#tab-settings [data-sk]');
+const setCards = () => $$('#tab-settings [data-sk]:not(#set-overview)');
 /** Zichtbaar binnen de instellingen (niet verborgen door rechten of hidden), ook als het tabblad zelf dicht is. */
 function setVisible(el) {
   for (let n = el; n && n.id !== 'tab-settings'; n = n.parentElement) {
@@ -3604,7 +3604,7 @@ function initAccountMenu() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { open(false); btn.focus(); } });
   menu.addEventListener('click', async (e) => {
     const go = e.target.closest('[data-acct]');
-    if (go) { open(false); return showTab(go.dataset.acct); }
+    if (go) { open(false); return showTab(go.dataset.acct === 'settings' ? 'settings/overview' : go.dataset.acct); }
     const th = e.target.closest('[data-theme-set]');
     if (th) {
       const v = th.dataset.themeSet;
@@ -3627,21 +3627,24 @@ function markTheme() {
 // ---------------------------------------------------------------- Instellingen: zijbalk met onderdelen
 // Elk onderdeel toont een of meer kaarten (data-sk); de kaarten zelf (en hoe ze opslaan) zijn niet veranderd.
 const SET_NAV = [
+  ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'mqtt']], ['rules', L('Meldregels en stille uren'), ['notify']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['monitoring', '📈', L('Monitoring'), [['alarm', L('Alarmgedrag'), ['alarm']], ['vulns', L('Kwetsbaarheden'), ['vulns']], ['ids', 'IDS', ['ids']]]],
   ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['users', L('Gebruikers'), ['users']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades'), ['blocks']]]],
   ['agents', '🖥️', L('Agents'), [['agents', L('Agents bijwerken en commando\'s'), ['agents']], ['enc', L('Versleuteling'), ['enc']]]],
   ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['backup', L('Back-up'), ['backup']], ['db', L('Database'), ['db']], ['setup', 'Setup', ['setup']]]],
 ];
-let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'channels'; } catch (e) { return 'channels'; } })();
+let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
+let setHealthAt = 0;
+let setHealth = {};   // onderdeel → slechtste status uit "Hoe staat het ervoor?" (voor de bolletjes in de zijbalk)
 
 function setFind(id) {
   for (const [g, icon, label, subs] of SET_NAV) for (const s of subs) if (s[0] === id) return { g, icon, group: label, sub: s };
   return null;
 }
 
-function showSettingsSection(id) {
-  const f = setFind(id) || setFind('channels');
+function showSettingsSection(id, focusEl) {
+  const f = setFind(id) || setFind('overview');
   setSection = f.sub[0];
   try { localStorage.setItem('rzmon-set-section', setSection); } catch (e) {}
   const cards = f.sub[2];
@@ -3651,19 +3654,164 @@ function showSettingsSection(id) {
   $('#settings-form').classList.toggle('set-noform', !inForm);
   $('#set-title').textContent = f.sub[1];
   $('#set-crumb').textContent = `${L('Instellingen')} › ${f.icon} ${f.group} › ${f.sub[1]}`;
-  $('#set-side').innerHTML = SET_NAV.map(([g, icon, label, subs]) => `<div class="set-nav-group ${g === f.g ? 'open' : ''}">
-      <button type="button" data-set-go="${subs[0][0]}" class="set-nav-head ${g === f.g ? 'cur' : ''}"><span>${icon}</span> ${esc(label)}</button>
-      <div class="set-nav-subs">${subs.map(([k, l]) => `<button type="button" data-set-go="${k}" class="${k === setSection ? 'active' : ''}">${esc(l)}</button>`).join('')}</div></div>`).join('');
+  renderSettingsNav();
   $('#set-mselect').innerHTML = SET_NAV.map(([g, icon, label, subs]) => `<optgroup label="${icon} ${esc(label)}">${subs.map(([k, l]) => `<option value="${k}" ${k === setSection ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('');
   history.replaceState(null, '', '#settings/' + setSection);
+  if (setSection === 'overview' || !setHealthAt) loadSettingsHealth();
+  if (focusEl) {
+    // Gevonden via zoeken: ingeklapte "Geavanceerd" openen, ernaartoe en even laten oplichten
+    for (let d = focusEl.closest('details'); d; d = d.parentElement.closest('details')) d.open = true;
+    focusEl.scrollIntoView({ block: 'center' });
+    focusEl.classList.remove('set-hit');
+    void focusEl.offsetWidth;
+    focusEl.classList.add('set-hit');
+    const ctl = focusEl.matches('input, select, textarea') ? focusEl : focusEl.querySelector('input:not([type=hidden]), select, textarea');
+    if (ctl) ctl.focus({ preventScroll: true });
+  } else window.scrollTo(0, 0);
+  refreshClamps();
+}
+
+const dotFor = (st) => (st === 'bad' || st === 'warn' ? `<i class="set-dot ${st}" title="${esc(st === 'bad' ? L('Hier moet iets gebeuren') : L('Aandachtspunt'))}"></i>` : '');
+
+function renderSettingsNav() {
+  const q = setSearchNorm($('#set-search').value);
+  const side = $('#set-side');
+  side.classList.toggle('searching', !!q);
+  if (q) {
+    const hits = setSearch(q);
+    $('#set-navlist').innerHTML = hits.length ? `<div class="set-results">${hits.map((h, i) => `<button type="button" data-set-go="${h.sub[0]}" data-hit="${i}" class="${i === 0 ? 'first' : ''}">
+        <b>${h.icon} ${esc(h.sub[1])}</b>${h.label ? `<small>${esc(h.label)}</small>` : ''}</button>`).join('')}</div>`
+      : `<p class="muted small set-none">${L('Niets gevonden')}</p>`;
+    side._hits = hits;
+    return;
+  }
+  const f = setFind(setSection);
+  $('#set-navlist').innerHTML = SET_NAV.map(([g, icon, label, subs]) => {
+    const worst = subs.map(([k]) => setHealth[k]).find((s) => s === 'bad') || subs.map(([k]) => setHealth[k]).find((s) => s === 'warn');
+    return `<div class="set-nav-group ${g === f.g ? 'open' : ''}">
+      <button type="button" data-set-go="${subs[0][0]}" class="set-nav-head ${g === f.g ? 'cur' : ''}"><span>${icon}</span> ${esc(label)}${subs.length === 1 || g !== f.g ? dotFor(worst) : ''}</button>
+      <div class="set-nav-subs">${subs.length > 1 ? subs.map(([k, l]) => `<button type="button" data-set-go="${k}" class="${k === setSection ? 'active' : ''}">${esc(l)}${dotFor(setHealth[k])}</button>`).join('') : ''}</div></div>`;
+  }).join('');
+}
+
+// ---- Zoeken: op de namen van de onderdelen en op alles wat in de kaarten staat (koppen, velden, schakelaars)
+const setSearchNorm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+function setSearch(q) {
+  const words = q.split(' ');
+  const has = (t) => words.every((w) => t.includes(w));
+  const out = [];
+  for (const [, icon, group, subs] of SET_NAV) {
+    for (const sub of subs) {
+      if (has(setSearchNorm(`${group} ${sub[1]}`))) { out.push({ icon, sub, label: '', el: null }); continue; }
+      let found = null;
+      for (const k of sub[2]) {
+        const card = $(`#tab-settings [data-sk="${k}"]`);
+        if (!card || card.closest('[hidden]:not(#tab-settings)')) continue;
+        for (const el of $$('h2, h3, label, summary, th, .lock-row, .btn', card)) {
+          const own = setSearchNorm(el.textContent + ' ' + (el.querySelector('[data-tip]')?.dataset.tip || '') + ' ' + (el.querySelector('input, textarea')?.name || ''));
+          if (own && has(own)) { found = el; break; }
+        }
+        if (found) break;
+      }
+      if (found) out.push({ icon, sub, label: found.textContent.replace(/ⓘ/g, '').replace(/\s+/g, ' ').trim().slice(0, 70), el: found });
+    }
+  }
+  return out;
+}
+
+// ---- Hoe staat het ervoor?
+async function loadSettingsHealth() {
+  const box = $('#set-overview');
+  if (!box.innerHTML) box.innerHTML = `<p class="muted">${L('Laden…')}</p>`;
+  let items;
+  try { items = (await api('settings_health')).items; } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const https = location.protocol === 'https:';
+  items.push({ key: 'https', status: https ? 'ok' : 'warn', title: 'HTTPS', detail: https ? L('de verbinding met RzMon is versleuteld') : L('je opent RzMon via http: wachtwoorden gaan onversleuteld over het netwerk'), section: 'access' });
+  const rank = { bad: 0, warn: 1, info: 2, ok: 3 };
+  items.sort((a, b) => rank[a.status] - rank[b.status]);
+  setHealth = {};
+  setHealthAt = Date.now();
+  for (const it of items) if (rank[it.status] < rank[setHealth[it.section] || 'ok']) setHealth[it.section] = it.status;
+  const counted = items.filter((i) => i.status !== 'info');
+  const score = counted.length ? Math.round(counted.reduce((n, i) => n + (i.status === 'ok' ? 1 : i.status === 'warn' ? 0.5 : 0), 0) / counted.length * 100) : 100;
+  const todo = items.filter((i) => i.status === 'bad' || i.status === 'warn').length;
+  const cls = score >= 90 ? 'good' : score >= 60 ? 'warn' : 'bad';
+  const icon = { ok: '✔', warn: '!', bad: '✘', info: 'i' };
+  box.innerHTML = `<div class="ov-head"><div class="ov-score ${cls}" style="--p:${score}"><span><b>${score}<small>%</small></b></span></div>
+      <div><h2>${todo ? L('{n} aandachtspunten', { n: todo }) : L('Alles staat goed ingesteld')}</h2>
+      <p class="muted small">${L('Klik op een punt om het meteen te regelen. Grijze punten zijn optioneel en tellen niet mee.')}</p></div></div>
+    <div class="ov-list">${items.map((i) => `<button type="button" class="ov-item ${i.status}" data-set-go="${esc(i.section)}">
+      <span class="ov-ic">${icon[i.status]}</span><span class="ov-txt"><b>${esc(i.title)}</b><small>${esc(i.detail)}</small></span><span class="ov-go">›</span></button>`).join('')}</div>`;
+  renderSettingsNav();
+}
+
+// ---- Lange uitleg korter: alinea's inklappen tot twee regels, lange toelichting bij een veld als ⓘ
+function initSettingsTips() {
+  $$('#tab-settings [data-sk] p.muted.small:not([id])').forEach((p) => {
+    if (p.textContent.trim().length < 150 || p.closest('#set-overview')) return;
+    p.classList.add('clamp');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'more-btn';
+    b.textContent = 'ⓘ ' + L('meer uitleg');
+    b.onclick = () => { const open = p.classList.toggle('open'); b.textContent = open ? '▴ ' + L('minder') : 'ⓘ ' + L('meer uitleg'); };
+    p.after(b);
+  });
+  $$('#tab-settings [data-sk] label > span.hint, #tab-settings [data-sk] label > span.muted.small').forEach((s) => {
+    const txt = s.textContent.trim().replace(/^\((.*)\)$/, '$1');
+    if (txt.length < 40 || s.querySelector('a')) return;
+    const t = document.createElement('span');
+    t.className = 'tip';
+    t.tabIndex = 0;
+    t.dataset.tip = txt;
+    t.setAttribute('aria-label', txt);
+    t.textContent = 'ⓘ';
+    // Het label is een kolom: de tekst ervoor en de ⓘ samen op één regel
+    const line = document.createElement('span');
+    line.className = 'lbl-line';
+    const label = s.parentElement;
+    while (label.firstChild && label.firstChild !== s) line.append(label.firstChild);
+    line.append(t);
+    s.replaceWith(line);
+  });
+}
+
+// Alleen "meer uitleg" tonen als de alinea echt is ingekort (dat hangt af van de breedte)
+function refreshClamps() {
+  $$('#tab-settings p.clamp').forEach((p) => {
+    const b = p.nextElementSibling;
+    if (!b || !b.classList.contains('more-btn') || p.classList.contains('open') || !p.offsetParent) return;
+    b.hidden = p.scrollHeight <= p.clientHeight + 2;
+  });
 }
 
 function initSettingsNav() {
   $('#set-side').addEventListener('click', (e) => {
     const b = e.target.closest('[data-set-go]');
-    if (b) { showSettingsSection(b.dataset.setGo); window.scrollTo(0, 0); }
+    if (!b) return;
+    const hit = b.dataset.hit != null ? $('#set-side')._hits[+b.dataset.hit] : null;
+    if (hit) $('#set-search').value = '';
+    showSettingsSection(b.dataset.setGo, hit?.el);
+  });
+  $('#set-overview').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-set-go]');
+    if (b) showSettingsSection(b.dataset.setGo);
+  });
+  const search = $('#set-search');
+  search.addEventListener('input', renderSettingsNav);
+  search.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const hit = ($('#set-side')._hits || [])[0];
+      if (!hit || !search.value.trim()) return;
+      search.value = '';
+      showSettingsSection(hit.sub[0], hit.el);
+    } else if (e.key === 'Escape') { search.value = ''; renderSettingsNav(); }
   });
   $('#set-mselect').onchange = (e) => showSettingsSection(e.target.value);
+  initSettingsTips();
+  let rt;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(refreshClamps, 200); });
 }
 
 // ---------------------------------------------------------------- Mijn account (alleen als je met een account bent ingelogd)

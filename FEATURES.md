@@ -54,7 +54,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - een **score van 0–100%**;
   - **klikbare tellers** (OK, warning, critical, onbekend, onderhoud) om te filteren;
   - een inforegel met servers bereikbaar, checks OK, het **langst openstaande probleem**, de beschikbaarheid over 24 uur, flappende checks en 🌙 *stil tot …*.
-- **Twee lay-outs**, per apparaat te kiezen, voor het dashboard, de meldingen en de instellingen:
+- **Twee lay-outs**, per apparaat te kiezen (*Mijn account → Weergave*), voor het dashboard en de meldingen:
   - **Blox**: tegels, in **Small** (compact, meer servers in beeld) of **Large**;
   - **L1nes**: rijen, in **Small** of **Large**.
 - **Tellers op de tabbladen** Dashboard (nieuwe problemen, in de kleur van het ergste) en Meldingen (nieuwe meldingen), sinds je laatste bezoek; per gebruiker onthouden en ook in de titel van het browsertabblad.
@@ -123,6 +123,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 
 ## 8. Beheer: installeren, bijwerken en back-up
 - **Installatie in één commando** op Rocky Linux / RHEL / AlmaLinux 10 (`install-rocky.sh`), inclusief SELinux, firewalld, Apache, PHP-FPM, MariaDB en cron. Debian/Ubuntu kan met de hand of via de setup-pagina.
+- **Instellingen** (alleen beheerders): een zijbalk met groepen, één onderdeel tegelijk, alles **meteen opgeslagen** (✔ naast het veld). Begint bij **✅ Hoe staat het ervoor?**: een score en een lijst aandachtspunten (meldkanaal, back-up, 2FA van beheerders, inlogbeveiliging, RzMon-versie, verouderde en onversleutelde agents, HTTPS, kwetsbaarheden, IDS); klik erop en je staat bij de instelling, met een oranje of rood bolletje in de zijbalk. **🔍 Zoeken** door alle instellingen (Enter springt naar het veld en laat het oplichten), lange uitleg ingekort met *ⓘ meer uitleg* of een ⓘ met tooltip, en zelden gebruikte opties onder **▸ Geavanceerd**.
 - **Setup-pagina** (alleen beheerders, via *Instellingen → Systeem → Setup*): een systeemcheck, de database instellen, tabellen installeren, de eerste beheerder aanmaken, en een PHP-instellingen-editor.
 - **⬆ RzMon bijwerken vanuit de webinterface:**
   - een dagelijkse controle op GitHub, en **wat er nieuw is**;

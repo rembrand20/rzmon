@@ -273,11 +273,15 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
     <section id="tab-settings" class="tab-panel" hidden>
       <div class="set-layout">
-      <nav class="set-side" id="set-side" aria-label="<?= th('Instellingen') ?>"></nav>
+      <nav class="set-side" id="set-side" aria-label="<?= th('Instellingen') ?>">
+        <div class="set-search"><input type="search" id="set-search" placeholder="<?= th('🔍 Zoek een instelling…') ?>" autocomplete="off" spellcheck="false" aria-label="<?= th('Zoek een instelling') ?>"></div>
+        <div id="set-navlist"></div>
+      </nav>
       <div class="set-main">
       <div class="set-mobile"><select id="set-mselect" aria-label="<?= th('Onderdeel') ?>"></select></div>
       <h1 class="set-title" id="set-title"></h1>
       <div class="set-crumb muted small"><span id="set-crumb"></span> <span class="autosave-state" id="save-state" aria-live="polite"></span></div>
+      <div data-sk="overview" class="card set-overview" id="set-overview"></div>
       <div class="set-toolbar">
         <span class="muted small"><?= th('Klik op een onderdeel om het te openen of te sluiten.') ?></span>
         <button type="button" class="btn" id="set-toggle-all"><?= th('⊞ Alles openen') ?></button>
@@ -293,6 +297,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label class="switch"><input type="checkbox" name="pushover_enabled"><span></span> <?= th('Pushover meldingen aan') ?></label>
           <label>User key<input name="pushover_user" autocomplete="off" spellcheck="false"></label>
           <label>API token<input name="pushover_token" autocomplete="off" spellcheck="false"></label>
+          <details class="adv"><summary><?= th('Geavanceerd') ?></summary>
           <div class="row2">
             <label><?= th('Prioriteit critical') ?>
               <select name="pushover_priority_crit">
@@ -308,6 +313,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             </label>
           </div>
           <label><?= th('Geluid') ?> <span class="muted small"><?= th('(leeg = standaard, bv. siren, alien, pushover)') ?></span><input name="pushover_sound"></label>
+          </details>
           <button type="button" class="btn" id="pushover-test"><?= th('📲 Testbericht sturen') ?></button>
         </div>
 
@@ -347,9 +353,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label><?= th('Historie bewaren (dagen)') ?><input type="number" name="retention_days" min="1"></label>
           <label><?= th('Meldingen bewaren (dagen)') ?> <span class="muted small"><?= th('(de pagina Meldingen toont ze per dag)') ?></span><input type="number" name="alerts_days" min="1" max="3650"></label>
           <label><?= th('Waarschuwen als een disk binnen … dagen vol raakt') ?> <span class="muted small"><?= th('(0 = uit)') ?></span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
+          <details class="adv"><summary><?= th('Geavanceerd') ?></summary>
           <label><?= th('Logbestanden: treffers tellen over de laatste … minuten') ?> <span class="muted small">(5–1440)</span><input type="number" name="log_window" min="5" max="1440"></label>
           <label class="switch"><input type="checkbox" name="auto_maint_enabled"><span></span> <?= th('Automatisch onderhoud na herhaalde meldingen') ?></label>
           <label><?= th('… na zoveel meldingen voor dezelfde storing') ?> <span class="muted small"><?= th('(alleen die check; stopt vanzelf als hij weer OK is)') ?></span><input type="number" name="auto_maint_after" min="1" max="100"></label>
+          </details>
         </div>
 
         <div data-sk="webhook" class="card">
@@ -391,7 +399,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Afzender') ?> <span class="hint"><?= th('(leeg = gebruikersnaam)') ?></span><input name="mail_from" type="email" spellcheck="false" placeholder="rzmon@example.com"></label>
             <label><?= th('Ontvanger(s)') ?> <span class="hint"><?= th('(komma tussen meerdere)') ?></span><input name="mail_to" spellcheck="false" placeholder="jij@example.com"></label>
           </div>
+          <details class="adv"><summary><?= th('Geavanceerd') ?></summary>
           <label class="switch"><input type="checkbox" name="smtp_verify_ssl"><span></span> <?= th('SSL-certificaat controleren (uit bij self-signed)') ?></label>
+          </details>
           <button type="button" class="btn" id="email-test"><?= th('📧 Testmail sturen') ?></button>
         </div>
 
@@ -410,7 +420,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Gebruikersnaam') ?><input name="mqtt_user" autocomplete="off" spellcheck="false"></label>
             <label><?= th('Wachtwoord') ?><input name="mqtt_pass" type="password" autocomplete="new-password"></label>
           </div>
-          <details class="small api-docs">
+          <details class="adv">
             <summary><?= th('Geavanceerd') ?></summary>
             <div class="row2">
               <label><?= th('Discovery-prefix') ?><input name="mqtt_prefix" spellcheck="false" placeholder="homeassistant"></label>
@@ -550,9 +560,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <p class="muted small" style="margin-top:-.3rem"><?= t('Uit: op het lokale netwerk kom je binnen als <b>alleen lezen</b>, en met <i>Inloggen</i> rechtsboven krijg je de rechten van je eigen account. Van buitenaf is altijd een gebruikersnaam en wachtwoord nodig.') ?></p>
         <label><?= th('Lokale netwerken') ?> <span class="hint"><?= th('(één per regel, bv. 192.168.1.0/24)') ?></span>
           <textarea name="trusted_networks" rows="5" spellcheck="false"></textarea></label>
+        <details class="adv"><summary><?= th('Geavanceerd: reverse proxy') ?></summary>
         <label><?= th('Reverse proxy IP\'s') ?> <span class="hint"><?= th('(optioneel — alleen invullen als RzMon achter Nginx Proxy Manager, Traefik, Cloudflare tunnel e.d. staat)') ?></span>
           <textarea name="trusted_proxies" rows="2" spellcheck="false"></textarea></label>
         <p class="callout"><?= t('⚠️ Staat RzMon achter een reverse proxy of port-forward waarbij álle bezoekers het IP van je router/proxy krijgen? Vul dat proxy-IP dan in bij <i>Reverse proxy IP\'s</i> en zet het <b>niet</b> bij lokale netwerken — anders kan iedereen van buitenaf zonder wachtwoord binnen.') ?></p>
+        </details>
         <h3 class="set-sub">🔐 <?= th('Inlogbeveiliging') ?></h3>
         <div class="lock-row"><?= th('Na') ?> <input type="number" name="login_lock_fails" min="1" max="50" class="num-in"> <?= th('mislukte pogingen binnen') ?>
           <input type="number" name="login_lock_window" min="1" max="1440" class="num-in"> <?= th('minuten:') ?></div>

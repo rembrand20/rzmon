@@ -935,6 +935,52 @@ switch ($action) {
 
     // Info-melding bij agent-updates van deze server (volgt verder de algemene info-regel)
     // ---------- Beveiliging: versleuteling van de agents en blokkades (alleen beheerders) ----------
+    // Instellingen → Hoe staat het ervoor?: punten om na te lopen, elk met het onderdeel waar je het regelt
+    case 'settings_health':
+        $items = [];
+        $add = static function (string $key, string $st, string $title, string $detail, string $section) use (&$items) {
+            $items[] = ['key' => $key, 'status' => $st, 'title' => $title, 'detail' => $detail, 'section' => $section];
+        };
+        $po = setting('pushover_enabled', '0') === '1' && setting('pushover_user', '') !== '' && setting('pushover_token', '') !== '';
+        $mail = setting('email_enabled', '0') === '1' && setting('smtp_host', '') !== '' && setting('mail_to', '') !== '';
+        $add('channels', $po || $mail ? 'ok' : 'bad', t('Meldkanaal'), $po || $mail
+            ? implode(' + ', array_filter([$po ? 'Pushover' : '', $mail ? t('e-mail') : '']))
+            : t('Pushover en e-mail staan uit: storingen zie je alleen op het dashboard'), 'channels');
+        $last = Backup::list()[0]['at'] ?? '';
+        $age = $last !== '' ? (time() - strtotime($last)) / 86400 : null;
+        $auto = setting('backup_freq', 'off') !== 'off';
+        $add('backup', $auto && $age !== null && $age < 8 ? 'ok' : 'warn', t('Back-up'),
+            ($auto ? t('automatisch') : t('niet automatisch')) . ' · ' . ($last !== '' ? t('laatste: {d}', ['d' => $last]) : t('nog geen back-up')), 'backup');
+        $no2fa = q("SELECT username FROM users WHERE role = 'admin' AND (totp_secret IS NULL OR totp_secret = '') ORDER BY username")->fetchAll(PDO::FETCH_COLUMN);
+        $admins = (int) q("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
+        if ($admins > 0) {
+            $add('2fa', $no2fa ? 'warn' : 'ok', t('Tweestapsverificatie'), $no2fa
+                ? t('beheerders zonder 2FA: {names}', ['names' => implode(', ', $no2fa)]) : t('alle beheerders hebben 2FA'), 'users');
+        }
+        $locks = setting('login_lock_account', '1') === '1' || setting('login_lock_ip', '1') === '1';
+        $add('lock', $locks ? 'ok' : 'warn', t('Inlogbeveiliging'), $locks
+            ? t('blokkeren na {n} mislukte pogingen', ['n' => (int) setting('login_lock_fails', '3')]) : t('staat uit: wachtwoorden raden wordt niet afgeremd'), 'access');
+        $cache = json_decode((string) setting('update_cache', ''), true) ?: [];
+        $newer = !empty($cache['latest']) && version_compare($cache['latest'], RZMON_VERSION, '>');
+        $add('update', $newer ? 'warn' : 'ok', t('RzMon-versie'), $newer
+            ? t('{v} staat klaar (je hebt {cur})', ['v' => $cache['latest'], 'cur' => RZMON_VERSION]) : t('{cur} is de nieuwste', ['cur' => RZMON_VERSION]), 'update');
+        $agents = q("SELECT name, agent_version, enc, enc_seen FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen IS NOT NULL")->fetchAll();
+        if ($agents) {
+            $old = array_column(array_filter($agents, static fn($h) => $h['agent_version'] && version_compare($h['agent_version'], AGENT_LATEST, '<')), 'name');
+            $add('agents', $old ? 'warn' : 'ok', t('Agents bijgewerkt'), $old
+                ? t('{n} van {t} op een oudere versie: {names}', ['n' => count($old), 't' => count($agents), 'names' => implode(', ', array_slice($old, 0, 5)) . (count($old) > 5 ? ' …' : '')])
+                : t('alle {t} op {v}', ['t' => count($agents), 'v' => AGENT_LATEST]), 'agents');
+            $plain = array_column(array_filter($agents, static fn($h) => (int) $h['enc_seen'] !== 1), 'name');
+            $off = AgentCrypto::key() === '' || AgentCrypto::globalMode() === 'off';
+            $add('enc', $off ? 'warn' : ($plain ? 'warn' : 'ok'), t('Versleuteling van de agents'), $off
+                ? t('staat uit of er is nog geen sleutel') : ($plain
+                    ? t('{n} onversleuteld: {names}', ['n' => count($plain), 'names' => implode(', ', array_slice($plain, 0, 5)) . (count($plain) > 5 ? ' …' : '')])
+                    : t('alle agents versleuteld')), 'enc');
+        }
+        $add('vulns', Vulns::enabled() ? 'ok' : 'info', t('Kwetsbaarheden'), Vulns::enabled() ? t('scan staat aan') : t('scan staat uit'), 'vulns');
+        $add('ids', Ids::enabled() ? 'ok' : 'info', 'IDS', Ids::enabled() ? t('staat aan') : t('staat uit'), 'ids');
+        out(['items' => $items]);
+
     case 'security':
         $key = AgentCrypto::key();
         $until = (int) setting('enc_key_old_until', '0');

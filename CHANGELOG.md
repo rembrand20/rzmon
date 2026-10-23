@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.62.0 – 2026-10-23
+### Nieuw
+- **✅ Hoe staat het ervoor?** (stap 3 van de vernieuwing van de instellingen): het eerste onderdeel van Instellingen, met een score en een lijst aandachtspunten: meldkanaal, automatische back-up, 2FA voor beheerders, inlogbeveiliging, nieuwe RzMon-versie, verouderde of onversleutelde agents, HTTPS, kwetsbaarheden en IDS. Klik op een punt en je staat bij de instelling. Een groep met een aandachtspunt krijgt een oranje of rood bolletje in de zijbalk.
+- **🔍 Zoek een instelling**: zoekt in de onderdelen en in alle velden; met Enter spring je naar het veld, dat even oplicht.
+- Lange uitleg is ingekort (*ⓘ meer uitleg*), lange toelichtingen bij een veld zijn een **ⓘ** met tooltip.
+- Zelden gebruikte opties staan ingeklapt onder **▸ Geavanceerd** (Pushover, Alarmgedrag, E-mail, MQTT, Toegang).
+
 ## 1.61.0 – 2026-10-23
 ### Nieuw
 - **Instellingen worden meteen opgeslagen** (stap 2 van de vernieuwing): schakelaars en keuzelijsten direct, tekstvelden zodra je ze verlaat of op Enter drukt. Naast het veld staat kort **✔ opgeslagen**, bij de titel *✔ alles opgeslagen*; klopt een waarde niet, dan **✘ niet opgeslagen** met de reden. Alleen wat je veranderde gaat naar de server. Ook bij *Toegang en inlogbeveiliging*, de stille uren en je e-mailadres op *Mijn account*.
