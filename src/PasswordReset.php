@@ -116,6 +116,10 @@ final class PasswordReset
         if (mb_strlen($password) < 8) {
             return t('Het wachtwoord moet minstens 8 tekens hebben');
         }
+        // Van buiten je interne netwerken is 2FA verplicht (als dat aan staat): zonder 2FA dan alleen thuis herstellen
+        if ($r['totp_secret'] === null && Https::mfaRequired()) {
+            return t('Van buiten je interne netwerken kan dit alleen met 2FA. Herstel je wachtwoord vanaf je thuisnetwerk.');
+        }
         if ($r['totp_secret'] !== null) {
             $step = Totp::verify($r['totp_secret'], $code, $r['totp_last_step'] !== null ? (int) $r['totp_last_step'] : null);
             if ($step === null) {

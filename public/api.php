@@ -665,6 +665,11 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
 }
 
 // ---------- Login ----------
+// Inloggen via http uitgezet (Instellingen → Beveiliging → Certificaat en https): wachtwoorden alleen via https
+if (in_array($action, ['login', 'login_totp', 'pw_reset'], true) && Https::loginBlocked()) {
+    $to = Https::adminUrl();
+    out(['error' => t('Inloggen via http staat uit: je wachtwoord zou leesbaar over het netwerk gaan.') . ($to !== '' ? ' ' . t('Open {url}', ['url' => $to]) : ''), 'https' => $to ?: null], 403);
+}
 if ($action === 'login' && $method === 'POST') {
     $in = input();
     $r = login((string) ($in['username'] ?? ''), (string) ($in['password'] ?? ''), !empty($in['remember']));
@@ -676,6 +681,9 @@ if ($action === 'login' && $method === 'POST') {
     }
     if ($r === 'locked') {
         out(['error' => t('Dit account is geblokkeerd na te veel mislukte pogingen. Vraag een beheerder om het te deblokkeren.'), 'locked' => true], 403);
+    }
+    if ($r === 'need_2fa') {
+        out(['error' => t('Van buiten je interne netwerken is tweestapsverificatie (2FA) verplicht. Stel eerst 2FA in vanaf je thuisnetwerk (Mijn account).'), 'need_2fa' => true], 403);
     }
     out(['error' => t('Onjuiste gebruikersnaam of wachtwoord')], 401);
 }
@@ -1110,6 +1118,40 @@ switch ($action) {
                 $add('agent_ip', 'bad', t('Agent van een nieuw IP-adres'), t('geweigerd, wacht op je toestemming: {names}', ['names' => implode(', ', $newip)]), 'enc');
             }
         }
+        // Beheer via https (1.68.0)
+        $hs = json_decode((string) setting('https_state', ''), true) ?: [];
+        $adminUrl = Https::adminUrl();
+        $add('https', Https::on() ? 'ok' : 'warn', t('Beheer via https'), Https::on()
+            ? t('alleen via https') . ' · HSTS ' . (Https::hstsFullAt() ? t('1 dag (testfase tot {d})', ['d' => date('d-m', (int) Https::hstsFullAt())]) : t('1 jaar'))
+            : ($adminUrl === '' ? t('geen beheeradres ingesteld: de beheerpagina is via http bereikbaar') : t('de beheerpagina is ook via http bereikbaar')), 'https');
+        if ($adminUrl !== '' && isset($hs['admin'])) {
+            $c = $hs['admin'];
+            $add('cert', $hs['problem'] ?? null ? 'bad' : ($c['days'] <= Https::WARN_DAYS ? 'warn' : 'ok'), t('Certificaat'), ($hs['problem'] ?? null)
+                ? ucfirst((string) $hs['problem']) : ($c['days'] <= Https::WARN_DAYS ? t('verloopt over {n} dagen ({d})', ['n' => $c['days'], 'd' => date('d-m-Y', $c['to'])])
+                    : t('geldig tot {d} ({issuer})', ['d' => date('d-m-Y', $c['to']), 'issuer' => $c['issuer']])), 'https');
+        }
+        if ($adminUrl !== '' && isset($hs['dns'])) {
+            $ips = implode(', ', (array) $hs['dns']['ips']);
+            $add('dns', $hs['dns']['private'] ? 'ok' : 'warn', t('Lokale DNS-rewrite'), !$hs['dns']['ips']
+                ? t('{host} is vanaf de RzMon-server niet te vinden', ['host' => Https::adminHost()])
+                : ($hs['dns']['private'] ? t('{host} wijst intern naar {ip}', ['host' => Https::adminHost(), 'ip' => $ips])
+                    : t('{host} wijst naar {ip} (openbaar): zet een DNS-rewrite naar het LAN-IP van je proxy', ['host' => Https::adminHost(), 'ip' => $ips])), 'https');
+        }
+        $pu = json_decode((string) setting('proxy_unknown', ''), true) ?: [];
+        if ((int) ($pu['at'] ?? 0) > time() - 7 * 86400 && !ip_in_list((string) $pu['ip'], parse_list((string) setting('trusted_proxies', '')))) {
+            $add('proxy', 'bad', t('Reverse proxy'), t('verkeer via {ip}, maar dat staat niet bij Vertrouwde proxy\'s: die bezoekers gelden als extern', ['ip' => $pu['ip']]), 'access');
+        } elseif (Https::proxyNoProto()) {
+            $add('proxy', 'warn', t('Reverse proxy'), t('je proxy meldt geen https (X-Forwarded-Proto ontbreekt): de sessiecookie is dan niet beveiligd'), 'https');
+        } elseif (parse_list((string) setting('trusted_proxies', ''))) {
+            $add('proxy', 'ok', t('Reverse proxy'), t('vertrouwd: {ips}', ['ips' => implode(', ', parse_list((string) setting('trusted_proxies', '')))]), 'access');
+        }
+        if ($adminUrl !== '') {
+            $noMfa = q("SELECT username FROM users WHERE totp_secret IS NULL OR totp_secret = '' ORDER BY username")->fetchAll(PDO::FETCH_COLUMN);
+            $mfaOn = setting('mfa_external', '0') === '1';
+            $add('mfa_ext', !$mfaOn ? 'warn' : ($noMfa ? 'info' : 'ok'), t('2FA van buiten'), !$mfaOn
+                ? t('niet verplicht: van buiten is een wachtwoord genoeg')
+                : ($noMfa ? t('verplicht · zonder 2FA alleen thuis: {names}', ['names' => implode(', ', array_slice($noMfa, 0, 5)) . (count($noMfa) > 5 ? ' …' : '')]) : t('verplicht · alle gebruikers hebben 2FA')), 'https');
+        }
         $add('vulns', Vulns::enabled() ? 'ok' : 'info', t('Kwetsbaarheden'), Vulns::enabled() ? t('scan staat aan') : t('scan staat uit'), 'vulns');
         $add('ids', Ids::enabled() ? 'ok' : 'info', 'IDS', Ids::enabled() ? t('staat aan') : t('staat uit'), 'ids');
         out(['items' => $items]);
@@ -1124,7 +1166,7 @@ switch ($action) {
                 q("SELECT id, name, agent_version, agent_seen, agent_ip, enc, enc_seen, agent_key_seen, agent_key_at, agent_ips, agent_ip_new, agent_ip_new_at, pin_mode, ip_lock,
                           (pair_until > NOW()) AS pairing FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll()),
             'conn' => ['key_days' => (int) setting('agent_key_days', '30'), 'pin' => setting('agent_pin', '1') === '1', 'ip_lock' => setting('agent_ip_lock', '1') === '1',
-                'pin_value' => AgentCrypto::pin(false, false, ['pin_mode' => 'on']), 'https' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https',
+                'pin_value' => AgentCrypto::pin(false, false, ['pin_mode' => 'on']), 'https' => Https::isHttps(),
                 'ownkey_min' => AgentCrypto::OWNKEY_MIN],
             'blocks' => Security::blocks(),
             'my_ip' => client_ip(),
@@ -1822,7 +1864,8 @@ switch ($action) {
             'trusted_proxies' => (string) setting('trusted_proxies', ''),
             'client_ip' => client_ip(),
             'remote_addr' => $_SERVER['REMOTE_ADDR'] ?? '',
-            'client_trusted' => ip_in_list(client_ip(), trusted_networks()),
+            'client_trusted' => Https::internal(),
+            'unknown_proxy' => Https::unknownProxy(),
             'lan_session' => is_lan_session(),
             'lock' => Security::lockConfig(),
         ]);
@@ -1851,6 +1894,10 @@ switch ($action) {
         save_setting('lan_as_admin', !empty($in['lan_as_admin']) ? '1' : '0');
         save_setting('trusted_networks', implode("\n", $networks));
         save_setting('trusted_proxies', implode("\n", $proxies));
+        $pu = json_decode((string) setting('proxy_unknown', ''), true) ?: [];
+        if (!empty($pu['ip']) && ip_in_list((string) $pu['ip'], $proxies)) {
+            save_setting('proxy_unknown', '');   // die proxy staat er nu bij: de ⚠️ in "Hoe staat het ervoor?" mag weg
+        }
         // Inlogbeveiliging
         if (isset($in['login_lock_fails'])) {
             save_setting('login_lock_fails', (string) max(1, min(50, (int) $in['login_lock_fails'])));
@@ -1858,6 +1905,85 @@ switch ($action) {
             save_setting('login_lock_minutes', (string) max(0, min(525600, (int) ($in['login_lock_minutes'] ?? 60))));
             save_setting('login_lock_account', !empty($in['login_lock_account']) ? '1' : '0');
             save_setting('login_lock_ip', !empty($in['login_lock_ip']) ? '1' : '0');
+        }
+        out(['ok' => true]);
+
+    // ---------- Beheer via https (1.68.0): beheeradres, alleen https, inloggen via http weigeren, 2FA van buiten ----------
+    case 'https_info':
+        $state = json_decode((string) setting('https_state', ''), true) ?: [];
+        // Het IP-adres van RzMon zelf (voor de nooddeur), zoals de browser of proxy het bereikte
+        $sa = (string) ($_SERVER['SERVER_ADDR'] ?? '');
+        if (filter_var($sa, FILTER_VALIDATE_IP) && !ip_in_list($sa, ['127.0.0.0/8', '::1/128']) && ($state['server_ip'] ?? '') !== $sa) {
+            $state['server_ip'] = $sa;
+            save_setting('https_state', json_encode($state, JSON_UNESCAPED_UNICODE));
+        }
+        $full = Https::hstsFullAt();
+        out([
+            'admin_url' => Https::adminUrl(), 'https_only' => setting('https_only', '0') === '1', 'http_login_block' => setting('http_login_block', '0') === '1',
+            'mfa_external' => setting('mfa_external', '0') === '1',
+            'req' => ['https' => Https::isHttps(), 'host' => Https::host(), 'on_admin' => Https::onAdminUrl(), 'via_proxy' => Https::viaProxy(),
+                'unknown_proxy' => Https::unknownProxy(), 'no_proto' => Https::proxyNoProto(), 'remote_addr' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'client_ip' => client_ip(), 'internal' => Https::internal()],
+            'proxies' => parse_list((string) setting('trusted_proxies', '')),
+            'proxy_unknown' => json_decode((string) setting('proxy_unknown', ''), true) ?: null,
+            'hsts' => Https::on() ? ['age' => Https::hstsAge(), 'full_at' => $full ? date('Y-m-d H:i', $full) : null] : null,
+            'state' => $state ?: null, 'checked_at' => setting('https_check_at', '') ?: null,
+            'door' => Https::door(),
+            'no2fa' => q("SELECT username FROM users WHERE totp_secret IS NULL OR totp_secret = '' ORDER BY username")->fetchAll(PDO::FETCH_COLUMN),
+            'my_2fa' => (bool) q("SELECT totp_secret IS NOT NULL AND totp_secret <> '' FROM users WHERE id = ?", [$user['id']])->fetchColumn(),
+            'warn_days' => Https::WARN_DAYS,
+        ]);
+
+    case 'https_check':
+        out(['ok' => true, 'state' => Https::check()]);
+
+    case 'https_save':
+        $in = input();
+        $url = rtrim(trim((string) ($in['admin_url'] ?? Https::adminUrl())), '/');
+        if ($url !== '' && !preg_match('~^https://[a-z0-9.\-]+(:\d{1,5})?(/[^?#\s]*)?$~i', $url)) {
+            out(['error' => t('Beheeradres: gebruik https:// met een naam, bv. https://rzmon.jouwdomein.nl')], 422);
+        }
+        $only = !empty($in['https_only']);
+        $block = !empty($in['http_login_block']);
+        $mfa = !empty($in['mfa_external']);
+        $was = ['only' => setting('https_only', '0') === '1', 'block' => setting('http_login_block', '0') === '1', 'mfa' => setting('mfa_external', '0') === '1'];
+        $urlChanged = $url !== Https::adminUrl();
+        // Minder veilig maken: bevestigen met je wachtwoord
+        if (($was['only'] && !$only) || ($was['block'] && !$block) || ($was['mfa'] && !$mfa)) {
+            $confirm('UITZETTEN');
+        }
+        if ($only && $url === '') {
+            out(['error' => t('Vul eerst het beheeradres in')], 422);
+        }
+        if ($only && (!$was['only'] || $urlChanged)) {
+            // Alleen aanzetten als het nu al werkt: je zit via het beheeradres met https, en het certificaat klopt
+            if (!Https::onAdminUrl($url)) {
+                out(['error' => t('Open RzMon eerst via {url} en zet het daar aan. Zo weet je zeker dat het werkt voordat http dicht gaat.', ['url' => $url])
+                    . (Https::proxyNoProto() ? ' ' . t('Je proxy meldt geen https (X-Forwarded-Proto ontbreekt).') : '')
+                    . (Https::unknownProxy() ? ' ' . t('Je komt via een proxy die niet bij Vertrouwde proxy\'s staat.') : '')], 422);
+            }
+            $s = Https::check(false, $url);
+            if ($s['problem'] !== null) {
+                Https::check();
+                out(['error' => t('Niet aangezet: {p}. RzMon controleert het certificaat zelf; kan de RzMon-server {url} niet bereiken, zet de DNS-rewrite dan ook voor de RzMon-server (of een regel in /etc/hosts).', ['p' => $s['problem'], 'url' => $url])], 422);
+            }
+            save_setting('https_since', now());
+        }
+        if ($block && !$was['block'] && !Https::isHttps()) {
+            out(['error' => t('Zet dit aan terwijl je RzMon via https open hebt; anders sluit je jezelf nu buiten')], 422);
+        }
+        if ($mfa && !$was['mfa'] && !Https::internal()
+            && !q("SELECT totp_secret IS NOT NULL AND totp_secret <> '' FROM users WHERE id = ?", [$user['id']])->fetchColumn()) {
+            out(['error' => t('Je zit nu buiten je interne netwerken en je eigen account heeft nog geen 2FA: stel eerst 2FA in (Mijn account)')], 422);
+        }
+        foreach (['admin_url' => $url, 'https_only' => $only ? '1' : '0', 'http_login_block' => $block ? '1' : '0', 'mfa_external' => $mfa ? '1' : '0'] as $k => $v) {
+            if (setting($k, '') !== $v) {
+                save_setting($k, $v);
+                AgentCommands::audit($user['username'], 'Beheer via https', "$k = $v");
+            }
+        }
+        if ($urlChanged && $url !== '' && !$only) {
+            Https::check(false, $url);
         }
         out(['ok' => true]);
 
@@ -2120,6 +2246,9 @@ switch ($action) {
 
     case 'totp_reset':
         $ownOnly((int) (input()['id'] ?? 0));
+        if ((int) (input()['id'] ?? 0) === (int) $user['id'] && Https::mfaRequired()) {
+            out(['error' => t('Van buiten je interne netwerken kun je je eigen 2FA niet uitzetten')], 403);
+        }
         q('UPDATE users SET totp_secret = NULL, totp_last_step = NULL WHERE id = ?', [(int) (input()['id'] ?? 0)]);
         out(['ok' => true]);
 

@@ -257,10 +257,10 @@ final class Security
         ];
     }
 
-    /** Komt dit verzoek uit een van de lokale netwerken (Instellingen → Toegang)? */
+    /** Komt dit verzoek uit een van de lokale netwerken (Instellingen → Toegang)? Via een onbekende proxy: nee. */
     public static function fromLan(): bool
     {
-        return ip_in_list(client_ip(), trusted_networks());
+        return Https::internal();
     }
 
     /** Is dit account (nu nog) geblokkeerd? @param array $u met locked_at en locked_until */
@@ -313,7 +313,7 @@ final class Security
                     fn() => t('Account {user} is geblokkeerd na {n} mislukte logins binnen {m} minuten (laatste vanaf {ip})', ['user' => $user, 'n' => $nUser, 'm' => $cfg['window'], 'ip' => $ip])
                         . ' · ' . ($until ? t('tot {t}', ['t' => date('d-m H:i', strtotime($until))]) : t('tot een beheerder deblokkeert')) . ' · ' . t('vanaf het lokale netwerk kan inloggen nog wel'), $ip);
             }
-            if ($cfg['ip'] && $nIp >= $cfg['fails'] && !self::fromLan() && !self::blockFor($ip)
+            if ($cfg['ip'] && $nIp >= $cfg['fails'] && !self::fromLan() && !Https::unknownProxy() && !self::blockFor($ip)
                 && self::block($ip, t('automatisch: {n} mislukte logins ({user})', ['n' => $nIp, 'user' => $user]), 'automatisch', $until, true) === true) {
                 $done[] = '⛔ ' . t('IP {ip} geblokkeerd', ['ip' => $ip]);
             }

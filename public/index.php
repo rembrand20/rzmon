@@ -55,6 +55,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <main class="login-wrap">
     <form id="reset-form" class="card login-card" data-token="<?= htmlspecialchars($resetToken) ?>">
       <div class="brand big"><span class="logo">📡</span> RzMon</div>
+      <?php if (!Https::isHttps()): ?><div class="http-bar<?= Https::loginBlocked() ? ' blocked' : '' ?>">🔓 <?= th('Deze verbinding is niet beveiligd: je wachtwoord en sessie zijn leesbaar op het netwerk.') ?></div><?php endif; ?>
       <h2 style="margin:0 0 .6rem"><?= th('Nieuw wachtwoord') ?></h2>
       <div id="reset-fields" hidden>
         <p class="muted small" style="margin-top:0"><?= t('Kies een nieuw wachtwoord voor {user}. Daarna worden alle apparaten waarop dit account ingelogd bleef, uitgelogd.', ['user' => '<b id="reset-user"></b>']) ?></p>
@@ -73,6 +74,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <main class="login-wrap">
     <form id="login-form" class="card login-card">
       <div class="brand big"><span class="logo">📡</span> RzMon <span class="version" title="<?= th('RzMon-versie') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></span></div>
+      <?php if (!Https::isHttps()): $toHttps = Https::adminUrl(); ?>
+        <div class="http-bar<?= Https::loginBlocked() ? ' blocked' : '' ?>">🔓 <?= Https::loginBlocked()
+            ? th('Inloggen via http staat uit: je wachtwoord zou leesbaar over het netwerk gaan.')
+            : th('Deze verbinding is niet beveiligd: je wachtwoord en sessie zijn leesbaar op het netwerk.') ?>
+          <?php if ($toHttps !== ''): ?><a href="<?= htmlspecialchars($toHttps) ?>/"><?= th('Open {url}', ['url' => $toHttps]) ?></a><?php endif; ?></div>
+      <?php endif; ?>
       <div id="login-step1">
         <label><?= th('Gebruikersnaam') ?><input name="username" autocomplete="username" required autofocus></label>
         <label><?= th('Wachtwoord') ?><input name="password" type="password" autocomplete="current-password" required></label>
@@ -587,6 +594,32 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <p class="muted small"><?= t('Een verkeerde 2FA-code telt ook. Pogingen tellen apart per account (vanaf welk IP dan ook) en per IP-adres. Een geblokkeerd account kan vanaf je <b>lokale netwerk</b> gewoon inloggen, zodat niemand van buiten je kan buitensluiten. Je krijgt een ⚠️-melding met Pushover. Deblokkeren: bij <i>Gebruikers</i> (🔓) en bij <i>Blokkades</i>; of op de server <code>sudo php install/install.php --unlock &lt;gebruiker&gt;</code>.') ?></p>
         <p class="form-error" hidden></p>
       </form>
+
+      <div data-sk="https" class="card need-admin" id="https-card">
+        <h2>🔒 <?= th('Beheer via https') ?></h2>
+        <p class="muted small"><?= t('Open je RzMon via http, dan kan iemand op het netwerk je wachtwoord, je sessie en de pagina zelf (bv. een installatiecommando) zien of veranderen. Met een <b>beheeradres</b> via je reverse proxy (bv. SWAG met Let\'s Encrypt) en <i>Beheer alleen via https</i> gaat de webinterface altijd via https. Agents en de REST API blijven gewoon werken: hun berichten zijn al versleuteld of hebben een eigen sleutel.') ?></p>
+        <div id="https-now" class="https-now"></div>
+        <label><?= th('Beheeradres') ?> <span class="hint"><?= th('(https://… via je reverse proxy, bv. https://rzmon.jouwdomein.nl)') ?></span>
+          <span class="inline-row"><input id="https-url" type="url" placeholder="https://rzmon.jouwdomein.nl" spellcheck="false"><button type="button" class="btn" id="https-check">🔍 <?= th('Nu controleren') ?></button></span></label>
+        <div id="https-cert"></div>
+        <h3 class="set-sub">🔐 <?= th('Afdwingen') ?></h3>
+        <label class="switch"><input type="checkbox" id="https-only"><span></span> <span><?= t('<b>Beheer alleen via https</b>: http gaat naar het beheeradres, met HSTS') ?></span></label>
+        <p class="muted small" id="https-hsts" style="margin-top:-.3rem"></p>
+        <label class="switch"><input type="checkbox" id="https-block"><span></span> <span><?= t('<b>Inloggen via http weigeren</b> (op de inlogpagina via http staat dan een rode balk met de link naar https)') ?></span></label>
+        <label class="switch"><input type="checkbox" id="https-mfa"><span></span> <span><?= t('<b>2FA verplicht</b> van buiten je interne netwerken (Toegang → Lokale netwerken)') ?></span></label>
+        <p class="muted small" id="https-mfa-info" style="margin-top:-.3rem"></p>
+        <details class="adv"><summary><?= th('Zo zet je het op: SWAG en een DNS-rewrite') ?></summary>
+          <ol class="https-steps small">
+            <li><?= t('<b>SWAG</b>: maak <code>nginx/proxy-confs/rzmon.subdomain.conf</code> (voorbeeld hieronder) en herstart SWAG. SWAG vraagt het Let\'s Encrypt-certificaat zelf aan en vernieuwt het.') ?></li>
+            <li><?= t('<b>Vertrouwde proxy</b>: zet het LAN-IP van SWAG bij Toegang → Geavanceerd → Reverse proxy IP\'s. Dan ziet RzMon het echte IP-adres van je bezoekers en dat ze via https komen.') ?></li>
+            <li><?= t('<b>DNS-rewrite</b> (AdGuard Home → Filters → DNS-herschrijvingen): <code>rzmon.jouwdomein.nl</code> → het LAN-IP van SWAG. Thuis en onderweg gebruik je dan hetzelfde adres met hetzelfde geldige certificaat. Gebruikt de RzMon-server zelf ook AdGuard als DNS, dan kan hij het certificaat controleren.') ?></li>
+            <li><?= t('Open RzMon via het beheeradres, vul het hierboven in en zet <i>Beheer alleen via https</i> aan.') ?></li>
+          </ol>
+          <pre class="mono small https-conf" id="https-conf"></pre>
+          <p class="muted small"><?= t('<b>Nooddeur</b>: https op het IP-adres van RzMon zelf (self-signed, kies "toch doorgaan") blijft vanaf je interne netwerken altijd werken, ook als het certificaat van het beheeradres verlopen is. Buitengesloten? Op de server: <code>sudo php install/install.php --https-off</code>.') ?></p>
+        </details>
+        <p class="form-error" hidden></p>
+      </div>
 
       <div data-sk="enc" class="card need-admin" id="enc-card">
         <h2>🔐 <?= th('Beveiligde verbinding met de agents') ?></h2>

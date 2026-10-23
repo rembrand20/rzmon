@@ -64,6 +64,14 @@ if ($msg = Backup::runScheduled()) {
 if ($msg = Updater::cron()) {
     echo date('c') . " $msg\n";
 }
+// Certificaat van het beheeradres: dagelijks (Instellingen → Beveiliging → Beheer via https)
+try {
+    if ($msg = Https::cron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Certificaat: ' . $e->getMessage() . "\n");
+}
 // Kwetsbaarheden: dagelijkse scan en servers waarvan de softwarelijst veranderde (Instellingen → 🐞 Kwetsbaarheden)
 try {
     if ($msg = Vulns::cron()) {

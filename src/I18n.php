@@ -69,7 +69,7 @@ final class I18n
     public static function remember(string $lang): void
     {
         setcookie(self::COOKIE, $lang, ['expires' => time() + 365 * 86400, 'path' => '/', 'samesite' => 'Lax', 'httponly' => false,
-            'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
+            'secure' => Https::isHttps()]);
     }
 
     /** Taal van meldingen en checkberichten (Instellingen → 🔔 Meldingen); die gaan naar iedereen tegelijk */

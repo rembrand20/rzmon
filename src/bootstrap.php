@@ -61,6 +61,7 @@ require_once __DIR__ . '/AgentText.php';
 require_once __DIR__ . '/Vulns.php';
 require_once __DIR__ . '/Security.php';
 require_once __DIR__ . '/AgentCrypto.php';
+require_once __DIR__ . '/Https.php';
 
 function config(string $key, $default = null)
 {
@@ -167,6 +168,8 @@ function now(): string
 }
 
 // Geblokkeerde IP-adressen en netwerken (Instellingen → ⛔ Blokkades): heel RzMon geeft 403. Niet voor cron of de terminal.
+// Daarna: beheer alleen via https (doorsturen naar het beheeradres, HSTS), zie src/Https.php.
 if (PHP_SAPI !== 'cli' && is_configured()) {
     Security::enforce();
+    Https::enforce();
 }

@@ -466,6 +466,11 @@ INSERT IGNORE INTO settings (name, value) VALUES ('enc_mode', 'on'), ('enc_key',
 INSERT IGNORE INTO settings (name, value) VALUES ('agent_key_days', '30'), ('agent_pin', '1'), ('agent_pin_value', ''), ('agent_pin_at', '0'),
     ('agent_ip_lock', '1');
 
+-- Veilig beheer via https (1.68.0): beheeradres, alleen https (met HSTS), inloggen via http weigeren,
+-- 2FA verplicht van buiten je interne netwerken, en de laatste controle van het certificaat
+INSERT IGNORE INTO settings (name, value) VALUES ('admin_url', ''), ('https_only', '0'), ('https_since', ''), ('hsts_sent', '0'),
+    ('http_login_block', '0'), ('mfa_external', '0'), ('https_state', ''), ('https_check_at', ''), ('proxy_unknown', '');
+
 -- Inlogbeveiliging (1.58.0): na N mislukte pogingen binnen M minuten het account en/of het IP (van buiten het LAN) blokkeren,
 -- voor X minuten (0 = tot een beheerder deblokkeert)
 INSERT IGNORE INTO settings (name, value) VALUES ('login_lock_fails', '3'), ('login_lock_window', '10'), ('login_lock_account', '1'),

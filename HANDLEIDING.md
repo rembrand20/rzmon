@@ -333,6 +333,7 @@ sudo apt install certbot python3-certbot-apache   # of python3-certbot-nginx
 sudo certbot --apache -d rzmon.jouwdomein.nl      # of --nginx
 ```
 Voor alleen thuis gebruik is HTTP op je LAN prima. Wil je er van buitenaf bij, gebruik dan HTTPS of een VPN zoals WireGuard of Tailscale.
+Gebruik je een reverse proxy zoals SWAG of Nginx Proxy Manager, zie dan [§ 10.2 Beheer via https](#102-beheer-via-https-vanaf-1680).
 
 ### 5.5 Setup-wizard doorlopen
 
@@ -1551,9 +1552,10 @@ Zet bij het inloggen **Onthoud mij op dit apparaat** aan. Dan blijf je op dat ap
 - **Van buitenaf (internet)** is altijd een gebruikersnaam en wachtwoord nodig, plus 2FA als die aan staat. Je krijgt dan de rechten van je account.
 
 ### Achter een reverse proxy
-Gebruik je **Nginx Proxy Manager**, **Traefik**, **Caddy**, **Cloudflare Tunnel** of de HA-add-on *NGINX SSL proxy*? Dan komt elk verzoek binnen met het IP van de proxy.
+Gebruik je **SWAG**, **Nginx Proxy Manager**, **Traefik**, **Caddy**, **Cloudflare Tunnel** of de HA-add-on *NGINX SSL proxy*? Dan komt elk verzoek binnen met het IP van de proxy.
 
-- Vul het IP van de proxy in bij **Reverse proxy IP's**. RzMon gebruikt dan het echte bezoekers-IP uit `X-Forwarded-For`.
+- Vul het IP van de proxy in bij **Reverse proxy IP's**. RzMon gebruikt dan het echte bezoekers-IP uit `X-Forwarded-For`, en ziet via `X-Forwarded-Proto` dat je via https kwam (de sessiecookie krijgt dan `Secure`). Zie ook § 10.2 Beheer via https.
+- Vergeten? Verzoeken met proxy-kopteksten van een onbekend adres gelden sinds 1.68.0 als **extern** (nooit zonder wachtwoord binnen), met een ⚠️-melding.
 - Zet het proxy-IP **nooit** bij *Lokale netwerken*. Anders komt iedereen die via de proxy binnenkomt, dus ook van internet, zonder wachtwoord binnen.
 - **Testen:** open RzMon via 4G op je telefoon. Je moet een loginscherm krijgen.
 
@@ -1651,11 +1653,68 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - Waar deze meldingen heen gaan, kies je **per melding** bij *Instellingen → ℹ️ Systeeminfo* (zie hieronder).
 
 **ℹ️ Systeeminfo** (*Instellingen*, groep *Meldingen*, vanaf 1.59.0)
-- Een tabel met alle meldingen van RzMon zelf (geen checks): *RzMon bijgewerkt*; *Agent bijgewerkt*, *Agent bijwerken mislukt*, *Agent verbonden*; *Ingelogd*, *Mislukte login*; *Account geblokkeerd*, *Account gedeblokkeerd*, *IP geblokkeerd*, *Blokkade opgeheven*; *Nieuwe kwetsbaarheden*, *Pakketten bijgewerkt of mislukt*; en ⚠️ *Niet-geautoriseerde verbinding*.
+- Een tabel met alle meldingen van RzMon zelf (geen checks): *RzMon bijgewerkt*; *Agent bijgewerkt*, *Agent bijwerken mislukt*, *Agent verbonden*; *Ingelogd*, *Mislukte login*; *Account geblokkeerd*, *Account gedeblokkeerd*, *IP geblokkeerd*, *Blokkade opgeheven*; *Nieuwe kwetsbaarheden*, *Pakketten bijgewerkt of mislukt*; *🔐 Certificaat verloopt binnenkort* (vanaf 1.68.0, zie § 10.2); en ⚠️ *Niet-geautoriseerde verbinding*.
 - Per melding vink je aan: **📲 Pushover**, **📧 E-mail**, **🏠 Home Assistant** en **📄 Meldingenpagina**, en bij Pushover **🔕 stil** (zonder geluid) of **🔔 normaal**. Staat een kanaal helemaal uit, dan staat *(uit)* in de kop. Wordt meteen opgeslagen.
 - **Stille uren:** er gaat niets naar buiten, maar de melding komt wel op de meldingenpagina (als die aangevinkt is). Uitzondering: ⚠️ *Niet-geautoriseerde verbinding* gaat ook tijdens stille uren, en staat altijd op de meldingenpagina (daar telt RzMon de pogingen per IP).
 - **🧪** stuurt een voorbeeld van die melding naar wat je nu aangevinkt hebt, ook tijdens stille uren.
 - Na de update naar 1.59.0 is alles ingesteld zoals het werkte. De rij **Info** bij de meldregels heet nu *Info (checks)* en geldt alleen nog voor checks (info-checks, herstart, certificaten). *Info bij agent-updates* per server (Agent Manager) blijft: staat dat uit, dan komen agent-updates van die server alleen op de meldingenpagina.
+
+### 10.2 Beheer via https (vanaf 1.68.0)
+
+**Instellingen → Beveiliging → Beheer via https**
+
+Open je RzMon via `http://`, dan kan iemand op het netwerk je wachtwoord en je sessie zien, en de pagina onderweg veranderen (bijvoorbeeld de SHA of de koppelcode in een installatiecommando). Met deze kaart gaat de **webinterface altijd via https**. De agents en de REST API merken er niets van: hun berichten zijn al versleuteld (eigen sleutel) of hebben een API-sleutel, en ze mogen via http blijven werken.
+
+#### Opzetten met SWAG en een DNS-rewrite
+1. **SWAG**: maak `nginx/proxy-confs/rzmon.subdomain.conf` (het voorbeeld staat op de kaart, onder *Zo zet je het op*) en herstart SWAG. SWAG vraagt het Let's Encrypt-certificaat zelf aan en vernieuwt het.
+2. **Vertrouwde proxy**: zet het LAN-IP van SWAG bij *Toegang → Geavanceerd → Reverse proxy IP's*. RzMon ziet dan het echte IP-adres van de bezoeker (`X-Forwarded-For`) en dat die via https kwam (`X-Forwarded-Proto`). Zet het **nooit** bij *Lokale netwerken*.
+3. **DNS-rewrite** in AdGuard Home (*Filters → DNS-herschrijvingen*): `rzmon.jouwdomein.nl` → het LAN-IP van SWAG. Thuis en onderweg gebruik je dan hetzelfde adres met hetzelfde geldige certificaat. Gebruikt de RzMon-server zelf ook AdGuard als DNS, dan kan RzMon het certificaat controleren (anders: een regel in `/etc/hosts` van de RzMon-server).
+4. Open RzMon via `https://rzmon.jouwdomein.nl`, vul dat in als **Beheeradres** en klik op **🔍 Nu controleren**.
+
+Bovenaan de kaart zie je hoe je nu verbonden bent: http of https, via je vertrouwde proxy of niet, van binnen of van buiten, en of je op het beheeradres zit.
+
+#### Het certificaat
+De kaart toont van het beheeradres en van de **nooddeur** (zie hieronder): uitgever, namen, geldig van en tot, het aantal dagen dat het nog geldig is, de vingerafdruk (SHA-256) en of het vertrouwd is. Er staat ook waar de naam vanaf de RzMon-server naartoe wijst: intern (✔, de DNS-rewrite werkt) of naar je publieke IP (⚠️).
+
+RzMon controleert het certificaat **elke dag**:
+- **ℹ️ info** in Meldingen (en de kanalen van *Systeeminfo → 🔐 Certificaat verloopt binnenkort*) **14 dagen** voor het verloopt. SWAG vernieuwt normaal rond 30 dagen van tevoren, dus deze melding betekent: vernieuwen lukt niet. Kijk dan in de log van SWAG.
+- **⚠️ warning** als het verlopen of ongeldig is (verkeerde naam, niet vertrouwd, geen verbinding), met de link naar de nooddeur. **✅** zodra het weer in orde is.
+
+#### Beheer alleen via https
+Zet de schakelaar aan **terwijl je RzMon via het beheeradres open hebt** en het certificaat in orde is; anders weigert RzMon (zo weet je zeker dat het werkt voordat http dicht gaat). Daarna:
+- gaat elke pagina via http naar het beheeradres (ook `http://LAN-IP` en de links uit meldingen);
+- stuurt RzMon **HSTS** mee: de browser probeert het daarna niet eens meer via http. De eerste **7 dagen** 1 dag (testfase); zonder problemen met het certificaat daarna vanzelf **1 jaar**. Zonder `includeSubDomains`, dus andere diensten op je domein merken er niets van;
+- blijven agents (`api.php?action=agent…`, `ping` en de downloads) en de REST API (`v1.php`) via http werken.
+
+Zet je het uit (met je wachtwoord), dan krijgt de browser het signaal HSTS te vergeten.
+
+#### De nooddeur 🚪
+`https://<IP-adres van RzMon>/` — het self-signed certificaat van RzMon zelf (`install-rocky.sh` zet dat op poort 443). Kies in de browser "toch doorgaan". De nooddeur werkt **alleen vanaf je interne netwerken**; van buiten word je naar het beheeradres gestuurd. HSTS geldt niet voor een IP-adres, dus ook met een verlopen certificaat op het beheeradres kom je zo altijd binnen.
+
+**Buitengesloten?** Op de server:
+```bash
+sudo -u apache php /var/www/rzmon/install/install.php --https-off   # Debian: www-data
+```
+Dat zet *Beheer alleen via https* en *Inloggen via http weigeren* uit.
+
+#### Inloggen via http weigeren
+Via http staat op de inlogpagina een **rode balk**: *Deze verbinding is niet beveiligd*, met de link naar het beheeradres. Met **Inloggen via http weigeren** weigert RzMon daar ook het wachtwoord, de 2FA-code en een nieuw wachtwoord (*wachtwoord vergeten*). Aanzetten kan alleen als je zelf via https binnen bent.
+
+#### 2FA verplicht van buiten
+Met **2FA verplicht van buiten je interne netwerken** (je interne netwerken = *Toegang → Lokale netwerken*):
+- is van buiten altijd een **2FA-code** nodig; een account zonder 2FA wordt van buiten geweigerd (*Stel eerst 2FA in vanaf je thuisnetwerk*), en die poging telt mee voor de inlogbeveiliging;
+- geldt een **onthouden apparaat** van buiten alleen als het destijds **mét 2FA** is onthouden; thuis blijft het gewoon werken;
+- vervalt een open sessie zonder 2FA zodra je van buiten komt;
+- kan *wachtwoord vergeten* van buiten alleen met 2FA, en kun je van buiten je eigen 2FA niet uitzetten;
+- blijven API-sleutels (`v1.php`) gewoon werken.
+
+Op de kaart staat welke gebruikers nog geen 2FA hebben.
+
+#### Een proxy die RzMon niet kent
+Komen er verzoeken met proxy-kopteksten (`X-Forwarded-For` e.d.) van een adres dat **niet** bij *Reverse proxy IP's* staat, dan weet RzMon niet wie de bezoeker is. Die bezoekers gelden daarom als **extern**: 2FA verplicht, nooit inloggen zonder wachtwoord, en het adres van de proxy wordt niet automatisch geblokkeerd. Je krijgt eenmaal per dag een ⚠️-melding, en *Hoe staat het ervoor?* toont het tot je het adres toevoegt.
+
+#### Hoe staat het ervoor?
+Nieuwe punten: *Beheer via https*, *Certificaat* (verloopt over X dagen, of het probleem), *Lokale DNS-rewrite*, *Reverse proxy* (onbekende proxy, of een proxy die geen https meldt) en *2FA van buiten*.
 
 ## 11. REST API en Home Assistant-integratie
 
@@ -1965,7 +2024,7 @@ Opnieuw `install-rocky.sh` draaien doet beide ook.
 - [ ] De document root is `public/`. Controleer dat `http://<server>/config.php` een **404** geeft.
 - [ ] De schrijfrechten op `/var/www/rzmon` zijn na de setup teruggezet (`sudo chown root /var/www/rzmon`).
 - [ ] Je beheerder heeft een sterk wachtwoord.
-- [ ] Bereikbaar van buitenaf? Dan alleen via **HTTPS** of een VPN.
+- [ ] Bereikbaar van buitenaf? Dan alleen via **HTTPS** of een VPN. Met een reverse proxy: *Beheer alleen via https*, *Inloggen via http weigeren* en *2FA verplicht van buiten* aan (§ 10.2).
 - [ ] "Geen login op LAN" aan? Dan getest via 4G dat je een loginscherm krijgt.
 - [ ] Ongebruikte API-sleutels zijn ingetrokken.
 - [ ] Inlogbeveiliging aan (*Instellingen → Toegang*), en je lokale netwerken kloppen (vanaf daar kun je altijd nog inloggen).

@@ -10,7 +10,7 @@ function start_session(): void
     session_set_cookie_params([
         'httponly' => true,
         'samesite' => 'Strict',
-        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'secure' => Https::isHttps(),
     ]);
     session_start();
     if (empty($_SESSION['csrf'])) {
@@ -27,7 +27,7 @@ function trusted_networks(): array
 /** Mag deze bezoeker zonder login binnen? */
 function lan_login_allowed(): bool
 {
-    return setting('lan_no_login', '0') === '1' && ip_in_list(client_ip(), trusted_networks());
+    return setting('lan_no_login', '0') === '1' && Https::internal();
 }
 
 function current_user(): ?array
@@ -56,6 +56,10 @@ function current_user(): ?array
             $row = false;
         }
         $user = $row ? ['id' => (int) $row['id'], 'username' => $row['username'], 'role' => $row['role']] : null;
+        // Van buiten je interne netwerken is 2FA verplicht (als dat aan staat): een sessie zonder 2FA vervalt dan
+        if ($user && empty($_SESSION['mfa']) && Https::mfaRequired()) {
+            $user = null;
+        }
         // Ingelogd via "onthoud mij" en dat apparaat is intussen vergeten (bv. telefoon kwijt) → uitloggen
         if ($user && !empty($_SESSION['remember_id']) && !remember_touch()) {
             $user = null;
@@ -109,7 +113,7 @@ function is_lan_session(): bool
 
 /**
  * Eerste stap van inloggen.
- * @return string|false 'ok' (ingelogd), 'totp' (nu nog de code uit de authenticator-app) of false
+ * @return string|false 'ok' (ingelogd), 'totp' (nu nog de code uit de authenticator-app), 'locked', 'need_2fa' (van buiten zonder 2FA) of false
  */
 function login(string $username, string $password, bool $remember = false): string|false
 {
@@ -124,6 +128,11 @@ function login(string $username, string $password, bool $remember = false): stri
     // Pas bij een juist wachtwoord zeggen we dat, zodat een aanvaller er niets aan heeft.
     if (Security::accountLocked($u) && !Security::fromLan()) {
         return 'locked';
+    }
+    // Van buiten je interne netwerken 2FA verplicht, maar dit account heeft geen 2FA: weigeren (ook hier pas na een juist wachtwoord)
+    if (!$u['totp_secret'] && Https::mfaRequired()) {
+        Security::loginFailed($username, '2FA verplicht van buiten het interne netwerk', true);
+        return 'need_2fa';
     }
     if ($u['totp_secret']) {
         // Wachtwoord klopt; de sessie is pas geldig na de juiste code
@@ -171,6 +180,7 @@ function finish_login(array $u, bool $remember = false, string $how = 'wachtwoor
     unset($_SESSION['pending_2fa'], $_SESSION['lan_auto'], $_SESSION['no_lan_auto'], $_SESSION['remember_id']);
     $_SESSION['user'] = ['id' => (int) $u['id'], 'username' => $u['username'], 'role' => $u['role'] ?? 'admin'];
     $_SESSION['auth_at'] = time();
+    $_SESSION['mfa'] = $how !== 'wachtwoord';   // ingelogd met 2FA (telt van buiten je interne netwerken)
     q('UPDATE users SET last_login = ? WHERE id = ?', [now(), $u['id']]);
     if ($remember) {
         remember_create((int) $u['id']);
@@ -189,7 +199,7 @@ function remember_cookie(?string $value): void
         'expires' => $value !== null ? time() + REMEMBER_DAYS * 86400 : time() - 3600,
         'path' => $path,
         'httponly' => true,
-        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'secure' => Https::isHttps(),
         'samesite' => 'Lax',
     ]);
     if ($value === null) {
@@ -202,8 +212,8 @@ function remember_create(int $userId): void
 {
     $selector = bin2hex(random_bytes(12));
     $validator = bin2hex(random_bytes(32));
-    q('INSERT INTO remember_tokens (user_id, selector, token_hash, device, ip, last_used) VALUES (?, ?, ?, ?, ?, ?)', [
-        $userId, $selector, hash('sha256', $validator), device_name(), mb_substr(client_ip(), 0, 45), now(),
+    q('INSERT INTO remember_tokens (user_id, selector, token_hash, device, ip, last_used, mfa) VALUES (?, ?, ?, ?, ?, ?, ?)', [
+        $userId, $selector, hash('sha256', $validator), device_name(), mb_substr(client_ip(), 0, 45), now(), !empty($_SESSION['mfa']) ? 1 : 0,
     ]);
     $_SESSION['remember_id'] = (int) db()->lastInsertId();
     $_SESSION['remember_value'] = "$selector:$validator";
@@ -213,7 +223,8 @@ function remember_create(int $userId): void
 
 /**
  * Inloggen met de cookie. De sleutel wordt daarbij vervangen. Een oude sleutel die opnieuw
- * opduikt (gestolen cookie?) maakt het apparaat ongeldig. Geen 2FA nodig: dit apparaat is vertrouwd.
+ * opduikt (gestolen cookie?) maakt het apparaat ongeldig. Geen 2FA nodig: dit apparaat is vertrouwd. Van buiten je interne
+ * netwerken (als 2FA daar verplicht is) alleen een apparaat dat destijds met 2FA is onthouden.
  */
 function remember_login(): ?array
 {
@@ -227,6 +238,9 @@ function remember_login(): ?array
     $t = q('SELECT r.*, u.username, u.role, u.locked_at, u.locked_until FROM remember_tokens r JOIN users u ON u.id = r.user_id WHERE r.selector = ?', [$m[1]])->fetch();
     if ($t && Security::accountLocked($t) && !Security::fromLan()) {
         return null;   // account geblokkeerd: niet automatisch inloggen (het apparaat blijft bewaard voor na het deblokkeren)
+    }
+    if ($t && !(int) $t['mfa'] && Https::mfaRequired()) {
+        return null;   // van buiten alleen een apparaat dat met 2FA is onthouden; het apparaat blijft bewaard voor thuis
     }
     if (!$t || strtotime($t['last_used']) < time() - REMEMBER_DAYS * 86400) {
         if ($t) {
@@ -249,6 +263,7 @@ function remember_login(): ?array
     $_SESSION['auth_at'] = time();
     $_SESSION['remember_id'] = (int) $t['id'];
     $_SESSION['remember_touch'] = time();
+    $_SESSION['mfa'] = (int) $t['mfa'] === 1;
     if ($fresh) {
         $validator = bin2hex(random_bytes(32));
         q('UPDATE remember_tokens SET token_hash = ?, prev_hash = ?, rotated_at = ?, last_used = ?, ip = ? WHERE id = ?', [

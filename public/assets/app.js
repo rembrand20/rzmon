@@ -632,6 +632,7 @@ function init() {
   $('#api-keys').addEventListener('click', apiKeyClick);
   $('#access-form').addEventListener('submit', saveAccess);
   $('#access-form').addEventListener('change', (e) => saveAccess(null, e.target));
+  initHttps();
 
   refresh();
   setInterval(() => { if (!document.hidden && !$('#modal').open) refresh(); }, 20000);
@@ -3921,7 +3922,8 @@ async function loadAccess() {
     accessLock = a.lock;
   }
   $('#ip-status').innerHTML = `${L('Jouw IP-adres: {ip}', { ip: `<code>${esc(a.client_ip)}</code>` })}${a.client_ip !== a.remote_addr ? ` <span class="muted small">${L('(via proxy {ip})', { ip: esc(a.remote_addr) })}</span>` : ''}
-    — ${a.client_trusted ? '<b class="yes">' + L('valt binnen je lokale netwerken') + '</b>' : '<b class="no">' + L('valt buiten je lokale netwerken') + '</b>'}`;
+    — ${a.client_trusted ? '<b class="yes">' + L('valt binnen je lokale netwerken') + '</b>' : '<b class="no">' + L('valt buiten je lokale netwerken') + '</b>'}
+    ${a.unknown_proxy ? `<div class="bad small">⚠️ ${L('Je komt via een proxy ({ip}) die niet bij Reverse proxy IP\'s staat: RzMon behandelt je daarom als extern.', { ip: esc(a.remote_addr) })}</div>` : ''}`;
   settingsSummaries();
 }
 
@@ -3942,6 +3944,117 @@ async function saveAccess(e, el) {
     err.hidden = false;
     if (el && el.form === f) savedFlag(el, false, ex.message);
   }
+}
+
+// ---------------------------------------------------------------- Beheer via https (1.68.0)
+let httpsInfo = null;
+async function loadHttps() {
+  try { httpsInfo = await api('https_info'); } catch (ex) { return; }
+  renderHttps();
+}
+
+/** Eén certificaat als blok: uitgever, namen, geldigheid, vingerafdruk */
+function certBlock(title, c, extra = '') {
+  if (!c) return '';
+  if (!c.ok) return `<div class="cert-box bad"><div class="cert-h">${title}</div><div class="small"><b class="bad">✘ ${esc(c.error || L('geen verbinding'))}</b></div>${extra}</div>`;
+  const left = c.days < 0 ? `<b class="bad">${L('VERLOPEN')}</b>` : c.days <= (httpsInfo.warn_days || 14) ? `<b class="warn-txt">${L('nog {n} dagen', { n: c.days })}</b>` : L('nog {n} dagen', { n: c.days });
+  const d = (t) => new Date(t * 1000).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
+  const trust = c.trusted ? `<b class="good">✔ ${L('vertrouwd')}</b>` : c.self_signed ? `<span class="muted">🔏 ${L('self-signed')}</span>` : `<b class="bad">✘ ${esc(c.error || L('niet vertrouwd'))}</b>`;
+  return `<div class="cert-box ${c.trusted && c.days > (httpsInfo.warn_days || 14) ? 'ok' : c.trusted || c.self_signed ? 'warn' : 'bad'}">
+    <div class="cert-h">${title} ${trust}</div>
+    <dl class="cert-dl small">
+      <dt>${L('Uitgever')}</dt><dd>${esc(c.issuer)}</dd>
+      <dt>${L('Namen')}</dt><dd>${esc((c.names && c.names.length ? c.names : [c.cn]).join(', '))}</dd>
+      <dt>${L('Geldig')}</dt><dd>${d(c.from)} – ${d(c.to)} · ${left}</dd>
+      <dt>${L('Vingerafdruk')}</dt><dd class="mono fp">SHA-256 ${esc(c.fp)}</dd>
+    </dl>${extra}</div>`;
+}
+
+function renderHttps() {
+  const h = httpsInfo;
+  if (!h) return;
+  const r = h.req;
+  const ok = (b, yes, no) => (b ? `<span class="good">✔ ${yes}</span>` : `<span class="bad">✘ ${no}</span>`);
+  // Hoe zit je er nu?
+  const rows = [
+    ok(r.https, L('je bent nu via https verbonden'), L('je bent nu via http verbonden')) + ` <span class="muted small">(${esc(r.host)})</span>`,
+    r.unknown_proxy ? `<span class="bad">✘ ${L('via een proxy die niet bij Vertrouwde proxy\'s staat ({ip}): je geldt als extern', { ip: esc(r.remote_addr) })}</span>`
+      : r.via_proxy ? (r.no_proto ? `<span class="warn-txt">⚠️ ${L('via je proxy {ip}, maar die meldt geen https (X-Forwarded-Proto)', { ip: esc(r.remote_addr) })}</span>` : `<span class="good">✔ ${L('via je vertrouwde proxy {ip}', { ip: esc(r.remote_addr) })}</span>`)
+      : `<span class="muted">${L('rechtstreeks, zonder proxy')}</span>`,
+    r.internal ? `<span class="good">🏠 ${L('vanaf je interne netwerk ({ip})', { ip: esc(r.client_ip) })}</span>` : `<span class="warn-txt">🌍 ${L('van buiten je interne netwerken ({ip})', { ip: esc(r.client_ip) })}</span>`,
+  ];
+  if (h.admin_url) rows.push(r.on_admin ? `<span class="good">✔ ${L('je zit op het beheeradres')}</span>` : `<span class="muted">${L('je zit niet op het beheeradres')} – <a href="${esc(h.admin_url)}/">${esc(h.admin_url)}</a></span>`);
+  $('#https-now').innerHTML = rows.map((x) => `<div>${x}</div>`).join('');
+  const urlIn = $('#https-url');
+  if (document.activeElement !== urlIn) urlIn.value = h.admin_url || '';
+  // Certificaten en DNS
+  const s = h.state || {};
+  const host = h.admin_url ? h.admin_url.replace(/^https:\/\//, '').replace(/[:/].*$/, '') : '';
+  let html = '';
+  if (h.admin_url && s.admin) {
+    const dns = s.dns ? (s.dns.ips.length ? (s.dns.private ? `<div class="small"><span class="good">✔ ${L('DNS: {host} wijst intern naar {ip}', { host: esc(host), ip: esc(s.dns.ips.join(', ')) })}</span></div>`
+      : `<div class="small"><span class="warn-txt">⚠️ ${L('DNS: {host} wijst naar {ip} (openbaar). Zet in AdGuard Home een DNS-rewrite naar het LAN-IP van SWAG.', { host: esc(host), ip: esc(s.dns.ips.join(', ')) })}</span></div>`)
+      : `<div class="small"><span class="bad">✘ ${L('DNS: {host} is vanaf de RzMon-server niet te vinden', { host: esc(host) })}</span></div>`) : '';
+    html += certBlock('🌍 ' + L('Beheeradres'), s.admin, dns);
+  } else if (h.admin_url) html += `<p class="muted small">${L('Nog niet gecontroleerd: klik op Nu controleren.')}</p>`;
+  if (s.local) html += certBlock('🚪 ' + L('Nooddeur') + (h.door.includes('<') ? ` <span class="small muted">${esc(h.door)}</span>` : ` <a class="small" href="${esc(h.door)}">${esc(h.door)}</a>`), s.local, `<div class="muted small">${L('Alleen vanaf je interne netwerken; het certificaat van RzMon zelf.')}</div>`);
+  if (h.checked_at) html += `<p class="muted small" style="margin:.3rem 0 0">${L('Gecontroleerd {ago}; daarna elke dag. ℹ️ {n} dagen voor het verloopt, ⚠️ als het verlopen of ongeldig is.', { ago: ago(h.checked_at), n: h.warn_days })}</p>`;
+  $('#https-cert').innerHTML = html;
+  // Schakelaars
+  $('#https-only').checked = h.https_only;
+  $('#https-block').checked = h.http_login_block;
+  $('#https-mfa').checked = h.mfa_external;
+  $('#https-hsts').innerHTML = h.hsts ? (h.hsts.full_at ? L('HSTS: 1 dag (testfase). Na {d} zonder problemen met het certificaat vanzelf 1 jaar.', { d: esc(fmtDateTime(h.hsts.full_at)) }) : L('HSTS: 1 jaar.'))
+    : (h.admin_url && !r.on_admin ? L('Aanzetten kan alleen als je RzMon nu via het beheeradres opent.') : '');
+  $('#https-mfa-info').innerHTML = h.no2fa.length ? L('Zonder 2FA (van buiten dan geweigerd): {names}', { names: h.no2fa.map(esc).join(', ') }) : L('Alle gebruikers hebben 2FA.');
+  // Voorbeeld voor SWAG
+  $('#https-conf').textContent = `## nginx/proxy-confs/rzmon.subdomain.conf\nserver {\n    listen 443 ssl;\n    listen [::]:443 ssl;\n    server_name ${host ? host.split('.')[0] : 'rzmon'}.*;\n    include /config/nginx/ssl.conf;\n    client_max_body_size 64m;\n\n    location / {\n        include /config/nginx/proxy.conf;\n        include /config/nginx/resolver.conf;\n        set $upstream_app ${s.server_ip || '192.168.1.10'};\n        set $upstream_port 80;\n        set $upstream_proto http;\n        proxy_pass $upstream_proto://$upstream_app:$upstream_port;\n    }\n}`;
+}
+
+async function saveHttps(extra = {}, el = null) {
+  const err = $('#https-card .form-error');
+  err.hidden = true;
+  try {
+    await api('https_save', { admin_url: $('#https-url').value.trim(), https_only: $('#https-only').checked, http_login_block: $('#https-block').checked, mfa_external: $('#https-mfa').checked, ...extra });
+    if (el) savedFlag(el, true);
+    toast(L('Opgeslagen'));
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+    if (el) savedFlag(el, false, ex.message);
+  }
+  await loadHttps();
+  loadSettingsHealth();
+}
+
+function initHttps() {
+  const card = $('#https-card');
+  if (!card) return;
+  const sw = { 'https-only': 'https_only', 'https-block': 'http_login_block', 'https-mfa': 'mfa_external' };
+  card.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.id === 'https-url') { saveHttps({}, t); return; }
+    if (!sw[t.id] || !httpsInfo) return;
+    if (t.checked || !httpsInfo[sw[t.id]]) { saveHttps({}, t); return; }
+    // Uitzetten maakt het beheer minder veilig: eerst bevestigen
+    modal({
+      title: '⚠️ ' + L('Minder veilig maken?'),
+      body: `<p style="margin-top:0">${t.id === 'https-only' ? L('De beheerpagina is dan ook weer via http bereikbaar. Je browser krijgt het signaal om HSTS te vergeten.')
+        : t.id === 'https-block' ? L('Inloggen via http kan dan weer: je wachtwoord gaat dan leesbaar over het netwerk.')
+        : L('Van buiten je interne netwerken is dan een wachtwoord genoeg.')}</p>${confirmField('UITZETTEN')}`,
+      buttons: [{ label: L('Annuleren'), onClick: () => { $('#modal').close(); renderHttps(); } }, { label: L('Uitzetten'), cls: 'danger', submit: true }],
+      onSubmit: async (d) => { await api('https_save', { admin_url: $('#https-url').value.trim(), https_only: $('#https-only').checked, http_login_block: $('#https-block').checked, mfa_external: $('#https-mfa').checked, confirm: d.confirm }); toast(L('Opgeslagen')); loadHttps(); loadSettingsHealth(); },
+    });
+  });
+  $('#https-check').onclick = async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    try {
+      if ($('#https-url').value.trim() !== (httpsInfo && httpsInfo.admin_url || '')) await saveHttps();
+      else { await api('https_check', {}); await loadHttps(); loadSettingsHealth(); }
+    } catch (ex) { toast(ex.message, 'err'); }
+    b.disabled = false;
+  };
 }
 
 // ---------------------------------------------------------------- API keys
@@ -4149,7 +4262,7 @@ const SET_NAV = [
   ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'mqtt']], ['rules', L('Meldregels en stille uren'), ['notify']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['monitoring', '📈', L('Monitoring'), [['alarm', L('Alarmgedrag'), ['alarm']], ['vulns', L('Kwetsbaarheden'), ['vulns']], ['ids', 'IDS', ['ids']]]],
-  ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['users', L('Gebruikers'), ['users']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades'), ['blocks']]]],
+  ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['https', L('Beheer via https'), ['https']], ['users', L('Gebruikers'), ['users']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades'), ['blocks']]]],
   ['agents', '🖥️', L('Agents'), [['agents', L('Agents bijwerken en commando\'s'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']]]],
   ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['backup', L('Back-up'), ['backup']], ['db', L('Database'), ['db']], ['setup', 'Setup', ['setup']]]],
 ];
@@ -4391,6 +4504,7 @@ async function loadSettings() {
   loadApiKeys();
   loadSecurity();
   loadAccess();
+  loadHttps();
   loadDbInfo();
   const s = await api('settings');
   const f = $('#settings-form');
@@ -4578,7 +4692,7 @@ const SYSINFO_ROWS = [
   [L('Blokkades'), [['account_lock', '🔒 ' + L('Account geblokkeerd')], ['account_unlock', '🔓 ' + L('Account gedeblokkeerd')],
     ['ip_block', '⛔ ' + L('IP geblokkeerd')], ['ip_unblock', '✅ ' + L('Blokkade opgeheven')]]],
   [L('Kwetsbaarheden'), [['vuln_new', '🐞 ' + L('Nieuwe kwetsbaarheden')], ['vuln_upgrade', '📦 ' + L('Pakketten bijgewerkt of mislukt')]]],
-  [L('Beveiliging'), [['sec', '⚠️ ' + L('Niet-geautoriseerde verbinding')]]],
+  [L('Beveiliging'), [['cert', '🔐 ' + L('Certificaat verloopt binnenkort')], ['sec', '⚠️ ' + L('Niet-geautoriseerde verbinding')]]],
 ];
 const SYSINFO_CH = [['pushover', '📲 Pushover', 'pushover_enabled'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
 let sysinfoCfg = null;

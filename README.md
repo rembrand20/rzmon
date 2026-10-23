@@ -157,7 +157,8 @@ server {
 - Vul je lokale netwerken in (standaard alle privé-ranges; beperken tot bv. `192.168.1.0/24` kan ook). De kaart toont je huidige IP en of dat als lokaal wordt herkend.
 - Van buitenaf blijft gewoon de login nodig. Ga je met een open sessie van wifi naar 4G, dan word je automatisch uitgelogd.
 - Bij een automatische login staat rechtsboven **🏠 Lokaal netwerk**.
-- **Reverse proxy** (Nginx Proxy Manager, Traefik, Cloudflare tunnel, HA-addon e.d.): vul het IP van de proxy in bij *Reverse proxy IP's*. Het echte bezoekers-IP wordt dan uit `X-Forwarded-For` gehaald. Zet het proxy-IP **nooit** bij de lokale netwerken, anders komt iedereen via de proxy zonder wachtwoord binnen.
+- **Reverse proxy** (SWAG, Nginx Proxy Manager, Traefik, Cloudflare tunnel, HA-addon e.d.): vul het IP van de proxy in bij *Reverse proxy IP's*. Het echte bezoekers-IP wordt dan uit `X-Forwarded-For` gehaald, en https uit `X-Forwarded-Proto`. Zet het proxy-IP **nooit** bij de lokale netwerken.
+- **🔒 Beheer via https** (*Instellingen → Beveiliging*): beheeradres via je proxy, *Beheer alleen via https* (met HSTS), certificaatkaart met dagelijkse controle (ℹ️ 14 dagen voor het verloopt, ⚠️ als het ongeldig is), *Inloggen via http weigeren* en *2FA verplicht van buiten*. De nooddeur `https://<IP van RzMon>/` werkt altijd vanaf je LAN; buitengesloten: `php install/install.php --https-off`.
 - De REST API vraagt altijd om een API-sleutel, ook op het LAN.
 
 ### Poortscan

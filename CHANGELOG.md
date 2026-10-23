@@ -7,6 +7,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.68.0 – 2026-10-23
+### Nieuw
+- **🔒 Beheer via https** (*Instellingen → Beveiliging → Beheer via https*): de webinterface altijd via https, zodat niemand op het netwerk je wachtwoord, je sessie of de pagina zelf (bv. een installatiecommando) kan zien of veranderen.
+  - **Beheeradres** via je reverse proxy (bv. `https://rzmon.jouwdomein.nl` via SWAG met Let's Encrypt), met een stappenplan en een kant-en-klaar voorbeeld voor SWAG en de DNS-rewrite in AdGuard Home.
+  - **Certificaatkaart**: uitgever, namen, geldigheid, dagen nog geldig, vingerafdruk en of het vertrouwd is, voor het beheeradres en de nooddeur; plus of de naam intern wijst (DNS-rewrite). **Elke dag** gecontroleerd: **ℹ️ info 14 dagen** voor het verloopt (*Systeeminfo → 🔐 Certificaat verloopt binnenkort*), **⚠️** als het verlopen of ongeldig is, ✅ als het weer goed is.
+  - **Beheer alleen via https**: http gaat naar het beheeradres, met **HSTS** (de eerste 7 dagen 1 dag, daarna zonder problemen vanzelf 1 jaar). Aanzetten kan alleen als je al via het beheeradres binnen bent en het certificaat klopt. Agents, hun downloads en de REST API blijven via http werken.
+  - **Nooddeur**: `https://<IP van RzMon>/` (self-signed) werkt vanaf je interne netwerken altijd, ook met een verlopen certificaat. Buitengesloten: `php install/install.php --https-off`.
+  - **Rode balk** op de inlogpagina via http, en **Inloggen via http weigeren**.
+  - **2FA verplicht van buiten je interne netwerken**: zonder 2FA van buiten geweigerd; een onthouden apparaat geldt van buiten alleen als het met 2FA is onthouden; *wachtwoord vergeten* van buiten alleen met 2FA. API-sleutels blijven werken.
+  - Uitzetten vraagt je wachtwoord. *Hoe staat het ervoor?* toont *Beheer via https*, *Certificaat*, *Lokale DNS-rewrite*, *Reverse proxy* en *2FA van buiten*.
+- **Reverse proxy veiliger**: RzMon herkent https via `X-Forwarded-Proto` (en de naam via `X-Forwarded-Host`), maar alleen van een adres bij *Reverse proxy IP's*; de sessiecookie krijgt dan `Secure`. Komen er proxy-kopteksten van een **onbekend adres**, dan gelden die bezoekers als **extern** (nooit inloggen zonder wachtwoord, 2FA verplicht als dat aan staat) en krijg je één keer per dag een ⚠️-melding.
+
 ## 1.67.0 – 2026-10-23
 ### Nieuw
 - **Meldingen, IDS en Kwetsbaarheden in het nieuwe jasje**, net als het dashboard: tellers onder de header (blijven staan bij scrollen, klikbaar als filter), kerncijfers als tegels, een werkbalk met zoeken en filterchips, en compacte rijen.

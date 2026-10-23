@@ -182,6 +182,8 @@ final class Installer
         // Per server (1.65.0): certificaat vastzetten en vast IP-adres; NULL = algemene instelling, of on / off
         ['hosts', 'pin_mode', 'VARCHAR(3) NULL'],
         ['hosts', 'ip_lock', 'VARCHAR(3) NULL'],
+        // 1.68.0: onthouden apparaat dat met 2FA is aangemaakt (van buiten je interne netwerken alleen dan geldig)
+        ['remember_tokens', 'mfa', 'TINYINT(1) NOT NULL DEFAULT 0'],
     ];
 
     private static function migrate(PDO $pdo): void

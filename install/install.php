@@ -8,6 +8,7 @@
 //         sudo php install/install.php --list-backups
 //         sudo php install/install.php --unblock-all   (alle blokkades opheffen, bv. als je jezelf buitensloot)
 //         sudo php install/install.php --unlock <gebruikersnaam>   (account deblokkeren na te veel mislukte logins)
+//         sudo php install/install.php --https-off   (beheer weer via http: "alleen https" en "inloggen via http weigeren" uit)
 //         sudo php install/install.php --restore <zip> [--with-config] [--password=…]
 //              (database terugzetten; met --with-config, of op een nieuwe server zonder config.php,
 //               ook config.php plus de databasegebruiker)
@@ -220,6 +221,15 @@ if (($argv[1] ?? '') === '--unblock-all') {
     }
     $n = count($ids);
     exit($n ? "$n blokkade(s) opgeheven (Instellingen → ⛔ Blokkades).\n" : "Er stond niets op de blokkadelijst.\n");
+}
+if (($argv[1] ?? '') === '--https-off') {
+    // Noodcommando: buitengesloten door "Beheer alleen via https" (bv. certificaat verlopen)
+    Installer::ensureSchema();
+    save_setting('https_only', '0');
+    save_setting('http_login_block', '0');
+    AgentCommands::audit('terminal', 'Beheer via https', 'https_only = 0, http_login_block = 0');
+    exit("\"Beheer alleen via https\" en \"Inloggen via http weigeren\" staan uit. Open RzMon via http://<IP-adres van deze server>/.\n"
+        . "Heeft je browser HSTS onthouden voor het beheeradres? Gebruik dan het IP-adres, of wis de HSTS-gegevens van die site in je browser.\n");
 }
 if (($argv[1] ?? '') === '--reset-2fa') {
     Installer::ensureSchema();

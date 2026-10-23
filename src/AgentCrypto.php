@@ -286,7 +286,7 @@ final class AgentCrypto
     private static function detectPin(): ?string
     {
         $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
-        $fwd = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+        $fwd = !$https && Https::isHttps();   // via een vertrouwde reverse proxy
         if (!$https && !$fwd) {
             return '';   // RzMon draait via http: niets vast te zetten
         }

@@ -145,7 +145,13 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - bij tweestapsverificatie ook de code nodig;
   - met een logboek.
 - **Lokaal netwerk:** optioneel inloggen zonder wachtwoord op je LAN (*alleen lezen* of beheerder); van buitenaf blijft de login nodig.
-- **Reverse proxy** (Nginx Proxy Manager, Traefik, Cloudflare Tunnel): het echte IP wordt alleen vertrouwd van proxy's die je zelf opgeeft.
+- **Reverse proxy** (SWAG, Nginx Proxy Manager, Traefik, Cloudflare Tunnel): het echte IP en https worden alleen vertrouwd van proxy's die je zelf opgeeft; proxy-kopteksten van een onbekend adres = bezoeker van buiten, met een ⚠️-melding.
+- **🔒 Beheer via https:**
+  - een **beheeradres** (bv. via SWAG met Let's Encrypt) en **Beheer alleen via https**: http gaat naar het beheeradres, met **HSTS** (eerst 1 dag, na 7 dagen zonder problemen 1 jaar); agents en de REST API blijven via http werken;
+  - de **certificaatkaart**: uitgever, namen, geldigheid, vingerafdruk, vertrouwd, en of de lokale **DNS-rewrite** werkt; dagelijks gecontroleerd, ℹ️ 14 dagen voor het verloopt, ⚠️ als het verlopen of ongeldig is;
+  - de **nooddeur** (https op het IP-adres van RzMon, alleen van binnen) en het noodcommando `install.php --https-off`;
+  - een **rode balk** op de inlogpagina via http, en **inloggen via http weigeren**;
+  - **2FA verplicht van buiten** je interne netwerken (onthouden apparaten alleen als ze met 2FA zijn onthouden).
 - **Bescherming:** wachtwoorden met bcrypt, afremmen van inlogpogingen, CSRF-bescherming, veilige cookies, een eigen token per agent, en API-sleutels alleen als hash.
 - **🔐 Beveiligde verbinding** (agent 1.50.0+): een **eigen sleutel per agent**, geen token meer over de lijn, elk verzoek versleuteld of ondertekend; nieuwe agents koppelen met een **koppelcode** (eenmalig, 15 minuten), bestaande stappen vanzelf over; sleutels vanzelf vernieuwd (elke 30 dagen); het **certificaat van RzMon vastgezet** bij een eigen certificaat; agents alleen vanaf hun **bekende IP-adres** (nieuw adres = geweigerd tot je het toestaat); vastzetten en het IP-slot ook **per agent** aan of uit; het installatiecommando controleert script en agent met SHA-256.
 - **🔐 Versleutelde agents** (agent 1.49.0+): rapport, voortgang en instellingen versleuteld (AES-256 + HMAC, tegen opnieuw afspelen), het antwoord ook; één sleutel met **🎲 genereren** (de vorige nog 24 uur geldig), *uit* / *aan* / *verplicht*, ook **per agent**; 🔒 per server.
