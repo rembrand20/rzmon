@@ -146,6 +146,9 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Lokaal netwerk:** optioneel inloggen zonder wachtwoord op je LAN (*alleen lezen* of beheerder); van buitenaf blijft de login nodig.
 - **Reverse proxy** (Nginx Proxy Manager, Traefik, Cloudflare Tunnel): het echte IP wordt alleen vertrouwd van proxy's die je zelf opgeeft.
 - **Bescherming:** wachtwoorden met bcrypt, afremmen van inlogpogingen, CSRF-bescherming, veilige cookies, een eigen token per agent, en API-sleutels alleen als hash.
+- **🔐 Versleutelde agents** (agent 1.49.0+): rapport, voortgang en instellingen versleuteld (AES-256 + HMAC, tegen opnieuw afspelen), het antwoord ook; één sleutel met **🎲 genereren** (de vorige nog 24 uur geldig), *uit* / *aan* / *verplicht*, ook **per agent**; 🔒 per server.
+- **⛔ Blokkades** op IP-adres of netwerk voor heel RzMon (webpagina, login, API, agents), ook met één klik vanuit Meldingen; jezelf blokkeren kan niet.
+- **Beveiligingsmeldingen:** ⚠️ + Pushover bij een niet-geautoriseerde verbinding (fout token, verkeerde sleutel, verkeerde API-sleutel, 3 mislukte logins); ℹ️ bij elke login in RzMon en als een agent (opnieuw) verbindt.
 - **Gevoelige acties** (back-up downloaden of terugzetten, databasewachtwoord, commando's toestaan) vragen om je wachtwoord.
 - **Logboek** van gevoelige wijzigingen.
 - **🛡️ IDS (intrusion detection)**, pagina *IDS*:

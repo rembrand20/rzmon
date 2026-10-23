@@ -132,6 +132,7 @@ RzMon bestaat uit vier onderdelen:
 - **Geen login op je lokale netwerk** (optioneel). Van buitenaf blijft de login nodig. Ga je met je telefoon van wifi naar 4G, dan word je automatisch uitgelogd.
 - **Reverse proxy:** ondersteuning voor Nginx Proxy Manager, Traefik en Cloudflare Tunnel, waarbij het echte bezoekers-IP alleen wordt vertrouwd van proxy's die je zelf instelt.
 - **🛡️ IDS (intrusion detection):** de agents letten op gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen en verbindingen, brute force en inbraak na brute force. Op de pagina *IDS* handel je incidenten af en blokkeer of deblokkeer je IP-adressen; critical gaat ook naar Pushover. Standaard uit; eerst *leren* (alleen melden), daarna eventueel *blokkeren*.
+- **🔐 Versleutelde agents** (1.49.0+), **⛔ blokkades** op IP-adres of netwerk voor heel RzMon, en meldingen bij niet-geautoriseerde verbindingen (⚠️ + Pushover), logins en agents die verbinden (ℹ️); zie [10.1](#101-versleutelde-agents-blokkades-en-beveiligingsmeldingen-vanaf-1570).
 - **Overige beveiliging:** CSRF-bescherming, HttpOnly/SameSite-cookies, een eigen token per agent en API-sleutels die alleen als hash worden opgeslagen.
 
 ### Setup-pagina
@@ -1565,6 +1566,27 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 
 ---
 
+### 10.1 Versleutelde agents, blokkades en beveiligingsmeldingen (vanaf 1.57.0)
+
+**🔐 Versleuteling van de agents** (*Instellingen → Toegang*, alleen beheerders)
+- Klik op **🎲 Sleutel genereren**. Agents vanaf **1.49.0** krijgen de sleutel bij hun volgende rapport, en versturen daarna alles **versleuteld**: het rapport, de voortgang van pakketten bijwerken, en het ophalen van hun instellingen. Het antwoord van RzMon komt ook versleuteld terug.
+- **Hoe:** AES-256-CBC met een handtekening (HMAC-SHA256), met `openssl` op de server. RzMon controleert eerst de handtekening en pakt het bericht pas daarna uit. Een bericht ouder dan 5 minuten, of dat al eens binnenkwam (opnieuw afgespeeld), wordt geweigerd. Het antwoord is gebonden aan het verzoek, zodat een oud antwoord niet opnieuw te gebruiken is.
+- **Versleutelen:** *Uit*, **Aan** (standaard: wie een sleutel heeft, versleutelt; oude agents werken nog) of *Verplicht* (onversleuteld wordt geweigerd). Per server kies je een eigen instelling in de **Agent Manager** of in de tabel op de kaart: *algemene instelling*, *aan*, *verplicht* of *uit*. Daar zie je ook of het laatste rapport 🔒 versleuteld was.
+- **De sleutel bij de agent:** een agent zonder sleutel krijgt hem met het antwoord op een onversleuteld rapport (gebruik daarvoor bij voorkeur HTTPS), of je geeft hem mee bij het installeren: het installatiecommando in de Agent Manager bevat dan `--key …`. De agent bewaart hem in `/var/cache/rzmon-agent/enc.key` (alleen root); `ENC_KEY=` in `/etc/default/rzmon-agent` kan ook.
+- **Nieuwe sleutel:** de vorige blijft nog **24 uur** geldig. Elke agent krijgt de nieuwe bij zijn volgende rapport (versleuteld met de oude). Is een agent langer offline, dan gooit hij na 3 geweigerde rapporten zijn oude sleutel weg en haalt hij de nieuwe op (bij *Aan*); bij *Verplicht* geef je hem met `--key` opnieuw mee.
+- Zet *Verplicht* pas aan als 🔒 bij alle servers staat. Versleuteling komt **bovenop** HTTPS: het helpt vooral als agents via HTTP of een proxy verbinden, en het bewijst dat een rapport echt van een agent met de sleutel komt.
+
+**⛔ Blokkades** (*Instellingen → Toegang*, of ⛔ *blokkeren* bij een melding)
+- Een geblokkeerd **IP-adres** (`203.0.113.7`) of **netwerk** (`203.0.113.0/24`, ook IPv6) krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de REST API en geen agents (HTTP 403). Per blokkade zie je hoe vaak hij iets tegenhield.
+- Jezelf (je huidige IP) en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: `sudo php install/install.php --unblock-all`.
+- Dit is iets anders dan blokkeren door het IDS: dat gebeurt op de aangevallen server zelf.
+
+**Meldingen** (pagina *Meldingen*)
+- **⚠️ Niet-geautoriseerde verbinding** (warning, **altijd naar Pushover**, ook tijdens stille uren): een agent met een onbekend of fout token, een verkeerde sleutel of handtekening, een oud of opnieuw afgespeeld bericht, of onversleuteld terwijl het verplicht is; een verkeerde, verlopen of niet toegestane **API-sleutel**; en **3 mislukte logins** binnen 10 minuten vanaf één IP. Per IP en soort één melding (en één Pushover) per uur; daarna loopt de teller op (*4×*). Met **⛔ blokkeren** zet je het IP (of het netwerk) direct op de blokkadelijst.
+- **ℹ️ Logins in RzMon:** elke geslaagde login (wie, vanaf welk IP, welk apparaat, met wachtwoord, met 2FA of via een onthouden apparaat), en losse mislukte pogingen (per IP één regel per uur met een teller).
+- **ℹ️ Agent verbonden:** als een agent voor het eerst verbindt, weer verbindt na stil te zijn geweest, of vanaf een ander IP-adres, met 🔒 of 🔓.
+- Deze ℹ️-meldingen staan **altijd** op de pagina Meldingen; Pushover, e-mail en Home Assistant volgen de rij **Info** bij *🔔 Meldingen*.
+
 ## 11. REST API en Home Assistant-integratie
 
 ### API-sleutel maken
@@ -1876,6 +1898,7 @@ Opnieuw `install-rocky.sh` draaien doet beide ook.
 - [ ] Bereikbaar van buitenaf? Dan alleen via **HTTPS** of een VPN.
 - [ ] "Geen login op LAN" aan? Dan getest via 4G dat je een loginscherm krijgt.
 - [ ] Ongebruikte API-sleutels zijn ingetrokken.
+- [ ] Agents versleutelen (*Instellingen → 🔐 Versleuteling*: sleutel gemaakt, 🔒 bij alle servers, daarna eventueel *Verplicht*).
 - [ ] De MariaDB-gebruiker `rzmon` mag alleen inloggen vanaf `localhost`.
 - [ ] `display_errors` staat uit.
 

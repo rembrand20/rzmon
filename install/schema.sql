@@ -431,3 +431,32 @@ CREATE TABLE IF NOT EXISTS vuln_ignore (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT IGNORE INTO settings (name, value) VALUES ('vuln_enabled', '0'), ('vuln_time', '03:30'), ('vuln_min_severity', '0'), ('vuln_exclude', '');
+
+-- Beveiliging (1.57.0): geblokkeerde IP-adressen en netwerken (heel RzMon), mislukte pogingen om te tellen,
+-- en eenmalige nummers van versleutelde agent-berichten (tegen opnieuw afspelen)
+CREATE TABLE IF NOT EXISTS rz_blocks (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    net        VARCHAR(64)  NOT NULL UNIQUE,      -- 203.0.113.7 of 203.0.113.0/24
+    reason     VARCHAR(200) NULL,
+    created_by VARCHAR(64)  NULL,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    hits       INT UNSIGNED NOT NULL DEFAULT 0,
+    last_hit   DATETIME     NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS security_fails (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    ip         VARCHAR(45) NOT NULL,
+    kind       VARCHAR(16) NOT NULL,              -- login | agent | api
+    created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_sf (ip, kind, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS agent_nonces (
+    nonce      CHAR(32) PRIMARY KEY,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_an (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Versleuteling van de agents: off | on (wie een sleutel heeft, versleutelt) | required; de sleutel maak je zelf aan
+INSERT IGNORE INTO settings (name, value) VALUES ('enc_mode', 'on'), ('enc_key', ''), ('enc_key_old', ''), ('enc_key_old_until', '');

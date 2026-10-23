@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.48.0"
+AGENT_VERSION="1.49.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -319,12 +319,52 @@ t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
 [ "$HA_MODE" = 1 ] && t_dir="${CACHE_DIRECTORY:-/data/rzmon-cache}"   # add-on: /data blijft bewaard
 mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
 t_cache="$t_dir/tests.cache"
+
+# ---------------------------------------------------------------- Versleuteling (RzMon 1.57.0+)
+# Met een sleutel gaan rapporten versleuteld naar RzMon (AES-256-CBC + HMAC-SHA256, met openssl) en komt het
+# antwoord versleuteld terug; zie src/AgentCrypto.php in RzMon. De sleutel: ENC_KEY in /etc/default/rzmon-agent,
+# of de sleutel die RzMon zelf meestuurt (enc.key, alleen leesbaar voor root; die gaat voor, zo werkt een nieuwe
+# sleutel vanzelf). Staat versleutelen in RzMon uit voor deze server, dan zet RzMon enc.off neer.
+enc_file="$t_dir/enc.key"
+enc_key=""
+if [ ! -e "$t_dir/enc.off" ] && command -v openssl >/dev/null 2>&1; then
+    [ -r "$enc_file" ] && enc_key=$(tr -dc '0-9a-f' <"$enc_file" | head -c 64)
+    [ "${#enc_key}" = 64 ] || enc_key=""
+    [ -z "$enc_key" ] && [[ "${ENC_KEY-}" =~ ^[0-9a-f]{64}$ ]] && enc_key=$ENC_KEY
+fi
+enc_sub() {  # enc_sub <sleutel> <label>: afgeleide sleutel (HMAC-SHA256, hex)
+    printf '%s' "$2" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$1" 2>/dev/null | sed 's/^.*= *//'
+}
+seal() {  # seal <invoer> <uitvoer>: versleutelen met enc_key; de nonce staat daarna in seal_n
+    local ke km iv t d m
+    ke=$(enc_sub "$enc_key" enc) && km=$(enc_sub "$enc_key" mac) && iv=$(openssl rand -hex 16) && seal_n=$(openssl rand -hex 16) || return 1
+    t=$(date +%s)
+    d=$(openssl enc -aes-256-cbc -K "$ke" -iv "$iv" -in "$1" 2>/dev/null | base64 -w0) && [ -n "$d" ] || return 1
+    m=$(printf 'rzenc1|%s|%s|%s|%s' "$t" "$seal_n" "$iv" "$d" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$km" 2>/dev/null | sed 's/^.*= *//')
+    [ "${#m}" = 64 ] || return 1
+    printf '{"rzenc":1,"t":%s,"n":"%s","iv":"%s","d":"%s","m":"%s"}' "$t" "$seal_n" "$iv" "$d" "$m" >"$2"
+}
+unseal() {  # unseal <antwoord> <nonce van het verzoek>: handtekening controleren, dan uitpakken; 1 = niet te vertrouwen
+    local t rn iv d m ke km
+    t=$(sed -n 's/^{"rzenc":1,"t":\([0-9]*\),.*/\1/p' <<<"$1")
+    rn=$(sed -n 's/.*"rn":"\([0-9a-f]*\)".*/\1/p' <<<"$1")
+    iv=$(sed -n 's/.*"iv":"\([0-9a-f]*\)".*/\1/p' <<<"$1")
+    d=$(sed -n 's/.*"d":"\([A-Za-z0-9+/=]*\)".*/\1/p' <<<"$1")
+    m=$(sed -n 's/.*"m":"\([0-9a-f]*\)".*/\1/p' <<<"$1")
+    [ -n "$t" ] && [ -n "$d" ] && [ "${#m}" = 64 ] && [ -n "$2" ] && [ "$rn" = "$2" ] || return 1
+    km=$(enc_sub "$enc_key" mac) && ke=$(enc_sub "$enc_key" enc) || return 1
+    [ "$(printf 'rzenc1r|%s|%s|%s|%s' "$t" "$rn" "$iv" "$d" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$km" 2>/dev/null | sed 's/^.*= *//')" = "$m" ] || return 1
+    printf '%s' "$d" | base64 -d 2>/dev/null | openssl enc -d -aes-256-cbc -K "$ke" -iv "$iv" 2>/dev/null
+}
 if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ -e "$t_dir/tests.stale" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
     t_k=(); [ "$INSECURE" = 1 ] && t_k=(-k)
+    t_n=""
+    if [ -n "$enc_key" ]; then t_n=$(openssl rand -hex 16) && t_k+=(-H "X-Agent-Enc: $(enc_sub "$enc_key" id | cut -c1-16):$t_n"); fi
     # Alleen een complete lijst bewaren (met de vaste regel "0 <tab> tick"). Geeft RzMon iets anders terug,
     # bijvoorbeeld tijdens een update, dan blijft de vorige lijst staan: anders zou de agent denken dat het
     # IDS uit staat en de blokkades opheffen.
     if t_list=$(curl -fsS "${t_k[@]}" -m 10 -H "X-Agent-Token: $TOKEN" "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null) \
+        && { [[ "$t_list" != '{"rzenc":'* ]] || t_list=$(unseal "$t_list" "$t_n"); } \
         && grep -q $'^0\ttick\t[0-9]' <<<"$t_list"; then
         (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null && rm -f "$t_dir/tests.stale"
     fi
@@ -1688,20 +1728,22 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
     if [ -f "$pk_dir/upgrade.lock" ] && [ $(( $(date +%s) - $(stat -c %Y "$pk_dir/upgrade.lock") )) -lt 1800 ]; then return 0; fi
     : >"$pk_dir/upgrade.lock"
     # Adres en token voor de voortgang: in een bestand (alleen root), niet als argument (zichtbaar in ps)
-    (umask 077; printf '%s\n%s\n%s\n' "$MONITOR_URL" "$TOKEN" "$INSECURE" >"$pk_dir/upgrade.conf")
+    (umask 077; printf '%s\n%s\n%s\n%s\n' "$MONITOR_URL" "$TOKEN" "$INSECURE" "$enc_key" >"$pk_dir/upgrade.conf")
     # Het script meldt zijn voortgang elke paar seconden zelf aan RzMon (stap, procent, pakket, laatste uitvoer);
     # de uitkomst gaat daarnaast via upgrade.result mee met het volgende rapport (als de voortgang niet aankwam).
     # shellcheck disable=SC2016  # het script krijgt zijn waarden als argumenten mee, niet via de tekst
     local script='id=$1; mgr=$2; dir=$3; shift 3
-        url=""; tok=""; ins=0; last=0; stage=update; pct=2; detail=""; count=""
-        if [ -r "$dir/upgrade.conf" ]; then { read -r url; read -r tok; read -r ins; } <"$dir/upgrade.conf"; rm -f "$dir/upgrade.conf"; fi
+        url=""; tok=""; ins=0; enc_key=""; last=0; stage=update; pct=2; detail=""; count=""
+        if [ -r "$dir/upgrade.conf" ]; then { read -r url; read -r tok; read -r ins; read -r enc_key; } <"$dir/upgrade.conf"; rm -f "$dir/upgrade.conf"; fi
         log="$dir/upgrade.log"; : >"$log"
         post() {   # post [extra JSON-velden]: voortgang naar RzMon (hooguit 4 seconden wachten)
             [ -n "$url" ] || return 0
             local k=(-fsS -m 4 -o /dev/null -X POST -H "X-Agent-Token: $tok" -H "Content-Type: application/json")
             [ "$ins" = 1 ] && k+=(-k)
-            curl "${k[@]}" --data-binary "{\"id\":\"$id\",\"stage\":\"$stage\",\"pct\":$pct,\"detail\":\"$(printf "%s" "$detail" | tr -d "\"\\\\\\000-\\037" | cut -c1-120)\",\"count\":\"$count\",\"log_b64\":\"$(tail -c "${2:-800}" "$log" | base64 -w0)\"$1}" \
-                "${url%/}/api.php?action=agent_pkg_progress" >/dev/null 2>&1
+            printf "%s" "{\"id\":\"$id\",\"stage\":\"$stage\",\"pct\":$pct,\"detail\":\"$(printf "%s" "$detail" | tr -d "\"\\\\\\000-\\037" | cut -c1-120)\",\"count\":\"$count\",\"log_b64\":\"$(tail -c "${2:-800}" "$log" | base64 -w0)\"$1}" >"$dir/progress.json"
+            local f="$dir/progress.json"
+            if [ -n "$enc_key" ] && seal "$dir/progress.json" "$dir/progress.enc"; then f="$dir/progress.enc"; fi   # versleuteld, net als het rapport
+            curl "${k[@]}" --data-binary "@$f" "${url%/}/api.php?action=agent_pkg_progress" >/dev/null 2>&1
             last=$(date +%s)
         }
         tick() { [ "$1" != "$stage" ] && { stage=$1; post; return; }; [ $(( $(date +%s) - last )) -ge 2 ] && post; }
@@ -1743,7 +1785,9 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
             && mv -f "$dir/upgrade.result.tmp" "$dir/upgrade.result"
         stage=done; pct=100; detail=""; count=""
         post ",\"done\":true,\"ok\":$([ "$rc" = 0 ] && echo true || echo false)" 1500
-        rm -f "$dir/upgrade.lock"'
+        rm -f "$dir/upgrade.lock" "$dir/progress.json" "$dir/progress.enc"'
+    script="$(declare -f enc_sub seal)
+$script"   # versleutelen kan het script dan zelf
     if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
         systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash -c "$script" _ "$id" "$pk_mgr" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
             || { printf '%s\terror\t%s\n' "$id" "$(printf 'systemd-run mislukt' | base64 -w0)" >"$out"; rm -f "$pk_dir/upgrade.lock"; }
@@ -1860,8 +1904,21 @@ curl_opts=(-fsS -m 20 -X POST)
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
 # wordt curl met een lang argument stil afgebroken en komt er niets aan.
 payload_file=$(mktemp "${TMPDIR:-/tmp}/rzmon-report.XXXXXX") || { echo "Kan geen tijdelijk bestand maken" >&2; exit 1; }
-trap 'rm -f "$payload_file"' EXIT
+trap 'rm -f "$payload_file" "$payload_file.enc"' EXIT
 printf '%s' "$payload" >"$payload_file"
+send_file=$payload_file; seal_n=""
+if [ -n "$enc_key" ]; then
+    if seal "$payload_file" "$payload_file.enc"; then send_file="$payload_file.enc"
+    else echo "Versleutelen mislukt (openssl); rapport gaat onversleuteld" >&2; seal_n=""; fi
+fi
+# Antwoord van RzMon: versleuteld (dan eerst controleren) of gewoon. Klopt de handtekening niet: niets mee doen.
+open_resp() {
+    if [[ "$1" == '{"rzenc":'* ]]; then
+        unseal "$1" "$seal_n" || { echo "Antwoord van RzMon niet te vertrouwen (handtekening klopt niet); genegeerd" >&2; return 1; }
+    else
+        printf '%s' "$1"
+    fi
+}
 
 if [ "$TEST" = 1 ]; then
     # 7. Verzamelde gegevens tonen
@@ -1923,9 +1980,13 @@ if [ "$TEST" = 1 ]; then
 
     # 8. Echt rapport versturen
     resp=$(curl "${curl_k[@]}" -m 20 -X POST -H "Content-Type: application/json" -H "X-Agent-Token: $TOKEN" \
-        --data-binary "@$payload_file" -w '\n%{http_code}' "${MONITOR_URL%/}/api.php?action=agent" 2>&1)
+        --data-binary "@$send_file" -w '\n%{http_code}' "${MONITOR_URL%/}/api.php?action=agent" 2>&1)
     r_rc=$?
     r_code=${resp##*$'\n'}; r_body=${resp%$'\n'*}
+    if [ "$r_code" = 200 ] && [[ "$r_body" == '{"rzenc":'* ]]; then
+        r_body=$(open_resp "$r_body") && pass "Versleuteld verstuurd en het antwoord van RzMon klopt (🔒)"
+    elif [ -n "$enc_key" ]; then hint "Sleutel aanwezig, maar het antwoord kwam onversleuteld terug"
+    else hint "Niet versleuteld (geen sleutel; zie RzMon → Instellingen → 🔐 Versleuteling)"; fi
     if [ -z "$resp" ]; then
         fail "Rapport niet verstuurd: curl stopte zonder uitvoer (exitcode $r_rc, rapport $(wc -c <"$payload_file") bytes)"
     elif [ "$r_code" = 200 ] && [[ "$r_body" == *'"ok":true'* ]]; then
@@ -1942,11 +2003,26 @@ fi
 resp=$(curl "${curl_opts[@]}" \
     -H "Content-Type: application/json" \
     -H "X-Agent-Token: $TOKEN" \
-    --data-binary "@$payload_file" \
+    --data-binary "@$send_file" \
     "${MONITOR_URL%/}/api.php?action=agent")
 rc=$?
+# Geweigerd met een sleutel van RzMon (bv. ouder dan de wisseltijd)? Na 3 keer die sleutel weggooien:
+# dan gaat het volgende rapport onversleuteld (of met ENC_KEY) en stuurt RzMon de juiste mee.
+if [ "$rc" = 22 ] && [ -n "$seal_n" ] && [ -r "$enc_file" ]; then
+    n_fail=$(( $(cat "$t_dir/enc.fail" 2>/dev/null || echo 0) + 1 ))
+    if [ "$n_fail" -ge 3 ]; then rm -f "$enc_file" "$t_dir/enc.fail"; else echo "$n_fail" >"$t_dir/enc.fail"; fi
+elif [ "$rc" = 0 ]; then
+    rm -f "$t_dir/enc.fail"
+fi
+if [ "$rc" = 0 ]; then resp=$(open_resp "$resp") || rc=1; fi
 printf '%s\n' "$resp"
 if [ "$rc" -eq 0 ]; then
+    # Versleuteling: nieuwe sleutel van RzMon bewaren, of stoppen als het voor deze server uit staat
+    if [[ "$resp" =~ \"enc_key\":\"([0-9a-f]{64})\" ]]; then
+        (umask 077; printf '%s\n' "${BASH_REMATCH[1]}" >"$enc_file.tmp" && mv -f "$enc_file.tmp" "$enc_file") && rm -f "$t_dir/enc.off"
+    elif [[ "$resp" =~ \"enc\":\"off\" ]]; then
+        rm -f "$enc_file"; : >"$t_dir/enc.off"
+    fi
     # Uitkomst is doorgegeven; vraagt RzMon om bij te werken?
     [ -n "$upd_result" ] && rm -f "$upd_dir/update.result"
     # IDS, bestanden bewaken: RzMon heeft de wijzigingen; dit is nu de stand om mee te vergelijken

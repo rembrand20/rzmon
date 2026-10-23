@@ -558,6 +558,28 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <button class="btn primary"><?= th('Toegang opslaan') ?></button>
       </form>
 
+      <div data-sk="enc" class="card need-admin" id="enc-card">
+        <h2>🔐 <?= th('Versleuteling van de agents') ?></h2>
+        <p class="muted small"><?= t('Met een sleutel versturen de agents (1.49.0 of nieuwer) hun rapporten <b>versleuteld</b> (AES-256 met een handtekening), en komt het antwoord van RzMon versleuteld terug. Dat komt bovenop HTTPS en helpt vooral als agents via HTTP of een proxy verbinden. Een bericht met een verkeerde sleutel of handtekening, of dat ouder is dan 5 minuten, wordt geweigerd en geeft een ⚠️-melding.') ?></p>
+        <label><?= th('Versleutelen') ?> <select id="enc-mode"></select></label>
+        <label><?= th('Sleutel') ?> <span class="hint"><?= th('(64 tekens; de agents krijgen hem vanzelf bij hun volgende rapport)') ?></span>
+          <span class="enc-key-row"><input id="enc-key" type="password" readonly class="mono" placeholder="<?= th('nog geen sleutel') ?>">
+            <button type="button" class="btn" id="enc-show" title="<?= th('Tonen') ?>">👁</button>
+            <button type="button" class="btn" id="enc-copy" title="<?= th('Kopiëren') ?>">📋</button></span></label>
+        <div class="btn-row"><button type="button" class="btn" id="enc-generate">🎲 <?= th('Sleutel genereren') ?></button> <span class="muted small" id="enc-info"></span></div>
+        <p class="muted small"><?= t('Per server kies je in de <b>Agent Manager</b> (of hieronder) een eigen instelling. <i>Verplicht</i> weigert onversleutelde berichten: zet dat pas aan als 🔒 bij alle servers staat. Agents die nog geen sleutel hebben, krijgen hem bij een onversleuteld rapport; gebruik daarvoor bij voorkeur HTTPS, of geef hem mee met <code>--key</code> bij het installeren.') ?></p>
+        <div id="enc-hosts"></div>
+      </div>
+
+      <div data-sk="blocks" class="card need-admin" id="blocks-card">
+        <h2>⛔ <?= th('Blokkades') ?></h2>
+        <p class="muted small"><?= t('Een geblokkeerd IP-adres of netwerk krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de API en geen agents. Jezelf en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: <code>sudo php install/install.php --unblock-all</code>') ?></p>
+        <div class="block-add"><input id="block-net" class="mono" placeholder="<?= th('bv. 203.0.113.7 of 203.0.113.0/24') ?>" autocomplete="off">
+          <input id="block-reason" placeholder="<?= th('reden (optioneel)') ?>" autocomplete="off">
+          <button type="button" class="btn danger" id="block-add">⛔ <?= th('Blokkeren') ?></button></div>
+        <div id="blocks-list"></div>
+      </div>
+
       <div data-sk="api" class="card need-admin" id="api-card">
         <h2><?= th('API-sleutels') ?></h2>
         <p class="muted small"><?= t('Lees statussen, meetwaarden en het IDS uit via de REST API, bijvoorbeeld vanuit Home Assistant, en blokkeer IP\'s of bevestig storingen vanuit een ander systeem. Per sleutel kies je wat hij mag, eventueel vanaf welke adressen, en hoe lang hij geldig is. Stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.') ?></p>

@@ -32,6 +32,7 @@ SETUP="/usr/local/sbin/rzmon-agent-setup"   # dit script, voor later --update/--
 
 URL=""
 TOKEN=""
+ENC_KEY=""          # sleutel voor versleutelde rapporten (Instellingen → 🔐 Versleuteling)
 SERVICES=""
 CERTS=""
 CERTS_SET=0           # --certs meegegeven (ook leeg = geen certificaten)
@@ -71,6 +72,7 @@ Gebruik: sudo bash install-agent.sh --url URL --token TOKEN [opties]
 
   --url URL            Adres van RzMon, bv. http://192.168.1.10
   --token TOKEN        Agent-token van deze server (RzMon → server → "Agent Manager")
+  --key SLEUTEL        Sleutel voor versleutelde rapporten (RzMon → Instellingen → 🔐 Versleuteling)
   --services "a b c"   (verouderd) Extra systemd-services; services kies je nu in RzMon
   --certs "a b c"      Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op
                        internet, bv. "/etc/letsencrypt/live/*/cert.pem localhost:8443 site.nl"
@@ -97,6 +99,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --url) URL="${2:?}"; shift ;;
         --token) TOKEN="${2:?}"; shift ;;
+        --key) ENC_KEY="${2:?}"; shift ;;
         --services) SERVICES="${2-}"; shift ;;
         --certs) CERTS="${2-}"; CERTS_SET=1; shift ;;
         --interval) INTERVAL="${2:?}"; shift ;;
@@ -120,7 +123,7 @@ while [ $# -gt 0 ]; do
 done
 
 # Wat je nu zelf meegeeft: bij een bestaande installatie worden alleen díe regels in de instellingen aangepast
-ARG_URL=$URL ARG_TOKEN=$TOKEN ARG_SERVICES=$SERVICES ARG_INSECURE=$INSECURE ARG_INTERVAL=$INTERVAL ARG_CERTS=$CERTS_SET
+ARG_URL=$URL ARG_TOKEN=$TOKEN ARG_KEY=$ENC_KEY ARG_SERVICES=$SERVICES ARG_INSECURE=$INSECURE ARG_INTERVAL=$INTERVAL ARG_CERTS=$CERTS_SET
 ARG_NO_EPEL=0; [ "$EPEL" = 0 ] && ARG_NO_EPEL=1
 
 if [ "$MODE" = "version" ]; then
@@ -301,6 +304,7 @@ URL=${URL%/}
 URL=${URL%/api.php*}
 [[ "$URL" =~ ^https?://[^[:space:]\"\'\\\$\`]+$ ]] || die "Ongeldig adres: $URL (moet met http:// of https:// beginnen)"
 [[ "$TOKEN" =~ ^[A-Za-z0-9]{16,128}$ ]] || die "Ongeldig token (alleen letters en cijfers, zoals RzMon het toont)"
+[ -z "$ENC_KEY" ] || [[ "$ENC_KEY" =~ ^[0-9a-f]{64}$ ]] || die "Ongeldige sleutel (64 tekens 0-9 en a-f, zoals RzMon hem toont)"
 [[ "$INTERVAL" =~ ^[0-9]+$ ]] && [ "$INTERVAL" -ge 30 ] && [ "$INTERVAL" -le 3600 ] || die "--interval moet tussen 30 en 3600 liggen"
 
 CURL_OPTS=(-fsS --max-time 20)
@@ -465,6 +469,7 @@ if [ "$MODE" = "install" ] && [ -f "$CONF" ]; then
     conf_changed=0
     if [ -n "$ARG_URL" ] && [ "$URL" != "${OLD_URL-}" ]; then conf_set MONITOR_URL "$URL"; fi
     if [ -n "$ARG_TOKEN" ] && [ "$TOKEN" != "${OLD_TOKEN-}" ]; then conf_set TOKEN "$TOKEN"; fi
+    if [ -n "$ARG_KEY" ] && ! grep -qx "ENC_KEY=\"$ENC_KEY\"" "$CONF"; then conf_set ENC_KEY "$ENC_KEY"; fi
     if [ -n "$ARG_SERVICES" ] && [ "$SERVICES" != "${OLD_SERVICES-}" ]; then conf_set SERVICES "$SERVICES"; fi
     if [ "$ARG_CERTS" = 1 ] && [ "$CERTS" != "${OLD_CERTS-}" ]; then conf_set CERTS "$CERTS"; fi
     if [ -n "$ARG_INSECURE" ] && [ "$INSECURE" != "${OLD_INSECURE-}" ]; then conf_set INSECURE "$INSECURE"; fi
@@ -477,6 +482,8 @@ elif [ "$MODE" = "install" ]; then
 # RzMon agent – aangemaakt door install-agent.sh op $(date '+%Y-%m-%d %H:%M')
 MONITOR_URL="$URL"
 TOKEN="$TOKEN"
+# Sleutel voor versleutelde rapporten (leeg: de agent krijgt hem van RzMon; zie Instellingen → 🔐 Versleuteling)
+ENC_KEY="$ENC_KEY"
 # Services stel je in RzMon in (＋ Check → Service). SERVICES is verouderd: wat hier staat wordt ook gemeld.
 SERVICES="$SERVICES"
 # Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op internet

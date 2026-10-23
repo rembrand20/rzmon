@@ -116,6 +116,7 @@ function login(string $username, string $password, bool $remember = false): stri
     start_session();
     $u = q('SELECT id, username, password_hash, totp_secret, role FROM users WHERE username = ?', [$username])->fetch();
     if (!$u || !password_verify($password, $u['password_hash'])) {
+        Security::loginFailed($username, $u ? 'verkeerd wachtwoord' : 'onbekende gebruiker');
         usleep(500000); // brute force afremmen
         return false;
     }
@@ -148,17 +149,19 @@ function login_totp(string $code): true|string
     }
     $step = Totp::verify($u['totp_secret'], $code, $u['totp_last_step'] !== null ? (int) $u['totp_last_step'] : null);
     if ($step === null) {
+        Security::loginFailed((string) $u['username'], 'verkeerde 2FA-code');
         $_SESSION['pending_2fa']['tries']++;
         usleep(500000);
         return t('Onjuiste code') . ($_SESSION['pending_2fa']['tries'] >= 5 ? ' — ' . t('log opnieuw in met je wachtwoord') : '');
     }
     q('UPDATE users SET totp_last_step = ? WHERE id = ?', [$step, $u['id']]);
-    finish_login($u, !empty($p['remember']));
+    finish_login($u, !empty($p['remember']), 'wachtwoord en 2FA');
     return true;
 }
 
-function finish_login(array $u, bool $remember = false): void
+function finish_login(array $u, bool $remember = false, string $how = 'wachtwoord'): void
 {
+    Security::loginOk($u, $how);
     session_regenerate_id(true);
     unset($_SESSION['pending_2fa'], $_SESSION['lan_auto'], $_SESSION['no_lan_auto'], $_SESSION['remember_id']);
     $_SESSION['user'] = ['id' => (int) $u['id'], 'username' => $u['username'], 'role' => $u['role'] ?? 'admin'];
@@ -247,6 +250,7 @@ function remember_login(): ?array
         remember_cookie($_SESSION['remember_value']);
     }
     q('UPDATE users SET last_login = ? WHERE id = ?', [now(), $t['user_id']]);
+    Security::loginOk(['username' => $t['username']], 'onthouden apparaat');
     return $_SESSION['user'] = ['id' => (int) $t['user_id'], 'username' => $t['username'], 'role' => $t['role']];
 }
 

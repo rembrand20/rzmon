@@ -155,6 +155,10 @@ final class Installer
         // Tellers op de tabs: wanneer de gebruiker het Dashboard en de Meldingen voor het laatst zag
         ['users', 'seen_dashboard', 'DATETIME NULL'],
         ['users', 'seen_alerts', 'DATETIME NULL'],
+        // Versleuteling per agent: NULL = algemene instelling, of on / required / off; en of het laatste rapport versleuteld was
+        ['hosts', 'enc', 'VARCHAR(10) NULL'],
+        ['hosts', 'enc_seen', 'TINYINT NULL'],
+        ['alerts', 'ip', 'VARCHAR(45) NULL'],   // geweigerde verbinding of login: vanaf welk IP (voor ⛔ blokkeren)
     ];
 
     private static function migrate(PDO $pdo): void

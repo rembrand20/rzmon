@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.57.0 – 2026-10-23
+### Nieuw
+- **🔐 Versleutelde agents** (*Instellingen → Toegang → Versleuteling van de agents*). Met **🎲 Sleutel genereren** maak je één sleutel; agents vanaf **1.49.0** krijgen hem bij hun volgende rapport en versturen daarna alles versleuteld (AES-256 met een handtekening): het rapport, de voortgang van pakketten bijwerken en het ophalen van hun instellingen. Het antwoord van RzMon komt ook versleuteld terug. Oude of opnieuw afgespeelde berichten en een verkeerde sleutel worden geweigerd. Kies *Uit*, *Aan* (standaard; oude agents werken nog) of *Verplicht*, en per server een eigen keuze in de Agent Manager. Een nieuwe sleutel: de vorige blijft nog 24 uur geldig. Het installatiecommando in de Agent Manager geeft de sleutel mee (`--key`). **Nieuwe agent 1.49.0** nodig om te versleutelen.
+- **⛔ Blokkades** op IP-adres of netwerk (`203.0.113.0/24`, ook IPv6) voor **heel RzMon**: webpagina, inloggen, REST API en agents. Op de kaart *Blokkades*, of met één klik (*⛔ blokkeren*) bij een melding. Jezelf en de RzMon-server kun je niet blokkeren; buitengesloten: `sudo php install/install.php --unblock-all`.
+- **⚠️ Niet-geautoriseerde verbinding** in *Meldingen* en **altijd naar Pushover** (ook tijdens stille uren): een agent met een fout token of een verkeerde sleutel, een verkeerde of verlopen API-sleutel, of 3 mislukte logins binnen 10 minuten. Eén melding per IP per uur, daarna een teller.
+- **ℹ️ Logins in RzMon** (wie, vanaf welk IP, welk apparaat, met of zonder 2FA) en mislukte pogingen, en **ℹ️ Agent verbonden** (eerste keer, weer verbonden, ander IP). Altijd op de pagina Meldingen; de andere kanalen volgen de rij *Info*.
+- Nieuwe agent 1.49.0.
+
 ## 1.56.1 – 2026-10-23
 ### Opgelost
 - **Het update-venster kon blijven hangen op *Installeren*.** Tijdens het installeren worden PHP en Apache herstart; een vraag om de voortgang die op dat moment liep, kon dan eeuwig blijven wachten, waarna het venster niets meer ververste. Nu wacht elke vraag hooguit 10 seconden, en komt er 20 seconden niets binnen (of kom je terug in de app op je telefoon), dan vraagt het venster opnieuw.

@@ -6,6 +6,7 @@
 //         sudo php install/install.php --rotate-db-password     (nieuw databasewachtwoord, overal opgeslagen)
 //         sudo php install/install.php --backup [--zonder-historie]   (back-up maken)
 //         sudo php install/install.php --list-backups
+//         sudo php install/install.php --unblock-all   (alle blokkades opheffen, bv. als je jezelf buitensloot)
 //         sudo php install/install.php --restore <zip> [--with-config] [--password=…]
 //              (database terugzetten; met --with-config, of op een nieuwe server zonder config.php,
 //               ook config.php plus de databasegebruiker)
@@ -199,6 +200,11 @@ if (($argv[1] ?? '') === '--reset-password') {
     q('DELETE FROM remember_tokens WHERE user_id = ?', [$id]);
     PasswordReset::log((int) $id, $name, 'wachtwoord hersteld via de terminal');
     exit("Wachtwoord van '$name' gewijzigd. Onthouden apparaten en open sessies zijn uitgelogd.\n");
+}
+if (($argv[1] ?? '') === '--unblock-all') {
+    Installer::ensureSchema();
+    $n = q('DELETE FROM rz_blocks')->rowCount();
+    exit($n ? "$n blokkade(s) opgeheven (Instellingen → ⛔ Blokkades).\n" : "Er stond niets op de blokkadelijst.\n");
 }
 if (($argv[1] ?? '') === '--reset-2fa') {
     Installer::ensureSchema();

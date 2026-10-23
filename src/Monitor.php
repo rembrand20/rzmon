@@ -770,13 +770,33 @@ final class Monitor
         });
     }
 
+    /**
+     * Info die altijd op de pagina Meldingen komt (logins, agents die verbinden), ook als het kanaal Meldingen of de
+     * rij Info uit staat; Pushover, e-mail en Home Assistant volgen wel de rij Info.
+     */
+    public static function infoAlways(?int $hostId, ?string $hostName, string $title, callable $message, ?string $ip = null, ?array $detail = null): void
+    {
+        try {
+            I18n::forNotify(function () use ($hostId, $hostName, $title, $message, $ip, $detail) {
+                $cfg = NotifyRules::global();
+                $hold = NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null ? t('stille uren') : null;
+                self::sendInfo(null, $hostId, $title, $message(), $cfg['rules']['info']['mode'] === 'now', $cfg['channels']['info'], $hold, $hostName, true, $ip, $detail);
+            });
+        } catch (Throwable) {
+            // Een melding mag een login of rapport nooit laten mislukken
+        }
+    }
+
     /** @param string|null $hold reden om niet te versturen (stille uren, onderhoud) */
-    private static function sendInfo(?array $check, ?int $hostId, string $title, string $message, bool $on, array $channels, ?string $hold, ?string $hostName = null): void
+    private static function sendInfo(?array $check, ?int $hostId, string $title, string $message, bool $on, array $channels, ?string $hold, ?string $hostName = null,
+        bool $always = false, ?string $ip = null, ?array $detail = null): void
     {
         $errors = [];
         [$pushover, $email, $webhook] = [null, null, null];
         if (!$on) {
-            $errors[] = t('info staat uit');
+            if (!$always) {
+                $errors[] = t('info staat uit');
+            }
         } elseif ($hold !== null) {
             $errors[] = $hold;
         } else {
@@ -806,13 +826,14 @@ final class Monitor
                 }
             }
         }
-        if (($channels[NotifyRules::PAGE] ?? true) === false) {
+        if (!$always && ($channels[NotifyRules::PAGE] ?? true) === false) {
             return;   // niet op de pagina Meldingen (kanaal uit)
         }
-        q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+        q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, webhook_ok, email_ok, kind, ip, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $check['id'] ?? null, $hostId, STATUS_OK, mb_substr($title, 0, 250),
             mb_substr($message . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
             $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), 'info',
+            $ip !== null ? mb_substr($ip, 0, 45) : null, $detail !== null ? json_encode($detail, JSON_UNESCAPED_UNICODE) : null,
         ]);
     }
 
@@ -943,6 +964,7 @@ final class Monitor
         q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
         q('DELETE FROM remember_tokens WHERE last_used < NOW() - INTERVAL ? DAY', [REMEMBER_DAYS]);
         PasswordReset::purge();
+        Security::purge();
         Ids::purge();
     }
 }

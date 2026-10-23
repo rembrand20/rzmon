@@ -809,6 +809,7 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .mode-switch span.active { color: var(--text); font-weight: 700; }
 .ids-blocks td { vertical-align: middle; }
 .alert-item.s2.ids-item, .alert-item.s1.ids-item { padding-left: .2rem; }
+.set-l1nes [data-sk=enc] { order: 46; } .set-l1nes [data-sk=blocks] { order: 47; }
 .set-l1nes [data-sk=ids] { order: 22; } .set-l1nes [data-sk=vulns] { order: 23; }
 
 /* Popup van een check */
@@ -920,3 +921,14 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .vuln-exclude label.chk-inline { display: inline-flex; flex-direction: row; align-items: center; gap: .3rem; margin: 0 .8rem .3rem 0; font-weight: 400; }
 .chk-inline input { width: auto; margin: 0; }
 .vuln-exclude { margin: .4rem 0; }
+
+/* Versleuteling en blokkades (Instellingen) */
+.enc-key-row { display: flex; gap: .4rem; margin-top: .3rem; }
+.enc-key-row input { flex: 1; min-width: 0; }
+.enc-table select { min-width: 9rem; }
+.block-add { display: flex; gap: .5rem; flex-wrap: wrap; margin: .6rem 0; }
+.block-add input { flex: 1 1 12rem; min-width: 0; }
+.alert-item.sec, .alert-table tr.sec { --c: var(--warn); }
+#enc-card, #blocks-card { grid-column: 1 / -1; }   /* tabellen per server en per blokkade: de volle breedte */
+label.radio-row { display: flex; flex-direction: row; align-items: center; gap: .5rem; font-weight: 500; margin: .3rem 0; text-align: left; }
+label.radio-row input { width: auto; margin: 0; flex: none; }

@@ -10,14 +10,26 @@ header('Cache-Control: no-store');
 function out($data, int $code = 200): never
 {
     http_response_code($code);
-    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    $json = json_encode($data, JSON_UNESCAPED_UNICODE);
+    // Versleuteld verzoek van een agent: het antwoord gaat ook versleuteld terug (zelfde sleutel, gebonden aan het verzoek)
+    if ($code < 400 && isset($GLOBALS['agent_seal'])) {
+        [$key, $nonce] = $GLOBALS['agent_seal'];
+        $json = AgentCrypto::seal((string) $json, $key, $nonce);
+    }
+    echo $json;
     exit;
+}
+
+/** Inhoud van het verzoek: bij een agent de uitgepakte tekst (zie agent_body), anders zoals hij binnenkwam */
+function raw_input(): string
+{
+    return $GLOBALS['agent_plain'] ?? (string) file_get_contents('php://input');
 }
 
 function input(): array
 {
     static $in = null;
-    return $in ??= (json_decode((string) file_get_contents('php://input'), true) ?: []);
+    return $in ??= (json_decode(raw_input(), true) ?: []);
 }
 
 function num($v): ?float
@@ -63,7 +75,7 @@ function agent_host(): array
 {
     $token = trim((string) ($_SERVER['HTTP_X_AGENT_TOKEN'] ?? ''));
     $ip = client_ip();
-    $host = $token !== '' ? q('SELECT id, name, mode, agent_version, info_agent FROM hosts WHERE agent_token = ?', [$token])->fetch() : false;
+    $host = $token !== '' ? q('SELECT id, name, mode, agent_version, info_agent, agent_seen, agent_ip, agent_tick, enc FROM hosts WHERE agent_token = ?', [$token])->fetch() : false;
     $reason = match (true) {
         $token === '' => 'geen token meegestuurd',
         !$host => 'onbekend token (verkeerd gekopieerd, of in RzMon vernieuwd?)',
@@ -72,9 +84,56 @@ function agent_host(): array
     };
     if ($reason !== null) {
         q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'] ?? null, mb_substr($ip, 0, 45), $reason]);
+        Security::unauthorized('agent', t($reason), $host ? [t('server') => $host['name']] : []);
         out(['error' => "Geweigerd: $reason", 'reason' => $reason], 403);
     }
     return $host;
+}
+
+/**
+ * Bericht van een agent: versleuteld (controleren en uitpakken) of gewoon. Versleuteld = het antwoord gaat ook
+ * versleuteld terug. Moet deze server versleutelen en doet hij dat niet, of klopt de handtekening niet: 403 en ⚠️.
+ */
+function agent_body(array $host): bool
+{
+    $raw = (string) file_get_contents('php://input');
+    $refuse = static function (string $reason, array $extra = []) use ($host): never {
+        q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'], mb_substr(client_ip(), 0, 45), mb_substr($reason, 0, 255)]);
+        Security::unauthorized('agent', $reason, [t('server') => $host['name']]);
+        out(['error' => t('Geweigerd') . ": $reason"] + $extra, 403);
+    };
+    if (AgentCrypto::isEnvelope($raw)) {
+        try {
+            [$plain, $key, $nonce] = AgentCrypto::open($raw);
+        } catch (RuntimeException $e) {
+            $refuse($e->getMessage(), ['enc_error' => true]);
+        }
+        $GLOBALS['agent_plain'] = $plain;
+        $GLOBALS['agent_seal'] = [$key, $nonce];
+        return true;
+    }
+    if (AgentCrypto::hostMode($host) === 'required') {
+        $refuse(t('onversleuteld bericht, maar versleuteling is verplicht voor deze server'), ['enc_required' => true]);
+    }
+    $GLOBALS['agent_plain'] = $raw;
+    return false;
+}
+
+/** Velden voor het antwoord: de sleutel uitdelen (nog niet, of nog de oude), of zeggen dat versleutelen uit staat */
+function agent_enc_fields(array $host, ?string $agentVersion): array
+{
+    if (!$agentVersion || version_compare($agentVersion, AgentCrypto::AGENT_MIN, '<')) {
+        return [];   // oudere agent: kan nog niet versleutelen
+    }
+    $mode = AgentCrypto::hostMode($host);
+    if ($mode === 'off') {
+        return ['enc' => 'off'];
+    }
+    $key = AgentCrypto::key();
+    if ($key === '' || ($GLOBALS['agent_seal'][0] ?? null) === $key) {
+        return [];
+    }
+    return ['enc_key' => $key];
 }
 
 // Extra tests (URL of poort) die bij service-checks van deze server zijn ingesteld, voor de agent.
@@ -148,8 +207,16 @@ function agent_tests_rev(int $hostId): string
 
 if ($action === 'agent_tests') {
     $host = agent_host();
+    // Agent met een sleutel (header X-Agent-Enc: kenmerk:nonce): de lijst gaat versleuteld terug
+    $hdr = (string) ($_SERVER['HTTP_X_AGENT_ENC'] ?? '');
+    $key = preg_match('/^([0-9a-f]{16}):([0-9a-f]{32})$/', $hdr, $m) ? AgentCrypto::keyById($m[1]) : null;
+    if ($key === null && AgentCrypto::hostMode($host) === 'required') {
+        Security::unauthorized('agent', t('onversleuteld bericht, maar versleuteling is verplicht voor deze server'), [t('server') => $host['name']]);
+        out(['error' => t('Geweigerd')], 403);
+    }
     header('Content-Type: text/plain; charset=utf-8');
-    echo agent_tests_text((int) $host['id']);
+    $text = agent_tests_text((int) $host['id']);
+    echo $key !== null ? AgentCrypto::seal($text, $key, $m[2]) : $text;
     exit;
 }
 
@@ -162,17 +229,19 @@ if ($action === 'agent_check') {
 // Voortgang van "pakketten bijwerken" (agent 1.48.0+): elke paar seconden tijdens apt/dnf, en aan het eind de uitkomst
 if ($action === 'agent_pkg_progress') {
     $host = agent_host();
+    agent_body($host);
     Vulns::upgradeProgress($host, input());
     out(['ok' => true]);
 }
 
 if ($action === 'agent') {
     $host = agent_host();
+    $encrypted = agent_body($host);
     $in = input();
     if (!$in) {
         // Agent 1.20.0–1.20.3 zette servicenamen als systemd-fsck@dev-disk-by\x2duuid… ongewijzigd in de JSON.
         // Zo'n losse backslash herstellen, dan blijft die agent werken (en kan hij met de knop bijgewerkt worden).
-        $raw = (string) file_get_contents('php://input');
+        $raw = raw_input();
         $fixed = preg_replace_callback('/\\\\(.?)/s', static fn($m) => $m[1] !== '' && str_contains('"\\\\/bfnrtu', $m[1]) ? $m[0] : '\\' . $m[0], $raw);
         $in = json_decode((string) $fixed, true) ?: [];
     }
@@ -376,7 +445,10 @@ if ($action === 'agent') {
     }
     q('DELETE FROM agent_data WHERE host_id = ? AND updated_at < ?', [$host['id'], $now]);
     $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
-    q('UPDATE hosts SET agent_seen = ?, agent_ip = ?, agent_version = ? WHERE id = ?', [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $host['id']]);
+    // ℹ️ als de agent (opnieuw) verbindt: de eerste keer, na stil te zijn geweest, of vanaf een ander IP
+    Security::agentConnected($host, $encrypted);
+    q('UPDATE hosts SET agent_seen = ?, agent_ip = ?, agent_version = ?, enc_seen = ? WHERE id = ?',
+        [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $encrypted ? 1 : 0, $host['id']]);
     // Andere versie dan vorige keer: bijgewerkt (met de knop, automatisch, via de add-on winkel of met de hand) → info
     if ($agentVersion !== null && $host['agent_version'] !== null && $agentVersion !== $host['agent_version']) {
         $from = (string) $host['agent_version'];
@@ -387,6 +459,7 @@ if ($action === 'agent') {
         'certs' => count((array) ($in['certs'] ?? [])), 'containers' => count((array) ($in['podman']['containers'] ?? [])),
     ]];
     $resp['tests_rev'] = agent_tests_rev((int) $host['id']);
+    $resp += agent_enc_fields($host, $agentVersion);
     // Agent-checks van deze server meteen beoordelen (niet wachten op de volgende cron-minuut)
     try {
         Monitor::runAgentHost((int) $host['id']);
@@ -580,7 +653,7 @@ function tab_badges(array $user, array $hosts, string $seen): ?array
         }
     }
     // Meldingen: warning, critical, unknown en herstel (geen info en geen bevestigingen)
-    $alerts = (int) q("SELECT COUNT(*) FROM alerts WHERE created_at > ? AND kind IN ('notify', 'ids')", [$u['seen_alerts']])->fetchColumn();
+    $alerts = (int) q("SELECT COUNT(*) FROM alerts WHERE created_at > ? AND kind IN ('notify', 'ids', 'sec')", [$u['seen_alerts']])->fetchColumn();
     return ['dashboard' => $dash, 'dashboard_status' => $worst, 'alerts' => $alerts];
 }
 
@@ -609,7 +682,7 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'state':
-        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent,
+        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen,
                     enabled, maintenance_until, maintenance_reason, snmp FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
@@ -652,6 +725,8 @@ switch ($action) {
              'ids_open' => Ids::enabled() ? (int) q("SELECT COUNT(*) FROM ids_incidents WHERE status = 'open' AND severity = 2")->fetchColumn() : 0,
              // Voor beheerders: label "⬆ x.y.z" bovenin als er een nieuwere versie is
              'update_running' => $isAdmin && Updater::running(),
+             // Voor het installatiecommando in de Agent Manager (--key): alleen beheerders, net als de tokens
+             'enc_key' => $isAdmin && AgentCrypto::globalMode() !== 'off' ? (AgentCrypto::key() ?: null) : null,
              'update' => $isAdmin && ($uc = json_decode((string) setting('update_cache', ''), true)) && !empty($uc['latest'])
                  && version_compare($uc['latest'], RZMON_VERSION, '>') ? $uc['latest'] : null]);
 
@@ -662,6 +737,12 @@ switch ($action) {
                    LEFT JOIN checks c ON c.id = a.check_id LEFT JOIN hosts h ON h.id = COALESCE(c.host_id, a.host_id)
                    WHERE a.created_at >= CURDATE() - INTERVAL ? DAY AND a.kind NOT IN (\'auth\', \'authfail\')
                    ORDER BY a.created_at DESC, a.id DESC LIMIT 10000', [$days - 1])->fetchAll();
+        // Meldingen met een IP (geweigerde verbinding, login): staat dat IP al op de blokkadelijst?
+        $nets = array_column(q('SELECT net FROM rz_blocks')->fetchAll(), 'net');
+        foreach ($rows as &$a) {
+            $a['blocked'] = $a['ip'] !== null && $a['ip'] !== '' && $nets && ip_in_list((string) $a['ip'], $nets);
+        }
+        unset($a);
         out(['days' => $days, 'alerts' => $rows, 'today' => date('Y-m-d'), 'truncated' => count($rows) >= 10000]);
 
     // Popup van een check: gegevens, beschikbaarheid en de laatste 5 statuswijzigingen met hun meldingen
@@ -850,6 +931,54 @@ switch ($action) {
         out(['ok' => true]);
 
     // Info-melding bij agent-updates van deze server (volgt verder de algemene info-regel)
+    // ---------- Beveiliging: versleuteling van de agents en blokkades (alleen beheerders) ----------
+    case 'security':
+        $key = AgentCrypto::key();
+        $until = (int) setting('enc_key_old_until', '0');
+        out([
+            'enc' => ['mode' => AgentCrypto::globalMode(), 'key' => $key, 'key_id' => $key !== '' ? AgentCrypto::keyId($key) : null,
+                'old_until' => $until > time() ? date('Y-m-d H:i:s', $until) : null, 'agent_min' => AgentCrypto::AGENT_MIN],
+            'hosts' => q("SELECT id, name, agent_version, agent_seen, enc, enc_seen FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll(),
+            'blocks' => Security::blocks(),
+            'my_ip' => client_ip(),
+        ]);
+
+    case 'enc_mode':
+        $m = (string) (input()['mode'] ?? '');
+        if (!in_array($m, AgentCrypto::MODES, true)) {
+            out(['error' => t('Ongeldige keuze')], 422);
+        }
+        save_setting('enc_mode', $m);
+        AgentCommands::audit($user['username'], 'Versleuteling agents', $m);
+        out(['ok' => true]);
+
+    case 'enc_generate':
+        $confirm('SLEUTEL');
+        out(['ok' => true, 'key' => AgentCrypto::generate($user['username'])]);
+
+    case 'host_enc':
+        $in = input();
+        $m = (string) ($in['enc'] ?? '');
+        if ($m !== '' && !in_array($m, AgentCrypto::MODES, true)) {
+            out(['error' => t('Ongeldige keuze')], 422);
+        }
+        $name = q("SELECT name FROM hosts WHERE id = ? AND mode = 'agent'", [(int) ($in['host_id'] ?? 0)])->fetchColumn();
+        if ($name === false) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        q('UPDATE hosts SET enc = ? WHERE id = ?', [$m === '' ? null : $m, (int) $in['host_id']]);
+        AgentCommands::audit($user['username'], 'Versleuteling agent', "$name: " . ($m ?: 'algemeen'));
+        out(['ok' => true]);
+
+    case 'block_add':
+        $in = input();
+        $r = Security::block((string) ($in['net'] ?? ''), (string) ($in['reason'] ?? ''), $user['username']);
+        $r === true ? out(['ok' => true]) : out(['error' => $r], 422);
+
+    case 'block_remove':
+        Security::unblock((int) (input()['id'] ?? 0), $user['username']);
+        out(['ok' => true]);
+
     case 'host_info_agent':
         $in = input();
         q('UPDATE hosts SET info_agent = ? WHERE id = ?', [!empty($in['on']) ? 1 : 0, (int) ($in['id'] ?? 0)]);

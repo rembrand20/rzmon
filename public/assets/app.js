@@ -157,7 +157,7 @@ let alertFilter = (() => { try { return localStorage.getItem('rzmon-alert-filter
 let alertSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-alert-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 // Instellingen in L1nes (zie applySettingsLayout); hier bovenaan omdat de weergave al bij het opstarten wordt toegepast
 const SET_GROUPS = { pushover: 'meldingen', notify: 'meldingen', email: 'meldingen', webhook: 'meldingen', mqtt: 'meldingen', alarm: 'monitoring',
-  ids: 'monitoring', vulns: 'monitoring', update: 'systeem', agents: 'systeem', backup: 'systeem', db: 'systeem', access: 'toegang', users: 'toegang', api: 'toegang', account: 'toegang', password: 'toegang' };
+  ids: 'monitoring', vulns: 'monitoring', update: 'systeem', agents: 'systeem', backup: 'systeem', db: 'systeem', access: 'toegang', enc: 'toegang', blocks: 'toegang', users: 'toegang', api: 'toegang', account: 'toegang', password: 'toegang' };
 let setOpen = (() => { try { return JSON.parse(localStorage.getItem('rzmon-set-open') || '{}') || {}; } catch (e) { return {}; } })();
 function saveSetOpen() { try { localStorage.setItem('rzmon-set-open', JSON.stringify(setOpen)); } catch (e) {} }
 const setCards = () => $$('#tab-settings [data-sk]');
@@ -503,6 +503,9 @@ function init() {
     days.forEach((x) => { x.open = !all; });   // het toggle-event bouwt de inhoud op en onthoudt de stand
   };
   $('#alerts').addEventListener('click', (e) => {
+    // ⛔ bij een geweigerde verbinding of mislukte login: dat IP blokkeren
+    const bl = e.target.closest('[data-block-ip]');
+    if (bl) { e.stopPropagation(); return blockDialog(bl.dataset.blockIp); }
     // Kolomkop: sorteren (oplopend → aflopend → standaard)
     const th = e.target.closest('th[data-sort]');
     if (th) {
@@ -581,6 +584,7 @@ function init() {
     };
   }
   $('#api-key-form').addEventListener('submit', createApiKey);
+  initSecurity();
   $('#api-keys').addEventListener('click', apiKeyClick);
   $('#access-form').addEventListener('submit', saveAccess);
 
@@ -897,6 +901,11 @@ function settingsSummaries() {
     sum.ids += f.auth_events.checked ? ' · 🔑 ' + L('toegang') : '';
     if (fimGlobal && fimGlobal.get().length) sum.ids += ' · 📁 ' + (fimGlobal.get().length === 1 ? L('{n} pad', { n: 1 }) : L('{n} paden', { n: fimGlobal.get().length }));
     if ($('#vuln-enabled')) sum.vulns = $('#vuln-enabled').checked ? on(esc(L('dagelijks om {t}', { t: f.vuln_time.value }))) : off;
+    if (secInfo) {
+      sum.enc = !secInfo.enc.key ? `<span class="warn-txt">⚠️ ${L('geen sleutel')}</span>` : secInfo.enc.mode === 'off' ? off
+        : `<span class="good-txt">🔒 ${esc(ENC_MODES.find((m) => m[0] === secInfo.enc.mode)[1].split(' (')[0])}</span> · ${L('{n} van {t} versleuteld', { n: secInfo.hosts.filter((h) => +h.enc_seen === 1).length, t: secInfo.hosts.length })}`;
+      sum.blocks = secInfo.blocks.length ? `⛔ ${secInfo.blocks.length === 1 ? L('1 blokkade') : L('{n} blokkades', { n: secInfo.blocks.length })}` : `<span class="muted">${L('geen')}</span>`;
+    }
     sum.alarm = esc(L('agent offline na {a} min · historie {h} dagen · meldingen {m} dagen', { a: f.agent_stale_minutes.value, h: f.retention_days.value, m: f.alerts_days.value }));
     if (updateInfo) {
       sum.update = (updateInfo.available ? `<span class="warn-txt">⬆ ${L('{v} beschikbaar', { v: esc(updateInfo.latest) })}</span>` : `✔ ${esc(updateInfo.current)}${updateInfo.latest ? ' · ' + L('nieuwste versie') : ''}`)
@@ -2440,14 +2449,111 @@ function toolsWarning(t, via) {
     <code>${t.family === 'rhel' ? 'sudo dnf install inotify-tools' : 'sudo apt install inotify-tools'}</code>`;
 }
 
+// ---------------------------------------------------------------- Instellingen: 🔐 Versleuteling en ⛔ Blokkades
+let secInfo = null;
+async function loadSecurity() {
+  if (!isAdmin() || !$('#enc-card')) return;
+  try { secInfo = await api('security'); } catch (ex) { $('#enc-info').textContent = ex.message; return; }
+  renderSecurity();
+}
+
+function renderSecurity() {
+  const e = secInfo.enc;
+  $('#enc-mode').innerHTML = ENC_MODES.map(([k, l]) => `<option value="${k}" ${e.mode === k ? 'selected' : ''}>${l}</option>`).join('');
+  $('#enc-key').value = e.key || '';
+  $('#enc-show').disabled = $('#enc-copy').disabled = !e.key;
+  $('#enc-generate').textContent = '🎲 ' + (e.key ? L('Nieuwe sleutel genereren') : L('Sleutel genereren'));
+  $('#enc-info').innerHTML = e.key
+    ? `${L('Kenmerk')}: <code>${esc(e.key_id)}</code>${e.old_until ? ' · ' + L('de vorige sleutel geldt nog tot {t}', { t: esc(fmtDateTime(e.old_until)) }) : ''}`
+    : `<span class="warn-txt">${L('Nog geen sleutel: de agents versturen alles onversleuteld.')}</span>`;
+  $('#enc-hosts').innerHTML = secInfo.hosts.length ? `<div class="table-scroll"><table class="vuln-table enc-table">
+    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Versleuteld versturen')}</th><th>${L('Laatste rapport')}</th></tr></thead><tbody>
+    ${secInfo.hosts.map((h) => `<tr><td>${esc(h.name)}</td><td class="mono small">${esc(h.agent_version || '–')}</td>
+      <td><select data-enc-host="${h.id}">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${k === '' ? `${l} (${ENC_MODES.find((m) => m[0] === e.mode)[1].split(' (')[0].toLowerCase()})` : l}</option>`).join('')}</select></td>
+      <td class="small">${encSeenText(h)}</td></tr>`).join('')}</tbody></table></div>` : '';
+  const b = secInfo.blocks;
+  $('#blocks-list').innerHTML = b.length ? `<div class="table-scroll"><table class="vuln-table">
+    <thead><tr><th>${L('IP-adres of netwerk')}</th><th>${L('Reden')}</th><th>${L('Door')}</th><th>${L('Sinds')}</th><th>${L('Geweigerd')}</th><th></th></tr></thead><tbody>
+    ${b.map((x) => `<tr><td class="mono">${esc(x.net)}</td><td class="small">${esc(x.reason || '')}</td><td class="small">${esc(x.created_by || '')}</td>
+      <td class="small">${esc(fmtDateTime(x.created_at))}</td><td class="small">${+x.hits ? `${x.hits}× · ${ago(x.last_hit)}` : '–'}</td>
+      <td><button type="button" class="icon-btn" data-unblock="${x.id}" title="${esc(L('Blokkade opheffen'))}">🗑</button></td></tr>`).join('')}</tbody></table></div>`
+    : `<p class="muted small">${L('Nog niets geblokkeerd. Je eigen IP-adres is {ip}.', { ip: `<code>${esc(secInfo.my_ip)}</code>` })}</p>`;
+  settingsSummaries();
+}
+
+function initSecurity() {
+  if (!$('#enc-card')) return;
+  $('#enc-mode').onchange = async (e) => {
+    try { await api('enc_mode', { mode: e.target.value }); toast(L('Opgeslagen')); loadSecurity(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#enc-show').onclick = () => { const k = $('#enc-key'); k.type = k.type === 'password' ? 'text' : 'password'; };
+  $('#enc-copy').onclick = async () => {
+    try { await navigator.clipboard.writeText($('#enc-key').value); toast(L('Gekopieerd')); }
+    catch (e) { const k = $('#enc-key'); k.type = 'text'; k.select(); document.execCommand('copy'); toast(L('Gekopieerd')); }
+  };
+  $('#enc-generate').onclick = () => modal({
+    title: '🎲 ' + L('Sleutel genereren'),
+    body: `<p style="margin-top:0">${secInfo && secInfo.enc.key ? L('Er komt een nieuwe sleutel. De agents krijgen hem bij hun volgende rapport (versleuteld met de huidige); de huidige sleutel blijft nog <b>24 uur</b> geldig, zodat er niets misgaat. Een agent die langer offline is, krijgt de nieuwe bij zijn eerste onversleutelde rapport, of geef hem mee met <code>--key</code>.')
+      : L('RzMon maakt een willekeurige sleutel van 32 bytes. De agents (1.49.0 of nieuwer) krijgen hem bij hun volgende rapport en versturen daarna alles versleuteld.')}</p>${confirmField('SLEUTEL')}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '🎲 ' + L('Genereren'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => { await api('enc_generate', { confirm: d.confirm }); toast(L('Nieuwe sleutel opgeslagen')); loadSecurity(); },
+  });
+  $('#enc-hosts').addEventListener('change', async (e) => {
+    const sel = e.target.closest('[data-enc-host]');
+    if (!sel) return;
+    try { await api('host_enc', { host_id: +sel.dataset.encHost, enc: sel.value }); toast(L('Opgeslagen; de agent pakt het op bij zijn volgende rapport')); refresh(); }
+    catch (ex) { toast(ex.message, 'err'); loadSecurity(); }
+  });
+  $('#block-add').onclick = async () => {
+    try {
+      await api('block_add', { net: $('#block-net').value, reason: $('#block-reason').value });
+      toast(L('{n} geblokkeerd', { n: $('#block-net').value.trim() }));
+      $('#block-net').value = $('#block-reason').value = '';
+      loadSecurity();
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#blocks-list').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-unblock]');
+    if (!b || !confirm(L('Deze blokkade opheffen?'))) return;
+    try { await api('block_remove', { id: +b.dataset.unblock }); toast(L('Blokkade opgeheven')); loadSecurity(); } catch (ex) { toast(ex.message, 'err'); }
+  });
+}
+
+/** Venster om een IP-adres (of het netwerk eromheen) te blokkeren, vanuit een melding */
+function blockDialog(ip) {
+  const v4 = /^\d+\.\d+\.\d+\.\d+$/.test(ip);
+  const net = v4 ? ip.replace(/\.\d+$/, '.0/24') : ip.split(':').slice(0, 4).join(':') + '::/64';
+  modal({
+    title: '⛔ ' + L('{ip} blokkeren', { ip }),
+    body: `<p style="margin-top:0">${L('Een geblokkeerd adres krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de API en geen agents.')}</p>
+      <label class="radio-row"><input type="radio" name="what" value="${esc(ip)}" checked><span>${L('Alleen dit adres')}: <code>${esc(ip)}</code></span></label>
+      <label class="radio-row"><input type="radio" name="what" value="${esc(net)}"><span>${L('Het hele netwerk')}: <code>${esc(net)}</code></span></label>
+      <label>${L('Reden')} <span class="hint">${L('(optioneel)')}</span><input name="reason" value="${esc(L('vanuit Meldingen'))}"></label>`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '⛔ ' + L('Blokkeren'), cls: 'danger', submit: true }],
+    onSubmit: async (d) => { await api('block_add', { net: d.what, reason: d.reason }); toast(L('{n} geblokkeerd', { n: d.what })); loadAlerts(); loadSecurity(); },
+  });
+}
+
+// ---------------------------------------------------------------- Versleuteling van de agents
+const ENC_MODES = [['off', L('Uit')], ['on', L('Aan (oude agents mogen nog onversleuteld)')], ['required', L('Verplicht')]];
+const ENC_HOST_MODES = [['', L('algemene instelling')], ['on', L('aan')], ['required', L('verplicht')], ['off', L('uit')]];
+/** Hoe kwam het laatste rapport binnen: 🔒 versleuteld, 🔓 niet, of nog niets */
+function encSeenText(h) {
+  if (!h.agent_seen) return L('nog geen rapport');
+  if (+h.enc_seen === 1) return '🔒 ' + L('laatste rapport versleuteld');
+  return '🔓 ' + L('laatste rapport niet versleuteld') + (h.agent_version && verCmp(h.agent_version, '1.49.0') < 0 ? ' · ' + L('agent {v} of nieuwer nodig', { v: '1.49.0' }) : '');
+}
+
 /** "30 s", "2 min" */
 function tickText(t) { return +t >= 120 ? `${+t / 60} min` : `${+t} s`; }
 
 function agentInstructions(h) {
   const base = state.base_url || location.origin + location.pathname.replace(/\/[^/]*$/, '');
   const scriptUrl = location.origin + location.pathname.replace(/\/[^/]*$/, '') + '/api.php?action=agent_script';
-  const installCmd = `curl -fsSL '${base}/api.php?action=agent_install' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}'`;
-  const truenasCmd = `curl -fsSL '${base}/api.php?action=agent_install' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}' --truenas`;
+  // Met een sleutel (Instellingen → 🔐 Versleuteling) gaat die mee, zodat de agent meteen versleuteld verstuurt
+  const keyArg = state.enc_key && h.enc !== 'off' ? ` --key '${state.enc_key}'` : '';
+  const installCmd = `curl -fsSL '${base}/api.php?action=agent_install' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}'${keyArg}`;
+  const truenasCmd = `curl -fsSL '${base}/api.php?action=agent_install' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}'${keyArg} --truenas`;
   modal({
     title: `Agent Manager – ${h.name}`,
     wide: true,
@@ -2461,6 +2567,9 @@ function agentInstructions(h) {
         <span class="muted small" id="host-realtime-info">${h.agent_update_via === 'direct' ? L('werkt alleen met systemd (niet via cron of op TrueNAS)') : L('logins, sudo, services en 🔴-bestanden meteen')}</span></div>
       <div class="cmd-host-row need-admin">ℹ️ ${L('Info bij agent-updates:')}
         <select id="host-info-agent"><option value="1" ${+(h.info_agent ?? 1) ? 'selected' : ''}>${L('aan (volgt de algemene info-regel)')}</option><option value="0" ${+(h.info_agent ?? 1) ? '' : 'selected'}>${L('uit')}</option></select></div>
+      <div class="cmd-host-row need-admin">🔐 ${L('Versleuteld versturen:')}
+        <select id="host-enc">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <span class="muted small">${encSeenText(h)}</span></div>
       <div class="cmd-host-row need-admin">🖥️ ${L('Commando-checks op deze server:')}
         <select id="host-commands"><option value="global">${L('algemene instelling')}</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
         <span class="muted small" id="host-commands-info"></span></div>
@@ -2544,6 +2653,10 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
       toast(e.target.value === '1' ? L('Realtime aan voor {name}; de agent pakt het binnen een minuut op', { name: h.name }) : L('Realtime uit voor {name}; de agent pakt het binnen een minuut op', { name: h.name }));
       refresh();
     } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#host-enc').onchange = async (e) => {
+    try { await api('host_enc', { host_id: h.id, enc: e.target.value }); toast(L('Opgeslagen; de agent pakt het op bij zijn volgende rapport')); refresh(); }
+    catch (ex) { toast(ex.message, 'err'); }
   };
   $('#host-info-agent').onchange = async (e) => {
     try { await api('host_info_agent', { id: h.id, on: e.target.value === '1' }); toast(L('Opgeslagen')); refresh(); }
@@ -2738,6 +2851,7 @@ function channelIcons(a) {
 /** "🔴 Critical", "✅ Hersteld", "✔ Bevestigd"… voor de meldingentabel */
 function alertStatusText(a) {
   if (a.kind === 'ids') return '🛡️ IDS';
+  if (a.kind === 'sec') return '⚠️ ' + L('Geweigerd');
   if (a.kind === 'auth') return '🔑 ' + L('Toegang');
   if (a.kind === 'authfail') return '❌ ' + L('Mislukt');
   if (a.kind === 'ack') return '✔ ' + L('Bevestigd');
@@ -3101,6 +3215,8 @@ function alertCols(a) {
   const t = a.title.match(/:\s*(.+?) – (.+)$/);
   const det = alertDetail(a);
   const who = det ? (det.users ? det.users.join(', ') : det.user) || '?' : '';
+  // Geweigerde verbinding, login of agent die verbindt: de titel (zonder het teken ervoor) is de "check"
+  if (a.kind === 'sec' || (a.kind === 'info' && !a.check_name && !t)) return { host: a.host_name || 'RzMon', check: a.title.replace(/^\S+\s+/, '') };
   return {
     host: a.host_name || (t ? t[1] : 'RzMon'),
     check: det ? `${AUTH_TYPES[det.type] || det.type} · ${who}${det.as && det.type === 'su' ? ' → ' + det.as : ''}` : a.check_name || (t ? t[2] : '–'),
@@ -3113,6 +3229,7 @@ function alertRank(a) {
   if (a.kind === 'auth') return 6;
   if (a.kind === 'ack') return 4;
   if (a.kind === 'info') return 3.5;
+  if (a.kind === 'sec') return 1;
   return [3, 1, 0, 2][+a.status] ?? 3;
 }
 /** Mislukte verzendingen tellen zwaar, daarna hoe weinig er verstuurd is */
@@ -3133,6 +3250,13 @@ function sortAlerts(list) {
   return list.map((a) => [a, val(a)]).sort((p, q) => dir * cmp(p[1], q[1]) || (q[0].created_at > p[0].created_at ? 1 : -1)).map(([a]) => a);
 }
 
+/** ⛔-knop bij een melding met een IP (geweigerde verbinding, mislukte login); alleen voor beheerders */
+function alertBlock(a) {
+  if (!a.ip || !isAdmin() || !(a.kind === 'sec' || (a.detail || '').includes('"loginfail"'))) return '';
+  return a.blocked ? ` <span class="muted small" title="${esc(a.ip)}">⛔ ${L('geblokkeerd')}</span>`
+    : ` <button type="button" class="linkbtn" data-block-ip="${esc(a.ip)}" title="${esc(L('{ip} blokkeren', { ip: a.ip }))}">⛔ ${L('blokkeren')}</button>`;
+}
+
 function alertRows(list, layout, density) {
   const time = (a) => esc(a.created_at.slice(11, 16));
   list = sortAlerts(list);
@@ -3148,14 +3272,14 @@ function alertRows(list, layout, density) {
           <td>${esc(host)}</td>
           <td>${esc(check)}</td>
           <td class="at-msg" title="${density === 'small' ? L('Klik voor het hele bericht') : ''}">${esc(a.message)}</td>
-          <td class="at-ch">${channelIcons(a)}</td></tr>`;
+          <td class="at-ch">${channelIcons(a)}${alertBlock(a)}</td></tr>`;
       }).join('')}</tbody></table>`;
   }
   return list.map((a) => `
     <div class="alert-item ${density === 'small' ? 'compact ' : ''}${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : a.kind === 'info' ? 'info' : 's' + a.status}${a.check_id ? ' clickable' : ''}"${cid(a)}>
       <span class="dot"></span>
       <strong>${esc(a.title)}</strong>
-      <span class="muted small" title="${esc(a.created_at)}">${time(a)} ${channelIcons(a)}</span>
+      <span class="muted small" title="${esc(a.created_at)}">${time(a)} ${channelIcons(a)}${alertBlock(a)}</span>
       <span class="msg">${esc(a.message)}</span>
     </div>`).join('');
 }
@@ -3383,6 +3507,7 @@ async function loadSettings() {
   loadUsers();
   if (!isAdmin()) return;   // de rest van de instellingen is alleen voor beheerders
   loadApiKeys();
+  loadSecurity();
   loadAccess();
   loadDbInfo();
   const s = await api('settings');
