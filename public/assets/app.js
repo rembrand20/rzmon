@@ -393,6 +393,14 @@ function init() {
   $('#settings-form').addEventListener('submit', saveSettings);
   $('#backup-now').onclick = backupNow;
   $('#update-start').onclick = startUpdate;
+  // Kwetsbaarheden aan/uit: meteen opslaan (zoals het IDS); het tabblad komt erbij of gaat weg, dus de pagina herladen
+  $('#vuln-enabled').onchange = async (e) => {
+    try {
+      await api('vuln_set', { enabled: e.target.checked });
+      toast(e.target.checked ? L('Kwetsbaarheden aangezet') : L('Kwetsbaarheden uitgezet'));
+      setTimeout(() => location.reload(), 700);
+    } catch (ex) { toast(ex.message, 'err'); e.target.checked = !e.target.checked; }
+  };
   $('#ids-enabled').onchange = async (e) => {
     try { await api('ids_set', { enabled: e.target.checked }); toast(e.target.checked ? L('IDS aangezet') : L('IDS uitgezet')); }
     catch (ex) { toast(ex.message, 'err'); e.target.checked = !e.target.checked; }
@@ -3355,6 +3363,7 @@ async function loadSettings() {
     { pushover_enabled: s.pushover_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
   quietGlobal = quietEditor($('#quiet-editor'), parse(s.notify_quiet), true);
   vulnExcludeEditor();
+  $('#vuln-enabled').checked = s.vuln_enabled === '1';
   $('#ids-enabled').checked = s.ids_enabled === '1';
   $('#ids-mode').checked = s.ids_mode === 'block';
   fimGlobal = fimEditor($('#fim-editor'), parse(s.ids_fim || '[]'), null, () => { markSettingsDirty(true); settingsSummaries(); });
@@ -3536,7 +3545,6 @@ async function saveSettings(e) {
   e.preventDefault();
   try {
     await api('settings_save', settingsData()); toast(L('Instellingen opgeslagen'));
-    if (!!$('#tab-vulns') !== $('#settings-form').vuln_enabled.checked) return setTimeout(() => location.reload(), 600);   // tabblad Kwetsbaarheden erbij of eraf
     loadSettings();
   }
   catch (ex) { toast(ex.message, 'err'); }

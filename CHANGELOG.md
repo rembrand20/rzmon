@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.54.1 – 2026-10-23
+### Opgelost
+- De schakelaar **Kwetsbaarheden aan** (*Instellingen → 🐞 Kwetsbaarheden*) deed niets zolang je niet ook op *💾 Instellingen opslaan* klikte. Nu werkt hij direct, net als de schakelaar van het IDS: je ziet *Kwetsbaarheden aangezet*, en na een tel staat het tabblad 🐞 Kwetsbaarheden in de bovenbalk (of is het weg bij uitzetten).
+
 ## 1.54.0 – 2026-10-23
 ### Nieuw
 - **🐞 Kwetsbaarheden**: een nieuwe pagina met de software per server en de bekende kwetsbaarheden (CVE's) daarbij. Standaard **uit**; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Zichtbaar voor beheerders en gebruikers.

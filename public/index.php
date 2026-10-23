@@ -459,7 +459,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div data-sk="vulns" class="card" id="vulns-card">
           <h2>🐞 <?= th('Kwetsbaarheden') ?></h2>
           <p class="muted small"><?= t('De agents (1.47.0 of nieuwer) sturen hun softwarelijst mee; voor de RzMon-server leest RzMon hem zelf. RzMon zoekt daar de bekende kwetsbaarheden (CVE\'s) bij op <b>OSV.dev</b>, met de adviezen van de distributie zelf, plus <i>actief misbruikt</i> (CISA) en de kans op misbruik (EPSS). Naar OSV.dev gaan alleen pakketnamen, versies en de distributie, geen servernamen of IP-adressen. Ondersteund: Debian, Ubuntu, Rocky Linux, AlmaLinux (en RHEL/CentOS via AlmaLinux) en Alpine.') ?></p>
-          <label class="switch"><input type="checkbox" name="vuln_enabled"><span></span> <?= t('<b>Kwetsbaarheden aan</b> (tabblad 🐞 Kwetsbaarheden)') ?></label>
+          <div data-nodirty><label class="switch"><input type="checkbox" id="vuln-enabled"><span></span> <?= t('<b>Kwetsbaarheden aan</b> (tabblad 🐞 Kwetsbaarheden)') ?></label></div>
           <div class="row2">
             <label><?= th('Dagelijks scannen om') ?><input type="time" name="vuln_time"></label>
             <label><?= th('Tonen vanaf') ?>

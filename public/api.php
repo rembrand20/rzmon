@@ -1193,7 +1193,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_enabled', 'vuln_time', 'vuln_min_severity', 'vuln_exclude',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -1717,6 +1717,13 @@ switch ($action) {
         q('DELETE FROM vuln_ignore WHERE id = ?', [(int) ($in['id'] ?? 0)]);
         AgentCommands::audit($user['username'], 'Kwetsbaarheid: niet meer genegeerd', '#' . (int) ($in['id'] ?? 0));
         out(['ok' => true]);
+
+    // Kwetsbaarheden aan of uit (Instellingen → 🐞 Kwetsbaarheden); aan = meteen de softwarelijsten laten (her)sturen en scannen
+    case 'vuln_set':
+        $on = !empty(input()['enabled']);
+        save_setting('vuln_enabled', $on ? '1' : '0');
+        AgentCommands::audit($user['username'], 'Kwetsbaarheden', $on ? 'aan' : 'uit');
+        out(['ok' => true, 'enabled' => $on]);
 
     case 'vuln_scan':
         if (!Vulns::enabled()) {

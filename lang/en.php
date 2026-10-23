@@ -2216,4 +2216,6 @@ return [
     'Architectuur' => 'Architecture',
     'geen servers met een agent' => 'no servers with an agent',
     '{n} met een fout' => '{n} with an error',
+    'Kwetsbaarheden aangezet' => 'Vulnerabilities turned on',
+    'Kwetsbaarheden uitgezet' => 'Vulnerabilities turned off',
 ];
