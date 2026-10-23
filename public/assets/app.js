@@ -1456,7 +1456,8 @@ function modal({ title, body, buttons = [], wide = false, onSubmit }) {
     const sb = $('button[type=submit]', footer);
     if (sb) sb.disabled = true;
     try {
-      await onSubmit(Object.fromEntries(new FormData(form)), form);
+      // 'keep': het venster blijft open, omdat onSubmit er al iets anders in zette (bv. de voortgang)
+      if (await onSubmit(Object.fromEntries(new FormData(form)), form) === 'keep') return;
       dlg.close();
       await refresh();
     } catch (ex) {
@@ -4658,8 +4659,11 @@ function vulnUpgrade(h, pkgs) {
     buttons: h.upgrade_blocked ? [{ label: L('Commando tonen'), cls: 'primary', submit: true }] : [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '⬆ ' + L('Bijwerken'), cls: 'primary', submit: true }],
     onSubmit: async (v, form) => {
       try {
-        await api('vuln_upgrade', { host_id: h.id, all, packages: pkgs || [], confirm: v.confirm });
-        setTimeout(() => vulnUpgradeDialog(h, true), 0);   // na het sluiten van dit venster: de voortgang
+        const res = await api('vuln_upgrade', { host_id: h.id, all, packages: pkgs || [], confirm: v.confirm });
+        // In hetzelfde venster meteen de voortgang tonen (eerst "wachten op de agent"), niet eerst sluiten
+        vulnUpgradeDialog(h, true, { state: 'queued', pkgs: res.packages || pkgs || [] });
+        loadVulns();
+        return 'keep';
       } catch (ex) {
         // Kan het niet via de agent? Dan het commando tonen om zelf uit te voeren
         if (ex.data && ex.data.command) {
@@ -4680,11 +4684,18 @@ let vulnUpPoll = null;
 const vulnUpShown = () => $('#modal').open && !!$('#modal-body .vu-dlg');
 
 /** Venster met de voortgang van het bijwerken op server h; force = openen, ook als er een ander venster openstaat. */
-async function vulnUpgradeDialog(h, force) {
+async function vulnUpgradeDialog(h, force, first) {
   clearTimeout(vulnUpPoll);
   let r;
-  try { r = await api('vuln_upgrade_status', null, { host_id: h.id }); }
-  catch (ex) { if (vulnUpShown()) vulnUpPoll = setTimeout(() => vulnUpgradeDialog(h), 3000); return; }
+  if (first) r = { status: first, live: true };   // meteen iets tonen; de echte stand volgt hieronder
+  else {
+    try { r = await api('vuln_upgrade_status', null, { host_id: h.id }); }
+    catch (ex) {
+      // Even geen antwoord: het venster blijft staan en vraagt het zo opnieuw
+      if (force && !vulnUpShown()) r = { status: { state: 'queued', pkgs: [] }, live: true };
+      else { if (vulnUpShown()) vulnUpPoll = setTimeout(() => vulnUpgradeDialog(h), 3000); return; }
+    }
+  }
   if (!force && !vulnUpShown()) return;   // venster gesloten: stoppen
   const st = r.status || { state: 'queued', pkgs: [] };
   const busy = ['queued', 'running'].includes(st.state);

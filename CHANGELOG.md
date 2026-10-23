@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.57.2 – 2026-10-23
+### Opgelost
+- **Kwetsbaarheden: na het invoeren van je wachtwoord verscheen soms geen voortgang.** Het venster ging eerst dicht en het voortgangsvenster opende pas daarna; lukte die eerste vraag om de stand niet (even geen verbinding, telefoon), dan bleef het leeg. Nu blijft het venster open en wisselt het meteen naar de voortgang (*Wachten op de agent*, met de pakketten); de stand wordt daarna steeds opnieuw opgevraagd, ook na een mislukte vraag.
+
 ## 1.57.1 – 2026-10-23
 ### Opgelost
 - Op de pagina Meldingen stond bij een melding die nergens heen gestuurd is (kanaal of meldregel uit) het icoontje ✉️✕. Dat leek op een mislukte e-mail, ook als e-mail uit staat. Dat is nu 🔕 (*niet verstuurd, alleen op deze pagina*). RzMon probeerde nooit een mail te sturen als e-mail uit staat.
