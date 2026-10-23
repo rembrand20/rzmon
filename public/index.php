@@ -554,6 +554,14 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <label><?= th('Reverse proxy IP\'s') ?> <span class="hint"><?= th('(optioneel — alleen invullen als RzMon achter Nginx Proxy Manager, Traefik, Cloudflare tunnel e.d. staat)') ?></span>
           <textarea name="trusted_proxies" rows="2" spellcheck="false"></textarea></label>
         <p class="callout"><?= t('⚠️ Staat RzMon achter een reverse proxy of port-forward waarbij álle bezoekers het IP van je router/proxy krijgen? Vul dat proxy-IP dan in bij <i>Reverse proxy IP\'s</i> en zet het <b>niet</b> bij lokale netwerken — anders kan iedereen van buitenaf zonder wachtwoord binnen.') ?></p>
+        <h3 class="set-sub">🔐 <?= th('Inlogbeveiliging') ?></h3>
+        <div class="lock-row"><?= th('Na') ?> <input type="number" name="login_lock_fails" min="1" max="50" class="num-in"> <?= th('mislukte pogingen binnen') ?>
+          <input type="number" name="login_lock_window" min="1" max="1440" class="num-in"> <?= th('minuten:') ?></div>
+        <label class="switch"><input type="checkbox" name="login_lock_account"><span></span> <span><?= t('het <b>account</b> blokkeren') ?></span></label>
+        <label class="switch"><input type="checkbox" name="login_lock_ip"><span></span> <span><?= t('het <b>IP-adres</b> blokkeren (niet als het uit je lokale netwerken komt)') ?></span></label>
+        <div class="lock-row"><?= th('Blokkade opheffen na') ?> <input type="number" name="login_lock_minutes" min="0" max="525600" class="num-in"> <?= th('minuten') ?>
+          <span class="hint"><?= th('(0 = tot een beheerder deblokkeert)') ?></span></div>
+        <p class="muted small"><?= t('Een verkeerde 2FA-code telt ook. Pogingen tellen apart per account (vanaf welk IP dan ook) en per IP-adres. Een geblokkeerd account kan vanaf je <b>lokale netwerk</b> gewoon inloggen, zodat niemand van buiten je kan buitensluiten. Je krijgt een ⚠️-melding met Pushover. Deblokkeren: bij <i>Gebruikers</i> (🔓) en bij <i>Blokkades</i>; of op de server <code>sudo php install/install.php --unlock &lt;gebruiker&gt;</code>.') ?></p>
         <p class="form-error" hidden></p>
         <button class="btn primary"><?= th('Toegang opslaan') ?></button>
       </form>

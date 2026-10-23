@@ -921,6 +921,7 @@ function settingsSummaries() {
     sum.db = esc(txt('#db-status').split(' · ')[0]);
     const af = $('#access-form');
     sum.access = af.lan_no_login.checked ? (af.lan_as_admin.checked ? L('LAN zonder inloggen (als beheerder)') : L('LAN zonder inloggen')) : L('altijd inloggen');
+    if (accessLock && (accessLock.account || accessLock.ip)) sum.access += ' · 🔐 ' + L('blokkeren na {n} pogingen', { n: accessLock.fails });
     const nKeys = $$('#api-keys .key-row').length;
     sum.api = nKeys === 1 ? L('{n} sleutel', { n: nKeys }) : L('{n} sleutels', { n: nKeys });
   }
@@ -2475,7 +2476,8 @@ function renderSecurity() {
   const b = secInfo.blocks;
   $('#blocks-list').innerHTML = b.length ? `<div class="table-scroll"><table class="vuln-table">
     <thead><tr><th>${L('IP-adres of netwerk')}</th><th>${L('Reden')}</th><th>${L('Door')}</th><th>${L('Sinds')}</th><th>${L('Geweigerd')}</th><th></th></tr></thead><tbody>
-    ${b.map((x) => `<tr><td class="mono">${esc(x.net)}</td><td class="small">${esc(x.reason || '')}</td><td class="small">${esc(x.created_by || '')}</td>
+    ${b.map((x) => `<tr class="${x.until && new Date(x.until.replace(' ', 'T')) < new Date() ? 'muted' : ''}"><td class="mono">${esc(x.net)}${+x.auto ? ` <span class="badge" title="${esc(L('Door de inlogbeveiliging'))}">${L('auto')}</span>` : ''}</td>
+      <td class="small">${esc(x.reason || '')}${x.until ? `<br><span class="muted">${new Date(x.until.replace(' ', 'T')) < new Date() ? L('verlopen') : L('tot {t}', { t: esc(fmtDateTime(x.until)) })}</span>` : ''}</td><td class="small">${esc(x.created_by || '')}</td>
       <td class="small">${esc(fmtDateTime(x.created_at))}</td><td class="small">${+x.hits ? `${x.hits}× · ${ago(x.last_hit)}` : '–'}</td>
       <td><button type="button" class="icon-btn" data-unblock="${x.id}" title="${esc(L('Blokkade opheffen'))}">🗑</button></td></tr>`).join('')}</tbody></table></div>`
     : `<p class="muted small">${L('Nog niets geblokkeerd. Je eigen IP-adres is {ip}.', { ip: `<code>${esc(secInfo.my_ip)}</code>` })}</p>`;
@@ -3359,6 +3361,7 @@ function alertToggleLabel() {
 
 // ---------------------------------------------------------------- Settings
 // ---------------------------------------------------------------- Access
+let accessLock = null;   // inlogbeveiliging, voor de samenvatting in L1nes
 async function loadAccess() {
   const a = await api('access_info');
   const f = $('#access-form');
@@ -3366,6 +3369,11 @@ async function loadAccess() {
   f.lan_as_admin.checked = a.lan_as_admin;
   f.trusted_networks.value = a.trusted_networks;
   f.trusted_proxies.value = a.trusted_proxies;
+  if (a.lock) {
+    f.login_lock_fails.value = a.lock.fails; f.login_lock_window.value = a.lock.window; f.login_lock_minutes.value = a.lock.minutes;
+    f.login_lock_account.checked = a.lock.account; f.login_lock_ip.checked = a.lock.ip;
+    accessLock = a.lock;
+  }
   $('#ip-status').innerHTML = `${L('Jouw IP-adres: {ip}', { ip: `<code>${esc(a.client_ip)}</code>` })}${a.client_ip !== a.remote_addr ? ` <span class="muted small">${L('(via proxy {ip})', { ip: esc(a.remote_addr) })}</span>` : ''}
     — ${a.client_trusted ? '<b class="yes">' + L('valt binnen je lokale netwerken') + '</b>' : '<b class="no">' + L('valt buiten je lokale netwerken') + '</b>'}`;
   settingsSummaries();
@@ -3377,7 +3385,9 @@ async function saveAccess(e) {
   const err = $('.form-error', f);
   err.hidden = true;
   try {
-    await api('access_save', { lan_no_login: f.lan_no_login.checked, lan_as_admin: f.lan_as_admin.checked, trusted_networks: f.trusted_networks.value, trusted_proxies: f.trusted_proxies.value });
+    await api('access_save', { lan_no_login: f.lan_no_login.checked, lan_as_admin: f.lan_as_admin.checked, trusted_networks: f.trusted_networks.value, trusted_proxies: f.trusted_proxies.value,
+      login_lock_fails: f.login_lock_fails.value, login_lock_window: f.login_lock_window.value, login_lock_minutes: f.login_lock_minutes.value,
+      login_lock_account: f.login_lock_account.checked, login_lock_ip: f.login_lock_ip.checked });
     toast(L('Toegang opgeslagen'));
     loadAccess();
   } catch (ex) {
@@ -3792,12 +3802,14 @@ async function loadUsers() {
     <div class="key-row">
       <span class="grow"><strong>${esc(u.username)}</strong>${u.me ? ` <span class="badge">${L('jij')}</span>` : ''}
         <span class="role-tag r-${esc(u.role)}">${ROLE_LABEL[u.role] || esc(u.role)}</span>
-        ${u.totp ? `<span class="tfa on" title="${L('Tweestapsverificatie staat aan')}">🔐 ${L('2FA aan')}</span>` : `<span class="tfa" title="${L('Alleen wachtwoord')}">${L('2FA uit')}</span>`}<br>
+        ${u.totp ? `<span class="tfa on" title="${L('Tweestapsverificatie staat aan')}">🔐 ${L('2FA aan')}</span>` : `<span class="tfa" title="${L('Alleen wachtwoord')}">${L('2FA uit')}</span>`}
+        ${u.locked ? `<span class="locked-tag" title="${esc(L('Te veel mislukte pogingen vanaf {ip}; vanaf het lokale netwerk kan inloggen nog wel', { ip: u.locked_ip || '?' }))}">🔒 ${u.locked_until ? L('geblokkeerd tot {t}', { t: esc(fmtDateTime(u.locked_until)) }) : L('geblokkeerd')}</span>` : ''}<br>
         <span class="muted small">${u.email ? `✉ ${esc(u.email)}` : `<span title="${L('Nodig voor wachtwoord vergeten')}">✉ ${L('geen e-mailadres')}</span>`} · ${L('Laatst ingelogd: {ago}', { ago: u.last_login ? ago(u.last_login) : L('nooit') })}</span></span>
       <span class="row-actions">
         ${u.totp
           ? `<button class="btn" data-uact="totp-reset" data-id="${u.id}" title="${L('Tweestapsverificatie uitzetten, bv. bij een verloren telefoon')}">${L('2FA resetten')}</button>`
           : `<button class="btn" data-uact="totp-setup" data-id="${u.id}">🔐 ${L('2FA instellen')}</button>`}
+        ${u.locked ? `<button class="btn need-admin" data-uact="unlock" data-id="${u.id}">🔓 ${L('Deblokkeren')}</button>` : ''}
         ${u.me ? '' : `<select class="role-select need-admin" data-uact="role" data-id="${u.id}" title="${L('Rol wijzigen')}">
           ${Object.entries(ROLE_LABEL).map(([k, l]) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`}
         <button class="btn small-btn" data-uact="devices" data-id="${u.id}" title="${L('Apparaten waarop {user} ingelogd blijft', { user: esc(u.username) })}">📱 ${+u.devices}</button>
@@ -3845,6 +3857,10 @@ async function onUsersClick(e) {
     switch (b.dataset.uact) {
       case 'totp-setup': return totpSetup(u.id, u.username);
       case 'devices': return devicesDialog(u);
+      case 'unlock':
+        await api('user_unlock', { id: u.id });
+        toast(L('{user} gedeblokkeerd', { user: u.username }));
+        return loadUsers();
       case 'totp-reset':
         if (!confirm(L('Tweestapsverificatie van {user} resetten?', { user: u.username }) + '\n' + L('Inloggen kan daarna weer met alleen het wachtwoord, tot 2FA opnieuw is ingesteld.'))) return;
         await api('totp_reset', { id: u.id });

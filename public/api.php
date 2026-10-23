@@ -552,6 +552,9 @@ if ($action === 'login' && $method === 'POST') {
     if ($r === 'ok') {
         out(['ok' => true, 'csrf' => csrf_token()]);
     }
+    if ($r === 'locked') {
+        out(['error' => t('Dit account is geblokkeerd na te veel mislukte pogingen. Vraag een beheerder om het te deblokkeren.'), 'locked' => true], 403);
+    }
     out(['error' => t('Onjuiste gebruikersnaam of wachtwoord')], 401);
 }
 if ($action === 'login_totp' && $method === 'POST') {
@@ -738,7 +741,7 @@ switch ($action) {
                    WHERE a.created_at >= CURDATE() - INTERVAL ? DAY AND a.kind NOT IN (\'auth\', \'authfail\')
                    ORDER BY a.created_at DESC, a.id DESC LIMIT 10000', [$days - 1])->fetchAll();
         // Meldingen met een IP (geweigerde verbinding, login): staat dat IP al op de blokkadelijst?
-        $nets = array_column(q('SELECT net FROM rz_blocks')->fetchAll(), 'net');
+        $nets = array_column(q('SELECT net FROM rz_blocks WHERE until IS NULL OR until > NOW()')->fetchAll(), 'net');
         foreach ($rows as &$a) {
             $a['blocked'] = $a['ip'] !== null && $a['ip'] !== '' && $nets && ip_in_list((string) $a['ip'], $nets);
         }
@@ -1535,6 +1538,7 @@ switch ($action) {
             'remote_addr' => $_SERVER['REMOTE_ADDR'] ?? '',
             'client_trusted' => ip_in_list(client_ip(), trusted_networks()),
             'lan_session' => is_lan_session(),
+            'lock' => Security::lockConfig(),
         ]);
 
     case 'access_save':
@@ -1561,6 +1565,14 @@ switch ($action) {
         save_setting('lan_as_admin', !empty($in['lan_as_admin']) ? '1' : '0');
         save_setting('trusted_networks', implode("\n", $networks));
         save_setting('trusted_proxies', implode("\n", $proxies));
+        // Inlogbeveiliging
+        if (isset($in['login_lock_fails'])) {
+            save_setting('login_lock_fails', (string) max(1, min(50, (int) $in['login_lock_fails'])));
+            save_setting('login_lock_window', (string) max(1, min(1440, (int) ($in['login_lock_window'] ?? 10))));
+            save_setting('login_lock_minutes', (string) max(0, min(525600, (int) ($in['login_lock_minutes'] ?? 60))));
+            save_setting('login_lock_account', !empty($in['login_lock_account']) ? '1' : '0');
+            save_setting('login_lock_ip', !empty($in['login_lock_ip']) ? '1' : '0');
+        }
         out(['ok' => true]);
 
     case 'port_scan':
@@ -1656,15 +1668,23 @@ switch ($action) {
 
     // ---------- Gebruikers en tweestapsverificatie ----------
     case 'users':
-        $rows = q('SELECT id, username, email, role, totp_secret IS NOT NULL AS totp, created_at, last_login,
+        $rows = q('SELECT id, username, email, role, totp_secret IS NOT NULL AS totp, created_at, last_login, locked_at, locked_until, locked_ip,
                           (SELECT COUNT(*) FROM remember_tokens r WHERE r.user_id = users.id) AS devices FROM users'
             . ($isAdmin ? '' : ' WHERE id = ' . (int) $user['id']) . ' ORDER BY username')->fetchAll();
         foreach ($rows as &$r) {
             $r['totp'] = (bool) $r['totp'];
             $r['me'] = (int) $r['id'] === $user['id'];
+            $r['locked'] = Security::accountLocked($r);
+            if (!$r['locked']) {
+                $r['locked_at'] = $r['locked_until'] = $r['locked_ip'] = null;
+            }
         }
         unset($r);
         out($rows);
+
+    case 'user_unlock':
+        Security::unlockUser((int) (input()['id'] ?? 0), $user['username']);
+        out(['ok' => true]);
 
     case 'user_create':
         $in = input();

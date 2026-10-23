@@ -12,9 +12,6 @@ final class Security
 {
     /** Per IP en soort hooguit één ⚠️-melding (met Pushover) per uur; daarna loopt alleen de teller op */
     private const SEC_WINDOW = 3600;
-    /** Mislukte logins: zoveel binnen zoveel seconden vanaf één IP = ⚠️ */
-    private const LOGIN_FAILS = 3;
-    private const LOGIN_WINDOW = 600;
 
     // ------------------------------------------------------------------ blokkades
 
@@ -50,7 +47,7 @@ final class Security
         if ($ip === '') {
             return null;
         }
-        foreach (q('SELECT id, net FROM rz_blocks')->fetchAll() as $b) {
+        foreach (q('SELECT id, net FROM rz_blocks WHERE until IS NULL OR until > NOW()')->fetchAll() as $b) {
             if (ip_in_list($ip, [$b['net']])) {
                 return $b;
             }
@@ -77,23 +74,28 @@ final class Security
         exit("403 – geblokkeerd\n");
     }
 
-    /** Blokkeren. Nooit jezelf of de server zelf. @return true|string */
-    public static function block(string $net, string $reason, string $by): true|string
+    /**
+     * Blokkeren. Nooit de server zelf, en met de hand ook niet jezelf. $until: tot wanneer (null = blijvend);
+     * $auto: door de inlogbeveiliging (dan is "jezelf" juist de bedoeling: dat is degene die het probeert).
+     * @return true|string
+     */
+    public static function block(string $net, string $reason, string $by, ?string $until = null, bool $auto = false): true|string
     {
         $n = self::normalize($net);
         if ($n === null) {
             return t('Geen geldig IP-adres of netwerk: {n}', ['n' => mb_substr($net, 0, 64)]);
         }
         $mine = client_ip();
-        foreach (array_filter([$mine, '127.0.0.1', '::1', $_SERVER['SERVER_ADDR'] ?? '']) as $own) {
+        foreach (array_filter([$auto ? '' : $mine, '127.0.0.1', '::1', $_SERVER['SERVER_ADDR'] ?? '']) as $own) {
             if (ip_in_list($own, [$n])) {
                 return $own === $mine
                     ? t('Daarmee blokkeer je jezelf ({ip}); dat kan niet', ['ip' => $mine])
                     : t('Daarmee blokkeer je de RzMon-server zelf ({ip}); dat kan niet', ['ip' => $own]);
             }
         }
-        q('INSERT INTO rz_blocks (net, reason, created_by, created_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE reason = VALUES(reason)',
-            [$n, mb_substr(trim($reason), 0, 200) ?: null, mb_substr($by, 0, 64), now()]);
+        q('INSERT INTO rz_blocks (net, reason, created_by, created_at, until, auto, hits, last_hit) VALUES (?, ?, ?, ?, ?, ?, 0, NULL)
+           ON DUPLICATE KEY UPDATE reason = VALUES(reason), created_by = VALUES(created_by), created_at = VALUES(created_at), until = VALUES(until), auto = VALUES(auto)',
+            [$n, mb_substr(trim($reason), 0, 200) ?: null, mb_substr($by, 0, 64), now(), $until, $auto ? 1 : 0]);
         AgentCommands::audit($by, 'IP geblokkeerd', $n . ($reason !== '' ? " ($reason)" : ''));
         return true;
     }
@@ -109,7 +111,7 @@ final class Security
 
     public static function blocks(): array
     {
-        return q('SELECT id, net, reason, created_by, created_at, hits, last_hit FROM rz_blocks ORDER BY created_at DESC')->fetchAll();
+        return q('SELECT id, net, reason, created_by, created_at, hits, last_hit, until, auto FROM rz_blocks ORDER BY created_at DESC')->fetchAll();
     }
 
     // ------------------------------------------------------------------ ⚠️ niet-geautoriseerd
@@ -162,22 +164,83 @@ final class Security
     public static function loginOk(array $u, string $how): void
     {
         $ip = client_ip();
+        try {
+            q("DELETE FROM security_fails WHERE kind = 'login' AND user = ?", [(string) $u['username']]);   // gelukt: opnieuw tellen
+        } catch (Throwable) {
+        }
         $dev = function_exists('device_name') ? device_name() : '';
         Monitor::infoAlways(null, null, 'ℹ️ ' . t('Ingelogd: {user}', ['user' => $u['username']]),
             fn() => t('{user} logde in vanaf {ip} ({how})', ['user' => $u['username'], 'ip' => $ip, 'how' => t($how)]) . ($dev !== '' ? " · $dev" : ''), $ip);
     }
 
-    /** Mislukte login. Losse pogingen: ℹ️ (per IP één regel per uur met teller); 3 binnen 10 minuten: ⚠️ met Pushover. */
-    public static function loginFailed(string $username, string $why): void
+    // ------------------------------------------------------------------ inlogbeveiliging
+
+    /** Instellingen: na zoveel pogingen binnen zoveel minuten; account en/of IP; hoe lang (0 = tot een beheerder deblokkeert) */
+    public static function lockConfig(): array
+    {
+        return [
+            'fails' => max(1, min(50, (int) setting('login_lock_fails', '3'))),
+            'window' => max(1, min(1440, (int) setting('login_lock_window', '10'))),
+            'account' => setting('login_lock_account', '1') === '1',
+            'ip' => setting('login_lock_ip', '1') === '1',
+            'minutes' => max(0, min(525600, (int) setting('login_lock_minutes', '60'))),
+        ];
+    }
+
+    /** Komt dit verzoek uit een van de lokale netwerken (Instellingen → Toegang)? */
+    public static function fromLan(): bool
+    {
+        return ip_in_list(client_ip(), trusted_networks());
+    }
+
+    /** Is dit account (nu nog) geblokkeerd? @param array $u met locked_at en locked_until */
+    public static function accountLocked(array $u): bool
+    {
+        return !empty($u['locked_at']) && (empty($u['locked_until']) || strtotime((string) $u['locked_until']) > time());
+    }
+
+    /** Beheerder deblokkeert een account (en de telling begint opnieuw) */
+    public static function unlockUser(int $id, string $by): void
+    {
+        $name = q('SELECT username FROM users WHERE id = ?', [$id])->fetchColumn();
+        if ($name === false) {
+            return;
+        }
+        q('UPDATE users SET locked_at = NULL, locked_until = NULL, locked_ip = NULL WHERE id = ?', [$id]);
+        q("DELETE FROM security_fails WHERE kind = 'login' AND user = ?", [$name]);
+        AgentCommands::audit($by, 'Account gedeblokkeerd', (string) $name);
+    }
+
+    /**
+     * Mislukte login. Losse pogingen: ℹ️ (per IP één regel per uur met een teller). Zoveel als ingesteld binnen de tijd:
+     * per account (vanaf welk IP dan ook) wordt het account geblokkeerd, per IP (van buiten het LAN) het IP; ⚠️ + Pushover.
+     * $exists: of de gebruikersnaam bestaat (anders valt er geen account te blokkeren).
+     */
+    public static function loginFailed(string $username, string $why, bool $exists = false): void
     {
         try {
             $ip = client_ip();
-            q("INSERT INTO security_fails (ip, kind, created_at) VALUES (?, 'login', ?)", [mb_substr($ip, 0, 45), now()]);
-            $n = (int) q("SELECT COUNT(*) FROM security_fails WHERE ip = ? AND kind = 'login' AND created_at >= ?",
-                [mb_substr($ip, 0, 45), date('Y-m-d H:i:s', time() - self::LOGIN_WINDOW)])->fetchColumn();
+            $cfg = self::lockConfig();
             $user = mb_substr(trim($username), 0, 64) ?: '?';
-            if ($n >= self::LOGIN_FAILS) {
-                self::unauthorized('login', t('{n} mislukte logins binnen 10 minuten', ['n' => $n]), [t('gebruiker') => $user, t('laatste') => t($why)]);
+            $since = date('Y-m-d H:i:s', time() - $cfg['window'] * 60);
+            q("INSERT INTO security_fails (ip, kind, user, created_at) VALUES (?, 'login', ?, ?)", [mb_substr($ip, 0, 45), $user, now()]);
+            $nIp = (int) q("SELECT COUNT(*) FROM security_fails WHERE ip = ? AND kind = 'login' AND created_at >= ?", [mb_substr($ip, 0, 45), $since])->fetchColumn();
+            $nUser = $exists ? (int) q("SELECT COUNT(*) FROM security_fails WHERE user = ? AND kind = 'login' AND created_at >= ?", [$user, $since])->fetchColumn() : 0;
+            $until = $cfg['minutes'] > 0 ? date('Y-m-d H:i:s', time() + $cfg['minutes'] * 60) : null;
+            $done = [];
+            if ($cfg['account'] && $exists && $nUser >= $cfg['fails']
+                && q('UPDATE users SET locked_at = ?, locked_until = ?, locked_ip = ? WHERE username = ? AND (locked_at IS NULL OR (locked_until IS NOT NULL AND locked_until <= NOW()))',
+                    [now(), $until, mb_substr($ip, 0, 45), $user])->rowCount() > 0) {
+                $done[] = '🔒 ' . t('account {user} geblokkeerd', ['user' => $user]);
+            }
+            if ($cfg['ip'] && $nIp >= $cfg['fails'] && !self::fromLan() && !self::blockFor($ip)
+                && self::block($ip, t('automatisch: {n} mislukte logins ({user})', ['n' => $nIp, 'user' => $user]), 'automatisch', $until, true) === true) {
+                $done[] = '⛔ ' . t('IP {ip} geblokkeerd', ['ip' => $ip]);
+            }
+            if ($done || max($nIp, $nUser) >= $cfg['fails']) {
+                self::unauthorized('login', t('{n} mislukte logins binnen {m} minuten', ['n' => max($nIp, $nUser), 'm' => $cfg['window']])
+                    . ($done ? ' · ' . implode(' · ', $done) . ($until ? ' ' . t('tot {t}', ['t' => date('d-m H:i', strtotime($until))]) : ' (' . t('tot een beheerder deblokkeert') . ')') : ''),
+                    [t('gebruiker') => $user, t('laatste') => t($why)]);
                 return;
             }
             // ℹ️, opgeteld per IP per uur
@@ -228,5 +291,7 @@ final class Security
     {
         q('DELETE FROM security_fails WHERE created_at < NOW() - INTERVAL 1 DAY');
         q('DELETE FROM agent_nonces WHERE created_at < NOW() - INTERVAL 1 HOUR');
+        q('DELETE FROM rz_blocks WHERE until IS NOT NULL AND until < NOW() - INTERVAL 1 DAY');   // verlopen automatische blokkades
+        q('UPDATE users SET locked_at = NULL, locked_until = NULL, locked_ip = NULL WHERE locked_until IS NOT NULL AND locked_until <= NOW()');
     }
 }

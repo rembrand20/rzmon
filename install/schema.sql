@@ -460,3 +460,8 @@ CREATE TABLE IF NOT EXISTS agent_nonces (
 
 -- Versleuteling van de agents: off | on (wie een sleutel heeft, versleutelt) | required; de sleutel maak je zelf aan
 INSERT IGNORE INTO settings (name, value) VALUES ('enc_mode', 'on'), ('enc_key', ''), ('enc_key_old', ''), ('enc_key_old_until', '');
+
+-- Inlogbeveiliging (1.58.0): na N mislukte pogingen binnen M minuten het account en/of het IP (van buiten het LAN) blokkeren,
+-- voor X minuten (0 = tot een beheerder deblokkeert)
+INSERT IGNORE INTO settings (name, value) VALUES ('login_lock_fails', '3'), ('login_lock_window', '10'), ('login_lock_account', '1'),
+    ('login_lock_ip', '1'), ('login_lock_minutes', '60');

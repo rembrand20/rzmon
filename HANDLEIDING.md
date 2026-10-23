@@ -1581,8 +1581,17 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - Jezelf (je huidige IP) en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: `sudo php install/install.php --unblock-all`.
 - Dit is iets anders dan blokkeren door het IDS: dat gebeurt op de aangevallen server zelf.
 
+**🔐 Inlogbeveiliging** (*Instellingen → Toegang*, vanaf 1.58.0; standaard aan)
+- **Na [3] mislukte pogingen binnen [10] minuten** wordt het **account** geblokkeerd en/of het **IP-adres**, elk met een eigen schakelaar. Een verkeerde 2FA-code telt ook.
+- Pogingen tellen **apart**: 3 fouten op één account (vanaf welk IP dan ook) blokkeren dat account; 3 fouten vanaf één IP (op welke accounts dan ook) blokkeren dat IP. Een onbekende gebruikersnaam blokkeert alleen het IP.
+- Het **IP** wordt alleen geblokkeerd als het **niet** uit je lokale netwerken komt (de lijst hierboven bij *Toegang*). Het komt op de lijst ⛔ *Blokkades* met *auto* en de reden.
+- Een **geblokkeerd account** kan vanaf je **lokale netwerk** gewoon inloggen. Zo kan niemand van buiten je buitensluiten door met je gebruikersnaam fout te raden. Van buiten zie je, alleen bij het **juiste** wachtwoord: *"Dit account is geblokkeerd na te veel mislukte pogingen. Vraag een beheerder om het te deblokkeren."* Bij een fout wachtwoord blijft het *"Onjuiste gebruikersnaam of wachtwoord"*, zodat een aanvaller niets te weten komt. Ook onthouden apparaten loggen van buiten niet automatisch in.
+- **Blokkade opheffen na [60] minuten** (account en IP); **0** = tot een beheerder deblokkeert.
+- **Deblokkeren** (beheerders): bij *Gebruikers* staat 🔒 *geblokkeerd tot …* met **🔓 Deblokkeren**; IP-adressen bij ⛔ *Blokkades* (🗑). Op de server: `sudo php install/install.php --unlock <gebruiker>` en `--unblock-all`.
+- Bij het blokkeren krijg je een **⚠️-melding met Pushover**: hoeveel pogingen, welk account en welk IP, en tot wanneer.
+
 **Meldingen** (pagina *Meldingen*)
-- **⚠️ Niet-geautoriseerde verbinding** (warning, **altijd naar Pushover**, ook tijdens stille uren): een agent met een onbekend of fout token, een verkeerde sleutel of handtekening, een oud of opnieuw afgespeeld bericht, of onversleuteld terwijl het verplicht is; een verkeerde, verlopen of niet toegestane **API-sleutel**; en **3 mislukte logins** binnen 10 minuten vanaf één IP. Per IP en soort één melding (en één Pushover) per uur; daarna loopt de teller op (*4×*). Met **⛔ blokkeren** zet je het IP (of het netwerk) direct op de blokkadelijst.
+- **⚠️ Niet-geautoriseerde verbinding** (warning, **altijd naar Pushover**, ook tijdens stille uren): een agent met een onbekend of fout token, een verkeerde sleutel of handtekening, een oud of opnieuw afgespeeld bericht, of onversleuteld terwijl het verplicht is; een verkeerde, verlopen of niet toegestane **API-sleutel**; en het aantal mislukte logins uit de **inlogbeveiliging** (standaard 3 binnen 10 minuten). Per IP en soort één melding (en één Pushover) per uur; daarna loopt de teller op (*4×*). Met **⛔ blokkeren** zet je het IP (of het netwerk) direct op de blokkadelijst.
 - **ℹ️ Logins in RzMon:** elke geslaagde login (wie, vanaf welk IP, welk apparaat, met wachtwoord, met 2FA of via een onthouden apparaat), en losse mislukte pogingen (per IP één regel per uur met een teller).
 - **ℹ️ Agent verbonden:** als een agent voor het eerst verbindt, weer verbindt na stil te zijn geweest, of vanaf een ander IP-adres, met 🔒 of 🔓.
 - Deze ℹ️-meldingen staan **altijd** op de pagina Meldingen; Pushover, e-mail en Home Assistant volgen de rij **Info** bij *🔔 Meldingen*.
@@ -1898,6 +1907,7 @@ Opnieuw `install-rocky.sh` draaien doet beide ook.
 - [ ] Bereikbaar van buitenaf? Dan alleen via **HTTPS** of een VPN.
 - [ ] "Geen login op LAN" aan? Dan getest via 4G dat je een loginscherm krijgt.
 - [ ] Ongebruikte API-sleutels zijn ingetrokken.
+- [ ] Inlogbeveiliging aan (*Instellingen → Toegang*), en je lokale netwerken kloppen (vanaf daar kun je altijd nog inloggen).
 - [ ] Agents versleutelen (*Instellingen → 🔐 Versleuteling*: sleutel gemaakt, 🔒 bij alle servers, daarna eventueel *Verplicht*).
 - [ ] De MariaDB-gebruiker `rzmon` mag alleen inloggen vanaf `localhost`.
 - [ ] `display_errors` staat uit.

@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.58.0 – 2026-10-23
+### Nieuw
+- **🔐 Inlogbeveiliging** (*Instellingen → Toegang*, standaard aan): na **3** mislukte pogingen (ook een verkeerde 2FA-code) binnen **10** minuten wordt het **account** geblokkeerd en het **IP-adres**, als dat niet uit je lokale netwerken komt. Aantal, tijd en wat er geblokkeerd wordt stel je zelf in.
+  - Pogingen tellen apart per account (vanaf elk IP) en per IP-adres.
+  - Een geblokkeerd account kan vanaf je **lokale netwerk** nog inloggen, zodat niemand van buiten je kan buitensluiten. Van buiten zie je de melding *account geblokkeerd* alleen bij het juiste wachtwoord.
+  - De blokkade gaat na **60 minuten** vanzelf weg (in te stellen; 0 = tot een beheerder deblokkeert). Deblokkeren: bij *Gebruikers* (🔓 Deblokkeren) en bij ⛔ *Blokkades*, of op de server met `sudo php install/install.php --unlock <gebruiker>`.
+  - ⚠️-melding met Pushover bij elke blokkade.
+- ⛔ *Blokkades* toont automatische blokkades (*auto*) en tot wanneer ze gelden.
+
 ## 1.57.4 – 2026-10-23
 ### Opgelost
 - **Het venster van pakketten bijwerken (Kwetsbaarheden) werd na een paar seconden vervangen door dat van de RzMon-update.** Beide vensters hebben dezelfde opmaak, en de controle van de RzMon-update (die het venster bij een hangende verbinding opnieuw opvraagt) zag het venster van Kwetsbaarheden voor het zijne aan. Nu kijkt die alleen naar het eigen venster.

@@ -932,3 +932,8 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 #enc-card, #blocks-card { grid-column: 1 / -1; }   /* tabellen per server en per blokkade: de volle breedte */
 label.radio-row { display: flex; flex-direction: row; align-items: center; gap: .5rem; font-weight: 500; margin: .3rem 0; text-align: left; }
 label.radio-row input { width: auto; margin: 0; flex: none; }
+
+/* Inlogbeveiliging */
+.lock-row { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin: .4rem 0 .7rem; font-size: .9rem; }
+.num-in { width: 5.5rem; }
+.locked-tag { font-size: .75rem; color: var(--crit); border: 1px solid color-mix(in srgb, var(--crit) 40%, transparent); border-radius: 999px; padding: 0 .45rem; margin-left: .25rem; white-space: nowrap; }

@@ -7,6 +7,7 @@
 //         sudo php install/install.php --backup [--zonder-historie]   (back-up maken)
 //         sudo php install/install.php --list-backups
 //         sudo php install/install.php --unblock-all   (alle blokkades opheffen, bv. als je jezelf buitensloot)
+//         sudo php install/install.php --unlock <gebruikersnaam>   (account deblokkeren na te veel mislukte logins)
 //         sudo php install/install.php --restore <zip> [--with-config] [--password=…]
 //              (database terugzetten; met --with-config, of op een nieuwe server zonder config.php,
 //               ook config.php plus de databasegebruiker)
@@ -200,6 +201,16 @@ if (($argv[1] ?? '') === '--reset-password') {
     q('DELETE FROM remember_tokens WHERE user_id = ?', [$id]);
     PasswordReset::log((int) $id, $name, 'wachtwoord hersteld via de terminal');
     exit("Wachtwoord van '$name' gewijzigd. Onthouden apparaten en open sessies zijn uitgelogd.\n");
+}
+if (($argv[1] ?? '') === '--unlock') {
+    Installer::ensureSchema();
+    $name = (string) ($argv[2] ?? '');
+    $id = q('SELECT id FROM users WHERE username = ?', [$name])->fetchColumn();
+    if (!$id) {
+        exit("Gebruiker '$name' niet gevonden. Gebruik: php install/install.php --unlock <gebruikersnaam>\n");
+    }
+    Security::unlockUser((int) $id, 'terminal');
+    exit("Account '$name' is gedeblokkeerd.\n");
 }
 if (($argv[1] ?? '') === '--unblock-all') {
     Installer::ensureSchema();

@@ -159,6 +159,13 @@ final class Installer
         ['hosts', 'enc', 'VARCHAR(10) NULL'],
         ['hosts', 'enc_seen', 'TINYINT NULL'],
         ['alerts', 'ip', 'VARCHAR(45) NULL'],   // geweigerde verbinding of login: vanaf welk IP (voor ⛔ blokkeren)
+        // Inlogbeveiliging: account geblokkeerd na te veel mislukte pogingen (tot locked_until, NULL = tot een beheerder deblokkeert)
+        ['users', 'locked_at', 'DATETIME NULL'],
+        ['users', 'locked_until', 'DATETIME NULL'],
+        ['users', 'locked_ip', 'VARCHAR(45) NULL'],
+        ['security_fails', 'user', 'VARCHAR(64) NULL'],
+        ['rz_blocks', 'until', 'DATETIME NULL'],                     // automatische blokkade: tot wanneer (NULL = blijvend)
+        ['rz_blocks', 'auto', 'TINYINT(1) NOT NULL DEFAULT 0'],      // door de inlogbeveiliging gezet
     ];
 
     private static function migrate(PDO $pdo): void

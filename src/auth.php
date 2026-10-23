@@ -114,11 +114,16 @@ function is_lan_session(): bool
 function login(string $username, string $password, bool $remember = false): string|false
 {
     start_session();
-    $u = q('SELECT id, username, password_hash, totp_secret, role FROM users WHERE username = ?', [$username])->fetch();
+    $u = q('SELECT id, username, password_hash, totp_secret, role, locked_at, locked_until FROM users WHERE username = ?', [$username])->fetch();
     if (!$u || !password_verify($password, $u['password_hash'])) {
-        Security::loginFailed($username, $u ? 'verkeerd wachtwoord' : 'onbekende gebruiker');
+        Security::loginFailed($username, $u ? 'verkeerd wachtwoord' : 'onbekende gebruiker', (bool) $u);
         usleep(500000); // brute force afremmen
         return false;
+    }
+    // Geblokkeerd na te veel mislukte pogingen: alleen nog vanaf het lokale netwerk (zo kan niemand van buiten je buitensluiten).
+    // Pas bij een juist wachtwoord zeggen we dat, zodat een aanvaller er niets aan heeft.
+    if (Security::accountLocked($u) && !Security::fromLan()) {
+        return 'locked';
     }
     if ($u['totp_secret']) {
         // Wachtwoord klopt; de sessie is pas geldig na de juiste code
@@ -149,7 +154,7 @@ function login_totp(string $code): true|string
     }
     $step = Totp::verify($u['totp_secret'], $code, $u['totp_last_step'] !== null ? (int) $u['totp_last_step'] : null);
     if ($step === null) {
-        Security::loginFailed((string) $u['username'], 'verkeerde 2FA-code');
+        Security::loginFailed((string) $u['username'], 'verkeerde 2FA-code', true);
         $_SESSION['pending_2fa']['tries']++;
         usleep(500000);
         return t('Onjuiste code') . ($_SESSION['pending_2fa']['tries'] >= 5 ? ' — ' . t('log opnieuw in met je wachtwoord') : '');
@@ -219,7 +224,10 @@ function remember_login(): ?array
         }
         return null;
     }
-    $t = q('SELECT r.*, u.username, u.role FROM remember_tokens r JOIN users u ON u.id = r.user_id WHERE r.selector = ?', [$m[1]])->fetch();
+    $t = q('SELECT r.*, u.username, u.role, u.locked_at, u.locked_until FROM remember_tokens r JOIN users u ON u.id = r.user_id WHERE r.selector = ?', [$m[1]])->fetch();
+    if ($t && Security::accountLocked($t) && !Security::fromLan()) {
+        return null;   // account geblokkeerd: niet automatisch inloggen (het apparaat blijft bewaard voor na het deblokkeren)
+    }
     if (!$t || strtotime($t['last_used']) < time() - REMEMBER_DAYS * 86400) {
         if ($t) {
             q('DELETE FROM remember_tokens WHERE id = ?', [$t['id']]);
