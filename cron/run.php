@@ -39,6 +39,12 @@ if (setting('mqtt_enabled', '0') === '1') {
         fwrite(STDERR, "MQTT: {$r['error']}\n");
     }
 }
+// Verlopen blokkades (inlogbeveiliging) opheffen, met een ℹ️-melding
+try {
+    Security::expire();
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Blokkades: ' . $e->getMessage() . "\n");
+}
 // Eén keer per uur opruimen (ook als de run van precies :00 is overgeslagen)
 if (strtotime((string) setting('purge_at', '')) < time() - 3600) {
     save_setting('purge_at', now());

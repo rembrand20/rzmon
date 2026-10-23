@@ -214,7 +214,11 @@ if (($argv[1] ?? '') === '--unlock') {
 }
 if (($argv[1] ?? '') === '--unblock-all') {
     Installer::ensureSchema();
-    $n = q('DELETE FROM rz_blocks')->rowCount();
+    $ids = q('SELECT id FROM rz_blocks')->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($ids as $bid) {
+        Security::unblock((int) $bid, 'terminal');   // elk met een ℹ️-melding
+    }
+    $n = count($ids);
     exit($n ? "$n blokkade(s) opgeheven (Instellingen → ⛔ Blokkades).\n" : "Er stond niets op de blokkadelijst.\n");
 }
 if (($argv[1] ?? '') === '--reset-2fa') {

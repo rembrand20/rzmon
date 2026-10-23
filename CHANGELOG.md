@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.58.2 – 2026-10-23
+### Nieuw
+- Ook het **opheffen** van een blokkade staat als ℹ️-melding in *Meldingen*: *🔓 Account gedeblokkeerd* en *✅ Blokkade opgeheven*, met wie het deed (ook via de terminal met `--unlock` of `--unblock-all`) of dat de ingestelde tijd voorbij was. Verlopen blokkades worden nu binnen een minuut opgeruimd (en verdwijnen uit de lijst ⛔ *Blokkades*).
+
 ## 1.58.1 – 2026-10-23
 ### Nieuw
 - Elke blokkade staat nu ook als **ℹ️-melding** in *Meldingen*: *🔒 Account geblokkeerd* (inlogbeveiliging) en *⛔ IP geblokkeerd* (door de inlogbeveiliging of met de hand), met de reden, door wie en tot wanneer. De ⚠️-melding met Pushover blijft zoals hij was.

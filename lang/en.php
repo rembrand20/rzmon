@@ -2366,4 +2366,10 @@ return [
     'Account geblokkeerd: {user}' => 'Account locked: {user}',
     'Account {user} is geblokkeerd na {n} mislukte logins binnen {m} minuten (laatste vanaf {ip})' => 'Account {user} was locked after {n} failed logins within {m} minutes (last from {ip})',
     'vanaf het lokale netwerk kan inloggen nog wel' => 'logging in from the local network still works',
+    'door {by}' => 'by {by}',
+    'Blokkade opgeheven: {net}' => 'Block lifted: {net}',
+    '{net} heeft weer toegang tot RzMon' => '{net} has access to RzMon again',
+    'de ingestelde tijd is voorbij' => 'the set time has passed',
+    'Account gedeblokkeerd: {user}' => 'Account unlocked: {user}',
+    '{user} kan weer overal inloggen' => '{user} can log in everywhere again',
 ];

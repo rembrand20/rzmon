@@ -110,7 +110,38 @@ final class Security
         if ($net !== false) {
             q('DELETE FROM rz_blocks WHERE id = ?', [$id]);
             AgentCommands::audit($by, 'Blokkade opgeheven', (string) $net);
+            self::liftedInfo((string) $net, t('door {by}', ['by' => $by]));
         }
+    }
+
+    /** ℹ️ in Meldingen: een IP-blokkade is opgeheven (met de hand of verlopen) */
+    private static function liftedInfo(string $net, string $how): void
+    {
+        Monitor::infoAlways(null, null, '✅ ' . t('Blokkade opgeheven: {net}', ['net' => $net]),
+            fn() => t('{net} heeft weer toegang tot RzMon', ['net' => $net]) . " · $how", str_contains($net, '/') ? null : $net);
+    }
+
+    /**
+     * Elke minuut (cron): verlopen blokkades opruimen, met een ℹ️-melding. Ook zonder deze run gelden ze niet meer
+     * (blockFor en accountLocked kijken zelf naar de tijd); dit zorgt alleen voor de melding en een nette lijst.
+     */
+    public static function expire(): void
+    {
+        foreach (q('SELECT id, net FROM rz_blocks WHERE until IS NOT NULL AND until <= ?', [now()])->fetchAll() as $b) {
+            q('DELETE FROM rz_blocks WHERE id = ?', [$b['id']]);
+            self::liftedInfo((string) $b['net'], t('de ingestelde tijd is voorbij'));
+        }
+        foreach (q('SELECT id, username FROM users WHERE locked_at IS NOT NULL AND locked_until IS NOT NULL AND locked_until <= ?', [now()])->fetchAll() as $u) {
+            q('UPDATE users SET locked_at = NULL, locked_until = NULL, locked_ip = NULL WHERE id = ?', [$u['id']]);
+            self::unlockedInfo((string) $u['username'], t('de ingestelde tijd is voorbij'));
+        }
+    }
+
+    /** ℹ️ in Meldingen: een account kan weer inloggen */
+    private static function unlockedInfo(string $user, string $how): void
+    {
+        Monitor::infoAlways(null, null, '🔓 ' . t('Account gedeblokkeerd: {user}', ['user' => $user]),
+            fn() => t('{user} kan weer overal inloggen', ['user' => $user]) . " · $how");
     }
 
     public static function blocks(): array
@@ -210,9 +241,13 @@ final class Security
         if ($name === false) {
             return;
         }
+        $was = q('SELECT locked_at, locked_until FROM users WHERE id = ?', [$id])->fetch();
         q('UPDATE users SET locked_at = NULL, locked_until = NULL, locked_ip = NULL WHERE id = ?', [$id]);
         q("DELETE FROM security_fails WHERE kind = 'login' AND user = ?", [$name]);
         AgentCommands::audit($by, 'Account gedeblokkeerd', (string) $name);
+        if ($was && self::accountLocked($was)) {
+            self::unlockedInfo((string) $name, t('door {by}', ['by' => $by]));
+        }
     }
 
     /**
@@ -298,7 +333,5 @@ final class Security
     {
         q('DELETE FROM security_fails WHERE created_at < NOW() - INTERVAL 1 DAY');
         q('DELETE FROM agent_nonces WHERE created_at < NOW() - INTERVAL 1 HOUR');
-        q('DELETE FROM rz_blocks WHERE until IS NOT NULL AND until < NOW() - INTERVAL 1 DAY');   // verlopen automatische blokkades
-        q('UPDATE users SET locked_at = NULL, locked_until = NULL, locked_ip = NULL WHERE locked_until IS NOT NULL AND locked_until <= NOW()');
     }
 }
