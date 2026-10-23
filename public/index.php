@@ -159,7 +159,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <option value="name"><?= th('Op naam') ?></option>
         </select>
         <div class="dash-more">
-          <button class="btn" id="dash-more-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
+          <button class="btn" id="dash-more-btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
           <div class="dash-menu" id="dash-menu" role="menu" hidden>
             <button class="need-user" id="maint-all" type="button" role="menuitem">🔧 <?= th('Onderhoud') ?> <small><?= th('alle meldingen tijdelijk pauzeren') ?></small></button>
             <button class="need-user" id="run-all" type="button" role="menuitem">↻ <?= th('Alles nu checken') ?></button>
@@ -172,105 +172,112 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     </section>
 
     <section id="tab-alerts" class="tab-panel" hidden>
-      <div class="card">
-        <div class="alerts-head">
-          <h2><?= th('Meldingen') ?></h2>
-          <span class="muted small" id="alerts-info"></span>
-          <div class="seg" role="group" aria-label="<?= th('Filter') ?>" id="alerts-filter">
-            <button type="button" class="seg-btn active" data-af="all"><?= th('Alles') ?></button>
-            <button type="button" class="seg-btn" data-af="noinfo"><?= th('Zonder info') ?></button>
-            <button type="button" class="seg-btn" data-af="info">ℹ️ Info</button>
+      <!-- 1.67.0: zelfde opbouw als het dashboard -->
+      <div class="dash-counters"><div class="dash-in">
+        <span class="dash-lbl muted small"><?= th('Vandaag') ?></span>
+        <div class="health-counts" id="alerts-counts" role="group" aria-label="<?= th('Filter') ?>"></div>
+        <span class="dash-last muted small" id="alerts-info"></span>
+      </div></div>
+      <div class="kpis" id="alerts-kpis"></div>
+      <div class="dash-bar">
+        <input type="search" id="alerts-search" placeholder="<?= th('🔍 Zoek in meldingen…') ?>">
+        <div class="dash-chips" id="alerts-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
+        <span class="dash-sp"></span>
+        <select id="alerts-host" aria-label="<?= th('Server') ?>"></select>
+        <select id="alerts-sort" class="alerts-sort" aria-label="<?= th('Sorteren') ?>" title="<?= th('Sorteren (binnen elke dag)') ?>">
+          <option value=""><?= th('Nieuwste eerst') ?></option>
+          <option value="time:1"><?= th('Oudste eerst') ?></option>
+          <option value="status:1"><?= th('Status: ernstigste eerst') ?></option>
+          <option value="status:-1"><?= th('Status: OK eerst') ?></option>
+          <option value="server:1"><?= th('Server A–Z') ?></option>
+          <option value="server:-1"><?= th('Server Z–A') ?></option>
+          <option value="check:1"><?= th('Check A–Z') ?></option>
+          <option value="check:-1"><?= th('Check Z–A') ?></option>
+          <option value="message:1"><?= th('Bericht A–Z') ?></option>
+          <option value="channels:1"><?= th('Kanalen: mislukt eerst') ?></option>
+        </select>
+        <div class="dash-more">
+          <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
+          <div class="dash-menu" role="menu" hidden>
+            <button type="button" id="alerts-toggle" role="menuitem">⊞ <?= th('Alles openen') ?></button>
           </div>
-          <select id="alerts-sort" class="alerts-sort" aria-label="<?= th('Sorteren') ?>" title="<?= th('Sorteren (binnen elke dag)') ?>">
-            <option value=""><?= th('Nieuwste eerst') ?></option>
-            <option value="time:1"><?= th('Oudste eerst') ?></option>
-            <option value="status:1"><?= th('Status: ernstigste eerst') ?></option>
-            <option value="status:-1"><?= th('Status: OK eerst') ?></option>
-            <option value="server:1"><?= th('Server A–Z') ?></option>
-            <option value="server:-1"><?= th('Server Z–A') ?></option>
-            <option value="check:1"><?= th('Check A–Z') ?></option>
-            <option value="check:-1"><?= th('Check Z–A') ?></option>
-            <option value="message:1"><?= th('Bericht A–Z') ?></option>
-            <option value="channels:1"><?= th('Kanalen: mislukt eerst') ?></option>
-          </select>
-          <button type="button" class="btn" id="alerts-toggle">⊞ <?= th('Alles openen') ?></button>
         </div>
-        <div id="alerts" class="alert-list"></div>
       </div>
+      <div id="alerts" class="alert-list"></div>
     </section>
 
     <section id="tab-ids" class="tab-panel" hidden>
-      <div class="card">
-        <div class="alerts-head"><h2>🛡️ IDS</h2><span class="muted small" id="ids-status"></span>
-          <button type="button" class="btn need-admin" id="ids-block-add" style="margin-left:auto"><?= th('⛔ IP blokkeren') ?></button></div>
-        <div class="ids-hosts" id="ids-hosts"></div>
-      </div>
-      <div class="seg ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
+      <!-- 1.67.0: zelfde opbouw als het dashboard -->
+      <div class="dash-counters"><div class="dash-in">
+        <div class="health-counts" id="ids-counts"></div>
+        <span class="dash-last muted small" id="ids-last"></span>
+      </div></div>
+      <div class="kpis" id="ids-kpis"></div>
+      <div class="srv-list" id="ids-hosts"></div>
+      <div class="subtabs ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
         <button type="button" class="seg-btn active" data-it="inc"><?= th('⚠️ Incidenten') ?> <span class="it-n" id="it-n-inc"></span></button>
         <button type="button" class="seg-btn" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
         <button type="button" class="seg-btn" data-it="blk"><?= th('⛔ Blokkades') ?> <span class="it-n" id="it-n-blk"></span></button>
       </div>
-      <div class="card ids-pane" data-pane="inc">
-        <div class="alerts-head">
-          <h2><?= th('⚠️ Incidenten') ?></h2>
+      <div class="ids-pane" data-pane="inc">
+        <div class="dash-bar">
+          <input type="search" id="ids-search" placeholder="<?= th('🔍 Zoek incident, IP of server…') ?>">
+          <div class="dash-chips" id="ids-filter" role="group" aria-label="Filter"></div>
+          <span class="dash-sp"></span>
           <span class="muted small" id="ids-info"></span>
-          <div class="seg" role="group" aria-label="Filter" id="ids-filter">
-            <button type="button" class="seg-btn active" data-if="open">Open</button>
-            <button type="button" class="seg-btn" data-if="all"><?= th('Alles') ?></button>
+          <button type="button" class="btn need-admin" id="ids-block-add"><?= th('⛔ IP blokkeren') ?></button>
+          <div class="dash-more">
+            <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
+            <div class="dash-menu" role="menu" hidden><button type="button" id="ids-toggle" role="menuitem"><?= th('⊞ Alles openen') ?></button></div>
           </div>
-          <button type="button" class="btn" id="ids-toggle"><?= th('⊞ Alles openen') ?></button>
         </div>
         <div id="ids-incidents" class="alert-list"></div>
       </div>
-      <div class="card ids-pane" data-pane="acc" hidden>
-        <div class="alerts-head">
-          <h2><?= th('🔑 Toegang') ?></h2>
-          <span class="muted small" id="acc-info"></span>
-          <div class="seg" role="group" aria-label="<?= th('Soort') ?>" id="acc-filter">
-            <button type="button" class="seg-btn active" data-ac="all"><?= th('Alles') ?></button>
-            <button type="button" class="seg-btn" data-ac="ssh">SSH</button>
-            <button type="button" class="seg-btn" data-ac="console">Console</button>
-            <button type="button" class="seg-btn" data-ac="sudo">sudo</button>
-            <button type="button" class="seg-btn" data-ac="su">su</button>
-            <button type="button" class="seg-btn" data-ac="fail"><?= th('❌ Mislukt') ?></button>
+      <div class="ids-pane" data-pane="acc" hidden>
+        <div class="dash-bar">
+          <input type="search" id="acc-search" placeholder="<?= th('🔍 Zoek gebruiker, IP of server…') ?>">
+          <div class="dash-chips" id="acc-filter" role="group" aria-label="<?= th('Soort') ?>">
+            <button type="button" class="dchip seg-btn on active" data-ac="all"><?= th('Alles') ?></button>
+            <button type="button" class="dchip seg-btn" data-ac="ssh">SSH</button>
+            <button type="button" class="dchip seg-btn" data-ac="console">Console</button>
+            <button type="button" class="dchip seg-btn" data-ac="sudo">sudo</button>
+            <button type="button" class="dchip seg-btn" data-ac="su">su</button>
+            <button type="button" class="dchip seg-btn" data-ac="fail"><?= th('❌ Mislukt') ?></button>
           </div>
+          <span class="dash-sp"></span>
+          <span class="muted small" id="acc-info"></span>
           <select id="acc-host" class="alerts-sort" aria-label="Server"><option value=""><?= th('Alle servers') ?></option></select>
-          <button type="button" class="btn" id="acc-toggle"><?= th('⊞ Alles openen') ?></button>
+          <div class="dash-more">
+            <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
+            <div class="dash-menu" role="menu" hidden><button type="button" id="acc-toggle" role="menuitem"><?= th('⊞ Alles openen') ?></button></div>
+          </div>
         </div>
         <div id="ids-access" class="alert-list"></div>
       </div>
-      <div class="card ids-pane" data-pane="blk" hidden>
-        <div class="alerts-head">
-          <h2><?= th('⛔ Blokkades') ?></h2>
-          <span class="muted small" id="ids-block-info"></span>
-        </div>
-        <div id="ids-blocks"></div>
+      <div class="ids-pane" data-pane="blk" hidden>
+        <div class="dash-bar"><span class="muted small" id="ids-block-info"></span></div>
+        <div class="card" id="ids-blocks"></div>
       </div>
     </section>
 
     <?php if (Vulns::enabled() && $role !== 'readonly'): ?>
     <section id="tab-vulns" class="tab-panel" hidden>
-      <div class="card">
-        <div class="alerts-head">
-          <h2>🐞 <?= th('Kwetsbaarheden') ?></h2>
-          <span class="muted small" id="vuln-info"></span>
-          <button type="button" class="btn need-admin" id="vuln-scan" style="margin-left:auto">🔍 <?= th('Nu scannen') ?></button>
-        </div>
-        <div class="vuln-counts" id="vuln-counts"></div>
-        <div class="vuln-tools">
-          <input type="search" id="vuln-search" placeholder="<?= th('Zoek pakket, CVE of server…') ?>" autocomplete="off">
-          <div class="seg" role="group" aria-label="<?= th('Filter') ?>" id="vuln-filter">
-            <button type="button" class="seg-btn active" data-vf="all"><?= th('Alles') ?></button>
-            <button type="button" class="seg-btn" data-vf="exposed">🌐 <?= th('Bereikbaar') ?></button>
-            <button type="button" class="seg-btn" data-vf="fix"><?= th('Met oplossing') ?></button>
-            <button type="button" class="seg-btn" data-vf="kev">⚠️ <?= th('Actief misbruikt') ?></button>
-            <button type="button" class="seg-btn" data-vf="ignored"><?= th('Geaccepteerd') ?></button>
-          </div>
-          <select id="vuln-sev" aria-label="<?= th('Ernst') ?>">
-            <option value="0"><?= th('Alle ernst') ?></option><option value="2"><?= th('Vanaf medium') ?></option>
-            <option value="3"><?= th('Vanaf high') ?></option><option value="4"><?= th('Alleen critical') ?></option>
-          </select>
-        </div>
+      <!-- 1.67.0: zelfde opbouw als het dashboard -->
+      <div class="dash-counters"><div class="dash-in">
+        <div class="health-counts" id="vuln-counts"></div>
+        <span class="dash-last muted small" id="vuln-info"></span>
+      </div></div>
+      <div id="vuln-banner"></div>
+      <div class="kpis" id="vuln-kpis"></div>
+      <div class="dash-bar">
+        <input type="search" id="vuln-search" placeholder="<?= th('🔍 Zoek pakket, CVE of server…') ?>" autocomplete="off">
+        <div class="dash-chips" id="vuln-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
+        <span class="dash-sp"></span>
+        <select id="vuln-sev" aria-label="<?= th('Ernst') ?>">
+          <option value="0"><?= th('Alle ernst') ?></option><option value="2"><?= th('Vanaf medium') ?></option>
+          <option value="3"><?= th('Vanaf high') ?></option><option value="4"><?= th('Alleen critical') ?></option>
+        </select>
+        <button type="button" class="btn need-admin" id="vuln-scan">🔍 <?= th('Nu scannen') ?></button>
       </div>
       <div id="vuln-hosts"></div>
     </section>

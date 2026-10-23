@@ -49,7 +49,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 
 ## 3. Dashboard
 - **Nederlands of Engels** 🌐: in het accountmenu rechtsboven (NL of EN), per gebruiker onthouden. De hele interface is vertaald. Meldingen (Pushover, e-mail, Home Assistant, MQTT), checkberichten en de REST API volgen een eigen instelling: *Taal van meldingen en checkberichten*.
-- **Tellers onder de header** (OK, warning, critical, onbekend, onderhoud), klikbaar als filter, blijven staan bij scrollen.
+- **Tellers onder de header** (OK, warning, critical, onbekend, onderhoud), klikbaar als filter, blijven staan bij scrollen. Ook de pagina's **Meldingen**, **IDS** en **Kwetsbaarheden** hebben die opbouw: tellers, kerncijfers, werkbalk met chips, compacte rijen, en herhalingen of gelijke incidenten gebundeld (*5×*); *niet verzonden* als rood icoon met de reden.
 - **Kerncijfers als tegels**: de algehele status (🟢 *Alles in orde*, 🟠 *Aandacht nodig*, 🔴 *Storing*) met een **score van 0–100%** als ring, servers bereikbaar, checks OK, open problemen met het **langst openstaande**, en de beschikbaarheid over 24 uur met een lijntje; 🌙 *stil tot …*, flappende checks en onderhoud.
 - **⚠️ Nu aandacht nodig**: alle open problemen in één lijst, critical eerst, met ✔ bevestigen en 🔧 onderhoud per regel.
 - **Werkbalk** met zoeken, filterchips (problemen, onderhoud, soort server), sorteren en een menu ⋯; servers met problemen als kaart met **mini-grafiekjes van CPU, RAM en disk over 24 uur**, servers waar alles OK is compact eronder.

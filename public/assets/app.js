@@ -175,6 +175,8 @@ let alertData = null;         // meldingen van de bewaartermijn (pagina Meldinge
 const alertDayOpen = {};      // datum → open/dicht (anders: alleen vandaag open)
 let idsData = null;           // pagina 🛡️ IDS
 let idsFilter = 'open';       // open | all
+let idsCat = '';              // '' of een soort: ports, files, procs, logins (chips)
+const idsBundles = new Set(); // uitgeklapte bundels van incidenten en toegang
 const idsDayOpen = {};
 
 // ---------------------------------------------------------------- API
@@ -380,13 +382,14 @@ function init() {
     if (e.target.closest('[data-attn-more]')) { attnOpen = !attnOpen; return renderAttention(); }
     onHostsClick(e);
   });
-  // Menu ⋯ (onderhoud, alles nu checken, alles openen)
-  const dm = $('#dash-menu'), dmb = $('#dash-more-btn');
-  const dmOpen = (on) => { dm.hidden = !on; dmb.setAttribute('aria-expanded', on); };
-  dmb.onclick = (e) => { e.stopPropagation(); dmOpen(dm.hidden); };
-  dm.addEventListener('click', () => dmOpen(false));
-  document.addEventListener('click', (e) => { if (!dm.hidden && !e.target.closest('.dash-more')) dmOpen(false); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !dm.hidden) dmOpen(false); });
+  // Menu's ⋯ (dashboard: onderhoud, alles nu checken, alles openen; andere pagina's: alles openen e.d.)
+  const menuOpen = (btn, on) => { btn.nextElementSibling.hidden = !on; btn.setAttribute('aria-expanded', on); };
+  $$('[data-menu-btn]').forEach((btn) => {
+    btn.onclick = (e) => { e.stopPropagation(); const on = btn.nextElementSibling.hidden; $$('[data-menu-btn]').forEach((x) => menuOpen(x, false)); menuOpen(btn, on); };
+    btn.nextElementSibling.addEventListener('click', () => menuOpen(btn, false));
+  });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.dash-more')) $$('[data-menu-btn]').forEach((x) => menuOpen(x, false)); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $$('[data-menu-btn]').forEach((x) => menuOpen(x, false)); });
   // De tellerbalk blijft onder de header staan: hoe hoog is de header?
   const topH = () => document.documentElement.style.setProperty('--top-h', ($('.topbar') ? $('.topbar').offsetHeight : 56) + 'px');
   topH(); window.addEventListener('resize', topH);
@@ -444,12 +447,22 @@ function init() {
     setAgentCommands(null, sel.value, sel.dataset.current || 'off', L('alle agents'), () => { showTab('settings/agents'); loadAgentCommands(); });
   };
   $('#ids-filter').onclick = (e) => {
-    const b = e.target.closest('[data-if]');
+    const b = e.target.closest('[data-if], [data-icat]');
     if (!b) return;
-    idsFilter = b.dataset.if;
-    $$('#ids-filter .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+    if (b.dataset.if) { idsFilter = b.dataset.if; idsCat = ''; } else idsCat = idsCat === b.dataset.icat ? '' : b.dataset.icat;
     renderIds();
   };
+  let idsSearchT;
+  $('#ids-search').addEventListener('input', () => { clearTimeout(idsSearchT); idsSearchT = setTimeout(renderIds, 200); });
+  $('#acc-search').addEventListener('input', () => { clearTimeout(idsSearchT); idsSearchT = setTimeout(renderAccess, 200); });
+  $('#ids-counts').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-igo]');
+    if (!b) return;
+    idsTab = b.dataset.igo;
+    if (idsTab === 'acc') { accFilter = b.dataset.fail ? 'fail' : 'all'; $$('#acc-filter .seg-btn').forEach((x) => { x.classList.toggle('active', x.dataset.ac === accFilter); x.classList.toggle('on', x.dataset.ac === accFilter); }); renderAccess(); }
+    if (idsTab === 'inc') { idsFilter = 'open'; idsCat = ''; renderIds(); }
+    showIdsTab();
+  });
   $('#ids-toggle').onclick = () => {
     const days = $$('#ids-incidents .alert-day');
     const all = days.every((x) => x.open);
@@ -467,7 +480,7 @@ function init() {
     const b = e.target.closest('[data-ac]');
     if (!b) return;
     accFilter = b.dataset.ac;
-    $$('#acc-filter .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+    $$('#acc-filter .seg-btn').forEach((x) => { x.classList.toggle('active', x === b); x.classList.toggle('on', x === b); });
     renderAccess();
   };
   $('#acc-host').onchange = (e) => { accHost = e.target.value; renderAccess(); };
@@ -477,6 +490,7 @@ function init() {
     days.forEach((x) => { x.open = !all; });
   };
   $('#ids-access').addEventListener('click', (e) => {
+    if (toggleBundle(e)) return;
     const th = e.target.closest('th[data-sort]');
     if (th) {
       const k = th.dataset.sort;
@@ -494,11 +508,14 @@ function init() {
   $('#tab-ids').addEventListener('click', async (e) => {
     const go = e.target.closest('[data-goto]');
     if (go) { e.preventDefault(); showTab(go.dataset.goto); return; }
+    if (e.target.closest('#ids-incidents') && toggleBundle(e)) return;
     const b = e.target.closest('[data-ids], [data-unblock], [data-rebase]');
     if (!b) return;
     try {
       if (b.dataset.ids === 'block') return idsBlockDialog(b.dataset.ip, b.dataset.host);
-      if (b.dataset.ids) await api('ids_incident', { id: +b.dataset.id, action: b.dataset.ids });
+      // Een bundel in één keer: elk incident apart afhandelen
+      if (b.dataset.many) { for (const id of b.dataset.many.split(',')) await api('ids_incident', { id: +id, action: b.dataset.ids }); }
+      else if (b.dataset.ids) await api('ids_incident', { id: +b.dataset.id, action: b.dataset.ids });
       else if (b.dataset.unblock) {
         if (!confirm(L('Deze blokkade opheffen?'))) return;
         await api('ids_unblock', { id: +b.dataset.unblock });
@@ -516,6 +533,8 @@ function init() {
     days.forEach((x) => { x.open = !all; });   // het toggle-event bouwt de inhoud op en onthoudt de stand
   };
   $('#alerts').addEventListener('click', (e) => {
+    // Gebundelde herhalingen (5×) uitklappen
+    if (toggleBundle(e, alertBundles)) return;
     // ⛔ bij een geweigerde verbinding of mislukte login: dat IP blokkeren
     const bl = e.target.closest('[data-block-ip]');
     if (bl) { e.stopPropagation(); return blockDialog(bl.dataset.blockIp); }
@@ -533,11 +552,20 @@ function init() {
     const row = e.target.closest('[data-cid]');
     if (row && !e.target.closest('button, a')) checkInfo(row.dataset.cid);
   });
-  $$('#alerts-filter .seg-btn').forEach((b) => (b.onclick = () => {
-    alertFilter = b.dataset.af;
+  const setAlertFilter = (f) => {
+    alertFilter = alertFilter === f && f !== 'all' ? 'all' : f;
     try { localStorage.setItem('rzmon-alert-filter', alertFilter); } catch (ex) { /* alleen voor nu */ }
     renderAlerts();
-  }));
+  };
+  $('#alerts-filter').addEventListener('click', (e) => { const b = e.target.closest('[data-af]'); if (b) setAlertFilter(b.dataset.af); });
+  $('#alerts-counts').addEventListener('click', (e) => { const b = e.target.closest('[data-af]'); if (b) setAlertFilter(b.dataset.af); });
+  let alertSearchT;
+  $('#alerts-search').addEventListener('input', () => { clearTimeout(alertSearchT); alertSearchT = setTimeout(renderAlerts, 200); });
+  $('#alerts-host').onchange = renderAlerts;
+  $('#alerts-kpis').addEventListener('click', (e) => {
+    const go = e.target.closest('[data-go]');
+    if (go) showTab(go.dataset.go);
+  });
   $('#alerts-sort').onchange = (e) => {
     const [key, dir] = e.target.value.split(':');
     alertSort = { key, dir: +dir || 1 };
@@ -3162,14 +3190,23 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
 }
 
 // ---------------------------------------------------------------- Alerts
+/** Bericht zonder "[niet verzonden: …]" aan het eind; de reden apart (die staat bij het rode kanaal-icoon) */
+function splitSent(msg) {
+  const m = /\s*\[(?:niet verzonden|not sent): (.+)\]\s*$/s.exec(msg || '');
+  return m ? [msg.slice(0, m.index), m[1]] : [msg || '', ''];
+}
+
 function channelIcons(a) {
-  const tip = (title, icon) => `<span title="${L(title)}">${icon}</span>`;
+  const tip = (title, icon) => `<span class="chi" title="${L(title)}">${icon}</span>`;
+  const why = splitSent(a.message)[1];
+  const bad = (title, icon) => `<span class="chi bad" title="${esc(L(title) + (why ? ': ' + why : ''))}">${icon}</span>`;
   if (a.kind === 'auth' || a.kind === 'authfail') return `<span class="muted" title="${L('Alleen op deze pagina, niet verstuurd')}">–</span>`;
   if (a.kind === 'ack') return tip('Bevestiging', '✔');
   const out = [];
   if (+a.sent_ok) out.push(tip('Verstuurd via Pushover', '📲'));
-  if (a.email_ok !== null && a.email_ok !== undefined) out.push(+a.email_ok ? tip('Verstuurd per e-mail', '📧') : tip('E-mail mislukt', '📧✕'));
-  if (a.webhook_ok !== null) out.push(+a.webhook_ok ? tip('Verstuurd naar Home Assistant', '🏠') : tip('Webhook mislukt', '🏠✕'));
+  else if (/Pushover/.test(why)) out.push(bad('Pushover mislukt', '📲'));
+  if (a.email_ok !== null && a.email_ok !== undefined) out.push(+a.email_ok ? tip('Verstuurd per e-mail', '📧') : bad('E-mail mislukt', '📧'));
+  if (a.webhook_ok !== null) out.push(+a.webhook_ok ? tip('Verstuurd naar Home Assistant', '🏠') : bad('Webhook mislukt', '🏠'));
   // Nergens heen verstuurd (kanaal of regel staat uit): alleen op deze pagina. Geen ✉️, dat leek op een mislukte e-mail.
   if (!out.length) out.push(tip('Niet verstuurd: alleen op deze pagina (zie de meldregels)', '🔕'));
   return out.join(' ');
@@ -3339,11 +3376,12 @@ function renderAccess() {
   const hosts = [...new Map(d.rows.map((r) => [r.host_id, r.host_name])).entries()].sort((a, b) => a[1].localeCompare(b[1], LANG));
   $('#acc-host').innerHTML = '<option value="">' + L('Alle servers') + '</option>' + hosts.map(([id, n]) => `<option value="${id}" ${+accHost === +id ? 'selected' : ''}>${esc(n)}</option>`).join('');
   const fails = d.rows.filter((r) => r.kind === 'authfail').length;
-  $('#it-n-acc').textContent = d.rows.length ? `(${d.rows.length})` : '';
+  $('#it-n-acc').textContent = d.rows.length ? d.rows.length : '';
   $('#acc-info').textContent = L('{ok} gelukt · {fail} mislukt · laatste {days} dagen', { ok: d.rows.length - fails, fail: fails, days: d.days }) + (d.truncated ? ' ' + L('(alleen de nieuwste 10.000)') : '');
   const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → 🛡️ IDS</a>.') + '</p>';
+  const q = $('#acc-search').value.trim().toLowerCase();
   const list = d.rows.filter((r) => (accFilter === 'all' || (accFilter === 'fail' ? r.kind === 'authfail' : r.type === accFilter))
-    && (!accHost || +r.host_id === +accHost));
+    && (!accHost || +r.host_id === +accHost) && (!q || `${r.message} ${r.host_name} ${accWho(r, accDet(r))}`.toLowerCase().includes(q)));
   if (!list.length) {
     el.innerHTML = off + `<p class="muted">${d.rows.length ? L('Niets gevonden met dit filter.') : L('Nog geen logins, sudo of su.')}</p>`;
     $('#acc-toggle').hidden = true;
@@ -3358,11 +3396,11 @@ function renderAccess() {
       <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
         <span class="ad-counts">${rows.length - nf ? `<span class="ad-count" title="${L('gelukt')}">🔑 ${rows.length - nf}</span>` : ''}${nf ? `<span class="ad-count" title="${L('mislukt')}">❌ ${nf}</span>` : ''}</span>
         <span class="muted small ad-total">${rows.length === 1 ? L('1 regel') : L('{n} regels', { n: rows.length })}</span></summary>
-      <div class="ad-body">${isOpen(day) ? accTable(rows) : ''}</div></details>`;
+      <div class="ad-body">${isOpen(day) ? accBody(rows) : ''}</div></details>`;
   }).join('');
   $$('.alert-day', el).forEach((det) => det.addEventListener('toggle', () => {
     accDayOpen[det.dataset.day] = det.open;
-    if (det.open && !$('.ad-body', det).innerHTML) $('.ad-body', det).innerHTML = accTable(byDay.get(det.dataset.day));
+    if (det.open && !$('.ad-body', det).innerHTML) $('.ad-body', det).innerHTML = accBody(byDay.get(det.dataset.day));
     accToggleLabel();
   }));
   accToggleLabel();
@@ -3372,6 +3410,25 @@ function accToggleLabel() {
   const days = $$('#ids-access .alert-day');
   $('#acc-toggle').hidden = days.length < 2;
   $('#acc-toggle').textContent = days.length && days.every((x) => x.open) ? '⊟ ' + L('Alles sluiten') : '⊞ ' + L('Alles openen');
+}
+
+/** L1nes: de tabel; Blox: compacte rijen zoals bij Meldingen, gelijke regels achter elkaar gebundeld */
+function accBody(rows) {
+  if (viewPrefs().layout === 'l1nes') return accTable(rows);
+  const row = (r, group = null) => {
+    const det = accDet(r);
+    const fail = r.kind === 'authfail';
+    return `<div class="mrow compact">
+      <span class="m-t" title="${esc(r.created_at)}">${esc(r.created_at.slice(11, 16))}</span><i class="adot ${fail ? 's1' : 'info'}"></i>
+      <span class="m-tt">${fail ? '❌ ' : '🔑 '}${esc(ACC_TYPES[r.type] || r.type)} · ${esc(accWho(r, det))}${fail && +det.n > 1 ? ` <span class="muted small">${+det.n}×</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn>${group}×</button>` : ''}<small>${esc(r.message)}</small></span>
+      <span class="m-sv">${esc(r.host_name)}</span>
+      <span class="m-ch need-admin"><button type="button" class="linkbtn" data-acc="ignore" data-id="${r.id}" title="${L('Deze gebruiker of dit IP-adres voortaan niet meer tonen')}">🙈</button>${det.ip ? ` <button type="button" class="linkbtn" data-acc="block" data-id="${r.id}" title="${L('IP-adres {ip} blokkeren', { ip: esc(det.ip) })}">⛔</button>` : ''}</span></div>`;
+  };
+  return bundleRuns(rows, (r) => `${r.kind}|${r.type}|${r.host_id}|${accWho(r, accDet(r))}|${r.message}`).map((g) => {
+    if (g.items.length === 1) return row(g.items[0]);
+    const key = 'a' + g.items[g.items.length - 1].id;
+    return `<div class="bundle${idsBundles.has(key) ? ' open' : ''}" data-bundle="${key}">${row(g.items[0], g.items.length)}${g.items.slice(1).map((r) => row(r)).join('')}</div>`;
+  }).join('');
 }
 
 function accTable(rows) {
@@ -3423,31 +3480,85 @@ function accIgnoreDialog(r) {
   });
 }
 
+const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'outbound']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
+  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new']]];
+const idsCatOf = (i) => (IDS_CATS.find((c) => c[2].includes(i.type)) || [''])[0];
+
+/** Toegang in de laatste 24 uur: [gelukt, mislukt (pogingen), per uur mislukt] */
+function accLast24() {
+  if (!accData) return [0, 0, []];
+  const since = Date.now() - 86400000;
+  const hours = new Array(24).fill(0);
+  let ok = 0, fail = 0;
+  accData.rows.forEach((r) => {
+    const t = new Date(r.created_at.replace(' ', 'T')).getTime();
+    if (t < since) return;
+    if (r.kind === 'authfail') { const n = +accDet(r).n || 1; fail += n; hours[Math.min(23, Math.floor((t - since) / 3600000))] += n; } else ok++;
+  });
+  return [ok, fail, hours];
+}
+
 function renderIds() {
   const d = idsData;
   if (!d) return;
-  $('#ids-status').innerHTML = !d.enabled ? L('<b class="warn-txt">IDS staat uit.</b> Zet het aan onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → 🛡️ IDS</a>.')
-    : `${L('Modus:')} <b>${d.mode === 'block' ? L('⛔ blokkeren') : L('🎓 leren (alleen melden)')}</b> · <a href="#settings/ids" data-goto="settings/ids">${L('instellingen')}</a>`;
-  $('#ids-hosts').innerHTML = d.hosts.length ? d.hosts.map((h) => h.ha ? `
-    <div class="ids-host"><div><b>${esc(h.name)}</b></div>
-      <div class="small muted">${L('niet beschikbaar in de Home Assistant-add-on: die draait in een container en ziet het systeem zelf niet')}</div></div>` : `
-    <div class="ids-host">
-      <div><b>${esc(h.name)}</b> <span class="muted small">${h.last_report ? L('IDS-rapport {ago}', { ago: ago(h.last_report) }) : d.enabled ? L('nog geen IDS-rapport (agent 1.35.0+)') : ''}</span></div>
-      <div class="small">${!h.baseline_until ? '' : h.learning ? L('📏 basismeting tot {t}', { t: esc(fmtUntil(h.baseline_until)) }) : L('✔ bewaakt')}
-        ${h.fw_state ? ' · ' + (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : ''}${h.fim_count != null ? ' · 📁 ' + L(+h.fim_count === 1 ? '{n} bestand bewaakt' : '{n} bestanden bewaakt', { n: (+h.fim_count).toLocaleString(LOCALE) }) : ''}${+h.realtime ? ((x) => (x && x.state === 'active' ? ' · <span class="good" title="' + L('Realtime-watcher actief') + '">⚡ realtime</span>' : ' · <span class="warn-txt" title="' + L('Realtime staat aan, maar de watcher is niet actief') + '">⚡ ' + L('niet actief') + '</span>'))(JSON.parse(h.rt || 'null')) : ''}${+h.realtime ? ((t) => (t && !t.inotify ? ` · <span class="warn-txt" title="${L('Bestanden worden niet in realtime gevolgd; zie de Agent Manager')}">${t.family === 'rhel' && !t.epel ? L('EPEL ontbreekt') : L('inotify-tools ontbreekt')}</span>` : ''))(JSON.parse(h.tools || 'null')) : ''}</div>
-      <div class="small">${h.open[2] ? `<span class="ad-count">🔴 ${h.open[2]}</span>` : ''} ${h.open[1] ? `<span class="ad-count">🟠 ${h.open[1]}</span>` : ''}
-        ${!h.open[1] && !h.open[2] ? '<span class="muted">' + L('geen open incidenten') + '</span>' : ''}
-        ${h.baseline_until ? `<button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="${L('Alles wat er nu is als normaal vastleggen')}">↺ ${L('basismeting opnieuw')}</button>` : ''}</div>
-    </div>`).join('') : '<p class="muted">' + L('Nog geen servers met agent.') + '</p>';
-
-  // Incidenten per dag
-  const list = d.incidents.filter((i) => idsFilter === 'all' || i.status === 'open');
   const open = d.incidents.filter((i) => i.status === 'open');
+  const o2 = open.filter((i) => +i.severity === 2).length;
+  const [accOk, accFail, failHours] = accLast24();
+  // Tellers
+  const cnt = (cls, n, word, attrs, zeroOk = false) => `<button type="button" class="hc ${cls} ${n || zeroOk ? '' : 'zero'}" ${attrs}><span class="hc-dot"></span><b>${n}</b> <span class="hc-w">${word}</span></button>`;
+  $('#ids-counts').innerHTML = cnt('s2', o2, 'Critical', 'data-igo="inc"') + cnt('s1', open.length - o2, 'Warning', 'data-igo="inc"')
+    + cnt('sx2', d.blocks.length, '⛔ ' + L('Geblokkeerd'), 'data-igo="blk"') + cnt('si', accOk, '🔑 ' + L('Logins 24 u'), 'data-igo="acc"')
+    + cnt('sx', accFail, '❌ ' + L('Mislukt 24 u'), 'data-igo="acc" data-fail="1"');
+  const lastRep = d.hosts.map((h) => h.last_report).filter(Boolean).sort().pop();
+  $('#ids-last').textContent = lastRep ? L('IDS-rapport {ago}', { ago: ago(lastRep) }) : '';
+  // Kerncijfers
+  const real = d.hosts.filter((h) => !h.ha);
+  const watched = real.filter((h) => h.last_report);
+  const missing = real.find((h) => !h.last_report);
+  const oldest = open[open.length - 1];
+  const maxF = Math.max(1, ...failHours);
+  let fp = '';
+  failHours.forEach((v, i) => { fp += `${fp ? 'L' : 'M'}${(i / 23 * 100).toFixed(1)},${(24 - v / maxF * 20).toFixed(1)}`; });
+  $('#ids-kpis').innerHTML = `
+    <div class="kpi kpi-main ${!d.enabled ? 'warn' : ''}"><div class="kpi-txt"><div class="kpi-lbl">${L('Modus')}</div>
+      ${d.enabled ? `<div class="ids-mode"><span class="${d.mode !== 'block' ? 'on' : ''}">🎓 ${L('Leren')}</span><span class="${d.mode === 'block' ? 'on bad' : ''}">⛔ ${L('Blokkeren')}</span></div>
+        <div class="kpi-sub">${d.mode === 'block' ? L('brute force wordt gemeld én geblokkeerd') : L('alles wordt gemeld, er wordt niets geblokkeerd')} · <a href="#settings/ids" data-goto="settings/ids">${L('instellingen')}</a></div>`
+        : `<div class="kpi-state">${L('IDS staat uit')}</div><div class="kpi-sub"><a href="#settings/ids" data-goto="settings/ids">${L('aanzetten')}</a></div>`}</div></div>
+    <div class="kpi ${missing && d.enabled ? 'warn' : ''}"><div class="kpi-lbl">${L('Servers bewaakt')}</div><div class="kpi-val">${watched.length}<small>/${real.length}</small></div>
+      <div class="kpi-sub">${missing && d.enabled ? L('{name}: nog geen IDS-rapport', { name: esc(missing.name) }) : real.length ? L('allemaal') : L('nog geen servers met agent')}</div></div>
+    <div class="kpi ${o2 ? 'bad' : open.length ? 'warn' : ''}"><div class="kpi-lbl">${L('Open incidenten')}</div><div class="kpi-val">${open.length}</div>
+      <div class="kpi-sub">${oldest ? `${L('langst')}: ${esc(oldest.title)} (${dur(oldest.created_at)})` : L('niets open')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Nu geblokkeerd')}</div><div class="kpi-val">${d.blocks.length}</div>
+      <div class="kpi-sub">${d.blocks.length ? esc(d.blocks.slice(0, 3).map((b) => b.ip).join(' · ')) : d.mode === 'block' ? L('niets') : L('modus leren')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Mislukte logins 24 u')}</div><div class="kpi-val">${accFail}</div>
+      <svg class="kpi-spark" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><path d="${fp}L100,26L0,26Z" fill="var(--warn)" opacity=".14"/><path d="${fp}" fill="none" stroke="var(--warn)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg></div>`;
+  // Servers: compacte regels
+  $('#ids-hosts').innerHTML = d.hosts.length ? d.hosts.map((h) => {
+    if (h.ha) return `<div class="srv-row"><span class="ok-ic">🏠</span><span class="ok-nm"><strong>${esc(h.name)}</strong><small>${L('niet beschikbaar in de Home Assistant-add-on: die draait in een container en ziet het systeem zelf niet')}</small></span><span class="srv-st"></span><span class="srv-n muted small">–</span></div>`;
+    const st = [!h.baseline_until ? '' : h.learning ? L('📏 basismeting tot {t}', { t: esc(fmtUntil(h.baseline_until)) }) : '✔ ' + L('bewaakt'),
+      h.fw_state ? (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : '',
+      h.fim_count != null ? '📁 ' + L(+h.fim_count === 1 ? '{n} bestand bewaakt' : '{n} bestanden bewaakt', { n: (+h.fim_count).toLocaleString(LOCALE) }) : '',
+      +h.realtime ? ((x) => (x && x.state === 'active' ? '<span class="good">⚡ realtime</span>' : `<span class="warn-txt">⚡ ${L('niet actief')}</span>`))(JSON.parse(h.rt || 'null')) : '',
+      +h.realtime ? ((t) => (t && !t.inotify ? `<span class="warn-txt">${t.family === 'rhel' && !t.epel ? L('EPEL ontbreekt') : L('inotify-tools ontbreekt')}</span>` : ''))(JSON.parse(h.tools || 'null')) : ''].filter(Boolean).join(' · ');
+    const n = h.open[1] + h.open[2];
+    return `<div class="srv-row"><span class="ok-ic">🖥️</span>
+      <span class="ok-nm"><strong>${esc(h.name)}</strong><small>${h.last_report ? L('IDS-rapport {ago}', { ago: ago(h.last_report) }) : d.enabled ? L('nog geen IDS-rapport (agent 1.35.0+)') : ''}</small></span>
+      <span class="srv-st small">${st}${h.baseline_until ? ` <button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="${L('Alles wat er nu is als normaal vastleggen')}">↺ ${L('basismeting opnieuw')}</button>` : ''}</span>
+      <span class="srv-n">${n ? `<b class="${h.open[2] ? 'danger-txt' : 'warn-txt'}">● ${L('{n} open', { n })}</b>` : `<b class="good-txt">● ${L('geen incidenten')}</b>`}</span></div>`;
+  }).join('') : '<p class="muted">' + L('Nog geen servers met agent.') + '</p>';
+
+  // Incidenten per dag; dezelfde soort op dezelfde server achter elkaar gebundeld
+  const q = $('#ids-search').value.trim().toLowerCase();
+  const scope = d.incidents.filter((i) => idsFilter === 'all' || i.status === 'open');
+  $('#ids-filter').innerHTML = [['open', 'Open', open.length], ['all', L('Alles'), d.incidents.length]].map(([k, l, n]) => `<button type="button" class="dchip ${idsFilter === k && !idsCat ? 'on' : ''}" data-if="${k}">${l} <b>${n}</b></button>`).join('')
+    + IDS_CATS.map(([k, l]) => [k, l(), scope.filter((i) => idsCatOf(i) === k).length]).filter(([, , n]) => n)
+      .map(([k, l, n]) => `<button type="button" class="dchip ${idsCat === k ? 'on' : ''}" data-icat="${k}">${l} <b>${n}</b></button>`).join('');
+  const list = scope.filter((i) => (!idsCat || idsCatOf(i) === idsCat) && (!q || `${i.title} ${i.detail} ${i.host_name} ${i.ip || ''}`.toLowerCase().includes(q)));
   $('#ids-info').textContent = L('{open} open · {n} in de laatste {days} dagen', { open: open.length, n: d.incidents.length, days: d.days });
-  $('#it-n-inc').textContent = open.length ? `(${open.length})` : '';
+  $('#it-n-inc').textContent = open.length ? open.length : '';
   const el = $('#ids-incidents');
   if (!list.length) {
-    el.innerHTML = `<p class="muted">${idsFilter === 'open' ? L('Geen open incidenten.') + ' 👌' : L('Nog geen incidenten.')}</p>`;
+    el.innerHTML = `<p class="muted">${idsFilter === 'open' && !q && !idsCat ? L('Geen open incidenten.') + ' 👌' : L('Niets gevonden.')}</p>`;
   } else {
     const byDay = new Map();
     list.forEach((i) => { const day = i.created_at.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(i); });
@@ -3458,7 +3569,11 @@ function renderIds() {
         <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
           <span class="ad-counts">${n2 ? `<span class="ad-count">🔴 ${n2}</span>` : ''}${n1 ? `<span class="ad-count">🟠 ${n1}</span>` : ''}</span>
           <span class="muted small ad-total">${items.length === 1 ? L('1 incident') : L('{n} incidenten', { n: items.length })}</span></summary>
-        <div class="ad-body">${items.map(idsRow).join('')}</div></details>`;
+        <div class="ad-body">${bundleRuns(items, (i) => `${i.type}|${i.host_id}|${i.status}`, true).map((g) => {
+          if (g.items.length === 1) return idsRow(g.items[0]);
+          const key = 'i' + g.items[g.items.length - 1].id;
+          return `<div class="bundle${idsBundles.has(key) ? ' open' : ''}" data-bundle="${key}">${idsRow(g.items[0], g.items)}${g.items.slice(1).map((i) => idsRow(i)).join('')}</div>`;
+        }).join('')}</div></details>`;
     }).join('');
     $$('.alert-day', el).forEach((det) => det.addEventListener('toggle', () => { idsDayOpen[det.dataset.day] = det.open; idsToggleLabel(); }));
   }
@@ -3466,7 +3581,7 @@ function renderIds() {
 
   // Blokkades
   $('#ids-block-info').textContent = L('{n} actief', { n: d.blocks.length });
-  $('#it-n-blk').textContent = d.blocks.length ? `(${d.blocks.length})` : '';
+  $('#it-n-blk').textContent = d.blocks.length ? d.blocks.length : '';
   const row = (b, active) => `<tr>
       <td class="mono">${esc(b.ip)}</td><td>${esc(b.host_name)}</td><td>${esc(b.reason)}</td>
       <td class="at-time" title="${esc(b.created_at)}">${esc(fmtUntil(b.created_at))}</td>
@@ -3481,22 +3596,26 @@ function renderIds() {
         <div class="table-scroll"><table class="alert-table large ids-blocks">${head}<tbody>${d.removed.map((b) => row(b, false)).join('')}</tbody></table></div></details>` : '');
 }
 
-function idsRow(i) {
+/** Eén incident als compacte rij; group = alle incidenten van een bundel (dan met 3× en een knop voor allemaal) */
+function idsRow(i, group = null) {
   const sev = +i.severity === 2 ? 2 : 1;
   const done = i.status !== 'open';
   const fim = i.type === 'fim' || i.type === 'fim_bulk';
   const okLabel = fim ? (i.type === 'fim_bulk' ? L('✔ Alles goedkeuren') : L('✔ Wijziging goedkeuren')) : L('✔ Afhandelen');
   const normal = fim ? [L('🚫 Niet meer bewaken'), i.type === 'fim_bulk' ? L('Goedkeuren en wijzigingen onder dit pad voortaan niet meer melden') : L('Goedkeuren en dit bestand voortaan niet meer bewaken')]
     : [L('Dit is normaal'), L('Afhandelen en dit voortaan niet meer melden')];
-  return `<div class="alert-item ids-item s${sev} ${done ? 'ids-done' : ''}">
-    <span class="dot"></span>
-    <strong>${sev === 2 ? '🔴' : '🟠'} ${esc(i.title)}${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}</strong>
-    <span class="muted small" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))} · ${esc(i.host_name)}</span>
-    <span class="msg">${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</span>
+  const many = group && !done ? group.filter((x) => x.status === 'open').map((x) => x.id).join(',') : '';
+  return `<div class="irow s${sev} ${done ? 'ids-done' : ''}">
+    <i class="adot s${sev}"></i>
+    <span class="m-tt">${esc(i.title)}${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort – klik om ze te tonen', { n: group.length }))}">${group.length}×</button>` : ''}
+      <small>${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</small></span>
+    <span class="m-sv">${esc(i.host_name)}</span>
+    <span class="m-t" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))}</span>
     <span class="ids-actions need-admin">${done ? `<button type="button" class="linkbtn" data-ids="reopen" data-id="${i.id}">↺ ${L('heropenen')}</button>`
+      : many ? `<button type="button" class="btn small-btn" data-ids="handle" data-many="${many}" title="${esc(L('Alle {n} afhandelen', { n: many.split(',').length }))}">${okLabel} (${many.split(',').length})</button>`
       : `<button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">${okLabel}</button>
          <button type="button" class="btn small-btn" data-ids="normal" data-id="${i.id}" title="${normal[1]}">${normal[0]}</button>`}
-      ${i.ip ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}">⛔ ${L('Blokkeer IP')}</button>` : ''}</span>
+      ${i.ip && !many ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}">⛔ ${L('Blokkeer IP')}</button>` : ''}</span>
   </div>`;
 }
 
@@ -3619,17 +3738,117 @@ function alertRows(list, layout, density) {
           <td class="at-st">${alertStatusText(a)}</td>
           <td>${esc(host)}</td>
           <td>${esc(check)}</td>
-          <td class="at-msg" title="${density === 'small' ? L('Klik voor het hele bericht') : ''}">${esc(a.message)}</td>
+          <td class="at-msg" title="${density === 'small' ? L('Klik voor het hele bericht') : ''}">${esc(splitSent(a.message)[0])}</td>
           <td class="at-ch">${channelIcons(a)}${alertBlock(a)}</td></tr>`;
       }).join('')}</tbody></table>`;
   }
-  return list.map((a) => `
-    <div class="alert-item ${density === 'small' ? 'compact ' : ''}${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : a.kind === 'info' ? 'info' : 's' + a.status}${a.check_id ? ' clickable' : ''}"${cid(a)}>
-      <span class="dot"></span>
-      <strong>${esc(a.title)}</strong>
-      <span class="muted small" title="${esc(a.created_at)}">${time(a)} ${channelIcons(a)}${alertBlock(a)}</span>
-      <span class="msg">${esc(a.message)}</span>
-    </div>`).join('');
+  // Blox: compacte rijen; dezelfde melding direct achter elkaar wordt gebundeld (5×, uit te klappen)
+  const dot = { crit: 's2', warn: 's1', unk: 's3', ok: 's0', info: 'info', sec: 'sec', other: 'ack' };
+  const row = (a, n = 0, bkey = '') => {
+    const { host } = alertCols(a);
+    return `<div class="mrow ${density === 'small' ? 'compact' : ''}${a.check_id ? ' clickable' : ''}"${cid(a)}>
+      <span class="m-t" title="${esc(a.created_at)}">${time(a)}</span><i class="adot ${dot[alertCat(a)]}"></i>
+      <span class="m-tt">${esc(a.title)}${n ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} keer dezelfde melding – klik om ze te tonen', { n }))}">${n}×</button>` : ''}<small>${esc(splitSent(a.message)[0])}</small></span>
+      <span class="m-sv">${esc(host)}</span>
+      <span class="m-ch">${channelIcons(a)}${alertBlock(a)}</span></div>`;
+  };
+  const groups = [];
+  list.forEach((a) => {
+    const k = `${a.kind}|${a.title}|${splitSent(a.message)[0]}`;
+    const g = groups[groups.length - 1];
+    if (g && g.k === k) g.items.push(a); else groups.push({ k, items: [a] });
+  });
+  return groups.map((g) => {
+    if (g.items.length === 1) return row(g.items[0]);
+    const bkey = 'b' + g.items[g.items.length - 1].id;   // de oudste blijft gelijk als er een nieuwe bijkomt
+    return `<div class="bundle${alertBundles.has(bkey) ? ' open' : ''}" data-bundle="${bkey}">${row(g.items[0], g.items.length)}${g.items.slice(1).map((a) => row(a)).join('')}</div>`;
+  }).join('');
+}
+
+const alertBundles = new Set();   // uitgeklapte bundels
+/** Klik op 5×: bundel uit- of inklappen (en onthouden tot de pagina herladen wordt). true = afgehandeld */
+function toggleBundle(e, set = idsBundles) {
+  const rb = e.target.closest('[data-bundle-btn]');
+  if (!rb) return false;
+  const b = rb.closest('.bundle');
+  b.classList.toggle('open') ? set.add(b.dataset.bundle) : set.delete(b.dataset.bundle);
+  return true;
+}
+/** Items met dezelfde sleutel samen: [{ k, items }]. Alleen direct achter elkaar, of (anywhere) overal in de lijst, op de plek van de eerste */
+function bundleRuns(list, key, anywhere = false) {
+  const out = [], seen = new Map();
+  list.forEach((x) => {
+    const k = key(x);
+    const g = anywhere ? seen.get(k) : out[out.length - 1];
+    if (g && g.k === k) g.items.push(x);
+    else { const n = { k, items: [x] }; out.push(n); seen.set(k, n); }
+  });
+  return out;
+}
+/** Soort melding: crit, warn, unk, ok (hersteld), info, sec (beveiliging: geweigerd of IDS), other (bevestigd, onderhoud) */
+function alertCat(a) {
+  if (a.kind === 'sec' || a.kind === 'ids') return 'sec';
+  if (a.kind === 'info') return 'info';
+  if (a.kind === 'ack' || a.kind === 'maint') return 'other';
+  if (/^\S+ (HERSTELD|RECOVERED)/.test(a.title)) return 'ok';
+  return ['ok', 'warn', 'crit', 'unk'][+a.status] || 'other';
+}
+const ALERT_CATS = [['crit', 2, 'Critical'], ['warn', 1, 'Warning'], ['unk', 3, () => L('Onbekend')], ['ok', 0, () => L('Hersteld')], ['info', 'i', 'Info'], ['sec', 'x', () => L('Beveiliging')]];
+const catLabel = (k) => { const w = ALERT_CATS.find((c) => c[0] === k)[2]; return typeof w === 'function' ? w() : w; };
+const alertMatch = (f, a) => f === 'all' || (f === 'problems' ? ['crit', 'warn', 'unk'].includes(alertCat(a)) : alertCat(a) === f);
+
+/** Tellers (vandaag) en kerncijfers bovenaan de pagina Meldingen */
+function renderAlertTop(d) {
+  const today = d.alerts.filter((a) => a.created_at.startsWith(d.today));
+  const n = (f) => today.filter((a) => alertMatch(f, a)).length;
+  $('#alerts-counts').innerHTML = ALERT_CATS.map(([k, st]) => {
+    const c = n(k);
+    return `<button type="button" class="hc s${st} ${alertFilter === k ? 'on' : ''} ${c ? '' : 'zero'}" data-af="${k}" title="${esc(L('Klik om alleen deze te tonen'))}"><span class="hc-dot"></span><b>${c}</b> <span class="hc-w">${catLabel(k)}</span></button>`;
+  }).join('');
+  const y = new Date(d.today + 'T12:00:00'); y.setDate(y.getDate() - 1);
+  const yday = y.toISOString().slice(0, 10);
+  const nY = d.alerts.filter((a) => a.created_at.startsWith(yday)).length;
+  const diff = nY ? Math.round((today.length - nY) / nY * 100) : null;
+  // Per uur vandaag (tot nu)
+  const hours = new Array(new Date().getHours() + 1).fill(0);
+  today.forEach((a) => { const h = +a.created_at.slice(11, 13); if (h < hours.length) hours[h]++; });
+  const max = Math.max(1, ...hours);
+  let path = '';
+  hours.forEach((v, i) => { path += `${path ? 'L' : 'M'}${(hours.length > 1 ? i / (hours.length - 1) * 100 : 50).toFixed(1)},${(24 - v / max * 20).toFixed(1)}`; });
+  // Laatste 24 uur: niet verzonden en drukste server
+  const since = new Date(Date.now() - 86400000);
+  const pad = (x) => String(x).padStart(2, '0');
+  const sinceStr = `${since.getFullYear()}-${pad(since.getMonth() + 1)}-${pad(since.getDate())} ${pad(since.getHours())}:${pad(since.getMinutes())}`;
+  const last24 = d.alerts.filter((a) => a.created_at >= sinceStr);
+  const failed = last24.filter((a) => splitSent(a.message)[1] || (a.email_ok !== null && a.email_ok !== undefined && !+a.email_ok) || (a.webhook_ok !== null && a.webhook_ok !== undefined && !+a.webhook_ok));
+  const reasons = {};
+  failed.forEach((a) => { const r = splitSent(a.message)[1].split(';')[0].trim(); if (r) reasons[r] = (reasons[r] || 0) + 1; });
+  const topReason = Object.entries(reasons).sort((p, q) => q[1] - p[1])[0];
+  const hosts = {};
+  last24.forEach((a) => { const h = alertCols(a).host; hosts[h] = (hosts[h] || 0) + 1; });
+  const busy = Object.entries(hosts).sort((p, q) => q[1] - p[1])[0];
+  const open = state.health ? state.health.open_problems : 0;
+  const lastA = d.alerts[0];
+  $('#alerts-kpis').innerHTML = `
+    <div class="kpi kpi-main" title="${esc(L('Per uur vandaag'))}"><div class="kpi-txt"><div class="kpi-lbl">${L('Meldingen vandaag')}</div><div class="kpi-val">${today.length}</div>
+      <div class="kpi-sub">${L('gisteren {n}', { n: nY })}${diff !== null && diff !== 0 ? ` · <b class="${diff > 0 ? 'danger-txt' : 'good-txt'}">${diff > 0 ? '+' : ''}${diff}%</b>` : ''}</div></div>
+      ${hours.length > 1 ? `<svg class="kpi-spark kpi-spark-big" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><path d="${path}L100,26L0,26Z" fill="var(--primary)" opacity=".14"/><path d="${path}" fill="none" stroke="var(--primary)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>` : ''}</div>
+    <div class="kpi ${open ? 'bad' : ''}"><div class="kpi-lbl">${L('Nu open')}</div><div class="kpi-val">${open}</div>
+      <div class="kpi-sub">${open ? L('storingen') + ' · ' : ''}<button type="button" class="linkbtn" data-go="dashboard">${L('naar het dashboard')}</button></div></div>
+    <div class="kpi ${failed.length ? 'bad' : ''}"><div class="kpi-lbl">${L('Niet verzonden 24 u')}</div><div class="kpi-val">${failed.length}</div>
+      <div class="kpi-sub" title="${esc(topReason ? topReason[0] : '')}">${topReason ? esc(topReason[0]) : L('alles verzonden')}${failed.length && isAdmin() ? ` · <button type="button" class="linkbtn" data-go="settings/channels">${L('kanalen')}</button>` : ''}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Drukste server 24 u')}</div><div class="kpi-val kpi-val-txt">${busy ? esc(busy[0]) : '–'}</div>
+      <div class="kpi-sub">${busy ? (busy[1] === 1 ? L('1 melding') : L('{n} meldingen', { n: busy[1] })) : L('geen meldingen')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Laatste melding')}</div><div class="kpi-val kpi-val-txt">${lastA ? esc(lastA.created_at.startsWith(d.today) ? lastA.created_at.slice(11, 16) : fmtDateTime(lastA.created_at)) : '–'}</div>
+      <div class="kpi-sub">${lastA ? esc(lastA.title) : ''}</div></div>`;
+  // Chips met aantallen (alle dagen) en de keuzelijst met servers
+  const chips = [['all', L('Alles')], ['problems', L('Storingen')], ['ok', L('Hersteld')], ['info', 'Info'], ['sec', L('Beveiliging')]];
+  $('#alerts-filter').innerHTML = chips.map(([k, l]) => `<button type="button" class="dchip ${alertFilter === k ? 'on' : ''}" data-af="${k}">${l} <b>${d.alerts.filter((a) => alertMatch(k, a)).length}</b></button>`).join('')
+    + (['crit', 'warn', 'unk'].includes(alertFilter) ? `<button type="button" class="dchip on" data-af="${alertFilter}" title="${esc(L('Filter opheffen'))}">${catLabel(alertFilter)} ✕</button>` : '');
+  const sel = $('#alerts-host'), cur = sel.value;
+  const names = [...new Set(d.alerts.map((a) => alertCols(a).host))].sort((p, q) => p.localeCompare(q, LANG, { sensitivity: 'base' }));
+  sel.innerHTML = `<option value="">${L('Alle servers')}</option>` + names.map((h) => `<option value="${esc(h)}">${esc(h)}</option>`).join('');
+  sel.value = names.includes(cur) ? cur : '';
 }
 
 function renderAlerts() {
@@ -3643,10 +3862,14 @@ function renderAlerts() {
   sortSel.value = ALERT_SORTS[alertSort.key] ? `${alertSort.key}:${alertSort.dir}` : '';
   if (sortSel.selectedIndex < 0) sortSel.value = '';
   $('#alerts-info').textContent = (d.alerts.length === 1 ? L('1 melding') : L('{n} meldingen', { n: d.alerts.length }))
-    + ' ' + (d.days === 1 ? L('van de laatste dag') : L('van de laatste {n} dagen', { n: d.days }))
+    + ' · ' + (d.days === 1 ? L('van de laatste dag') : L('van de laatste {n} dagen', { n: d.days }))
     + (d.truncated ? ' ' + L('(alleen de nieuwste 10.000)') : '');
-  $$('#alerts-filter .seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.af === alertFilter));
-  const shown = d.alerts.filter((a) => alertFilter === 'all' || (alertFilter === 'info') === (a.kind === 'info'));
+  if (!['all', 'problems', 'crit', 'warn', 'unk', 'ok', 'info', 'sec'].includes(alertFilter)) alertFilter = 'all';
+  renderAlertTop(d);
+  const q = $('#alerts-search').value.trim().toLowerCase();
+  const host = $('#alerts-host').value;
+  const shown = d.alerts.filter((a) => alertMatch(alertFilter, a) && (!host || alertCols(a).host === host)
+    && (!q || `${a.title} ${a.message} ${alertCols(a).host}`.toLowerCase().includes(q)));
   if (!shown.length) { el.innerHTML = `<p class="muted">${d.alerts.length ? L('Geen meldingen met dit filter.') : L('Nog geen meldingen.') + ' 👌'}</p>`; $('#alerts-toggle').hidden = true; return; }
   const byDay = new Map();
   shown.forEach((a) => {
@@ -5145,16 +5368,25 @@ async function backupUpload(file) {
 const VULN_SEV = [['⚪', L('onbekend')], ['🔵', 'low'], ['🟡', 'medium'], ['🟠', 'high'], ['🔴', 'critical']];
 let vulnData = null;
 let vulnFilter = 'all';
+let vulnSharedErr = new Set();   // scanfouten die als één melding bovenaan staan
 const vulnOpen = new Set();
 
 function initVulns() {
   $('#vuln-search').oninput = () => renderVulns();
   $('#vuln-sev').onchange = () => renderVulns();
-  $$('#vuln-filter .seg-btn').forEach((b) => (b.onclick = () => {
-    vulnFilter = b.dataset.vf;
-    $$('#vuln-filter .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+  $('#vuln-filter').onclick = (e) => {
+    const b = e.target.closest('[data-vf]');
+    if (b) { vulnFilter = b.dataset.vf; renderVulns(); }
+  };
+  // Tellers: critical/high/medium = ernst vanaf, actief misbruikt = dat filter
+  $('#vuln-counts').onclick = (e) => {
+    const b = e.target.closest('[data-vsev], [data-vf]');
+    if (!b) return;
+    if (b.dataset.vf) vulnFilter = vulnFilter === 'kev' ? 'all' : 'kev';
+    else { const v = b.dataset.vsev; $('#vuln-sev').value = $('#vuln-sev').value === v ? '0' : v; }
     renderVulns();
-  }));
+  };
+  $('#vuln-banner').onclick = (e) => { if (e.target.closest('[data-vscan]')) vulnScan(e.target.closest('[data-vscan]')); };
   $('#vuln-scan').onclick = (e) => vulnScan(e.currentTarget);
   $('#vuln-hosts').addEventListener('click', vulnClick);
 }
@@ -5208,15 +5440,46 @@ function renderVulns() {
   const uniq = (fs) => new Set(fs.map((f) => f.host_id + '|' + f.cve));
   const n = [0, 1, 2, 3, 4].map((s) => uniq(live.filter((f) => f.severity === s)).size);
   const kev = uniq(live.filter((f) => f.kev)).size;
-  $('#vuln-counts').innerHTML = [[4, n[4]], [3, n[3]], [2, n[2]], [1, n[1]], [0, n[0]]].filter(([s, c]) => c || s >= 2)
-    .map(([s, c]) => `<span class="vc sev${s}">${VULN_SEV[s][0]} ${c} ${VULN_SEV[s][1]}</span>`).join('')
-    + (kev ? `<span class="vc kev">⚠️ ${L('{n} actief misbruikt', { n: kev })}</span>` : '');
+  const sevSel = $('#vuln-sev').value;
+  const WORD = { 4: 'Critical', 3: 'High', 2: 'Medium', 1: 'Low', 0: L('Onbekend') };
+  $('#vuln-counts').innerHTML = [4, 3, 2, 1, 0].filter((sv) => n[sv] || sv >= 1)
+    .map((sv) => `<button type="button" class="hc vsev${sv} ${n[sv] ? '' : 'zero'} ${sv >= 2 && sevSel === String(sv) ? 'on' : ''}" ${sv >= 2 ? `data-vsev="${sv}" title="${esc(L('Klik: vanaf deze ernst'))}"` : ''}><span class="hc-dot"></span><b>${n[sv]}</b> <span class="hc-w">${WORD[sv]}</span></button>`).join('')
+    + `<button type="button" class="hc vkev ${kev ? '' : 'zero'} ${vulnFilter === 'kev' ? 'on' : ''}" data-vf="kev" title="${esc(L('Actief misbruikt (CISA KEV)'))}"><span class="hc-dot"></span><b>${kev}</b> <span class="hc-w">⚠️ ${L('Actief misbruikt')}</span></button>`;
   const scanned = d.hosts.filter((h) => h.scanned_at && !h.error);
-  const failed = d.hosts.filter((h) => h.error).length;
-  $('#vuln-info').textContent = d.hosts.length
-    ? L('{n} van {m} server(s) gescand', { n: scanned.length, m: d.hosts.length }) + (failed ? ' · ⚠️ ' + L('{n} met een fout', { n: failed }) : '')
-      + (d.last_scan ? ' · ' + L('laatste scan {t}', { t: ago(d.last_scan) }) : '') + ' · ' + L('dagelijks om {t}', { t: d.scan_time })
-    : '';
+  const failedH = d.hosts.filter((h) => h.error);
+  $('#vuln-info').textContent = d.hosts.length ? (d.last_scan ? L('laatste scan {t}', { t: ago(d.last_scan) }) + ' · ' : '') + L('dagelijks om {t}', { t: d.scan_time }) : '';
+  // Dezelfde scanfout op meerdere servers: één melding bovenaan
+  const errs = {};
+  failedH.forEach((h) => (errs[h.error] ||= []).push(h.name));
+  const shared = Object.entries(errs).filter(([, hs]) => hs.length > 1);
+  vulnSharedErr = new Set(shared.map(([e]) => e));
+  $('#vuln-banner').innerHTML = shared.map(([e, hs]) => `<div class="v-banner">⚠️ <span><b>${L('Scan mislukt op {n} servers', { n: hs.length })}</b> (${esc(hs.join(', '))}): ${esc(e)}</span>
+    <button type="button" class="btn need-admin" data-vscan>🔍 ${L('Opnieuw scannen')}</button></div>`).join('');
+  // Kerncijfers
+  const pk = new Set(live.map((f) => f.host_id + '|' + f.package));
+  const fixPk = new Set(live.filter((f) => f.fixed).map((f) => f.host_id + '|' + f.package));
+  const kevF = live.find((f) => f.kev);
+  const noList = d.hosts.filter((h) => !h.packages).length;
+  const [hh, mm] = String(d.scan_time || '03:30').split(':').map(Number);
+  const next = new Date(); next.setHours(hh, mm, 0, 0); if (next <= new Date()) next.setDate(next.getDate() + 1);
+  const left = Math.round((next - new Date()) / 60000);
+  $('#vuln-kpis').innerHTML = `
+    <div class="kpi kpi-main ${failedH.length ? 'warn' : ''}"><div class="kpi-txt"><div class="kpi-lbl">${L('Servers gescand')}</div>
+      <div class="kpi-val">${scanned.length}<small>/${d.hosts.length}</small></div>
+      <div class="kpi-sub">${[failedH.length ? L('{n} met een fout', { n: failedH.length }) : '', noList ? L('{n} zonder softwarelijst', { n: noList }) : ''].filter(Boolean).join(' · ') || L('allemaal gelukt')}</div></div></div>
+    <div class="kpi ${pk.size ? 'bad' : ''}"><div class="kpi-lbl">${L('Kwetsbare pakketten')}</div><div class="kpi-val">${pk.size}</div>
+      <div class="kpi-sub">${L('{n} kwetsbaarheden', { n: uniq(live).size })}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Met oplossing')}</div><div class="kpi-val ${fixPk.size ? 'good-txt' : ''}">${fixPk.size}</div>
+      <div class="kpi-sub">${fixPk.size ? L('bij te werken met ⬆') : L('niets bij te werken')}</div></div>
+    <div class="kpi ${kev ? 'bad' : ''}"><div class="kpi-lbl">${L('Actief misbruikt')}</div><div class="kpi-val">${kev}</div>
+      <div class="kpi-sub">${kevF ? esc(kevF.cve + ' · ' + kevF.package) : L('geen (CISA KEV)')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Volgende scan')}</div><div class="kpi-val kpi-val-txt">${esc(d.scan_time)}</div>
+      <div class="kpi-sub">${L('over {t}', { t: left >= 60 ? `${Math.floor(left / 60)} ${L('u')} ${left % 60} min` : `${left} min` })}</div></div>`;
+  // Chips met aantallen
+  const cntF = (k) => new Set(d.findings.filter((f) => (k === 'ignored' ? f.ignored : !f.ignored)
+    && (k !== 'exposed' || (d.hosts.find((h) => +h.id === +f.host_id)?.exposed || {})[f.package]) && (k !== 'fix' || f.fixed) && (k !== 'kev' || f.kev)).map((f) => f.host_id + '|' + f.cve)).size;
+  $('#vuln-filter').innerHTML = [['all', L('Alles')], ['exposed', '🌐 ' + L('Bereikbaar')], ['fix', L('Met oplossing')], ['kev', '⚠️ ' + L('Actief misbruikt')], ['ignored', L('Geaccepteerd')]]
+    .map(([k, l]) => `<button type="button" class="dchip ${vulnFilter === k ? 'on' : ''}" data-vf="${k}">${l} <b>${cntF(k)}</b></button>`).join('');
   $('#vuln-badge').hidden = !(n[4] + kev);
   $('#vuln-badge').textContent = n[4] + kev || '';
   if (!d.hosts.length) {
@@ -5229,6 +5492,7 @@ function renderVulns() {
 }
 
 function vulnHostCard(h, fs) {
+  const sharedErr = h.error && vulnSharedErr.has(h.error);   // staat al bovenaan als één melding
   // Per pakket: alle CVE's, ernstigste eerst; pakketten met de ergste en bereikbare bovenaan
   const pk = {};
   fs.forEach((f) => (pk[f.package] ||= { name: f.package, version: f.version, fixed: f.fixed, binaries: f.binaries, list: [] }).list.push(f));
@@ -5238,7 +5502,7 @@ function vulnHostCard(h, fs) {
     p.list.sort((a, b) => (b.kev - a.kev) || (b.severity - a.severity) || (b.cvss || 0) - (a.cvss || 0));
     p.fixed = p.list.map((f) => f.fixed).filter(Boolean).sort().pop() || null;
   });
-  const cnt = [4, 3, 2, 1].map((s) => [s, new Set(fs.filter((f) => f.severity === s).map((f) => f.cve)).size]).filter(([, c]) => c);
+  const cnt = [4, 3, 2, 1, 0].map((s) => [s, new Set(fs.filter((f) => f.severity === s).map((f) => f.cve)).size]).filter(([, c]) => c);
   const open = vulnOpen.has(h.id) || (vulnOpen.size === 0 && fs.some((f) => f.severity >= 3 || f.kev));
   const up = h.upgrade;
   const upTxt = !up ? '' : up.state === 'queued' || up.state === 'running'
@@ -5247,16 +5511,21 @@ function vulnHostCard(h, fs) {
     : up.state === 'ok' ? `<span class="good-txt">✔ ${L('Bijgewerkt {t}', { t: ago(up.at) })}: ${esc((up.pkgs || []).join(' '))}</span>`
     : `<span class="bad">✘ ${L('Bijwerken mislukt {t}', { t: ago(up.at) })}</span>`;
   const notes = [
-    h.error ? `<span class="warn-txt">⚠️ ${esc(h.error)}</span>` : '',   // ook in de kop; hier volledig
+    h.error && !sharedErr ? `<span class="warn-txt">⚠️ ${esc(h.error)}</span>` : '',   // ook in de kop; hier volledig
     h.agent_old ? `<span class="warn-txt">⬆ ${L('Agent {v} of nieuwer nodig voor de softwarelijst', { v: '1.47.0' })}</span>` : '',
     h.reboot ? `<span class="warn-txt" title="${esc(L('Draait: {a} · geïnstalleerd: {b}', { a: h.kernel, b: h.reboot }))}">↻ ${L('Herstart nodig voor de nieuwe kernel')}</span>` : '',
     h.restart && h.restart.length ? `<span class="warn-txt" title="${esc(h.restart.join(', '))}">↻ ${L('{n} service(s) draaien nog met oude bestanden', { n: h.restart.length })}</span>` : '',
     upTxt,
   ].filter(Boolean).join(' · ');
   const fixable = pkgs.filter((p) => p.fixed).map((p) => p.name);
-  return `<details class="card vuln-host" data-host="${h.id}" ${open ? 'open' : ''}>
-    <summary><span class="vh-name"><b>${esc(h.name)}</b> <span class="muted small">${esc(h.os || '')}${h.packages ? ' · ' + L('{n} pakketten', { n: h.packages }) : ''}${h.scanned_at ? ' · ' + L('gescand {t}', { t: ago(h.scanned_at) }) : ''}</span></span>
-      <span class="vh-counts">${h.error ? `<span class="warn-txt small" title="${esc(h.error)}">⚠️ ${esc(h.error.length > 70 ? h.error.slice(0, 70) + '…' : h.error)}</span>` : ''}${cnt.length ? cnt.map(([s, c]) => `<span class="vc sev${s}">${VULN_SEV[s][0]} ${c}</span>`).join('') : (h.scanned_at && !h.error ? `<span class="good-txt">✔ ${L('geen bekende kwetsbaarheden')}</span>` : '')}</span></summary>
+  const total = cnt.reduce((a, [, c]) => a + c, 0);
+  const worst = cnt.length ? cnt[0][0] : -1;
+  const hh = state && state.hosts ? findHost(h.id) : null;
+  return `<details class="card vuln-host vh-w${worst} ${h.error ? 'vh-err' : ''}" data-host="${h.id}" ${open ? 'open' : ''}>
+    <summary><span class="host-ic" aria-hidden="true">${hh ? hostIcon(hh) : '🖥️'}</span>
+      <span class="vh-name"><b>${esc(h.name)}</b><span class="muted small">${esc(h.os || '')}${h.packages ? ' · ' + L('{n} pakketten', { n: h.packages }) : ''}${h.scanned_at ? ' · ' + L('gescand {t}', { t: ago(h.scanned_at) }) : ''}</span></span>
+      <span class="vh-counts">${h.error ? `<span class="warn-txt small" title="${esc(h.error)}">⚠️ ${sharedErr ? L('scan mislukt (zie boven)') : esc(h.error.length > 70 ? h.error.slice(0, 70) + '…' : h.error)}</span>` : ''}${cnt.length ? cnt.map(([s, c]) => `<span class="vpill sev${s}" title="${c} ${VULN_SEV[s][1]}">${c}</span>`).join('') : (h.scanned_at && !h.error ? `<span class="good-txt">✔ ${L('geen bekende kwetsbaarheden')}</span>` : '')}</span>
+      ${total ? `<span class="sevbar">${cnt.map(([s, c]) => `<i class="sev${s}" style="width:${(c / total * 100).toFixed(1)}%"></i>`).join('')}</span>` : ''}</summary>
     ${notes ? `<p class="small vh-notes">${notes}${up && up.log ? ` <details class="small"><summary>${L('Uitvoer')}</summary><pre class="code">${esc(up.log)}</pre></details>` : ''}</p>` : ''}
     <div class="vh-actions">
       ${fixable.length ? `<button type="button" class="btn need-admin" data-vact="upgrade-all" data-host="${h.id}">⬆ ${L('Alle beveiligingsupdates installeren ({n})', { n: fixable.length })}</button>` : ''}

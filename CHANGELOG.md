@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.67.0 – 2026-10-23
+### Nieuw
+- **Meldingen, IDS en Kwetsbaarheden in het nieuwe jasje**, net als het dashboard: tellers onder de header (blijven staan bij scrollen, klikbaar als filter), kerncijfers als tegels, een werkbalk met zoeken en filterchips, en compacte rijen.
+  - **Meldingen**: tellers van vandaag (Critical · Warning · Onbekend · Hersteld · Info · Beveiliging), tegels (vandaag met een lijntje per uur en de vergelijking met gisteren, nu open, **niet verzonden 24 u** met de reden, drukste server, laatste melding), zoeken en een filter per server. *Niet verzonden* is een **rood ✕ op het kanaal-icoon** met de reden als tooltip, niet meer in de tekst. **Herhalingen gebundeld** (*Ingelogd: admin · 5×*, uit te klappen).
+  - **IDS**: tellers (open incidenten, geblokkeerd, logins en mislukte logins 24 u), tegels (modus, servers bewaakt, open incidenten, nu geblokkeerd, mislukte logins met een lijntje), servers als compacte regels, tabbladen in de stijl van de bovenbalk, chips per soort (*Poorten · Bestanden · Processen · Logins*), **gelijke incidenten gebundeld** met *✔ Afhandelen (3)* in één keer. **Toegang** in de stijl van Meldingen.
+  - **Kwetsbaarheden**: tellers per ernst en actief misbruikt, **één melding bovenaan** bij dezelfde scanfout op meerdere servers, tegels (servers gescand, kwetsbare pakketten, met oplossing, actief misbruikt, volgende scan), chips met aantallen, en kaarten met een balkje per ernst.
+  - Overal ook op de telefoon (tellers als chips, tegels opzij te schuiven) en in licht en donker.
+
 ## 1.66.0 – 2026-10-23
 ### Nieuw
 - **Vernieuwd dashboard**, overzichtelijker en moderner:

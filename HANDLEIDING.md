@@ -75,6 +75,12 @@ RzMon bestaat uit vier onderdelen:
 - **Herstelmelding** ✅ als het weer goed gaat, met lage prioriteit dus zonder geluid.
 - **Prioriteit en geluid instelbaar**, apart voor critical en warning, inclusief *Emergency* (blijft herhalen tot je hem bevestigt).
 - **Testknoppen** voor elk kanaal, en een **meldingenlog** dat per melding toont via welk kanaal hij is verstuurd: 📲 Pushover, 📧 e-mail, 🏠 Home Assistant (met ✕ = mislukt), of 🔕 = niet verstuurd, alleen op de pagina (kanaal of meldregel staat uit).
+- **Pagina Meldingen** (vanaf 1.67.0 in dezelfde opbouw als het dashboard):
+  - **Tellers van vandaag** onder de header (🔴 Critical · 🟠 Warning · ⚪ Onbekend · ✅ Hersteld · ℹ️ Info · ⚠️ Beveiliging), klikbaar als filter; ze blijven staan als je scrolt.
+  - **Kerncijfers**: meldingen vandaag (met een lijntje per uur en de vergelijking met gisteren), storingen die nu open staan, **niet verzonden** in de laatste 24 uur (met de meest voorkomende reden en een link naar de kanalen), de drukste server en de laatste melding.
+  - **Werkbalk**: zoeken in titel, bericht en server, chips *Alles · Storingen · Hersteld · Info · Beveiliging* (met aantallen), een keuze voor de server, sorteren en ⋯ (*Alles openen*).
+  - **Compacte rijen** (Blox): tijd, bolletje, titel met het bericht, de server en de kanalen als iconen. Is iets **niet verzonden**, dan staat er een rood ✕ op het icoon (📲, 📧 of 🏠); wijs het aan voor de reden. De tekst *[niet verzonden: …]* staat niet meer in het bericht.
+  - **Herhalingen gebundeld**: dezelfde melding direct achter elkaar (bv. *Ingelogd: admin*) staat er één keer, met **5×**; klik erop om ze allemaal te zien.
 - **Meldingen per dag** (pagina *Meldingen*): elke dag een uitklapblok met tellers (🔴 critical, 🟠 warning, ⚪ onbekend, ✅ hersteld, ✔ bevestigd). *Vandaag* staat open, de andere dagen dicht; **⊞ Alles openen** klapt alles open. Hoeveel dagen bewaard en getoond worden, stel je in onder *Instellingen → Alarmgedrag → Meldingen bewaren (dagen)*. **Sorteren:** in L1nes klik je op een kolomkop (Tijd, Status, Server, Check, Bericht, Kanalen); in Blox kies je *Sorteren op …*. Klik op een melding voor de popup van die check.
 
 ### Storingen bevestigen
@@ -450,7 +456,7 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - **RzMon bijgewerkt:** van welke naar welke versie.
 - Zet de rij **ℹ️ Info** op *Direct* en vink de kanalen aan. Per check kan het anders: ✎ → 🔔 Meldingen → *Eigen meldregels* → rij *Info* (bijvoorbeeld alleen voor de herstart van je NAS). Agent- en RzMon-updates horen niet bij een check en volgen de algemene regel.
 - Info gaat direct (niet gebundeld) en via Pushover **stil** (prioriteit -1: geen geluid of trilling). Tijdens **stille uren** en **onderhoud** wordt info niet verstuurd en komt hij niet in de samenvatting achteraf.
-- **📋 Meldingenpagina** (kolom in de rij Info, standaard aan): info-meldingen staan op de pagina Meldingen, met ℹ️ en een blauwe kleur, ook als ze niet verstuurd zijn (dan staat de reden erbij, bijvoorbeeld *[niet verzonden: info staat uit]*). Zet je het uit, dan wordt info nergens bewaard. Met de knoppen **Alles · Zonder info · ℹ️ Info** filter je de lijst. Echte storingen staan altijd op de pagina Meldingen.
+- **📋 Meldingenpagina** (kolom in de rij Info, standaard aan): info-meldingen staan op de pagina Meldingen, met ℹ️ en een blauwe kleur, ook als ze niet verstuurd zijn (dan staat de reden erbij, bijvoorbeeld *[niet verzonden: info staat uit]*). Zet je het uit, dan wordt info nergens bewaard. Met de chips (*Alles · Storingen · Hersteld · Info · Beveiliging*) en de tellers bovenaan filter je de lijst. Echte storingen staan altijd op de pagina Meldingen.
 - **ℹ️ Alleen info-meldingen (info-check):** een schakelaar in het checkformulier (✎ of ＋ Check). Zo'n check telt **nooit als storing**:
   - bij een statuswissel komt er één info-melding in plaats van warning, critical of hersteld, bijvoorbeeld *"ℹ️ INFO: NAS – Back-up: nu WARNING: …"* en later *"weer OK: …"*;
   - *melden na … mislukte checks achter elkaar* geldt ook hier; herinneringen, flapping-meldingen, bevestigen en automatisch onderhoud niet;
@@ -1301,6 +1307,14 @@ Goed om te weten:
 ### 8.12 IDS: inbraakdetectie 🛡️
 De agent let op tekenen van een inbraak en RzMon vergelijkt dat met wat normaal is op die server. Alles komt op de pagina **🛡️ IDS**. Bij *blokkeren* zet de agent aanvallende IP-adressen ook echt in de firewall van die server.
 
+**De pagina 🛡️ IDS** (vanaf 1.67.0 in dezelfde opbouw als het dashboard):
+- **Tellers** onder de header: open incidenten (🔴 Critical, 🟠 Warning), ⛔ nu geblokkeerd, 🔑 logins en ❌ mislukte logins in de laatste 24 uur. Klik erop en je gaat naar het juiste tabblad.
+- **Kerncijfers**: de **modus** (🎓 Leren of ⛔ Blokkeren), servers bewaakt, open incidenten (met het oudste), nu geblokkeerd, en mislukte logins over 24 uur met een lijntje.
+- **Servers** als compacte regels: laatste IDS-rapport, basismeting, firewall, bewaakte bestanden, realtime en het aantal open incidenten.
+- **⚠️ Incidenten · 🔑 Toegang · ⛔ Blokkades** als tabbladen. Bij *Incidenten*: zoeken, de chips *Open · Alles* en per soort (*Poorten · Bestanden · Processen · Logins*), **⛔ IP blokkeren** en ⋯.
+- **Incidenten als compacte rijen** met de knoppen rechts. **Gelijke incidenten worden gebundeld**: dezelfde soort op dezelfde server op dezelfde dag staat er één keer met **3×**; klik erop om ze te zien, of handel ze met **✔ Afhandelen (3)** in één keer af.
+- **Toegang** in dezelfde stijl als Meldingen: compacte rijen per dag, zoeken, chips per soort, en gelijke regels achter elkaar gebundeld (in L1nes de tabel zoals altijd).
+
 **Aanzetten** gaat op *Instellingen → 🛡️ IDS*:
 - **IDS aan/uit**: standaard **uit**. Uit = de agents verzamelen niets en er wordt niets geblokkeerd.
 - **🎓 Leren / ⛔ Blokkeren**:
@@ -1404,8 +1418,12 @@ Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) h
 - RzMon scant elke dag op het ingestelde tijdstip (standaard 03:30), en meteen als de pakketlijst van een server verandert. Met **🔍 Nu scannen** start je het zelf.
 - Nodig op de RzMon-server: uitgaand HTTPS naar `api.osv.dev`, `www.cisa.gov`, `api.first.org` en `services.nvd.nist.gov`. Kan dat niet, dan staat bij de server *OSV.dev niet bereikbaar*.
 
-**De pagina**
-- Bovenaan de tellers (critical, high, medium, low, actief misbruikt), zoeken, de filters **Alles · 🌐 Bereikbaar · Met oplossing · ⚠️ Actief misbruikt · Geaccepteerd** en de ernst.
+**De pagina** (vanaf 1.67.0 in dezelfde opbouw als het dashboard)
+- Bovenaan de **tellers** (Critical, High, Medium, Low, Onbekend, ⚠️ Actief misbruikt), klikbaar: *critical/high/medium* = vanaf die ernst, *actief misbruikt* = dat filter.
+- Geeft de scan op **meerdere servers dezelfde fout** (bv. *OSV.dev niet bereikbaar*), dan staat die één keer bovenaan, met **🔍 Opnieuw scannen**; bij de servers zelf staat dan *scan mislukt (zie boven)*.
+- **Kerncijfers**: servers gescand (met fouten en servers zonder softwarelijst), kwetsbare pakketten, met oplossing, actief misbruikt (met het eerste CVE) en de volgende scan.
+- **Werkbalk**: zoeken, de chips **Alles · 🌐 Bereikbaar · Met oplossing · ⚠️ Actief misbruikt · Geaccepteerd** (met aantallen), de ernst en **🔍 Nu scannen**.
+- Elke server is een **kaart** met een icoon, de aantallen per ernst en een **balkje** met de verdeling; de rand heeft de kleur van de ernstigste.
 - Per server: elk pakket met kwetsbaarheden, de geïnstalleerde versie, de versie waarin het is **opgelost**, en de CVE's als knopjes (🔴 critical, 🟠 high, 🟡 medium, 🔵 low, ⚪ onbekend). Bij Debian en Ubuntu staat het **bronpakket** (bv. `openssh`), met de pakketten die erbij horen eronder.
 - **🌐 bereikbaar**: het programma van dat pakket luistert op het netwerk (niet alleen op localhost), met de poort erbij. Die los je als eerste op.
 - **↻ herstart nodig**: er is een nieuwere kernel geïnstalleerd dan er draait, of services draaien nog met oude bestanden (als `needs-restarting` of `needrestart` op de server staat).
