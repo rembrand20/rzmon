@@ -141,28 +141,32 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="schema-banner">⚠ <?= htmlspecialchars($schemaError) ?> — <?= t('controleer de databaserechten of voer {cmd} uit.', ['cmd' => '<code>php install/install.php</code>']) ?></div>
 <?php endif; ?>
       <div class="maint-banner" id="maint-banner" hidden></div>
-      <div class="summary health" id="health">
-        <div class="health-main">
-          <button class="health-state" id="health-state" type="button" title="<?= th('Klik: alleen problemen tonen') ?>">
-            <b id="health-label"><?= th('Laden…') ?></b>
-          </button>
-          <div class="health-score" title="<?= th('Gezondheidsscore: 100% = alles OK. Een critical telt zwaarder dan een warning, een onbereikbare server het zwaarst.') ?>">
-            <b id="health-pct">–</b><span class="meter-bar"><i id="health-bar"></i></span>
-          </div>
+      <!-- 1.66.0: tellers onder de header (blijven staan), kerncijfers, "Nu aandacht nodig", werkbalk -->
+      <div class="dash-counters" id="dash-counters">
+        <div class="dash-in">
           <div class="health-counts" id="health-counts" role="group" aria-label="<?= th('Filter op status') ?>"></div>
-        </div>
-        <div class="health-info" id="health-info"></div>
-        <div class="summary-actions">
-          <span class="muted small" id="last-run"></span>
-          <button class="btn need-user" id="maint-all" title="<?= th('Alle meldingen tijdelijk pauzeren') ?>">🔧 <?= th('Onderhoud') ?></button>
-          <button class="btn need-user" id="run-all">↻ <?= th('Alles nu checken') ?></button>
-          <button class="btn primary need-admin" id="add-host">＋ <?= th('Server') ?></button>
+          <span class="dash-last muted small" id="last-run"></span>
         </div>
       </div>
-      <div class="filter-row">
-        <input type="search" id="filter" placeholder="<?= th('Zoek server of check…') ?>">
-        <label class="switch small"><input type="checkbox" id="only-problems"><span></span> <?= th('Alleen problemen') ?></label>
-        <button class="btn" id="toggle-all" type="button">⊞ <?= th('Alles openen') ?></button>
+      <div class="kpis" id="health"></div>
+      <section class="attn-sec" id="dash-attn"></section>
+      <div class="dash-bar">
+        <input type="search" id="filter" placeholder="<?= th('🔍 Zoek server of check…') ?>">
+        <div class="dash-chips" id="dash-chips" role="group" aria-label="<?= th('Filter') ?>"></div>
+        <span class="dash-sp"></span>
+        <select id="dash-sort" aria-label="<?= th('Sorteren') ?>">
+          <option value="status"><?= th('Ergste eerst') ?></option>
+          <option value="name"><?= th('Op naam') ?></option>
+        </select>
+        <div class="dash-more">
+          <button class="btn" id="dash-more-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
+          <div class="dash-menu" id="dash-menu" role="menu" hidden>
+            <button class="need-user" id="maint-all" type="button" role="menuitem">🔧 <?= th('Onderhoud') ?> <small><?= th('alle meldingen tijdelijk pauzeren') ?></small></button>
+            <button class="need-user" id="run-all" type="button" role="menuitem">↻ <?= th('Alles nu checken') ?></button>
+            <button id="toggle-all" type="button" role="menuitem">⊞ <?= th('Alles openen') ?></button>
+          </div>
+        </div>
+        <button class="btn primary need-admin" id="add-host">＋ <?= th('Server') ?></button>
       </div>
       <div id="hosts" class="hosts"></div>
     </section>

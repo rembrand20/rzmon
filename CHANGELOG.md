@@ -7,6 +7,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.66.0 – 2026-10-23
+### Nieuw
+- **Vernieuwd dashboard**, overzichtelijker en moderner:
+  - **Tellers direct onder de header** (OK, Warning, Critical, Onbekend, Onderhoud) met grote cijfers in hun kleur; ze blijven staan als je scrolt en filteren nog steeds.
+  - **Kerncijfers als tegels**: de toestand met de score als ring, servers bereikbaar, checks OK, open problemen (met het langst openstaande) en de beschikbaarheid over 24 uur met een lijntje. Op de telefoon schuif je ze opzij.
+  - **⚠️ Nu aandacht nodig**: alle open problemen in één lijst, critical eerst, met ✔ *Bevestig* en 🔧 per regel; 6 zichtbaar (op de telefoon 3), de rest uit te klappen.
+  - **Werkbalk**: zoeken, filterchips met aantallen (*Alle · Problemen · Onderhoud · Agent · Home Assistant · Remote · Lokaal*), sorteren (*Ergste eerst* of *Op naam*), een menu ⋯ met *Onderhoud*, *Alles nu checken* en *Alles openen*, en *＋ Server*. Het schakelaartje *Alleen problemen* is de chip *Problemen* geworden.
+  - **Servers met problemen** als kaart, met een icoon voor het soort server en **mini-grafiekjes van CPU, RAM en disk over 24 uur**; **servers waar alles OK is compact** eronder (*✔ Alles in orde*).
+  - Blox en L1nes (Small en Large) blijven, te kiezen onder *Mijn account → Weergave*.
+### Opgelost
+- De teller op het tabblad Meldingen viel over het belletje heen.
+
 ## 1.65.2 – 2026-10-23
 ### Opgelost
 - **TrueNAS: agent bijwerken mislukte met "Fout op regel 351"**. Het installatiescript maakte de map van de agent op de pool ook bij een update opnieuw aan (`mkdir`) en zette de rechten op 700. Op sommige datasets lukt dat niet. Een map die al bestaat wordt nu niet meer aangemaakt, en lukken de rechten niet (ACL's), dan is dat alleen een waarschuwing. Kan de map echt niet gemaakt worden, dan staat de reden in de melding.

@@ -49,11 +49,10 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 
 ## 3. Dashboard
 - **Nederlands of Engels** 🌐: in het accountmenu rechtsboven (NL of EN), per gebruiker onthouden. De hele interface is vertaald. Meldingen (Pushover, e-mail, Home Assistant, MQTT), checkberichten en de REST API volgen een eigen instelling: *Taal van meldingen en checkberichten*.
-- **Gezondheidsbalk** bovenaan:
-  - de algehele status: 🟢 *Alles in orde*, 🟠 *Aandacht nodig* of 🔴 *Storing*;
-  - een **score van 0–100%**;
-  - **klikbare tellers** (OK, warning, critical, onbekend, onderhoud) om te filteren;
-  - een inforegel met servers bereikbaar, checks OK, het **langst openstaande probleem**, de beschikbaarheid over 24 uur, flappende checks en 🌙 *stil tot …*.
+- **Tellers onder de header** (OK, warning, critical, onbekend, onderhoud), klikbaar als filter, blijven staan bij scrollen.
+- **Kerncijfers als tegels**: de algehele status (🟢 *Alles in orde*, 🟠 *Aandacht nodig*, 🔴 *Storing*) met een **score van 0–100%** als ring, servers bereikbaar, checks OK, open problemen met het **langst openstaande**, en de beschikbaarheid over 24 uur met een lijntje; 🌙 *stil tot …*, flappende checks en onderhoud.
+- **⚠️ Nu aandacht nodig**: alle open problemen in één lijst, critical eerst, met ✔ bevestigen en 🔧 onderhoud per regel.
+- **Werkbalk** met zoeken, filterchips (problemen, onderhoud, soort server), sorteren en een menu ⋯; servers met problemen als kaart met **mini-grafiekjes van CPU, RAM en disk over 24 uur**, servers waar alles OK is compact eronder.
 - **Twee lay-outs**, per apparaat te kiezen (*Mijn account → Weergave*), voor het dashboard en de meldingen:
   - **Blox**: tegels, in **Small** (compact, meer servers in beeld) of **Large**;
   - **L1nes**: rijen, in **Small** of **Large**.
@@ -63,7 +62,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Popup per check** (klik op een check): status en bericht, instellingen, beschikbaarheid en de **laatste 5 statuswijzigingen** met het bericht dat ze veroorzaakte en of en via welke kanalen er gemeld is (of waarom niet).
 - **Grafieken** van 6 uur tot 30 dagen, met minimum, gemiddelde en maximum, en bij disks de trend.
 - **Beschikbaarheid** per server over 24 uur, 7 dagen en 30 dagen.
-- **Zoeken** en het filter *Alleen problemen*.
+- **Zoeken** en filterchips (*Problemen*, *Onderhoud*, per soort server).
 - **Overig:** licht en donker thema, werkt op je telefoon, ververst elke 20 seconden, en **↻ Alles nu checken**.
 - **Meldingenoverzicht per dag:** elke verstuurde melding met de kanalen waarlangs hij ging, gegroepeerd per dag met tellers. Vandaag staat open. De bewaartermijn stel je zelf in. **Sorteren** op tijd, status, server, check, bericht of kanalen (klik op de kolomkop; in Blox een keuzelijst), en klik op een melding voor de popup van de check.
 
