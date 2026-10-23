@@ -540,8 +540,10 @@ function init() {
     saveSetOpen();
     applySettingsLayout();
   };
-  $('#settings-form').addEventListener('input', (e) => { if (!e.target.closest('[data-nodirty]')) markSettingsDirty(true); settingsSummaries(); });
-  $('#settings-form').addEventListener('change', (e) => { if (!e.target.closest('[data-nodirty]')) markSettingsDirty(true); settingsSummaries(); });
+  $('#settings-form').addEventListener('input', () => settingsSummaries());
+  $('#settings-form').addEventListener('change', (e) => { if (!e.target.closest('[data-nodirty]')) markSettingsDirty(true, e.target); settingsSummaries(); });
+  // Knoppen die iets toevoegen of weghalen (stille uren): ook opslaan
+  $('#settings-form').addEventListener('click', (e) => { const b = e.target.closest('[data-q=add], [data-q=del]'); if (b) markSettingsDirty(true, $('#quiet-editor')); });
   $('#settings-form').update_auto.addEventListener('change', backupFormToggle);
   $('#update-check').onclick = async (e) => { const btn = e.currentTarget; btn.disabled = true; await loadUpdate(true); btn.disabled = false; };
   $('#update-badge').onclick = openUpdateDialog;
@@ -583,6 +585,7 @@ function init() {
   initSysinfo();
   $('#api-keys').addEventListener('click', apiKeyClick);
   $('#access-form').addEventListener('submit', saveAccess);
+  $('#access-form').addEventListener('change', (e) => saveAccess(null, e.target));
 
   refresh();
   setInterval(() => { if (!document.hidden && !$('#modal').open) refresh(); }, 20000);
@@ -944,10 +947,59 @@ function idsModeInfo() {
     : L('<b>Leren:</b> alles wordt gemeld, er wordt niets geblokkeerd.');
 }
 
-let settingsDirty = false;
-function markSettingsDirty(dirty) {
-  settingsDirty = dirty;
-  $('#save-state').textContent = dirty ? '● ' + L('niet opgeslagen wijzigingen') : '';
+// ---------------------------------------------------------------- Meteen opslaan (1.61.0)
+// Elke wijziging gaat vanzelf naar de server: alleen wat anders is dan de opgeslagen stand. Schakelaars en keuzelijsten
+// meteen, tekstvelden zodra je ze verlaat (of op Enter). Naast het veld staat dan ✔ opgeslagen (of ✘ met de reden).
+let settingsSaved = null;    // de stand die de server heeft
+let autosaveTimer = null;
+let autosaveEls = new Set();
+function markSettingsDirty(dirty, el) {
+  if (!dirty) { settingsSaved = settingsData(); setAutosaveState(''); return; }
+  if (el) autosaveEls.add(el);
+  clearTimeout(autosaveTimer);
+  setAutosaveState('busy');
+  autosaveTimer = setTimeout(autosaveSettings, 350);
+}
+
+async function autosaveSettings() {
+  clearTimeout(autosaveTimer);
+  if (!settingsSaved) return;
+  const now = settingsData();
+  const diff = Object.fromEntries(Object.entries(now).filter(([k, v]) => settingsSaved[k] !== v));
+  const els = [...autosaveEls];
+  autosaveEls = new Set();
+  if (!Object.keys(diff).length) { setAutosaveState(''); return; }
+  try {
+    await api('settings_save', diff);
+    Object.assign(settingsSaved, diff);
+    els.forEach((el) => savedFlag(el, true));
+    setAutosaveState('ok');
+  } catch (ex) {
+    els.forEach((el) => savedFlag(el, false, ex.message));
+    setAutosaveState('err', ex.message);
+    toast(ex.message, 'err');
+  }
+}
+
+/** ✔ opgeslagen / ✘ niet opgeslagen naast het veld (of bij de titel van de kaart) */
+function savedFlag(el, ok, why) {
+  if (!el || !el.isConnected) return;
+  const anchor = el.closest('label, td, .view-row, .acct-ctl, .lock-row, .notify-row') || el.closest('.card')?.querySelector('h2') || el;
+  let f = anchor.querySelector(':scope > .saved-flag');
+  if (!f) { f = document.createElement('span'); f.className = 'saved-flag'; anchor.append(f); }
+  f.textContent = ok ? '✔ ' + L('opgeslagen') : '✘ ' + L('niet opgeslagen');
+  f.title = why || '';
+  f.classList.toggle('bad', !ok);
+  f.classList.remove('fade'); void f.offsetWidth; f.classList.add('show');
+  clearTimeout(f._t);
+  if (ok) f._t = setTimeout(() => f.classList.add('fade'), 2200);
+}
+
+function setAutosaveState(st, why) {
+  const el = $('#save-state');
+  if (!el) return;
+  el.className = 'autosave-state ' + st;
+  el.textContent = st === 'busy' ? L('opslaan…') : st === 'ok' ? '✔ ' + L('alles opgeslagen') : st === 'err' ? '✘ ' + L('niet opgeslagen') + (why ? ': ' + why : '') : '';
 }
 
 // ---------------------------------------------------------------- Server-tegels
@@ -3384,20 +3436,22 @@ async function loadAccess() {
   settingsSummaries();
 }
 
-async function saveAccess(e) {
-  e.preventDefault();
-  const f = e.target;
+async function saveAccess(e, el) {
+  if (e) e.preventDefault();
+  const f = $('#access-form');
+  el = el || document.activeElement;
   const err = $('.form-error', f);
   err.hidden = true;
   try {
     await api('access_save', { lan_no_login: f.lan_no_login.checked, lan_as_admin: f.lan_as_admin.checked, trusted_networks: f.trusted_networks.value, trusted_proxies: f.trusted_proxies.value,
       login_lock_fails: f.login_lock_fails.value, login_lock_window: f.login_lock_window.value, login_lock_minutes: f.login_lock_minutes.value,
       login_lock_account: f.login_lock_account.checked, login_lock_ip: f.login_lock_ip.checked });
-    toast(L('Toegang opgeslagen'));
+    if (el && el.form === f) savedFlag(el, true);
     loadAccess();
   } catch (ex) {
     err.textContent = ex.message;
     err.hidden = false;
+    if (el && el.form === f) savedFlag(el, false, ex.message);
   }
 }
 
@@ -3623,11 +3677,11 @@ async function loadAccount() {
   if (!me) return;
   const row = (label, ctl, hint) => `<div class="acct-field"><span class="acct-lbl">${label}${hint ? `<small>${hint}</small>` : ''}</span><span class="acct-ctl">${ctl}</span></div>`;
   $('#acct-data-body').innerHTML = row(L('Gebruikersnaam'), `<b>${esc(me.username)}</b> <span class="role-tag r-${esc(me.role)}">${ROLE_LABEL[me.role] || esc(me.role)}</span>`, L('wijzigen kan alleen een beheerder'))
-    + row(L('E-mailadres'), `<input type="email" id="acct-email" value="${esc(me.email || '')}" maxlength="190" placeholder="${esc(L('jij@voorbeeld.nl'))}" autocomplete="email"> <button type="button" class="btn" id="acct-email-save">${L('Opslaan')}</button>`, L('voor "wachtwoord vergeten"'))
+    + row(L('E-mailadres'), `<input type="email" id="acct-email" value="${esc(me.email || '')}" maxlength="190" placeholder="${esc(L('jij@voorbeeld.nl'))}" autocomplete="email">`, L('voor "wachtwoord vergeten"'))
     + row(L('Taal'), `<span class="seg"><button type="button" data-lang-set="nl" class="${LANG === 'nl' ? 'active' : ''}">Nederlands</button><button type="button" data-lang-set="en" class="${LANG === 'en' ? 'active' : ''}">English</button></span>`)
     + row(L('Laatst ingelogd'), me.last_login ? esc(fmtDateTime(me.last_login)) : L('nooit'));
-  $('#acct-email-save').onclick = async () => {
-    try { await api('user_email', { id: me.id, email: $('#acct-email').value }); toast(L('E-mailadres opgeslagen')); } catch (ex) { toast(ex.message, 'err'); }
+  $('#acct-email').onchange = async (e) => {
+    try { await api('user_email', { id: me.id, email: e.target.value }); savedFlag(e.target, true); } catch (ex) { savedFlag(e.target, false, ex.message); toast(ex.message, 'err'); }
   };
   $$('#acct-data-body [data-lang-set]').forEach((b) => (b.onclick = async () => {
     if (b.classList.contains('active')) return;
@@ -3929,11 +3983,9 @@ function settingsData() {
 }
 
 async function saveSettings(e) {
-  e.preventDefault();
-  try {
-    await api('settings_save', settingsData()); toast(L('Instellingen opgeslagen'));
-    loadSettings();
-  }
+  e.preventDefault();   // Enter in een veld: meteen opslaan
+  if (document.activeElement && document.activeElement.form === e.target) markSettingsDirty(true, document.activeElement);
+  try { await autosaveSettings(); }
   catch (ex) { toast(ex.message, 'err'); }
 }
 
@@ -5005,6 +5057,6 @@ function vulnExcludeEditor() {
     : `<span class="muted small">${L('geen servers met een agent')}</span>`;
   $$('[data-vex]', el).forEach((c) => (c.onchange = () => {
     f.vuln_exclude.value = $$('[data-vex]', el).filter((x) => x.checked).map((x) => x.dataset.vex).join(',');
-    markSettingsDirty(true);
+    markSettingsDirty(true, c);
   }));
 }

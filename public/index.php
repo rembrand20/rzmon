@@ -277,7 +277,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="set-main">
       <div class="set-mobile"><select id="set-mselect" aria-label="<?= th('Onderdeel') ?>"></select></div>
       <h1 class="set-title" id="set-title"></h1>
-      <div class="set-crumb muted small" id="set-crumb"></div>
+      <div class="set-crumb muted small"><span id="set-crumb"></span> <span class="autosave-state" id="save-state" aria-live="polite"></span></div>
       <div class="set-toolbar">
         <span class="muted small"><?= th('Klik op een onderdeel om het te openen of te sluiten.') ?></span>
         <button type="button" class="btn" id="set-toggle-all"><?= th('⊞ Alles openen') ?></button>
@@ -539,7 +539,6 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div id="backup-list" class="key-list"></div>
         </div>
 
-        <div class="settings-save"><button class="btn primary"><?= th('💾 Instellingen opslaan') ?></button> <span class="save-state" id="save-state"></span></div>
       </form>
 
       <div class="settings-grid" style="margin-top:1.25rem">
@@ -563,7 +562,6 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <span class="hint"><?= th('(0 = tot een beheerder deblokkeert)') ?></span></div>
         <p class="muted small"><?= t('Een verkeerde 2FA-code telt ook. Pogingen tellen apart per account (vanaf welk IP dan ook) en per IP-adres. Een geblokkeerd account kan vanaf je <b>lokale netwerk</b> gewoon inloggen, zodat niemand van buiten je kan buitensluiten. Je krijgt een ⚠️-melding met Pushover. Deblokkeren: bij <i>Gebruikers</i> (🔓) en bij <i>Blokkades</i>; of op de server <code>sudo php install/install.php --unlock &lt;gebruiker&gt;</code>.') ?></p>
         <p class="form-error" hidden></p>
-        <button class="btn primary"><?= th('Toegang opslaan') ?></button>
       </form>
 
       <div data-sk="enc" class="card need-admin" id="enc-card">

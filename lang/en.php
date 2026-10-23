@@ -2437,4 +2437,8 @@ return [
     'Hoe' => 'How',
     'Nog geen logins bewaard.' => 'No logins stored yet.',
     'Je eigen wachtwoord, 2FA, e-mail en apparaten' => 'Your own password, 2FA, email and devices',
+    'opgeslagen' => 'saved',
+    'niet opgeslagen' => 'not saved',
+    'opslaan…' => 'saving…',
+    'alles opgeslagen' => 'all saved',
 ];

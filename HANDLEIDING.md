@@ -120,7 +120,7 @@ RzMon bestaat uit vier onderdelen:
 ### Accountmenu, Mijn account en Instellingen (vanaf 1.60.0)
 - **Rechtsboven** staat je naam met een menu: **👤 Mijn account**, **⚙️ Instellingen** (alleen beheerders), het **thema** (auto, licht of donker), de **taal** (NL of EN) en **⏻ Uitloggen**. Ben je zonder wachtwoord binnen via het lokale netwerk, dan staat er **🏠 Lokaal netwerk** met **Inloggen met je account**; *Mijn account* is er dan niet.
 - **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave op dit apparaat** (Blox of L1nes, Small of Large).
-- **Instellingen** (alleen beheerders; het tabblad in de bovenbalk is weg): links een **zijbalk** met de groepen **🔔 Meldingen** (Kanalen · Meldregels en stille uren · Systeeminfo), **📈 Monitoring** (Alarmgedrag · Kwetsbaarheden · IDS), **🔐 Beveiliging** (Toegang en inlogbeveiliging · Gebruikers · API-sleutels · Blokkades), **🖥️ Agents** (Agents bijwerken en commando's · Versleuteling) en **🛠️ Systeem** (RzMon bijwerken · Back-up · Database · Setup). Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan. **💾 Instellingen opslaan** staat onderin bij de onderdelen die hem nodig hebben; de andere slaan meteen op of hebben een eigen knop.
+- **Instellingen** (alleen beheerders; het tabblad in de bovenbalk is weg): links een **zijbalk** met de groepen **🔔 Meldingen** (Kanalen · Meldregels en stille uren · Systeeminfo), **📈 Monitoring** (Alarmgedrag · Kwetsbaarheden · IDS), **🔐 Beveiliging** (Toegang en inlogbeveiliging · Gebruikers · API-sleutels · Blokkades), **🖥️ Agents** (Agents bijwerken en commando's · Versleuteling) en **🛠️ Systeem** (RzMon bijwerken · Back-up · Database · Setup). Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan. **Alles wordt meteen opgeslagen** (vanaf 1.61.0): schakelaars en keuzelijsten direct, tekstvelden zodra je ze verlaat of op Enter drukt. Naast het veld staat dan kort **✔ opgeslagen**, en naast de titel van het onderdeel *✔ alles opgeslagen*. Klopt een waarde niet, dan staat er **✘ niet opgeslagen** met de reden; verbeter hem en hij wordt alsnog opgeslagen. Gevoelige dingen (commando's als root, IDS blokkeren, een nieuwe sleutel, je wachtwoord) vragen nog steeds om je wachtwoord.
 - Bij **Gebruikers** staat je eigen account met **👤 Mijn account**: je eigen wachtwoord, 2FA, e-mail en apparaten regel je daar.
 
 ### Poortscan
@@ -391,7 +391,7 @@ RzMon is er in het **Nederlands** en het **Engels**. Bovenaan *Instellingen* sta
    - zet *Pushover meldingen aan* aan;
    - vul de user key en het API-token in;
    - klik op **📲 Testbericht sturen** en controleer je telefoon;
-   - klik op **Instellingen opslaan**.
+   - de instellingen worden meteen opgeslagen (✔ opgeslagen naast het veld).
 
 | Instelling | Standaard | Uitleg |
 |---|---|---|
@@ -507,7 +507,7 @@ Vervang `notify.mobile_app_jouw_telefoon` en `light.bureau` door je eigen entite
 - zet *Webhook aan*;
 - vul als URL in: `http://<home-assistant>:8123/api/webhook/rzmon-kies-hier-een-lang-geheim-id`;
 - klik op **🏠 Testbericht naar Home Assistant**;
-- klik op **Instellingen opslaan**.
+- de instellingen worden meteen opgeslagen (✔ opgeslagen naast het veld).
 
 | Instelling | Uitleg |
 |---|---|
@@ -545,7 +545,7 @@ Ga naar *Instellingen → E-mail*, zet **E-mailmeldingen aan** en vul in:
 | Afzender | Leeg = je gebruikersnaam (als dat een e-mailadres is) |
 | Ontvanger(s) | Eén of meer adressen, met een komma ertussen |
 
-Klik op **📧 Testmail sturen**. Dat gebruikt wat je hebt ingevuld, ook als het nog niet is opgeslagen. Klik daarna op **Instellingen opslaan**.
+Klik op **📧 Testmail sturen**. Dat gebruikt wat je hebt ingevuld, ook als het nog niet is opgeslagen. Wat je invult, wordt meteen opgeslagen.
 
 Aandachtspunten:
 - **App-wachtwoord:** Gmail, Outlook/Hotmail en iCloud accepteren je gewone wachtwoord niet. Maak in je accountinstellingen een *app-wachtwoord* aan (daarvoor moet 2FA bij die dienst aan staan).
@@ -563,7 +563,7 @@ Met MQTT verschijnt RzMon vanzelf in Home Assistant, zonder YAML.
 **2. In RzMon:** ga naar *Instellingen → MQTT*:
 - zet **MQTT aan**;
 - vul de MQTT-server in (het adres van Home Assistant), poort `1883`, en de gebruikersnaam en het wachtwoord;
-- klik op **📡 Verbinding testen & publiceren** en daarna op **Instellingen opslaan**.
+- klik op **📡 Verbinding testen & publiceren** . De instellingen worden meteen opgeslagen.
 
 Onder *Apparaten en diensten → MQTT* staan nu:
 
@@ -1488,7 +1488,7 @@ De add-on haalt back-up, integraties en systeemstatus elke 5 minuten op, de rest
    ```
    192.168.1.0/24
    ```
-3. Zet **Geen login nodig op het lokale netwerk** aan en klik op **Toegang opslaan**.
+3. Zet **Geen login nodig op het lokale netwerk** aan; dat wordt meteen opgeslagen.
 
 **Hoe het werkt:**
 - **Op je LAN** ben je automatisch ingelogd als de eerste beheerder. Rechtsboven staat dan **🏠 Lokaal netwerk**; in dat menu staat **Inloggen met je account** en geen uitlogknop.
@@ -1602,7 +1602,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 
 **ℹ️ Systeeminfo** (*Instellingen*, groep *Meldingen*, vanaf 1.59.0)
 - Een tabel met alle meldingen van RzMon zelf (geen checks): *RzMon bijgewerkt*; *Agent bijgewerkt*, *Agent bijwerken mislukt*, *Agent verbonden*; *Ingelogd*, *Mislukte login*; *Account geblokkeerd*, *Account gedeblokkeerd*, *IP geblokkeerd*, *Blokkade opgeheven*; *Nieuwe kwetsbaarheden*, *Pakketten bijgewerkt of mislukt*; en ⚠️ *Niet-geautoriseerde verbinding*.
-- Per melding vink je aan: **📲 Pushover**, **📧 E-mail**, **🏠 Home Assistant** en **📄 Meldingenpagina**, en bij Pushover **🔕 stil** (zonder geluid) of **🔔 normaal**. Staat een kanaal helemaal uit, dan staat *(uit)* in de kop. Opslaan met *💾 Instellingen opslaan*.
+- Per melding vink je aan: **📲 Pushover**, **📧 E-mail**, **🏠 Home Assistant** en **📄 Meldingenpagina**, en bij Pushover **🔕 stil** (zonder geluid) of **🔔 normaal**. Staat een kanaal helemaal uit, dan staat *(uit)* in de kop. Wordt meteen opgeslagen.
 - **Stille uren:** er gaat niets naar buiten, maar de melding komt wel op de meldingenpagina (als die aangevinkt is). Uitzondering: ⚠️ *Niet-geautoriseerde verbinding* gaat ook tijdens stille uren, en staat altijd op de meldingenpagina (daar telt RzMon de pogingen per IP).
 - **🧪** stuurt een voorbeeld van die melding naar wat je nu aangevinkt hebt, ook tijdens stille uren.
 - Na de update naar 1.59.0 is alles ingesteld zoals het werkte. De rij **Info** bij de meldregels heet nu *Info (checks)* en geldt alleen nog voor checks (info-checks, herstart, certificaten). *Info bij agent-updates* per server (Agent Manager) blijft: staat dat uit, dan komen agent-updates van die server alleen op de meldingenpagina.

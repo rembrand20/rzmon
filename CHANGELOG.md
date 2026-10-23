@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.61.0 – 2026-10-23
+### Nieuw
+- **Instellingen worden meteen opgeslagen** (stap 2 van de vernieuwing): schakelaars en keuzelijsten direct, tekstvelden zodra je ze verlaat of op Enter drukt. Naast het veld staat kort **✔ opgeslagen**, bij de titel *✔ alles opgeslagen*; klopt een waarde niet, dan **✘ niet opgeslagen** met de reden. Alleen wat je veranderde gaat naar de server. Ook bij *Toegang en inlogbeveiliging*, de stille uren en je e-mailadres op *Mijn account*.
+- De knoppen *💾 Instellingen opslaan* en *Toegang opslaan* zijn weg. Gevoelige acties vragen nog steeds om je wachtwoord.
+
 ## 1.60.0 – 2026-10-23
 ### Nieuw
 - **Accountmenu rechtsboven** (op de plek van de uitlogknop): *👤 Mijn account*, *⚙️ Instellingen* (beheerders), het thema (auto, licht, donker), de taal (NL of EN) en *Uitloggen*. Via het lokale netwerk zonder account: *🏠 Lokaal netwerk* met *Inloggen met je account*.

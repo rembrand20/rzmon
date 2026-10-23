@@ -1004,3 +1004,12 @@ label.radio-row input { width: auto; margin: 0; flex: none; }
 .acct-ctl input[type=email] { max-width: 20rem; }
 .acct-page tr.bad-row td { color: var(--crit); }
 @media (max-width: 640px) { .acct-field { grid-template-columns: minmax(0, 1fr); gap: .35rem; } }
+
+/* ---------------------------------------------------------------- 1.61.0: meteen opslaan */
+.saved-flag { display: inline-block; margin-left: .5rem; font-size: .78rem; font-weight: 600; color: var(--ok); opacity: 0; transition: opacity .4s; white-space: nowrap; }
+.saved-flag.show { opacity: 1; }
+.saved-flag.fade { opacity: 0; }
+.saved-flag.bad { color: var(--crit); }
+label > .saved-flag { align-self: flex-start; margin-left: 0; }
+.autosave-state { margin-left: .6rem; font-weight: 600; }
+.autosave-state.ok { color: var(--ok); } .autosave-state.err { color: var(--crit); } .autosave-state.busy { color: var(--muted); }
