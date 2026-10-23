@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.49.0"
+AGENT_VERSION="1.49.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1219,10 +1219,12 @@ ids_bg() {  # ids_bg <naam> <max. leeftijd in s> <commando>: op de achtergrond u
     : >"$out.lock"
     local job
     job="nice -n 19 ionice -c3 bash -c $(printf '%q' "$cmd") >$(printf '%q' "$out.tmp") 2>/dev/null; mv -f $(printf '%q' "$out.tmp") $(printf '%q' "$out"); rm -f $(printf '%q' "$out.lock")"
+    # In een bestand, niet als tekst op de opdrachtregel: systemd-run vult daar zelf ${…} en %-codes in
+    (umask 077; printf '%s\n' "$job" >"$out.job") || { rm -f "$out.lock"; return 0; }
     if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
-        systemd-run --quiet --collect --unit="rzmon-ids-$name-$(date +%s)" /bin/bash -c "$job" >/dev/null 2>&1 || rm -f "$out.lock"
+        systemd-run --quiet --collect --unit="rzmon-ids-$name-$(date +%s)" /bin/bash "$out.job" >/dev/null 2>&1 || rm -f "$out.lock"
     else
-        setsid bash -c "$job" </dev/null >/dev/null 2>&1 &
+        setsid bash "$out.job" </dev/null >/dev/null 2>&1 &
     fi
 }
 if [ -n "$ids_mode" ]; then
@@ -1788,11 +1790,15 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
         rm -f "$dir/upgrade.lock" "$dir/progress.json" "$dir/progress.enc"'
     script="$(declare -f enc_sub seal)
 $script"   # versleutelen kan het script dan zelf
+    # Als bestand starten, niet met bash -c: systemd-run vult ${…} en %-codes op de opdrachtregel zelf in, waardoor
+    # bv. "${cmd[@]}" leeg werd (1.48.0–1.49.0: "_: line 34: : command not found")
+    (umask 077; printf '%s\n' "$script" >"$pk_dir/upgrade.sh") \
+        || { printf '%s\terror\t%s\n' "$id" "$(printf 'kan upgrade.sh niet schrijven' | base64 -w0)" >"$out"; rm -f "$pk_dir/upgrade.lock"; return 0; }
     if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
-        systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash -c "$script" _ "$id" "$pk_mgr" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
+        systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
             || { printf '%s\terror\t%s\n' "$id" "$(printf 'systemd-run mislukt' | base64 -w0)" >"$out"; rm -f "$pk_dir/upgrade.lock"; }
     else
-        setsid /bin/bash -c "$script" _ "$id" "$pk_mgr" "$pk_dir" "${n[@]}" </dev/null >/dev/null 2>&1 &
+        setsid /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr" "$pk_dir" "${n[@]}" </dev/null >/dev/null 2>&1 &
     fi
 }
 

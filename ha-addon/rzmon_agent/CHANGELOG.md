@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.49.1 – 2026-10-23
+- **Pakketten bijwerken (pagina 🐞 Kwetsbaarheden) mislukte meteen** met *_: line 34: : command not found* (agent 1.48.0 en 1.49.0, op servers met systemd). `systemd-run` vult zelf alles in wat op `${…}` lijkt in de opdrachtregel, en het bijwerk-script stond daar als tekst in; zo werd het dnf- of apt-commando leeg. Het script staat nu in een bestand (alleen leesbaar voor root) en `systemd-run` start alleen dat bestand.
+- Hetzelfde voor de IDS-taken op de achtergrond (SUID-bestanden, pakketcontrole, bestanden opnieuw hashen).
+
 ## 1.49.0 – 2026-10-23
 - **Versleuteld versturen** (RzMon 1.57.0 of nieuwer): met een sleutel gaan het rapport, de voortgang van pakketten bijwerken en het ophalen van de instellingen versleuteld naar RzMon (AES-256-CBC met een HMAC-SHA256-handtekening, via `openssl`), en de agent controleert de handtekening van het antwoord voordat hij er iets mee doet. Klopt die niet, dan negeert hij het antwoord.
 - De sleutel komt van RzMon (bewaard in `enc.key`, alleen leesbaar voor root) of uit `ENC_KEY=` in `/etc/default/rzmon-agent`; nieuw installeren met `--key`. Een nieuwe sleutel in RzMon neemt de agent vanzelf over. Zet je versleutelen in RzMon uit voor deze server, dan stopt de agent ermee.

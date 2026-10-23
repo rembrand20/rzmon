@@ -2871,7 +2871,29 @@ function alertStatusText(a) {
 
 async function loadAlerts() {
   try { alertData = await api('alerts'); } catch (ex) { toast(ex.message, 'err'); return; }
-  renderAlerts();
+  keepOpen($('#alerts'), renderAlerts);
+}
+
+/**
+ * Opnieuw tekenen (elke 20 seconden) zonder dat wat je openklapte weer dichtgaat: <details> (zoals Uitvoer of een
+ * logboek) en uitgeklapte berichten in L1nes. Herkend aan de server, dag of check eromheen en de kop zonder getallen.
+ */
+function keepOpen(root, draw) {
+  if (!root) return draw();
+  const ids = (el) => (el ? [el.dataset.host, el.dataset.day, el.dataset.cid, el.dataset.id].filter(Boolean).join(',') : '');
+  const key = (el) => {
+    const head = el.tagName === 'DETAILS' ? ($(':scope > summary', el)?.textContent || '') : el.textContent;
+    return [ids(el.parentElement && el.parentElement.closest('[data-host],[data-day],[data-cid],[data-id]')), ids(el),
+      head.replace(/[\d\s.,:%×()+–-]+/g, ' ').trim().slice(0, 80)].join('|');
+  };
+  const was = new Map();
+  root.querySelectorAll('details').forEach((d) => was.set(key(d), d.open));
+  const rows = new Set([...root.querySelectorAll('tr.at-open')].map(key));
+  const y = window.scrollY;
+  draw();
+  root.querySelectorAll('details').forEach((d) => { const k = key(d); if (was.has(k) && d.open !== was.get(k)) d.open = was.get(k); });
+  if (rows.size) root.querySelectorAll('tr').forEach((tr) => { if (rows.has(key(tr))) tr.classList.add('at-open'); });
+  if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);
 }
 
 // ---------------------------------------------------------------- IDS
@@ -2885,8 +2907,7 @@ const IDS_FW = {
 
 async function loadIds() {
   try { [idsData, accData] = await Promise.all([api('ids'), api('ids_access')]); } catch (ex) { toast(ex.message, 'err'); return; }
-  renderIds();
-  renderAccess();
+  keepOpen($('#tab-ids'), () => { renderIds(); renderAccess(); });
   showIdsTab();
 }
 
@@ -4436,7 +4457,7 @@ function initVulns() {
 async function loadVulns() {
   try {
     vulnData = await api('vulns');
-    renderVulns();
+    keepOpen($('#vuln-hosts'), renderVulns);
   } catch (ex) { $('#vuln-hosts').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; }
 }
 

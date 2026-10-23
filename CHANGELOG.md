@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.57.3 – 2026-10-23
+### Opgelost
+- **Opengeklapte onderdelen gingen steeds weer dicht.** De pagina's Meldingen, IDS en Kwetsbaarheden worden elke 20 seconden ververst; daarbij klapte alles weer in, zoals *Uitvoer* (het logboek) bij een server, een andere dag bij Meldingen of een uitgeklapt bericht. Nu blijft open wat je openzette, en blijft de pagina op dezelfde plek staan.
+- Nieuwe agent 1.49.1: pakketten bijwerken via de agent mislukte op servers met systemd met *_: line 34: : command not found*. Werk de agents bij (*Instellingen → ⬆ Agents bijwerken*) en probeer het opnieuw.
+
 ## 1.57.2 – 2026-10-23
 ### Opgelost
 - **Kwetsbaarheden: na het invoeren van je wachtwoord verscheen soms geen voortgang.** Het venster ging eerst dicht en het voortgangsvenster opende pas daarna; lukte die eerste vraag om de stand niet (even geen verbinding, telefoon), dan bleef het leeg. Nu blijft het venster open en wisselt het meteen naar de voortgang (*Wachten op de agent*, met de pakketten); de stand wordt daarna steeds opnieuw opgevraagd, ook na een mislukte vraag.
