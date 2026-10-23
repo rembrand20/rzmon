@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.56.0 – 2026-10-23
+### Nieuw
+- **Voortgang bij bijwerken op de pagina 🐞 Kwetsbaarheden.** Na *⬆ Bijwerken* blijft het venster open met een voortgangsbalk, de stappen (*Wachten op de agent → Pakketlijst ophalen → Downloaden → Installeren → Klaar*), waar de server nu mee bezig is (bv. *Installeren: openssl*) en de laatste regels van apt of dnf. Met *Op de achtergrond* sluit je het; bij de server staat dan *⏳ Bezig met bijwerken 45%* om het weer te openen. **Agent 1.48.0 nodig** voor het percentage; met een oudere agent zie je een bewegende balk.
+- Na het bijwerken scant RzMon de server meteen opnieuw zodra de nieuwe softwarelijst binnen is; het venster laat zien wanneer dat klaar is.
+- ℹ️ Info-melding als pakketten bijwerken klaar is of mislukt (volgt de rij *Info* bij 🔔 Meldingen).
+- Nieuwe agent 1.48.0.
+
+### Opgelost
+- *Instellingen → 🐞 Kwetsbaarheden* staat in L1nes nu in de groep *📈 Monitoring*, onder 🛡️ IDS (stond bovenaan), met een samenvatting achter de titel.
+
 ## 1.55.0 – 2026-10-23
 ### Nieuw
 - **Tellers op de tabbladen Dashboard en Meldingen**, net als bij 🛡️ IDS. *Dashboard*: het aantal nieuwe problemen sinds je laatste bezoek (checks die warning, critical of onbekend werden en dat nog zijn), in de kleur van het ergste. *Meldingen*: het aantal nieuwe meldingen sinds je die pagina voor het laatst opende (zonder info en bevestigingen). Open je het tabblad, dan gaat de teller naar 0. Dit wordt per gebruiker onthouden, dus ook op je telefoon. Het totaal staat ook in de titel van het browsertabblad, bv. *(3) RzMon*.

@@ -896,6 +896,7 @@ function settingsSummaries() {
       : $('#ids-mode').checked ? `<span class="warn-txt">⛔ ${L('blokkeren')}</span>` : `<span class="good-txt">✔ ${L('aan')}</span> · ${L('leren (alleen melden)')}`;
     sum.ids += f.auth_events.checked ? ' · 🔑 ' + L('toegang') : '';
     if (fimGlobal && fimGlobal.get().length) sum.ids += ' · 📁 ' + (fimGlobal.get().length === 1 ? L('{n} pad', { n: 1 }) : L('{n} paden', { n: fimGlobal.get().length }));
+    if ($('#vuln-enabled')) sum.vulns = $('#vuln-enabled').checked ? on(esc(L('dagelijks om {t}', { t: f.vuln_time.value }))) : off;
     sum.alarm = esc(L('agent offline na {a} min · historie {h} dagen · meldingen {m} dagen', { a: f.agent_stale_minutes.value, h: f.retention_days.value, m: f.alerts_days.value }));
     if (updateInfo) {
       sum.update = (updateInfo.available ? `<span class="warn-txt">⬆ ${L('{v} beschikbaar', { v: esc(updateInfo.latest) })}</span>` : `✔ ${esc(updateInfo.current)}${updateInfo.latest ? ' · ' + L('nieuwste versie') : ''}`)
@@ -4378,8 +4379,9 @@ function vulnHostCard(h, fs) {
   const cnt = [4, 3, 2, 1].map((s) => [s, new Set(fs.filter((f) => f.severity === s).map((f) => f.cve)).size]).filter(([, c]) => c);
   const open = vulnOpen.has(h.id) || (vulnOpen.size === 0 && fs.some((f) => f.severity >= 3 || f.kev));
   const up = h.upgrade;
-  const upTxt = !up ? '' : up.state === 'queued' ? `⏳ ${L('Bijwerken gevraagd; de agent pakt het op bij zijn volgende rapport')}`
-    : up.state === 'running' ? `⏳ ${L('Bezig met bijwerken: {p}', { p: esc((up.pkgs || []).join(' ')) })}`
+  const upTxt = !up ? '' : up.state === 'queued' || up.state === 'running'
+    ? `<a href="#" data-vact="progress" data-host="${h.id}" title="${L('Voortgang tonen')}">⏳ ${up.state === 'queued' ? L('Bijwerken gevraagd; de agent pakt het op bij zijn volgende rapport')
+      : L('Bezig met bijwerken') + (up.pct ? ` ${up.pct}%` : '')}</a>`
     : up.state === 'ok' ? `<span class="good-txt">✔ ${L('Bijgewerkt {t}', { t: ago(up.at) })}: ${esc((up.pkgs || []).join(' '))}</span>`
     : `<span class="bad">✘ ${L('Bijwerken mislukt {t}', { t: ago(up.at) })}</span>`;
   const notes = [
@@ -4425,6 +4427,7 @@ function vulnClick(e) {
   if (b.dataset.vact === 'upgrade') return vulnUpgrade(h, [b.dataset.pkg]);
   if (b.dataset.vact === 'upgrade-all') return vulnUpgrade(h, null);
   if (b.dataset.vact === 'software') return vulnSoftware(h);
+  if (b.dataset.vact === 'progress') return vulnUpgradeDialog(h, true);
   if (b.dataset.vact === 'more') {
     const fs = vulnVisible().filter((f) => f.host_id === h.id && f.package === b.dataset.pkg);
     b.parentElement.innerHTML = fs.map(vulnChip).join(' ');
@@ -4521,8 +4524,7 @@ function vulnUpgrade(h, pkgs) {
     onSubmit: async (v, form) => {
       try {
         await api('vuln_upgrade', { host_id: h.id, all, packages: pkgs || [], confirm: v.confirm });
-        toast(L('Bijwerken gevraagd; de agent pakt het op bij zijn volgende rapport'));
-        loadVulns();
+        setTimeout(() => vulnUpgradeDialog(h, true), 0);   // na het sluiten van dit venster: de voortgang
       } catch (ex) {
         // Kan het niet via de agent? Dan het commando tonen om zelf uit te voeren
         if (ex.data && ex.data.command) {
@@ -4534,6 +4536,63 @@ function vulnUpgrade(h, pkgs) {
       }
     },
   });
+}
+
+// ---------------------------------------------------------------- Bijwerken via de agent: voortgang
+// Agent 1.48.0+ meldt elke paar seconden de stap, het percentage en het pakket; oudere agents alleen het begin en de uitkomst.
+const VULN_UP_STEPS = [['queued', L('Wachten op de agent')], ['update', L('Pakketlijst ophalen')], ['download', L('Downloaden')], ['install', L('Installeren')], ['done', L('Klaar')]];
+let vulnUpPoll = null;
+const vulnUpShown = () => $('#modal').open && !!$('#modal-body .vu-dlg');
+
+/** Venster met de voortgang van het bijwerken op server h; force = openen, ook als er een ander venster openstaat. */
+async function vulnUpgradeDialog(h, force) {
+  clearTimeout(vulnUpPoll);
+  let r;
+  try { r = await api('vuln_upgrade_status', null, { host_id: h.id }); }
+  catch (ex) { if (vulnUpShown()) vulnUpPoll = setTimeout(() => vulnUpgradeDialog(h), 3000); return; }
+  if (!force && !vulnUpShown()) return;   // venster gesloten: stoppen
+  const st = r.status || { state: 'queued', pkgs: [] };
+  const busy = ['queued', 'running'].includes(st.state);
+  const step = st.state === 'queued' ? 'queued' : st.state === 'ok' || st.state === 'error' ? 'done'
+    : st.stage === 'verify' ? 'install' : st.stage || 'update';
+  const cur = VULN_UP_STEPS.findIndex(([k]) => k === step);
+  const icon = (i) => (st.state === 'ok' || i < cur ? '✔' : i === cur ? (st.state === 'error' ? '✘' : '⏳') : '·');
+  // Zonder tussenstand (oude agent, of nog niets gehoord): een bewegende balk zonder percentage
+  const known = st.state === 'ok' || st.state === 'error' || typeof st.pct === 'number';
+  const pct = st.state === 'ok' ? 100 : st.state === 'queued' ? 2 : known ? st.pct : 100;
+  const since = st.sent ? ' · ' + L('gestart {t}', { t: ago(st.sent) }) : '';
+  const rescanned = st.state === 'ok' && r.scanned_at && r.scanned_at >= st.at;
+  const label = VULN_UP_STEPS[cur][1];
+  const now = st.state === 'queued' ? '⏳ ' + L('Wachten op de agent: hij pakt de opdracht op bij zijn volgende rapport.')
+    : st.state === 'ok' ? '✔ ' + L('Bijgewerkt: {p}', { p: esc((st.pkgs || []).join(' ')) })
+    : st.state === 'error' ? '✘ ' + L('Bijwerken mislukt')
+    : known ? `⏳ ${st.stage === 'verify' ? L('Controleren') : label}${st.detail ? `: <b>${esc(st.detail)}</b>` : ''}${st.count ? ` <span class="muted">(${esc(st.count)})</span>` : ''}`
+    : '⏳ ' + L('Bezig met bijwerken') + since;
+  const after = st.state !== 'ok' ? ''
+    : rescanned ? `<p class="good-txt small">🔍 ${L('Opnieuw gescand: de lijst met kwetsbaarheden is bijgewerkt.')}</p>`
+    : `<p class="muted small">🔍 ${L('RzMon scant opnieuw zodra de agent de nieuwe softwarelijst stuurt (meestal binnen een paar minuten).')}</p>`;
+  const tail = (st.log || '').trim().split('\n').slice(-8).join('\n');
+  modal({
+    title: '⬆ ' + L('Bijwerken op {name}', { name: h.name }),
+    body: `<div class="upd-dlg vu-dlg ${st.state === 'ok' ? 'ok' : st.state === 'error' ? 'error' : ''}">
+      <div class="upd-top"><b>${st.state === 'ok' ? L('Klaar') : st.state === 'error' ? L('Mislukt') : L('Bezig met bijwerken…')}</b><b>${known || st.state === 'queued' ? pct + '%' : ''}</b></div>
+      <div class="upd-bar ${known || st.state === 'queued' ? '' : 'indet'}" role="progressbar" aria-valuemin="0" aria-valuemax="100" ${known ? `aria-valuenow="${pct}"` : ''}><i style="width:${pct}%"></i></div>
+      <ol class="update-steps">${VULN_UP_STEPS.map(([k, l], i) => `<li class="${i === cur ? 'cur' : ''}">${icon(i)} ${l}</li>`).join('')}</ol>
+      <p class="upd-now">${now}</p>
+      ${busy && st.state === 'running' && !r.live ? `<p class="muted small">${L('Deze agent meldt geen tussenstand. Werk hem bij naar {v} voor een voortgangsbalk.', { v: '1.48.0' })}</p>` : ''}
+      ${after}
+      <p class="muted small">${L('Pakketten')}: <span class="mono">${esc((st.pkgs || []).join(' '))}</span></p>
+      ${tail ? `<pre class="update-log upd-log">${esc(tail)}</pre>` : ''}
+    </div>`,
+    buttons: busy ? [{ label: L('Op de achtergrond'), onClick: () => { $('#modal').close(); loadVulns(); } }]
+      : [{ label: L('Sluiten'), cls: 'primary', onClick: () => { $('#modal').close(); loadVulns(); } }],
+  });
+  const lg = $('#modal-body .upd-log');
+  if (lg) lg.scrollTop = lg.scrollHeight;
+  // Doorvragen tot klaar, en daarna tot de nieuwe scan er is (hooguit 15 minuten)
+  if (busy || (st.state === 'ok' && !rescanned && Date.now() - new Date(st.at.replace(' ', 'T')) < 900000)) {
+    vulnUpPoll = setTimeout(() => vulnUpgradeDialog(h), busy ? 2000 : 5000);
+  } else if (!$('#tab-vulns').hidden) loadVulns();
 }
 
 async function vulnSoftware(h) {

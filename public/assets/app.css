@@ -690,6 +690,7 @@ body[data-role="admin"] [data-role-only="nonadmin"] { display: none; }
 .upd-dlg.ok .upd-bar i { background-color: var(--ok); animation: none; background-image: none; }
 .upd-dlg.error .upd-bar i { background-color: var(--crit); animation: none; background-image: none; }
 @keyframes upd-stripes { to { background-position: 18px 0; } }
+.upd-bar.indet i { width: 100% !important; opacity: .55; }   /* voortgang onbekend: bewegende strepen */
 .upd-now { margin: .7rem 0 .4rem; font-weight: 600; }
 .upd-dlg.error .upd-now { color: var(--crit); } .upd-dlg.ok .upd-now { color: var(--ok); }
 .upd-log { max-height: 160px; margin: 0; }
@@ -808,7 +809,7 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 .mode-switch span.active { color: var(--text); font-weight: 700; }
 .ids-blocks td { vertical-align: middle; }
 .alert-item.s2.ids-item, .alert-item.s1.ids-item { padding-left: .2rem; }
-.set-l1nes [data-sk=ids] { order: 22; }
+.set-l1nes [data-sk=ids] { order: 22; } .set-l1nes [data-sk=vulns] { order: 23; }
 
 /* Popup van een check */
 .chk[data-cid] { cursor: pointer; }

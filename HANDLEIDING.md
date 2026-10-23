@@ -1390,6 +1390,8 @@ Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) h
 
 **Bijwerken via de agent** (beheerders)
 - Met **⬆** bij een pakket, of **⬆ Alle beveiligingsupdates installeren** bij een server, voert de agent bij zijn volgende rapport `dnf upgrade` of `apt-get install --only-upgrade` uit voor precies die pakketten. Je bevestigt met je wachtwoord (op het LAN zonder wachtwoord: typ **BIJWERKEN**); het komt in het logboek, en de uitkomst (met de uitvoer) zie je bij de server.
+- **Voortgang:** na **⬆ Bijwerken** blijft een venster open met een **voortgangsbalk** en de stappen *Wachten op de agent → Pakketlijst ophalen → Downloaden → Installeren → Klaar*. Daaronder staat waar de server nu mee bezig is (bv. *Installeren: **openssl***, bij dnf ook *(3/14)*) en de laatste regels van de uitvoer van apt of dnf. Met **Op de achtergrond** sluit je het venster; bij de server staat dan *⏳ Bezig met bijwerken 45%*, en een klik daarop opent het weer. Dit vraagt **agent 1.48.0** of nieuwer: die meldt elke paar seconden zijn voortgang en de uitkomst meteen. Een oudere agent werkt ook, maar dan zie je een bewegende balk zonder percentage en komt de uitkomst bij zijn volgende rapport.
+- **Daarna:** de agent stuurt bij zijn volgende rapport de nieuwe softwarelijst en RzMon **scant de server meteen opnieuw**; het venster laat zien wanneer dat klaar is. Je krijgt ook een ℹ️ info-melding *Pakketten bijgewerkt* of *Pakketten bijwerken mislukt* (met de laatste regel van de uitvoer), volgens de rij **Info** bij *🔔 Meldingen*.
 - Dat kan alleen als **commando's als root** aan staan voor die server (*Instellingen → 🖥️ Commando-checks*, of per server in de Agent Manager) en de agent als root draait. Op de server zelf blokkeer je het altijd met `COMMANDS=0` of `COMMANDS=nobody` in `/etc/default/rzmon-agent`. Kan het niet, dan krijg je het commando om zelf uit te voeren.
 - Er wordt nooit iets herstart. De pakketnamen worden aan beide kanten gecontroleerd; vrije commando's zijn niet mogelijk.
 
@@ -1399,7 +1401,7 @@ Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) h
 
 **REST API en Home Assistant**: `GET /v1.php/vulnerabilities` (tellers per server) en `GET /v1.php/vulnerabilities/{id}` (de kwetsbaarheden van een server), met het nieuwe recht *🐞 Kwetsbaarheden lezen*. Via MQTT krijgt elke server de sensoren *Kwetsbaarheden critical*, *high* en *actief misbruikt*, en RzMon de totalen.
 
-**Instellingen → 🐞 Kwetsbaarheden**: aan/uit, de scantijd, *tonen vanaf* (ernst) en welke servers niet gescand worden.
+**Instellingen → 🐞 Kwetsbaarheden** (in de groep *📈 Monitoring*, onder 🛡️ IDS): aan/uit, de scantijd, *tonen vanaf* (ernst) en welke servers niet gescand worden.
 
 **Nog niet**: de Home Assistant-add-on, Podman-containers, en software die niet via de pakketbeheerder is geïnstalleerd (zelf gecompileerd, pip, npm…). Fedora en openSUSE worden nog niet ondersteund.
 

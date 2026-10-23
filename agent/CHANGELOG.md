@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.48.0 – 2026-10-23
+- **Voortgang bij pakketten bijwerken** (pagina 🐞 Kwetsbaarheden, RzMon 1.56.0 of nieuwer): terwijl apt of dnf draait, meldt de agent elke paar seconden aan RzMon in welke stap hij is (pakketlijst ophalen, downloaden, installeren, controleren), hoeveel procent, met welk pakket hij bezig is en de laatste regels van de uitvoer. Bij apt komt het percentage van apt zelf; bij dnf telt de agent de regels zoals *Upgrading 3/14*. De uitkomst komt meteen binnen, niet pas bij het volgende rapport.
+- Adres en token voor die meldingen staan even in een bestand dat alleen root kan lezen (niet als argument, zodat ze niet in `ps` te zien zijn) en worden direct na het starten verwijderd.
+
 ## 1.47.0 – 2026-10-23
 - Voor de nieuwe pagina **🐞 Kwetsbaarheden** in RzMon (1.54.0 of nieuwer) stuurt de agent zijn **softwarelijst** mee: de pakketten (dpkg of rpm) en de distributie. De hele lijst één keer per dag, of eerder als er pakketten veranderen; anders alleen een controlegetal. Alleen als *Kwetsbaarheden* in RzMon aan staat, wordt de lijst bewaard.
 - Ook meegestuurd: welke pakketten op het netwerk luisteren (🌐 bereikbaar), en of een herstart nodig is (nieuwere kernel geïnstalleerd, of services met oude bestanden via `needs-restarting` of `needrestart`).

@@ -161,7 +161,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - de agents (1.47.0+) sturen hun pakketlijst mee (dpkg of rpm), RzMon leest die van zichzelf; RzMon zoekt de CVE's op bij **OSV.dev** met de adviezen van de distributie (geen vals alarm door backports; alleen pakketnaam, versie en distributie gaan naar OSV);
   - per server: pakket, geïnstalleerde versie, **opgelost in**, CVE's per ernst, **🌐 bereikbaar** (luistert op het netwerk), **⚠️ actief misbruikt** (CISA KEV), **↻ herstart nodig**; tellers, zoeken en filters, en de hele softwarelijst;
   - klik op een CVE: omschrijving, CVSS met uitleg, EPSS, adviezen en links, en per server het commando om bij te werken;
-  - **bijwerken via de agent** per pakket of *alle beveiligingsupdates* (beheerders, met wachtwoord, alleen als commando's als root aan staan; anders het commando om zelf uit te voeren);
+  - **bijwerken via de agent** per pakket of *alle beveiligingsupdates* (beheerders, met wachtwoord, alleen als commando's als root aan staan; anders het commando om zelf uit te voeren), met een **voortgangsbalk** (stap, percentage, pakket en uitvoer; agent 1.48.0), daarna meteen een nieuwe scan en een ℹ️ info-melding;
   - **risico accepteren** met een reden; ℹ️ info bij een nieuwe critical of actief misbruikte CVE; REST API (`/vulnerabilities`) en MQTT-sensoren;
   - ondersteund: Debian, Ubuntu, Rocky Linux, AlmaLinux (en RHEL/CentOS), Alpine.
 - **Hulpdienst als root** voert alleen vaste taken uit. Hij weigert als de RzMon-map niet veilig is (ontgrendeld, of bestanden die niet van root zijn).

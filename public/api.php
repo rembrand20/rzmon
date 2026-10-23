@@ -159,6 +159,13 @@ if ($action === 'agent_check') {
     out(['ok' => true, 'host' => $host['name'], 'your_ip' => client_ip()]);
 }
 
+// Voortgang van "pakketten bijwerken" (agent 1.48.0+): elke paar seconden tijdens apt/dnf, en aan het eind de uitkomst
+if ($action === 'agent_pkg_progress') {
+    $host = agent_host();
+    Vulns::upgradeProgress($host, input());
+    out(['ok' => true]);
+}
+
 if ($action === 'agent') {
     $host = agent_host();
     $in = input();
@@ -526,7 +533,7 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
 $need = match ($action) {
     'state', 'alerts', 'ids', 'ids_access', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'user_email', 'lang_set' => 'readonly',
-    'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore' => 'user',
+    'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1731,6 +1738,14 @@ switch ($action) {
 
     case 'vuln_packages':
         out(['packages' => Vulns::packages((int) ($_GET['host_id'] ?? 0))]);
+
+    // Voortgang van "bijwerken" op één server (het venster vraagt dit elke paar seconden)
+    case 'vuln_upgrade_status':
+        $h = q('SELECT h.agent_version, h.vuln_upgrade_status, i.scanned_at, i.updated_at FROM hosts h LEFT JOIN vuln_inventory i ON i.host_id = h.id WHERE h.id = ?',
+            [(int) ($_GET['host_id'] ?? 0)])->fetch();
+        $h ? out(['status' => json_decode((string) $h['vuln_upgrade_status'], true), 'scanned_at' => $h['scanned_at'], 'updated_at' => $h['updated_at'],
+                  'live' => $h['agent_version'] && version_compare((string) $h['agent_version'], Vulns::PROGRESS_MIN, '>=')])
+           : out(['error' => t('Server niet gevonden')], 404);
 
     case 'vuln_detail':
         $d = Vulns::detail(mb_substr(trim((string) ($_GET['cve'] ?? '')), 0, 80));

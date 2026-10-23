@@ -16,6 +16,7 @@ final class Vulns
     /** Ernst: 0 = onbekend, 1 = low, 2 = medium, 3 = high, 4 = critical */
     public const SEVERITY = [0 => 'onbekend', 1 => 'low', 2 => 'medium', 3 => 'high', 4 => 'critical'];
     public const AGENT_MIN = '1.47.0';
+    public const PROGRESS_MIN = '1.48.0';   // agent die tijdens het bijwerken zijn voortgang meldt
     private const OSV = 'https://api.osv.dev/v1';
     private const KEV = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json';
     private const EPSS = 'https://api.first.org/data/v1/epss';
@@ -766,8 +767,31 @@ final class Vulns
         }
         $req['sent'] = now();
         q('UPDATE hosts SET vuln_upgrade_req = ?, vuln_upgrade_status = ? WHERE id = ?',
-            [json_encode($req), json_encode(['state' => 'running', 'at' => now(), 'pkgs' => $req['pkgs']]), $hostId]);
+            [json_encode($req), json_encode(['state' => 'running', 'at' => now(), 'sent' => now(), 'pkgs' => $req['pkgs']]), $hostId]);
         return ['id' => $req['id'], 'pkgs' => $req['pkgs']];
+    }
+
+    /** Voortgang van de agent tijdens het bijwerken (stap, procent, pakket, laatste uitvoer), of de uitkomst als hij klaar is */
+    public static function upgradeProgress(array $host, array $p): void
+    {
+        if (!empty($p['done'])) {
+            self::upgradeResult($host, $p);
+            return;
+        }
+        $req = json_decode((string) q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$host['id']])->fetchColumn(), true);
+        if (!is_array($req) || ($p['id'] ?? '') !== $req['id']) {
+            return;
+        }
+        $st = json_decode((string) q('SELECT vuln_upgrade_status FROM hosts WHERE id = ?', [$host['id']])->fetchColumn(), true) ?: [];
+        $clean = static fn($v, int $max) => mb_substr(preg_replace('/[\x00-\x1f]/', '', (string) $v), 0, $max);
+        $stage = in_array($p['stage'] ?? '', ['update', 'download', 'install', 'verify'], true) ? $p['stage'] : 'update';
+        $st = [
+            'state' => 'running', 'at' => now(), 'sent' => $st['sent'] ?? $req['sent'] ?? now(), 'pkgs' => $req['pkgs'],
+            'stage' => $stage, 'pct' => max((int) ($st['pct'] ?? 0), min(99, max(0, (int) ($p['pct'] ?? 0)))),   // de balk gaat niet terug
+            'detail' => $clean($p['detail'] ?? '', 120), 'count' => preg_match('#^\d{1,5}/\d{1,5}$#', (string) ($p['count'] ?? '')) ? $p['count'] : '',
+            'log' => mb_substr((string) base64_decode((string) ($p['log_b64'] ?? ''), true), -800),
+        ];
+        q('UPDATE hosts SET vuln_upgrade_status = ? WHERE id = ?', [json_encode($st, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), $host['id']]);
     }
 
     private static function upgradeResult(array $host, array $r): void
@@ -778,9 +802,17 @@ final class Vulns
         }
         $log = mb_substr((string) base64_decode((string) ($r['log_b64'] ?? ''), true), -1500);
         $ok = !empty($r['ok']);
+        $prev = json_decode((string) q('SELECT vuln_upgrade_status FROM hosts WHERE id = ?', [$host['id']])->fetchColumn(), true) ?: [];
         q('UPDATE hosts SET vuln_upgrade_req = NULL, vuln_upgrade_status = ? WHERE id = ?',
-            [json_encode(['state' => $ok ? 'ok' : 'error', 'at' => now(), 'pkgs' => $req['pkgs'], 'log' => AgentText::tr($log)], JSON_UNESCAPED_UNICODE), $host['id']]);
+            [json_encode(['state' => $ok ? 'ok' : 'error', 'at' => now(), 'sent' => $prev['sent'] ?? $req['sent'], 'pkgs' => $req['pkgs'], 'log' => AgentText::tr($log)],
+                JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), $host['id']]);
         AgentCommands::audit((string) $req['by'], $ok ? 'Pakketten bijgewerkt' : 'Pakketten bijwerken mislukt', "{$host['name']}: " . implode(' ', $req['pkgs']));
+        // De nieuwe softwarelijst komt met het volgende rapport; daarna scant RzMon vanzelf opnieuw (andere lijst)
+        $pkgs = implode(' ', array_slice($req['pkgs'], 0, 20)) . (count($req['pkgs']) > 20 ? ' …' : '');
+        $last = trim((string) strrchr("\n" . trim($log), "\n"));
+        Monitor::infoHost(['info_agent' => 1] + $host, fn() => $ok
+            ? '✔ ' . t('Pakketten bijgewerkt: {p}', ['p' => $pkgs])
+            : '✘ ' . t('Pakketten bijwerken mislukt: {p}', ['p' => $pkgs]) . ($last !== '' ? ' – ' . mb_substr(AgentText::tr($last), 0, 200) : ''));
     }
 
     /** Het commando om het zelf te doen, per pakketbeheerder */

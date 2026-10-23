@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.47.0"
+AGENT_VERSION="1.48.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1687,17 +1687,62 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
     # Loopt er al een (minder dan 30 minuten geleden gestart)? Dan niet nog een.
     if [ -f "$pk_dir/upgrade.lock" ] && [ $(( $(date +%s) - $(stat -c %Y "$pk_dir/upgrade.lock") )) -lt 1800 ]; then return 0; fi
     : >"$pk_dir/upgrade.lock"
+    # Adres en token voor de voortgang: in een bestand (alleen root), niet als argument (zichtbaar in ps)
+    (umask 077; printf '%s\n%s\n%s\n' "$MONITOR_URL" "$TOKEN" "$INSECURE" >"$pk_dir/upgrade.conf")
+    # Het script meldt zijn voortgang elke paar seconden zelf aan RzMon (stap, procent, pakket, laatste uitvoer);
+    # de uitkomst gaat daarnaast via upgrade.result mee met het volgende rapport (als de voortgang niet aankwam).
     # shellcheck disable=SC2016  # het script krijgt zijn waarden als argumenten mee, niet via de tekst
     local script='id=$1; mgr=$2; dir=$3; shift 3
+        url=""; tok=""; ins=0; last=0; stage=update; pct=2; detail=""; count=""
+        if [ -r "$dir/upgrade.conf" ]; then { read -r url; read -r tok; read -r ins; } <"$dir/upgrade.conf"; rm -f "$dir/upgrade.conf"; fi
+        log="$dir/upgrade.log"; : >"$log"
+        post() {   # post [extra JSON-velden]: voortgang naar RzMon (hooguit 4 seconden wachten)
+            [ -n "$url" ] || return 0
+            local k=(-fsS -m 4 -o /dev/null -X POST -H "X-Agent-Token: $tok" -H "Content-Type: application/json")
+            [ "$ins" = 1 ] && k+=(-k)
+            curl "${k[@]}" --data-binary "{\"id\":\"$id\",\"stage\":\"$stage\",\"pct\":$pct,\"detail\":\"$(printf "%s" "$detail" | tr -d "\"\\\\\\000-\\037" | cut -c1-120)\",\"count\":\"$count\",\"log_b64\":\"$(tail -c "${2:-800}" "$log" | base64 -w0)\"$1}" \
+                "${url%/}/api.php?action=agent_pkg_progress" >/dev/null 2>&1
+            last=$(date +%s)
+        }
+        tick() { [ "$1" != "$stage" ] && { stage=$1; post; return; }; [ $(( $(date +%s) - last )) -ge 2 ] && post; }
+        export LC_ALL=C
+        post
         if [ "$mgr" = rpm ]; then
-            if command -v dnf >/dev/null 2>&1; then log=$(dnf -y upgrade "$@" 2>&1); else log=$(yum -y update "$@" 2>&1); fi
+            cmd=(dnf -y upgrade "$@"); command -v dnf >/dev/null 2>&1 || cmd=(yum -y update "$@")
+            "${cmd[@]}" 2>&1 | while IFS= read -r l; do
+                printf "%s\n" "$l" >>"$log"
+                if [[ "$l" =~ ^\(([0-9]+)/([0-9]+)\):\ ([^ ]+) ]]; then          # (3/7): openssl-libs-3.2.2.rpm   downloaden
+                    pct=$((15 + 30 * BASH_REMATCH[1] / BASH_REMATCH[2])); detail=${BASH_REMATCH[3]}; count="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"; tick download
+                elif [[ "$l" =~ ^\ +([A-Z][a-z]+( scriptlet)?)\ *:\ ([^ ]+).*\ ([0-9]+)/([0-9]+)$ ]]; then   #   Upgrading : openssl 3/14
+                    detail=${BASH_REMATCH[3]}; count="${BASH_REMATCH[4]}/${BASH_REMATCH[5]}"
+                    if [ "${BASH_REMATCH[1]}" = Verifying ]; then pct=$((90 + 8 * BASH_REMATCH[4] / BASH_REMATCH[5])); tick verify
+                    else pct=$((45 + 45 * BASH_REMATCH[4] / BASH_REMATCH[5])); tick install; fi
+                elif [[ "$l" =~ ^\[\ *([0-9]+)/([0-9]+)\]\ (.*)$ ]]; then          # dnf5: [ 3/14] Upgrading openssl
+                    pct=$((45 + 50 * BASH_REMATCH[1] / BASH_REMATCH[2])); detail=${BASH_REMATCH[3]}; count="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"; tick install
+                fi
+            done
+            rc=${PIPESTATUS[0]}
         else
             export DEBIAN_FRONTEND=noninteractive
-            log=$( { apt-get update -q && apt-get install -y -q --only-upgrade -o Dpkg::Options::=--force-confold "$@"; } 2>&1 )
+            apt-get update -q >>"$log" 2>&1; rc=$?
+            if [ "$rc" = 0 ]; then
+                stage=download; pct=15; post
+                # APT::Status-Fd: apt meldt zelf het percentage (dlstatus = downloaden, pmstatus = installeren per pakket)
+                apt-get install -y -q --only-upgrade -o Dpkg::Options::=--force-confold -o APT::Status-Fd=3 "$@" 3>&1 >>"$log" 2>&1 \
+                    | while IFS=: read -r kind p1 p2 _; do
+                        p2=${p2%%.*}; [[ "$p2" =~ ^[0-9]+$ ]] || continue
+                        case "$kind" in
+                            dlstatus) pct=$((15 + 30 * p2 / 100)); detail=""; count=""; tick download ;;
+                            pmstatus) pct=$((45 + 53 * p2 / 100)); detail=$p1; count=""; tick install ;;
+                        esac
+                    done
+                rc=${PIPESTATUS[0]}
+            fi
         fi
-        rc=$?
-        printf "%s\t%s\t%s\n" "$id" "$([ "$rc" = 0 ] && echo ok || echo error)" "$(printf "%s" "$log" | tail -c 1500 | base64 -w0)" >"$dir/upgrade.result.tmp" \
+        printf "%s\t%s\t%s\n" "$id" "$([ "$rc" = 0 ] && echo ok || echo error)" "$(tail -c 1500 "$log" | base64 -w0)" >"$dir/upgrade.result.tmp" \
             && mv -f "$dir/upgrade.result.tmp" "$dir/upgrade.result"
+        stage=done; pct=100; detail=""; count=""
+        post ",\"done\":true,\"ok\":$([ "$rc" = 0 ] && echo true || echo false)" 1500
         rm -f "$dir/upgrade.lock"'
     if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
         systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash -c "$script" _ "$id" "$pk_mgr" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
