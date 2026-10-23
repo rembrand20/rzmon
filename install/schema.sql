@@ -465,3 +465,15 @@ INSERT IGNORE INTO settings (name, value) VALUES ('enc_mode', 'on'), ('enc_key',
 -- voor X minuten (0 = tot een beheerder deblokkeert)
 INSERT IGNORE INTO settings (name, value) VALUES ('login_lock_fails', '3'), ('login_lock_window', '10'), ('login_lock_account', '1'),
     ('login_lock_ip', '1'), ('login_lock_minutes', '60');
+
+-- Logins per account (1.60.0), voor "Mijn laatste logins" op Mijn account; 90 dagen bewaard
+CREATE TABLE IF NOT EXISTS login_log (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT UNSIGNED NOT NULL,
+    ok         TINYINT(1)   NOT NULL,
+    ip         VARCHAR(45)  NOT NULL,
+    how        VARCHAR(40)  NOT NULL,
+    device     VARCHAR(120) NULL,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ll (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

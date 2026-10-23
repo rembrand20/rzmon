@@ -211,9 +211,29 @@ final class Security
     // ------------------------------------------------------------------ logins in RzMon
 
     /** Geslaagde login (wachtwoord, met 2FA, of een onthouden apparaat) */
+    /** Voor "Mijn laatste logins" (Mijn account): gelukt of mislukt, per account */
+    private static function logLogin(?int $userId, bool $ok, string $how): void
+    {
+        if (!$userId) {
+            return;
+        }
+        try {
+            q('INSERT INTO login_log (user_id, ok, ip, how, device, created_at) VALUES (?, ?, ?, ?, ?, ?)', [$userId, $ok ? 1 : 0, mb_substr(client_ip(), 0, 45), $how,
+                function_exists('device_name') ? mb_substr(device_name(), 0, 120) : null, now()]);
+        } catch (Throwable) {
+        }
+    }
+
+    /** De laatste logins van een account (nieuwste eerst) */
+    public static function loginHistory(int $userId, int $limit = 10): array
+    {
+        return q('SELECT created_at, ok, ip, how, device FROM login_log WHERE user_id = ? ORDER BY id DESC LIMIT ' . max(1, min(50, $limit)), [$userId])->fetchAll();
+    }
+
     public static function loginOk(array $u, string $how): void
     {
         $ip = client_ip();
+        self::logLogin(isset($u['id']) ? (int) $u['id'] : (int) q('SELECT id FROM users WHERE username = ?', [(string) $u['username']])->fetchColumn(), true, $how);
         try {
             q("DELETE FROM security_fails WHERE kind = 'login' AND user = ?", [(string) $u['username']]);   // gelukt: opnieuw tellen
         } catch (Throwable) {
@@ -276,6 +296,9 @@ final class Security
             $ip = client_ip();
             $cfg = self::lockConfig();
             $user = mb_substr(trim($username), 0, 64) ?: '?';
+            if ($exists) {
+                self::logLogin((int) q('SELECT id FROM users WHERE username = ?', [$user])->fetchColumn(), false, $why);
+            }
             $since = date('Y-m-d H:i:s', time() - $cfg['window'] * 60);
             q("INSERT INTO security_fails (ip, kind, user, created_at) VALUES (?, 'login', ?, ?)", [mb_substr($ip, 0, 45), $user, now()]);
             $nIp = (int) q("SELECT COUNT(*) FROM security_fails WHERE ip = ? AND kind = 'login' AND created_at >= ?", [mb_substr($ip, 0, 45), $since])->fetchColumn();
@@ -347,6 +370,7 @@ final class Security
     public static function purge(): void
     {
         q('DELETE FROM security_fails WHERE created_at < NOW() - INTERVAL 1 DAY');
+        q('DELETE FROM login_log WHERE created_at < NOW() - INTERVAL 90 DAY');
         q('DELETE FROM agent_nonces WHERE created_at < NOW() - INTERVAL 1 HOUR');
     }
 }

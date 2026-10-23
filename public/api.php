@@ -608,7 +608,7 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
     'state', 'alerts', 'ids', 'ids_access', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
-    'devices', 'device_forget', 'device_forget_all', 'user_email', 'lang_set' => 'readonly',
+    'devices', 'device_forget', 'device_forget_all', 'user_email', 'lang_set', 'my_logins' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
     default => 'admin',
 };
@@ -1700,6 +1700,9 @@ switch ($action) {
         }
         unset($r);
         out($rows);
+
+    case 'my_logins':
+        out(!empty($user['id']) && !is_lan_session() ? Security::loginHistory((int) $user['id']) : []);
 
     case 'user_unlock':
         Security::unlockUser((int) (input()['id'] ?? 0), $user['username']);

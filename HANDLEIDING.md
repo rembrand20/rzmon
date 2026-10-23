@@ -103,7 +103,7 @@ RzMon bestaat uit vier onderdelen:
 - **Tellers op de tabbladen:** achter **Dashboard** staat het aantal **nieuwe problemen** sinds je het dashboard voor het laatst zag: checks die sindsdien warning, critical of onbekend werden en dat nog zijn (geen info-checks, onderhoud of bevestigde problemen). De kleur volgt het ergste: rood, oranje of grijs. Achter **Meldingen** staat het aantal **nieuwe meldingen** sinds je die pagina voor het laatst opende (warning, critical, onbekend, hersteld en IDS; geen info en geen bevestigingen). Open je het tabblad, dan gaat de teller naar 0. Dit wordt **per gebruiker** onthouden, dus ook op je andere apparaten. Het totaal staat ook in de titel van het browsertabblad, bijvoorbeeld *(3) RzMon*.
 - **Bijwerken:** de pagina ververst zichzelf elke 20 seconden. Met **↻ Alles nu checken** draai je direct alle checks.
 - **Weergave:** donker en licht thema, werkt ook op je telefoon.
-- **Twee lay-outs** (*Instellingen → Weergave*, per apparaat):
+- **Twee lay-outs** (*👤 Mijn account → Weergave op dit apparaat*, per apparaat):
   - **Blox:** een tegel per server (standaard). Je kiest **Small** of **Large**:
     - **Large** (standaard): de tegels zoals altijd, met CPU-, RAM- en diskmeters, de laatste check en de agent.
     - **Small:** compacte tegels met alleen naam, status, tellers en de checks met problemen, zodat er meer servers tegelijk in beeld passen. Een uitgeklapte tegel krijgt de hele breedte.
@@ -115,10 +115,13 @@ RzMon bestaat uit vier onderdelen:
     - **Small:** één regel per check met naam, type, waarde (balk voor percentages), bericht en tijd.
     - **Large:** kolomkoppen, met per check ook de minigrafiek van 24 uur; het bericht mag over meer regels lopen.
     - De knoppen per check (✔ 🔧 ↻ 📈 ✎) verschijnen als je met de muis over de rij gaat; op een telefoon of tablet staan ze er altijd.
-  - De lay-out geldt ook voor **Instellingen** en **Meldingen**:
-    - **Instellingen in L1nes:** elk onderdeel is een rij over de volle breedte, in groepen (*Meldingen*, *Monitoring*, *Systeem*, *Toegang*). Achter de titel staat een korte samenvatting (bijvoorbeeld *✔ aan · critical: Hoog*), zodat je zonder open te klikken ziet hoe het staat. Klik op een rij om hem te openen; welke rijen open staan, wordt onthouden. **Small:** standaard alles dicht. **Large:** standaard alles open. **⊞ Alles openen** klapt alles in één keer open. De knop **💾 Instellingen opslaan** blijft onderin in beeld, met *● niet opgeslagen wijzigingen* zolang je nog moet opslaan. De kaart *Weergave* staat altijd bovenaan open.
-    - **Meldingen in L1nes:** een tabel met één regel per melding: tijd, status, server, check, bericht en kanalen. **Small:** het bericht ingekort (klik erop voor het hele bericht). **Large:** het hele bericht.
-    - In **Blox** zien de Instellingen eruit zoals altijd. **Meldingen in Blox Small:** één regel per melding (op de telefoon twee); **Large:** zoals altijd, met het hele bericht.
+  - De lay-out geldt ook voor **Meldingen**: in L1nes een tabel met één regel per melding (tijd, status, server, check, bericht en kanalen; **Small:** het bericht ingekort, klik erop voor het hele bericht; **Large:** het hele bericht). In **Blox Small** één regel per melding (op de telefoon twee); **Large:** zoals altijd. De instellingen hebben sinds 1.60.0 een eigen, vaste opmaak (zie hieronder).
+
+### Accountmenu, Mijn account en Instellingen (vanaf 1.60.0)
+- **Rechtsboven** staat je naam met een menu: **👤 Mijn account**, **⚙️ Instellingen** (alleen beheerders), het **thema** (auto, licht of donker), de **taal** (NL of EN) en **⏻ Uitloggen**. Ben je zonder wachtwoord binnen via het lokale netwerk, dan staat er **🏠 Lokaal netwerk** met **Inloggen met je account**; *Mijn account* is er dan niet.
+- **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave op dit apparaat** (Blox of L1nes, Small of Large).
+- **Instellingen** (alleen beheerders; het tabblad in de bovenbalk is weg): links een **zijbalk** met de groepen **🔔 Meldingen** (Kanalen · Meldregels en stille uren · Systeeminfo), **📈 Monitoring** (Alarmgedrag · Kwetsbaarheden · IDS), **🔐 Beveiliging** (Toegang en inlogbeveiliging · Gebruikers · API-sleutels · Blokkades), **🖥️ Agents** (Agents bijwerken en commando's · Versleuteling) en **🛠️ Systeem** (RzMon bijwerken · Back-up · Database · Setup). Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan. **💾 Instellingen opslaan** staat onderin bij de onderdelen die hem nodig hebben; de andere slaan meteen op of hebben een eigen knop.
+- Bij **Gebruikers** staat je eigen account met **👤 Mijn account**: je eigen wachtwoord, 2FA, e-mail en apparaten regel je daar.
 
 ### Poortscan
 - **Scannen** naar open TCP-poorten: bekende poorten, poort 1-1024, of een eigen lijst zoals `22,80,8000-8100` (maximaal 4096 poorten).
@@ -136,7 +139,7 @@ RzMon bestaat uit vier onderdelen:
 - **Overige beveiliging:** CSRF-bescherming, HttpOnly/SameSite-cookies, een eigen token per agent en API-sleutels die alleen als hash worden opgeslagen.
 
 ### Setup-pagina
-Alleen voor **beheerders**: via de knop **⚙️ Setup** rechtsboven op de pagina *Instellingen*. Andere gebruikers zien de knop niet, en de pagina zelf weigert ze ook.
+Alleen voor **beheerders**: via *Instellingen → 🛠️ Systeem → Setup*. Andere gebruikers zien de knop niet, en de pagina zelf weigert ze ook.
 - **Systeemcheck:** PHP, extensies, ping, systemctl, schrijfrechten, database en cron.
 - **Database instellen:** verbinding testen, en optioneel de database en gebruiker laten aanmaken.
 - **Tabellen** installeren en bijwerken.
@@ -1488,7 +1491,7 @@ De add-on haalt back-up, integraties en systeemstatus elke 5 minuten op, de rest
 3. Zet **Geen login nodig op het lokale netwerk** aan en klik op **Toegang opslaan**.
 
 **Hoe het werkt:**
-- **Op je LAN** ben je automatisch ingelogd als de eerste beheerder. Rechtsboven staat dan **🏠 Lokaal netwerk** en er is geen uitlogknop.
+- **Op je LAN** ben je automatisch ingelogd als de eerste beheerder. Rechtsboven staat dan **🏠 Lokaal netwerk**; in dat menu staat **Inloggen met je account** en geen uitlogknop.
 - **Van buitenaf** krijg je gewoon het loginscherm.
 - **Wissel je van netwerk** met een open sessie, bijvoorbeeld van wifi naar 4G, dan word je bij het volgende verzoek uitgelogd.
 - **REST API:** die vraagt altijd een API-sleutel, ook op het LAN.

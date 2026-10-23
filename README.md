@@ -57,7 +57,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **Storingen bevestigen**: ✔ bevestig een storing in het dashboard, via de link in de Pushover-melding, of in de Pushover-app (Emergency). Daarna krijg je er geen meldingen meer over; na herstel vervalt de bevestiging vanzelf.
 
-**🌐 Nederlands of Engels**: de interface per gebruiker in het Nederlands of Engels (schuifje bovenaan *Instellingen*). Meldingen, checkberichten en de REST API hebben een eigen taalinstelling (zie HANDLEIDING.md §6.0).
+**🌐 Nederlands of Engels**: de interface per gebruiker in het Nederlands of Engels (in het accountmenu rechtsboven). Meldingen, checkberichten en de REST API hebben een eigen taalinstelling (zie HANDLEIDING.md §6.0).
 
 **Home Assistant-webhook**: elke melding ook als JSON naar een HA-webhook, om automatiseringen te starten (zie HANDLEIDING.md §6.3).
 
@@ -91,7 +91,7 @@ Stel de webserver in (hieronder) en open **`http://<server>/`** vanaf je lokale 
 4. **Beheerder** – eerste gebruikersnaam en wachtwoord.
 5. **Cron** – kant-en-klare regel om te kopiëren.
 
-Daarna is de setup bereikbaar voor beheerders via de knop **⚙️ Setup** op de pagina *Instellingen*. Zolang de installatie niet af is, of als de database onbereikbaar is, werkt de setup **alleen vanaf een privé-netwerk** (192.168.x, 10.x, 172.16-31.x, localhost).
+Daarna is de setup bereikbaar voor beheerders via *Instellingen → 🛠️ Systeem → Setup* (accountmenu rechtsboven). Zolang de installatie niet af is, of als de database onbereikbaar is, werkt de setup **alleen vanaf een privé-netwerk** (192.168.x, 10.x, 172.16-31.x, localhost).
 
 > Mag de webserver `config.php` niet schrijven? Dan toont de setup de inhoud, die je zelf in `/var/www/rzmon/config.php` plaatst. Daarna kun je de schrijfrechten weer intrekken: `sudo chown root /var/www/rzmon`.
 

@@ -111,14 +111,26 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <button class="tab" data-tab="alerts"><?= th('Meldingen') ?> <span class="tab-badge" id="alerts-badge" hidden></span></button>
       <button class="tab" data-tab="ids">🛡️ IDS <span class="tab-badge" id="ids-badge" hidden></span></button>
       <?php if (Vulns::enabled() && $role !== 'readonly'): ?><button class="tab" data-tab="vulns">🐞 <?= th('Kwetsbaarheden') ?> <span class="tab-badge" id="vuln-badge" hidden></span></button><?php endif; ?>
-      <button class="tab" data-tab="settings"><?= th('Instellingen') ?></button>
     </nav>
     <div class="top-actions">
-      <?php if (is_lan_session()): ?><span class="lan-badge" title="<?= th('Ingelogd zonder wachtwoord omdat je op het lokale netwerk zit') ?>">🏠 <?= th('Lokaal netwerk') ?></span><?php endif; ?>
-      <?php if ($role !== 'admin'): ?><span class="role-badge" title="<?= th('Je rechten:') ?> <?= $role === 'user' ? th('storingen afhandelen, niets inrichten') : th('alleen kijken') ?>"><?= $role === 'user' ? '👤 ' . th('Gebruiker') : '👁 ' . th('Alleen lezen') ?></span><?php endif; ?>
-      <?php if (is_lan_session()): ?><a class="btn small-btn" href="index.php?login=1" title="<?= th('Inloggen met je eigen account voor je eigen rechten') ?>"><?= th('Inloggen') ?></a><?php endif; ?>
-      <button class="icon-btn" id="theme-toggle" title="<?= th('Thema wisselen') ?>">🌓</button>
-      <?php if (!is_lan_session()): ?><button class="icon-btn" id="logout" title="<?= th('Uitloggen ({user})', ['user' => $user['username']]) ?>">⏻</button><?php endif; ?>
+      <?php $hasAccount = !is_lan_session(); $uname = (string) ($user['username'] ?? ''); ?>
+      <div class="acct" id="acct">
+        <button type="button" class="acct-btn" id="acct-btn" aria-haspopup="menu" aria-expanded="false" title="<?= $hasAccount ? th('Je account, instellingen en uitloggen') : th('Ingelogd zonder wachtwoord omdat je op het lokale netwerk zit') ?>">
+          <span class="avatar"><?= $hasAccount ? htmlspecialchars(mb_strtoupper(mb_substr($uname, 0, 1))) : '🏠' ?></span>
+          <span class="acct-name"><?= $hasAccount ? htmlspecialchars($uname) : th('Lokaal netwerk') ?></span> <span class="acct-caret">▾</span></button>
+        <div class="acct-menu" id="acct-menu" role="menu" hidden>
+          <div class="acct-who"><b><?= $hasAccount ? htmlspecialchars($uname) : '🏠 ' . th('Lokaal netwerk') ?></b>
+            <span class="role-tag r-<?= htmlspecialchars($role) ?>"><?= th(ROLE_LABELS[$role] ?? $role) ?></span>
+            <div class="muted small"><?= $hasAccount ? th('Ingelogd vanaf {ip}', ['ip' => client_ip()]) : th('Ingelogd zonder wachtwoord omdat je op het lokale netwerk zit') ?></div></div>
+          <?php if ($hasAccount): ?><button type="button" role="menuitem" data-acct="account">👤 <?= th('Mijn account') ?></button><?php endif; ?>
+          <?php if ($role === 'admin'): ?><button type="button" role="menuitem" data-acct="settings">⚙️ <?= th('Instellingen') ?></button><?php endif; ?>
+          <?php if (!$hasAccount): ?><a role="menuitem" class="acct-item" href="index.php?login=1">🔑 <?= th('Inloggen met je account') ?></a><?php endif; ?>
+          <div class="acct-sep"></div>
+          <div class="acct-row">🌓 <?= th('Thema') ?> <span class="seg" id="theme-seg"><button type="button" data-theme-set="auto">auto</button><button type="button" data-theme-set="light"><?= th('licht') ?></button><button type="button" data-theme-set="dark"><?= th('donker') ?></button></span></div>
+          <div class="acct-row">🌐 <?= th('Taal') ?> <span class="seg" id="lang-seg"><button type="button" data-lang-set="nl" class="<?= I18n::lang() === 'nl' ? 'active' : '' ?>">NL</button><button type="button" data-lang-set="en" class="<?= I18n::lang() === 'en' ? 'active' : '' ?>">EN</button></span></div>
+          <?php if ($hasAccount): ?><div class="acct-sep"></div><button type="button" role="menuitem" id="logout" class="danger-txt">⏻ <?= th('Uitloggen') ?></button><?php endif; ?>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -260,31 +272,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     <?php endif; ?>
 
     <section id="tab-settings" class="tab-panel" hidden>
-      <div class="settings-top">
-        <div class="lang-switch" role="group" aria-label="Language / Taal" title="Language / Taal">
-          <span>🌐 EN</span><label class="switch"><input type="checkbox" id="lang-toggle" <?= I18n::lang() === 'nl' ? 'checked' : '' ?>><span></span></label><span>NL</span>
-        </div>
-        <?php if ($role === 'admin'): ?><a class="btn" href="setup.php" title="<?= th('Database, configuratie en tabellen') ?>">⚙️ Setup</a><?php endif; ?>
-      </div>
-      <div class="card view-card">
-        <h2><?= th('Weergave') ?></h2>
-        <p class="muted small"><?= t('Hoe het dashboard, de meldingen en deze instellingen eruitzien. Geldt voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc) en wordt direct toegepast.') ?></p>
-        <div class="view-row">
-          <span class="view-label"><?= th('Lay-out') ?></span>
-          <div class="seg" role="group" aria-label="<?= th('Lay-out') ?>">
-            <button type="button" class="seg-btn" data-view-layout="blox" title="<?= th('Een tegel per server') ?>">▦ Blox</button>
-            <button type="button" class="seg-btn" data-view-layout="l1nes" title="<?= th('Servers onder elkaar, als een tabel') ?>">☰ L1nes</button>
-          </div>
-        </div>
-        <div class="view-row">
-          <span class="view-label"><?= th('Grootte') ?> <span class="hint"><?= th('(per lay-out)') ?></span></span>
-          <div class="seg" role="group" aria-label="<?= th('Grootte') ?>">
-            <button type="button" class="seg-btn" data-view-density="small" title="<?= th('Compact: meer servers tegelijk in beeld') ?>">Small</button>
-            <button type="button" class="seg-btn" data-view-density="large" title="<?= th('Meer informatie: CPU, RAM, disk, bereikbaarheid') ?>">Large</button>
-          </div>
-        </div>
-      </div>
-
+      <div class="set-layout">
+      <nav class="set-side" id="set-side" aria-label="<?= th('Instellingen') ?>"></nav>
+      <div class="set-main">
+      <div class="set-mobile"><select id="set-mselect" aria-label="<?= th('Onderdeel') ?>"></select></div>
+      <h1 class="set-title" id="set-title"></h1>
+      <div class="set-crumb muted small" id="set-crumb"></div>
       <div class="set-toolbar">
         <span class="muted small"><?= th('Klik op een onderdeel om het te openen of te sluiten.') ?></span>
         <button type="button" class="btn" id="set-toggle-all"><?= th('⊞ Alles openen') ?></button>
@@ -665,8 +658,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div>
 
       <?php if (($user['id'] ?? 0) === 0): ?>
-      <div class="card" data-sk="account"><h2><?= th('Account') ?></h2><p class="muted small"><?= t('Je bent automatisch ingelogd via het lokale netwerk, met alleen-lezen-rechten. Klik rechtsboven op <b>Inloggen</b> om met je eigen account in te loggen.') ?></p></div>
       <?php endif; ?>
+      <div data-sk="setup" class="card need-admin" id="setup-card">
+        <h2>🛠️ <?= th('Setup') ?></h2>
+        <p class="muted small"><?= th('Systeemcheck, database en configuratie, tabellen, tijdzone, basis-URL en PHP-instellingen.') ?></p>
+        <a class="btn" href="setup.php">⚙️ <?= th('Setup openen') ?></a>
+      </div>
+
       <div data-sk="db" class="card need-admin" id="db-card">
         <h2><?= th('Database') ?></h2>
         <p class="muted small"><?= th('RzMon gebruikt een eigen databasegebruiker. Met de knop maak je een nieuw, sterk wachtwoord en slaat RzMon het overal op. Alles blijft gewoon werken: dashboards, cron, API en agents.') ?></p>
@@ -674,14 +672,48 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <button type="button" class="btn" id="db-rotate"><?= th('🔑 Databasewachtwoord vernieuwen') ?></button>
       </div>
 
-      <form id="password-form" data-sk="password" class="card" <?= ($user['id'] ?? 0) === 0 ? 'hidden' : '' ?>>
-        <h2><?= th('Wachtwoord wijzigen') ?></h2>
+      </div>
+      </div>
+      </div>
+    </section>
+
+<?php if (!is_lan_session()): ?>
+    <section id="tab-account" class="tab-panel" hidden>
+      <div class="acct-page">
+      <h1 class="set-title">👤 <?= th('Mijn account') ?></h1>
+      <div class="set-crumb muted small"><?= htmlspecialchars((string) $user['username']) ?> · <?= th(ROLE_LABELS[$role] ?? $role) ?></div>
+      <div class="card" id="acct-data"><h2><?= th('Gegevens') ?></h2><div id="acct-data-body"><p class="muted"><?= th('Laden…') ?></p></div></div>
+      <form id="password-form" class="card">
+        <h2>🔑 <?= th('Wachtwoord wijzigen') ?></h2>
         <label><?= th('Huidig wachtwoord') ?><input type="password" name="current" autocomplete="current-password" required></label>
         <label><?= th('Nieuw wachtwoord') ?><input type="password" name="new" minlength="8" autocomplete="new-password" required></label>
         <button class="btn"><?= th('Wijzigen') ?></button>
       </form>
+      <div class="card" id="acct-2fa"><h2>🔐 <?= th('Tweestapsverificatie') ?></h2><div id="acct-2fa-body"></div></div>
+      <div class="card" id="acct-devices"><h2>📱 <?= th('Onthouden apparaten') ?></h2><div id="acct-devices-body"></div></div>
+      <div class="card" id="acct-logins"><h2>🕘 <?= th('Mijn laatste logins') ?></h2><div id="acct-logins-body"></div></div>
+      <div class="card view-card">
+        <h2>🖥️ <?= th('Weergave op dit apparaat') ?></h2>
+        <p class="muted small"><?= t('Hoe het dashboard en de meldingen eruitzien. Geldt voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc) en wordt direct toegepast.') ?></p>
+        <div class="view-row">
+          <span class="view-label"><?= th('Lay-out') ?></span>
+          <div class="seg" role="group" aria-label="<?= th('Lay-out') ?>">
+            <button type="button" class="seg-btn" data-view-layout="blox" title="<?= th('Een tegel per server') ?>">▦ Blox</button>
+            <button type="button" class="seg-btn" data-view-layout="l1nes" title="<?= th('Servers onder elkaar, als een tabel') ?>">☰ L1nes</button>
+          </div>
+        </div>
+        <div class="view-row">
+          <span class="view-label"><?= th('Grootte') ?> <span class="hint"><?= th('(per lay-out)') ?></span></span>
+          <div class="seg" role="group" aria-label="<?= th('Grootte') ?>">
+            <button type="button" class="seg-btn" data-view-density="small" title="<?= th('Compact: meer servers tegelijk in beeld') ?>">Small</button>
+            <button type="button" class="seg-btn" data-view-density="large" title="<?= th('Meer informatie: CPU, RAM, disk, bereikbaarheid') ?>">Large</button>
+          </div>
+        </div>
+      </div>
+
       </div>
     </section>
+<?php endif; ?>
   </main>
 
   <dialog id="modal">

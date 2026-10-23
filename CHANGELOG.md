@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.60.0 – 2026-10-23
+### Nieuw
+- **Accountmenu rechtsboven** (op de plek van de uitlogknop): *👤 Mijn account*, *⚙️ Instellingen* (beheerders), het thema (auto, licht, donker), de taal (NL of EN) en *Uitloggen*. Via het lokale netwerk zonder account: *🏠 Lokaal netwerk* met *Inloggen met je account*.
+- **Mijn account** (alleen als je met een account bent ingelogd): e-mailadres, taal, wachtwoord wijzigen, **tweestapsverificatie van je eigen account**, onthouden apparaten, **je laatste 10 logins** (ook mislukte) en de weergave op dit apparaat (Blox of L1nes, Small of Large). Gebruikers en *alleen lezen* zien alleen deze pagina.
+- **Instellingen met een zijbalk** (stap 1 van de vernieuwing): onderdelen in de groepen Meldingen, Monitoring, Beveiliging, Agents en Systeem, één tegelijk in beeld, met een eigen adres (bv. `#settings/backup`). Op de telefoon een keuzelijst. *Setup* staat onder Systeem. Het tabblad *Instellingen* in de bovenbalk is weg; Instellingen zit in het accountmenu.
+- De instellingen volgen niet meer Blox/L1nes; die keuze geldt nog voor het dashboard en de meldingen.
+
 ## 1.59.0 – 2026-10-23
 ### Nieuw
 - **ℹ️ Systeeminfo per melding** (*Instellingen → Meldingen → ℹ️ Systeeminfo*): voor elke melding van RzMon zelf kies je **Pushover**, **e-mail**, **Home Assistant** en de **meldingenpagina**, en of Pushover **stil** of **met geluid** komt. Dat zijn: RzMon bijgewerkt; agent bijgewerkt, agent bijwerken mislukt, agent verbonden; ingelogd, mislukte login; account geblokkeerd en gedeblokkeerd, IP geblokkeerd en blokkade opgeheven; nieuwe kwetsbaarheden, pakketten bijgewerkt of mislukt; en ⚠️ niet-geautoriseerde verbinding. Met 🧪 stuur je per melding een voorbeeld.

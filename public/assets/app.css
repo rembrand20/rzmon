@@ -947,3 +947,60 @@ label.radio-row input { width: auto; margin: 0; flex: none; }
 .sysinfo-table .si-ch input { width: 1.1rem; height: 1.1rem; }
 .sysinfo-table tr.si-group td { font-weight: 700; padding-top: .8rem; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; border-bottom: 0; }
 .sysinfo-table select { padding: .25rem .4rem; font-size: .82rem; min-width: 7rem; }
+
+/* ---------------------------------------------------------------- 1.60.0: accountmenu */
+.acct { position: relative; }
+.acct-btn { display: flex; align-items: center; gap: .45rem; background: var(--card-2); border: 1px solid var(--border); border-radius: 99px; padding: .2rem .7rem .2rem .25rem; cursor: pointer; color: var(--text); font: inherit; font-weight: 600; }
+.acct-btn:hover { border-color: var(--primary); }
+.acct .avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: #fff; font-weight: 800; font-size: .85rem; }
+.acct-caret { color: var(--muted); font-size: .75rem; }
+.acct-menu { position: absolute; right: 0; top: calc(100% + .4rem); width: 300px; z-index: 50; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: .4rem; }
+.acct-menu[hidden] { display: none; }
+.acct-who { padding: .45rem .6rem .65rem; border-bottom: 1px solid var(--border); margin-bottom: .3rem; }
+.acct-menu > button, .acct-menu > .acct-item { display: flex; width: 100%; align-items: center; gap: .55rem; padding: .5rem .6rem; background: none; border: 0; border-radius: 8px; cursor: pointer; text-align: left; color: var(--text); font: inherit; text-decoration: none; }
+.acct-menu > button:hover, .acct-menu > .acct-item:hover { background: var(--card-2); }
+.acct-sep { height: 1px; background: var(--border); margin: .3rem 0; }
+.acct-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .35rem .6rem; font-size: .9rem; }
+.acct-row .seg, .acct-ctl .seg { margin: 0; padding: 2px; flex-wrap: nowrap; }
+.acct-row .seg button, .acct-ctl .seg button { background: none; border: 0; color: var(--muted); font: inherit; font-size: .8rem; font-weight: 600; padding: .2rem .55rem; border-radius: 6px; cursor: pointer; }
+.acct-row .seg button.active, .acct-ctl .seg button.active { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.danger-txt { color: var(--crit) !important; }
+
+/* ---------------------------------------------------------------- 1.60.0: instellingen met een zijbalk */
+.set-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.set-side { position: sticky; top: 5rem; }
+.set-nav-group { margin-bottom: .15rem; }
+.set-nav-head { width: 100%; display: flex; gap: .5rem; align-items: center; padding: .45rem .6rem; border: 0; background: none; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; text-align: left; color: var(--text); }
+.set-nav-subs { display: none; margin: .1rem 0 .45rem 1.8rem; }
+.set-nav-group.open .set-nav-subs { display: block; }
+.set-nav-subs button { display: block; width: 100%; text-align: left; padding: .3rem .6rem; border: 0; background: none; border-radius: 7px; color: var(--muted); cursor: pointer; font: inherit; font-size: .92rem; }
+.set-nav-head:hover, .set-nav-subs button:hover { background: var(--card-2); }
+.set-nav-subs button.active { background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary); font-weight: 600; }
+.set-title { font-size: 1.4rem; margin: 0 0 .15rem; }
+.set-crumb { margin-bottom: 1rem; }
+.set-mobile { display: none; margin-bottom: 1rem; }
+.set-mobile select { width: 100%; }
+#tab-settings .set-off { display: none !important; }
+#tab-settings .settings-grid { grid-template-columns: minmax(0, 1fr); }
+#tab-settings .settings-grid + .settings-grid { margin-top: 0 !important; }
+#settings-form.set-noform .settings-save { display: none; }
+#tab-settings .settings-save { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 1rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem 1rem; box-shadow: var(--shadow); }
+#tab-settings .set-toolbar, #tab-settings .set-group { display: none !important; }
+@media (max-width: 820px) {
+  .set-layout { grid-template-columns: minmax(0, 1fr); }
+  .set-side { display: none; }
+  .set-mobile { display: block; }
+  .acct-name { display: none; }
+}
+
+/* ---------------------------------------------------------------- 1.60.0: Mijn account */
+.acct-page { max-width: 900px; margin: 0 auto; }
+.acct-page .card { margin-bottom: 1rem; }
+.acct-field { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 1rem; align-items: center; padding: .65rem 0; border-top: 1px solid var(--border); }
+.acct-field:first-child { border-top: 0; }
+.acct-lbl { font-weight: 600; }
+.acct-lbl small { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; }
+.acct-ctl { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.acct-ctl input[type=email] { max-width: 20rem; }
+.acct-page tr.bad-row td { color: var(--crit); }
+@media (max-width: 640px) { .acct-field { grid-template-columns: minmax(0, 1fr); gap: .35rem; } }

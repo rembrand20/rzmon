@@ -342,13 +342,8 @@ function init() {
   $$('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
   showTab(location.hash.slice(1) || 'dashboard');
 
-  $('#theme-toggle').onclick = () => {
-    const cur = document.documentElement.dataset.theme
-      || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-    const next = cur === 'light' ? 'dark' : 'light';
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem('rzmon-theme', next); } catch (e) {}
-  };
+  initAccountMenu();
+  initSettingsNav();
   if ($('#logout')) $('#logout').onclick = async () => { await api('logout', {}); location.reload(); };
   $('#add-host').onclick = () => hostForm();
   $('#run-all').onclick = async (e) => {
@@ -422,13 +417,13 @@ function init() {
       onSubmit: async (d) => {
         await api('ids_set', { mode: 'block', confirm: d.confirm });
         toast(L('IDS: blokkeren staat aan'));
-        setTimeout(() => { showTab('settings'); }, 50);
+        setTimeout(() => { showTab('settings/ids'); }, 50);
       },
     });
   };
   $('#agent-commands').onchange = (e) => {
     const sel = e.target;
-    setAgentCommands(null, sel.value, sel.dataset.current || 'off', L('alle agents'), () => { showTab('settings'); loadAgentCommands(); });
+    setAgentCommands(null, sel.value, sel.dataset.current || 'off', L('alle agents'), () => { showTab('settings/agents'); loadAgentCommands(); });
   };
   $('#ids-filter').onclick = (e) => {
     const b = e.target.closest('[data-if]');
@@ -480,7 +475,7 @@ function init() {
   });
   $('#tab-ids').addEventListener('click', async (e) => {
     const go = e.target.closest('[data-goto]');
-    if (go) { e.preventDefault(); showTab(go.dataset.goto); setTimeout(() => $('#ids-card').scrollIntoView({ behavior: 'smooth' }), 400); return; }
+    if (go) { e.preventDefault(); showTab(go.dataset.goto); return; }
     const b = e.target.closest('[data-ids], [data-unblock], [data-rebase]');
     if (!b) return;
     try {
@@ -561,7 +556,7 @@ function init() {
   $('#mqtt-test').onclick = (e) => testChannel(e, 'mqtt_test', null, 'MQTT');
   $('#maint-all').onclick = () => maintenanceDialog('all', 0, L('alle servers'), state.maintenance);
   $('#maint-banner').addEventListener('click', (e) => e.target.closest('[data-maint-end]') && endMaintenance('all', 0));
-  $('#password-form').addEventListener('submit', changePassword);
+  if ($('#password-form')) $('#password-form').addEventListener('submit', changePassword);   // alleen op Mijn account (niet zonder account via het LAN)
   $('#user-form').addEventListener('submit', createUser);
   $('#db-rotate').onclick = dbRotateDialog;
   $$('[data-view-layout]').forEach((b) => (b.onclick = () => setViewPref('layout', b.dataset.viewLayout)));
@@ -595,11 +590,15 @@ function init() {
 }
 
 function showTab(name) {
+  let sub = null;
+  if (name.startsWith('settings/')) { sub = name.slice(9); name = 'settings'; }
+  if (name === 'settings' && !isAdmin()) name = $('#tab-account') ? 'account' : 'dashboard';   // instellingen: alleen beheerders
   if (!$('#tab-' + name)) name = 'dashboard';
   $$('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
   $$('.tab-panel').forEach((p) => (p.hidden = p.id !== 'tab-' + name));
   history.replaceState(null, '', '#' + name);
-  if (name === 'settings') loadSettings();
+  if (name === 'settings') { loadSettings(); showSettingsSection(sub || setSection); }
+  if (name === 'account') loadAccount();
   if (name === 'alerts') loadAlerts();
   if ((name === 'dashboard' || name === 'alerts') && state.badges) refresh();   // tab gezien: teller naar 0
   if (name === 'ids') loadIds();
@@ -849,8 +848,8 @@ function showViewPrefs() {
 // Blox: kaarten naast elkaar (zoals altijd). L1nes: rijen over de volle breedte in groepen, open te klappen;
 // Small = standaard dicht, Large = standaard open. Wat je open- of dichtklapt, wordt per apparaat onthouden.
 function applySettingsLayout() {
-  const { layout, density } = viewPrefs();
-  const lines = layout === 'l1nes';
+  const { density } = viewPrefs();
+  const lines = false;   // 1.60.0: de instellingen hebben één vaste opmaak (zijbalk), los van Blox/L1nes
   const sec = $('#tab-settings');
   if (!sec) return;
   sec.classList.toggle('set-l1nes', lines);
@@ -3024,7 +3023,7 @@ function renderAccess() {
   const fails = d.rows.filter((r) => r.kind === 'authfail').length;
   $('#it-n-acc').textContent = d.rows.length ? `(${d.rows.length})` : '';
   $('#acc-info').textContent = L('{ok} gelukt · {fail} mislukt · laatste {days} dagen', { ok: d.rows.length - fails, fail: fails, days: d.days }) + (d.truncated ? ' ' + L('(alleen de nieuwste 10.000)') : '');
-  const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings" data-goto="settings">Instellingen → 🛡️ IDS</a>.') + '</p>';
+  const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → 🛡️ IDS</a>.') + '</p>';
   const list = d.rows.filter((r) => (accFilter === 'all' || (accFilter === 'fail' ? r.kind === 'authfail' : r.type === accFilter))
     && (!accHost || +r.host_id === +accHost));
   if (!list.length) {
@@ -3109,8 +3108,8 @@ function accIgnoreDialog(r) {
 function renderIds() {
   const d = idsData;
   if (!d) return;
-  $('#ids-status').innerHTML = !d.enabled ? L('<b class="warn-txt">IDS staat uit.</b> Zet het aan onder <a href="#settings" data-goto="settings">Instellingen → 🛡️ IDS</a>.')
-    : `${L('Modus:')} <b>${d.mode === 'block' ? L('⛔ blokkeren') : L('🎓 leren (alleen melden)')}</b> · <a href="#settings" data-goto="settings">${L('instellingen')}</a>`;
+  $('#ids-status').innerHTML = !d.enabled ? L('<b class="warn-txt">IDS staat uit.</b> Zet het aan onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → 🛡️ IDS</a>.')
+    : `${L('Modus:')} <b>${d.mode === 'block' ? L('⛔ blokkeren') : L('🎓 leren (alleen melden)')}</b> · <a href="#settings/ids" data-goto="settings/ids">${L('instellingen')}</a>`;
   $('#ids-hosts').innerHTML = d.hosts.length ? d.hosts.map((h) => h.ha ? `
     <div class="ids-host"><div><b>${esc(h.name)}</b></div>
       <div class="small muted">${L('niet beschikbaar in de Home Assistant-add-on: die draait in een container en ziet het systeem zelf niet')}</div></div>` : `
@@ -3541,6 +3540,129 @@ async function apiKeyClick(e) {
 
 function isAdmin() { return document.body.dataset.role === 'admin'; }
 
+// ---------------------------------------------------------------- Accountmenu (rechtsboven)
+function initAccountMenu() {
+  const btn = $('#acct-btn'), menu = $('#acct-menu');
+  if (!btn) return;
+  const open = (on) => { menu.hidden = !on; btn.setAttribute('aria-expanded', on); };
+  btn.onclick = (e) => { e.stopPropagation(); open(menu.hidden); };
+  document.addEventListener('click', (e) => { if (!menu.hidden && !e.target.closest('#acct')) open(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { open(false); btn.focus(); } });
+  menu.addEventListener('click', async (e) => {
+    const go = e.target.closest('[data-acct]');
+    if (go) { open(false); return showTab(go.dataset.acct); }
+    const th = e.target.closest('[data-theme-set]');
+    if (th) {
+      const v = th.dataset.themeSet;
+      if (v === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+      try { v === 'auto' ? localStorage.removeItem('rzmon-theme') : localStorage.setItem('rzmon-theme', v); } catch (ex) {}
+      return markTheme();
+    }
+    const lg = e.target.closest('[data-lang-set]');
+    if (lg && !lg.classList.contains('active')) {
+      try { await api('lang_set', { lang: lg.dataset.langSet }); location.reload(); } catch (ex) { toast(ex.message, 'err'); }
+    }
+  });
+  markTheme();
+}
+function markTheme() {
+  const cur = document.documentElement.dataset.theme || 'auto';
+  $$('[data-theme-set]').forEach((b) => b.classList.toggle('active', b.dataset.themeSet === cur));
+}
+
+// ---------------------------------------------------------------- Instellingen: zijbalk met onderdelen
+// Elk onderdeel toont een of meer kaarten (data-sk); de kaarten zelf (en hoe ze opslaan) zijn niet veranderd.
+const SET_NAV = [
+  ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'mqtt']], ['rules', L('Meldregels en stille uren'), ['notify']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
+  ['monitoring', '📈', L('Monitoring'), [['alarm', L('Alarmgedrag'), ['alarm']], ['vulns', L('Kwetsbaarheden'), ['vulns']], ['ids', 'IDS', ['ids']]]],
+  ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['users', L('Gebruikers'), ['users']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades'), ['blocks']]]],
+  ['agents', '🖥️', L('Agents'), [['agents', L('Agents bijwerken en commando\'s'), ['agents']], ['enc', L('Versleuteling'), ['enc']]]],
+  ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['backup', L('Back-up'), ['backup']], ['db', L('Database'), ['db']], ['setup', 'Setup', ['setup']]]],
+];
+let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'channels'; } catch (e) { return 'channels'; } })();
+
+function setFind(id) {
+  for (const [g, icon, label, subs] of SET_NAV) for (const s of subs) if (s[0] === id) return { g, icon, group: label, sub: s };
+  return null;
+}
+
+function showSettingsSection(id) {
+  const f = setFind(id) || setFind('channels');
+  setSection = f.sub[0];
+  try { localStorage.setItem('rzmon-set-section', setSection); } catch (e) {}
+  const cards = f.sub[2];
+  $$('#tab-settings [data-sk]').forEach((c) => c.classList.toggle('set-off', !cards.includes(c.dataset.sk)));
+  // De knop "Instellingen opslaan" alleen bij onderdelen uit dat formulier
+  const inForm = cards.some((k) => { const c = $(`#tab-settings [data-sk="${k}"]`); return c && c.closest('#settings-form'); });
+  $('#settings-form').classList.toggle('set-noform', !inForm);
+  $('#set-title').textContent = f.sub[1];
+  $('#set-crumb').textContent = `${L('Instellingen')} › ${f.icon} ${f.group} › ${f.sub[1]}`;
+  $('#set-side').innerHTML = SET_NAV.map(([g, icon, label, subs]) => `<div class="set-nav-group ${g === f.g ? 'open' : ''}">
+      <button type="button" data-set-go="${subs[0][0]}" class="set-nav-head ${g === f.g ? 'cur' : ''}"><span>${icon}</span> ${esc(label)}</button>
+      <div class="set-nav-subs">${subs.map(([k, l]) => `<button type="button" data-set-go="${k}" class="${k === setSection ? 'active' : ''}">${esc(l)}</button>`).join('')}</div></div>`).join('');
+  $('#set-mselect').innerHTML = SET_NAV.map(([g, icon, label, subs]) => `<optgroup label="${icon} ${esc(label)}">${subs.map(([k, l]) => `<option value="${k}" ${k === setSection ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('');
+  history.replaceState(null, '', '#settings/' + setSection);
+}
+
+function initSettingsNav() {
+  $('#set-side').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-set-go]');
+    if (b) { showSettingsSection(b.dataset.setGo); window.scrollTo(0, 0); }
+  });
+  $('#set-mselect').onchange = (e) => showSettingsSection(e.target.value);
+}
+
+// ---------------------------------------------------------------- Mijn account (alleen als je met een account bent ingelogd)
+async function loadAccount() {
+  if (!$('#tab-account')) return;
+  let me, devices = [], logins = [];
+  try {
+    me = (await api('users')).find((u) => u.me);
+    [devices, logins] = await Promise.all([api('devices', null, { user_id: me.id }), api('my_logins')]);
+  } catch (ex) { $('#acct-data-body').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  if (!me) return;
+  const row = (label, ctl, hint) => `<div class="acct-field"><span class="acct-lbl">${label}${hint ? `<small>${hint}</small>` : ''}</span><span class="acct-ctl">${ctl}</span></div>`;
+  $('#acct-data-body').innerHTML = row(L('Gebruikersnaam'), `<b>${esc(me.username)}</b> <span class="role-tag r-${esc(me.role)}">${ROLE_LABEL[me.role] || esc(me.role)}</span>`, L('wijzigen kan alleen een beheerder'))
+    + row(L('E-mailadres'), `<input type="email" id="acct-email" value="${esc(me.email || '')}" maxlength="190" placeholder="${esc(L('jij@voorbeeld.nl'))}" autocomplete="email"> <button type="button" class="btn" id="acct-email-save">${L('Opslaan')}</button>`, L('voor "wachtwoord vergeten"'))
+    + row(L('Taal'), `<span class="seg"><button type="button" data-lang-set="nl" class="${LANG === 'nl' ? 'active' : ''}">Nederlands</button><button type="button" data-lang-set="en" class="${LANG === 'en' ? 'active' : ''}">English</button></span>`)
+    + row(L('Laatst ingelogd'), me.last_login ? esc(fmtDateTime(me.last_login)) : L('nooit'));
+  $('#acct-email-save').onclick = async () => {
+    try { await api('user_email', { id: me.id, email: $('#acct-email').value }); toast(L('E-mailadres opgeslagen')); } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $$('#acct-data-body [data-lang-set]').forEach((b) => (b.onclick = async () => {
+    if (b.classList.contains('active')) return;
+    try { await api('lang_set', { lang: b.dataset.langSet }); location.reload(); } catch (ex) { toast(ex.message, 'err'); }
+  }));
+  $('#acct-2fa-body').innerHTML = me.totp
+    ? row(L('Status'), `<b class="good-txt">✔ ${L('aan')}</b> <button type="button" class="btn" id="acct-2fa-off">${L('2FA uitzetten')}</button>`, L('bij het inloggen ook een code uit je authenticator-app'))
+    : row(L('Status'), `<b class="warn-txt">✘ ${L('uit')}</b> <button type="button" class="btn primary" id="acct-2fa-on">🔐 ${L('2FA instellen')}</button>`, L('aanbevolen: naast je wachtwoord een code uit een app op je telefoon'));
+  if ($('#acct-2fa-on')) $('#acct-2fa-on').onclick = () => totpSetup(me.id, me.username);
+  if ($('#acct-2fa-off')) $('#acct-2fa-off').onclick = async () => {
+    if (!confirm(L('Tweestapsverificatie uitzetten? Inloggen kan daarna weer met alleen je wachtwoord.'))) return;
+    try { await api('totp_reset', { id: me.id }); toast(L('2FA staat uit')); loadAccount(); } catch (ex) { toast(ex.message, 'err'); }
+  };
+  const icon = (d) => (/iPhone|Android/.test(d) ? '📱' : /iPad/.test(d) ? '📲' : '💻');
+  $('#acct-devices-body').innerHTML = devices.length ? `<p class="muted small" style="margin-top:0">${L('Hier blijf je ingelogd zonder wachtwoord en 2FA. Na 30 dagen niet gebruiken, of als je je wachtwoord wijzigt, wordt een apparaat vergeten.')}</p>
+    <div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Apparaat')}</th><th>${L('Laatst gebruikt')}</th><th>IP</th><th></th></tr></thead><tbody>
+    ${devices.map((d) => `<tr><td>${icon(d.device)} ${esc(d.device || L('Onbekend apparaat'))}${d.current ? ` <span class="badge">${L('dit apparaat')}</span>` : ''}</td><td class="small">${ago(d.last_used)}</td><td class="mono small">${esc(d.ip)}</td>
+      <td><button type="button" class="btn small-btn" data-forget="${d.id}">${L('Vergeten')}</button></td></tr>`).join('')}</tbody></table></div>
+    <button type="button" class="btn danger" id="acct-forget-all" style="margin-top:.6rem">${L('Alle apparaten vergeten')}</button>`
+    : `<p class="muted" style="margin:0">${L('Geen onthouden apparaten. Zet bij het inloggen <b>Onthoud mij op dit apparaat</b> aan.')}</p>`;
+  $('#acct-devices-body').onclick = async (e) => {
+    const b = e.target.closest('[data-forget]');
+    try {
+      if (b) { await api('device_forget', { id: b.dataset.forget }); toast(L('Apparaat vergeten')); return loadAccount(); }
+      if (e.target.closest('#acct-forget-all') && confirm(L('Alle onthouden apparaten vergeten? Daar moet je dan opnieuw inloggen.'))) {
+        await api('device_forget_all', { user_id: me.id }); toast(L('Alle apparaten vergeten')); loadAccount();
+      }
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#acct-logins-body').innerHTML = logins.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Wanneer')}</th><th>IP</th><th>${L('Hoe')}</th><th>${L('Apparaat')}</th></tr></thead><tbody>
+    ${logins.map((x) => `<tr class="${+x.ok ? '' : 'bad-row'}"><td class="small">${esc(fmtDateTime(x.created_at))}</td><td class="mono small">${esc(x.ip)}</td>
+      <td class="small">${+x.ok ? esc(L(x.how)) : `<span class="bad">✘ ${esc(L(x.how))}</span>`}</td><td class="small">${esc(x.device || '–')}</td></tr>`).join('')}</tbody></table></div>`
+    : `<p class="muted" style="margin:0">${L('Nog geen logins bewaard.')}</p>`;
+}
+
 async function loadSettings() {
   settingsLoaded = true;
   loadUsers();
@@ -3856,7 +3978,8 @@ async function changePassword(e) {
 let users = [];
 const ROLE_LABEL = { admin: '🔑 ' + L('Beheerder'), user: '👤 ' + L('Gebruiker'), readonly: '👁 ' + L('Alleen lezen') };
 async function loadUsers() {
-  if ($('#users-card').hidden) return;
+  if ($('#tab-account') && !$('#tab-account').hidden) loadAccount();   // bv. na 2FA instellen vanaf Mijn account
+  if ($('#users-card').hidden || !isAdmin()) return;
   users = await api('users');
   if (isAdmin()) {
     api('pw_reset_info').then((r) => {
@@ -3875,7 +3998,7 @@ async function loadUsers() {
         ${u.locked ? `<span class="locked-tag" title="${esc(L('Te veel mislukte pogingen vanaf {ip}; vanaf het lokale netwerk kan inloggen nog wel', { ip: u.locked_ip || '?' }))}">🔒 ${u.locked_until ? L('geblokkeerd tot {t}', { t: esc(fmtDateTime(u.locked_until)) }) : L('geblokkeerd')}</span>` : ''}<br>
         <span class="muted small">${u.email ? `✉ ${esc(u.email)}` : `<span title="${L('Nodig voor wachtwoord vergeten')}">✉ ${L('geen e-mailadres')}</span>`} · ${L('Laatst ingelogd: {ago}', { ago: u.last_login ? ago(u.last_login) : L('nooit') })}</span></span>
       <span class="row-actions">
-        ${u.totp
+        ${u.me ? `<button class="btn" data-uact="mine" data-id="${u.id}" title="${L('Je eigen wachtwoord, 2FA, e-mail en apparaten')}">👤 ${L('Mijn account')}</button>` : `${u.totp
           ? `<button class="btn" data-uact="totp-reset" data-id="${u.id}" title="${L('Tweestapsverificatie uitzetten, bv. bij een verloren telefoon')}">${L('2FA resetten')}</button>`
           : `<button class="btn" data-uact="totp-setup" data-id="${u.id}">🔐 ${L('2FA instellen')}</button>`}
         ${u.locked ? `<button class="btn need-admin" data-uact="unlock" data-id="${u.id}">🔓 ${L('Deblokkeren')}</button>` : ''}
@@ -3884,7 +4007,7 @@ async function loadUsers() {
         <button class="btn small-btn" data-uact="devices" data-id="${u.id}" title="${L('Apparaten waarop {user} ingelogd blijft', { user: esc(u.username) })}">📱 ${+u.devices}</button>
         <button class="icon-btn" data-uact="email" data-id="${u.id}" title="${L('E-mailadres (voor wachtwoord vergeten)')}">✉</button>
         <button class="icon-btn need-admin" data-uact="password" data-id="${u.id}" title="${L('Nieuw wachtwoord instellen')}">🔑</button>
-        ${u.me ? '' : `<button class="icon-btn need-admin" data-uact="delete" data-id="${u.id}" title="${L('Verwijderen')}">🗑</button>`}
+        <button class="icon-btn need-admin" data-uact="delete" data-id="${u.id}" title="${L('Verwijderen')}">🗑</button>`}
       </span>
     </div>`).join('');
   settingsSummaries();
@@ -3926,6 +4049,7 @@ async function onUsersClick(e) {
     switch (b.dataset.uact) {
       case 'totp-setup': return totpSetup(u.id, u.username);
       case 'devices': return devicesDialog(u);
+      case 'mine': return showTab('account');
       case 'unlock':
         await api('user_unlock', { id: u.id });
         toast(L('{user} gedeblokkeerd', { user: u.username }));
@@ -4294,8 +4418,7 @@ async function openUpdateDialog() {
   if (u.status && ['queued', 'running'].includes(u.status.state)) { showUpdateDialog(u.status, '', true); pollUpdate(); return; }
   if (!u.available || u.unavailable) {
     // Niets bij te werken, of het kan (nog) niet vanuit RzMon: de uitleg staat bij Instellingen
-    showTab('settings');
-    setTimeout(() => $('#update-card').scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    showTab('settings/update');
     return;
   }
   modal({
