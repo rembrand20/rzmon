@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.74.0 – 2026-10-24
+### Nieuw
+- **UniFi access points via SNMP** (UBNT-UniFi-MIB): bij *📡 SNMP-checks* staat bij een UniFi-AP nu de groep **UniFi** met:
+  - **UniFi AP**: CRITICAL als het AP *isolated* is (geen bekabelde verbinding meer); toont model, firmware en uplink, en geeft een **ℹ️-melding bij nieuwe firmware**;
+  - **clients per band** (2,4 / 5 / 6 GHz) en **per SSID**, elk uitgesplitst (zonder drempels);
+  - **kanaalbezetting per band** (⚠️ 60 %, 🔴 80 %), met het eigen verkeer en het kanaal;
+  - **SSID uitgezonden**: nergens = CRITICAL, op een band uit = WARNING;
+  - **verkeer per SSID** (download en upload) en **kwaliteit per SSID** (herhaald verzonden pakketten met CCQ, ⚠️ 15 %, 🔴 30 %); standaard niet aangevinkt.
+- Een bestaande check *UniFi clients* blijft werken (het totaal), en kan nu ook per band (`band:5g`) of per SSID (`ssid:naam`).
+
 ## 1.73.1 – 2026-10-24
 ### Opgelost
 - Het **icoon op het beginscherm** van je telefoon (en de iconen in het manifest) gaf "Not Found" bij een installatie met Apache: Apache gebruikt het adres `/icons/` zelf. De iconen staan nu in `assets/icons/`, en het icoon voor iPhone ook in de hoofdmap (`/apple-touch-icon.png`). Voeg RzMon daarna opnieuw toe aan je beginscherm.

@@ -822,11 +822,25 @@ Op apparaten waar geen agent op kan, zoals switches, access points, een NAS, een
 | UPS (UPS-MIB: Eaton, CyberPower, Riello… en APC) | Status (op batterij, batterij bijna leeg, vervangen, alarmen), lading, looptijd, belasting, accutemperatuur | lading onder 50/20 % · looptijd onder 15/5 min · accu 35/45 °C |
 | Synology | Systeem, voeding en ventilatoren, temperatuur; per volume degraded/crashed en vulling; per schijf status, gezondheid en temperatuur | volume 80/90 % · schijf 50/60 °C |
 | Printer | Toner, inkt, drum, afvalbak in % | onder 20/5 % |
-| UniFi | Aantal verbonden clients per access point | geen drempels |
+| UniFi (vanaf 1.74.0 uitgebreid) | AP: isolated, model, firmware; clients totaal, per band en per SSID; kanaalbezetting per band; SSID uitgezonden; verkeer en kwaliteit per SSID | zie hieronder |
 
 - CPU en geheugen komen uit HOST-RESOURCES (Proxmox, Linux, MikroTik, UniFi en veel switches), uit de eigen MIB van TP-Link, of uit net-snmp. Bij Linux en Proxmox telt geheugen zonder buffers en cache, en is de uptime die van het systeem, niet van `snmpd`.
 - Een **accutemperatuur** boven 25 °C kost levensduur: bij een loodaccu (VRLA) halveert die ongeveer per 10 °C warmer. Daarom staat de standaard-waarschuwing op 35 °C.
 - **Interfaceverkeer** is het verschil tussen twee metingen. Na het toevoegen staat er dus eerst *verkeer volgt na de volgende meting*.
+- **UniFi access points** (UBNT-UniFi-MIB, vanaf 1.74.0). Zet SNMP aan in de UniFi Network-app (*Instellingen → Systeem → SNMP*, v1/v2c met een community of v3). Bij *📡 SNMP-checks* staat dan de groep **UniFi**:
+
+  | Check | Wat | Standaard |
+  |---|---|---|
+  | **UniFi AP** | Isolated (geen bekabelde verbinding meer, bv. een mesh-AP waarvan de uplink weg is), met model, firmware en uplink; **ℹ️-melding bij nieuwe firmware** | isolated = CRITICAL · aangevinkt |
+  | **Clients 2,4 / 5 / 6 GHz** | Verbonden clients per band, uitgesplitst per SSID | geen drempels · aangevinkt |
+  | **Clients ‹SSID›** | Verbonden clients per SSID, uitgesplitst per band | geen drempels · aangevinkt |
+  | **UniFi clients** | Totaal van het AP | geen drempels · niet aangevinkt |
+  | **Kanaalbezetting ‹band›** | Hoe vol het kanaal is (ook door buren en storing), met het eigen verkeer en het kanaal | 60/80 % · aangevinkt |
+  | **SSID ‹naam›** | Wordt het SSID uitgezonden? | nergens = CRITICAL, op een band uit = WARNING · aangevinkt |
+  | **Verkeer ‹SSID›** | Download en upload van de clients, alle radio's samen | geen drempels · niet aangevinkt |
+  | **Kwaliteit ‹SSID›** | Aandeel herhaald verzonden pakketten, met de CCQ | 15/30 % · niet aangevinkt |
+
+  Verkeer en kwaliteit zijn het verschil tussen twee metingen; na het toevoegen staat er eerst *volgt na de volgende meting*. De firmwaremelding volgt de regel *Info* van de meldregels. Een eerder toegevoegde check *UniFi clients* blijft werken (het totaal).
 - De onderdelen voor TP-Link, UniFi, MikroTik, APC en printers zijn gemaakt met de MIB's van de fabrikant, maar nog niet op elk merk echt getest. RzMon biedt alleen aan wat het apparaat echt beantwoordt; klopt er iets niet, laat het weten.
 
 **Eigen OID**

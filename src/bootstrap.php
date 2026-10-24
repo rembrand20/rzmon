@@ -160,7 +160,8 @@ function check_unit(array $check): ?string
             return ($o['mode'] ?? 'gauge') === 'text' ? null : (($o['unit'] ?? '') . (($o['mode'] ?? '') === 'counter' ? '/s' : '') ?: null);
         }
         return ['uptime' => 'uur', 'if' => '%', 'cpu' => '%', 'mem' => '%', 'storage' => '%', 'temp' => '°C', 'ups_charge' => '%', 'ups_runtime' => 'min',
-            'ups_load' => '%', 'ups_temp' => '°C', 'syno_system' => '°C', 'syno_raid' => '%', 'syno_disk' => '°C', 'printer' => '%', 'unifi_clients' => 'clients'][$check['metric'] ?? ''] ?? null;
+            'ups_load' => '%', 'ups_temp' => '°C', 'syno_system' => '°C', 'syno_raid' => '%', 'syno_disk' => '°C', 'printer' => '%', 'unifi_clients' => 'clients',
+            'unifi_cu' => '%', 'unifi_traffic' => 'Mbit/s', 'unifi_quality' => '%'][$check['metric'] ?? ''] ?? null;
     }
     return ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'ssl' => 'dagen', 'disk' => '%', 'cpu' => '%', 'ram' => '%', 'log' => 'treffers'][$check['type']] ?? null;
 }

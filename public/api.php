@@ -1701,6 +1701,11 @@ switch ($action) {
                 if (!preg_match('/^1(\.\d{1,10}){3,60}$/', $target)) {
                     out(['error' => t('Geef een numerieke OID, bv. 1.3.6.1.4.1.6574.1.2.0 (namen als sysName.0 werken niet)')], 422);
                 }
+            } elseif ($sm['index'] === 'name') {
+                // UniFi: band of SSID als doel (leeg = totaal, alleen bij clients)
+                if (($target === '' && $metric !== 'unifi_clients') || mb_strlen($target) > 100 || preg_match('/[\x00-\x1f]/', $target)) {
+                    out(['error' => t('Kies de band of SSID via ＋ SNMP-checks')], 422);
+                }
             } elseif ($sm['index'] && !preg_match('/^\d{1,10}(\.\d{1,10}){0,10}$/', $target)) {
                 out(['error' => t('Kies de interface, schijf of voorraad via ＋ SNMP-checks')], 422);
             } elseif (!$sm['index']) {

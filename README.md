@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 | RAM | Geheugengebruik (MemAvailable) + swap | % gebruikt |
 | Podman (algemeen) | Via de agent: gestopte, ongezonde of gepauzeerde containers, pods | probleem = WARNING |
 | Logbestand (zoeken) | Via de agent: treffers in een logbestand, het systemlog of kernelmeldingen, met voorinstellingen voor mislukte logins, disk- en hardwarefouten | aantal treffers in 15 min |
-| SNMP | RzMon leest switches, access points, NAS, UPS, printers en Proxmox zelf uit (v2c/v3): uptime, CPU, geheugen, interfaces, opslag, UPS, Synology, toner, UniFi-clients, of een eigen OID | per meting (%, °C, min…) |
+| SNMP | RzMon leest switches, access points, NAS, UPS, printers en Proxmox zelf uit (v2c/v3): uptime, CPU, geheugen, interfaces, opslag, UPS, Synology, toner, UniFi (clients per band en SSID, kanaalbezetting, isolated, firmware), of een eigen OID | per meting (%, °C, min…) |
 | Container (Podman) | Via de agent, één check per container: status (healthcheck, herstarts) plus naar keuze CPU, RAM en disk | %, MB (eigen drempels per meting) |
 
 **Host-types**

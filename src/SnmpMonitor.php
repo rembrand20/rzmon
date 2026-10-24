@@ -36,7 +36,13 @@ final class SnmpMonitor
         'syno_raid' => ['label' => 'Synology volume', 'index' => true, 'low' => false, 'warn' => 80, 'crit' => 90],
         'syno_disk' => ['label' => 'Synology schijf', 'index' => true, 'low' => false, 'warn' => 50, 'crit' => 60],
         'printer' => ['label' => 'Printer', 'index' => true, 'low' => true, 'warn' => 20, 'crit' => 5],
-        'unifi_clients' => ['label' => 'UniFi clients', 'index' => false, 'low' => false, 'warn' => null, 'crit' => null],
+        // UniFi (1.74.0): 'index' => 'name' = een tekst als doel (band of SSID), leeg mag bij clients (= totaal) en AP
+        'unifi_clients' => ['label' => 'UniFi clients', 'index' => 'name', 'low' => false, 'warn' => null, 'crit' => null],
+        'unifi_ap' => ['label' => 'UniFi AP', 'index' => false, 'low' => false, 'warn' => null, 'crit' => null],
+        'unifi_cu' => ['label' => 'UniFi kanaalbezetting', 'index' => 'name', 'low' => false, 'warn' => 60, 'crit' => 80],
+        'unifi_ssid' => ['label' => 'UniFi SSID', 'index' => 'name', 'low' => false, 'warn' => null, 'crit' => null],
+        'unifi_traffic' => ['label' => 'UniFi verkeer', 'index' => 'name', 'low' => false, 'warn' => null, 'crit' => null],
+        'unifi_quality' => ['label' => 'UniFi kwaliteit', 'index' => 'name', 'low' => false, 'warn' => 15, 'crit' => 30],
         'oid' => ['label' => 'OID', 'index' => true, 'low' => false, 'warn' => null, 'crit' => null],
     ];
 
@@ -57,6 +63,12 @@ final class SnmpMonitor
     private const TPL_MEM = '1.3.6.1.4.1.11863.6.4.1.2.1.1.2';      // TP-Link: geheugen (%)
     private const MT_TEMP = '1.3.6.1.4.1.14988.1.1.3.10.0';         // MikroTik: temperatuur (×10 °C)
     private const UNIFI_STATIONS = '1.3.6.1.4.1.41112.1.6.1.2.1.8'; // UniFi AP: clients per radio/SSID
+    // UBNT-UniFi-MIB: radio's (1 index, 2 naam, 3 radio "ng"/"na"/"6e", 6 kanaalbezetting %, 7/8 eigen ontvangst/zenden %)
+    private const UNIFI_RADIO = '1.3.6.1.4.1.41112.1.6.1.1.1';
+    // VAP = een SSID op één radio: 3 CCQ, 4 kanaal, 6 SSID, 8 clients, 9 radio, 10/16 bytes in/uit, 19 pakketten uit, 20 herhalingen, 22 aan (1/2)
+    private const UNIFI_VAP = '1.3.6.1.4.1.41112.1.6.1.2.1';
+    // Het AP zelf: 1 IP, 2 isolated (1 = geen bekabelde verbinding), 3 model, 4 uplink, 6 firmware
+    private const UNIFI_SYS = '1.3.6.1.4.1.41112.1.6.3';
     private const IF = '1.3.6.1.2.1.2.2.1';                          // ifEntry: 2 descr, 3 type, 5 speed, 7 admin, 8 oper, 10/16 octets, 13/19 discards, 14/20 errors
     private const IFX = '1.3.6.1.2.1.31.1.1.1';                      // ifXEntry: 1 name, 6/10 HC octets, 15 highspeed, 18 alias
     private const UPS = '1.3.6.1.2.1.33.1';                          // UPS-MIB (RFC 1628): Eaton, CyberPower, Riello…
@@ -224,6 +236,11 @@ final class SnmpMonitor
                 'syno_disk' => self::synoDisk($c, $check),
                 'printer' => self::printer($c, $check),
                 'unifi_clients' => self::unifi($c, $check),
+                'unifi_ap' => self::unifiAp($c, $check),
+                'unifi_cu' => self::unifiCu($c, $check),
+                'unifi_ssid' => self::unifiSsid($c, $check),
+                'unifi_traffic' => self::unifiTraffic($c, $check),
+                'unifi_quality' => self::unifiQuality($c, $check),
                 'oid' => self::oid($c, $check),
                 default => self::res(STATUS_UNKNOWN, null, 'Onbekende SNMP-meting'),
             };
@@ -633,14 +650,229 @@ final class SnmpMonitor
         return self::res(self::level($pct, $check, true), $pct, "$name: " . t('{pct}% over', ['pct' => $pct]));
     }
 
+    /** Band van een UniFi-radio: "ng" = 2,4 GHz, "na" = 5 GHz, "6e" = 6 GHz; anders op het kanaal */
+    private static function band(string $radio, int $channel = 0): string
+    {
+        $r = strtolower(trim($radio));
+        return match (true) {
+            str_contains($r, '6') => '6g',
+            $r === 'ng' || $r === 'g' || $r === 'b' || str_starts_with($r, 'ng') => '2g',
+            $r === 'na' || $r === 'a' || str_starts_with($r, 'na') || str_starts_with($r, 'ac') => '5g',
+            $channel > 0 && $channel <= 14 => '2g',
+            $channel >= 32 => '5g',
+            default => '?',
+        };
+    }
+
+    private static function bandLabel(string $b): string
+    {
+        return ['2g' => '2,4 GHz', '5g' => '5 GHz', '6g' => '6 GHz'][$b] ?? t('onbekende band');
+    }
+
+    /** Alle VAP's (SSID per radio) met SSID, band, clients en aan/uit */
+    private static function vaps(SnmpConn $c, bool $more = false): array
+    {
+        $ssid = $c->walk(self::UNIFI_VAP . '.6');
+        if (!$ssid) {
+            return [];
+        }
+        $cols = ['ch' => 4, 'sta' => 8, 'radio' => 9, 'up' => 22] + ($more ? ['ccq' => 3, 'rx' => 10, 'tx' => 16, 'txp' => 19, 'retry' => 20] : []);
+        $data = array_map(fn(int $col) => $c->walk(self::UNIFI_VAP . ".$col"), $cols);
+        $out = [];
+        foreach ($ssid as $i => $s) {
+            $v = ['ssid' => (string) $s];
+            foreach ($cols as $k => $_) {
+                $v[$k] = $data[$k][$i] ?? null;
+            }
+            $v['band'] = self::band((string) ($v['radio'] ?? ''), (int) ($v['ch'] ?? 0));
+            $out[$i] = $v;
+        }
+        return $out;
+    }
+
+    /** UniFi clients: totaal (doel leeg), per band ("band:5g") of per SSID ("ssid:Naam") */
     private static function unifi(SnmpConn $c, array $check): array
     {
-        $vals = array_filter($c->walk(self::UNIFI_STATIONS), 'is_numeric');
-        if (!$vals) {
-            return self::missing('UniFi clients');
+        $target = (string) $check['target'];
+        $vaps = self::vaps($c);
+        if (!$vaps) {
+            // Oudere manier (vóór 1.74.0): alleen de clients-kolom
+            $vals = array_filter($c->walk(self::UNIFI_STATIONS), 'is_numeric');
+            if (!$vals || $target !== '') {
+                return self::missing('UniFi clients');
+            }
+            $n = (float) array_sum(array_map('intval', $vals));
+            return self::res(self::level($n, $check, false), $n, sprintf(t('%d client(s) verbonden (%d SSID/radio\'s)'), $n, count($vals)));
         }
-        $n = (float) array_sum(array_map('intval', $vals));
-        return self::res(self::level($n, $check, false), $n, sprintf(t('%d client(s) verbonden (%d SSID/radio\'s)'), $n, count($vals)));
+        [$kind, $want] = str_contains($target, ':') ? explode(':', $target, 2) : ['', ''];
+        $sel = array_filter($vaps, fn($v) => $kind === '' || ($kind === 'band' && $v['band'] === $want) || ($kind === 'ssid' && $v['ssid'] === $want));
+        if (!$sel) {
+            return self::res(STATUS_UNKNOWN, null, $kind === 'band'
+                ? t('Geen radio op {band} gevonden', ['band' => self::bandLabel($want)])
+                : t('SSID "{ssid}" wordt niet (meer) uitgezonden', ['ssid' => $want]));
+        }
+        $n = (float) array_sum(array_map(fn($v) => (int) $v['sta'], $sel));
+        // Uitsplitsen: bij een band per SSID, bij een SSID per band, bij het totaal per band
+        $parts = [];
+        foreach ($sel as $v) {
+            $k = $kind === 'band' ? $v['ssid'] : self::bandLabel($v['band']);
+            $parts[$k] = ($parts[$k] ?? 0) + (int) $v['sta'];
+        }
+        $split = implode(' · ', array_map(fn($k, $x) => "$k: $x", array_keys($parts), $parts));
+        return self::res(self::level($n, $check, false), $n, sprintf(t('%d client(s) verbonden'), $n) . ($split !== '' ? " ($split)" : ''));
+    }
+
+    /** Het AP zelf: isolated (geen bekabelde verbinding) = CRITICAL; model, firmware en uplink; ℹ️ bij nieuwe firmware */
+    private static function unifiAp(SnmpConn $c, array $check): array
+    {
+        $o = ['ip' => self::UNIFI_SYS . '.1.0', 'iso' => self::UNIFI_SYS . '.2.0', 'model' => self::UNIFI_SYS . '.3.0', 'uplink' => self::UNIFI_SYS . '.4.0',
+            'fw' => self::UNIFI_SYS . '.6.0'];
+        $r = $c->get(array_values($o));
+        $g = static fn(string $k) => trim((string) ($r[$o[$k]] ?? ''));
+        if ($g('model') === '' && $g('fw') === '' && $g('iso') === '') {
+            return self::missing('UniFi AP');
+        }
+        $iso = (int) $g('iso') === 1;
+        $msg = trim($g('model') . ($g('fw') !== '' ? ' · firmware ' . $g('fw') : ''), ' ·')
+            . ($g('uplink') !== '' ? ' · uplink ' . $g('uplink') : '')
+            . ' · ' . ($iso ? t('ISOLATED: geen bekabelde verbinding (meer)') : t('verbonden'));
+        $res = self::res($iso ? STATUS_CRIT : STATUS_OK, null, $msg);
+        $prev = self::state((int) $check['id']);
+        if ($g('fw') !== '') {
+            self::saveState((int) $check['id'], ['fw' => $g('fw')]);
+            if ($prev && ($prev['fw'] ?? '') !== '' && $prev['fw'] !== $g('fw')) {
+                $res['info'] = t('Firmware bijgewerkt van {old} naar {new}', ['old' => $prev['fw'], 'new' => $g('fw')]) . ($g('model') !== '' ? ' (' . $g('model') . ')' : '');
+            }
+        }
+        return $res;
+    }
+
+    /** Kanaalbezetting van één radio (band): hoe vol de lucht is, ook door buren */
+    private static function unifiCu(SnmpConn $c, array $check): array
+    {
+        $want = (string) $check['target'];
+        $radio = $c->walk(self::UNIFI_RADIO . '.3');
+        if (!$radio) {
+            return self::missing('UniFi kanaalbezetting');
+        }
+        $ch = [];
+        foreach (self::vaps($c) as $v) {
+            if ((int) $v['ch'] > 0) {
+                $ch[$v['band']] = (int) $v['ch'];
+            }
+        }
+        foreach ($radio as $i => $r) {
+            if (self::band((string) $r) !== $want) {
+                continue;
+            }
+            $x = $c->get([self::UNIFI_RADIO . ".6.$i", self::UNIFI_RADIO . ".7.$i", self::UNIFI_RADIO . ".8.$i"]);
+            $cu = self::num($x[self::UNIFI_RADIO . ".6.$i"] ?? null);
+            if ($cu === null) {
+                return self::missing('UniFi kanaalbezetting');
+            }
+            $rx = self::num($x[self::UNIFI_RADIO . ".7.$i"] ?? null);
+            $tx = self::num($x[self::UNIFI_RADIO . ".8.$i"] ?? null);
+            $msg = self::bandLabel($want) . ': ' . t('{n}% bezet', ['n' => $cu])
+                . ($rx !== null && $tx !== null ? ' (' . t('eigen verkeer {n}%', ['n' => $rx + $tx]) . ')' : '')
+                . (isset($ch[$want]) ? ' · ' . t('kanaal {n}', ['n' => $ch[$want]]) : '');
+            return self::res(self::level($cu, $check, false), $cu, $msg);
+        }
+        return self::res(STATUS_UNKNOWN, null, t('Geen radio op {band} gevonden', ['band' => self::bandLabel($want)]));
+    }
+
+    /** SSID: wordt hij uitgezonden, op welke banden? Nergens = CRITICAL, op een band uit = WARNING */
+    private static function unifiSsid(SnmpConn $c, array $check): array
+    {
+        $want = (string) $check['target'];
+        $vaps = self::vaps($c);
+        if (!$vaps) {
+            return self::missing('UniFi SSID');
+        }
+        $sel = array_filter($vaps, fn($v) => $v['ssid'] === $want);
+        $on = array_filter($sel, fn($v) => (int) ($v['up'] ?? 1) !== 2);
+        if (!$on) {
+            return self::res(STATUS_CRIT, null, t('SSID "{ssid}" wordt niet uitgezonden', ['ssid' => $want]));
+        }
+        $bands = fn(array $l) => implode(', ', array_unique(array_map(fn($v) => self::bandLabel($v['band']), $l)));
+        $off = array_diff_key($sel, $on);
+        return self::res($off ? STATUS_WARN : STATUS_OK, null, t('"{ssid}" uitgezonden op {bands}', ['ssid' => $want, 'bands' => $bands($on)])
+            . ($off ? ' · ' . t('uit op {bands}', ['bands' => $bands($off)]) : ''));
+    }
+
+    /** Teller-verschil met overloop (32 bits) of herstart (null) */
+    private static function delta(float $now, float $prev): ?float
+    {
+        $d = $now - $prev;
+        if ($d < 0) {
+            return $prev < 4294967296 ? $d + 4294967296 : null;
+        }
+        return $d;
+    }
+
+    /** Verkeer van een SSID (alle radio's samen), in en uit */
+    private static function unifiTraffic(SnmpConn $c, array $check): array
+    {
+        $want = (string) $check['target'];
+        $sel = array_filter(self::vaps($c, true), fn($v) => $v['ssid'] === $want);
+        if (!$sel) {
+            return self::res(STATUS_UNKNOWN, null, t('SSID "{ssid}" wordt niet (meer) uitgezonden', ['ssid' => $want]));
+        }
+        $now = microtime(true);
+        $cur = ['t' => $now, 'rx' => array_sum(array_map(fn($v) => (float) $v['rx'], $sel)), 'tx' => array_sum(array_map(fn($v) => (float) $v['tx'], $sel)), 'n' => count($sel)];
+        $prev = self::state((int) $check['id']);
+        self::saveState((int) $check['id'], $cur);
+        if (!$prev || (int) ($prev['n'] ?? 0) !== $cur['n'] || $now - (float) $prev['t'] < 1) {
+            return self::res(STATUS_OK, null, "\"$want\" · " . t('verkeer volgt na de volgende meting'));
+        }
+        $dt = $now - (float) $prev['t'];
+        $rx = self::delta($cur['rx'], (float) $prev['rx']);
+        $tx = self::delta($cur['tx'], (float) $prev['tx']);
+        if ($rx === null || $tx === null) {
+            return self::res(STATUS_OK, null, "\"$want\" · " . t('tellers opnieuw begonnen (herstart?)'));
+        }
+        // Gezien vanaf de clients: wat het AP ontvangt is upload, wat het zendt is download
+        $down = $tx * 8 / $dt;
+        $up = $rx * 8 / $dt;
+        $mbit = round(($down + $up) / 1e6, 2);
+        return self::res(self::level($mbit, $check, false), $mbit, "\"$want\" · ↓ " . self::bits($down) . ' · ↑ ' . self::bits($up));
+    }
+
+    /** Kwaliteit van een SSID: het aandeel herhaald verzonden pakketten (%) en de CCQ */
+    private static function unifiQuality(SnmpConn $c, array $check): array
+    {
+        $want = (string) $check['target'];
+        $sel = array_filter(self::vaps($c, true), fn($v) => $v['ssid'] === $want);
+        if (!$sel) {
+            return self::res(STATUS_UNKNOWN, null, t('SSID "{ssid}" wordt niet (meer) uitgezonden', ['ssid' => $want]));
+        }
+        // CCQ (0-100 %, sommige firmware in promille), gewogen naar het aantal clients
+        $w = 0;
+        $sum = 0.0;
+        foreach ($sel as $v) {
+            if (is_numeric($v['ccq']) && (int) $v['sta'] > 0) {
+                $q = (float) $v['ccq'];
+                $sum += ($q > 100 ? $q / 10 : $q) * (int) $v['sta'];
+                $w += (int) $v['sta'];
+            }
+        }
+        $ccq = $w > 0 ? round($sum / $w) : null;
+        $cur = ['p' => array_sum(array_map(fn($v) => (float) $v['txp'], $sel)), 'r' => array_sum(array_map(fn($v) => (float) $v['retry'], $sel)), 'n' => count($sel)];
+        $prev = self::state((int) $check['id']);
+        self::saveState((int) $check['id'], $cur);
+        $ccqTxt = $ccq !== null ? ' · CCQ ' . $ccq . '%' : ($w === 0 ? ' · ' . t('geen clients') : '');
+        if (!$prev || (int) ($prev['n'] ?? 0) !== $cur['n']) {
+            return self::res(STATUS_OK, null, "\"$want\"$ccqTxt · " . t('herhalingen volgen na de volgende meting'));
+        }
+        $p = self::delta($cur['p'], (float) $prev['p']);
+        $r = self::delta($cur['r'], (float) $prev['r']);
+        if ($p === null || $r === null) {
+            return self::res(STATUS_OK, null, "\"$want\"$ccqTxt · " . t('tellers opnieuw begonnen (herstart?)'));
+        }
+        if ($p < 50) {
+            return self::res(STATUS_OK, null, "\"$want\"$ccqTxt · " . t('te weinig verkeer om herhalingen te meten'));
+        }
+        $pct = round(min(100, $r / $p * 100), 1);
+        return self::res(self::level($pct, $check, false), $pct, "\"$want\" · " . t('{n}% herhaald verzonden', ['n' => $pct]) . $ccqTxt);
     }
 
     /** Eigen OID: getal (met drempels), teller (per seconde) of tekst (vergelijken) */
@@ -787,9 +1019,52 @@ final class SnmpMonitor
             $add('Printer', 'printer', (string) $i, trim((string) $n) ?: t('Voorraad {i}', ['i' => $i]), t('niveau in %'), true);
         }
 
-        // UniFi access point
-        if ($c->walk(self::UNIFI_STATIONS)) {
-            $add('UniFi', 'unifi_clients', '', 'UniFi clients', t('aantal verbonden clients'), false);
+        // UniFi access point (UBNT-UniFi-MIB)
+        $vaps = self::vaps($c);
+        if ($vaps || $c->walk(self::UNIFI_STATIONS)) {
+            $ap = $c->get([self::UNIFI_SYS . '.3.0', self::UNIFI_SYS . '.6.0', self::UNIFI_SYS . '.2.0']);
+            if ($ap) {
+                $model = trim((string) ($ap[self::UNIFI_SYS . '.3.0'] ?? '') . ' ' . (string) ($ap[self::UNIFI_SYS . '.6.0'] ?? ''));
+                $add('UniFi', 'unifi_ap', '', 'UniFi AP', ($model !== '' ? "$model · " : '') . t('isolated (geen bekabelde verbinding) en ℹ️ bij nieuwe firmware'), true);
+            }
+            $sum = array_sum(array_map(fn($v) => (int) $v['sta'], $vaps)) ?: array_sum(array_map('intval', array_filter($c->walk(self::UNIFI_STATIONS), 'is_numeric')));
+            $add('UniFi', 'unifi_clients', '', 'UniFi clients', t('totaal: nu {n}', ['n' => $sum]), false);
+            $bands = [];
+            foreach ($vaps as $v) {
+                $bands[$v['band']] = ($bands[$v['band']] ?? 0) + (int) $v['sta'];
+            }
+            $cu = [];
+            foreach ($c->walk(self::UNIFI_RADIO . '.3') as $i => $r) {
+                $cu[self::band((string) $r)] = self::num($c->one(self::UNIFI_RADIO . ".6.$i"));
+            }
+            ksort($bands);
+            foreach ($bands as $b => $n) {
+                if ($b === '?') {
+                    continue;
+                }
+                $add('UniFi', 'unifi_clients', "band:$b", t('Clients {x}', ['x' => self::bandLabel($b)]), t('nu {n}', ['n' => $n]), true);
+                if (($cu[$b] ?? null) !== null) {
+                    $add('UniFi', 'unifi_cu', $b, t('Kanaalbezetting {band}', ['band' => self::bandLabel($b)]), t('nu {n}%', ['n' => $cu[$b]]), true);
+                }
+            }
+            $ssids = [];
+            foreach ($vaps as $v) {
+                $ssids[$v['ssid']] ??= [];
+                if ((int) ($v['up'] ?? 1) !== 2) {
+                    $ssids[$v['ssid']][] = self::bandLabel($v['band']);
+                }
+            }
+            foreach ($ssids as $s => $bl) {
+                if ($s === '') {
+                    continue;
+                }
+                $n = array_sum(array_map(fn($v) => (int) $v['sta'], array_filter($vaps, fn($v) => $v['ssid'] === $s)));
+                $on = implode(', ', array_unique($bl));
+                $add('UniFi', 'unifi_ssid', $s, "SSID $s", $on !== '' ? t('uitgezonden op {bands}', ['bands' => $on]) : t('wordt nu niet uitgezonden'), true);
+                $add('UniFi', 'unifi_clients', "ssid:$s", t('Clients {x}', ['x' => $s]), t('nu {n}', ['n' => $n]), true);
+                $add('UniFi', 'unifi_traffic', $s, t('Verkeer {ssid}', ['ssid' => $s]), t('doorvoer in en uit'), false);
+                $add('UniFi', 'unifi_quality', $s, t('Kwaliteit {ssid}', ['ssid' => $s]), t('herhaald verzonden pakketten en CCQ'), false);
+            }
         }
         return ['sys' => $sys, 'items' => $items];
     }
