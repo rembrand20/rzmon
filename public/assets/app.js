@@ -448,7 +448,8 @@ FX.dash = {
   render: () => render(),
   fields: [
     { k: 'server', label: () => 'Server', get: (x) => x.h.name },
-    { k: 'kind', label: () => L('Soort server'), get: (x) => (isHa(x.h) ? 'ha' : x.h.mode), fmt: fxMap(HOST_KIND) },
+    { k: 'devkind', label: () => L('Soort apparaat'), get: (x) => hostKind(x.h), fmt: (v) => kindLabel(v), order: (a, b) => byOrder(Object.keys(KIND_INFO))(a, b) },
+    { k: 'kind', label: () => L('Bewaking'), get: (x) => (isHa(x.h) ? 'ha' : x.h.mode), fmt: fxMap(HOST_KIND) },
     { k: 'group', label: () => L('Groep (bovenliggend)'), get: (x) => (x.h.parent_id ? (findHost(x.h.parent_id) || {}).name : '-'), fmt: (v) => (v === '-' ? L('geen') : v) },
     { k: 'status', label: () => 'Status', get: (x) => x.c && (!+x.c.enabled ? 'off' : x.c.maintenance ? 'maint' : String(x.c.status)), fmt: fxMap(DASH_STATUS), order: byOrder(STATUS_ORDER) },
     { k: 'type', label: () => L('Soort check'), get: (x) => x.c && x.c.type },
@@ -477,6 +478,7 @@ FX.alerts = {
   time: (a) => a.created_at,
   fields: [
     { k: 'server', label: () => 'Server', get: (a) => alertCols(a).host },
+    { k: 'devkind', label: () => L('Soort apparaat'), get: (a) => kindByName(alertCols(a).host), fmt: (v) => kindLabel(v), order: (a, b) => byOrder(Object.keys(KIND_INFO))(a, b) },
     { k: 'check', label: () => 'Check', get: (a) => alertCols(a).check },
     { k: 'status', label: () => 'Status', get: (a) => alertCat(a), fmt: (k) => (k === 'other' ? L('Overig') : catLabel(k)), order: byOrder(['crit', 'warn', 'unk', 'ok', 'info', 'sec', 'other']) },
     { k: 'kind', label: () => L('Soort'), get: (a) => a.kind, fmt: fxMap(ALERT_KINDS) },
@@ -495,6 +497,7 @@ FX.ids = {
   time: (i) => i.created_at,
   fields: [
     { k: 'server', label: () => 'Server', get: (i) => i.host_name },
+    { k: 'devkind', label: () => L('Soort apparaat'), get: (i) => kindByName(i.host_name), fmt: (v) => kindLabel(v), order: (a, b) => byOrder(Object.keys(KIND_INFO))(a, b) },
     { k: 'cat', label: () => L('Categorie'), get: (i) => idsCatOf(i) || 'other', fmt: (k) => ((IDS_CATS.find((c) => c[0] === k) || [0, () => L('Overig')])[1]()) },
     { k: 'type', label: () => L('Soort incident'), get: (i) => i.type },
     { k: 'sev', label: () => L('Ernst'), get: (i) => String(i.severity), fmt: fxMap({ 2: 'Critical', 1: 'Warning' }), order: byOrder(['2', '1']) },
@@ -746,7 +749,7 @@ function init() {
     e.target.disabled = false;
   };
   $('#filter').addEventListener('input', render);
-  const setDashFilter = (k) => { dashFilter = k; try { localStorage.setItem('rzmon-dash-filter', k); } catch (ex) {} render(); };
+  const setDashFilter = (k) => { dashFilter = k; savePref('dash_filter', k); render(); };
   $('#dash-chips').addEventListener('click', (e) => {
     const b = e.target.closest('[data-dfilter]');
     if (b) { statusFilter = null; setDashFilter(b.dataset.dfilter); }
@@ -1180,26 +1183,47 @@ function dur(dt) {
 }
 
 // Filterchips en sortering van het dashboard (per apparaat onthouden)
-let dashFilter = (() => { try { return localStorage.getItem('rzmon-dash-filter') || 'all'; } catch (e) { return 'all'; } })();
+// Keuze bovenaan (Alle, Problemen, of een soort apparaat): per gebruiker (1.75.0), daarvoor per browser
+let dashFilter = PREFS.dash_filter || (() => { try { return localStorage.getItem('rzmon-dash-filter') || 'all'; } catch (e) { return 'all'; } })();
 let dashSort = (() => { try { return localStorage.getItem('rzmon-dash-sort') || 'status'; } catch (e) { return 'status'; } })();
 let attnOpen = false;   // "Nu aandacht nodig": alles tonen (anders 6, op de telefoon 3)
 const isHa = (h) => h.checks.some((c) => c.type === 'ha') || h.metrics.includes('service:homeassistant');
-/** Icoon voor het soort server */
-const hostIcon = (h) => (isHa(h) ? '🏠' : h.mode === 'agent' ? '🖥️' : h.mode === 'local' ? '📡' : '🌐');
+// Soort apparaat (1.75.0; zie HostKind.php): zelf gekozen, anders herkend (agent, SNMP), anders op het type
+const KIND_INFO = {
+  server: ['🖥️', () => L('Server')], router: ['🌐', () => L('Router')], switch: ['🔀', () => L('Switch')], ap: ['📶', () => L('Access point')],
+  firewall: ['🧱', () => L('Firewall')], nas: ['🗄️', () => 'NAS'], ups: ['🔋', () => 'UPS'], smarthome: ['🏠', () => L('Smart home')],
+  printer: ['🖨️', () => L('Printer')], other: ['📦', () => L('Overig')],
+};
+const KIND_GROUP = { server: 'server', router: 'network', switch: 'network', ap: 'network', firewall: 'network', nas: 'storage', ups: 'power',
+  smarthome: 'smarthome', printer: 'other', other: 'other' };
+const GROUP_INFO = {
+  server: ['🖥️', () => L('Servers')], network: ['🌐', () => L('Netwerk')], storage: ['🗄️', () => L('Opslag')], power: ['🔋', () => L('Stroom')],
+  smarthome: ['🏠', () => L('Smart home')], other: ['📦', () => L('Overig')],
+};
+const hostKind = (h) => [h.kind, h.kind_auto].find((k) => k && KIND_INFO[k])
+  || (isHa(h) ? 'smarthome' : ['agent', 'local'].includes(h.mode) ? 'server' : 'other');
+const hostGroup = (h) => KIND_GROUP[hostKind(h)];
+const kindLabel = (k) => `${KIND_INFO[k][0]} ${KIND_INFO[k][1]()}`;
+/** Soort apparaat van een server op naam (meldingen en IDS kennen alleen de naam) */
+const kindByName = (name) => { const h = state && state.hosts.find((x) => x.name === name); return h ? hostKind(h) : null; };
+/** Icoon voor de soort apparaat */
+const hostIcon = (h) => KIND_INFO[hostKind(h)][0];
 const DASH_FILTERS = [
   ['all', () => L('Alle'), () => true],
   ['problems', () => L('Problemen'), (h) => +h.enabled && h.checks.some(isProblem)],
   ['maint', () => L('Onderhoud'), (h) => !!h.maintenance || h.checks.some((c) => c.maintenance)],
-  ['agent', () => 'Agent', (h) => h.mode === 'agent' && !isHa(h)],
-  ['ha', () => 'Home Assistant', isHa],
-  ['remote', () => 'Remote', (h) => h.mode === 'remote'],
-  ['local', () => L('Lokaal'), (h) => h.mode === 'local'],
+  ...Object.keys(GROUP_INFO).map((g) => ['g:' + g, () => `${GROUP_INFO[g][0]} ${GROUP_INFO[g][1]()}`, (h) => hostGroup(h) === g]),
 ];
+if (!DASH_FILTERS.some((f) => f[0] === dashFilter)) dashFilter = 'all';   // bv. 'agent' van vóór 1.75.0
+/** Gekozen soort op het dashboard (of null bij Alle, Problemen, Onderhoud) */
+const dashGroup = () => (dashFilter.startsWith('g:') ? dashFilter.slice(2) : null);
 
 /** Kerncijfers, tellers en "Nu aandacht nodig" bovenaan het dashboard. Toestand en score komen van de server (Health.php). */
 function renderHealth() {
-  const hl = state.health;
+  const g = dashGroup();
+  const hl = (g && state.health_groups && state.health_groups[g]) || state.health;
   if (!hl) return;
+  const inGroup = (id) => !g || (findHost(id) && hostGroup(findHost(id)) === g);
   // Tellers (klikbaar: alleen die checks tonen)
   const WORD = { 0: 'OK', 1: 'Warning', 2: 'Critical', 3: L('Onbekend'), 4: L('Onderhoud') };
   $('#health-counts').innerHTML = HEALTH_COUNTS.map(([st, key]) => {
@@ -1215,7 +1239,7 @@ function renderHealth() {
   const why = { agent: L('agent stil'), parent: L('achter uitgevallen server') };
   const downs = hl.down.map((d) => hostLink(d.id, d.name) + (why[d.reason] ? ` <span class="muted">(${why[d.reason]})</span>` : '') + (d.acknowledged ? ' ✔' : '')).join(', ');
   const nProb = hl.counts.critical + hl.counts.warning + hl.counts.unknown;
-  const u = Object.values(stats.uptime).map((x) => x.h24).filter((v) => v !== null && v !== undefined);
+  const u = Object.entries(stats.uptime).filter(([id]) => inGroup(id)).map(([, x]) => x.h24).filter((v) => v !== null && v !== undefined);
   const avail = u.length ? u.reduce((a, b) => a + b, 0) / u.length : null;
   const o = hl.oldest_problem;
   const extra = [hl.quiet_until ? `🌙 ${L('stil tot {t}', { t: esc(fmtUntil(hl.quiet_until)) })}` : '',
@@ -1228,7 +1252,7 @@ function renderHealth() {
         <div class="kpi-sub">${nProb ? [hl.counts.critical ? `${hl.counts.critical} critical` : '', hl.counts.warning ? `${hl.counts.warning} warning` : '', hl.counts.unknown ? L('{n} onbekend', { n: hl.counts.unknown }) : ''].filter(Boolean).join(' · ') : L('Geen problemen')}</div>
         ${extra ? `<div class="kpi-sub">${extra}</div>` : ''}</div></div>
     <div class="kpi ${hl.down.length ? 'bad' : ''}" title="${L('Servers die reageren (ping, of de agent rapporteert)')}">
-      <div class="kpi-lbl">${L('Servers bereikbaar')}</div><div class="kpi-val">${hl.hosts_up}<small>/${hl.hosts_total}</small></div>
+      <div class="kpi-lbl">${!g || g === 'server' ? L('Servers bereikbaar') : L('Apparaten bereikbaar')}</div><div class="kpi-val">${hl.hosts_up}<small>/${hl.hosts_total}</small></div>
       <div class="kpi-sub">${downs ? `${L('onbereikbaar')}: ${downs}` : L('allemaal bereikbaar')}</div></div>
     <div class="kpi" title="${L('Actieve checks met status OK (checks in onderhoud tellen niet mee)')}">
       <div class="kpi-lbl">${L('Checks OK')}</div><div class="kpi-val">${hl.checks_ok}<small>/${hl.checks_total}</small></div>
@@ -1238,13 +1262,15 @@ function renderHealth() {
       <div class="kpi-sub">${o ? `${L('langst')}: ${hostLink(o.host_id, o.host + ' – ' + o.check)} (${dur(o.since)})` : L('niets open')}</div></div>
     <div class="kpi" title="${L('Gemiddelde bereikbaarheid van alle servers over de afgelopen 24 uur; het lijntje: het deel van de checks dat OK was')}">
       <div class="kpi-lbl">${L('Beschikbaar 24 u')}</div><div class="kpi-val">${avail === null ? '–' : pct(avail).replace('%', '<small>%</small>')}</div>
-      ${healthSpark()}</div>`;
+      ${healthSpark(inGroup)}</div>`;
   renderAttention();
 }
 
 /** Lijntje over 24 uur: per half uur het deel van alle checks dat OK was (uit de minigrafieken) */
-function healthSpark() {
-  const rows = Object.values(stats.sparks || {});
+function healthSpark(inGroup = () => true) {
+  const hostOf = {};
+  state.hosts.forEach((h) => h.checks.forEach((c) => { hostOf[c.id] = h.id; }));
+  const rows = Object.entries(stats.sparks || {}).filter(([cid]) => inGroup(hostOf[cid])).map(([, r]) => r);
   if (!rows.length) return '';
   const pts = [];
   for (let i = 0; i < 48; i++) {
@@ -1266,7 +1292,8 @@ function healthSpark() {
 /** Alle open problemen in één lijst, critical eerst; bevestigde staan er niet in (wel geteld) */
 function renderAttention() {
   const all = [];
-  state.hosts.forEach((h) => +h.enabled && h.checks.forEach((c) => isProblem(c) && all.push([h, c])));
+  const g = dashGroup();
+  state.hosts.forEach((h) => +h.enabled && (!g || hostGroup(h) === g) && h.checks.forEach((c) => isProblem(c) && all.push([h, c])));
   const open = all.filter(([, c]) => !c.acked_at)
     .sort(([, a], [, b]) => STATUS_RANK[+b.status] - STATUS_RANK[+a.status] || String(a.problem_since || '').localeCompare(String(b.problem_since || '')));
   const acked = all.length - open.length;
@@ -1322,7 +1349,8 @@ function render() {
   // Filterchips: alleen soorten die er zijn, met hun aantal
   const chips = DASH_FILTERS.map(([k, label, fn]) => [k, label(), state.hosts.filter(fn).length]).filter(([k, , n]) => k === 'all' || k === 'problems' || n);
   if (!chips.some(([k]) => k === dashFilter)) dashFilter = 'all';
-  $('#dash-chips').innerHTML = chips.map(([k, l, n]) => `<button type="button" class="dchip ${dashFilter === k ? 'on' : ''}" data-dfilter="${k}">${esc(l)} <b>${n}</b></button>`).join('');
+  const probIn = (k) => k.startsWith('g:') && state.hosts.some((h) => +h.enabled && hostGroup(h) === k.slice(2) && h.checks.some((c) => isProblem(c) && !c.acked_at));
+  $('#dash-chips').innerHTML = chips.map(([k, l, n]) => `<button type="button" class="dchip ${dashFilter === k ? 'on' : ''}" data-dfilter="${k}">${esc(l)} <b>${n}</b>${probIn(k) ? '<i class="dchip-dot"></i>' : ''}</button>`).join('');
   $('#dash-sort').value = dashSort;
 
   const f = $('#filter').value.trim().toLowerCase();
@@ -1361,16 +1389,27 @@ function render() {
   // Servers met problemen (of onderhoud, of nog zonder checks) als kaart of rij; servers waar alles OK is compact eronder
   const { layout, density } = viewPrefs();
   const okHost = (h) => +h.enabled && hostStatus(h) === 0 && !h.maintenance && !h.autoOpen;
-  const bad = hosts.filter((h) => !okHost(h)), good = hosts.filter(okHost);
   const head = (title, n) => `<div class="sec-h hosts-h"><h2>${title}</h2><span>${n}</span></div>`;
   const lines = layout === 'l1nes';
   const list = (arr) => (lines ? (density === 'large' ? lineHeader() : '') + arr.map((h) => hostLine(h, density === 'large')).join('')
     : arr.map((h) => hostCard(h, density === 'small')).join(''));
   const cls = `hosts layout-${layout} density-${density}`;
+  const block = (arr, grouped) => {
+    const bad = arr.filter((h) => !okHost(h)), good = arr.filter(okHost);
+    return (bad.length ? (good.length ? head(grouped ? L('Met problemen') : L('Servers met problemen'), bad.length) : '') + `<div class="${cls}">${list(bad)}</div>` : '')
+      + (good.length ? head('✔ ' + L('Alles in orde'), good.length === 1 ? L('1 apparaat') : L('{n} apparaten', { n: good.length }))
+        + (lines ? `<div class="${cls}">${list(good)}</div>` : `<div class="ok-list density-${density}">${good.map(okRow).join('')}</div>`) : '');
+  };
+  // Bij Alle (of Problemen, Onderhoud): een blok per soort apparaat; met één soort gekozen alleen die
+  const groups = Object.keys(GROUP_INFO).filter((g) => hosts.some((h) => hostGroup(h) === g));
   el.className = 'dash-hosts';
-  el.innerHTML = (bad.length ? (good.length ? head(L('Servers met problemen'), bad.length) : '') + `<div class="${cls}">${list(bad)}</div>` : '')
-    + (good.length ? head('✔ ' + L('Alles in orde'), good.length === 1 ? L('1 server') : L('{n} servers', { n: good.length }))
-      + (lines ? `<div class="${cls}">${list(good)}</div>` : `<div class="ok-list density-${density}">${good.map(okRow).join('')}</div>`) : '');
+  el.innerHTML = dashGroup() || groups.length < 2 ? block(hosts, !!dashGroup() || groups[0] !== 'server') : groups.map((g) => {
+    const arr = hosts.filter((h) => hostGroup(h) === g);
+    const nBad = arr.filter((h) => !okHost(h)).length;
+    return `<section class="grp-block"><div class="grp-h"><h2>${GROUP_INFO[g][0]} ${esc(GROUP_INFO[g][1]())}</h2>
+      <span>${arr.length === 1 ? L('1 apparaat') : L('{n} apparaten', { n: arr.length })}${nBad ? ` · <b class="bad">${L('{n} met problemen', { n: nBad })}</b>` : ''}</span></div>
+      ${block(arr, true)}</section>`;
+  }).join('');
   $('#toggle-all').textContent = state.hosts.length && state.hosts.every((h) => openHosts.has(+h.id)) ? '⊟ ' + L('Alles sluiten') : '⊞ ' + L('Alles openen');
 }
 
@@ -2124,6 +2163,12 @@ function modalError(msg) {
 }
 
 // ---------------------------------------------------------------- Host form
+/** Eerste optie bij Soort apparaat: wat RzMon zelf herkent */
+function kindAutoText(h, k = null) {
+  const auto = k || (h && h.id ? [h.kind_auto].find((x) => x && KIND_INFO[x]) || (isHa(h) ? 'smarthome' : ['agent', 'local'].includes(h.mode) ? 'server' : null) : null);
+  return auto ? L('Vanzelf: {kind}', { kind: kindLabel(auto) }) : L('Vanzelf (nog niet herkend: overig)');
+}
+
 function hostForm(h) {
   const isNew = !h;
   h = h || { name: '', address: '', mode: 'remote', enabled: 1 };
@@ -2135,6 +2180,14 @@ function hostForm(h) {
       <label>${L('Type')}
         <select name="mode">${Object.entries(MODES).map(([k, v]) => `<option value="${k}" ${h.mode === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
         <span class="hint">${L('Lokaal = disk/services van deze monitor-server. Agent = remote server die disk/services rapporteert via rzmon-agent.sh. Remote = alleen ping/poort/http.')}</span>
+      </label>
+      <label>${L('Soort apparaat')}
+        <select name="kind">
+          <option value="" id="kind-auto-opt">${kindAutoText(h)}</option>
+          ${Object.keys(KIND_INFO).map((k) => `<option value="${k}" ${h.kind === k ? 'selected' : ''}>${esc(kindLabel(k))}</option>`).join('')}
+        </select>
+        <input type="hidden" name="kind_auto" value="">
+        <span class="hint">${L('Voor het dashboard (Servers, Netwerk, Opslag …). Vanzelf = herkend via de agent of SNMP.')}</span>
       </label>
       <label>${L('Afhankelijk van')} <span class="hint">${L('(optioneel)')}</span>
         <select name="parent_id">
@@ -2242,7 +2295,11 @@ function snmpHostInit(h) {
       const r = await api('snmp_test', { id: h && h.id, address: d.address, snmp: snmpData(d) });
       const s = r.sys;
       out.className = 'small good';
-      out.innerHTML = `✔ ${esc(s.name || L('(geen naam)'))}${s.vendor ? ` · ${esc(s.vendor)}` : ''}${s.uptime !== null ? ` · ${L('aan sinds {t}', { t: esc(fmtDur(s.uptime)) })}` : ''}<br><span class="muted">${esc(s.descr)}</span>`;
+      if (s.kind && KIND_INFO[s.kind]) {
+        $('#kind-auto-opt').textContent = kindAutoText(null, s.kind);
+        $('[name=kind_auto]', form).value = s.kind;
+      }
+      out.innerHTML = `✔ ${esc(s.name || L('(geen naam)'))}${s.vendor ? ` · ${esc(s.vendor)}` : ''}${s.kind && KIND_INFO[s.kind] ? ` · ${esc(kindLabel(s.kind))}` : ''}${s.uptime !== null ? ` · ${L('aan sinds {t}', { t: esc(fmtDur(s.uptime)) })}` : ''}<br><span class="muted">${esc(s.descr)}</span>`;
     } catch (ex) {
       out.className = 'small bad';
       out.textContent = '✘ ' + ex.message;

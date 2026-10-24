@@ -4,7 +4,7 @@ declare(strict_types=1);
 final class Monitor
 {
     private const CHECK_SELECT = 'SELECT c.*, h.name AS host_name, h.address, h.mode, h.agent_seen, h.agent_version, h.agent_tick, h.id AS hid, h.enabled AS host_enabled,
-                h.parent_id, h.snmp AS host_snmp, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
+                h.parent_id, h.snmp AS host_snmp, h.kind_auto AS host_kind_auto, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                 FROM checks c JOIN hosts h ON h.id = c.host_id';
 
     /** Voert alle checks uit die aan de beurt zijn (of alles bij $force). */
@@ -92,6 +92,7 @@ final class Monitor
             'agent_version' => $row['agent_version'] ?? null,
             'agent_tick' => $row['agent_tick'] ?? null,
             'snmp' => $row['host_snmp'] ?? null,
+            'kind_auto' => $row['host_kind_auto'] ?? null,
         ];
         $res = Checks::run($row, $host);
         if ($row['type'] === 'disk') {

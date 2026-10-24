@@ -208,6 +208,8 @@ final class Installer
         ['hosts', 'agent_conn', 'VARCHAR(8) NULL'],
         ['hosts', 'agent_fb_at', 'DATETIME NULL'],
         ['hosts', 'agent_https', 'VARCHAR(3) NULL'],
+        ['hosts', 'kind', 'VARCHAR(16) NULL'],        // soort apparaat, zelf gekozen (1.75.0); NULL = herkend
+        ['hosts', 'kind_auto', 'VARCHAR(16) NULL'],   // soort apparaat, herkend via de agent of SNMP
     ];
 
     private static function migrate(PDO $pdo): void

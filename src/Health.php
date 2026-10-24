@@ -19,9 +19,12 @@ final class Health
     private const PENALTY = [STATUS_OK => 0, STATUS_WARN => 10, STATUS_CRIT => 25, STATUS_UNKNOWN => 5];
 
     /** @param array<int, array>|null $uptime Stats::uptime() voor de beschikbaarheid over 24 uur (optioneel) */
-    public static function current(?array $uptime = null): array
+    public static function current(?array $uptime = null, ?string $group = null): array
     {
-        $hosts = q('SELECT id, name, mode, agent_seen, agent_tick FROM hosts WHERE enabled = 1 ORDER BY name')->fetchAll();
+        $hosts = q('SELECT id, name, mode, agent_seen, agent_tick, kind, kind_auto, ' . HostKind::IS_HA_SQL . ' FROM hosts WHERE enabled = 1 ORDER BY name')->fetchAll();
+        if ($group !== null) {
+            $hosts = array_values(array_filter($hosts, fn($h) => HostKind::group($h) === $group));
+        }
         // Een info-check telt nooit als storing: voor de gezondheid is hij OK
         $checks = q('SELECT c.id, c.host_id, c.name, c.type, IF(c.info_only = 1, 0, c.status) AS status, c.reverse_ok, c.acked_at, c.problem_since, c.flapping_since, c.suppressed_by,
                             c.maintenance_until, c.maintenance_reason, c.maintenance_auto,
@@ -31,7 +34,24 @@ final class Health
             $c['in_maint'] = Monitor::maintenanceFor($c) !== null;
         }
         unset($c);
+        if ($group !== null) {
+            $ids = array_flip(array_map(fn($h) => (int) $h['id'], $hosts));
+            $checks = array_values(array_filter($checks, fn($c) => isset($ids[(int) $c['host_id']])));
+        }
         return self::compute($hosts, $checks, $uptime);
+    }
+
+    /** Gezondheid per soort apparaat (1.75.0): alleen groepen waar servers in zitten */
+    public static function groups(): array
+    {
+        $out = [];
+        $present = array_unique(array_map(fn($h) => HostKind::group($h), q('SELECT mode, kind, kind_auto, ' . HostKind::IS_HA_SQL . ' FROM hosts WHERE enabled = 1')->fetchAll()));
+        foreach (HostKind::GROUPS as $g) {
+            if (in_array($g, $present, true)) {
+                $out[$g] = self::current(null, $g);
+            }
+        }
+        return $out;
     }
 
     /**

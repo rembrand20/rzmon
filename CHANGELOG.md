@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.75.0 – 2026-10-24
+### Nieuw
+- **Soort apparaat**: elke server is nu een 🖥️ server, 🌐 router, 🔀 switch, 📶 access point, 🧱 firewall, 🗄️ NAS, 🔋 UPS, 🏠 smart home, 🖨️ printer of 📦 overig.
+  - **Vanzelf herkend**: agent = server, HA-add-on = smart home; via SNMP aan het apparaat zelf (UniFi, Synology, QNAP, TrueNAS, UPS-MIB, APC, printers, MikroTik, Cisco, Netgear, TP-Link, pfSense, OPNsense, Fortinet, Linux, Proxmox …). Zelf te kiezen bij *✎ Bewerken → Soort apparaat*.
+- **Dashboard per groep**: de chips bovenaan zijn nu *Alle · Problemen · Onderhoud · 🖥️ Servers · 🌐 Netwerk · 🗄️ Opslag · 🔋 Stroom · 🏠 Smart home · 📦 Overig*, met een rood bolletje bij open problemen. De keuze wordt per gebruiker onthouden.
+  - Bij *Alle* staat er een **blok per groep** (met problemen en alles in orde).
+  - Met één groep gekozen tellen ook de **tellers, tegels en *Nu aandacht nodig*** alleen die groep.
+  - Op de kaarten staat het icoon van de soort apparaat.
+- *⚲ Filters*: nieuw onderdeel **Soort apparaat** (Dashboard, Meldingen, IDS); het oude *Soort server* heet nu **Bewaking** (agent, remote, Home Assistant, lokaal). De chips *Agent / Home Assistant / Remote / Lokaal* zijn daarin opgegaan.
+
 ## 1.74.0 – 2026-10-24
 ### Nieuw
 - **UniFi access points via SNMP** (UBNT-UniFi-MIB): bij *📡 SNMP-checks* staat bij een UniFi-AP nu de groep **UniFi** met:

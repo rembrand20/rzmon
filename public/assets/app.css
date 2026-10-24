@@ -1439,3 +1439,13 @@ details.adv[open] { padding-bottom: .6rem; }
 }
 .conn-url { font-size: .74rem; overflow-wrap: anywhere; }
 .am-url { flex-wrap: wrap; }
+
+/* Blokken per soort apparaat op het dashboard (1.75.0) */
+.grp-block { margin-top: 1.1rem; }
+.grp-block + .grp-block { border-top: 1px solid var(--border); padding-top: .9rem; }
+.grp-h { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; margin: .2rem 0 .3rem; }
+.grp-h h2 { font-size: 1.1rem; margin: 0; }
+.grp-h span { color: var(--muted); font-size: .85rem; }
+.grp-block .hosts-h h2 { font-size: .9rem; }
+.dchip { position: relative; }
+.dchip-dot { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--crit); }

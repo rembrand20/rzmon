@@ -649,6 +649,8 @@ if ($action === 'agent') {
     if ($u = agent_url_report($host, $in, $agentVersion, $encrypted)) {
         $resp['url_set'] = $u;
     }
+    // Soort apparaat (1.75.0): de HA-add-on is smart home, een gewone agent een server
+    HostKind::setAuto((int) $host['id'], !empty($in['ha']) || ($in['update']['via'] ?? '') === 'ha' ? 'smarthome' : 'server');
     // Agent-checks van deze server meteen beoordelen (niet wachten op de volgende cron-minuut)
     try {
         Monitor::runAgentHost((int) $host['id']);
@@ -896,7 +898,7 @@ switch ($action) {
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen,
                     agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at,
-                    enabled, maintenance_until, maintenance_reason, snmp FROM hosts ORDER BY name')->fetchAll();
+                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
         $global = Monitor::globalMaintenance();
@@ -931,7 +933,7 @@ switch ($action) {
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'badges' => tab_badges($user, $hosts, (string) ($_GET['seen'] ?? '')), 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
-             'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(),
+             'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(), 'health_groups' => Health::groups(),
              'agent_tick' => agent_tick(null),
              'notify_fails' => max(1, (int) setting('notify_fails', '1')),
              // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
@@ -1100,6 +1102,14 @@ switch ($action) {
         if ($snmp !== false) {
             q('UPDATE hosts SET snmp = ? WHERE id = ?', [$snmp ? json_encode($snmp, JSON_UNESCAPED_UNICODE) : null, $id]);
         }
+        // Soort apparaat: leeg = vanzelf (herkend), anders zelf gekozen
+        if (array_key_exists('kind', $in)) {
+            $kind = (string) $in['kind'];
+            q('UPDATE hosts SET kind = ? WHERE id = ?', [isset(HostKind::KINDS[$kind]) ? $kind : null, $id]);
+        }
+        if (array_key_exists('kind_auto', $in) && isset(HostKind::KINDS[(string) $in['kind_auto']])) {
+            HostKind::setAuto($id, (string) $in['kind_auto']);   // herkend bij 🔍 Test SNMP in het formulier
+        }
         // IDS: extra bestanden bewaken op deze server
         if (array_key_exists('ids_fim', $in)) {
             $fimOwn = Ids::cleanFim($in['ids_fim']);
@@ -1120,7 +1130,11 @@ switch ($action) {
             out(['error' => t('Vul eerst het adres van de server in')], 422);
         }
         try {
-            out(['ok' => true, 'sys' => SnmpMonitor::test($cfg, $addr)]);
+            $sys = SnmpMonitor::test($cfg, $addr);
+            if (!empty($in['id'])) {
+                HostKind::setAuto((int) $in['id'], $sys['kind']);
+            }
+            out(['ok' => true, 'sys' => $sys]);
         } catch (Throwable $e) {
             out(['error' => $e->getMessage()], 422);
         }
@@ -1133,7 +1147,9 @@ switch ($action) {
             out(['error' => t('SNMP staat uit voor deze server (✎ Server bewerken → 📡 SNMP)')], 422);
         }
         try {
-            out(SnmpMonitor::discover($cfg, (string) $h['address']));
+            $d = SnmpMonitor::discover($cfg, (string) $h['address']);
+            HostKind::setAuto((int) ($_GET['id'] ?? 0), $d['sys']['kind']);
+            out($d);
         } catch (Throwable $e) {
             out(['error' => $e->getMessage()], 422);
         }
@@ -2452,11 +2468,15 @@ switch ($action) {
         }
         $in = input();
         $key = (string) ($in['key'] ?? '');
-        if (!in_array($key, ['open_mode', 'fx', 'fxviews'], true)) {
+        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter'], true)) {
             out(['error' => t('Onbekende voorkeur')], 422);
         }
         $prefs = json_decode((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn(), true) ?: [];
-        $prefs[$key] = $key === 'open_mode' ? ($in['value'] === 'smart' ? 'smart' : 'closed') : (array) ($in['value'] ?? []);
+        $prefs[$key] = match ($key) {
+            'open_mode' => $in['value'] === 'smart' ? 'smart' : 'closed',
+            'dash_filter' => preg_match('/^[a-z:]{1,20}$/', (string) $in['value']) ? (string) $in['value'] : 'all',   // keuze bovenaan het dashboard (1.75.0)
+            default => (array) ($in['value'] ?? []),
+        };
         $json = json_encode($prefs, JSON_UNESCAPED_UNICODE);
         if (strlen($json) > 200000) {
             out(['error' => t('Te veel opgeslagen filters')], 422);

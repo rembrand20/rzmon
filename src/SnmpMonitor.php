@@ -12,6 +12,8 @@ declare(strict_types=1);
  */
 final class SnmpMonitor
 {
+    /** @var array<int, true> servers waarvan de soort in deze run al is uitgezocht */
+    private static array $kindDone = [];
     public const MASK = '••••••••';
     public const SECRETS = ['community', 'auth_pass', 'priv_pass'];
     public const AUTH = ['SHA', 'SHA256', 'SHA512', 'MD5'];
@@ -183,7 +185,7 @@ final class SnmpMonitor
         return new SnmpConn($s, $peer);
     }
 
-    /** Systeeminformatie (voor 🔍 Test SNMP): naam, beschrijving, uptime, fabrikant */
+    /** Systeeminformatie (voor 🔍 Test SNMP): naam, beschrijving, uptime, fabrikant en de herkende soort apparaat */
     public static function test(array $cfg, string $address): array
     {
         $c = self::session($cfg, $address);
@@ -191,7 +193,50 @@ final class SnmpMonitor
         if (!$sys) {
             throw new RuntimeException(t('Het apparaat antwoordt, maar geeft geen systeeminformatie (SNMPv2-MIB)'));
         }
-        return self::sysInfo($sys);
+        $info = self::sysInfo($sys);
+        return $info + ['kind' => self::kindOf($c, $info)];
+    }
+
+    /**
+     * Soort apparaat (1.75.0) uit wat het apparaat via SNMP vertelt: eerst de eigen MIB's (UniFi, Synology, UPS,
+     * printer), dan het enterprise-nummer en de beschrijving. Onbekend = "other".
+     */
+    public static function kindOf(SnmpConn $c, array $sys): string
+    {
+        $d = strtolower($sys['descr'] . ' ' . $sys['name']);
+        $ent = preg_match('/^\.?1\.3\.6\.1\.4\.1\.(\d+)/', (string) $sys['object'], $m) ? (int) $m[1] : 0;
+        $has = static fn(string ...$w) => (bool) array_filter($w, fn($x) => str_contains($d, $x));
+        if ($c->walk(self::UNIFI_VAP . '.6') || $c->walk(self::UNIFI_STATIONS)) {
+            return 'ap';
+        }
+        if ($ent === 6574 || $ent === 24681 || $c->one(self::SYNO . '.1.1.0') !== null || $has('synology', 'qnap', 'truenas', 'freenas', 'unraid')) {
+            return 'nas';
+        }
+        if (in_array($ent, [318, 534, 3808, 935], true) || $c->one(self::UPS . '.1.1.0') !== null) {
+            return 'ups';
+        }
+        if (in_array($ent, [2435, 367, 1602, 18334, 1347, 253, 1248, 641], true) || $c->walk(self::PRT . '.6.1')) {
+            return 'printer';
+        }
+        if (in_array($ent, [12356, 25461, 2620, 21067], true) || $has('pfsense', 'opnsense', 'fortigate', 'sophos', 'firewall')) {
+            return 'firewall';
+        }
+        if ($has('unifi ap', 'uap-', 'u6-', 'u7-', 'eap', 'access point', 'cap ac', 'wap ')) {
+            return 'ap';
+        }
+        if ($has('usw', 'switch', 'crs3', 'crs1', 'css', 'jetstream', 'procurve', 'catalyst', 'gs1', 'gs7', 'xgs', 'edgeswitch')) {
+            return 'switch';
+        }
+        if ($ent === 14988 || $has('router', 'routeros', 'edgeos', 'edgerouter', 'udm', 'dream machine', 'usg', 'uxg', 'gateway', 'fritz', 'vyos', 'openwrt')) {
+            return 'router';
+        }
+        if (in_array($ent, [9, 4526, 11, 2636, 171, 2011, 30065, 4413, 1588, 47196, 890, 11863, 41112, 10002], true)) {
+            return 'switch';
+        }
+        if (in_array($ent, [8072, 311, 6876, 674, 2021], true) || $has('linux', 'windows', 'freebsd', 'pve', 'proxmox', 'esxi', 'ubuntu', 'debian')) {
+            return 'server';
+        }
+        return 'other';
     }
 
     private static function sysInfo(array $sys): array
@@ -220,6 +265,15 @@ final class SnmpMonitor
         }
         try {
             $c = self::session($cfg, (string) $host['address']);
+            // Soort apparaat nog niet herkend (bv. van vóór 1.75.0): één keer per run uitzoeken
+            if (empty($host['kind_auto']) && !isset(self::$kindDone[$host['id']])) {
+                self::$kindDone[$host['id']] = true;
+                try {
+                    HostKind::setAuto((int) $host['id'], self::kindOf($c, self::sysInfo($c->get(array_values(self::SYS)))));
+                } catch (Throwable) {
+                    // niet erg: volgende keer opnieuw
+                }
+            }
             $m = (string) $check['metric'];
             return match ($m) {
                 'uptime' => self::uptime($c, $check),
@@ -935,6 +989,7 @@ final class SnmpMonitor
     {
         $c = self::session($cfg, $address);
         $sys = self::sysInfo($c->get(array_values(self::SYS)));
+        $sys['kind'] = self::kindOf($c, $sys);
         $items = [];
         $add = static function (string $group, string $metric, string $target, string $name, string $info, bool $checked) use (&$items): void {
             [$group, $name] = [t($group), t($name)];   // vaste namen vertalen; namen van het apparaat blijven zoals ze zijn

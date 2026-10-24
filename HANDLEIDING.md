@@ -105,16 +105,24 @@ Het dashboard (vanaf 1.66.0), van boven naar beneden:
 
   Een tegel krijgt alleen een rode rand als er iets mis is. Klik op een servernaam en RzMon springt naar die server en klapt hem open.
 - **⚠️ Nu aandacht nodig**: alle open problemen in één lijst, critical eerst, daarna warning en onbekend, de oudste bovenaan. Per regel: de server, de check, het bericht, hoe lang al, en **✔ Bevestig** en **🔧** (onderhoud). Je ziet er 6 (op de telefoon 3); **Alle … tonen** klapt de rest uit. Bevestigde problemen staan er niet in, wel hoeveel het er zijn. Geen open problemen: *✔ Alles in orde*.
-- **Werkbalk**: zoeken (zoek je op een checknaam, dan klapt de server vanzelf open), **filterchips** met aantallen (*Alle · Problemen · Onderhoud · Agent · Home Assistant · Remote · Lokaal*; alleen soorten die je hebt), **sorteren** (*Ergste eerst* of *Op naam*), het menu **⋯** met *🔧 Onderhoud* (alle meldingen pauzeren), *↻ Alles nu checken* en *⊞ Alles openen*, en **＋ Server**. Filter en sortering worden per apparaat onthouden.
-- **Servers met problemen** (of in onderhoud, of nog zonder checks) als kaart: een icoon voor het soort server (🖥️ agent, 🌐 remote, 🏠 Home Assistant, 📡 de RzMon-server zelf), de status ("1 kritiek · 1 waarschuwing"), de checks met een probleem en **mini-grafiekjes van CPU, RAM en de volste disk over 24 uur** (zonder die checks: de eerste check met een meetwaarde, bv. ping).
+- **Werkbalk**: zoeken (zoek je op een checknaam, dan klapt de server vanzelf open), **filterchips** met aantallen (*Alle · Problemen · Onderhoud · 🖥️ Servers · 🌐 Netwerk · 🗄️ Opslag · 🔋 Stroom · 🏠 Smart home · 📦 Overig*; alleen soorten die je hebt, met een rood bolletje als er een open probleem is), **sorteren** (*Ergste eerst* of *Op naam*), het menu **⋯** met *🔧 Onderhoud* (alle meldingen pauzeren), *↻ Alles nu checken* en *⊞ Alles openen*, en **＋ Server**. De keuze wordt per gebruiker onthouden (vanaf 1.75.0), de sortering per apparaat.
+- **Servers met problemen** (of in onderhoud, of nog zonder checks) als kaart: een icoon voor de soort apparaat (zie hieronder), de status ("1 kritiek · 1 waarschuwing"), de checks met een probleem en **mini-grafiekjes van CPU, RAM en de volste disk over 24 uur** (zonder die checks: de eerste check met een meetwaarde, bv. ping).
 - **✔ Alles in orde**: servers waar alles OK is, compact onder elkaar: één regel met naam, aantal checks, de mini-grafiekjes en de beschikbaarheid over 24 uur. Klik erop voor alle checks.
+
+### Soort apparaat: servers en netwerk apart (vanaf 1.75.0)
+Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 switch, 📶 access point, 🧱 firewall, 🗄️ NAS, 🔋 UPS, 🏠 smart home, 🖨️ printer of 📦 overig. Op het dashboard vallen ze in groepen: **🖥️ Servers · 🌐 Netwerk** (router, switch, access point, firewall) **· 🗄️ Opslag · 🔋 Stroom · 🏠 Smart home · 📦 Overig**.
+- **Vanzelf herkend:** een agent is een server, de Home Assistant-add-on smart home; met SNMP kijkt RzMon naar het apparaat zelf (UniFi = access point, Synology/QNAP/TrueNAS = NAS, UPS-MIB of APC = UPS, printer-MIB = printer, MikroTik = router, merken als Cisco, Netgear, TP-Link of HP = switch, pfSense/OPNsense/Fortinet = firewall, Linux/Proxmox/Windows = server). Dat gebeurt bij *🔍 Test SNMP*, bij *📡 SNMP-checks* en anders bij de eerste SNMP-check. Zonder agent of SNMP is het *overig*.
+- **Zelf kiezen:** *✎ Bewerken → Soort apparaat*. *Vanzelf* toont wat RzMon herkent; een keuze gaat daar altijd voor.
+- **Dashboard bij *Alle*** (en *Problemen*, *Onderhoud*): een **blok per groep**, elk met *Met problemen* en *Alles in orde*.
+- **Eén groep gekozen:** alleen die apparaten, en ook de **tellers, tegels en *Nu aandacht nodig*** tellen alleen die groep (*Apparaten bereikbaar*, *Checks OK*, *Open problemen*, *Beschikbaar 24 u*).
+- De chips *Agent · Home Assistant · Remote · Lokaal* zijn vervangen door de groepen; *Agent*, *Remote* en dergelijke vind je bij *⚲ Filters → Bewaking*. Bij *⚲ Filters* staat ook **Soort apparaat**, ook bij Meldingen en IDS.
 
 ### Filters en open/dicht op elke pagina (vanaf 1.71.0)
 **⚲ Filters** staat in de werkbalk van het Dashboard, Meldingen, IDS (Incidenten, Toegang, Blokkades), Kwetsbaarheden en Datalekken. Het paneel heeft een keuzelijst **per onderdeel**, met hoe vaak elke waarde voorkomt; je kunt **meerdere waarden** aanvinken (server NAS én Pi), en verschillende onderdelen werken samen (server NAS **én** status Critical). Lange lijsten hebben een zoekveld.
 
 | Pagina | Filteren op |
 |---|---|
-| Dashboard | server · soort server · groep (bovenliggend) · status · soort check · check · bevestigd · agentversie |
+| Dashboard | server · soort apparaat · bewaking (agent, remote …) · groep (bovenliggend) · status · soort check · check · bevestigd · agentversie |
 | Meldingen | periode · server · check · status · soort · kanaal · verzonden (verstuurd, mislukt, niet verstuurd) · IP-adres |
 | IDS → Incidenten | periode · server · categorie · soort incident · ernst · status · IP-adres |
 | IDS → Toegang | periode · server · soort (SSH, console, sudo, su) · resultaat · gebruiker · IP-adres / vanaf |
