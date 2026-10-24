@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.73.0 – 2026-10-24
+### Nieuw
+- **Eigen logo en icoon**: het woordmerk *RzMon* met een oranje z, en als icoon een oranje schild met de z op een donkere tegel.
+  - In de bovenbalk, op het inlogscherm, bij de setup en op de bevestigpagina (in plaats van 📡); in het donkere thema worden de letters wit.
+  - Als icoon in het **tabblad** van de browser, en op het **beginscherm** van je telefoon als je RzMon daar vastzet (iPhone en Android).
+  - Voor **Pushover**: `brand/pushover-icon-72.png`, in te stellen als icoon van je applicatie op pushover.net.
+  - De **HA-add-on** heeft hetzelfde icoon en logo in de add-on winkel, en het logo staat bovenaan de README.
+
 ## 1.72.1 – 2026-10-24
 ### Opgelost
 - **Overstap via internet herkennen** (agent 1.51.1 nodig): mislukt een overstap naar een ander adres omdat de agent via je **publieke IP** binnenkomt (de naam wijst op die server niet naar je reverse proxy, bv. omdat de DNS-rewrite in AdGuard daar niet werkt), dan staat dat er nu bij: *⚠️ via internet (…): wijst de naam hier naar je proxy?*

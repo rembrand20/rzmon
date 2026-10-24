@@ -1,4 +1,9 @@
-# 📡 RzMon
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/rzmon-logo-dark.svg">
+    <img src="brand/rzmon-logo.svg" alt="RzMon" height="64">
+  </picture>
+</h1>
 
 Lichtgewicht server-monitoring in PHP 8 + MariaDB met een moderne HTML5-interface, meldingen via Pushover, e-mail en Home Assistant, en MQTT discovery voor Home Assistant.
 

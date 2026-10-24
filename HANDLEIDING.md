@@ -133,6 +133,13 @@ Het dashboard (vanaf 1.66.0), van boven naar beneden:
 - **Alles dicht** (standaard): servers, dagen, gebundelde regels en adressen staan dicht; je ziet de koppen met hun tellers en bolletjes. Wat je openklapt, blijft open tot je herlaadt. Met **zoeken of een filter** gaan de servers en dagen met treffers vanzelf open.
 - **Slim openen**: zoals het vóór 1.71.0 werkte (vandaag open, ernstige kwetsbaarheden en lekken met wachtwoorden open, opengeklapte servers onthouden in deze browser).
 - Overal staat in het menu **⋯** *Alles openen / sluiten*.
+
+### Logo en icoon (vanaf 1.73.0)
+- Het logo van RzMon staat in de bovenbalk en op het inlogscherm; in het donkere thema worden de letters vanzelf wit.
+- Het **tabblad** in de browser toont het icoon (oranje schild met de z).
+- **Op je telefoon vastzetten:** iPhone: Safari → *Deel* → *Zet op beginscherm*; Android: Chrome → ⋮ → *Toevoegen aan startscherm*. RzMon opent dan als losse app met zijn eigen icoon.
+- **Pushover:** zet [`brand/pushover-icon-72.png`](brand/pushover-icon-72.png) als icoon van je applicatie op pushover.net (zie *Pushover instellen*).
+- De HA-add-on heeft hetzelfde icoon in de add-on winkel.
 - **Blox en L1nes** blijven, per apparaat te kiezen onder *Mijn account → Weergave*. Blox: kaarten (Large met mini-grafiekjes, Small compacter) en de compacte lijst voor servers zonder problemen. L1nes: rijen, ook gesplitst in *Servers met problemen* en *Alles in orde*.
 - **Details:** klik op een tegel en hij klapt uit met alle checks per stuk, met balkjes en drempels en de knoppen (bevestigen, onderhoud, check toevoegen, poortscan, bewerken). Welke tegels open staan, wordt onthouden; **⊞ Alles openen** klapt alles in één keer open.
 - **Checks in groepen** (Blox en L1nes): heeft een server 5 of meer checks, dan staan ze onder kopjes, altijd in deze volgorde: **📊 Systeem** (CPU, RAM, disks), **🌐 Bereikbaarheid** (ping, poort, HTTP), **⚙️ Services**, **📦 Containers**, **🖥️ Commando's**, **📜 Logbestanden**, **🔒 Certificaten** en **🏠 Home Assistant**. Lege groepen zie je niet. In het kopje staan het aantal checks en de statussen die aandacht vragen (bv. *🔴 1 🟠 2*, of ✅). Klik op een kopje om de groep in of uit te klappen; dat wordt per server en per apparaat onthouden. Binnen een groep staan de problemen bovenaan (kritiek → waarschuwing → onbekend → OK → onderhoud → uit), daarna op naam; bij Systeem eerst CPU, dan RAM, dan de disks. Met minder dan 5 checks zijn er geen kopjes, maar wel dezelfde volgorde.
@@ -432,7 +439,7 @@ RzMon is er in het **Nederlands** en het **Engels**. Bovenaan *Instellingen* sta
 ### 6.1 Pushover koppelen
 1. Installeer de **Pushover**-app (iOS of Android). De app is na de proefperiode een eenmalige aankoop.
 2. Log in op [pushover.net](https://pushover.net). Rechtsboven staat je **User Key**.
-3. Klik op **Create an Application/API Token**, geef het de naam "RzMon" en kopieer het **API Token**.
+3. Klik op **Create an Application/API Token**, geef het de naam "RzMon" en kopieer het **API Token**. Kies bij *Icon* het bestand [`brand/pushover-icon-72.png`](brand/pushover-icon-72.png) (vanaf 1.73.0): dan staat het logo van RzMon bij elke melding.
 4. In RzMon: **Instellingen → Pushover**:
    - zet *Pushover meldingen aan* aan;
    - vul de user key en het API-token in;

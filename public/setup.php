@@ -219,13 +219,13 @@ $v = filemtime(__DIR__ . '/assets/setup.js') . filemtime(__DIR__ . '/assets/app.
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="<?= $e($csrf) ?>">
   <title>RzMon Setup</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+  <?= Brand::head() ?>
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
   <script>try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="logo">📡</span> RzMon <span class="version">v<?= htmlspecialchars(RZMON_VERSION) ?></span> <span class="badge">setup</span></div>
+    <div class="brand"><?= Brand::logo() ?> <span class="version">v<?= htmlspecialchars(RZMON_VERSION) ?></span> <span class="badge">setup</span></div>
     <?php if ($installed): ?>
       <nav class="tabs">
         <a class="tab" href="index.php#dashboard">Dashboard</a> <a class="tab" href="index.php#settings"><?= th('Instellingen') ?></a> <a class="tab active" href="setup.php">Setup</a>

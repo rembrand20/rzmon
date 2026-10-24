@@ -4,7 +4,7 @@
   --card: #161b22;
   --card-2: #1c232d;
   --border: #2a323d;
-  --text: #e6edf3;
+  --text: #e6edf3; --rz-tile: #283150;
   --muted: #8b96a5;
   --primary: #4f8cff;
   --primary-2: #3a74e0;
@@ -23,7 +23,7 @@
   --card: #ffffff;
   --card-2: #f6f8fb;
   --border: #e1e6ee;
-  --text: #18202b;
+  --text: #18202b; --rz-tile: #151B2E;
   --muted: #667185;
   --primary: #2f6fed;
   --primary-2: #2159cc;
@@ -37,7 +37,7 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #f3f5f9; --bg-2: #fff; --card: #fff; --card-2: #f6f8fb; --border: #e1e6ee;
-    --text: #18202b; --muted: #667185; --primary: #2f6fed; --primary-2: #2159cc;
+    --text: #18202b; --rz-tile: #151B2E; --muted: #667185; --primary: #2f6fed; --primary-2: #2159cc;
     --ok: #1fa35d; --warn: #d98a0b; --crit: #dc3b3b; --maint: #6d5ce0; --shadow: 0 6px 24px rgba(20,30,50,.08);
     color-scheme: light;
   }
@@ -70,6 +70,13 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 }
 .brand { font-weight: 700; font-size: 1.1rem; display: flex; align-items: center; gap: .5rem; white-space: nowrap; }
 .brand.big { font-size: 1.5rem; justify-content: center; margin-bottom: 1rem; }
+.rz-logo { display: inline-flex; align-items: center; gap: .5rem; color: var(--text); }
+.rz-logo svg { display: block; }
+.rz-icon rect { fill: var(--rz-tile, #151B2E); }
+.rz-icon { width: 1.75rem; height: 1.75rem; }
+.rz-word { height: 1.3rem; width: auto; aspect-ratio: 278 / 108; }
+.brand.big .rz-icon { width: 2.8rem; height: 2.8rem; }
+.brand.big .rz-word { height: 2.1rem; }
 .brand .version { font-size: .7rem; font-weight: 500; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: .05rem .45rem; text-decoration: none; }
 a.version:hover { color: var(--text); }
 .schema-banner { background: color-mix(in srgb, var(--crit) 15%, transparent); border: 1px solid var(--crit); border-radius: var(--radius); padding: .7rem 1rem; margin-bottom: 1rem; }
