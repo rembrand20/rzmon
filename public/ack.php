@@ -49,13 +49,13 @@ $labels = ['OK', 'WARNING', 'CRITICAL', t('ONBEKEND')];
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= th('Storing bevestigen – RzMon') ?></title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+  <?= Brand::head() ?>
   <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
   <main class="login-wrap">
     <div class="card login-card ack-card">
-      <div class="brand big"><span class="logo">📡</span> RzMon</div>
+      <div class="brand big"><?= Brand::logo() ?></div>
       <?php if ($check && $state !== 'invalid'): ?>
         <p class="ack-check s<?= (int) $check['status'] ?>"><span class="dot"></span>
           <span><strong><?= $e($check['host_name']) ?> – <?= $e($check['name']) ?></strong><br>

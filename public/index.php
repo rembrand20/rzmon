@@ -51,7 +51,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <meta name="csrf-token" content="<?= htmlspecialchars($csrf) ?>">
   <?php if ($resetToken): ?><meta name="referrer" content="no-referrer"><?php endif; ?>
   <title>RzMon</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+  <?= Brand::head() ?>
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
   <script>try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
@@ -60,7 +60,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 <?php if ($resetToken): ?>
   <main class="login-wrap">
     <form id="reset-form" class="card login-card" data-token="<?= htmlspecialchars($resetToken) ?>">
-      <div class="brand big"><span class="logo">📡</span> RzMon</div>
+      <div class="brand big"><?= Brand::logo() ?></div>
       <?php if (!Https::isHttps()): ?><div class="http-bar<?= Https::loginBlocked() ? ' blocked' : '' ?>">🔓 <?= th('Deze verbinding is niet beveiligd: je wachtwoord en sessie zijn leesbaar op het netwerk.') ?></div><?php endif; ?>
       <h2 style="margin:0 0 .6rem"><?= th('Nieuw wachtwoord') ?></h2>
       <div id="reset-fields" hidden>
@@ -79,7 +79,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 <?php elseif ($mustChange): ?>
   <main class="login-wrap">
     <form id="pwforce-form" class="card login-card">
-      <div class="brand big"><span class="logo">📡</span> RzMon</div>
+      <div class="brand big"><?= Brand::logo() ?></div>
       <h2 style="margin:0 0 .6rem">🔓 <?= th('Je wachtwoord staat in een datalek') ?></h2>
       <p class="muted small" style="margin-top:0"><?= t('Het wachtwoord van <b>{user}</b> komt voor in bekende datalekken (Have I Been Pwned). Aanvallers proberen zulke wachtwoorden als eerste. Kies een nieuw wachtwoord; daarna kun je verder.', ['user' => htmlspecialchars((string) $user['username'])]) ?></p>
       <input type="text" name="username" autocomplete="username" value="<?= htmlspecialchars((string) $user['username']) ?>" hidden>
@@ -94,7 +94,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 <?php elseif (!$user): ?>
   <main class="login-wrap">
     <form id="login-form" class="card login-card">
-      <div class="brand big"><span class="logo">📡</span> RzMon <span class="version" title="<?= th('RzMon-versie') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></span></div>
+      <div class="brand big"><?= Brand::logo() ?> <span class="version" title="<?= th('RzMon-versie') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></span></div>
       <?php if (!Https::isHttps()): $toHttps = Https::adminUrl(); ?>
         <div class="http-bar<?= Https::loginBlocked() ? ' blocked' : '' ?>">🔓 <?= Https::loginBlocked()
             ? th('Inloggen via http staat uit: je wachtwoord zou leesbaar over het netwerk gaan.')
@@ -118,7 +118,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <?php endif; ?>
     </form>
     <form id="forgot-form" class="card login-card" hidden>
-      <div class="brand big"><span class="logo">📡</span> RzMon</div>
+      <div class="brand big"><?= Brand::logo() ?></div>
       <h2 style="margin:0 0 .6rem"><?= th('Wachtwoord vergeten') ?></h2>
       <div id="forgot-fields">
         <p class="muted small" style="margin-top:0"><?= th('Vul je gebruikersnaam of e-mailadres in. Je krijgt een mail met een link om een nieuw wachtwoord te kiezen (30 minuten geldig).') ?></p>
@@ -132,7 +132,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   </main>
 <?php else: ?>
   <header class="topbar app-top">
-    <div class="brand"><span class="logo">📡</span> RzMon <a class="version" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener" title="<?= th('RzMon-versie – bekijk wat er nieuw is') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></a>
+    <div class="brand"><?= Brand::logo() ?> <a class="version" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener" title="<?= th('RzMon-versie – bekijk wat er nieuw is') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></a>
       <button type="button" class="update-badge need-admin" id="update-badge" hidden title="<?= th('Er is een nieuwe versie van RzMon: klik om bij te werken') ?>"></button></div>
     <nav class="tabs main-tabs" role="tablist" id="main-tabs">
       <span class="tab-ind" aria-hidden="true"></span>
