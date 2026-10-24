@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Logo en icoon van RzMon (1.73.0). Het woordmerk staat inline in de pagina: de letters krijgen de tekstkleur
  * (currentColor), dus werkt het vanzelf in het lichte en het donkere thema; de z houdt zijn oranje verloop.
- * Bestanden: public/favicon.svg, public/icons/, brand/ (README, Pushover). Opnieuw maken: zie brand/README.md.
+ * Bestanden: public/favicon.svg, public/apple-touch-icon.png, public/assets/icons/ (niet public/icons/: dat adres is in Apache van Apache zelf), brand/ (README, Pushover). Opnieuw maken: zie brand/README.md.
  */
 final class Brand
 {
@@ -39,8 +39,8 @@ final class Brand
     public static function head(): string
     {
         return '<link rel="icon" href="favicon.svg" type="image/svg+xml">'
-            . '<link rel="icon" href="icons/icon-32.png" sizes="32x32" type="image/png">'
-            . '<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">'
+            . '<link rel="icon" href="assets/icons/icon-32.png" sizes="32x32" type="image/png">'
+            . '<link rel="apple-touch-icon" href="apple-touch-icon.png">'
             . '<link rel="manifest" href="manifest.webmanifest">'
             . '<meta name="theme-color" content="#151B2E">';
     }

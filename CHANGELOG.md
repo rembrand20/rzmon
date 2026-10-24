@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.73.1 – 2026-10-24
+### Opgelost
+- Het **icoon op het beginscherm** van je telefoon (en de iconen in het manifest) gaf "Not Found" bij een installatie met Apache: Apache gebruikt het adres `/icons/` zelf. De iconen staan nu in `assets/icons/`, en het icoon voor iPhone ook in de hoofdmap (`/apple-touch-icon.png`). Voeg RzMon daarna opnieuw toe aan je beginscherm.
+
 ## 1.73.0 – 2026-10-24
 ### Nieuw
 - **Eigen logo en icoon**: het woordmerk *RzMon* met een oranje z, en als icoon een oranje schild met de z op een donkere tegel.
