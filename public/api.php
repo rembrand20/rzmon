@@ -682,6 +682,9 @@ if ($action === 'login' && $method === 'POST') {
     if ($r === 'locked') {
         out(['error' => t('Dit account is geblokkeerd na te veel mislukte pogingen. Vraag een beheerder om het te deblokkeren.'), 'locked' => true], 403);
     }
+    if ($r === 'local_only') {
+        out(['error' => t('Dit account mag alleen vanaf het interne netwerk inloggen.'), 'local_only' => true], 403);
+    }
     if ($r === 'need_2fa') {
         out(['error' => t('Van buiten je interne netwerken is tweestapsverificatie (2FA) verplicht. Stel eerst 2FA in vanaf je thuisnetwerk (Mijn account).'), 'need_2fa' => true], 403);
     }
@@ -722,9 +725,11 @@ if ($action === 'pw_reset_check' && $method === 'POST') {
 }
 if ($action === 'pw_reset' && $method === 'POST') {
     $in = input();
+    $who = PasswordReset::check((string) ($in['token'] ?? ''));
     $r = PasswordReset::reset((string) ($in['token'] ?? ''), (string) ($in['password'] ?? ''), (string) ($in['code'] ?? ''));
-    // dead: de link werkt niet meer (verlopen, gebruikt of te veel pogingen)
-    $r === true ? out(['ok' => true]) : out(['error' => $r, 'dead' => PasswordReset::check((string) ($in['token'] ?? '')) === null], 422);
+    // dead: de link werkt niet meer (verlopen, gebruikt of te veel pogingen); pwned: het nieuwe wachtwoord staat in een datalek
+    $r === true ? out(['ok' => true, 'pwned' => $who ? (int) q('SELECT COALESCE(pw_pwned, 0) FROM users WHERE username = ? AND hibp = 1', [$who['username']])->fetchColumn() : 0])
+        : out(['error' => $r, 'dead' => PasswordReset::check((string) ($in['token'] ?? '')) === null], 422);
 }
 
 $user = current_user();
@@ -735,10 +740,15 @@ if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'
     out(['error' => t('Ongeldig CSRF token')], 403);
 }
 
+// Wachtwoord staat in een datalek: eerst een nieuw kiezen (alleen dat, uitloggen en de taal mogen)
+if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'lang_set'], true)) {
+    out(['error' => t('Je wachtwoord staat in een datalek: kies eerst een nieuw wachtwoord'), 'must_change' => true], 403);
+}
+
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
     'state', 'alerts', 'ids', 'ids_access', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
-    'devices', 'device_forget', 'device_forget_all', 'user_email', 'lang_set', 'my_logins' => 'readonly',
+    'devices', 'device_forget', 'device_forget_all', 'user_email', 'lang_set', 'my_logins', 'pw_forced' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
     default => 'admin',
 };
@@ -1151,6 +1161,18 @@ switch ($action) {
             $add('mfa_ext', !$mfaOn ? 'warn' : ($noMfa ? 'info' : 'ok'), t('2FA van buiten'), !$mfaOn
                 ? t('niet verplicht: van buiten is een wachtwoord genoeg')
                 : ($noMfa ? t('verplicht · zonder 2FA alleen thuis: {names}', ['names' => implode(', ', array_slice($noMfa, 0, 5)) . (count($noMfa) > 5 ? ' …' : '')]) : t('verplicht · alle gebruikers hebben 2FA')), 'https');
+        }
+        // Datalekken (1.69.0)
+        if (Hibp::enabled()) {
+            $hs = Hibp::summary();
+            $add('hibp_pw', $hs['pw_users'] ? 'bad' : 'ok', t('Gelekte wachtwoorden'), $hs['pw_users']
+                ? t('in een datalek: {names} (moeten bij het inloggen een nieuw kiezen)', ['names' => implode(', ', $hs['pw_users'])])
+                : t('geen bekende gelekte wachtwoorden'), 'hibp');
+            $add('hibp_mail', !Hibp::hasKey() ? 'info' : (setting('hibp_last_error', '') !== '' ? 'warn' : ($hs['with_passwords'] ? 'bad' : ($hs['open'] ? 'warn' : 'ok'))),
+                t('Gelekte e-mailadressen'), !Hibp::hasKey() ? t('geen API-sleutel: alleen wachtwoorden worden gecontroleerd')
+                : (setting('hibp_last_error', '') !== '' ? (string) setting('hibp_last_error', '')
+                    : ($hs['open'] ? t('{n} open lekken op {e} adressen ({p} met wachtwoorden)', ['n' => $hs['open'], 'e' => $hs['emails'], 'p' => $hs['with_passwords']])
+                        : t('{n} adressen gecontroleerd, geen open lekken', ['n' => $hs['checked']]))), 'hibp');
         }
         $add('vulns', Vulns::enabled() ? 'ok' : 'info', t('Kwetsbaarheden'), Vulns::enabled() ? t('scan staat aan') : t('scan staat uit'), 'vulns');
         $add('ids', Ids::enabled() ? 'ok' : 'info', 'IDS', Ids::enabled() ? t('staat aan') : t('staat uit'), 'ids');
@@ -1987,6 +2009,93 @@ switch ($action) {
         }
         out(['ok' => true]);
 
+    // ---------- Datalekken via Have I Been Pwned (1.69.0) ----------
+    case 'hibp_info':
+        out([
+            'enabled' => Hibp::enabled(), 'threshold' => Hibp::threshold(), 'has_key' => Hibp::hasKey(),
+            'emails' => (string) setting('hibp_emails', ''), 'domain' => Hibp::domain(), 'rpm' => (int) setting('hibp_rpm', '10'),
+            'last_error' => (string) setting('hibp_last_error', '') ?: null, 'domain_error' => (string) setting('hibp_domain_error', '') ?: null,
+            'check_at' => setting('hibp_check_at', '') ?: null, 'domain_at' => setting('hibp_domain_at', '') ?: null,
+            'count' => count(Hibp::emails()), 'summary' => Hibp::enabled() ? Hibp::summary() : null,
+        ]);
+
+    case 'hibp_save':
+        $in = input();
+        if (array_key_exists('enabled', $in) && !empty($in['enabled']) !== Hibp::enabled()) {
+            save_setting('hibp_enabled', !empty($in['enabled']) ? '1' : '0');
+            AgentCommands::audit($user['username'], 'Datalekken', 'controle ' . (!empty($in['enabled']) ? 'aan' : 'uit'));
+        }
+        if (isset($in['threshold'])) {
+            save_setting('hibp_threshold', (string) max(1, min(1000000, (int) $in['threshold'])));
+        }
+        if (isset($in['emails'])) {
+            $list = [];
+            foreach (parse_list((string) $in['emails']) as $e) {
+                if (!filter_var($e, FILTER_VALIDATE_EMAIL)) {
+                    out(['error' => t('Ongeldig e-mailadres: {e}', ['e' => mb_substr($e, 0, 100)])], 422);
+                }
+                $list[strtolower($e)] = true;
+            }
+            save_setting('hibp_emails', implode("\n", array_keys($list)));
+        }
+        if (isset($in['domain'])) {
+            $d = strtolower(trim((string) $in['domain']));
+            if ($d !== '' && !preg_match('/^(?=.{3,190}$)([a-z0-9-]+\.)+[a-z]{2,}$/', $d)) {
+                out(['error' => t('Ongeldig domein (bv. jouwdomein.nl)')], 422);
+            }
+            if ($d !== Hibp::domain()) {
+                save_setting('hibp_domain', $d);
+                save_setting('hibp_domain_at', '');
+                save_setting('hibp_domain_error', '');
+            }
+        }
+        if (isset($in['key'])) {
+            $key = trim((string) $in['key']);
+            if ($key !== '' && !preg_match('/^[A-Za-z0-9]{16,64}$/', $key)) {
+                out(['error' => t('Dat lijkt geen API-sleutel van HIBP (32 letters en cijfers)')], 422);
+            }
+            save_setting('hibp_key', $key);
+            save_setting('hibp_last_error', '');
+            save_setting('hibp_wait_until', '0');
+            AgentCommands::audit($user['username'], 'Datalekken', $key === '' ? 'API-sleutel verwijderd' : 'API-sleutel ingesteld');
+        }
+        out(['ok' => true]);
+
+    case 'hibp_test':
+        $key = trim((string) (input()['key'] ?? ''));
+        try {
+            $s = Hibp::subscription($key !== '' ? $key : null);
+            out(['ok' => true, 'name' => $s['SubscriptionName'] ?? '?', 'until' => $s['SubscribedUntil'] ?? null, 'rpm' => $s['Rpm'] ?? null,
+                'domain_max' => $s['DomainSearchMaxBreachedAccounts'] ?? null]);
+        } catch (Throwable $e) {
+            out(['error' => 'HIBP: ' . $e->getMessage()], 422);
+        }
+
+    // Nu controleren: het domein en een eerste ronde adressen (de rest volgt via cron)
+    case 'hibp_run':
+        if (!Hibp::enabled() || !Hibp::hasKey()) {
+            out(['error' => t('Zet de controle aan en vul een API-sleutel in')], 422);
+        }
+        q('UPDATE hibp_emails SET checked_at = NULL');
+        save_setting('hibp_domain_at', '');
+        save_setting('hibp_wait_until', '0');
+        $msg = Hibp::cron(8);
+        out(['ok' => true, 'message' => $msg, 'left' => count(array_filter(Hibp::emails(), static fn($s) => $s !== 'domain'))
+            - (int) q("SELECT COUNT(*) FROM hibp_emails WHERE checked_at IS NOT NULL AND source <> 'domain'")->fetchColumn()]);
+
+    case 'hibp_overview':
+        if (!Hibp::enabled()) {
+            out(['error' => t('De controle op datalekken staat uit')], 422);
+        }
+        out(Hibp::overview());
+
+    case 'hibp_handle':
+        $in = input();
+        $done = !empty($in['handled']);
+        q('UPDATE hibp_breaches SET handled_at = ?, handled_by = ? WHERE email = ? AND name = ?',
+            [$done ? now() : null, $done ? $user['username'] : null, (string) ($in['email'] ?? ''), (string) ($in['name'] ?? '')]);
+        out(['ok' => true]);
+
     case 'port_scan':
         $in = input();
         $host = q('SELECT id, address, mode FROM hosts WHERE id = ?', [(int) ($in['host_id'] ?? 0)])->fetch();
@@ -2081,18 +2190,68 @@ switch ($action) {
     // ---------- Gebruikers en tweestapsverificatie ----------
     case 'users':
         $rows = q('SELECT id, username, email, role, totp_secret IS NOT NULL AS totp, created_at, last_login, locked_at, locked_until, locked_ip,
+                          local_only, hibp, pw_pwned, pw_pwned_at,
                           (SELECT COUNT(*) FROM remember_tokens r WHERE r.user_id = users.id) AS devices FROM users'
             . ($isAdmin ? '' : ' WHERE id = ' . (int) $user['id']) . ' ORDER BY username')->fetchAll();
         foreach ($rows as &$r) {
             $r['totp'] = (bool) $r['totp'];
             $r['me'] = (int) $r['id'] === $user['id'];
+            $r['local_only'] = (bool) $r['local_only'];
+            $r['hibp'] = (bool) $r['hibp'];
             $r['locked'] = Security::accountLocked($r);
             if (!$r['locked']) {
                 $r['locked_at'] = $r['locked_until'] = $r['locked_ip'] = null;
             }
         }
         unset($r);
-        out($rows);
+        out(['users' => $rows, 'hibp' => Hibp::enabled(), 'internal' => Https::internal()]);
+
+    // Per account: alleen vanaf de interne netwerken, en de datalek-controle (alleen beheerders)
+    case 'user_flags':
+        $in = input();
+        $id = (int) ($in['id'] ?? 0);
+        $u = q('SELECT id, username, role, local_only, hibp FROM users WHERE id = ?', [$id])->fetch();
+        if (!$u) {
+            out(['error' => t('Gebruiker niet gevonden')], 404);
+        }
+        if (array_key_exists('local_only', $in)) {
+            $lo = !empty($in['local_only']);
+            if ($lo && $id === $user['id'] && !Https::internal()) {
+                out(['error' => t('Je zit nu buiten je interne netwerken: dan sluit je jezelf buiten')], 422);
+            }
+            if ($lo && $u['role'] === 'admin' && !(int) q("SELECT COUNT(*) FROM users WHERE role = 'admin' AND local_only = 0 AND id <> ?", [$id])->fetchColumn()) {
+                out(['error' => t('Er moet minstens één beheerder overblijven die ook van buiten mag inloggen')], 422);
+            }
+            q('UPDATE users SET local_only = ? WHERE id = ?', [$lo ? 1 : 0, $id]);
+            AgentCommands::audit($user['username'], 'Alleen lokaal inloggen', "{$u['username']} = " . ($lo ? 'aan' : 'uit'));
+        }
+        if (array_key_exists('hibp', $in)) {
+            $on = !empty($in['hibp']);
+            // Uit: niets meer controleren en geen verplicht wijzigen; aan: bij de volgende login opnieuw controleren
+            q('UPDATE users SET hibp = ?, pw_pwned = NULL, pw_pwned_at = NULL, pw_must_change = 0 WHERE id = ?', [$on ? 1 : 0, $id]);
+            AgentCommands::audit($user['username'], 'Datalek-controle', "{$u['username']} = " . ($on ? 'aan' : 'uit'));
+        }
+        out(['ok' => true]);
+
+    // Nieuw wachtwoord kiezen omdat het huidige in een datalek staat; een gelekt wachtwoord wordt hier geweigerd
+    case 'pw_forced':
+        $new = (string) (input()['new'] ?? '');
+        if (strlen($new) < 8) {
+            out(['error' => t('Nieuw wachtwoord moet minimaal 8 tekens zijn')], 422);
+        }
+        $hash = (string) q('SELECT password_hash FROM users WHERE id = ?', [$user['id']])->fetchColumn();
+        if (password_verify($new, $hash)) {
+            out(['error' => t('Kies een ander wachtwoord dan je huidige')], 422);
+        }
+        $n = Hibp::pwnedCount($new);
+        if ($n !== null && $n >= Hibp::threshold()) {
+            out(['error' => t('Dit wachtwoord staat ook in datalekken ({n}×). Kies een ander, bv. een zin van een paar woorden.', ['n' => I18n::lang() === 'en' ? number_format($n) : number_format($n, 0, ',', '.')])], 422);
+        }
+        q('UPDATE users SET password_hash = ?, pw_changed_at = ?, pw_must_change = 0, pw_pwned = ?, pw_pwned_at = ? WHERE id = ?',
+            [password_hash($new, PASSWORD_DEFAULT), now(), $n === null ? null : 0, $n === null ? null : now(), $user['id']]);
+        $_SESSION['auth_at'] = time();
+        q('DELETE FROM remember_tokens WHERE user_id = ? AND id <> ?', [$user['id'], (int) ($_SESSION['remember_id'] ?? 0)]);
+        out(['ok' => true]);
 
     case 'my_logins':
         out(!empty($user['id']) && !is_lan_session() ? Security::loginHistory((int) $user['id']) : []);
@@ -2119,24 +2278,24 @@ switch ($action) {
         } catch (InvalidArgumentException $e) {
             out(['error' => $e->getMessage()], 422);
         }
-        $id = (int) db()->lastInsertId();
+        $id = (int) q('SELECT id FROM users WHERE username = ?', [trim((string) ($in['username'] ?? ''))])->fetchColumn();
         if ($email !== '') {
             q('UPDATE users SET email = ? WHERE id = ?', [$email, $id]);
         }
-        out(['ok' => true, 'id' => $id]);
+        out(['ok' => true, 'id' => $id, 'pwned' => Hibp::checkUser($id, (string) ($in['password'] ?? '')) ?? 0]);
 
     case 'user_password':
         $in = input();
         if (strlen((string) ($in['password'] ?? '')) < 8) {
             out(['error' => t('Wachtwoord moet minimaal 8 tekens zijn')], 422);
         }
-        q('UPDATE users SET password_hash = ?, pw_changed_at = ? WHERE id = ?', [password_hash((string) $in['password'], PASSWORD_DEFAULT), now(), (int) ($in['id'] ?? 0)]);
+        q('UPDATE users SET password_hash = ?, pw_changed_at = ?, pw_must_change = 0 WHERE id = ?', [password_hash((string) $in['password'], PASSWORD_DEFAULT), now(), (int) ($in['id'] ?? 0)]);
         if ((int) ($in['id'] ?? 0) === $user['id']) {
             $_SESSION['auth_at'] = time();   // eigen account: deze sessie blijft
         }
         // Nieuw wachtwoord gezet door een beheerder: onthouden apparaten van die gebruiker vergeten
         q('DELETE FROM remember_tokens WHERE user_id = ?', [(int) ($in['id'] ?? 0)]);
-        out(['ok' => true]);
+        out(['ok' => true, 'pwned' => Hibp::checkUser((int) ($in['id'] ?? 0), (string) $in['password']) ?? 0]);
 
     case 'user_email':
         // E-mailadres voor "wachtwoord vergeten" (beheerder: iedereen; anderen: alleen zichzelf)
@@ -2171,6 +2330,10 @@ switch ($action) {
             && (int) q("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn() <= 1) {
             out(['error' => t('Er moet minimaal één beheerder overblijven')], 422);
         }
+        if ($role !== 'admin' && !(int) q("SELECT COUNT(*) FROM users WHERE role = 'admin' AND local_only = 0 AND id <> ?", [$id])->fetchColumn()
+            && (int) q("SELECT COUNT(*) FROM users WHERE role = 'admin' AND local_only = 0")->fetchColumn()) {
+            out(['error' => t('Er moet minstens één beheerder overblijven die ook van buiten mag inloggen')], 422);
+        }
         q('UPDATE users SET role = ? WHERE id = ?', [$role, $id]);
         out(['ok' => true]);
 
@@ -2185,6 +2348,10 @@ switch ($action) {
         if (q("SELECT role FROM users WHERE id = ?", [$id])->fetchColumn() === 'admin'
             && (int) q("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn() <= 1) {
             out(['error' => t('Er moet minimaal één beheerder overblijven')], 422);
+        }
+        if (!(int) q("SELECT COUNT(*) FROM users WHERE role = 'admin' AND local_only = 0 AND id <> ?", [$id])->fetchColumn()
+            && (int) q("SELECT COUNT(*) FROM users WHERE role = 'admin' AND local_only = 0")->fetchColumn()) {
+            out(['error' => t('Er moet minstens één beheerder overblijven die ook van buiten mag inloggen')], 422);
         }
         q('DELETE FROM users WHERE id = ?', [$id]);
         out(['ok' => true]);
@@ -2647,11 +2814,11 @@ switch ($action) {
             out(['error' => t('Nieuw wachtwoord moet minimaal 8 tekens zijn')], 422);
         }
         // Andere sessies van dit account worden uitgelogd (pw_changed_at); deze blijft
-        q('UPDATE users SET password_hash = ?, pw_changed_at = ? WHERE id = ?', [password_hash((string) $in['new'], PASSWORD_DEFAULT), now(), $user['id']]);
+        q('UPDATE users SET password_hash = ?, pw_changed_at = ?, pw_must_change = 0 WHERE id = ?', [password_hash((string) $in['new'], PASSWORD_DEFAULT), now(), $user['id']]);
         $_SESSION['auth_at'] = time();
         // Eigen wachtwoord gewijzigd: alle andere onthouden apparaten vergeten (dit apparaat blijft)
         q('DELETE FROM remember_tokens WHERE user_id = ? AND id <> ?', [$user['id'], (int) ($_SESSION['remember_id'] ?? 0)]);
-        out(['ok' => true]);
+        out(['ok' => true, 'pwned' => Hibp::checkUser((int) $user['id'], (string) $in['new']) ?? 0]);
 
     default:
         out(['error' => t('Onbekende actie')], 404);

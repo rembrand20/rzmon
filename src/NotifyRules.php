@@ -198,7 +198,7 @@ final class NotifyRules
 
     /** Systeeminfo-meldingen (geen checks), elk met eigen kanalen en Pushover-prioriteit (Instellingen → ℹ️ Systeeminfo) */
     public const SYSINFO = ['rzmon_update', 'agent_update', 'agent_update_fail', 'agent_connect', 'login_ok', 'login_fail',
-        'account_lock', 'account_unlock', 'ip_block', 'ip_unblock', 'vuln_new', 'vuln_upgrade', 'cert', 'sec'];
+        'account_lock', 'account_unlock', 'ip_block', 'ip_unblock', 'vuln_new', 'vuln_upgrade', 'cert', 'breach', 'local_only', 'sec'];
     /** Tot 1.58 altijd op de meldingenpagina, ook als de rij Info dat niet zei */
     private const SYSINFO_ALWAYS_PAGE = ['agent_connect', 'login_ok', 'login_fail', 'account_lock', 'account_unlock', 'ip_block', 'ip_unblock'];
 

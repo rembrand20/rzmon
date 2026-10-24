@@ -50,7 +50,11 @@ function current_user(): ?array
         $user = $_SESSION['user'] = lan_user();
     } elseif ($user) {
         // Eigen account: bestaan en rol elke keer uit de database (verwijderd of rol gewijzigd → direct merkbaar)
-        $row = q('SELECT id, username, role, pw_changed_at FROM users WHERE id = ?', [$user['id']])->fetch();
+        $row = q('SELECT id, username, role, pw_changed_at, local_only FROM users WHERE id = ?', [$user['id']])->fetch();
+        // Account dat alleen vanaf de interne netwerken mag (noodaccount): van buiten vervalt de sessie
+        if ($row && (int) $row['local_only'] && !Https::internal()) {
+            $row = false;
+        }
         // Wachtwoord gewijzigd ná het inloggen in deze sessie (bv. via "wachtwoord vergeten") → uitloggen
         if ($row && $row['pw_changed_at'] !== null && strtotime($row['pw_changed_at']) > (int) ($_SESSION['auth_at'] ?? 0)) {
             $row = false;
@@ -113,12 +117,13 @@ function is_lan_session(): bool
 
 /**
  * Eerste stap van inloggen.
- * @return string|false 'ok' (ingelogd), 'totp' (nu nog de code uit de authenticator-app), 'locked', 'need_2fa' (van buiten zonder 2FA) of false
+ * @return string|false 'ok' (ingelogd), 'totp' (nu nog de code uit de authenticator-app), 'locked', 'need_2fa' (van buiten zonder 2FA),
+ *                      'local_only' (account alleen voor de interne netwerken) of false
  */
 function login(string $username, string $password, bool $remember = false): string|false
 {
     start_session();
-    $u = q('SELECT id, username, password_hash, totp_secret, role, locked_at, locked_until FROM users WHERE username = ?', [$username])->fetch();
+    $u = q('SELECT id, username, password_hash, totp_secret, role, locked_at, locked_until, local_only, hibp, pw_pwned, pw_pwned_at FROM users WHERE username = ?', [$username])->fetch();
     if (!$u || !password_verify($password, $u['password_hash'])) {
         Security::loginFailed($username, $u ? 'verkeerd wachtwoord' : 'onbekende gebruiker', (bool) $u);
         usleep(500000); // brute force afremmen
@@ -128,6 +133,24 @@ function login(string $username, string $password, bool $remember = false): stri
     // Pas bij een juist wachtwoord zeggen we dat, zodat een aanvaller er niets aan heeft.
     if (Security::accountLocked($u) && !Security::fromLan()) {
         return 'locked';
+    }
+    // Account alleen voor de interne netwerken (bv. een noodaccount zonder 2FA): van buiten weigeren, met een ℹ️ (Systeeminfo)
+    if ((int) $u['local_only'] && !Https::internal()) {
+        Security::loginFailed($username, 'alleen lokaal: inlogpoging van buiten', true);
+        $ip = client_ip();
+        Monitor::sysInfo('local_only', null, null, '🏠 ' . t('Inlogpoging van buiten op lokaal account: {user}', ['user' => $u['username']]),
+            fn() => t('{user} mag alleen vanaf het interne netwerk inloggen. Vanaf {ip} werd van buiten geprobeerd in te loggen, met het juiste wachtwoord: wijzig het wachtwoord van dit account.',
+                ['user' => $u['username'], 'ip' => $ip]), $ip);
+        return 'local_only';
+    }
+    // Datalekken (Have I Been Pwned): staat dit wachtwoord in een lek? Dan na het inloggen eerst een nieuw kiezen.
+    if (Hibp::forUser($u)) {
+        if ($u['pw_pwned_at'] === null || strtotime((string) $u['pw_pwned_at']) < time() - 86400) {
+            Hibp::checkUser((int) $u['id'], $password);
+        }
+        if ((int) q('SELECT pw_pwned FROM users WHERE id = ?', [$u['id']])->fetchColumn() > 0) {
+            q('UPDATE users SET pw_must_change = 1 WHERE id = ?', [$u['id']]);
+        }
     }
     // Van buiten je interne netwerken 2FA verplicht, maar dit account heeft geen 2FA: weigeren (ook hier pas na een juist wachtwoord)
     if (!$u['totp_secret'] && Https::mfaRequired()) {
@@ -235,7 +258,10 @@ function remember_login(): ?array
         }
         return null;
     }
-    $t = q('SELECT r.*, u.username, u.role, u.locked_at, u.locked_until FROM remember_tokens r JOIN users u ON u.id = r.user_id WHERE r.selector = ?', [$m[1]])->fetch();
+    $t = q('SELECT r.*, u.username, u.role, u.locked_at, u.locked_until, u.local_only FROM remember_tokens r JOIN users u ON u.id = r.user_id WHERE r.selector = ?', [$m[1]])->fetch();
+    if ($t && (int) $t['local_only'] && !Https::internal()) {
+        return null;   // account alleen voor de interne netwerken: van buiten niet automatisch inloggen (het apparaat blijft bewaard)
+    }
     if ($t && Security::accountLocked($t) && !Security::fromLan()) {
         return null;   // account geblokkeerd: niet automatisch inloggen (het apparaat blijft bewaard voor na het deblokkeren)
     }
@@ -335,6 +361,15 @@ function logout(): void
     remember_cookie(null);
     $_SESSION = [];
     session_destroy();
+}
+
+/** Moet deze gebruiker eerst een nieuw wachtwoord kiezen (het huidige staat in een datalek)? */
+function must_change_password(?array $user): bool
+{
+    if (!$user || empty($user['id']) || is_lan_session()) {
+        return false;
+    }
+    return (bool) q('SELECT pw_must_change FROM users WHERE id = ?', [$user['id']])->fetchColumn();
 }
 
 function csrf_token(): string

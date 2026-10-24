@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.69.0 – 2026-10-24
+### Nieuw
+- **🔓 Datalekken via Have I Been Pwned** (*Instellingen → Beveiliging → Datalekken*), met een hoofdschakelaar. Na de update staat hij **uit**.
+  - **Wachtwoorden** (gratis): het wachtwoord gaat nooit de deur uit, alleen de eerste 5 tekens van de hash (met opvulling). Bij het instellen van een gelekt wachtwoord een **waarschuwing**; wie **inlogt met een gelekt wachtwoord, moet eerst een nieuw kiezen** (daar wordt een gelekt wachtwoord geweigerd). Drempel instelbaar (standaard: elke treffer). Is HIBP niet bereikbaar, dan gaat alles gewoon door.
+  - **E-mailadressen** (API-sleutel, met 🧪 testknop): de adressen van gebruikers, een eigen lijst en een bij HIBP geverifieerd **domein**, dagelijks en gespreid binnen je abonnement. **⚠️ warning** bij een nieuw lek met wachtwoorden; **ℹ️ info** bij een nieuw lek zonder wachtwoorden en bij de eerste controle van een adres (één samenvatting).
+  - Tabblad **Datalekken** bij *Kwetsbaarheden* (beheerders): tellers, tegels, zoeken en filters, per adres de lekken met datum, gegevenssoorten en uitleg; **✔ Afgehandeld** (blijft grijs zichtbaar) en **🔍 Nu controleren**.
+  - MQTT: `sensor.rzmon_datalekken` en `binary_sensor.rzmon_gelekt_wachtwoord`. *Hoe staat het ervoor?*: *Gelekte wachtwoorden* en *Gelekte e-mailadressen*.
+- **Per account bij Gebruikers:**
+  - **🔓/🔕 datalek-controle**: nieuwe accounts aan, bestaande accounts uit;
+  - **🏠 alleen lokaal**: alleen inloggen vanaf je interne netwerken, bijvoorbeeld voor een noodaccount zonder 2FA. Van buiten geweigerd (ook onthouden apparaten en open sessies), met een ℹ️-melding in een eigen rij bij *Systeeminfo* (*🏠 Inlogpoging van buiten op een lokaal account*), zodat je daar Pushover voor kunt aanzetten. Er blijft altijd minstens één beheerder die ook van buiten mag inloggen.
+
 ## 1.68.0 – 2026-10-23
 ### Nieuw
 - **🔒 Beheer via https** (*Instellingen → Beveiliging → Beheer via https*): de webinterface altijd via https, zodat niemand op het netwerk je wachtwoord, je sessie of de pagina zelf (bv. een installatiecommando) kan zien of veranderen.

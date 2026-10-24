@@ -487,3 +487,42 @@ CREATE TABLE IF NOT EXISTS login_log (
     created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_ll (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Datalekken via Have I Been Pwned (1.69.0): hoofdschakelaar (standaard uit), drempel voor wachtwoorden, API-sleutel,
+-- eigen lijst met e-mailadressen en een (bij HIBP geverifieerd) domein
+INSERT IGNORE INTO settings (name, value) VALUES ('hibp_enabled', '0'), ('hibp_threshold', '1'), ('hibp_key', ''), ('hibp_emails', ''),
+    ('hibp_domain', ''), ('hibp_rpm', '10'), ('hibp_check_at', ''), ('hibp_domain_at', ''), ('hibp_domain_error', ''), ('hibp_last_error', ''),
+    ('hibp_wait_until', '0');
+
+-- Gecontroleerde e-mailadressen (bron: user, list of domain) en hun lekken; de gegevens per lek komen van HIBP
+CREATE TABLE IF NOT EXISTS hibp_emails (
+    email      VARCHAR(190) PRIMARY KEY,
+    source     VARCHAR(10) NOT NULL DEFAULT 'list',
+    checked_at DATETIME NULL,
+    error      VARCHAR(255) NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS hibp_breaches (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    email      VARCHAR(190) NOT NULL,
+    name       VARCHAR(100) NOT NULL,
+    source     VARCHAR(10) NOT NULL DEFAULT 'list',
+    found_at   DATETIME NOT NULL,
+    handled_at DATETIME NULL,
+    handled_by VARCHAR(64) NULL,
+    UNIQUE KEY uq_hibp (email, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS hibp_catalog (
+    name         VARCHAR(100) PRIMARY KEY,
+    title        VARCHAR(200) NULL,
+    domain       VARCHAR(190) NULL,
+    breach_date  DATE NULL,
+    added_date   DATETIME NULL,
+    pwn_count    BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    data_classes TEXT NULL,
+    verified     TINYINT(1) NOT NULL DEFAULT 0,
+    is_sensitive TINYINT(1) NOT NULL DEFAULT 0,
+    description  TEXT NULL,
+    fetched_at   DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

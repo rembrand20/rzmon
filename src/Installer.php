@@ -184,6 +184,13 @@ final class Installer
         ['hosts', 'ip_lock', 'VARCHAR(3) NULL'],
         // 1.68.0: onthouden apparaat dat met 2FA is aangemaakt (van buiten je interne netwerken alleen dan geldig)
         ['remember_tokens', 'mfa', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        // 1.69.0: per account alleen vanaf de interne netwerken (noodaccount), datalek-controle (nieuwe accounts: aan),
+        // en het resultaat van de wachtwoordcontrole (aantal keer gelekt; verplicht een nieuw kiezen)
+        ['users', 'local_only', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['users', 'hibp', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['users', 'pw_pwned', 'INT UNSIGNED NULL'],
+        ['users', 'pw_pwned_at', 'DATETIME NULL'],
+        ['users', 'pw_must_change', 'TINYINT(1) NOT NULL DEFAULT 0'],
     ];
 
     private static function migrate(PDO $pdo): void
@@ -285,7 +292,8 @@ final class Installer
         if (strlen($password) < 8) {
             throw new InvalidArgumentException(t('Wachtwoord moet minimaal 8 tekens zijn'));
         }
-        q('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)', [
+        // Nieuw account: datalek-controle standaard aan (bestaande accounts houden hun instelling)
+        q('INSERT INTO users (username, password_hash, role, hibp) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), pw_pwned_at = NULL, pw_must_change = 0', [
             $username, password_hash($password, PASSWORD_DEFAULT), in_array($role, array_keys(ROLES), true) ? $role : 'admin',
         ]);
     }

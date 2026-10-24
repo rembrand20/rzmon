@@ -337,6 +337,18 @@ final class Mqtt
             }
         }
 
+        // Datalekken (Have I Been Pwned, 1.69.0): open lekken, en of er een gelekt wachtwoord in gebruik is
+        if (Hibp::enabled()) {
+            $hs = Hibp::summary();
+            $topic = "$base/breaches";
+            $states[$topic] = ['open' => $hs['open'], 'with_passwords' => $hs['with_passwords'], 'emails' => $hs['emails'],
+                'pw_leaked' => $hs['pw_users'] ? 'ON' : 'OFF', 'pw_users' => implode(', ', $hs['pw_users'])];
+            $entity('sensor', 'breaches', $hub, ['name' => t('Datalekken'), 'state_topic' => $topic, 'value_template' => '{{ value_json.open }}',
+                'state_class' => 'measurement', 'icon' => 'mdi:lock-open-alert', 'json_attributes_topic' => $topic]);
+            $entity('binary_sensor', 'pw_leaked', $hub, ['name' => t('Gelekt wachtwoord'), 'state_topic' => $topic, 'value_template' => '{{ value_json.pw_leaked }}',
+                'device_class' => 'problem', 'icon' => 'mdi:form-textbox-password']);
+        }
+
         return [$disc, $states];
     }
 }

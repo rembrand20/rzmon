@@ -1358,3 +1358,32 @@ details.adv[open] { padding-bottom: .6rem; }
   .cert-dl { grid-template-columns: 1fr; }
   .cert-dl dt { margin-top: .25rem; }
 }
+
+/* ---------------------------------------------------------------- 1.69.0 Datalekken en accountvlaggen */
+.u-tag { display: inline-block; font-size: .72rem; font-weight: 600; padding: .05rem .45rem; border-radius: 99px; margin-left: .35rem; white-space: nowrap;
+  color: var(--muted); border: 1px solid var(--border); }
+.u-tag.local { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 45%, transparent); }
+.u-tag.bad { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 45%, transparent); }
+.u-tag.ok { color: var(--ok); border-color: transparent; background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.flag-btn { opacity: .45; filter: grayscale(1); }
+.flag-btn.on { opacity: 1; filter: none; background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.vuln-tabs { margin-bottom: 1rem; }
+#leak-list { display: grid; gap: .8rem; }
+#tab-vulns .vuln-host.vh-w-1 { --c: var(--ok); }
+.leak-rows { display: grid; border-top: 1px solid var(--border); }
+.leak-row { display: flex; gap: .8rem; align-items: flex-start; padding: .65rem 1rem; border-bottom: 1px solid var(--border); }
+.leak-row:last-child { border-bottom: 0; }
+.leak-row.pw { box-shadow: inset 3px 0 0 var(--crit); }
+.leak-row.done { opacity: .55; }
+.leak-row.done.pw { box-shadow: none; }
+.leak-main { flex: 1; min-width: 0; display: grid; gap: .25rem; }
+.leak-row .btn { white-space: nowrap; }
+.leak-classes { display: flex; flex-wrap: wrap; gap: .25rem; }
+.lc { font-size: .72rem; padding: .05rem .45rem; border-radius: 99px; background: var(--card-2); border: 1px solid var(--border); }
+.lc.pw { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 45%, transparent); font-weight: 600; }
+.leak-desc p { margin: .3rem 0 0; color: var(--muted); }
+.v-banner.info { background: color-mix(in srgb, #3b82f6 10%, var(--card)); border-color: color-mix(in srgb, #3b82f6 40%, var(--border)); }
+#hibp-body.dim { opacity: .5; }
+@media (max-width: 560px) {
+  .leak-row { flex-direction: column; }
+}

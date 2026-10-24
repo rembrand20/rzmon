@@ -146,6 +146,12 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - met een logboek.
 - **Lokaal netwerk:** optioneel inloggen zonder wachtwoord op je LAN (*alleen lezen* of beheerder); van buitenaf blijft de login nodig.
 - **Reverse proxy** (SWAG, Nginx Proxy Manager, Traefik, Cloudflare Tunnel): het echte IP en https worden alleen vertrouwd van proxy's die je zelf opgeeft; proxy-kopteksten van een onbekend adres = bezoeker van buiten, met een ⚠️-melding.
+- **🔓 Datalekken (Have I Been Pwned)**, met een hoofdschakelaar (standaard uit):
+  - **wachtwoorden** (gratis, k-anonimiteit: alleen 5 tekens van de hash gaan naar HIBP): waarschuwing bij het instellen, **verplicht een nieuw kiezen** na inloggen met een gelekt wachtwoord (dan wordt een gelekt wachtwoord geweigerd); drempel instelbaar;
+  - **e-mailadressen** (API-sleutel): van gebruikers, een eigen lijst en een geverifieerd **domein**, dagelijks en gespreid; ⚠️ bij een nieuw lek met wachtwoorden, anders ℹ️; eerste controle als één samenvatting;
+  - tabblad **Datalekken** bij Kwetsbaarheden (tellers, tegels, filters, per adres de lekken met gegevenssoorten, ✔ afgehandeld); MQTT-sensoren; *Hoe staat het ervoor?*;
+  - **per account** aan of uit (nieuwe accounts aan).
+- **🏠 Alleen lokaal inloggen** per account (bv. een noodaccount zonder 2FA): van buiten geweigerd met een ℹ️-melding (eigen rij in Systeeminfo), ook onthouden apparaten en open sessies; er blijft altijd een beheerder die van buiten mag.
 - **🔒 Beheer via https:**
   - een **beheeradres** (bv. via SWAG met Let's Encrypt) en **Beheer alleen via https**: http gaat naar het beheeradres, met **HSTS** (eerst 1 dag, na 7 dagen zonder problemen 1 jaar); agents en de REST API blijven via http werken;
   - de **certificaatkaart**: uitgever, namen, geldigheid, vingerafdruk, vertrouwd, en of de lokale **DNS-rewrite** werkt; dagelijks gecontroleerd, ℹ️ 14 dagen voor het verloopt, ⚠️ als het verlopen of ongeldig is;

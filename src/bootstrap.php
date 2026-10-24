@@ -14,7 +14,7 @@ const ROLE_LABELS = ['admin' => 'Beheerder', 'user' => 'Gebruiker', 'readonly' =
 // "Onthoud mij": na zoveel dagen niet gebruikt wordt een apparaat vergeten (elk gebruik telt opnieuw)
 const REMEMBER_DAYS = 30;
 // Instellingen die nooit naar de browser gaan (alleen "ingevuld of niet")
-const SECRET_SETTINGS = ['pushover_token', 'smtp_pass', 'mqtt_pass', 'backup_pass', 'enc_key', 'enc_key_old'];
+const SECRET_SETTINGS = ['pushover_token', 'smtp_pass', 'mqtt_pass', 'backup_pass', 'enc_key', 'enc_key_old', 'hibp_key'];
 
 const SM_CONFIG_FILE = SM_ROOT . '/config.php';
 // Versie van RzMon: de enige bron is het bestand VERSION (bijwerken met tools/bump-version.sh)
@@ -62,6 +62,7 @@ require_once __DIR__ . '/Vulns.php';
 require_once __DIR__ . '/Security.php';
 require_once __DIR__ . '/AgentCrypto.php';
 require_once __DIR__ . '/Https.php';
+require_once __DIR__ . '/Hibp.php';
 
 function config(string $key, $default = null)
 {

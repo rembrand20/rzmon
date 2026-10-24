@@ -1653,7 +1653,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - Waar deze meldingen heen gaan, kies je **per melding** bij *Instellingen → ℹ️ Systeeminfo* (zie hieronder).
 
 **ℹ️ Systeeminfo** (*Instellingen*, groep *Meldingen*, vanaf 1.59.0)
-- Een tabel met alle meldingen van RzMon zelf (geen checks): *RzMon bijgewerkt*; *Agent bijgewerkt*, *Agent bijwerken mislukt*, *Agent verbonden*; *Ingelogd*, *Mislukte login*; *Account geblokkeerd*, *Account gedeblokkeerd*, *IP geblokkeerd*, *Blokkade opgeheven*; *Nieuwe kwetsbaarheden*, *Pakketten bijgewerkt of mislukt*; *🔐 Certificaat verloopt binnenkort* (vanaf 1.68.0, zie § 10.2); en ⚠️ *Niet-geautoriseerde verbinding*.
+- Een tabel met alle meldingen van RzMon zelf (geen checks): *RzMon bijgewerkt*; *Agent bijgewerkt*, *Agent bijwerken mislukt*, *Agent verbonden*; *Ingelogd*, *Mislukte login*; *Account geblokkeerd*, *Account gedeblokkeerd*, *IP geblokkeerd*, *Blokkade opgeheven*; *Nieuwe kwetsbaarheden*, *Pakketten bijgewerkt of mislukt*; *🔐 Certificaat verloopt binnenkort* (vanaf 1.68.0, zie § 10.2); *🔓 Datalek* en *🏠 Inlogpoging van buiten op een lokaal account* (vanaf 1.69.0, zie § 10.3); en ⚠️ *Niet-geautoriseerde verbinding*.
 - Per melding vink je aan: **📲 Pushover**, **📧 E-mail**, **🏠 Home Assistant** en **📄 Meldingenpagina**, en bij Pushover **🔕 stil** (zonder geluid) of **🔔 normaal**. Staat een kanaal helemaal uit, dan staat *(uit)* in de kop. Wordt meteen opgeslagen.
 - **Stille uren:** er gaat niets naar buiten, maar de melding komt wel op de meldingenpagina (als die aangevinkt is). Uitzondering: ⚠️ *Niet-geautoriseerde verbinding* gaat ook tijdens stille uren, en staat altijd op de meldingenpagina (daar telt RzMon de pogingen per IP).
 - **🧪** stuurt een voorbeeld van die melding naar wat je nu aangevinkt hebt, ook tijdens stille uren.
@@ -1715,6 +1715,41 @@ Komen er verzoeken met proxy-kopteksten (`X-Forwarded-For` e.d.) van een adres d
 
 #### Hoe staat het ervoor?
 Nieuwe punten: *Beheer via https*, *Certificaat* (verloopt over X dagen, of het probleem), *Lokale DNS-rewrite*, *Reverse proxy* (onbekende proxy, of een proxy die geen https meldt) en *2FA van buiten*.
+
+### 10.3 Datalekken (Have I Been Pwned, vanaf 1.69.0)
+
+**Instellingen → Beveiliging → Datalekken**
+
+RzMon controleert of **wachtwoorden** van RzMon-accounts en **e-mailadressen** in bekende datalekken staan, via [Have I Been Pwned](https://haveibeenpwned.com) (HIBP). Met de hoofdschakelaar **Controle op datalekken** zet je alles aan of uit. Na de update staat hij **uit**; dan gaat er niets naar HIBP.
+
+#### Wachtwoorden (gratis)
+- Het wachtwoord gaat **nooit** de deur uit: RzMon stuurt alleen de eerste 5 tekens van de SHA-1-hash en vergelijkt de rest zelf (*k-anonimiteit*, met opvulling).
+- **Gelekt vanaf X keer**: standaard 1 (elke treffer).
+- **Bij het instellen** van een gelekt wachtwoord (nieuwe gebruiker, 🔑, *Mijn account*, *wachtwoord vergeten*) krijg je een waarschuwing; opslaan mag wel.
+- **Bij het inloggen** met een gelekt wachtwoord kom je eerst op het scherm **"Je wachtwoord staat in een datalek"**: kies een nieuw wachtwoord, daarna kun je verder. Daar wordt een gelekt wachtwoord geweigerd. Dit geldt voor iedereen, ook beheerders. Is HIBP niet bereikbaar, dan gaat alles gewoon door.
+- Een wachtwoord wordt hooguit één keer per dag opnieuw gecontroleerd (bij het inloggen; alleen dan kent RzMon het).
+
+#### E-mailadressen (API-sleutel)
+- Vul je **API-sleutel** in (te koop op [haveibeenpwned.com/API/Key](https://haveibeenpwned.com/API/Key)) en klik op **🧪 Testen**: je ziet je abonnement en hoeveel verzoeken per minuut het toestaat.
+- RzMon controleert **dagelijks** de e-mailadressen van gebruikers met de controle aan, de **extra e-mailadressen** (één per regel) en, als je dat invult, je **domein**. Een domein moet je eerst op de site van HIBP verifiëren (*Domain search*); voor grotere domeinen is een groter abonnement nodig.
+- De verzoeken worden gespreid binnen de limiet van je abonnement (via cron, elke minuut een paar adressen).
+- **Meldingen:**
+  - ⚠️ **warning** (Pushover) bij een **nieuw lek met wachtwoorden**;
+  - ℹ️ **info** bij een nieuw lek zonder wachtwoorden, en bij de **eerste controle** van een adres één samenvatting van de bekende (oude) lekken. Kanalen: *Systeeminfo → 🔓 Datalek*.
+
+#### Kwetsbaarheden → Datalekken
+Een tabblad naast *Kwetsbaarheden* (alleen voor beheerders): tellers, tegels, zoeken, filters (*Open · Met wachtwoorden · Afgehandeld · Zonder lekken · Alles*) en per adres de lekken met datum, aantal getroffen accounts, welke gegevens erin zaten (wachtwoorden in rood) en *Wat is er gebeurd?*. Met **✔ Afgehandeld** markeer je een lek (bv. wachtwoord gewijzigd); het blijft grijs zichtbaar en kan weer **↺ Heropend** worden. **🔍 Nu controleren** start meteen een ronde.
+
+#### Per account (Gebruikers)
+- **🔓 / 🔕 Datalek-controle**: aan of uit per account. Nieuwe accounts: **aan**; accounts van vóór 1.69.0: **uit** (zet ze zelf aan). Staat hij uit, dan wordt het wachtwoord én het e-mailadres van dat account niet gecontroleerd.
+- **🏠 Alleen lokaal**: het account mag alleen vanaf je interne netwerken inloggen (*Toegang → Lokale netwerken*). Bedoeld voor een **noodaccount**, bv. `rzmon_admin` zonder 2FA om thuis de 2FA van een ander account te resetten.
+  - Van buiten wordt het geweigerd (*"Dit account mag alleen vanaf het interne netwerk inloggen"*), ook met het juiste wachtwoord; dat telt mee voor de inlogbeveiliging en geeft een ℹ️ (*Systeeminfo → 🏠 Inlogpoging van buiten op een lokaal account*; zet daar Pushover aan als je dit direct wilt weten).
+  - Een onthouden apparaat werkt alleen van binnen, en een open sessie vervalt zodra je van buiten komt.
+  - Er blijft altijd minstens één beheerder over die ook van buiten mag inloggen, en van buiten kun je je eigen account niet op *alleen lokaal* zetten.
+
+#### Home Assistant en Hoe staat het ervoor?
+- MQTT: `sensor.rzmon_datalekken` (open lekken, met de details als attributen) en `binary_sensor.rzmon_gelekt_wachtwoord` (aan als een account met de controle aan een gelekt wachtwoord heeft).
+- *Hoe staat het ervoor?*: *Gelekte wachtwoorden* en *Gelekte e-mailadressen*.
 
 ## 11. REST API en Home Assistant-integratie
 
@@ -2027,6 +2062,7 @@ Opnieuw `install-rocky.sh` draaien doet beide ook.
 - [ ] Bereikbaar van buitenaf? Dan alleen via **HTTPS** of een VPN. Met een reverse proxy: *Beheer alleen via https*, *Inloggen via http weigeren* en *2FA verplicht van buiten* aan (§ 10.2).
 - [ ] "Geen login op LAN" aan? Dan getest via 4G dat je een loginscherm krijgt.
 - [ ] Ongebruikte API-sleutels zijn ingetrokken.
+- [ ] *Controle op datalekken* aan (§ 10.3), en een noodaccount op 🏠 *alleen lokaal*.
 - [ ] Inlogbeveiliging aan (*Instellingen → Toegang*), en je lokale netwerken kloppen (vanaf daar kun je altijd nog inloggen).
 - [ ] Agents beveiligen (*Instellingen → Agents → Beveiligde verbinding*: 🔑 eigen sleutel en 🔒 bij alle servers, daarna eventueel *Verplicht*).
 - [ ] De MariaDB-gebruiker `rzmon` mag alleen inloggen vanaf `localhost`.

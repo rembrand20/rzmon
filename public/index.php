@@ -36,6 +36,11 @@ $csrf = csrf_token();
 $role = $user['role'] ?? 'readonly';
 // Link uit de mail "wachtwoord opnieuw instellen"
 $resetToken = preg_match('/^[0-9a-f]{64}$/', (string) ($_GET['reset'] ?? '')) ? (string) $_GET['reset'] : null;
+// Wachtwoord staat in een datalek (1.69.0): eerst een nieuw kiezen
+$mustChange = $user && !$resetToken && must_change_password($user);
+// Tabblad Kwetsbaarheden: CVE's (scan aan) en/of Datalekken (controle aan, alleen beheerders)
+$showVulns = Vulns::enabled() && $role !== 'readonly';
+$showLeaks = $user && Hibp::enabled() && $role === 'admin';
 $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.css');
 ?>
 <!doctype html>
@@ -68,6 +73,21 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <p class="muted small" id="reset-status"><?= th('Link controleren…') ?></p>
       <p class="form-error" hidden></p>
       <p class="small login-links"><a href="index.php?login=1"><?= th('Naar inloggen') ?></a></p>
+    </form>
+  </main>
+<?php elseif ($mustChange): ?>
+  <main class="login-wrap">
+    <form id="pwforce-form" class="card login-card">
+      <div class="brand big"><span class="logo">📡</span> RzMon</div>
+      <h2 style="margin:0 0 .6rem">🔓 <?= th('Je wachtwoord staat in een datalek') ?></h2>
+      <p class="muted small" style="margin-top:0"><?= t('Het wachtwoord van <b>{user}</b> komt voor in bekende datalekken (Have I Been Pwned). Aanvallers proberen zulke wachtwoorden als eerste. Kies een nieuw wachtwoord; daarna kun je verder.', ['user' => htmlspecialchars((string) $user['username'])]) ?></p>
+      <input type="text" name="username" autocomplete="username" value="<?= htmlspecialchars((string) $user['username']) ?>" hidden>
+      <label><?= th('Nieuw wachtwoord') ?> <span class="hint"><?= th('(minstens 8 tekens)') ?></span><input name="password" type="password" autocomplete="new-password" minlength="8" required autofocus></label>
+      <label><?= th('Nog een keer') ?><input name="password2" type="password" autocomplete="new-password" minlength="8" required></label>
+      <p class="muted small"><?= th('Tip: een zin van een paar woorden is sterk en makkelijk te onthouden. Ook dit wachtwoord wordt gecontroleerd; alleen een deel van de hash gaat naar HIBP, nooit het wachtwoord zelf.') ?></p>
+      <p class="form-error" hidden></p>
+      <button class="btn primary block"><?= th('Wachtwoord opslaan') ?></button>
+      <p class="small login-links"><a href="#" id="pwforce-logout"><?= th('Uitloggen') ?></a></p>
     </form>
   </main>
 <?php elseif (!$user): ?>
@@ -118,7 +138,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <button class="tab active" data-tab="dashboard" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="tab-badge" id="dash-badge" hidden></span></span><span class="tab-lbl"><?= th('Dashboard') ?></span></button>
       <button class="tab" data-tab="alerts" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="tab-badge" id="alerts-badge" hidden></span></span><span class="tab-lbl"><?= th('Meldingen') ?></span></button>
       <button class="tab" data-tab="ids" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span class="tab-badge" id="ids-badge" hidden></span></span><span class="tab-lbl">IDS</span></button>
-      <?php if (Vulns::enabled() && $role !== 'readonly'): ?><button class="tab" data-tab="vulns" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.5 13H3M21 13h-3.5M6 17l-2.5 2M18 17l2.5 2M6 9 3.5 7.5M18 9l2.5-1.5"/></svg><span class="tab-badge" id="vuln-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Kwetsbaarheden') ?></span><span class="tab-lbl-s"><?= th('CVE\'s') ?></span></button><?php endif; ?>
+      <?php if ($showVulns || $showLeaks): ?><button class="tab" data-tab="vulns" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.5 13H3M21 13h-3.5M6 17l-2.5 2M18 17l2.5 2M6 9 3.5 7.5M18 9l2.5-1.5"/></svg><span class="tab-badge" id="vuln-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Kwetsbaarheden') ?></span><span class="tab-lbl-s"><?= th('CVE\'s') ?></span></button><?php endif; ?>
     </nav>
     <div class="top-actions">
       <?php $hasAccount = !is_lan_session(); $uname = (string) ($user['username'] ?? ''); ?>
@@ -267,8 +287,16 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div>
     </section>
 
-    <?php if (Vulns::enabled() && $role !== 'readonly'): ?>
+    <?php if ($showVulns || $showLeaks): ?>
     <section id="tab-vulns" class="tab-panel" hidden>
+      <?php if ($showVulns && $showLeaks): ?>
+      <div class="subtabs vuln-tabs" role="tablist" aria-label="<?= th('Kwetsbaarheden') ?>" id="vuln-tabs">
+        <button type="button" class="seg-btn active" data-vt="cve">🐞 <?= th('Kwetsbaarheden') ?> <span class="it-n" id="vt-n-cve"></span></button>
+        <button type="button" class="seg-btn" data-vt="leak">🔓 <?= th('Datalekken') ?> <span class="it-n" id="vt-n-leak"></span></button>
+      </div>
+      <?php endif; ?>
+      <?php if ($showVulns): ?>
+      <div class="vuln-pane" data-vpane="cve">
       <!-- 1.67.0: zelfde opbouw als het dashboard -->
       <div class="dash-counters"><div class="dash-in">
         <div class="health-counts" id="vuln-counts"></div>
@@ -287,6 +315,26 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <button type="button" class="btn need-admin" id="vuln-scan">🔍 <?= th('Nu scannen') ?></button>
       </div>
       <div id="vuln-hosts"></div>
+      </div>
+      <?php endif; ?>
+      <?php if ($showLeaks): ?>
+      <div class="vuln-pane" data-vpane="leak" <?= $showVulns ? 'hidden' : '' ?>>
+        <div class="dash-counters"><div class="dash-in">
+          <div class="health-counts" id="leak-counts"></div>
+          <span class="dash-last muted small" id="leak-info"></span>
+        </div></div>
+        <div id="leak-banner"></div>
+        <div class="kpis" id="leak-kpis"></div>
+        <div class="dash-bar">
+          <input type="search" id="leak-search" placeholder="<?= th('🔍 Zoek adres of lek…') ?>" autocomplete="off">
+          <div class="dash-chips" id="leak-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
+          <span class="dash-sp"></span>
+          <button type="button" class="btn" id="leak-run">🔍 <?= th('Nu controleren') ?></button>
+        </div>
+        <div id="leak-users"></div>
+        <div id="leak-list"></div>
+      </div>
+      <?php endif; ?>
     </section>
     <?php endif; ?>
 
@@ -618,6 +666,28 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <pre class="mono small https-conf" id="https-conf"></pre>
           <p class="muted small"><?= t('<b>Nooddeur</b>: https op het IP-adres van RzMon zelf (self-signed, kies "toch doorgaan") blijft vanaf je interne netwerken altijd werken, ook als het certificaat van het beheeradres verlopen is. Buitengesloten? Op de server: <code>sudo php install/install.php --https-off</code>.') ?></p>
         </details>
+        <p class="form-error" hidden></p>
+      </div>
+
+      <div data-sk="hibp" class="card need-admin" id="hibp-card">
+        <h2>🔓 <?= th('Datalekken (Have I Been Pwned)') ?></h2>
+        <p class="muted small"><?= t('Controleert of <b>wachtwoorden</b> van RzMon-accounts en <b>e-mailadressen</b> in bekende datalekken staan. Wachtwoorden: gratis, en het wachtwoord gaat nooit de deur uit (alleen de eerste 5 tekens van de SHA-1-hash, met opvulling). E-mailadressen: met een API-sleutel van <a href="https://haveibeenpwned.com/API/Key" target="_blank" rel="noopener">haveibeenpwned.com</a>, dagelijks. Per account uit te zetten bij <i>Gebruikers</i> (🔓).') ?></p>
+        <label class="switch"><input type="checkbox" id="hibp-on"><span></span> <b><?= th('Controle op datalekken') ?></b></label>
+        <div id="hibp-body">
+          <h3 class="set-sub">🔑 <?= th('Wachtwoorden') ?></h3>
+          <div class="lock-row"><?= th('Gelekt vanaf') ?> <input type="number" id="hibp-threshold" min="1" max="1000000" class="num-in"> <?= th('keer in datalekken') ?>
+            <span class="hint"><?= th('(1 = elke treffer)') ?></span></div>
+          <p class="muted small" style="margin-top:-.2rem"><?= th('Bij het instellen van een gelekt wachtwoord krijg je een waarschuwing. Wie inlogt met een gelekt wachtwoord, moet eerst een nieuw kiezen; een gelekt wachtwoord wordt daar geweigerd.') ?></p>
+          <h3 class="set-sub">✉️ <?= th('E-mailadressen') ?></h3>
+          <label><?= th('API-sleutel') ?> <span class="hint" id="hibp-key-state"></span>
+            <span class="inline-row"><input type="password" id="hibp-key" autocomplete="off" spellcheck="false" placeholder="<?= th('niet gewijzigd') ?>"><button type="button" class="btn" id="hibp-test">🧪 <?= th('Testen') ?></button></span></label>
+          <p class="small" id="hibp-test-out"></p>
+          <label><?= th('Extra e-mailadressen') ?> <span class="hint"><?= th('(één per regel; de adressen van gebruikers met de controle aan gaan vanzelf mee)') ?></span>
+            <textarea id="hibp-emails" rows="3" spellcheck="false" placeholder="jij@voorbeeld.nl"></textarea></label>
+          <label><?= th('Domein') ?> <span class="hint"><?= th('(optioneel; eerst verifiëren op haveibeenpwned.com → Domain search)') ?></span>
+            <input id="hibp-domain" spellcheck="false" placeholder="jouwdomein.nl"></label>
+          <p class="muted small" id="hibp-status"></p>
+        </div>
         <p class="form-error" hidden></p>
       </div>
 

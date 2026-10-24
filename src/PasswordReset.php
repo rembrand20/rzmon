@@ -131,7 +131,8 @@ final class PasswordReset
             q('UPDATE users SET totp_last_step = ? WHERE id = ?', [$step, $r['user_id']]);
         }
         $uid = (int) $r['user_id'];
-        q('UPDATE users SET password_hash = ?, pw_changed_at = ? WHERE id = ?', [password_hash($password, PASSWORD_DEFAULT), now(), $uid]);
+        q('UPDATE users SET password_hash = ?, pw_changed_at = ?, pw_must_change = 0, pw_pwned_at = NULL WHERE id = ?', [password_hash($password, PASSWORD_DEFAULT), now(), $uid]);
+        Hibp::checkUser($uid, $password);   // datalek: waarschuwen (bij inloggen dan een ander kiezen)
         q('UPDATE password_resets SET used_at = ? WHERE id = ?', [now(), $r['id']]);
         q('DELETE FROM password_resets WHERE user_id = ? AND used_at IS NULL', [$uid]);   // andere openstaande links ongeldig
         q('DELETE FROM remember_tokens WHERE user_id = ?', [$uid]);                        // onthouden apparaten vergeten

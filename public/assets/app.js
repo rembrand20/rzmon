@@ -190,9 +190,15 @@ async function api(action, body, params = {}) {
   });
   const data = await res.json().catch(() => ({ error: L('Ongeldig antwoord van server') }));
   if (res.status === 401 && !action.startsWith('login')) { location.reload(); }
+  if (res.status === 403 && data.must_change) { location.reload(); }   // wachtwoord in een datalek: eerst een nieuw kiezen
   // status en data mee in de fout: zo hoeft niemand de (vertaalde) tekst te herkennen
   if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status, data });
   return data;
+}
+
+/** Na het instellen van een wachtwoord: waarschuwing als het in een datalek staat (opslaan mag wel) */
+function pwnedWarn(r) {
+  if (r && r.pwned > 0) toast('⚠️ ' + L('Dit wachtwoord staat {n}× in datalekken. Bij het inloggen moet dan eerst een ander worden gekozen.', { n: (+r.pwned).toLocaleString(LOCALE) }), 'err');
 }
 
 function toast(msg, type = 'ok') {
@@ -272,11 +278,12 @@ if (resetForm) {
     const b = $('#reset-fields button', resetForm);
     b.disabled = true;
     try {
-      await api('pw_reset', { token, password: resetForm.password.value, code: resetForm.code.value });
+      const r = await api('pw_reset', { token, password: resetForm.password.value, code: resetForm.code.value });
       $('#reset-fields').hidden = true;
       err.hidden = true;
       $('#reset-status').hidden = false;
-      $('#reset-status').innerHTML = '<b class="good-txt">✔ ' + L('Je wachtwoord is gewijzigd.') + '</b> ' + L('Log nu in met je nieuwe wachtwoord.');
+      $('#reset-status').innerHTML = '<b class="good-txt">✔ ' + L('Je wachtwoord is gewijzigd.') + '</b> ' + L('Log nu in met je nieuwe wachtwoord.')
+        + (r.pwned > 0 ? '<br><span class="warn-txt">⚠️ ' + L('Dit wachtwoord staat {n}× in datalekken. Bij het inloggen moet dan eerst een ander worden gekozen.', { n: (+r.pwned).toLocaleString(LOCALE) }) + '</span>' : '');
     } catch (ex) {
       err.textContent = ex.message;
       err.hidden = false;
@@ -284,6 +291,21 @@ if (resetForm) {
     }
     b.disabled = false;
   });
+}
+
+// Wachtwoord staat in een datalek: eerst een nieuw kiezen (een gelekt wachtwoord wordt hier geweigerd)
+const pwForce = $('#pwforce-form');
+if (pwForce) {
+  const err = $('.form-error', pwForce);
+  pwForce.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (pwForce.password.value !== pwForce.password2.value) { err.textContent = L('De twee wachtwoorden zijn niet gelijk'); err.hidden = false; return; }
+    const b = $('button.primary', pwForce);
+    b.disabled = true;
+    try { await api('pw_forced', { new: pwForce.password.value }); toast(L('Wachtwoord gewijzigd')); location.replace(location.pathname); }
+    catch (ex) { err.textContent = ex.message; err.hidden = false; b.disabled = false; }
+  });
+  $('#pwforce-logout').onclick = async (e) => { e.preventDefault(); try { await api('logout', {}); } catch (ex) { /* toch weg */ } location.replace(location.pathname + '?login=1'); };
 }
 
 // ---------------------------------------------------------------- Login
@@ -323,7 +345,7 @@ if (loginForm) {
       }
     }
   });
-} else if (!resetForm) {
+} else if (!resetForm && !pwForce) {
   // Pas starten als het hele script geladen is: opent de pagina direct op een tabblad (bv. #settings),
   // dan gebruikt dat ook constanten die verderop in dit bestand staan
   queueMicrotask(init);
@@ -331,7 +353,8 @@ if (loginForm) {
 
 // ---------------------------------------------------------------- App
 function init() {
-  if ($('#tab-vulns')) initVulns();
+  if ($('#vuln-search')) initVulns();
+  if ($('#leak-list')) initLeaks();
   $('#vuln-scan-now').onclick = async (e) => {
     const b = e.currentTarget;
     b.disabled = true;
@@ -633,6 +656,7 @@ function init() {
   $('#access-form').addEventListener('submit', saveAccess);
   $('#access-form').addEventListener('change', (e) => saveAccess(null, e.target));
   initHttps();
+  initHibp();
 
   refresh();
   setInterval(() => { if (!document.hidden && !$('#modal').open) refresh(); }, 20000);
@@ -653,7 +677,7 @@ function showTab(name) {
   if (name === 'alerts') loadAlerts();
   if ((name === 'dashboard' || name === 'alerts') && state.badges) refresh();   // tab gezien: teller naar 0
   if (name === 'ids') loadIds();
-  if (name === 'vulns') loadVulns();
+  if (name === 'vulns') { if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
 }
 
 async function refresh() {
@@ -4057,6 +4081,67 @@ function initHttps() {
   };
 }
 
+// ---------------------------------------------------------------- Datalekken: instellingen (1.69.0)
+let hibpInfo = null;
+async function loadHibp() {
+  try { hibpInfo = await api('hibp_info'); } catch (ex) { return; }
+  const h = hibpInfo;
+  $('#hibp-on').checked = h.enabled;
+  $('#hibp-body').classList.toggle('dim', !h.enabled);
+  const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = v; };
+  set('#hibp-threshold', h.threshold);
+  set('#hibp-emails', h.emails);
+  set('#hibp-domain', h.domain);
+  $('#hibp-key').value = '';
+  $('#hibp-key').placeholder = h.has_key ? L('ingevuld (laat leeg om te houden)') : L('nog geen sleutel');
+  $('#hibp-key-state').innerHTML = h.has_key ? `<span class="good-txt">✔ ${L('ingevuld')}</span> <a href="#" id="hibp-key-del">${L('verwijderen')}</a>` : '';
+  const s = h.summary;
+  $('#hibp-status').innerHTML = !h.enabled ? L('Staat uit: er gaat niets naar Have I Been Pwned.')
+    : [h.has_key ? L('{n} adressen; {r} verzoeken per minuut', { n: h.count, r: h.rpm }) : L('Zonder sleutel: alleen wachtwoorden.'),
+      h.check_at ? L('laatst gecontroleerd {t}', { t: ago(h.check_at) }) : '',
+      s && s.open ? `<b class="warn-txt">${L('{n} open lekken', { n: s.open })}</b>` : '',
+      h.last_error ? `<b class="bad">⚠️ ${esc(h.last_error)}</b>` : '', h.domain_error ? `<b class="bad">⚠️ ${esc(h.domain_error)}</b>` : ''].filter(Boolean).join(' · ');
+  $('#hibp-key-del')?.addEventListener('click', async (e) => { e.preventDefault(); if (!confirm(L('API-sleutel verwijderen?'))) return; await saveHibp({ key: '' }); });
+}
+
+async function saveHibp(data, el) {
+  const err = $('#hibp-card .form-error');
+  err.hidden = true;
+  try {
+    await api('hibp_save', data);
+    if (el) savedFlag(el, true);
+    await loadHibp();
+    loadSettingsHealth();
+    return true;
+  } catch (ex) {
+    err.textContent = ex.message; err.hidden = false;
+    if (el) savedFlag(el, false, ex.message);
+    return false;
+  }
+}
+
+function initHibp() {
+  if (!$('#hibp-card')) return;
+  $('#hibp-on').onchange = async (e) => {
+    if (await saveHibp({ enabled: e.target.checked }, e.target)) toast(e.target.checked ? L('Controle op datalekken staat aan') : L('Controle op datalekken staat uit'));
+    else e.target.checked = !e.target.checked;
+  };
+  $('#hibp-threshold').onchange = (e) => saveHibp({ threshold: +e.target.value }, e.target);
+  $('#hibp-emails').onchange = (e) => saveHibp({ emails: e.target.value }, e.target);
+  $('#hibp-domain').onchange = (e) => saveHibp({ domain: e.target.value }, e.target);
+  $('#hibp-key').onchange = (e) => { if (e.target.value.trim()) saveHibp({ key: e.target.value.trim() }, e.target); };
+  $('#hibp-test').onclick = async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    const out = $('#hibp-test-out');
+    try {
+      const r = await api('hibp_test', { key: $('#hibp-key').value.trim() });
+      out.innerHTML = `<span class="good-txt">✔ ${L('Sleutel werkt: {name}', { name: esc(r.name) })}</span>${r.rpm ? ' · ' + L('{n} verzoeken per minuut', { n: r.rpm }) : ''}${r.until ? ' · ' + L('tot {d}', { d: esc(fmtDay(r.until.slice(0, 10))) }) : ''}`;
+    } catch (ex) { out.innerHTML = `<span class="bad">✘ ${esc(ex.message)}</span>`; }
+    b.disabled = false;
+  };
+}
+
 // ---------------------------------------------------------------- API keys
 function apiBase() {
   return location.origin + location.pathname.replace(/\/[^/]*$/, '') + '/v1.php';
@@ -4262,7 +4347,7 @@ const SET_NAV = [
   ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'mqtt']], ['rules', L('Meldregels en stille uren'), ['notify']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['monitoring', '📈', L('Monitoring'), [['alarm', L('Alarmgedrag'), ['alarm']], ['vulns', L('Kwetsbaarheden'), ['vulns']], ['ids', 'IDS', ['ids']]]],
-  ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['https', L('Beheer via https'), ['https']], ['users', L('Gebruikers'), ['users']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades'), ['blocks']]]],
+  ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['https', L('Beheer via https'), ['https']], ['users', L('Gebruikers'), ['users']], ['hibp', L('Datalekken'), ['hibp']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades'), ['blocks']]]],
   ['agents', '🖥️', L('Agents'), [['agents', L('Agents bijwerken en commando\'s'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']]]],
   ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['backup', L('Back-up'), ['backup']], ['db', L('Database'), ['db']], ['setup', 'Setup', ['setup']]]],
 ];
@@ -4451,7 +4536,7 @@ async function loadAccount() {
   if (!$('#tab-account')) return;
   let me, devices = [], logins = [];
   try {
-    me = (await api('users')).find((u) => u.me);
+    me = (await api('users')).users.find((u) => u.me);
     [devices, logins] = await Promise.all([api('devices', null, { user_id: me.id }), api('my_logins')]);
   } catch (ex) { $('#acct-data-body').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   if (!me) return;
@@ -4505,6 +4590,7 @@ async function loadSettings() {
   loadSecurity();
   loadAccess();
   loadHttps();
+  loadHibp();
   loadDbInfo();
   const s = await api('settings');
   const f = $('#settings-form');
@@ -4692,7 +4778,8 @@ const SYSINFO_ROWS = [
   [L('Blokkades'), [['account_lock', '🔒 ' + L('Account geblokkeerd')], ['account_unlock', '🔓 ' + L('Account gedeblokkeerd')],
     ['ip_block', '⛔ ' + L('IP geblokkeerd')], ['ip_unblock', '✅ ' + L('Blokkade opgeheven')]]],
   [L('Kwetsbaarheden'), [['vuln_new', '🐞 ' + L('Nieuwe kwetsbaarheden')], ['vuln_upgrade', '📦 ' + L('Pakketten bijgewerkt of mislukt')]]],
-  [L('Beveiliging'), [['cert', '🔐 ' + L('Certificaat verloopt binnenkort')], ['sec', '⚠️ ' + L('Niet-geautoriseerde verbinding')]]],
+  [L('Beveiliging'), [['cert', '🔐 ' + L('Certificaat verloopt binnenkort')], ['breach', '🔓 ' + L('Datalek (zonder wachtwoorden of eerste controle)')],
+    ['local_only', '🏠 ' + L('Inlogpoging van buiten op een lokaal account')], ['sec', '⚠️ ' + L('Niet-geautoriseerde verbinding')]]],
 ];
 const SYSINFO_CH = [['pushover', '📲 Pushover', 'pushover_enabled'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
 let sysinfoCfg = null;
@@ -4801,19 +4888,23 @@ async function testChannel(e, action, okMsg, label) {
 async function changePassword(e) {
   e.preventDefault();
   try {
-    await api('password', Object.fromEntries(new FormData(e.target)));
+    const r = await api('password', Object.fromEntries(new FormData(e.target)));
     e.target.reset();
     toast(L('Wachtwoord gewijzigd'));
+    pwnedWarn(r);
   } catch (ex) { toast(ex.message, 'err'); }
 }
 
 // ---------------------------------------------------------------- Gebruikers & tweestapsverificatie
 let users = [];
+let usersHibp = false;   // datalek-controle staat aan (hoofdschakelaar)
 const ROLE_LABEL = { admin: '🔑 ' + L('Beheerder'), user: '👤 ' + L('Gebruiker'), readonly: '👁 ' + L('Alleen lezen') };
 async function loadUsers() {
   if ($('#tab-account') && !$('#tab-account').hidden) loadAccount();   // bv. na 2FA instellen vanaf Mijn account
   if ($('#users-card').hidden || !isAdmin()) return;
-  users = await api('users');
+  const ur = await api('users');
+  users = ur.users;
+  usersHibp = ur.hibp;
   if (isAdmin()) {
     api('pw_reset_info').then((r) => {
       $('#pw-reset-info').innerHTML = (r.unavailable
@@ -4828,22 +4919,33 @@ async function loadUsers() {
       <span class="grow"><strong>${esc(u.username)}</strong>${u.me ? ` <span class="badge">${L('jij')}</span>` : ''}
         <span class="role-tag r-${esc(u.role)}">${ROLE_LABEL[u.role] || esc(u.role)}</span>
         ${u.totp ? `<span class="tfa on" title="${L('Tweestapsverificatie staat aan')}">🔐 ${L('2FA aan')}</span>` : `<span class="tfa" title="${L('Alleen wachtwoord')}">${L('2FA uit')}</span>`}
-        ${u.locked ? `<span class="locked-tag" title="${esc(L('Te veel mislukte pogingen vanaf {ip}; vanaf het lokale netwerk kan inloggen nog wel', { ip: u.locked_ip || '?' }))}">🔒 ${u.locked_until ? L('geblokkeerd tot {t}', { t: esc(fmtDateTime(u.locked_until)) }) : L('geblokkeerd')}</span>` : ''}<br>
+        ${u.locked ? `<span class="locked-tag" title="${esc(L('Te veel mislukte pogingen vanaf {ip}; vanaf het lokale netwerk kan inloggen nog wel', { ip: u.locked_ip || '?' }))}">🔒 ${u.locked_until ? L('geblokkeerd tot {t}', { t: esc(fmtDateTime(u.locked_until)) }) : L('geblokkeerd')}</span>` : ''}
+        ${u.local_only ? `<span class="u-tag local" title="${L('Mag alleen vanaf je interne netwerken inloggen (Toegang → Lokale netwerken)')}">🏠 ${L('alleen lokaal')}</span>` : ''}
+        ${usersHibp && !u.hibp ? `<span class="u-tag" title="${L('Wachtwoord en e-mailadres van dit account worden niet gecontroleerd')}">🔕 ${L('geen datalek-controle')}</span>` : ''}
+        ${usersHibp && u.hibp && +u.pw_pwned > 0 ? `<span class="u-tag bad" title="${L('Bij het inloggen moet eerst een nieuw wachtwoord worden gekozen')}">🔓 ${L('wachtwoord gelekt ({n}×)', { n: (+u.pw_pwned).toLocaleString(LOCALE) })}</span>` : ''}
+        ${usersHibp && u.hibp && u.pw_pwned !== null && +u.pw_pwned === 0 ? `<span class="u-tag ok" title="${esc(L('Gecontroleerd {ago}', { ago: ago(u.pw_pwned_at) }))}">✔ ${L('wachtwoord niet gelekt')}</span>` : ''}<br>
         <span class="muted small">${u.email ? `✉ ${esc(u.email)}` : `<span title="${L('Nodig voor wachtwoord vergeten')}">✉ ${L('geen e-mailadres')}</span>`} · ${L('Laatst ingelogd: {ago}', { ago: u.last_login ? ago(u.last_login) : L('nooit') })}</span></span>
       <span class="row-actions">
-        ${u.me ? `<button class="btn" data-uact="mine" data-id="${u.id}" title="${L('Je eigen wachtwoord, 2FA, e-mail en apparaten')}">👤 ${L('Mijn account')}</button>` : `${u.totp
+        ${u.me ? `<button class="btn" data-uact="mine" data-id="${u.id}" title="${L('Je eigen wachtwoord, 2FA, e-mail en apparaten')}">👤 ${L('Mijn account')}</button>${userFlags(u)}` : `${u.totp
           ? `<button class="btn" data-uact="totp-reset" data-id="${u.id}" title="${L('Tweestapsverificatie uitzetten, bv. bij een verloren telefoon')}">${L('2FA resetten')}</button>`
           : `<button class="btn" data-uact="totp-setup" data-id="${u.id}">🔐 ${L('2FA instellen')}</button>`}
         ${u.locked ? `<button class="btn need-admin" data-uact="unlock" data-id="${u.id}">🔓 ${L('Deblokkeren')}</button>` : ''}
         ${u.me ? '' : `<select class="role-select need-admin" data-uact="role" data-id="${u.id}" title="${L('Rol wijzigen')}">
           ${Object.entries(ROLE_LABEL).map(([k, l]) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`}
         <button class="btn small-btn" data-uact="devices" data-id="${u.id}" title="${L('Apparaten waarop {user} ingelogd blijft', { user: esc(u.username) })}">📱 ${+u.devices}</button>
+        ${userFlags(u)}
         <button class="icon-btn" data-uact="email" data-id="${u.id}" title="${L('E-mailadres (voor wachtwoord vergeten)')}">✉</button>
         <button class="icon-btn need-admin" data-uact="password" data-id="${u.id}" title="${L('Nieuw wachtwoord instellen')}">🔑</button>
         <button class="icon-btn need-admin" data-uact="delete" data-id="${u.id}" title="${L('Verwijderen')}">🗑</button>`}
       </span>
     </div>`).join('');
   settingsSummaries();
+}
+
+/** Per account: alleen lokaal (🏠) en de datalek-controle (🔓 aan, 🔕 uit); alleen beheerders */
+function userFlags(u) {
+  return `<button class="icon-btn need-admin flag-btn ${u.local_only ? 'on' : ''}" data-uact="flag-local" data-id="${u.id}" title="${esc(u.local_only ? L('Alleen lokaal: aan (klik om uit te zetten)') : L('Alleen vanaf de interne netwerken laten inloggen (bv. een noodaccount)'))}">🏠</button>`
+    + (usersHibp ? `<button class="icon-btn need-admin flag-btn ${u.hibp ? 'on' : ''}" data-uact="flag-hibp" data-id="${u.id}" title="${esc(u.hibp ? L('Datalek-controle: aan (klik om uit te zetten)') : L('Datalek-controle: uit (klik om aan te zetten)'))}">${u.hibp ? '🔓' : '🔕'}</button>` : '');
 }
 
 /** Logboek van "wachtwoord vergeten": aanvragen, verstuurde links en herstelde wachtwoorden. */
@@ -4869,6 +4971,7 @@ async function createUser(e) {
     const withTotp = f.totp.checked;
     f.reset();
     toast(L('Gebruiker {name} aangemaakt', { name }));
+    pwnedWarn(r);
     await loadUsers();
     if (withTotp) totpSetup(r.id, name);
   } catch (ex) { toast(ex.message, 'err'); }
@@ -4882,6 +4985,15 @@ async function onUsersClick(e) {
     switch (b.dataset.uact) {
       case 'totp-setup': return totpSetup(u.id, u.username);
       case 'devices': return devicesDialog(u);
+      case 'flag-local':
+        if (!u.local_only && !confirm(L('{user} mag dan alleen nog vanaf je interne netwerken inloggen (Toegang → Lokale netwerken). Doorgaan?', { user: u.username }))) return;
+        await api('user_flags', { id: u.id, local_only: !u.local_only });
+        toast(!u.local_only ? L('{user}: alleen lokaal', { user: u.username }) : L('{user} mag weer overal inloggen', { user: u.username }));
+        return loadUsers();
+      case 'flag-hibp':
+        await api('user_flags', { id: u.id, hibp: !u.hibp });
+        toast(!u.hibp ? L('Datalek-controle aan voor {user}', { user: u.username }) : L('Datalek-controle uit voor {user}', { user: u.username }));
+        return loadUsers();
       case 'mine': return showTab('account');
       case 'unlock':
         await api('user_unlock', { id: u.id });
@@ -4910,7 +5022,7 @@ async function onUsersClick(e) {
           title: `${L('Nieuw wachtwoord')} – ${u.username}`,
           body: `<label>${L('Nieuw wachtwoord')}<input type="password" name="password" minlength="8" required autocomplete="new-password" autofocus></label>`,
           buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
-          onSubmit: async (d) => { await api('user_password', { id: u.id, password: d.password }); toast(L('Wachtwoord gewijzigd')); },
+          onSubmit: async (d) => { const r = await api('user_password', { id: u.id, password: d.password }); toast(L('Wachtwoord gewijzigd')); pwnedWarn(r); loadUsers(); },
         });
     }
   } catch (ex) { toast(ex.message, 'err'); }
@@ -5510,6 +5622,140 @@ async function loadVulns() {
     vulnData = await api('vulns');
     keepOpen($('#vuln-hosts'), renderVulns);
   } catch (ex) { $('#vuln-hosts').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; }
+}
+
+// ---------------------------------------------------------------- Datalekken (Have I Been Pwned, 1.69.0)
+let leakData = null;
+let leakFilter = 'open';
+let vulnTab = (() => { try { return localStorage.getItem('rzmon-vuln-tab') || 'cve'; } catch (e) { return 'cve'; } })();
+const LEAK_SRC = { user: () => '👤 ' + L('gebruiker'), list: () => '📋 ' + L('eigen lijst'), domain: () => '🌐 ' + L('domein') };
+
+function showVulnTab() {
+  if (!$('#vuln-tabs')) return;
+  if (!['cve', 'leak'].includes(vulnTab)) vulnTab = 'cve';
+  $$('#vuln-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.vt === vulnTab));
+  $$('#tab-vulns .vuln-pane').forEach((x) => { x.hidden = x.dataset.vpane !== vulnTab; });
+}
+
+function initLeaks() {
+  if ($('#vuln-tabs')) {
+    $('#vuln-tabs').onclick = (e) => {
+      const b = e.target.closest('[data-vt]');
+      if (!b) return;
+      vulnTab = b.dataset.vt;
+      try { localStorage.setItem('rzmon-vuln-tab', vulnTab); } catch (ex) { /* alleen voor nu */ }
+      showVulnTab();
+    };
+    showVulnTab();
+  }
+  $('#leak-search').oninput = () => renderLeaks();
+  $('#leak-filter').onclick = (e) => { const b = e.target.closest('[data-lf]'); if (b) { leakFilter = b.dataset.lf; renderLeaks(); } };
+  $('#leak-counts').onclick = (e) => { const b = e.target.closest('[data-lf]'); if (b) { leakFilter = leakFilter === b.dataset.lf ? 'all' : b.dataset.lf; renderLeaks(); } };
+  $('#leak-run').onclick = async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    try {
+      const r = await api('hibp_run', {});
+      toast(r.left > 0 ? L('Controle gestart: nog {n} adres(sen) te gaan, de rest volgt binnen een paar minuten', { n: r.left }) : L('Controle klaar'));
+      loadLeaks();
+    } catch (ex) { toast(ex.message, 'err'); }
+    b.disabled = false;
+  };
+  $('#leak-list').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-lhandle]');
+    if (!b) return;
+    try { await api('hibp_handle', { email: b.dataset.email, name: b.dataset.lhandle, handled: b.dataset.done === '1' }); loadLeaks(); }
+    catch (ex) { toast(ex.message, 'err'); }
+  });
+}
+
+async function loadLeaks() {
+  try {
+    leakData = await api('hibp_overview');
+    keepOpen($('#leak-list'), renderLeaks);
+  } catch (ex) { $('#leak-list').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; }
+}
+
+function leakVisible(e) {
+  const q = $('#leak-search').value.trim().toLowerCase();
+  const bs = e.breaches.filter((b) => (leakFilter === 'handled' ? b.handled_at : leakFilter === 'all' || leakFilter === 'none' ? true : !b.handled_at)
+    && (leakFilter !== 'pw' || b.passwords)
+    && (!q || e.email.includes(q) || (b.title || b.name).toLowerCase().includes(q) || (b.domain || '').toLowerCase().includes(q)));
+  if (leakFilter === 'none') return e.breaches.length ? null : bs;
+  if (leakFilter !== 'all' && !bs.length) return null;
+  if (leakFilter === 'all' && q && !bs.length && !e.email.includes(q)) return null;
+  return bs;
+}
+
+function renderLeaks() {
+  if (!leakData) return;
+  const d = leakData;
+  const all = d.emails.flatMap((e) => e.breaches.map((b) => ({ ...b, email: e.email })));
+  const open = all.filter((b) => !b.handled_at);
+  const pw = open.filter((b) => b.passwords);
+  const hit = new Set(open.map((b) => b.email));
+  const pwUsers = d.users.filter((u) => +u.hibp && +u.pw_pwned > 0);
+  const handled = all.length - open.length;
+  // Tellers
+  $('#leak-counts').innerHTML = [
+    ['open', open.length, L('Open lekken'), 's2'], ['pw', pw.length, L('Met wachtwoorden'), 's2'], ['', hit.size, L('Adressen getroffen'), 's1'],
+    ['', pwUsers.length, L('Gelekte wachtwoorden'), 's2'], ['handled', handled, L('Afgehandeld'), 's0'],
+  ].map(([k, n, w, c]) => `<button type="button" class="hc ${c} ${n ? '' : 'zero'} ${k && leakFilter === k ? 'on' : ''}" ${k ? `data-lf="${k}"` : ''}><span class="hc-dot"></span><b>${n}</b> <span class="hc-w">${w}</span></button>`).join('');
+  $('#leak-info').textContent = d.check_at ? L('laatste controle {t}', { t: ago(d.check_at) }) + ' · ' + L('dagelijks') : '';
+  if ($('#vt-n-leak')) $('#vt-n-leak').textContent = open.length || '';
+  // Meldingen bovenaan: geen sleutel, fouten
+  $('#leak-banner').innerHTML = [
+    !d.has_key ? `<div class="v-banner info">ℹ️ <span>${L('Geen API-sleutel: alleen de wachtwoorden van RzMon-accounts worden gecontroleerd. Een sleutel vul je in bij Instellingen → Beveiliging → Datalekken.')}</span></div>` : '',
+    d.last_error ? `<div class="v-banner">⚠️ <span><b>HIBP:</b> ${esc(d.last_error)}</span></div>` : '',
+    d.domain_error ? `<div class="v-banner">⚠️ <span><b>${L('Domein')}:</b> ${esc(d.domain_error)}</span></div>` : '',
+  ].join('');
+  const newest = open.slice().sort((a, b) => String(b.added_date || '').localeCompare(String(a.added_date || '')))[0];
+  const checked = d.emails.filter((e) => e.checked_at).length;
+  $('#leak-kpis').innerHTML = `
+    <div class="kpi kpi-main ${d.emails.some((e) => e.error) ? 'warn' : ''}"><div class="kpi-txt"><div class="kpi-lbl">${L('Adressen gecontroleerd')}</div>
+      <div class="kpi-val">${checked}<small>/${d.emails.length}</small></div>
+      <div class="kpi-sub">${d.domain ? L('incl. domein {d}', { d: esc(d.domain) }) : L('gebruikers en eigen lijst')}</div></div></div>
+    <div class="kpi ${open.length ? 'bad' : ''}"><div class="kpi-lbl">${L('Open lekken')}</div><div class="kpi-val">${open.length}</div>
+      <div class="kpi-sub">${L('op {n} adressen', { n: hit.size })}</div></div>
+    <div class="kpi ${pw.length ? 'bad' : ''}"><div class="kpi-lbl">${L('Met wachtwoorden')}</div><div class="kpi-val">${pw.length}</div>
+      <div class="kpi-sub">${pw.length ? L('wijzig die wachtwoorden') : L('geen')}</div></div>
+    <div class="kpi ${pwUsers.length ? 'bad' : ''}"><div class="kpi-lbl">${L('Gelekte wachtwoorden in RzMon')}</div><div class="kpi-val">${pwUsers.length}</div>
+      <div class="kpi-sub">${pwUsers.length ? esc(pwUsers.map((u) => u.username).join(', ')) : L('geen bekend')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Nieuwste lek')}</div><div class="kpi-val kpi-val-txt">${newest ? esc(newest.title || newest.name) : '–'}</div>
+      <div class="kpi-sub">${newest && newest.breach_date ? esc(fmtDay(newest.breach_date)) : ''}</div></div>`;
+  const cnt = { all: all.length, open: open.length, pw: pw.length, handled, none: d.emails.filter((e) => !e.breaches.length).length };
+  $('#leak-filter').innerHTML = [['open', L('Open')], ['pw', '🔑 ' + L('Met wachtwoorden')], ['handled', L('Afgehandeld')], ['none', L('Zonder lekken')], ['all', L('Alles')]]
+    .map(([k, l]) => `<button type="button" class="dchip ${leakFilter === k ? 'on' : ''}" data-lf="${k}">${l} <b>${cnt[k]}</b></button>`).join('');
+  // Accounts met een gelekt wachtwoord
+  $('#leak-users').innerHTML = pwUsers.length ? `<div class="v-banner">🔓 <span><b>${L('Wachtwoord in een datalek')}:</b> ${pwUsers.map((u) => esc(u.username)).join(', ')}.
+    ${L('Bij de volgende keer inloggen moet eerst een nieuw wachtwoord worden gekozen.')}</span></div>` : '';
+  // Per adres
+  const cards = d.emails.map((e) => [e, leakVisible(e)]).filter(([, bs]) => bs !== null)
+    .sort(([a, x], [b, y]) => y.filter((z) => z.passwords && !z.handled_at).length - x.filter((z) => z.passwords && !z.handled_at).length || y.length - x.length || a.email.localeCompare(b.email));
+  $('#leak-list').innerHTML = cards.length ? cards.map(([e, bs]) => leakCard(e, bs)).join('')
+    : `<div class="card"><p class="muted" style="margin:0">${d.emails.length ? (leakFilter === 'open' ? '✔ ' + L('Geen open lekken.') : L('Niets gevonden.'))
+      : L('Nog geen e-mailadressen: vul een API-sleutel in, en e-mailadressen bij de gebruikers of in de eigen lijst.')}</p></div>`;
+}
+
+function leakCard(e, bs) {
+  const openN = e.breaches.filter((b) => !b.handled_at).length;
+  const pwN = e.breaches.filter((b) => !b.handled_at && b.passwords).length;
+  const isOpen = $(`#leak-list details[data-email="${CSS.escape(e.email)}"]`)?.open ?? pwN > 0;
+  return `<details class="card vuln-host leak-card ${pwN ? 'vh-w4' : openN ? 'vh-w2' : 'vh-w-1'}" data-email="${esc(e.email)}" ${isOpen ? 'open' : ''}>
+    <summary><span class="host-ic" aria-hidden="true">✉️</span>
+      <span class="vh-name"><b>${esc(e.email)}</b><span class="muted small">${(LEAK_SRC[e.source] || LEAK_SRC.list)()}${e.checked_at ? ' · ' + L('gecontroleerd {t}', { t: ago(e.checked_at) }) : ' · ' + L('nog niet gecontroleerd')}</span></span>
+      <span class="vh-counts">${e.error ? `<span class="warn-txt small" title="${esc(e.error)}">⚠️ ${esc(e.error)}</span>` : ''}
+        ${pwN ? `<span class="vpill sev4" title="${L('met wachtwoorden')}">🔑 ${pwN}</span>` : ''}${openN - pwN ? `<span class="vpill sev2" title="${L('open lekken')}">${openN - pwN}</span>` : ''}
+        ${!e.breaches.length && e.checked_at ? `<span class="good-txt">✔ ${L('in geen enkel bekend lek')}</span>` : ''}${e.breaches.length && !openN ? `<span class="muted small">✔ ${L('alles afgehandeld')}</span>` : ''}</span></summary>
+    ${bs.length ? `<div class="leak-rows">${bs.map((b) => `
+      <div class="leak-row ${b.handled_at ? 'done' : ''} ${b.passwords ? 'pw' : ''}">
+        <div class="leak-main"><div><b>${esc(b.title || b.name)}</b> <span class="muted small">${b.domain ? esc(b.domain) + ' · ' : ''}${b.breach_date ? esc(fmtDay(b.breach_date)) : '?'}${+b.pwn_count ? ' · ' + L('{n} accounts', { n: (+b.pwn_count).toLocaleString(LOCALE) }) : ''}${+b.verified ? '' : ' · ' + L('niet geverifieerd')}</span></div>
+          <div class="leak-classes">${(b.data_classes_l || []).map((c, i) => `<span class="lc ${b.data_classes[i] === 'Passwords' ? 'pw' : ''}">${esc(c)}</span>`).join('')}</div>
+          ${b.description ? `<details class="small leak-desc"><summary>${L('Wat is er gebeurd?')}</summary><p>${esc(b.description)}</p></details>` : ''}
+          ${b.handled_at ? `<div class="muted small">✔ ${L('Afgehandeld {t} door {by}', { t: ago(b.handled_at), by: esc(b.handled_by || '?') })}</div>` : ''}</div>
+        <button type="button" class="btn small-btn" data-lhandle="${esc(b.name)}" data-email="${esc(e.email)}" data-done="${b.handled_at ? '0' : '1'}">${b.handled_at ? '↺ ' + L('Heropenen') : '✔ ' + L('Afgehandeld')}</button>
+      </div>`).join('')}</div>` : (e.breaches.length ? `<p class="muted small" style="margin:.4rem 0 0">${L('Geen lekken in deze selectie.')}</p>` : '')}
+  </details>`;
 }
 
 async function vulnScan(btn) {

@@ -158,6 +158,7 @@ server {
 - Van buitenaf blijft gewoon de login nodig. Ga je met een open sessie van wifi naar 4G, dan word je automatisch uitgelogd.
 - Bij een automatische login staat rechtsboven **🏠 Lokaal netwerk**.
 - **Reverse proxy** (SWAG, Nginx Proxy Manager, Traefik, Cloudflare tunnel, HA-addon e.d.): vul het IP van de proxy in bij *Reverse proxy IP's*. Het echte bezoekers-IP wordt dan uit `X-Forwarded-For` gehaald, en https uit `X-Forwarded-Proto`. Zet het proxy-IP **nooit** bij de lokale netwerken.
+- **🔓 Datalekken** (*Instellingen → Beveiliging → Datalekken*, standaard uit): wachtwoorden van RzMon-accounts tegen Have I Been Pwned (gratis; het wachtwoord gaat nooit de deur uit), met verplicht een nieuw kiezen na inloggen met een gelekt wachtwoord; e-mailadressen en je domein dagelijks met een API-sleutel; tabblad *Datalekken* bij Kwetsbaarheden. Per account aan/uit, en per account **🏠 alleen lokaal** (noodaccount).
 - **🔒 Beheer via https** (*Instellingen → Beveiliging*): beheeradres via je proxy, *Beheer alleen via https* (met HSTS), certificaatkaart met dagelijkse controle (ℹ️ 14 dagen voor het verloopt, ⚠️ als het ongeldig is), *Inloggen via http weigeren* en *2FA verplicht van buiten*. De nooddeur `https://<IP van RzMon>/` werkt altijd vanaf je LAN; buitengesloten: `php install/install.php --https-off`.
 - De REST API vraagt altijd om een API-sleutel, ook op het LAN.
 

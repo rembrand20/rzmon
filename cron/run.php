@@ -72,6 +72,14 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, 'Certificaat: ' . $e->getMessage() . "\n");
 }
+// Datalekken (Have I Been Pwned): domein en e-mailadressen, dagelijks, gespreid (Instellingen → Beveiliging → Datalekken)
+try {
+    if ($msg = Hibp::cron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Datalekken: ' . $e->getMessage() . "\n");
+}
 // Kwetsbaarheden: dagelijkse scan en servers waarvan de softwarelijst veranderde (Instellingen → 🐞 Kwetsbaarheden)
 try {
     if ($msg = Vulns::cron()) {
