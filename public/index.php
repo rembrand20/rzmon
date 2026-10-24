@@ -694,6 +694,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div data-sk="enc" class="card need-admin" id="enc-card">
         <h2>🔐 <?= th('Beveiligde verbinding met de agents') ?></h2>
         <p class="muted small"><?= t('Elke agent (1.50.0 of nieuwer) heeft een <b>eigen sleutel</b>. Daarmee is alles wat hij verstuurt versleuteld en ondertekend (AES-256 met een handtekening), ook het antwoord van RzMon. Er gaat geen token meer over de lijn, en een sleutel nooit leesbaar: een nieuwe agent koppel je met een <b>koppelcode</b> (Agent Manager → 🔗 Koppelcode, eenmalig en 15 minuten geldig). Agents die al met de algemene sleutel werkten, krijgen hun eigen sleutel vanzelf. Een bericht met een verkeerde sleutel, een oude handtekening of van een onbekend IP-adres wordt geweigerd en geeft een ⚠️-melding.') ?></p>
+        <div class="btn-row"><button type="button" class="btn" id="conn-cert">🔐 <?= th('Certificaat bekijken') ?></button>
+          <span class="muted small"><?= th('Welk certificaat de agents zien, downloaden en vernieuwen') ?></span></div>
         <div id="conn-ipwait"></div>
         <label><?= th('Versleutelen') ?> <select id="enc-mode"></select></label>
         <label><?= th('Sleutels van de agents vernieuwen') ?>

@@ -1659,6 +1659,30 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - **🧪** stuurt een voorbeeld van die melding naar wat je nu aangevinkt hebt, ook tijdens stille uren.
 - Na de update naar 1.59.0 is alles ingesteld zoals het werkte. De rij **Info** bij de meldregels heet nu *Info (checks)* en geldt alleen nog voor checks (info-checks, herstart, certificaten). *Info bij agent-updates* per server (Agent Manager) blijft: staat dat uit, dan komen agent-updates van die server alleen op de meldingenpagina.
 
+#### 🔐 Het certificaat voor de agents bekijken en vernieuwen (vanaf 1.70.0)
+In de kaart **Beveiligde verbinding met de agents** staat de knop **🔐 Certificaat bekijken**. Het venster toont:
+- **het adres van de agents** (de Basis-URL) en wat dat betekent:
+  - `http://…`: geen certificaat nodig; de berichten zijn al versleuteld met de eigen sleutel van elke agent;
+  - `https://<IP>`: het **eigen certificaat van RzMon** (poort 443);
+  - `https://naam` via een reverse proxy: dat certificaat vernieuwt de proxy zelf;
+- het **eigen certificaat van RzMon**: uitgever, namen en IP-adressen, geldig van en tot, dagen nog geldig en de vingerafdruk;
+- de **vingerafdruk die de agents vastzetten** (📌), en **per agent** of hij het huidige certificaat al kent (✔) of het bij zijn volgende rapport krijgt (⏳).
+
+**⬇ Downloaden (.crt)** (met je wachtwoord): zet het certificaat in je browser of besturingssysteem als vertrouwd. Dan geeft `https://<IP van RzMon>` (ook de nooddeur) geen waarschuwing meer.
+
+**🔄 Vernieuwen** (met je wachtwoord):
+- een nieuw certificaat met een **nieuwe sleutel**, **2 jaar** geldig;
+- met automatisch de hostnaam, `localhost`, alle IP-adressen van de server, het beheeradres en de Basis-URL; **extra namen of IP-adressen** vul je in het venster aan;
+- het oude certificaat blijft als reservekopie naast het origineel staan (`….rzmon-<datum>`); klopt de configuratie van de webserver daarna niet of mislukt herladen, dan wordt het oude teruggezet;
+- **agents gaan vanzelf mee**: hun vastgezette certificaat klopt niet meer, dus ze vragen RzMon opnieuw, controleren het antwoord met hun eigen sleutel, en onthouden pas dan de nieuwe vingerafdruk. Je hoeft niets opnieuw te koppelen;
+- het werk gebeurt als root door de **hulpdienst** (`rzmon-cert.path`, geïnstalleerd door `install-helper.sh`, ook bij elke update met `install-rocky.sh`). Zonder hulpdienst, in de terminal:
+  ```bash
+  sudo php /var/www/rzmon/install/install.php --renew-cert
+  ```
+- het werkt met de virtuele host van `install-rocky.sh` (`/etc/httpd/conf.d/rzmon.conf`). Bij een andere opstelling zet je de paden in `config.php`: `'ssl_cert' => '/pad/naar/cert.crt', 'ssl_key' => '/pad/naar/cert.key'`.
+
+RzMon controleert dit certificaat ook **elke dag**: ℹ️ 14 dagen voordat het verloopt, ⚠️ als het verlopen is.
+
 ### 10.2 Beheer via https (vanaf 1.68.0)
 
 **Instellingen → Beveiliging → Beheer via https**

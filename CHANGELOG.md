@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.70.0 – 2026-10-24
+### Nieuw
+- **🔐 Certificaat voor de agents** (*Instellingen → Agents → Beveiligde verbinding → 🔐 Certificaat bekijken*):
+  - in een venster: het adres van de agents (http, het eigen certificaat van RzMon, of dat van je reverse proxy), het eigen certificaat van RzMon op poort 443 (uitgever, namen, geldigheid, vingerafdruk), de vingerafdruk die de agents vastzetten, en **per agent** of hij het huidige certificaat al kent;
+  - **⬇ downloaden** als `.crt` (met je wachtwoord), om in je browser of besturingssysteem te vertrouwen;
+  - **🔄 vernieuwen** (met je wachtwoord): een nieuwe sleutel, **2 jaar** geldig, met automatisch de hostnaam, alle IP-adressen, het beheeradres en de Basis-URL, plus **eigen extra namen**. Via de nieuwe hulpdienst `rzmon-cert.path` (als root), met een reservekopie en terugzetten als de webserver het niet accepteert. Agents met een vastgezet certificaat gaan vanzelf mee. In de terminal: `sudo php install/install.php --renew-cert`;
+  - **dagelijkse controle** van dit certificaat: ℹ️ 14 dagen voordat het verloopt, ⚠️ als het verlopen is (dit gebeurt nu ook zonder beheeradres).
+- `install-helper.sh` installeert de hulpdienst voor *Certificaat vernieuwen*; bij een update met de knop *RzMon bijwerken* gebeurt dat vanzelf.
+
 ## 1.69.0 – 2026-10-24
 ### Nieuw
 - **🔓 Datalekken via Have I Been Pwned** (*Instellingen → Beveiliging → Datalekken*), met een hoofdschakelaar. Na de update staat hij **uit**.

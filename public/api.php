@@ -86,7 +86,7 @@ function agent_host(): array
     }
     $ip = client_ip();
     $cols = 'id, name, mode, agent_version, info_agent, agent_seen, agent_ip, agent_tick, enc, agent_token,
-             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock';
+             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock, agent_pin_sent';
     if ($kid !== '') {
         $host = q("SELECT $cols FROM hosts WHERE agent_key_id = ? OR (agent_key_old_id = ? AND agent_key_old_until > ?) LIMIT 1", [$kid, $kid, now()])->fetch();
         $reason = $host ? null : t('onbekende sleutel (vernieuwd of opnieuw gekoppeld?): koppel de agent opnieuw met een koppelcode');
@@ -205,6 +205,10 @@ function agent_enc_fields(array $host, ?string $agentVersion): array
         $pin = AgentCrypto::pin(!empty($_SERVER['HTTP_X_AGENT_PIN_FAIL']), true, $host);
         if ($pin !== null) {
             $out['pin'] = $pin;
+            // Onthouden welke vingerafdruk deze agent nu kent (voor 🔐 Certificaat: per agent ✔ of ⏳)
+            if (($host['agent_pin_sent'] ?? null) !== $pin) {
+                q('UPDATE hosts SET agent_pin_sent = ?, agent_pin_sent_at = ? WHERE id = ?', [$pin, now(), $host['id']]);
+            }
         }
         return $out;
     }
@@ -1300,6 +1304,87 @@ switch ($action) {
         q('UPDATE hosts SET agent_ips = NULL, agent_ip_new = NULL, agent_ip_new_at = NULL WHERE id = ?', [$id]);
         AgentCommands::audit($user['username'], 'IP-adressen van de agent vergeten', (string) $id);
         out(['ok' => true]);
+
+    // ---------- Certificaat van RzMon voor de agents (1.70.0): bekijken, downloaden, vernieuwen ----------
+    case 'agent_cert':
+        $base = rtrim((string) config('base_url', ''), '/');
+        $scheme = strtolower((string) parse_url($base, PHP_URL_SCHEME));
+        $local = OwnCert::current();
+        unset($local['pem']);
+        $agentCert = null;
+        if ($scheme === 'https') {
+            $h = (string) parse_url($base, PHP_URL_HOST);
+            $agentCert = Https::fetchCert($h, (int) (parse_url($base, PHP_URL_PORT) ?: 443), $h, true);
+        }
+        // De vingerafdruk die de agents vastzetten: alleen bij https met een certificaat dat niet al vertrouwd is
+        $pin = $agentCert && $agentCert['ok'] && !$agentCert['trusted'] && !empty($agentCert['pem']) ? OwnCert::spkiPin($agentCert['pem']) : '';
+        unset($agentCert['pem']);
+        out([
+            'base' => $base, 'scheme' => $scheme ?: null, 'agent_cert' => $agentCert, 'local' => $local,
+            'own' => $agentCert && !empty($local['fp']) && $agentCert['ok'] && $agentCert['fp'] === $local['fp'],
+            'pin_on' => setting('agent_pin', '1') === '1', 'pin' => $pin,
+            'hosts' => q("SELECT id, name, agent_version, agent_seen, pin_mode, agent_pin_sent, agent_pin_sent_at FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll(),
+            'paths' => OwnCert::paths(), 'via' => OwnCert::via(), 'cli' => OwnCert::cliCommand(),
+            'names' => OwnCert::names(), 'extra' => implode("\n", OwnCert::extraNames()), 'days' => OwnCert::DAYS, 'warn_days' => Https::WARN_DAYS,
+        ]);
+
+    case 'agent_cert_names':
+        $list = [];
+        foreach (parse_list((string) (input()['names'] ?? '')) as $n) {
+            if (!OwnCert::validName($n)) {
+                out(['error' => t('Geen geldige naam of IP-adres: {n}', ['n' => mb_substr($n, 0, 100)])], 422);
+            }
+            $list[strtolower($n)] = true;
+        }
+        save_setting('cert_extra_names', implode("\n", array_keys(array_slice($list, 0, 30, true))));
+        out(['ok' => true]);
+
+    case 'agent_cert_download':
+        $confirm('DOWNLOADEN');
+        $c = OwnCert::current();
+        if (empty($c['pem'])) {
+            out(['error' => t('Geen certificaat op poort 443 van RzMon')], 404);
+        }
+        AgentCommands::audit($user['username'], 'Certificaat van RzMon gedownload', $c['fp'] ?? '');
+        out(['ok' => true, 'pem' => $c['pem'], 'name' => (preg_replace('/[^a-z0-9.-]/i', '_', (string) gethostname()) ?: 'rzmon') . '.crt']);
+
+    case 'agent_cert_renew':
+        $confirm('VERNIEUWEN');
+        $via = OwnCert::via();
+        if ($via === 'helper') {
+            // Via de hulpdienst (als root): verzoek neerzetten, het resultaat komt binnen een paar seconden
+            $h = Installer::HELPER_DIR;
+            @unlink("$h/cert.result");
+            $nonce = bin2hex(random_bytes(16));
+            if (file_put_contents("$h/cert.request", json_encode(['nonce' => $nonce, 'by' => $user['username']])) === false) {
+                out(['error' => t('Kan geen verzoek neerzetten in {dir}', ['dir' => $h])], 500);
+            }
+            $_SESSION['cert_renew'] = ['nonce' => $nonce, 'at' => time()];
+            out(['ok' => true, 'pending' => true]);
+        }
+        if ($via === 'direct') {
+            $r = OwnCert::renew($user['username']);
+            out($r, $r['ok'] ? 200 : 422);
+        }
+        out(['error' => t('Vernieuwen kan hier alleen als root. Voer op de server uit: {cmd}', ['cmd' => OwnCert::cliCommand()]), 'cli' => OwnCert::cliCommand()], 409);
+
+    case 'agent_cert_renew_status':
+        $p = $_SESSION['cert_renew'] ?? null;
+        if (!$p) {
+            out(['error' => t('Er wordt geen certificaat vernieuwd')], 404);
+        }
+        $res = json_decode((string) @file_get_contents(Installer::HELPER_DIR . '/cert.result'), true);
+        if ($res && hash_equals($p['nonce'], (string) ($res['nonce'] ?? ''))) {
+            @unlink(Installer::HELPER_DIR . '/cert.result');
+            unset($_SESSION['cert_renew'], $res['nonce']);
+            out($res, $res['ok'] ? 200 : 422);
+        }
+        if (time() - $p['at'] > 45) {
+            unset($_SESSION['cert_renew']);
+            @unlink(Installer::HELPER_DIR . '/cert.request');
+            out(['error' => t('De hulpdienst reageert niet. Controleer op de server: systemctl status rzmon-cert.path')], 504);
+        }
+        out(['pending' => true]);
 
     case 'block_add':
         $in = input();

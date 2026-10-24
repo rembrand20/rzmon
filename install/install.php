@@ -9,6 +9,7 @@
 //         sudo php install/install.php --unblock-all   (alle blokkades opheffen, bv. als je jezelf buitensloot)
 //         sudo php install/install.php --unlock <gebruikersnaam>   (account deblokkeren na te veel mislukte logins)
 //         sudo php install/install.php --https-off   (beheer weer via http: "alleen https" en "inloggen via http weigeren" uit)
+//         sudo php install/install.php --renew-cert   (eigen certificaat van RzMon op poort 443 vernieuwen, 2 jaar geldig)
 //         sudo php install/install.php --restore <zip> [--with-config] [--password=…]
 //              (database terugzetten; met --with-config, of op een nieuwe server zonder config.php,
 //               ook config.php plus de databasegebruiker)
@@ -230,6 +231,40 @@ if (($argv[1] ?? '') === '--https-off') {
     AgentCommands::audit('terminal', 'Beheer via https', 'https_only = 0, http_login_block = 0');
     exit("\"Beheer alleen via https\" en \"Inloggen via http weigeren\" staan uit. Open RzMon via http://<IP-adres van deze server>/.\n"
         . "Heeft je browser HSTS onthouden voor het beheeradres? Gebruik dan het IP-adres, of wis de HSTS-gegevens van die site in je browser.\n");
+}
+if (($argv[1] ?? '') === '--renew-cert') {
+    // Eigen (self-signed) certificaat vernieuwen. --helper: aangeroepen door de hulpdienst na de knop in RzMon.
+    Installer::ensureSchema();
+    I18n::set(I18n::notifyLang());
+    $helper = in_array('--helper', $argv, true);
+    $by = 'terminal';
+    $nonce = '';
+    if ($helper) {
+        $req = Installer::HELPER_DIR . '/cert.request';
+        $d = json_decode((string) @file_get_contents($req), true) ?: [];
+        @unlink($req);
+        $nonce = preg_replace('/[^a-f0-9]/', '', (string) ($d['nonce'] ?? ''));
+        if ($nonce === '') {
+            exit(0);
+        }
+        $by = mb_substr((string) preg_replace('/[^\w.@-]/u', '', (string) ($d['by'] ?? '')), 0, 64) ?: 'webinterface';
+    }
+    $r = OwnCert::renew($by);
+    if ($helper) {
+        $file = Installer::HELPER_DIR . '/cert.result';
+        file_put_contents($file, json_encode($r + ['nonce' => $nonce]));
+        @chmod($file, 0640);
+        if (($grp = @filegroup(Installer::HELPER_DIR)) !== false) {
+            @chgrp($file, $grp);
+        }
+        exit($r['ok'] ? 0 : 1);
+    }
+    if (!$r['ok']) {
+        fwrite(STDERR, "Mislukt: {$r['error']}\n");
+        exit(1);
+    }
+    exit('Nieuw certificaat, geldig tot ' . date('d-m-Y', $r['to']) . ' voor: ' . implode(', ', $r['names']) . ".\n"
+        . "Agents met een vastgezet certificaat krijgen de nieuwe vingerafdruk vanzelf. Je browser vraagt bij https://<IP> opnieuw om \"toch doorgaan\".\n");
 }
 if (($argv[1] ?? '') === '--reset-2fa') {
     Installer::ensureSchema();

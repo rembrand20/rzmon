@@ -191,6 +191,9 @@ final class Installer
         ['users', 'pw_pwned', 'INT UNSIGNED NULL'],
         ['users', 'pw_pwned_at', 'DATETIME NULL'],
         ['users', 'pw_must_change', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        // 1.70.0: welke vingerafdruk van het certificaat deze agent het laatst kreeg (versleuteld), en wanneer
+        ['hosts', 'agent_pin_sent', 'VARCHAR(64) NULL'],
+        ['hosts', 'agent_pin_sent_at', 'DATETIME NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

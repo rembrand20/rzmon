@@ -248,7 +248,7 @@ final class Https
      * Certificaat ophalen bij $connect:$port met naam $name (SNI en naamcontrole).
      * @return array ok, trusted, error, cn, names, issuer, from, to, days, fp, self_signed
      */
-    public static function fetchCert(string $connect, int $port, string $name): array
+    public static function fetchCert(string $connect, int $port, string $name, bool $withPem = false): array
     {
         $get = static function (bool $verify) use ($connect, $port, $name): array {
             $ctx = stream_context_create(['ssl' => [
@@ -292,7 +292,7 @@ final class Https
             'cn' => $flat($i['subject']['CN'] ?? '?'), 'names' => array_slice($names, 0, 20), 'issuer' => $issuer,
             'from' => (int) ($i['validFrom_time_t'] ?? 0), 'to' => $to, 'days' => (int) floor(($to - time()) / 86400),
             'fp' => implode(':', str_split($fp, 2)), 'self_signed' => ($i['subject'] ?? null) == ($i['issuer'] ?? null),
-        ];
+        ] + ($withPem && openssl_x509_export($x509, $pem) ? ['pem' => $pem] : []);
     }
 
     private static function isPrivate(string $ip): bool
@@ -307,7 +307,8 @@ final class Https
     public static function check(bool $notify = false, ?string $url = null): array
     {
         $prev = json_decode((string) setting('https_state', ''), true) ?: [];
-        $s = ['at' => time(), 'server_ip' => $prev['server_ip'] ?? '', 'warned' => $prev['warned'] ?? false, 'soon_to' => $prev['soon_to'] ?? 0];
+        $s = ['at' => time(), 'server_ip' => $prev['server_ip'] ?? '', 'warned' => $prev['warned'] ?? false, 'soon_to' => $prev['soon_to'] ?? 0,
+            'local_warned' => $prev['local_warned'] ?? false, 'local_soon_to' => $prev['local_soon_to'] ?? 0];
         $url ??= self::adminUrl();   // $url: net opgeslagen (setting() onthoudt per verzoek de oude waarde)
         if ($url !== '') {
             $h = self::adminHost($url);
@@ -343,18 +344,36 @@ final class Https
                 $s['soon_to'] = $a['to'];
             }
         }
+        // Het eigen certificaat van RzMon (agents via https op het IP-adres, en de nooddeur): ℹ️ 14 dagen vooraf, ⚠️ als het verlopen is
+        $l = $s['local'];
+        if ($notify && !empty($l['ok'])) {
+            $how = t('Vernieuwen: Instellingen → Agents → Beveiligde verbinding → 🔐 Certificaat.');
+            if ($l['days'] < 0 && !$s['local_warned']) {
+                Monitor::notifySystem('⚠️ ' . t('Eigen certificaat van RzMon verlopen'), t('Het certificaat op poort 443 van RzMon is verlopen op {d}.', ['d' => date('d-m-Y', $l['to'])]) . ' ' . $how, STATUS_WARN, 'problem');
+                $s['local_warned'] = true;
+            } elseif ($l['days'] >= 0) {
+                $s['local_warned'] = false;
+                if ($l['days'] <= self::WARN_DAYS && (int) $s['local_soon_to'] !== $l['to']) {
+                    Monitor::sysInfo('cert', null, null, '🔐 ' . t('Eigen certificaat van RzMon verloopt over {n} dagen', ['n' => $l['days']]),
+                        fn() => t('Het certificaat op poort 443 van RzMon verloopt op {d}.', ['d' => date('d-m-Y', $l['to'])]) . ' ' . $how);
+                    $s['local_soon_to'] = $l['to'];
+                }
+            }
+        }
         save_setting('https_state', json_encode($s, JSON_UNESCAPED_UNICODE));
         save_setting('https_check_at', now());
         return $s;
     }
 
-    /** Vanuit cron: één keer per dag (alleen als er een beheeradres is) */
+    /** Vanuit cron: één keer per dag */
     public static function cron(): ?string
     {
-        if (self::adminUrl() === '' || strtotime((string) setting('https_check_at', '')) > time() - 86400) {
+        // Dagelijks: het beheeradres (als dat er is) en het eigen certificaat van RzMon op poort 443 (agents en nooddeur)
+        if (strtotime((string) setting('https_check_at', '')) > time() - 86400) {
             return null;
         }
         $s = self::check(true);
-        return 'Certificaat: ' . ($s['problem'] ?? (isset($s['admin']['days']) ? "nog {$s['admin']['days']} dagen geldig" : 'gecontroleerd'));
+        return 'Certificaat: ' . ($s['problem'] ?? (isset($s['admin']['days']) ? "nog {$s['admin']['days']} dagen geldig"
+            : (!empty($s['local']['ok']) ? "eigen certificaat nog {$s['local']['days']} dagen geldig" : 'gecontroleerd')));
     }
 }

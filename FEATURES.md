@@ -146,6 +146,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - met een logboek.
 - **Lokaal netwerk:** optioneel inloggen zonder wachtwoord op je LAN (*alleen lezen* of beheerder); van buitenaf blijft de login nodig.
 - **Reverse proxy** (SWAG, Nginx Proxy Manager, Traefik, Cloudflare Tunnel): het echte IP en https worden alleen vertrouwd van proxy's die je zelf opgeeft; proxy-kopteksten van een onbekend adres = bezoeker van buiten, met een ⚠️-melding.
+- **🔐 Certificaat voor de agents**: in een venster het adres van de agents, het eigen certificaat van RzMon (namen, geldigheid, vingerafdruk), de vastgezette vingerafdruk en per agent of hij hem kent; **downloaden** (.crt, met je wachtwoord) en **vernieuwen** (nieuwe sleutel, 2 jaar, automatische en eigen namen, via de hulpdienst als root, met reservekopie en terugzetten bij een fout); agents gaan vanzelf mee; dagelijkse controle (ℹ️ 14 dagen vooraf, ⚠️ verlopen).
 - **🔓 Datalekken (Have I Been Pwned)**, met een hoofdschakelaar (standaard uit):
   - **wachtwoorden** (gratis, k-anonimiteit: alleen 5 tekens van de hash gaan naar HIBP): waarschuwing bij het instellen, **verplicht een nieuw kiezen** na inloggen met een gelekt wachtwoord (dan wordt een gelekt wachtwoord geweigerd); drempel instelbaar;
   - **e-mailadressen** (API-sleutel): van gebruikers, een eigen lijst en een geverifieerd **domein**, dagelijks en gespreid; ⚠️ bij een nieuw lek met wachtwoorden, anders ℹ️; eerste controle als één samenvatting;

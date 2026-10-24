@@ -7,6 +7,7 @@
 #     php install/install.php --rotate-db-password --helper
 # De hulpdienst doet niets anders: hij voert geen commando's van de webpagina uit.
 #
+# Ook de knop "Certificaat vernieuwen" (cert.request → install.php --renew-cert --helper).
 # Op Rocky/RHEL/AlmaLinux met een git-installatie (install-rocky.sh) ook de knop "RzMon bijwerken":
 # bij /var/lib/rzmon/update.request start /usr/local/sbin/rzmon-update (kopie van install/rzmon-update.sh).
 #
@@ -20,6 +21,7 @@ HELPER_DIR=/var/lib/rzmon
 UNIT=/etc/systemd/system/rzmon-helper
 UPD_UNIT=/etc/systemd/system/rzmon-update
 UPD_BIN=/usr/local/sbin/rzmon-update
+CERT_UNIT=/etc/systemd/system/rzmon-cert
 GROUP=""
 MODE=install
 
@@ -44,9 +46,11 @@ if [ "$MODE" = uninstall ]; then
     if [ "$HAS_SYSTEMD" -eq 1 ]; then
         systemctl disable --now rzmon-helper.path >/dev/null 2>&1 || true
         systemctl disable --now rzmon-update.path >/dev/null 2>&1 || true
+        systemctl disable --now rzmon-cert.path >/dev/null 2>&1 || true
     fi
     rm -f "$UNIT.path" "$UNIT.service" "$HELPER_DIR/helper.installed" "$HELPER_DIR/rotate.request" "$HELPER_DIR/rotate.result" \
-        "$UPD_UNIT.path" "$UPD_UNIT.service" "$UPD_BIN" "$HELPER_DIR/update.installed" "$HELPER_DIR/update.request"
+        "$UPD_UNIT.path" "$UPD_UNIT.service" "$UPD_BIN" "$HELPER_DIR/update.installed" "$HELPER_DIR/update.request" \
+        "$CERT_UNIT.path" "$CERT_UNIT.service" "$HELPER_DIR/cert.installed" "$HELPER_DIR/cert.request" "$HELPER_DIR/cert.result"
     [ "$HAS_SYSTEMD" -eq 1 ] && systemctl daemon-reload
     ok "Hulpdienst verwijderd (back-ups in $HELPER_DIR/backups blijven staan)"
     exit 0
@@ -107,6 +111,31 @@ systemctl enable --now rzmon-helper.path >/dev/null
 echo "$DIR" >"$HELPER_DIR/helper.installed"
 chmod 0644 "$HELPER_DIR/helper.installed"
 ok "systemd: rzmon-helper.path (actief) + rzmon-helper.service"
+
+# Eigen certificaat van RzMon vernieuwen (knop bij Instellingen → Agents → Beveiligde verbinding → 🔐 Certificaat)
+cat >"$CERT_UNIT.path" <<CERT_EOF
+[Unit]
+Description=RzMon-hulpdienst: wacht op "certificaat vernieuwen" uit de webinterface
+
+[Path]
+PathExists=$HELPER_DIR/cert.request
+
+[Install]
+WantedBy=multi-user.target
+CERT_EOF
+cat >"$CERT_UNIT.service" <<CERT_EOF
+[Unit]
+Description=RzMon-hulpdienst: eigen certificaat vernieuwen
+
+[Service]
+Type=oneshot
+ExecStart=$PHP $DIR/install/install.php --renew-cert --helper
+CERT_EOF
+systemctl daemon-reload
+systemctl enable --now rzmon-cert.path >/dev/null
+echo "$DIR" >"$HELPER_DIR/cert.installed"
+chmod 0644 "$HELPER_DIR/cert.installed"
+ok "systemd: rzmon-cert.path (actief): knop \"Certificaat vernieuwen\""
 
 # RzMon bijwerken vanuit de webinterface: alleen bij een git-installatie met install-rocky.sh
 os_id=$(. /etc/os-release 2>/dev/null; echo "${ID:-}")

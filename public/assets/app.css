@@ -1387,3 +1387,5 @@ details.adv[open] { padding-bottom: .6rem; }
 @media (max-width: 560px) {
   .leak-row { flex-direction: column; }
 }
+.cert-pin { overflow-wrap: anywhere; }
+.cert-names { display: inline-flex; flex-wrap: wrap; gap: .25rem; vertical-align: middle; }

@@ -2755,6 +2755,7 @@ function renderSecurity() {
 }
 
 function initSecurity() {
+  $('#conn-cert').onclick = () => agentCertDialog();
   if (!$('#enc-card')) return;
   $('#enc-mode').onchange = async (e) => {
     try { await api('enc_mode', { mode: e.target.value }); toast(L('Opgeslagen')); loadSecurity(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
@@ -3978,13 +3979,14 @@ async function loadHttps() {
 }
 
 /** Eén certificaat als blok: uitgever, namen, geldigheid, vingerafdruk */
-function certBlock(title, c, extra = '') {
+function certBlock(title, c, extra = '', selfOk = false) {
   if (!c) return '';
   if (!c.ok) return `<div class="cert-box bad"><div class="cert-h">${title}</div><div class="small"><b class="bad">✘ ${esc(c.error || L('geen verbinding'))}</b></div>${extra}</div>`;
-  const left = c.days < 0 ? `<b class="bad">${L('VERLOPEN')}</b>` : c.days <= (httpsInfo.warn_days || 14) ? `<b class="warn-txt">${L('nog {n} dagen', { n: c.days })}</b>` : L('nog {n} dagen', { n: c.days });
+  const left = c.days < 0 ? `<b class="bad">${L('VERLOPEN')}</b>` : c.days <= ((httpsInfo && httpsInfo.warn_days) || 14) ? `<b class="warn-txt">${L('nog {n} dagen', { n: c.days })}</b>` : L('nog {n} dagen', { n: c.days });
   const d = (t) => new Date(t * 1000).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
   const trust = c.trusted ? `<b class="good">✔ ${L('vertrouwd')}</b>` : c.self_signed ? `<span class="muted">🔏 ${L('self-signed')}</span>` : `<b class="bad">✘ ${esc(c.error || L('niet vertrouwd'))}</b>`;
-  return `<div class="cert-box ${c.trusted && c.days > (httpsInfo.warn_days || 14) ? 'ok' : c.trusted || c.self_signed ? 'warn' : 'bad'}">
+  const okish = (c.trusted || (selfOk && c.self_signed)) && c.days > ((httpsInfo && httpsInfo.warn_days) || 14);
+  return `<div class="cert-box ${okish ? 'ok' : c.days >= 0 && (c.trusted || c.self_signed) ? 'warn' : 'bad'}">
     <div class="cert-h">${title} ${trust}</div>
     <dl class="cert-dl small">
       <dt>${L('Uitgever')}</dt><dd>${esc(c.issuer)}</dd>
@@ -4140,6 +4142,96 @@ function initHibp() {
     } catch (ex) { out.innerHTML = `<span class="bad">✘ ${esc(ex.message)}</span>`; }
     b.disabled = false;
   };
+}
+
+// ---------------------------------------------------------------- Certificaat voor de agents (1.70.0)
+/** Venster: welk certificaat de agents zien, de vingerafdruk per agent, downloaden en vernieuwen */
+async function agentCertDialog() {
+  let d;
+  try { d = await api('agent_cert'); } catch (ex) { return toast(ex.message, 'err'); }
+  const loc = d.local || {};
+  const httpAgents = d.scheme !== 'https';
+  const where = !d.base ? `<span class="warn-txt">${L('Geen Basis-URL ingesteld (Setup); de agents gebruiken het adres uit hun installatiecommando.')}</span>`
+    : httpAgents ? `<code>${esc(d.base)}</code> · 🔓 ${L('http: geen certificaat nodig. De berichten zijn wel versleuteld met de eigen sleutel van elke agent.')}`
+    : d.own ? `<code>${esc(d.base)}</code> · ${L('het eigen certificaat van RzMon (hieronder)')}`
+    : `<code>${esc(d.base)}</code> · ${L('een ander certificaat, bv. van je reverse proxy (Let\'s Encrypt): dat vernieuwt de proxy zelf')}`;
+  const pinRow = !d.pin_on ? `<p class="small muted">📌 ${L('Certificaat vastzetten staat uit.')}</p>`
+    : d.pin ? `<p class="small cert-pin">📌 ${L('Vingerafdruk die de agents vastzetten')}: <code class="small">sha256//${esc(d.pin)}</code>
+        ${loc.pin ? (loc.pin === d.pin ? ` <span class="good-txt">✔ ${L('klopt met het certificaat')}</span>` : ` <span class="warn-txt">⏳ ${L('wordt bij het volgende rapport opnieuw bepaald')}</span>`) : ''}</p>`
+    : `<p class="small muted">📌 ${L('Niets vast te zetten: de agents gebruiken http, of een certificaat dat al vertrouwd is.')}</p>`;
+  const hostRows = d.hosts.map((h) => {
+    const off = h.pin_mode === 'off' || (!h.pin_mode && !d.pin_on);
+    const st = off ? `<span class="muted">${L('vastzetten uit')}</span>` : !d.pin ? '<span class="muted">–</span>'
+      : h.agent_pin_sent === d.pin ? `<span class="good-txt">✔ ${L('kent het huidige certificaat')}</span>`
+      : h.agent_pin_sent ? `<span class="warn-txt">⏳ ${L('krijgt het nieuwe bij zijn volgende rapport')}</span>` : `<span class="muted">${L('nog niet')}</span>`;
+    return `<tr><td>${esc(h.name)}</td><td class="mono small">${esc(h.agent_version || '–')}</td><td class="small">${st}</td>
+      <td class="small muted">${h.agent_pin_sent_at ? esc(ago(h.agent_pin_sent_at)) : ''}</td></tr>`;
+  }).join('');
+  const canRenew = d.paths && d.via !== 'cli';
+  modal({
+    title: '🔐 ' + L('Certificaat van RzMon'),
+    wide: true,
+    body: `
+      <p class="small" style="margin-top:0"><b>${L('Adres van de agents')}:</b> ${where}</p>
+      ${d.agent_cert && !d.own ? certBlock('🌍 ' + L('Certificaat op het adres van de agents'), d.agent_cert) : ''}
+      ${loc.ok === false ? `<div class="cert-box bad"><div class="cert-h">🚪 ${L('Eigen certificaat van RzMon (poort 443)')}</div><div class="small">✘ ${esc(loc.error || '')}</div></div>`
+        : certBlock('🚪 ' + L('Eigen certificaat van RzMon (poort 443)'), loc, `<div class="muted small">${L('Voor agents via https op het IP-adres, en de nooddeur.')}</div>`, true)}
+      ${pinRow}
+      ${d.hosts.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Agent')}</th><th>${L('Versie')}</th><th>📌 ${L('Certificaat')}</th><th>${L('Laatst gekregen')}</th></tr></thead><tbody>${hostRows}</tbody></table></div>` : ''}
+      <h3 class="set-sub">🔄 ${L('Vernieuwen')}</h3>
+      <p class="small muted" style="margin-top:0">${L('Een nieuw certificaat met een nieuwe sleutel, {n} jaar geldig. Agents met een vastgezet certificaat gaan vanzelf mee: ze krijgen de nieuwe vingerafdruk in een versleuteld antwoord. Je browser vraagt bij https op het IP-adres opnieuw om "toch doorgaan".', { n: Math.round(d.days / 365) })}</p>
+      <div class="small"><b>${L('Namen in het nieuwe certificaat')}:</b> <span class="cert-names">${d.names.map((n) => `<span class="lc">${esc(n)}</span>`).join('')}</span></div>
+      <label class="small">${L('Extra namen of IP-adressen')} <span class="hint">${L('(één per regel; de rest gaat automatisch)')}</span>
+        <textarea id="cert-extra" rows="2" spellcheck="false" placeholder="nas.thuis.lan">${esc(d.extra)}</textarea></label>
+      ${!d.paths ? `<p class="small warn-txt">⚠️ ${L('Waar het certificaat staat, is niet bekend (geen installatie met install-rocky.sh). Zet ssl_cert en ssl_key in config.php.')}</p>`
+        : d.via === 'cli' ? `<p class="small">${L('Vernieuwen kan hier alleen als root (de hulpdienst is niet geïnstalleerd). Op de server:')}</p>${copyBox('cmd-renew-cert', d.cli)}`
+        : `<p class="small muted">${L('Bestanden')}: <code>${esc(d.paths.cert)}</code> · <code>${esc(d.paths.key)}</code>${d.via === 'helper' ? ' · ' + L('via de hulpdienst') : ''}</p>`}`,
+    buttons: [
+      { label: '⬇ ' + L('Downloaden (.crt)'), style: 'margin-right:auto', onClick: () => { if (loc.ok) agentCertDownload(); } },
+      ...(canRenew ? [{ label: '🔄 ' + L('Vernieuwen'), cls: 'danger', onClick: () => agentCertRenew(d) }] : []),
+      { label: L('Sluiten'), cls: 'primary', submit: true },
+    ],
+  });
+  $('#cert-extra').onchange = async (e) => {
+    try { await api('agent_cert_names', { names: e.target.value }); savedFlag(e.target, true); agentCertDialog(); }
+    catch (ex) { savedFlag(e.target, false, ex.message); toast(ex.message, 'err'); }
+  };
+}
+
+function agentCertDownload() {
+  modal({
+    title: '⬇ ' + L('Certificaat downloaden'),
+    body: `<p style="margin-top:0" class="small">${L('Zet het certificaat in je browser of besturingssysteem als vertrouwd: dan geeft https op het IP-adres van RzMon geen waarschuwing meer.')}</p>${confirmField('DOWNLOADEN')}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => agentCertDialog() }, { label: L('Downloaden'), cls: 'primary', submit: true }],
+    onSubmit: async (f) => {
+      const r = await api('agent_cert_download', { confirm: f.confirm });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([r.pem], { type: 'application/x-x509-ca-cert' }));
+      a.download = r.name;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      toast(L('Certificaat gedownload'));
+      setTimeout(agentCertDialog, 50);
+    },
+  });
+}
+
+function agentCertRenew(d) {
+  modal({
+    title: '🔄 ' + L('Certificaat vernieuwen?'),
+    body: `<p style="margin-top:0" class="small">${L('RzMon maakt een nieuw certificaat voor: {names}. Het oude blijft als reservekopie naast het origineel staan; mislukt herladen, dan wordt het teruggezet.', { names: d.names.map(esc).join(', ') })}</p>${confirmField('VERNIEUWEN')}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => agentCertDialog() }, { label: L('Vernieuwen'), cls: 'danger', submit: true }],
+    onSubmit: async (f) => {
+      let r = await api('agent_cert_renew', { confirm: f.confirm });
+      for (let i = 0; r.pending && i < 40; i++) {
+        await new Promise((ok) => setTimeout(ok, 1500));
+        r = await api('agent_cert_renew_status');
+      }
+      toast(L('Nieuw certificaat, geldig tot {d}', { d: new Date(r.to * 1000).toLocaleDateString(LOCALE) }));
+      setTimeout(agentCertDialog, 50);
+    },
+  });
 }
 
 // ---------------------------------------------------------------- API keys

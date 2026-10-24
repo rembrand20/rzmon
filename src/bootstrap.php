@@ -63,6 +63,7 @@ require_once __DIR__ . '/Security.php';
 require_once __DIR__ . '/AgentCrypto.php';
 require_once __DIR__ . '/Https.php';
 require_once __DIR__ . '/Hibp.php';
+require_once __DIR__ . '/OwnCert.php';
 
 function config(string $key, $default = null)
 {
