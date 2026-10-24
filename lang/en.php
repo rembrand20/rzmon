@@ -3085,4 +3085,6 @@ return [
     'Webpagina (https)' => 'Web page (https)',
     'Herkend als <b>📷 camera</b>. Vink aan wat je wilt bewaken; je kunt elke check later nog aanpassen.' => 'Recognised as a <b>📷 camera</b>. Tick what you want to monitor; you can adjust each check later.',
     'Geeft de camera zijn beeld via een andere poort (bv. 8554 of 7447 bij UniFi Protect), voeg dan zelf een poort-check toe (＋ Check → Poort).' => 'If the camera streams on another port (e.g. 8554, or 7447 with UniFi Protect), add a port check yourself (＋ Check → Port).',
+    '1 bevestigd' => '1 acknowledged',
+    'bekijken' => 'view',
 ];

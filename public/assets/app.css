@@ -1449,3 +1449,7 @@ details.adv[open] { padding-bottom: .6rem; }
 .grp-block .hosts-h h2 { font-size: .9rem; }
 .dchip { position: relative; }
 .dchip-dot { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--crit); }
+
+/* Alleen bevestigde problemen: klein regeltje in plaats van een tweede "Alles in orde" (1.77.0) */
+.attn-acked { font-size: .85rem; color: var(--muted); padding: .1rem .2rem; }
+.attn-acked .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; text-decoration: underline; }

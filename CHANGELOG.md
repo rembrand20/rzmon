@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.76.1 – 2026-10-24
+### Opgelost
+- Geen dubbel *Alles in orde* meer op het dashboard: zonder open problemen verdwijnt de balk onder de tegels. Zijn er bevestigde problemen, dan staat er een klein regeltje *✔ Geen open problemen · 2 bevestigd* met **bekijken** (toont de problemen).
+
 ## 1.76.0 – 2026-10-24
 ### Nieuw
 - **📷 Camera** als soort apparaat, met een eigen groep **📷 Camera's** op het dashboard (chip, blok bij *Alle*, en tellers en tegels als je die groep kiest).

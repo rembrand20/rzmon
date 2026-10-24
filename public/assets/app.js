@@ -773,6 +773,7 @@ function init() {
     const host = e.target.closest('[data-host]');
     if (host) return jumpToHost(host.dataset.host);
     if (e.target.closest('[data-attn-more]')) { attnOpen = !attnOpen; return renderAttention(); }
+    if (e.target.closest('[data-attn-acked]')) { statusFilter = null; return setDashFilter('problems'); }
     onHostsClick(e);
   });
   // Menu's ⋯ (dashboard: onderhoud, alles nu checken, alles openen; andere pagina's: alles openen e.d.)
@@ -1300,8 +1301,11 @@ function renderAttention() {
     .sort(([, a], [, b]) => STATUS_RANK[+b.status] - STATUS_RANK[+a.status] || String(a.problem_since || '').localeCompare(String(b.problem_since || '')));
   const acked = all.length - open.length;
   const box = $('#dash-attn');
+  // Niets open: de tegel ernaast zegt al "Alles in orde". Alleen bevestigde problemen nog als klein regeltje (1.77.0).
+  box.hidden = !open.length && !acked;
   if (!open.length) {
-    box.innerHTML = `<div class="attn-ok">✔ <b>${L('Alles in orde')}</b>${acked ? ` <span class="muted">· ${acked === 1 ? L('1 bevestigd probleem') : L('{n} bevestigde problemen', { n: acked })}</span>` : ''}</div>`;
+    box.innerHTML = acked ? `<div class="attn-acked">✔ ${L('Geen open problemen')} · ${acked === 1 ? L('1 bevestigd') : L('{n} bevestigd', { n: acked })}
+      <button type="button" class="link-btn" data-attn-acked>${L('bekijken')}</button></div>` : '';
     return;
   }
   box.innerHTML = `<div class="sec-h"><h2>⚠️ ${L('Nu aandacht nodig')}</h2><span>${open.length === 1 ? L('1 probleem') : L('{n} problemen', { n: open.length })} · ${L('critical eerst')}${acked ? ' · ' + L('{n} bevestigd', { n: acked }) : ''}</span></div>
