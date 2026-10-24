@@ -201,6 +201,368 @@ function pwnedWarn(r) {
   if (r && r.pwned > 0) toast('⚠️ ' + L('Dit wachtwoord staat {n}× in datalekken. Bij het inloggen moet dan eerst een ander worden gekozen.', { n: (+r.pwned).toLocaleString(LOCALE) }), 'err');
 }
 
+// ---------------------------------------------------------------- Voorkeuren per gebruiker (1.71.0)
+// open_mode: 'closed' (bij openen alles dicht, standaard) of 'smart' (zoals vroeger); fx: filters per pagina;
+// fxviews: opgeslagen filters. Zonder account (lokaal netwerk): alleen in deze browser.
+const prefsLocal = document.body.dataset.prefs === 'local';
+const PREFS = (() => {
+  try {
+    return (prefsLocal ? JSON.parse(localStorage.getItem('rzmon-prefs') || '{}') : JSON.parse(document.body.dataset.prefs || '{}')) || {};
+  } catch (e) { return {}; }
+})();
+const prefTimers = {};
+function savePref(key, value) {
+  PREFS[key] = value;
+  if (prefsLocal) { try { localStorage.setItem('rzmon-prefs', JSON.stringify(PREFS)); } catch (e) { /* alleen voor nu */ } return; }
+  clearTimeout(prefTimers[key]);
+  prefTimers[key] = setTimeout(() => api('prefs_save', { key, value }).catch(() => {}), 500);
+}
+/** Slim openen (vandaag open, ernstige dingen open, onthouden): alleen als de gebruiker dat koos */
+const smartOpen = () => PREFS.open_mode === 'smart';
+
+// ---------------------------------------------------------------- Filters op elke pagina (1.71.0)
+// Per pagina een paneel met een keuzelijst per onderdeel (meerdere waarden, met aantallen), een periode, actieve filters
+// als chips, opgeslagen filters met een naam, en de filters in het adres (#alerts?server=NAS,Pi&status=crit).
+const FX = {};           // pagina → { bar, fields: [{ k, label, get(item), fmt?, order? }], time?(item), items(), render() }
+const fxSel = {};        // pagina → { veld: [waarden], period, from, to }
+let fxPanelOpen = null;  // pagina waarvan het paneel open staat
+const FX_PERIODS = [['today', () => L('vandaag')], ['24h', () => L('24 uur')], ['7d', () => L('7 dagen')], ['30d', () => L('30 dagen')]];
+const FX_TAB = { dash: 'dashboard', alerts: 'alerts', ids: 'ids/inc', acc: 'ids/acc', blk: 'ids/blk', vulns: 'vulns/cve', leaks: 'vulns/leak' };
+
+const fxList = (v) => (Array.isArray(v) ? v : [v]).filter((x) => x !== null && x !== undefined && x !== '').map(String);
+function fxGet(page) {
+  if (!fxSel[page]) {
+    try { fxSel[page] = JSON.parse(JSON.stringify((PREFS.fx || {})[page] || {})); } catch (e) { fxSel[page] = {}; }
+  }
+  return fxSel[page];
+}
+/** Aantal actieve filters (de periode telt als één) */
+function fxCount(page) {
+  const s = fxGet(page);
+  return (s.period ? 1 : 0) + Object.entries(s).filter(([k, v]) => Array.isArray(v) && FX[page]?.fields.some((f) => f.k === k)).reduce((n, [, v]) => n + v.length, 0);
+}
+const fxActive = (page) => fxCount(page) > 0;
+const fxHas = (page, k) => (fxGet(page)[k] || []).length > 0;
+const fxToday = () => new Date().toLocaleDateString('sv');   // JJJJ-MM-DD in de eigen tijdzone
+
+function fxPeriodOk(s, t) {
+  if (!s.period || !t) return true;
+  const day = t.slice(0, 10);
+  if (s.period === 'custom') return (!s.from || day >= s.from) && (!s.to || day <= s.to);
+  if (s.period === 'today') return day === fxToday();
+  const age = Date.now() - new Date(t.replace(' ', 'T')).getTime();
+  return age <= { '24h': 1, '7d': 7, '30d': 30 }[s.period] * 864e5;
+}
+function fxPeriodLabel(s) {
+  if (s.period === 'custom') return `${s.from ? fmtDay(s.from) : '…'} – ${s.to ? fmtDay(s.to) : '…'}`;
+  const p = FX_PERIODS.find(([k]) => k === s.period);
+  return p ? p[1]() : s.period;
+}
+
+/** Past dit item bij de filters van de pagina? skip: dit onderdeel niet meetellen (voor de aantallen in het paneel) */
+function fxPass(page, it, skip = null) {
+  const def = FX[page];
+  if (!def) return true;
+  const s = fxGet(page);
+  if (def.time && skip !== 'period' && !fxPeriodOk(s, def.time(it))) return false;
+  for (const f of def.fields) {
+    const want = s[f.k];
+    if (f.k === skip || !Array.isArray(want) || !want.length) continue;
+    const have = fxList(f.get(it));
+    if (!want.some((w) => have.includes(w))) return false;
+  }
+  return true;
+}
+
+/** Knop, chips en (als het open is) het paneel van een pagina bijwerken; de pagina roept dit aan na het tekenen */
+function fxRender(page) {
+  const def = FX[page];
+  const bar = def && $(def.bar);
+  if (!bar) return;
+  let btn = $('.fx-btn', bar);
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn fx-btn';
+    btn.dataset.fxBtn = page;
+    btn.setAttribute('aria-expanded', 'false');
+    const sp = $('.dash-sp', bar);
+    if (sp) bar.insertBefore(btn, sp); else bar.append(btn);
+    bar.insertAdjacentHTML('afterend', `<div class="fx-wrap" data-fx="${page}"><div class="fx-panel" hidden></div><div class="fx-chips"></div></div>`);
+  }
+  const s = fxGet(page), n = fxCount(page);
+  btn.innerHTML = `⚲ ${L('Filters')}${n ? ` <b class="fx-n">${n}</b>` : ''}`;
+  btn.classList.toggle('on', n > 0);
+  btn.setAttribute('aria-expanded', String(fxPanelOpen === page));
+  const wrap = bar.nextElementSibling;
+  const chips = [];
+  if (s.period) chips.push(['period', '', `${L('Periode')}: ${fxPeriodLabel(s)}`]);
+  def.fields.forEach((f) => (s[f.k] || []).forEach((v) => chips.push([f.k, v, `${f.label()}: ${f.fmt ? f.fmt(v) : v}`])));
+  $('.fx-chips', wrap).innerHTML = chips.length ? chips.map(([k, v, l]) => `<button type="button" class="fx-chip" data-fx-del="${esc(k)}" data-v="${esc(v)}" title="${esc(L('Filter weghalen'))}">${esc(l)} <span aria-hidden="true">✕</span></button>`).join('')
+    + `<button type="button" class="linkbtn" data-fx-clear>${L('Alles wissen')}</button>` : '';
+  const panel = $('.fx-panel', wrap);
+  if (fxPanelOpen === page) fxPanel(page, panel); else panel.hidden = true;
+}
+
+function fxPanel(page, panel) {
+  const def = FX[page], s = fxGet(page), items = def.items() || [];
+  const wasOpen = new Set($$('details[open]', panel).map((d) => d.dataset.k));
+  const finds = Object.fromEntries($$('.fx-find', panel).map((i) => [i.dataset.k, i.value]));
+  const groups = def.fields.map((f) => {
+    const cnt = new Map();
+    items.forEach((it) => { if (fxPass(page, it, f.k)) new Set(fxList(f.get(it))).forEach((v) => cnt.set(v, (cnt.get(v) || 0) + 1)); });
+    const sel = s[f.k] || [];
+    sel.forEach((v) => { if (!cnt.has(v)) cnt.set(v, 0); });
+    if (!cnt.size) return '';
+    const lbl = (v) => String(f.fmt ? f.fmt(v) : v);
+    const vals = [...cnt].sort(f.order ? (a, b) => f.order(a[0], b[0]) : (a, b) => lbl(a[0]).localeCompare(lbl(b[0]), LANG, { numeric: true, sensitivity: 'base' }));
+    const many = vals.length > 8;
+    return `<details class="fx-field" data-k="${f.k}" ${sel.length || wasOpen.has(f.k) ? 'open' : ''}>
+      <summary>${esc(f.label())}${sel.length ? ` <b class="fx-n">${sel.length}</b>` : ''}<small class="muted">${vals.length}</small></summary>
+      ${many ? `<input type="search" class="fx-find" data-k="${f.k}" placeholder="${esc(L('Zoek…'))}" value="${esc(finds[f.k] || '')}">` : ''}
+      <div class="fx-opts">${vals.map(([v, n]) => `<label class="fx-opt" ${finds[f.k] && !lbl(v).toLowerCase().includes(finds[f.k].toLowerCase()) ? 'hidden' : ''}>
+        <input type="checkbox" data-k="${f.k}" value="${esc(v)}" ${sel.includes(v) ? 'checked' : ''}><span>${esc(lbl(v))}</span><small>${n}</small></label>`).join('')}</div></details>`;
+  }).join('');
+  const period = def.time ? `<div class="fx-period"><span class="fx-lbl">${L('Periode')}</span>
+      ${[['', L('alles')], ...FX_PERIODS.map(([k, l]) => [k, l()]), ['custom', L('van – tot')]].map(([k, l]) => `<button type="button" class="dchip ${(s.period || '') === k ? 'on' : ''}" data-fx-period="${k}">${l}</button>`).join('')}
+      ${s.period === 'custom' ? `<span class="fx-dates"><input type="date" data-fx-date="from" value="${esc(s.from || '')}" aria-label="${esc(L('van'))}"> – <input type="date" data-fx-date="to" value="${esc(s.to || '')}" aria-label="${esc(L('tot'))}"></span>` : ''}</div>` : '';
+  const views = (PREFS.fxviews || {})[page] || [];
+  panel.innerHTML = period + `<div class="fx-grid">${groups || `<p class="muted small">${L('Niets om op te filteren.')}</p>`}</div>
+    <div class="fx-foot">
+      <span class="fx-views">${views.length ? `<span class="fx-lbl">⭐ ${L('Opgeslagen')}</span>` : ''}${views.map((v, i) => `<span class="fx-view"><button type="button" class="dchip" data-fx-view="${i}" title="${esc(L('Dit filter toepassen'))}">${esc(v.n)}</button><button type="button" class="fx-x" data-fx-view-del="${i}" title="${esc(L('Opgeslagen filter verwijderen'))}">✕</button></span>`).join('')}</span>
+      <span class="dash-sp"></span>
+      <button type="button" class="btn" data-fx-save ${fxActive(page) ? '' : 'disabled'}>💾 ${L('Opslaan als…')}</button>
+      <button type="button" class="btn" data-fx-clear ${fxActive(page) ? '' : 'disabled'}>${L('Alles wissen')}</button>
+      <button type="button" class="btn primary" data-fx-close>${L('Klaar')}</button></div>`;
+  panel.hidden = false;
+}
+
+/** Filters gewijzigd: opruimen, bewaren (per gebruiker), in het adres zetten en de pagina opnieuw tekenen */
+function fxChanged(page) {
+  const s = fxGet(page);
+  Object.keys(s).forEach((k) => { if (Array.isArray(s[k]) && !s[k].length) delete s[k]; });
+  if (!s.period) { delete s.period; delete s.from; delete s.to; } else if (s.period !== 'custom') { delete s.from; delete s.to; }
+  savePref('fx', { ...(PREFS.fx || {}), [page]: s });
+  fxSyncHash();
+  FX[page].render();
+}
+
+/** Pagina die nu in beeld is (voor het adres) */
+function fxCurrent() {
+  const tab = ($('.tab-panel:not([hidden])') || {}).id?.replace('tab-', '');
+  if (tab === 'dashboard') return 'dash';
+  if (tab === 'alerts') return 'alerts';
+  if (tab === 'ids') return { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab] || 'ids';
+  if (tab === 'vulns') return $('#vuln-tabs') ? (vulnTab === 'leak' ? 'leaks' : 'vulns') : ($('#leak-list') && !$('#vuln-search') ? 'leaks' : 'vulns');
+  return null;
+}
+function fxQuery(page) {
+  const s = fxGet(page);
+  const parts = Object.entries(s).filter(([, v]) => (Array.isArray(v) ? v.length : v))
+    .map(([k, v]) => `${encodeURIComponent(k)}=${Array.isArray(v) ? v.map(encodeURIComponent).join(',') : encodeURIComponent(v)}`);
+  return parts.length ? '?' + parts.join('&') : '';
+}
+function fxSyncHash() {
+  const page = fxCurrent();
+  if (!page) return;
+  const tab = FX_TAB[page];
+  const plain = tab === 'dashboard' || tab === 'alerts' || (page === 'ids' && !fxActive(page)) || (page === 'vulns' && !$('#vuln-tabs') && !fxActive(page));
+  history.replaceState(null, '', '#' + (plain ? tab.split('/')[0] : tab) + fxQuery(page));
+}
+/** Filters uit het adres (gaan voor op de bewaarde) */
+function fxFromQuery(page, qs) {
+  const s = {};
+  qs.split('&').filter(Boolean).forEach((p) => {
+    const [k, v = ''] = p.split('=');
+    const key = decodeURIComponent(k);
+    if (['period', 'from', 'to'].includes(key)) s[key] = decodeURIComponent(v);
+    else s[key] = v.split(',').filter(Boolean).map(decodeURIComponent);
+  });
+  fxSel[page] = s;
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-fx-btn]');
+  if (b) { fxPanelOpen = fxPanelOpen === b.dataset.fxBtn ? null : b.dataset.fxBtn; fxRender(b.dataset.fxBtn); return; }
+  const w = e.target.closest('.fx-wrap');
+  if (!w) return;
+  const page = w.dataset.fx, s = fxGet(page);
+  let t;
+  if ((t = e.target.closest('[data-fx-del]'))) {
+    if (t.dataset.fxDel === 'period') delete s.period; else s[t.dataset.fxDel] = (s[t.dataset.fxDel] || []).filter((v) => v !== t.dataset.v);
+    fxChanged(page);
+  } else if (e.target.closest('[data-fx-clear]')) { fxSel[page] = {}; fxChanged(page); }
+  else if (e.target.closest('[data-fx-close]')) { fxPanelOpen = null; fxRender(page); }
+  else if ((t = e.target.closest('[data-fx-period]'))) { s.period = t.dataset.fxPeriod; fxChanged(page); }
+  else if ((t = e.target.closest('[data-fx-view]'))) {
+    const v = ((PREFS.fxviews || {})[page] || [])[+t.dataset.fxView];
+    if (v) { fxSel[page] = JSON.parse(JSON.stringify(v.s)); fxChanged(page); }
+  } else if ((t = e.target.closest('[data-fx-view-del]'))) {
+    const all = { ...(PREFS.fxviews || {}) };
+    all[page] = (all[page] || []).filter((x, i) => i !== +t.dataset.fxViewDel);
+    savePref('fxviews', all);
+    fxRender(page);
+  } else if (e.target.closest('[data-fx-save]')) {
+    const name = (prompt(L('Naam voor dit filter, bv. "NAS critical"')) || '').trim().slice(0, 40);
+    if (!name) return;
+    const all = { ...(PREFS.fxviews || {}) };
+    all[page] = [...(all[page] || []).filter((x) => x.n !== name), { n: name, s: JSON.parse(JSON.stringify(s)) }].slice(-20);
+    savePref('fxviews', all);
+    fxRender(page);
+    toast(L('Filter "{n}" opgeslagen', { n: name }));
+  }
+});
+document.addEventListener('change', (e) => {
+  const w = e.target.closest('.fx-wrap');
+  if (!w) return;
+  const page = w.dataset.fx, s = fxGet(page);
+  if (e.target.matches('input[type=checkbox][data-k]')) {
+    const set = new Set(s[e.target.dataset.k] || []);
+    if (e.target.checked) set.add(e.target.value); else set.delete(e.target.value);
+    s[e.target.dataset.k] = [...set];
+    fxChanged(page);
+  } else if (e.target.matches('[data-fx-date]')) { s[e.target.dataset.fxDate] = e.target.value; fxChanged(page); }
+});
+document.addEventListener('input', (e) => {
+  if (!e.target.matches('.fx-find')) return;
+  const q = e.target.value.trim().toLowerCase();
+  $$('.fx-opt', e.target.closest('.fx-field')).forEach((o) => { o.hidden = !!q && !o.textContent.toLowerCase().includes(q); });
+});
+
+// Onderdelen per pagina (de waarden komen uit wat er op de pagina staat)
+const fxYesNo = (v) => (v === '1' ? L('ja') : L('nee'));
+const fxMap = (m) => (v) => { const w = m[v]; return typeof w === 'function' ? w() : (w ?? v); };
+const HOST_KIND = { ha: 'Home Assistant', agent: 'Agent', remote: 'Remote', local: () => L('Lokaal') };
+const DASH_STATUS = { 2: 'Critical', 1: 'Warning', 3: () => L('Onbekend'), 0: 'OK', maint: () => L('Onderhoud'), off: () => L('Uit') };
+const STATUS_ORDER = ['2', '1', '3', '0', 'maint', 'off'];
+const byOrder = (list) => (a, b) => list.indexOf(a) - list.indexOf(b);
+const DASH_CHECK_FX = ['status', 'type', 'check', 'acked'];   // onderdelen van een check (de rest hoort bij de server)
+FX.dash = {
+  bar: '#tab-dashboard .dash-bar',
+  items: () => (state && state.hosts ? state.hosts.flatMap((h) => (h.checks.length ? h.checks.map((c) => ({ h, c })) : [{ h, c: null }])) : []),
+  render: () => render(),
+  fields: [
+    { k: 'server', label: () => 'Server', get: (x) => x.h.name },
+    { k: 'kind', label: () => L('Soort server'), get: (x) => (isHa(x.h) ? 'ha' : x.h.mode), fmt: fxMap(HOST_KIND) },
+    { k: 'group', label: () => L('Groep (bovenliggend)'), get: (x) => (x.h.parent_id ? (findHost(x.h.parent_id) || {}).name : '-'), fmt: (v) => (v === '-' ? L('geen') : v) },
+    { k: 'status', label: () => 'Status', get: (x) => x.c && (!+x.c.enabled ? 'off' : x.c.maintenance ? 'maint' : String(x.c.status)), fmt: fxMap(DASH_STATUS), order: byOrder(STATUS_ORDER) },
+    { k: 'type', label: () => L('Soort check'), get: (x) => x.c && x.c.type },
+    { k: 'check', label: () => 'Check', get: (x) => x.c && x.c.name },
+    { k: 'acked', label: () => L('Bevestigd'), get: (x) => (x.c && +x.c.status !== 0 ? (x.c.acked_at ? '1' : '0') : null), fmt: fxYesNo },
+    { k: 'agent', label: () => L('Agentversie'), get: (x) => x.h.agent_version || null },
+  ],
+};
+
+const ALERT_KINDS = { notify: () => L('Check'), system: () => L('Systeem'), info: 'Info', sec: () => L('Beveiliging'), ids: 'IDS', ack: () => L('Bevestiging'), maint: () => L('Onderhoud') };
+const ALERT_CH = { pushover: '📲 Pushover', email: () => '📧 ' + L('E-mail'), webhook: '🏠 Home Assistant', none: () => '🔕 ' + L('nergens heen') };
+/** Naar welke kanalen een melding ging (of zou gaan) */
+function alertChannels(a) {
+  if (a.kind === 'auth' || a.kind === 'authfail') return ['none'];
+  const why = splitSent(a.message)[1];
+  const out = [];
+  if (+a.sent_ok || /Pushover/.test(why)) out.push('pushover');
+  if (a.email_ok !== null && a.email_ok !== undefined) out.push('email');
+  if (a.webhook_ok !== null && a.webhook_ok !== undefined) out.push('webhook');
+  return out.length ? out : ['none'];
+}
+FX.alerts = {
+  bar: '#tab-alerts .dash-bar',
+  items: () => (alertData ? alertData.alerts : []),
+  render: () => renderAlerts(),
+  time: (a) => a.created_at,
+  fields: [
+    { k: 'server', label: () => 'Server', get: (a) => alertCols(a).host },
+    { k: 'check', label: () => 'Check', get: (a) => alertCols(a).check },
+    { k: 'status', label: () => 'Status', get: (a) => alertCat(a), fmt: (k) => (k === 'other' ? L('Overig') : catLabel(k)), order: byOrder(['crit', 'warn', 'unk', 'ok', 'info', 'sec', 'other']) },
+    { k: 'kind', label: () => L('Soort'), get: (a) => a.kind, fmt: fxMap(ALERT_KINDS) },
+    { k: 'channel', label: () => L('Kanaal'), get: (a) => alertChannels(a), fmt: fxMap(ALERT_CH) },
+    { k: 'sent', label: () => L('Verzonden'), get: (a) => (splitSent(a.message)[1] ? 'fail' : alertChannels(a)[0] === 'none' ? 'none' : 'ok'),
+      fmt: fxMap({ ok: () => L('verstuurd'), fail: () => L('mislukt'), none: () => L('niet verstuurd') }) },
+    { k: 'ip', label: () => L('IP-adres'), get: (a) => a.ip },
+  ],
+};
+
+const IDS_STATUS = { open: 'Open', handled: () => L('Afgehandeld'), ignored: () => L('Genegeerd'), blocked: () => L('Geblokkeerd') };
+FX.ids = {
+  bar: '.ids-pane[data-pane="inc"] .dash-bar',
+  items: () => (idsData ? idsData.incidents : []),
+  render: () => renderIds(),
+  time: (i) => i.created_at,
+  fields: [
+    { k: 'server', label: () => 'Server', get: (i) => i.host_name },
+    { k: 'cat', label: () => L('Categorie'), get: (i) => idsCatOf(i) || 'other', fmt: (k) => ((IDS_CATS.find((c) => c[0] === k) || [0, () => L('Overig')])[1]()) },
+    { k: 'type', label: () => L('Soort incident'), get: (i) => i.type },
+    { k: 'sev', label: () => L('Ernst'), get: (i) => String(i.severity), fmt: fxMap({ 2: 'Critical', 1: 'Warning' }), order: byOrder(['2', '1']) },
+    { k: 'status', label: () => 'Status', get: (i) => i.status, fmt: fxMap(IDS_STATUS) },
+    { k: 'ip', label: () => L('IP-adres'), get: (i) => i.ip },
+  ],
+};
+
+/** IP-adres van een login (uit de gegevens, anders uit de tekst) */
+function accIp(r) {
+  const d = accDet(r);
+  return d.ip || d.from || ((r.message || '').match(/\b(\d{1,3}(?:\.\d{1,3}){3})\b/) || [])[1] || null;
+}
+FX.acc = {
+  bar: '.ids-pane[data-pane="acc"] .dash-bar',
+  items: () => (accData ? accData.rows : []),
+  render: () => renderAccess(),
+  time: (r) => r.created_at,
+  fields: [
+    { k: 'server', label: () => 'Server', get: (r) => r.host_name },
+    { k: 'type', label: () => L('Soort'), get: (r) => r.type, fmt: (v) => ACC_TYPES[v] || v },
+    { k: 'result', label: () => L('Resultaat'), get: (r) => (r.kind === 'authfail' ? 'fail' : 'ok'), fmt: fxMap({ ok: () => '🔑 ' + L('gelukt'), fail: () => '❌ ' + L('mislukt') }) },
+    { k: 'user', label: () => L('Gebruiker'), get: (r) => accWho(r, accDet(r)) },
+    { k: 'ip', label: () => L('IP-adres / vanaf'), get: (r) => accIp(r) },
+  ],
+};
+
+FX.blk = {
+  bar: '.ids-pane[data-pane="blk"] .dash-bar',
+  items: () => (idsData ? [...idsData.blocks.map((b) => ({ ...b, act: '1' })), ...idsData.removed.map((b) => ({ ...b, act: '0' }))] : []),
+  render: () => renderIds(),
+  time: (b) => b.created_at,
+  fields: [
+    { k: 'server', label: () => 'Server', get: (b) => b.host_name },
+    { k: 'ip', label: () => 'IP', get: (b) => b.ip },
+    { k: 'reason', label: () => L('Reden'), get: (b) => b.reason },
+    { k: 'by', label: () => L('Door'), get: (b) => (+b.auto ? 'auto' : 'hand'), fmt: fxMap({ auto: () => L('automatisch'), hand: () => L('met de hand') }) },
+    { k: 'active', label: () => L('Nog actief'), get: (b) => b.act, fmt: fxYesNo },
+  ],
+};
+
+const vulnHost = (f) => (vulnData.hosts.find((h) => +h.id === +f.host_id) || {});
+FX.vulns = {
+  bar: '.vuln-pane[data-vpane="cve"] .dash-bar',
+  items: () => (vulnData ? vulnData.findings : []),
+  render: () => renderVulns(),
+  fields: [
+    { k: 'server', label: () => 'Server', get: (f) => vulnHost(f).name },
+    { k: 'pkg', label: () => L('Pakket'), get: (f) => f.package },
+    { k: 'sev', label: () => L('Ernst'), get: (f) => String(f.severity), fmt: fxMap({ 4: 'Critical', 3: 'High', 2: 'Medium', 1: 'Low', 0: () => L('Onbekend') }), order: byOrder(['4', '3', '2', '1', '0']) },
+    { k: 'cve', label: () => 'CVE', get: (f) => f.cve },
+    { k: 'fix', label: () => L('Met oplossing'), get: (f) => (f.fixed ? '1' : '0'), fmt: fxYesNo },
+    { k: 'exposed', label: () => L('Bereikbaar'), get: (f) => ((vulnHost(f).exposed || {})[f.package] ? '1' : '0'), fmt: fxYesNo },
+    { k: 'kev', label: () => L('Actief misbruikt'), get: (f) => (f.kev ? '1' : '0'), fmt: fxYesNo },
+    { k: 'ign', label: () => L('Geaccepteerd'), get: (f) => (f.ignored ? '1' : '0'), fmt: fxYesNo },
+    { k: 'reboot', label: () => L('Herstart nodig'), get: (f) => (vulnHost(f).reboot ? '1' : '0'), fmt: fxYesNo },
+  ],
+};
+
+FX.leaks = {
+  bar: '.vuln-pane[data-vpane="leak"] .dash-bar',
+  items: () => (leakData ? leakData.emails.flatMap((e) => (e.breaches.length ? e.breaches.map((b) => ({ ...b, email: e.email, source: e.source })) : [{ email: e.email, source: e.source, none: 1 }])) : []),
+  render: () => renderLeaks(),
+  fields: [
+    { k: 'email', label: () => L('Adres'), get: (b) => b.email },
+    { k: 'source', label: () => L('Bron'), get: (b) => b.source, fmt: (v) => (LEAK_SRC[v] || LEAK_SRC.list)() },
+    { k: 'breach', label: () => L('Lek'), get: (b) => (b.none ? null : b.title || b.name) },
+    { k: 'data', label: () => L('Soort gegevens'), get: (b) => b.data_classes_l || [] },
+    { k: 'year', label: () => L('Jaar van het lek'), get: (b) => (b.breach_date || '').slice(0, 4), order: (a, b) => b.localeCompare(a) },
+    { k: 'status', label: () => 'Status', get: (b) => (b.none ? null : b.handled_at ? 'done' : 'open'), fmt: fxMap({ open: 'Open', done: () => L('Afgehandeld') }) },
+  ],
+};
+
 function toast(msg, type = 'ok') {
   const el = document.createElement('div');
   el.className = 'toast ' + type;
@@ -498,6 +860,7 @@ function init() {
     idsTab = b.dataset.it;
     try { localStorage.setItem('rzmon-ids-tab', idsTab); } catch (ex) { /* alleen voor nu */ }
     showIdsTab();
+    fxSyncHash();
   };
   $('#acc-filter').onclick = (e) => {
     const b = e.target.closest('[data-ac]');
@@ -631,6 +994,12 @@ function init() {
   $('#user-form').addEventListener('submit', createUser);
   $('#db-rotate').onclick = dbRotateDialog;
   $$('[data-view-layout]').forEach((b) => (b.onclick = () => setViewPref('layout', b.dataset.viewLayout)));
+  // Bij openen: alles dicht of slim openen (voor je account, 1.71.0)
+  $$('[data-view-open]').forEach((b) => (b.onclick = () => {
+    savePref('open_mode', b.dataset.viewOpen);
+    showViewPrefs();
+    toast(b.dataset.viewOpen === 'smart' ? L('Slim openen: vandaag en ernstige dingen staan open') : L('Bij openen staat alles dicht'));
+  }));
   $$('[data-view-density]').forEach((b) => (b.onclick = () => setViewPref('density', b.dataset.viewDensity)));
   showViewPrefs();
   $('#users').addEventListener('click', onUsersClick);
@@ -665,6 +1034,20 @@ function init() {
 
 function showTab(name) {
   let sub = null;
+  // Filters in het adres (1.71.0): #alerts?server=NAS,Pi&status=crit, #ids/acc?result=fail, #vulns/leak?status=open
+  const qi = name.indexOf('?');
+  const qs = qi >= 0 ? name.slice(qi + 1) : '';
+  if (qi >= 0) name = name.slice(0, qi);
+  if (/^(ids|vulns)\//.test(name)) {
+    const [tab, s] = name.split('/');
+    name = tab;
+    if (tab === 'ids' && ['inc', 'acc', 'blk'].includes(s)) idsTab = s;
+    if (tab === 'vulns' && ['cve', 'leak'].includes(s)) vulnTab = s;
+  }
+  if (qs) {
+    const page = { dashboard: 'dash', alerts: 'alerts', ids: { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab], vulns: vulnTab === 'leak' ? 'leaks' : 'vulns' }[name];
+    if (page) fxFromQuery(page, qs);
+  }
   if (name.startsWith('settings/')) { sub = name.slice(9); name = 'settings'; }
   if (name === 'settings' && !isAdmin()) name = $('#tab-account') ? 'account' : 'dashboard';   // instellingen: alleen beheerders
   if (!$('#tab-' + name)) name = 'dashboard';
@@ -672,12 +1055,13 @@ function showTab(name) {
   moveTabIndicator();
   $$('.tab-panel').forEach((p) => (p.hidden = p.id !== 'tab-' + name));
   history.replaceState(null, '', '#' + name);
+  fxSyncHash();
   if (name === 'settings') { loadSettings(); showSettingsSection(sub || setSection); }
   if (name === 'account') loadAccount();
   if (name === 'alerts') loadAlerts();
   if ((name === 'dashboard' || name === 'alerts') && state.badges) refresh();   // tab gezien: teller naar 0
   if (name === 'ids') loadIds();
-  if (name === 'vulns') { if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
+  if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
 }
 
 async function refresh() {
@@ -941,18 +1325,24 @@ function render() {
   const narrowed = onlyProblems || statusFilter !== null;
   const keep = DASH_FILTERS.find((x) => x[0] === dashFilter)[2];
   const byName = (a, b) => a.name.localeCompare(b.name, LANG, { numeric: true, sensitivity: 'base' });
+  // Filters (1.71.0): een server telt mee als hij zelf past; met een filter op checks alleen de checks die passen
+  const fxOn = fxActive('dash');
+  const fxChecks = DASH_CHECK_FX.some((k) => fxHas('dash', k));
   const hosts = state.hosts.filter(keep)
+    .filter((h) => !fxOn || (h.checks.length ? h.checks.some((c) => fxPass('dash', { h, c })) : fxPass('dash', { h, c: null })))
     .map((h) => {
       let checks = h.checks;
       const hostMatch = !f || (h.name + ' ' + h.address).toLowerCase().includes(f);
       if (!hostMatch) checks = checks.filter((c) => (c.name + ' ' + c.target).toLowerCase().includes(f));
       if (onlyProblems) checks = checks.filter((c) => +c.status !== 0 && +c.enabled);
       if (statusFilter !== null) checks = checks.filter((c) => +h.enabled && +c.enabled && (statusFilter === 4 ? !!c.maintenance : !c.maintenance && +c.status === statusFilter));
-      return { ...h, shown: checks, match: hostMatch, autoOpen: !!f && !hostMatch && checks.length > 0 };
+      if (fxChecks) checks = checks.filter((c) => fxPass('dash', { h, c }));
+      return { ...h, shown: checks, match: hostMatch, autoOpen: ((!!f && !hostMatch) || fxChecks) && checks.length > 0 };
     })
-    .filter((h) => (h.match && !narrowed) || h.shown.length)
+    .filter((h) => (h.match && !narrowed && !fxChecks) || h.shown.length)
     .sort((a, b) => (dashSort === 'name' ? 0 : STATUS_RANK[hostStatus(b)] - STATUS_RANK[hostStatus(a)]) || byName(a, b));
 
+  fxRender('dash');
   const el = $('#hosts');
   if (!state.hosts.length) {
     el.innerHTML = `<div class="card empty">${L('Nog geen servers. Klik op <b>＋ Server</b> om te beginnen.')}</div>`;
@@ -1046,6 +1436,7 @@ function setViewPref(key, value) {
 }
 function showViewPrefs() {
   const { layout, density } = viewPrefs();
+  $$('[data-view-open]').forEach((b) => b.classList.toggle('active', b.dataset.viewOpen === (smartOpen() ? 'smart' : 'closed')));
   $$('[data-view-layout]').forEach((b) => b.classList.toggle('active', b.dataset.viewLayout === layout));
   $$('[data-view-density]').forEach((b) => { b.classList.toggle('active', b.dataset.viewDensity === density); });
   applySettingsLayout();
@@ -1209,8 +1600,9 @@ function setAutosaveState(st, why) {
 
 // ---------------------------------------------------------------- Server-tegels
 // Ingeklapt: alleen de algehele status. Klik = uitklappen met alle checks.
-const openHosts = new Set((() => { try { return JSON.parse(localStorage.getItem('rzmon-open') || '[]'); } catch (e) { return []; } })());
-function saveOpen() { try { localStorage.setItem('rzmon-open', JSON.stringify([...openHosts])); } catch (e) {} }
+// Bij openen alles dicht (1.71.0): wat je openklapt, blijft open tot je herlaadt. "Slim openen": onthouden in deze browser.
+const openHosts = new Set((() => { try { return smartOpen() ? JSON.parse(localStorage.getItem('rzmon-open') || '[]') : []; } catch (e) { return []; } })());
+function saveOpen() { if (!smartOpen()) return; try { localStorage.setItem('rzmon-open', JSON.stringify([...openHosts])); } catch (e) {} }
 function toggleHost(id) {
   openHosts.has(+id) ? openHosts.delete(+id) : openHosts.add(+id);
   saveOpen();
@@ -3407,7 +3799,9 @@ function renderAccess() {
   const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → 🛡️ IDS</a>.') + '</p>';
   const q = $('#acc-search').value.trim().toLowerCase();
   const list = d.rows.filter((r) => (accFilter === 'all' || (accFilter === 'fail' ? r.kind === 'authfail' : r.type === accFilter))
-    && (!accHost || +r.host_id === +accHost) && (!q || `${r.message} ${r.host_name} ${accWho(r, accDet(r))}`.toLowerCase().includes(q)));
+    && (!accHost || +r.host_id === +accHost) && (!q || `${r.message} ${r.host_name} ${accWho(r, accDet(r))}`.toLowerCase().includes(q)) && fxPass('acc', r));
+  fxRender('acc');
+  const narrowed = !!q || !!accHost || fxActive('acc');
   if (!list.length) {
     el.innerHTML = off + `<p class="muted">${d.rows.length ? L('Niets gevonden met dit filter.') : L('Nog geen logins, sudo of su.')}</p>`;
     $('#acc-toggle').hidden = true;
@@ -3415,7 +3809,7 @@ function renderAccess() {
   }
   const byDay = new Map();
   list.forEach((r) => { const day = r.created_at.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(r); });
-  const isOpen = (day) => accDayOpen[day] ?? day === d.today;
+  const isOpen = (day) => accDayOpen[day] ?? (narrowed || (smartOpen() && day === d.today));
   el.innerHTML = off + [...byDay].map(([day, rows]) => {
     const nf = rows.filter((r) => r.kind === 'authfail').length;
     return `<details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''}>
@@ -3579,7 +3973,9 @@ function renderIds() {
   $('#ids-filter').innerHTML = [['open', 'Open', open.length], ['all', L('Alles'), d.incidents.length]].map(([k, l, n]) => `<button type="button" class="dchip ${idsFilter === k && !idsCat ? 'on' : ''}" data-if="${k}">${l} <b>${n}</b></button>`).join('')
     + IDS_CATS.map(([k, l]) => [k, l(), scope.filter((i) => idsCatOf(i) === k).length]).filter(([, , n]) => n)
       .map(([k, l, n]) => `<button type="button" class="dchip ${idsCat === k ? 'on' : ''}" data-icat="${k}">${l} <b>${n}</b></button>`).join('');
-  const list = scope.filter((i) => (!idsCat || idsCatOf(i) === idsCat) && (!q || `${i.title} ${i.detail} ${i.host_name} ${i.ip || ''}`.toLowerCase().includes(q)));
+  const list = scope.filter((i) => (!idsCat || idsCatOf(i) === idsCat) && (!q || `${i.title} ${i.detail} ${i.host_name} ${i.ip || ''}`.toLowerCase().includes(q)) && fxPass('ids', i));
+  fxRender('ids');
+  const narrowed = !!q || !!idsCat || fxActive('ids');
   $('#ids-info').textContent = L('{open} open · {n} in de laatste {days} dagen', { open: open.length, n: d.incidents.length, days: d.days });
   $('#it-n-inc').textContent = open.length ? open.length : '';
   const el = $('#ids-incidents');
@@ -3588,7 +3984,7 @@ function renderIds() {
   } else {
     const byDay = new Map();
     list.forEach((i) => { const day = i.created_at.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(i); });
-    const isOpen = (day) => idsDayOpen[day] ?? (day === d.today || idsFilter === 'open');
+    const isOpen = (day) => idsDayOpen[day] ?? (narrowed || (smartOpen() && (day === d.today || idsFilter === 'open')));
     el.innerHTML = [...byDay].map(([day, items]) => {
       const n2 = items.filter((i) => +i.severity === 2).length, n1 = items.length - n2;
       return `<details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''}>
@@ -3616,10 +4012,13 @@ function renderIds() {
       <td title="${L('Tegengehouden pakketten sinds de laatste wijziging van de lijst')}">${+b.hits || 0}</td>
       <td>${active ? `<button type="button" class="btn need-admin small-btn" data-unblock="${b.id}">🔓 ${L('Deblokkeren')}</button>` : ''}</td></tr>`;
   const head = `<thead><tr><th>IP</th><th>Server</th><th>${L('Reden')}</th><th>${L('Sinds')}</th><th>${L('Tot')}</th><th>${L('Door')}</th><th>${L('Pakketten')}</th><th></th></tr></thead>`;
-  $('#ids-blocks').innerHTML = (d.blocks.length ? `<div class="table-scroll"><table class="alert-table large ids-blocks">${head}<tbody>${d.blocks.map((b) => row(b, true)).join('')}</tbody></table></div>`
-      : `<p class="muted">${L('Niets geblokkeerd.')}${d.mode !== 'block' ? ' ' + L('(Modus <i>leren</i>: er wordt niets geblokkeerd.)') : ''}</p>`)
-    + (d.removed.length ? `<details class="small api-docs"><summary>${L('Eerder geblokkeerd ({n})', { n: d.removed.length })}</summary>
-        <div class="table-scroll"><table class="alert-table large ids-blocks">${head}<tbody>${d.removed.map((b) => row(b, false)).join('')}</tbody></table></div></details>` : '');
+  const blocks = d.blocks.filter((b) => fxPass('blk', { ...b, act: '1' })), removed = d.removed.filter((b) => fxPass('blk', { ...b, act: '0' }));
+  const fxB = fxActive('blk');
+  $('#ids-blocks').innerHTML = (blocks.length ? `<div class="table-scroll"><table class="alert-table large ids-blocks">${head}<tbody>${blocks.map((b) => row(b, true)).join('')}</tbody></table></div>`
+      : `<p class="muted">${fxB && d.blocks.length ? L('Niets gevonden.') : L('Niets geblokkeerd.')}${d.mode !== 'block' && !fxB ? ' ' + L('(Modus <i>leren</i>: er wordt niets geblokkeerd.)') : ''}</p>`)
+    + (removed.length ? `<details class="small api-docs" ${fxB ? 'open' : ''}><summary>${L('Eerder geblokkeerd ({n})', { n: removed.length })}</summary>
+        <div class="table-scroll"><table class="alert-table large ids-blocks">${head}<tbody>${removed.map((b) => row(b, false)).join('')}</tbody></table></div></details>` : '');
+  fxRender('blk');
 }
 
 /** Eén incident als compacte rij; group = alle incidenten van een bundel (dan met 3× en een knop voor allemaal) */
@@ -3895,7 +4294,9 @@ function renderAlerts() {
   const q = $('#alerts-search').value.trim().toLowerCase();
   const host = $('#alerts-host').value;
   const shown = d.alerts.filter((a) => alertMatch(alertFilter, a) && (!host || alertCols(a).host === host)
-    && (!q || `${a.title} ${a.message} ${alertCols(a).host}`.toLowerCase().includes(q)));
+    && (!q || `${a.title} ${a.message} ${alertCols(a).host}`.toLowerCase().includes(q)) && fxPass('alerts', a));
+  fxRender('alerts');
+  const narrowed = !!q || !!host || fxActive('alerts');
   if (!shown.length) { el.innerHTML = `<p class="muted">${d.alerts.length ? L('Geen meldingen met dit filter.') : L('Nog geen meldingen.') + ' 👌'}</p>`; $('#alerts-toggle').hidden = true; return; }
   const byDay = new Map();
   shown.forEach((a) => {
@@ -3903,7 +4304,8 @@ function renderAlerts() {
     if (!byDay.has(day)) byDay.set(day, []);
     byDay.get(day).push(a);
   });
-  const isOpen = (day) => alertDayOpen[day] ?? day === d.today;
+  // Bij openen alles dicht; met zoeken of een filter de dagen met treffers open; "slim openen": vandaag open
+  const isOpen = (day) => alertDayOpen[day] ?? (narrowed || (smartOpen() && day === d.today));
   el.innerHTML = [...byDay].map(([day, list]) => `
     <details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''}>
       <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
@@ -5687,7 +6089,7 @@ const VULN_SEV = [['⚪', L('onbekend')], ['🔵', 'low'], ['🟡', 'medium'], [
 let vulnData = null;
 let vulnFilter = 'all';
 let vulnSharedErr = new Set();   // scanfouten die als één melding bovenaan staan
-const vulnOpen = new Set();
+const vulnOpen = new Map();   // server → open of dicht (met de hand, tot herladen)
 
 function initVulns() {
   $('#vuln-search').oninput = () => renderVulns();
@@ -5706,6 +6108,11 @@ function initVulns() {
   };
   $('#vuln-banner').onclick = (e) => { if (e.target.closest('[data-vscan]')) vulnScan(e.target.closest('[data-vscan]')); };
   $('#vuln-scan').onclick = (e) => vulnScan(e.currentTarget);
+  $('#vuln-toggle').onclick = () => {
+    const cards = $$('#vuln-hosts details.vuln-host');
+    const all = cards.length && cards.every((c) => c.open);
+    cards.forEach((c) => { c.open = !all; vulnOpen.set(+c.dataset.host, !all); });
+  };
   $('#vuln-hosts').addEventListener('click', vulnClick);
 }
 
@@ -5737,10 +6144,16 @@ function initLeaks() {
       vulnTab = b.dataset.vt;
       try { localStorage.setItem('rzmon-vuln-tab', vulnTab); } catch (ex) { /* alleen voor nu */ }
       showVulnTab();
+      fxSyncHash();
     };
     showVulnTab();
   }
   $('#leak-search').oninput = () => renderLeaks();
+  $('#leak-toggle').onclick = () => {
+    const cards = $$('#leak-list details.leak-card');
+    const all = cards.length && cards.every((c) => c.open);
+    cards.forEach((c) => { c.open = !all; });
+  };
   $('#leak-filter').onclick = (e) => { const b = e.target.closest('[data-lf]'); if (b) { leakFilter = b.dataset.lf; renderLeaks(); } };
   $('#leak-counts').onclick = (e) => { const b = e.target.closest('[data-lf]'); if (b) { leakFilter = leakFilter === b.dataset.lf ? 'all' : b.dataset.lf; renderLeaks(); } };
   $('#leak-run').onclick = async (e) => {
@@ -5770,11 +6183,13 @@ async function loadLeaks() {
 
 function leakVisible(e) {
   const q = $('#leak-search').value.trim().toLowerCase();
-  const bs = e.breaches.filter((b) => (leakFilter === 'handled' ? b.handled_at : leakFilter === 'all' || leakFilter === 'none' ? true : !b.handled_at)
+  if (!e.breaches.length && !fxPass('leaks', { email: e.email, source: e.source, none: 1 })) return null;
+  const bs = e.breaches.filter((b) => fxPass('leaks', { ...b, email: e.email, source: e.source })
+    && (leakFilter === 'handled' ? b.handled_at : leakFilter === 'all' || leakFilter === 'none' ? true : !b.handled_at)
     && (leakFilter !== 'pw' || b.passwords)
     && (!q || e.email.includes(q) || (b.title || b.name).toLowerCase().includes(q) || (b.domain || '').toLowerCase().includes(q)));
   if (leakFilter === 'none') return e.breaches.length ? null : bs;
-  if (leakFilter !== 'all' && !bs.length) return null;
+  if ((leakFilter !== 'all' || fxActive('leaks')) && !bs.length && e.breaches.length) return null;
   if (leakFilter === 'all' && q && !bs.length && !e.email.includes(q)) return null;
   return bs;
 }
@@ -5821,6 +6236,7 @@ function renderLeaks() {
   // Accounts met een gelekt wachtwoord
   $('#leak-users').innerHTML = pwUsers.length ? `<div class="v-banner">🔓 <span><b>${L('Wachtwoord in een datalek')}:</b> ${pwUsers.map((u) => esc(u.username)).join(', ')}.
     ${L('Bij de volgende keer inloggen moet eerst een nieuw wachtwoord worden gekozen.')}</span></div>` : '';
+  fxRender('leaks');
   // Per adres
   const cards = d.emails.map((e) => [e, leakVisible(e)]).filter(([, bs]) => bs !== null)
     .sort(([a, x], [b, y]) => y.filter((z) => z.passwords && !z.handled_at).length - x.filter((z) => z.passwords && !z.handled_at).length || y.length - x.length || a.email.localeCompare(b.email));
@@ -5832,7 +6248,8 @@ function renderLeaks() {
 function leakCard(e, bs) {
   const openN = e.breaches.filter((b) => !b.handled_at).length;
   const pwN = e.breaches.filter((b) => !b.handled_at && b.passwords).length;
-  const isOpen = $(`#leak-list details[data-email="${CSS.escape(e.email)}"]`)?.open ?? pwN > 0;
+  const narrowed = !!$('#leak-search').value.trim() || fxActive('leaks');
+  const isOpen = $(`#leak-list details[data-email="${CSS.escape(e.email)}"]`)?.open ?? (narrowed ? bs.length > 0 : smartOpen() && pwN > 0);
   return `<details class="card vuln-host leak-card ${pwN ? 'vh-w4' : openN ? 'vh-w2' : 'vh-w-1'}" data-email="${esc(e.email)}" ${isOpen ? 'open' : ''}>
     <summary><span class="host-ic" aria-hidden="true">✉️</span>
       <span class="vh-name"><b>${esc(e.email)}</b><span class="muted small">${(LEAK_SRC[e.source] || LEAK_SRC.list)()}${e.checked_at ? ' · ' + L('gecontroleerd {t}', { t: ago(e.checked_at) }) : ' · ' + L('nog niet gecontroleerd')}</span></span>
@@ -5867,7 +6284,8 @@ function vulnVisible() {
   const hostName = Object.fromEntries(vulnData.hosts.map((h) => [h.id, h.name.toLowerCase()]));
   const exposed = Object.fromEntries(vulnData.hosts.map((h) => [h.id, h.exposed || {}]));
   return vulnData.findings.filter((f) => {
-    if (vulnFilter === 'ignored' ? !f.ignored : f.ignored) return false;
+    if (!fxPass('vulns', f)) return false;
+    if (vulnFilter === 'ignored' ? !f.ignored : f.ignored && !fxHas('vulns', 'ign')) return false;
     if (f.severity < sev && !(sev && f.kev)) return false;
     if (vulnFilter === 'exposed' && !exposed[f.host_id][f.package]) return false;
     if (vulnFilter === 'fix' && !f.fixed) return false;
@@ -5940,7 +6358,11 @@ function renderVulns() {
   }
   const byHost = {};
   list.forEach((f) => (byHost[f.host_id] ||= []).push(f));
-  $('#vuln-hosts').innerHTML = d.hosts.map((h) => vulnHostCard(h, byHost[h.id] || [])).join('');
+  fxRender('vulns');
+  // Met een filter alleen de servers met treffers
+  const hostsShown = fxActive('vulns') ? d.hosts.filter((h) => (byHost[h.id] || []).length) : d.hosts;
+  $('#vuln-hosts').innerHTML = hostsShown.length ? hostsShown.map((h) => vulnHostCard(h, byHost[h.id] || [])).join('')
+    : `<div class="card"><p class="muted" style="margin:0">${L('Niets gevonden.')}</p></div>`;
 }
 
 function vulnHostCard(h, fs) {
@@ -5955,7 +6377,9 @@ function vulnHostCard(h, fs) {
     p.fixed = p.list.map((f) => f.fixed).filter(Boolean).sort().pop() || null;
   });
   const cnt = [4, 3, 2, 1, 0].map((s) => [s, new Set(fs.filter((f) => f.severity === s).map((f) => f.cve)).size]).filter(([, c]) => c);
-  const open = vulnOpen.has(h.id) || (vulnOpen.size === 0 && fs.some((f) => f.severity >= 3 || f.kev));
+  // Bij openen dicht; met zoeken of een filter open als er treffers zijn; "slim openen": ernstige vanzelf open
+  const narrowed = !!$('#vuln-search').value.trim() || fxActive('vulns');
+  const open = vulnOpen.has(+h.id) ? vulnOpen.get(+h.id) : narrowed ? fs.length > 0 : smartOpen() && fs.some((f) => f.severity >= 3 || f.kev);
   const up = h.upgrade;
   const upTxt = !up ? '' : up.state === 'queued' || up.state === 'running'
     ? `<a href="#" data-vact="progress" data-host="${h.id}" title="${L('Voortgang tonen')}">⏳ ${up.state === 'queued' ? L('Bijwerken gevraagd; de agent pakt het op bij zijn volgende rapport')
@@ -5999,7 +6423,7 @@ function vulnHostCard(h, fs) {
 function vulnClick(e) {
   const det = e.target.closest('details.vuln-host');
   if (e.target.closest('summary') && det) {   // open/dicht onthouden
-    setTimeout(() => { const id = +det.dataset.host; if (det.open) vulnOpen.add(id); else vulnOpen.delete(id); }, 0);
+    setTimeout(() => vulnOpen.set(+det.dataset.host, det.open), 0);
     return;
   }
   const chip = e.target.closest('[data-cve]');

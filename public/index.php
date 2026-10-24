@@ -55,7 +55,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
   <script>try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
-<body data-role="<?= htmlspecialchars($role) ?>">
+<body data-role="<?= htmlspecialchars($role) ?>"<?php if ($user && !$mustChange && !$resetToken): ?> data-prefs="<?= htmlspecialchars(!empty($user['id']) && !is_lan_session()
+    ? ((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn() ?: '{}') : 'local') ?>"<?php endif; ?>>
 <?php if ($resetToken): ?>
   <main class="login-wrap">
     <form id="reset-form" class="card login-card" data-token="<?= htmlspecialchars($resetToken) ?>">
@@ -210,7 +211,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <input type="search" id="alerts-search" placeholder="<?= th('🔍 Zoek in meldingen…') ?>">
         <div class="dash-chips" id="alerts-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
         <span class="dash-sp"></span>
-        <select id="alerts-host" aria-label="<?= th('Server') ?>"></select>
+        <select id="alerts-host" aria-label="<?= th('Server') ?>" hidden></select>
         <select id="alerts-sort" class="alerts-sort" aria-label="<?= th('Sorteren') ?>" title="<?= th('Sorteren (binnen elke dag)') ?>">
           <option value=""><?= th('Nieuwste eerst') ?></option>
           <option value="time:1"><?= th('Oudste eerst') ?></option>
@@ -273,7 +274,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
           <span class="dash-sp"></span>
           <span class="muted small" id="acc-info"></span>
-          <select id="acc-host" class="alerts-sort" aria-label="Server"><option value=""><?= th('Alle servers') ?></option></select>
+          <select id="acc-host" class="alerts-sort" aria-label="Server" hidden><option value=""><?= th('Alle servers') ?></option></select>
           <div class="dash-more">
             <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
             <div class="dash-menu" role="menu" hidden><button type="button" id="acc-toggle" role="menuitem"><?= th('⊞ Alles openen') ?></button></div>
@@ -313,6 +314,10 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <option value="3"><?= th('Vanaf high') ?></option><option value="4"><?= th('Alleen critical') ?></option>
         </select>
         <button type="button" class="btn need-admin" id="vuln-scan">🔍 <?= th('Nu scannen') ?></button>
+        <div class="dash-more">
+          <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
+          <div class="dash-menu" role="menu" hidden><button type="button" id="vuln-toggle" role="menuitem"><?= th('⊞ Alles openen / sluiten') ?></button></div>
+        </div>
       </div>
       <div id="vuln-hosts"></div>
       </div>
@@ -330,6 +335,10 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div class="dash-chips" id="leak-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
           <span class="dash-sp"></span>
           <button type="button" class="btn" id="leak-run">🔍 <?= th('Nu controleren') ?></button>
+          <div class="dash-more">
+            <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
+            <div class="dash-menu" role="menu" hidden><button type="button" id="leak-toggle" role="menuitem"><?= th('⊞ Alles openen / sluiten') ?></button></div>
+          </div>
         </div>
         <div id="leak-users"></div>
         <div id="leak-list"></div>
@@ -829,8 +838,15 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="card" id="acct-devices"><h2>📱 <?= th('Onthouden apparaten') ?></h2><div id="acct-devices-body"></div></div>
       <div class="card" id="acct-logins"><h2>🕘 <?= th('Mijn laatste logins') ?></h2><div id="acct-logins-body"></div></div>
       <div class="card view-card">
-        <h2>🖥️ <?= th('Weergave op dit apparaat') ?></h2>
-        <p class="muted small"><?= t('Hoe het dashboard en de meldingen eruitzien. Geldt voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc) en wordt direct toegepast.') ?></p>
+        <h2>🖥️ <?= th('Weergave') ?></h2>
+        <p class="muted small"><?= t('Hoe de pagina\'s eruitzien, direct toegepast. <i>Bij openen</i> geldt voor je account; lay-out en grootte voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc).') ?></p>
+        <div class="view-row">
+          <span class="view-label"><?= th('Bij openen') ?> <span class="hint"><?= th('(voor je account)') ?></span></span>
+          <div class="seg" role="group" aria-label="<?= th('Bij openen') ?>">
+            <button type="button" class="seg-btn" data-view-open="closed" title="<?= th('Alle servers, dagen en regels dicht; wat je openklapt blijft open tot je herlaadt') ?>"><?= th('Alles dicht') ?></button>
+            <button type="button" class="seg-btn" data-view-open="smart" title="<?= th('Vandaag en ernstige dingen open; opengeklapte servers worden onthouden') ?>"><?= th('Slim openen') ?></button>
+          </div>
+        </div>
         <div class="view-row">
           <span class="view-label"><?= th('Lay-out') ?></span>
           <div class="seg" role="group" aria-label="<?= th('Lay-out') ?>">

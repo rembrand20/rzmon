@@ -108,6 +108,31 @@ Het dashboard (vanaf 1.66.0), van boven naar beneden:
 - **Werkbalk**: zoeken (zoek je op een checknaam, dan klapt de server vanzelf open), **filterchips** met aantallen (*Alle · Problemen · Onderhoud · Agent · Home Assistant · Remote · Lokaal*; alleen soorten die je hebt), **sorteren** (*Ergste eerst* of *Op naam*), het menu **⋯** met *🔧 Onderhoud* (alle meldingen pauzeren), *↻ Alles nu checken* en *⊞ Alles openen*, en **＋ Server**. Filter en sortering worden per apparaat onthouden.
 - **Servers met problemen** (of in onderhoud, of nog zonder checks) als kaart: een icoon voor het soort server (🖥️ agent, 🌐 remote, 🏠 Home Assistant, 📡 de RzMon-server zelf), de status ("1 kritiek · 1 waarschuwing"), de checks met een probleem en **mini-grafiekjes van CPU, RAM en de volste disk over 24 uur** (zonder die checks: de eerste check met een meetwaarde, bv. ping).
 - **✔ Alles in orde**: servers waar alles OK is, compact onder elkaar: één regel met naam, aantal checks, de mini-grafiekjes en de beschikbaarheid over 24 uur. Klik erop voor alle checks.
+
+### Filters en open/dicht op elke pagina (vanaf 1.71.0)
+**⚲ Filters** staat in de werkbalk van het Dashboard, Meldingen, IDS (Incidenten, Toegang, Blokkades), Kwetsbaarheden en Datalekken. Het paneel heeft een keuzelijst **per onderdeel**, met hoe vaak elke waarde voorkomt; je kunt **meerdere waarden** aanvinken (server NAS én Pi), en verschillende onderdelen werken samen (server NAS **én** status Critical). Lange lijsten hebben een zoekveld.
+
+| Pagina | Filteren op |
+|---|---|
+| Dashboard | server · soort server · groep (bovenliggend) · status · soort check · check · bevestigd · agentversie |
+| Meldingen | periode · server · check · status · soort · kanaal · verzonden (verstuurd, mislukt, niet verstuurd) · IP-adres |
+| IDS → Incidenten | periode · server · categorie · soort incident · ernst · status · IP-adres |
+| IDS → Toegang | periode · server · soort (SSH, console, sudo, su) · resultaat · gebruiker · IP-adres / vanaf |
+| IDS → Blokkades | periode · server · IP · reden · door (automatisch of met de hand) · nog actief |
+| Kwetsbaarheden | server · pakket · ernst · CVE · met oplossing · bereikbaar · actief misbruikt · geaccepteerd · herstart nodig |
+| Datalekken | adres · bron · lek · soort gegevens · jaar van het lek · status |
+
+- **Periode** (Meldingen, IDS): *alles · vandaag · 24 uur · 7 dagen · 30 dagen · van – tot*.
+- Actieve filters staan als **chips** onder de werkbalk (`Server: NAS ✕`); *Alles wissen* haalt ze allemaal weg. De tellers, de chips en het zoeken blijven werken en tellen mee.
+- Filters worden **per gebruiker bewaard**, ook na herladen en op een ander apparaat.
+- **💾 Opslaan als…** bewaart het filter met een naam (bv. *NAS critical*); met ⭐ in het paneel haal je het met één klik terug, ✕ verwijdert het.
+- De filters staan ook in het **adres**, bv. `#alerts?server=NAS,Pi&status=crit&period=7d` of `#ids/acc?result=fail`: als bladwijzer of link te delen.
+- De losse keuzelijst *Alle servers* bij Meldingen en Toegang is vervangen door *Filters → Server* (meerdere tegelijk).
+
+**Bij openen** (*Mijn account → Weergave*, voor je account):
+- **Alles dicht** (standaard): servers, dagen, gebundelde regels en adressen staan dicht; je ziet de koppen met hun tellers en bolletjes. Wat je openklapt, blijft open tot je herlaadt. Met **zoeken of een filter** gaan de servers en dagen met treffers vanzelf open.
+- **Slim openen**: zoals het vóór 1.71.0 werkte (vandaag open, ernstige kwetsbaarheden en lekken met wachtwoorden open, opengeklapte servers onthouden in deze browser).
+- Overal staat in het menu **⋯** *Alles openen / sluiten*.
 - **Blox en L1nes** blijven, per apparaat te kiezen onder *Mijn account → Weergave*. Blox: kaarten (Large met mini-grafiekjes, Small compacter) en de compacte lijst voor servers zonder problemen. L1nes: rijen, ook gesplitst in *Servers met problemen* en *Alles in orde*.
 - **Details:** klik op een tegel en hij klapt uit met alle checks per stuk, met balkjes en drempels en de knoppen (bevestigen, onderhoud, check toevoegen, poortscan, bewerken). Welke tegels open staan, wordt onthouden; **⊞ Alles openen** klapt alles in één keer open.
 - **Checks in groepen** (Blox en L1nes): heeft een server 5 of meer checks, dan staan ze onder kopjes, altijd in deze volgorde: **📊 Systeem** (CPU, RAM, disks), **🌐 Bereikbaarheid** (ping, poort, HTTP), **⚙️ Services**, **📦 Containers**, **🖥️ Commando's**, **📜 Logbestanden**, **🔒 Certificaten** en **🏠 Home Assistant**. Lege groepen zie je niet. In het kopje staan het aantal checks en de statussen die aandacht vragen (bv. *🔴 1 🟠 2*, of ✅). Klik op een kopje om de groep in of uit te klappen; dat wordt per server en per apparaat onthouden. Binnen een groep staan de problemen bovenaan (kritiek → waarschuwing → onbekend → OK → onderhoud → uit), daarna op naam; bij Systeem eerst CPU, dan RAM, dan de disks. Met minder dan 5 checks zijn er geen kopjes, maar wel dezelfde volgorde.

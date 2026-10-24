@@ -752,7 +752,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
     'state', 'alerts', 'ids', 'ids_access', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
-    'devices', 'device_forget', 'device_forget_all', 'user_email', 'lang_set', 'my_logins', 'pw_forced' => 'readonly',
+    'devices', 'device_forget', 'device_forget_all', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
     default => 'admin',
 };
@@ -2316,6 +2316,25 @@ switch ($action) {
             q('UPDATE users SET hibp = ?, pw_pwned = NULL, pw_pwned_at = NULL, pw_must_change = 0 WHERE id = ?', [$on ? 1 : 0, $id]);
             AgentCommands::audit($user['username'], 'Datalek-controle', "{$u['username']} = " . ($on ? 'aan' : 'uit'));
         }
+        out(['ok' => true]);
+
+    // Voorkeuren van de gebruiker (1.71.0): open_mode (closed | smart), fx (filters per pagina), fxviews (opgeslagen filters)
+    case 'prefs_save':
+        if (empty($user['id'])) {
+            out(['error' => t('Zonder account worden voorkeuren alleen in deze browser bewaard')], 422);
+        }
+        $in = input();
+        $key = (string) ($in['key'] ?? '');
+        if (!in_array($key, ['open_mode', 'fx', 'fxviews'], true)) {
+            out(['error' => t('Onbekende voorkeur')], 422);
+        }
+        $prefs = json_decode((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn(), true) ?: [];
+        $prefs[$key] = $key === 'open_mode' ? ($in['value'] === 'smart' ? 'smart' : 'closed') : (array) ($in['value'] ?? []);
+        $json = json_encode($prefs, JSON_UNESCAPED_UNICODE);
+        if (strlen($json) > 200000) {
+            out(['error' => t('Te veel opgeslagen filters')], 422);
+        }
+        q('UPDATE users SET prefs = ? WHERE id = ?', [$json, $user['id']]);
         out(['ok' => true]);
 
     // Nieuw wachtwoord kiezen omdat het huidige in een datalek staat; een gelekt wachtwoord wordt hier geweigerd

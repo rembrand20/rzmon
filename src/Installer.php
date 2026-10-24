@@ -194,6 +194,8 @@ final class Installer
         // 1.70.0: welke vingerafdruk van het certificaat deze agent het laatst kreeg (versleuteld), en wanneer
         ['hosts', 'agent_pin_sent', 'VARCHAR(64) NULL'],
         ['hosts', 'agent_pin_sent_at', 'DATETIME NULL'],
+        // 1.71.0: voorkeuren per gebruiker (JSON): bij openen alles dicht of slim, filters per pagina, opgeslagen filters
+        ['users', 'prefs', 'MEDIUMTEXT NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

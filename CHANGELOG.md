@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.71.0 – 2026-10-24
+### Nieuw
+- **⚲ Filters op elke pagina**: Dashboard, Meldingen, IDS (Incidenten, Toegang, Blokkades), Kwetsbaarheden en Datalekken.
+  - Een paneel met een keuzelijst **per onderdeel** (server, status, soort, check, kanaal, IP-adres, ernst, pakket, CVE, lek, soort gegevens …), met hoe vaak elke waarde voorkomt en een zoekveld bij lange lijsten. **Meerdere waarden** per onderdeel; onderdelen werken samen.
+  - **Periode** bij Meldingen en IDS: vandaag, 24 uur, 7 dagen, 30 dagen of van – tot.
+  - Actieve filters als **chips** onder de werkbalk (✕ haalt er één weg, *Alles wissen* allemaal).
+  - **Per gebruiker bewaard**, ook na herladen; **💾 Opslaan als…** met een naam, met ⭐ terug te halen.
+  - De filters staan in het **adres** (`#alerts?server=NAS,Pi&status=crit`, `#ids/acc?result=fail`, `#vulns/leak?status=open`), om als bladwijzer of link te delen.
+  - De losse keuzelijst *Alle servers* bij Meldingen en Toegang is opgegaan in *Filters → Server*.
+- **Bij openen alles dicht**: servers, dagen, gebundelde regels en adressen staan dicht; wat je openklapt, blijft open tot je herlaadt. Zoeken of filteren klapt de treffers vanzelf open. In *Mijn account → Weergave* kies je **Alles dicht** (standaard) of **Slim openen** (zoals het was), per gebruiker. Ook bij Kwetsbaarheden en Datalekken staat nu *Alles openen / sluiten* in het menu ⋯.
+
 ## 1.70.0 – 2026-10-24
 ### Nieuw
 - **🔐 Certificaat voor de agents** (*Instellingen → Agents → Beveiligde verbinding → 🔐 Certificaat bekijken*):
