@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.76.0 – 2026-10-24
+### Nieuw
+- **📷 Camera** als soort apparaat, met een eigen groep **📷 Camera's** op het dashboard (chip, blok bij *Alle*, en tellers en tegels als je die groep kiest).
+  - **Vanzelf herkend** via SNMP (Axis, Hikvision, Dahua, Hanwha, of *camera*/*NVR* in de beschrijving) en aan de **naam** (*cam*, *camera*, *IPCam*, *CCTV*, *deurbel*); zelf te wijzigen bij *✎ Bewerken → Soort apparaat*.
+  - **＋ Aanbevolen checks** bij een camera: ping, RTSP (poort 554) voor de videostroom, en de webpagina (poort 80/443, standaard uit).
+
 ## 1.75.0 – 2026-10-24
 ### Nieuw
 - **Soort apparaat**: elke server is nu een 🖥️ server, 🌐 router, 🔀 switch, 📶 access point, 🧱 firewall, 🗄️ NAS, 🔋 UPS, 🏠 smart home, 🖨️ printer of 📦 overig.

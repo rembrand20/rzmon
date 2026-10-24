@@ -1191,17 +1191,19 @@ const isHa = (h) => h.checks.some((c) => c.type === 'ha') || h.metrics.includes(
 // Soort apparaat (1.75.0; zie HostKind.php): zelf gekozen, anders herkend (agent, SNMP), anders op het type
 const KIND_INFO = {
   server: ['🖥️', () => L('Server')], router: ['🌐', () => L('Router')], switch: ['🔀', () => L('Switch')], ap: ['📶', () => L('Access point')],
-  firewall: ['🧱', () => L('Firewall')], nas: ['🗄️', () => 'NAS'], ups: ['🔋', () => 'UPS'], smarthome: ['🏠', () => L('Smart home')],
+  firewall: ['🧱', () => L('Firewall')], nas: ['🗄️', () => 'NAS'], ups: ['🔋', () => 'UPS'], camera: ['📷', () => L('Camera')], smarthome: ['🏠', () => L('Smart home')],
   printer: ['🖨️', () => L('Printer')], other: ['📦', () => L('Overig')],
 };
 const KIND_GROUP = { server: 'server', router: 'network', switch: 'network', ap: 'network', firewall: 'network', nas: 'storage', ups: 'power',
-  smarthome: 'smarthome', printer: 'other', other: 'other' };
+  camera: 'camera', smarthome: 'smarthome', printer: 'other', other: 'other' };
 const GROUP_INFO = {
   server: ['🖥️', () => L('Servers')], network: ['🌐', () => L('Netwerk')], storage: ['🗄️', () => L('Opslag')], power: ['🔋', () => L('Stroom')],
-  smarthome: ['🏠', () => L('Smart home')], other: ['📦', () => L('Overig')],
+  camera: ['📷', () => L('Camera\'s')], smarthome: ['🏠', () => L('Smart home')], other: ['📦', () => L('Overig')],
 };
+// Zelfde regel als HostKind::CAMERA_NAME: een naam als "Cam voordeur" of "IPCam2" is vanzelf een camera
+const CAMERA_NAME = /\b(ip)?cam(era)?s?[-_ ]?\d*\b|cctv|deurbel|doorbell/i;
 const hostKind = (h) => [h.kind, h.kind_auto].find((k) => k && KIND_INFO[k])
-  || (isHa(h) ? 'smarthome' : ['agent', 'local'].includes(h.mode) ? 'server' : 'other');
+  || (isHa(h) ? 'smarthome' : ['agent', 'local'].includes(h.mode) ? 'server' : CAMERA_NAME.test(h.name || '') ? 'camera' : 'other');
 const hostGroup = (h) => KIND_GROUP[hostKind(h)];
 const kindLabel = (k) => `${KIND_INFO[k][0]} ${KIND_INFO[k][1]()}`;
 /** Soort apparaat van een server op naam (meldingen en IDS kennen alleen de naam) */
@@ -1767,6 +1769,7 @@ function hostDetail(h, lines = null) {
         <button class="btn need-admin" data-act="add-check" data-id="${h.id}">＋ Check</button>
         <button class="btn need-user" data-act="scan" data-id="${h.id}">🔍 ${L('Poorten')}</button>
         ${h.snmp ? `<button class="btn need-admin" data-act="snmp" data-id="${h.id}">📡 ${L('SNMP-checks')}</button>` : ''}
+        ${hostKind(h) === 'camera' ? `<button class="btn need-admin" data-act="cam-rec" data-id="${h.id}">${L('＋ Aanbevolen checks')}</button>` : ''}
         ${h.metrics.includes('podman') ? `<button class="btn" data-act="podman" data-id="${h.id}">📦 Containers</button>` : ''}
         <button class="btn need-admin" data-act="edit-host" data-id="${h.id}">✎ ${L('Bewerken')}</button>
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
@@ -2010,6 +2013,7 @@ async function onHostsClick(e) {
     case 'agent': return agentInstructions(findHost(id));
     case 'scan': return portScan(findHost(id));
     case 'snmp': return snmpChecks(findHost(id));
+    case 'cam-rec': return cameraRecommended(findHost(id));
     case 'podman': return podmanOverview(findHost(id));
     case 'toggle': return toggleHost(id);
     case 'ack': { const [c, h] = findCheck(id); return ackDialog('check', id, `${h.name} – ${c.name}`, c.last_message); }
@@ -2165,7 +2169,8 @@ function modalError(msg) {
 // ---------------------------------------------------------------- Host form
 /** Eerste optie bij Soort apparaat: wat RzMon zelf herkent */
 function kindAutoText(h, k = null) {
-  const auto = k || (h && h.id ? [h.kind_auto].find((x) => x && KIND_INFO[x]) || (isHa(h) ? 'smarthome' : ['agent', 'local'].includes(h.mode) ? 'server' : null) : null);
+  const auto = k || (h && h.id ? [h.kind_auto].find((x) => x && KIND_INFO[x]) || (isHa(h) ? 'smarthome' : ['agent', 'local'].includes(h.mode) ? 'server'
+    : CAMERA_NAME.test(h.name || '') ? 'camera' : null) : null);
   return auto ? L('Vanzelf: {kind}', { kind: kindLabel(auto) }) : L('Vanzelf (nog niet herkend: overig)');
 }
 
@@ -3620,6 +3625,33 @@ function haRecommended(h) {
       const chosen = items.filter((x) => !x.exists && d['rec_' + x.key]);
       if (!chosen.length) throw new Error(L('Vink minstens één check aan'));
       for (const x of chosen) await api('check_save', { host_id: h.id, enabled: true, interval_sec: 60, verify_ssl: true, ...x.data });
+      toast(L('{n} check(s) toegevoegd', { n: chosen.length }));
+      refresh();
+    },
+  });
+}
+
+/** Aanbevolen checks voor een camera (1.76.0): bereikbaar, videostroom (RTSP) en de webpagina */
+function cameraRecommended(h) {
+  const has = (type, target = '') => h.checks.some((c) => c.type === type && (target === '' || String(c.target) === target));
+  const tcp = (port, name) => ({ type: 'tcp', target: String(port), name, warn_threshold: TYPES.tcp.warn ?? '', crit_threshold: TYPES.tcp.crit ?? '' });
+  const items = [
+    { key: 'ping', label: L('Ping: is de camera bereikbaar?'), exists: has('ping'), on: true, data: { type: 'ping', name: 'Ping', warn_threshold: 100, crit_threshold: 500 } },
+    { key: 'rtsp', label: L('RTSP (poort 554): komt de videostroom door?'), exists: has('tcp', '554'), on: true, data: tcp(554, 'RTSP') },
+    { key: 'http', label: L('Webpagina (poort 80)'), exists: has('tcp', '80'), on: false, data: tcp(80, L('Webpagina')) },
+    { key: 'https', label: L('Webpagina via https (poort 443)'), exists: has('tcp', '443'), on: false, data: tcp(443, L('Webpagina (https)')) },
+  ];
+  modal({
+    title: L('＋ Aanbevolen checks – {name}', { name: h.name }),
+    body: `<p style="margin-top:0">${L('Herkend als <b>📷 camera</b>. Vink aan wat je wilt bewaken; je kunt elke check later nog aanpassen.')}</p>
+      <div class="rec-list">${items.map((x) => `<label class="rec-row ${x.exists ? 'muted' : ''}"><input type="checkbox" name="rec_${x.key}" ${x.exists ? 'disabled' : x.on ? 'checked' : ''}>
+        <span><b>${esc(x.label)}</b>${x.exists ? ' · ' + L('al aanwezig') : ''}</span></label>`).join('')}</div>
+      <p class="muted small">${L('Geeft de camera zijn beeld via een andere poort (bv. 8554 of 7447 bij UniFi Protect), voeg dan zelf een poort-check toe (＋ Check → Poort).')}</p>`,
+    buttons: [{ label: L('Toevoegen'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const chosen = items.filter((x) => !x.exists && d['rec_' + x.key]);
+      if (!chosen.length) throw new Error(L('Vink minstens één check aan'));
+      for (const x of chosen) await api('check_save', { host_id: h.id, enabled: true, interval_sec: 60, ...x.data });
       toast(L('{n} check(s) toegevoegd', { n: chosen.length }));
       refresh();
     },

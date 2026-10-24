@@ -209,6 +209,10 @@ final class SnmpMonitor
         if ($c->walk(self::UNIFI_VAP . '.6') || $c->walk(self::UNIFI_STATIONS)) {
             return 'ap';
         }
+        // Camera's (1.76.0): Axis, Hikvision, Dahua, Hanwha, of de beschrijving
+        if (in_array($ent, [368, 39165, 1004849, 36849], true) || $has('camera', 'ipcam', 'hikvision', 'dahua', 'reolink', 'amcrest', 'axis ', 'nvr')) {
+            return 'camera';
+        }
         if ($ent === 6574 || $ent === 24681 || $c->one(self::SYNO . '.1.1.0') !== null || $has('synology', 'qnap', 'truenas', 'freenas', 'unraid')) {
             return 'nas';
         }

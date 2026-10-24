@@ -65,7 +65,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Grafieken** van 6 uur tot 30 dagen, met minimum, gemiddelde en maximum, en bij disks de trend.
 - **Beschikbaarheid** per server over 24 uur, 7 dagen en 30 dagen.
 - **Zoeken** en filterchips (*Problemen*, *Onderhoud*, per soort apparaat).
-- **🖥️ Servers en 🌐 netwerk apart** (soort apparaat): vanzelf herkend via de agent en SNMP (access point, switch, router, firewall, NAS, UPS, printer) of zelf gekozen; bij *Alle* een blok per groep, met één groep gekozen volgen ook de tellers en tegels.
+- **🖥️ Servers en 🌐 netwerk apart** (soort apparaat): vanzelf herkend via de agent en SNMP (access point, switch, router, firewall, NAS, UPS, printer, camera) of zelf gekozen; **📷 camera's** ook aan de naam, met aanbevolen checks (ping, RTSP, webpagina); bij *Alle* een blok per groep, met één groep gekozen volgen ook de tellers en tegels.
 - **Overig:** licht en donker thema, werkt op je telefoon, ververst elke 20 seconden, en **↻ Alles nu checken**.
 - **Meldingenoverzicht per dag:** elke verstuurde melding met de kanalen waarlangs hij ging, gegroepeerd per dag met tellers. Vandaag staat open. De bewaartermijn stel je zelf in. **Sorteren** op tijd, status, server, check, bericht of kanalen (klik op de kolomkop; in Blox een keuzelijst), en klik op een melding voor de popup van de check.
 

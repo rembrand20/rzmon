@@ -10,8 +10,10 @@ final class HostKind
 {
     /** Soort => groep op het dashboard */
     public const KINDS = ['server' => 'server', 'router' => 'network', 'switch' => 'network', 'ap' => 'network', 'firewall' => 'network',
-        'nas' => 'storage', 'ups' => 'power', 'smarthome' => 'smarthome', 'printer' => 'other', 'other' => 'other'];
-    public const GROUPS = ['server', 'network', 'storage', 'power', 'smarthome', 'other'];
+        'nas' => 'storage', 'ups' => 'power', 'camera' => 'camera', 'smarthome' => 'smarthome', 'printer' => 'other', 'other' => 'other'];
+    public const GROUPS = ['server', 'network', 'storage', 'power', 'camera', 'smarthome', 'other'];
+    /** Naam die op een camera wijst (1.76.0): voorstel als er verder niets bekend is */
+    public const CAMERA_NAME = '/\b(ip)?cam(era)?s?[-_ ]?\d*\b|cctv|deurbel|doorbell/i';
     /** Extra kolom bij een SELECT op hosts: is het Home Assistant (add-on of HA-checks)? */
     public const IS_HA_SQL = "(hosts.agent_update_via = 'ha' OR EXISTS (SELECT 1 FROM checks hc WHERE hc.host_id = hosts.id AND hc.type = 'ha')) AS is_ha";
 
@@ -25,7 +27,10 @@ final class HostKind
         if (!empty($h['is_ha'])) {
             return 'smarthome';   // Home Assistant waarvan de add-on nog niet opnieuw rapporteerde
         }
-        return in_array($h['mode'] ?? '', ['agent', 'local'], true) ? 'server' : 'other';
+        if (in_array($h['mode'] ?? '', ['agent', 'local'], true)) {
+            return 'server';
+        }
+        return preg_match(self::CAMERA_NAME, (string) ($h['name'] ?? '')) ? 'camera' : 'other';
     }
 
     public static function group(array $h): string

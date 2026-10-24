@@ -45,7 +45,7 @@ final class Health
     public static function groups(): array
     {
         $out = [];
-        $present = array_unique(array_map(fn($h) => HostKind::group($h), q('SELECT mode, kind, kind_auto, ' . HostKind::IS_HA_SQL . ' FROM hosts WHERE enabled = 1')->fetchAll()));
+        $present = array_unique(array_map(fn($h) => HostKind::group($h), q('SELECT name, mode, kind, kind_auto, ' . HostKind::IS_HA_SQL . ' FROM hosts WHERE enabled = 1')->fetchAll()));
         foreach (HostKind::GROUPS as $g) {
             if (in_array($g, $present, true)) {
                 $out[$g] = self::current(null, $g);
