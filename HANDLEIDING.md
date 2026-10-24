@@ -864,6 +864,7 @@ Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-
 | `--services "sshd nginx"` | *Verouderd.* Services kies je in RzMon (8.2.2); wat je hier opgeeft wordt ook gemeld |
 | `--interval 120` | Tik als RzMon er geen doorgeeft (30-3600, standaard 60); normaal stel je dit in RzMon in |
 | `--pair CODE` | Koppelcode uit de Agent Manager (eenmalig, 15 minuten geldig) |
+| `--fallback URL` | Reserve-adres als `--url` niet bereikbaar is (agent 1.51.0), bv. `--url https://rzmon.example.nl --fallback http://192.168.1.10`; zie § 10.1 *Agents via https* |
 | `--pin VINGERAFDRUK` | Alleen het certificaat van RzMon met deze vingerafdruk accepteren (eigen, self-signed certificaat); staat vanzelf in het commando |
 | `--agent-sha SHA256` | De gedownloade agent hiermee controleren; staat vanzelf in het commando |
 | `--token TOKEN` | Oude manier, in plaats van een koppelcode |
@@ -1683,6 +1684,27 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - **Stille uren:** er gaat niets naar buiten, maar de melding komt wel op de meldingenpagina (als die aangevinkt is). Uitzondering: ⚠️ *Niet-geautoriseerde verbinding* gaat ook tijdens stille uren, en staat altijd op de meldingenpagina (daar telt RzMon de pogingen per IP).
 - **🧪** stuurt een voorbeeld van die melding naar wat je nu aangevinkt hebt, ook tijdens stille uren.
 - Na de update naar 1.59.0 is alles ingesteld zoals het werkte. De rij **Info** bij de meldregels heet nu *Info (checks)* en geldt alleen nog voor checks (info-checks, herstart, certificaten). *Info bij agent-updates* per server (Agent Manager) blijft: staat dat uit, dan komen agent-updates van die server alleen op de meldingenpagina.
+
+#### 🌍 Agents via https, ander adres en reserve-adres (vanaf 1.72.0, agent 1.51.0)
+Agents kunnen RzMon via **https** bereiken, bijvoorbeeld via je reverse proxy (SWAG) met een Let's Encrypt-certificaat. Gebruik je intern en extern dezelfde naam (intern via een DNS-rewrite, bv. in AdGuard, extern via gewone DNS), dan werkt hetzelfde adres overal.
+
+**Voorbereiding**
+1. Het IP-adres van de proxy staat bij *Instellingen → Toegang → Reverse proxy IP's*; alleen dan gelooft RzMon dat een verzoek via https binnenkwam.
+2. De proxy stuurt `/api.php` gewoon door naar RzMon (dat doet de standaard-config van SWAG al).
+3. Werk de agents bij naar **1.51.0** (de add-on via de add-on winkel).
+
+**Overstappen vanuit RzMon** (*Instellingen → 🖥️ Agents → Beveiligde verbinding*)
+- **🌐 Alle agents naar een ander adres…** of per agent **🌐** in de tabel (of *Agent Manager → 🌍 Adres van RzMon → Wijzigen*).
+- Vul het **nieuwe adres** in (bv. `https://rzmon.example.nl`) en eventueel een **reserve-adres**. Leeg = het adres dat de agent nu gebruikt (bv. `http://192.168.1.10`); met *Geen reserve-adres* krijgt hij er geen.
+- De agent krijgt het adres **versleuteld** en **test het eerst**: verbinding, certificaat, en een antwoord dat met zijn eigen sleutel klopt. Pas dan gebruikt hij het. Lukt het niet, dan blijft het oude adres en zie je de reden (✘ …). Na één of twee rapporten staat in de kolom **Verbinding** *✔ Overgestapt naar …*.
+- Het adres staat op de server in de map met de sleutel (`/var/lib/rzmon-agent/url`; add-on: `/data/rzmon-keys/url`). Pas je `MONITOR_URL` in `/etc/default/rzmon-agent` zelf aan, dan geldt weer dat.
+- Agents ouder dan 1.51.0 worden overgeslagen; die pas je op de server zelf aan (`install-agent.sh --url …`).
+
+**Kolom Verbinding:** 🔒 *https via proxy*, 🔒 *https*, 🔓 *http* of ⚠️ *via reserve-adres*, met het adres, ↪ het reserve-adres en de uitkomst van de laatste overstap.
+
+**Reserve-adres:** is het gewone adres niet bereikbaar (geen verbinding, time-out, certificaatfout, of de proxy geeft 502, 503 of 504), dan stuurt de agent zijn rapport via het reserve-adres, opnieuw versleuteld. RzMon geeft dan één ⚠️-melding *Agent via reserve-adres* (werkt de proxy nog?), en ✅ *Agent weer via het gewone adres* zodra het weer werkt. Ook in te stellen met `--fallback` bij het installeren, `MONITOR_URL_FALLBACK=` in `/etc/default/rzmon-agent`, of *Reserve-adres* in de add-on.
+
+**🔒 Agents alleen via https** (schakelaar op de kaart, en per agent *algemene instelling / aan / uit* in de tabel en de Agent Manager): een agent die via gewone http binnenkomt, wordt geweigerd (⚠️ *Niet-geautoriseerde verbinding*). Een rapport via het **reserve-adres** mag wel, met de ⚠️ hierboven, zodat je niets kwijtraakt als de proxy even plat ligt. Aanzetten kan pas als geen agent meer via http komt (RzMon noemt welke nog wel); uitzetten vraagt om bevestiging. *Hoe staat het ervoor?* toont *Agents via https*.
 
 #### 🔐 Het certificaat voor de agents bekijken en vernieuwen (vanaf 1.70.0)
 In de kaart **Beveiligde verbinding met de agents** staat de knop **🔐 Certificaat bekijken**. Het venster toont:

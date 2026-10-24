@@ -526,3 +526,6 @@ CREATE TABLE IF NOT EXISTS hibp_catalog (
     description  TEXT NULL,
     fetched_at   DATETIME NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Agents alleen via https (1.72.0): verzoeken van agents via http weigeren, behalve via hun reserve-adres (met een ⚠️)
+INSERT IGNORE INTO settings (name, value) VALUES ('agent_https_only', '0');

@@ -86,7 +86,7 @@ function agent_host(): array
     }
     $ip = client_ip();
     $cols = 'id, name, mode, agent_version, info_agent, agent_seen, agent_ip, agent_tick, enc, agent_token,
-             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock, agent_pin_sent';
+             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock, agent_pin_sent, agent_https, agent_fb_at';
     if ($kid !== '') {
         $host = q("SELECT $cols FROM hosts WHERE agent_key_id = ? OR (agent_key_old_id = ? AND agent_key_old_until > ?) LIMIT 1", [$kid, $kid, now()])->fetch();
         $reason = $host ? null : t('onbekende sleutel (vernieuwd of opnieuw gekoppeld?): koppel de agent opnieuw met een koppelcode');
@@ -102,6 +102,10 @@ function agent_host(): array
     }
     if ($reason === null && $host['mode'] !== 'agent') {
         $reason = t("server '{name}' staat niet op type 'Remote met agent'", ['name' => $host['name']]);
+    }
+    // Alleen via https (1.72.0); via het reserve-adres (X-Agent-Fallback) mag http wel, met een ⚠️ (zie het rapport)
+    if ($reason === null && AgentCrypto::httpsOnly($host) && !Https::isHttps() && empty($_SERVER['HTTP_X_AGENT_FALLBACK'])) {
+        $reason = t('via http, maar deze server mag alleen via https verbinden (Instellingen → Agents → Beveiligde verbinding)');
     }
     if ($reason === null && !AgentCrypto::ipAllowed($host, $ip)) {
         $reason = t('nieuw IP-adres {ip} (bekend: {known}); toestaan kan bij Instellingen → Agents → Beveiligde verbinding',
@@ -171,6 +175,48 @@ function agent_body(array $host): bool
     }
     $GLOBALS['agent_plain'] = $raw;
     return false;
+}
+
+/**
+ * Adres van RzMon (1.72.0): wat de agent gebruikt, hoe hij verbond (http, https of https via de proxy) en of het via zijn
+ * reserve-adres ging (⚠️ bij het begin, ✅ als het weer via het gewone adres gaat). De uitkomst van een overstap
+ * verwerken; staat er een overstap klaar, dan @return array{url:string,fallback:string} de opdracht (alleen versleuteld).
+ */
+function agent_url_report(array $host, array $in, ?string $agentVersion, bool $encrypted): ?array
+{
+    $conn = Https::isHttps() ? (Https::viaProxy() ? 'proxy' : 'https') : 'http';
+    $fb = !empty($_SERVER['HTTP_X_AGENT_FALLBACK']);
+    $url = AgentCrypto::validUrl((string) ($in['url'] ?? '')) ? (string) $in['url'] : null;
+    $urlFb = AgentCrypto::validUrl((string) ($in['url_fallback'] ?? '')) ? (string) $in['url_fallback'] : null;
+    q('UPDATE hosts SET agent_conn = ?, agent_url = COALESCE(?, agent_url), agent_url_fb = ? WHERE id = ?',
+        [$conn, $url, $url !== null ? $urlFb : null, $host['id']]);
+    if ($fb && empty($host['agent_fb_at'])) {
+        q('UPDATE hosts SET agent_fb_at = ? WHERE id = ?', [now(), $host['id']]);
+        Monitor::notifySystem('⚠️ ' . t('Agent via reserve-adres: {name}', ['name' => $host['name']]),
+            t('De agent op {name} bereikt RzMon niet via {url} en rapporteert via zijn reserve-adres. Werkt de reverse proxy (bv. SWAG) nog?',
+                ['name' => $host['name'], 'url' => $url ?? '?']), STATUS_WARN, 'problem');
+    } elseif (!$fb && !empty($host['agent_fb_at'])) {
+        q('UPDATE hosts SET agent_fb_at = NULL WHERE id = ?', [$host['id']]);
+        Monitor::notifySystem('✅ ' . t('Agent weer via het gewone adres: {name}', ['name' => $host['name']]),
+            t('De agent op {name} rapporteert weer via {url}.', ['name' => $host['name'], 'url' => $url ?? '?']), STATUS_OK, 'recovery');
+    }
+    $h = q('SELECT agent_url_want, agent_url_want_fb FROM hosts WHERE id = ?', [$host['id']])->fetch();
+    $result = trim((string) ($in['url_result'] ?? ''));
+    if ($result !== '') {
+        $ok = str_starts_with($result, 'ok');
+        $status = $ok ? '✔ ' . t('Overgestapt naar {url}', ['url' => $url ?? '?']) : '✘ ' . mb_substr(preg_replace('/^error:?\s*/', '', $result), 0, 200);
+        q('UPDATE hosts SET agent_url_status = ?, agent_url_at = ?, agent_url_want = NULL, agent_url_want_fb = NULL WHERE id = ?', [$status, now(), $host['id']]);
+        AgentCommands::audit('agent', 'Adres van RzMon', "{$host['name']}: $status");
+        return null;
+    }
+    if (!$h['agent_url_want'] || $h['agent_url_want'] === $url || !$encrypted || !$agentVersion || version_compare($agentVersion, AgentCrypto::URL_MIN, '<')) {
+        if ($h['agent_url_want'] && $h['agent_url_want'] === $url) {
+            q('UPDATE hosts SET agent_url_status = ?, agent_url_at = ?, agent_url_want = NULL, agent_url_want_fb = NULL WHERE id = ?',
+                ['✔ ' . t('Gebruikt al {url}', ['url' => $url]), now(), $host['id']]);
+        }
+        return null;
+    }
+    return ['url' => $h['agent_url_want'], 'fallback' => (string) $h['agent_url_want_fb']];
 }
 
 /**
@@ -584,6 +630,9 @@ if ($action === 'agent') {
     ]];
     $resp['tests_rev'] = agent_tests_rev((int) $host['id']);
     $resp += agent_enc_fields($host, $agentVersion);
+    if ($u = agent_url_report($host, $in, $agentVersion, $encrypted)) {
+        $resp['url_set'] = $u;
+    }
     // Agent-checks van deze server meteen beoordelen (niet wachten op de volgende cron-minuut)
     try {
         Monitor::runAgentHost((int) $host['id']);
@@ -830,7 +879,7 @@ switch ($action) {
 
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen,
-                    agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock,
+                    agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at,
                     enabled, maintenance_until, maintenance_reason, snmp FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
@@ -875,7 +924,8 @@ switch ($action) {
              'update_running' => $isAdmin && Updater::running(),
              // Voor het installatiecommando in de Agent Manager (--key): alleen beheerders, net als de tokens
              'enc_key' => $isAdmin && AgentCrypto::globalMode() !== 'off' ? (AgentCrypto::key() ?: null) : null,
-             'conn_pin' => AgentCrypto::pinOn(), 'conn_ip_lock' => AgentCrypto::ipLockOn(),
+             'conn_pin' => AgentCrypto::pinOn(), 'conn_ip_lock' => AgentCrypto::ipLockOn(), 'conn_https' => AgentCrypto::httpsOnly(),
+             'url_min' => AgentCrypto::URL_MIN,
              'update' => $isAdmin && ($uc = json_decode((string) setting('update_cache', ''), true)) && !empty($uc['latest'])
                  && version_compare($uc['latest'], RZMON_VERSION, '>') ? $uc['latest'] : null]);
 
@@ -1127,6 +1177,14 @@ switch ($action) {
                 ? t('{n} nog zonder eigen sleutel: {names} (agent {v} nodig; anders opnieuw koppelen)', ['n' => count($nokey), 'v' => AgentCrypto::OWNKEY_MIN,
                     'names' => implode(', ', array_slice($nokey, 0, 5)) . (count($nokey) > 5 ? ' …' : '')])
                 : t('alle agents hebben een eigen sleutel'), 'enc');
+            // Verbinding (1.72.0): via http, of via het reserve-adres
+            $conn = q("SELECT name, agent_conn, agent_fb_at FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen IS NOT NULL")->fetchAll();
+            $viaFb = array_column(array_filter($conn, static fn($h) => !empty($h['agent_fb_at'])), 'name');
+            $viaHttp = array_column(array_filter($conn, static fn($h) => $h['agent_conn'] === 'http' && empty($h['agent_fb_at'])), 'name');
+            $add('agent_https', $viaFb ? 'bad' : ($viaHttp ? 'warn' : 'ok'), t('Agents via https'), $viaFb
+                ? t('via het reserve-adres: {names} (werkt de reverse proxy?)', ['names' => implode(', ', $viaFb)])
+                : ($viaHttp ? t('{n} nog via http: {names}', ['n' => count($viaHttp), 'names' => implode(', ', array_slice($viaHttp, 0, 5)) . (count($viaHttp) > 5 ? ' …' : '')])
+                    : t('alle agents via https')), 'enc');
             $newip = array_column(array_filter($agents, static fn($h) => !empty($h['agent_ip_new'])), 'name');
             if ($newip) {
                 $add('agent_ip', 'bad', t('Agent van een nieuw IP-adres'), t('geweigerd, wacht op je toestemming: {names}', ['names' => implode(', ', $newip)]), 'enc');
@@ -1190,8 +1248,10 @@ switch ($action) {
                 'old_until' => $until > time() ? date('Y-m-d H:i:s', $until) : null, 'agent_min' => AgentCrypto::AGENT_MIN],
             'hosts' => array_map(static fn($h) => $h + ['key_days' => $h['agent_key_at'] ? (int) floor((time() - strtotime($h['agent_key_at'])) / 86400) : null],
                 q("SELECT id, name, agent_version, agent_seen, agent_ip, enc, enc_seen, agent_key_seen, agent_key_at, agent_ips, agent_ip_new, agent_ip_new_at, pin_mode, ip_lock,
+                          agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at,
                           (pair_until > NOW()) AS pairing FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll()),
             'conn' => ['key_days' => (int) setting('agent_key_days', '30'), 'pin' => setting('agent_pin', '1') === '1', 'ip_lock' => setting('agent_ip_lock', '1') === '1',
+                'https_only' => setting('agent_https_only', '0') === '1', 'url_min' => AgentCrypto::URL_MIN, 'base_url' => rtrim((string) config('base_url', ''), '/'),
                 'pin_value' => AgentCrypto::pin(false, false, ['pin_mode' => 'on']), 'https' => Https::isHttps(),
                 'ownkey_min' => AgentCrypto::OWNKEY_MIN],
             'blocks' => Security::blocks(),
@@ -1235,10 +1295,19 @@ switch ($action) {
         }
         $pin = !empty($in['pin']) ? '1' : '0';
         $lock = !empty($in['ip_lock']) ? '1' : '0';
-        if (($pin === '0' && setting('agent_pin', '1') === '1') || ($lock === '0' && setting('agent_ip_lock', '1') === '1')) {
+        $https = array_key_exists('https_only', $in) ? (!empty($in['https_only']) ? '1' : '0') : setting('agent_https_only', '0');
+        if (($pin === '0' && setting('agent_pin', '1') === '1') || ($lock === '0' && setting('agent_ip_lock', '1') === '1')
+            || ($https === '0' && setting('agent_https_only', '0') === '1')) {
             $confirm('UITZETTEN');
         }
-        foreach (['agent_key_days' => (string) $days, 'agent_pin' => $pin, 'agent_ip_lock' => $lock] as $k => $v) {
+        // Alleen via https aanzetten: alleen als er geen agent zonder reserve-adres meer via http komt (anders valt hij weg)
+        if ($https === '1' && setting('agent_https_only', '0') !== '1' && empty($in['force'])) {
+            $plain = q("SELECT name FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_conn = 'http' AND agent_fb_at IS NULL AND (agent_https IS NULL OR agent_https <> 'off')")->fetchAll(PDO::FETCH_COLUMN);
+            if ($plain) {
+                out(['error' => t('Deze agents komen nog via http: {names}. Zet ze eerst over (🌐 Adres), of zet "alleen via https" per server uit.', ['names' => implode(', ', $plain)]), 'plain' => $plain], 409);
+            }
+        }
+        foreach (['agent_key_days' => (string) $days, 'agent_pin' => $pin, 'agent_ip_lock' => $lock, 'agent_https_only' => $https] as $k => $v) {
             if (setting($k, '') !== $v) {
                 save_setting($k, $v);
                 AgentCommands::audit($user['username'], 'Beveiligde verbinding', "$k = $v");
@@ -1264,12 +1333,12 @@ switch ($action) {
     // Uitzetten (waar het nu geldt) maakt de verbinding minder veilig: dan om je wachtwoord vragen.
     case 'host_conn':
         $in = input();
-        $h = q("SELECT id, name, pin_mode, ip_lock FROM hosts WHERE id = ? AND mode = 'agent'", [(int) ($in['host_id'] ?? 0)])->fetch();
+        $h = q("SELECT id, name, pin_mode, ip_lock, agent_https FROM hosts WHERE id = ? AND mode = 'agent'", [(int) ($in['host_id'] ?? 0)])->fetch();
         if (!$h) {
             out(['error' => t('Server niet gevonden')], 404);
         }
         $new = $h;
-        foreach (['pin_mode' => 'pin', 'ip_lock' => 'ip_lock'] as $col => $k) {
+        foreach (['pin_mode' => 'pin', 'ip_lock' => 'ip_lock', 'agent_https' => 'https'] as $col => $k) {
             if (array_key_exists($k, $in)) {
                 $v = (string) $in[$k];
                 if (!in_array($v, ['', 'on', 'off'], true)) {
@@ -1278,11 +1347,48 @@ switch ($action) {
                 $new[$col] = $v === '' ? null : $v;
             }
         }
-        if ((AgentCrypto::pinOn($h) && !AgentCrypto::pinOn($new)) || (AgentCrypto::ipLockOn($h) && !AgentCrypto::ipLockOn($new))) {
+        if ((AgentCrypto::pinOn($h) && !AgentCrypto::pinOn($new)) || (AgentCrypto::ipLockOn($h) && !AgentCrypto::ipLockOn($new))
+            || (AgentCrypto::httpsOnly($h) && !AgentCrypto::httpsOnly($new))) {
             $confirm('UITZETTEN');
         }
-        q('UPDATE hosts SET pin_mode = ?, ip_lock = ? WHERE id = ?', [$new['pin_mode'], $new['ip_lock'], $h['id']]);
+        q('UPDATE hosts SET pin_mode = ?, ip_lock = ?, agent_https = ? WHERE id = ?', [$new['pin_mode'], $new['ip_lock'], $new['agent_https'], $h['id']]);
         AgentCommands::audit($user['username'], 'Beveiligde verbinding per server', "{$h['name']}: vastzetten " . ($new['pin_mode'] ?? 'algemeen') . ', IP-slot ' . ($new['ip_lock'] ?? 'algemeen'));
+        out(['ok' => true]);
+
+    // Adres van RzMon voor een agent (of alle agents) wijzigen: de agent test het nieuwe adres eerst (1.72.0)
+    case 'agent_url_set':
+        $in = input();
+        $url = rtrim(trim((string) ($in['url'] ?? '')), '/');
+        $fb = rtrim(trim((string) ($in['fallback'] ?? '')), '/');
+        if (!AgentCrypto::validUrl($url)) {
+            out(['error' => t('Ongeldig adres: gebruik https://naam of http://adres')], 422);
+        }
+        if ($fb !== '' && (!AgentCrypto::validUrl($fb) || $fb === $url)) {
+            out(['error' => t('Ongeldig reserve-adres (leeg laten mag)')], 422);
+        }
+        $all = ($in['id'] ?? '') === 'all';
+        $rows = q("SELECT id, name, agent_version, agent_url FROM hosts WHERE mode = 'agent'" . ($all ? '' : ' AND id = ?'), $all ? [] : [(int) ($in['id'] ?? 0)])->fetchAll();
+        $n = 0;
+        $skip = [];
+        foreach ($rows as $r) {
+            if (!$r['agent_version'] || version_compare($r['agent_version'], AgentCrypto::URL_MIN, '<')) {
+                $skip[] = $r['name'];
+                continue;
+            }
+            // Reserve-adres: opgegeven, anders (met "keepfb") het adres dat de agent nu gebruikt
+            $f = $fb !== '' ? $fb : (!empty($in['keep_fb']) && $r['agent_url'] && $r['agent_url'] !== $url ? $r['agent_url'] : '');
+            q('UPDATE hosts SET agent_url_want = ?, agent_url_want_fb = ?, agent_url_status = ?, agent_url_at = ? WHERE id = ?',
+                [$url, $f, '⏳ ' . t('Wacht op de agent (test {url})', ['url' => $url]), now(), $r['id']]);
+            $n++;
+        }
+        if (!$n) {
+            out(['error' => t('Agent {v} of nieuwer nodig (eerst bijwerken)', ['v' => AgentCrypto::URL_MIN])], 422);
+        }
+        AgentCommands::audit($user['username'], 'Adres van RzMon voor agents', ($all ? 'alle' : $rows[0]['name']) . ": $url" . ($fb !== '' ? " (reserve $fb)" : ''));
+        out(['ok' => true, 'n' => $n, 'skipped' => $skip]);
+
+    case 'agent_url_cancel':
+        q('UPDATE hosts SET agent_url_want = NULL, agent_url_want_fb = NULL, agent_url_status = NULL WHERE id = ?', [(int) (input()['id'] ?? 0)]);
         out(['ok' => true]);
 
     case 'agent_key_renew':

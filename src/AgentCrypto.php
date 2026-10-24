@@ -275,6 +275,22 @@ final class AgentCrypto
         return in_array($m, ['on', 'off'], true) ? $m === 'on' : setting('agent_pin', '1') === '1';
     }
 
+    /** Agent die zijn adres van RzMon kan wisselen en een reserve-adres kent (1.72.0) */
+    public const URL_MIN = '1.51.0';
+
+    /** Mag deze server alleen via https verbinden? Zijn eigen keuze (hosts.agent_https), anders de algemene */
+    public static function httpsOnly(?array $host = null): bool
+    {
+        $m = $host['agent_https'] ?? null;
+        return in_array($m, ['on', 'off'], true) ? $m === 'on' : setting('agent_https_only', '0') === '1';
+    }
+
+    /** Geldig adres van RzMon voor een agent: http(s)://naam[:poort][/pad], zonder ? of # */
+    public static function validUrl(string $u): bool
+    {
+        return (bool) preg_match('~^https?://[a-z0-9.\-\[\]:]+(/[^\s?#]*)?$~i', $u) && strlen($u) <= 255;
+    }
+
     /** Geldt het vaste IP-adres (voor deze server)? Zijn eigen keuze (hosts.ip_lock), anders de algemene */
     public static function ipLockOn(?array $host = null): bool
     {

@@ -196,6 +196,18 @@ final class Installer
         ['hosts', 'agent_pin_sent_at', 'DATETIME NULL'],
         // 1.71.0: voorkeuren per gebruiker (JSON): bij openen alles dicht of slim, filters per pagina, opgeslagen filters
         ['users', 'prefs', 'MEDIUMTEXT NULL'],
+        // 1.72.0: adres van RzMon zoals de agent het gebruikt (en zijn reserve-adres), een gevraagde overstap met de
+        // uitkomst, hoe hij verbond (http, https, https via de proxy), sinds wanneer via het reserve-adres, en per
+        // server "alleen via https" (NULL = algemene instelling, of on / off)
+        ['hosts', 'agent_url', 'VARCHAR(255) NULL'],
+        ['hosts', 'agent_url_fb', 'VARCHAR(255) NULL'],
+        ['hosts', 'agent_url_want', 'VARCHAR(255) NULL'],
+        ['hosts', 'agent_url_want_fb', 'VARCHAR(255) NULL'],
+        ['hosts', 'agent_url_status', 'VARCHAR(255) NULL'],
+        ['hosts', 'agent_url_at', 'DATETIME NULL'],
+        ['hosts', 'agent_conn', 'VARCHAR(8) NULL'],
+        ['hosts', 'agent_fb_at', 'DATETIME NULL'],
+        ['hosts', 'agent_https', 'VARCHAR(3) NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

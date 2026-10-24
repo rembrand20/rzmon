@@ -1430,3 +1430,5 @@ details.adv[open] { padding-bottom: .6rem; }
   .fx-grid { grid-template-columns: 1fr; }
   .fx-foot .dash-sp { display: none; }
 }
+.conn-url { font-size: .74rem; overflow-wrap: anywhere; }
+.am-url { flex-wrap: wrap; }

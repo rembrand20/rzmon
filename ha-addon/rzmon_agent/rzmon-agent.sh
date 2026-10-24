@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.50.0"
+AGENT_VERSION="1.51.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -279,6 +279,63 @@ get_auth() {
     fi
 }
 
+# Adres van RzMon (agent 1.51.0, RzMon 1.72.0). RzMon kan de agent een ander adres geven (bv. https via de reverse
+# proxy); de agent test het eerst en bewaart het dan in $k_dir/url (regel 1: het adres, 2: het adres uit de instellingen
+# waar het voor in de plaats komt, 3: het reserve-adres). Pas je MONITOR_URL zelf aan, dan geldt weer dat. Het
+# reserve-adres (MONITOR_URL_FALLBACK, of uit $k_dir/url) wordt gebruikt als het gewone adres niet bereikbaar is
+# (geen verbinding, certificaat, of de proxy geeft 502-504); RzMon toont dat met een ⚠️.
+conf_url=${MONITOR_URL%/}
+MONITOR_URL_FALLBACK="${MONITOR_URL_FALLBACK-}"
+url_file="$k_dir/url"
+url_set_by_rzmon=0
+if [ -r "$url_file" ]; then
+    u_set=""; u_from=""; u_fb=""
+    { IFS= read -r u_set; IFS= read -r u_from; IFS= read -r u_fb; } <"$url_file"
+    if [ -n "$u_set" ] && [ "$u_from" = "$conf_url" ]; then
+        MONITOR_URL=$u_set
+        MONITOR_URL_FALLBACK=$u_fb
+        url_set_by_rzmon=1
+    else
+        rm -f "$url_file"   # MONITOR_URL is met de hand gewijzigd: dat gaat voor
+    fi
+fi
+MONITOR_URL=${MONITOR_URL%/}
+MONITOR_URL_FALLBACK=${MONITOR_URL_FALLBACK%/}
+[ "$MONITOR_URL_FALLBACK" = "$MONITOR_URL" ] && MONITOR_URL_FALLBACK=""
+url_result=$(head -c 300 "$k_dir/url.result" 2>/dev/null | tr -d '\n')
+
+# Overstappen naar een nieuw adres (opdracht uit een versleuteld antwoord van RzMon): eerst testen met een ondertekend
+# verzoek; alleen als het antwoord met onze eigen sleutel klopt, gaat de agent dat adres gebruiken (vanaf de volgende
+# keer). De uitkomst gaat met het volgende rapport naar RzMon.
+url_switch() {  # url_switch <nieuw adres> <reserve-adres>
+    local new=${1%/} fb=${2%/} t_tls=() out code body why
+    [ -e "$k_dir/url.result" ] && return 0   # vorige uitkomst nog niet doorgegeven
+    [[ "$new" =~ ^https?://[^[:space:]\"]+$ ]] || return 0
+    [[ -z "$fb" || "$fb" =~ ^https?://[^[:space:]\"]+$ ]] || fb=""
+    if [ -z "$kid" ]; then
+        printf 'error: deze agent heeft nog geen eigen sleutel (eerst koppelen met een koppelcode)\n' >"$k_dir/url.result"
+        return 0
+    fi
+    [[ "$new" == https://* ]] && [ "$INSECURE" = 1 ] && t_tls=(-k)
+    get_auth agent_check
+    out=$(curl -sS -m 15 "${t_tls[@]}" "${ga[@]}" -w '\n%{http_code}' "$new/api.php?action=agent_check" 2>&1)
+    code=${out##*$'\n'}; out=${out%$'\n'*}
+    if [ "$code" = 200 ] && [ -n "$get_n" ] && body=$(unseal "$out" "$get_n") && [[ "$body" == *'"ok":true'* ]]; then
+        if (umask 077; printf '%s\n%s\n%s\n' "$new" "$conf_url" "$fb" >"$url_file.tmp" && mv -f "$url_file.tmp" "$url_file"); then
+            printf 'ok %s\n' "$new" >"$k_dir/url.result"
+            echo "Adres van RzMon gewijzigd naar $new${fb:+ (reserve: $fb)}" >&2
+        else
+            printf 'error: kan %s niet schrijven\n' "$url_file" >"$k_dir/url.result"
+        fi
+    else
+        why=$(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' <<<"$out" | head -c 150)
+        [ -z "$why" ] && why=$(head -n 1 <<<"$out" | head -c 150)
+        [ "$code" = 200 ] && why="het antwoord klopt niet met de sleutel van deze agent"
+        printf 'error: %s werkt niet vanaf deze server (HTTP %s%s)\n' "$new" "${code:-000}" "${why:+: $why}" >"$k_dir/url.result"
+        echo "Nieuw adres $new werkt niet; het huidige adres blijft" >&2
+    fi
+}
+
 # Certificaat van RzMon vastzetten: bij een eigen (self-signed) certificaat accepteert de agent alleen dat ene
 # certificaat (curl --pinnedpubkey). De vingerafdruk komt uit het installatiecommando (PIN) en daarna uit de
 # versleutelde antwoorden van RzMon ("" = niet vastzetten). Zonder vingerafdruk: INSECURE=1 als vroeger.
@@ -363,7 +420,8 @@ TEST_FAILED=0
 if [ "$TEST" = 1 ]; then
     base=${MONITOR_URL%/}
     echo "RzMon agent $AGENT_VERSION – verbindingstest"
-    echo "  RzMon-adres : $base"
+    echo "  RzMon-adres : $base$([ "$url_set_by_rzmon" = 1 ] && echo " (ingesteld vanuit RzMon; in de instellingen staat $conf_url)")"
+    [ -n "$MONITOR_URL_FALLBACK" ] && echo "  Reserve     : $MONITOR_URL_FALLBACK (als het adres hierboven niet bereikbaar is)"
     if [ -n "$kid" ]; then echo "  Sleutel     : 🔑 eigen sleutel (kenmerk $kid)"; else echo "  Token       : ${TOKEN:0:6}…${TOKEN: -4}"; fi
     echo
 
@@ -2031,7 +2089,7 @@ fi
 # Opstarttijd (epoch) voor de check Herstart in RzMon
 read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}}"
 
 curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
@@ -2142,16 +2200,31 @@ resp=$(curl "${curl_opts[@]}" \
     -H "Content-Type: application/json" \
     "${auth[@]}" \
     --data-binary "@$send_file" \
+    -w '\n%{http_code}' \
     "${MONITOR_URL%/}/api.php?action=agent")
 rc=$?
+h_code=${resp##*$'\n'}; resp=${resp%$'\n'*}
 # Certificaat van RzMon past niet meer bij de vingerafdruk (curl 90), bv. een nieuw certificaat: één keer opnieuw
 # zonder vastzetten, maar alleen versleuteld. Het antwoord moet dan met onze sleutel ondertekend zijn (dat kan
 # alleen RzMon), en daarin staat de nieuwe vingerafdruk. Een ander certificaat met een vals antwoord: geweigerd.
 if [ "$rc" = 90 ] && [ -n "$seal_n" ]; then
     echo "Certificaat van RzMon is veranderd; controleren met de sleutel" >&2
     p_opts=(-fsS -m 20 -X POST -k -H "X-Agent-Pin-Fail: 1")   # RzMon bepaalt de vingerafdruk dan meteen opnieuw
-    resp=$(curl "${p_opts[@]}" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$send_file" "${MONITOR_URL%/}/api.php?action=agent")
+    resp=$(curl "${p_opts[@]}" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$send_file" -w '\n%{http_code}' "${MONITOR_URL%/}/api.php?action=agent")
     rc=$?
+    h_code=${resp##*$'\n'}; resp=${resp%$'\n'*}
+fi
+# Gewone adres niet bereikbaar (geen verbinding, time-out, certificaat, of de proxy geeft 502-504)? Dan via het
+# reserve-adres (agent 1.51.0), opnieuw versleuteld met een nieuwe nonce. RzMon ziet dat (X-Agent-Fallback) en meldt ⚠️.
+if [ -n "$MONITOR_URL_FALLBACK" ] && { [[ " 6 7 28 35 52 56 60 " == *" $rc "* ]] || { [ "$rc" = 22 ] && [[ " 502 503 504 " == *" $h_code "* ]]; }; }; then
+    echo "RzMon niet bereikbaar via $MONITOR_URL (curl $rc${h_code:+, HTTP $h_code}); via het reserve-adres $MONITOR_URL_FALLBACK" >&2
+    if [ -n "$seal_n" ]; then seal "$payload_file" "$payload_file.enc" || seal_n=""; fi
+    fb_opts=(-fsS -m 20 -X POST)
+    [[ "$MONITOR_URL_FALLBACK" == https://* ]] && [ "$INSECURE" = 1 ] && fb_opts+=(-k)
+    resp=$(curl "${fb_opts[@]}" -H "X-Agent-Fallback: 1" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$send_file" \
+        -w '\n%{http_code}' "$MONITOR_URL_FALLBACK/api.php?action=agent")
+    rc=$?
+    h_code=${resp##*$'\n'}; resp=${resp%$'\n'*}
 fi
 # Geweigerd met de algemene sleutel van RzMon (bv. ouder dan de wisseltijd)? Na 3 keer die sleutel weggooien:
 # dan gaat het volgende rapport onversleuteld (of met ENC_KEY). De eigen sleutel gooit de agent nooit weg; staat
@@ -2180,6 +2253,11 @@ if [ "$rc" -eq 0 ]; then
         (umask 077; printf '%s\n' "${BASH_REMATCH[1]}" >"$enc_file.tmp" && mv -f "$enc_file.tmp" "$enc_file") && rm -f "$t_dir/enc.off"
     elif [[ "$resp" =~ \"enc\":\"off\" ]]; then
         rm -f "$enc_file"; : >"$t_dir/enc.off"
+    fi
+    # Uitkomst van een overstap is doorgegeven; vraagt RzMon om naar een ander adres over te stappen (alleen versleuteld)?
+    [ -n "$url_result" ] && rm -f "$k_dir/url.result"
+    if [ -n "$seal_n" ] && [[ "$resp" =~ \"url_set\":\{\"url\":\"([^\"]+)\",\"fallback\":\"([^\"]*)\"\} ]]; then
+        url_switch "$(sed 's#\\/#/#g' <<<"${BASH_REMATCH[1]}")" "$(sed 's#\\/#/#g' <<<"${BASH_REMATCH[2]}")"
     fi
     # Uitkomst is doorgegeven; vraagt RzMon om bij te werken?
     [ -n "$upd_result" ] && rm -f "$upd_dir/update.result"

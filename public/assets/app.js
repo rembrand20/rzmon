@@ -3114,6 +3114,7 @@ function renderSecurity() {
   $('#conn-days').value = String(c.key_days);
   $('#conn-pin').checked = c.pin;
   $('#conn-iplock').checked = c.ip_lock;
+  $('#conn-https').checked = c.https_only;
   $('#conn-pin-info').innerHTML = !c.pin ? L('Uit: agents met <code>INSECURE=1</code> accepteren elk certificaat.')
     : c.pin_value ? `${L('Vingerafdruk van RzMon')}: <code>sha256//${esc(c.pin_value.slice(0, 16))}…</code> · ${L('de agents krijgen hem vanzelf (versleuteld); bij een nieuw certificaat controleren ze het met hun sleutel')}`
     : c.pin_value === '' ? (c.https ? L('Niet nodig: het certificaat van RzMon is geldig (bekende uitgever), de agents controleren het gewoon.') : L('Niet nodig: je opent RzMon via http. Met https en een eigen certificaat zet RzMon het vanzelf vast.'))
@@ -3127,14 +3128,15 @@ function renderSecurity() {
     : h.agent_version && verCmp(h.agent_version, c.ownkey_min) < 0 ? `<span class="warn-txt">${L('agent {v} nodig', { v: c.ownkey_min })}</span>`
     : `<span class="warn-txt">${L('nog geen eigen sleutel')}</span>`;
   $('#enc-hosts').innerHTML = secInfo.hosts.length ? `<div class="table-scroll"><table class="vuln-table enc-table">
-    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Sleutel')}</th><th>${L('IP-adres')}</th><th>${L('Versleuteld versturen')}</th><th title="${esc(L('Certificaat vastzetten · alleen vanaf het bekende IP-adres'))}">📌 · 🌐</th><th>${L('Laatste rapport')}</th><th></th></tr></thead><tbody>
+    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Sleutel')}</th><th>${L('IP-adres')}</th><th>${L('Verbinding')}</th><th>${L('Versleuteld versturen')}</th><th title="${esc(L('Certificaat vastzetten · alleen vanaf het bekende IP-adres · alleen via https'))}">📌 · 🌐 · 🔒</th><th>${L('Laatste rapport')}</th><th></th></tr></thead><tbody>
     ${secInfo.hosts.map((h) => `<tr><td>${esc(h.name)}</td><td class="mono small">${esc(h.agent_version || '–')}</td>
       <td class="small">${keyText(h)}</td>
       <td class="small mono">${h.agent_ips ? esc(h.agent_ips) : `<span class="muted">${L('nog niet bekend')}</span>`}${h.agent_ips ? ` <button type="button" class="icon-btn" data-ip-reset="${h.id}" title="${esc(L('Vergeten: het volgende IP-adres van deze agent wordt het bekende'))}">↺</button>` : ''}</td>
+      <td class="small">${connText(h)}</td>
       <td><select data-enc-host="${h.id}">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${k === '' ? `${l} (${ENC_MODES.find((m) => m[0] === e.mode)[1].split(' (')[0].toLowerCase()})` : l}</option>`).join('')}</select></td>
-      <td class="conn-cell">📌 ${connSelect('pin', h, c.pin, true)}<br>🌐 ${connSelect('ip', h, c.ip_lock, true)}</td>
+      <td class="conn-cell">📌 ${connSelect('pin', h, c.pin, true)}<br>🌐 ${connSelect('ip', h, c.ip_lock, true)}<br>🔒 ${connSelect('https', h, c.https_only, true)}</td>
       <td class="small">${encSeenText(h)}</td>
-      <td class="nowrap"><button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗</button>${+h.agent_key_seen === 1 ? ` <button type="button" class="btn small-btn" data-key-renew="${h.id}" title="${esc(L('Nieuwe sleutel; de agent krijgt hem bij zijn volgende rapport'))}">🔄</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '';
+      <td class="nowrap"><button type="button" class="btn small-btn" data-url-host="${h.id}" title="${esc(L('Adres van RzMon voor deze agent wijzigen'))}">🌐</button> <button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗</button>${+h.agent_key_seen === 1 ? ` <button type="button" class="btn small-btn" data-key-renew="${h.id}" title="${esc(L('Nieuwe sleutel; de agent krijgt hem bij zijn volgende rapport'))}">🔄</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '';
   const b = secInfo.blocks;
   $('#blocks-list').innerHTML = b.length ? `<div class="table-scroll"><table class="vuln-table">
     <thead><tr><th>${L('IP-adres of netwerk')}</th><th>${L('Reden')}</th><th>${L('Door')}</th><th>${L('Sinds')}</th><th>${L('Geweigerd')}</th><th></th></tr></thead><tbody>
@@ -3164,22 +3166,25 @@ function initSecurity() {
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '🎲 ' + L('Genereren'), cls: 'primary', submit: true }],
     onSubmit: async (d) => { await api('enc_generate', { confirm: d.confirm }); toast(L('Nieuwe sleutel opgeslagen')); loadSecurity(); },
   });
-  const connSave = (extra = {}) => api('conn_save', { key_days: +$('#conn-days').value, pin: $('#conn-pin').checked, ip_lock: $('#conn-iplock').checked, ...extra });
+  const connSave = (extra = {}) => api('conn_save', { key_days: +$('#conn-days').value, pin: $('#conn-pin').checked, ip_lock: $('#conn-iplock').checked, https_only: $('#conn-https').checked, ...extra });
+  $('#conn-url-all').onclick = () => agentUrlDialog();
   const connChange = async (e) => {
-    const off = (e.target.id === 'conn-pin' && !e.target.checked && secInfo.conn.pin) || (e.target.id === 'conn-iplock' && !e.target.checked && secInfo.conn.ip_lock);
+    const off = (e.target.id === 'conn-pin' && !e.target.checked && secInfo.conn.pin) || (e.target.id === 'conn-iplock' && !e.target.checked && secInfo.conn.ip_lock)
+      || (e.target.id === 'conn-https' && !e.target.checked && secInfo.conn.https_only);
     if (!off) {
-      try { await connSave(); savedFlag(e.target, true); loadSecurity(); } catch (ex) { savedFlag(e.target, false, ex.message); toast(ex.message, 'err'); }
+      try { await connSave(); savedFlag(e.target, true); loadSecurity(); } catch (ex) { savedFlag(e.target, false, ex.message); toast(ex.message, 'err'); if (e.target.id === 'conn-https') e.target.checked = false; }
       return;
     }
     // Uitzetten maakt de verbinding minder veilig: eerst bevestigen
     modal({
       title: '⚠️ ' + L('Minder veilig maken?'),
-      body: `<p style="margin-top:0">${e.target.id === 'conn-pin' ? L('Zonder vastgezet certificaat accepteren agents met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzMon.') : L('Agents worden dan vanaf elk IP-adres geaccepteerd (met hun sleutel).')}</p>${confirmField('UITZETTEN')}`,
+      body: `<p style="margin-top:0">${e.target.id === 'conn-pin' ? L('Zonder vastgezet certificaat accepteren agents met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzMon.')
+        : e.target.id === 'conn-https' ? L('Agents mogen dan ook weer via http verbinden (de berichten blijven versleuteld).') : L('Agents worden dan vanaf elk IP-adres geaccepteerd (met hun sleutel).')}</p>${confirmField('UITZETTEN')}`,
       buttons: [{ label: L('Annuleren'), onClick: () => { $('#modal').close(); loadSecurity(); } }, { label: L('Uitzetten'), cls: 'danger', submit: true }],
       onSubmit: async (d) => { await connSave({ confirm: d.confirm }); toast(L('Opgeslagen')); loadSecurity(); },
     });
   };
-  ['#conn-days', '#conn-pin', '#conn-iplock'].forEach((id) => ($(id).onchange = connChange));
+  ['#conn-days', '#conn-pin', '#conn-iplock', '#conn-https'].forEach((id) => ($(id).onchange = connChange));
   $('#conn-ipwait').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-ip-allow]');
     if (!b) return;
@@ -3187,6 +3192,8 @@ function initSecurity() {
     catch (ex) { toast(ex.message, 'err'); }
   });
   $('#enc-hosts').addEventListener('click', async (e) => {
+    const urlB = e.target.closest('[data-url-host]');
+    if (urlB) return agentUrlDialog(secInfo.hosts.find((x) => +x.id === +urlB.dataset.urlHost));
     const pair = e.target.closest('[data-pair]'), renew = e.target.closest('[data-key-renew]'), reset = e.target.closest('[data-ip-reset]');
     try {
       if (pair) { const h = findHost(+pair.dataset.pair); if (h) agentInstructions(h, true); }
@@ -3246,22 +3253,58 @@ function encSeenText(h) {
   return '🔓 ' + L('laatste rapport niet versleuteld') + (h.agent_version && verCmp(h.agent_version, '1.49.0') < 0 ? ' · ' + L('agent {v} of nieuwer nodig', { v: '1.49.0' }) : '');
 }
 
+/** Hoe de agent verbindt (1.72.0): https via de proxy, https, http, of via het reserve-adres; met het adres en een lopende overstap */
+function connText(h) {
+  const via = h.agent_fb_at ? `<b class="bad">⚠️ ${L('via reserve-adres')}</b> <span class="muted">${esc(ago(h.agent_fb_at))}</span>`
+    : h.agent_conn === 'proxy' ? `🔒 ${L('https via proxy')}` : h.agent_conn === 'https' ? `🔒 https` : h.agent_conn === 'http' ? `<span class="warn-txt">🔓 http</span>` : '<span class="muted">–</span>';
+  return `${via}${h.agent_url ? `<br><span class="muted mono conn-url" title="${esc(L('Adres van RzMon dat de agent gebruikt'))}">${esc(h.agent_url)}</span>` : ''}`
+    + (h.agent_url_fb ? `<br><span class="muted conn-url" title="${esc(L('Reserve-adres'))}">↪ ${esc(h.agent_url_fb)}</span>` : '')
+    + (h.agent_url_status ? `<br><span class="small ${h.agent_url_status.startsWith('✘') ? 'bad' : h.agent_url_status.startsWith('⏳') ? 'muted' : 'good-txt'}">${esc(h.agent_url_status)}</span>` : '');
+}
+
+/** Venster: adres van RzMon voor één agent (of alle agents) wijzigen; de agent test het nieuwe adres eerst (agent 1.51.0) */
+function agentUrlDialog(h = null) {
+  const c = (secInfo && secInfo.conn) || {};
+  const min = c.url_min || state.url_min || '1.51.0';
+  const hosts = (secInfo && secInfo.hosts) || state.hosts.filter((x) => x.mode === 'agent');
+  const old = h ? hosts.filter((x) => +x.id === +h.id && (!x.agent_version || verCmp(x.agent_version, min) < 0)) : hosts.filter((x) => !x.agent_version || verCmp(x.agent_version, min) < 0);
+  const def = c.base_url && /^https:/.test(c.base_url) ? c.base_url : (h && h.agent_url) || c.base_url || location.origin;
+  modal({
+    title: '🌐 ' + (h ? L('Adres van RzMon – {name}', { name: h.name }) : L('Alle agents naar een ander adres')),
+    body: `<p class="small" style="margin-top:0">${L('De agent krijgt het nieuwe adres versleuteld, <b>test het eerst</b> (verbinding, certificaat en zijn eigen sleutel) en gebruikt het pas als alles klopt; anders blijft het oude adres. Het resultaat zie je na één of twee rapporten in de kolom <i>Verbinding</i>.')}</p>
+      ${h && h.agent_url ? `<p class="small">${L('Nu')}: <code>${esc(h.agent_url)}</code>${h.agent_url_fb ? ` · ${L('reserve')}: <code>${esc(h.agent_url_fb)}</code>` : ''}</p>` : ''}
+      <label>${L('Nieuw adres')}<input name="url" type="url" required value="${esc(def)}" placeholder="https://rzmon.jouwdomein.nl" spellcheck="false"></label>
+      <label>${L('Reserve-adres')} <span class="hint">${L('(als het nieuwe adres niet bereikbaar is; leeg = het adres dat de agent nu gebruikt)')}</span>
+        <input name="fallback" type="url" placeholder="http://192.168.1.10" spellcheck="false"></label>
+      <label class="switch small"><input type="checkbox" name="nofb"><span></span> ${L('Geen reserve-adres')}</label>
+      ${old.length ? `<p class="small warn-txt">⚠️ ${L('Agent {v} of nieuwer nodig; deze worden overgeslagen: {names}. Werk ze eerst bij, of pas het adres op de server zelf aan.', { v: min, names: old.map((x) => esc(x.name)).join(', ') })}</p>` : ''}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '🌐 ' + L('Testen en overstappen'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const r = await api('agent_url_set', { id: h ? h.id : 'all', url: d.url.trim(), fallback: d.nofb ? '' : (d.fallback || '').trim(), keep_fb: !d.nofb && !(d.fallback || '').trim() });
+      toast(L('{n} agent(s) krijgen het nieuwe adres bij hun volgende rapport', { n: r.n }) + (r.skipped.length ? ' · ' + L('overgeslagen: {names}', { names: r.skipped.join(', ') }) : ''));
+      loadSecurity();
+      refresh();
+    },
+  });
+}
+
 /** Keuzelijst per server voor 📌 vastzetten of 🌐 vast IP-adres: algemene instelling (nu aan/uit), aan of uit */
 function connSelect(kind, h, globalOn, short = false) {
-  const cur = (kind === 'pin' ? h.pin_mode : h.ip_lock) || '';
-  return `<select data-host-conn="${kind}" data-host="${h.id}" title="${esc(kind === 'pin' ? L('Certificaat van RzMon vastzetten') : L('Alleen vanaf het bekende IP-adres'))}">`
+  const cur = ({ pin: h.pin_mode, ip: h.ip_lock, https: h.agent_https })[kind] || '';
+  return `<select data-host-conn="${kind}" data-host="${h.id}" title="${esc(({ pin: L('Certificaat van RzMon vastzetten'), ip: L('Alleen vanaf het bekende IP-adres'), https: L('Alleen via https') })[kind])}">`
     + [['', `${short ? L('algemeen') : L('algemene instelling')} (${globalOn ? L('aan') : L('uit')})`], ['on', L('aan')], ['off', L('uit')]]
       .map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${l}</option>`).join('') + '</select>';
 }
 /** Wijziging per server opslaan; uitzetten waar het nu geldt vraagt om je wachtwoord */
 async function saveHostConn(sel, done) {
-  const send = (extra = {}) => api('host_conn', { host_id: +sel.dataset.host, [sel.dataset.hostConn === 'ip' ? 'ip_lock' : 'pin']: sel.value, ...extra });
+  const send = (extra = {}) => api('host_conn', { host_id: +sel.dataset.host, [({ ip: 'ip_lock', pin: 'pin', https: 'https' })[sel.dataset.hostConn]]: sel.value, ...extra });
   try { await send(); savedFlag(sel, true); done(); }
   catch (ex) {
     if (!/UITZETTEN|wachtwoord|password|confirm/i.test(ex.message)) { toast(ex.message, 'err'); done(); return; }
     modal({
       title: '⚠️ ' + L('Minder veilig maken?'),
-      body: `<p style="margin-top:0">${sel.dataset.hostConn === 'pin' ? L('Zonder vastgezet certificaat accepteert deze agent met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzMon.') : L('Deze agent wordt dan vanaf elk IP-adres geaccepteerd (met zijn sleutel).')}</p>${confirmField('UITZETTEN')}`,
+      body: `<p style="margin-top:0">${({ pin: L('Zonder vastgezet certificaat accepteert deze agent met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzMon.'),
+        ip: L('Deze agent wordt dan vanaf elk IP-adres geaccepteerd (met zijn sleutel).'), https: L('Deze agent mag dan ook weer via http verbinden (de berichten blijven versleuteld).') })[sel.dataset.hostConn]}</p>${confirmField('UITZETTEN')}`,
       buttons: [{ label: L('Annuleren'), onClick: () => { $('#modal').close(); done(); } }, { label: L('Uitzetten'), cls: 'danger', submit: true }],
       onSubmit: async (d) => { await send({ confirm: d.confirm }); toast(L('Opgeslagen')); done(); },
     });
@@ -3308,6 +3351,9 @@ function agentInstructions(h, pairNow = false) {
         <span class="muted small">${encSeenText(h)} · ${+h.agent_key_seen === 1 ? '🔑 ' + L('eigen sleutel') : L('nog geen eigen sleutel: maak hieronder een koppelcode')}</span></div>
       <div class="cmd-host-row need-admin">📌 ${L('Certificaat van RzMon vastzetten:')} ${connSelect('pin', h, state.conn_pin)}</div>
       <div class="cmd-host-row need-admin">🌐 ${L('Alleen vanaf het bekende IP-adres:')} ${connSelect('ip', h, state.conn_ip_lock)}</div>
+      <div class="cmd-host-row need-admin">🔒 ${L('Alleen via https:')} ${connSelect('https', h, state.conn_https)}</div>
+      <div class="cmd-host-row need-admin am-url">🌍 ${L('Adres van RzMon:')} <span class="small">${connText(h)}</span>
+        <button type="button" class="btn small-btn" data-am-url>✏️ ${L('Wijzigen')}</button></div>
       ${h.agent_ip_new ? `<div class="callout need-admin">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents → Beveiligde verbinding.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
       <div class="cmd-host-row need-admin">🖥️ ${L('Commando-checks op deze server:')}
         <select id="host-commands"><option value="global">${L('algemene instelling')}</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
@@ -3454,6 +3500,8 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
     catch (ex) { getSelection().selectAllChildren(c.previousElementSibling); toast(L('Geselecteerd — druk Ctrl+C'), 'err'); }
   });
   $$('[data-host-conn]', body).forEach((sel) => (sel.onchange = () => saveHostConn(sel, () => { refresh(); loadSecurity(); })));
+  const amUrl = $('[data-am-url]', body);
+  if (amUrl) amUrl.onclick = () => agentUrlDialog(findHost(h.id));
   if (pairNow && isAdmin()) makePair();
   $('#agent-live').onclick = async (e) => {
     const b = e.target.closest('[data-agent-upd]');

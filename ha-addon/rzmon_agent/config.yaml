@@ -1,5 +1,5 @@
 name: RzMon Agent
-version: "1.50.0"
+version: "1.51.0"
 slug: rzmon_agent
 description: Stuurt CPU, RAM, diskruimte, add-ons en containers, updates, back-ups, integraties, systeemstatus, herstarts, SD-kaart, USB-apparaten, logs, poorten en certificaten van Home Assistant naar RzMon
 url: https://github.com/rembrand20/rzmon
@@ -31,6 +31,7 @@ options:
     - /ssl/fullchain.pem
 schema:
   monitor_url: url
+  monitor_url_fallback: url?
   pair_code: str?
   pin: str?
   token: password?

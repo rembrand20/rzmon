@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.72.0 – 2026-10-24
+### Nieuw
+- **🌍 Agents via https** (agent 1.51.0 nodig), in *Instellingen → Agents → Beveiligde verbinding*:
+  - **Adres van RzMon wijzigen vanuit RzMon**: **🌐 Alle agents naar een ander adres…**, of per agent (🌐 in de tabel, of *Agent Manager → Adres van RzMon*). De agent krijgt het adres versleuteld, **test het eerst** (verbinding, certificaat en zijn eigen sleutel) en stapt pas dan over; anders blijft het oude adres, met de reden.
+  - **Reserve-adres**: is het gewone adres (bv. via de reverse proxy) niet bereikbaar, dan rapporteert de agent via het reserve-adres (bv. het LAN-adres). Eén ⚠️-melding *Agent via reserve-adres*, en ✅ zodra het weer via het gewone adres gaat.
+  - Kolom **Verbinding**: https via proxy, https, http of via het reserve-adres, met de adressen en de uitkomst van de laatste overstap. Ook in de Agent Manager.
+  - **🔒 Agents alleen via https** (algemeen, en per agent *aan/uit*): een agent via gewone http wordt geweigerd; via het reserve-adres mag het, met een ⚠️. Aanzetten kan pas als geen agent meer via http komt.
+  - *Hoe staat het ervoor?* toont *Agents via https*.
+- Nieuwe agent 1.51.0 (adres vanuit RzMon, reserve-adres, `--fallback` bij het installeren, *Reserve-adres* in de HA-add-on).
+
 ## 1.71.0 – 2026-10-24
 ### Nieuw
 - **⚲ Filters op elke pagina**: Dashboard, Meldingen, IDS (Incidenten, Toegang, Blokkades), Kwetsbaarheden en Datalekken.

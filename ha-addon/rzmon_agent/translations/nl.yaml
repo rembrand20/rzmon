@@ -2,6 +2,9 @@ configuration:
   monitor_url:
     name: RzMon URL
     description: Adres van je RzMon-server, bv. http://192.168.1.10 of https://rzmon.mijndomein.nl
+  monitor_url_fallback:
+    name: Reserve-adres (optioneel)
+    description: Gebruikt als het RzMon-adres niet bereikbaar is, bv. https via je reverse proxy met http://<LAN-IP> als reserve. RzMon meldt dat met een ⚠️. Het adres kun je ook in RzMon wijzigen (Agent Manager → 🌐 Adres van RzMon).
   pair_code:
     name: Koppelcode
     description: Koppelcode van deze server in RzMon (Agent Manager → 🔗 Koppelcode, 15 minuten geldig). De add-on haalt daarmee zijn eigen sleutel op; daarna mag het veld blijven staan of leeg.

@@ -5,6 +5,12 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.51.0 – 2026-10-24
+- **Ander adres van RzMon vanuit RzMon** (RzMon 1.72.0 nodig): RzMon kan de agent een nieuw adres geven, bijvoorbeeld `https://` via je reverse proxy. De agent **test het eerst** (verbinding, certificaat en een antwoord dat met zijn eigen sleutel klopt) en gebruikt het pas dan; anders blijft het oude adres. Het adres staat in de map met de sleutel (`url`); pas je `MONITOR_URL` zelf aan, dan geldt weer dat.
+- **Reserve-adres**: `MONITOR_URL_FALLBACK` (of `--fallback` bij het installeren, en in de add-on *Reserve-adres*). Is het gewone adres niet bereikbaar (geen verbinding, certificaat, of de proxy geeft 502–504), dan gaat het rapport via het reserve-adres. RzMon meldt dat met een ⚠️.
+- De agent stuurt zijn adres en reserve-adres mee, zodat RzMon per agent laat zien hoe hij verbindt.
+- `rzmon-agent-setup --test` toont het adres dat RzMon heeft ingesteld en het reserve-adres.
+
 ## 1.50.0 – 2026-10-23
 - **Eigen sleutel** (RzMon 1.64.0 nodig): de agent krijgt een eigen sleutel, vanzelf (als hij al versleutelde) of met een **koppelcode**. Daarna stuurt hij geen token meer mee en is elk verzoek versleuteld of ondertekend, ook het ophalen van zijn instellingen. De sleutel staat in `/var/lib/rzmon-agent` (add-on: `/data/rzmon-keys`, TrueNAS: de map van de agent), niet meer in de cache. Vernieuwt RzMon de sleutel, dan neemt de agent hem vanzelf over.
 - **Koppelen**: `install-agent.sh --pair CODE` (of `PAIR_CODE=` in de instellingen, of `pair_code` in de add-on). Het eerste bericht is versleuteld met een sleutel uit de code; de agent krijgt zijn eigen sleutel versleuteld terug. Een code wordt maar één keer gebruikt.

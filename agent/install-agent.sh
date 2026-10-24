@@ -32,6 +32,8 @@ CRON="/etc/cron.d/rzmon-agent"
 SETUP="/usr/local/sbin/rzmon-agent-setup"   # dit script, voor later --update/--uninstall
 
 URL=""
+FALLBACK=""          # reserve-adres van RzMon (agent 1.51.0+): als URL niet bereikbaar is
+FALLBACK_SET=0
 TOKEN=""
 ENC_KEY=""          # sleutel voor versleutelde rapporten (Instellingen → 🔐 Versleuteling)
 PAIR=""             # koppelcode (RzMon → Agent Manager → 🔗 Koppelcode): de agent haalt zijn eigen sleutel op
@@ -76,6 +78,7 @@ RzMon agent installeren
 Gebruik: sudo bash install-agent.sh --url URL --pair KOPPELCODE [opties]
 
   --url URL            Adres van RzMon, bv. http://192.168.1.10
+  --fallback URL       Reserve-adres als --url niet bereikbaar is (bv. https via de proxy, met het LAN-adres als reserve)
   --pair CODE          Koppelcode van deze server (RzMon → server → Agent Manager → 🔗 Koppelcode;
                        eenmalig, 15 minuten geldig). De agent krijgt dan zijn eigen sleutel.
   --pin VINGERAFDRUK   Alleen dit certificaat van RzMon accepteren (bij een eigen, self-signed certificaat)
@@ -107,6 +110,7 @@ EOF
 while [ $# -gt 0 ]; do
     case "$1" in
         --url) URL="${2:?}"; shift ;;
+        --fallback) FALLBACK="${2-}"; FALLBACK_SET=1; shift ;;
         --token) TOKEN="${2:?}"; shift ;;
         --key) ENC_KEY="${2:?}"; shift ;;
         --pair) PAIR="${2:?}"; shift ;;
@@ -504,12 +508,15 @@ if [ "$MODE" = "install" ] && [ -f "$CONF" ]; then
     if [ -n "$ARG_INSECURE" ] && [ "$INSECURE" != "${OLD_INSECURE-}" ]; then conf_set INSECURE "$INSECURE"; fi
     if [ -n "$ARG_INTERVAL" ] && [ "$INTERVAL" != "${OLD_INTERVAL-}" ]; then conf_set INTERVAL "$INTERVAL"; fi
     if [ "$ARG_NO_EPEL" = 1 ] && ! grep -qE '^EPEL="?0"?$' "$CONF"; then conf_set EPEL 0; fi
+    if [ "$FALLBACK_SET" = 1 ] && ! grep -qx "MONITOR_URL_FALLBACK=\"${FALLBACK%/}\"" "$CONF"; then conf_set MONITOR_URL_FALLBACK "${FALLBACK%/}"; fi
     [ "$conf_changed" = 1 ] || ok "$CONF blijft ongewijzigd"
 elif [ "$MODE" = "install" ]; then
     umask 077
     cat > "$CONF" <<EOF
 # RzMon agent – aangemaakt door install-agent.sh op $(date '+%Y-%m-%d %H:%M')
 MONITOR_URL="$URL"
+# Reserve-adres: gebruikt als MONITOR_URL niet bereikbaar is (bv. de reverse proxy ligt eruit); RzMon meldt dat met ⚠️
+MONITOR_URL_FALLBACK="${FALLBACK%/}"
 TOKEN="$TOKEN"
 # Koppelcode (eenmalig): daarmee haalt de agent zijn eigen sleutel op. Daarna is hij niet meer nodig.
 PAIR_CODE="$PAIR"

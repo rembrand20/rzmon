@@ -49,6 +49,7 @@ Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon 
 | Optie | Uitleg |
 |---|---|
 | `monitor_url` | Adres van RzMon, zonder `/api.php` |
+| `monitor_url_fallback` | Reserve-adres als `monitor_url` niet bereikbaar is (agent 1.51.0), bv. `monitor_url` = `https://rzmon.example.nl` en reserve `http://192.168.1.10`. RzMon kan het adres ook zelf wijzigen (*Beveiligde verbinding → 🌐*); dat staat dan in `/data/rzmon-keys/url` |
 | `pair_code` | Koppelcode van deze server in RzMon (Agent Manager → 🔗 Koppelcode) |
 | `pin` | Alleen bij een eigen (self-signed) certificaat van RzMon: de vingerafdruk (staat bij de koppelcode) |
 | `token` | Oude manier: agent-token, alleen zonder koppelcode |

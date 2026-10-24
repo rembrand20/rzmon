@@ -6,6 +6,8 @@ OPTIONS=/data/options.json
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 MONITOR_URL=$(jq -r '.monitor_url // empty' "$OPTIONS")
+# Reserve-adres (agent 1.51.0+): als monitor_url niet bereikbaar is, bv. de reverse proxy ligt eruit
+MONITOR_URL_FALLBACK=$(jq -r '.monitor_url_fallback // empty' "$OPTIONS")
 TOKEN=$(jq -r '.token // empty' "$OPTIONS")
 # Koppelcode (eenmalig) en de vingerafdruk van het certificaat van RzMon (agent 1.50.0+)
 PAIR_CODE=$(jq -r '.pair_code // empty' "$OPTIONS")
@@ -15,7 +17,7 @@ INTERVAL=$(jq -r '.interval // 60' "$OPTIONS")
 INSECURE=$(jq -r 'if .verify_ssl == false then 1 else 0 end' "$OPTIONS")
 # Certificaten: bestanden in /ssl en/of host:poort (ook op internet)
 CERTS=$(jq -r '(.certs // []) | join(" ")' "$OPTIONS")
-export MONITOR_URL TOKEN INSECURE CERTS INTERVAL PAIR_CODE PIN
+export MONITOR_URL MONITOR_URL_FALLBACK TOKEN INSECURE CERTS INTERVAL PAIR_CODE PIN
 
 if [ -z "$MONITOR_URL" ] || { [ -z "$TOKEN" ] && [ -z "$PAIR_CODE" ] && [ ! -s /data/rzmon-keys/agent.key ]; }; then
     log "FOUT: vul 'monitor_url' en 'pair_code' in op het tabblad Configuratie."
@@ -26,7 +28,10 @@ if [ -z "${SUPERVISOR_TOKEN:-}" ]; then
     log "WAARSCHUWING: geen SUPERVISOR_TOKEN; add-on/update-status wordt niet gerapporteerd."
 fi
 
-log "RzMon agent gestart: rapporteert aan ${MONITOR_URL} (hoe vaak: in RzMon → Agent Manager)"
+# Adres dat RzMon heeft ingesteld (Agent Manager → 🌐 Adres) gaat voor, zolang monitor_url hetzelfde blijft
+u_set=$(sed -n 1p /data/rzmon-keys/url 2>/dev/null); u_from=$(sed -n 2p /data/rzmon-keys/url 2>/dev/null)
+[ -n "$u_set" ] && [ "$u_from" = "${MONITOR_URL%/}" ] && log "Adres ingesteld vanuit RzMon: $u_set (in de configuratie staat $MONITOR_URL)"
+log "RzMon agent gestart: rapporteert aan ${u_set:-$MONITOR_URL}${MONITOR_URL_FALLBACK:+ (reserve: $MONITOR_URL_FALLBACK)} (hoe vaak: in RzMon → Agent Manager)"
 # Elke 30 s starten; de agent rapporteert alleen als de tik uit RzMon om is (anders stopt hij meteen)
 BASE=30
 CACHE=/data/rzmon-cache
