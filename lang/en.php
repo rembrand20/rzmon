@@ -3010,4 +3010,8 @@ return [
     'Deze agent mag dan ook weer via http verbinden (de berichten blijven versleuteld).' => 'This agent may then connect via http again (messages stay encrypted).',
     'Alleen via https:' => 'Https only:',
     'Adres van RzMon:' => 'RzMon address:',
+    'via internet ({ip}): wijst de naam hier naar je proxy? (DNS-rewrite; AdGuard: filteren aan voor deze client)' => 'via the internet ({ip}): does the name point to your proxy here? (DNS rewrite; AdGuard: filtering on for this client)',
+    'Gebruikt nu {url}' => 'Now uses {url}',
+    'Een publiek adres, terwijl deze agent tot nu toe uit je eigen netwerk kwam: waarschijnlijk gaat hij via je router naar buiten en weer naar binnen, omdat de naam van RzMon op die server niet naar je reverse proxy wijst (DNS-rewrite). Los dat liever daar op dan dit adres toe te staan.' => 'A public address, while this agent so far came from your own network: it probably goes out through your router and back in, because the RzMon name on that server does not point to your reverse proxy (DNS rewrite). Better fix that there than allow this address.',
+    '{ip} is een publiek adres, terwijl {name} tot nu toe uit je eigen netwerk kwam. Waarschijnlijk werkt de DNS-rewrite op die server niet (AdGuard: filteren aan voor die client; Home Assistant: ha dns info). Toestaan zet het IP-slot open voor alles wat via dat adres binnenkomt. Toch toestaan?' => '{ip} is a public address, while {name} so far came from your own network. The DNS rewrite probably does not work on that server (AdGuard: filtering on for that client; Home Assistant: ha dns info). Allowing it opens the IP lock for everything that comes in via that address. Allow anyway?',
 ];

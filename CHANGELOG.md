@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.72.1 – 2026-10-24
+### Opgelost
+- **Overstap via internet herkennen** (agent 1.51.1 nodig): mislukt een overstap naar een ander adres omdat de agent via je **publieke IP** binnenkomt (de naam wijst op die server niet naar je reverse proxy, bv. omdat de DNS-rewrite in AdGuard daar niet werkt), dan staat dat er nu bij: *⚠️ via internet (…): wijst de naam hier naar je proxy?*
+- **✔ Toestaan** waarschuwt als een agent die tot nu toe uit je eigen netwerk kwam, ineens van een publiek adres komt; meestal moet je dan de DNS op die server oplossen in plaats van het adres toe te staan.
+- Een **✘ van een mislukte overstap** verdwijnt nu vanzelf (*✔ Gebruikt nu …*) zodra de agent toch via dat adres rapporteert, bv. omdat je het op de server zelf hebt ingesteld.
+- Nieuwe agent 1.51.1.
+
 ## 1.72.0 – 2026-10-24
 ### Nieuw
 - **🌍 Agents via https** (agent 1.51.0 nodig), in *Instellingen → Agents → Beveiligde verbinding*:

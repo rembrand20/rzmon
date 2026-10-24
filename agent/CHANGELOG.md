@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.51.1 – 2026-10-24
+- Bij een overstap naar een ander adres stuurt de agent mee met welk IP hij verbond. RzMon ziet daaraan of de server via internet gaat in plaats van via je eigen netwerk (bv. een DNS-rewrite die op die server niet werkt), en zegt dat erbij (RzMon 1.72.1).
+
 ## 1.51.0 – 2026-10-24
 - **Ander adres van RzMon vanuit RzMon** (RzMon 1.72.0 nodig): RzMon kan de agent een nieuw adres geven, bijvoorbeeld `https://` via je reverse proxy. De agent **test het eerst** (verbinding, certificaat en een antwoord dat met zijn eigen sleutel klopt) en gebruikt het pas dan; anders blijft het oude adres. Het adres staat in de map met de sleutel (`url`); pas je `MONITOR_URL` zelf aan, dan geldt weer dat.
 - **Reserve-adres**: `MONITOR_URL_FALLBACK` (of `--fallback` bij het installeren, en in de add-on *Reserve-adres*). Is het gewone adres niet bereikbaar (geen verbinding, certificaat, of de proxy geeft 502–504), dan gaat het rapport via het reserve-adres. RzMon meldt dat met een ⚠️.

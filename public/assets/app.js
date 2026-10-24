@@ -3122,6 +3122,7 @@ function renderSecurity() {
   const wait = secInfo.hosts.filter((h) => h.agent_ip_new);
   $('#conn-ipwait').innerHTML = wait.map((h) => `<div class="callout ip-wait">⚠️ ${L('<b>{name}</b> wil verbinden vanaf <code>{ip}</code> en is geweigerd (bekend: {known}).', { name: esc(h.name), ip: esc(h.agent_ip_new), known: `<code>${esc(h.agent_ips || '–')}</code>` })}
       <span class="muted small">${esc(ago(h.agent_ip_new_at))}</span>
+      ${ipViaWan(h) ? `<br><span class="small bad">${L('Een publiek adres, terwijl deze agent tot nu toe uit je eigen netwerk kwam: waarschijnlijk gaat hij via je router naar buiten en weer naar binnen, omdat de naam van RzMon op die server niet naar je reverse proxy wijst (DNS-rewrite). Los dat liever daar op dan dit adres toe te staan.')}</span><br>` : ''}
       <button type="button" class="btn primary" data-ip-allow="${h.id}">✔ ${L('Toestaan')}</button></div>`).join('');
   const keyText = (h) => +h.agent_key_seen === 1 ? `🔑 ${L('eigen sleutel')}${h.key_days != null ? ` <span class="muted">· ${L('{n} d oud', { n: h.key_days })}</span>` : ''}`
     : h.pairing ? `⏳ ${L('koppelcode klaar')}`
@@ -3188,6 +3189,8 @@ function initSecurity() {
   $('#conn-ipwait').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-ip-allow]');
     if (!b) return;
+    const h = secInfo.hosts.find((x) => +x.id === +b.dataset.ipAllow);
+    if (h && ipViaWan(h) && !confirm(L('{ip} is een publiek adres, terwijl {name} tot nu toe uit je eigen netwerk kwam. Waarschijnlijk werkt de DNS-rewrite op die server niet (AdGuard: filteren aan voor die client; Home Assistant: ha dns info). Toestaan zet het IP-slot open voor alles wat via dat adres binnenkomt. Toch toestaan?', { ip: h.agent_ip_new, name: h.name }))) return;
     try { const r = await api('agent_ip_allow', { id: +b.dataset.ipAllow }); toast(L('{ip} toegestaan; de agent komt bij zijn volgende rapport weer binnen', { ip: r.ip })); loadSecurity(); refresh(); }
     catch (ex) { toast(ex.message, 'err'); }
   });
@@ -3254,6 +3257,12 @@ function encSeenText(h) {
 }
 
 /** Hoe de agent verbindt (1.72.0): https via de proxy, https, http, of via het reserve-adres; met het adres en een lopende overstap */
+/** Wil een agent uit het eigen netwerk ineens vanaf een publiek adres verbinden? (meestal: DNS-rewrite werkt niet, via de router) */
+function ipViaWan(h) {
+  const known = String(h.agent_ips || '').split(/\s+/).filter(Boolean);
+  return !!h.agent_ip_new && !isLocalAddress(h.agent_ip_new) && known.length > 0 && known.every(isLocalAddress);
+}
+
 function connText(h) {
   const via = h.agent_fb_at ? `<b class="bad">⚠️ ${L('via reserve-adres')}</b> <span class="muted">${esc(ago(h.agent_fb_at))}</span>`
     : h.agent_conn === 'proxy' ? `🔒 ${L('https via proxy')}` : h.agent_conn === 'https' ? `🔒 https` : h.agent_conn === 'http' ? `<span class="warn-txt">🔓 http</span>` : '<span class="muted">–</span>';

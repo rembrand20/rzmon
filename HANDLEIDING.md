@@ -1699,6 +1699,12 @@ Agents kunnen RzMon via **https** bereiken, bijvoorbeeld via je reverse proxy (S
 - De agent krijgt het adres **versleuteld** en **test het eerst**: verbinding, certificaat, en een antwoord dat met zijn eigen sleutel klopt. Pas dan gebruikt hij het. Lukt het niet, dan blijft het oude adres en zie je de reden (✘ …). Na één of twee rapporten staat in de kolom **Verbinding** *✔ Overgestapt naar …*.
 - Het adres staat op de server in de map met de sleutel (`/var/lib/rzmon-agent/url`; add-on: `/data/rzmon-keys/url`). Pas je `MONITOR_URL` in `/etc/default/rzmon-agent` zelf aan, dan geldt weer dat.
 - Agents ouder dan 1.51.0 worden overgeslagen; die pas je op de server zelf aan (`install-agent.sh --url …`).
+- **Mislukt met *nieuw IP-adres 86.x.x.x*?** Dan gaat die server via je **publieke IP** naar RzMon: de naam wijst daar niet naar je proxy, dus het verkeer gaat via je router naar buiten en weer naar binnen. Vanaf 1.72.1 (agent 1.51.1) staat dat er met een ⚠️ bij. Los het op in de DNS van die server, niet met *✔ Toestaan* (dan waarschuwt RzMon ook):
+  - **AdGuard Home:** een rewrite hoort bij het filteren. Staat de server bij *Clientinstellingen* met *Gebruik globale instelling* uit, zet dan **Domeinen blokkeren d.m.v. filters en host-bestanden** aan. Wis daarna de DNS-cache.
+  - **Home Assistant:** `ha dns info` en `nslookup <naam>` in de *Terminal & SSH*-add-on; eventueel `ha dns options --fallback=false` en `ha dns restart`.
+  - **Linux:** `getent hosts <naam>` moet het LAN-IP van de proxy geven; kijk anders in `/etc/resolv.conf` en `/etc/hosts`.
+  - Klik daarna op **↺** bij de server (als je het publieke IP al had toegestaan) en doe **🌐** opnieuw.
+- Een ✘ verdwijnt vanzelf (*✔ Gebruikt nu …*) zodra de agent toch via dat adres rapporteert.
 
 **Kolom Verbinding:** 🔒 *https via proxy*, 🔒 *https*, 🔓 *http* of ⚠️ *via reserve-adres*, met het adres, ↪ het reserve-adres en de uitkomst van de laatste overstap.
 

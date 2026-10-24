@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.51.0"
+AGENT_VERSION="1.51.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -302,13 +302,13 @@ fi
 MONITOR_URL=${MONITOR_URL%/}
 MONITOR_URL_FALLBACK=${MONITOR_URL_FALLBACK%/}
 [ "$MONITOR_URL_FALLBACK" = "$MONITOR_URL" ] && MONITOR_URL_FALLBACK=""
-url_result=$(head -c 300 "$k_dir/url.result" 2>/dev/null | tr -d '\n')
+url_result=$(head -c 500 "$k_dir/url.result" 2>/dev/null | tr -d '\n')
 
 # Overstappen naar een nieuw adres (opdracht uit een versleuteld antwoord van RzMon): eerst testen met een ondertekend
 # verzoek; alleen als het antwoord met onze eigen sleutel klopt, gaat de agent dat adres gebruiken (vanaf de volgende
 # keer). De uitkomst gaat met het volgende rapport naar RzMon.
 url_switch() {  # url_switch <nieuw adres> <reserve-adres>
-    local new=${1%/} fb=${2%/} t_tls=() out code body why
+    local new=${1%/} fb=${2%/} t_tls=() out code rip body why
     [ -e "$k_dir/url.result" ] && return 0   # vorige uitkomst nog niet doorgegeven
     [[ "$new" =~ ^https?://[^[:space:]\"]+$ ]] || return 0
     [[ -z "$fb" || "$fb" =~ ^https?://[^[:space:]\"]+$ ]] || fb=""
@@ -318,11 +318,14 @@ url_switch() {  # url_switch <nieuw adres> <reserve-adres>
     fi
     [[ "$new" == https://* ]] && [ "$INSECURE" = 1 ] && t_tls=(-k)
     get_auth agent_check
-    out=$(curl -sS -m 15 "${t_tls[@]}" "${ga[@]}" -w '\n%{http_code}' "$new/api.php?action=agent_check" 2>&1)
+    # Ook het IP waarmee curl verbond: RzMon ziet daaraan of de naam hier naar de proxy wijst of via internet gaat
+    out=$(curl -sS -m 15 "${t_tls[@]}" "${ga[@]}" -w '\n%{http_code} %{remote_ip}' "$new/api.php?action=agent_check" 2>&1)
     code=${out##*$'\n'}; out=${out%$'\n'*}
+    rip=${code#* }; code=${code%% *}
+    [[ "$rip" =~ ^[0-9a-fA-F.:]+$ ]] || rip=
     if [ "$code" = 200 ] && [ -n "$get_n" ] && body=$(unseal "$out" "$get_n") && [[ "$body" == *'"ok":true'* ]]; then
         if (umask 077; printf '%s\n%s\n%s\n' "$new" "$conf_url" "$fb" >"$url_file.tmp" && mv -f "$url_file.tmp" "$url_file"); then
-            printf 'ok %s\n' "$new" >"$k_dir/url.result"
+            printf 'ok %s%s\n' "$new" "${rip:+ [ip $rip]}" >"$k_dir/url.result"
             echo "Adres van RzMon gewijzigd naar $new${fb:+ (reserve: $fb)}" >&2
         else
             printf 'error: kan %s niet schrijven\n' "$url_file" >"$k_dir/url.result"
@@ -331,7 +334,7 @@ url_switch() {  # url_switch <nieuw adres> <reserve-adres>
         why=$(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' <<<"$out" | head -c 150)
         [ -z "$why" ] && why=$(head -n 1 <<<"$out" | head -c 150)
         [ "$code" = 200 ] && why="het antwoord klopt niet met de sleutel van deze agent"
-        printf 'error: %s werkt niet vanaf deze server (HTTP %s%s)\n' "$new" "${code:-000}" "${why:+: $why}" >"$k_dir/url.result"
+        printf 'error: %s werkt niet vanaf deze server (HTTP %s%s)%s\n' "$new" "${code:-000}" "${why:+: $why}" "${rip:+ [ip $rip]}" >"$k_dir/url.result"
         echo "Nieuw adres $new werkt niet; het huidige adres blijft" >&2
     fi
 }

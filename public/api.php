@@ -200,14 +200,30 @@ function agent_url_report(array $host, array $in, ?string $agentVersion, bool $e
         Monitor::notifySystem('✅ ' . t('Agent weer via het gewone adres: {name}', ['name' => $host['name']]),
             t('De agent op {name} rapporteert weer via {url}.', ['name' => $host['name'], 'url' => $url ?? '?']), STATUS_OK, 'recovery');
     }
-    $h = q('SELECT agent_url_want, agent_url_want_fb FROM hosts WHERE id = ?', [$host['id']])->fetch();
+    $h = q('SELECT agent_url_want, agent_url_want_fb, agent_url_status FROM hosts WHERE id = ?', [$host['id']])->fetch();
     $result = trim((string) ($in['url_result'] ?? ''));
     if ($result !== '') {
         $ok = str_starts_with($result, 'ok');
-        $status = $ok ? '✔ ' . t('Overgestapt naar {url}', ['url' => $url ?? '?']) : '✘ ' . mb_substr(preg_replace('/^error:?\s*/', '', $result), 0, 200);
+        // Agent 1.51.1 zet erachter met welk IP hij verbond ("[ip 1.2.3.4]"). Een publiek IP terwijl de agent uit je eigen
+        // netwerk komt = via de router naar buiten en weer naar binnen: de naam wijst op die server niet naar de proxy.
+        $tail = '';
+        if (preg_match('/\s*\[ip ([0-9a-f.:]{2,45})\]\s*$/i', $result, $m)) {
+            $result = substr($result, 0, -strlen($m[0]));
+            $known = preg_split('/\s+/', trim((string) ($host['agent_ips'] ?? '')), -1, PREG_SPLIT_NO_EMPTY);
+            if (filter_var($m[1], FILTER_VALIDATE_IP) && !ip_in_list($m[1], PRIVATE_NETWORKS)
+                && $known && !array_filter($known, fn($k) => !ip_in_list($k, PRIVATE_NETWORKS))) {
+                $tail = ' — ⚠️ ' . t('via internet ({ip}): wijst de naam hier naar je proxy? (DNS-rewrite; AdGuard: filteren aan voor deze client)', ['ip' => $m[1]]);
+            }
+        }
+        $status = $ok ? '✔ ' . t('Overgestapt naar {url}', ['url' => $url ?? '?']) : '✘ ' . preg_replace('/^error:?\s*/', '', $result);
+        $status = mb_substr($status, 0, 254 - mb_strlen($tail)) . $tail;
         q('UPDATE hosts SET agent_url_status = ?, agent_url_at = ?, agent_url_want = NULL, agent_url_want_fb = NULL WHERE id = ?', [$status, now(), $host['id']]);
         AgentCommands::audit('agent', 'Adres van RzMon', "{$host['name']}: $status");
         return null;
+    }
+    // Mislukte overstap, maar de agent rapporteert nu toch gewoon via dat adres (bv. met de hand ingesteld): ✘ weg
+    if (!$fb && $url !== null && !$h['agent_url_want'] && preg_match('/^✘ (\S+) /u', (string) $h['agent_url_status'], $m) && rtrim($m[1], '/') === $url) {
+        q('UPDATE hosts SET agent_url_status = ?, agent_url_at = ? WHERE id = ?', ['✔ ' . t('Gebruikt nu {url}', ['url' => $url]), now(), $host['id']]);
     }
     if (!$h['agent_url_want'] || $h['agent_url_want'] === $url || !$encrypted || !$agentVersion || version_compare($agentVersion, AgentCrypto::URL_MIN, '<')) {
         if ($h['agent_url_want'] && $h['agent_url_want'] === $url) {
