@@ -311,7 +311,8 @@ final class Mqtt
         $states[$topic] = ['status' => $health['label']] + $health;
         $entity('sensor', 'health', $hub, ['name' => t('Algehele status'), 'state_topic' => $topic,
             'value_template' => '{{ value_json.status }}', 'json_attributes_topic' => $topic,
-            'device_class' => 'enum', 'options' => array_values(Health::LABELS), 'icon' => 'mdi:heart-pulse']);
+            // Zelfde taal als de status zelf (die wordt vertaald), anders weigert Home Assistant de waarde (1.76.2)
+            'device_class' => 'enum', 'options' => array_map('t', array_values(Health::LABELS)), 'icon' => 'mdi:heart-pulse']);
         $entity('sensor', 'health_score', $hub, ['name' => t('Gezondheid'), 'state_topic' => $topic,
             'value_template' => '{{ value_json.score }}', 'unit_of_measurement' => '%', 'state_class' => 'measurement', 'icon' => 'mdi:heart-pulse']);
 

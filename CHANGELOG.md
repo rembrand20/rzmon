@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.76.2 – 2026-10-25
+### Opgelost
+- **MQTT, sensor *Algehele status***: in het Engels weigerde Home Assistant de waarde (*Ignoring invalid option received on topic 'rzmon/health', got 'All good'*), omdat de lijst met toegestane waarden altijd Nederlands was. Die lijst volgt nu de taal van de meldingen, net als de waarde zelf; de sensor krijgt weer een waarde en de foutmelding verdwijnt uit het log van Home Assistant. Tip voor automatiseringen: het attribuut `state` (`ok`, `attention`, `outage`) hangt niet van de taal af.
+
 ## 1.76.1 – 2026-10-24
 ### Opgelost
 - Geen dubbel *Alles in orde* meer op het dashboard: zonder open problemen verdwijnt de balk onder de tegels. Zijn er bevestigde problemen, dan staat er een klein regeltje *✔ Geen open problemen · 2 bevestigd* met **bekijken** (toont de problemen).
