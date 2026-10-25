@@ -223,6 +223,8 @@ function savePref(key, value) {
   clearTimeout(prefTimers[key]);
   prefTimers[key] = setTimeout(() => api('prefs_save', { key, value }).catch(() => {}), 500);
 }
+// Chip bovenaan de meldingen (1.84.0): per gebruiker onthouden (eerder alleen in deze browser)
+if (PREFS.alert_filter) alertFilter = PREFS.alert_filter;
 /** Slim openen (vandaag open, ernstige dingen open, onthouden): alleen als de gebruiker dat koos */
 const smartOpen = () => PREFS.open_mode === 'smart';
 
@@ -985,6 +987,7 @@ function init() {
   const setAlertFilter = (f) => {
     alertFilter = alertFilter === f && f !== 'all' ? 'all' : f;
     try { localStorage.setItem('rzmon-alert-filter', alertFilter); } catch (ex) { /* alleen voor nu */ }
+    savePref('alert_filter', alertFilter);
     renderAlerts();
   };
   $('#alerts-filter').addEventListener('click', (e) => { const b = e.target.closest('[data-af]'); if (b) setAlertFilter(b.dataset.af); });
@@ -4698,11 +4701,16 @@ function alertCat(a) {
 }
 const ALERT_CATS = [['crit', 2, 'Critical'], ['warn', 1, 'Warning'], ['unk', 3, () => L('Onbekend')], ['ok', 0, () => L('Hersteld')], ['info', 'i', 'Info'], ['sec', 'x', () => L('Beveiliging')]];
 const catLabel = (k) => { const w = ALERT_CATS.find((c) => c[0] === k)[2]; return typeof w === 'function' ? w() : w; };
-const alertMatch = (f, a) => f === 'all' || (f === 'problems' ? ['crit', 'warn', 'unk'].includes(alertCat(a)) : alertCat(a) === f);
+// 'noinfo' (1.84.0): alles behalve de ℹ️-systeeminfo
+const alertMatch = (f, a) => f === 'all' || (f === 'noinfo' ? alertCat(a) !== 'info' : f === 'problems' ? ['crit', 'warn', 'unk'].includes(alertCat(a)) : alertCat(a) === f);
 
 /** Tellers (vandaag) en kerncijfers bovenaan de pagina Meldingen */
 function renderAlertTop(d) {
+  // Zonder info: ook de tegels tellen de ℹ️-systeeminfo niet mee (de tellers per soort wel, die tonen elke soort)
+  const noInfo = alertFilter === 'noinfo';
+  const base = noInfo ? d.alerts.filter((a) => alertMatch('noinfo', a)) : d.alerts;
   const today = d.alerts.filter((a) => a.created_at.startsWith(d.today));
+  const todayB = base.filter((a) => a.created_at.startsWith(d.today));
   const n = (f) => today.filter((a) => alertMatch(f, a)).length;
   $('#alerts-counts').innerHTML = ALERT_CATS.map(([k, st]) => {
     const c = n(k);
@@ -4710,11 +4718,11 @@ function renderAlertTop(d) {
   }).join('');
   const y = new Date(d.today + 'T12:00:00'); y.setDate(y.getDate() - 1);
   const yday = y.toISOString().slice(0, 10);
-  const nY = d.alerts.filter((a) => a.created_at.startsWith(yday)).length;
-  const diff = nY ? Math.round((today.length - nY) / nY * 100) : null;
+  const nY = base.filter((a) => a.created_at.startsWith(yday)).length;
+  const diff = nY ? Math.round((todayB.length - nY) / nY * 100) : null;
   // Per uur vandaag (tot nu)
   const hours = new Array(new Date().getHours() + 1).fill(0);
-  today.forEach((a) => { const h = +a.created_at.slice(11, 13); if (h < hours.length) hours[h]++; });
+  todayB.forEach((a) => { const h = +a.created_at.slice(11, 13); if (h < hours.length) hours[h]++; });
   const max = Math.max(1, ...hours);
   let path = '';
   hours.forEach((v, i) => { path += `${path ? 'L' : 'M'}${(hours.length > 1 ? i / (hours.length - 1) * 100 : 50).toFixed(1)},${(24 - v / max * 20).toFixed(1)}`; });
@@ -4722,7 +4730,7 @@ function renderAlertTop(d) {
   const since = new Date(Date.now() - 86400000);
   const pad = (x) => String(x).padStart(2, '0');
   const sinceStr = `${since.getFullYear()}-${pad(since.getMonth() + 1)}-${pad(since.getDate())} ${pad(since.getHours())}:${pad(since.getMinutes())}`;
-  const last24 = d.alerts.filter((a) => a.created_at >= sinceStr);
+  const last24 = base.filter((a) => a.created_at >= sinceStr);
   const failed = last24.filter((a) => splitSent(a.message)[1] || (a.email_ok !== null && a.email_ok !== undefined && !+a.email_ok) || (a.webhook_ok !== null && a.webhook_ok !== undefined && !+a.webhook_ok));
   const reasons = {};
   failed.forEach((a) => { const r = splitSent(a.message)[1].split(';')[0].trim(); if (r) reasons[r] = (reasons[r] || 0) + 1; });
@@ -4731,9 +4739,9 @@ function renderAlertTop(d) {
   last24.forEach((a) => { const h = alertCols(a).host; hosts[h] = (hosts[h] || 0) + 1; });
   const busy = Object.entries(hosts).sort((p, q) => q[1] - p[1])[0];
   const open = state.health ? state.health.open_problems : 0;
-  const lastA = d.alerts[0];
+  const lastA = base[0];
   $('#alerts-kpis').innerHTML = `
-    <div class="kpi kpi-main" title="${esc(L('Per uur vandaag'))}"><div class="kpi-txt"><div class="kpi-lbl">${L('Meldingen vandaag')}</div><div class="kpi-val">${today.length}</div>
+    <div class="kpi kpi-main" title="${esc(L('Per uur vandaag'))}"><div class="kpi-txt"><div class="kpi-lbl">${noInfo ? L('Meldingen vandaag, zonder info') : L('Meldingen vandaag')}</div><div class="kpi-val">${todayB.length}</div>
       <div class="kpi-sub">${L('gisteren {n}', { n: nY })}${diff !== null && diff !== 0 ? ` · <b class="${diff > 0 ? 'danger-txt' : 'good-txt'}">${diff > 0 ? '+' : ''}${diff}%</b>` : ''}</div></div>
       ${hours.length > 1 ? `<svg class="kpi-spark kpi-spark-big" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><path d="${path}L100,26L0,26Z" fill="var(--primary)" opacity=".14"/><path d="${path}" fill="none" stroke="var(--primary)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>` : ''}</div>
     <div class="kpi ${open ? 'bad' : ''}"><div class="kpi-lbl">${L('Nu open')}</div><div class="kpi-val">${open}</div>
@@ -4745,7 +4753,7 @@ function renderAlertTop(d) {
     <div class="kpi"><div class="kpi-lbl">${L('Laatste melding')}</div><div class="kpi-val kpi-val-txt">${lastA ? esc(lastA.created_at.startsWith(d.today) ? lastA.created_at.slice(11, 16) : fmtDateTime(lastA.created_at)) : '–'}</div>
       <div class="kpi-sub">${lastA ? esc(lastA.title) : ''}</div></div>`;
   // Chips met aantallen (alle dagen) en de keuzelijst met servers
-  const chips = [['all', L('Alles')], ['problems', L('Storingen')], ['ok', L('Hersteld')], ['info', 'Info'], ['sec', L('Beveiliging')]];
+  const chips = [['all', L('Alles')], ['noinfo', L('Zonder info')], ['problems', L('Storingen')], ['ok', L('Hersteld')], ['info', 'Info'], ['sec', L('Beveiliging')]];
   $('#alerts-filter').innerHTML = chips.map(([k, l]) => `<button type="button" class="dchip ${alertFilter === k ? 'on' : ''}" data-af="${k}">${l} <b>${d.alerts.filter((a) => alertMatch(k, a)).length}</b></button>`).join('')
     + (['crit', 'warn', 'unk'].includes(alertFilter) ? `<button type="button" class="dchip on" data-af="${alertFilter}" title="${esc(L('Filter opheffen'))}">${catLabel(alertFilter)} ✕</button>` : '');
   const sel = $('#alerts-host'), cur = sel.value;
@@ -4767,7 +4775,7 @@ function renderAlerts() {
   $('#alerts-info').textContent = (d.alerts.length === 1 ? L('1 melding') : L('{n} meldingen', { n: d.alerts.length }))
     + ' · ' + (d.days === 1 ? L('van de laatste dag') : L('van de laatste {n} dagen', { n: d.days }))
     + (d.truncated ? ' ' + L('(alleen de nieuwste 10.000)') : '');
-  if (!['all', 'problems', 'crit', 'warn', 'unk', 'ok', 'info', 'sec'].includes(alertFilter)) alertFilter = 'all';
+  if (!['all', 'noinfo', 'problems', 'crit', 'warn', 'unk', 'ok', 'info', 'sec'].includes(alertFilter)) alertFilter = 'all';
   renderAlertTop(d);
   const q = $('#alerts-search').value.trim().toLowerCase();
   const host = $('#alerts-host').value;

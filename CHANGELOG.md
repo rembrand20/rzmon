@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.84.0 – 2026-10-25
+### Nieuw
+- **Meldingen: chip *Zonder info*.** Toont alles behalve de ℹ️-systeeminfo (ingelogd, agent verbonden, bijgewerkt …). Storingen, herstel, beveiliging en bevestigingen blijven staan. De tegels bovenaan tellen de info dan ook niet mee.
+- De gekozen chip op de pagina Meldingen wordt nu **per gebruiker** onthouden (eerder alleen in die browser).
+
 ## 1.83.0 – 2026-10-25
 ### Nieuw
 - **⛔ Blokkades en whitelist** (*Instellingen → 🔐 Beveiliging*). Eén overzicht van alles wat geblokkeerd is: IP-adressen in RzMon, vergrendelde accounts en de IDS-blokkades per server (🌐 als een automatische blokkade op al je servers geldt).

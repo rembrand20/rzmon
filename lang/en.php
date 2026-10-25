@@ -3359,4 +3359,5 @@ return [
     'Overzicht van alle blokkades, met de whitelist' => 'Overview of all blocks, with the whitelist',
     'WHITELIST' => 'WHITELIST',
     'tot' => 'to',
+    'Meldingen vandaag, zonder info' => 'Alerts today, without info',
 ];
