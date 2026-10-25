@@ -1168,6 +1168,7 @@ details.adv[open] { padding-bottom: .6rem; }
 .dash-bar select { width: auto; }
 .dash-more { position: relative; }
 .dash-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 240px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: .3rem; }
+.dash-menu.to-right { right: auto; left: 0; }
 .dash-menu button { display: block; width: 100%; text-align: left; padding: .5rem .65rem; border: 0; background: none; border-radius: 8px; color: var(--text); font: inherit; cursor: pointer; }
 .dash-menu button:hover { background: var(--card-2); }
 .dash-menu small { display: block; color: var(--muted); font-size: .78rem; }

@@ -778,7 +778,16 @@ function init() {
     onHostsClick(e);
   });
   // Menu's ⋯ (dashboard: onderhoud, alles nu checken, alles openen; andere pagina's: alles openen e.d.)
-  const menuOpen = (btn, on) => { btn.nextElementSibling.hidden = !on; btn.setAttribute('aria-expanded', on); };
+  // Menu ⋯: standaard rechts uitgelijnd (klapt naar links uit); past dat niet op het scherm (de knop staat links,
+  // bv. als de balk op een smal scherm doorloopt), dan naar rechts uitklappen
+  const menuOpen = (btn, on) => {
+    const m = btn.nextElementSibling;
+    m.hidden = !on;
+    btn.setAttribute('aria-expanded', on);
+    if (!on) return;
+    m.classList.remove('to-right');
+    if (m.getBoundingClientRect().left < 8) m.classList.add('to-right');
+  };
   $$('[data-menu-btn]').forEach((btn) => {
     btn.onclick = (e) => { e.stopPropagation(); const on = btn.nextElementSibling.hidden; $$('[data-menu-btn]').forEach((x) => menuOpen(x, false)); menuOpen(btn, on); };
     btn.nextElementSibling.addEventListener('click', () => menuOpen(btn, false));

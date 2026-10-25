@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.80.2 – 2026-10-25
+### Opgelost
+- **Menu ⋯ viel van de pagina af** als de werkbalk op een smaller scherm doorloopt naar een tweede regel (de knop staat dan helemaal links). Het menu klapt nu naar rechts uit als er links geen ruimte is; dat geldt voor de ⋯-menu's op elke pagina.
+
 ## 1.80.1 – 2026-10-25
 ### Opgelost
 - **Hoe staat het ervoor? → Tweestapsverificatie** telt beheerders die **alleen lokaal** mogen inloggen (🏠, bv. een noodaccount zonder 2FA) niet meer als aandachtspunt: van buiten kan niemand met zo'n account inloggen. Ze staan er nog wel bij als *alleen lokaal, zonder 2FA*.
