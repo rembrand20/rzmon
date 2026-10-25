@@ -6,6 +6,7 @@ function start_session(): void
     if (session_status() === PHP_SESSION_ACTIVE) {
         return;
     }
+    SessionStore::register();
     session_name('rzmonsid');
     session_set_cookie_params([
         'httponly' => true,
@@ -371,9 +372,22 @@ function device_name(): string
 // volgende verzoek van dat apparaat: de regel is dan weg. Een onthouden apparaat wordt bij uitloggen ook vergeten.
 
 /** Hoe lang een sessie zonder verzoek actief telt (zo lang bewaart PHP de sessie ook) */
+/** Keuzes voor "Uitloggen na … zonder activiteit" (minuten, 1.85.0) */
+const SESSION_IDLE = [30, 120, 480, 1440];
+
+/** Na hoeveel seconden zonder activiteit een sessie vervalt ("onthoud mij" logt daarna vanzelf weer in) */
 function session_ttl(): int
 {
-    return max(600, (int) ini_get('session.gc_maxlifetime'));
+    static $ttl = null;
+    if ($ttl === null) {
+        try {
+            $m = (int) setting('session_idle_minutes', '120');
+        } catch (Throwable) {
+            $m = 120;   // nog geen database (setup)
+        }
+        $ttl = 60 * (in_array($m, SESSION_IDLE, true) ? $m : 120);
+    }
+    return $ttl;
 }
 
 /** Deze sessie vastleggen. how: password, 2fa, remember, lan, of existing (al ingelogd vóór 1.79.0) */

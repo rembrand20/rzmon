@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.85.0 – 2026-10-25
+### Nieuw
+- **⏱️ Uitloggen na … zonder activiteit** (*Instellingen → Toegang en inlogbeveiliging*): 30 minuten, **2 uur** (standaard), 8 uur of 1 dag. Tot nu toe was dat vast 24 minuten (de standaard van PHP), waardoor je telefoon na een tijdje in je zak uitgelogd was.
+- Sessies staan nu in de database. De opruimtaak van het systeem gooit ze dus niet meer na 24 minuten weg.
+- Na deze update moet je één keer opnieuw inloggen. Met *Onthoud mij* gaat dat vanzelf.
+
 ## 1.84.2 – 2026-10-25
 ### Opgelost
 - **"Ongeldig CSRF token" na een tijdje niets doen** (bv. de telefoon in je zak). De sessie was dan verlopen en via *Onthoud mij* vanzelf vernieuwd, maar de pagina hield het oude token. Opslaan of bevestigen gaf daardoor die fout. De pagina neemt het nieuwe token nu automatisch over en probeert het één keer opnieuw.

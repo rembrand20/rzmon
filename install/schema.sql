@@ -490,6 +490,16 @@ CREATE TABLE IF NOT EXISTS block_log (
     INDEX idx_bl_time (removed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 1.85.0: PHP-sessies in de database (niet meer na 24 minuten weggegooid door de opruimtaak van het systeem);
+-- hoe lang zonder activiteit: session_idle_minutes (30, 120, 480 of 1440)
+CREATE TABLE IF NOT EXISTS php_sessions (
+    id         VARCHAR(128)  NOT NULL PRIMARY KEY,
+    data       MEDIUMBLOB    NOT NULL,
+    updated_at INT UNSIGNED  NOT NULL,
+    INDEX idx_phps_time (updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('session_idle_minutes', '120');
+
 CREATE TABLE IF NOT EXISTS security_fails (
     id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     ip         VARCHAR(45) NOT NULL,

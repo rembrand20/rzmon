@@ -3360,4 +3360,8 @@ return [
     'WHITELIST' => 'WHITELIST',
     'tot' => 'to',
     'Meldingen vandaag, zonder info' => 'Alerts today, without info',
+    'Uitloggen na' => 'Log out after',
+    'zonder activiteit' => 'without activity',
+    'Zolang RzMon open en zichtbaar is, blijf je ingelogd. Ligt je telefoon in je zak of staat de pagina op de achtergrond, dan telt de tijd. Met <b>Onthoud mij op dit apparaat</b> log je daarna vanzelf weer in (30 dagen; van buiten je netwerk alleen als het apparaat met 2FA is onthouden).' => 'As long as RzMon is open and visible, you stay logged in. If your phone is in your pocket or the page is in the background, the time counts. With <b>Remember me on this device</b> you are logged back in automatically afterwards (30 days; from outside your network only if the device was remembered with 2FA).',
+    '{n} minuten' => '{n} minutes',
 ];

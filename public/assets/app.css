@@ -1492,3 +1492,4 @@ details.adv[open] { padding-bottom: .6rem; }
 .wl-days label { display: inline-flex; gap: .3rem; align-items: center; margin: 0; font-weight: normal; }
 .bl-acts { display: flex; flex-direction: column; gap: .3rem; align-items: stretch; }
 .bl-acts .btn { white-space: nowrap; }
+.lock-row select { width: auto; display: inline-block; margin: 0 .3rem; }

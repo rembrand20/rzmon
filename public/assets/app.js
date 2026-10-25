@@ -4839,6 +4839,8 @@ async function loadAccess() {
     f.login_lock_account.checked = a.lock.account; f.login_lock_ip.checked = a.lock.ip;
     accessLock = a.lock;
   }
+  const idle = (m) => (m < 60 ? L('{n} minuten', { n: m }) : m === 1440 ? L('1 dag') : L('{n} uur', { n: m / 60 }));
+  f.session_idle.innerHTML = (a.session_idle_choices || []).map((m) => `<option value="${m}" ${m === a.session_idle ? 'selected' : ''}>${esc(idle(m))}</option>`).join('');
   $('#ip-status').innerHTML = `${L('Jouw IP-adres: {ip}', { ip: `<code>${esc(a.client_ip)}</code>` })}${a.client_ip !== a.remote_addr ? ` <span class="muted small">${L('(via proxy {ip})', { ip: esc(a.remote_addr) })}</span>` : ''}
     — ${a.client_trusted ? '<b class="yes">' + L('valt binnen je lokale netwerken') + '</b>' : '<b class="no">' + L('valt buiten je lokale netwerken') + '</b>'}
     ${a.unknown_proxy ? `<div class="bad small">⚠️ ${L('Je komt via een proxy ({ip}) die niet bij Reverse proxy IP\'s staat: RzMon behandelt je daarom als extern.', { ip: esc(a.remote_addr) })}</div>` : ''}`;
@@ -4854,7 +4856,7 @@ async function saveAccess(e, el) {
   try {
     await api('access_save', { lan_no_login: f.lan_no_login.checked, lan_as_admin: f.lan_as_admin.checked, trusted_networks: f.trusted_networks.value, trusted_proxies: f.trusted_proxies.value,
       login_lock_fails: f.login_lock_fails.value, login_lock_window: f.login_lock_window.value, login_lock_minutes: f.login_lock_minutes.value,
-      login_lock_account: f.login_lock_account.checked, login_lock_ip: f.login_lock_ip.checked });
+      login_lock_account: f.login_lock_account.checked, login_lock_ip: f.login_lock_ip.checked, session_idle: +f.session_idle.value });
     if (el && el.form === f) savedFlag(el, true);
     loadAccess();
   } catch (ex) {

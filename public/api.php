@@ -2325,6 +2325,7 @@ switch ($action) {
             'unknown_proxy' => Https::unknownProxy(),
             'lan_session' => is_lan_session(),
             'lock' => Security::lockConfig(),
+            'session_idle' => (int) (session_ttl() / 60), 'session_idle_choices' => SESSION_IDLE,
         ]);
 
     case 'access_save':
@@ -2362,6 +2363,9 @@ switch ($action) {
             save_setting('login_lock_minutes', (string) max(0, min(525600, (int) ($in['login_lock_minutes'] ?? 60))));
             save_setting('login_lock_account', !empty($in['login_lock_account']) ? '1' : '0');
             save_setting('login_lock_ip', !empty($in['login_lock_ip']) ? '1' : '0');
+        }
+        if (isset($in['session_idle']) && in_array((int) $in['session_idle'], SESSION_IDLE, true)) {
+            save_setting('session_idle_minutes', (string) (int) $in['session_idle']);
         }
         out(['ok' => true]);
 

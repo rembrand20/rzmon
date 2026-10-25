@@ -1801,7 +1801,13 @@ RzMon houdt **elke ingelogde sessie** bij: met wachtwoord, met 2FA, via een onth
 - **hoe** er is ingelogd: 🔑 wachtwoord, 🔐 wachtwoord + 2FA, 📌 onthouden apparaat, 🏠 LAN zonder wachtwoord;
 - **sinds** wanneer en **laatst actief**.
 
-Ook onthouden apparaten zonder actieve sessie staan erin (💤 *onthouden, nu niet actief*): die loggen bij hun volgende bezoek vanzelf in. Een sessie die langer niet gebruikt is dan de levensduur van een sessie (standaard 24 minuten) verloopt en verdwijnt uit de lijst.
+Ook onthouden apparaten zonder actieve sessie staan erin (💤 *onthouden, nu niet actief*): die loggen bij hun volgende bezoek vanzelf in. Een sessie die langer niet gebruikt is dan *Uitloggen na … zonder activiteit* verloopt en verdwijnt uit de lijst.
+
+**⏱️ Uitloggen na … zonder activiteit** (vanaf 1.85.0; *Instellingen → Toegang en inlogbeveiliging*): **30 minuten, 2 uur (standaard), 8 uur of 1 dag**.
+- Zolang RzMon open en zichtbaar is, blijf je ingelogd. De pagina ververst elke 20 seconden en houdt de sessie zo levend.
+- Ligt je telefoon in je zak of staat het tabblad op de achtergrond, dan telt de tijd.
+- Met **Onthoud mij op dit apparaat** (30 dagen) log je daarna vanzelf weer in. Van buiten je netwerk gaat dat alleen als het apparaat met 2FA is onthouden. Tip: zet dit op je telefoon aan.
+- Sessies staan sinds 1.85.0 in de database. Daardoor gooit de opruimtaak van het systeem (bij Debian/Ubuntu na 24 minuten) ze niet meer weg.
 
 **Waar:**
 - **Mijn account → Ingelogde apparaten**: je eigen sessies. Per apparaat **Uitloggen** (of **Vergeten**), en **Alle andere apparaten uitloggen**. De sessie waar je nu in zit blijft altijd; daarvoor gebruik je *Uitloggen* in het accountmenu.

@@ -42,6 +42,7 @@ if (setting('mqtt_enabled', '0') === '1') {
 // Verlopen blokkades (inlogbeveiliging) opheffen, met een ℹ️-melding
 try {
     Security::expire();
+    SessionStore::purge();   // sessies die te lang stil waren (1.85.0)
 } catch (Throwable $e) {
     fwrite(STDERR, 'Blokkades: ' . $e->getMessage() . "\n");
 }

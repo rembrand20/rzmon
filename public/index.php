@@ -665,6 +665,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <textarea name="trusted_proxies" rows="2" spellcheck="false"></textarea></label>
         <p class="callout"><?= t('⚠️ Staat RzMon achter een reverse proxy of port-forward waarbij álle bezoekers het IP van je router/proxy krijgen? Vul dat proxy-IP dan in bij <i>Reverse proxy IP\'s</i> en zet het <b>niet</b> bij lokale netwerken — anders kan iedereen van buitenaf zonder wachtwoord binnen.') ?></p>
         </details>
+        <h3 class="set-sub">⏱️ <?= th('Uitloggen') ?></h3>
+        <div class="lock-row"><?= th('Uitloggen na') ?> <select name="session_idle"></select> <?= th('zonder activiteit') ?></div>
+        <p class="muted small" style="margin-top:-.3rem"><?= t('Zolang RzMon open en zichtbaar is, blijf je ingelogd. Ligt je telefoon in je zak of staat de pagina op de achtergrond, dan telt de tijd. Met <b>Onthoud mij op dit apparaat</b> log je daarna vanzelf weer in (30 dagen; van buiten je netwerk alleen als het apparaat met 2FA is onthouden).') ?></p>
         <h3 class="set-sub">🔐 <?= th('Inlogbeveiliging') ?></h3>
         <div class="lock-row"><?= th('Na') ?> <input type="number" name="login_lock_fails" min="1" max="50" class="num-in"> <?= th('mislukte pogingen binnen') ?>
           <input type="number" name="login_lock_window" min="1" max="1440" class="num-in"> <?= th('minuten:') ?></div>
