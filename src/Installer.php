@@ -207,6 +207,9 @@ final class Installer
         ['hosts', 'agent_url_at', 'DATETIME NULL'],
         ['hosts', 'agent_conn', 'VARCHAR(8) NULL'],
         ['hosts', 'agent_fb_at', 'DATETIME NULL'],
+        ['hosts', 'agent_fb_notified', 'DATETIME NULL'],   // 1.78.0: wanneer de samengevatte ⚠️-melding over het reserve-adres ging
+        ['hosts', 'agent_url_pin', 'VARCHAR(200) NULL'],   // 1.78.0: hoe de agent zijn adres controleert ("-" of sha256//…)
+        ['hosts', 'agent_url_fb_pin', 'VARCHAR(200) NULL'],
         ['hosts', 'agent_https', 'VARCHAR(3) NULL'],
         ['checks', 'hb_token', 'CHAR(32) NULL'],      // geheime URL van een heartbeat-check (1.77.0)
         ['hosts', 'kind', 'VARCHAR(16) NULL'],        // soort apparaat, zelf gekozen (1.75.0); NULL = herkend

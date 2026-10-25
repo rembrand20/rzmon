@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.52.0"
+AGENT_VERSION="1.53.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -337,19 +337,54 @@ MONITOR_URL_FALLBACK=${MONITOR_URL_FALLBACK%/}
 [ "$MONITOR_URL_FALLBACK" = "$MONITOR_URL" ] && MONITOR_URL_FALLBACK=""
 url_result=$(head -c 500 "$k_dir/url.result" 2>/dev/null | tr -d '\n')
 
+# Controle per adres (agent 1.53.0, RzMon 1.78.0): in $k_dir/url.pins staat per adres hoe het certificaat gecontroleerd
+# wordt: "-" = gewoon (geldig certificaat, of http), "sha256//…" = alleen het eigen certificaat van RzMon (vastzetten;
+# met een klaargezet nieuw certificaat twee vingerafdrukken, "sha256//A;sha256//B"). RzMon geeft dit door in elk
+# versleuteld antwoord. Geen regel voor een adres: zoals vroeger (de vingerafdruk uit $k_dir/pin, of INSECURE).
+spec_re='^(-|sha256//[A-Za-z0-9+/=]{40,64}(;sha256//[A-Za-z0-9+/=]{40,64})?)$'
+url_spec() { [ -n "$1" ] && [ -r "$k_dir/url.pins" ] && awk -v u="$1" '$1 == u { print $2; exit }' "$k_dir/url.pins"; }
+url_pins_put() {  # url_pins_put <adres> <controle> […]: deze adressen bijwerken, de andere bewaren (hooguit 6)
+    local f="$k_dir/url.pins" keep="" add="" a
+    local -a urls=()
+    while [ $# -ge 2 ]; do
+        if [[ "$1" =~ ^https?://[^[:space:]\"]+$ ]] && [[ "$2" =~ $spec_re ]]; then urls+=("$1"); add+="$1 $2"$'\n'; fi
+        shift 2
+    done
+    [ ${#urls[@]} -gt 0 ] || return 0
+    if [ -r "$f" ]; then
+        while read -r a _; do
+            [[ " ${urls[*]} " == *" $a "* ]] || keep+="$(grep -m1 -F "$a " "$f")"$'\n'
+        done <"$f"
+    fi
+    (umask 077; printf '%s%s' "$keep" "$add" | grep -v '^$' | tail -n 6 >"$f.tmp" && mv -f "$f.tmp" "$f")
+}
+# curl-opties voor een adres volgens zijn controle (leeg = geen aanwijzing)
+spec_tls() {  # spec_tls <adres> <controle>: zet s_tls
+    s_tls=()
+    [[ "$1" == https://* ]] || return 0
+    if [[ "$2" == sha256//* ]] && [ "$curl_pins" = 1 ]; then s_tls=(-k --pinnedpubkey "$2")
+    elif [ "$INSECURE" = 1 ]; then s_tls=(-k); fi
+}
+
 # Overstappen naar een nieuw adres (opdracht uit een versleuteld antwoord van RzMon): eerst testen met een ondertekend
 # verzoek; alleen als het antwoord met onze eigen sleutel klopt, gaat de agent dat adres gebruiken (vanaf de volgende
 # keer). De uitkomst gaat met het volgende rapport naar RzMon.
-url_switch() {  # url_switch <nieuw adres> <reserve-adres>
-    local new=${1%/} fb=${2%/} t_tls=() out code rip body why
+url_switch() {  # url_switch <nieuw adres> <reserve-adres> [controle nieuw] [controle reserve] (agent 1.53.0)
+    local new=${1%/} fb=${2%/} n_spec=${3-} f_spec=${4-} t_tls=() out code rip body why
     [ -e "$k_dir/url.result" ] && return 0   # vorige uitkomst nog niet doorgegeven
     [[ "$new" =~ ^https?://[^[:space:]\"]+$ ]] || return 0
     [[ -z "$fb" || "$fb" =~ ^https?://[^[:space:]\"]+$ ]] || fb=""
+    [[ "$n_spec" =~ $spec_re ]] || n_spec=""
+    [[ "$f_spec" =~ $spec_re ]] || f_spec=""
     if [ -z "$kid" ]; then
         printf 'error: deze agent heeft nog geen eigen sleutel (eerst koppelen met een koppelcode)\n' >"$k_dir/url.result"
         return 0
     fi
-    [[ "$new" == https://* ]] && [ "$INSECURE" = 1 ] && t_tls=(-k)
+    if [[ "$new" == https://* && "$n_spec" == sha256//* && "$curl_pins" != 1 ]]; then
+        printf 'error: curl %s op deze server kan het certificaat van RzMon niet vastzetten (7.44 of nieuwer nodig)\n' "$c_ver" >"$k_dir/url.result"
+        return 0
+    fi
+    spec_tls "$new" "$n_spec"; t_tls=("${s_tls[@]}")
     get_auth agent_check
     # Ook het IP waarmee curl verbond: RzMon ziet daaraan of de naam hier naar de proxy wijst of via internet gaat
     out=$(curl -sS -m 15 "${t_tls[@]}" "${ga[@]}" -w '\n%{http_code} %{remote_ip}' "$new/api.php?action=agent_check" 2>&1)
@@ -358,6 +393,7 @@ url_switch() {  # url_switch <nieuw adres> <reserve-adres>
     [[ "$rip" =~ ^[0-9a-fA-F.:]+$ ]] || rip=
     if [ "$code" = 200 ] && [ -n "$get_n" ] && body=$(unseal "$out" "$get_n") && [[ "$body" == *'"ok":true'* ]]; then
         if (umask 077; printf '%s\n%s\n%s\n' "$new" "$conf_url" "$fb" >"$url_file.tmp" && mv -f "$url_file.tmp" "$url_file"); then
+            url_pins_put "$new" "$n_spec" "$fb" "$f_spec"
             printf 'ok %s%s\n' "$new" "${rip:+ [ip $rip]}" >"$k_dir/url.result"
             echo "Adres van RzMon gewijzigd naar $new${fb:+ (reserve: $fb)}" >&2
         else
@@ -380,6 +416,12 @@ c_ver=$(curl -V 2>/dev/null | awk 'NR == 1 { print $2 }'); IFS=. read -r c_v1 c_
 { [ "${c_v1:-0}" -gt 7 ] || { [ "${c_v1:-0}" = 7 ] && [ "${c_v2:-0}" -ge 44 ]; }; } 2>/dev/null && curl_pins=1   # sha256-pins: curl 7.44+
 set_tls() {
     pin=""
+    u_spec=$(url_spec "$MONITOR_URL")
+    if [ -n "$u_spec" ]; then   # agent 1.53.0: RzMon gaf voor dit adres door hoe het gecontroleerd wordt
+        spec_tls "$MONITOR_URL" "$u_spec"; tls=("${s_tls[@]}")
+        [[ "$u_spec" == sha256//* ]] && pin=${u_spec#sha256//} && pin=${pin%%;*}
+        return 0
+    fi
     [ -r "$k_dir/pin" ] && pin=$(tr -dc 'A-Za-z0-9+/=' <"$k_dir/pin" | head -c 64)
     [ -z "$pin" ] && [ ! -e "$k_dir/pin.off" ] && [[ "${PIN-}" =~ ^[A-Za-z0-9+/=]{40,64}$ ]] && pin=$PIN
     tls=()
@@ -458,6 +500,12 @@ if [ "$TEST" = 1 ]; then
     echo "RzMon agent $AGENT_VERSION – verbindingstest"
     echo "  RzMon-adres : $base$([ "$url_set_by_rzmon" = 1 ] && echo " (ingesteld vanuit RzMon; in de instellingen staat $conf_url)")"
     [ -n "$MONITOR_URL_FALLBACK" ] && echo "  Reserve     : $MONITOR_URL_FALLBACK (als het adres hierboven niet bereikbaar is)"
+    for t_u in "$base" "$MONITOR_URL_FALLBACK"; do
+        case "$(url_spec "$t_u")" in
+            sha256//*) echo "  Controle    : $t_u → 📌 alleen het eigen certificaat van RzMon (vastgezet)" ;;
+            -) [[ "$t_u" == https://* ]] && echo "  Controle    : $t_u → 🔒 geldig certificaat (gewone controle)" ;;
+        esac
+    done
     if [ -n "$kid" ]; then echo "  Sleutel     : 🔑 eigen sleutel (kenmerk $kid)"; else echo "  Token       : ${TOKEN:0:6}…${TOKEN: -4}"; fi
     echo
 
@@ -2147,7 +2195,7 @@ fi
 # Opstarttijd (epoch) voor de check Herstart in RzMon
 read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
 
 curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
@@ -2277,8 +2325,8 @@ fi
 if [ -n "$MONITOR_URL_FALLBACK" ] && { [[ " 6 7 28 35 52 56 60 " == *" $rc "* ]] || { [ "$rc" = 22 ] && [[ " 502 503 504 " == *" $h_code "* ]]; }; }; then
     echo "RzMon niet bereikbaar via $MONITOR_URL (curl $rc${h_code:+, HTTP $h_code}); via het reserve-adres $MONITOR_URL_FALLBACK" >&2
     if [ -n "$seal_n" ]; then seal "$payload_file" "$payload_file.enc" || seal_n=""; fi
-    fb_opts=(-fsS -m 20 -X POST)
-    [[ "$MONITOR_URL_FALLBACK" == https://* ]] && [ "$INSECURE" = 1 ] && fb_opts+=(-k)
+    spec_tls "$MONITOR_URL_FALLBACK" "$(url_spec "$MONITOR_URL_FALLBACK")"
+    fb_opts=(-fsS -m 20 -X POST "${s_tls[@]}")
     resp=$(curl "${fb_opts[@]}" -H "X-Agent-Fallback: 1" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$send_file" \
         -w '\n%{http_code}' "$MONITOR_URL_FALLBACK/api.php?action=agent")
     rc=$?
@@ -2306,6 +2354,17 @@ if [ "$rc" -eq 0 ]; then
     if [ -n "$seal_n" ]; then
         store_key "$resp" && rm -f "$t_dir/enc.off"
         store_pin "$resp"
+        # Per adres hoe het gecontroleerd wordt (RzMon 1.78.0): alleen voor het gewone en het reserve-adres
+        if [[ "$resp" =~ \"url_pins\":\{([^}]*)\} ]]; then
+            p_rest=${BASH_REMATCH[1]}; p_args=()
+            while [[ "$p_rest" =~ \"([^\"]+)\":\"([^\"]*)\" ]]; do
+                p_u=${BASH_REMATCH[1]//\\/}; p_s=${BASH_REMATCH[2]//\\/}
+                p_rest=${p_rest#*"${BASH_REMATCH[0]}"}
+                [ "$p_u" = "$MONITOR_URL" ] || [ "$p_u" = "$MONITOR_URL_FALLBACK" ] || continue
+                [ "$(url_spec "$p_u")" = "$p_s" ] || p_args+=("$p_u" "$p_s")
+            done
+            [ ${#p_args[@]} -gt 0 ] && url_pins_put "${p_args[@]}"
+        fi
     fi
     if [[ "$resp" =~ \"enc_key\":\"([0-9a-f]{64})\" ]] && [ -n "$seal_n" ]; then
         (umask 077; printf '%s\n' "${BASH_REMATCH[1]}" >"$enc_file.tmp" && mv -f "$enc_file.tmp" "$enc_file") && rm -f "$t_dir/enc.off"
@@ -2319,8 +2378,8 @@ if [ "$rc" -eq 0 ]; then
     fi
     # Uitkomst van een overstap is doorgegeven; vraagt RzMon om naar een ander adres over te stappen (alleen versleuteld)?
     [ -n "$url_result" ] && rm -f "$k_dir/url.result"
-    if [ -n "$seal_n" ] && [[ "$resp" =~ \"url_set\":\{\"url\":\"([^\"]+)\",\"fallback\":\"([^\"]*)\"\} ]]; then
-        url_switch "$(sed 's#\\/#/#g' <<<"${BASH_REMATCH[1]}")" "$(sed 's#\\/#/#g' <<<"${BASH_REMATCH[2]}")"
+    if [ -n "$seal_n" ] && [[ "$resp" =~ \"url_set\":\{\"url\":\"([^\"]+)\",\"fallback\":\"([^\"]*)\"(,\"pin\":\"([^\"]*)\",\"fb_pin\":\"([^\"]*)\")?\} ]]; then
+        url_switch "$(sed 's#\\/#/#g' <<<"${BASH_REMATCH[1]}")" "$(sed 's#\\/#/#g' <<<"${BASH_REMATCH[2]}")" "${BASH_REMATCH[4]//\\/}" "${BASH_REMATCH[5]//\\/}"
     fi
     # Uitkomst is doorgegeven; vraagt RzMon om bij te werken?
     [ -n "$upd_result" ] && rm -f "$upd_dir/update.result"

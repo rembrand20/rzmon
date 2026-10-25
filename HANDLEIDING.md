@@ -141,6 +141,7 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 
 **Bij openen** (*Mijn account → Weergave*, voor je account):
 - **Alles dicht** (standaard): servers, dagen, gebundelde regels en adressen staan dicht; je ziet de koppen met hun tellers en bolletjes. Wat je openklapt, blijft open tot je herlaadt. Met **zoeken of een filter** gaan de servers en dagen met treffers vanzelf open.
+- **Vandaag staat altijd open** (vanaf 1.78.0) op *Meldingen*, *IDS → Incidenten* en *IDS → Logins*, de andere dagen zijn dicht. Klap je vandaag dicht en komt er iets nieuws bij, dan gaat hij vanzelf weer open. Is er vandaag nog niets, dan staat er bovenaan een lege balk *Vandaag · geen meldingen 👌*.
 - **Slim openen**: zoals het vóór 1.71.0 werkte (vandaag open, ernstige kwetsbaarheden en lekken met wachtwoorden open, opengeklapte servers onthouden in deze browser).
 - Overal staat in het menu **⋯** *Alles openen / sluiten*.
 
@@ -1894,11 +1895,32 @@ Agents kunnen RzMon via **https** bereiken, bijvoorbeeld via je reverse proxy (S
   - Klik daarna op **↺** bij de server (als je het publieke IP al had toegestaan) en doe **🌐** opnieuw.
 - Een ✘ verdwijnt vanzelf (*✔ Gebruikt nu …*) zodra de agent toch via dat adres rapporteert.
 
-**Kolom Verbinding:** 🔒 *https via proxy*, 🔒 *https*, 🔓 *http* of ⚠️ *via reserve-adres*, met het adres, ↪ het reserve-adres en de uitkomst van de laatste overstap.
+**Kolom Verbinding:** 🔒 *https via proxy*, 🔒 *https*, 🔓 *http* of ⚠️ *via reserve-adres*, met het adres, ↪ het reserve-adres en de uitkomst van de laatste overstap. Achter elk adres staat hoe de agent het controleert (agent 1.53.0): 📌 het eigen certificaat van RzMon (vastgezet) of 🔒 een geldig certificaat.
 
-**Reserve-adres:** is het gewone adres niet bereikbaar (geen verbinding, time-out, certificaatfout, of de proxy geeft 502, 503 of 504), dan stuurt de agent zijn rapport via het reserve-adres, opnieuw versleuteld. RzMon geeft dan één ⚠️-melding *Agent via reserve-adres* (werkt de proxy nog?), en ✅ *Agent weer via het gewone adres* zodra het weer werkt. Ook in te stellen met `--fallback` bij het installeren, `MONITOR_URL_FALLBACK=` in `/etc/default/rzmon-agent`, of *Reserve-adres* in de add-on.
+**Reserve-adres:** is het gewone adres niet bereikbaar (geen verbinding, time-out, certificaatfout, of de proxy geeft 502, 503 of 504), dan stuurt de agent zijn rapport via het reserve-adres, opnieuw versleuteld. Vanaf 1.78.0 meldt RzMon dat pas als het **5 minuten** duurt, en **in één melding voor alle agents samen** (*⚠️ 12 agents via hun reserve-adres*, met de namen en het adres dat niet werkt). Een korte onderbreking, zoals een proxy die 's nachts wordt bijgewerkt, geeft dus geen meldingen. Zodra ze weer via hun gewone adres komen: één ✅-melding. Ook in te stellen met `--fallback` bij het installeren, `MONITOR_URL_FALLBACK=` in `/etc/default/rzmon-agent`, of *Reserve-adres* in de add-on.
 
 **🔒 Agents alleen via https** (schakelaar op de kaart, en per agent *algemene instelling / aan / uit* in de tabel en de Agent Manager): een agent die via gewone http binnenkomt, wordt geweigerd (⚠️ *Niet-geautoriseerde verbinding*). Een rapport via het **reserve-adres** mag wel, met de ⚠️ hierboven, zodat je niets kwijtraakt als de proxy even plat ligt. Aanzetten kan pas als geen agent meer via http komt (RzMon noemt welke nog wel); uitzetten vraagt om bevestiging. *Hoe staat het ervoor?* toont *Agents via https*.
+
+#### 🔒 Lokaal via https, zonder proxy (vanaf 1.78.0, agent 1.53.0)
+Agents in je eigen netwerk kunnen ook **rechtstreeks via https** met RzMon praten, met het **eigen certificaat van RzMon** (poort 443), zonder nginx of SWAG. De agent **zet dat certificaat vast**: hij accepteert alleen precies dat certificaat (zoals Proxmox de *fingerprint* van een Proxmox Backup Server). Er komt niets in de trust store van de server.
+
+**Zo werkt het**
+- RzMon kijkt **per adres** welk certificaat er staat en geeft de agent per adres door hoe hij het moet controleren: 📌 *vastzetten* (het eigen certificaat) of 🔒 *gewone controle* (een geldig certificaat, bv. Let's Encrypt via je proxy). Daardoor werken een rechtstreeks adres en een adres via de proxy samen als gewoon adres en reserve-adres.
+- Dat gaat altijd versleuteld met de eigen sleutel van de agent; niemand onderweg kan het vervangen.
+- Bij een overstap test de agent het nieuwe adres meteen mét de vingerafdruk.
+
+**Instellen** (*🌐 Alle agents naar een ander adres* of per agent *Agent Manager → 🌍 Adres van RzMon → Wijzigen*):
+- **Adres** en **Reserve-adres** kies je uit een lijst met wat RzMon zelf weet: de IP-adressen van RzMon (https en http), de naam die bij dat IP hoort (DNS), de hostnaam, extra namen uit het certificaat en je beheeradres. Of kies **✏️ Zelf invullen** (IP-adres of naam) en klik **Testen**.
+- Onder elk adres staat wat er op staat: 🔒📌 *het eigen certificaat van RzMon*, 🔒 *geldig certificaat*, 🔓 *http*, ✘ *onbekend certificaat* (dan weigert RzMon de overstap) of ⚠️ *vanaf RzMon niet bereikbaar*.
+- **http mag ook**; dan zegt het venster het als *Alleen via https* voor die agents aan staat.
+- **Geen reserve-adres** zet het reserve-adres uit. Je kunt ook alleen het reserve-adres veranderen.
+- **Advies:** rechtstreeks (`https://<IP van RzMon>`) als gewoon adres en je beheeradres (`https://rzmon.jouwdomein.nl`, via de DNS-rewrite naar je proxy) als reserve. Dan hangen de agents niet af van je proxy en AdGuard. Andersom (de rewrite als gewoon adres) werkt ook.
+- Voor het eigen certificaat is **agent 1.53.0** nodig; oudere agents worden overgeslagen. Een adres met een geldig certificaat werkt vanaf 1.51.0.
+- Agents buiten je netwerk (zoals een VPS) laat je gewoon op het externe adres, zonder reserve-adres.
+
+**Daarna:** komen alle agents via https binnen, dan stelt *Hoe staat het ervoor?* voor om **Agents alleen via https** aan te zetten (knop **Aanzetten**).
+
+Op de server staat de controle per adres in `/var/lib/rzmon-agent/url.pins` (add-on: `/data/rzmon-keys/url.pins`); `rzmon-agent-setup --test` toont het als *Controle*.
 
 #### 🔐 Het certificaat voor de agents bekijken en vernieuwen (vanaf 1.70.0)
 In de kaart **Beveiligde verbinding met de agents** staat de knop **🔐 Certificaat bekijken**. Het venster toont:
@@ -1916,10 +1938,14 @@ In de kaart **Beveiligde verbinding met de agents** staat de knop **🔐 Certifi
 - met automatisch de hostnaam, `localhost`, alle IP-adressen van de server, het beheeradres en de Basis-URL; **extra namen of IP-adressen** vul je in het venster aan;
 - het oude certificaat blijft als reservekopie naast het origineel staan (`….rzmon-<datum>`); klopt de configuratie van de webserver daarna niet of mislukt herladen, dan wordt het oude teruggezet;
 - **agents gaan vanzelf mee**: hun vastgezette certificaat klopt niet meer, dus ze vragen RzMon opnieuw, controleren het antwoord met hun eigen sleutel, en onthouden pas dan de nieuwe vingerafdruk. Je hoeft niets opnieuw te koppelen;
+- **in twee stappen** (vanaf 1.78.0) als er agents (1.53.0+) zijn die het eigen certificaat vastzetten. RzMon **zet het nieuwe eerst klaar** (naast het oude, `….next`) en geeft de agents de nieuwe vingerafdruk erbij; ze accepteren dan het oude én het nieuwe. Zodra ze die **allemaal** hebben (uiterlijk na **7 dagen**) gaat RzMon het nieuwe gebruiken. Zo weigert geen enkele agent het certificaat. In het venster staat *Nieuw certificaat klaargezet* met per agent ✔ of ⏳, en de knoppen **Nu wisselen** en **Annuleren**. Met *Meteen wisselen* bij *Vernieuwen* sla je het klaarzetten over;
 - het werk gebeurt als root door de **hulpdienst** (`rzmon-cert.path`, geïnstalleerd door `install-helper.sh`, ook bij elke update met `install-rocky.sh`). Zonder hulpdienst, in de terminal:
   ```bash
-  sudo php /var/www/rzmon/install/install.php --renew-cert
+  sudo php /var/www/rzmon/install/install.php --renew-cert             # met vastgezette agents: klaarzetten
+  sudo php /var/www/rzmon/install/install.php --renew-cert --activate  # het klaargezette gaan gebruiken
+  sudo php /var/www/rzmon/install/install.php --renew-cert --now       # meteen een nieuw certificaat
   ```
+  Zonder hulpdienst stuurt RzMon een ℹ️-melding met het commando zodra alle agents de nieuwe vingerafdruk hebben.
 - het werkt met de virtuele host van `install-rocky.sh` (`/etc/httpd/conf.d/rzmon.conf`). Bij een andere opstelling zet je de paden in `config.php`: `'ssl_cert' => '/pad/naar/cert.crt', 'ssl_key' => '/pad/naar/cert.key'`.
 
 RzMon controleert dit certificaat ook **elke dag**: ℹ️ 14 dagen voordat het verloopt, ⚠️ als het verlopen is.
@@ -1980,6 +2006,19 @@ Komen er verzoeken met proxy-kopteksten (`X-Forwarded-For` e.d.) van een adres d
 
 #### Hoe staat het ervoor?
 Nieuwe punten: *Beheer via https*, *Certificaat* (verloopt over X dagen, of het probleem), *Lokale DNS-rewrite*, *Reverse proxy* (onbekende proxy, of een proxy die geen https meldt) en *2FA van buiten*.
+
+Vanaf 1.78.0 ook (sommige met een knop om het meteen te regelen):
+- **Proxy → RzMon via http**: je proxy draait op een andere machine en stuurt het verkeer via http door naar RzMon. Dan gaan wachtwoorden en sessies het laatste stuk onversleuteld over je netwerk. RzMon toont de regels voor SWAG (`rzmon.subdomain.conf`) om te kopiëren, met het IP-adres van RzMon al ingevuld:
+  ```nginx
+  set $upstream_app 192.168.1.10;
+  set $upstream_port 443;
+  set $upstream_proto https;
+  proxy_pass $upstream_proto://$upstream_app:$upstream_port;
+  ```
+  Draait de proxy op dezelfde machine, dan is er niets aan de hand en zie je dit punt niet.
+- **Inloggen via http**: staat *Inloggen via http weigeren* uit, dan kan een wachtwoord leesbaar over je (wifi-)netwerk gaan. Knop **Weigeren** (alleen als je RzMon nu via https open hebt, anders sluit je jezelf buiten).
+- **Tip: overal hetzelfde adres** (grijs, telt niet mee): je opent RzMon via een IP-adres terwijl er een beheeradres is. Laat je DNS (AdGuard: *Filters → DNS-herschrijvingen*) dat adres naar het LAN-IP van je proxy wijzen; dan gebruik je thuis en onderweg hetzelfde adres met een geldig certificaat, zonder iets op je telefoon te installeren.
+- **Agents alleen via https**: alle agents komen al via https binnen; knop **Aanzetten**.
 
 ### 10.3 Datalekken (Have I Been Pwned, vanaf 1.69.0)
 

@@ -190,15 +190,17 @@ function agent_url_report(array $host, array $in, ?string $agentVersion, bool $e
     $urlFb = AgentCrypto::validUrl((string) ($in['url_fallback'] ?? '')) ? (string) $in['url_fallback'] : null;
     q('UPDATE hosts SET agent_conn = ?, agent_url = COALESCE(?, agent_url), agent_url_fb = ? WHERE id = ?',
         [$conn, $url, $url !== null ? $urlFb : null, $host['id']]);
+    // Via het reserve-adres: alleen bijhouden; de melding gaat pas na 5 minuten, voor alle agents samen (AgentCrypto::fallbackCron)
     if ($fb && empty($host['agent_fb_at'])) {
         q('UPDATE hosts SET agent_fb_at = ? WHERE id = ?', [now(), $host['id']]);
-        Monitor::notifySystem('⚠️ ' . t('Agent via reserve-adres: {name}', ['name' => $host['name']]),
-            t('De agent op {name} bereikt RzMon niet via {url} en rapporteert via zijn reserve-adres. Werkt de reverse proxy (bv. SWAG) nog?',
-                ['name' => $host['name'], 'url' => $url ?? '?']), STATUS_WARN, 'problem');
     } elseif (!$fb && !empty($host['agent_fb_at'])) {
         q('UPDATE hosts SET agent_fb_at = NULL WHERE id = ?', [$host['id']]);
-        Monitor::notifySystem('✅ ' . t('Agent weer via het gewone adres: {name}', ['name' => $host['name']]),
-            t('De agent op {name} rapporteert weer via {url}.', ['name' => $host['name'], 'url' => $url ?? '?']), STATUS_OK, 'recovery');
+    }
+    // Hoe de agent (1.53.0) zijn adressen controleert: "-" (gewoon) of de vastgezette vingerafdruk(ken)
+    $specOk = static fn($s) => is_string($s) && ($s === '-' || preg_match('~^sha256//[A-Za-z0-9+/=]{40,64}(;sha256//[A-Za-z0-9+/=]{40,64})?$~', $s));
+    if (array_key_exists('url_pin', $in)) {
+        q('UPDATE hosts SET agent_url_pin = ?, agent_url_fb_pin = ? WHERE id = ?',
+            [$specOk($in['url_pin']) ? $in['url_pin'] : null, $specOk($in['url_fb_pin'] ?? null) ? $in['url_fb_pin'] : null, $host['id']]);
     }
     $h = q('SELECT agent_url_want, agent_url_want_fb, agent_url_status FROM hosts WHERE id = ?', [$host['id']])->fetch();
     $result = trim((string) ($in['url_result'] ?? ''));
@@ -225,14 +227,21 @@ function agent_url_report(array $host, array $in, ?string $agentVersion, bool $e
     if (!$fb && $url !== null && !$h['agent_url_want'] && preg_match('/^✘ (\S+) /u', (string) $h['agent_url_status'], $m) && rtrim($m[1], '/') === $url) {
         q('UPDATE hosts SET agent_url_status = ?, agent_url_at = ? WHERE id = ?', ['✔ ' . t('Gebruikt nu {url}', ['url' => $url]), now(), $host['id']]);
     }
-    if (!$h['agent_url_want'] || $h['agent_url_want'] === $url || !$encrypted || !$agentVersion || version_compare($agentVersion, AgentCrypto::URL_MIN, '<')) {
-        if ($h['agent_url_want'] && $h['agent_url_want'] === $url) {
+    $same = $h['agent_url_want'] && $h['agent_url_want'] === $url && (string) $h['agent_url_want_fb'] === (string) ($urlFb ?? '');
+    if (!$h['agent_url_want'] || $same || !$encrypted || !$agentVersion || version_compare($agentVersion, AgentCrypto::URL_MIN, '<')) {
+        if ($same) {
             q('UPDATE hosts SET agent_url_status = ?, agent_url_at = ?, agent_url_want = NULL, agent_url_want_fb = NULL WHERE id = ?',
                 ['✔ ' . t('Gebruikt al {url}', ['url' => $url]), now(), $host['id']]);
         }
         return null;
     }
-    return ['url' => $h['agent_url_want'], 'fallback' => (string) $h['agent_url_want_fb']];
+    $set = ['url' => $h['agent_url_want'], 'fallback' => (string) $h['agent_url_want_fb']];
+    if (version_compare($agentVersion, AgentCrypto::PINURL_MIN, '>=')) {
+        // "" = geen aanwijzing (de agent doet het zoals vroeger); bij een overstap test hij meteen met de vingerafdruk
+        $set['pin'] = (string) AgentCrypto::urlSpec($set['url'], false);
+        $set['fb_pin'] = $set['fallback'] !== '' ? (string) AgentCrypto::urlSpec($set['fallback'], false) : '';
+    }
+    return $set;
 }
 
 /**
@@ -649,6 +658,19 @@ if ($action === 'agent') {
     if ($u = agent_url_report($host, $in, $agentVersion, $encrypted)) {
         $resp['url_set'] = $u;
     }
+    // Agent 1.53.0: per adres hoe hij het moet controleren (vastzetten of gewoon); alleen versleuteld
+    if ($encrypted && $agentVersion && version_compare($agentVersion, AgentCrypto::PINURL_MIN, '>=')) {
+        $pins = [];
+        foreach ([(string) ($in['url'] ?? ''), (string) ($in['url_fallback'] ?? '')] as $u2) {
+            $u2 = rtrim($u2, '/');
+            if ($u2 !== '' && AgentCrypto::validUrl($u2) && ($s = AgentCrypto::urlSpec($u2, false)) !== null) {
+                $pins[$u2] = $s;
+            }
+        }
+        if ($pins) {
+            $resp['url_pins'] = $pins;
+        }
+    }
     // Heartbeats van rzmon-hb op de server (agent 1.52.0); namen zonder check gaan terug naar het log van de agent
     if (!empty($in['hb']) && is_array($in['hb'])) {
         $unknown = Heartbeat::fromAgent($host, $in['hb']);
@@ -904,7 +926,7 @@ switch ($action) {
 
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen,
-                    agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at,
+                    agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at, agent_url_pin, agent_url_fb_pin,
                     enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
@@ -1176,8 +1198,9 @@ switch ($action) {
     // Instellingen → Hoe staat het ervoor?: punten om na te lopen, elk met het onderdeel waar je het regelt
     case 'settings_health':
         $items = [];
-        $add = static function (string $key, string $st, string $title, string $detail, string $section) use (&$items) {
-            $items[] = ['key' => $key, 'status' => $st, 'title' => $title, 'detail' => $detail, 'section' => $section];
+        // $extra (1.78.0): act + label (knop om het meteen te regelen) of code (om te kopiëren)
+        $add = static function (string $key, string $st, string $title, string $detail, string $section, array $extra = []) use (&$items) {
+            $items[] = ['key' => $key, 'status' => $st, 'title' => $title, 'detail' => $detail, 'section' => $section] + $extra;
         };
         $po = setting('pushover_enabled', '0') === '1' && setting('pushover_user', '') !== '' && setting('pushover_token', '') !== '';
         $mail = setting('email_enabled', '0') === '1' && setting('smtp_host', '') !== '' && setting('mail_to', '') !== '';
@@ -1227,6 +1250,12 @@ switch ($action) {
                 ? t('via het reserve-adres: {names} (werkt de reverse proxy?)', ['names' => implode(', ', $viaFb)])
                 : ($viaHttp ? t('{n} nog via http: {names}', ['n' => count($viaHttp), 'names' => implode(', ', array_slice($viaHttp, 0, 5)) . (count($viaHttp) > 5 ? ' …' : '')])
                     : t('alle agents via https')), 'enc');
+            // Alle agents al via https, maar "alleen via https" staat nog uit (1.78.0): voorstellen om het aan te zetten
+            if (!$viaFb && !$viaHttp && setting('agent_https_only', '0') !== '1') {
+                $add('agent_https_only', 'warn', t('Agents alleen via https'),
+                    t('alle agents verbinden al via https; zet "alleen via https" aan, dan weigert RzMon rapporten die via http komen'), 'enc',
+                    ['act' => 'agent_https_only', 'label' => t('Aanzetten')]);
+            }
             $newip = array_column(array_filter($agents, static fn($h) => !empty($h['agent_ip_new'])), 'name');
             if ($newip) {
                 $add('agent_ip', 'bad', t('Agent van een nieuw IP-adres'), t('geweigerd, wacht op je toestemming: {names}', ['names' => implode(', ', $newip)]), 'enc');
@@ -1250,6 +1279,29 @@ switch ($action) {
                 ? t('{host} is vanaf de RzMon-server niet te vinden', ['host' => Https::adminHost()])
                 : ($hs['dns']['private'] ? t('{host} wijst intern naar {ip}', ['host' => Https::adminHost(), 'ip' => $ips])
                     : t('{host} wijst naar {ip} (openbaar): zet een DNS-rewrite naar het LAN-IP van je proxy', ['host' => Https::adminHost(), 'ip' => $ips])), 'https');
+        }
+        // De proxy stuurt door via http (1.78.0): het laatste stuk (proxy → RzMon) is dan onversleuteld
+        $leg = json_decode((string) setting('proxy_http_leg', ''), true) ?: [];
+        $legOk = (int) ((json_decode((string) setting('proxy_https_leg', ''), true) ?: [])['at'] ?? 0);
+        if ((int) ($leg['at'] ?? 0) > time() - 7 * 86400 && (int) $leg['at'] > $legOk) {
+            $sip = Https::serverIp() ?: (OwnCert::serverIps()[0] ?? t('<IP-adres van RzMon>'));
+            $add('proxy_leg', 'warn', t('Proxy → RzMon via http'),
+                t('je proxy ({ip}) stuurt het verkeer via http door naar RzMon: wachtwoorden en sessies gaan het laatste stuk onversleuteld over je netwerk. Laat de proxy doorsturen naar https (voor SWAG: deze regels in rzmon.subdomain.conf)', ['ip' => $leg['ip']]),
+                'https', ['code' => "set \$upstream_app $sip;\nset \$upstream_port 443;\nset \$upstream_proto https;\nproxy_pass \$upstream_proto://\$upstream_app:\$upstream_port;"]);
+        }
+        // Inloggen via http (1.78.0): de knop zet "Inloggen via http weigeren" aan (alleen als je nu via https zit)
+        if (setting('http_login_block', '0') !== '1') {
+            $add('http_login', 'warn', t('Inloggen via http'),
+                t('toegestaan: wie RzMon via http opent, stuurt zijn wachtwoord leesbaar over het netwerk (ook via wifi)')
+                . (Https::isHttps() ? '' : ' · ' . t('open RzMon via https om het hier met één klik te weigeren')), 'https',
+                Https::isHttps() ? ['act' => 'http_login_block', 'label' => t('Weigeren')] : []);
+        }
+        // Tip (1.78.0): via een IP-adres geopend terwijl er een beheeradres is: overal hetzelfde adres met een DNS-rewrite
+        $vh = Https::host();
+        if ($adminUrl !== '' && filter_var($vh, FILTER_VALIDATE_IP) && ip_in_list($vh, PRIVATE_NETWORKS)) {
+            $add('split_dns', 'info', t('Tip: overal hetzelfde adres'),
+                t('je opent RzMon nu via {ip}. Laat je DNS (bv. AdGuard: Filters → DNS-herschrijvingen) {host} naar het LAN-IP van je proxy wijzen; dan gebruik je thuis en onderweg {url}, met een geldig certificaat en zonder waarschuwingen',
+                    ['ip' => $vh, 'host' => Https::adminHost(), 'url' => $adminUrl]), 'https');
         }
         $pu = json_decode((string) setting('proxy_unknown', ''), true) ?: [];
         if ((int) ($pu['at'] ?? 0) > time() - 7 * 86400 && !ip_in_list((string) $pu['ip'], parse_list((string) setting('trusted_proxies', '')))) {
@@ -1291,11 +1343,11 @@ switch ($action) {
             'hosts' => array_map(static fn($h) => $h + ['key_days' => $h['agent_key_at'] ? (int) floor((time() - strtotime($h['agent_key_at'])) / 86400) : null],
                 q("SELECT id, name, agent_version, agent_seen, agent_ip, enc, enc_seen, agent_key_seen, agent_key_at, agent_ips, agent_ip_new, agent_ip_new_at, pin_mode, ip_lock,
                           agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at,
-                          (pair_until > NOW()) AS pairing FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll()),
+                          agent_url_pin, agent_url_fb_pin, (pair_until > NOW()) AS pairing FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll()),
             'conn' => ['key_days' => (int) setting('agent_key_days', '30'), 'pin' => setting('agent_pin', '1') === '1', 'ip_lock' => setting('agent_ip_lock', '1') === '1',
                 'https_only' => setting('agent_https_only', '0') === '1', 'url_min' => AgentCrypto::URL_MIN, 'base_url' => rtrim((string) config('base_url', ''), '/'),
                 'pin_value' => AgentCrypto::pin(false, false, ['pin_mode' => 'on']), 'https' => Https::isHttps(),
-                'ownkey_min' => AgentCrypto::OWNKEY_MIN],
+                'ownkey_min' => AgentCrypto::OWNKEY_MIN, 'pinurl_min' => AgentCrypto::PINURL_MIN, 'admin_url' => Https::adminUrl()],
             'blocks' => Security::blocks(),
             'my_ip' => client_ip(),
         ]);
@@ -1397,6 +1449,49 @@ switch ($action) {
         AgentCommands::audit($user['username'], 'Beveiligde verbinding per server', "{$h['name']}: vastzetten " . ($new['pin_mode'] ?? 'algemeen') . ', IP-slot ' . ($new['ip_lock'] ?? 'algemeen'));
         out(['ok' => true]);
 
+    // Adressen om uit te kiezen (1.78.0): IP-adressen van RzMon (https met het eigen certificaat, of http), de namen die
+    // daarbij horen (DNS), de hostnaam, eigen namen uit het certificaat en het beheeradres; elk met wat er op staat
+    case 'agent_url_options':
+        $path = rtrim((string) parse_url((string) config('base_url', ''), PHP_URL_PATH), '/');
+        $cand = [];
+        $ips = OwnCert::serverIps();
+        if (($sip = Https::serverIp()) !== '' && !in_array($sip, $ips, true)) {
+            array_unshift($ips, $sip);
+        }
+        foreach (array_slice($ips, 0, 4) as $ip) {
+            $h = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? "[$ip]" : $ip;
+            $cand["https://$h$path"] = 'ip';
+            $rev = @gethostbyaddr($ip);
+            if (is_string($rev) && $rev !== $ip && OwnCert::validName($rev) && str_contains($rev, '.')) {
+                $cand["https://$rev$path"] = 'dns';
+            }
+        }
+        $hn = strtolower((string) gethostname());
+        if (str_contains($hn, '.') && OwnCert::validName($hn)) {
+            $cand["https://$hn$path"] = 'host';
+        }
+        foreach (OwnCert::extraNames() as $n) {
+            if (!str_starts_with($n, '*') && !filter_var($n, FILTER_VALIDATE_IP)) {
+                $cand['https://' . strtolower($n) . $path] = 'cert';
+            }
+        }
+        if (Https::adminUrl() !== '') {
+            $cand[Https::adminUrl()] = 'admin';
+        }
+        foreach (array_slice($ips, 0, 4) as $ip) {
+            $cand['http://' . (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? "[$ip]" : $ip) . $path] = 'ip';
+        }
+        $list = [];
+        foreach (array_slice($cand, 0, 12, true) as $u => $src) {
+            $list[] = ['url' => $u, 'source' => $src] + AgentCrypto::urlTrust($u);
+        }
+        out(['options' => $list, 'pinurl_min' => AgentCrypto::PINURL_MIN, 'url_min' => AgentCrypto::URL_MIN]);
+
+    // Een adres testen (vanaf RzMon): welk certificaat staat erop?
+    case 'agent_url_test':
+        $u = rtrim(trim((string) (input()['url'] ?? '')), '/');
+        out(['url' => $u] + AgentCrypto::urlTrust($u, true));
+
     // Adres van RzMon voor een agent (of alle agents) wijzigen: de agent test het nieuwe adres eerst (1.72.0)
     case 'agent_url_set':
         $in = input();
@@ -1408,12 +1503,24 @@ switch ($action) {
         if ($fb !== '' && (!AgentCrypto::validUrl($fb) || $fb === $url)) {
             out(['error' => t('Ongeldig reserve-adres (leeg laten mag)')], 422);
         }
+        // Wat staat er op die adressen (1.78.0)? Een onbekend certificaat: weigeren. Eigen certificaat: agent 1.53.0 nodig.
+        $own = [];
+        foreach (array_filter([$url, $fb]) as $u) {
+            $tr = AgentCrypto::urlTrust($u, true);
+            if ($tr['kind'] === 'other') {
+                out(['error' => t('Op {url} staat een onbekend certificaat (niet van RzMon en niet vertrouwd); de agents zouden het weigeren', ['url' => $u])], 422);
+            }
+            if ($tr['kind'] === 'own') {
+                $own[] = $u;
+            }
+        }
         $all = ($in['id'] ?? '') === 'all';
-        $rows = q("SELECT id, name, agent_version, agent_url FROM hosts WHERE mode = 'agent'" . ($all ? '' : ' AND id = ?'), $all ? [] : [(int) ($in['id'] ?? 0)])->fetchAll();
+        $rows = q("SELECT id, name, agent_version, agent_url, agent_url_fb FROM hosts WHERE mode = 'agent'" . ($all ? '' : ' AND id = ?'), $all ? [] : [(int) ($in['id'] ?? 0)])->fetchAll();
         $n = 0;
         $skip = [];
+        $min = $own ? AgentCrypto::PINURL_MIN : AgentCrypto::URL_MIN;
         foreach ($rows as $r) {
-            if (!$r['agent_version'] || version_compare($r['agent_version'], AgentCrypto::URL_MIN, '<')) {
+            if (!$r['agent_version'] || version_compare($r['agent_version'], $min, '<')) {
                 $skip[] = $r['name'];
                 continue;
             }
@@ -1424,7 +1531,7 @@ switch ($action) {
             $n++;
         }
         if (!$n) {
-            out(['error' => t('Agent {v} of nieuwer nodig (eerst bijwerken)', ['v' => AgentCrypto::URL_MIN])], 422);
+            out(['error' => t('Agent {v} of nieuwer nodig (eerst bijwerken)', ['v' => $min])], 422);
         }
         AgentCommands::audit($user['username'], 'Adres van RzMon voor agents', ($all ? 'alle' : $rows[0]['name']) . ": $url" . ($fb !== '' ? " (reserve $fb)" : ''));
         out(['ok' => true, 'n' => $n, 'skipped' => $skip]);
@@ -1471,9 +1578,10 @@ switch ($action) {
             'base' => $base, 'scheme' => $scheme ?: null, 'agent_cert' => $agentCert, 'local' => $local,
             'own' => $agentCert && !empty($local['fp']) && $agentCert['ok'] && $agentCert['fp'] === $local['fp'],
             'pin_on' => setting('agent_pin', '1') === '1', 'pin' => $pin,
-            'hosts' => q("SELECT id, name, agent_version, agent_seen, pin_mode, agent_pin_sent, agent_pin_sent_at FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll(),
+            'hosts' => q("SELECT id, name, agent_version, agent_seen, pin_mode, agent_pin_sent, agent_pin_sent_at, agent_url, agent_url_pin, agent_url_fb_pin FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll(),
             'paths' => OwnCert::paths(), 'via' => OwnCert::via(), 'cli' => OwnCert::cliCommand(),
             'names' => OwnCert::names(), 'extra' => implode("\n", OwnCert::extraNames()), 'days' => OwnCert::DAYS, 'warn_days' => Https::WARN_DAYS,
+            'next' => OwnCert::next(), 'pinned' => OwnCert::pinnedAgents(), 'next_days' => OwnCert::NEXT_DAYS,
         ]);
 
     case 'agent_cert_names':
@@ -1496,25 +1604,38 @@ switch ($action) {
         AgentCommands::audit($user['username'], 'Certificaat van RzMon gedownload', $c['fp'] ?? '');
         out(['ok' => true, 'pem' => $c['pem'], 'name' => (preg_replace('/[^a-z0-9.-]/i', '_', (string) gethostname()) ?: 'rzmon') . '.crt']);
 
+    // Vernieuwen (1.78.0): met vastgezette agents eerst klaarzetten (prepare), anders meteen (renew). "Nu wisselen":
+    // activate (het klaargezette certificaat) of now (meteen een nieuw, zonder te wachten op de agents).
     case 'agent_cert_renew':
-        $confirm('VERNIEUWEN');
+    case 'agent_cert_activate':
+        $in = input();
+        $confirm($action === 'agent_cert_activate' ? 'WISSELEN' : 'VERNIEUWEN');
+        $what = $action === 'agent_cert_activate' ? 'activate' : (!empty($in['now']) || !OwnCert::pinnedAgents() ? 'renew' : 'prepare');
         $via = OwnCert::via();
         if ($via === 'helper') {
             // Via de hulpdienst (als root): verzoek neerzetten, het resultaat komt binnen een paar seconden
             $h = Installer::HELPER_DIR;
             @unlink("$h/cert.result");
             $nonce = bin2hex(random_bytes(16));
-            if (file_put_contents("$h/cert.request", json_encode(['nonce' => $nonce, 'by' => $user['username']])) === false) {
+            if (file_put_contents("$h/cert.request", json_encode(['nonce' => $nonce, 'by' => $user['username'], 'action' => $what])) === false) {
                 out(['error' => t('Kan geen verzoek neerzetten in {dir}', ['dir' => $h])], 500);
             }
             $_SESSION['cert_renew'] = ['nonce' => $nonce, 'at' => time()];
             out(['ok' => true, 'pending' => true]);
         }
         if ($via === 'direct') {
-            $r = OwnCert::renew($user['username']);
+            $r = $what === 'activate' ? OwnCert::activate($user['username']) : ($what === 'prepare' ? OwnCert::prepare($user['username']) : OwnCert::renew($user['username']));
             out($r, $r['ok'] ? 200 : 422);
         }
-        out(['error' => t('Vernieuwen kan hier alleen als root. Voer op de server uit: {cmd}', ['cmd' => OwnCert::cliCommand()]), 'cli' => OwnCert::cliCommand()], 409);
+        $cmd = OwnCert::cliCommand() . ($what === 'activate' ? ' --activate' : ($what === 'renew' ? ' --now' : ''));
+        out(['error' => t('Vernieuwen kan hier alleen als root. Voer op de server uit: {cmd}', ['cmd' => $cmd]), 'cli' => $cmd], 409);
+
+    case 'agent_cert_cancel':
+        if (OwnCert::next()) {
+            save_setting('own_cert_next', '');
+            AgentCommands::audit($user['username'], 'Klaargezet certificaat van RzMon geannuleerd', '');
+        }
+        out(['ok' => true]);
 
     case 'agent_cert_renew_status':
         $p = $_SESSION['cert_renew'] ?? null;

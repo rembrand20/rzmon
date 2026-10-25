@@ -9,7 +9,8 @@
 //         sudo php install/install.php --unblock-all   (alle blokkades opheffen, bv. als je jezelf buitensloot)
 //         sudo php install/install.php --unlock <gebruikersnaam>   (account deblokkeren na te veel mislukte logins)
 //         sudo php install/install.php --https-off   (beheer weer via http: "alleen https" en "inloggen via http weigeren" uit)
-//         sudo php install/install.php --renew-cert   (eigen certificaat van RzMon op poort 443 vernieuwen, 2 jaar geldig)
+//         sudo php install/install.php --renew-cert   (eigen certificaat van RzMon op poort 443 vernieuwen, 2 jaar geldig;
+//                                                      met vastgezette agents eerst klaarzetten, --activate wisselt, --now meteen)
 //         sudo php install/install.php --restore <zip> [--with-config] [--password=…]
 //              (database terugzetten; met --with-config, of op een nieuwe server zonder config.php,
 //               ook config.php plus de databasegebruiker)
@@ -239,6 +240,8 @@ if (($argv[1] ?? '') === '--renew-cert') {
     $helper = in_array('--helper', $argv, true);
     $by = 'terminal';
     $nonce = '';
+    // Wat te doen (1.78.0): renew (meteen), prepare (klaarzetten; de agents krijgen eerst de vingerafdruk) of activate
+    $what = in_array('--activate', $argv, true) ? 'activate' : (in_array('--now', $argv, true) || !OwnCert::pinnedAgents() ? 'renew' : 'prepare');
     if ($helper) {
         $req = Installer::HELPER_DIR . '/cert.request';
         $d = json_decode((string) @file_get_contents($req), true) ?: [];
@@ -248,8 +251,9 @@ if (($argv[1] ?? '') === '--renew-cert') {
             exit(0);
         }
         $by = mb_substr((string) preg_replace('/[^\w.@-]/u', '', (string) ($d['by'] ?? '')), 0, 64) ?: 'webinterface';
+        $what = in_array($d['action'] ?? '', ['renew', 'prepare', 'activate'], true) ? $d['action'] : 'renew';
     }
-    $r = OwnCert::renew($by);
+    $r = $what === 'activate' ? OwnCert::activate($by) : ($what === 'prepare' ? OwnCert::prepare($by) : OwnCert::renew($by));
     if ($helper) {
         $file = Installer::HELPER_DIR . '/cert.result';
         file_put_contents($file, json_encode($r + ['nonce' => $nonce]));
@@ -262,6 +266,11 @@ if (($argv[1] ?? '') === '--renew-cert') {
     if (!$r['ok']) {
         fwrite(STDERR, "Mislukt: {$r['error']}\n");
         exit(1);
+    }
+    if (!empty($r['prepared'])) {
+        exit('Nieuw certificaat klaargezet (geldig tot ' . date('d-m-Y', $r['to']) . ') voor: ' . implode(', ', $r['names']) . ".\n"
+            . "De agents krijgen eerst de nieuwe vingerafdruk. RzMon meldt wanneer ze die allemaal hebben (uiterlijk " . date('d-m-Y', $r['deadline']) . ");\n"
+            . "wissel dan met: sudo php install/install.php --renew-cert --activate  (meteen wisselen: --now)\n");
     }
     exit('Nieuw certificaat, geldig tot ' . date('d-m-Y', $r['to']) . ' voor: ' . implode(', ', $r['names']) . ".\n"
         . "Agents met een vastgezet certificaat krijgen de nieuwe vingerafdruk vanzelf. Je browser vraagt bij https://<IP> opnieuw om \"toch doorgaan\".\n");

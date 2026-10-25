@@ -1460,3 +1460,14 @@ details.adv[open] { padding-bottom: .6rem; }
 .hb-box { background: var(--card-2); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .8rem; margin: .4rem 0 .8rem; }
 .hb-cmd { display: flex; align-items: center; gap: .4rem; margin: .15rem 0; }
 .hb-cmd code { flex: 1; overflow-wrap: anywhere; font-size: .78rem; background: var(--card); padding: .25rem .45rem; border-radius: 6px; }
+
+/* Hoe staat het ervoor: knop of code bij een punt; adresvenster van de agents (1.78.0) */
+.ov-cell { display: grid; gap: .3rem; }
+.ov-extra { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: 0 .8rem .2rem 3.1rem; }
+.ov-extra .copy-line { flex: 1 1 100%; }
+.url-custom { display: flex; gap: .4rem; margin-top: .35rem; }
+.url-custom input { flex: 1; }
+.url-trust { margin: .3rem 0 .2rem; min-height: 1.1em; }
+/* Vandaag zonder meldingen (1.78.0) */
+.alert-day.today-empty .ad-sum { display: flex; align-items: center; gap: .8rem; padding: .6rem 1rem; font-weight: 700; flex-wrap: wrap; }
+.alert-day.today-empty .ad-sum .muted { font-weight: 400; }

@@ -72,6 +72,17 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, 'Certificaat: ' . $e->getMessage() . "\n");
 }
+// Agents via hun reserve-adres: één samengevatte melding na 5 minuten; klaargezet certificaat wisselen (1.78.0)
+try {
+    if ($msg = AgentCrypto::fallbackCron()) {
+        echo date('c') . " $msg\n";
+    }
+    if ($msg = OwnCert::cron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Agents/certificaat: ' . $e->getMessage() . "\n");
+}
 // Datalekken (Have I Been Pwned): domein en e-mailadressen, dagelijks, gespreid (Instellingen → Beveiliging → Datalekken)
 try {
     if ($msg = Hibp::cron()) {

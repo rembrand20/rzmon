@@ -5,6 +5,12 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.53.0 – 2026-10-25
+- **Controle per adres** (RzMon 1.78.0): de agent onthoudt per adres van RzMon hoe hij het certificaat controleert: 📌 alleen het eigen certificaat van RzMon (vastgezet) of 🔒 gewone controle (bv. Let's Encrypt via je proxy). Daardoor kunnen het gewone adres en het reserve-adres elk een ander soort certificaat hebben, bv. `https://192.168.1.10` (eigen certificaat) en `https://rzmon.jouwdomein.nl` (via de proxy). Het staat in `url.pins` naast de sleutel.
+- Bij een overstap naar een ander adres test de agent meteen met de juiste controle; zo kan hij ook rechtstreeks naar https op RzMon zelf.
+- Een klaargezet nieuw certificaat van RzMon wordt vooraf geaccepteerd (twee vingerafdrukken), zodat het wisselen zonder onderbreking gaat.
+- `--test` toont per adres hoe het gecontroleerd wordt.
+
 ## 1.52.0 – 2026-10-25
 - Nieuw commando **`rzmon-hb`** voor heartbeat-checks (RzMon 1.77.0): `rzmon-hb NAAM [ok|start|fail] [bericht] [--value GETAL]`. Scripts en cronjobs melden zich zo bij RzMon; de melding gaat versleuteld mee met het volgende rapport van de agent, en blijft bewaard als RzMon even niet bereikbaar is. Het installatiescript zet `rzmon-hb` in `/usr/local/bin` (op TrueNAS: `rzmon-agent --hb NAAM ok`).
 - In de Home Assistant-add-on is er geen `rzmon-hb`; gebruik daar de geheime URL van de check (zie de handleiding).

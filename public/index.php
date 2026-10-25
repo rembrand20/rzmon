@@ -846,7 +846,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="view-row">
           <span class="view-label"><?= th('Bij openen') ?> <span class="hint"><?= th('(voor je account)') ?></span></span>
           <div class="seg" role="group" aria-label="<?= th('Bij openen') ?>">
-            <button type="button" class="seg-btn" data-view-open="closed" title="<?= th('Alle servers, dagen en regels dicht; wat je openklapt blijft open tot je herlaadt') ?>"><?= th('Alles dicht') ?></button>
+            <button type="button" class="seg-btn" data-view-open="closed" title="<?= th('Alle servers en regels dicht, en alle dagen behalve vandaag; wat je openklapt blijft open tot je herlaadt') ?>"><?= th('Alles dicht') ?></button>
             <button type="button" class="seg-btn" data-view-open="smart" title="<?= th('Vandaag en ernstige dingen open; opengeklapte servers worden onthouden') ?>"><?= th('Slim openen') ?></button>
           </div>
         </div>

@@ -336,6 +336,134 @@ final class AgentCrypto
         return $der ? base64_encode(hash('sha256', $der, true)) : null;
     }
 
+    // ---------------------------------------------------------------- Vertrouwen per adres (1.78.0)
+    // Een agent kan twee adressen hebben (gewoon en reserve), bv. https://192.168.1.10 (eigen certificaat, vastzetten) en
+    // https://rzmon.example.nl (Let's Encrypt via de proxy, gewone controle). RzMon kijkt per adres welk certificaat er
+    // staat en geeft de agent (1.53.0+) per adres door hoe hij het moet controleren: "-" = gewone controle (of http),
+    // "sha256//…" = alleen het eigen certificaat van RzMon (met een klaargezet nieuw certificaat erbij: "sha256//A;sha256//B").
+
+    /** Agent die per adres een vingerafdruk kent */
+    public const PINURL_MIN = '1.53.0';
+    private const TRUST_TTL = 3600;
+
+    /** Vingerafdrukken van het eigen certificaat: het huidige en (als het klaarstaat) het nieuwe. Een uur bewaard. */
+    public static function ownPins(bool $fresh = false): array
+    {
+        $c = json_decode((string) setting('own_pin_cache', ''), true) ?: [];
+        if ($fresh || (int) ($c['at'] ?? 0) < time() - self::TRUST_TTL) {
+            $cur = OwnCert::current();
+            $c = ['pin' => (string) ($cur['pin'] ?? ''), 'at' => time()];
+            save_setting('own_pin_cache', json_encode($c));
+        }
+        $next = (string) ((json_decode((string) setting('own_cert_next', ''), true) ?: [])['pin'] ?? '');
+        return array_values(array_unique(array_filter([(string) $c['pin'], $next])));
+    }
+
+    /**
+     * Welk certificaat staat er op dit adres (gezien vanaf RzMon)? Een uur bewaard per adres.
+     * @return array kind: http | ca (geldig certificaat) | own (eigen certificaat van RzMon) | other (onbekend) | err; error, issuer
+     */
+    public static function urlTrust(string $url, bool $fresh = false, bool $probe = true): array
+    {
+        $url = rtrim($url, '/');
+        if (!self::validUrl($url)) {
+            return ['kind' => 'err', 'error' => t('ongeldig adres')];
+        }
+        if (str_starts_with(strtolower($url), 'http://')) {
+            return ['kind' => 'http'];
+        }
+        $all = self::trustAll();
+        if (!$fresh && isset($all[$url]) && (!$probe || (int) ($all[$url]['at'] ?? 0) > time() - self::TRUST_TTL)) {
+            return $all[$url];
+        }
+        if (!$probe) {
+            return ['kind' => 'unknown'];
+        }
+        $host = trim((string) parse_url($url, PHP_URL_HOST), '[]');
+        $port = (int) (parse_url($url, PHP_URL_PORT) ?: 443);
+        $c = Https::fetchCert($host, $port, $host, true);
+        if (!$c['ok']) {
+            $r = ['kind' => 'err', 'error' => (string) ($c['error'] ?? t('geen verbinding'))];
+        } elseif ($c['trusted']) {
+            $r = ['kind' => 'ca', 'issuer' => (string) ($c['issuer'] ?? '')];
+        } else {
+            $pin = OwnCert::spkiPin((string) ($c['pem'] ?? ''));
+            $r = $pin !== null && in_array($pin, self::ownPins($fresh), true)
+                ? ['kind' => 'own'] : ['kind' => 'other', 'issuer' => (string) ($c['issuer'] ?? ''), 'error' => t('onbekend certificaat (niet van RzMon en niet vertrouwd)')];
+        }
+        $r['at'] = time();
+        $all[$url] = $r;
+        // Alleen de laatste 20 adressen bewaren
+        uasort($all, static fn($a, $b) => (int) ($b['at'] ?? 0) <=> (int) ($a['at'] ?? 0));
+        save_setting('url_trust', json_encode(array_slice($all, 0, 20, true)));
+        return $r;
+    }
+
+    /** Wat er per adres bekend is (rechtstreeks uit de database: setting() onthoudt de waarden van het begin van het verzoek) */
+    private static function trustAll(): array
+    {
+        return json_decode((string) q("SELECT value FROM settings WHERE name = 'url_trust'")->fetchColumn(), true) ?: [];
+    }
+
+    /** Hoe de agent dit adres moet controleren: "-" (gewoon), "sha256//…" (vastzetten), of null (onbekend: niets doorgeven) */
+    public static function urlSpec(string $url, bool $probe = true): ?string
+    {
+        $k = self::urlTrust($url, false, $probe)['kind'];
+        if ($k === 'http' || $k === 'ca') {
+            return '-';
+        }
+        if ($k === 'own' && ($pins = self::ownPins())) {
+            return implode(';', array_map(static fn($p) => "sha256//$p", $pins));
+        }
+        return null;
+    }
+
+    // ---------------------------------------------------------------- Reserve-adres: één samengevatte melding (1.78.0)
+
+    /**
+     * Elke minuut (cron): agents die al 5 minuten via hun reserve-adres rapporteren in één ⚠️-melding, en agents die
+     * daarna weer via hun gewone adres komen in één ✅-melding. Een korte onderbreking (bv. de proxy wordt bijgewerkt)
+     * geeft zo geen meldingen.
+     */
+    public static function fallbackCron(): ?string
+    {
+        // Eerst: de adressen die agents gebruiken (of krijgen) opnieuw bekijken als dat langer dan een uur geleden is
+        $urls = q("SELECT agent_url, agent_url_fb, agent_url_want, agent_url_want_fb FROM hosts WHERE mode = 'agent' AND enabled = 1")->fetchAll(PDO::FETCH_NUM);
+        $urls = array_values(array_unique(array_filter(array_merge(...array_map('array_values', $urls ?: [[]])))));
+        $all = self::trustAll();
+        $n = 0;
+        foreach ($urls as $u) {
+            if ($n < 5 && str_starts_with(strtolower((string) $u), 'https://') && (int) ($all[rtrim((string) $u, '/')]['at'] ?? 0) < time() - self::TRUST_TTL) {
+                self::urlTrust((string) $u, true);
+                $n++;
+            }
+        }
+        $down = q("SELECT id, name, agent_url FROM hosts WHERE mode = 'agent' AND agent_fb_at IS NOT NULL AND agent_fb_notified IS NULL
+                   AND agent_fb_at <= ? ORDER BY name", [date('Y-m-d H:i:s', time() - 300)])->fetchAll();
+        $up = q("SELECT id, name, agent_url FROM hosts WHERE mode = 'agent' AND agent_fb_at IS NULL AND agent_fb_notified IS NOT NULL ORDER BY name")->fetchAll();
+        $msg = [];
+        if ($down) {
+            $names = array_column($down, 'name');
+            $urls = array_values(array_unique(array_filter(array_column($down, 'agent_url'))));
+            $title = count($down) === 1 ? t('Agent via reserve-adres: {name}', ['name' => $names[0]])
+                : t('{n} agents via hun reserve-adres', ['n' => count($down)]);
+            Monitor::notifySystem('⚠️ ' . $title,
+                t('Deze agents bereiken RzMon al 5 minuten niet via hun gewone adres ({urls}) en rapporteren via hun reserve-adres: {names}. Werkt dat adres nog (bv. de reverse proxy, of https op RzMon zelf)?',
+                    ['urls' => implode(', ', $urls) ?: '?', 'names' => implode(', ', $names)]), STATUS_WARN, 'problem');
+            q('UPDATE hosts SET agent_fb_notified = ? WHERE id IN (' . implode(',', array_map('intval', array_column($down, 'id'))) . ')', [now()]);
+            $msg[] = count($down) . ' via reserve-adres';
+        }
+        if ($up) {
+            $names = array_column($up, 'name');
+            $title = count($up) === 1 ? t('Agent weer via het gewone adres: {name}', ['name' => $names[0]])
+                : t('{n} agents weer via hun gewone adres', ['n' => count($up)]);
+            Monitor::notifySystem('✅ ' . $title, t('Weer via hun gewone adres: {names}.', ['names' => implode(', ', $names)]), STATUS_OK, 'recovery');
+            q('UPDATE hosts SET agent_fb_notified = NULL WHERE id IN (' . implode(',', array_map('intval', array_column($up, 'id'))) . ')');
+            $msg[] = count($up) . ' weer via het gewone adres';
+        }
+        return $msg ? 'Agents: ' . implode(', ', $msg) : null;
+    }
+
     // ---------------------------------------------------------------- Vast IP-adres
 
     /** Mag deze server vanaf dit IP? Leert het eerste adres; een nieuw adres wacht op toestemming (Instellingen). */

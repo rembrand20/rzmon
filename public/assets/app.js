@@ -1008,7 +1008,7 @@ function init() {
   $$('[data-view-open]').forEach((b) => (b.onclick = () => {
     savePref('open_mode', b.dataset.viewOpen);
     showViewPrefs();
-    toast(b.dataset.viewOpen === 'smart' ? L('Slim openen: vandaag en ernstige dingen staan open') : L('Bij openen staat alles dicht'));
+    toast(b.dataset.viewOpen === 'smart' ? L('Slim openen: vandaag en ernstige dingen staan open') : L('Bij openen staat alles dicht, behalve vandaag'));
   }));
   $$('[data-view-density]').forEach((b) => (b.onclick = () => setViewPref('density', b.dataset.viewDensity)));
   showViewPrefs();
@@ -3417,35 +3417,120 @@ function ipViaWan(h) {
 function connText(h) {
   const via = h.agent_fb_at ? `<b class="bad">⚠️ ${L('via reserve-adres')}</b> <span class="muted">${esc(ago(h.agent_fb_at))}</span>`
     : h.agent_conn === 'proxy' ? `🔒 ${L('https via proxy')}` : h.agent_conn === 'https' ? `🔒 https` : h.agent_conn === 'http' ? `<span class="warn-txt">🔓 http</span>` : '<span class="muted">–</span>';
-  return `${via}${h.agent_url ? `<br><span class="muted mono conn-url" title="${esc(L('Adres van RzMon dat de agent gebruikt'))}">${esc(h.agent_url)}</span>` : ''}`
-    + (h.agent_url_fb ? `<br><span class="muted conn-url" title="${esc(L('Reserve-adres'))}">↪ ${esc(h.agent_url_fb)}</span>` : '')
+  return `${via}${h.agent_url ? `<br><span class="muted mono conn-url" title="${esc(L('Adres van RzMon dat de agent gebruikt'))}">${esc(h.agent_url)}</span>${specIcon(h.agent_url, h.agent_url_pin)}` : ''}`
+    + (h.agent_url_fb ? `<br><span class="muted conn-url" title="${esc(L('Reserve-adres'))}">↪ ${esc(h.agent_url_fb)}</span>${specIcon(h.agent_url_fb, h.agent_url_fb_pin)}` : '')
     + (h.agent_url_status ? `<br><span class="small ${h.agent_url_status.startsWith('✘') ? 'bad' : h.agent_url_status.startsWith('⏳') ? 'muted' : 'good-txt'}">${esc(h.agent_url_status)}</span>` : '');
 }
 
-/** Venster: adres van RzMon voor één agent (of alle agents) wijzigen; de agent test het nieuwe adres eerst (agent 1.51.0) */
-function agentUrlDialog(h = null) {
+/** Hoe de agent een adres controleert (1.78.0): 📌 eigen certificaat vastgezet, 🔒 geldig certificaat, of niets bekend */
+function specIcon(url, spec) {
+  if (!url || !spec) return '';
+  if (spec.startsWith('sha256//')) return ` <span title="${esc(L('Alleen het eigen certificaat van RzMon (vastgezet)'))}">📌</span>`;
+  return /^https:/.test(url) ? ` <span title="${esc(L('Geldig certificaat (gewone controle)'))}">🔒</span>` : '';
+}
+
+/** Wat er op een adres staat, gezien vanaf RzMon (1.78.0) */
+function urlTrustText(r) {
+  if (!r) return '';
+  return ({
+    own: `<span class="good-txt">🔒📌 ${L('het eigen certificaat van RzMon: de agent zet het vast (agent {v} nodig)', { v: '1.53.0' })}</span>`,
+    ca: `<span class="good-txt">🔒 ${L('geldig certificaat')}${r.issuer ? ` (${esc(r.issuer)})` : ''}</span>`,
+    http: `<span class="warn-txt">🔓 ${L('http: niet versleuteld (de berichten zelf blijven wel versleuteld)')}</span>`,
+    other: `<span class="bad">✘ ${L('onbekend certificaat: niet van RzMon en niet vertrouwd')}</span>`,
+    err: `<span class="warn-txt">⚠️ ${L('vanaf RzMon niet bereikbaar')}${r.error ? `: ${esc(r.error)}` : ''} · ${L('de agent test het zelf')}</span>`,
+  })[r.kind] || '';
+}
+
+/**
+ * Venster: adres van RzMon en reserve-adres voor één agent (of alle agents). De agent test het nieuwe adres eerst
+ * (agent 1.51.0). Vanaf 1.78.0 een keuzelijst (IP-adressen, namen, beheeradres), http of https naar keuze, het
+ * reserve-adres uit te zetten, en per adres wat er op staat (eigen certificaat = vastzetten, agent 1.53.0).
+ */
+async function agentUrlDialog(h = null) {
   const c = (secInfo && secInfo.conn) || {};
-  const min = c.url_min || state.url_min || '1.51.0';
-  const hosts = (secInfo && secInfo.hosts) || state.hosts.filter((x) => x.mode === 'agent');
-  const old = h ? hosts.filter((x) => +x.id === +h.id && (!x.agent_version || verCmp(x.agent_version, min) < 0)) : hosts.filter((x) => !x.agent_version || verCmp(x.agent_version, min) < 0);
-  const def = c.base_url && /^https:/.test(c.base_url) ? c.base_url : (h && h.agent_url) || c.base_url || location.origin;
+  let o;
+  try { o = await api('agent_url_options'); } catch (ex) { return toast(ex.message, 'err'); }
+  const opts = o.options || [];
+  const trust = new Map(opts.map((x) => [x.url, x]));
+  const hosts = ((secInfo && secInfo.hosts) || state.hosts.filter((x) => x.mode === 'agent')).filter((x) => !h || +x.id === +h.id);
+  const src = { ip: L('IP-adres van RzMon'), dns: L('naam bij het IP-adres (DNS)'), host: L('hostnaam van RzMon'), cert: L('naam uit het certificaat'), admin: L('beheeradres (via je proxy)') };
+  // Advies: rechtstreeks (eigen certificaat) als gewoon adres, het beheeradres (DNS-rewrite naar de proxy) als reserve
+  const own = opts.find((x) => x.kind === 'own');
+  const admin = opts.find((x) => x.source === 'admin');
+  const defUrl = (h && h.agent_url) || (own || admin || opts[0] || {}).url || location.origin;
+  const defFb = h ? (h.agent_url_fb || '') : (admin && admin.url !== defUrl ? admin.url : '');
+  const field = (name, cur, none) => {
+    const known = opts.some((x) => x.url === cur);
+    return `<select data-url-sel="${name}">${none ? `<option value="" ${cur ? '' : 'selected'}>${L('Geen reserve-adres')}</option>` : ''}
+        ${opts.map((x) => `<option value="${esc(x.url)}" ${x.url === cur ? 'selected' : ''} ${x.kind === 'other' ? 'disabled' : ''}>${esc(x.url)} · ${esc(src[x.source] || '')}</option>`).join('')}
+        <option value="custom" ${cur && !known ? 'selected' : ''}>✏️ ${L('Zelf invullen (IP-adres of naam)…')}</option></select>
+      <span class="url-custom" ${cur && !known ? '' : 'hidden'}><input name="${name}" type="text" value="${esc(cur)}" placeholder="https://rzmon.thuis.lan" spellcheck="false">
+        <button type="button" class="btn small-btn" data-url-test="${name}">${L('Testen')}</button></span>
+      <div class="small url-trust" data-trust="${name}"></div>`;
+  };
   modal({
     title: '🌐 ' + (h ? L('Adres van RzMon – {name}', { name: h.name }) : L('Alle agents naar een ander adres')),
     body: `<p class="small" style="margin-top:0">${L('De agent krijgt het nieuwe adres versleuteld, <b>test het eerst</b> (verbinding, certificaat en zijn eigen sleutel) en gebruikt het pas als alles klopt; anders blijft het oude adres. Het resultaat zie je na één of twee rapporten in de kolom <i>Verbinding</i>.')}</p>
-      ${h && h.agent_url ? `<p class="small">${L('Nu')}: <code>${esc(h.agent_url)}</code>${h.agent_url_fb ? ` · ${L('reserve')}: <code>${esc(h.agent_url_fb)}</code>` : ''}</p>` : ''}
-      <label>${L('Nieuw adres')}<input name="url" type="url" required value="${esc(def)}" placeholder="https://rzmon.jouwdomein.nl" spellcheck="false"></label>
-      <label>${L('Reserve-adres')} <span class="hint">${L('(als het nieuwe adres niet bereikbaar is; leeg = het adres dat de agent nu gebruikt)')}</span>
-        <input name="fallback" type="url" placeholder="http://192.168.1.10" spellcheck="false"></label>
-      <label class="switch small"><input type="checkbox" name="nofb"><span></span> ${L('Geen reserve-adres')}</label>
-      ${old.length ? `<p class="small warn-txt">⚠️ ${L('Agent {v} of nieuwer nodig; deze worden overgeslagen: {names}. Werk ze eerst bij, of pas het adres op de server zelf aan.', { v: min, names: old.map((x) => esc(x.name)).join(', ') })}</p>` : ''}`,
+      <p class="small muted">💡 ${L('Advies: rechtstreeks naar RzMon (https op het IP-adres, het eigen certificaat wordt vastgezet) als gewoon adres, en je beheeradres (via de DNS-rewrite naar je proxy) als reserve. Zo hangen de agents niet af van je proxy.')}</p>
+      ${h && h.agent_url ? `<p class="small">${L('Nu')}: <code>${esc(h.agent_url)}</code>${specIcon(h.agent_url, h.agent_url_pin)}${h.agent_url_fb ? ` · ${L('reserve')}: <code>${esc(h.agent_url_fb)}</code>${specIcon(h.agent_url_fb, h.agent_url_fb_pin)}` : ''}</p>` : ''}
+      <label>${L('Adres')}</label>${field('url', defUrl, false)}
+      <label style="margin-top:.6rem">${L('Reserve-adres')} <span class="hint">${L('(als het adres hierboven niet bereikbaar is)')}</span></label>${field('fallback', defFb, true)}
+      <div class="small" id="url-warn"></div>`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '🌐 ' + L('Testen en overstappen'), cls: 'primary', submit: true }],
-    onSubmit: async (d) => {
-      const r = await api('agent_url_set', { id: h ? h.id : 'all', url: d.url.trim(), fallback: d.nofb ? '' : (d.fallback || '').trim(), keep_fb: !d.nofb && !(d.fallback || '').trim() });
+    onSubmit: async () => {
+      const url = value('url');
+      if (!url) throw new Error(L('Kies een adres'));
+      const r = await api('agent_url_set', { id: h ? h.id : 'all', url, fallback: value('fallback'), keep_fb: false });
       toast(L('{n} agent(s) krijgen het nieuwe adres bij hun volgende rapport', { n: r.n }) + (r.skipped.length ? ' · ' + L('overgeslagen: {names}', { names: r.skipped.join(', ') }) : ''));
       loadSecurity();
       refresh();
     },
   });
+  const m = $('#modal');
+  const value = (name) => {
+    const sel = $(`[data-url-sel="${name}"]`, m).value;
+    return (sel === 'custom' ? $(`input[name="${name}"]`, m).value : sel).trim().replace(/\/+$/, '');
+  };
+  // Waarschuwingen: http terwijl "alleen via https" geldt; eigen certificaat met agents ouder dan 1.53.0
+  const warn = () => {
+    const urls = [value('url'), value('fallback')].filter(Boolean);
+    const out = [];
+    const httpsOnly = hosts.filter((x) => x.agent_https === 'on' || (!x.agent_https && c.https_only));
+    if (urls.some((u) => /^http:/.test(u)) && httpsOnly.length) out.push(`⚠️ ${L('"Alleen via https" staat aan voor: {names}. Via http weigert RzMon hun rapporten.', { names: httpsOnly.map((x) => esc(x.name)).join(', ') })}`);
+    const pinMin = o.pinurl_min || '1.53.0';
+    const old = hosts.filter((x) => !x.agent_version || verCmp(x.agent_version, pinMin) < 0);
+    if (urls.some((u) => (trust.get(u) || {}).kind === 'own') && old.length) out.push(`⚠️ ${L('Voor het eigen certificaat is agent {v} nodig; deze worden overgeslagen: {names}. Werk ze eerst bij.', { v: pinMin, names: old.map((x) => esc(x.name)).join(', ') })}`);
+    else {
+      const old2 = hosts.filter((x) => !x.agent_version || verCmp(x.agent_version, o.url_min || '1.51.0') < 0);
+      if (old2.length) out.push(`⚠️ ${L('Agent {v} of nieuwer nodig; deze worden overgeslagen: {names}. Werk ze eerst bij, of pas het adres op de server zelf aan.', { v: o.url_min || '1.51.0', names: old2.map((x) => esc(x.name)).join(', ') })}`);
+    }
+    if (urls.length === 2 && urls[0] === urls[1]) out.push(`⚠️ ${L('Het reserve-adres is hetzelfde als het gewone adres')}`);
+    $('#url-warn', m).innerHTML = out.map((x) => `<p class="warn-txt" style="margin:.3rem 0">${x}</p>`).join('');
+  };
+  const show = (name) => {
+    const u = value(name);
+    if (u && !trust.has(u)) return test(name);   // zelf ingevuld: eerst bekijken wat erop staat
+    $(`[data-trust="${name}"]`, m).innerHTML = u ? urlTrustText(trust.get(u)) : '';
+    warn();
+  };
+  const test = async (name) => {
+    const u = value(name);
+    if (!u) return;
+    $(`[data-trust="${name}"]`, m).innerHTML = `<span class="muted">${L('Testen…')}</span>`;
+    try { trust.set(u, await api('agent_url_test', { url: u })); } catch (ex) { trust.set(u, { kind: 'err', error: ex.message }); }
+    show(name);
+  };
+  $$('[data-url-sel]', m).forEach((sel) => (sel.onchange = () => {
+    const name = sel.dataset.urlSel;
+    const box = $(`.url-custom input[name="${name}"]`, m).parentElement;
+    box.hidden = sel.value !== 'custom';
+    if (sel.value === 'custom') $(`input[name="${name}"]`, m).focus();
+    show(name);
+  }));
+  $$('[data-url-test]', m).forEach((b) => (b.onclick = () => test(b.dataset.urlTest)));
+  $$('.url-custom input', m).forEach((i) => (i.onchange = () => test(i.name)));
+  show('url');
+  show('fallback');
 }
 
 /** Keuzelijst per server voor 📌 vastzetten of 🌐 vast IP-adres: algemene instelling (nu aan/uit), aan of uit */
@@ -3890,6 +3975,25 @@ async function loadAlerts() {
 }
 
 /**
+ * Vandaag staat altijd open (1.78.0), op Meldingen, IDS-incidenten en Logins. Klapte je vandaag dicht en komt er iets
+ * nieuws bij, dan gaat hij weer open. @return true als er vandaag iets bij kwam (dan data-fresh op het blok)
+ */
+const todayCount = {};
+function todayFresh(kind, store, today, n) {
+  const prev = todayCount[kind];
+  todayCount[kind] = { day: today, n };
+  if (prev && prev.day === today && n > prev.n) {
+    delete store[today];
+    return true;
+  }
+  return false;
+}
+/** Leeg blok voor vandaag ("Vandaag · geen meldingen 👌"), zodat je ziet dat het rustig is */
+function todayEmpty(today, text) {
+  return `<div class="alert-day today-empty"><div class="ad-sum"><span class="ad-title">${esc(dayLabel(today, today))}</span><span class="muted small">${text}</span></div></div>`;
+}
+
+/**
  * Opnieuw tekenen (elke 20 seconden) zonder dat wat je openklapte weer dichtgaat: <details> (zoals Uitvoer of een
  * logboek) en uitgeklapte berichten in L1nes. Herkend aan de server, dag of check eromheen en de kop zonder getallen.
  */
@@ -3906,7 +4010,7 @@ function keepOpen(root, draw) {
   const rows = new Set([...root.querySelectorAll('tr.at-open')].map(key));
   const y = window.scrollY;
   draw();
-  root.querySelectorAll('details').forEach((d) => { const k = key(d); if (was.has(k) && d.open !== was.get(k)) d.open = was.get(k); });
+  root.querySelectorAll('details').forEach((d) => { const k = key(d); if (!d.dataset.fresh && was.has(k) && d.open !== was.get(k)) d.open = was.get(k); });
   if (rows.size) root.querySelectorAll('tr').forEach((tr) => { if (rows.has(key(tr))) tr.classList.add('at-open'); });
   if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);
 }
@@ -4044,10 +4148,11 @@ function renderAccess() {
   }
   const byDay = new Map();
   list.forEach((r) => { const day = r.created_at.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(r); });
-  const isOpen = (day) => accDayOpen[day] ?? (narrowed || (smartOpen() && day === d.today));
-  el.innerHTML = off + [...byDay].map(([day, rows]) => {
+  const fresh = todayFresh('acc', accDayOpen, d.today, (byDay.get(d.today) || []).length);
+  const isOpen = (day) => accDayOpen[day] ?? (day === d.today || narrowed);
+  el.innerHTML = off + (!narrowed && accFilter === 'all' && !byDay.has(d.today) ? todayEmpty(d.today, L('nog geen logins, sudo of su')) : '') + [...byDay].map(([day, rows]) => {
     const nf = rows.filter((r) => r.kind === 'authfail').length;
-    return `<details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''}>
+    return `<details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''} ${fresh && day === d.today ? 'data-fresh="1"' : ''}>
       <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
         <span class="ad-counts">${rows.length - nf ? `<span class="ad-count" title="${L('gelukt')}">🔑 ${rows.length - nf}</span>` : ''}${nf ? `<span class="ad-count" title="${L('mislukt')}">❌ ${nf}</span>` : ''}</span>
         <span class="muted small ad-total">${rows.length === 1 ? L('1 regel') : L('{n} regels', { n: rows.length })}</span></summary>
@@ -4219,10 +4324,11 @@ function renderIds() {
   } else {
     const byDay = new Map();
     list.forEach((i) => { const day = i.created_at.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(i); });
-    const isOpen = (day) => idsDayOpen[day] ?? (narrowed || (smartOpen() && (day === d.today || idsFilter === 'open')));
-    el.innerHTML = [...byDay].map(([day, items]) => {
+    const fresh = todayFresh('ids', idsDayOpen, d.today, (byDay.get(d.today) || []).length);
+    const isOpen = (day) => idsDayOpen[day] ?? (day === d.today || narrowed || (smartOpen() && idsFilter === 'open'));
+    el.innerHTML = (!narrowed && !byDay.has(d.today) ? todayEmpty(d.today, (idsFilter === 'open' ? L('geen nieuwe open incidenten') : L('geen incidenten')) + ' 👌') : '') + [...byDay].map(([day, items]) => {
       const n2 = items.filter((i) => +i.severity === 2).length, n1 = items.length - n2;
-      return `<details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''}>
+      return `<details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''} ${fresh && day === d.today ? 'data-fresh="1"' : ''}>
         <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
           <span class="ad-counts">${n2 ? `<span class="ad-count">🔴 ${n2}</span>` : ''}${n1 ? `<span class="ad-count">🟠 ${n1}</span>` : ''}</span>
           <span class="muted small ad-total">${items.length === 1 ? L('1 incident') : L('{n} incidenten', { n: items.length })}</span></summary>
@@ -4539,10 +4645,11 @@ function renderAlerts() {
     if (!byDay.has(day)) byDay.set(day, []);
     byDay.get(day).push(a);
   });
-  // Bij openen alles dicht; met zoeken of een filter de dagen met treffers open; "slim openen": vandaag open
-  const isOpen = (day) => alertDayOpen[day] ?? (narrowed || (smartOpen() && day === d.today));
-  el.innerHTML = [...byDay].map(([day, list]) => `
-    <details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''}>
+  // Vandaag altijd open (1.78.0); de andere dagen dicht, met zoeken of een filter de dagen met treffers open
+  const fresh = todayFresh('alerts', alertDayOpen, d.today, (byDay.get(d.today) || []).length);
+  const isOpen = (day) => alertDayOpen[day] ?? (day === d.today || narrowed);
+  el.innerHTML = (!narrowed && !byDay.has(d.today) ? todayEmpty(d.today, L('geen meldingen') + ' 👌') : '') + [...byDay].map(([day, list]) => `
+    <details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''} ${fresh && day === d.today ? 'data-fresh="1"' : ''}>
       <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
         <span class="ad-counts">${alertDayCounts(list)}</span>
         <span class="muted small ad-total">${list.length === 1 ? L('1 melding') : L('{n} meldingen', { n: list.length })}</span></summary>
@@ -4795,16 +4902,30 @@ async function agentCertDialog() {
   const pinRow = !d.pin_on ? `<p class="small muted">📌 ${L('Certificaat vastzetten staat uit.')}</p>`
     : d.pin ? `<p class="small cert-pin">📌 ${L('Vingerafdruk die de agents vastzetten')}: <code class="small">sha256//${esc(d.pin)}</code>
         ${loc.pin ? (loc.pin === d.pin ? ` <span class="good-txt">✔ ${L('klopt met het certificaat')}</span>` : ` <span class="warn-txt">⏳ ${L('wordt bij het volgende rapport opnieuw bepaald')}</span>`) : ''}</p>`
+    : (d.pinned || []).length && loc.pin ? `<p class="small cert-pin">📌 ${L('Vingerafdruk die de agents vastzetten')}: <code class="small">sha256//${esc(loc.pin)}</code></p>`
     : `<p class="small muted">📌 ${L('Niets vast te zetten: de agents gebruiken http, of een certificaat dat al vertrouwd is.')}</p>`;
   const hostRows = d.hosts.map((h) => {
     const off = h.pin_mode === 'off' || (!h.pin_mode && !d.pin_on);
-    const st = off ? `<span class="muted">${L('vastzetten uit')}</span>` : !d.pin ? '<span class="muted">–</span>'
+    // Agent 1.53.0: vastzetten per adres (het eigen certificaat), met een klaargezet nieuw certificaat erbij
+    const specs = `${h.agent_url_pin || ''};${h.agent_url_fb_pin || ''}`;
+    const perUrl = loc.pin && specs.includes('sha256//') ? (specs.includes('sha256//' + loc.pin)
+      ? `<span class="good-txt">✔ ${L('kent het huidige certificaat')}</span>${d.next ? (specs.includes('sha256//' + d.next.pin) ? ` · <span class="good-txt">✔ ${L('en het nieuwe')}</span>` : ` · <span class="warn-txt">⏳ ${L('het nieuwe nog niet')}</span>`) : ''}`
+      : `<span class="warn-txt">⏳ ${L('krijgt het nieuwe bij zijn volgende rapport')}</span>`) : '';
+    const st = perUrl || (off ? `<span class="muted">${L('vastzetten uit')}</span>` : !d.pin ? '<span class="muted">–</span>'
       : h.agent_pin_sent === d.pin ? `<span class="good-txt">✔ ${L('kent het huidige certificaat')}</span>`
-      : h.agent_pin_sent ? `<span class="warn-txt">⏳ ${L('krijgt het nieuwe bij zijn volgende rapport')}</span>` : `<span class="muted">${L('nog niet')}</span>`;
+      : h.agent_pin_sent ? `<span class="warn-txt">⏳ ${L('krijgt het nieuwe bij zijn volgende rapport')}</span>` : `<span class="muted">${L('nog niet')}</span>`);
     return `<tr><td>${esc(h.name)}</td><td class="mono small">${esc(h.agent_version || '–')}</td><td class="small">${st}</td>
       <td class="small muted">${h.agent_pin_sent_at ? esc(ago(h.agent_pin_sent_at)) : ''}</td></tr>`;
   }).join('');
   const canRenew = d.paths && d.via !== 'cli';
+  // Klaargezet nieuw certificaat (1.78.0): de agents krijgen eerst de vingerafdruk, daarna wisselt RzMon
+  const nx = d.next;
+  const waiting = (d.pinned || []).filter((a) => !a.ready);
+  const nextBox = nx ? `<div class="callout">🔐 <b>${L('Nieuw certificaat klaargezet')}</b> <span class="muted small">${esc(ago(new Date(nx.at * 1000).toISOString()))}</span><br>
+      <span class="small">${(d.pinned || []).length ? L('{r} van {t} agents hebben de nieuwe vingerafdruk.', { r: d.pinned.length - waiting.length, t: d.pinned.length }) : ''}
+      ${waiting.length ? L('Nog niet: {names}.', { names: waiting.map((a) => esc(a.name)).join(', ') }) + ' ' : ''}${L('RzMon wisselt zodra alle agents hem hebben, uiterlijk {d}.', { d: new Date(nx.deadline * 1000).toLocaleDateString(LOCALE) })}</span>
+      <div class="btn-row" style="margin-top:.4rem">${canRenew ? `<button type="button" class="btn small-btn" data-cert-act>🔄 ${L('Nu wisselen')}</button>` : ''}
+        <button type="button" class="btn small-btn" data-cert-cancel>${L('Annuleren')}</button></div></div>` : '';
   modal({
     title: '🔐 ' + L('Certificaat van RzMon'),
     wide: true,
@@ -4814,9 +4935,11 @@ async function agentCertDialog() {
       ${loc.ok === false ? `<div class="cert-box bad"><div class="cert-h">🚪 ${L('Eigen certificaat van RzMon (poort 443)')}</div><div class="small">✘ ${esc(loc.error || '')}</div></div>`
         : certBlock('🚪 ' + L('Eigen certificaat van RzMon (poort 443)'), loc, `<div class="muted small">${L('Voor agents via https op het IP-adres, en de nooddeur.')}</div>`, true)}
       ${pinRow}
+      ${nextBox}
       ${d.hosts.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Agent')}</th><th>${L('Versie')}</th><th>📌 ${L('Certificaat')}</th><th>${L('Laatst gekregen')}</th></tr></thead><tbody>${hostRows}</tbody></table></div>` : ''}
       <h3 class="set-sub">🔄 ${L('Vernieuwen')}</h3>
       <p class="small muted" style="margin-top:0">${L('Een nieuw certificaat met een nieuwe sleutel, {n} jaar geldig. Agents met een vastgezet certificaat gaan vanzelf mee: ze krijgen de nieuwe vingerafdruk in een versleuteld antwoord. Je browser vraagt bij https op het IP-adres opnieuw om "toch doorgaan".', { n: Math.round(d.days / 365) })}</p>
+      ${(d.pinned || []).length ? `<p class="small">📌 ${L('{n} agent(s) zetten het eigen certificaat vast. RzMon zet het nieuwe daarom eerst klaar: de agents krijgen de nieuwe vingerafdruk, en pas als ze die allemaal hebben (uiterlijk na {d} dagen) gaat RzMon het nieuwe gebruiken. Zo weigert geen enkele agent het certificaat.', { n: d.pinned.length, d: d.next_days })}</p>` : ''}
       <div class="small"><b>${L('Namen in het nieuwe certificaat')}:</b> <span class="cert-names">${d.names.map((n) => `<span class="lc">${esc(n)}</span>`).join('')}</span></div>
       <label class="small">${L('Extra namen of IP-adressen')} <span class="hint">${L('(één per regel; de rest gaat automatisch)')}</span>
         <textarea id="cert-extra" rows="2" spellcheck="false" placeholder="nas.thuis.lan">${esc(d.extra)}</textarea></label>
@@ -4833,6 +4956,10 @@ async function agentCertDialog() {
     try { await api('agent_cert_names', { names: e.target.value }); savedFlag(e.target, true); agentCertDialog(); }
     catch (ex) { savedFlag(e.target, false, ex.message); toast(ex.message, 'err'); }
   };
+  const act = $('[data-cert-act]');
+  if (act) act.onclick = () => agentCertRenew(d, 'activate');
+  const cancel = $('[data-cert-cancel]');
+  if (cancel) cancel.onclick = async () => { try { await api('agent_cert_cancel', {}); toast(L('Geannuleerd')); agentCertDialog(); } catch (ex) { toast(ex.message, 'err'); } };
 }
 
 function agentCertDownload() {
@@ -4854,18 +4981,27 @@ function agentCertDownload() {
   });
 }
 
-function agentCertRenew(d) {
+/** Vernieuwen (met vastgezette agents eerst klaarzetten, of meteen), of (what = 'activate') het klaargezette gaan gebruiken */
+function agentCertRenew(d, what = 'renew') {
+  const activate = what === 'activate';
+  const pinned = (d.pinned || []).length > 0;
+  const waiting = (d.pinned || []).filter((a) => !a.ready);
   modal({
-    title: '🔄 ' + L('Certificaat vernieuwen?'),
-    body: `<p style="margin-top:0" class="small">${L('RzMon maakt een nieuw certificaat voor: {names}. Het oude blijft als reservekopie naast het origineel staan; mislukt herladen, dan wordt het teruggezet.', { names: d.names.map(esc).join(', ') })}</p>${confirmField('VERNIEUWEN')}`,
-    buttons: [{ label: L('Annuleren'), onClick: () => agentCertDialog() }, { label: L('Vernieuwen'), cls: 'danger', submit: true }],
+    title: '🔄 ' + (activate ? L('Nieuw certificaat nu gebruiken?') : L('Certificaat vernieuwen?')),
+    body: activate
+      ? `<p style="margin-top:0" class="small">${waiting.length ? L('Deze agents hebben de nieuwe vingerafdruk nog niet: {names}. Ze weigeren het nieuwe certificaat één keer en halen de vingerafdruk dan versleuteld op (meestal via hun reserve-adres).', { names: waiting.map((a) => esc(a.name)).join(', ') })
+        : L('Alle agents hebben de nieuwe vingerafdruk.')}</p>${confirmField('WISSELEN')}`
+      : `<p style="margin-top:0" class="small">${L('RzMon maakt een nieuw certificaat voor: {names}. Het oude blijft als reservekopie naast het origineel staan; mislukt herladen, dan wordt het teruggezet.', { names: d.names.map(esc).join(', ') })}</p>
+        ${pinned ? `<label class="switch small"><input type="checkbox" name="now"><span></span> ${L('Meteen wisselen (niet wachten tot de agents de nieuwe vingerafdruk hebben)')}</label>` : ''}${confirmField('VERNIEUWEN')}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => agentCertDialog() }, { label: activate ? L('Nu wisselen') : L('Vernieuwen'), cls: 'danger', submit: true }],
     onSubmit: async (f) => {
-      let r = await api('agent_cert_renew', { confirm: f.confirm });
+      let r = await api(activate ? 'agent_cert_activate' : 'agent_cert_renew', { confirm: f.confirm, now: !!f.now });
       for (let i = 0; r.pending && i < 40; i++) {
         await new Promise((ok) => setTimeout(ok, 1500));
         r = await api('agent_cert_renew_status');
       }
-      toast(L('Nieuw certificaat, geldig tot {d}', { d: new Date(r.to * 1000).toLocaleDateString(LOCALE) }));
+      toast(r.prepared ? L('Nieuw certificaat klaargezet; de agents krijgen eerst de nieuwe vingerafdruk')
+        : L('Nieuw certificaat, geldig tot {d}', { d: new Date(r.to * 1000).toLocaleDateString(LOCALE) }));
       setTimeout(agentCertDialog, 50);
     },
   });
@@ -5186,9 +5322,29 @@ async function loadSettingsHealth() {
   box.innerHTML = `<div class="ov-head"><div class="ov-score ${cls}" style="--p:${score}"><span><b>${score}<small>%</small></b></span></div>
       <div><h2>${todo ? L('{n} aandachtspunten', { n: todo }) : L('Alles staat goed ingesteld')}</h2>
       <p class="muted small">${L('Klik op een punt om het meteen te regelen. Grijze punten zijn optioneel en tellen niet mee.')}</p></div></div>
-    <div class="ov-list">${items.map((i) => `<button type="button" class="ov-item ${i.status}" data-set-go="${esc(i.section)}">
-      <span class="ov-ic">${icon[i.status]}</span><span class="ov-txt"><b>${esc(i.title)}</b><small>${esc(i.detail)}</small></span><span class="ov-go">›</span></button>`).join('')}</div>`;
+    <div class="ov-list">${items.map((i, n) => `<div class="ov-cell"><button type="button" class="ov-item ${i.status}" data-set-go="${esc(i.section)}">
+      <span class="ov-ic">${icon[i.status]}</span><span class="ov-txt"><b>${esc(i.title)}</b><small>${esc(i.detail)}</small></span><span class="ov-go">›</span></button>
+      ${i.code || i.act ? `<div class="ov-extra">${i.code ? copyBox(`ov-code-${n}`, i.code) : ''}${i.act ? `<button type="button" class="btn small-btn primary" data-ov-act="${esc(i.act)}">${esc(i.label || L('Regelen'))}</button>` : ''}</div>` : ''}</div>`).join('')}</div>`;
+  wireCopy(box);
+  $$('[data-ov-act]', box).forEach((b) => (b.onclick = () => healthAction(b.dataset.ovAct, b)));
   renderSettingsNav();
+}
+
+/** Knop bij een punt van "Hoe staat het ervoor?" (1.78.0) */
+async function healthAction(act, b) {
+  b.disabled = true;
+  try {
+    if (act === 'agent_https_only') {
+      const c = (await api('security')).conn;
+      await api('conn_save', { key_days: c.key_days, pin: c.pin, ip_lock: c.ip_lock, https_only: true });
+      toast(L('Agents alleen via https: aan'));
+    } else if (act === 'http_login_block') {
+      const s = await api('https_info');
+      await api('https_save', { admin_url: s.admin_url, https_only: s.https_only, http_login_block: true, mfa_external: s.mfa_external });
+      toast(L('Inloggen via http wordt nu geweigerd'));
+    }
+    loadSettingsHealth();
+  } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
 }
 
 // ---- Lange uitleg korter: alinea's inklappen tot twee regels, lange toelichting bij een veld als ⓘ

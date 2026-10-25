@@ -174,6 +174,7 @@ final class Https
     {
         try {
             self::noteUnknownProxy();
+            self::noteProxyLeg();
             $https = self::isHttps();
             if (!self::on()) {
                 // Stond het eerder aan? Dan de browser laten vergeten dat hij alleen https mocht (anders 1 jaar vast)
@@ -223,6 +224,28 @@ final class Https
         http_response_code(403);
         header('Content-Type: application/json; charset=utf-8');
         exit(json_encode(['error' => t('RzMon is alleen via https te beheren: open {url}', ['url' => self::adminUrl()]), 'https' => self::adminUrl()], JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * Hoe stuurt de proxy door (1.78.0)? De bezoeker gebruikt https, maar komt de proxy via http binnen vanaf een andere
+     * machine, dan gaat het laatste stuk onversleuteld over het netwerk ("Hoe staat het ervoor?"). Hooguit eens per uur.
+     */
+    private static function noteProxyLeg(): void
+    {
+        if (!self::viaProxy() || self::first('HTTP_X_FORWARDED_PROTO') !== 'https') {
+            return;
+        }
+        $direct = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+        $key = $direct ? 'proxy_https_leg' : 'proxy_http_leg';
+        $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        $d = json_decode((string) setting($key, ''), true) ?: [];
+        if (($d['ip'] ?? '') === $ip && (int) ($d['at'] ?? 0) > time() - 3600) {
+            return;
+        }
+        if (!$direct && (ip_in_list($ip, ['127.0.0.0/8', '::1/128']) || in_array($ip, OwnCert::serverIps(), true))) {
+            return;   // de proxy draait op dezelfde machine: dan gaat er niets over het netwerk
+        }
+        save_setting($key, json_encode(['ip' => $ip, 'at' => time()]));
     }
 
     /** ⚠️ eenmaal per dag (per adres): verkeer via een proxy die niet bij Vertrouwde proxy's staat */

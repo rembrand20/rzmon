@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.78.0 – 2026-10-25
+### Nieuw
+- **🔒 Agents lokaal via https, zonder proxy** (agent 1.53.0 nodig): agents in je netwerk kunnen rechtstreeks naar `https://<IP van RzMon>` met het eigen certificaat van RzMon, dat ze **vastzetten**. RzMon kijkt per adres welk certificaat er staat en geeft de agent per adres door hoe hij het controleert (📌 vastzetten of 🔒 gewone controle). Zo werken een rechtstreeks adres en je proxy-adres (DNS-rewrite) samen als gewoon adres en reserve-adres.
+- **Nieuw adresvenster** (*🌐 Alle agents naar een ander adres* en per agent in de Agent Manager): kies uit de IP-adressen, namen (DNS, hostnaam, certificaat) en het beheeradres van RzMon, of vul zelf een IP-adres of naam in en test het. Je ziet per adres wat er op staat. http of https naar keuze, en het reserve-adres kun je uitzetten of los aanpassen.
+- **Certificaat vernieuwen in twee stappen**: zetten agents het eigen certificaat vast, dan zet RzMon het nieuwe eerst klaar. De agents krijgen de nieuwe vingerafdruk erbij, en pas als ze die allemaal hebben (uiterlijk na 7 dagen) wisselt RzMon. Met **Nu wisselen** en **Annuleren** in het certificaatvenster; in de terminal `--renew-cert --activate` en `--now`.
+- **Reserve-adres: één melding**: pas na 5 minuten, en één samengevatte melding voor alle agents (*⚠️ 12 agents via hun reserve-adres*), en één ✅ als ze terug zijn. Een korte onderbreking van je proxy geeft geen meldingen meer.
+- **Hoe staat het ervoor?**: nieuwe punten *Proxy → RzMon via http* (met de regels voor SWAG om te kopiëren), *Inloggen via http* (knop **Weigeren**), *Tip: overal hetzelfde adres* (DNS-rewrite) en *Agents alleen via https* (knop **Aanzetten** zodra alle agents via https komen).
+- **Vandaag staat altijd open** op Meldingen, IDS-incidenten en Logins; de andere dagen zijn dicht. Klap je vandaag dicht en komt er iets nieuws bij, dan gaat hij weer open. Is er vandaag nog niets, dan staat er een lege balk *Vandaag · geen meldingen 👌*.
+- Nieuwe agent 1.53.0.
+
 ## 1.77.0 – 2026-10-25
 ### Nieuw
 - **📥 Heartbeat-checks** (passieve checks): een script, cronjob of apparaat meldt zich zelf bij RzMon, bv. na een back-up. Blijft de melding uit, dan hoor je het.

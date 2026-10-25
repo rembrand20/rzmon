@@ -7,10 +7,17 @@ declare(strict_types=1);
  * met de hostnaam, alle IP-adressen van de server, het beheeradres en eigen namen. Vernieuwen gebeurt als root: via de
  * hulpdienst (cert.request → install.php --renew-cert --helper) of in de terminal. Agents met een vastgezet certificaat
  * gaan vanzelf mee: ze krijgen de nieuwe vingerafdruk in een versleuteld antwoord (zie AgentCrypto::pin).
+ *
+ * Vanaf 1.78.0 in twee stappen als er agents (1.53.0+) op het eigen certificaat vastgezet zijn: eerst klaarzetten
+ * (prepare: nieuw certificaat naast het oude, *.next), de agents krijgen de nieuwe vingerafdruk erbij, en pas als ze
+ * die allemaal hebben (of na NEXT_DAYS dagen, of met "Nu wisselen") wordt het nieuwe certificaat gebruikt (activate).
+ * Zo is er geen moment waarop een agent het certificaat weigert.
  */
 final class OwnCert
 {
     public const DAYS = 730;
+    /** Uiterlijk zoveel dagen na het klaarzetten wisselen, ook als niet alle agents de nieuwe vingerafdruk hebben */
+    public const NEXT_DAYS = 7;
     private const VHOSTS = ['/etc/httpd/conf.d/rzmon.conf', '/etc/apache2/sites-enabled/rzmon.conf', '/etc/apache2/sites-available/rzmon.conf'];
 
     /** Waar staan certificaat en sleutel? config.php (ssl_cert/ssl_key), anders uit de virtuele host van install-rocky.sh */
@@ -149,6 +156,13 @@ final class OwnCert
         } catch (Throwable $e) {
             return ['ok' => false, 'error' => $e->getMessage()];
         }
+        save_setting('own_cert_next', '');   // een klaargezet certificaat vervalt
+        return self::install($p, $crt, $key, $names, $by);
+    }
+
+    /** Certificaat en sleutel op hun plek zetten (met reservekopie) en de webserver herladen; bij een fout terugzetten */
+    private static function install(array $p, string $crt, string $key, array $names, string $by): array
+    {
         $old = [$p['cert'] => @file_get_contents($p['cert']), $p['key'] => @file_get_contents($p['key'])];
         $stamp = date('Ymd-His');
         foreach ($old as $f => $content) {
@@ -176,6 +190,7 @@ final class OwnCert
         $info = openssl_x509_parse($crt) ?: [];
         usleep(1500000);   // de webserver even de tijd geven (herladen gaat op de achtergrond)
         save_setting('agent_pin_at', '0');   // vingerafdruk voor de agents opnieuw bepalen
+        save_setting('own_pin_cache', '');
         AgentCommands::audit($by, 'Certificaat van RzMon vernieuwd', implode(', ', $names));
         Monitor::sysInfo('cert', null, null, '🔐 ' . t('Certificaat van RzMon vernieuwd'),
             fn() => t('Nieuw certificaat (2 jaar geldig, tot {d}) voor {names}, door {by}. Agents met een vastgezet certificaat krijgen de nieuwe vingerafdruk vanzelf.',
@@ -185,6 +200,128 @@ final class OwnCert
         } catch (Throwable) {
         }
         return ['ok' => true, 'error' => null, 'names' => $names, 'to' => (int) ($info['validTo_time_t'] ?? 0), 'pin' => self::spkiPin($crt)];
+    }
+
+    // ------------------------------------------------------------------ in twee stappen (1.78.0)
+
+    /** Het klaargezette certificaat (pin, names, to, at, by, deadline), of null */
+    public static function next(): ?array
+    {
+        $n = json_decode((string) setting('own_cert_next', ''), true);
+        return is_array($n) && !empty($n['pin']) ? $n : null;
+    }
+
+    /**
+     * Agents (1.53.0+, laatste dag gezien) die een adres met het eigen certificaat gebruiken, met of ze de nieuwe
+     * vingerafdruk al hebben. @return list<array{name:string, ready:bool}>
+     */
+    public static function pinnedAgents(): array
+    {
+        $cur = AgentCrypto::ownPins()[0] ?? '';
+        $next = self::next()['pin'] ?? '';
+        $out = [];
+        foreach (q("SELECT name, agent_version, agent_url_pin, agent_url_fb_pin FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen > ? ORDER BY name",
+            [date('Y-m-d H:i:s', time() - 86400)])->fetchAll() as $h) {
+            $specs = (string) $h['agent_url_pin'] . ';' . (string) $h['agent_url_fb_pin'];
+            if (!$h['agent_version'] || version_compare($h['agent_version'], AgentCrypto::PINURL_MIN, '<')
+                || ($cur === '' || !str_contains($specs, "sha256//$cur")) && ($next === '' || !str_contains($specs, "sha256//$next"))) {
+                continue;
+            }
+            $out[] = ['name' => $h['name'], 'ready' => $next !== '' && str_contains($specs, "sha256//$next")];
+        }
+        return $out;
+    }
+
+    /** Stap 1: nieuw certificaat klaarzetten naast het huidige (cert.next / key.next); de agents krijgen de vingerafdruk */
+    public static function prepare(string $by): array
+    {
+        $p = self::paths();
+        if (!$p) {
+            return ['ok' => false, 'error' => t('Waar het certificaat staat, is niet bekend. Zet ssl_cert en ssl_key in config.php.')];
+        }
+        $names = self::names();
+        try {
+            [$crt, $key] = self::generate($names);
+        } catch (Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+        $old = umask(077);
+        $w = @file_put_contents($p['key'] . '.next', $key) !== false && @file_put_contents($p['cert'] . '.next', $crt) !== false;
+        umask($old);
+        if (!$w) {
+            return ['ok' => false, 'error' => t('Kan {f} niet schrijven (als root uitvoeren)', ['f' => $p['cert'] . '.next'])];
+        }
+        $info = openssl_x509_parse($crt) ?: [];
+        $n = ['pin' => self::spkiPin($crt), 'names' => $names, 'to' => (int) ($info['validTo_time_t'] ?? 0), 'at' => time(), 'by' => $by,
+            'deadline' => time() + self::NEXT_DAYS * 86400];
+        save_setting('own_cert_next', json_encode($n));
+        AgentCommands::audit($by, 'Nieuw certificaat van RzMon klaargezet', implode(', ', $names));
+        Monitor::sysInfo('cert', null, null, '🔐 ' . t('Nieuw certificaat van RzMon klaargezet'),
+            fn() => t('De agents krijgen eerst de nieuwe vingerafdruk. Zodra ze die allemaal hebben (uiterlijk {d}) gaat RzMon het nieuwe certificaat gebruiken. Door {by}.',
+                ['d' => date('d-m-Y', $n['deadline']), 'by' => $by]));
+        return ['ok' => true, 'error' => null, 'prepared' => true, 'names' => $names, 'to' => $n['to'], 'pin' => $n['pin'], 'deadline' => $n['deadline']];
+    }
+
+    /** Stap 2: het klaargezette certificaat gaan gebruiken */
+    public static function activate(string $by): array
+    {
+        $p = self::paths();
+        $n = self::next();
+        if (!$p || !$n) {
+            return ['ok' => false, 'error' => t('Er staat geen nieuw certificaat klaar')];
+        }
+        $crt = (string) @file_get_contents($p['cert'] . '.next');
+        $key = (string) @file_get_contents($p['key'] . '.next');
+        if ($crt === '' || $key === '' || self::spkiPin($crt) !== $n['pin']) {
+            save_setting('own_cert_next', '');
+            return ['ok' => false, 'error' => t('Het klaargezette certificaat is niet meer te vinden; vernieuw opnieuw')];
+        }
+        $r = self::install($p, $crt, $key, (array) $n['names'], $by);
+        if ($r['ok']) {
+            save_setting('own_cert_next', '');
+            @unlink($p['cert'] . '.next');
+            @unlink($p['key'] . '.next');
+        }
+        return $r;
+    }
+
+    /**
+     * Elke minuut (cron): staat er een certificaat klaar en hebben alle agents de nieuwe vingerafdruk (of is de termijn
+     * om)? Dan wisselen: zelf, via de hulpdienst (als root), of een melding met het commando voor de terminal.
+     */
+    public static function cron(): ?string
+    {
+        $n = self::next();
+        if (!$n) {
+            return null;
+        }
+        $agents = self::pinnedAgents();
+        $ready = !array_filter($agents, static fn($a) => !$a['ready']);
+        if (!$ready && time() < (int) $n['deadline']) {
+            return null;
+        }
+        if ((int) ($n['asked'] ?? 0) > time() - 600) {
+            return null;   // net gevraagd (hulpdienst of melding): even wachten
+        }
+        $n['asked'] = time();
+        save_setting('own_cert_next', json_encode($n));
+        $via = self::via();
+        if ($via === 'direct') {
+            $r = self::activate('RzMon');
+            return $r['ok'] ? 'Nieuw certificaat in gebruik' : 'Certificaat wisselen mislukt: ' . $r['error'];
+        }
+        if ($via === 'helper') {
+            $h = Installer::HELPER_DIR;
+            @file_put_contents("$h/cert.request", json_encode(['nonce' => bin2hex(random_bytes(16)), 'by' => 'RzMon', 'action' => 'activate']));
+            return 'Nieuw certificaat: wisselen gevraagd aan de hulpdienst';
+        }
+        if (empty($n['told'])) {
+            $n['told'] = time();
+            save_setting('own_cert_next', json_encode($n));
+            Monitor::sysInfo('cert', null, null, '🔐 ' . t('Nieuw certificaat van RzMon kan in gebruik'),
+                fn() => t('Alle agents hebben de nieuwe vingerafdruk. Voer op de server uit: {cmd}', ['cmd' => self::cliCommand() . ' --activate']));
+        }
+        return null;
     }
 
     /** Hoe vernieuwen hier kan: helper (hulpdienst), direct (bestanden schrijfbaar), of alleen in de terminal */
