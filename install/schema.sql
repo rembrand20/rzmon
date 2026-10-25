@@ -563,3 +563,25 @@ INSERT IGNORE INTO settings (name, value) VALUES ('ids_block_shared', '1');
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_weekly', 'email');
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_weekly_day', '1');
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_weekly_time', '08:00');
+
+-- IDS (1.82.0): bekende aanvallers (Spamhaus DROP, FireHOL level 1) en land per IP (DB-IP Lite), als bereiken (inet_pton)
+CREATE TABLE IF NOT EXISTS ip_blocklist (
+    fam      TINYINT UNSIGNED NOT NULL,
+    start_ip VARBINARY(16) NOT NULL,
+    end_ip   VARBINARY(16) NOT NULL,
+    cidr     VARCHAR(90) NOT NULL,
+    src      VARCHAR(20) NOT NULL,
+    PRIMARY KEY (fam, start_ip)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ip_geo (
+    fam      TINYINT UNSIGNED NOT NULL,
+    start_ip VARBINARY(16) NOT NULL,
+    end_ip   VARBINARY(16) NOT NULL,
+    cc       CHAR(2) NOT NULL,
+    PRIMARY KEY (fam, start_ip)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_blocklists', '1');
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_geo', '1');
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_geo_allowed', 'NL');

@@ -1477,3 +1477,7 @@ details.adv[open] { padding-bottom: .6rem; }
 .sess-tools { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .4rem 0 .6rem; }
 .sess-tools select { max-width: 16rem; }
 .sess-table tr.sess-idle td { opacity: .7; }
+
+/* Land van een IP (1.82.0) */
+.cc-tag { white-space: nowrap; font-size: .85em; }
+.cc-tag.bad { cursor: help; }

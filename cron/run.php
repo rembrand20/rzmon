@@ -83,6 +83,9 @@ try {
     if ($msg = Ids::weeklyCron()) {
         echo date('c') . " $msg\n";
     }
+    if ($msg = IpIntel::cron()) {
+        echo date('c') . " $msg\n";
+    }
 } catch (Throwable $e) {
     fwrite(STDERR, 'Agents/certificaat: ' . $e->getMessage() . "\n");
 }

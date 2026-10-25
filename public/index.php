@@ -537,6 +537,15 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <textarea name="ids_decoy_users" rows="2" class="mono"></textarea></label>
           <label><?= th('Lokaas-poort') ?> <span class="muted small"><?= th('(TCP; leeg = uit. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel)') ?></span>
             <input type="number" name="ids_decoy_port" min="1" max="65535" placeholder="2323"></label>
+          <h3 class="set-sub"><?= th('☠️ Bekende aanvallers en land') ?></h3>
+          <label class="switch"><input type="checkbox" name="ids_blocklists"><span></span> <?= th('Bekende aanvallers (Spamhaus DROP en FireHOL level 1, dagelijks bijgewerkt)') ?></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= th('In de modus blokkeren zetten de agents deze adressen vooraf in hun firewall; in de modus leren krijgen logins en incidenten van zo\'n adres het label ☠️. Je eigen netwerk staat er nooit in.') ?></p>
+          <label class="switch"><input type="checkbox" name="ids_geo"><span></span> <?= th('Land per IP-adres (DB-IP Lite, maandelijks bijgewerkt)') ?></label>
+          <label><?= th('Normale landen') ?> <span class="muted small"><?= th('(landcodes, bv. NL BE DE; een SSH-login van buiten vanuit een ander land is critical)') ?></span>
+            <input name="ids_geo_allowed" class="mono" placeholder="NL"></label>
+          <p class="muted small" id="ipintel-status"></p>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('IP-landgegevens: <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a> (CC BY 4.0). Opzoeken gebeurt op de RzMon-server zelf; er gaat per login niets naar buiten.') ?>
+            <button type="button" class="btn small-btn" id="ipintel-update"><?= th('Nu bijwerken') ?></button></p>
           <h3 class="set-sub"><?= th('📬 Wekelijks overzicht') ?></h3>
           <div class="row3">
             <label><?= th('Versturen via') ?><select name="ids_weekly"><option value="off"><?= th('uit') ?></option><option value="email"><?= th('e-mail') ?></option><option value="pushover">Pushover</option><option value="both"><?= th('e-mail en Pushover') ?></option></select></label>

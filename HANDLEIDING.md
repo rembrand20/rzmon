@@ -1581,6 +1581,19 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 
 **📬 Wekelijks overzicht** (vanaf 1.81.0; *Instellingen → 🛡️ IDS → Wekelijks overzicht*): standaard op **maandag 08:00** per **e-mail** (of Pushover, of allebei, of uit). Met daarin, over de afgelopen 7 dagen: geblokkeerde aanvallen, mislukte SSH-logins en de IP's met de meeste pogingen, hoe vaak het lokaas is aangetikt, SSH-logins van buiten, nieuwe incidenten en wat er nog open staat. Met **Nu versturen** zie je meteen hoe het eruitziet.
 
+**☠️ Bekende aanvallers** (vanaf 1.82.0, agent 1.55.0; *Instellingen → 🛡️ IDS → Bekende aanvallers en land*, standaard aan)
+- RzMon haalt dagelijks twee openbare lijsten op met netwerken van bekende criminelen en botnets: **Spamhaus DROP** (IPv4 en IPv6) en **FireHOL level 1**. Samen zo'n 4.500 bereiken. Privé- en gereserveerde adressen (je LAN) worden er altijd uit gefilterd, net als je lijst *Nooit blokkeren*.
+- In de modus **blokkeren** zetten de agents ze **vooraf** in hun firewall (een eigen set in `inet rzmon`): die adressen komen niet eens tot een inlogpoging.
+- In de modus **leren** krijgen logins (*Toegang*), incidenten en het weekoverzicht van zo'n adres het label **☠️** (met de naam van de lijst). Een geslaagde SSH-login vanaf zo'n adres is altijd 🔴 critical.
+
+**🌍 Land per IP-adres** (vanaf 1.82.0, standaard aan)
+- RzMon haalt maandelijks de gratis database **DB-IP Lite** op (land per IP, CC BY 4.0). Opzoeken gebeurt daarna op de RzMon-server zelf; er gaat per login niets naar buiten.
+- Bij logins, mislukte pogingen, incidenten en blokkades staat het land met een vlag, bijvoorbeeld 🇳🇱 NL (met de naam als tooltip).
+- **Normale landen** (standaard `NL`, aan te vullen, bv. `NL BE DE` of tijdelijk het land van je vakantie): een **SSH-login van buiten vanuit een ander land** is 🔴 **critical**, met Pushover.
+- **Nu bijwerken** haalt de lijsten en het land meteen op en toont hoeveel bereiken er zijn en wanneer.
+
+**🔓 Open poort met een actief misbruikte kwetsbaarheid** (vanaf 1.82.0): luistert een pakket met een kwetsbaarheid op de KEV-lijst van CISA (aanvallers gebruiken die nu al) op een poort, dan is dat een 🔴 critical-incident, met de update die het oplost. Daarvoor moet de scan bij *🐞 Kwetsbaarheden* aan staan. Elke 6 uur per server bekeken; een genegeerde kwetsbaarheid telt niet.
+
 **Na de update naar agent 1.54.0** legt de IDS de extra bestanden en de groepsleden bij het eerste rapport stil vast; je krijgt dus geen stapel meldingen over bestanden die er al waren.
 
 **Basismeting**

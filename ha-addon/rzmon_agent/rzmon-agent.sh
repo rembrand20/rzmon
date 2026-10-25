@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.54.0"
+AGENT_VERSION="1.55.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1681,22 +1681,26 @@ if [ -n "$decoy_port" ] && nft list table inet rzmon >/dev/null 2>&1; then
 fi
 # Tabel in één keer opnieuw opbouwen: blokkades (bl4/bl6) en de lokaas-poort (dc4/dc6)
 fw_apply() {  # fw_apply <"counter;" of "">
-    local el4="" el6="" dc=""
+    local el4="" el6="" dc="" ek4="" ek6=""
     [ -n "$want4" ] && el4=" elements = { ${want4%, } };"
     [ -n "$want6" ] && el6=" elements = { ${want6%, } };"
+    [ -n "$kn4" ] && ek4=" elements = { ${kn4%, } };"
+    [ -n "$kn6" ] && ek6=" elements = { ${kn6%, } };"
     [ -n "$decoy_port" ] && dc=" iifname != \"lo\" meta nfproto ipv4 tcp dport $decoy_port add @dc4 { ip saddr } drop; iifname != \"lo\" meta nfproto ipv6 tcp dport $decoy_port add @dc6 { ip6 saddr } drop;"
     { echo "table inet rzmon"; echo "delete table inet rzmon"; echo "table inet rzmon {"
       echo "  set bl4 { type ipv4_addr; $1$el4 }"
       echo "  set bl6 { type ipv6_addr; $1$el6 }"
+      echo "  set kn4 { type ipv4_addr; flags interval; auto-merge;$ek4 }"
+      echo "  set kn6 { type ipv6_addr; flags interval; auto-merge;$ek6 }"
       echo "  set dc4 { type ipv4_addr; flags dynamic,timeout; timeout 1h; }"
       echo "  set dc6 { type ipv6_addr; flags dynamic,timeout; timeout 1h; }"
-      echo "  chain input { type filter hook input priority -5; policy accept; ip saddr @bl4 drop; ip6 saddr @bl6 drop;$dc }"
+      echo "  chain input { type filter hook input priority -5; policy accept; ip saddr @bl4 drop; ip6 saddr @bl6 drop; ip saddr @kn4 drop; ip6 saddr @kn6 drop;$dc }"
       echo "}"; } | nft -f - 2>"$i_dir/fw.err"
 }
 fw_build() {  # opnieuw opbouwen als de lijst of de lokaas-poort veranderde; zet fw_err
     fw_err=""
     local sig
-    sig=$(printf '%s|%s|%s' "$want4" "$want6" "$decoy_port" | sha1sum | cut -c1-16)
+    sig=$(printf '%s|%s|%s|%s|%s' "$want4" "$want6" "$decoy_port" "$kn4" "$kn6" | sha1sum | cut -c1-16)
     if ! nft list table inet rzmon >/dev/null 2>&1 || [ "$(cat "$i_dir/fw.sig" 2>/dev/null)" != "$sig" ]; then
         if fw_apply "counter;" || fw_apply ""; then
             echo "$sig" >"$i_dir/fw.sig"
@@ -1705,7 +1709,7 @@ fw_build() {  # opnieuw opbouwen als de lijst of de lokaas-poort veranderde; zet
         fi
     fi
 }
-want4=""; want6=""
+want4=""; want6=""; kn4=""; kn6=""
 if [ "$ids_mode" = block ]; then
     if command -v midclt >/dev/null 2>&1; then
         fw_json="\"fw\":{\"state\":\"unsupported\",\"err\":\"TrueNAS: alleen detecteren\"}"
@@ -1720,6 +1724,11 @@ if [ "$ids_mode" = block ]; then
         rz_ips=" $(getent ahosts "$rz_host" 2>/dev/null | awk '{ print $1 }' | sort -u | tr '\n' ' ') $rz_host "
         now_f=$(date +%s)
         while IFS=$'\t' read -r z t b_ip b_until; do
+            # Bekende aanvallers (RzMon 1.82.0): bereiken (CIDR of begin-eind) in een eigen set
+            if [ "$z" = 0 ] && [ "$t" = knet ]; then
+                if [[ "$b_ip" =~ ^[0-9./-]+$ ]]; then kn4+="$b_ip, "; elif [[ "$b_ip" =~ ^[0-9a-fA-F:./-]+$ ]]; then kn6+="$b_ip, "; fi
+                continue
+            fi
             [ "$z" = 0 ] && [ "$t" = block ] || continue
             [[ "$b_until" =~ ^[0-9]+$ ]] && [ "$b_until" != 0 ] && [ "$b_until" -le "$now_f" ] && continue
             [[ "$rz_ips" == *" $b_ip "* ]] && continue

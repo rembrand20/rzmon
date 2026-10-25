@@ -208,7 +208,10 @@ final class Installer
         ['hosts', 'agent_conn', 'VARCHAR(8) NULL'],
         ['hosts', 'agent_fb_at', 'DATETIME NULL'],
         ['hosts', 'agent_fb_notified', 'DATETIME NULL'],
-        ['ids_state', 'decoy_state', 'VARCHAR(100) NULL'],   // 1.81.0: waarom de lokaas-poort hier niet werkt (bv. in gebruik)   // 1.78.0: wanneer de samengevatte ⚠️-melding over het reserve-adres ging
+        ['ids_state', 'decoy_state', 'VARCHAR(100) NULL'],
+        ['ids_state', 'kev_at', 'DATETIME NULL'],              // 1.82.0: laatste controle open poorten + KEV
+        ['ids_incidents', 'cc', 'CHAR(2) NULL'],                // 1.82.0: land van het IP
+        ['ids_blocks', 'cc', 'CHAR(2) NULL'],   // 1.81.0: waarom de lokaas-poort hier niet werkt (bv. in gebruik)   // 1.78.0: wanneer de samengevatte ⚠️-melding over het reserve-adres ging
         ['hosts', 'agent_url_pin', 'VARCHAR(200) NULL'],   // 1.78.0: hoe de agent zijn adres controleert ("-" of sha256//…)
         ['hosts', 'agent_url_fb_pin', 'VARCHAR(200) NULL'],
         ['hosts', 'agent_https', 'VARCHAR(3) NULL'],

@@ -69,6 +69,10 @@ final class Ids
         if (($port = self::decoyPort()) !== null) {
             $out[] = implode("\t", [0, 'decoy', $port]);
         }
+        // Bekende aanvallers (1.82.0): bereiken voor een aparte set in de firewall (alleen in de modus blokkeren)
+        foreach (IpIntel::agentNets() as $net) {
+            $out[] = implode("\t", [0, 'knet', $net]);
+        }
         return $out;
     }
 
@@ -144,6 +148,7 @@ final class Ids
         $userChange = self::groups($ctx, $ids['groups'] ?? null) || $userChange;
         self::files($ctx, (array) ($ids['files'] ?? []), $updating, $userChange, (int) ($ids['fv'] ?? 1));
         self::decoyHits($ctx, (array) ($ids['decoy'] ?? []));
+        self::kevPorts($ctx);
         self::ports($ctx, $ports);
         self::simpleSet($ctx, 'suid', (array) ($ids['suid'] ?? []), 'suid_new', t('Nieuw SUID-bestand'), t('Kan gebruikt worden om root te worden.'), isset($ids['suid']));
         self::simpleSet($ctx, 'module', (array) ($ids['modules'] ?? []), 'module_new', t('Nieuwe kernelmodule'), t('Geladen sinds de vorige controle.'), isset($ids['modules']));
@@ -500,6 +505,45 @@ final class Ids
         }
     }
 
+    /**
+     * Luisterende poort van een pakket met een actief misbruikte kwetsbaarheid (CISA KEV, pagina Kwetsbaarheden): critical
+     * (1.82.0). De agent meldt al welke pakketten op welke poort luisteren; elke 6 uur per server bekeken.
+     */
+    private static function kevPorts(array $ctx): void
+    {
+        $hid = (int) $ctx['host']['id'];
+        if (!Vulns::enabled() || strtotime((string) q('SELECT kev_at FROM ids_state WHERE host_id = ?', [$hid])->fetchColumn()) > time() - 6 * 3600) {
+            return;
+        }
+        q('UPDATE ids_state SET kev_at = NOW() WHERE host_id = ?', [$hid]);
+        $exposed = [];
+        foreach ((array) json_decode((string) q('SELECT exposed FROM vuln_inventory WHERE host_id = ?', [$hid])->fetchColumn(), true) as $e) {
+            if (is_array($e) && isset($e[0], $e[1])) {
+                $exposed[(string) $e[0]][] = (int) $e[1] . '/' . (($e[2] ?? 'tcp') === 'udp' ? 'udp' : 'tcp');
+            }
+        }
+        if (!$exposed) {
+            return;
+        }
+        $rows = q("SELECT f.package, f.cve, f.fixed_version FROM vuln_findings f JOIN vuln_cve c ON c.cve = f.cve WHERE f.host_id = ? AND c.kev = 1
+                   AND NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.package IS NULL OR i.package = f.package) AND (i.host_id IS NULL OR i.host_id = f.host_id))",
+            [$hid])->fetchAll();
+        $per = [];
+        foreach ($rows as $r) {
+            if (isset($exposed[$r['package']])) {
+                $per[$r['package']]['cves'][] = $r['cve'];
+                $per[$r['package']]['fix'] = $r['fixed_version'] ?: ($per[$r['package']]['fix'] ?? null);
+            }
+        }
+        foreach ($per as $pkg => $x) {
+            $cves = array_values(array_unique($x['cves']));
+            $ports = implode(', ', array_unique($exposed[$pkg]));
+            self::incident($ctx, 2, 'kev_port', $pkg, t('Open poort met een actief misbruikte kwetsbaarheid: {pkg} ({ports})', ['pkg' => $pkg, 'ports' => $ports]),
+                t('{cves} staat op de lijst van CISA (KEV): aanvallers gebruiken dit nu al. {pkg} luistert op {ports}.', ['cves' => implode(', ', array_slice($cves, 0, 5)), 'pkg' => $pkg, 'ports' => $ports])
+                . ' ' . ($x['fix'] ? t('Werk bij naar {v} (pagina Kwetsbaarheden).', ['v' => $x['fix']]) : t('Er is nog geen update: zet de poort zo nodig dicht.')), null, false, true);
+        }
+    }
+
     private static function ports(array $ctx, array $ports): void
     {
         if (!$ports) {
@@ -633,12 +677,19 @@ final class Ids
         $host = (string) $ctx['host']['name'];
         $how = ['publickey' => t('sleutel'), 'password' => t('wachtwoord'), 'keyboard-interactive/pam' => t('wachtwoord')][$method] ?? '';
         if (!self::internalIp($ip)) {
-            $new = self::incident($ctx, 1, 'ssh_login', "$user|$ip", t('SSH-login van buiten: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]),
+            // Critical (1.82.0): vanuit een land dat niet bij "normale landen" staat, of vanaf een bekende aanvaller
+            $cc = IpIntel::country($ip);
+            $foreign = $cc !== null && !in_array($cc, IpIntel::allowedCountries(), true);
+            $bad = IpIntel::bad($ip);
+            $sev = $foreign || $bad ? 2 : 1;
+            $where = $cc !== null ? ' (' . IpIntel::flag($cc) . ')' : '';
+            $title = t('SSH-login van buiten: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]) . $where;
+            $why = $foreign ? ' ' . t('Vanuit {cc}: dat staat niet bij je normale landen.', ['cc' => IpIntel::flag($cc)]) : '';
+            $new = self::incident($ctx, $sev, 'ssh_login', "$user|$ip", $title,
                 t('Geslaagde login van buiten je netwerk{how}. Was jij dit? Klik dan Gezien, of Dit is normaal voor deze gebruiker en dit IP-adres.',
-                    ['how' => $how !== '' ? ' (' . $how . ')' : '']), $ip);
-            if ($new) {
-                self::notify($host . ': ' . t('SSH-login van buiten: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]),
-                    t('Geslaagde login van buiten je netwerk{how}.', ['how' => $how !== '' ? ' (' . $how . ')' : '']), STATUS_WARN);
+                    ['how' => $how !== '' ? ' (' . $how . ')' : '']) . $why, $ip);
+            if ($new && $sev === 1) {   // critical gaat al via incident() naar Pushover
+                self::notify($host . ': ' . $title, t('Geslaagde login van buiten je netwerk{how}.', ['how' => $how !== '' ? ' (' . $how . ')' : '']), STATUS_WARN);
             }
             return;
         }
@@ -675,8 +726,13 @@ final class Ids
                 [mb_substr($title, 0, 250), mb_substr($detail, 0, 1000), $prev]);
             return false;
         }
-        q('INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$hid, $sev, $type, $key, mb_substr($title, 0, 250), mb_substr($detail, 0, 1000), $ip !== null && $ip !== '' ? mb_substr($ip, 0, 45) : null]);
+        // Land en bekende aanvaller (1.82.0)
+        $cc = $ip !== null && $ip !== '' ? IpIntel::country($ip) : null;
+        if ($ip !== null && $ip !== '' && ($bad = IpIntel::bad($ip))) {
+            $detail .= ' · ☠️ ' . t('bekende aanvaller ({list})', ['list' => $bad]);
+        }
+        q('INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip, cc) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$hid, $sev, $type, $key, mb_substr($title, 0, 250), mb_substr($detail, 0, 1000), $ip !== null && $ip !== '' ? mb_substr($ip, 0, 45) : null, $cc]);
         if ($sev === 2) {
             self::notify($ctx['host']['name'] . ': ' . $title, $detail);
         }
@@ -733,8 +789,8 @@ final class Ids
         // Eerder geblokkeerd (laatste 30 dagen): langer
         $repeat = (bool) q('SELECT 1 FROM ids_blocks WHERE host_id = ? AND ip = ? AND created_at >= NOW() - INTERVAL 30 DAY', [$hid, $ip])->fetchColumn();
         $hours = $repeat ? 24 * max(1, (int) setting('ids_repeat_days', 7)) : max(1, (int) setting('ids_block_hours', 24));
-        q('INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by, until) VALUES (?, ?, ?, 1, ?, ?)',
-            [$hid, $ip, mb_substr($reason . ($repeat ? ' (' . t('herhaling') . ')' : ''), 0, 255), t('automatisch'), date('Y-m-d H:i:s', time() + $hours * 3600)]);
+        q('INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by, until, cc) VALUES (?, ?, ?, 1, ?, ?, ?)',
+            [$hid, $ip, mb_substr($reason . ($repeat ? ' (' . t('herhaling') . ')' : ''), 0, 255), t('automatisch'), date('Y-m-d H:i:s', time() + $hours * 3600), IpIntel::country($ip)]);
         return $hours >= 48 ? t('geblokkeerd voor {n} dagen', ['n' => intdiv($hours, 24)]) : t('geblokkeerd voor {n} uur', ['n' => $hours]);
     }
 
@@ -769,8 +825,8 @@ final class Ids
         if (q('SELECT 1 FROM ids_blocks WHERE host_id = ? AND ip = ? AND removed_at IS NULL AND (until IS NULL OR until > NOW())', [$hostId, $ip])->fetchColumn()) {
             return t('Dit IP is op die server al geblokkeerd');
         }
-        q('INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by, until) VALUES (?, ?, ?, 0, ?, ?)',
-            [$hostId, $ip, mb_substr($reason ?: t('met de hand'), 0, 255), $by, $hours ? date('Y-m-d H:i:s', time() + $hours * 3600) : null]);
+        q('INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by, until, cc) VALUES (?, ?, ?, 0, ?, ?, ?)',
+            [$hostId, $ip, mb_substr($reason ?: t('met de hand'), 0, 255), $by, $hours ? date('Y-m-d H:i:s', time() + $hours * 3600) : null, IpIntel::country($ip)]);
         return true;
     }
 
@@ -842,7 +898,9 @@ final class Ids
             $lines[] = '';
             $lines[] = t('Meeste mislukte logins:');
             foreach (array_slice($top, 0, 5, true) as $ip => $n) {
-                $lines[] = "  • $ip: {$n}×";
+                $cc = IpIntel::flag(IpIntel::country((string) $ip));
+                $bad = IpIntel::bad((string) $ip) ? ' ☠️' : '';
+                $lines[] = "  • $ip" . ($cc !== '' ? " ($cc)" : '') . "$bad: {$n}×";
             }
         }
         if ($outside) {

@@ -2081,7 +2081,7 @@ switch ($action) {
             $in['sysinfo'] = json_encode(NotifyRules::cleanSysinfo((array) json_decode((string) $in['sysinfo'], true), NotifyRules::sysinfo()));
         }
         $allowed = ['sysinfo', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_allow', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_allow', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -2133,6 +2133,10 @@ switch ($action) {
         if (isset($in['ids_decoy_port'])) {
             $dp = trim((string) $in['ids_decoy_port']);
             $in['ids_decoy_port'] = $dp === '' || (int) $dp < 1 || (int) $dp > 65535 ? '' : (string) (int) $dp;
+        }
+        if (isset($in['ids_geo_allowed'])) {
+            $in['ids_geo_allowed'] = implode(' ', array_slice(array_filter(array_map('strtoupper', parse_list((string) $in['ids_geo_allowed'])),
+                fn($c) => (bool) preg_match('/^[A-Z]{2}$/', $c)), 0, 60)) ?: 'NL';
         }
         if (isset($in['ids_weekly'])) {
             $in['ids_weekly'] = in_array($in['ids_weekly'], ['off', 'email', 'pushover', 'both'], true) ? $in['ids_weekly'] : 'email';
@@ -3056,6 +3060,19 @@ switch ($action) {
             AgentCommands::audit($user['username'], 'IDS', $mode === 'block' ? 'modus blokkeren' : 'modus leren (alleen melden)');
         }
         out(['ok' => true]);
+
+    // Bekende aanvallers en land per IP (1.82.0): stand, en nu bijwerken
+    case 'ipintel_status':
+        out(IpIntel::status());
+
+    case 'ipintel_update':
+        @set_time_limit(300);
+        session_write_close();
+        $msg = [IpIntel::updateBlocklists()];
+        if (!empty(input()['geo'])) {
+            $msg[] = IpIntel::updateGeo();
+        }
+        out(['ok' => true, 'result' => implode(' · ', $msg)] + IpIntel::status());
 
     // Wekelijks IDS-overzicht nu versturen (1.81.0), om te zien hoe het eruitziet
     case 'ids_weekly_test':

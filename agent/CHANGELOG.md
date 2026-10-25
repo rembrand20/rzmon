@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.55.0 – 2026-10-25
+- **Bekende aanvallers** (RzMon 1.82.0): in de modus blokkeren zet de agent de netwerken van Spamhaus DROP en FireHOL level 1 (zo'n 4.500) in een eigen set in zijn firewalltabel `inet rzmon`. Ze worden alleen opnieuw opgebouwd als de lijst verandert (dagelijks).
+
 ## 1.54.0 – 2026-10-25
 - **IDS-lokaas-poort** (RzMon 1.81.0): de agent zet in zijn eigen firewalltabel (`inet rzmon`) een regel voor de lokaas-poort (standaard 2323). Een verbinding wordt stil weggegooid en het IP gemeld. Dat werkt ook in de modus leren; dan staat alleen die regel in de tabel. Is de poort op de server in gebruik, dan meldt de agent dat.
 - **Meer achterdeuren bewaakt**: `/etc/pam.d/*`, `/etc/hosts`, `/etc/resolv.conf`, `/etc/environment`, `at`-jobs, de shell-bestanden van root en systemd-gebruikersunits.

@@ -114,6 +114,11 @@ final class AuthEvents
 
     private static function insert(array $host, string $kind, string $title, string $msg, string $at, array $detail): void
     {
+        // Land en bekende aanvaller (1.82.0, als de IDS dat bijhoudt)
+        if (($detail['ip'] ?? '') !== '') {
+            $detail['cc'] = IpIntel::country((string) $detail['ip']);
+            $detail['bad'] = IpIntel::bad((string) $detail['ip']);
+        }
         q('INSERT INTO access_log (host_id, kind, type, title, message, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [
             $host['id'], $kind, $detail['type'], mb_substr($title, 0, 250), mb_substr($msg, 0, 1000),
             json_encode($detail, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $at,

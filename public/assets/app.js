@@ -821,6 +821,22 @@ function init() {
       setTimeout(() => location.reload(), 700);
     } catch (ex) { toast(ex.message, 'err'); e.target.checked = !e.target.checked; }
   };
+  // Bekende aanvallers en land per IP (1.82.0)
+  const ipintelShow = (s) => {
+    $('#ipintel-status').innerHTML = [
+      s.bl_at ? `☠️ ${L('{n} bereiken met bekende aanvallers, bijgewerkt {t}', { n: (+s.bl_n).toLocaleString(LOCALE), t: esc(fmtDateTime(s.bl_at)) })}` : `☠️ ${L('nog niet opgehaald')}`,
+      s.bl_error ? `<span class="warn-txt">${esc(s.bl_error)}</span>` : '',
+      s.geo_at ? `🌍 ${L('{n} bereiken met een land, bijgewerkt {t}', { n: (+s.geo_n).toLocaleString(LOCALE), t: esc(fmtDateTime(s.geo_at)) })}` : `🌍 ${L('nog niet opgehaald')}`,
+      s.geo_error ? `<span class="warn-txt">${esc(s.geo_error)}</span>` : '',
+    ].filter(Boolean).join(' · ');
+  };
+  api('ipintel_status').then(ipintelShow).catch(() => {});
+  $('#ipintel-update').onclick = async (e) => {
+    e.target.disabled = true;
+    toast(L('Bijwerken… (het land kan een minuut duren)'));
+    try { const r = await api('ipintel_update', { geo: true }); toast(r.result); ipintelShow(r); } catch (ex) { toast(ex.message, 'err'); }
+    e.target.disabled = false;
+  };
   $('#ids-weekly-test').onclick = async (e) => {
     e.target.disabled = true;
     try {
@@ -4138,6 +4154,13 @@ function fimCheck(input) {
 const ACC_TYPES = { ssh: 'SSH', console: 'Console', sudo: 'sudo', su: 'su' };
 const ACC_COLS = { time: L('Tijd'), type: L('Soort'), server: 'Server', who: L('Wie'), what: L('Wat / vanaf') };
 function accDet(r) { try { return JSON.parse(r.detail || '{}') || {}; } catch (e) { return {}; } }
+/** Land van een IP (1.82.0): vlag en code, met de naam als tooltip; ☠️ = op een lijst met bekende aanvallers */
+function ccTag(cc, bad = null) {
+  const flag = cc && /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 0x1F1E6 + c.charCodeAt(0) - 65)) : '';
+  let name = cc || '';
+  try { if (cc) name = new Intl.DisplayNames([LOCALE], { type: 'region' }).of(cc) || cc; } catch (e) { /* oude browser */ }
+  return (flag ? ` <span class="cc-tag" title="${esc(name)}">${flag} ${esc(cc)}</span>` : '') + (bad ? ` <span class="cc-tag bad" title="${esc(L('Bekende aanvaller ({list})', { list: bad }))}">☠️</span>` : '');
+}
 function accWho(r, d) {
   const who = (d.users ? d.users.join(', ') : d.user) || '?';
   return who + (d.as && (r.type === 'su' || r.type === 'sudo') ? ` → ${d.as}` : '');
@@ -4198,7 +4221,7 @@ function accBody(rows) {
     const fail = r.kind === 'authfail';
     return `<div class="mrow compact">
       <span class="m-t" title="${esc(r.created_at)}">${esc(r.created_at.slice(11, 16))}</span><i class="adot ${fail ? 's1' : 'info'}"></i>
-      <span class="m-tt">${fail ? '❌ ' : '🔑 '}${esc(ACC_TYPES[r.type] || r.type)} · ${esc(accWho(r, det))}${fail && +det.n > 1 ? ` <span class="muted small">${+det.n}×</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn>${group}×</button>` : ''}<small>${esc(r.message)}</small></span>
+      <span class="m-tt">${fail ? '❌ ' : '🔑 '}${esc(ACC_TYPES[r.type] || r.type)} · ${esc(accWho(r, det))}${fail && +det.n > 1 ? ` <span class="muted small">${+det.n}×</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn>${group}×</button>` : ''}<small>${esc(r.message)}${ccTag(det.cc, det.bad)}</small></span>
       <span class="m-sv">${esc(r.host_name)}</span>
       <span class="m-ch need-admin"><button type="button" class="linkbtn" data-acc="ignore" data-id="${r.id}" title="${L('Deze gebruiker of dit IP-adres voortaan niet meer tonen')}">🙈</button>${det.ip ? ` <button type="button" class="linkbtn" data-acc="block" data-id="${r.id}" title="${L('IP-adres {ip} blokkeren', { ip: esc(det.ip) })}">⛔</button>` : ''}</span></div>`;
   };
@@ -4258,7 +4281,7 @@ function accIgnoreDialog(r) {
   });
 }
 
-const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'outbound']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
+const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'outbound', 'kev_port']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
   ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🪤 ' + L('Lokaas'), ['decoy_user', 'decoy_port']]];
 const idsCatOf = (i) => (IDS_CATS.find((c) => c[2].includes(i.type)) || [''])[0];
 
@@ -4365,7 +4388,7 @@ function renderIds() {
   $('#ids-block-info').textContent = L('{n} actief', { n: d.blocks.length });
   $('#it-n-blk').textContent = d.blocks.length ? d.blocks.length : '';
   const row = (b, active) => `<tr>
-      <td class="mono">${esc(b.ip)}</td><td>${esc(b.host_name)}</td><td>${esc(b.reason)}</td>
+      <td class="mono">${esc(b.ip)}${ccTag(b.cc)}</td><td>${esc(b.host_name)}</td><td>${esc(b.reason)}</td>
       <td class="at-time" title="${esc(b.created_at)}">${esc(fmtUntil(b.created_at))}</td>
       <td class="at-time">${active ? (b.until ? esc(fmtUntil(b.until)) : '<b>' + L('permanent') + '</b>') : b.removed_at ? (b.removed_by ? L('gedeblokkeerd {t} door {who}', { t: esc(fmtUntil(b.removed_at)), who: esc(b.removed_by) }) : L('gedeblokkeerd {t}', { t: esc(fmtUntil(b.removed_at)) })) : L('verlopen')}</td>
       <td>${+b.auto ? L('automatisch') : esc(b.created_by)}</td>
@@ -4393,7 +4416,7 @@ function idsRow(i, group = null) {
   return `<div class="irow s${sev} ${done ? 'ids-done' : ''}">
     <i class="adot s${sev}"></i>
     <span class="m-tt">${esc(i.title)}${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort – klik om ze te tonen', { n: group.length }))}">${group.length}×</button>` : ''}
-      <small>${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</small></span>
+      <small>${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>${ccTag(i.cc)}` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</small></span>
     <span class="m-sv">${esc(i.host_name)}</span>
     <span class="m-t" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))}</span>
     <span class="ids-actions need-admin">${done ? `<button type="button" class="linkbtn" data-ids="reopen" data-id="${i.id}">↺ ${L('heropenen')}</button>`

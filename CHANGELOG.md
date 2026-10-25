@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.82.0 – 2026-10-25
+### Nieuw
+- **☠️ IDS: bekende aanvallers.** Dagelijks Spamhaus DROP (IPv4 en IPv6) en FireHOL level 1 ophalen. In de modus blokkeren zetten de agents ze vooraf in hun firewall (**agent 1.55.0 nodig**). In de modus leren krijgen logins en incidenten van zo'n adres het label ☠️. Je eigen netwerk staat er nooit in.
+- **🌍 Land per IP-adres** (DB-IP Lite, maandelijks, op de RzMon-server zelf): een vlag bij logins, mislukte pogingen, incidenten, blokkades en in het weekoverzicht. Een **SSH-login van buiten vanuit een land dat niet bij *Normale landen* staat** (standaard NL) is critical; vanaf een bekende aanvaller ook.
+- **🔓 Open poort met een actief misbruikte kwetsbaarheid** (KEV): een critical-incident in de IDS, met de update die het oplost.
+- *Instellingen → 🛡️ IDS → Bekende aanvallers en land*, met de stand en *Nu bijwerken*.
+- Nieuwe agent 1.55.0.
+
 ## 1.81.0 – 2026-10-25
 ### Nieuw
 - **🪤 IDS-lokaas** (agent 1.54.0 nodig):
