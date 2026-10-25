@@ -1212,11 +1212,14 @@ switch ($action) {
         $auto = setting('backup_freq', 'off') !== 'off';
         $add('backup', $auto && $age !== null && $age < 8 ? 'ok' : 'warn', t('Back-up'),
             ($auto ? t('automatisch') : t('niet automatisch')) . ' · ' . ($last !== '' ? t('laatste: {d}', ['d' => $last]) : t('nog geen back-up')), 'backup');
-        $no2fa = q("SELECT username FROM users WHERE role = 'admin' AND (totp_secret IS NULL OR totp_secret = '') ORDER BY username")->fetchAll(PDO::FETCH_COLUMN);
+        // Accounts die alleen lokaal mogen inloggen (bv. een noodaccount) tellen niet mee: van buiten kan daar niemand mee in
+        $no2fa = q("SELECT username FROM users WHERE role = 'admin' AND local_only = 0 AND (totp_secret IS NULL OR totp_secret = '') ORDER BY username")->fetchAll(PDO::FETCH_COLUMN);
+        $local = q("SELECT username FROM users WHERE role = 'admin' AND local_only = 1 AND (totp_secret IS NULL OR totp_secret = '') ORDER BY username")->fetchAll(PDO::FETCH_COLUMN);
         $admins = (int) q("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
         if ($admins > 0) {
-            $add('2fa', $no2fa ? 'warn' : 'ok', t('Tweestapsverificatie'), $no2fa
-                ? t('beheerders zonder 2FA: {names}', ['names' => implode(', ', $no2fa)]) : t('alle beheerders hebben 2FA'), 'users');
+            $add('2fa', $no2fa ? 'warn' : 'ok', t('Tweestapsverificatie'), ($no2fa
+                ? t('beheerders zonder 2FA: {names}', ['names' => implode(', ', $no2fa)]) : t('alle beheerders hebben 2FA'))
+                . ($local ? ' · ' . t('alleen lokaal, zonder 2FA: {names}', ['names' => implode(', ', $local)]) : ''), 'users');
         }
         $locks = setting('login_lock_account', '1') === '1' || setting('login_lock_ip', '1') === '1';
         $add('lock', $locks ? 'ok' : 'warn', t('Inlogbeveiliging'), $locks

@@ -3240,4 +3240,5 @@ return [
     'Geslaagde login van buiten je netwerk{how}. Was jij dit? Klik dan Gezien, of Dit is normaal voor deze gebruiker en dit IP-adres.' => 'Successful login from outside your network{how}. Was this you? Then click Seen, or This is normal for this user and this IP address.',
     'Geslaagde login van buiten je netwerk{how}.' => 'Successful login from outside your network{how}.',
     'Login op een server, van binnen (SSH of console)' => 'Login on a server, from inside (SSH or console)',
+    'alleen lokaal, zonder 2FA: {names}' => 'local only, without 2FA: {names}',
 ];

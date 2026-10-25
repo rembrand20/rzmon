@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.80.1 – 2026-10-25
+### Opgelost
+- **Hoe staat het ervoor? → Tweestapsverificatie** telt beheerders die **alleen lokaal** mogen inloggen (🏠, bv. een noodaccount zonder 2FA) niet meer als aandachtspunt: van buiten kan niemand met zo'n account inloggen. Ze staan er nog wel bij als *alleen lokaal, zonder 2FA*.
+
 ## 1.80.0 – 2026-10-25
 ### Nieuw
 - **IDS: geslaagde logins op je servers.**
