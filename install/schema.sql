@@ -462,6 +462,34 @@ CREATE TABLE IF NOT EXISTS rz_blocks (
     last_hit   DATETIME     NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 1.83.0: whitelist (nooit blokkeren): IP-adressen/netwerken (RzMon en IDS op alle servers), accounts (nooit
+-- vergrendelen) en namen die geen lokaas zijn; until NULL = altijd
+CREATE TABLE IF NOT EXISTS whitelist (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    kind       VARCHAR(8)   NOT NULL,             -- ip | user | decoy
+    value      VARCHAR(64)  NOT NULL,
+    reason     VARCHAR(200) NULL,
+    created_by VARCHAR(64)  NULL,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    until      DATETIME     NULL,
+    UNIQUE KEY uq_wl (kind, value)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.83.0: opgeheven en verlopen blokkades van RzMon zelf (IP's en accounts), voor "Eerder"; zo lang als de meldingen
+CREATE TABLE IF NOT EXISTS block_log (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    kind       VARCHAR(8)   NOT NULL,             -- rz (IP of netwerk) | user (account)
+    value      VARCHAR(64)  NOT NULL,
+    reason     VARCHAR(255) NULL,
+    ip         VARCHAR(45)  NULL,                 -- account: laatste poging vanaf
+    created_by VARCHAR(100) NULL,
+    created_at DATETIME     NULL,
+    until      DATETIME     NULL,
+    removed_at DATETIME     NOT NULL,
+    removed_by VARCHAR(100) NULL,                 -- NULL = verlopen
+    INDEX idx_bl_time (removed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS security_fails (
     id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     ip         VARCHAR(45) NOT NULL,

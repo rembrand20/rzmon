@@ -178,7 +178,7 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 ### Accountmenu, Mijn account en Instellingen (vanaf 1.60.0)
 - **Rechtsboven** staat je naam met een menu: **👤 Mijn account**, **⚙️ Instellingen** (alleen beheerders), het **thema** (auto, licht of donker), de **taal** (NL of EN) en **⏻ Uitloggen**. Ben je zonder wachtwoord binnen via het lokale netwerk, dan staat er **🏠 Lokaal netwerk** met **Inloggen met je account**; *Mijn account* is er dan niet.
 - **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave op dit apparaat** (Blox of L1nes, Small of Large).
-- **Instellingen** (alleen beheerders; het tabblad in de bovenbalk is weg): links een **zijbalk** met de groepen **🔔 Meldingen** (Kanalen · Meldregels en stille uren · Systeeminfo), **📈 Monitoring** (Alarmgedrag · Kwetsbaarheden · IDS), **🔐 Beveiliging** (Toegang en inlogbeveiliging · Gebruikers · API-sleutels · Blokkades), **🖥️ Agents** (Agents bijwerken en commando's · Beveiligde verbinding) en **🛠️ Systeem** (RzMon bijwerken · Back-up · Database · Setup). Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan.
+- **Instellingen** (alleen beheerders; het tabblad in de bovenbalk is weg): links een **zijbalk** met de groepen **🔔 Meldingen** (Kanalen · Meldregels en stille uren · Systeeminfo), **📈 Monitoring** (Alarmgedrag · Kwetsbaarheden · IDS), **🔐 Beveiliging** (Toegang en inlogbeveiliging · Gebruikers · API-sleutels · Blokkades en whitelist), **🖥️ Agents** (Agents bijwerken en commando's · Beveiligde verbinding) en **🛠️ Systeem** (RzMon bijwerken · Back-up · Database · Setup). Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan.
   - **✅ Hoe staat het ervoor?** (vanaf 1.62.0) is het eerste onderdeel; via het accountmenu kom je altijd hier. Een cirkel met een score (0–100%) en een lijst: ✔ groen is in orde, **!** oranje is een aandachtspunt, ✘ rood moet je regelen, grijs is optioneel (telt niet mee). RzMon kijkt naar: een **meldkanaal** (Pushover of e-mail aan en ingevuld), **automatische back-up** (en de laatste niet ouder dan een week), **2FA** voor alle beheerders (accounts die *alleen lokaal* mogen inloggen tellen niet mee), **inlogbeveiliging**, een **nieuwe RzMon-versie**, **agents** op een oudere versie of **onversleuteld**, **HTTPS** (zoals jij RzMon nu opent), en of **kwetsbaarheden** en **IDS** aan staan. Klik op een punt en je staat bij de instelling. In de zijbalk krijgt een groep met een aandachtspunt een oranje (of rood) bolletje.
   - **🔍 Zoek een instelling…** bovenaan de zijbalk (op de telefoon boven de keuzelijst) zoekt in de namen van de onderdelen én in alle velden, schakelaars en koppen, ook ingeklapte. Met **Enter** (of een klik op een resultaat) spring je naar het veld: het licht even op en een ingeklapt *Geavanceerd* gaat open. **Esc** wist de zoekterm.
   - Lange uitleg is ingekort tot twee regels, met **ⓘ meer uitleg** om alles te lezen. Een lange toelichting bij een veld is een **ⓘ**: wijs hem aan (of tik erop) voor de tooltip.
@@ -1582,7 +1582,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 **📬 Wekelijks overzicht** (vanaf 1.81.0; *Instellingen → 🛡️ IDS → Wekelijks overzicht*): standaard op **maandag 08:00** per **e-mail** (of Pushover, of allebei, of uit). Met daarin, over de afgelopen 7 dagen: geblokkeerde aanvallen, mislukte SSH-logins en de IP's met de meeste pogingen, hoe vaak het lokaas is aangetikt, SSH-logins van buiten, nieuwe incidenten en wat er nog open staat. Met **Nu versturen** zie je meteen hoe het eruitziet.
 
 **☠️ Bekende aanvallers** (vanaf 1.82.0, agent 1.55.0; *Instellingen → 🛡️ IDS → Bekende aanvallers en land*, standaard aan)
-- RzMon haalt dagelijks twee openbare lijsten op met netwerken van bekende criminelen en botnets: **Spamhaus DROP** (IPv4 en IPv6) en **FireHOL level 1**. Samen zo'n 4.500 bereiken. Privé- en gereserveerde adressen (je LAN) worden er altijd uit gefilterd, net als je lijst *Nooit blokkeren*.
+- RzMon haalt dagelijks twee openbare lijsten op met netwerken van bekende criminelen en botnets: **Spamhaus DROP** (IPv4 en IPv6) en **FireHOL level 1**. Samen zo'n 4.500 bereiken. Privé- en gereserveerde adressen (je LAN) worden er altijd uit gefilterd, net als alles op je ✅ *whitelist*.
 - In de modus **blokkeren** zetten de agents ze **vooraf** in hun firewall (een eigen set in `inet rzmon`): die adressen komen niet eens tot een inlogpoging.
 - In de modus **leren** krijgen logins (*Toegang*), incidenten en het weekoverzicht van zo'n adres het label **☠️** (met de naam van de lijst). Een geslaagde SSH-login vanaf zo'n adres is altijd 🔴 critical.
 
@@ -1607,7 +1607,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - Er wordt alleen geblokkeerd **op de server die aangevallen wordt**.
 - **Automatisch** bij brute force: **24 uur** (*Blokkeren (uren)*). Was hetzelfde IP de afgelopen **30 dagen** al eens geblokkeerd, dan **7 dagen** (*Bij herhaling (dagen)*). Permanent blokkeren gaat alleen met de hand.
 - **Handmatig** met **⛔ Blokkeer IP** bij een incident of een regel in *Toegang*, of met de knop **⛔ IP blokkeren** bovenaan de pagina IDS (vul zelf een IP-adres in): 24 uur, 7 dagen, 30 dagen of permanent.
-- **Nooit automatisch geblokkeerd:** je LAN (privé-adressen), RzMon zelf en de lijst *Nooit blokkeren*. Een LAN-adres kun je wel zelf blokkeren; je eigen IP-adres niet.
+- **Nooit automatisch geblokkeerd:** je LAN (privé-adressen), RzMon zelf en de ✅ *whitelist* (*Instellingen → Blokkades en whitelist*; tot 1.83.0 de lijst *Nooit blokkeren*). Met de hand blokkeren kan dan ook niet. Een LAN-adres kun je wel zelf blokkeren; je eigen IP-adres niet.
 - **🔓 Deblokkeren** in het blok *Blokkades*. De agent past het binnen een minuut aan. Eerdere blokkades staan onder *Eerder geblokkeerd*.
 - **Terug naar leren** of **IDS uit**: de agent haalt zijn tabel meteen weg, alle blokkades vervallen op de servers. In RzMon blijven ze staan, zodat ze terugkomen als je weer blokkeert.
 - **Op een server nooit blokkeren:** zet `IDS_BLOCK=0` in `/etc/default/rzmon-agent`. Die server meldt dan wel, maar blokkeert niet.
@@ -1897,10 +1897,22 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - **Nieuwe sleutel:** de vorige blijft nog **24 uur** geldig. Elke agent krijgt de nieuwe bij zijn volgende rapport (versleuteld met de oude). Is een agent langer offline, dan gooit hij na 3 geweigerde rapporten zijn oude sleutel weg en haalt hij de nieuwe op (bij *Aan*); bij *Verplicht* geef je hem met `--key` opnieuw mee.
 - Zet *Verplicht* pas aan als 🔒 bij alle servers staat. Versleuteling komt **bovenop** HTTPS: het helpt vooral als agents via HTTP of een proxy verbinden, en het bewijst dat een rapport echt van een agent met de sleutel komt.
 
-**⛔ Blokkades** (*Instellingen → Toegang*, of ⛔ *blokkeren* bij een melding)
+**⛔ Blokkades en whitelist** (*Instellingen → 🔐 Beveiliging → Blokkades en whitelist*, of ⛔ *blokkeren* bij een melding)
 - Een geblokkeerd **IP-adres** (`203.0.113.7`) of **netwerk** (`203.0.113.0/24`, ook IPv6) krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de REST API en geen agents (HTTP 403). Per blokkade zie je hoe vaak hij iets tegenhield.
 - Jezelf (je huidige IP) en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: `sudo php install/install.php --unblock-all`.
 - Dit is iets anders dan blokkeren door het IDS: dat gebeurt op de aangevallen server zelf.
+- **Overzicht (vanaf 1.83.0):** alles wat geblokkeerd is staat in één lijst. Dat zijn ⛔ IP-adressen in RzMon, 🔒 vergrendelde accounts en 🛡️ de IDS-blokkades per server (🌐 *alle servers* bij een automatische blokkade die op al je servers geldt).
+  - Per regel zie je wat er geblokkeerd is, met het land, en waar. Ook de reden staat erbij, bij een lokaas met de lokaas-naam, met sinds en tot wanneer en door wie.
+  - Er zijn twee tabbladen: **Nu geblokkeerd** en **Eerder**. *Eerder* toont wat opgeheven of verlopen is, met door wie. Dat blijft zo lang bewaard als de meldingen.
+  - Je kunt filteren op soort (*IP in RzMon · Accounts · IDS*) en zoeken op IP, naam, server of reden.
+  - Bij IDS → Blokkades en bij een vergrendeld account onder *Gebruikers* staat een link hiernaartoe.
+- **🔓 Deblokkeren** werkt meteen. Bij het IDS past de agent zijn firewall binnen een minuut aan.
+- **✅ Whitelist** zet iets op de lijst *nooit blokkeren* en heft de blokkade meteen op. Je bevestigt met je wachtwoord (op het LAN typ je `WHITELIST`) en het komt in het auditlog. Je kiest hoe lang het geldt: **1 dag, 7 dagen, 30 dagen of altijd**.
+  - **IP-adres of netwerk** (hooguit een /16, bij IPv6 een /32): wordt nergens geblokkeerd. Niet bij het inloggen in RzMon en niet door het IDS op welke server dan ook, ook niet via de lijsten met bekende aanvallers. Je krijgt wel nog de meldingen. Valt het adres in een geblokkeerd netwerk, dan komt alleen dat adres erdoor.
+  - **Account:** wordt nooit vergrendeld na mislukte logins. Het IP-adres van degene die het probeert wordt wél geblokkeerd. Zo kan niemand jou buitensluiten, en een aanvaller blijft buiten.
+  - **Naam is geen lokaas:** de naam valt af van de lokaas-namen (op alle servers), bv. als *admin* bij jou een echte gebruiker is. Blokkades om die naam worden opgeheven.
+  - **Voorbeeld:** je collega logt in vanaf een hotel (`198.51.100.23`) en tikt drie keer zijn wachtwoord fout. Zijn account en het IP-adres zijn geblokkeerd. Je klikt bij het account op **🔓 Deblokkeren** en bij het IP op **✅ Whitelist → 1 dag**. Morgen geldt het hotel-IP vanzelf weer als gewoon adres.
+  - De whitelist staat onder het overzicht. Met ✕ haal je een regel eraf. Je oude lijst *Nooit blokkeren* van het IDS is bij de update naar 1.83.0 overgenomen.
 
 **🔐 Inlogbeveiliging** (*Instellingen → Toegang*, vanaf 1.58.0; standaard aan)
 - **Na [3] mislukte pogingen binnen [10] minuten** wordt het **account** geblokkeerd en/of het **IP-adres**, elk met een eigen schakelaar. Een verkeerde 2FA-code telt ook.
@@ -1908,7 +1920,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - Het **IP** wordt alleen geblokkeerd als het **niet** uit je lokale netwerken komt (de lijst hierboven bij *Toegang*). Het komt op de lijst ⛔ *Blokkades* met *auto* en de reden.
 - Een **geblokkeerd account** kan vanaf je **lokale netwerk** gewoon inloggen. Zo kan niemand van buiten je buitensluiten door met je gebruikersnaam fout te raden. Van buiten zie je, alleen bij het **juiste** wachtwoord: *"Dit account is geblokkeerd na te veel mislukte pogingen. Vraag een beheerder om het te deblokkeren."* Bij een fout wachtwoord blijft het *"Onjuiste gebruikersnaam of wachtwoord"*, zodat een aanvaller niets te weten komt. Ook onthouden apparaten loggen van buiten niet automatisch in.
 - **Blokkade opheffen na [60] minuten** (account en IP); **0** = tot een beheerder deblokkeert.
-- **Deblokkeren** (beheerders): bij *Gebruikers* staat 🔒 *geblokkeerd tot …* met **🔓 Deblokkeren**; IP-adressen bij ⛔ *Blokkades* (🗑). Op de server: `sudo php install/install.php --unlock <gebruiker>` en `--unblock-all`.
+- **Deblokkeren** (beheerders): bij *Gebruikers* staat 🔒 *geblokkeerd tot …* met **🔓 Deblokkeren**; of bij ⛔ *Blokkades en whitelist*. IP-adressen staan daar ook. Op de server: `sudo php install/install.php --unlock <gebruiker>` en `--unblock-all`.
 - Bij het blokkeren krijg je een **⚠️-melding met Pushover**: hoeveel pogingen, welk account en welk IP, en tot wanneer.
 - Daarnaast staat elke blokkade als **ℹ️-melding** in *Meldingen*: *🔒 Account geblokkeerd: …* en *⛔ IP geblokkeerd: …* (ook als je zelf een IP blokkeert), met de reden, door wie en tot wanneer. Ook het **opheffen** geeft een ℹ️-melding: *🔓 Account gedeblokkeerd* en *✅ Blokkade opgeheven*, met de hand (door wie, ook via de terminal) of omdat de ingestelde tijd voorbij is.
 
@@ -2173,7 +2185,7 @@ curl -H "Authorization: Bearer rzm_xxx" -d '{"host":"web01","ip":"203.0.113.7"}'
 - De server geef je met `host` (naam, hoofdletters maken niet uit) of `host_id`.
 - Het antwoord bevat `id`, `active` en `until`. Staat het IDS op **leren** (of uit), dan wordt de blokkade wel vastgelegd, maar is `active` `false` en staat er een `note` bij; hij wordt actief zodra je het IDS op *blokkeren* zet.
 - Is het IP op die server al geblokkeerd, dan krijg je `"already": true` met de bestaande blokkade (er komt geen tweede).
-- **Nooit via de API:** je LAN (*Lokale netwerken*), het adres van RzMon zelf en de lijst *Nooit blokkeren* weigert de API altijd (HTTP 422).
+- **Nooit via de API:** je LAN (*Lokale netwerken*), het adres van RzMon zelf en de ✅ *whitelist* weigert de API altijd (HTTP 422).
 - Een opgeheven blokkade wist ook de mislukte pogingen van dat IP, net als ⛔ op de IDS-pagina.
 
 **Voorbeeld: fail2ban meldt zijn bans aan RzMon.** Maak `/etc/fail2ban/action.d/rzmon.conf`:

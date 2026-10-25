@@ -11,7 +11,7 @@ declare(strict_types=1);
  * - Incidenten: warning (1) of critical (2). Critical gaat ook naar Pushover, ook tijdens stille uren.
  *   Dezelfde gebeurtenis binnen 24 uur wordt opgeteld bij het bestaande incident.
  * - Blokkeren: per server, eerst ids_block_hours, bij herhaling ids_repeat_days. Nooit automatisch: privé-
- *   adressen (LAN), RzMon zelf en ids_allow. Met de hand kan ook een LAN-adres (behalve het eigen IP).
+ *   adressen (LAN), RzMon zelf en de whitelist (1.83.0, Instellingen → Blokkades en whitelist). Met de hand kan ook een LAN-adres (behalve het eigen IP).
  * - Bestanden bewaken (FIM): paden uit ids_fim (algemeen) en hosts.ids_fim (per server). De agent stuurt alleen
  *   wat veranderd is; hier wordt altijd vergeleken met de eigen basismeting (kind 'fim': hash|grootte|rechten|eigenaar),
  *   dus een rapport dat twee keer binnenkomt geeft geen dubbele incidenten.
@@ -83,10 +83,10 @@ final class Ids
         return $p >= 1 && $p <= 65535 ? $p : null;
     }
 
-    /** Lokaas-gebruikers (kleine letters) */
+    /** Lokaas-gebruikers (kleine letters), zonder de namen op de whitelist (1.83.0) */
     public static function decoyUsers(): array
     {
-        return array_values(array_unique(array_map('strtolower', parse_list((string) setting('ids_decoy_users', self::DECOY_USERS)))));
+        return array_values(array_diff(array_unique(array_map('strtolower', parse_list((string) setting('ids_decoy_users', self::DECOY_USERS)))), Whitelist::values('decoy')));
     }
 
     /**
@@ -99,6 +99,9 @@ final class Ids
         $out = [];
         foreach (q('SELECT ip, until FROM ids_blocks WHERE removed_at IS NULL AND (until IS NULL OR until > NOW()) AND (host_id = ?' . ($shared ? ' OR auto = 1' : '') . ')',
             [$hostId])->fetchAll() as $b) {
+            if (Whitelist::ip((string) $b['ip'])) {
+                continue;   // whitelist: nergens blokkeren
+            }
             $cur = $out[$b['ip']] ?? null;
             if (!$cur || ($cur['until'] !== null && ($b['until'] === null || $b['until'] > $cur['until']))) {
                 $out[$b['ip']] = $b;
@@ -611,7 +614,7 @@ final class Ids
             $decoy = array_values(array_diff(array_intersect(array_map(static fn($u) => strtolower((string) $u), (array) ($f['users'] ?? [])), self::decoyUsers()), $ctx['users'] ?? []));
             if ($decoy) {
                 $internal = self::internalIp($ip);
-                $blocked = $internal ? null : self::autoBlock($ctx['host'], $ip, t('Lokaas-gebruiker: {user}', ['user' => $decoy[0]]));
+                $blocked = $internal ? null : self::autoBlock($ctx['host'], $ip, t('Lokaas-gebruiker: {user}', ['user' => $decoy[0]]), $decoy[0]);
                 self::incident($ctx, $internal ? 2 : 1, 'decoy_user', $ip, t('Inlogpoging met lokaas-gebruiker {user} vanaf {ip}', ['user' => implode(', ', $decoy), 'ip' => $ip]),
                     ($internal ? t('Een apparaat in je eigen netwerk probeert in te loggen met een naam die hier niet bestaat. Waarschijnlijk is het besmet: zoek uit welk apparaat dit is.')
                         : t('Een naam die op deze server niet bestaat en die alleen aanvallers proberen.')) . ($blocked ? " · ⛔ $blocked" : ''), $ip);
@@ -761,7 +764,7 @@ final class Ids
     /** IP's die nooit automatisch geblokkeerd worden: LAN, RzMon zelf en de eigen lijst. */
     public static function protectedIp(string $ip): bool
     {
-        if (ip_in_list($ip, PRIVATE_NETWORKS) || ip_in_list($ip, parse_list((string) setting('ids_allow', '')))) {
+        if (ip_in_list($ip, PRIVATE_NETWORKS) || Whitelist::ip($ip)) {
             return true;
         }
         $own = [];
@@ -773,7 +776,7 @@ final class Ids
     }
 
     /** @return string|null beschrijving van de blokkade, of null als er niet geblokkeerd is */
-    private static function autoBlock(array $host, string $ip, string $reason): ?string
+    private static function autoBlock(array $host, string $ip, string $reason, ?string $decoy = null): ?string
     {
         if (!self::blocking() || self::protectedIp($ip)) {
             return null;
@@ -789,8 +792,9 @@ final class Ids
         // Eerder geblokkeerd (laatste 30 dagen): langer
         $repeat = (bool) q('SELECT 1 FROM ids_blocks WHERE host_id = ? AND ip = ? AND created_at >= NOW() - INTERVAL 30 DAY', [$hid, $ip])->fetchColumn();
         $hours = $repeat ? 24 * max(1, (int) setting('ids_repeat_days', 7)) : max(1, (int) setting('ids_block_hours', 24));
-        q('INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by, until, cc) VALUES (?, ?, ?, 1, ?, ?, ?)',
-            [$hid, $ip, mb_substr($reason . ($repeat ? ' (' . t('herhaling') . ')' : ''), 0, 255), t('automatisch'), date('Y-m-d H:i:s', time() + $hours * 3600), IpIntel::country($ip)]);
+        q('INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by, until, cc, decoy_user) VALUES (?, ?, ?, 1, ?, ?, ?, ?)',
+            [$hid, $ip, mb_substr($reason . ($repeat ? ' (' . t('herhaling') . ')' : ''), 0, 255), t('automatisch'), date('Y-m-d H:i:s', time() + $hours * 3600), IpIntel::country($ip),
+                $decoy === null ? null : mb_substr($decoy, 0, 64)]);
         return $hours >= 48 ? t('geblokkeerd voor {n} dagen', ['n' => intdiv($hours, 24)]) : t('geblokkeerd voor {n} uur', ['n' => $hours]);
     }
 
@@ -818,6 +822,9 @@ final class Ids
         }
         if (in_array($ip, ['127.0.0.1', '::1'], true)) {
             return t('Localhost blokkeren kan niet');
+        }
+        if (Whitelist::ip($ip)) {
+            return t('{net} staat op de whitelist (Instellingen → Blokkades en whitelist); haal het daar eerst af', ['net' => $ip]);
         }
         if (!q("SELECT 1 FROM hosts WHERE id = ? AND mode = 'agent'", [$hostId])->fetchColumn()) {
             return t('Kies een server met agent');
@@ -946,6 +953,8 @@ final class Ids
         self::autoClose();
         q('DELETE FROM ids_attempts WHERE at < NOW() - INTERVAL 1 DAY');
         q('DELETE FROM ids_incidents WHERE created_at < NOW() - INTERVAL ? DAY', [Monitor::alertDays()]);
-        q('DELETE FROM ids_blocks WHERE (removed_at IS NOT NULL AND removed_at < NOW() - INTERVAL 90 DAY) OR (until IS NOT NULL AND until < NOW() - INTERVAL 90 DAY)');
+        // Bewaren zo lang als de meldingen, minstens 90 dagen (ook voor "eerder geblokkeerd": bij herhaling langer)
+        $days = max(90, Monitor::alertDays());
+        q('DELETE FROM ids_blocks WHERE (removed_at IS NOT NULL AND removed_at < NOW() - INTERVAL ? DAY) OR (until IS NOT NULL AND until < NOW() - INTERVAL ? DAY)', [$days, $days]);
     }
 }

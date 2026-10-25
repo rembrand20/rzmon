@@ -3323,14 +3323,7 @@ function renderSecurity() {
       <td class="conn-cell">📌 ${connSelect('pin', h, c.pin, true)}<br>🌐 ${connSelect('ip', h, c.ip_lock, true)}<br>🔒 ${connSelect('https', h, c.https_only, true)}</td>
       <td class="small">${encSeenText(h)}</td>
       <td class="nowrap"><button type="button" class="btn small-btn" data-url-host="${h.id}" title="${esc(L('Adres van RzMon voor deze agent wijzigen'))}">🌐</button> <button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗</button>${+h.agent_key_seen === 1 ? ` <button type="button" class="btn small-btn" data-key-renew="${h.id}" title="${esc(L('Nieuwe sleutel; de agent krijgt hem bij zijn volgende rapport'))}">🔄</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '';
-  const b = secInfo.blocks;
-  $('#blocks-list').innerHTML = b.length ? `<div class="table-scroll"><table class="vuln-table">
-    <thead><tr><th>${L('IP-adres of netwerk')}</th><th>${L('Reden')}</th><th>${L('Door')}</th><th>${L('Sinds')}</th><th>${L('Geweigerd')}</th><th></th></tr></thead><tbody>
-    ${b.map((x) => `<tr class="${x.until && new Date(x.until.replace(' ', 'T')) < new Date() ? 'muted' : ''}"><td class="mono">${esc(x.net)}${+x.auto ? ` <span class="badge" title="${esc(L('Door de inlogbeveiliging'))}">${L('auto')}</span>` : ''}</td>
-      <td class="small">${esc(x.reason || '')}${x.until ? `<br><span class="muted">${new Date(x.until.replace(' ', 'T')) < new Date() ? L('verlopen') : L('tot {t}', { t: esc(fmtDateTime(x.until)) })}</span>` : ''}</td><td class="small">${esc(x.created_by || '')}</td>
-      <td class="small">${esc(fmtDateTime(x.created_at))}</td><td class="small">${+x.hits ? `${x.hits}× · ${ago(x.last_hit)}` : '–'}</td>
-      <td><button type="button" class="icon-btn" data-unblock="${x.id}" title="${esc(L('Blokkade opheffen'))}">🗑</button></td></tr>`).join('')}</tbody></table></div>`
-    : `<p class="muted small">${L('Nog niets geblokkeerd. Je eigen IP-adres is {ip}.', { ip: `<code>${esc(secInfo.my_ip)}</code>` })}</p>`;
+  loadBlocks();
   settingsSummaries();
 }
 
@@ -3409,10 +3402,112 @@ function initSecurity() {
       loadSecurity();
     } catch (ex) { toast(ex.message, 'err'); }
   };
+  initBlocks();
+}
+
+// ---------------------------------------------------------------- Blokkades en whitelist (1.83.0)
+let blData = null, blTab = 'active', blShown = [];
+const BL_SRC = { rz: () => '⛔ ' + L('IP in RzMon'), user: () => '🔒 ' + L('Account'), ids: () => '🛡️ IDS' };
+const WL_KIND = { ip: () => L('IP-adres of netwerk'), user: () => L('Account: nooit vergrendelen'), decoy: () => L('Naam is geen lokaas') };
+const WL_DAYS = [[1, L('1 dag')], [7, L('7 dagen')], [30, L('30 dagen')], [0, L('altijd')]];
+
+async function loadBlocks() {
+  if (!$('#blocks-list')) return;
+  try { blData = await api('blocks_overview'); } catch (e) { $('#blocks-list').innerHTML = `<p class="bad small">${esc(e.message)}</p>`; return; }
+  renderBlocks();
+}
+
+function blWhat(x) {
+  return (x.type === 'user' ? `👤 <b>${esc(x.value)}</b>${x.ip ? `<br><span class="muted small">${L('vanaf')} <code>${esc(x.ip)}</code>${ccTag(x.ip_cc)}</span>` : ''}`
+    : `<code>${esc(x.value)}</code>${ccTag(x.cc)}`) + (x.wl ? ` <span class="u-tag ok" title="${esc(L('Staat op de whitelist'))}">✅</span>` : '');
+}
+
+function renderBlocks() {
+  const d = blData;
+  if (!d) return;
+  const tabs = $$('#bl-tabs [data-bl-tab]');
+  tabs[0].textContent = `${L('Nu geblokkeerd')} (${d.active.length})`;
+  tabs[1].textContent = `${L('Eerder')} (${d.history.length})`;
+  tabs.forEach((b) => b.classList.toggle('active', b.dataset.blTab === blTab));
+  const src = $('#bl-src').value, qv = $('#bl-q').value.trim().toLowerCase();
+  const act = blTab === 'active';
+  blShown = (act ? d.active : d.history).filter((x) => (!src || x.src === src)
+    && (!qv || [x.value, x.ip, x.where, x.reason, x.by, x.removed_by, x.decoy, x.cc].some((v) => v && String(v).toLowerCase().includes(qv))));
+  const when = (x) => act ? (x.until ? esc(fmtDateTime(x.until)) : `<b>${L('tot je deblokkeert')}</b>`)
+    : x.removed_by ? L('opgeheven {t} door {who}', { t: esc(fmtDateTime(x.removed_at)), who: esc(x.removed_by) }) : L('verlopen {t}', { t: esc(fmtDateTime(x.removed_at)) });
+  const where = (x) => x.src === 'ids' ? esc(x.where) + (x.all ? `<br><span class="muted small" title="${esc(L('Automatische blokkades gelden op al je servers met de IDS op blokkeren'))}">🌐 ${L('alle servers')}</span>` : '') : 'RzMon';
+  const btns = (x, i) => (act ? `<button type="button" class="btn small-btn" data-bl-lift="${i}" title="${esc(L('Blokkade meteen opheffen'))}">🔓 ${L('Deblokkeren')}</button> ` : '')
+    + (!x.wl || x.decoy ? `<button type="button" class="btn small-btn" data-bl-wl="${i}" title="${esc(L('Op de whitelist zetten: nooit meer blokkeren'))}">✅ ${L('Whitelist')}</button>` : '');
+  $('#blocks-list').innerHTML = blShown.length ? `<div class="table-scroll"><table class="vuln-table bl-table">
+    <thead><tr><th>${L('Wat')}</th><th>${L('Waar')}</th><th>${L('Reden')}</th><th>${L('Sinds')} → ${act ? L('tot') : L('opgeheven')}</th><th>${L('Door')}</th><th></th></tr></thead><tbody>
+    ${blShown.map((x, i) => `<tr><td>${blWhat(x)}<br><span class="muted small nowrap">${BL_SRC[x.src]()}</span></td><td class="small">${where(x)}</td>
+      <td class="small">${esc(x.reason || '')}${x.decoy ? `<br><span class="muted">🪤 ${L('lokaas-naam {u}', { u: `<code>${esc(x.decoy)}</code>` })}</span>` : ''}${act && +x.hits ? `<br><span class="muted">${L('{n}× tegengehouden', { n: x.hits })}</span>` : ''}</td>
+      <td class="small">${x.since ? esc(fmtDateTime(x.since)) : '–'}<br><span class="muted">→</span> ${when(x)}</td>
+      <td class="small">${+x.auto && x.src !== 'user' ? L('automatisch') : esc(x.by || '')}</td><td><span class="bl-acts">${btns(x, i)}</span></td></tr>`).join('')}</tbody></table></div>`
+    : `<p class="muted small">${(src || qv) && (act ? d.active : d.history).length ? L('Niets gevonden.') : act ? L('Nu is er niets geblokkeerd. Je eigen IP-adres is {ip}.', { ip: `<code>${esc(d.my_ip)}</code>` })
+      : L('Niets in de laatste {n} dagen.', { n: d.days })}</p>`;
+  $('#wl-list').innerHTML = d.whitelist.length ? `<div class="table-scroll"><table class="vuln-table">
+    <thead><tr><th>${L('Soort')}</th><th>${L('Wat')}</th><th>${L('Reden')}</th><th>${L('Tot')}</th><th>${L('Door')}</th><th></th></tr></thead><tbody>
+    ${d.whitelist.map((w) => `<tr><td class="small">${WL_KIND[w.kind] ? WL_KIND[w.kind]() : esc(w.kind)}</td><td>${w.kind === 'user' ? '👤 <b>' + esc(w.value) + '</b>' : `<code>${esc(w.value)}</code>${ccTag(w.cc)}`}</td>
+      <td class="small">${esc(w.reason || '')}</td><td class="small">${w.until ? esc(fmtDateTime(w.until)) : `<b>${L('altijd')}</b>`}</td>
+      <td class="small">${esc(w.created_by || '')}<br><span class="muted">${esc(fmtDateTime(w.created_at))}</span></td>
+      <td><button type="button" class="icon-btn" data-wl-del="${w.id}" title="${esc(L('Van de whitelist halen'))}">✕</button></td></tr>`).join('')}</tbody></table></div>`
+    : `<p class="muted small">${L('De whitelist is leeg.')}</p>`;
+}
+
+/** Op de whitelist zetten; x = een regel uit het overzicht (dan kies je uit wat erbij hoort), of niets (zelf invullen) */
+function wlDialog(x = null) {
+  const opts = [];
+  if (x && x.type !== 'user' && !x.wl) opts.push(['ip', x.value, x.type === 'net' ? L('Dit netwerk nooit blokkeren') : L('Dit IP-adres nooit blokkeren'), L('in RzMon en door het IDS op al je servers')]);
+  if (x && x.type === 'user') opts.push(['user', x.value, L('Account {u} nooit vergrendelen', { u: x.value }), L('het IP-adres van de aanvaller wordt wel geblokkeerd')]);
+  if (x && x.decoy) opts.push(['decoy', x.decoy, L('{u} is geen lokaas', { u: x.decoy }), L('valt af van de lokaas-namen, op alle servers')]);
+  const ip = !x || opts[0][0] === 'ip';
+  modal({
+    title: '✅ ' + L('Op de whitelist zetten'),
+    body: (x ? `${opts.map(([k, v, l, h], i) => `<label class="radio-row"><input type="radio" name="choice" value="${k}|${esc(v)}" ${i ? '' : 'checked'}><span><b>${esc(l)}</b>${k === 'user' ? '' : ` <code>${esc(v)}</code>`}<br><span class="muted small">${esc(h)}</span></span></label>`).join('')}`
+      : `<label>${L('Soort')}<select name="kind">${Object.entries(WL_KIND).map(([k, l]) => `<option value="${k}">${esc(l())}</option>`).join('')}</select></label>
+        <label>${L('IP-adres, netwerk of naam')}<input name="value" required class="mono" placeholder="${esc(L('bv. 203.0.113.10, 198.51.100.0/24, jan of admin'))}" autocomplete="off"></label>`)
+      + `<div><span class="small"><b>${L('Hoe lang')}</b></span><div class="wl-days">${WL_DAYS.map(([v, l]) => `<label><input type="radio" name="days" value="${v}" ${v === (ip ? 30 : 0) ? 'checked' : ''}> ${esc(l)}</label>`).join(' ')}</div></div>
+      <label>${L('Reden')} <span class="hint">${L('(optioneel)')}</span><input name="reason" maxlength="200" autocomplete="off"></label>
+      ${x && x.src !== 'user' && opts.some((o) => o[0] === 'ip') ? `<p class="muted small">${L('De blokkade wordt meteen opgeheven, ook op de andere servers. Wordt dit adres later aangevallen, dan krijg je nog wel de meldingen.')}</p>` : ''}
+      ${confirmField('WHITELIST')}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '✅ ' + L('Op de whitelist'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const [kind, ...rest] = d.choice ? d.choice.split('|') : [d.kind, d.value];
+      const r = await api('whitelist_add', { kind, value: d.choice ? rest.join('|') : d.value, days: +d.days, reason: d.reason, confirm: d.confirm });
+      toast(L('{v} staat op de whitelist', { v: r.value }) + (r.lifted ? ' · ' + L('{n} blokkade(s) opgeheven', { n: r.lifted }) : ''));
+      loadBlocks();
+    },
+  });
+  // Een IP standaard 30 dagen, een account of lokaas-naam standaard altijd
+  $$('#modal [name=choice]').forEach((r) => (r.onchange = () => { const v = r.value.startsWith('ip|') ? '30' : '0'; $(`#modal [name=days][value="${v}"]`).checked = true; }));
+}
+
+function initBlocks() {
+  $('#bl-tabs').onclick = (e) => { const b = e.target.closest('[data-bl-tab]'); if (b) { blTab = b.dataset.blTab; renderBlocks(); } };
+  $('#bl-src').onchange = renderBlocks;
+  $('#bl-q').oninput = renderBlocks;
+  $('#wl-add').onclick = () => wlDialog();
   $('#blocks-list').addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-unblock]');
-    if (!b || !confirm(L('Deze blokkade opheffen?'))) return;
-    try { await api('block_remove', { id: +b.dataset.unblock }); toast(L('Blokkade opgeheven')); loadSecurity(); } catch (ex) { toast(ex.message, 'err'); }
+    const lift = e.target.closest('[data-bl-lift]'), wl = e.target.closest('[data-bl-wl]');
+    if (wl) return wlDialog(blShown[+wl.dataset.blWl]);
+    if (!lift) return;
+    const x = blShown[+lift.dataset.blLift];
+    try {
+      await api('block_lift', { src: x.src, id: x.id });
+      toast(x.src === 'ids' ? L('Gedeblokkeerd; de agent past het binnen een minuut aan') : L('{v} gedeblokkeerd', { v: x.value }));
+      loadBlocks();
+    } catch (ex) { toast(ex.message, 'err'); }
+  });
+  $('#wl-list').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-wl-del]');
+    if (!b || !confirm(L('Van de whitelist halen? Daarna kan er weer geblokkeerd worden.'))) return;
+    try { await api('whitelist_remove', { id: +b.dataset.wlDel }); toast(L('Van de whitelist gehaald')); loadBlocks(); } catch (ex) { toast(ex.message, 'err'); }
+  });
+  // Links naar een ander onderdeel (bv. vanuit IDS-instellingen naar de whitelist)
+  $('#tab-settings').addEventListener('click', (e) => {
+    const go = e.target.closest('a[data-goto]');
+    if (go) { e.preventDefault(); showTab(go.dataset.goto); }
   });
 }
 
@@ -4397,7 +4492,7 @@ function renderIds() {
   const head = `<thead><tr><th>IP</th><th>Server</th><th>${L('Reden')}</th><th>${L('Sinds')}</th><th>${L('Tot')}</th><th>${L('Door')}</th><th>${L('Pakketten')}</th><th></th></tr></thead>`;
   const blocks = d.blocks.filter((b) => fxPass('blk', { ...b, act: '1' })), removed = d.removed.filter((b) => fxPass('blk', { ...b, act: '0' }));
   const fxB = fxActive('blk');
-  $('#ids-blocks').innerHTML = (blocks.length ? `<div class="table-scroll"><table class="alert-table large ids-blocks">${head}<tbody>${blocks.map((b) => row(b, true)).join('')}</tbody></table></div>`
+  $('#ids-blocks').innerHTML = `<p class="small need-admin"><a href="#settings/blocks" data-goto="settings/blocks">⛔ ${L('Alle blokkades (ook van RzMon zelf) en de whitelist')} →</a></p>` + (blocks.length ? `<div class="table-scroll"><table class="alert-table large ids-blocks">${head}<tbody>${blocks.map((b) => row(b, true)).join('')}</tbody></table></div>`
       : `<p class="muted">${fxB && d.blocks.length ? L('Niets gevonden.') : L('Niets geblokkeerd.')}${d.mode !== 'block' && !fxB ? ' ' + L('(Modus <i>leren</i>: er wordt niets geblokkeerd.)') : ''}</p>`)
     + (removed.length ? `<details class="small api-docs" ${fxB ? 'open' : ''}><summary>${L('Eerder geblokkeerd ({n})', { n: removed.length })}</summary>
         <div class="table-scroll"><table class="alert-table large ids-blocks">${head}<tbody>${removed.map((b) => row(b, false)).join('')}</tbody></table></div></details>` : '');
@@ -5256,7 +5351,7 @@ const SET_NAV = [
   ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'mqtt']], ['rules', L('Meldregels en stille uren'), ['notify']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['monitoring', '📈', L('Monitoring'), [['alarm', L('Alarmgedrag'), ['alarm']], ['vulns', L('Kwetsbaarheden'), ['vulns']], ['ids', 'IDS', ['ids']]]],
-  ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['https', L('Beheer via https'), ['https']], ['users', L('Gebruikers'), ['users']], ['hibp', L('Datalekken'), ['hibp']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades'), ['blocks']]]],
+  ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['https', L('Beheer via https'), ['https']], ['users', L('Gebruikers'), ['users']], ['hibp', L('Datalekken'), ['hibp']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades en whitelist'), ['blocks']]]],
   ['agents', '🖥️', L('Agents'), [['agents', L('Agents bijwerken en commando\'s'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']]]],
   ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['backup', L('Back-up'), ['backup']], ['db', L('Database'), ['db']], ['setup', 'Setup', ['setup']]]],
 ];
@@ -5854,7 +5949,7 @@ async function loadUsers() {
         ${u.me ? `<button class="btn" data-uact="mine" data-id="${u.id}" title="${L('Je eigen wachtwoord, 2FA, e-mail en apparaten')}">👤 ${L('Mijn account')}</button>${userFlags(u)}` : `${u.totp
           ? `<button class="btn" data-uact="totp-reset" data-id="${u.id}" title="${L('Tweestapsverificatie uitzetten, bv. bij een verloren telefoon')}">${L('2FA resetten')}</button>`
           : `<button class="btn" data-uact="totp-setup" data-id="${u.id}">🔐 ${L('2FA instellen')}</button>`}
-        ${u.locked ? `<button class="btn need-admin" data-uact="unlock" data-id="${u.id}">🔓 ${L('Deblokkeren')}</button>` : ''}
+        ${u.locked ? `<button class="btn need-admin" data-uact="unlock" data-id="${u.id}">🔓 ${L('Deblokkeren')}</button> <a class="btn need-admin" href="#settings/blocks" data-goto="settings/blocks" title="${esc(L('Overzicht van alle blokkades, met de whitelist'))}">⛔ ${L('Blokkades')}</a>` : ''}
         ${u.me ? '' : `<select class="role-select need-admin" data-uact="role" data-id="${u.id}" title="${L('Rol wijzigen')}">
           ${Object.entries(ROLE_LABEL).map(([k, l]) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`}
         <button class="btn small-btn" data-uact="devices" data-id="${u.id}" title="${L('Ingelogde apparaten van {user}', { user: esc(u.username) })}">📱 ${+u.devices}</button>

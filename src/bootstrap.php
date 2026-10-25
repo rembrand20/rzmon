@@ -56,6 +56,7 @@ require_once __DIR__ . '/AgentCommands.php';
 require_once __DIR__ . '/AuthEvents.php';
 require_once __DIR__ . '/Ids.php';
 require_once __DIR__ . '/IpIntel.php';
+require_once __DIR__ . '/Whitelist.php';
 require_once __DIR__ . '/SnmpMonitor.php';
 require_once __DIR__ . '/I18n.php';
 require_once __DIR__ . '/AgentText.php';

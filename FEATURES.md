@@ -116,7 +116,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 ## 7. REST API
 - JSON, met API-sleutels die je in de webinterface beheert.
 - **Rechten per sleutel:** 📖 status lezen, 🛡️ IDS lezen, 🐞 kwetsbaarheden lezen, ⛔ IDS blokkeren (met bevestiging) en ✔ checks bedienen; daarnaast optioneel **alleen vanaf** bepaalde IP's of netwerken, en een **geldigheid** van 6, 12 of 24 maanden (verlengen met ✎).
-- **IDS:** incidenten, blokkades en logins uitlezen, en IP's blokkeren of deblokkeren, bijvoorbeeld vanuit fail2ban. Je LAN, RzMon zelf en *Nooit blokkeren* weigert de API altijd; in de leerstand wordt een blokkade alleen vastgelegd.
+- **IDS:** incidenten, blokkades en logins uitlezen, en IP's blokkeren of deblokkeren, bijvoorbeeld vanuit fail2ban. Je LAN, RzMon zelf en de whitelist weigert de API altijd; in de leerstand wordt een blokkade alleen vastgelegd.
 - **Checks bedienen:** bevestigen, onderhoud (check of server) en nu checken.
 - Alles wat een sleutel verandert komt in het logboek.
 - **Endpoints:**
@@ -174,6 +174,9 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **ℹ️ Systeeminfo per melding:** voor elke melding van RzMon zelf (updates, agents, logins, blokkades, kwetsbaarheden, ⚠️ niet-geautoriseerd) Pushover (stil of met geluid), e-mail, Home Assistant en de meldingenpagina apart aan te vinken, met een 🧪 testknop.
 - **🔐 Inlogbeveiliging:** na een in te stellen aantal mislukte pogingen (ook 2FA) binnen een in te stellen tijd het **account** en/of het **IP-adres** (niet van je LAN) blokkeren, voor een in te stellen tijd of tot een beheerder deblokkeert; vanaf je LAN kun je een geblokkeerd account nog gebruiken; ⚠️ + Pushover.
 - **⛔ Blokkades** op IP-adres of netwerk voor heel RzMon (webpagina, login, API, agents), ook met één klik vanuit Meldingen; jezelf blokkeren kan niet.
+- **⛔ Blokkades en whitelist** (1.83.0): één overzicht van alles wat geblokkeerd is: IP's in RzMon, vergrendelde accounts en IDS-blokkades per server. Er zijn tabbladen *Nu geblokkeerd* en *Eerder*, met de reden, het land, filters en zoeken.
+  - Per regel kun je **🔓 deblokkeren** of **✅ op de whitelist** zetten. Dat geldt 1/7/30 dagen of altijd, je bevestigt met je wachtwoord en het komt in het auditlog.
+  - De whitelist kent drie soorten: een IP of netwerk (RzMon en het IDS op alle servers), een account (nooit vergrendelen, het IP van de aanvaller wel) en een naam die geen lokaas is.
 - **Beveiligingsmeldingen:** ⚠️ + Pushover bij een niet-geautoriseerde verbinding (fout token, verkeerde sleutel, verkeerde API-sleutel, 3 mislukte logins); ℹ️ bij elke login in RzMon en als een agent (opnieuw) verbindt.
 - **Gevoelige acties** (back-up downloaden of terugzetten, databasewachtwoord, commando's toestaan) vragen om je wachtwoord.
 - **Logboek** van gevoelige wijzigingen.

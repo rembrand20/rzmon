@@ -527,8 +527,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Blokkeren (uren)') ?><input type="number" name="ids_block_hours" min="1" max="8760"></label>
             <label><?= th('Bij herhaling (dagen)') ?><input type="number" name="ids_repeat_days" min="1" max="365"></label>
           </div>
-          <label><?= th('Nooit blokkeren') ?> <span class="muted small"><?= th('(IP-adressen of netwerken; je LAN en RzMon zelf worden nooit automatisch geblokkeerd)') ?></span>
-            <textarea name="ids_allow" rows="2" placeholder="<?= th('bv. 203.0.113.10 198.51.100.0/24') ?>"></textarea></label>
+          <p class="small"><b><?= th('Nooit blokkeren') ?></b>: <?= t('je LAN en RzMon zelf worden nooit automatisch geblokkeerd. Andere IP-adressen en netwerken zet je op de <a href="#settings/blocks" data-goto="settings/blocks">✅ whitelist</a>; die geldt voor RzMon én het IDS op al je servers.') ?></p>
           <label class="switch"><input type="checkbox" name="ids_block_shared"><span></span> <?= th('Automatische blokkades op alle servers') ?></label>
           <p class="muted small" style="margin-top:-.4rem"><?= th('Een aanvaller die op één server automatisch geblokkeerd wordt (brute force, lokaas), wordt meteen op al je servers met de IDS op blokkeren geblokkeerd. Met de hand blokkeren geldt alleen voor de server die je kiest.') ?></p>
           <h3 class="set-sub"><?= th('🪤 Lokaas') ?></h3>
@@ -753,12 +752,20 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div>
 
       <div data-sk="blocks" class="card need-admin" id="blocks-card">
-        <h2>⛔ <?= th('Blokkades') ?></h2>
+        <h2>⛔ <?= th('Blokkades en whitelist') ?></h2>
         <p class="muted small"><?= t('Een geblokkeerd IP-adres of netwerk krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de API en geen agents. Jezelf en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: <code>sudo php install/install.php --unblock-all</code>') ?></p>
         <div class="block-add"><input id="block-net" class="mono" placeholder="<?= th('bv. 203.0.113.7 of 203.0.113.0/24') ?>" autocomplete="off">
           <input id="block-reason" placeholder="<?= th('reden (optioneel)') ?>" autocomplete="off">
           <button type="button" class="btn danger" id="block-add">⛔ <?= th('Blokkeren') ?></button></div>
+        <p class="muted small"><?= th('Hieronder alles wat nu geblokkeerd is: IP-adressen in RzMon, vergrendelde accounts en de IDS-blokkades op je servers. Deblokkeren werkt meteen; op de whitelist zetten heft de blokkade ook op en voorkomt een nieuwe.') ?></p>
+        <div class="bl-bar"><div class="seg" id="bl-tabs"><button type="button" class="seg-btn active" data-bl-tab="active"></button><button type="button" class="seg-btn" data-bl-tab="history"></button></div>
+          <select id="bl-src"><option value=""><?= th('Alles') ?></option><option value="rz"><?= th('IP in RzMon') ?></option><option value="user"><?= th('Accounts') ?></option><option value="ids"><?= th('IDS (servers)') ?></option></select>
+          <input id="bl-q" type="search" placeholder="<?= th('Zoeken: IP, naam, server, reden…') ?>" autocomplete="off"></div>
         <div id="blocks-list"></div>
+        <h3 class="set-sub">✅ <?= th('Whitelist (nooit blokkeren)') ?></h3>
+        <p class="muted small" style="margin-top:-.2rem"><?= th('Een IP-adres of netwerk hierop wordt nergens geblokkeerd: niet in RzMon en niet door het IDS op welke server dan ook (ook niet via de lijsten met bekende aanvallers). Een account wordt nooit vergrendeld (het IP van de aanvaller wel). Een naam die geen lokaas is, valt af van de lokaas-namen.') ?></p>
+        <div class="btn-row"><button type="button" class="btn" id="wl-add">✅ <?= th('Op de whitelist zetten…') ?></button></div>
+        <div id="wl-list"></div>
       </div>
 
       <div data-sk="api" class="card need-admin" id="api-card">

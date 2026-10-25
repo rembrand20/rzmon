@@ -102,7 +102,7 @@ final class IpIntel
         if (!self::blocklistsOn() || !Ids::blocking()) {
             return [];
         }
-        $allow = array_map([self::class, 'range'], parse_list((string) setting('ids_allow', '')));
+        $allow = array_map([self::class, 'range'], Whitelist::values('ip'));
         $out = [];
         foreach (q('SELECT cidr, start_ip, end_ip FROM ip_blocklist ORDER BY fam, start_ip LIMIT ' . self::MAX_AGENT)->fetchAll() as $r) {
             foreach ($allow as $a) {

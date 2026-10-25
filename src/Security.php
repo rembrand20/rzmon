@@ -44,8 +44,8 @@ final class Security
     /** @return array|null de blokkade waar dit IP onder valt */
     public static function blockFor(string $ip): ?array
     {
-        if ($ip === '') {
-            return null;
+        if ($ip === '' || Whitelist::ip($ip)) {
+            return null;   // whitelist (1.83.0): ook niet als het in een geblokkeerd netwerk valt
         }
         foreach (q('SELECT id, net FROM rz_blocks WHERE until IS NULL OR until > NOW()')->fetchAll() as $b) {
             if (ip_in_list($ip, [$b['net']])) {
@@ -85,6 +85,9 @@ final class Security
         if ($n === null) {
             return t('Geen geldig IP-adres of netwerk: {n}', ['n' => mb_substr($net, 0, 64)]);
         }
+        if (Whitelist::ruleFor($n)) {
+            return t('{net} staat op de whitelist (Instellingen → Blokkades en whitelist); haal het daar eerst af', ['net' => $n]);
+        }
         $mine = client_ip();
         foreach (array_filter([$auto ? '' : $mine, '127.0.0.1', '::1', $_SERVER['SERVER_ADDR'] ?? '']) as $own) {
             if (ip_in_list($own, [$n])) {
@@ -104,14 +107,31 @@ final class Security
         return true;
     }
 
-    public static function unblock(int $id, string $by): void
+    public static function unblock(int $id, string $by): bool
     {
-        $net = q('SELECT net FROM rz_blocks WHERE id = ?', [$id])->fetchColumn();
-        if ($net !== false) {
-            q('DELETE FROM rz_blocks WHERE id = ?', [$id]);
-            AgentCommands::audit($by, 'Blokkade opgeheven', (string) $net);
-            self::liftedInfo((string) $net, t('door {by}', ['by' => $by]));
+        $b = q('SELECT * FROM rz_blocks WHERE id = ?', [$id])->fetch();
+        if (!$b) {
+            return false;
         }
+        self::logLifted($b, $by);
+        q('DELETE FROM rz_blocks WHERE id = ?', [$id]);
+        AgentCommands::audit($by, 'Blokkade opgeheven', (string) $b['net']);
+        self::liftedInfo((string) $b['net'], t('door {by}', ['by' => $by]));
+        return true;
+    }
+
+    /** Voor "Eerder" (1.83.0): een opgeheven of verlopen IP-blokkade bewaren. $by null = verlopen */
+    private static function logLifted(array $b, ?string $by): void
+    {
+        q("INSERT INTO block_log (kind, value, reason, created_by, created_at, until, removed_at, removed_by) VALUES ('rz', ?, ?, ?, ?, ?, ?, ?)",
+            [$b['net'], $b['reason'], $b['created_by'], $b['created_at'], $b['until'], now(), $by === null ? null : mb_substr($by, 0, 100)]);
+    }
+
+    /** Idem voor een account. $u met username, locked_*; $by null = verlopen */
+    private static function logUnlocked(array $u, ?string $by): void
+    {
+        q("INSERT INTO block_log (kind, value, reason, ip, created_by, created_at, until, removed_at, removed_by) VALUES ('user', ?, ?, ?, ?, ?, ?, ?, ?)",
+            [$u['username'], $u['locked_reason'] ?? null, $u['locked_ip'] ?? null, t('de inlogbeveiliging'), $u['locked_at'], $u['locked_until'], now(), $by === null ? null : mb_substr($by, 0, 100)]);
     }
 
     /** ℹ️ in Meldingen: een IP-blokkade is opgeheven (met de hand of verlopen) */
@@ -127,12 +147,15 @@ final class Security
      */
     public static function expire(): void
     {
-        foreach (q('SELECT id, net FROM rz_blocks WHERE until IS NOT NULL AND until <= ?', [now()])->fetchAll() as $b) {
+        Whitelist::expire();
+        foreach (q('SELECT * FROM rz_blocks WHERE until IS NOT NULL AND until <= ?', [now()])->fetchAll() as $b) {
+            self::logLifted($b, null);
             q('DELETE FROM rz_blocks WHERE id = ?', [$b['id']]);
             self::liftedInfo((string) $b['net'], t('de ingestelde tijd is voorbij'));
         }
-        foreach (q('SELECT id, username FROM users WHERE locked_at IS NOT NULL AND locked_until IS NOT NULL AND locked_until <= ?', [now()])->fetchAll() as $u) {
-            q('UPDATE users SET locked_at = NULL, locked_until = NULL, locked_ip = NULL WHERE id = ?', [$u['id']]);
+        foreach (q('SELECT id, username, locked_at, locked_until, locked_ip, locked_reason FROM users WHERE locked_at IS NOT NULL AND locked_until IS NOT NULL AND locked_until <= ?', [now()])->fetchAll() as $u) {
+            self::logUnlocked($u, null);
+            q('UPDATE users SET locked_at = NULL, locked_until = NULL, locked_ip = NULL, locked_reason = NULL WHERE id = ?', [$u['id']]);
             self::unlockedInfo((string) $u['username'], t('de ingestelde tijd is voorbij'));
         }
     }
@@ -147,6 +170,60 @@ final class Security
     public static function blocks(): array
     {
         return q('SELECT id, net, reason, created_by, created_at, hits, last_hit, until, auto FROM rz_blocks ORDER BY created_at DESC')->fetchAll();
+    }
+
+    /**
+     * Overzicht voor Instellingen → Blokkades en whitelist (1.83.0): alles wat nu geblokkeerd is (IP's in RzMon, accounts,
+     * IDS per server) en wat eerder geblokkeerd was (opgeheven of verlopen, zo lang als de meldingen bewaard worden).
+     * Per regel: src (rz | user | ids), id, value, type (ip | net | user), cc, where, reason, since, until, by, hits.
+     */
+    public static function overview(): array
+    {
+        $days = Monitor::alertDays();
+        $cc = static fn(string $v) => str_contains($v, '/') || @inet_pton($v) === false ? null : IpIntel::country($v);
+        $wlIp = static fn(string $v) => Whitelist::ruleFor($v) !== null;
+        $active = $history = [];
+        foreach (self::blocks() as $b) {
+            if ($b['until'] && strtotime((string) $b['until']) <= time()) {
+                continue;
+            }
+            $active[] = ['src' => 'rz', 'id' => (int) $b['id'], 'value' => $b['net'], 'type' => str_contains((string) $b['net'], '/') ? 'net' : 'ip', 'cc' => $cc((string) $b['net']),
+                'where' => 'RzMon', 'reason' => $b['reason'], 'since' => $b['created_at'], 'until' => $b['until'], 'by' => $b['created_by'], 'auto' => (int) $b['auto'],
+                'hits' => (int) $b['hits'], 'last_hit' => $b['last_hit'], 'wl' => $wlIp((string) $b['net'])];
+        }
+        foreach (q('SELECT id, username, locked_at, locked_until, locked_ip, locked_reason FROM users WHERE locked_at IS NOT NULL ORDER BY locked_at DESC')->fetchAll() as $u) {
+            if (!self::accountLocked($u)) {
+                continue;
+            }
+            $active[] = ['src' => 'user', 'id' => (int) $u['id'], 'value' => $u['username'], 'type' => 'user', 'cc' => null, 'where' => 'RzMon',
+                'reason' => $u['locked_reason'] ?: t('te veel mislukte logins'), 'ip' => $u['locked_ip'], 'ip_cc' => $u['locked_ip'] ? $cc((string) $u['locked_ip']) : null,
+                'since' => $u['locked_at'], 'until' => $u['locked_until'], 'by' => t('de inlogbeveiliging'), 'auto' => 1, 'wl' => Whitelist::user((string) $u['username'])];
+        }
+        $shared = setting('ids_block_shared', '1') === '1';
+        $decoys = Ids::decoyUsers();
+        foreach (Ids::activeBlocks() as $b) {
+            $active[] = ['src' => 'ids', 'id' => (int) $b['id'], 'value' => $b['ip'], 'type' => 'ip', 'cc' => $b['cc'] ?: $cc((string) $b['ip']), 'where' => $b['host_name'],
+                'all' => $shared && (int) $b['auto'], 'reason' => $b['reason'], 'since' => $b['created_at'], 'until' => $b['until'], 'by' => $b['created_by'], 'auto' => (int) $b['auto'],
+                'hits' => (int) $b['hits'], 'decoy' => $b['decoy_user'] && in_array($b['decoy_user'], $decoys, true) ? $b['decoy_user'] : null, 'wl' => $wlIp((string) $b['ip'])];
+        }
+        foreach (q('SELECT * FROM block_log WHERE removed_at >= NOW() - INTERVAL ? DAY ORDER BY removed_at DESC LIMIT 500', [$days])->fetchAll() as $b) {
+            $user = $b['kind'] === 'user';
+            $history[] = ['src' => $b['kind'], 'value' => $b['value'], 'type' => $user ? 'user' : (str_contains((string) $b['value'], '/') ? 'net' : 'ip'),
+                'cc' => $user ? null : $cc((string) $b['value']), 'ip' => $b['ip'], 'where' => 'RzMon', 'reason' => $b['reason'] ?: ($user ? t('te veel mislukte logins') : null),
+                'since' => $b['created_at'], 'until' => $b['until'], 'by' => $b['created_by'], 'removed_at' => $b['removed_at'], 'removed_by' => $b['removed_by']];
+        }
+        foreach (q('SELECT b.*, h.name AS host_name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
+                    WHERE (b.removed_at IS NOT NULL AND b.removed_at >= NOW() - INTERVAL ? DAY) OR (b.removed_at IS NULL AND b.until IS NOT NULL AND b.until <= NOW() AND b.until >= NOW() - INTERVAL ? DAY)
+                    ORDER BY COALESCE(b.removed_at, b.until) DESC LIMIT 500', [$days, $days])->fetchAll() as $b) {
+            $history[] = ['src' => 'ids', 'value' => $b['ip'], 'type' => 'ip', 'cc' => $b['cc'] ?: $cc((string) $b['ip']), 'where' => $b['host_name'], 'all' => $shared && (int) $b['auto'],
+                'reason' => $b['reason'], 'since' => $b['created_at'], 'until' => $b['until'], 'by' => $b['created_by'],
+                'removed_at' => $b['removed_at'] ?: $b['until'], 'removed_by' => $b['removed_at'] ? $b['removed_by'] : null];
+        }
+        usort($active, static fn($a, $b) => strcmp((string) $b['since'], (string) $a['since']));
+        usort($history, static fn($a, $b) => strcmp((string) $b['removed_at'], (string) $a['removed_at']));
+        $wl = array_map(static fn($r) => $r + ['cc' => $r['kind'] === 'ip' ? $cc((string) $r['value']) : null], Whitelist::all());
+        return ['active' => $active, 'history' => array_slice($history, 0, 500), 'whitelist' => $wl, 'days' => $days, 'my_ip' => client_ip(),
+            'ids' => Ids::enabled(), 'ids_blocking' => Ids::blocking()];
     }
 
     // ------------------------------------------------------------------ ⚠️ niet-geautoriseerd
@@ -270,19 +347,21 @@ final class Security
     }
 
     /** Beheerder deblokkeert een account (en de telling begint opnieuw) */
-    public static function unlockUser(int $id, string $by): void
+    public static function unlockUser(int $id, string $by): bool
     {
-        $name = q('SELECT username FROM users WHERE id = ?', [$id])->fetchColumn();
-        if ($name === false) {
-            return;
+        $was = q('SELECT username, locked_at, locked_until, locked_ip, locked_reason FROM users WHERE id = ?', [$id])->fetch();
+        if (!$was) {
+            return false;
         }
-        $was = q('SELECT locked_at, locked_until FROM users WHERE id = ?', [$id])->fetch();
-        q('UPDATE users SET locked_at = NULL, locked_until = NULL, locked_ip = NULL WHERE id = ?', [$id]);
+        $name = (string) $was['username'];
+        q('UPDATE users SET locked_at = NULL, locked_until = NULL, locked_ip = NULL, locked_reason = NULL WHERE id = ?', [$id]);
         q("DELETE FROM security_fails WHERE kind = 'login' AND user = ?", [$name]);
-        AgentCommands::audit($by, 'Account gedeblokkeerd', (string) $name);
-        if ($was && self::accountLocked($was)) {
-            self::unlockedInfo((string) $name, t('door {by}', ['by' => $by]));
+        AgentCommands::audit($by, 'Account gedeblokkeerd', $name);
+        if (self::accountLocked($was)) {
+            self::logUnlocked($was, $by);
+            self::unlockedInfo($name, t('door {by}', ['by' => $by]));
         }
+        return true;
     }
 
     /**
@@ -305,15 +384,16 @@ final class Security
             $nUser = $exists ? (int) q("SELECT COUNT(*) FROM security_fails WHERE user = ? AND kind = 'login' AND created_at >= ?", [$user, $since])->fetchColumn() : 0;
             $until = $cfg['minutes'] > 0 ? date('Y-m-d H:i:s', time() + $cfg['minutes'] * 60) : null;
             $done = [];
-            if ($cfg['account'] && $exists && $nUser >= $cfg['fails']
-                && q('UPDATE users SET locked_at = ?, locked_until = ?, locked_ip = ? WHERE username = ? AND (locked_at IS NULL OR (locked_until IS NOT NULL AND locked_until <= NOW()))',
-                    [now(), $until, mb_substr($ip, 0, 45), $user])->rowCount() > 0) {
+            // Whitelist (1.83.0): een account erop wordt nooit vergrendeld, een IP erop nooit geblokkeerd
+            if ($cfg['account'] && $exists && $nUser >= $cfg['fails'] && !Whitelist::user($user)
+                && q('UPDATE users SET locked_at = ?, locked_until = ?, locked_ip = ?, locked_reason = ? WHERE username = ? AND (locked_at IS NULL OR (locked_until IS NOT NULL AND locked_until <= NOW()))',
+                    [now(), $until, mb_substr($ip, 0, 45), mb_substr(t('{n} mislukte logins binnen {m} minuten', ['n' => $nUser, 'm' => $cfg['window']]), 0, 200), $user])->rowCount() > 0) {
                 $done[] = '🔒 ' . t('account {user} geblokkeerd', ['user' => $user]);
                 Monitor::sysInfo('account_lock', null, null, '🔒 ' . t('Account geblokkeerd: {user}', ['user' => $user]),
                     fn() => t('Account {user} is geblokkeerd na {n} mislukte logins binnen {m} minuten (laatste vanaf {ip})', ['user' => $user, 'n' => $nUser, 'm' => $cfg['window'], 'ip' => $ip])
                         . ' · ' . ($until ? t('tot {t}', ['t' => date('d-m H:i', strtotime($until))]) : t('tot een beheerder deblokkeert')) . ' · ' . t('vanaf het lokale netwerk kan inloggen nog wel'), $ip);
             }
-            if ($cfg['ip'] && $nIp >= $cfg['fails'] && !self::fromLan() && !Https::unknownProxy() && !self::blockFor($ip)
+            if ($cfg['ip'] && $nIp >= $cfg['fails'] && !self::fromLan() && !Https::unknownProxy() && !self::blockFor($ip) && !Whitelist::ip($ip)
                 && self::block($ip, t('automatisch: {n} mislukte logins ({user})', ['n' => $nIp, 'user' => $user]), 'automatisch', $until, true) === true) {
                 $done[] = '⛔ ' . t('IP {ip} geblokkeerd', ['ip' => $ip]);
             }
@@ -371,6 +451,7 @@ final class Security
     {
         q('DELETE FROM security_fails WHERE created_at < NOW() - INTERVAL 1 DAY');
         q('DELETE FROM login_log WHERE created_at < NOW() - INTERVAL 90 DAY');
+        q('DELETE FROM block_log WHERE removed_at < NOW() - INTERVAL ? DAY', [Monitor::alertDays()]);
         q('DELETE FROM agent_nonces WHERE created_at < NOW() - INTERVAL 1 HOUR');
     }
 }

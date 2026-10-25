@@ -1481,3 +1481,14 @@ details.adv[open] { padding-bottom: .6rem; }
 /* Land van een IP (1.82.0) */
 .cc-tag { white-space: nowrap; font-size: .85em; }
 .cc-tag.bad { cursor: help; }
+
+/* Blokkades en whitelist (1.83.0) */
+.bl-bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .6rem 0; }
+.bl-bar .seg { margin-bottom: 0; }
+.bl-bar select, .bl-bar input { width: auto; flex: 0 1 auto; margin: 0; }
+.bl-bar input[type=search] { flex: 1 1 14rem; }
+.bl-table td { vertical-align: top; }
+.wl-days { display: flex; flex-wrap: wrap; gap: .4rem 1rem; margin: .3rem 0 .8rem; }
+.wl-days label { display: inline-flex; gap: .3rem; align-items: center; margin: 0; font-weight: normal; }
+.bl-acts { display: flex; flex-direction: column; gap: .3rem; align-items: stretch; }
+.bl-acts .btn { white-space: nowrap; }

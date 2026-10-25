@@ -1667,6 +1667,34 @@ switch ($action) {
         Security::unblock((int) (input()['id'] ?? 0), $user['username']);
         out(['ok' => true]);
 
+    // Blokkades en whitelist (1.83.0)
+    case 'blocks_overview':
+        out(Security::overview());
+
+    case 'block_lift':
+        $in = input();
+        $id = (int) ($in['id'] ?? 0);
+        $ok = match ((string) ($in['src'] ?? '')) {
+            'rz' => Security::unblock($id, $user['username']),
+            'user' => Security::unlockUser($id, $user['username']),
+            'ids' => (static function () use ($id, $user): bool {
+                $b = Ids::unblock($id, $user['username']);
+                $b && AgentCommands::audit($user['username'], 'IDS: gedeblokkeerd', "{$b['ip']} op server {$b['host_id']}");
+                return (bool) $b;
+            })(),
+            default => false,
+        };
+        $ok ? out(['ok' => true]) : out(['error' => t('Blokkade niet gevonden')], 404);
+
+    case 'whitelist_add':
+        $in = input();
+        $confirm('WHITELIST');
+        $r = Whitelist::add((string) ($in['kind'] ?? ''), (string) ($in['value'] ?? ''), (int) ($in['days'] ?? 0), (string) ($in['reason'] ?? ''), $user['username']);
+        isset($r['error']) ? out($r, 422) : out($r);
+
+    case 'whitelist_remove':
+        Whitelist::remove((int) (input()['id'] ?? 0), $user['username']) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);
+
     case 'host_info_agent':
         $in = input();
         q('UPDATE hosts SET info_agent = ? WHERE id = ?', [!empty($in['on']) ? 1 : 0, (int) ($in['id'] ?? 0)]);
@@ -2081,7 +2109,7 @@ switch ($action) {
             $in['sysinfo'] = json_encode(NotifyRules::cleanSysinfo((array) json_decode((string) $in['sysinfo'], true), NotifyRules::sysinfo()));
         }
         $allowed = ['sysinfo', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_allow', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -2146,10 +2174,6 @@ switch ($action) {
         }
         if (isset($in['ids_weekly_time'])) {
             $in['ids_weekly_time'] = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['ids_weekly_time']) ? (string) $in['ids_weekly_time'] : '08:00';
-        }
-        if (isset($in['ids_allow'])) {
-            $in['ids_allow'] = implode(' ', array_slice(array_filter(parse_list(mb_substr((string) $in['ids_allow'], 0, 2000)),
-                fn($x) => @inet_pton(explode('/', $x)[0]) !== false), 0, 100));
         }
         if (isset($in['alerts_days'])) {
             $in['alerts_days'] = (string) max(1, min(3650, (int) $in['alerts_days']));

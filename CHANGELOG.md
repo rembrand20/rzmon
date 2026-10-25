@@ -7,6 +7,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.83.0 – 2026-10-25
+### Nieuw
+- **⛔ Blokkades en whitelist** (*Instellingen → 🔐 Beveiliging*). Eén overzicht van alles wat geblokkeerd is: IP-adressen in RzMon, vergrendelde accounts en de IDS-blokkades per server (🌐 als een automatische blokkade op al je servers geldt).
+  - Per regel zie je het land, de reden (bij lokaas ook de naam), sinds, tot en door wie.
+  - Er zijn twee tabbladen: *Nu geblokkeerd* en *Eerder*. *Eerder* toont opgeheven en verlopen blokkades, zo lang als de meldingen bewaard worden.
+  - Je kunt filteren op soort en zoeken.
+- **🔓 Deblokkeren** per regel, meteen.
+- **✅ Op de whitelist**: je kiest 1, 7 of 30 dagen of altijd, bevestigt met je wachtwoord, en het komt in het auditlog. De blokkade wordt meteen opgeheven. Er zijn drie soorten:
+  - **IP-adres of netwerk**: nooit blokkeren, in RzMon én door het IDS op al je servers (ook niet via de lijsten met bekende aanvallers).
+  - **Account**: nooit vergrendelen na mislukte logins; het IP van de aanvaller wordt wel geblokkeerd.
+  - **Naam is geen lokaas**: valt af van de lokaas-namen, op alle servers.
+- Links naar het overzicht bij *IDS → Blokkades* en bij een vergrendeld account onder *Gebruikers*.
+- De lijst *Nooit blokkeren* van het IDS wordt bij de update overgenomen in de whitelist. Daar beheer je hem voortaan.
+
 ## 1.82.0 – 2026-10-25
 ### Nieuw
 - **☠️ IDS: bekende aanvallers.** Dagelijks Spamhaus DROP (IPv4 en IPv6) en FireHOL level 1 ophalen. In de modus blokkeren zetten de agents ze vooraf in hun firewall (**agent 1.55.0 nodig**). In de modus leren krijgen logins en incidenten van zo'n adres het label ☠️. Je eigen netwerk staat er nooit in.
