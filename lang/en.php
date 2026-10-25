@@ -3235,4 +3235,5 @@ return [
     '{n} sessies en apparaten uitgelogd' => '{n} sessions and devices logged out',
     'Waar {user} nu is ingelogd. Een onthouden apparaat (📌) blijft ingelogd zonder wachtwoord en 2FA; het wordt vanzelf vergeten na 30 dagen niet gebruiken, en bij een wachtwoordwijziging.' => 'Where {user} is signed in now. A remembered device (📌) stays signed in without password and 2FA; it is forgotten automatically after 30 days of no use, and on a password change.',
     'Alles uitloggen' => 'Log out everything',
+    'Niet ondertekend door een bekende uitgever. Voor het eigen certificaat van RzMon is dat normaal: de agents zetten het vast, en je browser vraagt eenmalig om "toch doorgaan".' => 'Not signed by a known issuer. For RzMon\'s own certificate that is normal: the agents pin it, and your browser asks once to "proceed anyway".',
 ];

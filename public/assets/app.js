@@ -4723,14 +4723,16 @@ async function loadHttps() {
 }
 
 /** Eén certificaat als blok: uitgever, namen, geldigheid, vingerafdruk */
+/** selfOk: het eigen certificaat van RzMon (nooddeur, agents): niet door een bekende uitgever ondertekend is dan normaal */
 function certBlock(title, c, extra = '', selfOk = false) {
   if (!c) return '';
   if (!c.ok) return `<div class="cert-box bad"><div class="cert-h">${title}</div><div class="small"><b class="bad">✘ ${esc(c.error || L('geen verbinding'))}</b></div>${extra}</div>`;
   const left = c.days < 0 ? `<b class="bad">${L('VERLOPEN')}</b>` : c.days <= ((httpsInfo && httpsInfo.warn_days) || 14) ? `<b class="warn-txt">${L('nog {n} dagen', { n: c.days })}</b>` : L('nog {n} dagen', { n: c.days });
   const d = (t) => new Date(t * 1000).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
-  const trust = c.trusted ? `<b class="good">✔ ${L('vertrouwd')}</b>` : c.self_signed ? `<span class="muted">🔏 ${L('self-signed')}</span>` : `<b class="bad">✘ ${esc(c.error || L('niet vertrouwd'))}</b>`;
-  const okish = (c.trusted || (selfOk && c.self_signed)) && c.days > ((httpsInfo && httpsInfo.warn_days) || 14);
-  return `<div class="cert-box ${okish ? 'ok' : c.days >= 0 && (c.trusted || c.self_signed) ? 'warn' : 'bad'}">
+  const own = selfOk && !c.trusted;   // eigen certificaat: self-signed, of van de eigen CA van de webserver (bv. mod_ssl op Rocky)
+  const trust = c.trusted ? `<b class="good">✔ ${L('vertrouwd')}</b>` : own || c.self_signed ? `<span class="muted" title="${esc(L('Niet ondertekend door een bekende uitgever. Voor het eigen certificaat van RzMon is dat normaal: de agents zetten het vast, en je browser vraagt eenmalig om "toch doorgaan".'))}">🔏 ${L('self-signed')}</span>` : `<b class="bad">✘ ${esc(c.error || L('niet vertrouwd'))}</b>`;
+  const okish = (c.trusted || own) && c.days > ((httpsInfo && httpsInfo.warn_days) || 14);
+  return `<div class="cert-box ${okish ? 'ok' : c.days >= 0 && (c.trusted || c.self_signed || own) ? 'warn' : 'bad'}">
     <div class="cert-h">${title} ${trust}</div>
     <dl class="cert-dl small">
       <dt>${L('Uitgever')}</dt><dd>${esc(c.issuer)}</dd>
@@ -4767,7 +4769,7 @@ function renderHttps() {
       : `<div class="small"><span class="bad">✘ ${L('DNS: {host} is vanaf de RzMon-server niet te vinden', { host: esc(host) })}</span></div>`) : '';
     html += certBlock('🌍 ' + L('Beheeradres'), s.admin, dns);
   } else if (h.admin_url) html += `<p class="muted small">${L('Nog niet gecontroleerd: klik op Nu controleren.')}</p>`;
-  if (s.local) html += certBlock('🚪 ' + L('Nooddeur') + (h.door.includes('<') ? ` <span class="small muted">${esc(h.door)}</span>` : ` <a class="small" href="${esc(h.door)}">${esc(h.door)}</a>`), s.local, `<div class="muted small">${L('Alleen vanaf je interne netwerken; het certificaat van RzMon zelf.')}</div>`);
+  if (s.local) html += certBlock('🚪 ' + L('Nooddeur') + (h.door.includes('<') ? ` <span class="small muted">${esc(h.door)}</span>` : ` <a class="small" href="${esc(h.door)}">${esc(h.door)}</a>`), s.local, `<div class="muted small">${L('Alleen vanaf je interne netwerken; het certificaat van RzMon zelf.')}</div>`, true);
   if (h.checked_at) html += `<p class="muted small" style="margin:.3rem 0 0">${L('Gecontroleerd {ago}; daarna elke dag. ℹ️ {n} dagen voor het verloopt, ⚠️ als het verlopen of ongeldig is.', { ago: ago(h.checked_at), n: h.warn_days })}</p>`;
   $('#https-cert').innerHTML = html;
   // Schakelaars

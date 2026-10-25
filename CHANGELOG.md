@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.79.1 – 2026-10-25
+### Opgelost
+- **Beveiliging → Nooddeur stond rood** (*niet vertrouwd of de naam klopt niet*) terwijl alles in orde was. Op de nooddeur staat het eigen certificaat van RzMon, en dat is niet door een bekende uitgever ondertekend; dat is normaal. Het blok is nu groen met 🔏 *self-signed*, zoals in het certificaatvenster, en alleen oranje of rood als het certificaat bijna verloopt, verlopen is of niet bereikbaar. Dat gold ook voor het standaardcertificaat dat Rocky Linux bij Apache aanmaakt (uitgever *Unspecified*).
+
 ## 1.79.0 – 2026-10-25
 ### Nieuw
 - **📱 Ingelogde apparaten**: RzMon houdt nu elke ingelogde sessie bij, niet alleen *Onthoud mij*: ook inloggen met wachtwoord of 2FA en automatisch via je LAN. Per sessie het apparaat, het IP-adres (🏠 binnen of 🌍 buiten je netwerk), hoe er is ingelogd, sinds wanneer en laatst actief.
