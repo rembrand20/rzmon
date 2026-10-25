@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.84.2 – 2026-10-25
+### Opgelost
+- **"Ongeldig CSRF token" na een tijdje niets doen** (bv. de telefoon in je zak). De sessie was dan verlopen en via *Onthoud mij* vanzelf vernieuwd, maar de pagina hield het oude token. Opslaan of bevestigen gaf daardoor die fout. De pagina neemt het nieuwe token nu automatisch over en probeert het één keer opnieuw.
+
 ## 1.84.1 – 2026-10-25
 ### Nieuw
 - **Lokaas heet nu 🍯 Honeypot**, in het Nederlands en het Engels: honeypot-gebruikers, honeypot-poort, *Geen honeypot-naam* op de whitelist. Je instellingen blijven gewoon staan.

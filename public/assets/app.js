@@ -3,7 +3,7 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const CSRF = $('meta[name=csrf-token]')?.content;
+let CSRF = $('meta[name=csrf-token]')?.content;   // wordt bijgewerkt uit elk antwoord (sessie vernieuwd)
 // Taal: teksten staan in het Nederlands in de code; L() zoekt de Engelse vertaling op (lang/en.php), {naam} wordt ingevuld
 const LANG = window.LANG || 'nl';
 const LOCALE = LANG === 'en' ? 'en-GB' : 'nl-NL';
@@ -186,7 +186,7 @@ const idsBundles = new Set(); // uitgeklapte bundels van incidenten en toegang
 const idsDayOpen = {};
 
 // ---------------------------------------------------------------- API
-async function api(action, body, params = {}) {
+async function api(action, body, params = {}, retried = false) {
   const qs = new URLSearchParams({ action, ...params });
   const res = await fetch('api.php?' + qs, {
     method: body ? 'POST' : 'GET',
@@ -195,6 +195,10 @@ async function api(action, body, params = {}) {
     credentials: 'same-origin',
   });
   const data = await res.json().catch(() => ({ error: L('Ongeldig antwoord van server') }));
+  const tok = res.headers.get('X-CSRF-Token');
+  if (tok) CSRF = tok;
+  // Sessie intussen vernieuwd (lang stil, opnieuw ingelogd via "onthoud mij"): één keer opnieuw met het nieuwe token
+  if (res.status === 403 && data.csrf && tok && !retried) return api(action, body, params, true);
   if (res.status === 401 && !action.startsWith('login')) { location.reload(); }
   if (res.status === 403 && data.must_change) { location.reload(); }   // wachtwoord in een datalek: eerst een nieuw kiezen
   // status en data mee in de fout: zo hoeft niemand de (vertaalde) tekst te herkennen

@@ -833,11 +833,14 @@ if ($action === 'pw_reset' && $method === 'POST') {
 }
 
 $user = current_user();
+// Het CSRF-token van deze sessie gaat met elk antwoord mee (1.84.2). Is de sessie intussen vernieuwd (bv. na een
+// tijd stil opnieuw ingelogd via "onthoud mij", met een nieuw token), dan neemt de pagina het nieuwe over.
+header('X-CSRF-Token: ' . csrf_token());
 if (!$user) {
     out(['error' => t('Niet ingelogd')], 401);
 }
 if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) {
-    out(['error' => t('Ongeldig CSRF token')], 403);
+    out(['error' => t('Ongeldig CSRF token'), 'csrf' => true], 403);
 }
 
 // Wachtwoord staat in een datalek: eerst een nieuw kiezen (alleen dat, uitloggen en de taal mogen)
