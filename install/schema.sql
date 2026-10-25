@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS hosts (
 CREATE TABLE IF NOT EXISTS checks (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     host_id         INT UNSIGNED NOT NULL,
-    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot') NOT NULL,
+    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat') NOT NULL,
     target          VARCHAR(255) NOT NULL DEFAULT '',
     name            VARCHAR(100) NOT NULL,
     warn_threshold  DOUBLE NULL,
@@ -203,7 +203,7 @@ INSERT IGNORE INTO settings (name, value) VALUES ('notify_fails', '1');
 INSERT IGNORE INTO settings (name, value) VALUES ('notify_lang', 'nl');
 
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
-ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot') NOT NULL;
+ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;
 
 INSERT IGNORE INTO settings (name, value) VALUES
@@ -529,3 +529,11 @@ CREATE TABLE IF NOT EXISTS hibp_catalog (
 
 -- Agents alleen via https (1.72.0): verzoeken van agents via http weigeren, behalve via hun reserve-adres (met een ⚠️)
 INSERT IGNORE INTO settings (name, value) VALUES ('agent_https_only', '0');
+
+-- Heartbeat-checks (1.77.0): laatste start, ok, fail, duur en bericht per check
+CREATE TABLE IF NOT EXISTS hb_state (
+    check_id   INT UNSIGNED NOT NULL PRIMARY KEY,
+    data       TEXT NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT fk_hb_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.51.1"
+AGENT_VERSION="1.52.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -193,6 +193,39 @@ json_text() {
     { if command -v iconv >/dev/null 2>&1; then iconv -f UTF-8 -t UTF-8 -c 2>/dev/null; else LC_ALL=C tr -cd '\11\12\15\40-\176'; fi; } |
         sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | LC_ALL=C tr -d '\000-\010\013-\037' | awk 'NR > 1 { printf "\\n" } { printf "%s", $0 }'
 }
+
+# ---------------------------------------------------------------- Heartbeat (rzmon-hb, agent 1.52.0)
+# Een script of cronjob meldt zich bij RzMon: rzmon-hb NAAM [ok|start|fail] [bericht] [--value N].
+# Er wordt alleen een regel in de wachtrij gezet (HB_DIR, iedereen mag erin schrijven maar niet lezen);
+# de agent stuurt hem versleuteld mee met het volgende rapport. Zonder verbinding blijven de regels bewaard.
+hb_dir="${HB_DIR:-${AGENT_DIR:+$AGENT_DIR/hb}}"
+hb_dir="${hb_dir:-/var/spool/rzmon-agent}"
+if [ "$(basename -- "$0")" = rzmon-hb ] || [ "${1-}" = --hb ]; then
+    [ "${1-}" = --hb ] && shift
+    hb_name=${1-}; hb_kind=${2:-ok}; hb_msg=""; hb_val=""
+    [ $# -ge 2 ] && shift 2 || shift $#
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --value) hb_val=${2-}; shift 2 2>/dev/null || shift ;;
+            *) hb_msg="${hb_msg:+$hb_msg }$1"; shift ;;
+        esac
+    done
+    case $hb_kind in success|done) hb_kind=ok ;; failure|failed|error) hb_kind=fail ;; begin) hb_kind=start ;; esac
+    if ! [[ "$hb_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || [[ " start ok fail " != *" $hb_kind "* ]]; then
+        echo "Gebruik: rzmon-hb NAAM [ok|start|fail] [bericht] [--value GETAL]" >&2
+        echo "  NAAM = de naam van de heartbeat-check in RzMon (letters, cijfers, punt, - of _), bv. backup-db" >&2
+        exit 2
+    fi
+    if [ -n "$hb_val" ] && ! [[ "$hb_val" =~ ^-?[0-9]+([.][0-9]+)?$ ]]; then
+        echo "rzmon-hb: --value moet een getal zijn (bv. 42 of 3.5); genegeerd" >&2; hb_val=""
+    fi
+    [ -d "$hb_dir" ] || { mkdir -p "$hb_dir" && chmod 1733 "$hb_dir"; } 2>/dev/null
+    hb_f=$(mktemp "$hb_dir/hb.XXXXXXXX" 2>/dev/null) || { echo "rzmon-hb: kan niet schrijven in $hb_dir (is de agent geïnstalleerd?)" >&2; exit 1; }
+    printf '{"n":"%s","s":"%s","t":%s%s,"m":"%s"}\n' "$hb_name" "$hb_kind" "$(date +%s)" "${hb_val:+,\"v\":$hb_val}" \
+        "$(printf '%s' "$hb_msg" | head -c 300 | json_text)" >"$hb_f"
+    chmod 644 "$hb_f" 2>/dev/null
+    exit 0
+fi
 
 t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
 [ "$HA_MODE" = 1 ] && t_dir="${CACHE_DIRECTORY:-/data/rzmon-cache}"   # add-on: /data blijft bewaard
@@ -2088,11 +2121,33 @@ if [ -n "$rt_line" ]; then
     [[ "$rt_t" =~ ^[0-9]+$ ]] && rt_json="{\"state\":\"$(json_escape "$rt_s")\",\"since\":$rt_t,\"journal\":\"$(json_escape "$rt_j")\",\"files\":\"$(json_escape "$rt_i")\"}"
 fi
 
+# ---------------------------------------------------------------- Heartbeats meesturen (rzmon-hb)
+# Alleen regels in precies de vorm die rzmon-hb schrijft (iedereen mag in de map schrijven); oudste eerst, hooguit 100
+hb_json=""; hb_files=()
+if [ -d "$hb_dir" ]; then
+    hb_re='^\{"n":"[A-Za-z0-9][A-Za-z0-9._-]{0,63}","s":"(start|ok|fail)","t":[0-9]{1,12}(,"v":-?[0-9]+(\.[0-9]+)?)?,"m":"([^"\\]|\\.)*"\}$'
+    while IFS= read -r f; do
+        [ -f "$f" ] && [ ! -L "$f" ] || continue
+        line=$(head -c 1000 "$f" 2>/dev/null | head -n 1)
+        if [[ ${#line} -le 900 && "$line" =~ $hb_re ]]; then
+            hb_json+="${hb_json:+,}$line"
+            hb_files+=("$f")
+        else
+            rm -f "$f"   # geen geldige regel: weg
+        fi
+        [ ${#hb_files[@]} -ge 100 ] && break
+    done < <(ls -1tr "$hb_dir"/hb.* 2>/dev/null)
+    # Map voor rzmon-hb: iedereen mag erin schrijven, maar niemand mag lezen of andermans regels weghalen
+    [ "$(id -u)" = 0 ] && chmod 1733 "$hb_dir" 2>/dev/null
+elif [ "$(id -u)" = 0 ] && [ "$HA_MODE" != 1 ]; then
+    { mkdir -p "$hb_dir" && chmod 1733 "$hb_dir"; } 2>/dev/null
+fi
+
 # ---------------------------------------------------------------- Versturen
 # Opstarttijd (epoch) voor de check Herstart in RzMon
 read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
 
 curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
@@ -2256,6 +2311,11 @@ if [ "$rc" -eq 0 ]; then
         (umask 077; printf '%s\n' "${BASH_REMATCH[1]}" >"$enc_file.tmp" && mv -f "$enc_file.tmp" "$enc_file") && rm -f "$t_dir/enc.off"
     elif [[ "$resp" =~ \"enc\":\"off\" ]]; then
         rm -f "$enc_file"; : >"$t_dir/enc.off"
+    fi
+    # Heartbeats zijn binnen; namen zonder check in RzMon in het logboek zetten
+    [ ${#hb_files[@]} -gt 0 ] && rm -f "${hb_files[@]}"
+    if [[ "$resp" =~ \"hb_unknown\":\[([^]]*)\] ]]; then
+        echo "rzmon-hb: RzMon heeft geen heartbeat-check met de naam ${BASH_REMATCH[1]//\"/} op deze server (＋ Check → Heartbeat)" >&2
     fi
     # Uitkomst van een overstap is doorgegeven; vraagt RzMon om naar een ander adres over te stappen (alleen versleuteld)?
     [ -n "$url_result" ] && rm -f "$k_dir/url.result"

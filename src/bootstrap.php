@@ -60,6 +60,7 @@ require_once __DIR__ . '/I18n.php';
 require_once __DIR__ . '/AgentText.php';
 require_once __DIR__ . '/Brand.php';
 require_once __DIR__ . '/HostKind.php';
+require_once __DIR__ . '/Heartbeat.php';
 require_once __DIR__ . '/Vulns.php';
 require_once __DIR__ . '/Security.php';
 require_once __DIR__ . '/AgentCrypto.php';
@@ -154,6 +155,11 @@ function check_unit(array $check): ?string
     }
     if ($check['type'] === 'container') {
         return ['cpu' => '%', 'mem' => '%', 'disk' => 'MB'][$check['metric'] ?? ''] ?? null;
+    }
+    if ($check['type'] === 'heartbeat') {
+        // Met een eenheid: de meegestuurde waarde; anders de duur van start tot klaar
+        $o = json_decode((string) ($check['options'] ?? ''), true) ?: [];
+        return ($o['unit'] ?? '') !== '' ? $o['unit'] : 'min';
     }
     if ($check['type'] === 'snmp') {
         if (($check['metric'] ?? '') === 'oid') {

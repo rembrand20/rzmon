@@ -219,7 +219,8 @@ if [ "$MODE" = "uninstall" ]; then
         rm -f "$UNIT" "$TIMER" "$WATCH"
         systemctl daemon-reload
     fi
-    rm -f "$CRON" "$BIN" "$SETUP"
+    rm -f "$CRON" "$BIN" "$SETUP" /usr/local/bin/rzmon-hb
+    rm -rf /var/spool/rzmon-agent
     rm -rf /var/cache/rzmon-agent /var/lib/rzmon-agent   # ook de eigen sleutel: opnieuw installeren = opnieuw koppelen
     if [ -f "$CONF" ]; then
         if interactive && [ "$(ask 'Ook de instellingen (URL en token) verwijderen? j/n' 'j')" != "n" ]; then
@@ -435,6 +436,12 @@ fi
 old_version=$([ -f "$BIN" ] && bash "$BIN" --version 2>/dev/null | awk '{print $2}' || true)
 new_version=$(sed -n 's/^AGENT_VERSION="\([^"]*\)".*/\1/p' "$tmp")
 install -m 755 -o root -g root "$tmp" "$BIN"
+# rzmon-hb: scripts en cronjobs melden zich bij RzMon (heartbeat, agent 1.52.0). Op TrueNAS (alleen-lezen systeem):
+# "$TN_DIR/rzmon-agent.sh --hb NAAM", met de wachtrij in de map van de agent.
+if [ "$TRUENAS" != 1 ]; then
+    ln -sf "$BIN" /usr/local/bin/rzmon-hb 2>/dev/null || warn "Kon /usr/local/bin/rzmon-hb niet maken; gebruik $BIN --hb"
+    { mkdir -p /var/spool/rzmon-agent && chmod 1733 /var/spool/rzmon-agent; } 2>/dev/null || true
+fi
 command -v restorecon >/dev/null 2>&1 && restorecon "$BIN" 2>/dev/null || true
 if [ -n "$old_version" ] && [ "$old_version" != "$new_version" ]; then
     ok "Agent bijgewerkt van $old_version naar ${new_version:-?}"

@@ -31,6 +31,7 @@ const TYPES = {
   ha:      { label: L('Home Assistant'), target: null, unit: null, help: L('Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.') },
   snmp:    { label: L('SNMP'),          target: null,            unit: null, help: L('RzMon leest het apparaat zelf uit via SNMP (switches, access points, NAS, UPS, printers, Proxmox…). Interfaces, schijven en voorraden kies je het makkelijkst via 📡 SNMP-checks bij de server.') },
   reboot:  { label: L('🔄 Herstart'), target: null, unit: 'uur', help: L('Ziet wanneer de server opnieuw is opgestart (de uptime wordt korter) en stuurt dan een ℹ️ info-melding. De check zelf is altijd OK. Info staat standaard uit: zet hem aan bij Instellingen → 🔔 Meldingen (rij Info), of alleen voor deze check bij 🔔 Meldingen hieronder. Op agent-servers is agent 1.46.0 of nieuwer nodig.') },
+  heartbeat: { label: L('📥 Heartbeat'), target: L('Naam (voor rzmon-hb)'), unit: null, ph: 'backup-db', help: L('Een script, cronjob of apparaat meldt zich zelf bij RzMon (rzmon-hb op een server met de agent, of de geheime URL). Komt er binnen het schema plus de speling niets binnen: WARNING, na twee keer de speling CRITICAL. Mislukt (fail) = CRITICAL. Met start en klaar meet RzMon de duur.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
@@ -2468,12 +2469,64 @@ async function endMaintenance(scope, id) {
 }
 
 // ---------------------------------------------------------------- Check form
+/** Adres van de heartbeat-URL van een check (zonder token: nog niet opgeslagen) */
+function hbUrl(c) {
+  const base = (state.base_url || location.origin + location.pathname.replace(/[^/]*$/, '')).replace(/\/+$/, '');
+  return c && c.hb_token ? `${base}/hb.php/${c.hb_token}` : null;
+}
+
+/** Velden van een heartbeat-check: schema, speling, maximale duur, eenheid, URL en voorbeelden */
+function hbFields(c, h, o) {
+  const sched = o.sched || 'daily';
+  const every = +(o.every || 1440);
+  const [en, eu] = every % 1440 === 0 ? [every / 1440, 1440] : every % 60 === 0 ? [every / 60, 60] : [every, 1];
+  const days = [L('zondag'), L('maandag'), L('dinsdag'), L('woensdag'), L('donderdag'), L('vrijdag'), L('zaterdag')];
+  const name = c.type === 'heartbeat' && c.target ? c.target : 'NAAM';
+  const url = c.type === 'heartbeat' ? hbUrl(c) : null;
+  const agent = h.mode === 'agent' && !isHaHost(h);
+  const wrap = 'rzmon-hb %N% start; /pad/naar/backup.sh && rzmon-hb %N% ok || rzmon-hb %N% fail "exit $?"';
+  // %N% = naam van de check; wordt bijgewerkt terwijl je de naam typt
+  const cmd = (s) => `<div class="hb-cmd"><code data-tpl="${esc(s)}">${esc(s.replaceAll('%N%', name))}</code><button type="button" class="icon-btn" data-copy="${esc(s.replaceAll('%N%', name))}" title="${esc(L('Kopiëren'))}">⧉</button></div>`;
+  return `
+    <div class="row2">
+      <label>${L('Verwacht')}
+        <select name="hb_sched">
+          ${[['every', L('elke … (minuten, uren, dagen)')], ['daily', L('elke dag om …')], ['weekly', L('elke week op …')], ['cron', L('eigen cron-schema')]]
+            .map(([v, l]) => `<option value="${v}" ${sched === v ? 'selected' : ''}>${l}</option>`).join('')}
+        </select></label>
+      <label data-hb="every">${L('Elke')}
+        <span class="hb-every"><input name="hb_every_n" type="number" min="1" value="${en}">
+        <select name="hb_every_u">${[[1, L('minuten')], [60, L('uur')], [1440, L('dagen')]].map(([v, l]) => `<option value="${v}" ${eu === v ? 'selected' : ''}>${l}</option>`).join('')}</select></span></label>
+      <label data-hb="weekly">${L('Dag')}
+        <select name="hb_dow">${days.map((d, i) => `<option value="${i}" ${+(o.dow ?? 0) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
+      <label data-hb="daily weekly">${L('Om')} <input name="hb_at" type="time" value="${esc(o.at || '03:00')}"></label>
+      <label data-hb="cron">${L('Cron-schema')} <span class="hint">${L('minuut uur dag maand weekdag')}</span>
+        <input name="hb_cron" class="mono" value="${esc(o.cron || '')}" placeholder="30 2 * * 1-5"></label>
+    </div>
+    <div class="row2">
+      <label>${L('Speling')} <span class="hint">${L('minuten; daarna WARNING, na 2× CRITICAL')}</span><input name="hb_grace" type="number" min="1" value="${o.grace ?? 60}"></label>
+      <label>${L('Maximale duur')} <span class="hint">${L('minuten, na start (leeg = vanzelf: 2× het gemiddelde)')}</span><input name="hb_max" type="number" min="1" value="${o.max ?? ''}" placeholder="${esc(L('vanzelf'))}"></label>
+    </div>
+    <label>${L('Eenheid van een meegestuurde waarde')} <span class="hint">${L('(optioneel, bv. GB of bestanden; dan gelden de drempels hieronder)')}</span>
+      <input name="hb_unit" maxlength="12" value="${esc(o.unit || '')}" placeholder="GB"></label>
+    <label class="switch small"><input type="checkbox" name="hb_ext" ${o.ext ? 'checked' : ''}><span></span> ${L('De URL werkt ook van buiten het lokale netwerk')}</label>
+    <div class="hb-box">
+      ${agent ? `<p class="hint" style="margin:0 0 .3rem"><b>${L('Op {name} (agent 1.52.0 of nieuwer), versleuteld via de agent:', { name: esc(h.name) })}</b></p>
+        ${cmd('rzmon-hb %N% start')}${cmd('rzmon-hb %N% ok')}${cmd('rzmon-hb %N% fail "reden"')}
+        <p class="hint" style="margin:.2rem 0 .6rem">${L('Rond een script:')} <code data-tpl="${esc(wrap)}">${esc(wrap.replaceAll('%N%', name))}</code>. ${L('Met <code>--value 42</code> stuur je een waarde mee.')}</p>` : ''}
+      ${url ? `<p class="hint" style="margin:0 0 .3rem"><b>${L('Via de geheime URL')}</b> ${o.ext ? '' : `(${L('alleen vanaf je lokale netwerk')})`}:</p>
+        ${cmd(`curl -fsS -m 10 ${url}`)}${cmd(`curl -fsS -m 10 ${url}/start`)}${cmd(`curl -fsS -m 10 ${url}/fail --data "reden"`)}
+        <label class="switch small"><input type="checkbox" name="hb_new_token"><span></span> ${L('Nieuwe geheime URL maken (de oude werkt dan meteen niet meer)')}</label>`
+        : `<p class="hint" style="margin:0">${L('Na het opslaan staat hier de geheime URL.')}</p>`}
+    </div>`;
+}
+
 function checkForm(c, h, preset = {}) {
   const isNew = !c;
   c = c || { type: 'ping', target: '', name: '', warn_threshold: TYPES.ping.warn, crit_threshold: TYPES.ping.crit, interval_sec: 60, enabled: 1, ...preset };
   const quietOwn = quietOf(c);
   const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
-  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'snmp']
+  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'snmp', 'heartbeat']
     : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command'].includes(k))
       .filter((k) => k !== 'reboot' || h.mode !== 'remote' || c?.type === 'reboot')
       .filter((k) => k !== 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor') || c?.type === 'ha'))
@@ -2511,6 +2564,7 @@ function checkForm(c, h, preset = {}) {
         </div>
         <p class="hint">${L('Spaties en regeleindes aan begin en eind tellen niet mee. Regex zonder scheidingstekens, bv. <code>^ok\\b</code> of <code>temp=[0-5][0-9]</code>. Het commando draait als <code>nobody</code>, of als root als dat voor deze server is toegestaan, in <code>bash</code>, zonder invoer.')}</p>
       </div>
+      <div id="hb-wrap" hidden>${hbFields(c, h, opts)}</div>
       <div id="log-wrap" hidden>
         <label>${L('Voorinstelling')}
           <select name="preset">${Object.entries(LOG_PRESETS).map(([k, p]) => `<option value="${k}" ${(opts.preset || 'custom') === k ? 'selected' : ''}>${p.label}</option>`).join('')}</select>
@@ -2636,6 +2690,11 @@ function checkForm(c, h, preset = {}) {
       const command = d.type === 'command' ? { cmd: d.cmd, expect: d.cmd_expect, match: d.cmd_match, timeout: d.cmd_timeout, fail: d.cmd_fail } : undefined;
       const res = {};
       ['cpu', 'mem', 'disk'].forEach((k) => { res[k] = { on: !!d[`res_${k}`], warn: d[`res_${k}_warn`], crit: d[`res_${k}_crit`] }; });
+      if (d.type === 'heartbeat') {
+        d.hb_every = Math.round(+d.hb_every_n * +d.hb_every_u);
+        d.hb_ext = !!d.hb_ext;
+        d.hb_new_token = !!d.hb_new_token;
+      }
       await api('check_save', { ...d, res, notify, quiet, command, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep, info_only: !!d.info_only });
       toast(L('Check opgeslagen'));
     },
@@ -2698,9 +2757,17 @@ function checkForm(c, h, preset = {}) {
     const isHa = typeSel.value === 'ha';
     const isSnmp = typeSel.value === 'snmp';
     const oidMode = $('[name=oid_mode]', form).value;
+    const isHb = typeSel.value === 'heartbeat';
     const t = isHa ? { ...TYPES.ha, ...HA_METRICS[haSel.value] }
       : isSnmp ? snmpType({ metric: snmpSel.value, options: JSON.stringify({ mode: oidMode, unit: $('[name=oid_unit]', form).value, low: $('[name=oid_low]', form).checked }) })
-        : TYPES[typeSel.value];
+        : isHb ? { ...TYPES.heartbeat, unit: $('[name=hb_unit]', form).value.trim() || null }
+          : TYPES[typeSel.value];
+    $('#hb-wrap').hidden = !isHb;
+    $$('#hb-wrap input, #hb-wrap select', form).forEach((el) => { el.disabled = !isHb; });
+    if (isHb) {
+      const sc = $('[name=hb_sched]', form).value;
+      $$('[data-hb]', form).forEach((el) => { el.hidden = !el.dataset.hb.split(' ').includes(sc); });
+    }
     $('#ha-wrap').hidden = !isHa;
     haSel.disabled = !isHa;   // niet meesturen bij andere types
     $('#snmp-wrap-chk').hidden = !isSnmp;
@@ -2819,6 +2886,19 @@ function checkForm(c, h, preset = {}) {
     $('[name=target]', form).addEventListener('input', () => { if (typeSel.value === 'service') renderSvcPick(); });
   }
   typeSel.onchange = () => update(true);
+  $('[name=hb_sched]', form).onchange = () => update(false);
+  $('[name=hb_unit]', form).oninput = () => update(false);
+  $('[name=target]', form).addEventListener('input', (e) => {
+    const n = e.target.value.trim() || 'NAAM';
+    $$('#hb-wrap code[data-tpl]', form).forEach((el) => {
+      el.textContent = el.dataset.tpl.replaceAll('%N%', n);
+      if (el.nextElementSibling) el.nextElementSibling.dataset.copy = el.textContent;
+    });
+  });
+  $$('[data-copy]', form).forEach((b) => (b.onclick = async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copy); toast(L('Gekopieerd')); }
+    catch (ex) { getSelection().selectAllChildren(b.previousElementSibling); toast(L('Geselecteerd — druk Ctrl+C'), 'err'); }
+  }));
   haSel.onchange = () => update('metric');
   snmpSel.onchange = () => update('metric');
   $('[name=oid_mode]', form).onchange = () => update(false);

@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.52.0 – 2026-10-25
+- Nieuw commando **`rzmon-hb`** voor heartbeat-checks (RzMon 1.77.0): `rzmon-hb NAAM [ok|start|fail] [bericht] [--value GETAL]`. Scripts en cronjobs melden zich zo bij RzMon; de melding gaat versleuteld mee met het volgende rapport van de agent, en blijft bewaard als RzMon even niet bereikbaar is. Het installatiescript zet `rzmon-hb` in `/usr/local/bin` (op TrueNAS: `rzmon-agent --hb NAAM ok`).
+- In de Home Assistant-add-on is er geen `rzmon-hb`; gebruik daar de geheime URL van de check (zie de handleiding).
+
 ## 1.51.1 – 2026-10-24
 - Bij een overstap naar een ander adres stuurt de agent mee met welk IP hij verbond. RzMon ziet daaraan of de server via internet gaat in plaats van via je eigen netwerk (bv. een DNS-rewrite die op die server niet werkt), en zegt dat erbij (RzMon 1.72.1).
 

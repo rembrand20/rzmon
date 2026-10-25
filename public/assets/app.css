@@ -1453,3 +1453,10 @@ details.adv[open] { padding-bottom: .6rem; }
 /* Alleen bevestigde problemen: klein regeltje in plaats van een tweede "Alles in orde" (1.77.0) */
 .attn-acked { font-size: .85rem; color: var(--muted); padding: .1rem .2rem; }
 .attn-acked .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; text-decoration: underline; }
+
+/* Heartbeat-check (1.77.0) */
+.hb-every { display: flex; gap: .4rem; }
+.hb-every input { max-width: 6rem; }
+.hb-box { background: var(--card-2); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .8rem; margin: .4rem 0 .8rem; }
+.hb-cmd { display: flex; align-items: center; gap: .4rem; margin: .15rem 0; }
+.hb-cmd code { flex: 1; overflow-wrap: anywhere; font-size: .78rem; background: var(--card); padding: .25rem .45rem; border-radius: 6px; }

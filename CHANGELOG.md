@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.77.0 – 2026-10-25
+### Nieuw
+- **📥 Heartbeat-checks** (passieve checks): een script, cronjob of apparaat meldt zich zelf bij RzMon, bv. na een back-up. Blijft de melding uit, dan hoor je het.
+  - **Schema**: *elke … minuten/uren/dagen*, *elke dag om …*, *elke week op …* of een eigen **cron-schema** (bv. `30 2 * * 1-5`), met een **speling**. Te laat = WARNING, na twee keer de speling CRITICAL.
+  - **Start, ok en fail**: *fail* is altijd CRITICAL (met de reden erbij). Met *start* meet RzMon hoe lang het duurt; loopt het veel langer dan normaal (vanzelf 2× het gemiddelde, of een eigen maximum), dan krijg je *hangt het?*.
+  - **Waarde meesturen** (bv. de grootte van de back-up in GB) met eigen drempels.
+  - **Twee manieren om te melden**: op een server met de agent het commando `rzmon-hb backup-db ok` (versleuteld via de agent, **agent 1.52.0 nodig**), of overal elders een **geheime URL** (`curl …/hb.php/<code>`). De URL werkt standaard alleen vanaf je lokale netwerk; per check zet je *ook van buiten* aan. Ook voor Home Assistant (`rest_command`), Synology, Proxmox en andere apparaten zonder agent.
+  - In het checkformulier staan de kant-en-klare commando's en de URL om te kopiëren. Voorbeelden voor Proxmox Backup, rsync/restic/borg, Synology Hyper Backup, een MariaDB-dump, certbot en Home Assistant staan in de handleiding.
+- Nieuwe agent 1.52.0.
+
 ## 1.76.2 – 2026-10-25
 ### Opgelost
 - **MQTT, sensor *Algehele status***: in het Engels weigerde Home Assistant de waarde (*Ignoring invalid option received on topic 'rzmon/health', got 'All good'*), omdat de lijst met toegestane waarden altijd Nederlands was. Die lijst volgt nu de taal van de meldingen, net als de waarde zelf; de sensor krijgt weer een waarde en de foutmelding verdwijnt uit het log van Home Assistant. Tip voor automatiseringen: het attribuut `state` (`ok`, `attention`, `outage`) hangt niet van de taal af.

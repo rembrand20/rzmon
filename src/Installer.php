@@ -208,6 +208,7 @@ final class Installer
         ['hosts', 'agent_conn', 'VARCHAR(8) NULL'],
         ['hosts', 'agent_fb_at', 'DATETIME NULL'],
         ['hosts', 'agent_https', 'VARCHAR(3) NULL'],
+        ['checks', 'hb_token', 'CHAR(32) NULL'],      // geheime URL van een heartbeat-check (1.77.0)
         ['hosts', 'kind', 'VARCHAR(16) NULL'],        // soort apparaat, zelf gekozen (1.75.0); NULL = herkend
         ['hosts', 'kind_auto', 'VARCHAR(16) NULL'],   // soort apparaat, herkend via de agent of SNMP
     ];

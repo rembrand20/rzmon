@@ -34,6 +34,7 @@ final class Checks
                 'ram' => $host['mode'] === 'agent' ? self::agentRam($check, $host) : self::localRam($check),
                 'snmp' => SnmpMonitor::check($check, $host),
                 'reboot' => self::reboot($check, $host),
+                'heartbeat' => Heartbeat::check($check),
                 default => self::result(STATUS_UNKNOWN, null, t('Onbekend checktype')),
             };
         } catch (Throwable $e) {

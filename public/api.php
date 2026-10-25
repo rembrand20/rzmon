@@ -649,6 +649,13 @@ if ($action === 'agent') {
     if ($u = agent_url_report($host, $in, $agentVersion, $encrypted)) {
         $resp['url_set'] = $u;
     }
+    // Heartbeats van rzmon-hb op de server (agent 1.52.0); namen zonder check gaan terug naar het log van de agent
+    if (!empty($in['hb']) && is_array($in['hb'])) {
+        $unknown = Heartbeat::fromAgent($host, $in['hb']);
+        if ($unknown) {
+            $resp['hb_unknown'] = $unknown;
+        }
+    }
     // Soort apparaat (1.75.0): de HA-add-on is smart home, een gewone agent een server
     HostKind::setAuto((int) $host['id'], !empty($in['ha']) || ($in['update']['via'] ?? '') === 'ha' ? 'smarthome' : 'server');
     // Agent-checks van deze server meteen beoordelen (niet wachten op de volgende cron-minuut)
@@ -908,6 +915,9 @@ switch ($action) {
             // Effectief onderhoud (globaal, server of check) voor de weergave
             $c['maintenance'] = Monitor::maintenanceFor($c);
             unset($c['host_maintenance_until'], $c['host_maintenance_reason']);
+            if (!$isAdmin) {
+                unset($c['hb_token']);   // geheime heartbeat-URL alleen voor beheerders
+            }
             $byHost[$c['host_id']][] = $c;
         }
         $metrics = [];
@@ -1676,7 +1686,7 @@ switch ($action) {
     case 'check_save':
         $in = input();
         $type = $in['type'] ?? '';
-        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot'], true)) {
+        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat'], true)) {
             out(['error' => t('Ongeldig type')], 422);
         }
         // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -1862,8 +1872,28 @@ switch ($action) {
                 'test_expect' => mb_substr(trim((string) ($in['test_expect'] ?? '')), 0, 100),
             ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
+        // Heartbeat (1.77.0): naam voor rzmon-hb, schema, speling, maximale duur; de geheime URL maakt RzMon zelf
+        $hbNew = false;
+        if ($type === 'heartbeat') {
+            if (!preg_match(Heartbeat::NAME, $target)) {
+                out(['error' => t('Geef een naam voor de heartbeat: letters, cijfers, punt, - of _ (bv. backup-db)')], 422);
+            }
+            $hid = (int) ($in['host_id'] ?? q('SELECT host_id FROM checks WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetchColumn());
+            if (q("SELECT id FROM checks WHERE host_id = ? AND type = 'heartbeat' AND target = ? AND id <> ?", [$hid, $target, (int) ($in['id'] ?? 0)])->fetchColumn()) {
+                out(['error' => t('Deze server heeft al een heartbeat met de naam {n}', ['n' => $target])], 409);
+            }
+            $hb = Heartbeat::clean($in);
+            if (is_string($hb)) {
+                out(['error' => $hb], 422);
+            }
+            if (!isset($hb['unit'])) {
+                $warn = $crit = null;   // drempels alleen voor een meegestuurde waarde
+            }
+            $options = json_encode($hb, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $hbNew = !empty($in['hb_new_token']);
+        }
         $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
-            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
+            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'heartbeat' => 'Heartbeat', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
             'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',
                 'disklife' => 'SD-kaart/eMMC', 'osupdate' => 'HA OS-update', 'usb' => 'USB'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
         // Eigen meldregels voor deze check (null = de algemene uit Instellingen → Alarmgedrag)
@@ -1890,6 +1920,10 @@ switch ($action) {
             q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, notify, quiet, command, reverse_ok, reverse_fail, notify_fails, info_only, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [...$params, (int) ($in['host_id'] ?? 0)]);
             $id = (int) db()->lastInsertId();
+        }
+        if ($type === 'heartbeat') {
+            // Geheime URL: bij het aanmaken, of nieuw op verzoek (de oude werkt dan meteen niet meer)
+            q('UPDATE checks SET hb_token = ? WHERE id = ? AND (hb_token IS NULL OR ?)', [Heartbeat::newToken(), $id, $hbNew ? 1 : 0]);
         }
         Monitor::runCheckById($id);
         out(['ok' => true, 'id' => $id]);

@@ -58,6 +58,7 @@ RzMon bestaat uit vier onderdelen:
 | **Podman (algemeen)** | Draait podman; gestopte (foutcode), ongezonde of gepauzeerde containers; pods | Probleem = WARNING | Agent met podman |
 | **Logbestand (zoeken)** | Treffers van een zoekpatroon in een logbestand, het systemlog of kernelmeldingen (bv. mislukte logins, hardwarefouten) | Aantal treffers in de laatste 15 min (instelbaar) | Agent |
 | **Container (Podman)** | Eén check per container: altijd de status (incl. healthcheck en herstarts), plus naar keuze CPU, RAM en disk | Gestopt/ongezond = CRITICAL; CPU/RAM in %, disk in MB, elk met eigen drempels | Agent met podman |
+| **📥 Heartbeat** | Meldt een script, back-up of cronjob zich op tijd? Via `rzmon-hb` (agent) of een geheime URL; met start, ok, fail, duur en een waarde (§7.8) | Te laat = WARNING, 2× de speling = CRITICAL; fail = CRITICAL; te lang bezig = CRITICAL; waarde met eigen drempels | Alle servers (vanaf 1.77.0) |
 
 **⇄ Omgekeerde status:** bij ping, poort, HTTP, service, container, Podman, commando en Home Assistant kies je zelf welke status een check krijgt als hij slaagt (OK, warning of critical) en als hij mislukt. Zo bewaak je iets dat juist níet mag draaien of bereikbaar mag zijn (§7.2).
 
@@ -866,6 +867,162 @@ Wil je iets anders uitlezen, gebruik dan **＋ Eigen OID** in de lijst, of ＋ C
 - RzMon heeft hiervoor de PHP-extensie **php-snmp** nodig. `install-rocky.sh` installeert die; bij een oudere installatie: `sudo dnf -y install php-snmp net-snmp-utils && sudo systemctl restart php-fpm`. Ontbreekt hij, dan zegt de check of de testknop dat.
 - Traps (meldingen die het apparaat zelf stuurt) worden niet ontvangen; RzMon vraagt de waarden zelf op, standaard elke minuut.
 
+### 7.8 Heartbeat: scripts, back-ups en cronjobs 📥
+Bij een **heartbeat-check** (ook wel *passieve check*) vraagt RzMon zelf niets op: het script of apparaat meldt zich bij RzMon als het klaar is. Blijft die melding uit, dan krijg je bericht. Ideaal voor back-ups, cronjobs, certificaatvernieuwing en alles wat 's nachts stil hoort te lukken.
+
+**Aanmaken:** klap de server open → **＋ Check** → type **📥 Heartbeat**.
+- **Naam (voor rzmon-hb)**: bv. `backup-db` (letters, cijfers, punt, `-` of `_`; per server uniek).
+- **Verwacht**: *elke … minuten/uren/dagen*, *elke dag om …*, *elke week op …* of een eigen **cron-schema** (`minuut uur dag maand weekdag`, bv. `30 2 * * 1-5` = werkdagen om 02:30). Gebruik hetzelfde schema als je cronjob.
+- **Speling** (standaard 60 minuten): zo lang mag de melding op zich laten wachten. Daarna **WARNING**, na twee keer de speling **CRITICAL**.
+- **Maximale duur**: stuurt het script ook *start*, dan meet RzMon hoe lang het duurt. Duurt het langer dan dit maximum, dan wordt de check CRITICAL (*hangt het?*). Leeg = vanzelf: twee keer het gemiddelde van de laatste keren (minstens 5 minuten, vanaf 3 metingen).
+- **Eenheid**: stuur je een waarde mee (bv. de grootte van de back-up), vul dan de eenheid in (`GB`, `bestanden` …); dan gelden de drempels. Zonder eenheid is de waarde de duur in minuten (voor de grafiek).
+
+**Wat betekent wat?**
+
+| Melding | Status |
+|---|---|
+| `ok` (klaar, gelukt) | OK. Duurde het veel langer dan normaal: WARNING |
+| `start` (begonnen) | OK, *⏳ Bezig sinds …*; te lang bezig = CRITICAL |
+| `fail` (mislukt) | Altijd **CRITICAL**, met de reden. Een volgende `ok` maakt hem weer groen |
+| niets binnen de speling | WARNING, na twee keer de speling CRITICAL |
+
+**Melden: twee manieren**
+
+1. **Op een server met de agent (1.52.0 of nieuwer): `rzmon-hb`**. De melding gaat versleuteld mee met het volgende rapport van de agent (binnen een minuut) en blijft bewaard als RzMon even onbereikbaar is. Elke gebruiker op de server mag het commando gebruiken.
+   ```bash
+   rzmon-hb backup-db start                 # begonnen
+   rzmon-hb backup-db ok                    # gelukt
+   rzmon-hb backup-db ok "12 tabellen" --value 3.4
+   rzmon-hb backup-db fail "schijf vol"     # mislukt, met reden
+   ```
+   Bekende naam niet gevonden? Dan staat er in het logboek van de agent *RzMon heeft geen heartbeat-check met de naam …*.
+2. **Overal elders: de geheime URL**. Na het opslaan staat die in het checkformulier, met kopieerknoppen:
+   ```bash
+   curl -fsS -m 10 http://RZMON-ADRES/hb.php/<code>                       # ok
+   curl -fsS -m 10 http://RZMON-ADRES/hb.php/<code>/start                 # begonnen
+   curl -fsS -m 10 http://RZMON-ADRES/hb.php/<code>/fail --data "reden"   # mislukt
+   curl -fsS -m 10 "http://RZMON-ADRES/hb.php/<code>?value=42&msg=klaar"  # met waarde en bericht
+   ```
+   GET en POST werken allebei; bij POST is de body het bericht.
+
+**Kant-en-klare voorbeelden**
+
+*Rond elk script* (agent):
+```bash
+rzmon-hb nachtwerk start; /pad/naar/script.sh && rzmon-hb nachtwerk ok || rzmon-hb nachtwerk fail "exit $?"
+```
+In een cronjob gebruik je het volledige pad, want cron kent `/usr/local/bin` vaak niet: `/usr/local/bin/rzmon-hb`.
+
+*rsync* (dagelijks om 02:00, check: *elke dag om 02:00*):
+```bash
+# /etc/cron.d/rsync-nas
+0 2 * * * root /usr/local/bin/rzmon-hb rsync-nas start; rsync -a --delete /data/ backup@nas:/volume1/backup/ && /usr/local/bin/rzmon-hb rsync-nas ok || /usr/local/bin/rzmon-hb rsync-nas fail "rsync exit $?"
+```
+
+*restic*, met de toegevoegde hoeveelheid in GB (check met eenheid `GB`):
+```bash
+#!/bin/bash
+set -o pipefail
+rzmon-hb restic start
+if out=$(restic backup /data --json --quiet | tail -n 1); then
+    rzmon-hb restic ok --value "$(jq '.data_added / 1e9 * 100 | round / 100' <<<"$out")"
+else
+    rzmon-hb restic fail "restic exit $?"
+fi
+```
+
+*borg* (exitcode 1 = waarschuwing, 2 = fout):
+```bash
+rzmon-hb borg start
+borg create --stats /backup/borg::'{hostname}-{now}' /etc /home; rc=$?
+if [ $rc -le 1 ]; then rzmon-hb borg ok "borg rc $rc"; else rzmon-hb borg fail "borg rc $rc"; fi
+```
+
+*MariaDB-dump*, met de grootte in MB (check met eenheid `MB`):
+```bash
+#!/bin/bash
+set -o pipefail
+f=/backup/mariadb-$(date +%F).sql.gz
+rzmon-hb mariadb-dump start
+if mariadb-dump --all-databases --single-transaction --routines | gzip >"$f"; then
+    rzmon-hb mariadb-dump ok --value "$(du -m "$f" | cut -f1)"
+else
+    rzmon-hb mariadb-dump fail "dump mislukt (exit $?)"
+fi
+```
+
+*Proxmox VE back-ups* (vzdump, ook naar een Proxmox Backup Server). Installeer de agent op de Proxmox-host en maak een hookscript:
+```bash
+#!/bin/bash
+# /usr/local/bin/vzdump-rzmon.sh  (chmod +x)
+case "$1" in
+    job-start)    rm -f /run/vzdump-fout; rzmon-hb vzdump start ;;
+    backup-abort) echo "VM $3" >>/run/vzdump-fout ;;
+    job-end)      if [ -s /run/vzdump-fout ]; then rzmon-hb vzdump fail "mislukt: $(paste -sd' ' /run/vzdump-fout)"
+                  else rzmon-hb vzdump ok; fi ;;
+    job-abort)    rzmon-hb vzdump fail "back-uptaak afgebroken" ;;
+esac
+exit 0
+```
+Zet in `/etc/vzdump.conf` de regel `script: /usr/local/bin/vzdump-rzmon.sh`. Kies in RzMon hetzelfde schema als de back-uptaak in Proxmox (*Datacenter → Backup*).
+
+*certbot* (systemd-timer, check: *elke 1 dagen*, speling 720 minuten):
+```bash
+sudo systemctl edit certbot.service
+```
+```ini
+[Service]
+ExecStopPost=/bin/sh -c 'if [ "$SERVICE_RESULT" = success ]; then /usr/local/bin/rzmon-hb certbot ok; else /usr/local/bin/rzmon-hb certbot fail "certbot: $EXIT_STATUS"; fi'
+```
+Zo werkt het voor elke systemd-service of -timer.
+
+*Synology Hyper Backup* (geen agent; de geheime URL). Hyper Backup kan zelf geen script starten. Laat daarom na de back-up een script het logboek lezen: *Configuratiescherm → Taakplanner → Maken → Geplande taak → Door gebruiker gedefinieerd script*, gebruiker `root`, een half uur na de back-up:
+```bash
+TAAK="Mijn back-up"   # naam van de taak in Hyper Backup
+URL="http://RZMON-ADRES/hb.php/<code>"
+REGEL=$(grep -F "[$TAAK]" /var/log/synolog/synobackup.log | tail -n 1)
+case "$REGEL" in
+    *[Ff]ailed*|*[Pp]artially*|*[Cc]ancel*) curl -fsS -m 10 "$URL/fail" --data "$REGEL" ;;
+    *[Ff]inished*|*[Cc]ompleted*|*[Ss]ucceeded*) curl -fsS -m 10 "$URL" --data "$REGEL" ;;
+    *) curl -fsS -m 10 "$URL/fail" --data "geen regel gevonden voor $TAAK" ;;
+esac
+```
+De tekst in het logboek verschilt per DSM-versie; kijk met `tail /var/log/synolog/synobackup.log` hoe een geslaagde back-up er bij jou uitziet en pas de woorden zo nodig aan.
+
+*Home Assistant* (geen `rzmon-hb` in de add-on; de geheime URL). In `configuration.yaml`:
+```yaml
+rest_command:
+  rzmon_hb_backup:
+    url: "http://RZMON-ADRES/hb.php/<code>{{ soort }}"
+    method: post
+    payload: "{{ bericht }}"
+```
+En een automatisering die de automatische back-up van Home Assistant (2025.5 of nieuwer) doorgeeft:
+```yaml
+alias: RzMon – back-up Home Assistant
+triggers:
+  - trigger: state
+    entity_id: event.backup_automatic_backup
+actions:
+  - action: rest_command.rzmon_hb_backup
+    data:
+      soort: >-
+        {{ {'in_progress': '/start', 'failed': '/fail'}.get(trigger.to_state.attributes.event_type, '') }}
+      bericht: "{{ trigger.to_state.attributes.event_type }}"
+```
+Met dezelfde `rest_command` kan elke automatisering zich melden, bv. een dagelijkse *ik leef nog* of de afloop van een script.
+
+**TrueNAS**: daar staat `rzmon-hb` niet in `/usr/local/bin` (dat verdwijnt bij een update). Gebruik:
+```bash
+AGENT_DIR=/mnt/<pool>/rzmon-agent bash /mnt/<pool>/rzmon-agent/rzmon-agent.sh --hb backup-db ok
+```
+
+**Goed om te weten**
+- **Veiligheid van de URL:** de code in de URL is het wachtwoord (128 bits, willekeurig). Standaard werkt de URL **alleen vanaf je lokale netwerk** (je *vertrouwde netwerken*, of anders de privé-adressen); van buiten krijg je `403`. Wil je melden vanaf een VPS of in de cloud, zet dan per check **De URL werkt ook van buiten het lokale netwerk** aan, en gebruik dan https. Uitgelekt? Vink **Nieuwe geheime URL maken** aan; de oude werkt meteen niet meer. Een onbekende code telt mee voor de blokkades (§10.1).
+- **`rzmon-hb`** schrijft alleen een regel in `/var/spool/rzmon-agent`. Iedereen mag daarin schrijven, niemand mag er lezen of andermans regels weghalen (`1733`). De agent stuurt alleen regels in precies de juiste vorm mee en gooit de rest weg; per rapport hooguit 100.
+- Een nieuwe check is meteen OK en wacht op de eerste melding volgens het schema. **Onderhoud** en **bevestigen** werken zoals bij andere checks.
+- De tijd van de melding is de tijd waarop het script hem gaf, ook als de agent hem pas later doorstuurt.
+
 ---
 
 ## 8. Agent op Linux-servers
@@ -886,7 +1043,8 @@ Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-
    - haalt de agent op **van je eigen RzMon**, dus het werkt ook als de GitHub-repository privé is;
    - zet de instellingen in `/etc/default/rzmon-agent` (alleen leesbaar voor root);
    - laat de agent elke minuut rapporteren via een **systemd-timer**, of via cron als er geen systemd is;
-   - stuurt een **testrapport** en controleert of RzMon het accepteert.
+   - stuurt een **testrapport** en controleert of RzMon het accepteert;
+   - zet het commando **`rzmon-hb`** klaar voor heartbeat-checks (agent 1.52.0, zie §7.8).
 4. Klap de server in RzMon open en voeg checks toe met **＋ Check**. Mounts en services kies je uit de lijst met wat de agent gemeld heeft (zie 8.2.2).
 
 | Optie | Uitleg |

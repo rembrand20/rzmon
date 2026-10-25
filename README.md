@@ -29,6 +29,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 | Podman (algemeen) | Via de agent: gestopte, ongezonde of gepauzeerde containers, pods | probleem = WARNING |
 | Logbestand (zoeken) | Via de agent: treffers in een logbestand, het systemlog of kernelmeldingen, met voorinstellingen voor mislukte logins, disk- en hardwarefouten | aantal treffers in 15 min |
 | SNMP | RzMon leest switches, access points, NAS, UPS, printers en Proxmox zelf uit (v2c/v3): uptime, CPU, geheugen, interfaces, opslag, UPS, Synology, toner, UniFi (clients per band en SSID, kanaalbezetting, isolated, firmware), of een eigen OID | per meting (%, °C, min…) |
+| Heartbeat | Een script, back-up of cronjob meldt zich zelf: `rzmon-hb NAAM ok` (via de agent) of een geheime URL; schema (elke X, dagelijks, wekelijks, cron) met speling, start/ok/fail, duur en een waarde | te laat = WARNING, 2× speling = CRITICAL, fail = CRITICAL |
 | Container (Podman) | Via de agent, één check per container: status (healthcheck, herstarts) plus naar keuze CPU, RAM en disk | %, MB (eigen drempels per meting) |
 
 **Host-types**
@@ -45,6 +46,8 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 **Instellingen** (accountmenu rechtsboven) beginnen bij **✅ Hoe staat het ervoor?**: een score en de punten die nog aandacht vragen, elk met een klik naar de juiste instelling. Met **🔍 zoeken** vind je elke instelling; alles wordt meteen opgeslagen.
 
 **🖥️ Commando-checks**: laat de agent een commando uitvoeren (bv. `zpool status -x`) en vergelijk de uitvoer met het verwachte antwoord. Standaard uit; aanzetten per agent als `nobody` of root, met wachtwoord en logboek.
+
+**📥 Heartbeat-checks**: back-ups en cronjobs melden zich zelf bij RzMon, met `rzmon-hb backup-db ok` op een server met de agent of met `curl` naar een geheime URL (Synology, Home Assistant, apparaten zonder agent). Blijft de melding uit, mislukt het of duurt het te lang, dan krijg je bericht. Zie [HANDLEIDING §7.8](HANDLEIDING.md#78-heartbeat-scripts-back-ups-en-cronjobs-) voor kant-en-klare voorbeelden.
 
 **🔎 Popup per check**: klik op een check voor de laatste 5 statuswijzigingen, het bericht dat ze veroorzaakte en of er gemeld is. Op de pagina Meldingen sorteer je op elke kolom.
 
