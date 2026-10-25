@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.79.0 – 2026-10-25
+### Nieuw
+- **📱 Ingelogde apparaten**: RzMon houdt nu elke ingelogde sessie bij, niet alleen *Onthoud mij*: ook inloggen met wachtwoord of 2FA en automatisch via je LAN. Per sessie het apparaat, het IP-adres (🏠 binnen of 🌍 buiten je netwerk), hoe er is ingelogd, sinds wanneer en laatst actief.
+  - **Mijn account → Ingelogde apparaten**: je eigen sessies, met **Uitloggen** per apparaat en **Alle andere apparaten uitloggen** (dit apparaat blijft).
+  - **Instellingen → Gebruikers → Ingelogde apparaten** (beheerders): alle sessies van alle gebruikers, te filteren per gebruiker, met **Uitloggen**, **Alles van deze gebruiker uitloggen** en de noodknop **Iedereen uitloggen behalve mij** (met je wachtwoord).
+  - Uitloggen werkt bij de volgende klik op dat apparaat; een onthouden apparaat wordt daarbij ook vergeten. Uitloggen van andermans sessies komt in het logboek.
+  - Een wachtwoordwijziging logt ook alle andere sessies van dat account uit.
+
 ## 1.78.0 – 2026-10-25
 ### Nieuw
 - **🔒 Agents lokaal via https, zonder proxy** (agent 1.53.0 nodig): agents in je netwerk kunnen rechtstreeks naar `https://<IP van RzMon>` met het eigen certificaat van RzMon, dat ze **vastzetten**. RzMon kijkt per adres welk certificaat er staat en geeft de agent per adres door hoe hij het controleert (📌 vastzetten of 🔒 gewone controle). Zo werken een rechtstreeks adres en je proxy-adres (DNS-rewrite) samen als gewoon adres en reserve-adres.

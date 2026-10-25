@@ -803,6 +803,14 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label class="switch small"><input type="checkbox" name="totp"><span></span> <?= th('Direct tweestapsverificatie instellen') ?></label>
           <button class="btn"><?= th('＋ Gebruiker toevoegen') ?></button>
         </form>
+        <div class="need-admin" id="sess-admin">
+          <h3 class="set-sub">📱 <?= th('Ingelogde apparaten') ?></h3>
+          <p class="muted small"><?= th('Alle sessies van alle gebruikers, en onthouden apparaten (die loggen bij hun volgende bezoek vanzelf in). Uitloggen werkt bij de volgende klik op dat apparaat; een onthouden apparaat wordt dan ook vergeten.') ?></p>
+          <div class="sess-tools"><select id="sess-user" aria-label="<?= th('Gebruiker') ?>"></select>
+            <button type="button" class="btn small-btn" id="sess-user-out" hidden><?= th('Alles van deze gebruiker uitloggen') ?></button>
+            <button type="button" class="btn small-btn danger" id="sess-all-out"><?= th('Iedereen uitloggen behalve mij') ?></button></div>
+          <div id="sess-all"></div>
+        </div>
       </div>
 
       <?php if (($user['id'] ?? 0) === 0): ?>
@@ -838,7 +846,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <button class="btn"><?= th('Wijzigen') ?></button>
       </form>
       <div class="card" id="acct-2fa"><h2>🔐 <?= th('Tweestapsverificatie') ?></h2><div id="acct-2fa-body"></div></div>
-      <div class="card" id="acct-devices"><h2>📱 <?= th('Onthouden apparaten') ?></h2><div id="acct-devices-body"></div></div>
+      <div class="card" id="acct-devices"><h2>📱 <?= th('Ingelogde apparaten') ?></h2><div id="acct-devices-body"></div></div>
       <div class="card" id="acct-logins"><h2>🕘 <?= th('Mijn laatste logins') ?></h2><div id="acct-logins-body"></div></div>
       <div class="card view-card">
         <h2>🖥️ <?= th('Weergave') ?></h2>

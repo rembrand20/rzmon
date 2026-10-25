@@ -5422,7 +5422,7 @@ async function loadAccount() {
   let me, devices = [], logins = [];
   try {
     me = (await api('users')).users.find((u) => u.me);
-    [devices, logins] = await Promise.all([api('devices', null, { user_id: me.id }), api('my_logins')]);
+    [devices, logins] = await Promise.all([api('sessions', null, { user_id: me.id }), api('my_logins')]);
   } catch (ex) { $('#acct-data-body').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   if (!me) return;
   const row = (label, ctl, hint) => `<div class="acct-field"><span class="acct-lbl">${label}${hint ? `<small>${hint}</small>` : ''}</span><span class="acct-ctl">${ctl}</span></div>`;
@@ -5445,19 +5445,15 @@ async function loadAccount() {
     if (!confirm(L('Tweestapsverificatie uitzetten? Inloggen kan daarna weer met alleen je wachtwoord.'))) return;
     try { await api('totp_reset', { id: me.id }); toast(L('2FA staat uit')); loadAccount(); } catch (ex) { toast(ex.message, 'err'); }
   };
-  const icon = (d) => (/iPhone|Android/.test(d) ? '📱' : /iPad/.test(d) ? '📲' : '💻');
-  $('#acct-devices-body').innerHTML = devices.length ? `<p class="muted small" style="margin-top:0">${L('Hier blijf je ingelogd zonder wachtwoord en 2FA. Na 30 dagen niet gebruiken, of als je je wachtwoord wijzigt, wordt een apparaat vergeten.')}</p>
-    <div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Apparaat')}</th><th>${L('Laatst gebruikt')}</th><th>IP</th><th></th></tr></thead><tbody>
-    ${devices.map((d) => `<tr><td>${icon(d.device)} ${esc(d.device || L('Onbekend apparaat'))}${d.current ? ` <span class="badge">${L('dit apparaat')}</span>` : ''}</td><td class="small">${ago(d.last_used)}</td><td class="mono small">${esc(d.ip)}</td>
-      <td><button type="button" class="btn small-btn" data-forget="${d.id}">${L('Vergeten')}</button></td></tr>`).join('')}</tbody></table></div>
-    <button type="button" class="btn danger" id="acct-forget-all" style="margin-top:.6rem">${L('Alle apparaten vergeten')}</button>`
-    : `<p class="muted" style="margin:0">${L('Geen onthouden apparaten. Zet bij het inloggen <b>Onthoud mij op dit apparaat</b> aan.')}</p>`;
+  $('#acct-devices-body').innerHTML = `<p class="muted small" style="margin-top:0">${L('Waar je nu bent ingelogd. Een onthouden apparaat (📌) blijft ingelogd zonder wachtwoord en 2FA; na 30 dagen niet gebruiken, of als je je wachtwoord wijzigt, wordt het vergeten.')}</p>
+    ${sessionRows(devices, false)}
+    ${devices.some((d) => !d.current) ? `<button type="button" class="btn danger" id="acct-forget-all" style="margin-top:.6rem">${L('Alle andere apparaten uitloggen')}</button>` : ''}`;
   $('#acct-devices-body').onclick = async (e) => {
-    const b = e.target.closest('[data-forget]');
+    const b = e.target.closest('[data-sess]');
+    if (b) return sessionAction(b, loadAccount);
     try {
-      if (b) { await api('device_forget', { id: b.dataset.forget }); toast(L('Apparaat vergeten')); return loadAccount(); }
-      if (e.target.closest('#acct-forget-all') && confirm(L('Alle onthouden apparaten vergeten? Daar moet je dan opnieuw inloggen.'))) {
-        await api('device_forget_all', { user_id: me.id }); toast(L('Alle apparaten vergeten')); loadAccount();
+      if (e.target.closest('#acct-forget-all') && confirm(L('Alle andere apparaten uitloggen (en vergeten)? Dit apparaat blijft ingelogd.'))) {
+        await api('sessions_logout_user', { user_id: me.id }); toast(L('Alle andere apparaten uitgelogd')); loadAccount();
       }
     } catch (ex) { toast(ex.message, 'err'); }
   };
@@ -5817,13 +5813,14 @@ async function loadUsers() {
         ${u.locked ? `<button class="btn need-admin" data-uact="unlock" data-id="${u.id}">🔓 ${L('Deblokkeren')}</button>` : ''}
         ${u.me ? '' : `<select class="role-select need-admin" data-uact="role" data-id="${u.id}" title="${L('Rol wijzigen')}">
           ${Object.entries(ROLE_LABEL).map(([k, l]) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`}
-        <button class="btn small-btn" data-uact="devices" data-id="${u.id}" title="${L('Apparaten waarop {user} ingelogd blijft', { user: esc(u.username) })}">📱 ${+u.devices}</button>
+        <button class="btn small-btn" data-uact="devices" data-id="${u.id}" title="${L('Ingelogde apparaten van {user}', { user: esc(u.username) })}">📱 ${+u.devices}</button>
         ${userFlags(u)}
         <button class="icon-btn" data-uact="email" data-id="${u.id}" title="${L('E-mailadres (voor wachtwoord vergeten)')}">✉</button>
         <button class="icon-btn need-admin" data-uact="password" data-id="${u.id}" title="${L('Nieuw wachtwoord instellen')}">🔑</button>
         <button class="icon-btn need-admin" data-uact="delete" data-id="${u.id}" title="${L('Verwijderen')}">🗑</button>`}
       </span>
     </div>`).join('');
+  loadSessionsAll();
   settingsSummaries();
 }
 
@@ -5913,40 +5910,88 @@ async function onUsersClick(e) {
   } catch (ex) { toast(ex.message, 'err'); }
 }
 
-/** Onthouden apparaten van een gebruiker: bekijken en vergeten. */
+// ---------------------------------------------------------------- Ingelogde apparaten (1.79.0)
+const SESS_HOW = {
+  password: () => '🔑 ' + L('wachtwoord'), '2fa': () => '🔐 ' + L('wachtwoord + 2FA'), remember: () => '📌 ' + L('onthouden apparaat'),
+  lan: () => '🏠 ' + L('LAN, zonder wachtwoord'), existing: () => L('al ingelogd'),
+};
+const devIcon = (d) => (/iPhone|Android/.test(d) ? '📱' : /iPad/.test(d) ? '📲' : '💻');
+
+/** Tabel met ingelogde apparaten; withUser: met de gebruiker erbij (overzicht voor beheerders) */
+function sessionRows(list, withUser) {
+  if (!list.length) return `<p class="muted" style="margin:0">${L('Geen ingelogde apparaten.')}</p>`;
+  return `<div class="table-scroll"><table class="vuln-table sess-table"><thead><tr>${withUser ? `<th>${L('Gebruiker')}</th>` : ''}<th>${L('Apparaat')}</th><th>IP</th><th>${L('Hoe')}</th><th>${L('Sinds')}</th><th>${L('Laatst actief')}</th><th></th></tr></thead><tbody>
+    ${list.map((s) => `<tr class="${s.kind === 'device' ? 'sess-idle' : ''}">${withUser ? `<td><b>${esc(s.user_id === null ? L('lokaal netwerk') : s.username)}</b></td>` : ''}
+      <td>${devIcon(s.device)} ${esc(s.device || L('Onbekend apparaat'))}${s.current ? ` <span class="badge">${L('dit apparaat')}</span>` : ''}
+        ${s.kind === 'device' ? `<br><span class="muted small">💤 ${L('onthouden, nu niet actief')}</span>` : s.remembered ? ` <span title="${esc(L('Onthouden: blijft ingelogd zonder wachtwoord'))}">📌</span>` : ''}</td>
+      <td class="mono small">${esc(s.ip)} <span title="${esc(s.internal ? L('Binnen je netwerk') : L('Van buiten je netwerk'))}">${s.internal ? '🏠' : '🌍'}</span></td>
+      <td class="small">${SESS_HOW[s.how] ? SESS_HOW[s.how]() : esc(s.how)}</td>
+      <td class="small">${esc(fmtDateTime(s.since))}</td><td class="small">${s.current ? L('nu') : ago(s.last)}</td>
+      <td>${s.current ? '' : `<button type="button" class="btn small-btn" data-sess="${s.kind}:${s.id}">${s.kind === 'device' ? L('Vergeten') : L('Uitloggen')}</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+/** Uitloggen (sessie) of vergeten (onthouden apparaat zonder actieve sessie) */
+async function sessionAction(btn, done) {
+  const [kind, id] = btn.dataset.sess.split(':');
+  btn.disabled = true;
+  try {
+    await api(kind === 'device' ? 'device_forget' : 'session_logout', { id: +id });
+    toast(kind === 'device' ? L('Apparaat vergeten') : L('Uitgelogd'));
+    done();
+  } catch (ex) { toast(ex.message, 'err'); btn.disabled = false; }
+}
+
+/** Overzicht voor beheerders: alle ingelogde apparaten, te filteren op gebruiker */
+let sessUser = '';
+async function loadSessionsAll() {
+  const box = $('#sess-all');
+  if (!box || !isAdmin()) return;
+  let r;
+  try { r = await api('sessions_all'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const names = [...new Map(r.sessions.map((s) => [s.user_id === null ? 'lan' : String(s.user_id), s.user_id === null ? L('lokaal netwerk') : s.username])).entries()];
+  if (sessUser && !names.some(([k]) => k === sessUser)) sessUser = '';
+  $('#sess-user').innerHTML = `<option value="">${L('Alle gebruikers ({n})', { n: r.sessions.length })}</option>`
+    + names.map(([k, n]) => `<option value="${k}" ${k === sessUser ? 'selected' : ''}>${esc(n)} (${r.sessions.filter((s) => (s.user_id === null ? 'lan' : String(s.user_id)) === k).length})</option>`).join('');
+  const list = r.sessions.filter((s) => !sessUser || (s.user_id === null ? 'lan' : String(s.user_id)) === sessUser);
+  box.innerHTML = sessionRows(list, true);
+  $('#sess-user-out').hidden = !sessUser || sessUser === 'lan';
+  $('#sess-user').onchange = (e) => { sessUser = e.target.value; loadSessionsAll(); };
+  box.onclick = (e) => { const b = e.target.closest('[data-sess]'); if (b) sessionAction(b, () => { loadSessionsAll(); loadUsers(); }); };
+  $('#sess-user-out').onclick = async () => {
+    const n = names.find(([k]) => k === sessUser)?.[1] || '';
+    if (!confirm(L('Alle apparaten van {user} uitloggen (en vergeten)?', { user: n }))) return;
+    try { await api('sessions_logout_user', { user_id: +sessUser }); toast(L('Alles van {user} uitgelogd', { user: n })); loadSessionsAll(); loadUsers(); }
+    catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#sess-all-out').onclick = () => modal({
+    title: '⛔ ' + L('Iedereen uitloggen?'),
+    body: `<p style="margin-top:0" class="small">${L('Alle sessies van alle gebruikers worden uitgelogd en alle onthouden apparaten vergeten, behalve dit apparaat. Handig als je denkt dat er iemand meekijkt. Iedereen moet daarna opnieuw inloggen (met 2FA als dat aan staat).')}</p>${confirmField('UITLOGGEN')}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Iedereen uitloggen'), cls: 'danger', submit: true }],
+    onSubmit: async (f) => { const x = await api('sessions_logout_all', { confirm: f.confirm }); toast(L('{n} sessies en apparaten uitgelogd', { n: x.n })); loadSessionsAll(); loadUsers(); },
+  });
+}
+
+/** Ingelogde apparaten van één gebruiker: bekijken en uitloggen */
 async function devicesDialog(u) {
   let list;
-  try { list = await api('devices', null, { user_id: u.id }); } catch (ex) { return toast(ex.message, 'err'); }
-  const icon = (d) => (/iPhone|Android/.test(d) ? '📱' : /iPad/.test(d) ? '📲' : '💻');
+  try { list = await api('sessions', null, { user_id: u.id }); } catch (ex) { return toast(ex.message, 'err'); }
   modal({
-    title: `📱 ${L('Onthouden apparaten')} – ${u.username}`,
-    body: list.length ? `
-      <p class="muted small" style="margin-top:0">${L('Op deze apparaten blijft {user} ingelogd (zonder wachtwoord en 2FA). Een apparaat wordt vanzelf vergeten na 30 dagen niet gebruiken, en bij een wachtwoordwijziging.', { user: esc(u.username) })}</p>
-      <div class="key-list" id="device-list">${list.map((d) => `
-        <div class="key-row">
-          <span class="grow"><strong>${icon(d.device)} ${esc(d.device || L('Onbekend apparaat'))}</strong>${d.current ? ` <span class="badge">${L('dit apparaat')}</span>` : ''}<br>
-            <span class="muted small">${L('Laatst gebruikt {ago}', { ago: ago(d.last_used) })} · ${esc(d.ip)} · ${L('sinds {date}', { date: esc(fmtUntil(d.created_at)) })}</span></span>
-          <button type="button" class="btn small-btn" data-forget="${d.id}">${L('Vergeten')}</button>
-        </div>`).join('')}</div>`
-      : `<p class="muted">${L('Geen onthouden apparaten. Zet bij het inloggen <b>Onthoud mij op dit apparaat</b> aan.')}</p>`,
+    title: `📱 ${L('Ingelogde apparaten')} – ${u.username}`,
+    wide: true,
+    body: `<p class="muted small" style="margin-top:0">${L('Waar {user} nu is ingelogd. Een onthouden apparaat (📌) blijft ingelogd zonder wachtwoord en 2FA; het wordt vanzelf vergeten na 30 dagen niet gebruiken, en bij een wachtwoordwijziging.', { user: esc(u.username) })}</p>
+      <div id="device-list">${sessionRows(list, false)}</div>`,
     buttons: [
-      ...(list.length ? [{ label: L('Alle apparaten vergeten'), cls: 'danger', style: 'margin-right:auto', onClick: async () => {
-        if (!confirm(L('Alle onthouden apparaten van {user} vergeten? Daar moet dan opnieuw worden ingelogd.', { user: u.username }))) return;
-        try { await api('device_forget_all', { user_id: u.id }); toast(L('Alle apparaten vergeten')); $('#modal').close(); loadUsers(); }
+      ...(list.some((d) => !d.current) ? [{ label: L('Alles uitloggen'), cls: 'danger', style: 'margin-right:auto', onClick: async () => {
+        if (!confirm(L('Alle apparaten van {user} uitloggen (en vergeten)?', { user: u.username }))) return;
+        try { await api('sessions_logout_user', { user_id: u.id }); toast(L('Alles van {user} uitgelogd', { user: u.username })); $('#modal').close(); loadUsers(); }
         catch (ex) { toast(ex.message, 'err'); }
       } }] : []),
       { label: L('Sluiten'), cls: 'primary', submit: true },
     ],
   });
-  $('#device-list')?.addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-forget]');
-    if (!b) return;
-    try {
-      await api('device_forget', { id: b.dataset.forget });
-      toast(L('Apparaat vergeten'));
-      loadUsers();
-      devicesDialog(u);
-    } catch (ex) { toast(ex.message, 'err'); }
+  $('#device-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-sess]');
+    if (b) sessionAction(b, () => { loadUsers(); devicesDialog(u); });
   });
 }
 

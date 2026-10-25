@@ -39,6 +39,7 @@ function current_user(): ?array
     // Automatische login vervalt zodra je niet meer vanaf het lokale netwerk komt
     // (bv. telefoon die van wifi naar 4G gaat) of de optie is uitgezet.
     if ($user && $lan && !lan_login_allowed()) {
+        session_end();
         $_SESSION = ['csrf' => $_SESSION['csrf']];
         session_regenerate_id(true);
         $user = null;
@@ -48,6 +49,11 @@ function current_user(): ?array
     if ($user && $lan) {
         // Rol op het LAN volgt direct de schakelaar "als beheerder inloggen"
         $user = $_SESSION['user'] = lan_user();
+        // Uitgelogd vanuit "Ingelogde apparaten": opnieuw beginnen (zolang LAN-inloggen aan staat, volgt een nieuwe sessie)
+        if (!session_alive($user)) {
+            $_SESSION = ['csrf' => $_SESSION['csrf']];
+            $user = null;
+        }
     } elseif ($user) {
         // Eigen account: bestaan en rol elke keer uit de database (verwijderd of rol gewijzigd → direct merkbaar)
         $row = q('SELECT id, username, role, pw_changed_at, local_only FROM users WHERE id = ?', [$user['id']])->fetch();
@@ -68,9 +74,14 @@ function current_user(): ?array
         if ($user && !empty($_SESSION['remember_id']) && !remember_touch()) {
             $user = null;
         }
+        // Uitgelogd vanuit "Ingelogde apparaten" (door jezelf of een beheerder, 1.79.0)
+        if ($user && !session_alive($user)) {
+            $user = null;
+        }
         if ($user) {
             $_SESSION['user'] = $user;
         } else {
+            session_end();
             $_SESSION = ['csrf' => $_SESSION['csrf']];
         }
     }
@@ -85,6 +96,7 @@ function current_user(): ?array
         session_regenerate_id(true);
         $_SESSION['lan_auto'] = true;
         $user = $_SESSION['user'] = lan_user();
+        session_track($user, 'lan');
     }
     return $user;
 }
@@ -208,6 +220,7 @@ function finish_login(array $u, bool $remember = false, string $how = 'wachtwoor
     if ($remember) {
         remember_create((int) $u['id']);
     }
+    session_track($_SESSION['user'], $how === 'wachtwoord' ? 'password' : '2fa');
 }
 
 // ------------------------------------------------------------------ onthoud mij op dit apparaat
@@ -300,7 +313,9 @@ function remember_login(): ?array
     }
     q('UPDATE users SET last_login = ? WHERE id = ?', [now(), $t['user_id']]);
     Security::loginOk(['username' => $t['username']], 'onthouden apparaat');
-    return $_SESSION['user'] = ['id' => (int) $t['user_id'], 'username' => $t['username'], 'role' => $t['role']];
+    $_SESSION['user'] = ['id' => (int) $t['user_id'], 'username' => $t['username'], 'role' => $t['role']];
+    session_track($_SESSION['user'], 'remember');
+    return $_SESSION['user'];
 }
 
 /**
@@ -351,9 +366,135 @@ function device_name(): string
     return t('{browser} op {os}', ['browser' => $browser, 'os' => $os]);
 }
 
+// ------------------------------------------------------------------ ingelogde sessies (1.79.0)
+// Elke sessie staat in user_sessions, zodat je (en een beheerder) ze kunt zien en uitloggen. Uitloggen werkt bij het
+// volgende verzoek van dat apparaat: de regel is dan weg. Een onthouden apparaat wordt bij uitloggen ook vergeten.
+
+/** Hoe lang een sessie zonder verzoek actief telt (zo lang bewaart PHP de sessie ook) */
+function session_ttl(): int
+{
+    return max(600, (int) ini_get('session.gc_maxlifetime'));
+}
+
+/** Deze sessie vastleggen. how: password, 2fa, remember, lan, of existing (al ingelogd vóór 1.79.0) */
+function session_track(array $user, string $how): void
+{
+    session_end();   // een vorige sessie in dezelfde browser (bv. LAN, daarna met je account)
+    $key = bin2hex(random_bytes(32));
+    q('INSERT INTO user_sessions (sid_hash, user_id, username, how, remember_id, device, ip, created_at, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+        hash('sha256', $key), !empty($user['id']) ? (int) $user['id'] : null, mb_substr((string) $user['username'], 0, 64), $how,
+        !empty($_SESSION['remember_id']) ? (int) $_SESSION['remember_id'] : null, device_name(), mb_substr(client_ip(), 0, 45), now(), now(),
+    ]);
+    $_SESSION['sess_row'] = (int) db()->lastInsertId();
+    $_SESSION['sess_key'] = $key;
+    $_SESSION['sess_touch'] = time();
+}
+
+/** Bestaat deze sessie nog (niet uitgelogd)? Hooguit eens per minuut "laatst actief" en het IP bijwerken. */
+function session_alive(array $user): bool
+{
+    if (empty($_SESSION['sess_row'])) {
+        session_track($user, 'existing');   // al ingelogd vóór de update: nu ook in de lijst
+        return true;
+    }
+    $r = q('SELECT sid_hash, last_seen FROM user_sessions WHERE id = ?', [(int) $_SESSION['sess_row']])->fetch();
+    if (!$r || !hash_equals((string) $r['sid_hash'], hash('sha256', (string) ($_SESSION['sess_key'] ?? '')))) {
+        unset($_SESSION['sess_row'], $_SESSION['sess_key']);
+        return false;
+    }
+    // Te lang stil (ook als PHP de sessie nog niet heeft opgeruimd): verlopen, zoals de lijst het ook toont
+    if (strtotime((string) $r['last_seen']) < time() - session_ttl()) {
+        session_end();
+        return false;
+    }
+    if (time() - (int) ($_SESSION['sess_touch'] ?? 0) > 60) {
+        q('UPDATE user_sessions SET last_seen = ?, ip = ?, remember_id = COALESCE(?, remember_id) WHERE id = ?',
+            [now(), mb_substr(client_ip(), 0, 45), !empty($_SESSION['remember_id']) ? (int) $_SESSION['remember_id'] : null, (int) $_SESSION['sess_row']]);
+        $_SESSION['sess_touch'] = time();
+    }
+    return true;
+}
+
+/** Deze sessie uit de lijst halen (uitloggen, of de sessie vervalt) */
+function session_end(): void
+{
+    if (!empty($_SESSION['sess_row'])) {
+        q('DELETE FROM user_sessions WHERE id = ? AND sid_hash = ?', [(int) $_SESSION['sess_row'], hash('sha256', (string) ($_SESSION['sess_key'] ?? ''))]);
+    }
+    unset($_SESSION['sess_row'], $_SESSION['sess_key'], $_SESSION['sess_touch']);
+}
+
+/** Id van de sessie van dit verzoek (0 = geen) */
+function session_current(): int
+{
+    return (int) ($_SESSION['sess_row'] ?? 0);
+}
+
+/**
+ * Ingelogde apparaten: actieve sessies, en onthouden apparaten die nu geen actieve sessie hebben (die loggen bij
+ * het volgende bezoek vanzelf in). $userId null = van iedereen.
+ * @return list<array> kind (session|device), id, user_id, username, how, device, ip, internal, since, last, remembered, current
+ */
+function session_list(?int $userId): array
+{
+    $nets = trusted_networks();
+    $out = [];
+    $active = [];
+    $rows = q('SELECT id, user_id, username, how, remember_id, device, ip, created_at, last_seen FROM user_sessions WHERE last_seen > ?'
+        . ($userId !== null ? ' AND user_id = ?' : '') . ' ORDER BY last_seen DESC',
+        array_merge([date('Y-m-d H:i:s', time() - session_ttl())], $userId !== null ? [$userId] : []))->fetchAll();
+    $tokens = [];
+    foreach (q('SELECT r.id, r.user_id, u.username, r.device, r.ip, r.created_at, r.last_used, r.mfa FROM remember_tokens r JOIN users u ON u.id = r.user_id'
+        . ($userId !== null ? ' WHERE r.user_id = ?' : '') . ' ORDER BY r.last_used DESC', $userId !== null ? [$userId] : [])->fetchAll() as $t) {
+        $tokens[(int) $t['id']] = $t;
+    }
+    foreach ($rows as $r) {
+        $rid = (int) $r['remember_id'];
+        $remembered = $rid && isset($tokens[$rid]);
+        if ($remembered) {
+            $active[$rid] = true;
+        }
+        $out[] = ['kind' => 'session', 'id' => (int) $r['id'], 'user_id' => $r['user_id'] !== null ? (int) $r['user_id'] : null, 'username' => $r['username'],
+            'how' => $r['how'], 'device' => $r['device'], 'ip' => $r['ip'], 'internal' => $r['ip'] !== '' && ip_in_list($r['ip'], $nets),
+            'since' => $r['created_at'], 'last' => $r['last_seen'], 'remembered' => $remembered, 'current' => (int) $r['id'] === session_current()];
+    }
+    foreach ($tokens as $id => $t) {
+        if (!isset($active[$id])) {
+            $out[] = ['kind' => 'device', 'id' => $id, 'user_id' => (int) $t['user_id'], 'username' => $t['username'], 'how' => 'remember',
+                'device' => $t['device'], 'ip' => $t['ip'], 'internal' => $t['ip'] !== '' && ip_in_list($t['ip'], $nets),
+                'since' => $t['created_at'], 'last' => $t['last_used'], 'remembered' => true, 'current' => false];
+        }
+    }
+    return $out;
+}
+
+/**
+ * Uitloggen: sessies en onthouden apparaten weghalen, behalve de sessie (en het onthouden apparaat) van dit verzoek.
+ * $where: 'user' (alles van $id), 'session' (één sessie, $id) of 'all' (iedereen). @return aantal
+ */
+function session_logout(string $where, int $id = 0): int
+{
+    $me = session_current();
+    $myToken = (int) ($_SESSION['remember_id'] ?? 0);
+    if ($where === 'session') {
+        $tok = (int) q('SELECT remember_id FROM user_sessions WHERE id = ?', [$id])->fetchColumn();
+        $n = q('DELETE FROM user_sessions WHERE id = ? AND id <> ?', [$id, $me])->rowCount();
+        if ($n && $tok && $tok !== $myToken) {
+            q('DELETE FROM remember_tokens WHERE id = ?', [$tok]);
+        }
+        return $n;
+    }
+    $cond = $where === 'user' ? 'user_id = ?' : '1 = 1';
+    $args = $where === 'user' ? [$id] : [];
+    $n = q("DELETE FROM user_sessions WHERE $cond AND id <> ?", array_merge($args, [$me]))->rowCount();
+    $n += q("DELETE FROM remember_tokens WHERE $cond AND id <> ?", array_merge($args, [$myToken]))->rowCount();
+    return $n;
+}
+
 function logout(): void
 {
     start_session();
+    session_end();
     // Uitloggen = ook dit apparaat niet meer onthouden
     if (!empty($_SESSION['remember_id'])) {
         q('DELETE FROM remember_tokens WHERE id = ?', [(int) $_SESSION['remember_id']]);

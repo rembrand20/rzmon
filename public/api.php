@@ -848,7 +848,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
     'state', 'alerts', 'ids', 'ids_access', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
-    'devices', 'device_forget', 'device_forget_all', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
+    'devices', 'device_forget', 'device_forget_all', 'sessions', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
     default => 'admin',
 };
@@ -2574,9 +2574,16 @@ switch ($action) {
     case 'users':
         $rows = q('SELECT id, username, email, role, totp_secret IS NOT NULL AS totp, created_at, last_login, locked_at, locked_until, locked_ip,
                           local_only, hibp, pw_pwned, pw_pwned_at,
-                          (SELECT COUNT(*) FROM remember_tokens r WHERE r.user_id = users.id) AS devices FROM users'
+                          (SELECT COUNT(*) FROM remember_tokens r WHERE r.user_id = users.id) AS remembered FROM users'
             . ($isAdmin ? '' : ' WHERE id = ' . (int) $user['id']) . ' ORDER BY username')->fetchAll();
+        $perUser = [];
+        foreach (session_list($isAdmin ? null : (int) $user['id']) as $s) {
+            if ($s['user_id'] !== null) {
+                $perUser[$s['user_id']] = ($perUser[$s['user_id']] ?? 0) + 1;
+            }
+        }
         foreach ($rows as &$r) {
+            $r['devices'] = $perUser[(int) $r['id']] ?? 0;   // ingelogde apparaten (1.79.0)
             $r['totp'] = (bool) $r['totp'];
             $r['me'] = (int) $r['id'] === $user['id'];
             $r['local_only'] = (bool) $r['local_only'];
@@ -2656,7 +2663,7 @@ switch ($action) {
         q('UPDATE users SET password_hash = ?, pw_changed_at = ?, pw_must_change = 0, pw_pwned = ?, pw_pwned_at = ? WHERE id = ?',
             [password_hash($new, PASSWORD_DEFAULT), now(), $n === null ? null : 0, $n === null ? null : now(), $user['id']]);
         $_SESSION['auth_at'] = time();
-        q('DELETE FROM remember_tokens WHERE user_id = ? AND id <> ?', [$user['id'], (int) ($_SESSION['remember_id'] ?? 0)]);
+        session_logout('user', (int) $user['id']);   // andere sessies en onthouden apparaten; deze blijft
         out(['ok' => true]);
 
     case 'my_logins':
@@ -2699,8 +2706,8 @@ switch ($action) {
         if ((int) ($in['id'] ?? 0) === $user['id']) {
             $_SESSION['auth_at'] = time();   // eigen account: deze sessie blijft
         }
-        // Nieuw wachtwoord gezet door een beheerder: onthouden apparaten van die gebruiker vergeten
-        q('DELETE FROM remember_tokens WHERE user_id = ?', [(int) ($in['id'] ?? 0)]);
+        // Nieuw wachtwoord gezet door een beheerder: sessies en onthouden apparaten van die gebruiker weg (je eigen sessie blijft)
+        session_logout('user', (int) ($in['id'] ?? 0));
         out(['ok' => true, 'pwned' => Hibp::checkUser((int) ($in['id'] ?? 0), (string) $in['password']) ?? 0]);
 
     case 'user_email':
@@ -2809,13 +2816,59 @@ switch ($action) {
         }
         $ownOnly((int) $owner);
         q('DELETE FROM remember_tokens WHERE id = ?', [$id]);
+        q('DELETE FROM user_sessions WHERE remember_id = ? AND id <> ?', [$id, session_current()]);   // ook meteen uitloggen
+        if ((int) $owner !== (int) $user['id']) {
+            AgentCommands::audit($user['username'], 'Apparaat vergeten', (string) q('SELECT username FROM users WHERE id = ?', [$owner])->fetchColumn());
+        }
         out(['ok' => true]);
 
+    // Ingelogde apparaten (1.79.0): je eigen (of als beheerder die van een gebruiker), of van iedereen (alleen beheerders)
+    case 'sessions':
+        $uid = (int) ($_GET['user_id'] ?? $user['id']);
+        $ownOnly($uid);
+        out(session_list($uid));
+
+    case 'sessions_all':
+        out(['sessions' => session_list(null), 'ttl' => session_ttl()]);
+
+    case 'session_logout':
+        $id = (int) (input()['id'] ?? 0);
+        $s = q('SELECT user_id, username, device FROM user_sessions WHERE id = ?', [$id])->fetch();
+        if (!$s) {
+            out(['error' => t('Deze sessie bestaat niet meer')], 404);
+        }
+        if ($s['user_id'] === null && !$isAdmin) {
+            out(['error' => t('Daar heb je geen rechten voor')], 403);
+        }
+        if ($s['user_id'] !== null) {
+            $ownOnly((int) $s['user_id']);
+        }
+        if ($id === session_current()) {
+            out(['error' => t('Dit is je huidige sessie: gebruik Uitloggen in het accountmenu')], 409);
+        }
+        session_logout('session', $id);
+        if ((int) $s['user_id'] !== (int) $user['id']) {
+            AgentCommands::audit($user['username'], 'Sessie uitgelogd', "{$s['username']}: {$s['device']}");
+        }
+        out(['ok' => true]);
+
+    // Alles van een gebruiker uitloggen (sessies en onthouden apparaten), behalve dit apparaat
     case 'device_forget_all':
+    case 'sessions_logout_user':
         $uid = (int) (input()['user_id'] ?? $user['id']);
         $ownOnly($uid);
-        q('DELETE FROM remember_tokens WHERE user_id = ?', [$uid]);
-        out(['ok' => true]);
+        $n = session_logout('user', $uid);
+        if ($uid !== (int) $user['id']) {
+            AgentCommands::audit($user['username'], 'Alle sessies uitgelogd', (string) q('SELECT username FROM users WHERE id = ?', [$uid])->fetchColumn());
+        }
+        out(['ok' => true, 'n' => $n]);
+
+    // Noodknop: iedereen uitloggen behalve dit apparaat (met je wachtwoord)
+    case 'sessions_logout_all':
+        $confirm('UITLOGGEN');
+        $n = session_logout('all');
+        AgentCommands::audit($user['username'], 'Iedereen uitgelogd', "$n sessies en apparaten");
+        out(['ok' => true, 'n' => $n]);
 
     case 'totp_reset':
         $ownOnly((int) (input()['id'] ?? 0));
@@ -3222,8 +3275,8 @@ switch ($action) {
         // Andere sessies van dit account worden uitgelogd (pw_changed_at); deze blijft
         q('UPDATE users SET password_hash = ?, pw_changed_at = ?, pw_must_change = 0 WHERE id = ?', [password_hash((string) $in['new'], PASSWORD_DEFAULT), now(), $user['id']]);
         $_SESSION['auth_at'] = time();
-        // Eigen wachtwoord gewijzigd: alle andere onthouden apparaten vergeten (dit apparaat blijft)
-        q('DELETE FROM remember_tokens WHERE user_id = ? AND id <> ?', [$user['id'], (int) ($_SESSION['remember_id'] ?? 0)]);
+        // Eigen wachtwoord gewijzigd: alle andere sessies en onthouden apparaten weg (dit apparaat blijft)
+        session_logout('user', (int) $user['id']);
         out(['ok' => true, 'pwned' => Hibp::checkUser((int) $user['id'], (string) $in['new']) ?? 0]);
 
     default:

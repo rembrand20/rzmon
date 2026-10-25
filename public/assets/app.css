@@ -1471,3 +1471,8 @@ details.adv[open] { padding-bottom: .6rem; }
 /* Vandaag zonder meldingen (1.78.0) */
 .alert-day.today-empty .ad-sum { display: flex; align-items: center; gap: .8rem; padding: .6rem 1rem; font-weight: 700; flex-wrap: wrap; }
 .alert-day.today-empty .ad-sum .muted { font-weight: 400; }
+
+/* Ingelogde apparaten (1.79.0) */
+.sess-tools { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .4rem 0 .6rem; }
+.sess-tools select { max-width: 16rem; }
+.sess-table tr.sess-idle td { opacity: .7; }

@@ -1756,9 +1756,26 @@ Zet bij het inloggen **Onthoud mij op dit apparaat** aan. Dan blijf je op dat ap
 - **30 dagen:** gebruik je het apparaat 30 dagen niet, dan wordt het vergeten. Elk gebruik telt opnieuw vanaf nul.
 - **Gekoppeld aan dat apparaat:** het apparaat krijgt een geheime sleutel in een beveiligde cookie, die alleen in die browser werkt. Wis je de cookies of gebruik je een privévenster, dan moet je opnieuw inloggen.
 - **Veilig:** in de database staat alleen een hash van de sleutel. De sleutel wordt bij elk gebruik vervangen. Duikt een oude sleutel op (bijvoorbeeld een gestolen cookie), dan wordt het apparaat ongeldig.
-- **Apparaten beheren:** klik bij je account onder *Instellingen → Gebruikers* op **📱**. Je ziet elk apparaat met naam, laatste gebruik en IP-adres, en kunt het **vergeten**. Een vergeten apparaat wordt ook direct uitgelogd, handig bij een verloren telefoon. Beheerders kunnen dit voor alle gebruikers.
+- **Apparaten beheren:** bij *Mijn account → Ingelogde apparaten* (zie hieronder). Een vergeten apparaat wordt ook direct uitgelogd, handig bij een verloren telefoon. Beheerders kunnen dit voor alle gebruikers.
 - **Automatisch vergeten** bij uitloggen op dat apparaat, bij een wachtwoordwijziging (alle andere apparaten) en als een beheerder je wachtwoord reset.
 - **Rechten:** je houdt de rechten van je account. Wijzigt een beheerder je rol, dan geldt die meteen.
+
+### Ingelogde apparaten 📱 (vanaf 1.79.0)
+RzMon houdt **elke ingelogde sessie** bij: met wachtwoord, met 2FA, via een onthouden apparaat, en automatisch via je LAN (*lokaal netwerk*). Per sessie zie je:
+- het **apparaat** (browser en systeem, bv. *Safari op iPhone*), met *dit apparaat* bij de sessie waar je nu zit;
+- het **IP-adres**, met 🏠 (binnen je vertrouwde netwerken) of 🌍 (van buiten);
+- **hoe** er is ingelogd: 🔑 wachtwoord, 🔐 wachtwoord + 2FA, 📌 onthouden apparaat, 🏠 LAN zonder wachtwoord;
+- **sinds** wanneer en **laatst actief**.
+
+Ook onthouden apparaten zonder actieve sessie staan erin (💤 *onthouden, nu niet actief*): die loggen bij hun volgende bezoek vanzelf in. Een sessie die langer niet gebruikt is dan de levensduur van een sessie (standaard 24 minuten) verloopt en verdwijnt uit de lijst.
+
+**Waar:**
+- **Mijn account → Ingelogde apparaten**: je eigen sessies. Per apparaat **Uitloggen** (of **Vergeten**), en **Alle andere apparaten uitloggen**. De sessie waar je nu in zit blijft altijd; daarvoor gebruik je *Uitloggen* in het accountmenu.
+- **Instellingen → Gebruikers → Ingelogde apparaten** (beheerders): alle sessies van alle gebruikers, te filteren per gebruiker, met per sessie **Uitloggen**, per gebruiker **Alles van deze gebruiker uitloggen**, en de noodknop **Iedereen uitloggen behalve mij** (met je wachtwoord). Ook de knop **📱** bij een gebruiker toont zijn apparaten.
+
+**Uitloggen werkt meteen**: bij de volgende klik (of de volgende verversing van het dashboard, binnen 20 seconden) is dat apparaat uitgelogd. Een onthouden apparaat wordt daarbij ook **vergeten**; anders zou het meteen weer inloggen. Een LAN-sessie logt opnieuw in zolang *inloggen zonder wachtwoord* aan staat. Uitloggen van andermans sessies komt in het logboek.
+
+Bij een wachtwoordwijziging worden alle andere sessies en onthouden apparaten van dat account uitgelogd (je eigen huidige sessie blijft).
 
 ### Welke rechten heb je op het lokale netwerk?
 - **Standaard** kom je zonder wachtwoord binnen als **👁 Alleen lezen**: je kunt alles zien, maar niets veranderen. Heb je op dit apparaat *Onthoud mij* aan staan, dan kom je binnen met je eigen account.

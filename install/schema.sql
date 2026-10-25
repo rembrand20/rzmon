@@ -130,6 +130,24 @@ CREATE TABLE IF NOT EXISTS agent_log (
     INDEX idx_agent_log_time (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Ingelogde sessies (1.79.0): elke sessie (wachtwoord, 2FA, onthouden apparaat, LAN), om ze te kunnen zien en uitloggen.
+-- In de sessie staat een willekeurige sleutel; hier alleen de SHA-256 hash. user_id NULL = LAN zonder account (alleen lezen).
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    sid_hash    CHAR(64) NOT NULL UNIQUE,
+    user_id     INT UNSIGNED NULL,
+    username    VARCHAR(64) NOT NULL DEFAULT '',
+    how         VARCHAR(20) NOT NULL DEFAULT '',
+    remember_id INT UNSIGNED NULL,
+    device      VARCHAR(100) NOT NULL DEFAULT '',
+    ip          VARCHAR(45) NOT NULL DEFAULT '',
+    created_at  DATETIME NOT NULL,
+    last_seen   DATETIME NOT NULL,
+    CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_session_user (user_id),
+    INDEX idx_session_seen (last_seen)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- "Onthoud mij op dit apparaat": per apparaat een sleutel (alleen de SHA-256 hash wordt opgeslagen).
 -- De sleutel wordt bij elk gebruik vervangen; prev_hash blijft 60 s geldig voor gelijktijdige verzoeken.
 CREATE TABLE IF NOT EXISTS remember_tokens (
