@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.84.1 – 2026-10-25
+### Nieuw
+- **Lokaas heet nu 🍯 Honeypot**, in het Nederlands en het Engels: honeypot-gebruikers, honeypot-poort, *Geen honeypot-naam* op de whitelist. Je instellingen blijven gewoon staan.
+
+### Opgelost
+- **De reden van een blokkade staat in jouw taal.** RzMon bewaart de reden in het Nederlands, dus in het Engels zag je bijvoorbeeld *Lokaas-gebruiker: admin*. Nu zie je *Honeypot user: admin*, ook bij blokkades van voor deze update. Dat geldt voor IDS → Blokkades en voor *Blokkades en whitelist*.
+
 ## 1.84.0 – 2026-10-25
 ### Nieuw
 - **Meldingen: chip *Zonder info*.** Toont alles behalve de ℹ️-systeeminfo (ingelogd, agent verbonden, bijgewerkt …). Storingen, herstel, beveiliging en bevestigingen blijven staan. De tegels bovenaan tellen de info dan ook niet mee.

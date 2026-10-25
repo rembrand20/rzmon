@@ -3411,7 +3411,7 @@ function initSecurity() {
 // ---------------------------------------------------------------- Blokkades en whitelist (1.83.0)
 let blData = null, blTab = 'active', blShown = [];
 const BL_SRC = { rz: () => '⛔ ' + L('IP in RzMon'), user: () => '🔒 ' + L('Account'), ids: () => '🛡️ IDS' };
-const WL_KIND = { ip: () => L('IP-adres of netwerk'), user: () => L('Account: nooit vergrendelen'), decoy: () => L('Naam is geen lokaas') };
+const WL_KIND = { ip: () => L('IP-adres of netwerk'), user: () => L('Account: nooit vergrendelen'), decoy: () => L('Geen honeypot-naam') };
 const WL_DAYS = [[1, L('1 dag')], [7, L('7 dagen')], [30, L('30 dagen')], [0, L('altijd')]];
 
 async function loadBlocks() {
@@ -3444,7 +3444,7 @@ function renderBlocks() {
   $('#blocks-list').innerHTML = blShown.length ? `<div class="table-scroll"><table class="vuln-table bl-table">
     <thead><tr><th>${L('Wat')}</th><th>${L('Waar')}</th><th>${L('Reden')}</th><th>${L('Sinds')} → ${act ? L('tot') : L('opgeheven')}</th><th>${L('Door')}</th><th></th></tr></thead><tbody>
     ${blShown.map((x, i) => `<tr><td>${blWhat(x)}<br><span class="muted small nowrap">${BL_SRC[x.src]()}</span></td><td class="small">${where(x)}</td>
-      <td class="small">${esc(x.reason || '')}${x.decoy ? `<br><span class="muted">🪤 ${L('lokaas-naam {u}', { u: `<code>${esc(x.decoy)}</code>` })}</span>` : ''}${act && +x.hits ? `<br><span class="muted">${L('{n}× tegengehouden', { n: x.hits })}</span>` : ''}</td>
+      <td class="small">${esc(x.reason || '')}${x.decoy ? `<br><span class="muted">🍯 ${L('honeypot-naam {u}', { u: `<code>${esc(x.decoy)}</code>` })}</span>` : ''}${act && +x.hits ? `<br><span class="muted">${L('{n}× tegengehouden', { n: x.hits })}</span>` : ''}</td>
       <td class="small">${x.since ? esc(fmtDateTime(x.since)) : '–'}<br><span class="muted">→</span> ${when(x)}</td>
       <td class="small">${+x.auto && x.src !== 'user' ? L('automatisch') : esc(x.by || '')}</td><td><span class="bl-acts">${btns(x, i)}</span></td></tr>`).join('')}</tbody></table></div>`
     : `<p class="muted small">${(src || qv) && (act ? d.active : d.history).length ? L('Niets gevonden.') : act ? L('Nu is er niets geblokkeerd. Je eigen IP-adres is {ip}.', { ip: `<code>${esc(d.my_ip)}</code>` })
@@ -3463,7 +3463,7 @@ function wlDialog(x = null) {
   const opts = [];
   if (x && x.type !== 'user' && !x.wl) opts.push(['ip', x.value, x.type === 'net' ? L('Dit netwerk nooit blokkeren') : L('Dit IP-adres nooit blokkeren'), L('in RzMon en door het IDS op al je servers')]);
   if (x && x.type === 'user') opts.push(['user', x.value, L('Account {u} nooit vergrendelen', { u: x.value }), L('het IP-adres van de aanvaller wordt wel geblokkeerd')]);
-  if (x && x.decoy) opts.push(['decoy', x.decoy, L('{u} is geen lokaas', { u: x.decoy }), L('valt af van de lokaas-namen, op alle servers')]);
+  if (x && x.decoy) opts.push(['decoy', x.decoy, L('{u} is geen honeypot-naam', { u: x.decoy }), L('valt af van de honeypot-namen, op alle servers')]);
   const ip = !x || opts[0][0] === 'ip';
   modal({
     title: '✅ ' + L('Op de whitelist zetten'),
@@ -3482,7 +3482,7 @@ function wlDialog(x = null) {
       loadBlocks();
     },
   });
-  // Een IP standaard 30 dagen, een account of lokaas-naam standaard altijd
+  // Een IP standaard 30 dagen, een account of honeypot-naam standaard altijd
   $$('#modal [name=choice]').forEach((r) => (r.onchange = () => { const v = r.value.startsWith('ip|') ? '30' : '0'; $(`#modal [name=days][value="${v}"]`).checked = true; }));
 }
 
@@ -4380,7 +4380,7 @@ function accIgnoreDialog(r) {
 }
 
 const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'outbound', 'kev_port']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
-  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🪤 ' + L('Lokaas'), ['decoy_user', 'decoy_port']]];
+  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🍯 ' + L('Honeypot'), ['decoy_user', 'decoy_port']]];
 const idsCatOf = (i) => (IDS_CATS.find((c) => c[2].includes(i.type)) || [''])[0];
 
 /** Toegang in de laatste 24 uur: [gelukt, mislukt (pogingen), per uur mislukt] */
@@ -4436,7 +4436,7 @@ function renderIds() {
     if (h.ha) return `<div class="srv-row"><span class="ok-ic">🏠</span><span class="ok-nm"><strong>${esc(h.name)}</strong><small>${L('niet beschikbaar in de Home Assistant-add-on: die draait in een container en ziet het systeem zelf niet')}</small></span><span class="srv-st"></span><span class="srv-n muted small">–</span></div>`;
     const st = [!h.baseline_until ? '' : h.learning ? L('📏 basismeting tot {t}', { t: esc(fmtUntil(h.baseline_until)) }) : '✔ ' + L('bewaakt'),
       h.fw_state ? (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : '',
-      h.decoy_state ? `<span class="warn-txt">🪤 ${esc(h.decoy_state)}</span>` : '',
+      h.decoy_state ? `<span class="warn-txt">🍯 ${esc(h.decoy_state)}</span>` : '',
       h.fim_count != null ? '📁 ' + L(+h.fim_count === 1 ? '{n} bestand bewaakt' : '{n} bestanden bewaakt', { n: (+h.fim_count).toLocaleString(LOCALE) }) : '',
       +h.realtime ? ((x) => (x && x.state === 'active' ? '<span class="good">⚡ realtime</span>' : `<span class="warn-txt">⚡ ${L('niet actief')}</span>`))(JSON.parse(h.rt || 'null')) : '',
       +h.realtime ? ((t) => (t && !t.inotify ? `<span class="warn-txt">${t.family === 'rhel' && !t.epel ? L('EPEL ontbreekt') : L('inotify-tools ontbreekt')}</span>` : ''))(JSON.parse(h.tools || 'null')) : ''].filter(Boolean).join(' · ');

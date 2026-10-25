@@ -23,7 +23,7 @@ final class Ids
     private const CRIT_FILES = ['#^/root/\.ssh/authorized_keys$#', '#^/etc/sudoers(\.d/.*)?$#', '#^/etc/ld\.so\.preload$#', '#^/etc/pam\.d/#'];
     // Sinds agent 1.54.0 ("fv":2) bewaakt: de eerste keer stil vastleggen (anders na de update een incident per bestand)
     private const FILES_V2 = '#^(/etc/pam\.d/|/etc/(hosts|resolv\.conf|environment)$|/var/spool/(at|cron/atjobs)/|/root/\.(bashrc|bash_profile|profile)$|/etc/systemd/user/|/root/\.config/systemd/user/|/home/[^/]+/\.config/systemd/user/)#';
-    /** Lokaas-gebruikers (1.81.0): standaard, aan te vullen bij Instellingen → IDS */
+    /** Honeypot-gebruikers (1.81.0): standaard, aan te vullen bij Instellingen → IDS */
     public const DECOY_USERS = 'admin test guest user oracle ubuntu pi ftp support postgres';
     // Diensten die bij elke start een willekeurige poort kiezen: alleen de naam telt
     private const RANDOM_PORT_PROCS = ['rpc.statd', 'rpc.mountd', 'rpcbind', 'rpc.rquotad', 'avahi-daemon', 'chronyd', 'dhclient', 'NetworkManager'];
@@ -76,14 +76,14 @@ final class Ids
         return $out;
     }
 
-    /** Lokaas-poort (1.81.0), of null (uit) */
+    /** Honeypot-poort (1.81.0), of null (uit) */
     public static function decoyPort(): ?int
     {
         $p = (int) setting('ids_decoy_port', '2323');
         return $p >= 1 && $p <= 65535 ? $p : null;
     }
 
-    /** Lokaas-gebruikers (kleine letters), zonder de namen op de whitelist (1.83.0) */
+    /** Honeypot-gebruikers (kleine letters), zonder de namen op de whitelist (1.83.0) */
     public static function decoyUsers(): array
     {
         return array_values(array_diff(array_unique(array_map('strtolower', parse_list((string) setting('ids_decoy_users', self::DECOY_USERS)))), Whitelist::values('decoy')));
@@ -108,6 +108,29 @@ final class Ids
             }
         }
         return array_values($out);
+    }
+
+    /** Redenen van blokkades: zo bewaard (Nederlands), voor de lezer in zijn taal via I18n::stored (1.84.1) */
+    public const REASONS = ['Honeypot-gebruiker: {user}', 'Honeypot-poort {port}', 'Brute force: {n} mislukte SSH-logins in {win} min', 'met de hand',
+        'automatisch: {n} mislukte logins ({user})', '{n} mislukte logins binnen {m} minuten', 'Nooit blokkeren (IDS)', '{by}, via de whitelist', 'automatisch'];
+    public const REASONS_OLD = ['Lokaas-gebruiker: {user}' => 'Honeypot-gebruiker: {user}', 'Lokaas-poort {port}' => 'Honeypot-poort {port}'];
+
+    public static function reasonText(?string $r): ?string
+    {
+        return I18n::stored($r, self::REASONS, self::REASONS_OLD);
+    }
+
+    /** Blokkades met de teksten (reden, door) in de taal van de lezer */
+    public static function readable(array $rows): array
+    {
+        foreach ($rows as &$r) {
+            foreach (['reason', 'created_by', 'by', 'removed_by'] as $k) {
+                if (isset($r[$k])) {
+                    $r[$k] = self::reasonText((string) $r[$k]);
+                }
+            }
+        }
+        return $rows;
     }
 
     public static function activeBlocks(?int $hostId = null): array
@@ -485,7 +508,7 @@ final class Ids
     }
 
     /**
-     * Verbindingen met de lokaas-poort (1.81.0). Van buiten: incident en meteen blokkeren (in de modus blokkeren);
+     * Verbindingen met de honeypot-poort (1.81.0). Van buiten: incident en meteen blokkeren (in de modus blokkeren);
      * vanaf je eigen netwerk: critical (waarschijnlijk een besmet apparaat; LAN-adressen worden nooit automatisch geblokkeerd).
      */
     private static function decoyHits(array $ctx, array $ips): void
@@ -498,11 +521,11 @@ final class Ids
                 continue;   // RzMon zelf (bv. een poortscan) telt niet
             }
             if (self::internalIp($ip)) {
-                self::incident($ctx, 2, 'decoy_port', $ip, t('Lokaas-poort {port} benaderd vanaf {ip} (je eigen netwerk)', ['port' => $port, 'ip' => $ip]),
+                self::incident($ctx, 2, 'decoy_port', $ip, t('Honeypot-poort {port} benaderd vanaf {ip} (je eigen netwerk)', ['port' => $port, 'ip' => $ip]),
                     t('Niemand gebruikt deze poort; een apparaat in je eigen netwerk dat hem probeert, scant je netwerk. Waarschijnlijk is het besmet: zoek uit welk apparaat dit is.'), $ip);
             } else {
-                $blocked = self::autoBlock($ctx['host'], $ip, t('Lokaas-poort {port}', ['port' => $port]));
-                self::incident($ctx, 1, 'decoy_port', $ip, t('Lokaas-poort {port} benaderd vanaf {ip}', ['port' => $port, 'ip' => $ip]),
+                $blocked = self::autoBlock($ctx['host'], $ip, t('Honeypot-poort {port}', ['port' => $port]));
+                self::incident($ctx, 1, 'decoy_port', $ip, t('Honeypot-poort {port} benaderd vanaf {ip}', ['port' => $port, 'ip' => $ip]),
                     t('Niemand gebruikt deze poort, dus dit is een scanner.') . ($blocked ? " · ⛔ $blocked" : ''), $ip);
             }
         }
@@ -610,12 +633,12 @@ final class Ids
                 continue;
             }
             q('INSERT INTO ids_attempts (host_id, ip, n) VALUES (?, ?, ?)', [$hid, $ip, max(1, (int) ($f['n'] ?? 1))]);
-            // Lokaas-gebruiker (1.81.0): een naam die hier niet bestaat en die alleen aanvallers proberen; meteen blokkeren
+            // Honeypot-gebruiker (1.81.0): een naam die hier niet bestaat en die alleen aanvallers proberen; meteen blokkeren
             $decoy = array_values(array_diff(array_intersect(array_map(static fn($u) => strtolower((string) $u), (array) ($f['users'] ?? [])), self::decoyUsers()), $ctx['users'] ?? []));
             if ($decoy) {
                 $internal = self::internalIp($ip);
-                $blocked = $internal ? null : self::autoBlock($ctx['host'], $ip, t('Lokaas-gebruiker: {user}', ['user' => $decoy[0]]), $decoy[0]);
-                self::incident($ctx, $internal ? 2 : 1, 'decoy_user', $ip, t('Inlogpoging met lokaas-gebruiker {user} vanaf {ip}', ['user' => implode(', ', $decoy), 'ip' => $ip]),
+                $blocked = $internal ? null : self::autoBlock($ctx['host'], $ip, t('Honeypot-gebruiker: {user}', ['user' => $decoy[0]]), $decoy[0]);
+                self::incident($ctx, $internal ? 2 : 1, 'decoy_user', $ip, t('Inlogpoging met honeypot-gebruiker {user} vanaf {ip}', ['user' => implode(', ', $decoy), 'ip' => $ip]),
                     ($internal ? t('Een apparaat in je eigen netwerk probeert in te loggen met een naam die hier niet bestaat. Waarschijnlijk is het besmet: zoek uit welk apparaat dit is.')
                         : t('Een naam die op deze server niet bestaat en die alleen aanvallers proberen.')) . ($blocked ? " · ⛔ $blocked" : ''), $ip);
             }
@@ -898,7 +921,7 @@ final class Ids
         $lines = [t('IDS-overzicht van {from} tot {to}', ['from' => date('d-m', time() - 7 * 86400), 'to' => date('d-m-Y')]), ''];
         $lines[] = '⛔ ' . t('Geblokkeerd: {n} (automatisch {a}, met de hand {m})', ['n' => array_sum($blocks), 'a' => (int) ($blocks[1] ?? 0), 'm' => (int) ($blocks[0] ?? 0)]);
         $lines[] = '❌ ' . t('Mislukte SSH-logins: {n}', ['n' => $fails]);
-        $lines[] = '🪤 ' . t('Lokaas aangetikt: {n}×', ['n' => $decoy]);
+        $lines[] = '🍯 ' . t('Honeypot aangetikt: {n}×', ['n' => $decoy]);
         $lines[] = '⚠️ ' . t('Nieuwe incidenten: {c} critical, {w} warning', ['c' => (int) ($inc[2] ?? 0), 'w' => (int) ($inc[1] ?? 0)]);
         $lines[] = '📌 ' . t('Nu nog open: {c} critical, {w} warning', ['c' => (int) ($open[2] ?? 0), 'w' => (int) ($open[1] ?? 0)]);
         if ($top) {
@@ -929,7 +952,7 @@ final class Ids
             $lines[] = '';
             $lines[] = "RzMon: $base/#ids";
         }
-        $short = t('{b} geblokkeerd · {f} mislukte logins · {d}× lokaas · {o} open', ['b' => array_sum($blocks), 'f' => $fails, 'd' => $decoy, 'o' => $nOpen]);
+        $short = t('{b} geblokkeerd · {f} mislukte logins · {d}× honeypot · {o} open', ['b' => array_sum($blocks), 'f' => $fails, 'd' => $decoy, 'o' => $nOpen]);
         return ['🛡️ ' . t('IDS-weekoverzicht'), implode("\n", $lines), $short];
     }
 

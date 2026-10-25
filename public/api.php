@@ -2153,7 +2153,7 @@ switch ($action) {
         if (isset($in['ids_fim_exclude'])) {
             $in['ids_fim_exclude'] = Ids::cleanFimExclude((string) $in['ids_fim_exclude']);
         }
-        // IDS (1.81.0): lokaas-gebruikers (namen), lokaas-poort (leeg = uit), wekelijks overzicht
+        // IDS (1.81.0): honeypot-gebruikers (namen), honeypot-poort (leeg = uit), wekelijks overzicht
         if (isset($in['ids_decoy_users'])) {
             $in['ids_decoy_users'] = implode(' ', array_slice(array_filter(parse_list(mb_strtolower(mb_substr((string) $in['ids_decoy_users'], 0, 2000))),
                 fn($x) => (bool) preg_match('/^[a-z0-9._-]{1,32}$/', $x)), 0, 100));
@@ -2967,9 +2967,9 @@ switch ($action) {
             'hosts' => $hosts,
             'incidents' => q('SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
                               WHERE i.created_at >= CURDATE() - INTERVAL ? DAY ORDER BY i.created_at DESC, i.id DESC LIMIT 5000', [$days - 1])->fetchAll(),
-            'blocks' => $blocks,
-            'removed' => q('SELECT b.*, h.name AS host_name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
-                            WHERE b.removed_at IS NOT NULL OR (b.until IS NOT NULL AND b.until <= NOW()) ORDER BY COALESCE(b.removed_at, b.until) DESC LIMIT 30')->fetchAll(),
+            'blocks' => Ids::readable($blocks),
+            'removed' => Ids::readable(q('SELECT b.*, h.name AS host_name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
+                            WHERE b.removed_at IS NOT NULL OR (b.until IS NOT NULL AND b.until <= NOW()) ORDER BY COALESCE(b.removed_at, b.until) DESC LIMIT 30')->fetchAll()),
             'my_ip' => client_ip(),
         ]);
 

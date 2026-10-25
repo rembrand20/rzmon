@@ -6,7 +6,7 @@ declare(strict_types=1);
  * - ip: IP-adres of netwerk; geen IP-blokkade in RzMon (inloggen) en geen IDS-blokkade op welke server dan ook
  *   (ook niet via de lijsten met bekende aanvallers);
  * - user: account in RzMon dat nooit vergrendeld wordt (het IP van de aanvaller wordt wel geblokkeerd);
- * - decoy: naam die geen lokaas is (valt af van de lokaas-namen, op alle servers).
+ * - decoy: naam die geen honeypot-naam is (valt af van de honeypot-namen, op alle servers).
  * Een regel geldt 1, 7 of 30 dagen, of altijd (until NULL). Op de whitelist zetten heft de passende blokkades meteen op.
  */
 final class Whitelist
@@ -153,7 +153,7 @@ final class Whitelist
 
     private static function label(string $kind): string
     {
-        return ['ip' => 'IP', 'user' => 'account', 'decoy' => 'geen lokaas'][$kind] ?? $kind;
+        return ['ip' => 'IP', 'user' => 'account', 'decoy' => 'geen honeypot'][$kind] ?? $kind;
     }
 
     /** Elke minuut (cron): verlopen regels opruimen */

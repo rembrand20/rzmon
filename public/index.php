@@ -529,12 +529,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
           <p class="small"><b><?= th('Nooit blokkeren') ?></b>: <?= t('je LAN en RzMon zelf worden nooit automatisch geblokkeerd. Andere IP-adressen en netwerken zet je op de <a href="#settings/blocks" data-goto="settings/blocks">✅ whitelist</a>; die geldt voor RzMon én het IDS op al je servers.') ?></p>
           <label class="switch"><input type="checkbox" name="ids_block_shared"><span></span> <?= th('Automatische blokkades op alle servers') ?></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= th('Een aanvaller die op één server automatisch geblokkeerd wordt (brute force, lokaas), wordt meteen op al je servers met de IDS op blokkeren geblokkeerd. Met de hand blokkeren geldt alleen voor de server die je kiest.') ?></p>
-          <h3 class="set-sub"><?= th('🪤 Lokaas') ?></h3>
+          <p class="muted small" style="margin-top:-.4rem"><?= th('Een aanvaller die op één server automatisch geblokkeerd wordt (brute force, honeypot), wordt meteen op al je servers met de IDS op blokkeren geblokkeerd. Met de hand blokkeren geldt alleen voor de server die je kiest.') ?></p>
+          <h3 class="set-sub"><?= th('🍯 Honeypot') ?></h3>
           <p class="muted small" style="margin-top:-.2rem"><?= th('Alleen aanvallers gebruiken deze namen en deze poort. Eén poging is genoeg: van buiten meteen blokkeren (in de modus blokkeren), vanaf je eigen netwerk een critical-melding (waarschijnlijk een besmet apparaat). Namen die op een server echt bestaan, worden daar overgeslagen.') ?></p>
-          <label><?= th('Lokaas-gebruikers') ?> <span class="muted small"><?= th('(gescheiden door spaties; vul gerust aan)') ?></span>
+          <label><?= th('Honeypot-gebruikers') ?> <span class="muted small"><?= th('(gescheiden door spaties; vul gerust aan)') ?></span>
             <textarea name="ids_decoy_users" rows="2" class="mono"></textarea></label>
-          <label><?= th('Lokaas-poort') ?> <span class="muted small"><?= th('(TCP; leeg = uit. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel)') ?></span>
+          <label><?= th('Honeypot-poort') ?> <span class="muted small"><?= th('(TCP; leeg = uit. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel)') ?></span>
             <input type="number" name="ids_decoy_port" min="1" max="65535" placeholder="2323"></label>
           <h3 class="set-sub"><?= th('☠️ Bekende aanvallers en land') ?></h3>
           <label class="switch"><input type="checkbox" name="ids_blocklists"><span></span> <?= th('Bekende aanvallers (Spamhaus DROP en FireHOL level 1, dagelijks bijgewerkt)') ?></label>
@@ -551,7 +551,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Dag') ?><select name="ids_weekly_day"><?php foreach ([1 => 'maandag', 2 => 'dinsdag', 3 => 'woensdag', 4 => 'donderdag', 5 => 'vrijdag', 6 => 'zaterdag', 7 => 'zondag'] as $d => $n): ?><option value="<?= $d ?>"><?= th($n) ?></option><?php endforeach; ?></select></label>
             <label><?= th('Om') ?><input type="time" name="ids_weekly_time"></label>
           </div>
-          <p class="muted small" style="margin-top:-.2rem"><?= th('Geblokkeerde aanvallen, mislukte logins en de IP\'s met de meeste pogingen, lokaas, SSH-logins van buiten en de open incidenten van de afgelopen 7 dagen.') ?>
+          <p class="muted small" style="margin-top:-.2rem"><?= th('Geblokkeerde aanvallen, mislukte logins en de IP\'s met de meeste pogingen, honeypot, SSH-logins van buiten en de open incidenten van de afgelopen 7 dagen.') ?>
             <button type="button" class="btn small-btn" id="ids-weekly-test"><?= th('Nu versturen') ?></button></p>
           <h3 class="set-sub"><?= th('📁 Bestanden bewaken') ?></h3>
           <p class="muted small" style="margin-top:-.2rem"><?= t('De agent houdt van deze paden de SHA-256-hash, grootte, rechten en eigenaar bij en meldt nieuwe, gewijzigde en verwijderde bestanden (nooit de inhoud). Mappen worden helemaal doorzocht; met jokertekens kies je bestanden, bv. <code>/var/www/**/*.php</code>. Geldt voor alle servers; per server voeg je er paden aan toe via <i>✎ Bewerken</i>. Maximaal 20 paden en 10.000 bestanden per server.') ?></p>
@@ -763,7 +763,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <input id="bl-q" type="search" placeholder="<?= th('Zoeken: IP, naam, server, reden…') ?>" autocomplete="off"></div>
         <div id="blocks-list"></div>
         <h3 class="set-sub">✅ <?= th('Whitelist (nooit blokkeren)') ?></h3>
-        <p class="muted small" style="margin-top:-.2rem"><?= th('Een IP-adres of netwerk hierop wordt nergens geblokkeerd: niet in RzMon en niet door het IDS op welke server dan ook (ook niet via de lijsten met bekende aanvallers). Een account wordt nooit vergrendeld (het IP van de aanvaller wel). Een naam die geen lokaas is, valt af van de lokaas-namen.') ?></p>
+        <p class="muted small" style="margin-top:-.2rem"><?= th('Een IP-adres of netwerk hierop wordt nergens geblokkeerd: niet in RzMon en niet door het IDS op welke server dan ook (ook niet via de lijsten met bekende aanvallers). Een account wordt nooit vergrendeld (het IP van de aanvaller wel). Een naam die geen honeypot-naam is, valt af van de honeypot-namen.') ?></p>
         <div class="btn-row"><button type="button" class="btn" id="wl-add">✅ <?= th('Op de whitelist zetten…') ?></button></div>
         <div id="wl-list"></div>
       </div>

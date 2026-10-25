@@ -1546,7 +1546,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 | Nieuw of gewijzigd bestand: `/etc/sudoers(.d)`, `/root/.ssh/authorized_keys`, `/etc/ld.so.preload`, `/etc/pam.d/*` (vanaf agent 1.54.0) | 🔴 critical |
 | Nieuw of gewijzigd bestand: `/etc/passwd`, `shadow`, `group`, sshd-config, crontabs en `/etc/cron.d`, `authorized_keys` van gebruikers, eigen systemd-services en -timers, `rc.local`, `/etc/profile.d`; vanaf agent 1.54.0 ook `/etc/hosts`, `/etc/resolv.conf`, `/etc/environment`, `at`-jobs, `.bashrc`/`.bash_profile`/`.profile` van root en systemd-gebruikersunits | 🟠 warning |
 | **Lid erbij van een groep die (bijna) root is**: `wheel`, `sudo`, `docker`, `root`, `adm`, `lxd` (agent 1.54.0) | 🔴 critical |
-| **🪤 Lokaas** (zie hieronder): een inlogpoging met een lokaas-naam, of een verbinding met de lokaas-poort; van buiten meteen geblokkeerd | 🟠 warning (van buiten) · 🔴 critical (vanaf je eigen netwerk) |
+| **🍯 Honeypot** (zie hieronder): een inlogpoging met een honeypot-naam, of een verbinding met de honeypot-poort; van buiten meteen geblokkeerd | 🟠 warning (van buiten) · 🔴 critical (vanaf je eigen netwerk) |
 | Tweede root-account (UID 0) | 🔴 critical |
 | Nieuwe gebruiker | 🟠 warning |
 | Nieuwe luisterende poort | 🟠 warning |
@@ -1571,15 +1571,15 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - De pagina heeft drie tabbladen: **⚠️ Incidenten**, **🔑 Toegang** (logins, sudo en su, zie [8.11](#811-logins-en-sudo-)) en **⛔ Blokkades**. Het laatst gekozen tabblad wordt per apparaat onthouden.
 - Dezelfde melding binnen 24 uur wordt niet opnieuw gestuurd; de teller loopt op (*5×*).
 
-**🪤 Lokaas** (vanaf 1.81.0, agent 1.54.0; *Instellingen → 🛡️ IDS → Lokaas*)
-- **Lokaas-gebruikers:** namen die bij jou nooit bestaan en die alleen aanvallers proberen. Standaard `admin test guest user oracle ubuntu pi ftp support postgres`; vul gerust aan. Eén mislukte SSH-login met zo'n naam is genoeg: van buiten wordt het IP meteen geblokkeerd (in de modus *blokkeren*), niet pas na 10 pogingen. Bestaat de naam op een server echt (bv. `postgres` op een databaseserver), dan geldt hij daar niet als lokaas.
-- **Lokaas-poort** (standaard TCP **2323**, leeg = uit): niemand van jou maakt daar verbinding mee, dus elke verbinding is een scanner. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel (`inet rzmon`) die het IP onthoudt en de verbinding stil weggooit. Werkt ook in de modus *leren* (dan alleen melden). Is de poort op een server in gebruik, dan staat dat bij die server bovenaan de pagina IDS. RzMon zelf (bv. een poortscan) telt niet mee.
+**🍯 Honeypot** (vanaf 1.81.0, agent 1.54.0; *Instellingen → 🛡️ IDS → Honeypot*)
+- **Honeypot-gebruikers:** namen die bij jou nooit bestaan en die alleen aanvallers proberen. Standaard `admin test guest user oracle ubuntu pi ftp support postgres`; vul gerust aan. Eén mislukte SSH-login met zo'n naam is genoeg: van buiten wordt het IP meteen geblokkeerd (in de modus *blokkeren*), niet pas na 10 pogingen. Bestaat de naam op een server echt (bv. `postgres` op een databaseserver), dan geldt hij daar niet als honeypot.
+- **Honeypot-poort** (standaard TCP **2323**, leeg = uit): niemand van jou maakt daar verbinding mee, dus elke verbinding is een scanner. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel (`inet rzmon`) die het IP onthoudt en de verbinding stil weggooit. Werkt ook in de modus *leren* (dan alleen melden). Is de poort op een server in gebruik, dan staat dat bij die server bovenaan de pagina IDS. RzMon zelf (bv. een poortscan) telt niet mee.
 - **Vanaf je eigen netwerk** is het 🔴 **critical**, met Pushover: een apparaat in je LAN dat dit doet, is waarschijnlijk besmet (camera, slimme stekker). LAN-adressen worden nooit automatisch geblokkeerd.
-- Op de pagina IDS staan ze onder het filter **🪤 Lokaas**.
+- Op de pagina IDS staan ze onder het filter **🍯 Honeypot**.
 
-**🌐 Automatische blokkades op alle servers** (vanaf 1.81.0, standaard aan): wordt een aanvaller op één server automatisch geblokkeerd (brute force, lokaas), dan blokkeren al je servers met de IDS op *blokkeren* hem ook. Een botnet probeert meestal al je servers die van buiten bereikbaar zijn. Met de hand blokkeren geldt alleen voor de server die je kiest. Uit te zetten bij *Instellingen → 🛡️ IDS*.
+**🌐 Automatische blokkades op alle servers** (vanaf 1.81.0, standaard aan): wordt een aanvaller op één server automatisch geblokkeerd (brute force, honeypot), dan blokkeren al je servers met de IDS op *blokkeren* hem ook. Een botnet probeert meestal al je servers die van buiten bereikbaar zijn. Met de hand blokkeren geldt alleen voor de server die je kiest. Uit te zetten bij *Instellingen → 🛡️ IDS*.
 
-**📬 Wekelijks overzicht** (vanaf 1.81.0; *Instellingen → 🛡️ IDS → Wekelijks overzicht*): standaard op **maandag 08:00** per **e-mail** (of Pushover, of allebei, of uit). Met daarin, over de afgelopen 7 dagen: geblokkeerde aanvallen, mislukte SSH-logins en de IP's met de meeste pogingen, hoe vaak het lokaas is aangetikt, SSH-logins van buiten, nieuwe incidenten en wat er nog open staat. Met **Nu versturen** zie je meteen hoe het eruitziet.
+**📬 Wekelijks overzicht** (vanaf 1.81.0; *Instellingen → 🛡️ IDS → Wekelijks overzicht*): standaard op **maandag 08:00** per **e-mail** (of Pushover, of allebei, of uit). Met daarin, over de afgelopen 7 dagen: geblokkeerde aanvallen, mislukte SSH-logins en de IP's met de meeste pogingen, hoe vaak de honeypot is aangetikt, SSH-logins van buiten, nieuwe incidenten en wat er nog open staat. Met **Nu versturen** zie je meteen hoe het eruitziet.
 
 **☠️ Bekende aanvallers** (vanaf 1.82.0, agent 1.55.0; *Instellingen → 🛡️ IDS → Bekende aanvallers en land*, standaard aan)
 - RzMon haalt dagelijks twee openbare lijsten op met netwerken van bekende criminelen en botnets: **Spamhaus DROP** (IPv4 en IPv6) en **FireHOL level 1**. Samen zo'n 4.500 bereiken. Privé- en gereserveerde adressen (je LAN) worden er altijd uit gefilterd, net als alles op je ✅ *whitelist*.
@@ -1902,7 +1902,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - Jezelf (je huidige IP) en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: `sudo php install/install.php --unblock-all`.
 - Dit is iets anders dan blokkeren door het IDS: dat gebeurt op de aangevallen server zelf.
 - **Overzicht (vanaf 1.83.0):** alles wat geblokkeerd is staat in één lijst. Dat zijn ⛔ IP-adressen in RzMon, 🔒 vergrendelde accounts en 🛡️ de IDS-blokkades per server (🌐 *alle servers* bij een automatische blokkade die op al je servers geldt).
-  - Per regel zie je wat er geblokkeerd is, met het land, en waar. Ook de reden staat erbij, bij een lokaas met de lokaas-naam, met sinds en tot wanneer en door wie.
+  - Per regel zie je wat er geblokkeerd is, met het land, en waar. Ook de reden staat erbij, bij een honeypot met de honeypot-naam, met sinds en tot wanneer en door wie.
   - Er zijn twee tabbladen: **Nu geblokkeerd** en **Eerder**. *Eerder* toont wat opgeheven of verlopen is, met door wie. Dat blijft zo lang bewaard als de meldingen.
   - Je kunt filteren op soort (*IP in RzMon · Accounts · IDS*) en zoeken op IP, naam, server of reden.
   - Bij IDS → Blokkades en bij een vergrendeld account onder *Gebruikers* staat een link hiernaartoe.
@@ -1910,7 +1910,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - **✅ Whitelist** zet iets op de lijst *nooit blokkeren* en heft de blokkade meteen op. Je bevestigt met je wachtwoord (op het LAN typ je `WHITELIST`) en het komt in het auditlog. Je kiest hoe lang het geldt: **1 dag, 7 dagen, 30 dagen of altijd**.
   - **IP-adres of netwerk** (hooguit een /16, bij IPv6 een /32): wordt nergens geblokkeerd. Niet bij het inloggen in RzMon en niet door het IDS op welke server dan ook, ook niet via de lijsten met bekende aanvallers. Je krijgt wel nog de meldingen. Valt het adres in een geblokkeerd netwerk, dan komt alleen dat adres erdoor.
   - **Account:** wordt nooit vergrendeld na mislukte logins. Het IP-adres van degene die het probeert wordt wél geblokkeerd. Zo kan niemand jou buitensluiten, en een aanvaller blijft buiten.
-  - **Naam is geen lokaas:** de naam valt af van de lokaas-namen (op alle servers), bv. als *admin* bij jou een echte gebruiker is. Blokkades om die naam worden opgeheven.
+  - **Geen honeypot-naam:** de naam valt af van de honeypot-namen (op alle servers), bv. als *admin* bij jou een echte gebruiker is. Blokkades om die naam worden opgeheven.
   - **Voorbeeld:** je collega logt in vanaf een hotel (`198.51.100.23`) en tikt drie keer zijn wachtwoord fout. Zijn account en het IP-adres zijn geblokkeerd. Je klikt bij het account op **🔓 Deblokkeren** en bij het IP op **✅ Whitelist → 1 dag**. Morgen geldt het hotel-IP vanzelf weer als gewoon adres.
   - De whitelist staat onder het overzicht. Met ✕ haal je een regel eraf. Je oude lijst *Nooit blokkeren* van het IDS is bij de update naar 1.83.0 overgenomen.
 

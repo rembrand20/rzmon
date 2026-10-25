@@ -65,6 +65,43 @@ final class I18n
         return self::$dict ??= (is_file(SM_ROOT . '/lang/en.php') ? (array) require SM_ROOT . '/lang/en.php' : []);
     }
 
+    /**
+     * Opgeslagen tekst (bv. de reden van een blokkade, bewaard in de taal van dat moment) in de taal van de lezer.
+     * $templates: de Nederlandse sjablonen met {naam}; $old: oude sjablonen => het nieuwe (na een andere naam).
+     * Herkent de Nederlandse en de Engelse vorm, en het achtervoegsel " (herhaling)". Onbekend: ongewijzigd.
+     */
+    public static function stored(?string $text, array $templates, array $old = []): ?string
+    {
+        if ($text === null || $text === '') {
+            return $text;
+        }
+        $suffix = '';
+        foreach (['herhaling', self::dict()['herhaling'] ?? 'herhaling'] as $w) {
+            if (str_ends_with($text, " ($w)")) {
+                $text = substr($text, 0, -strlen(" ($w)"));
+                $suffix = ' (' . t('herhaling') . ')';
+                break;
+            }
+        }
+        $forms = [];
+        foreach ($templates as $tpl) {
+            $forms[] = [$tpl, $tpl];
+            if (isset(self::dict()[$tpl])) {
+                $forms[] = [self::dict()[$tpl], $tpl];
+            }
+        }
+        foreach ($old as $from => $to) {
+            $forms[] = [$from, $to];
+        }
+        foreach ($forms as [$form, $tpl]) {
+            $re = '/^' . preg_replace('/\\\{(\w+)\\\}/', '(?P<$1>.+?)', preg_quote($form, '/')) . '$/su';
+            if (preg_match($re, $text, $m)) {
+                return t($tpl, array_filter($m, 'is_string', ARRAY_FILTER_USE_KEY)) . $suffix;
+            }
+        }
+        return $text . $suffix;
+    }
+
     /** Keuze op dit apparaat onthouden (ook zonder account, bv. alleen lezen op het LAN) */
     public static function remember(string $lang): void
     {

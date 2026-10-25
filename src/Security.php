@@ -221,8 +221,8 @@ final class Security
         }
         usort($active, static fn($a, $b) => strcmp((string) $b['since'], (string) $a['since']));
         usort($history, static fn($a, $b) => strcmp((string) $b['removed_at'], (string) $a['removed_at']));
-        $wl = array_map(static fn($r) => $r + ['cc' => $r['kind'] === 'ip' ? $cc((string) $r['value']) : null], Whitelist::all());
-        return ['active' => $active, 'history' => array_slice($history, 0, 500), 'whitelist' => $wl, 'days' => $days, 'my_ip' => client_ip(),
+        $wl = Ids::readable(array_map(static fn($r) => $r + ['cc' => $r['kind'] === 'ip' ? $cc((string) $r['value']) : null], Whitelist::all()));
+        return ['active' => Ids::readable($active), 'history' => Ids::readable(array_slice($history, 0, 500)), 'whitelist' => $wl, 'days' => $days, 'my_ip' => client_ip(),
             'ids' => Ids::enabled(), 'ids_blocking' => Ids::blocking()];
     }
 

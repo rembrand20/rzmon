@@ -463,7 +463,7 @@ CREATE TABLE IF NOT EXISTS rz_blocks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 1.83.0: whitelist (nooit blokkeren): IP-adressen/netwerken (RzMon en IDS op alle servers), accounts (nooit
--- vergrendelen) en namen die geen lokaas zijn; until NULL = altijd
+-- vergrendelen) en namen die geen honeypot zijn; until NULL = altijd
 CREATE TABLE IF NOT EXISTS whitelist (
     id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     kind       VARCHAR(8)   NOT NULL,             -- ip | user | decoy
@@ -584,7 +584,7 @@ CREATE TABLE IF NOT EXISTS hb_state (
     CONSTRAINT fk_hb_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- IDS (1.81.0): lokaas-gebruikers en -poort, automatische blokkades op alle servers, wekelijks overzicht
+-- IDS (1.81.0): honeypot-gebruikers en -poort, automatische blokkades op alle servers, wekelijks overzicht
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_decoy_users', 'admin test guest user oracle ubuntu pi ftp support postgres');
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_decoy_port', '2323');
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_block_shared', '1');
