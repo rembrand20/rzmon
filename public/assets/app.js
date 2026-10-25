@@ -821,6 +821,15 @@ function init() {
       setTimeout(() => location.reload(), 700);
     } catch (ex) { toast(ex.message, 'err'); e.target.checked = !e.target.checked; }
   };
+  $('#ids-weekly-test').onclick = async (e) => {
+    e.target.disabled = true;
+    try {
+      const r = await api('ids_weekly_test', {});
+      toast(r.result);
+      modal({ title: '📬 ' + L('Wekelijks overzicht'), body: `<pre class="code" style="white-space:pre-wrap">${esc(r.text)}</pre>`, buttons: [{ label: L('Sluiten'), cls: 'primary', submit: true }] });
+    } catch (ex) { toast(ex.message, 'err'); }
+    e.target.disabled = false;
+  };
   $('#ids-enabled').onchange = async (e) => {
     try { await api('ids_set', { enabled: e.target.checked }); toast(e.target.checked ? L('IDS aangezet') : L('IDS uitgezet')); }
     catch (ex) { toast(ex.message, 'err'); e.target.checked = !e.target.checked; }
@@ -4250,7 +4259,7 @@ function accIgnoreDialog(r) {
 }
 
 const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'outbound']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
-  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login']]];
+  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🪤 ' + L('Lokaas'), ['decoy_user', 'decoy_port']]];
 const idsCatOf = (i) => (IDS_CATS.find((c) => c[2].includes(i.type)) || [''])[0];
 
 /** Toegang in de laatste 24 uur: [gelukt, mislukt (pogingen), per uur mislukt] */
@@ -4306,6 +4315,7 @@ function renderIds() {
     if (h.ha) return `<div class="srv-row"><span class="ok-ic">🏠</span><span class="ok-nm"><strong>${esc(h.name)}</strong><small>${L('niet beschikbaar in de Home Assistant-add-on: die draait in een container en ziet het systeem zelf niet')}</small></span><span class="srv-st"></span><span class="srv-n muted small">–</span></div>`;
     const st = [!h.baseline_until ? '' : h.learning ? L('📏 basismeting tot {t}', { t: esc(fmtUntil(h.baseline_until)) }) : '✔ ' + L('bewaakt'),
       h.fw_state ? (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : '',
+      h.decoy_state ? `<span class="warn-txt">🪤 ${esc(h.decoy_state)}</span>` : '',
       h.fim_count != null ? '📁 ' + L(+h.fim_count === 1 ? '{n} bestand bewaakt' : '{n} bestanden bewaakt', { n: (+h.fim_count).toLocaleString(LOCALE) }) : '',
       +h.realtime ? ((x) => (x && x.state === 'active' ? '<span class="good">⚡ realtime</span>' : `<span class="warn-txt">⚡ ${L('niet actief')}</span>`))(JSON.parse(h.rt || 'null')) : '',
       +h.realtime ? ((t) => (t && !t.inotify ? `<span class="warn-txt">${t.family === 'rhel' && !t.epel ? L('EPEL ontbreekt') : L('inotify-tools ontbreekt')}</span>` : ''))(JSON.parse(h.tools || 'null')) : ''].filter(Boolean).join(' · ');

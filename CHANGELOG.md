@@ -7,6 +7,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.81.0 – 2026-10-25
+### Nieuw
+- **🪤 IDS-lokaas** (agent 1.54.0 nodig):
+  - **Lokaas-gebruikers** (standaard `admin test guest user oracle ubuntu pi ftp support postgres`, aan te vullen): één mislukte SSH-login met zo'n naam is genoeg om het IP meteen te blokkeren. Namen die op een server echt bestaan, gelden daar niet.
+  - **Lokaas-poort** (standaard TCP 2323): elke verbinding is een scanner. Er luistert niets; de agent zet een regel in zijn eigen firewalltabel. Ook in de modus leren (dan alleen melden).
+  - Van buiten: incident en meteen blokkeren. Vanaf je eigen netwerk: 🔴 critical met Pushover (waarschijnlijk een besmet apparaat).
+- **Automatische blokkades op alle servers** (standaard aan): een aanvaller die op één server automatisch geblokkeerd wordt, is meteen op al je servers geblokkeerd.
+- **Meer achterdeuren bewaakt** (agent 1.54.0): `/etc/pam.d/*` (critical), `/etc/hosts`, `/etc/resolv.conf`, `/etc/environment`, `at`-jobs, `.bashrc`/`.profile` van root en systemd-gebruikersunits. Bij het eerste rapport stil vastgelegd.
+- **Groepen** (agent 1.54.0): wordt iemand lid van `wheel`, `sudo`, `docker`, `root`, `adm` of `lxd`, dan is dat een 🔴 critical-incident (*rehman toegevoegd aan de groep docker*).
+- **📬 Wekelijks IDS-overzicht**: standaard maandag 08:00 per e-mail (of Pushover). Geblokkeerde aanvallen, mislukte logins en top-IP's, lokaas, SSH-logins van buiten en open incidenten. Met *Nu versturen*.
+- Nieuwe agent 1.54.0.
+
 ## 1.80.2 – 2026-10-25
 ### Opgelost
 - **Menu ⋯ viel van de pagina af** als de werkbalk op een smaller scherm doorloopt naar een tweede regel (de knop staat dan helemaal links). Het menu klapt nu naar rechts uit als er links geen ruimte is; dat geldt voor de ⋯-menu's op elke pagina.

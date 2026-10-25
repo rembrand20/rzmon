@@ -5,6 +5,12 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.54.0 – 2026-10-25
+- **IDS-lokaas-poort** (RzMon 1.81.0): de agent zet in zijn eigen firewalltabel (`inet rzmon`) een regel voor de lokaas-poort (standaard 2323). Een verbinding wordt stil weggegooid en het IP gemeld. Dat werkt ook in de modus leren; dan staat alleen die regel in de tabel. Is de poort op de server in gebruik, dan meldt de agent dat.
+- **Meer achterdeuren bewaakt**: `/etc/pam.d/*`, `/etc/hosts`, `/etc/resolv.conf`, `/etc/environment`, `at`-jobs, de shell-bestanden van root en systemd-gebruikersunits.
+- **Groepsleden** van `wheel`, `sudo`, `docker`, `root`, `adm` en `lxd` gaan mee, zodat RzMon ziet wie erbij komt.
+- Blokkades van andere servers (*automatische blokkades op alle servers*) staan maar één keer in de tabel.
+
 ## 1.53.0 – 2026-10-25
 - **Controle per adres** (RzMon 1.78.0): de agent onthoudt per adres van RzMon hoe hij het certificaat controleert: 📌 alleen het eigen certificaat van RzMon (vastgezet) of 🔒 gewone controle (bv. Let's Encrypt via je proxy). Daardoor kunnen het gewone adres en het reserve-adres elk een ander soort certificaat hebben, bv. `https://192.168.1.10` (eigen certificaat) en `https://rzmon.jouwdomein.nl` (via de proxy). Het staat in `url.pins` naast de sleutel.
 - Bij een overstap naar een ander adres test de agent meteen met de juiste controle; zo kan hij ook rechtstreeks naar https op RzMon zelf.

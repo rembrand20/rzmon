@@ -20,7 +20,11 @@ final class Ids
 {
     public const SEVERITY = [1 => 'warning', 2 => 'critical'];
     // Bestanden waarvan een wijziging critical is (andere gevoelige bestanden: warning)
-    private const CRIT_FILES = ['#^/root/\.ssh/authorized_keys$#', '#^/etc/sudoers(\.d/.*)?$#', '#^/etc/ld\.so\.preload$#'];
+    private const CRIT_FILES = ['#^/root/\.ssh/authorized_keys$#', '#^/etc/sudoers(\.d/.*)?$#', '#^/etc/ld\.so\.preload$#', '#^/etc/pam\.d/#'];
+    // Sinds agent 1.54.0 ("fv":2) bewaakt: de eerste keer stil vastleggen (anders na de update een incident per bestand)
+    private const FILES_V2 = '#^(/etc/pam\.d/|/etc/(hosts|resolv\.conf|environment)$|/var/spool/(at|cron/atjobs)/|/root/\.(bashrc|bash_profile|profile)$|/etc/systemd/user/|/root/\.config/systemd/user/|/home/[^/]+/\.config/systemd/user/)#';
+    /** Lokaas-gebruikers (1.81.0): standaard, aan te vullen bij Instellingen → IDS */
+    public const DECOY_USERS = 'admin test guest user oracle ubuntu pi ftp support postgres';
     // Diensten die bij elke start een willekeurige poort kiezen: alleen de naam telt
     private const RANDOM_PORT_PROCS = ['rpc.statd', 'rpc.mountd', 'rpcbind', 'rpc.rquotad', 'avahi-daemon', 'chronyd', 'dhclient', 'NetworkManager'];
     private const BAD_PORTS = [1337, 4444, 4445, 5555, 6666, 6667, 6697, 12345, 31337];
@@ -58,11 +62,45 @@ final class Ids
             $out[] = implode("\t", [0, 'fim', base64_encode($cfg)]);
         }
         if (self::blocking()) {
-            foreach (self::activeBlocks($hostId) as $b) {
+            foreach (self::blocksFor($hostId) as $b) {
                 $out[] = implode("\t", [0, 'block', $b['ip'], $b['until'] ? strtotime($b['until']) : 0]);
             }
         }
+        if (($port = self::decoyPort()) !== null) {
+            $out[] = implode("\t", [0, 'decoy', $port]);
+        }
         return $out;
+    }
+
+    /** Lokaas-poort (1.81.0), of null (uit) */
+    public static function decoyPort(): ?int
+    {
+        $p = (int) setting('ids_decoy_port', '2323');
+        return $p >= 1 && $p <= 65535 ? $p : null;
+    }
+
+    /** Lokaas-gebruikers (kleine letters) */
+    public static function decoyUsers(): array
+    {
+        return array_values(array_unique(array_map('strtolower', parse_list((string) setting('ids_decoy_users', self::DECOY_USERS)))));
+    }
+
+    /**
+     * Te blokkeren IP's voor een server: zijn eigen blokkades, en (1.81.0, "automatische blokkades op alle servers")
+     * de automatische van de andere servers. Per IP één regel, met de langste duur.
+     */
+    public static function blocksFor(int $hostId): array
+    {
+        $shared = setting('ids_block_shared', '1') === '1';
+        $out = [];
+        foreach (q('SELECT ip, until FROM ids_blocks WHERE removed_at IS NULL AND (until IS NULL OR until > NOW()) AND (host_id = ?' . ($shared ? ' OR auto = 1' : '') . ')',
+            [$hostId])->fetchAll() as $b) {
+            $cur = $out[$b['ip']] ?? null;
+            if (!$cur || ($cur['until'] !== null && ($b['until'] === null || $b['until'] > $cur['until']))) {
+                $out[$b['ip']] = $b;
+            }
+        }
+        return array_values($out);
     }
 
     public static function activeBlocks(?int $hostId = null): array
@@ -97,11 +135,15 @@ final class Ids
         $learning = strtotime($st['baseline_until']) > time();
         // Pakketupdate in het afgelopen kwartier: gewijzigde bestanden zijn dan waarschijnlijk de update
         $updating = (int) ($ids['pkg'] ?? 0) > time() - 900;
-        $ctx = ['host' => $host, 'learning' => $learning];
+        $ctx = ['host' => $host, 'learning' => $learning,
+            'users' => array_map(static fn($u) => strtolower((string) ($u[0] ?? '')), array_slice((array) ($ids['users'] ?? []), 0, 1000))];
+        q('UPDATE ids_state SET decoy_state = ? WHERE host_id = ?', [isset($ids['decoy_err']) ? mb_substr((string) $ids['decoy_err'], 0, 100) : null, $hid]);
 
-        // Gebruikers eerst: een nieuwe gebruiker verandert ook passwd/shadow/group, dat hoeft niet apart
+        // Gebruikers en groepen eerst: die veranderen ook passwd/shadow/group, dat hoeft niet apart
         $userChange = self::users($ctx, (array) ($ids['users'] ?? []));
-        self::files($ctx, (array) ($ids['files'] ?? []), $updating, $userChange);
+        $userChange = self::groups($ctx, $ids['groups'] ?? null) || $userChange;
+        self::files($ctx, (array) ($ids['files'] ?? []), $updating, $userChange, (int) ($ids['fv'] ?? 1));
+        self::decoyHits($ctx, (array) ($ids['decoy'] ?? []));
         self::ports($ctx, $ports);
         self::simpleSet($ctx, 'suid', (array) ($ids['suid'] ?? []), 'suid_new', t('Nieuw SUID-bestand'), t('Kan gebruikt worden om root te worden.'), isset($ids['suid']));
         self::simpleSet($ctx, 'module', (array) ($ids['modules'] ?? []), 'module_new', t('Nieuwe kernelmodule'), t('Geladen sinds de vorige controle.'), isset($ids['modules']));
@@ -325,13 +367,19 @@ final class Ids
         return [($rights ? t('Rechten gewijzigd') : t('Bestand gewijzigd')) . ': ' . $path, ucfirst(implode(' · ', $parts)) . '.'];
     }
 
-    private static function files(array $ctx, array $files, bool $updating, bool $userChange): void
+    private static function files(array $ctx, array $files, bool $updating, bool $userChange, int $fv = 1): void
     {
         if (!$files) {
             return;
         }
         $hid = (int) $ctx['host']['id'];
         $known = q("SELECT item, value FROM ids_baseline WHERE host_id = ? AND kind = 'file'", [$hid])->fetchAll(PDO::FETCH_KEY_PAIR);
+        // Eerste rapport met de extra bestanden van agent 1.54.0: die stil vastleggen
+        $v2quiet = false;
+        if ($fv >= 2 && !q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'seen' AND item = 'files_v2'", [$hid])->fetchColumn()) {
+            q("INSERT IGNORE INTO ids_baseline (host_id, kind, item) VALUES (?, 'seen', 'files_v2')", [$hid]);
+            $v2quiet = true;
+        }
         $up = db()->prepare("INSERT INTO ids_baseline (host_id, kind, item, value) VALUES (?, 'file', ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)");
         foreach (array_slice($files, 0, 1000, true) as $path => $hash) {
             $path = mb_substr((string) $path, 0, 255);
@@ -340,7 +388,8 @@ final class Ids
                 continue;
             }
             $up->execute([$hid, $path, $hash]);
-            if ($ctx['learning'] || $updating || ($userChange && preg_match('#^/etc/(passwd|shadow|group|gshadow)$#', $path))) {
+            if ($ctx['learning'] || $updating || ($userChange && preg_match('#^/etc/(passwd|shadow|group|gshadow)$#', $path))
+                || ($v2quiet && !isset($known[$path]) && preg_match(self::FILES_V2, $path))) {
                 continue;
             }
             $crit = (bool) array_filter(self::CRIT_FILES, fn($re) => preg_match($re, $path));
@@ -379,6 +428,76 @@ final class Ids
             }
         }
         return $changed;
+    }
+
+    /**
+     * Leden van groepen die (bijna) root zijn: wheel, sudo, docker, root, adm, lxd (agent 1.54.0). Er komt iemand bij:
+     * critical. Het eerste rapport is de basismeting. @return bool true als er iets veranderde
+     */
+    private static function groups(array $ctx, mixed $groups): bool
+    {
+        if (!is_array($groups)) {
+            return false;
+        }
+        $hid = (int) $ctx['host']['id'];
+        $known = array_flip(q("SELECT item FROM ids_baseline WHERE host_id = ? AND kind = 'group'", [$hid])->fetchAll(PDO::FETCH_COLUMN));
+        $first = !$known && !q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'seen' AND item = 'groups'", [$hid])->fetchColumn();
+        q("INSERT IGNORE INTO ids_baseline (host_id, kind, item) VALUES (?, 'seen', 'groups')", [$hid]);
+        $now = [];
+        foreach (array_slice($groups, 0, 20, true) as $g => $members) {
+            if (!preg_match('/^[a-z_][a-z0-9_-]{0,31}$/', (string) $g)) {
+                continue;
+            }
+            foreach (array_slice((array) $members, 0, 200) as $m) {
+                if (preg_match('/^[A-Za-z0-9._-]{1,64}$/', (string) $m)) {
+                    $now["$g|$m"] = true;
+                }
+            }
+        }
+        $changed = false;
+        foreach (array_keys($now) as $item) {
+            if (isset($known[$item])) {
+                continue;
+            }
+            q("INSERT IGNORE INTO ids_baseline (host_id, kind, item) VALUES (?, 'group', ?)", [$hid, $item]);
+            $changed = true;
+            if (!$first && !$ctx['learning']) {
+                [$g, $m] = explode('|', $item, 2);
+                self::incident($ctx, 2, 'group_add', $item, t('{user} toegevoegd aan de groep {group}', ['user' => $m, 'group' => $g]),
+                    t('Lid van {group} is (bijna) hetzelfde als root. Was jij dit niet, verwijder het dan met: gpasswd -d {user} {group}', ['group' => $g, 'user' => $m]));
+            }
+        }
+        foreach (array_keys($known) as $item) {
+            if (!isset($now[$item])) {
+                q("DELETE FROM ids_baseline WHERE host_id = ? AND kind = 'group' AND item = ?", [$hid, $item]);
+                $changed = true;
+            }
+        }
+        return $changed;
+    }
+
+    /**
+     * Verbindingen met de lokaas-poort (1.81.0). Van buiten: incident en meteen blokkeren (in de modus blokkeren);
+     * vanaf je eigen netwerk: critical (waarschijnlijk een besmet apparaat; LAN-adressen worden nooit automatisch geblokkeerd).
+     */
+    private static function decoyHits(array $ctx, array $ips): void
+    {
+        $port = self::decoyPort();
+        $own = OwnCert::serverIps();
+        foreach (array_slice($ips, 0, 50) as $ip) {
+            $ip = (string) $ip;
+            if (@inet_pton($ip) === false || ip_in_list($ip, ['127.0.0.0/8', '::1/128']) || in_array($ip, $own, true)) {
+                continue;   // RzMon zelf (bv. een poortscan) telt niet
+            }
+            if (self::internalIp($ip)) {
+                self::incident($ctx, 2, 'decoy_port', $ip, t('Lokaas-poort {port} benaderd vanaf {ip} (je eigen netwerk)', ['port' => $port, 'ip' => $ip]),
+                    t('Niemand gebruikt deze poort; een apparaat in je eigen netwerk dat hem probeert, scant je netwerk. Waarschijnlijk is het besmet: zoek uit welk apparaat dit is.'), $ip);
+            } else {
+                $blocked = self::autoBlock($ctx['host'], $ip, t('Lokaas-poort {port}', ['port' => $port]));
+                self::incident($ctx, 1, 'decoy_port', $ip, t('Lokaas-poort {port} benaderd vanaf {ip}', ['port' => $port, 'ip' => $ip]),
+                    t('Niemand gebruikt deze poort, dus dit is een scanner.') . ($blocked ? " · ⛔ $blocked" : ''), $ip);
+            }
+        }
     }
 
     private static function ports(array $ctx, array $ports): void
@@ -444,6 +563,15 @@ final class Ids
                 continue;
             }
             q('INSERT INTO ids_attempts (host_id, ip, n) VALUES (?, ?, ?)', [$hid, $ip, max(1, (int) ($f['n'] ?? 1))]);
+            // Lokaas-gebruiker (1.81.0): een naam die hier niet bestaat en die alleen aanvallers proberen; meteen blokkeren
+            $decoy = array_values(array_diff(array_intersect(array_map(static fn($u) => strtolower((string) $u), (array) ($f['users'] ?? [])), self::decoyUsers()), $ctx['users'] ?? []));
+            if ($decoy) {
+                $internal = self::internalIp($ip);
+                $blocked = $internal ? null : self::autoBlock($ctx['host'], $ip, t('Lokaas-gebruiker: {user}', ['user' => $decoy[0]]));
+                self::incident($ctx, $internal ? 2 : 1, 'decoy_user', $ip, t('Inlogpoging met lokaas-gebruiker {user} vanaf {ip}', ['user' => implode(', ', $decoy), 'ip' => $ip]),
+                    ($internal ? t('Een apparaat in je eigen netwerk probeert in te loggen met een naam die hier niet bestaat. Waarschijnlijk is het besmet: zoek uit welk apparaat dit is.')
+                        : t('Een naam die op deze server niet bestaat en die alleen aanvallers proberen.')) . ($blocked ? " · ⛔ $blocked" : ''), $ip);
+            }
             $n = (int) q('SELECT SUM(n) FROM ids_attempts WHERE host_id = ? AND ip = ? AND at >= NOW() - INTERVAL ? MINUTE', [$hid, $ip, $win])->fetchColumn();
             if ($n >= $limit) {
                 $users = implode(', ', array_slice((array) ($f['users'] ?? []), 0, 5));
@@ -644,6 +772,100 @@ final class Ids
         q('INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by, until) VALUES (?, ?, ?, 0, ?, ?)',
             [$hostId, $ip, mb_substr($reason ?: t('met de hand'), 0, 255), $by, $hours ? date('Y-m-d H:i:s', time() + $hours * 3600) : null]);
         return true;
+    }
+
+    // ------------------------------------------------------------------ wekelijks overzicht (1.81.0)
+
+    /** Elke minuut (cron): op de gekozen dag en tijd het overzicht van de afgelopen 7 dagen versturen */
+    public static function weeklyCron(): ?string
+    {
+        $via = (string) setting('ids_weekly', 'email');
+        if (!self::enabled() || !in_array($via, ['email', 'pushover', 'both'], true)) {
+            return null;
+        }
+        $day = max(1, min(7, (int) setting('ids_weekly_day', '1')));
+        $at = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) setting('ids_weekly_time', '08:00')) ? (string) setting('ids_weekly_time', '08:00') : '08:00';
+        if ((int) date('N') !== $day || date('H:i') < $at || setting('ids_weekly_last', '') === date('Y-m-d')) {
+            return null;
+        }
+        save_setting('ids_weekly_last', date('Y-m-d'));
+        return self::sendWeekly($via);
+    }
+
+    /** Overzicht maken en versturen. @return string wat er gebeurde (voor het cron-log) */
+    public static function sendWeekly(string $via): string
+    {
+        [$subject, $body, $short] = self::weeklyText();
+        $out = [];
+        if (in_array($via, ['email', 'both'], true) && setting('email_enabled', '0') === '1') {
+            $r = Mailer::send($subject, $body);
+            $out[] = 'e-mail ' . ($r['ok'] ? 'ok' : $r['error']);
+        }
+        if (in_array($via, ['pushover', 'both'], true) && setting('pushover_enabled', '0') === '1') {
+            $r = Pushover::send($subject, $short, -1);
+            $out[] = 'Pushover ' . ($r['ok'] ? 'ok' : $r['error']);
+        }
+        return 'IDS-weekoverzicht: ' . (implode(', ', $out) ?: 'geen kanaal aan');
+    }
+
+    /** @return array{0:string,1:string,2:string} onderwerp, tekst (e-mail) en korte tekst (Pushover) */
+    public static function weeklyText(): array
+    {
+        $since = date('Y-m-d H:i:s', time() - 7 * 86400);
+        $inc = q('SELECT severity, COUNT(*) n FROM ids_incidents WHERE created_at >= ? GROUP BY severity', [$since])->fetchAll(PDO::FETCH_KEY_PAIR);
+        $open = q("SELECT severity, COUNT(*) n FROM ids_incidents WHERE status = 'open' GROUP BY severity")->fetchAll(PDO::FETCH_KEY_PAIR);
+        $blocks = q('SELECT auto, COUNT(*) n FROM ids_blocks WHERE created_at >= ? GROUP BY auto', [$since])->fetchAll(PDO::FETCH_KEY_PAIR);
+        $decoy = (int) q("SELECT COALESCE(SUM(hits), 0) FROM ids_incidents WHERE created_at >= ? AND type IN ('decoy_user', 'decoy_port')", [$since])->fetchColumn();
+        $fails = 0;
+        $top = [];
+        foreach (q("SELECT detail FROM access_log WHERE kind = 'authfail' AND type = 'ssh' AND created_at >= ?", [$since])->fetchAll(PDO::FETCH_COLUMN) as $d) {
+            $d = json_decode((string) $d, true) ?: [];
+            $n = max(1, (int) ($d['n'] ?? 1));
+            $fails += $n;
+            if (($d['ip'] ?? '') !== '') {
+                $top[$d['ip']] = ($top[$d['ip']] ?? 0) + $n;
+            }
+        }
+        arsort($top);
+        $outside = q("SELECT i.title, i.hits, h.name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.type = 'ssh_login' AND i.created_at >= ? ORDER BY i.created_at DESC LIMIT 10",
+            [$since])->fetchAll();
+        $openList = q("SELECT i.title, i.severity, h.name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.status = 'open' ORDER BY i.severity DESC, i.created_at DESC LIMIT 10")->fetchAll();
+        $nOpen = (int) ($open[2] ?? 0) + (int) ($open[1] ?? 0);
+
+        $lines = [t('IDS-overzicht van {from} tot {to}', ['from' => date('d-m', time() - 7 * 86400), 'to' => date('d-m-Y')]), ''];
+        $lines[] = '⛔ ' . t('Geblokkeerd: {n} (automatisch {a}, met de hand {m})', ['n' => array_sum($blocks), 'a' => (int) ($blocks[1] ?? 0), 'm' => (int) ($blocks[0] ?? 0)]);
+        $lines[] = '❌ ' . t('Mislukte SSH-logins: {n}', ['n' => $fails]);
+        $lines[] = '🪤 ' . t('Lokaas aangetikt: {n}×', ['n' => $decoy]);
+        $lines[] = '⚠️ ' . t('Nieuwe incidenten: {c} critical, {w} warning', ['c' => (int) ($inc[2] ?? 0), 'w' => (int) ($inc[1] ?? 0)]);
+        $lines[] = '📌 ' . t('Nu nog open: {c} critical, {w} warning', ['c' => (int) ($open[2] ?? 0), 'w' => (int) ($open[1] ?? 0)]);
+        if ($top) {
+            $lines[] = '';
+            $lines[] = t('Meeste mislukte logins:');
+            foreach (array_slice($top, 0, 5, true) as $ip => $n) {
+                $lines[] = "  • $ip: {$n}×";
+            }
+        }
+        if ($outside) {
+            $lines[] = '';
+            $lines[] = t('SSH-logins van buiten:');
+            foreach ($outside as $o) {
+                $lines[] = "  • {$o['name']}: {$o['title']}" . ((int) $o['hits'] > 1 ? " ({$o['hits']}×)" : '');
+            }
+        }
+        if ($openList) {
+            $lines[] = '';
+            $lines[] = t('Open incidenten:');
+            foreach ($openList as $o) {
+                $lines[] = '  • ' . ((int) $o['severity'] === 2 ? '🔴' : '🟠') . " {$o['name']}: {$o['title']}";
+            }
+        }
+        $base = rtrim((string) config('base_url', ''), '/');
+        if ($base !== '') {
+            $lines[] = '';
+            $lines[] = "RzMon: $base/#ids";
+        }
+        $short = t('{b} geblokkeerd · {f} mislukte logins · {d}× lokaas · {o} open', ['b' => array_sum($blocks), 'f' => $fails, 'd' => $decoy, 'o' => $nOpen]);
+        return ['🛡️ ' . t('IDS-weekoverzicht'), implode("\n", $lines), $short];
     }
 
     /**

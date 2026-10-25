@@ -555,3 +555,11 @@ CREATE TABLE IF NOT EXISTS hb_state (
     updated_at DATETIME NOT NULL,
     CONSTRAINT fk_hb_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- IDS (1.81.0): lokaas-gebruikers en -poort, automatische blokkades op alle servers, wekelijks overzicht
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_decoy_users', 'admin test guest user oracle ubuntu pi ftp support postgres');
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_decoy_port', '2323');
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_block_shared', '1');
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_weekly', 'email');
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_weekly_day', '1');
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_weekly_time', '08:00');

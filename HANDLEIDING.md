@@ -1543,8 +1543,10 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 
 | Melding | Ernst |
 |---|---|
-| Nieuw of gewijzigd bestand: `/etc/sudoers(.d)`, `/root/.ssh/authorized_keys`, `/etc/ld.so.preload` | 🔴 critical |
-| Nieuw of gewijzigd bestand: `/etc/passwd`, `shadow`, `group`, sshd-config, crontabs en `/etc/cron.d`, `authorized_keys` van gebruikers, eigen systemd-services en -timers, `rc.local`, `/etc/profile.d` | 🟠 warning |
+| Nieuw of gewijzigd bestand: `/etc/sudoers(.d)`, `/root/.ssh/authorized_keys`, `/etc/ld.so.preload`, `/etc/pam.d/*` (vanaf agent 1.54.0) | 🔴 critical |
+| Nieuw of gewijzigd bestand: `/etc/passwd`, `shadow`, `group`, sshd-config, crontabs en `/etc/cron.d`, `authorized_keys` van gebruikers, eigen systemd-services en -timers, `rc.local`, `/etc/profile.d`; vanaf agent 1.54.0 ook `/etc/hosts`, `/etc/resolv.conf`, `/etc/environment`, `at`-jobs, `.bashrc`/`.bash_profile`/`.profile` van root en systemd-gebruikersunits | 🟠 warning |
+| **Lid erbij van een groep die (bijna) root is**: `wheel`, `sudo`, `docker`, `root`, `adm`, `lxd` (agent 1.54.0) | 🔴 critical |
+| **🪤 Lokaas** (zie hieronder): een inlogpoging met een lokaas-naam, of een verbinding met de lokaas-poort; van buiten meteen geblokkeerd | 🟠 warning (van buiten) · 🔴 critical (vanaf je eigen netwerk) |
 | Tweede root-account (UID 0) | 🔴 critical |
 | Nieuwe gebruiker | 🟠 warning |
 | Nieuwe luisterende poort | 🟠 warning |
@@ -1568,6 +1570,18 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - Een rood bolletje op het tabblad **🛡️ IDS** telt de open critical incidenten.
 - De pagina heeft drie tabbladen: **⚠️ Incidenten**, **🔑 Toegang** (logins, sudo en su, zie [8.11](#811-logins-en-sudo-)) en **⛔ Blokkades**. Het laatst gekozen tabblad wordt per apparaat onthouden.
 - Dezelfde melding binnen 24 uur wordt niet opnieuw gestuurd; de teller loopt op (*5×*).
+
+**🪤 Lokaas** (vanaf 1.81.0, agent 1.54.0; *Instellingen → 🛡️ IDS → Lokaas*)
+- **Lokaas-gebruikers:** namen die bij jou nooit bestaan en die alleen aanvallers proberen. Standaard `admin test guest user oracle ubuntu pi ftp support postgres`; vul gerust aan. Eén mislukte SSH-login met zo'n naam is genoeg: van buiten wordt het IP meteen geblokkeerd (in de modus *blokkeren*), niet pas na 10 pogingen. Bestaat de naam op een server echt (bv. `postgres` op een databaseserver), dan geldt hij daar niet als lokaas.
+- **Lokaas-poort** (standaard TCP **2323**, leeg = uit): niemand van jou maakt daar verbinding mee, dus elke verbinding is een scanner. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel (`inet rzmon`) die het IP onthoudt en de verbinding stil weggooit. Werkt ook in de modus *leren* (dan alleen melden). Is de poort op een server in gebruik, dan staat dat bij die server bovenaan de pagina IDS. RzMon zelf (bv. een poortscan) telt niet mee.
+- **Vanaf je eigen netwerk** is het 🔴 **critical**, met Pushover: een apparaat in je LAN dat dit doet, is waarschijnlijk besmet (camera, slimme stekker). LAN-adressen worden nooit automatisch geblokkeerd.
+- Op de pagina IDS staan ze onder het filter **🪤 Lokaas**.
+
+**🌐 Automatische blokkades op alle servers** (vanaf 1.81.0, standaard aan): wordt een aanvaller op één server automatisch geblokkeerd (brute force, lokaas), dan blokkeren al je servers met de IDS op *blokkeren* hem ook. Een botnet probeert meestal al je servers die van buiten bereikbaar zijn. Met de hand blokkeren geldt alleen voor de server die je kiest. Uit te zetten bij *Instellingen → 🛡️ IDS*.
+
+**📬 Wekelijks overzicht** (vanaf 1.81.0; *Instellingen → 🛡️ IDS → Wekelijks overzicht*): standaard op **maandag 08:00** per **e-mail** (of Pushover, of allebei, of uit). Met daarin, over de afgelopen 7 dagen: geblokkeerde aanvallen, mislukte SSH-logins en de IP's met de meeste pogingen, hoe vaak het lokaas is aangetikt, SSH-logins van buiten, nieuwe incidenten en wat er nog open staat. Met **Nu versturen** zie je meteen hoe het eruitziet.
+
+**Na de update naar agent 1.54.0** legt de IDS de extra bestanden en de groepsleden bij het eerste rapport stil vast; je krijgt dus geen stapel meldingen over bestanden die er al waren.
 
 **Basismeting**
 - Als het IDS voor het eerst een rapport van een server krijgt, legt RzMon eerst vast wat er normaal is: standaard **24 uur** (*Basismeting (uren)*). Wat er in die tijd verandert, wordt stil opgenomen.

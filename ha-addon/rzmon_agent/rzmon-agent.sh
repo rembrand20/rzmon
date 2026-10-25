@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.53.0"
+AGENT_VERSION="1.54.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1498,9 +1498,14 @@ if [ -n "$ids_mode" ]; then
     mkdir -p "$i_dir" 2>/dev/null && chmod 700 "$i_dir" 2>/dev/null
     # 1. Gevoelige bestanden: inlog, sudo, SSH, cron, systemd-units, ld.so.preload (rootkits)
     shopt -s nullglob
+    # Vanaf agent 1.54.0 ("fv":2) ook achterdeuren: PAM, hosts/resolv.conf/environment, at-jobs, de shell-bestanden
+    # van root en systemd-gebruikersunits
     i_cand=(/etc/passwd /etc/shadow /etc/group /etc/gshadow /etc/sudoers /etc/sudoers.d/* /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*
         /etc/crontab /etc/cron.d/* /var/spool/cron/* /var/spool/cron/crontabs/* /root/.ssh/authorized_keys /home/*/.ssh/authorized_keys
-        /etc/systemd/system/*.service /etc/systemd/system/*.timer /etc/ld.so.preload /etc/rc.local /etc/profile.d/*.sh)
+        /etc/systemd/system/*.service /etc/systemd/system/*.timer /etc/ld.so.preload /etc/rc.local /etc/profile.d/*.sh
+        /etc/pam.d/* /etc/hosts /etc/resolv.conf /etc/environment /var/spool/at/* /var/spool/cron/atjobs/*
+        /root/.bashrc /root/.bash_profile /root/.profile /etc/systemd/user/*.service /etc/systemd/user/*.timer
+        /root/.config/systemd/user/*.service /root/.config/systemd/user/*.timer /home/*/.config/systemd/user/*.service /home/*/.config/systemd/user/*.timer)
     shopt -u nullglob
     i_files=()
     for f in "${i_cand[@]}"; do [ -f "$f" ] && [ -r "$f" ] && i_files+=("$f"); done
@@ -1512,6 +1517,10 @@ if [ -n "$ids_mode" ]; then
     fi
     # 2. Gebruikers (naam en UID) en 3. kernelmodules
     users_json=$(awk -F: '$1 ~ /^[A-Za-z0-9._-]+$/ { printf "[\"%s\",%d],", $1, $3 }' /etc/passwd 2>/dev/null)
+    # Leden van groepen die (bijna) root zijn (agent 1.54.0): wheel, sudo, docker, root, adm, lxd
+    groups_json=$(awk -F: '$1 ~ /^(wheel|sudo|docker|root|adm|lxd)$/ { s = ""; n = split($4, m, ",")
+        for (i = 1; i <= n; i++) if (m[i] ~ /^[A-Za-z0-9._-]+$/) s = s (s == "" ? "" : ",") "\"" m[i] "\""
+        printf "\"%s\":[%s],", $1, s }' /etc/group 2>/dev/null)
     mods_json=$(awk '$1 ~ /^[A-Za-z0-9_]+$/ { printf "\"%s\",", $1 }' /proc/modules 2>/dev/null)
     # 4. SUID-bestanden (elk uur) en 5. pakketcontrole (dagelijks), op de achtergrond
     # Container-images (docker, podman) overslaan: daar staan veel SUID-bestanden die niets met de server zelf te maken hebben
@@ -1570,7 +1579,7 @@ if [ -n "$ids_mode" ]; then
                     names = names (names == "" ? "" : ",") a[1]; if (!pid) pid = a[2]; rest = substr(rest, RSTART + RLENGTH) }
                 if (names != "") print names "\t" pid "\t" $3 "\t" $4 }' | head -n 200)
     fi
-    ids_json="\"ids\":{\"mode\":\"$ids_mode\",\"files\":{${files_json%,}},\"users\":[${users_json%,}],\"modules\":[${mods_json%,}]${suid_part}${pkg_part},\"pkg\":$pkg_t,\"procs\":[${procs_json%,}],\"conns\":[${conns_json%,}],"
+    ids_json="\"ids\":{\"mode\":\"$ids_mode\",\"fv\":2,\"files\":{${files_json%,}},\"users\":[${users_json%,}],\"groups\":{${groups_json%,}},\"modules\":[${mods_json%,}]${suid_part}${pkg_part},\"pkg\":$pkg_t,\"procs\":[${procs_json%,}],\"conns\":[${conns_json%,}],"
 
     # 8. Bestanden bewaken (regel "0 <tab> fim <tab> base64" met e <tab> epoch, p <tab> ernst <tab> pad, x <tab> uitsluiten).
     #    Elke run een snelle controle (grootte, tijd, rechten, eigenaar); alleen bij een verschil een nieuwe hash.
@@ -1651,46 +1660,74 @@ if [ -n "$ids_mode" ]; then
     fi
 fi
 
-# Blokkeren: eigen nftables-tabel "inet rzmon" met de IP's uit RzMon (alleen in de modus blokkeren)
-fw_json=""
+# Blokkeren: eigen nftables-tabel "inet rzmon" met de IP's uit RzMon (alleen in de modus blokkeren).
+# Lokaas-poort (agent 1.54.0, regel "0 <tab> decoy <tab> poort"): niemand van jou gebruikt die poort, dus elke verbinding
+# is een scanner. Er luistert niets; een regel in dezelfde tabel zet het IP in een set (dc4/dc6, een uur), de agent
+# stuurt die IP's mee en haalt ze na een geslaagd rapport uit de set. Ook in de modus leren (dan alleen melden).
+fw_json=""; decoy_json=""; decoy_err=""; dc_sent4=""; dc_sent6=""
+decoy_port=""
+[ -n "$ids_mode" ] && [ -r "${t_cache-}" ] && decoy_port=$(awk -F'\t' '$1 == "0" && $2 == "decoy" && $3 ~ /^[0-9]+$/ && $3 >= 1 && $3 <= 65535 { print $3; exit }' "$t_cache")
+if [ -n "$decoy_port" ]; then
+    if command -v midclt >/dev/null 2>&1 || ! command -v nft >/dev/null 2>&1; then decoy_port=""
+    elif [ -n "$(ss -Htln "sport = :$decoy_port" 2>/dev/null)" ]; then decoy_err="poort $decoy_port is hier in gebruik"; decoy_port=""; fi
+fi
+decoy_hits() {  # decoy_hits <set>: IP's in de lokaas-set
+    nft list set inet rzmon "$1" 2>/dev/null | tr -d '\n' | sed -n 's/.*elements = {\(.*\)}.*/\1/p' | tr ',' '\n' \
+        | awk '{ print $1 }' | grep -E '^[0-9a-fA-F:.]+$' | head -n 50
+}
+if [ -n "$decoy_port" ] && nft list table inet rzmon >/dev/null 2>&1; then
+    dc_sent4=$(decoy_hits dc4 | paste -sd, -); dc_sent6=$(decoy_hits dc6 | paste -sd, -)
+    for d_ip in ${dc_sent4//,/ } ${dc_sent6//,/ }; do decoy_json+="\"$d_ip\","; done
+fi
+# Tabel in één keer opnieuw opbouwen: blokkades (bl4/bl6) en de lokaas-poort (dc4/dc6)
+fw_apply() {  # fw_apply <"counter;" of "">
+    local el4="" el6="" dc=""
+    [ -n "$want4" ] && el4=" elements = { ${want4%, } };"
+    [ -n "$want6" ] && el6=" elements = { ${want6%, } };"
+    [ -n "$decoy_port" ] && dc=" iifname != \"lo\" meta nfproto ipv4 tcp dport $decoy_port add @dc4 { ip saddr } drop; iifname != \"lo\" meta nfproto ipv6 tcp dport $decoy_port add @dc6 { ip6 saddr } drop;"
+    { echo "table inet rzmon"; echo "delete table inet rzmon"; echo "table inet rzmon {"
+      echo "  set bl4 { type ipv4_addr; $1$el4 }"
+      echo "  set bl6 { type ipv6_addr; $1$el6 }"
+      echo "  set dc4 { type ipv4_addr; flags dynamic,timeout; timeout 1h; }"
+      echo "  set dc6 { type ipv6_addr; flags dynamic,timeout; timeout 1h; }"
+      echo "  chain input { type filter hook input priority -5; policy accept; ip saddr @bl4 drop; ip6 saddr @bl6 drop;$dc }"
+      echo "}"; } | nft -f - 2>"$i_dir/fw.err"
+}
+fw_build() {  # opnieuw opbouwen als de lijst of de lokaas-poort veranderde; zet fw_err
+    fw_err=""
+    local sig
+    sig=$(printf '%s|%s|%s' "$want4" "$want6" "$decoy_port" | sha1sum | cut -c1-16)
+    if ! nft list table inet rzmon >/dev/null 2>&1 || [ "$(cat "$i_dir/fw.sig" 2>/dev/null)" != "$sig" ]; then
+        if fw_apply "counter;" || fw_apply ""; then
+            echo "$sig" >"$i_dir/fw.sig"
+        else
+            fw_err=$(head -c 200 "$i_dir/fw.err" | json_text)
+        fi
+    fi
+}
+want4=""; want6=""
 if [ "$ids_mode" = block ]; then
     if command -v midclt >/dev/null 2>&1; then
         fw_json="\"fw\":{\"state\":\"unsupported\",\"err\":\"TrueNAS: alleen detecteren\"}"
     elif [ "$IDS_BLOCK" = 0 ]; then
         fw_json="\"fw\":{\"state\":\"disabled\",\"err\":\"IDS_BLOCK=0 op deze server\"}"
+        [ -n "$decoy_port" ] && fw_build
     elif ! command -v nft >/dev/null 2>&1; then
         fw_json="\"fw\":{\"state\":\"error\",\"err\":\"nft (nftables) ontbreekt\"}"
     else
         # Nooit het adres van RzMon zelf blokkeren
         rz_host=${MONITOR_URL#*://}; rz_host=${rz_host%%/*}; rz_host=${rz_host%:*}; rz_host=${rz_host#[}; rz_host=${rz_host%]}
         rz_ips=" $(getent ahosts "$rz_host" 2>/dev/null | awk '{ print $1 }' | sort -u | tr '\n' ' ') $rz_host "
-        want4=""; want6=""; now_f=$(date +%s)
+        now_f=$(date +%s)
         while IFS=$'\t' read -r z t b_ip b_until; do
             [ "$z" = 0 ] && [ "$t" = block ] || continue
             [[ "$b_until" =~ ^[0-9]+$ ]] && [ "$b_until" != 0 ] && [ "$b_until" -le "$now_f" ] && continue
             [[ "$rz_ips" == *" $b_ip "* ]] && continue
+            [[ " $want4$want6" == *" $b_ip, "* ]] && continue   # al in de lijst (blokkade van meer servers)
             if [[ "$b_ip" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then want4+="$b_ip, "
             elif [[ "$b_ip" =~ ^[0-9a-fA-F:]+$ ]] && [[ "$b_ip" == *:* ]]; then want6+="$b_ip, "; fi
         done <"$t_cache"
-        sig=$(printf '%s|%s' "$want4" "$want6" | sha1sum | cut -c1-16)
-        fw_err=""
-        if ! nft list table inet rzmon >/dev/null 2>&1 || [ "$(cat "$i_dir/fw.sig" 2>/dev/null)" != "$sig" ]; then
-            # Elementen apart opbouwen: accolades binnen ${…:+…} zouden de expansie te vroeg afsluiten
-            el4=""; [ -n "$want4" ] && el4=" elements = { ${want4%, } };"
-            el6=""; [ -n "$want6" ] && el6=" elements = { ${want6%, } };"
-            fw_apply() {  # fw_apply <"counter;" of ""> : tabel in één keer opnieuw opbouwen
-                { echo "table inet rzmon"; echo "delete table inet rzmon"; echo "table inet rzmon {"
-                  echo "  set bl4 { type ipv4_addr; $1$el4 }"
-                  echo "  set bl6 { type ipv6_addr; $1$el6 }"
-                  echo "  chain input { type filter hook input priority -5; policy accept; ip saddr @bl4 drop; ip6 saddr @bl6 drop; }"
-                  echo "}"; } | nft -f - 2>"$i_dir/fw.err"
-            }
-            if fw_apply "counter;" || fw_apply ""; then
-                echo "$sig" >"$i_dir/fw.sig"
-            else
-                fw_err=$(head -c 200 "$i_dir/fw.err" | json_text)
-            fi
-        fi
+        fw_build
         if [ -n "$fw_err" ]; then
             fw_json="\"fw\":{\"state\":\"error\",\"err\":\"$fw_err\"}"
         else
@@ -1698,12 +1735,16 @@ if [ "$ids_mode" = block ]; then
             fw_json="\"fw\":{\"state\":\"active\",\"n\":$(printf '%s%s' "$want4" "$want6" | grep -o ',' | wc -l),\"hits\":{${hits%,}}}"
         fi
     fi
+elif [ -n "$decoy_port" ]; then
+    fw_build   # leren: alleen de lokaas-poort (er wordt niets geblokkeerd)
+    [ -n "$fw_err" ] && decoy_err="$fw_err"
 elif [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\ttick\t' "$t_cache" \
     && command -v nft >/dev/null 2>&1 && nft list table inet rzmon >/dev/null 2>&1; then
-    # Leren of IDS uit volgens een complete lijst van RzMon: niets meer blokkeren (zonder lijst: niets aanraken)
+    # Leren (zonder lokaas-poort) of IDS uit volgens een complete lijst van RzMon: niets meer blokkeren (zonder lijst: niets aanraken)
     nft delete table inet rzmon 2>/dev/null
     rm -f "${i_dir:-$t_dir/ids}/fw.sig"
 fi
+[ -n "$ids_json" ] && ids_json+="\"decoy\":[${decoy_json%,}],${decoy_err:+\"decoy_err\":\"$(json_escape "$decoy_err")\",}"
 if [ -n "$ids_json" ]; then
     [ -n "$fw_json" ] || fw_json='"fw":{"state":"off"}'
     ids_json+="$fw_json},"
@@ -2371,6 +2412,9 @@ if [ "$rc" -eq 0 ]; then
     elif [[ "$resp" =~ \"enc\":\"off\" ]]; then
         rm -f "$enc_file"; : >"$t_dir/enc.off"
     fi
+    # Lokaas-poort: de gemelde IP's zijn binnen, uit de set halen (een nieuwe verbinding zet ze er weer in)
+    [ -n "$dc_sent4" ] && nft delete element inet rzmon dc4 "{ $dc_sent4 }" 2>/dev/null
+    [ -n "$dc_sent6" ] && nft delete element inet rzmon dc6 "{ $dc_sent6 }" 2>/dev/null
     # Heartbeats zijn binnen; namen zonder check in RzMon in het logboek zetten
     [ ${#hb_files[@]} -gt 0 ] && rm -f "${hb_files[@]}"
     if [[ "$resp" =~ \"hb_unknown\":\[([^]]*)\] ]]; then

@@ -2081,7 +2081,7 @@ switch ($action) {
             $in['sysinfo'] = json_encode(NotifyRules::cleanSysinfo((array) json_decode((string) $in['sysinfo'], true), NotifyRules::sysinfo()));
         }
         $allowed = ['sysinfo', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_allow', 'ids_fim', 'ids_fim_exclude',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_allow', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -2124,6 +2124,24 @@ switch ($action) {
         }
         if (isset($in['ids_fim_exclude'])) {
             $in['ids_fim_exclude'] = Ids::cleanFimExclude((string) $in['ids_fim_exclude']);
+        }
+        // IDS (1.81.0): lokaas-gebruikers (namen), lokaas-poort (leeg = uit), wekelijks overzicht
+        if (isset($in['ids_decoy_users'])) {
+            $in['ids_decoy_users'] = implode(' ', array_slice(array_filter(parse_list(mb_strtolower(mb_substr((string) $in['ids_decoy_users'], 0, 2000))),
+                fn($x) => (bool) preg_match('/^[a-z0-9._-]{1,32}$/', $x)), 0, 100));
+        }
+        if (isset($in['ids_decoy_port'])) {
+            $dp = trim((string) $in['ids_decoy_port']);
+            $in['ids_decoy_port'] = $dp === '' || (int) $dp < 1 || (int) $dp > 65535 ? '' : (string) (int) $dp;
+        }
+        if (isset($in['ids_weekly'])) {
+            $in['ids_weekly'] = in_array($in['ids_weekly'], ['off', 'email', 'pushover', 'both'], true) ? $in['ids_weekly'] : 'email';
+        }
+        if (isset($in['ids_weekly_day'])) {
+            $in['ids_weekly_day'] = (string) max(1, min(7, (int) $in['ids_weekly_day']));
+        }
+        if (isset($in['ids_weekly_time'])) {
+            $in['ids_weekly_time'] = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['ids_weekly_time']) ? (string) $in['ids_weekly_time'] : '08:00';
         }
         if (isset($in['ids_allow'])) {
             $in['ids_allow'] = implode(' ', array_slice(array_filter(parse_list(mb_substr((string) $in['ids_allow'], 0, 2000)),
@@ -2899,7 +2917,7 @@ switch ($action) {
         $days = Monitor::alertDays();
         $hosts = q("SELECT h.id, h.name, h.agent_seen, h.agent_update_via = 'ha' AS ha, h.ids_fim, h.realtime,
                            (SELECT value FROM agent_data ad WHERE ad.host_id = h.id AND ad.metric = 'realtime') AS rt,
-                           (SELECT value FROM agent_data ad WHERE ad.host_id = h.id AND ad.metric = 'tools') AS tools, s.fim_count, s.fim_cand, s.baseline_until, s.fw_state, s.fw_error, s.last_report
+                           (SELECT value FROM agent_data ad WHERE ad.host_id = h.id AND ad.metric = 'tools') AS tools, s.fim_count, s.fim_cand, s.baseline_until, s.fw_state, s.fw_error, s.decoy_state, s.last_report
                     FROM hosts h LEFT JOIN ids_state s ON s.host_id = h.id WHERE h.mode = 'agent' AND h.enabled = 1 ORDER BY h.name")->fetchAll();
         $open = q("SELECT host_id, severity, COUNT(*) AS n FROM ids_incidents WHERE status = 'open' GROUP BY host_id, severity")->fetchAll();
         $blocks = Ids::activeBlocks();
@@ -3038,6 +3056,11 @@ switch ($action) {
             AgentCommands::audit($user['username'], 'IDS', $mode === 'block' ? 'modus blokkeren' : 'modus leren (alleen melden)');
         }
         out(['ok' => true]);
+
+    // Wekelijks IDS-overzicht nu versturen (1.81.0), om te zien hoe het eruitziet
+    case 'ids_weekly_test':
+        $via = (string) setting('ids_weekly', 'email');
+        out(['ok' => true, 'result' => Ids::sendWeekly($via === 'off' ? 'both' : $via), 'text' => Ids::weeklyText()[1]]);
 
     case 'ids_incident':
         $in = input();
