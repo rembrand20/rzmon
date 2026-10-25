@@ -1556,8 +1556,15 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 | Brute force op SSH: standaard 10 mislukte logins binnen 10 minuten vanaf één IP | 🟠 warning |
 | **Inlog na brute force**: eerst veel mislukte pogingen, daarna een geslaagde login vanaf hetzelfde IP | 🔴 critical |
 | Root-login via SSH, login vanaf een IP dat nog nooit eerder inlogde | 🟠 warning |
+| **🔑 SSH-login van buiten** (vanaf 1.80.0): elke geslaagde SSH-login vanaf een IP buiten je eigen netwerken, met een ⚠️-melding (Pushover met de prioriteit voor warning) | 🟠 warning |
 
-- **🔴 Critical** gaat ook naar **Pushover**, ook tijdens stille uren, en komt op de pagina Meldingen. **🟠 Warning** staat alleen op de pagina IDS.
+- **🔴 Critical** gaat ook naar **Pushover**, ook tijdens stille uren, en komt op de pagina Meldingen. **🟠 Warning** staat alleen op de pagina IDS, behalve *SSH-login van buiten*: die gaat ook naar Pushover en de pagina Meldingen.
+- **Geslaagde logins** (SSH en console, vanaf 1.80.0):
+  - **van buiten** je netwerk: een incident 🔑 *SSH-login van buiten*. Dezelfde gebruiker vanaf hetzelfde IP binnen 24 uur telt op (*3×*). Het blijft open tot je **✔ Gezien** of **Dit is normaal** kiest (dan niet meer voor die gebruiker en dat IP op die server);
+  - **van binnen** (je *Lokale netwerken* onder *Toegang*) en aan de **console**: een ℹ️ systeeminfo-bericht *SSH-login* of *Console-login*. Per kanaal aan of uit bij *Instellingen → Meldingen → ℹ️ Systeeminfo → Login op een server* (standaard alleen op de meldingenpagina);
+  - geeft een login al een incident (*Root-login*, *nieuw IP* of *Inlog na brute force*), dan komt er niets dubbel bij;
+  - gebruikers en IP's in de lijst *Negeren* (Toegang) geven geen 🔑-incident of bericht;
+  - **login-incidenten van binnen** (*nieuw IP*, *Root-login*) sluiten na **24 uur** vanzelf (afgehandeld door *RzMon*); die van buiten blijven open. *Inlog na brute force* (critical) blijft altijd open.
 - Een rood bolletje op het tabblad **🛡️ IDS** telt de open critical incidenten.
 - De pagina heeft drie tabbladen: **⚠️ Incidenten**, **🔑 Toegang** (logins, sudo en su, zie [8.11](#811-logins-en-sudo-)) en **⛔ Blokkades**. Het laatst gekozen tabblad wordt per apparaat onthouden.
 - Dezelfde melding binnen 24 uur wordt niet opnieuw gestuurd; de teller loopt op (*5×*).

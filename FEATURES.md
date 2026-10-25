@@ -180,7 +180,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **🛡️ IDS (intrusion detection)**, pagina *IDS*:
   - standaard **uit**; met een schakelaar **leren** (alleen melden) of **blokkeren** (met je wachtwoord);
   - een **basismeting** per server (standaard 24 uur), daarna alleen afwijkingen; *Dit is normaal* en *basismeting opnieuw*;
-  - meldt gewijzigde gevoelige bestanden, nieuwe gebruikers (en een tweede root), poorten, SUID-programma's en kernelmodules, verdachte processen, reverse shells, brute force, inlog na brute force, root-login en logins vanaf nieuwe IP's;
+  - meldt gewijzigde gevoelige bestanden, nieuwe gebruikers (en een tweede root), poorten, SUID-programma's en kernelmodules, verdachte processen, reverse shells, brute force, inlog na brute force, root-login, logins vanaf nieuwe IP's en **elke SSH-login van buiten** (met melding); logins van binnen als ℹ️ systeeminfo, en login-incidenten van binnen sluiten na 24 uur vanzelf;
   - **critical** ook naar Pushover (ook tijdens stille uren), **warning** alleen op de pagina IDS;
   - **blokkeren** op de aangevallen server: automatisch bij brute force (24 uur; bij herhaling binnen 30 dagen 7 dagen; permanent met de hand) of met één klik, en **deblokkeren**; je LAN, RzMon en een eigen lijst nooit automatisch;
   - **📁 bestanden bewaken** (FIM): eigen paden (algemeen en per server, met jokertekens zoals `/var/www/**/*.php`), met hash, grootte, rechten en eigenaar; nieuw, gewijzigd, verwijderd of SUID erbij; elke minuut snel, dagelijks volledig; veel wijzigingen tegelijk als één incident; *＋ Aanbevolen*, *goedkeuren* en *niet meer bewaken*;

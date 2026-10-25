@@ -3236,4 +3236,8 @@ return [
     'Waar {user} nu is ingelogd. Een onthouden apparaat (📌) blijft ingelogd zonder wachtwoord en 2FA; het wordt vanzelf vergeten na 30 dagen niet gebruiken, en bij een wachtwoordwijziging.' => 'Where {user} is signed in now. A remembered device (📌) stays signed in without password and 2FA; it is forgotten automatically after 30 days of no use, and on a password change.',
     'Alles uitloggen' => 'Log out everything',
     'Niet ondertekend door een bekende uitgever. Voor het eigen certificaat van RzMon is dat normaal: de agents zetten het vast, en je browser vraagt eenmalig om "toch doorgaan".' => 'Not signed by a known issuer. For RzMon\'s own certificate that is normal: the agents pin it, and your browser asks once to "proceed anyway".',
+    'SSH-login van buiten: {user} vanaf {ip}' => 'SSH login from outside: {user} from {ip}',
+    'Geslaagde login van buiten je netwerk{how}. Was jij dit? Klik dan Gezien, of Dit is normaal voor deze gebruiker en dit IP-adres.' => 'Successful login from outside your network{how}. Was this you? Then click Seen, or This is normal for this user and this IP address.',
+    'Geslaagde login van buiten je netwerk{how}.' => 'Successful login from outside your network{how}.',
+    'Login op een server, van binnen (SSH of console)' => 'Login on a server, from inside (SSH or console)',
 ];

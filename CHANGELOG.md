@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.80.0 – 2026-10-25
+### Nieuw
+- **IDS: geslaagde logins op je servers.**
+  - **SSH-login van buiten** je netwerk: een nieuw incident 🔑 *SSH-login van buiten* (warning) met een ⚠️-melding. Hij blijft open tot je *Gezien* of *Dit is normaal* kiest. Dezelfde gebruiker vanaf hetzelfde IP binnen 24 uur telt op.
+  - **SSH- en console-logins van binnen**: een ℹ️ systeeminfo-bericht, per kanaal aan of uit bij *Meldingen → Systeeminfo → Login op een server* (standaard alleen op de meldingenpagina).
+  - Geen dubbele meldingen: geeft een login al *Root-login*, *nieuw IP* of *Inlog na brute force*, dan komt er niets bij. De lijst *Negeren* geldt ook.
+  - Login-incidenten vanaf je eigen netwerk (*nieuw IP*, *Root-login*) sluiten na 24 uur vanzelf; die van buiten blijven open.
+
 ## 1.79.1 – 2026-10-25
 ### Opgelost
 - **Beveiliging → Nooddeur stond rood** (*niet vertrouwd of de naam klopt niet*) terwijl alles in orde was. Op de nooddeur staat het eigen certificaat van RzMon, en dat is niet door een bekende uitgever ondertekend; dat is normaal. Het blok is nu groen met 🔏 *self-signed*, zoals in het certificaatvenster, en alleen oranje of rood als het certificaat bijna verloopt, verlopen is of niet bereikbaar. Dat gold ook voor het standaardcertificaat dat Rocky Linux bij Apache aanmaakt (uitgever *Unspecified*).

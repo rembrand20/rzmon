@@ -453,28 +453,71 @@ final class Ids
             }
         }
         foreach (array_slice((array) ($auth['events'] ?? []), 0, 300) as $e) {
-            if (($e['k'] ?? '') !== 'ssh') {
+            $k = (string) ($e['k'] ?? '');
+            if ($k !== 'ssh' && $k !== 'console') {
                 continue;
             }
             $ip = (string) ($e['ip'] ?? '');
             $user = mb_substr((string) ($e['u'] ?? '?'), 0, 64);
-            // Gelukt na veel mislukte pogingen vanaf hetzelfde IP (afgelopen uur): mogelijk ingebroken
-            $fails = (int) q('SELECT COALESCE(SUM(n), 0) FROM ids_attempts WHERE host_id = ? AND ip = ? AND at >= NOW() - INTERVAL 1 HOUR', [$hid, $ip])->fetchColumn();
-            if ($fails >= max(3, intdiv($limit, 2))) {
-                self::incident($ctx, 2, 'breakin', "$user|$ip", t('Inlog na brute force: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]),
-                    t('Eerst {n} mislukte pogingen vanaf dit IP in het afgelopen uur, daarna een geslaagde login. Controleer of jij dit was.', ['n' => $fails]), $ip, true);
-            }
-            if ($user === 'root') {
-                self::incident($ctx, 1, 'rootlogin', $ip, t('Root-login via SSH vanaf {ip}', ['ip' => $ip]), t('Inloggen als root via SSH; liever als gewone gebruiker en daarna sudo.'), $ip);
-            }
-            $known = q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'loginip' AND item = ?", [$hid, $ip])->fetchColumn();
-            if (!$known && $ip !== '') {
-                q("INSERT IGNORE INTO ids_baseline (host_id, kind, item, value) VALUES (?, 'loginip', ?, ?)", [$hid, $ip, $user]);
-                if (!$ctx['learning']) {
-                    self::incident($ctx, 1, 'newip', $ip, t('Login vanaf een nieuw IP: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]), t('Vanaf dit adres is op deze server nog niet eerder ingelogd.'), $ip);
+            $special = false;   // al een incident voor deze login (dan geen 🔑-incident of info erbij)
+            if ($k === 'ssh') {
+                // Gelukt na veel mislukte pogingen vanaf hetzelfde IP (afgelopen uur): mogelijk ingebroken
+                $fails = (int) q('SELECT COALESCE(SUM(n), 0) FROM ids_attempts WHERE host_id = ? AND ip = ? AND at >= NOW() - INTERVAL 1 HOUR', [$hid, $ip])->fetchColumn();
+                if ($fails >= max(3, intdiv($limit, 2))) {
+                    $special = true;
+                    self::incident($ctx, 2, 'breakin', "$user|$ip", t('Inlog na brute force: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]),
+                        t('Eerst {n} mislukte pogingen vanaf dit IP in het afgelopen uur, daarna een geslaagde login. Controleer of jij dit was.', ['n' => $fails]), $ip, true);
+                }
+                if ($user === 'root') {
+                    $special = true;
+                    self::incident($ctx, 1, 'rootlogin', $ip, t('Root-login via SSH vanaf {ip}', ['ip' => $ip]), t('Inloggen als root via SSH; liever als gewone gebruiker en daarna sudo.'), $ip);
+                }
+                $known = q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'loginip' AND item = ?", [$hid, $ip])->fetchColumn();
+                if (!$known && $ip !== '') {
+                    q("INSERT IGNORE INTO ids_baseline (host_id, kind, item, value) VALUES (?, 'loginip', ?, ?)", [$hid, $ip, $user]);
+                    if (!$ctx['learning']) {
+                        $special = true;
+                        self::incident($ctx, 1, 'newip', $ip, t('Login vanaf een nieuw IP: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]), t('Vanaf dit adres is op deze server nog niet eerder ingelogd.'), $ip);
+                    }
                 }
             }
+            if ($special || AuthEvents::ignored([$user], $ip)) {
+                continue;
+            }
+            self::loginSeen($ctx, $k, $user, $ip, (string) ($e['m'] ?? ''));
         }
+    }
+
+    /** Je eigen netwerken (Instellingen → Toegang → Lokale netwerken); console-logins (zonder IP) gelden als binnen */
+    private static function internalIp(string $ip): bool
+    {
+        $nets = parse_list((string) setting('trusted_networks', '')) ?: PRIVATE_NETWORKS;
+        return $ip === '' || ip_in_list($ip, $nets);
+    }
+
+    /**
+     * Gewone geslaagde login (1.80.0). Van buiten je netwerk: 🔑 incident (warning, met melding), dat open blijft tot
+     * "Gezien" of "Dit is normaal"; zelfde gebruiker en IP binnen 24 uur telt op. Van binnen (en aan de console): een
+     * ℹ️ systeeminfo-bericht, per kanaal aan of uit (Instellingen → Meldingen → Systeeminfo).
+     */
+    private static function loginSeen(array $ctx, string $kind, string $user, string $ip, string $method): void
+    {
+        $host = (string) $ctx['host']['name'];
+        $how = ['publickey' => t('sleutel'), 'password' => t('wachtwoord'), 'keyboard-interactive/pam' => t('wachtwoord')][$method] ?? '';
+        if (!self::internalIp($ip)) {
+            $new = self::incident($ctx, 1, 'ssh_login', "$user|$ip", t('SSH-login van buiten: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]),
+                t('Geslaagde login van buiten je netwerk{how}. Was jij dit? Klik dan Gezien, of Dit is normaal voor deze gebruiker en dit IP-adres.',
+                    ['how' => $how !== '' ? ' (' . $how . ')' : '']), $ip);
+            if ($new) {
+                self::notify($host . ': ' . t('SSH-login van buiten: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]),
+                    t('Geslaagde login van buiten je netwerk{how}.', ['how' => $how !== '' ? ' (' . $how . ')' : '']), STATUS_WARN);
+            }
+            return;
+        }
+        $title = $kind === 'console' ? '🖥️ ' . t('Console-login: {u} op {host}', ['u' => $user, 'host' => $host])
+            : '🔑 ' . t('SSH-login: {u} op {host}', ['u' => $user, 'host' => $host]);
+        Monitor::sysInfo('server_login', (int) $ctx['host']['id'], $host, $title,
+            fn() => $kind === 'console' ? t('aan de console') : t('vanaf {ip}', ['ip' => $ip]) . ($how !== '' ? " ($how)" : ''), $ip !== '' ? $ip : null);
     }
 
     private static function hostOf(string $peer): string
@@ -489,12 +532,12 @@ final class Ids
      * Uitzonderingen ("Dit is normaal") worden overgeslagen. Critical gaat ook naar Pushover.
      */
     /** @param bool $openOnly alleen optellen bij een open incident (bestanden: na goedkeuren is een nieuwe wijziging een nieuw incident) */
-    private static function incident(array $ctx, int $sev, string $type, string $key, string $title, string $detail, ?string $ip = null, bool $always = false, bool $openOnly = false): void
+    private static function incident(array $ctx, int $sev, string $type, string $key, string $title, string $detail, ?string $ip = null, bool $always = false, bool $openOnly = false): bool
     {
         $hid = (int) $ctx['host']['id'];
         $key = mb_substr($key, 0, 255);
         if (q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'ignore' AND item = ?", [$hid, mb_substr("$type|$key", 0, 255)])->fetchColumn()) {
-            return;
+            return false;
         }
         $prev = q('SELECT id FROM ids_incidents WHERE host_id = ? AND type = ? AND dkey = ? AND created_at >= NOW() - INTERVAL 1 DAY'
                   . ($openOnly ? " AND status = 'open'" : '') . ' ORDER BY id DESC LIMIT 1',
@@ -502,29 +545,31 @@ final class Ids
         if ($prev) {
             q('UPDATE ids_incidents SET hits = hits + 1, last_seen = NOW(), title = ?, detail = ? WHERE id = ?',
                 [mb_substr($title, 0, 250), mb_substr($detail, 0, 1000), $prev]);
-            return;
+            return false;
         }
         q('INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [$hid, $sev, $type, $key, mb_substr($title, 0, 250), mb_substr($detail, 0, 1000), $ip !== null && $ip !== '' ? mb_substr($ip, 0, 45) : null]);
         if ($sev === 2) {
             self::notify($ctx['host']['name'] . ': ' . $title, $detail);
         }
+        return true;
     }
 
-    /** Critical naar Pushover (ook tijdens stille uren), en in Meldingen. */
-    private static function notify(string $title, string $detail): void
+    /** Naar Pushover (ook tijdens stille uren), en in Meldingen. Critical, of (SSH-login van buiten) warning. */
+    private static function notify(string $title, string $detail, int $status = STATUS_CRIT): void
     {
         $sent = null;
         $err = '';
         if (setting('pushover_enabled', '0') === '1') {
             $base = rtrim((string) config('base_url', ''), '/');
-            $r = Pushover::send("🛡️ IDS: $title", $detail . "\n" . date('d-m-Y H:i:s'), min(1, (int) setting('pushover_priority_crit', 1)), null, null,
+            $prio = $status === STATUS_CRIT ? min(1, (int) setting('pushover_priority_crit', 1)) : min(1, (int) setting('pushover_priority_warn', 0));
+            $r = Pushover::send("🛡️ IDS: $title", $detail . "\n" . date('d-m-Y H:i:s'), $prio, null, null,
                 $base !== '' ? ['url' => "$base/#ids", 'url_title' => 'Open IDS'] : []);
             $sent = $r['ok'];
             $err = $r['ok'] ? '' : ' [' . t('niet verzonden') . ': Pushover: ' . $r['error'] . ']';
         }
         q("INSERT INTO alerts (check_id, status, title, message, sent_ok, kind) VALUES (NULL, ?, ?, ?, ?, 'ids')",
-            [STATUS_CRIT, mb_substr("🛡️ IDS: $title", 0, 250), mb_substr($detail . $err, 0, 1000), $sent ? 1 : 0]);
+            [$status, mb_substr("🛡️ IDS: $title", 0, 250), mb_substr($detail . $err, 0, 1000), $sent ? 1 : 0]);
     }
 
     // ------------------------------------------------------------------ blokkeren
@@ -601,8 +646,24 @@ final class Ids
         return true;
     }
 
+    /**
+     * Login-incidenten vanaf je eigen netwerk (nieuw IP, root-login) sluiten na 24 uur vanzelf (1.80.0); die van buiten
+     * blijven open tot "Gezien" of "Dit is normaal". Inlog na brute force (critical) blijft altijd open.
+     */
+    public static function autoClose(): int
+    {
+        $n = 0;
+        foreach (q("SELECT id, ip FROM ids_incidents WHERE status = 'open' AND type IN ('newip', 'rootlogin', 'ssh_login') AND last_seen < NOW() - INTERVAL 1 DAY")->fetchAll() as $i) {
+            if (self::internalIp((string) $i['ip'])) {
+                $n += q("UPDATE ids_incidents SET status = 'done', handled_by = 'RzMon', handled_at = NOW() WHERE id = ? AND status = 'open'", [$i['id']])->rowCount();
+            }
+        }
+        return $n;
+    }
+
     public static function purge(): void
     {
+        self::autoClose();
         q('DELETE FROM ids_attempts WHERE at < NOW() - INTERVAL 1 DAY');
         q('DELETE FROM ids_incidents WHERE created_at < NOW() - INTERVAL ? DAY', [Monitor::alertDays()]);
         q('DELETE FROM ids_blocks WHERE (removed_at IS NOT NULL AND removed_at < NOW() - INTERVAL 90 DAY) OR (until IS NOT NULL AND until < NOW() - INTERVAL 90 DAY)');

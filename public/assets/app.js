@@ -4241,7 +4241,7 @@ function accIgnoreDialog(r) {
 }
 
 const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'outbound']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
-  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new']]];
+  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login']]];
 const idsCatOf = (i) => (IDS_CATS.find((c) => c[2].includes(i.type)) || [''])[0];
 
 /** Toegang in de laatste 24 uur: [gelukt, mislukt (pogingen), per uur mislukt] */
@@ -5657,7 +5657,7 @@ function quietEditor(el, cfg, withSwitch) {
 const SYSINFO_ROWS = [
   ['RzMon', [['rzmon_update', '⬆ ' + L('RzMon bijgewerkt')]]],
   [L('Agents'), [['agent_update', '⬆ ' + L('Agent bijgewerkt')], ['agent_update_fail', '✘ ' + L('Agent bijwerken mislukt')], ['agent_connect', '🔌 ' + L('Agent verbonden')]]],
-  [L('Inloggen'), [['login_ok', '🔑 ' + L('Ingelogd')], ['login_fail', '❌ ' + L('Mislukte login')]]],
+  [L('Inloggen'), [['login_ok', '🔑 ' + L('Ingelogd')], ['login_fail', '❌ ' + L('Mislukte login')], ['server_login', '🖥️ ' + L('Login op een server, van binnen (SSH of console)')]]],
   [L('Blokkades'), [['account_lock', '🔒 ' + L('Account geblokkeerd')], ['account_unlock', '🔓 ' + L('Account gedeblokkeerd')],
     ['ip_block', '⛔ ' + L('IP geblokkeerd')], ['ip_unblock', '✅ ' + L('Blokkade opgeheven')]]],
   [L('Kwetsbaarheden'), [['vuln_new', '🐞 ' + L('Nieuwe kwetsbaarheden')], ['vuln_upgrade', '📦 ' + L('Pakketten bijgewerkt of mislukt')]]],
