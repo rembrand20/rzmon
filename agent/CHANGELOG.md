@@ -5,6 +5,13 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.56.0 – 2026-10-26
+- **Webshell** (RzMon 1.87.0): stuurt mee welke shells of netwerkprogramma's (`sh`, `curl`, `wget`, `nc`, `python` …) door een webserver zijn gestart of als webgebruiker draaien. PHP-mail via `sendmail` telt niet.
+- **Proces stoppen** in de modus blokkeren, als RzMon erom vraagt: alleen als nummer én starttijd kloppen.
+- Elke 10 minuten de lijst met ingeschakelde systemd-services en -timers.
+- **Uitgaande verbindingen** naar adressen buiten je netwerk, per programma (hooguit 100).
+- **Uitgaand blokkeren** naar bekende aanvallers (als RzMon het vraagt), ook voor containers: extra chains `output` en `out_fw` in de tabel `inet rzmon`.
+
 ## 1.55.1 – 2026-10-26
 - Het installatiescript haalt de agent op met de **downloadsleutel** die RzMon erin zet (RzMon 1.86.0). Is RzMon van buiten *niet herkenbaar*, dan levert het het script en de agent alleen met die sleutel, of aan een server die al als agent bekend is. Bestaande agents hoeven niet bij te werken: hun bekende IP-adres is genoeg.
 

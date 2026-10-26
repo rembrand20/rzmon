@@ -7,6 +7,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.87.0 – 2026-10-26
+### Nieuw
+- **🕸️ Webshell** (IDS, **agent 1.56.0 nodig**): een webserver (nginx, apache, php-fpm …) die een shell of `curl`/`wget`/`python` start, is critical. In de modus blokkeren kan de agent dat proces meteen stoppen (schakelaar, standaard uit). Met **✅ Vrijgeven** wordt het voortaan niet meer gemeld of gestopt.
+- **Nieuwe automatisch startende dienst of timer** (systemd): warning, tijdens pakketupdates stil.
+- **🌐 Uitgaande verbindingen**:
+  - Naar een **bekende aanvaller**: critical.
+  - Naar een land buiten je normale landen: warning, per programma; tijdens de basismeting aangeleerd.
+  - In de modus blokkeren optioneel uitgaand geblokkeerd, ook vanuit containers.
+  - **✅ Vrijgeven** zet het IP op de whitelist.
+- Alles aan of uit bij *Instellingen → 🛡️ IDS*. Melden staat standaard aan, stoppen en blokkeren uit.
+- Filters op de IDS-pagina: *🌐 Uitgaand* en *🕸️ Webshell en diensten*.
+- Nieuwe agent 1.56.0.
+
 ## 1.86.0 – 2026-10-26
 ### Nieuw
 - **🕶️ Onzichtbaar van buiten** (*Instellingen → 🔐 Beveiliging → Onzichtbaar van buiten*), met schakelaars:

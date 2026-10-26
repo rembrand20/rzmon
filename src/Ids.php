@@ -73,6 +73,11 @@ final class Ids
         foreach (IpIntel::agentNets() as $net) {
             $out[] = implode("\t", [0, 'knet', $net]);
         }
+        // 1.87.0: ook uitgaand naar bekende aanvallers blokkeren, en processen stoppen (webshell)
+        if (self::blocking() && setting('ids_outbound_block', '0') === '1') {
+            $out[] = implode("\t", [0, 'outblock', 1]);
+        }
+        array_push($out, ...self::killLines($hostId));
         return $out;
     }
 
@@ -197,6 +202,19 @@ final class Ids
                 self::incident($ctx, 1, 'outbound', $peer, t('Verbinding naar verdachte poort') . ': ' . $peer . ' (' . ($c['proc'] ?? '?') . ')',
                     t('Poorten als {ports} worden vaak door malware gebruikt.', ['ports' => implode(', ', self::BAD_PORTS)]), $ip);
             }
+        }
+        // Agent 1.56.0 (RzMon 1.87.0): webshell, automatisch startende diensten, uitgaande verbindingen, gestopte processen
+        if (setting('ids_webshell', '1') === '1') {
+            self::webshells($ctx, (array) ($ids['web'] ?? []));
+        }
+        self::killResults($hid, (array) ($ids['killed'] ?? []));
+        if (setting('ids_persist', '1') === '1' && isset($ids['units'])) {
+            // Tijdens een pakketupdate: stil vastleggen (die zet zelf diensten aan)
+            self::simpleSet($updating ? ['learning' => true] + $ctx : $ctx, 'unit', (array) $ids['units'], 'unit_new', t('Nieuwe automatisch startende dienst'),
+                t('Een systemd-service of -timer die bij het opstarten (of op een vaste tijd) draait. Zo blijft een aanvaller na een herstart aanwezig. Kwam hij niet van een pakket of van jou? Kijk wat hij start: systemctl cat <naam>.'), true);
+        }
+        if (setting('ids_outbound', '1') === '1') {
+            self::outbound($ctx, (array) ($ids['out'] ?? []));
         }
         self::logins($ctx, $auth);
         if (is_array($ids['fim'] ?? null)) {
@@ -621,6 +639,105 @@ final class Ids
         }
     }
 
+    // ------------------------------------------------------------------ webshell en uitgaand (1.87.0)
+
+    /** Vrijgeven of "Dit is normaal" gebruikt? (dan geen incident en niets stoppen) */
+    private static function ignored(int $hid, string $type, string $key): bool
+    {
+        return (bool) q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'ignore' AND item = ?", [$hid, mb_substr("$type|$key", 0, 255)])->fetchColumn();
+    }
+
+    /**
+     * Webshell: een shell of netwerkprogramma gestart door een webserver (of als webgebruiker). Critical; in de modus
+     * blokkeren (en met "proces stoppen" aan) stopt de agent het proces. Vrijgeven = voortaan niet meer (per webserver,
+     * programma en het begin van de opdracht).
+     */
+    private static function webshells(array $ctx, array $list): void
+    {
+        $hid = (int) $ctx['host']['id'];
+        foreach (array_slice($list, 0, 20) as $w) {
+            $web = mb_substr((string) ($w['web'] ?? '?'), 0, 40);
+            $tool = mb_substr((string) ($w['tool'] ?? '?'), 0, 40);
+            $cmd = mb_substr((string) ($w['cmd'] ?? ''), 0, 300);
+            // Handtekening: webserver, programma en de eerste twee woorden van de opdracht (zonder getallen)
+            $words = array_slice(preg_split('/\s+/', trim((string) preg_replace('/\d+/', '#', $cmd))) ?: [], 0, 2);
+            $key = "$web|$tool|" . implode(' ', $words);
+            if (self::ignored($hid, 'webshell', $key)) {
+                continue;
+            }
+            $kill = self::blocking() && setting('ids_webshell_kill', '0') === '1' && (int) ($w['pid'] ?? 0) > 1;
+            self::incident($ctx, 2, 'webshell', $key, t('Mogelijke webshell: {web} start {tool}', ['web' => $web, 'tool' => $tool]),
+                'pid ' . (int) ($w['pid'] ?? 0) . ' · ' . t('gebruiker') . ' ' . ($w['user'] ?? '?') . ' · ' . $cmd . ' · '
+                . t('Een webserver hoort geen shell of netwerkprogramma te starten. Waarschijnlijk is via een lek in een website een opdracht uitgevoerd.')
+                . ($kill ? ' · ⛔ ' . t('proces wordt gestopt') : ''), null, true);
+            if ($kill) {
+                q('INSERT IGNORE INTO ids_kills (host_id, pid, start, dkey, created_at) VALUES (?, ?, ?, ?, ?)',
+                    [$hid, (int) $w['pid'], (int) ($w['start'] ?? 0), mb_substr($key, 0, 255), now()]);
+            }
+        }
+    }
+
+    /** Uitkomst van "proces stoppen" van de agent: [pid, starttijd, ok|weg|fout] */
+    private static function killResults(int $hid, array $list): void
+    {
+        foreach (array_slice($list, 0, 50) as $k) {
+            [$pid, $start, $res] = [(int) ($k[0] ?? 0), (int) ($k[1] ?? 0), (string) ($k[2] ?? '')];
+            $row = q('SELECT id, dkey FROM ids_kills WHERE host_id = ? AND pid = ? AND start = ? AND done_at IS NULL', [$hid, $pid, $start])->fetch();
+            if (!$row) {
+                continue;
+            }
+            $label = ['ok' => t('gestopt'), 'weg' => t('was al gestopt'), 'fout' => t('stoppen mislukt')][$res] ?? $res;
+            q('UPDATE ids_kills SET done_at = ?, result = ? WHERE id = ?', [now(), mb_substr($label, 0, 100), $row['id']]);
+            q("UPDATE ids_incidents SET detail = LEFT(CONCAT(REPLACE(detail, ?, ''), ?), 1000) WHERE host_id = ? AND type = 'webshell' AND dkey = ? AND created_at >= NOW() - INTERVAL 1 DAY",
+                [' · ⛔ ' . t('proces wordt gestopt'), " · ⛔ pid $pid $label", $hid, $row['dkey']]);
+        }
+    }
+
+    /** Regels voor de agent: processen die gestopt moeten worden (hooguit 10 minuten geldig) */
+    private static function killLines(int $hostId): array
+    {
+        if (!self::blocking() || setting('ids_webshell_kill', '0') !== '1') {
+            return [];
+        }
+        return array_map(static fn($k) => implode("\t", [0, 'kill', (int) $k['pid'], (int) $k['start']]),
+            q('SELECT pid, start FROM ids_kills WHERE host_id = ? AND done_at IS NULL AND created_at >= ?', [$hostId, date('Y-m-d H:i:s', time() - 600)])->fetchAll());
+    }
+
+    /**
+     * Uitgaande verbindingen: naar een bekende aanvaller critical (malware, cryptominer, command-and-control); naar een land
+     * buiten je normale landen warning, per programma en land. Tijdens de basismeting wordt dat laatste stil aangeleerd.
+     * Vrijgeven: een IP op de whitelist (dan ook niet meer geblokkeerd), of "Dit is normaal" voor programma + land.
+     */
+    private static function outbound(array $ctx, array $list): void
+    {
+        $hid = (int) $ctx['host']['id'];
+        $countries = setting('ids_outbound_country', '1') === '1' ? IpIntel::allowedCountries() : [];
+        $blocked = self::blocking() && setting('ids_outbound_block', '0') === '1' && IpIntel::blocklistsOn();
+        foreach (array_slice($list, 0, 100) as $o) {
+            $proc = mb_substr((string) ($o[0] ?? '?'), 0, 40) ?: '?';
+            $ip = (string) preg_replace('/^::ffff:(?=\d+\.)/i', '', (string) ($o[1] ?? ''));
+            $port = (int) ($o[2] ?? 0);
+            if (@inet_pton($ip) === false || ip_in_list($ip, PRIVATE_NETWORKS) || self::internalIp($ip) || Whitelist::ip($ip)) {
+                continue;
+            }
+            if ($bad = IpIntel::bad($ip)) {
+                self::incident($ctx, 2, 'out_bad', "$proc|$ip", t('Uitgaande verbinding naar een bekende aanvaller: {proc} → {ip}', ['proc' => $proc, 'ip' => $ip]),
+                    t('Poort {port}, lijst: {list}. Dit wijst vaak op malware (een cryptominer of een verbinding met de aanvaller).', ['port' => $port, 'list' => $bad])
+                    . ($blocked ? ' · ⛔ ' . t('uitgaand verkeer naar bekende aanvallers wordt geblokkeerd') : ''), $ip);
+                continue;
+            }
+            if ($countries && ($cc = IpIntel::country($ip)) !== null && !in_array($cc, $countries, true)) {
+                if ($ctx['learning']) {
+                    q("INSERT IGNORE INTO ids_baseline (host_id, kind, item) VALUES (?, 'ignore', ?)", [$hid, mb_substr("out_country|$proc|$cc", 0, 255)]);
+                    continue;
+                }
+                self::incident($ctx, 1, 'out_country', "$proc|$cc", t('Uitgaande verbinding naar {cc}: {proc}', ['cc' => IpIntel::flag($cc), 'proc' => $proc]),
+                    t('{proc} maakt verbinding met {ip} (poort {port}), buiten je normale landen. Is dat normaal voor dit programma (updates, een cloud-dienst)? Klik dan Dit is normaal.',
+                        ['proc' => $proc, 'ip' => $ip, 'port' => $port]), $ip);
+            }
+        }
+    }
+
     /** Logins: brute force (en blokkeren), inlog na brute force, root via SSH, nieuw IP. */
     private static function logins(array $ctx, array $auth): void
     {
@@ -975,6 +1092,7 @@ final class Ids
     {
         self::autoClose();
         q('DELETE FROM ids_attempts WHERE at < NOW() - INTERVAL 1 DAY');
+        q('DELETE FROM ids_kills WHERE created_at < NOW() - INTERVAL 30 DAY');
         q('DELETE FROM ids_incidents WHERE created_at < NOW() - INTERVAL ? DAY', [Monitor::alertDays()]);
         // Bewaren zo lang als de meldingen, minstens 90 dagen (ook voor "eerder geblokkeerd": bij herhaling langer)
         $days = max(90, Monitor::alertDays());

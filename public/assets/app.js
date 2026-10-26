@@ -973,6 +973,7 @@ function init() {
     if (!b) return;
     try {
       if (b.dataset.ids === 'block') return idsBlockDialog(b.dataset.ip, b.dataset.host);
+      if (b.dataset.ids === 'release') return wlDialog({ type: 'ip', value: b.dataset.ip, src: 'ids', wl: false });
       // Een bundel in één keer: elk incident apart afhandelen
       if (b.dataset.many) { for (const id of b.dataset.many.split(',')) await api('ids_incident', { id: +id, action: b.dataset.ids }); }
       else if (b.dataset.ids) await api('ids_incident', { id: +b.dataset.id, action: b.dataset.ids });
@@ -4409,7 +4410,8 @@ function accIgnoreDialog(r) {
   });
 }
 
-const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'outbound', 'kev_port']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
+const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'kev_port']], ['net', () => '🌐 ' + L('Uitgaand'), ['outbound', 'out_bad', 'out_country']],
+  ['web', () => '🕸️ ' + L('Webshell en diensten'), ['webshell', 'unit_new']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
   ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🍯 ' + L('Honeypot'), ['decoy_user', 'decoy_port']]];
 const idsCatOf = (i) => (IDS_CATS.find((c) => c[2].includes(i.type)) || [''])[0];
 
@@ -4539,7 +4541,10 @@ function idsRow(i, group = null) {
   const fim = i.type === 'fim' || i.type === 'fim_bulk';
   const okLabel = fim ? (i.type === 'fim_bulk' ? L('✔ Alles goedkeuren') : L('✔ Wijziging goedkeuren')) : L('✔ Afhandelen');
   const normal = fim ? [L('🚫 Niet meer bewaken'), i.type === 'fim_bulk' ? L('Goedkeuren en wijzigingen onder dit pad voortaan niet meer melden') : L('Goedkeuren en dit bestand voortaan niet meer bewaken')]
+    : i.type === 'webshell' ? ['✅ ' + L('Vrijgeven'), L('Dit is normaal voor deze website: voortaan niet meer melden en niet meer stoppen')]
     : [L('Dit is normaal'), L('Afhandelen en dit voortaan niet meer melden')];
+  // Uitgaand naar een bekende aanvaller: vrijgeven = het IP op de whitelist (dan ook niet meer geblokkeerd)
+  const release = i.type === 'out_bad' && i.ip ? ` <button type="button" class="btn small-btn" data-ids="release" data-ip="${esc(i.ip)}" title="${esc(L('Dit IP op de whitelist: nooit meer melden of blokkeren'))}">✅ ${L('Vrijgeven')}</button>` : '';
   const many = group && !done ? group.filter((x) => x.status === 'open').map((x) => x.id).join(',') : '';
   return `<div class="irow s${sev} ${done ? 'ids-done' : ''}">
     <i class="adot s${sev}"></i>
@@ -4550,7 +4555,7 @@ function idsRow(i, group = null) {
     <span class="ids-actions need-admin">${done ? `<button type="button" class="linkbtn" data-ids="reopen" data-id="${i.id}">↺ ${L('heropenen')}</button>`
       : many ? `<button type="button" class="btn small-btn" data-ids="handle" data-many="${many}" title="${esc(L('Alle {n} afhandelen', { n: many.split(',').length }))}">${okLabel} (${many.split(',').length})</button>`
       : `<button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">${okLabel}</button>
-         <button type="button" class="btn small-btn" data-ids="normal" data-id="${i.id}" title="${normal[1]}">${normal[0]}</button>`}
+         ${release || `<button type="button" class="btn small-btn" data-ids="normal" data-id="${i.id}" title="${normal[1]}">${normal[0]}</button>`}`}
       ${i.ip && !many ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}">⛔ ${L('Blokkeer IP')}</button>` : ''}</span>
   </div>`;
 }

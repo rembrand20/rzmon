@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.55.1"
+AGENT_VERSION="1.56.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1557,8 +1557,51 @@ if [ -n "$ids_mode" ]; then
         procs_json+="{\"pid\":${p#/proc/},\"exe\":\"$(json_escape "$exe")\",\"user\":\"$(stat -c %U "$p" 2>/dev/null)\",\"cmd\":\"$cmd\"},"
         n_procs=$((n_procs + 1)); [ "$n_procs" -ge 20 ] && break
     done
+    # 6b. Webshell (agent 1.56.0): een shell of netwerkprogramma dat gestart is door een webserver (nginx, apache,
+    #     php-fpm …) of draait als webgebruiker (www-data …). PHP's mail() via sendmail is normaal en telt niet.
+    web_json=""
+    if command -v ps >/dev/null 2>&1; then
+        while IFS=$'\t' read -r w_pid w_user w_tool w_web w_cmd; do
+            w_start=$(awk '{ print $22 }' "/proc/$w_pid/stat" 2>/dev/null) || continue
+            web_json+="{\"pid\":$w_pid,\"start\":${w_start:-0},\"user\":\"$(json_escape "$w_user")\",\"tool\":\"$(json_escape "$w_tool")\",\"web\":\"$(json_escape "$w_web")\",\"cmd\":\"$(printf '%s' "$w_cmd" | head -c 300 | json_text)\"},"
+        done < <(ps -eo pid=,ppid=,user:32=,comm=,args= 2>/dev/null | awk '
+            { p = $1; pp[p] = $2; us[p] = $3; cm[p] = $4; a = $0
+              sub(/^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]*/, "", a); ar[p] = a; o[++n] = p }
+            END { for (i = 1; i <= n; i++) { p = o[i]; c = cm[p]
+                    if (c !~ /^(sh|bash|dash|zsh|ksh|nc|ncat|netcat|socat|curl|wget|python[0-9.]*|perl|ruby|telnet|busybox)$/) continue
+                    if (ar[p] ~ /(sendmail|msmtp|ssmtp|postdrop)/) continue
+                    web = ""; q = pp[p]
+                    for (d = 0; d < 8 && q > 1 && web == ""; d++) { if (cm[q] ~ /^(nginx|apache2|httpd|php-fpm.*|php-cgi.*|lighttpd|caddy|uwsgi|gunicorn)$/) web = cm[q]; q = pp[q] }
+                    if (web == "" && us[p] ~ /^(www-data|apache|nginx|http|wwwrun|lighttpd)$/) web = "user:" us[p]
+                    if (web == "") continue
+                    printf "%s\t%s\t%s\t%s\t%s\n", p, us[p], c, web, ar[p]; if (++k >= 20) break } }')
+    fi
+    # 6c. Automatisch startende diensten en timers (agent 1.56.0): elke 10 minuten de lijst (systemctl, ingeschakeld)
+    units_part=""
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ] \
+        && { [ ! -f "$i_dir/units" ] || [ $(( $(date +%s) - $(stat -c %Y "$i_dir/units") )) -ge 600 ]; }; then
+        systemctl list-unit-files --type=service,timer --state=enabled --no-legend --no-pager 2>/dev/null | awk '{ print $1 }' \
+            | grep -E '^[A-Za-z0-9@._:-]+$' | head -n 500 >"$i_dir/units.tmp" && mv -f "$i_dir/units.tmp" "$i_dir/units" \
+            && units_part=",\"units\":[$(awk '{ printf "\"%s\",", $0 }' "$i_dir/units" | sed 's/,$//')]"
+    fi
+    # 6d. Proces stoppen (agent 1.56.0, alleen in de modus blokkeren): regel "0 <tab> kill <tab> pid <tab> starttijd" van
+    #     RzMon (webshell). Alleen als de starttijd klopt, dus nooit een ander proces dat dat nummer later kreeg.
+    killed_json=""
+    if [ "$ids_mode" = block ]; then
+        while IFS=$'\t' read -r z t k_pid k_start; do
+            [ "$z" = 0 ] && [ "$t" = kill ] && [[ "$k_pid" =~ ^[0-9]+$ ]] && [[ "$k_start" =~ ^[0-9]+$ ]] || continue
+            [ -f "$i_dir/killed.$k_pid.$k_start" ] && continue   # al gedaan; de regel kan nog even in de lijst staan
+            k_res=weg
+            if [ "$(awk '{ print $22 }' "/proc/$k_pid/stat" 2>/dev/null)" = "$k_start" ]; then
+                if kill -KILL "$k_pid" 2>/dev/null; then k_res=ok; else k_res=fout; fi
+            fi
+            : >"$i_dir/killed.$k_pid.$k_start"
+            killed_json+="[$k_pid,$k_start,\"$k_res\"],"
+        done <"$t_cache"
+        find "$i_dir" -maxdepth 1 -name 'killed.*' -mmin +1440 -delete 2>/dev/null
+    fi
     # 7. Verbindingen: een shell (of nc/socat) met een verbinding naar buiten, of uitgaand naar een verdachte poort
-    conns_json=""
+    conns_json=""; out_json=""; out_seen=""; n_out=0
     if command -v ss >/dev/null 2>&1; then
         listen=" $(ss -Htln 2>/dev/null | awk '{ p = $4; sub(/.*:/, "", p); printf "%s ", p }')"
         while IFS=$'\t' read -r c_procs c_pid c_local c_peer; do
@@ -1573,13 +1616,24 @@ if [ -n "$ids_mode" ]; then
             if [ -z "$kind" ] && [[ "$listen" != *" $local_port "* ]]; then
                 [[ " 1337 4444 4445 5555 6666 6667 6697 12345 31337 " == *" $peer_port "* ]] && kind=port
             fi
+            # Uitgaand (agent 1.56.0): naar welke adressen buiten je netwerk deze server verbindt, per programma
+            if [[ "$listen" != *" $local_port "* ]] && [ "$n_out" -lt 100 ]; then
+                case "$peer_ip" in
+                    10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|169.254.*|fe80:*|fc*|fd*|::ffff:10.*|::ffff:192.168.*|::ffff:172.*) ;;
+                    *) o_key=" ${c_proc:-?}|$peer_ip|$peer_port "
+                       if [[ "$out_seen" != *"$o_key"* ]]; then
+                           out_seen+="$o_key"; n_out=$((n_out + 1))
+                           out_json+="[\"$(json_escape "${c_proc:-?}")\",\"$(json_escape "$peer_ip")\",${peer_port:-0}],"
+                       fi ;;
+                esac
+            fi
             [ -n "$kind" ] && conns_json+="{\"kind\":\"$kind\",\"proc\":\"$(json_escape "$c_proc")\",\"pid\":${c_pid:-0},\"local\":\"$(json_escape "$c_local")\",\"peer\":\"$(json_escape "$c_peer")\"},"
         done < <(ss -tnpH state established 2>/dev/null | awk '{ names = ""; pid = 0; rest = $0
                 while (match(rest, /\("[^"]+",pid=[0-9]+/)) { s = substr(rest, RSTART + 2, RLENGTH - 2); split(s, a, "\",pid=")
                     names = names (names == "" ? "" : ",") a[1]; if (!pid) pid = a[2]; rest = substr(rest, RSTART + RLENGTH) }
                 if (names != "") print names "\t" pid "\t" $3 "\t" $4 }' | head -n 200)
     fi
-    ids_json="\"ids\":{\"mode\":\"$ids_mode\",\"fv\":2,\"files\":{${files_json%,}},\"users\":[${users_json%,}],\"groups\":{${groups_json%,}},\"modules\":[${mods_json%,}]${suid_part}${pkg_part},\"pkg\":$pkg_t,\"procs\":[${procs_json%,}],\"conns\":[${conns_json%,}],"
+    ids_json="\"ids\":{\"mode\":\"$ids_mode\",\"fv\":2,\"files\":{${files_json%,}},\"users\":[${users_json%,}],\"groups\":{${groups_json%,}},\"modules\":[${mods_json%,}]${suid_part}${pkg_part},\"pkg\":$pkg_t,\"procs\":[${procs_json%,}],\"conns\":[${conns_json%,}],\"web\":[${web_json%,}],\"out\":[${out_json%,}],\"killed\":[${killed_json%,}]${units_part},"
 
     # 8. Bestanden bewaken (regel "0 <tab> fim <tab> base64" met e <tab> epoch, p <tab> ernst <tab> pad, x <tab> uitsluiten).
     #    Elke run een snelle controle (grootte, tijd, rechten, eigenaar); alleen bij een verschil een nieuwe hash.
@@ -1686,6 +1740,10 @@ fw_apply() {  # fw_apply <"counter;" of "">
     [ -n "$want6" ] && el6=" elements = { ${want6%, } };"
     [ -n "$kn4" ] && ek4=" elements = { ${kn4%, } };"
     [ -n "$kn6" ] && ek6=" elements = { ${kn6%, } };"
+    # Uitgaand naar bekende aanvallers (agent 1.56.0, regel "0 <tab> outblock <tab> 1"): ook voor containers (forward)
+    local ob=""
+    [ "$outblock" = 1 ] && ob='  chain output { type filter hook output priority -5; policy accept; ip daddr @kn4 drop; ip6 daddr @kn6 drop; }
+  chain out_fw { type filter hook forward priority -5; policy accept; ip daddr @kn4 drop; ip6 daddr @kn6 drop; }'
     [ -n "$decoy_port" ] && dc=" iifname != \"lo\" meta nfproto ipv4 tcp dport $decoy_port add @dc4 { ip saddr } drop; iifname != \"lo\" meta nfproto ipv6 tcp dport $decoy_port add @dc6 { ip6 saddr } drop;"
     { echo "table inet rzmon"; echo "delete table inet rzmon"; echo "table inet rzmon {"
       echo "  set bl4 { type ipv4_addr; $1$el4 }"
@@ -1695,12 +1753,13 @@ fw_apply() {  # fw_apply <"counter;" of "">
       echo "  set dc4 { type ipv4_addr; flags dynamic,timeout; timeout 1h; }"
       echo "  set dc6 { type ipv6_addr; flags dynamic,timeout; timeout 1h; }"
       echo "  chain input { type filter hook input priority -5; policy accept; ip saddr @bl4 drop; ip6 saddr @bl6 drop; ip saddr @kn4 drop; ip6 saddr @kn6 drop;$dc }"
+      [ -n "$ob" ] && echo "$ob"
       echo "}"; } | nft -f - 2>"$i_dir/fw.err"
 }
 fw_build() {  # opnieuw opbouwen als de lijst of de lokaas-poort veranderde; zet fw_err
     fw_err=""
     local sig
-    sig=$(printf '%s|%s|%s|%s|%s' "$want4" "$want6" "$decoy_port" "$kn4" "$kn6" | sha1sum | cut -c1-16)
+    sig=$(printf '%s|%s|%s|%s|%s|%s' "$want4" "$want6" "$decoy_port" "$kn4" "$kn6" "$outblock" | sha1sum | cut -c1-16)
     if ! nft list table inet rzmon >/dev/null 2>&1 || [ "$(cat "$i_dir/fw.sig" 2>/dev/null)" != "$sig" ]; then
         if fw_apply "counter;" || fw_apply ""; then
             echo "$sig" >"$i_dir/fw.sig"
@@ -1709,7 +1768,8 @@ fw_build() {  # opnieuw opbouwen als de lijst of de lokaas-poort veranderde; zet
         fi
     fi
 }
-want4=""; want6=""; kn4=""; kn6=""
+want4=""; want6=""; kn4=""; kn6=""; outblock=0
+[ "$ids_mode" = block ] && grep -q $'^0\toutblock\t1' "${t_cache:-/dev/null}" 2>/dev/null && outblock=1
 if [ "$ids_mode" = block ]; then
     if command -v midclt >/dev/null 2>&1; then
         fw_json="\"fw\":{\"state\":\"unsupported\",\"err\":\"TrueNAS: alleen detecteren\"}"

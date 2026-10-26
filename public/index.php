@@ -560,6 +560,17 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="muted small" id="ipintel-status"></p>
           <p class="muted small" style="margin-top:-.4rem"><?= t('IP-landgegevens: <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a> (CC BY 4.0). Opzoeken gebeurt op de RzMon-server zelf; er gaat per login niets naar buiten.') ?>
             <button type="button" class="btn small-btn" id="ipintel-update"><?= th('Nu bijwerken') ?></button></p>
+          <h3 class="set-sub"><?= th('🕸️ Webshell en persistentie') ?> <span class="muted small"><?= th('(agent 1.56.0)') ?></span></h3>
+          <label class="switch"><input type="checkbox" name="ids_webshell"><span></span> <span><?= t('<b>Webshell</b>: een webserver (nginx, apache, php-fpm …) start een shell of een programma als <code>curl</code>, <code>wget</code> of <code>python</code>') ?></span></label>
+          <label class="switch"><input type="checkbox" name="ids_webshell_kill"><span></span> <span><?= t('In de modus blokkeren dat <b>proces meteen stoppen</b>') ?></span></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Critical, ook naar Pushover. Is het toch normaal (bv. een beheerpaneel dat scripts start)? Klik bij het incident <b>✅ Vrijgeven</b>: dan wordt het voortaan niet meer gemeld of gestopt. PHP-mail via <code>sendmail</code> telt niet.') ?></p>
+          <label class="switch"><input type="checkbox" name="ids_persist"><span></span> <span><?= t('<b>Nieuwe automatisch startende dienst of timer</b> (systemd)') ?></span></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= th('Zo blijft een aanvaller na een herstart aanwezig. Tijdens een pakketupdate niet gemeld; nieuwe cronjobs en unit-bestanden ziet de IDS al bij de bestanden.') ?></p>
+          <h3 class="set-sub"><?= th('🌐 Uitgaande verbindingen') ?> <span class="muted small"><?= th('(agent 1.56.0)') ?></span></h3>
+          <label class="switch"><input type="checkbox" name="ids_outbound"><span></span> <span><?= t('Melden als een server verbinding maakt met een <b>bekende aanvaller</b> (critical)') ?></span></label>
+          <label class="switch"><input type="checkbox" name="ids_outbound_country"><span></span> <span><?= t('…en met een land buiten je <b>normale landen</b> (warning, per programma aan te leren)') ?></span></label>
+          <label class="switch"><input type="checkbox" name="ids_outbound_block"><span></span> <span><?= t('In de modus blokkeren uitgaand verkeer naar bekende aanvallers <b>blokkeren</b> (ook vanuit containers)') ?></span></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Zo valt een server op die al besmet is: een cryptominer of een verbinding met de aanvaller. In de eerste uren (de basismeting) leert de IDS welke landen normaal zijn. Vrijgeven: bij het incident <b>✅ Vrijgeven</b> zet het IP op de whitelist (1, 7, 30 dagen of altijd), of <b>Dit is normaal</b> voor dat programma en land.') ?></p>
           <h3 class="set-sub"><?= th('📬 Wekelijks overzicht') ?></h3>
           <div class="row3">
             <label><?= th('Versturen via') ?><select name="ids_weekly"><option value="off"><?= th('uit') ?></option><option value="email"><?= th('e-mail') ?></option><option value="pushover">Pushover</option><option value="both"><?= th('e-mail en Pushover') ?></option></select></label>

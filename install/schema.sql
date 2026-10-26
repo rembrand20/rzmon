@@ -542,6 +542,23 @@ CREATE TABLE IF NOT EXISTS stealth_doors (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('stealth_hide', '1'), ('stealth_ui', '0'), ('stealth_countries', '1'), ('stealth_door', '1'), ('passkeys_enabled', '1');
 
+-- 1.87.0: IDS – processen die de agent moet stoppen (webshell, modus blokkeren); pid + starttijd, zodat nooit een ander
+-- proces met hetzelfde nummer geraakt wordt
+CREATE TABLE IF NOT EXISTS ids_kills (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    pid        INT UNSIGNED NOT NULL,
+    start      BIGINT UNSIGNED NOT NULL,
+    dkey       VARCHAR(255) NOT NULL DEFAULT '',
+    created_at DATETIME     NOT NULL,
+    done_at    DATETIME     NULL,
+    result     VARCHAR(100) NULL,
+    UNIQUE KEY uq_kill (host_id, pid, start),
+    CONSTRAINT fk_kill_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_webshell', '1'), ('ids_webshell_kill', '0'), ('ids_persist', '1'),
+    ('ids_outbound', '1'), ('ids_outbound_country', '1'), ('ids_outbound_block', '0');
+
 CREATE TABLE IF NOT EXISTS security_fails (
     id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     ip         VARCHAR(45) NOT NULL,

