@@ -2235,6 +2235,14 @@ switch ($action) {
         Discover::ignore((int) ($in['host_id'] ?? 0), (array) ($in['keys'] ?? []), empty($in['undo']));
         out(['ok' => true]);
 
+    case 'cleanup':   // 1.96.0: opschoonadvies
+        out(['items' => Cleanup::advice()]);
+
+    case 'cleanup_ignore':
+        $in = input();
+        Cleanup::ignore((int) ($in['check_id'] ?? 0), preg_replace('/[^a-z]/', '', (string) ($in['kind'] ?? '')));
+        out(['ok' => true]);
+
     case 'checks_all':
         out(['checks' => q('SELECT c.id, c.host_id, h.name AS host_name, c.type, c.target, c.name, c.metric, c.warn_threshold, c.crit_threshold, c.interval_sec, c.enabled,
                 c.status, c.notify IS NOT NULL AS own_notify, c.notify_fails, c.info_only, c.maintenance_until, c.last_checked, c.template_item_id, c.tpl_override, t.name AS template_name
@@ -3275,7 +3283,7 @@ switch ($action) {
     // ---------- Databasewachtwoord vernieuwen (alleen beheerders) ----------
     case 'setup_info':   // 1.92.0: de setup-pagina in de portal (Instellingen → Systeem)
         out(['checks' => array_map(static fn($c) => ['label' => $c[0], 'ok' => $c[1], 'detail' => $c[2]], Setup::checks(true, null)),
-            'php_env' => Setup::phpInfo(), 'cron' => Setup::cronLine()] + Setup::config());
+            'php_env' => Setup::phpInfo(), 'cron' => Setup::cronLine(), 'self' => SelfCheck::report()] + Setup::config());
 
     case 'setup_db_test':
         $in = input();

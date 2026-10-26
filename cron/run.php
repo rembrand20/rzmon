@@ -20,8 +20,15 @@ $lock = @fopen($lockFile, 'c');
 if ($lock === false) {
     fwrite(STDERR, "Kan lockbestand $lockFile niet openen; ga door zonder overlapbeveiliging\n");
 } elseif (!flock($lock, LOCK_EX | LOCK_NB)) {
+    if (is_configured()) {
+        try {
+            save_setting('cron_overlap_at', now());   // de vorige ronde duurde langer dan een minuut (systeemcheck)
+        } catch (Throwable) {
+        }
+    }
     exit("Vorige run is nog bezig\n");
 }
+$cronStart = microtime(true);
 
 if ($err = Installer::ensureSchema()) {
     fwrite(STDERR, "$err\n");
@@ -114,4 +121,11 @@ try {
     }
 } catch (Throwable $e) {
     fwrite(STDERR, 'Taken: ' . $e->getMessage() . "\n");
+}
+// Gezondheid van RzMon zelf (1.96.0): dagelijks de grootte van de database, en hoe lang deze ronde duurde
+try {
+    SelfCheck::daily();
+    SelfCheck::cronDone(microtime(true) - $cronStart);
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Systeemcheck: ' . $e->getMessage() . "\n");
 }

@@ -221,7 +221,8 @@ final class Installer
         ['hosts', 'isolate_state', 'VARCHAR(255) NULL'],
         ['checks', 'template_item_id', 'INT UNSIGNED NULL'],     // uit welk sjabloon deze check komt (1.94.0)
         ['checks', 'tpl_override', 'TINYINT(1) NOT NULL DEFAULT 0'],   // per server aangepast: gaat niet meer mee met het sjabloon
-        ['hosts', 'discover_ignore', 'TEXT NULL'],               // voorstellen die je negeert (1.95.0), JSON-lijst van sleutels
+        ['hosts', 'discover_ignore', 'TEXT NULL'],
+        ['checks', 'run_ms', 'INT UNSIGNED NULL'],               // hoe lang de laatste uitvoering duurde (1.96.0)               // voorstellen die je negeert (1.95.0), JSON-lijst van sleutels
         ['hosts', 'agent_url_pin', 'VARCHAR(200) NULL'],   // 1.78.0: hoe de agent zijn adres controleert ("-" of sha256//…)
         ['hosts', 'agent_url_fb_pin', 'VARCHAR(200) NULL'],
         ['hosts', 'agent_https', 'VARCHAR(3) NULL'],

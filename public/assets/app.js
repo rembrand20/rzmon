@@ -5578,7 +5578,7 @@ function initMainTabs() {
 // Elk onderdeel toont een of meer kaarten (data-sk); de kaarten zelf (en hoe ze opslaan) zijn niet veranderd.
 const SET_NAV = [
   ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']], ['conn', L('Verbindingen en taken'), ['conn']]]],
-  ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']]]],
+  ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']], ['cleanup', L('Opschoonadvies'), ['cleanup']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook']], ['rules', L('Meldregels en stille uren'), ['notify']], ['alarm', L('Alarmgedrag'), ['alarm']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['beveiliging', '🛡️', L('Beveiliging'), [['ids', L('IDS: detectie'), ['ids']], ['ids_attack', L('IDS: aanvallers en verkeer'), ['ids_attack']], ['ids_servers', L('IDS: servers'), ['ids_servers']],
     ['vulns', L('Kwetsbaarheden'), ['vulns']], ['hibp', L('Datalekken'), ['hibp']]]],
@@ -5617,6 +5617,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'conn') loadConn();
   if (setSection === 'templates') loadTemplates();
   if (setSection === 'allchecks') loadAllChecks();
+  if (setSection === 'cleanup') loadCleanup();
   if (setSection === 'syscheck') loadSyscheck();
   if (setSection === 'server' || setSection === 'db') loadSetupInfo();
   if (focusEl) {
@@ -6849,6 +6850,43 @@ function initAllChecks() {
   });
 }
 
+// ---- 🧹 Opschoonadvies (1.96.0)
+const CLEANUP_KIND = { unknown: () => '❔ ' + L('Al dagen onbekend'), noisy: () => '📣 ' + L('Ruismakers'), flap: () => '🔁 ' + L('Wisselt steeds'),
+  warn: () => '🟠 ' + L('Al lang in warning'), tight: () => '🎚 ' + L('Net onder de drempel'), off: () => '⏸ ' + L('Al lang uit') };
+let cleanupData = null;
+async function loadCleanup() {
+  const box = $('#cleanup-list');
+  if (!box) return;
+  $('#cleanup-reload').onclick = loadCleanup;
+  try { cleanupData = (await api('cleanup')).items; } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const groups = Object.keys(CLEANUP_KIND).map((k) => [k, cleanupData.filter((i) => i.kind === k)]).filter(([, l]) => l.length);
+  const fixBtn = (i) => ({ fails3: `<button type="button" class="btn small-btn" data-cl-fix="fails3" data-id="${i.check_id}">${L('Melden na 3')}</button>`,
+    disable: `<button type="button" class="btn small-btn" data-cl-fix="disable" data-id="${i.check_id}">⏸ ${L('Uitzetten')}</button>`,
+    delete: `<button type="button" class="btn small-btn danger" data-cl-fix="delete" data-id="${i.check_id}">🗑 ${L('Verwijderen')}</button>` })[i.fix] || '';
+  box.innerHTML = groups.length ? groups.map(([k, list]) => `<h3 class="set-sub">${CLEANUP_KIND[k]()} <span class="muted small">${list.length}</span></h3>
+    ${list.map((i) => `<div class="cl-row"><div class="grow"><b>${esc(i.host)} · <a href="#" data-cl-edit="${i.check_id}">${esc(i.name)}</a></b> <span class="muted small">${esc((TYPES[i.type] || {}).label || i.type)}</span>
+        <div class="small">${esc(i.detail)}</div><div class="muted small">💡 ${esc(i.advice)}</div></div>
+      <div class="cl-act">${fixBtn(i)} <button type="button" class="btn small-btn" data-cl-ign="${esc(i.kind)}" data-id="${i.check_id}" title="${esc(L('Dit is normaal: niet meer tonen'))}">🙈</button></div></div>`).join('')}`).join('')
+    : `<p class="good-txt">✔ ${L('Niets op te ruimen. Alle checks zien er gezond uit.')}</p>`;
+  box.onclick = async (e) => {
+    const ed = e.target.closest('[data-cl-edit]');
+    if (ed) { e.preventDefault(); const h = state.hosts.find((x) => x.checks.some((c) => +c.id === +ed.dataset.clEdit)); if (h) checkForm(h.checks.find((c) => +c.id === +ed.dataset.clEdit), h); return; }
+    const b = e.target.closest('[data-cl-fix], [data-cl-ign]');
+    if (!b) return;
+    const id = +b.dataset.id;
+    try {
+      if (b.dataset.clIgn) { await api('cleanup_ignore', { check_id: id, kind: b.dataset.clIgn }); toast(L('Wordt niet meer getoond')); }
+      else if (b.dataset.clFix === 'fails3') { await api('checks_bulk', { ids: [id], action: 'set', values: { notify_fails: 3 } }); toast(L('Meldt nu pas na 3 mislukte checks')); }
+      else if (b.dataset.clFix === 'disable') { await api('checks_bulk', { ids: [id], action: 'set', values: { enabled: false } }); toast(L('Uitgezet')); }
+      else if (b.dataset.clFix === 'delete') {
+        return modal({ title: L('Check verwijderen'), body: confirmField('VERWIJDEREN'), buttons: [{ label: L('Verwijderen'), cls: 'danger', submit: true }],
+          onSubmit: async (d) => { await api('checks_bulk', { ids: [id], action: 'delete', confirm: d.confirm }); toast(L('Check verwijderd')); setTimeout(loadCleanup, 50); } });
+      }
+      loadCleanup(); refresh();
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+}
+
 // ---------------------------------------------------------------- 📡 Verbindingen en taken (1.91.0)
 const tsAgo = (ts) => (ts ? ago(new Date(ts * 1000).toISOString()) : L('nooit'));
 const tsWhen = (ts) => (ts ? new Date(ts * 1000).toLocaleString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '–');
@@ -6901,9 +6939,33 @@ async function loadSyscheck() {
       <span class="ic">${c.ok === true ? '✓' : c.ok === null ? '!' : '✕'}</span><span><strong>${esc(c.label)}</strong><br><span class="muted small">${esc(c.detail)}</span></span></li>`).join('')}</ul>
     <details class="small api-docs"><summary>${L('PHP-omgeving')}</summary>
       <table class="kv">${Object.entries(d.php_env).map(([k, v]) => `<tr><th>${esc(k)}</th><td class="mono">${esc(v)}</td></tr>`).join('')}</table></details>
+    ${selfReport(d.self)}
     <h3 class="set-sub">⏱️ Cron</h3>
     <p class="muted small">${L('De checks draaien elke minuut via cron. Plaats deze regel op de server (als root):')}</p>${copyBox('cron-line', d.cron)}`;
   wireCopy(box);
+}
+
+/** Gezondheid van RzMon (1.96.0): database, cron, traagste checks, PHP-fouten */
+function selfReport(r) {
+  if (!r) return '';
+  const db = r.db, c = r.cron;
+  const dbLine = `${L('Database: {s}', { s: fmtBytes(db.size) })}${db.growth_day != null ? ' · ' + L('groeit {g} per dag', { g: fmtBytes(db.growth_day) }) : ` · <span class="muted">${L('groei: na een paar dagen bekend')}</span>`}`
+    + (db.free != null ? ' · ' + L('vrij op de disk: {f}', { f: fmtBytes(db.free) }) : '')
+    + (db.full_days != null ? ` · <b class="${db.full_days < 30 ? 'bad' : db.full_days < 90 ? 'warn-txt' : ''}">${L('vol over ~{n} dagen', { n: db.full_days })}</b>` : '');
+  return `<h3 class="set-sub">🗄️ ${L('Database')}</h3><p class="small">${dbLine}</p>
+    <details class="small api-docs"><summary>${L('Grootste tabellen')}</summary><table class="kv">${db.tables.map((t) => `<tr><th class="mono">${esc(t.name)}</th><td>${fmtBytes(+t.bytes)} · ${L('{n} rijen', { n: (+t.rows).toLocaleString(LOCALE) })}</td></tr>`).join('')}</table>
+      <p class="muted">${L('Meethistorie en meldingen bewaren stel je in bij Database en opslag.')}</p></details>
+    <h3 class="set-sub">⏱️ ${L('Duur van een ronde')}</h3>
+    <p class="small">${c ? L('Laatste {l} s · gemiddeld {a} s · langste {m} s (laatste {n} rondes)', { l: dec(c.last), a: dec(c.avg), m: dec(c.max), n: c.n })
+      + (c.over ? ` · <b class="bad">${L('{n} keer bijna een minuut of langer', { n: c.over })}</b>` : '')
+      + (c.overlap_at ? `<br><span class="warn-txt">${L('Laatst uitgelopen (vorige ronde nog bezig): {t}', { t: esc(fmtDateTime(c.overlap_at)) })}</span>` : '') : `<span class="muted">${L('Nog niet gemeten.')}</span>`}</p>
+    <h3 class="set-sub">🐢 ${L('Traagste checks')}</h3>
+    ${r.slow.length ? `<table class="kv small">${r.slow.map((s) => `<tr><th>${esc(s.host)} · ${esc(s.name)}</th><td>${(+s.run_ms).toLocaleString(LOCALE)} ms</td></tr>`).join('')}</table>
+      <p class="muted small">${L('Een trage check (time-out) houdt de rest van de ronde op. Kijk of het doel bereikbaar is, of geef hem een langer interval.')}</p>` : `<p class="small good-txt">✔ ${L('Geen trage checks (alles onder 0,1 seconde).')}</p>`}
+    <h3 class="set-sub">⚠️ ${L('PHP-fouten (24 uur)')}</h3>
+    ${r.errors.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Fout')}</th><th>${L('Waar')}</th><th>${L('Aantal')}</th><th>${L('Laatst')}</th></tr></thead><tbody>
+      ${r.errors.map((e) => `<tr><td><b class="${e.level === 'warning' ? 'warn-txt' : 'bad'}">${esc(e.level)}</b> ${esc(e.message)}</td><td class="mono">${esc(e.file)}:${e.line}<br><span class="muted">${esc(e.url)}</span></td>
+        <td>${e.count}</td><td class="nowrap">${esc(ago(e.last_at))}</td></tr>`).join('')}</tbody></table></div>` : `<p class="small good-txt">✔ ${L('Geen fouten.')}</p>`}`;
 }
 
 /** config.php kon niet geschreven worden (map vergrendeld): de inhoud om zelf te plaatsen */

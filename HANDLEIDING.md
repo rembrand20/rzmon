@@ -181,7 +181,7 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 - **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave op dit apparaat** (Blox of L1nes, Small of Large).
 - **Instellingen** (alleen beheerders): links een **zijbalk** met de groepen (vanaf 1.92.0):
   - **✅ Overzicht**: Hoe staat het ervoor? · Verbindingen en taken;
-  - **🧩 Checks**: Sjablonen · Alle checks (vanaf 1.94.0);
+  - **🧩 Checks**: Sjablonen · Alle checks · Opschoonadvies (vanaf 1.94.0);
   - **🔔 Meldingen**: Kanalen (Pushover, e-mail, Home Assistant-webhook) · Meldregels en stille uren · Alarmgedrag · Systeeminfo;
   - **🛡️ Beveiliging**: IDS: detectie · IDS: aanvallers en verkeer · IDS: servers · Kwetsbaarheden · Datalekken;
   - **🔐 Toegang**: Inloggen · Van buiten (https, onzichtbaar van buiten, apparaten en passkeys) · Gebruikers;
@@ -216,7 +216,11 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 Bij de **installatie** (en als de database niet bereikbaar is) is er de **setup-pagina** (`setup.php`, alleen vanaf je lokale netwerk): systeemcheck, database koppelen (en eventueel laten aanmaken), instellingen en de **eerste beheerder**.
 
 Daarna staat alles in de beheerportal (vanaf 1.92.0; `setup.php` stuurt je erheen), alleen voor **beheerders**:
-- *Instellingen → 🛠️ Systeem → **Systeemcheck***: PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en een kant-en-klare cron-regel.
+- *Instellingen → 🛠️ Systeem → **Systeemcheck***: PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en een kant-en-klare cron-regel. Vanaf 1.96.0 ook de gezondheid van RzMon zelf:
+  - de grootte van de database, met de grootste tabellen, de groei per dag en wanneer de disk vol is;
+  - hoe lang een ronde duurt, en of hij uitloopt boven de minuut;
+  - de traagste checks;
+  - PHP-fouten van de afgelopen 24 uur.
 - *→ **Database en opslag***: de databaseverbinding (testen, opslaan met je wachtwoord, tabellen bijwerken), het databasewachtwoord vernieuwen en hoe lang historie en meldingen bewaard blijven.
 - *→ **Server en PHP***: tijdzone, basis-URL, pad naar ping en PHP-instellingen (`memory_limit`, `max_execution_time`, `display_errors`).
 
@@ -1077,6 +1081,18 @@ AGENT_DIR=/mnt/<pool>/rzmon-agent bash /mnt/<pool>/rzmon-agent/rzmon-agent.sh --
 - **🙈 Gekozen negeren**: dan komt het voor die server niet meer terug. *Weer tonen* zet alles terug.
 
 **🧪 Nu proberen** (vanaf 1.95.0): in het checkformulier zie je meteen wat de check nu zou zeggen (status, waarde en bericht), voordat je opslaat. Er wordt niets bewaard of gemeld. Op een agent-server gebruikt RzMon het laatste rapport; een nieuwe service, log of commando ziet de agent pas bij zijn volgende rapport.
+
+### 7.11 Opschoonadvies 🧹
+
+*Instellingen → 🧩 Checks → Opschoonadvies* (vanaf 1.96.0) toont checks die je aandacht verdienen, elk met een voorstel:
+- **❔ Al dagen onbekend:** bestaat het doel nog? Knop *⏸ Uitzetten*.
+- **📣 Ruismakers:** 10 of meer meldingen in 7 dagen. Knop *Melden na 3*: dan meldt hij pas na 3 mislukte checks achter elkaar.
+- **🔁 Wisselt steeds:** 20 of meer statuswissels in 7 dagen.
+- **🟠 Al lang in warning:** langer dan 3 dagen; verhoog de drempel als het normaal is.
+- **🎚 Net onder de drempel:** de waarde zit gemiddeld binnen 10% onder de warning-drempel.
+- **⏸ Al lang uit:** meer dan 30 dagen; knop *🗑 Verwijderen*.
+
+Klik op een naam om de check te bewerken. Met 🙈 (*dit is normaal*) komt het punt niet meer terug.
 
 ## 8. Agent op Linux-servers
 

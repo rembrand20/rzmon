@@ -44,6 +44,8 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 
 **💡 Nog niet bewaakt** (1.95.0): wat de agent ziet maar nog geen check heeft (disks, services, containers, certificaten, open poorten) staat bij de server als *💡 N nieuw gevonden*: met één klik toevoegen of negeren. **🧪 Nu proberen** in het checkformulier toont het resultaat vóór je opslaat.
 
+**🧹 Opschoonadvies** (1.96.0): checks die al dagen onbekend zijn, ruismakers, flappers, al lang in warning, net onder de drempel of al lang uit, elk met een voorstel en een knop (melden na 3, uitzetten, verwijderen, niet meer tonen).
+
 **☑️ Alle checks** (1.94.0): één lijst met zoeken en filters; vink checks aan en pas ze tegelijk aan (interval, drempels, melden, onderhoud, aan/uit), kopieer ze naar andere servers of verwijder ze.
 
 **⇄ Omgekeerde status** (ping, poort, HTTP, service, container, Podman, commando, Home Assistant): kies zelf de status als de check slaagt (OK, warning of critical) en als hij mislukt. Voor iets dat juist níet mag draaien of bereikbaar mag zijn, zoals telnet of een oude server. Telt niet mee voor de bereikbaarheid van een server.
@@ -141,6 +143,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - de knop **Nu bijwerken** (of het label ⬆ bovenin): een venster met de vraag, eventueel eerst een back-up, en daarna een **voortgangsbalk** met waar de installatie mee bezig is;
   - of **automatisch** op een tijdstip naar keuze.
 - **Database** wordt vanzelf bijgewerkt bij een nieuwe versie.
+- **Gezondheid van RzMon** (1.96.0, *Systeemcheck*): de grootte en groei van de database (met wanneer de disk vol is), de duur van een cron-ronde, de traagste checks en PHP-fouten van de laatste 24 uur.
 - **📡 Verbindingen en taken** (*Instellingen → Overzicht*): wat er bij RzMon binnenkomt (agents met hun ritme en realtime, browsers, API-sleutels, heartbeats) en hoe RzMon's eigen achtergrondtaken lopen (cron, updates zoeken, blocklists, GeoIP, datalekken, kwetsbaarheden, certificaat, MQTT, back-up): laatst gelukt, volgende keer en eventuele fout. Lukt een taak te lang niet, dan volgt een ⚠️-melding via je gewone kanalen (en een ✅ als het weer lukt).
 - **💾 Back-up en herstel:**
   - automatisch elke dag, week of maand, of met de hand;

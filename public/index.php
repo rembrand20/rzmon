@@ -945,6 +945,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div id="ac-list"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
+      <div data-sk="cleanup" class="card need-admin" id="cleanup-card">
+        <h2>🧹 <?= th('Opschoonadvies') ?> <button type="button" class="btn small-btn" id="cleanup-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
+        <p class="muted small"><?= th('Checks die je aandacht verdienen: al dagen onbekend, de meeste meldingen (ruismakers), steeds wisselend, al lang in warning, net onder de drempel, of al lang uit. Met een voorstel; wat normaal is, zet je op "niet meer tonen".') ?></p>
+        <div id="cleanup-list"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+
       <div data-sk="conn" class="card need-admin" id="conn-card">
         <h2>📡 <?= th('Verbindingen en taken') ?> <button type="button" class="btn small-btn" id="conn-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
         <p class="muted small"><?= th('Wat er bij RzMon binnenkomt en wat RzMon zelf op de achtergrond doet. Lukt een taak te lang niet, dan krijg je een ⚠️-melding (Meldingen → Systeeminfo → Achtergrondtaak lukt niet).') ?></p>

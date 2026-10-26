@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.96.0 – 2026-10-26
+### Nieuw
+- **🧹 Opschoonadvies** (*Instellingen → 🧩 Checks*): checks die al dagen onbekend zijn, ruismakers (de meeste meldingen), checks die steeds wisselen, al lang in warning staan, net onder de drempel zitten of al lang uit staan. Elk met een voorstel en een knop: *melden na 3*, uitzetten, verwijderen, of *niet meer tonen*.
+- **Gezondheid van RzMon** in *Systeemcheck*:
+  - de grootte van de database, met de grootste tabellen, de groei per dag en wanneer de disk vol is;
+  - hoe lang een cron-ronde duurt, en of hij uitloopt;
+  - de traagste checks;
+  - PHP-fouten van de laatste 24 uur. RzMon houdt die nu zelf bij, samengevat per soort, 7 dagen.
+
+
 ## 1.95.0 – 2026-10-26
 ### Nieuw
 - **💡 Nog niet bewaakt:** wat de agent ziet maar nog geen check heeft, staat bij de server als *💡 N nieuw gevonden*. Het gaat om disks, services die draaien en automatisch starten, containers, certificaten en poorten die van buiten bereikbaar zijn. Vink aan en voeg toe, of negeer het, dan komt het niet meer terug.

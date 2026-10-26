@@ -1535,3 +1535,8 @@ code.ip-link { cursor: pointer; text-decoration: underline dotted; }
 /* Nog niet bewaakt en Nu proberen (1.95.0) */
 .discover-btn { border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
 .try-out { margin-top: .8rem; padding: .6rem .8rem; border: 1px dashed var(--border); border-radius: 10px; }
+
+/* Opschoonadvies (1.96.0) */
+.cl-row { display: flex; gap: .8rem; align-items: flex-start; padding: .55rem 0; border-bottom: 1px solid var(--border); }
+.cl-row .grow { flex: 1; min-width: 0; }
+.cl-act { display: flex; gap: .3rem; flex: none; }

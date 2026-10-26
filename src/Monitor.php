@@ -94,7 +94,9 @@ final class Monitor
             'snmp' => $row['host_snmp'] ?? null,
             'kind_auto' => $row['host_kind_auto'] ?? null,
         ];
+        $t0 = microtime(true);
         $res = Checks::run($row, $host);
+        q('UPDATE checks SET run_ms = ? WHERE id = ?', [(int) round((microtime(true) - $t0) * 1000), $row['id']]);   // traagste checks (systeemcheck)
         if ($row['type'] === 'disk') {
             $res = Stats::applyDiskForecast($row, $res);
         }

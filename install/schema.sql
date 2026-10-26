@@ -759,3 +759,17 @@ CREATE TABLE IF NOT EXISTS host_templates (
     CONSTRAINT fk_htpl_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE,
     CONSTRAINT fk_htpl_tpl FOREIGN KEY (template_id) REFERENCES check_templates(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- PHP-fouten van RzMon zelf (1.96.0), samengevat per soort; Instellingen → Systeem → Systeemcheck (7 dagen)
+CREATE TABLE IF NOT EXISTS app_errors (
+    hash     CHAR(40) NOT NULL PRIMARY KEY,
+    level    VARCHAR(10) NOT NULL,
+    message  VARCHAR(500) NOT NULL,
+    file     VARCHAR(200) NOT NULL DEFAULT '',
+    line     INT UNSIGNED NOT NULL DEFAULT 0,
+    url      VARCHAR(200) NOT NULL DEFAULT '',
+    count    INT UNSIGNED NOT NULL DEFAULT 1,
+    first_at DATETIME NOT NULL,
+    last_at  DATETIME NOT NULL,
+    INDEX idx_app_errors_last (last_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
