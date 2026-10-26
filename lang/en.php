@@ -3615,4 +3615,8 @@ return [
     'ouder: terugzetten' => 'older: roll back',
     '⚠️ <b>Terugzetten naar een oudere versie.</b> Je instellingen en gegevens blijven staan; de database blijft zoals hij is (nieuwere kolommen worden niet gebruikt). Wat er sindsdien bij kwam, werkt niet meer. Automatisch bijwerken pauzeert tot je weer naar de nieuwste gaat. Agents hoef je niet terug te zetten.' => '⚠️ <b>Rolling back to an older version.</b> Your settings and data stay; the database stays as it is (newer columns are not used). What was added since then no longer works. Automatic updating pauses until you go back to the latest. You don\'t need to roll back the agents.',
     'TERUGZETTEN' => 'ROLLBACK',
+    '{n} seconden' => '{n} seconds',
+    '1 minuut' => '1 minute',
+    'huidig' => 'current',
+    'Interval' => 'Interval',
 ];

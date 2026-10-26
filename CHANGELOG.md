@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.90.1 – 2026-10-26
+### Nieuw
+- **Interval van een check in minuten en uren** in plaats van seconden. Het formulier heeft een keuzelijst van 30 seconden tot 24 uur. Een bestaande check met een andere waarde (bv. 90 s) houdt die, als *1,5 minuten (huidig)*. Ook het info-venster van een check toont het zo.
+
 ## 1.90.0 – 2026-10-26
 ### Nieuw
 - **RzMon bijwerken: een versie kiezen** (*🔁 Andere versie…*). Je kiest uit alle versies van de changelog, ook oudere (terugzetten, met je wachtwoord). Niets kiezen is de nieuwste.

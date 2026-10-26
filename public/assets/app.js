@@ -9,6 +9,18 @@ const LANG = window.LANG || 'nl';
 const LOCALE = LANG === 'en' ? 'en-GB' : 'nl-NL';
 /** Decimaalteken: komma in het Nederlands, punt in het Engels */
 const dec = (v) => (LANG === 'en' ? String(v) : String(v).replace('.', ','));
+// Interval van een check (1.90.1): leesbaar in minuten en uren, en de keuzes in het formulier
+const INTERVALS = [30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 21600, 43200, 86400];
+function fmtInterval(sec) {
+  const s = +sec;
+  if (s < 60) return L('{n} seconden', { n: s });
+  if (s < 3600) { const m = Math.round(s / 6) / 10; return m === 1 ? L('1 minuut') : L('{n} minuten', { n: dec(m) }); }
+  const h = Math.round(s / 360) / 10;
+  return h === 1 ? L('1 uur') : L('{n} uur', { n: dec(h) });
+}
+/** <option>s voor het interval; een afwijkende waarde van een bestaande check komt erbij als "(huidig)" */
+const intervalOptions = (cur) => [...INTERVALS, ...(INTERVALS.includes(+cur) ? [] : [+cur])].sort((a, b) => a - b)
+  .map((v) => `<option value="${v}" ${+v === +cur ? 'selected' : ''}>${esc(fmtInterval(v))}${INTERVALS.includes(v) ? '' : ` (${L('huidig')})`}</option>`).join('');
 function L(s, vars) {
   let r = (window.I18N && window.I18N[s]) || s;
   if (vars) Object.entries(vars).forEach(([k, v]) => { r = r.split(`{${k}}`).join(String(v)); });
@@ -2139,7 +2151,7 @@ async function checkInfo(id) {
   const unit = t.unit || '';
   const rows = [
     ['Type', `${esc(t.label)}${c.target ? ` · <code>${esc(c.target)}</code>` : ''}`],
-    ['Interval', `${+c.interval_sec} s`],
+    ['Interval', fmtInterval(c.interval_sec)],
     ...(unit && (c.warn_threshold !== null || c.crit_threshold !== null) ? [[L('Drempels'), `${t.low ? L('onder') + ' ' : ''}${c.warn_threshold ?? '–'} / ${c.crit_threshold ?? '–'} ${esc(L(unit))}`]] : []),
     [L('Laatste check'), c.last_checked ? ago(c.last_checked) : L('nog niet')],
     [L('Beschikbaar'), r.uptime.d1 === null ? `<span class="muted">${L('nog geen metingen')}</span>` : `${L('24 u')} <b>${fmtPct(r.uptime.d1)}</b> · ${L('7 d')} <b>${fmtPct(r.uptime.d7)}</b>`],
@@ -2719,7 +2731,7 @@ function checkForm(c, h, preset = {}) {
       <div class="row3" id="thr-wrap">
         <label><span class="thr-word">${L('Warning vanaf')}</span> <span class="hint unit"></span><input name="warn_threshold" type="number" step="any" value="${c.warn_threshold ?? ''}"></label>
         <label><span class="thr-word">${L('Critical vanaf')}</span> <span class="hint unit"></span><input name="crit_threshold" type="number" step="any" value="${c.crit_threshold ?? ''}"></label>
-        <label>Interval <span class="hint">sec</span><input name="interval_sec" type="number" min="30" step="30" value="${c.interval_sec}"></label>
+        <label>${L('Interval')}<select name="interval_sec">${intervalOptions(c.interval_sec)}</select></label>
       </div>
       <div id="deep-wrap" hidden>
         <label class="switch"><input type="checkbox" name="deep" ${+(opts.deep ?? 1) ? 'checked' : ''}><span></span> ${L('Diepere controle')}</label>
@@ -2981,7 +2993,9 @@ function checkForm(c, h, preset = {}) {
     if (p) {
       const f = (n) => $(`[name=${n}]`, form);
       f('cmd').value = p.cmd; f('cmd_match').value = p.match; f('cmd_expect').value = p.expect; f('cmd_fail').value = p.fail;
-      f('cmd_timeout').value = p.timeout; f('interval_sec').value = p.interval;
+      f('cmd_timeout').value = p.timeout;
+      if (![...f('interval_sec').options].some((o) => +o.value === +p.interval)) f('interval_sec').innerHTML = intervalOptions(p.interval);
+      f('interval_sec').value = p.interval;
       if (!f('name').value || Object.values(CMD_PRESETS).some((x) => x.name === f('name').value)) f('name').value = p.name;
       update(false);
     }
