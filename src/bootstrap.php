@@ -68,6 +68,8 @@ require_once __DIR__ . '/Templates.php';
 require_once __DIR__ . '/Discover.php';
 require_once __DIR__ . '/SelfCheck.php';
 require_once __DIR__ . '/Cleanup.php';
+require_once __DIR__ . '/ChangeLog.php';
+require_once __DIR__ . '/Transfer.php';
 SelfCheck::register();   // PHP-fouten bijhouden voor de systeemcheck (1.96.0)
 require_once __DIR__ . '/SnmpMonitor.php';
 require_once __DIR__ . '/I18n.php';

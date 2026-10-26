@@ -913,6 +913,16 @@ if (!has_role($user, $need)) {
 }
 $isAdmin = has_role($user, 'admin');
 I18n::init($user);
+// Wijzigingslogboek (1.97.0): instellingen vóór en na elke wijziging van een beheerder vergelijken
+if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($action, ['prefs_save', 'check_try', 'changelog_undo', 'state'], true)) {
+    $settingsBefore = ChangeLog::settingsSnapshot();
+    register_shutdown_function(static function () use ($settingsBefore, $action): void {
+        try {
+            ChangeLog::settingsDiff($settingsBefore, ChangeLog::settingsSnapshot(), $action);
+        } catch (Throwable) {
+        }
+    });
+}
 /** Niet-beheerders mogen alleen hun eigen account (2FA) beheren. */
 $ownOnly = static function (int $id) use ($user, $isAdmin): void {
     if (!$isAdmin && $id !== $user['id']) {
@@ -1388,6 +1398,7 @@ switch ($action) {
 
     case 'host_save':
         $in = input();
+        $hostBefore = !empty($in['id']) ? ChangeLog::hostRow((int) $in['id']) : null;   // wijzigingslogboek (1.97.0)
         $mode = in_array($in['mode'] ?? '', ['local', 'agent', 'remote'], true) ? $in['mode'] : 'remote';
         $name = trim((string) ($in['name'] ?? ''));
         $addr = trim((string) ($in['address'] ?? ''));
@@ -1447,6 +1458,7 @@ switch ($action) {
             $fimOwn = Ids::cleanFim($in['ids_fim']);
             q('UPDATE hosts SET ids_fim = ? WHERE id = ?', [$fimOwn ? json_encode($fimOwn, JSON_UNESCAPED_SLASHES) : null, $id]);
         }
+        ChangeLog::record('host', $id, $hostBefore ? 'update' : 'create', $name, $hostBefore, ChangeLog::hostRow($id));
         out(['ok' => true, 'id' => $id]);
 
     // SNMP testen met de instellingen uit het formulier (nog niet opgeslagen; gemaskeerde geheimen van de server zelf)
@@ -2092,6 +2104,9 @@ switch ($action) {
         $grand = q('SELECT parent_id FROM hosts WHERE id = ?', [$id])->fetchColumn() ?: null;
         q('UPDATE hosts SET parent_id = ? WHERE parent_id = ?', [$grand, $id]);
         q('UPDATE checks SET suppressed_by = NULL WHERE suppressed_by = ?', [$id]);
+        if ($row = ChangeLog::hostRow($id, true)) {
+            ChangeLog::record('host', $id, 'delete', (string) $row['name'], $row, null);
+        }
         q('DELETE FROM hosts WHERE id = ?', [$id]);
         out(['ok' => true]);
 
@@ -2145,6 +2160,7 @@ switch ($action) {
     case 'check_save':
         $in = input();
         [$cols, $hbNew] = $checkCols($in);
+        $checkBefore = !empty($in['id']) ? ChangeLog::checkRow((int) $in['id']) : null;
         if (!empty($in['id'])) {
             // Uit een sjabloon (1.94.0): met de hand aangepast = los van het sjabloon, tot "terug naar het sjabloon"
             Templates::updateCheck((int) $in['id'], $cols, true);
@@ -2156,6 +2172,8 @@ switch ($action) {
             // Geheime URL: bij het aanmaken, of nieuw op verzoek (de oude werkt dan meteen niet meer)
             q('UPDATE checks SET hb_token = ? WHERE id = ? AND (hb_token IS NULL OR ?)', [Heartbeat::newToken(), $id, $hbNew ? 1 : 0]);
         }
+        $checkAfter = ChangeLog::checkRow($id);
+        ChangeLog::record('check', $id, $checkBefore ? 'update' : 'create', ($checkAfter['_host'] ?? '') . ' · ' . $cols['name'], $checkBefore, $checkAfter);
         Monitor::runCheckById($id);
         out(['ok' => true, 'id' => $id]);
 
@@ -2165,6 +2183,7 @@ switch ($action) {
 
     case 'template_save':
         $in = input();
+        ChangeLog::record('template', (int) ($in['template_id'] ?? $in['id'] ?? 0) ?: null, 'info', t('Sjabloon opgeslagen') . (isset($in['name']) ? ': ' . mb_substr((string) $in['name'], 0, 100) : ''), null, array_intersect_key($in, array_flip(['id', 'template_id', 'item_id', 'host_id', 'name', 'keep', 'type', 'target'])));
         try {
             out(['ok' => true, 'id' => Templates::save((int) ($in['id'] ?? 0) ?: null, (string) ($in['name'] ?? ''), (string) ($in['description'] ?? ''))]);
         } catch (InvalidArgumentException $e) {
@@ -2176,11 +2195,14 @@ switch ($action) {
         if (empty($in['keep'])) {
             $confirm('VERWIJDEREN');   // de checks op de servers gaan mee weg
         }
+        $tplName = (string) q('SELECT name FROM check_templates WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetchColumn();
         Templates::delete((int) ($in['id'] ?? 0), !empty($in['keep']));
+        ChangeLog::record('template', (int) ($in['id'] ?? 0) ?: null, 'info', t('Sjabloon verwijderd') . ": $tplName", null, ['keep' => !empty($in['keep'])]);
         out(['ok' => true]);
 
     case 'template_item_save':
         $in = input();
+        ChangeLog::record('template', (int) ($in['template_id'] ?? $in['id'] ?? 0) ?: null, 'info', t('Check in sjabloon opgeslagen') . (isset($in['name']) ? ': ' . mb_substr((string) $in['name'], 0, 100) : ''), null, array_intersect_key($in, array_flip(['id', 'template_id', 'item_id', 'host_id', 'name', 'keep', 'type', 'target'])));
         $tid = (int) ($in['template_id'] ?? 0);
         if (!q('SELECT 1 FROM check_templates WHERE id = ?', [$tid])->fetchColumn()) {
             out(['error' => t('Sjabloon bestaat niet')], 404);
@@ -2190,11 +2212,13 @@ switch ($action) {
 
     case 'template_item_delete':
         $in = input();
+        ChangeLog::record('template', (int) ($in['template_id'] ?? $in['id'] ?? 0) ?: null, 'info', t('Check uit sjabloon gehaald') . (isset($in['name']) ? ': ' . mb_substr((string) $in['name'], 0, 100) : ''), null, array_intersect_key($in, array_flip(['id', 'template_id', 'item_id', 'host_id', 'name', 'keep', 'type', 'target'])));
         Templates::itemDelete((int) ($in['id'] ?? 0), !empty($in['keep']));
         out(['ok' => true]);
 
     case 'template_link':
         $in = input();
+        ChangeLog::record('template', (int) ($in['template_id'] ?? $in['id'] ?? 0) ?: null, 'info', t('Sjabloon gekoppeld') . (isset($in['name']) ? ': ' . mb_substr((string) $in['name'], 0, 100) : ''), null, array_intersect_key($in, array_flip(['id', 'template_id', 'item_id', 'host_id', 'name', 'keep', 'type', 'target'])));
         try {
             out(['ok' => true] + Templates::link((int) ($in['host_id'] ?? 0), (int) ($in['template_id'] ?? 0)));
         } catch (InvalidArgumentException $e) {
@@ -2203,11 +2227,13 @@ switch ($action) {
 
     case 'template_unlink':
         $in = input();
+        ChangeLog::record('template', (int) ($in['template_id'] ?? $in['id'] ?? 0) ?: null, 'info', t('Sjabloon losgekoppeld') . (isset($in['name']) ? ': ' . mb_substr((string) $in['name'], 0, 100) : ''), null, array_intersect_key($in, array_flip(['id', 'template_id', 'item_id', 'host_id', 'name', 'keep', 'type', 'target'])));
         Templates::unlink((int) ($in['host_id'] ?? 0), (int) ($in['template_id'] ?? 0), !empty($in['keep']));
         out(['ok' => true]);
 
     case 'template_from_host':
         $in = input();
+        ChangeLog::record('template', (int) ($in['template_id'] ?? $in['id'] ?? 0) ?: null, 'info', t('Sjabloon gemaakt van een server') . (isset($in['name']) ? ': ' . mb_substr((string) $in['name'], 0, 100) : ''), null, array_intersect_key($in, array_flip(['id', 'template_id', 'item_id', 'host_id', 'name', 'keep', 'type', 'target'])));
         try {
             out(['ok' => true, 'id' => Templates::fromHost((int) ($in['host_id'] ?? 0), (string) ($in['name'] ?? ''), array_map('intval', (array) ($in['check_ids'] ?? [])))]);
         } catch (InvalidArgumentException $e) {
@@ -2235,6 +2261,70 @@ switch ($action) {
         Discover::ignore((int) ($in['host_id'] ?? 0), (array) ($in['keys'] ?? []), empty($in['undo']));
         out(['ok' => true]);
 
+    // ---------------------------------------------------------------- Wijzigingslogboek, export/import, meldketen (1.97.0)
+    case 'changelog':
+        out(['items' => ChangeLog::list(preg_replace('/[^a-z]/', '', (string) ($_GET['kind'] ?? ''))), 'days' => (int) setting('changelog_days', '90')]);
+
+    case 'changelog_days':
+        $d = (int) (input()['days'] ?? 90);
+        save_setting('changelog_days', (string) (in_array($d, [30, 90, 365, 1095], true) ? $d : 90));
+        out(['ok' => true]);
+
+    case 'changelog_undo':
+        try {
+            out(['ok' => true, 'message' => ChangeLog::undo((int) (input()['id'] ?? 0))]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'export':
+        $data = Transfer::export(($_GET['settings'] ?? '') === '1');
+        ChangeLog::record('system', null, 'info', t('Geëxporteerd'), null, ['servers' => count($data['hosts']), 'checks' => count($data['checks'])]);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Disposition: attachment; filename="rzmon-export-' . date('Y-m-d') . '.json"');
+        echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        exit;
+
+    case 'import':
+        $in = input();
+        $apply = !empty($in['apply']);
+        if ($apply) {
+            $confirm('IMPORTEREN');
+        }
+        try {
+            $n = Transfer::import((array) ($in['data'] ?? []), !empty($in['settings']), $apply);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+        if ($apply) {
+            ChangeLog::record('system', null, 'info', t('Geïmporteerd'), null, $n);
+        }
+        out(['ok' => true, 'counts' => $n, 'applied' => $apply]);
+
+    case 'chain_test':
+        // Eén testmelding door alle kanalen die aan staan, met de opgeslagen instellingen
+        session_write_close();
+        $res = [];
+        $title = '🧪 RzMon: ' . t('test van de meldketen');
+        $body = t('Als je dit ziet, werkt dit kanaal. Verstuurd op {time}.', ['time' => date('d-m-Y H:i:s')]);
+        $res['pushover'] = setting('pushover_enabled', '0') === '1' ? Pushover::send($title, $body, 0) : null;
+        $res['email'] = setting('email_enabled', '0') === '1' ? Mailer::send($title, $body) : null;
+        if (setting('ha_webhook_enabled', '0') === '1') {
+            $fake = ['id' => 0, 'hid' => 0, 'host_name' => 'RzMon', 'name' => t('Testmelding'), 'type' => 'ping', 'target' => ''];
+            $res['webhook'] = Webhook::send(Monitor::webhookPayload($fake, ['value' => null], STATUS_OK, $title, $body, 'test', STATUS_OK));
+        } else {
+            $res['webhook'] = null;
+        }
+        if (setting('mqtt_enabled', '0') === '1') {
+            $r = Mqtt::publishAll(null, false);
+            $res['mqtt'] = ['ok' => $r['ok'], 'error' => $r['error'] ?? null];
+        } else {
+            $res['mqtt'] = null;
+        }
+        q('INSERT INTO alerts (check_id, status, title, message, sent_ok, kind, created_at) VALUES (NULL, 0, ?, ?, 1, ?, ?)', [$title, $body, 'info', now()]);
+        $res['page'] = ['ok' => true];
+        out(['channels' => array_map(static fn($r) => $r === null ? null : ['ok' => (bool) ($r['ok'] ?? false), 'error' => (string) ($r['error'] ?? '')], $res)]);
+
     case 'cleanup':   // 1.96.0: opschoonadvies
         out(['items' => Cleanup::advice()]);
 
@@ -2258,8 +2348,22 @@ switch ($action) {
         }
         $list = implode(',', $ids);
         $act = (string) ($in['action'] ?? '');
+        // Wijzigingslogboek: elke check apart, zodat je ook één ervan kunt terugzetten
+        $bulkBefore = [];
+        foreach ($ids as $bid) {
+            if ($r = ChangeLog::checkRow($bid)) {
+                $bulkBefore[$bid] = $r;
+            }
+        }
+        $bulkLog = static function (string $what) use ($bulkBefore): void {
+            foreach ($bulkBefore as $bid => $r) {
+                $after = $what === 'delete' ? null : ChangeLog::checkRow($bid);
+                ChangeLog::record('check', $bid, $what === 'delete' ? 'delete' : 'update', $r['_host'] . ' · ' . $r['name'] . ' (' . t('meerdere tegelijk') . ')', $r, $after);
+            }
+        };
         if ($act === 'delete') {
             $confirm('VERWIJDEREN');
+            $bulkLog('delete');
             $n = q("DELETE FROM checks WHERE id IN ($list)")->rowCount();
             out(['ok' => true, 'n' => $n]);
         }
@@ -2268,6 +2372,7 @@ switch ($action) {
             $until = $minutes > 0 ? date('Y-m-d H:i:s', time() + $minutes * 60) : null;
             $n = q("UPDATE checks SET maintenance_until = ?, maintenance_reason = ?, maintenance_auto = 0 WHERE id IN ($list)",
                 [$until, mb_substr(trim((string) ($in['reason'] ?? '')), 0, 200) ?: null])->rowCount();
+            $bulkLog('update');
             out(['ok' => true, 'n' => $n]);
         }
         if ($act === 'copy') {
@@ -2317,6 +2422,7 @@ switch ($action) {
         $cols = implode(', ', array_map(static fn($k) => "$k = ?", array_keys($set)));
         // Met de hand aangepast: sjabloonchecks gaan daarna niet meer mee met het sjabloon
         q("UPDATE checks SET $cols, tpl_override = IF(template_item_id IS NULL, 0, 1) WHERE id IN ($list)", array_values($set));
+        $bulkLog('update');
         out(['ok' => true, 'n' => count($ids)]);
 
     case 'check_try':   // 1.95.0: proberen vóór opslaan, er wordt niets bewaard
@@ -2330,7 +2436,11 @@ switch ($action) {
         out(['status' => (int) $r['status'], 'value' => $r['value'], 'message' => (string) $r['message']]);
 
     case 'check_delete':
-        q('DELETE FROM checks WHERE id = ?', [(int) (input()['id'] ?? 0)]);
+        $id = (int) (input()['id'] ?? 0);
+        if ($row = ChangeLog::checkRow($id)) {
+            ChangeLog::record('check', $id, 'delete', $row['_host'] . ' · ' . $row['name'], $row, null);
+        }
+        q('DELETE FROM checks WHERE id = ?', [$id]);
         out(['ok' => true]);
 
     case 'check_run':

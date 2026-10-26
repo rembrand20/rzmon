@@ -143,6 +143,9 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - de knop **Nu bijwerken** (of het label ⬆ bovenin): een venster met de vraag, eventueel eerst een back-up, en daarna een **voortgangsbalk** met waar de installatie mee bezig is;
   - of **automatisch** op een tijdstip naar keuze.
 - **Database** wordt vanzelf bijgewerkt bij een nieuwe versie.
+- **📜 Wijzigingslogboek** (1.97.0): wie veranderde welke instelling, server, check of welk sjabloon, met oud en nieuw. *↩ Terugzetten* per wijziging, ook voor een verwijderde check of server. Bewaartermijn instelbaar (30 dagen tot 3 jaar); geheimen nooit leesbaar.
+- **📦 Exporteren en importeren** (1.97.0): servers, checks, sjablonen en eventueel instellingen als JSON, zonder geheimen. Importeren voegt alleen toe, met eerst een voorbeeld.
+- **🧪 Meldketen testen** (1.97.0): één testmelding door alle kanalen, met per kanaal ✓ of ✕.
 - **Gezondheid van RzMon** (1.96.0, *Systeemcheck*): de grootte en groei van de database (met wanneer de disk vol is), de duur van een cron-ronde, de traagste checks en PHP-fouten van de laatste 24 uur.
 - **📡 Verbindingen en taken** (*Instellingen → Overzicht*): wat er bij RzMon binnenkomt (agents met hun ritme en realtime, browsers, API-sleutels, heartbeats) en hoe RzMon's eigen achtergrondtaken lopen (cron, updates zoeken, blocklists, GeoIP, datalekken, kwetsbaarheden, certificaat, MQTT, back-up): laatst gelukt, volgende keer en eventuele fout. Lukt een taak te lang niet, dan volgt een ⚠️-melding via je gewone kanalen (en een ✅ als het weer lukt).
 - **💾 Back-up en herstel:**

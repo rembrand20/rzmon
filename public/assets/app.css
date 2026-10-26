@@ -1525,7 +1525,9 @@ code.ip-link { cursor: pointer; text-decoration: underline dotted; }
 .tpl-hosts select { width: auto; max-width: 14rem; padding: .25rem .5rem; }
 .tpl-chip { display: inline-flex; align-items: center; gap: .2rem; padding: .1rem .2rem .1rem .6rem; border: 1px solid var(--border); border-radius: 99px; font-size: .85rem; }
 .tpl-chip .icon-btn { padding: 0 .3rem; font-size: .8rem; }
-.ac-bar { display: flex; flex-wrap: wrap; gap: .5rem; margin: .6rem 0; }
+.ac-bar { display: flex; flex-wrap: wrap; gap: .5rem; margin: .6rem 0; align-items: center; }
+.ac-bar .inline-label { display: flex; align-items: center; gap: .4rem; margin: 0; white-space: nowrap; }
+.ac-bar .inline-label select { width: auto; }
 .ac-bar input { flex: 1 1 14rem; } .ac-bar select { flex: 0 1 12rem; width: auto; }
 .ac-bulk { position: sticky; top: 4.2rem; z-index: 5; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; padding: .55rem .7rem; margin-bottom: .6rem;
   border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent); border-radius: 10px; background: var(--card); }

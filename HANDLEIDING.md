@@ -187,7 +187,7 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
   - **🔐 Toegang**: Inloggen · Van buiten (https, onzichtbaar van buiten, apparaten en passkeys) · Gebruikers;
   - **🖥️ Agents**: Agents (één tabel met alle agents, bijwerken, ritme) · Beveiligde verbinding · Commando-checks;
   - **🔗 Koppelingen**: MQTT (Home Assistant) · REST API en API-sleutels;
-  - **🛠️ Systeem**: RzMon bijwerken · Back-up · Database en opslag · Server en PHP · Systeemcheck.
+  - **🛠️ Systeem**: RzMon bijwerken · Back-up · Database en opslag · Server en PHP · Systeemcheck · Wijzigingslogboek · Exporteren en importeren.
 
   Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan. **Blokkades en de whitelist** staan in het tabblad **IDS → ⛔ Blokkades**.
   - **✅ Hoe staat het ervoor?** (vanaf 1.62.0) is het eerste onderdeel; via het accountmenu kom je altijd hier. Een cirkel met een score (0–100%) en een lijst: ✔ groen is in orde, **!** oranje is een aandachtspunt, ✘ rood moet je regelen, grijs is optioneel (telt niet mee). RzMon kijkt naar: een **meldkanaal** (Pushover of e-mail aan en ingevuld), **automatische back-up** (en de laatste niet ouder dan een week), **2FA** voor alle beheerders (accounts die *alleen lokaal* mogen inloggen tellen niet mee), **inlogbeveiliging**, een **nieuwe RzMon-versie**, **agents** op een oudere versie of **onversleuteld**, **HTTPS** (zoals jij RzMon nu opent), en of **kwetsbaarheden** en **IDS** aan staan. Klik op een punt en je staat bij de instelling. In de zijbalk krijgt een groep met een aandachtspunt een oranje (of rood) bolletje.
@@ -1093,6 +1093,19 @@ AGENT_DIR=/mnt/<pool>/rzmon-agent bash /mnt/<pool>/rzmon-agent/rzmon-agent.sh --
 - **⏸ Al lang uit:** meer dan 30 dagen; knop *🗑 Verwijderen*.
 
 Klik op een naam om de check te bewerken. Met 🙈 (*dit is normaal*) komt het punt niet meer terug.
+
+### 7.12 Wijzigingslogboek 📜, exporteren en importeren 📦, meldketen testen 🧪
+
+**📜 Wijzigingslogboek** (vanaf 1.97.0, *Instellingen → 🛠️ Systeem → Wijzigingslogboek*): wie veranderde wat en wanneer, met de oude en de nieuwe waarde. Het gaat om instellingen, servers, checks (ook als je er meerdere tegelijk aanpaste) en sjablonen.
+- **↩ Terugzetten:** een gewijzigde instelling, server of check gaat terug naar hoe hij was. Een verwijderde check of server komt terug met hetzelfde id; een agent werkt dan meteen weer, maar de meethistorie komt niet terug. Een nieuw aangemaakte check of server wordt weer verwijderd.
+- **Wachtwoorden, tokens en sleutels** staan er nooit leesbaar in (••••••••) en worden niet teruggezet.
+- **Bewaren:** 30 dagen, 90 dagen (standaard), 1 jaar of 3 jaar.
+
+**📦 Exporteren en importeren** (vanaf 1.97.0, *Instellingen → 🛠️ Systeem*): servers, checks en sjablonen, en eventueel de instellingen, als één JSON-bestand. Handig om naar een tweede RzMon te kopiëren, of als leesbare reserve naast de back-up.
+- **Zonder geheimen:** wachtwoorden, tokens, sleutels en de SNMP-community gaan niet mee. Agents koppel je op de nieuwe RzMon opnieuw.
+- **Importeren voegt alleen toe.** Een server of sjabloon met dezelfde naam blijft zoals hij is, en een check die er al is (zelfde type, doel en soort) wordt overgeslagen. Je ziet eerst wat er gebeurt; importeren vraagt je wachtwoord.
+
+**🧪 Meldketen testen** (vanaf 1.97.0, *Instellingen → 🔔 Meldingen → Kanalen*): één testmelding door alle kanalen die aan staan (Pushover, e-mail, Home Assistant-webhook, MQTT en de meldingenpagina), met de opgeslagen instellingen, met per kanaal ✓ of ✕ en de fout.
 
 ## 8. Agent op Linux-servers
 

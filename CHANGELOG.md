@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.97.0 – 2026-10-26
+### Nieuw
+- **📜 Wijzigingslogboek** (*Instellingen → Systeem*): wie veranderde wat en wanneer, met de oude en de nieuwe waarde. Het gaat om instellingen, servers, checks (ook bij meerdere tegelijk) en sjablonen.
+  - **↩ Terugzetten** per wijziging. Een verwijderde check of server komt terug met hetzelfde id (zonder meethistorie).
+  - Wachtwoorden en sleutels staan er nooit leesbaar in.
+  - Bewaren: 30 dagen, 90 dagen (standaard), 1 jaar of 3 jaar.
+- **📦 Exporteren en importeren** (*Instellingen → Systeem*): servers, checks, sjablonen en eventueel instellingen als één JSON-bestand, zonder geheimen. Importeren voegt alleen toe (bestaande servers, sjablonen en checks blijven), met eerst een voorbeeld en je wachtwoord.
+- **🧪 Meldketen testen** (*Meldingen → Kanalen*): één testmelding door alle kanalen die aan staan, met per kanaal ✓ of ✕ en de fout.
+
+
 ## 1.96.0 – 2026-10-26
 ### Nieuw
 - **🧹 Opschoonadvies** (*Instellingen → 🧩 Checks*): checks die al dagen onbekend zijn, ruismakers (de meeste meldingen), checks die steeds wisselen, al lang in warning staan, net onder de drempel zitten of al lang uit staan. Elk met een voorstel en een knop: *melden na 3*, uitzetten, verwijderen, of *niet meer tonen*.

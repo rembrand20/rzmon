@@ -1000,6 +1000,7 @@ final class Monitor
         // Tot 1.92.2: elke controle zonder cookies (curl, een HTTP-check op RzMon zelf) gaf een LAN-sessie die nooit terugkwam
         q("DELETE FROM user_sessions WHERE how = 'lan' AND last_seen <= created_at + INTERVAL 1 MINUTE AND created_at < NOW() - INTERVAL 10 MINUTE");
         PasswordReset::purge();
+        ChangeLog::purge();   // wijzigingslogboek: bewaartermijn instelbaar (1.97.0)
         Security::purge();
         Ids::purge();
     }

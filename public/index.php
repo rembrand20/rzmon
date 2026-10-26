@@ -951,6 +951,31 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div id="cleanup-list"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
+      <div data-sk="chain" class="card need-admin" id="chain-card">
+        <h2>🧪 <?= th('Meldketen testen') ?></h2>
+        <p class="muted small"><?= th('Stuurt één testmelding door alle kanalen die aan staan (Pushover, e-mail, Home Assistant-webhook, MQTT en de meldingenpagina), met de opgeslagen instellingen, en laat per kanaal zien of het lukte.') ?></p>
+        <button type="button" class="btn primary" id="chain-test">🧪 <?= th('Nu testen') ?></button>
+        <div id="chain-out"></div>
+      </div>
+
+      <div data-sk="changelog" class="card need-admin" id="changelog-card">
+        <h2>📜 <?= th('Wijzigingslogboek') ?> <button type="button" class="btn small-btn" id="cl-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
+        <p class="muted small"><?= th('Wie veranderde wat en wanneer: instellingen, servers, checks en sjablonen, met de oude en de nieuwe waarde. Een wijziging aan een instelling, server of check zet je terug met ↩; een verwijderde check of server komt terug (zonder meethistorie). Wachtwoorden en sleutels staan er nooit leesbaar in.') ?></p>
+        <div class="ac-bar"><select id="cl-kind"><option value=""><?= th('Alles') ?></option><option value="setting"><?= th('Instellingen') ?></option><option value="host"><?= th('Servers') ?></option>
+          <option value="check"><?= th('Checks') ?></option><option value="template"><?= th('Sjablonen') ?></option><option value="system"><?= th('Systeem') ?></option></select>
+          <span class="muted small"><?= th('Bewaren') ?></span> <select id="cl-days" aria-label="<?= th('Bewaren') ?>"><option value="30"><?= th('30 dagen') ?></option><option value="90"><?= th('90 dagen') ?></option><option value="365"><?= th('1 jaar') ?></option><option value="1095"><?= th('3 jaar') ?></option></select></div>
+        <div id="cl-list"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+
+      <div data-sk="transfer" class="card need-admin" id="transfer-card">
+        <h2>📦 <?= th('Exporteren en importeren') ?></h2>
+        <p class="muted small"><?= th('Servers, checks en sjablonen (en eventueel instellingen) als één JSON-bestand: om naar een andere RzMon te kopiëren, of als leesbare reserve naast de back-up. Zonder geheimen: wachtwoorden, tokens, sleutels en SNMP-community gaan niet mee, en agents koppel je op de nieuwe RzMon opnieuw.') ?></p>
+        <label class="switch"><input type="checkbox" id="tr-settings"><span></span> <?= th('Ook de instellingen (zonder wachtwoorden)') ?></label>
+        <div class="btn-row"><button type="button" class="btn" id="tr-export">⬇ <?= th('Exporteren') ?></button>
+          <button type="button" class="btn" id="tr-import">⬆ <?= th('Importeren…') ?></button><input type="file" id="tr-file" accept=".json,application/json" hidden></div>
+        <p class="muted small"><?= th('Importeren voegt alleen toe: een server of sjabloon met dezelfde naam blijft zoals hij is, en een check die er al is wordt overgeslagen. Je ziet eerst wat er gebeurt.') ?></p>
+      </div>
+
       <div data-sk="conn" class="card need-admin" id="conn-card">
         <h2>📡 <?= th('Verbindingen en taken') ?> <button type="button" class="btn small-btn" id="conn-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
         <p class="muted small"><?= th('Wat er bij RzMon binnenkomt en wat RzMon zelf op de achtergrond doet. Lukt een taak te lang niet, dan krijg je een ⚠️-melding (Meldingen → Systeeminfo → Achtergrondtaak lukt niet).') ?></p>

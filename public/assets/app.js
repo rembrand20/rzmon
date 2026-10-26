@@ -1111,6 +1111,7 @@ function init() {
   initSysinfo();
   initTemplates();
   initAllChecks();
+  initSystemTools();
   $('#api-keys').addEventListener('click', apiKeyClick);
   $('#access-form').addEventListener('submit', saveAccess);
   $('#access-form').addEventListener('change', (e) => saveAccess(null, e.target));
@@ -5579,14 +5580,14 @@ function initMainTabs() {
 const SET_NAV = [
   ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']], ['conn', L('Verbindingen en taken'), ['conn']]]],
   ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']], ['cleanup', L('Opschoonadvies'), ['cleanup']]]],
-  ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook']], ['rules', L('Meldregels en stille uren'), ['notify']], ['alarm', L('Alarmgedrag'), ['alarm']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
+  ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'chain']], ['rules', L('Meldregels en stille uren'), ['notify']], ['alarm', L('Alarmgedrag'), ['alarm']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['beveiliging', '🛡️', L('Beveiliging'), [['ids', L('IDS: detectie'), ['ids']], ['ids_attack', L('IDS: aanvallers en verkeer'), ['ids_attack']], ['ids_servers', L('IDS: servers'), ['ids_servers']],
     ['vulns', L('Kwetsbaarheden'), ['vulns']], ['hibp', L('Datalekken'), ['hibp']]]],
   ['toegang', '🔐', L('Toegang'), [['access', L('Inloggen'), ['access']], ['outside', L('Van buiten'), ['https', 'outside']], ['users', L('Gebruikers'), ['users']]]],
   ['agents', '🖥️', L('Agents'), [['agents', L('Agents'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']], ['commands', L('Commando-checks'), ['commands']]]],
   ['koppelingen', '🔗', L('Koppelingen'), [['mqtt', L('MQTT (Home Assistant)'), ['mqtt']], ['api', L('REST API en API-sleutels'), ['api']]]],
   ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['backup', L('Back-up'), ['backup']], ['db', L('Database en opslag'), ['dbconn', 'db', 'storage']],
-    ['server', L('Server en PHP'), ['server']], ['syscheck', L('Systeemcheck'), ['syscheck']]]],
+    ['server', L('Server en PHP'), ['server']], ['syscheck', L('Systeemcheck'), ['syscheck']], ['changelog', L('Wijzigingslogboek'), ['changelog']], ['transfer', L('Exporteren en importeren'), ['transfer']]]],
 ];
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
 const SET_ALIAS = { https: 'outside', setup: 'syscheck' };
@@ -5618,6 +5619,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'templates') loadTemplates();
   if (setSection === 'allchecks') loadAllChecks();
   if (setSection === 'cleanup') loadCleanup();
+  if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'syscheck') loadSyscheck();
   if (setSection === 'server' || setSection === 'db') loadSetupInfo();
   if (focusEl) {
@@ -6885,6 +6887,83 @@ async function loadCleanup() {
       loadCleanup(); refresh();
     } catch (ex) { toast(ex.message, 'err'); }
   };
+}
+
+// ---------------------------------------------------------------- 📜 Wijzigingslogboek, 📦 export/import, 🧪 meldketen (1.97.0)
+const CL_KIND = { setting: () => '⚙️ ' + L('Instelling'), host: () => '🖥️ ' + L('Server'), check: () => '✔ ' + L('Check'), template: () => '📋 ' + L('Sjabloon'), system: () => '🛠️ ' + L('Systeem') };
+const CL_ACTION = { create: () => L('aangemaakt'), update: () => L('gewijzigd'), delete: () => L('verwijderd'), undo: () => L('teruggezet'), info: () => '' };
+async function loadChangeLog() {
+  const box = $('#cl-list');
+  if (!box) return;
+  let d;
+  try { d = await api('changelog', null, { kind: $('#cl-kind').value }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  $('#cl-days').value = String(d.days);
+  const val = (v) => (v === null ? `<span class="muted">${L('leeg')}</span>` : `<code>${esc(v)}</code>`);
+  box.innerHTML = d.items.length ? d.items.map((i) => `<div class="cl-row${i.undone_at ? ' muted' : ''}"><div class="grow">
+      <b>${(CL_KIND[i.kind] || (() => i.kind))()}</b> ${esc(i.label)} <span class="muted small">${esc((CL_ACTION[i.action] || (() => i.action))())}</span>
+      <div class="muted small">${esc(fmtDateTime(i.at))} · ${esc(i.username)} · ${esc(i.ip)}${i.undone_at ? ' · ' + L('teruggezet op {t}', { t: esc(fmtDateTime(i.undone_at)) }) : ''}</div>
+      ${i.changes.length ? `<details class="small"><summary>${i.changes.length === 1 ? L('1 wijziging') : L('{n} wijzigingen', { n: i.changes.length })}</summary>
+        <table class="kv">${i.changes.map(([k, o, n]) => `<tr><th class="mono">${esc(k)}</th><td>${val(o)} → ${val(n)}</td></tr>`).join('')}</table></details>` : ''}</div>
+      <div class="cl-act">${i.can_undo ? `<button type="button" class="btn small-btn" data-undo="${i.id}" title="${esc(L('Terugzetten naar hoe het was'))}">↩ ${L('Terugzetten')}</button>` : ''}</div></div>`).join('')
+    : `<p class="muted">${L('Nog niets.')}</p>`;
+}
+
+function initSystemTools() {
+  if ($('#cl-list')) {
+    $('#cl-reload').onclick = loadChangeLog;
+    $('#cl-kind').onchange = loadChangeLog;
+    $('#cl-days').onchange = async (e) => { try { await api('changelog_days', { days: +e.target.value }); toast(L('Opgeslagen')); } catch (ex) { toast(ex.message, 'err'); } };
+    $('#cl-list').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-undo]');
+      if (!b || !confirm(L('Deze wijziging terugzetten?'))) return;
+      try { const r = await api('changelog_undo', { id: +b.dataset.undo }); toast(r.message); loadChangeLog(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+    });
+  }
+  if ($('#tr-export')) {
+    $('#tr-export').onclick = () => { location.href = 'api.php?' + new URLSearchParams({ action: 'export', settings: $('#tr-settings').checked ? '1' : '0' }); };
+    $('#tr-import').onclick = () => $('#tr-file').click();
+    $('#tr-file').onchange = async (e) => {
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      let data;
+      try { data = JSON.parse(await f.text()); } catch (ex) { return toast(L('Dit is geen geldig JSON-bestand'), 'err'); }
+      const withSettings = $('#tr-settings').checked;
+      let pre;
+      try { pre = (await api('import', { data, settings: withSettings, apply: false })).counts; } catch (ex) { return toast(ex.message, 'err'); }
+      modal({
+        title: '⬆ ' + L('Importeren: {f}', { f: f.name }),
+        body: `<p style="margin-top:0">${L('Dit gebeurt er:')}</p><table class="kv">
+          <tr><th>${L('Servers')}</th><td>${L('{a} nieuw, {b} bestaan al (blijven zoals ze zijn)', { a: pre.hosts_new, b: pre.hosts_existing })}</td></tr>
+          <tr><th>${L('Sjablonen')}</th><td>${L('{a} nieuw, {b} bestaan al (blijven zoals ze zijn)', { a: pre.templates_new, b: pre.templates_existing })}</td></tr>
+          <tr><th>${L('Checks')}</th><td>${L('{a} nieuw, {b} bestaan al (overgeslagen)', { a: pre.checks_new, b: pre.checks_existing })}</td></tr>
+          ${withSettings ? `<tr><th>${L('Instellingen')}</th><td>${L('{n} overgenomen', { n: pre.settings })}</td></tr>` : ''}</table>
+          <p class="hint">${L('Nieuwe agent-servers moet je daarna nog koppelen (Agent Manager → Koppelcode).')}</p>${confirmField('IMPORTEREN')}`,
+        buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Importeren'), cls: 'primary', submit: true }],
+        onSubmit: async (dd) => {
+          const r = await api('import', { data, settings: withSettings, apply: true, confirm: dd.confirm });
+          toast(L('Geïmporteerd: {h} servers, {c} checks, {t} sjablonen', { h: r.counts.hosts_new, c: r.counts.checks_new, t: r.counts.templates_new }));
+        },
+      });
+    };
+  }
+  if ($('#chain-test')) {
+    $('#chain-test').onclick = async (e) => {
+      const b = e.currentTarget;
+      b.disabled = true;
+      $('#chain-out').innerHTML = `<p class="muted">${L('Bezig…')}</p>`;
+      try {
+        const r = (await api('chain_test', {})).channels;
+        const names = { pushover: '📲 Pushover', email: '📧 ' + L('E-mail'), webhook: '🏠 ' + L('Home Assistant-webhook'), mqtt: '📡 MQTT', page: '📄 ' + L('Meldingenpagina') };
+        $('#chain-out').innerHTML = `<ul class="checklist" style="margin-top:.8rem">${Object.entries(names).map(([k, l]) => {
+          const c = r[k];
+          return `<li class="${c === null ? 'warn' : c.ok ? 'ok' : 'bad'}"><span class="ic">${c === null ? '–' : c.ok ? '✓' : '✕'}</span><span><strong>${esc(l)}</strong><br>
+            <span class="muted small">${c === null ? L('staat uit') : c.ok ? L('verstuurd') : esc(c.error || L('mislukt'))}</span></span></li>`;
+        }).join('')}</ul>`;
+      } catch (ex) { $('#chain-out').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; }
+      b.disabled = false;
+    };
+  }
 }
 
 // ---------------------------------------------------------------- 📡 Verbindingen en taken (1.91.0)

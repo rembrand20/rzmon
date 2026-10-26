@@ -773,3 +773,21 @@ CREATE TABLE IF NOT EXISTS app_errors (
     last_at  DATETIME NOT NULL,
     INDEX idx_app_errors_last (last_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Wijzigingslogboek (1.97.0): wie veranderde wat, met de oude en nieuwe waarde (JSON), en of het is teruggezet
+CREATE TABLE IF NOT EXISTS change_log (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    at          DATETIME NOT NULL,
+    username    VARCHAR(64) NOT NULL DEFAULT '',
+    ip          VARCHAR(45) NOT NULL DEFAULT '',
+    kind        VARCHAR(16) NOT NULL,
+    ref_id      INT UNSIGNED NULL,
+    action      VARCHAR(40) NOT NULL,
+    label       VARCHAR(200) NOT NULL DEFAULT '',
+    before_data MEDIUMTEXT NULL,
+    after_data  MEDIUMTEXT NULL,
+    undone_at   DATETIME NULL,
+    INDEX idx_change_log_at (at),
+    INDEX idx_change_log_kind (kind)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('changelog_days', '90');
