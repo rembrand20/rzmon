@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.92.1 – 2026-10-26
+### Opgelost
+- **Bijwerken stopte soms met "PHP-extensie mbstring ontbreekt"** terwijl mbstring er gewoon is. De controle in het installatiescript (`php -m | grep -q`) kon door de manier van uitlezen af en toe mislukken; het script vraagt het nu rechtstreeks aan PHP. Bleef je update daardoor op 1.92.0 met een foutmelding staan? Werk dan bij naar deze versie: het installatiescript loopt dan alsnog helemaal door.
+
 ## 1.92.0 – 2026-10-26
 ### Nieuw
 - **Instellingen opnieuw ingedeeld**: alles staat één keer, op de plek waar het hoort. Je instellingen veranderen niet en oude links blijven werken.

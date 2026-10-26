@@ -234,8 +234,10 @@ done
 
 php_version=$(php -r 'echo PHP_VERSION;')
 php -r 'exit(PHP_VERSION_ID >= 80100 ? 0 : 1);' || die "PHP $php_version is te oud (minimaal 8.1)"
+# Rechtstreeks aan PHP vragen; niet "php -m | grep -q": met pipefail laat een vroeg stoppende grep de pijplijn
+# soms mislukken (SIGPIPE), en dan leek een geïnstalleerde extensie te ontbreken
 for ext in pdo_mysql curl mbstring; do
-    php -m | grep -qix "$ext" || die "PHP-extensie $ext ontbreekt"
+    php -r "exit(extension_loaded('$ext') ? 0 : 1);" || die "PHP-extensie $ext ontbreekt"
 done
 ok "PHP $php_version met pdo_mysql, curl en mbstring"
 
@@ -430,7 +432,7 @@ if [ "$WITH_HTTPS" -eq 1 ] && [ ! -f /etc/pki/tls/certs/localhost.crt ]; then
     info "Self-signed certificaat aangemaakt"
 fi
 
-if ss -Htlnp 2>/dev/null | awk '$4 ~ /:80$/' | grep -qv httpd; then
+if ss -Htlnp 2>/dev/null | awk '$4 ~ /:80$/ && !/httpd/' | grep . >/dev/null; then   # grep zonder -q (pipefail)
     warn "Poort 80 is al in gebruik door een ander programma (nginx?). Stop dat eerst."
 fi
 apachectl configtest >/dev/null 2>&1 || { apachectl configtest; die "Apache-configuratie bevat een fout"; }

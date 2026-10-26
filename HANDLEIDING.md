@@ -2625,6 +2625,7 @@ sudo php /var/www/rzmon/install/install.php --rotate-db-password
 | **MQTT: "geen toegang"** | Gebruikersnaam/wachtwoord van de broker klopt niet. Bij de Mosquitto-add-on: gebruik een HA-gebruiker of zet een login in de add-on-configuratie |
 | **MQTT: geen apparaten in HA** | Is de MQTT-integratie in HA toegevoegd? Klopt de discovery-prefix (`homeassistant`)? Klik op *Verbinding testen & publiceren*. Met `mosquitto_sub -h <broker> -u … -P … -t 'rzmon/#' -v` zie je wat RzMon stuurt |
 | **SSL-check: "niet vertrouwd of naam klopt niet"** | Self-signed certificaat (bv. Proxmox of een NAS): zet *Certificaat controleren* uit bij de check. De vervaldatum wordt dan nog steeds bewaakt |
+| **Bijwerken mislukt: "PHP-extensie mbstring ontbreekt"** | Een fout in de controle van het installatiescript (tot 1.92.0); mbstring is er wel. De nieuwe code staat er al. Werk bij naar 1.92.1 of nieuwer, of draai `sudo bash /var/www/rzmon/install/install-rocky.sh --yes` |
 | **Dashboard stuurt door naar Setup** | De database is onbereikbaar. Controleer `sudo systemctl status mariadb` en de gegevens bij Setup → Database |
 | **"Cron draait" blijft oranje** | Controleer `/etc/cron.d/rzmon`: het bestand moet van root zijn en mag geen punt in de naam hebben. Test handmatig met `sudo -u www-data php cron/run.php` |
 | **Ping: "not found"** | `sudo apt install iputils-ping`, en zet het juiste pad bij Setup (`command -v ping`) |
