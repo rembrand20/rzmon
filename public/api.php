@@ -2759,13 +2759,16 @@ switch ($action) {
         }
         $in = input();
         $key = (string) ($in['key'] ?? '');
-        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter'], true)) {
+        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open'], true)) {
             out(['error' => t('Onbekende voorkeur')], 422);
         }
         $prefs = json_decode((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn(), true) ?: [];
         $prefs[$key] = match ($key) {
             'open_mode' => $in['value'] === 'smart' ? 'smart' : 'closed',
             'dash_filter', 'alert_filter' => preg_match('/^[a-z:]{1,20}$/', (string) $in['value']) ? (string) $in['value'] : 'all',   // keuze bovenaan het dashboard (1.75.0) en de meldingen (1.84.0)
+            // Open blokken op Kwetsbaarheden (servers) en Datalekken (e-mailadressen), 1.93.0
+            'vuln_open' => ['h' => array_slice(array_values(array_unique(array_map('intval', (array) ($in['value']['h'] ?? [])))), -500),
+                'e' => array_slice(array_values(array_unique(array_map(static fn($e) => mb_substr((string) $e, 0, 254), (array) ($in['value']['e'] ?? [])))), -500)],
             default => (array) ($in['value'] ?? []),
         };
         $json = json_encode($prefs, JSON_UNESCAPED_UNICODE);

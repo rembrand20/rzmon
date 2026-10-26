@@ -7124,7 +7124,16 @@ const VULN_SEV = [['⚪', L('onbekend')], ['🔵', 'low'], ['🟡', 'medium'], [
 let vulnData = null;
 let vulnFilter = 'all';
 let vulnSharedErr = new Set();   // scanfouten die als één melding bovenaan staan
-const vulnOpen = new Map();   // server → open of dicht (met de hand, tot herladen)
+// Open of dicht (1.93.0): standaard dicht; wat je open- of dichtklapt, onthoudt RzMon per account (h: servers, e: e-mailadressen).
+// Met zoeken of een filter gaan de blokken met treffers tijdelijk open (vulnTmp); daarna weer jouw stand.
+const vulnTmp = { h: new Map(), e: new Map() };
+const vulnSaved = (kind, id) => ((PREFS.vuln_open || {})[kind] || []).map(String).includes(String(id));
+function vulnOpenSave(kind, list) {   // list: [[id, open], …]
+  const v = PREFS.vuln_open || {};
+  const s = new Set((v[kind] || []).map(String));
+  list.forEach(([id, open]) => (open ? s.add(String(id)) : s.delete(String(id))));
+  savePref('vuln_open', { h: v.h || [], e: v.e || [], [kind]: kind === 'h' ? [...s].map(Number) : [...s] });
+}
 
 function initVulns() {
   $('#vuln-search').oninput = () => renderVulns();
@@ -7146,7 +7155,8 @@ function initVulns() {
   $('#vuln-toggle').onclick = () => {
     const cards = $$('#vuln-hosts details.vuln-host');
     const all = cards.length && cards.every((c) => c.open);
-    cards.forEach((c) => { c.open = !all; vulnOpen.set(+c.dataset.host, !all); });
+    cards.forEach((c) => { c.open = !all; vulnTmp.h.set(+c.dataset.host, !all); });
+    vulnOpenSave('h', cards.map((c) => [+c.dataset.host, !all]));
   };
   $('#vuln-hosts').addEventListener('click', vulnClick);
 }
@@ -7187,7 +7197,8 @@ function initLeaks() {
   $('#leak-toggle').onclick = () => {
     const cards = $$('#leak-list details.leak-card');
     const all = cards.length && cards.every((c) => c.open);
-    cards.forEach((c) => { c.open = !all; });
+    cards.forEach((c) => { c.open = !all; vulnTmp.e.set(c.dataset.email, !all); });
+    vulnOpenSave('e', cards.map((c) => [c.dataset.email, !all]));
   };
   $('#leak-filter').onclick = (e) => { const b = e.target.closest('[data-lf]'); if (b) { leakFilter = b.dataset.lf; renderLeaks(); } };
   $('#leak-counts').onclick = (e) => { const b = e.target.closest('[data-lf]'); if (b) { leakFilter = leakFilter === b.dataset.lf ? 'all' : b.dataset.lf; renderLeaks(); } };
@@ -7202,6 +7213,11 @@ function initLeaks() {
     b.disabled = false;
   };
   $('#leak-list').addEventListener('click', async (e) => {
+    const det = e.target.closest('details.leak-card');
+    if (e.target.closest('summary') && det && $(':scope > summary', det).contains(e.target)) {   // open/dicht onthouden (per account)
+      setTimeout(() => { vulnTmp.e.set(det.dataset.email, det.open); vulnOpenSave('e', [[det.dataset.email, det.open]]); }, 0);
+      return;
+    }
     const b = e.target.closest('[data-lhandle]');
     if (!b) return;
     try { await api('hibp_handle', { email: b.dataset.email, name: b.dataset.lhandle, handled: b.dataset.done === '1' }); loadLeaks(); }
@@ -7284,7 +7300,8 @@ function leakCard(e, bs) {
   const openN = e.breaches.filter((b) => !b.handled_at).length;
   const pwN = e.breaches.filter((b) => !b.handled_at && b.passwords).length;
   const narrowed = !!$('#leak-search').value.trim() || fxActive('leaks');
-  const isOpen = $(`#leak-list details[data-email="${CSS.escape(e.email)}"]`)?.open ?? (narrowed ? bs.length > 0 : smartOpen() && pwN > 0);
+  if (!narrowed) vulnTmp.e.clear();
+  const isOpen = narrowed ? vulnTmp.e.get(e.email) ?? bs.length > 0 : vulnSaved('e', e.email);
   return `<details class="card vuln-host leak-card ${pwN ? 'vh-w4' : openN ? 'vh-w2' : 'vh-w-1'}" data-email="${esc(e.email)}" ${isOpen ? 'open' : ''}>
     <summary><span class="host-ic" aria-hidden="true">✉️</span>
       <span class="vh-name"><b>${esc(e.email)}</b><span class="muted small">${(LEAK_SRC[e.source] || LEAK_SRC.list)()}${e.checked_at ? ' · ' + L('gecontroleerd {t}', { t: ago(e.checked_at) }) : ' · ' + L('nog niet gecontroleerd')}</span></span>
@@ -7412,9 +7429,10 @@ function vulnHostCard(h, fs) {
     p.fixed = p.list.map((f) => f.fixed).filter(Boolean).sort().pop() || null;
   });
   const cnt = [4, 3, 2, 1, 0].map((s) => [s, new Set(fs.filter((f) => f.severity === s).map((f) => f.cve)).size]).filter(([, c]) => c);
-  // Bij openen dicht; met zoeken of een filter open als er treffers zijn; "slim openen": ernstige vanzelf open
+  // Dicht, tenzij je hem open had (per account); met zoeken of een filter tijdelijk open als er treffers zijn
   const narrowed = !!$('#vuln-search').value.trim() || fxActive('vulns');
-  const open = vulnOpen.has(+h.id) ? vulnOpen.get(+h.id) : narrowed ? fs.length > 0 : smartOpen() && fs.some((f) => f.severity >= 3 || f.kev);
+  if (!narrowed) vulnTmp.h.clear();
+  const open = narrowed ? vulnTmp.h.get(+h.id) ?? fs.length > 0 : vulnSaved('h', h.id);
   const up = h.upgrade;
   const upTxt = !up ? '' : up.state === 'queued' || up.state === 'running'
     ? `<a href="#" data-vact="progress" data-host="${h.id}" title="${L('Voortgang tonen')}">⏳ ${up.state === 'queued' ? L('Bijwerken gevraagd; de agent pakt het op bij zijn volgende rapport')
@@ -7457,8 +7475,8 @@ function vulnHostCard(h, fs) {
 
 function vulnClick(e) {
   const det = e.target.closest('details.vuln-host');
-  if (e.target.closest('summary') && det) {   // open/dicht onthouden
-    setTimeout(() => vulnOpen.set(+det.dataset.host, det.open), 0);
+  if (det && $(':scope > summary', det).contains(e.target)) {   // open/dicht onthouden (per account)
+    setTimeout(() => { vulnTmp.h.set(+det.dataset.host, det.open); vulnOpenSave('h', [[+det.dataset.host, det.open]]); }, 0);
     return;
   }
   const chip = e.target.closest('[data-cve]');

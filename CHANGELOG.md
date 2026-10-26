@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.93.0 – 2026-10-26
+### Nieuw
+- **Kwetsbaarheden en Datalekken: altijd dicht, en RzMon onthoudt wat jij open had.** Per account (ook op je telefoon), ook met *Alles openen / sluiten*. *Slim openen* telt op deze pagina's niet meer mee. Met zoeken of een filter gaan de blokken met treffers tijdelijk open; daarna staat alles weer zoals jij het had.
+
+
 ## 1.92.2 – 2026-10-26
 ### Opgelost
 - **Elke minuut een nieuwe sessie "LAN, zonder wachtwoord"** bij *Ingelogde apparaten* (met "Inloggen zonder wachtwoord op het LAN" aan). Een controle die RzMon opvraagt zonder cookies te bewaren (de diepere controle van httpd/nginx door de agent op de RzMon-server, of een HTTP-check op RzMon zelf) gaf elke keer een nieuwe sessie. Een LAN-sessie komt nu pas in de lijst als dezelfde browser terugkomt; de oude losse sessies ruimt RzMon vanzelf op.

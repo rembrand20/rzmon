@@ -142,7 +142,8 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 **Bij openen** (*Mijn account → Weergave*, voor je account):
 - **Alles dicht** (standaard): servers, dagen, gebundelde regels en adressen staan dicht; je ziet de koppen met hun tellers en bolletjes. Wat je openklapt, blijft open tot je herlaadt. Met **zoeken of een filter** gaan de servers en dagen met treffers vanzelf open.
 - **Vandaag staat altijd open** (vanaf 1.78.0) op *Meldingen*, *IDS → Incidenten* en *IDS → Logins*, de andere dagen zijn dicht. Klap je vandaag dicht en komt er iets nieuws bij, dan gaat hij vanzelf weer open. Is er vandaag nog niets, dan staat er bovenaan een lege balk *Vandaag · geen meldingen 👌*.
-- **Slim openen**: zoals het vóór 1.71.0 werkte (vandaag open, ernstige kwetsbaarheden en lekken met wachtwoorden open, opengeklapte servers onthouden in deze browser).
+- **Slim openen**: zoals het vóór 1.71.0 werkte (vandaag open, opengeklapte servers onthouden in deze browser).
+- **Kwetsbaarheden en Datalekken** (vanaf 1.93.0): altijd dicht, behalve wat **jij** open had. Wat je open- of dichtklapt (ook met *Alles openen / sluiten*) onthoudt RzMon **per account**, dus ook op je telefoon; zonder account (LAN zonder wachtwoord) in deze browser. *Slim openen* telt hier niet mee. Met zoeken of een filter gaan de blokken met treffers tijdelijk open; wis je de zoekopdracht, dan staat alles weer zoals jij het had.
 - Overal staat in het menu **⋯** *Alles openen / sluiten*.
 
 ### Logo en icoon (vanaf 1.73.0)
