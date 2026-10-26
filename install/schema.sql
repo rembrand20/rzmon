@@ -559,6 +559,32 @@ CREATE TABLE IF NOT EXISTS ids_kills (
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_webshell', '1'), ('ids_webshell_kill', '0'), ('ids_persist', '1'),
     ('ids_outbound', '1'), ('ids_outbound_country', '1'), ('ids_outbound_block', '0');
 
+-- 1.88.0: hardening per server (agent 1.57.0) en gebruikers die op een server vergrendeld moeten worden
+CREATE TABLE IF NOT EXISTS ids_hardening (
+    host_id    INT UNSIGNED NOT NULL,
+    item       VARCHAR(32)  NOT NULL,
+    value      VARCHAR(200) NULL,
+    ok         TINYINT(1)   NULL,
+    ignored    TINYINT(1)   NOT NULL DEFAULT 0,
+    updated_at DATETIME     NOT NULL,
+    PRIMARY KEY (host_id, item),
+    CONSTRAINT fk_hard_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ids_userlocks (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    username   VARCHAR(32)  NOT NULL,
+    action     VARCHAR(8)   NOT NULL,             -- lock | unlock
+    created_by VARCHAR(64)  NULL,
+    created_at DATETIME     NOT NULL,
+    done_at    DATETIME     NULL,
+    result     VARCHAR(50)  NULL,
+    UNIQUE KEY uq_ul (host_id, username),
+    CONSTRAINT fk_ul_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_harden', '1');
+
 CREATE TABLE IF NOT EXISTS security_fails (
     id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     ip         VARCHAR(45) NOT NULL,

@@ -60,6 +60,7 @@ require_once __DIR__ . '/Whitelist.php';
 require_once __DIR__ . '/SessionStore.php';
 require_once __DIR__ . '/Stealth.php';
 require_once __DIR__ . '/Passkey.php';
+require_once __DIR__ . '/Hardening.php';
 require_once __DIR__ . '/SnmpMonitor.php';
 require_once __DIR__ . '/I18n.php';
 require_once __DIR__ . '/AgentText.php';

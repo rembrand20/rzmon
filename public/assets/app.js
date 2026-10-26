@@ -969,6 +969,8 @@ function init() {
     const go = e.target.closest('[data-goto]');
     if (go) { e.preventDefault(); showTab(go.dataset.goto); return; }
     if (e.target.closest('#ids-incidents') && toggleBundle(e)) return;
+    const hsb = e.target.closest('[data-hostsec]');
+    if (hsb) return hostSecDialog(+hsb.dataset.hostsec);
     const b = e.target.closest('[data-ids], [data-unblock], [data-rebase]');
     if (!b) return;
     try {
@@ -4473,9 +4475,13 @@ function renderIds() {
       +h.realtime ? ((x) => (x && x.state === 'active' ? '<span class="good">⚡ realtime</span>' : `<span class="warn-txt">⚡ ${L('niet actief')}</span>`))(JSON.parse(h.rt || 'null')) : '',
       +h.realtime ? ((t) => (t && !t.inotify ? `<span class="warn-txt">${t.family === 'rhel' && !t.epel ? L('EPEL ontbreekt') : L('inotify-tools ontbreekt')}</span>` : ''))(JSON.parse(h.tools || 'null')) : ''].filter(Boolean).join(' · ');
     const n = h.open[1] + h.open[2];
+    // Hardening-score en isolatie (1.88.0): klik voor details, isoleren en gebruikers
+    const hs = h.hard && h.hard.score !== null ? h.hard.score : null;
+    const sec = `<button type="button" class="hard-chip ${hs === null ? '' : hs >= 85 ? 'good' : hs >= 60 ? 'warn' : 'bad'}" data-hostsec="${h.id}" title="${esc(L('Hardening, isoleren en gebruikers'))}">🛡️ ${hs === null ? '–' : hs}${h.hard && h.hard.bad ? ` <small>· ${L('{n} punt(en)', { n: h.hard.bad })}</small>` : ''}</button>`
+      + (h.iso ? ` <span class="iso-chip" title="${esc(h.iso.isolate_state || '')}">🧱 ${h.iso.isolate_until ? L('geïsoleerd tot {t}', { t: esc(fmtUntil(h.iso.isolate_until)) }) : esc(h.iso.isolate_state)}</span>` : '');
     return `<div class="srv-row"><span class="ok-ic">🖥️</span>
       <span class="ok-nm"><strong>${esc(h.name)}</strong><small>${h.last_report ? L('IDS-rapport {ago}', { ago: ago(h.last_report) }) : d.enabled ? L('nog geen IDS-rapport (agent 1.35.0+)') : ''}</small></span>
-      <span class="srv-st small">${st}${h.baseline_until ? ` <button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="${L('Alles wat er nu is als normaal vastleggen')}">↺ ${L('basismeting opnieuw')}</button>` : ''}</span>
+      <span class="srv-st small">${sec} ${st}${h.baseline_until ? ` <button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="${L('Alles wat er nu is als normaal vastleggen')}">↺ ${L('basismeting opnieuw')}</button>` : ''}</span>
       <span class="srv-n">${n ? `<b class="${h.open[2] ? 'danger-txt' : 'warn-txt'}">● ${L('{n} open', { n })}</b>` : `<b class="good-txt">● ${L('geen incidenten')}</b>`}</span></div>`;
   }).join('') : '<p class="muted">' + L('Nog geen servers met agent.') + '</p>';
 
@@ -4533,6 +4539,112 @@ function renderIds() {
         <div class="table-scroll"><table class="alert-table large ids-blocks">${head}<tbody>${removed.map((b) => row(b, false)).join('')}</tbody></table></div></details>` : '');
   fxRender('blk');
 }
+
+// ---------------------------------------------------------------- Beveiliging per server (1.88.0)
+/** Hardening-score, isoleren en gebruikers vergrendelen voor één server */
+async function hostSecDialog(hostId) {
+  const h = (idsData?.hosts || []).find((x) => +x.id === hostId) || { name: '?' };
+  let d;
+  try { d = await api('harden_detail', null, { host_id: hostId }); } catch (ex) { toast(ex.message, 'err'); return; }
+  const ic = (i) => (i.ignored ? '<span class="muted">–</span>' : i.ok === true ? '<b class="good-txt">✔</b>' : i.ok === false ? '<b class="danger-txt">✘</b>' : '<span class="muted">?</span>');
+  const iso = d.iso && d.iso.isolate_until && new Date(d.iso.isolate_until.replace(' ', 'T')) > new Date();
+  const locks = d.userlocks.filter((u) => u.action === 'lock');
+  modal({
+    title: `🛡️ ${esc(h.name)}`,
+    wide: true,
+    body: `<h3 class="set-sub" style="margin-top:0">${L('Hardening')} ${d.score !== null ? `<span class="hard-chip ${d.score >= 85 ? 'good' : d.score >= 60 ? 'warn' : 'bad'}">${d.score}/100</span>` : ''}</h3>
+      ${d.items.length ? `<div class="table-scroll"><table class="vuln-table hard-table"><tbody>${d.items.map((i) => `<tr class="${i.ignored ? 'muted' : ''}">
+        <td>${ic(i)}</td><td><b>${esc(i.title)}</b>${i.value ? ` <code>${esc(i.value)}</code>` : ''}${i.ok === false && !i.ignored ? `<br><span class="small">${esc(i.advice)}</span>` : ''}</td>
+        <td class="nowrap need-admin"><label class="small"><input type="checkbox" data-hard-ign="${esc(i.item)}" ${i.ignored ? 'checked' : ''}> ${L('negeren')}</label></td></tr>`).join('')}</tbody></table></div>`
+        : `<p class="muted small">${L('Nog geen gegevens: agent 1.57.0 nodig; hij stuurt ze elk uur.')}</p>`}
+      <div class="need-admin">
+      <h3 class="set-sub">🧱 ${L('Isoleren')}</h3>
+      <p class="muted small" style="margin-top:-.2rem">${L('Bij een hack: alleen RzMon, je lokale netwerken en jouw IP-adres ({ip}) kunnen er nog bij; al het andere verkeer (in, uit en containers) stopt. Vervalt vanzelf na de gekozen tijd, ook als RzMon onbereikbaar is.', { ip: `<code>${esc(d.my_ip)}</code>` })}</p>
+      ${iso ? `<p><b class="danger-txt">🧱 ${L('Geïsoleerd tot {t}', { t: esc(fmtDateTime(d.iso.isolate_until)) })}</b> · ${L('door {by}', { by: esc(d.iso.isolate_by || '?') })} · <span class="muted">${esc(d.iso.isolate_state || '')}</span>
+          <button type="button" class="btn" data-unisolate>🔓 ${L('Opheffen')}</button></p>`
+        : `<div class="btn-row">${[1, 4, 24, 72].map((n) => `<button type="button" class="btn danger" data-isolate="${n}">🧱 ${n < 24 ? L('{n} uur', { n }) : n === 24 ? L('1 dag') : L('3 dagen')}</button>`).join('')}</div>
+          ${d.iso && d.iso.isolate_state && d.iso.isolate_state !== 'off' ? `<p class="muted small">${L('Laatste stand')}: ${esc(d.iso.isolate_state)}</p>` : ''}`}
+      <h3 class="set-sub">🔒 ${L('Gebruiker vergrendelen')}</h3>
+      <p class="muted small" style="margin-top:-.2rem">${L('Het account op deze server op slot (geen wachtwoord, geen SSH-sleutel) en al zijn processen gestopt. Bv. als een gebruiker is overgenomen. Root kan niet.')}</p>
+      <div class="inline-row"><input id="ul-name" placeholder="${esc(L('gebruikersnaam'))}" class="mono" autocomplete="off"> <button type="button" class="btn danger" data-ulock>🔒 ${L('Vergrendelen')}</button></div>
+      ${locks.length ? `<ul class="small">${locks.map((u) => `<li><code>${esc(u.username)}</code> · ${L('door {by}', { by: esc(u.created_by || '?') })} · ${u.done_at ? esc(u.result || '') : L('wacht op de agent')}
+        <button type="button" class="linkbtn" data-uunlock="${esc(u.username)}">${L('vrijgeven')}</button></li>`).join('')}</ul>` : ''}
+      </div>`,
+    buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
+  });
+  const body = $('#modal-form');
+  body.onchange = async (e) => {
+    const c = e.target.closest('[data-hard-ign]');
+    if (!c) return;
+    try { await api('harden_ignore', { host_id: hostId, item: c.dataset.hardIgn, ignored: c.checked }); $('#modal').close(); hostSecDialog(hostId); loadIds(); } catch (ex) { toast(ex.message, 'err'); }
+  };
+  body.onclick = async (e) => {
+    const isoB = e.target.closest('[data-isolate]'), un = e.target.closest('[data-unisolate]'), ul = e.target.closest('[data-ulock]'), uu = e.target.closest('[data-uunlock]');
+    if (!isoB && !un && !ul && !uu) return;
+    e.preventDefault();
+    try {
+      if (isoB) {
+        const pw = prompt(L('Isoleren bevestigen met je wachtwoord (op het LAN: typ ISOLEREN)'));
+        if (pw === null) return;
+        await api('host_isolate', { host_id: hostId, hours: +isoB.dataset.isolate, confirm: pw });
+        toast(L('{name} wordt geïsoleerd; de agent past het binnen een minuut toe', { name: h.name }));
+      } else if (un) {
+        await api('host_unisolate', { host_id: hostId }); toast(L('Isolatie wordt opgeheven'));
+      } else if (ul) {
+        const name = $('#ul-name').value.trim();
+        if (!name) return;
+        const pw = prompt(L('{user} op {name} vergrendelen? Bevestig met je wachtwoord (op het LAN: typ VERGRENDELEN)', { user: name, name: h.name }));
+        if (pw === null) return;
+        await api('host_userlock', { host_id: hostId, user: name, lock: true, confirm: pw }); toast(L('{user} wordt vergrendeld', { user: name }));
+      } else {
+        await api('host_userlock', { host_id: hostId, user: uu.dataset.uunlock, lock: false }); toast(L('{user} wordt vrijgegeven', { user: uu.dataset.uunlock }));
+      }
+      $('#modal').close(); hostSecDialog(hostId); loadIds();
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+}
+
+// ---------------------------------------------------------------- Tijdlijn per IP (1.88.0)
+const TL_SRC = { ids: '🛡️', block: '⛔', unblock: '🔓', login: '🔑', fail: '❌', alert: '🔔' };
+async function ipTimeline(ip) {
+  let d;
+  try { d = await api('ip_timeline', null, { ip }); } catch (ex) { toast(ex.message, 'err'); return; }
+  const day = (s) => s.slice(0, 10);
+  let last = '';
+  modal({
+    title: `🔎 ${ip}`,
+    wide: true,
+    body: `<p style="margin-top:0" class="small">${ccTag(d.cc) ? ccTag(d.cc) + ' · ' : ''}${[d.internal ? '🏠 ' + L('je eigen netwerk') : '',
+        d.bad ? '☠️ ' + L('bekende aanvaller ({list})', { list: esc(d.bad) }) : '',
+        d.whitelist ? '✅ ' + L('op de whitelist') + (d.whitelist.until ? ` (${L('tot {t}', { t: esc(fmtDateTime(d.whitelist.until)) })})` : '') : '',
+        d.blocked_rz ? '⛔ ' + L('geblokkeerd in RzMon') : '', d.blocked_ids.length ? '⛔ ' + L('geblokkeerd op {list}', { list: esc(d.blocked_ids.join(', ')) }) : '',
+        d.first ? L('eerst gezien {t}', { t: esc(fmtDateTime(d.first)) }) : '', d.hosts.length ? L('servers: {list}', { list: esc(d.hosts.join(', ')) }) : ''].filter(Boolean).join(' · ') || L('Nog niets bekend van dit IP-adres.')}</p>
+      ${d.events.length ? `<div class="tl">${d.events.map((x) => {
+        const head = day(x.at) !== last ? `<div class="tl-day">${esc(new Date(x.at.replace(' ', 'T')).toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</div>` : '';
+        last = day(x.at);
+        return `${head}<div class="tl-row ${x.sev === 2 ? 'crit' : ''}"><span class="tl-t">${esc(x.at.slice(11, 16))}</span><span>${TL_SRC[x.src] || '•'}</span><span class="tl-x">${esc(x.text)}${x.host ? ` <span class="muted small">· ${esc(x.host)}</span>` : ''}</span></div>`;
+      }).join('')}</div>` : ''}
+      <div class="btn-row need-admin">${!d.whitelist && !d.internal ? `<button type="button" class="btn" data-tl-wl>✅ ${L('Op de whitelist')}</button>` : ''}
+        <a href="#settings/blocks" class="btn" data-tl-go>⛔ ${L('Blokkades en whitelist')}</a></div>`,
+    buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
+  });
+  $('#modal-form').onclick = (e) => {
+    if (e.target.closest('[data-tl-wl]')) { e.preventDefault(); $('#modal').close(); wlDialog({ type: 'ip', value: ip, wl: false }); }
+    if (e.target.closest('[data-tl-go]')) { e.preventDefault(); $('#modal').close(); showTab('settings/blocks'); }
+  };
+}
+// Klik op een IP-adres (in een <code>) op de pagina's Meldingen, IDS en bij de blokkades: de tijdlijn van dat IP
+const IP_RE = /^(\d{1,3}(\.\d{1,3}){3}|[0-9a-f]*:[0-9a-f:]+)$/i;
+document.addEventListener('click', (e) => {
+  const c = e.target.closest('code');
+  if (!c || c.closest('#modal') || !c.closest('#tab-alerts, #tab-ids, #blocks-card')) return;
+  const ip = c.textContent.trim();
+  if (IP_RE.test(ip)) { e.preventDefault(); ipTimeline(ip); }
+});
+document.addEventListener('mouseover', (e) => {
+  const c = e.target.closest && e.target.closest('code');
+  if (c && !c.dataset.ipc && IP_RE.test(c.textContent.trim())) { c.dataset.ipc = '1'; c.classList.add('ip-link'); c.title = L('Tijdlijn van dit IP-adres'); }
+});
 
 /** Eén incident als compacte rij; group = alle incidenten van een bundel (dan met 3× en een knop voor allemaal) */
 function idsRow(i, group = null) {
@@ -5973,6 +6085,7 @@ const SYSINFO_ROWS = [
     ['local_only', '🏠 ' + L('Inlogpoging van buiten op een lokaal account')], ['sec', '⚠️ ' + L('Niet-geautoriseerde verbinding')]]],
   [L('Onzichtbaar van buiten'), [['device_trust', '📱 ' + L('Apparaat toegestaan of ingetrokken')], ['passkey', '🔑 ' + L('Passkey aangemaakt of verwijderd')],
     ['stealth_door', '🚪 ' + L('Noodlink aangevraagd of gebruikt')]]],
+  ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
 ];
 const SYSINFO_CH = [['pushover', '📲 Pushover', 'pushover_enabled'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
 let sysinfoCfg = null;

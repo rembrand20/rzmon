@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.88.0 – 2026-10-26
+### Nieuw
+- **🧰 Hardening-score** per server (IDS, **agent 1.57.0 nodig**). Punten: SSH (wachtwoord, root, lege wachtwoorden), firewall, automatische updates, open databases, Docker-socket, accounts zonder wachtwoord, sudo zonder wachtwoord, `/tmp` noexec en SELinux.
+  - Per punt advies en *negeren*.
+  - Een incident als een punt slechter wordt.
+- **🧱 Server isoleren**: alleen RzMon, je LAN en jouw IP kunnen er nog bij; in, uit en containers dicht. 1 uur tot 3 dagen, met wachtwoord. Vervalt vanzelf, ook als RzMon onbereikbaar is. Met een ℹ️-melding.
+- **🔒 Gebruiker vergrendelen** op een server (en zijn processen stoppen), en weer vrijgeven.
+- **🔎 Tijdlijn per IP**: klik op een IP-adres (Meldingen, IDS, Blokkades) voor alles wat RzMon ervan weet, over al je servers, met *Op de whitelist*.
+- Nieuwe agent 1.57.0.
+
 ## 1.87.0 – 2026-10-26
 ### Nieuw
 - **🕸️ Webshell** (IDS, **agent 1.56.0 nodig**): een webserver (nginx, apache, php-fpm …) die een shell of `curl`/`wget`/`python` start, is critical. In de modus blokkeren kan de agent dat proces meteen stoppen (schakelaar, standaard uit). Met **✅ Vrijgeven** wordt het voortaan niet meer gemeld of gestopt.

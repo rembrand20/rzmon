@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.56.0"
+AGENT_VERSION="1.57.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1600,6 +1600,39 @@ if [ -n "$ids_mode" ]; then
         done <"$t_cache"
         find "$i_dir" -maxdepth 1 -name 'killed.*' -mmin +1440 -delete 2>/dev/null
     fi
+    # 6e. Hardening (agent 1.57.0): elk uur de instellingen die het verschil maken; RzMon geeft er een score aan
+    hard_part=""
+    if [ ! -f "$i_dir/hard" ] || [ $(( $(date +%s) - $(stat -c %Y "$i_dir/hard") )) -ge 3600 ]; then
+        {
+            if command -v sshd >/dev/null 2>&1 && sshd_t=$(sshd -T 2>/dev/null) && [ -n "$sshd_t" ]; then
+                printf 'ssh_pw=%s\nssh_root=%s\nssh_empty=%s\n' "$(awk '$1 == "passwordauthentication" { print $2 }' <<<"$sshd_t")" \
+                    "$(awk '$1 == "permitrootlogin" { print $2 }' <<<"$sshd_t")" "$(awk '$1 == "permitemptypasswords" { print $2 }' <<<"$sshd_t")"
+            fi
+            h_fw=none
+            if systemctl is-active -q firewalld 2>/dev/null; then h_fw=firewalld
+            elif command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q 'Status: active'; then h_fw=ufw
+            elif nft list ruleset 2>/dev/null | grep -qE 'hook input .*policy drop'; then h_fw=nftables
+            elif iptables -S INPUT 2>/dev/null | grep -qE '^-P INPUT DROP|-j (DROP|REJECT)'; then h_fw=iptables; fi
+            printf 'firewall=%s\n' "$h_fw"
+            h_au=none
+            for u in dnf-automatic.timer dnf-automatic-install.timer dnf5-automatic.timer unattended-upgrades.service; do
+                systemctl is-enabled -q "$u" 2>/dev/null && h_au=$u && break
+            done
+            [ "$h_au" = unattended-upgrades.service ] && ! grep -qsE 'Unattended-Upgrade "1"' /etc/apt/apt.conf.d/20auto-upgrades && h_au=none
+            printf 'autoupdate=%s\n' "$h_au"
+            printf 'open_db=%s\n' "$(ss -Htln 2>/dev/null | awk '{ a = $4; p = a; sub(/.*:/, "", p); h = a; sub(/:[0-9]+$/, "", h)
+                if (p ~ /^(3306|5432|6379|27017|9200|11211|5984|8086)$/ && h ~ /^(0\.0\.0\.0|\*|\[::\]|::)$/) print p }' | sort -un | paste -sd, -)"
+            h_dk=ok
+            [ -S /var/run/docker.sock ] && [[ "$(stat -c %A /var/run/docker.sock 2>/dev/null)" == ????????w? ]] && h_dk=world
+            ss -Htln 2>/dev/null | awk '{ print $4 }' | grep -qE ':2375$' && h_dk=tcp
+            printf 'docker_sock=%s\n' "$h_dk"
+            if findmnt -no OPTIONS /tmp 2>/dev/null | grep -q noexec; then printf 'tmp_noexec=yes\n'; else printf 'tmp_noexec=no\n'; fi
+            printf 'empty_pw=%s\n' "$(awk -F: '$2 == "" { print $1 }' /etc/shadow 2>/dev/null | paste -sd, -)"
+            printf 'sudo_nopw=%s\n' "$(grep -hsE '^[^#]*NOPASSWD' /etc/sudoers /etc/sudoers.d/* 2>/dev/null | awk '{ print $1 }' | sort -u | paste -sd, -)"
+            if command -v getenforce >/dev/null 2>&1; then printf 'selinux=%s\n' "$(getenforce 2>/dev/null)"; fi
+        } >"$i_dir/hard.tmp" 2>/dev/null && mv -f "$i_dir/hard.tmp" "$i_dir/hard"
+        [ -s "$i_dir/hard" ] && hard_part=",\"hard\":{$(awk '/^[a-z_]+=/ { k = $0; sub(/=.*/, "", k); v = substr($0, length(k) + 2); gsub(/[\\"]/, "", v); printf "\"%s\":\"%s\",", k, v }' "$i_dir/hard" | sed 's/,$//')}"
+    fi
     # 7. Verbindingen: een shell (of nc/socat) met een verbinding naar buiten, of uitgaand naar een verdachte poort
     conns_json=""; out_json=""; out_seen=""; n_out=0
     if command -v ss >/dev/null 2>&1; then
@@ -1633,7 +1666,7 @@ if [ -n "$ids_mode" ]; then
                     names = names (names == "" ? "" : ",") a[1]; if (!pid) pid = a[2]; rest = substr(rest, RSTART + RLENGTH) }
                 if (names != "") print names "\t" pid "\t" $3 "\t" $4 }' | head -n 200)
     fi
-    ids_json="\"ids\":{\"mode\":\"$ids_mode\",\"fv\":2,\"files\":{${files_json%,}},\"users\":[${users_json%,}],\"groups\":{${groups_json%,}},\"modules\":[${mods_json%,}]${suid_part}${pkg_part},\"pkg\":$pkg_t,\"procs\":[${procs_json%,}],\"conns\":[${conns_json%,}],\"web\":[${web_json%,}],\"out\":[${out_json%,}],\"killed\":[${killed_json%,}]${units_part},"
+    ids_json="\"ids\":{\"mode\":\"$ids_mode\",\"fv\":2,\"files\":{${files_json%,}},\"users\":[${users_json%,}],\"groups\":{${groups_json%,}},\"modules\":[${mods_json%,}]${suid_part}${pkg_part},\"pkg\":$pkg_t,\"procs\":[${procs_json%,}],\"conns\":[${conns_json%,}],\"web\":[${web_json%,}],\"out\":[${out_json%,}],\"killed\":[${killed_json%,}]${units_part}${hard_part},"
 
     # 8. Bestanden bewaken (regel "0 <tab> fim <tab> base64" met e <tab> epoch, p <tab> ernst <tab> pad, x <tab> uitsluiten).
     #    Elke run een snelle controle (grootte, tijd, rechten, eigenaar); alleen bij een verschil een nieuwe hash.
@@ -1817,6 +1850,70 @@ fi
 if [ -n "$ids_json" ]; then
     [ -n "$fw_json" ] || fw_json='"fw":{"state":"off"}'
     ids_json+="$fw_json},"
+fi
+
+# ---------------------------------------------------------------- Isoleren en gebruiker uitzetten (agent 1.57.0)
+# "0 <tab> isolate <tab> tot (epoch) <tab> toegestane netwerken": alleen nog verkeer met RzMon, je LAN en het IP van de
+# beheerder; al het andere (in, uit en containers) wordt tegengehouden. Eigen tabel "inet rzmon_iso". Vervalt vanzelf
+# op de tijd, ook als RzMon onbereikbaar is (zo sluit je jezelf nooit voorgoed buiten).
+# "0 <tab> userlock <tab> naam <tab> lock|unlock": account vergrendelen (en de processen ervan stoppen) of weer vrijgeven.
+iso_json=""
+if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && [ "$(id -u)" = 0 ]; then
+    iso_line=$(awk -F'\t' '$1 == "0" && $2 == "isolate" { print $3 "\t" $4; exit }' "$t_cache")
+    iso_until=${iso_line%%$'\t'*}; iso_allow=${iso_line#*$'\t'}
+    iso_dir="$t_dir/iso"; mkdir -p "$iso_dir" 2>/dev/null
+    if [[ "$iso_until" =~ ^[0-9]+$ ]] && [ "$iso_until" -gt "$(date +%s)" ] && command -v nft >/dev/null 2>&1; then
+        # Altijd bereikbaar: RzMon (en het reserve-adres) en de DNS-servers (om RzMon te vinden)
+        i_ok=""
+        for u in "$MONITOR_URL" "${MONITOR_URL_FALLBACK-}"; do
+            [ -n "$u" ] || continue
+            h=${u#*://}; h=${h%%/*}; h=${h%:*}; h=${h#[}; h=${h%]}
+            i_ok+=" $h $(getent ahosts "$h" 2>/dev/null | awk '{ print $1 }' | sort -u | tr '\n' ' ')"
+        done
+        i_ok+=" $(awk '$1 == "nameserver" { print $2 }' /etc/resolv.conf 2>/dev/null | tr '\n' ' ')"
+        a4=""; a6=""
+        for n in $iso_allow $i_ok; do
+            if [[ "$n" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?$ ]]; then [[ " $a4" == *" $n, "* ]] || a4+="$n, "
+            elif [[ "$n" =~ ^[0-9a-fA-F:]+(/[0-9]{1,3})?$ ]] && [[ "$n" == *:* ]]; then [[ " $a6" == *" $n, "* ]] || a6+="$n, "; fi
+        done
+        i_sig=$(printf '%s|%s' "$a4" "$a6" | sha1sum | cut -c1-16)
+        if ! nft list table inet rzmon_iso >/dev/null 2>&1 || [ "$(cat "$iso_dir/sig" 2>/dev/null)" != "$i_sig" ]; then
+            e4=""; e6=""
+            [ -n "$a4" ] && e4=" elements = { ${a4%, } };"
+            [ -n "$a6" ] && e6=" elements = { ${a6%, } };"
+            if { echo "table inet rzmon_iso"; echo "delete table inet rzmon_iso"; echo "table inet rzmon_iso {"
+                 echo "  set ok4 { type ipv4_addr; flags interval; auto-merge;$e4 }"
+                 echo "  set ok6 { type ipv6_addr; flags interval; auto-merge;$e6 }"
+                 echo "  chain input { type filter hook input priority -10; policy drop; iif lo accept; ip saddr @ok4 accept; ip6 saddr @ok6 accept; icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-advert } accept; }"
+                 echo "  chain output { type filter hook output priority -10; policy drop; oif lo accept; ip daddr @ok4 accept; ip6 daddr @ok6 accept; icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit } accept; }"
+                 echo "  chain iso_fw { type filter hook forward priority -10; policy drop; }"
+                 echo "}"; } | nft -f - 2>"$iso_dir/err"; then
+                echo "$i_sig" >"$iso_dir/sig"
+            fi
+        fi
+        if nft list table inet rzmon_iso >/dev/null 2>&1; then iso_json="\"iso\":{\"state\":\"active\",\"until\":$iso_until},"
+        else iso_json="\"iso\":{\"state\":\"error\",\"err\":\"$(head -c 200 "$iso_dir/err" 2>/dev/null | json_text)\"},"; fi
+    elif command -v nft >/dev/null 2>&1 && nft list table inet rzmon_iso >/dev/null 2>&1; then
+        # Tijd voorbij, of RzMon heeft het opgeheven: alles weer open
+        nft delete table inet rzmon_iso 2>/dev/null; rm -f "$iso_dir/sig"
+        iso_json="\"iso\":{\"state\":\"off\"},"
+    elif [ -f "$iso_dir/sig" ] || [[ "$iso_until" =~ ^[0-9]+$ ]]; then
+        rm -f "$iso_dir/sig"; iso_json="\"iso\":{\"state\":\"off\"},"
+    fi
+    ul_json=""
+    while IFS=$'\t' read -r z t u_name u_act; do
+        [ "$z" = 0 ] && [ "$t" = userlock ] && [[ "$u_name" =~ ^[a-z_][a-z0-9._-]{0,31}$ ]] && [ "$u_name" != root ] || continue
+        [ "$u_act" = lock ] || [ "$u_act" = unlock ] || continue
+        [ -f "$iso_dir/ul.$u_name.$u_act" ] && continue   # al gedaan
+        if ! getent passwd "$u_name" >/dev/null; then u_res=onbekend
+        elif [ "$u_act" = lock ]; then
+            if usermod -L -e 1 "$u_name" 2>/dev/null; then pkill -KILL -u "$u_name" 2>/dev/null; u_res=ok; else u_res=fout; fi
+        elif usermod -U -e '' "$u_name" 2>/dev/null; then u_res=ok
+        else u_res=fout; fi
+        rm -f "$iso_dir/ul.$u_name."*; : >"$iso_dir/ul.$u_name.$u_act"
+        ul_json+="[\"$u_name\",\"$u_act\",\"$u_res\"],"
+    done <"$t_cache"
+    [ -n "$ul_json" ] && iso_json+="\"userlock\":[${ul_json%,}],"
 fi
 
 # ---------------------------------------------------------------- Podman: containers, pods en opslag
@@ -2305,7 +2402,7 @@ fi
 # Opstarttijd (epoch) voor de check Herstart in RzMon
 read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
 
 curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)

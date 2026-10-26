@@ -1496,3 +1496,16 @@ details.adv[open] { padding-bottom: .6rem; }
 /* Van buiten en passkeys (1.86.0) */
 h4.acc-sub { margin: .9rem 0 .3rem; font-size: .9rem; }
 code.sel-all { user-select: all; word-break: break-all; }
+/* Hardening, isoleren, tijdlijn per IP (1.88.0) */
+.hard-chip { border: 1px solid var(--border); background: var(--card-2); color: var(--text); border-radius: 999px; padding: .05rem .5rem; font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; }
+.hard-chip.good { border-color: var(--ok, #2e7d32); }
+.hard-chip.warn { border-color: var(--warn); }
+.hard-chip.bad { border-color: var(--crit, #d32f2f); color: var(--crit, #ef5350); }
+.iso-chip { border-radius: 999px; padding: .05rem .5rem; font-size: .8rem; background: rgba(211, 47, 47, .15); color: var(--crit, #ef5350); font-weight: 600; }
+.hard-table td { vertical-align: top; }
+code.ip-link { cursor: pointer; text-decoration: underline dotted; }
+.tl { max-height: 55vh; overflow: auto; margin: .4rem 0; }
+.tl-day { font-weight: 600; font-size: .85rem; margin: .7rem 0 .2rem; color: var(--muted); }
+.tl-row { display: grid; grid-template-columns: 3rem 1.5rem 1fr; gap: .3rem; font-size: .88rem; padding: .15rem 0; border-bottom: 1px solid var(--border); }
+.tl-row.crit .tl-x { color: var(--crit, #ef5350); }
+.tl-t { color: var(--muted); font-variant-numeric: tabular-nums; }

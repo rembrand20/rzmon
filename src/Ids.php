@@ -45,10 +45,12 @@ final class Ids
     /** Regels voor de testlijst van de agent: IDS aan + modus, en de te blokkeren IP's (ip <tab> verloopt, 0 = nooit). */
     public static function agentLines(int $hostId): array
     {
+        // Isoleren en gebruikers vergrendelen (1.88.0): los van het IDS, het is een opdracht van een beheerder
+        $resp = self::responseLines($hostId);
         if (!self::enabled()) {
-            return [];
+            return $resp;
         }
-        $out = [implode("\t", [0, 'ids', self::blocking() ? 'block' : 'learn'])];
+        $out = [implode("\t", [0, 'ids', self::blocking() ? 'block' : 'learn']), ...$resp];
         // Bestanden bewaken: e <tab> epoch, p <tab> ernst <tab> pad, x <tab> uitsluiten (base64, één regel)
         $paths = self::fimPaths($hostId);
         if ($paths) {
@@ -79,6 +81,126 @@ final class Ids
         }
         array_push($out, ...self::killLines($hostId));
         return $out;
+    }
+
+    // ------------------------------------------------------------------ isoleren en gebruikers (1.88.0)
+
+    /** Regels voor de agent: isoleren (tot, toegestane netwerken) en te vergrendelen of vrij te geven gebruikers */
+    private static function responseLines(int $hostId): array
+    {
+        $out = [];
+        $h = q('SELECT isolate_until, isolate_allow FROM hosts WHERE id = ?', [$hostId])->fetch();
+        if ($h && $h['isolate_until'] && strtotime((string) $h['isolate_until']) > time()) {
+            $allow = array_values(array_unique(array_merge(parse_list((string) setting('trusted_networks', '')), parse_list((string) $h['isolate_allow']))));
+            $out[] = implode("\t", [0, 'isolate', strtotime((string) $h['isolate_until']), implode(' ', array_slice($allow, 0, 50))]);
+        }
+        foreach (q('SELECT username, action FROM ids_userlocks WHERE host_id = ? AND created_at >= ?', [$hostId, date('Y-m-d H:i:s', time() - 86400)])->fetchAll() as $u) {
+            $out[] = implode("\t", [0, 'userlock', $u['username'], $u['action']]);
+        }
+        return $out;
+    }
+
+    /** Server isoleren: $hours 1–72; het IP van de beheerder mag erbij (en je LAN, en RzMon zelf) */
+    public static function isolate(int $hostId, int $hours, string $by, string $byIp): void
+    {
+        $until = date('Y-m-d H:i:s', time() + max(1, min(72, $hours)) * 3600);
+        q('UPDATE hosts SET isolate_until = ?, isolate_by = ?, isolate_allow = ?, isolate_state = ? WHERE id = ?',
+            [$until, mb_substr($by, 0, 64), @inet_pton($byIp) !== false ? $byIp : null, 'wacht op de agent', $hostId]);
+        $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
+        AgentCommands::audit($by, 'Server geïsoleerd', "$name tot $until");
+        Monitor::sysInfo('isolate', $hostId, $name, '🧱 ' . t('Server geïsoleerd: {name}', ['name' => $name]),
+            fn() => t('{name} is geïsoleerd door {by}: alleen RzMon, je LAN en {ip} kunnen er nog bij, tot {t}', ['name' => $name, 'by' => $by, 'ip' => $byIp, 't' => date('d-m H:i', strtotime($until))]));
+    }
+
+    public static function unisolate(int $hostId, string $by): void
+    {
+        q('UPDATE hosts SET isolate_until = NULL, isolate_state = ? WHERE id = ?', ['wordt opgeheven', $hostId]);
+        $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
+        AgentCommands::audit($by, 'Isolatie opgeheven', $name);
+        Monitor::sysInfo('isolate', $hostId, $name, '🔓 ' . t('Isolatie opgeheven: {name}', ['name' => $name]), fn() => t('{name} is weer gewoon bereikbaar (door {by})', ['name' => $name, 'by' => $by]));
+    }
+
+    /** Stand van de agent: iso (actief, uit, fout) en de uitkomst van gebruikers vergrendelen */
+    public static function agentState(array $host, array $in): void
+    {
+        $hid = (int) $host['id'];
+        if (is_array($in['iso'] ?? null)) {
+            $st = (string) ($in['iso']['state'] ?? '');
+            q('UPDATE hosts SET isolate_state = ? WHERE id = ?', [mb_substr($st === 'error' ? 'fout: ' . ($in['iso']['err'] ?? '') : $st, 0, 255), $hid]);
+            if ($st === 'off') {
+                q('UPDATE hosts SET isolate_until = NULL WHERE id = ? AND isolate_until <= ?', [$hid, now()]);   // verlopen
+            }
+        }
+        foreach (array_slice((array) ($in['userlock'] ?? []), 0, 20) as $u) {
+            [$name, $act, $res] = [(string) ($u[0] ?? ''), (string) ($u[1] ?? ''), (string) ($u[2] ?? '')];
+            q('UPDATE ids_userlocks SET done_at = ?, result = ? WHERE host_id = ? AND username = ? AND action = ?', [now(), mb_substr($res, 0, 50), $hid, $name, $act]);
+        }
+    }
+
+    /** Gebruiker op een server vergrendelen (en zijn processen stoppen) of weer vrijgeven */
+    public static function userLock(int $hostId, string $user, bool $lock, string $by): true|string
+    {
+        if (!preg_match('/^[a-z_][a-z0-9._-]{0,31}$/', $user) || $user === 'root') {
+            return t('Ongeldige gebruikersnaam (root kan niet)');
+        }
+        q('INSERT INTO ids_userlocks (host_id, username, action, created_by, created_at) VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE action = VALUES(action), created_by = VALUES(created_by), created_at = VALUES(created_at), done_at = NULL, result = NULL',
+            [$hostId, $user, $lock ? 'lock' : 'unlock', mb_substr($by, 0, 64), now()]);
+        $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
+        AgentCommands::audit($by, $lock ? 'Gebruiker vergrendeld' : 'Gebruiker vrijgegeven', "$user op $name");
+        return true;
+    }
+
+    public static function userLocks(int $hostId): array
+    {
+        return q('SELECT username, action, created_by, created_at, done_at, result FROM ids_userlocks WHERE host_id = ? ORDER BY created_at DESC', [$hostId])->fetchAll();
+    }
+
+    // ------------------------------------------------------------------ tijdlijn per IP (1.88.0)
+
+    /** Alles wat RzMon van één IP-adres weet, over al je servers, nieuwste eerst */
+    public static function timeline(string $ip): array
+    {
+        $ev = [];
+        $add = static function (?string $at, string $src, string $text, ?string $host = null, ?int $sev = null) use (&$ev) {
+            if ($at) {
+                $ev[] = ['at' => $at, 'src' => $src, 'text' => mb_substr($text, 0, 300), 'host' => $host, 'sev' => $sev];
+            }
+        };
+        foreach (q('SELECT i.created_at, i.last_seen, i.severity, i.title, i.hits, h.name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.ip = ? ORDER BY i.id DESC LIMIT 200', [$ip])->fetchAll() as $r) {
+            $add($r['created_at'], 'ids', $r['title'] . ((int) $r['hits'] > 1 ? " ({$r['hits']}×)" : ''), $r['name'], (int) $r['severity']);
+        }
+        foreach (q('SELECT b.created_at, b.removed_at, b.removed_by, b.until, b.reason, h.name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id WHERE b.ip = ? ORDER BY b.id DESC LIMIT 100', [$ip])->fetchAll() as $r) {
+            $add($r['created_at'], 'block', t('Geblokkeerd') . ': ' . self::reasonText((string) $r['reason']), $r['name']);
+            $add($r['removed_at'], 'unblock', t('Gedeblokkeerd') . ($r['removed_by'] ? ' · ' . self::reasonText((string) $r['removed_by']) : ''), $r['name']);
+        }
+        foreach (q("SELECT a.created_at, a.title, a.type, a.kind, h.name FROM access_log a JOIN hosts h ON h.id = a.host_id
+                    WHERE JSON_UNQUOTE(JSON_EXTRACT(a.detail, '$.ip')) = ? ORDER BY a.id DESC LIMIT 200", [$ip])->fetchAll() as $r) {
+            $add($r['created_at'], $r['kind'] === 'authfail' ? 'fail' : 'login', $r['title'], $r['name']);
+        }
+        foreach (q('SELECT created_at, status, title FROM alerts WHERE ip = ? ORDER BY id DESC LIMIT 200', [$ip])->fetchAll() as $r) {
+            $add($r['created_at'], 'alert', $r['title'], 'RzMon');
+        }
+        foreach (q('SELECT l.created_at, l.ok, l.how, u.username FROM login_log l JOIN users u ON u.id = l.user_id WHERE l.ip = ? ORDER BY l.id DESC LIMIT 100', [$ip])->fetchAll() as $r) {
+            $add($r['created_at'], (int) $r['ok'] ? 'login' : 'fail', ((int) $r['ok'] ? t('Ingelogd in RzMon') : t('Mislukte login in RzMon')) . ": {$r['username']} (" . t((string) $r['how']) . ')', 'RzMon');
+        }
+        foreach (q('SELECT created_at, until, reason FROM rz_blocks WHERE net = ?', [$ip])->fetchAll() as $r) {
+            $add($r['created_at'], 'block', t('Geblokkeerd in RzMon') . ': ' . self::reasonText((string) $r['reason']), 'RzMon');
+        }
+        foreach (q("SELECT created_at, removed_at, removed_by, reason FROM block_log WHERE kind = 'rz' AND value = ?", [$ip])->fetchAll() as $r) {
+            $add($r['created_at'], 'block', t('Geblokkeerd in RzMon') . ': ' . self::reasonText((string) $r['reason']), 'RzMon');
+            $add($r['removed_at'], 'unblock', t('Gedeblokkeerd in RzMon'), 'RzMon');
+        }
+        usort($ev, static fn($a, $b) => strcmp($b['at'], $a['at']));
+        $wl = Whitelist::ruleFor($ip);
+        return [
+            'ip' => $ip, 'cc' => IpIntel::lookupCountry($ip), 'bad' => IpIntel::bad($ip), 'internal' => self::internalIp($ip),
+            'whitelist' => $wl ? ['until' => $wl['until'], 'value' => $wl['value']] : null,
+            'blocked_rz' => (bool) Security::blockFor($ip),
+            'blocked_ids' => q('SELECT h.name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id WHERE b.ip = ? AND b.removed_at IS NULL AND (b.until IS NULL OR b.until > NOW())', [$ip])->fetchAll(PDO::FETCH_COLUMN),
+            'first' => $ev ? end($ev)['at'] : null, 'events' => array_slice($ev, 0, 400),
+            'hosts' => array_values(array_unique(array_filter(array_column($ev, 'host')))),
+        ];
     }
 
     /** Honeypot-poort (1.81.0), of null (uit) */
@@ -215,6 +337,10 @@ final class Ids
         }
         if (setting('ids_outbound', '1') === '1') {
             self::outbound($ctx, (array) ($ids['out'] ?? []));
+        }
+        // Hardening (1.88.0): score, en een incident als iets slechter wordt
+        if (is_array($ids['hard'] ?? null) && Hardening::enabled()) {
+            Hardening::store($host, $ids['hard'], fn(int $sev, string $type, string $key, string $title, string $detail) => self::incident($ctx, $sev, $type, $key, $title, $detail));
         }
         self::logins($ctx, $auth);
         if (is_array($ids['fim'] ?? null)) {

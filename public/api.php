@@ -591,6 +591,8 @@ if ($action === 'agent') {
     if (is_array($in['ids'] ?? null)) {
         Ids::process($host, $in['ids'], (array) ($in['auth'] ?? []), (array) ($in['ports'] ?? []));
     }
+    // Isoleren en gebruikers vergrendelen (agent 1.57.0): de stand bij de agent
+    Ids::agentState($host, $in);
     // Commando-checks: uitvoer en exitcode (RzMon vergelijkt met het verwachte antwoord)
     foreach ((array) ($in['cmd'] ?? []) as $id => $r) {
         if (ctype_digit((string) $id) && is_array($r)) {
@@ -896,7 +898,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'alerts', 'ids', 'ids_access', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'state', 'alerts', 'ids', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
@@ -2160,7 +2162,7 @@ switch ($action) {
             $in['sysinfo'] = json_encode(NotifyRules::cleanSysinfo((array) json_decode((string) $in['sysinfo'], true), NotifyRules::sysinfo()));
         }
         $allowed = ['sysinfo', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -3089,7 +3091,11 @@ switch ($action) {
                     FROM hosts h LEFT JOIN ids_state s ON s.host_id = h.id WHERE h.mode = 'agent' AND h.enabled = 1 ORDER BY h.name")->fetchAll();
         $open = q("SELECT host_id, severity, COUNT(*) AS n FROM ids_incidents WHERE status = 'open' GROUP BY host_id, severity")->fetchAll();
         $blocks = Ids::activeBlocks();
+        $hard = Hardening::enabled() ? Hardening::scores() : [];
+        $iso = q('SELECT id, isolate_until, isolate_by, isolate_state FROM hosts')->fetchAll(PDO::FETCH_UNIQUE);
         foreach ($hosts as &$h) {
+            $h['hard'] = $hard[(int) $h['id']] ?? null;
+            $h['iso'] = ($iso[$h['id']]['isolate_until'] ?? null) ? $iso[$h['id']] : (str_starts_with((string) ($iso[$h['id']]['isolate_state'] ?? ''), 'fout') ? $iso[$h['id']] : null);
             $h['open'] = [1 => 0, 2 => 0];
             foreach ($open as $o) {
                 if ((int) $o['host_id'] === (int) $h['id']) {
@@ -3282,6 +3288,45 @@ switch ($action) {
         }
         AgentCommands::audit($user['username'], 'IDS: gedeblokkeerd', "{$b['ip']} op server {$b['host_id']}");
         out(['ok' => true]);
+
+    // ---------- Hardening, isoleren, gebruiker vergrendelen en de tijdlijn per IP (1.88.0) ----------
+    case 'harden_detail':
+        $hid = (int) ($_GET['host_id'] ?? 0);
+        out(Hardening::detail($hid) + ['iso' => q('SELECT isolate_until, isolate_by, isolate_state FROM hosts WHERE id = ?', [$hid])->fetch() ?: null,
+            'userlocks' => Ids::userLocks($hid), 'my_ip' => client_ip()]);
+
+    case 'harden_ignore':
+        $in = input();
+        Hardening::ignore((int) ($in['host_id'] ?? 0), (string) ($in['item'] ?? ''), !empty($in['ignored']));
+        AgentCommands::audit($user['username'], 'Hardening negeren', ($in['item'] ?? '') . ' op server ' . (int) ($in['host_id'] ?? 0) . (!empty($in['ignored']) ? ' aan' : ' uit'));
+        out(['ok' => true]);
+
+    case 'host_isolate':
+        $in = input();
+        $confirm('ISOLEREN');
+        $hid = (int) ($in['host_id'] ?? 0);
+        if (!q("SELECT 1 FROM hosts WHERE id = ? AND mode = 'agent'", [$hid])->fetchColumn()) {
+            out(['error' => t('Kies een server met agent')], 422);
+        }
+        Ids::isolate($hid, (int) ($in['hours'] ?? 24), $user['username'], client_ip());
+        out(['ok' => true]);
+
+    case 'host_unisolate':
+        Ids::unisolate((int) (input()['host_id'] ?? 0), $user['username']);
+        out(['ok' => true]);
+
+    case 'host_userlock':
+        $in = input();
+        $lock = !empty($in['lock']);
+        if ($lock) {
+            $confirm('VERGRENDELEN');
+        }
+        $r = Ids::userLock((int) ($in['host_id'] ?? 0), strtolower(trim((string) ($in['user'] ?? ''))), $lock, $user['username']);
+        $r === true ? out(['ok' => true]) : out(['error' => $r], 422);
+
+    case 'ip_timeline':
+        $ip = trim((string) ($_GET['ip'] ?? ''));
+        @inet_pton($ip) !== false ? out(Ids::timeline($ip)) : out(['error' => t('Ongeldig IP-adres')], 422);
 
     case 'ids_rebaseline':
         $hid = (int) (input()['host_id'] ?? 0);

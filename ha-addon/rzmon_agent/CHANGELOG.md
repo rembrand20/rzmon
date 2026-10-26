@@ -5,6 +5,11 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.57.0 – 2026-10-26
+- **Hardening** (RzMon 1.88.0): elk uur de instellingen voor de score (sshd, firewall, automatische updates, open databases, Docker-socket, lege wachtwoorden, sudo NOPASSWD, /tmp, SELinux).
+- **Isoleren**: eigen firewalltabel `inet rzmon_iso`. Alleen RzMon, de toegestane netwerken en de DNS-servers zijn nog bereikbaar. Vervalt vanzelf op de tijd, ook zonder RzMon.
+- **Gebruiker vergrendelen of vrijgeven** als RzMon erom vraagt (`usermod -L/-U`, processen van die gebruiker stoppen; nooit root).
+
 ## 1.56.0 – 2026-10-26
 - **Webshell** (RzMon 1.87.0): stuurt mee welke shells of netwerkprogramma's (`sh`, `curl`, `wget`, `nc`, `python` …) door een webserver zijn gestart of als webgebruiker draaien. PHP-mail via `sendmail` telt niet.
 - **Proces stoppen** in de modus blokkeren, als RzMon erom vraagt: alleen als nummer én starttijd kloppen.

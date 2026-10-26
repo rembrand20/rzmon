@@ -199,7 +199,7 @@ final class NotifyRules
     /** Systeeminfo-meldingen (geen checks), elk met eigen kanalen en Pushover-prioriteit (Instellingen → ℹ️ Systeeminfo) */
     public const SYSINFO = ['rzmon_update', 'agent_update', 'agent_update_fail', 'agent_connect', 'login_ok', 'login_fail',
         'account_lock', 'account_unlock', 'ip_block', 'ip_unblock', 'vuln_new', 'vuln_upgrade', 'cert', 'breach', 'local_only', 'sec', 'server_login',
-        'device_trust', 'passkey', 'stealth_door'];   // 1.86.0: toegestane apparaten, passkeys, noodlink
+        'device_trust', 'passkey', 'stealth_door', 'isolate'];   // 1.86.0: toegestane apparaten, passkeys, noodlink
     /** Tot 1.58 altijd op de meldingenpagina, ook als de rij Info dat niet zei */
     private const SYSINFO_ALWAYS_PAGE = ['agent_connect', 'login_ok', 'login_fail', 'account_lock', 'account_unlock', 'ip_block', 'ip_unblock'];
 

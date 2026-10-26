@@ -1551,6 +1551,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 | **🌐 Uitgaande verbinding naar een bekende aanvaller** (vanaf 1.87.0) | 🔴 critical |
 | Uitgaande verbinding naar een land buiten je normale landen (vanaf 1.87.0) | 🟠 warning |
 | Nieuwe automatisch startende dienst of timer (vanaf 1.87.0) | 🟠 warning |
+| **🧰 Beveiliging verslechterd** (vanaf 1.88.0): een hardening-punt dat eerst goed was, is nu fout | 🟠 warning · 🔴 critical (lege wachtwoorden, Docker-socket) |
 | Tweede root-account (UID 0) | 🔴 critical |
 | Nieuwe gebruiker | 🟠 warning |
 | Nieuwe luisterende poort | 🟠 warning |
@@ -1598,6 +1599,34 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **Naar een land buiten je normale landen**: warning, per programma en land. Tijdens de basismeting leert de IDS dat stil aan, dus updates via de VS geven geen meldingen. Later toch normaal? Klik *Dit is normaal*.
 - **Uitgaand blokkeren** (modus *blokkeren*, standaard uit): verkeer naar bekende aanvallers wordt in de firewalltabel `inet rzmon` ook uitgaand tegengehouden, ook vanuit containers (Docker, Podman).
 - **✅ Vrijgeven:** zet het IP op de ✅ whitelist (1, 7, 30 dagen of altijd). Dan wordt het niet meer gemeld en niet meer geblokkeerd.
+
+**🧰 Hardening-score** (vanaf 1.88.0, agent 1.57.0; aan/uit bij *Instellingen → 🛡️ IDS*)
+- Elk uur stuurt de agent een paar instellingen die het verschil maken. RzMon maakt er per server een score van 0 tot 100 van (🛡️ bij elke server op de IDS-pagina).
+- De punten:
+  - SSH met wachtwoord, als root of met lege wachtwoorden;
+  - een actieve firewall en automatische beveiligingsupdates;
+  - een database open op alle netwerken (MySQL, PostgreSQL, Redis, MongoDB, Elasticsearch …);
+  - de Docker-socket;
+  - accounts zonder wachtwoord en sudo zonder wachtwoord;
+  - `/tmp` met `noexec`, en SELinux.
+- **Klik op de score** voor de lijst. Bij elk fout punt staat waarom het telt en hoe je het dichtzet. Per server kun je een punt **negeren** (dan telt het niet meer mee).
+- **Wordt een punt slechter** (bv. iemand zet root-login via SSH weer aan), dan volgt een incident. Een punt dat al fout was geeft geen melding, alleen een lagere score. Het eerste rapport is de basismeting.
+
+**🧱 Isoleren** (vanaf 1.88.0, agent 1.57.0; via de score bij een server)
+- Bij een hack zet je de server met één klik in quarantaine: alleen RzMon, je lokale netwerken (*Toegang*) en jouw IP-adres kunnen er nog bij. Al het andere verkeer stopt: inkomend, uitgaand en van containers. Een aanvaller verliest zijn verbinding, en malware kan niets meer naar buiten sturen.
+- Je kiest **1 uur, 4 uur, 1 dag of 3 dagen** en bevestigt met je wachtwoord (op het LAN typ je `ISOLEREN`).
+- **Vervalt vanzelf** na die tijd. De agent heft het zelf op, ook als RzMon onbereikbaar is, zodat je jezelf nooit voorgoed buitensluit. Eerder opheffen kan met **🔓 Opheffen**.
+- De agent zet het in een eigen firewalltabel `inet rzmon_iso`. De DNS-servers mogen ook (om RzMon te vinden).
+- Je krijgt een ℹ️-melding (*🧱 Server geïsoleerd*) via dezelfde kanalen als de andere systeeminfo.
+
+**🔒 Gebruiker vergrendelen** (vanaf 1.88.0, agent 1.57.0; in hetzelfde venster)
+- Het account op die server gaat op slot (geen wachtwoord, geen SSH-sleutel, `usermod -L -e 1`) en al zijn processen worden gestopt. Bv. als een account is overgenomen. Root kan niet.
+- **Vrijgeven** zet het weer open.
+
+**🔎 Tijdlijn per IP** (vanaf 1.88.0)
+- Klik op een IP-adres op de pagina's *Meldingen* en *IDS* of bij *Blokkades*. Je ziet alles wat RzMon van dat adres weet, over al je servers: incidenten, logins en mislukte pogingen, blokkades en het opheffen ervan, meldingen en logins in RzMon zelf.
+- Bovenaan staan het land, of het een bekende aanvaller is, of het op de whitelist staat en waar het nu geblokkeerd is. Met **✅ Op de whitelist** zet je het er meteen op.
+- **Voorbeeld:** `185.220.101.4` werd om 03:12 op SWAG gezien, probeerde om 03:14 SSH op WebServer01 en werd daar geblokkeerd. Om 03:20 werd het via *alle servers* ook op de NAS geblokkeerd. Je ziet het hele verhaal in één venster.
 
 **🌐 Automatische blokkades op alle servers** (vanaf 1.81.0, standaard aan): wordt een aanvaller op één server automatisch geblokkeerd (brute force, honeypot), dan blokkeren al je servers met de IDS op *blokkeren* hem ook. Een botnet probeert meestal al je servers die van buiten bereikbaar zijn. Met de hand blokkeren geldt alleen voor de server die je kiest. Uit te zetten bij *Instellingen → 🛡️ IDS*.
 

@@ -214,6 +214,11 @@ final class Installer
         ['ids_blocks', 'cc', 'CHAR(2) NULL'],   // 1.81.0: waarom de honeypot-poort hier niet werkt (bv. in gebruik)   // 1.78.0: wanneer de samengevatte ⚠️-melding over het reserve-adres ging
         ['ids_blocks', 'decoy_user', 'VARCHAR(64) NULL'],   // 1.83.0: geblokkeerd om deze honeypot-naam
         ['users', 'locked_reason', 'VARCHAR(200) NULL'],     // 1.83.0: waarom het account geblokkeerd is
+        // 1.88.0: server isoleren (tot wanneer, door wie, welk IP van de beheerder mag erbij, stand bij de agent)
+        ['hosts', 'isolate_until', 'DATETIME NULL'],
+        ['hosts', 'isolate_by', 'VARCHAR(64) NULL'],
+        ['hosts', 'isolate_allow', 'VARCHAR(255) NULL'],
+        ['hosts', 'isolate_state', 'VARCHAR(255) NULL'],
         ['hosts', 'agent_url_pin', 'VARCHAR(200) NULL'],   // 1.78.0: hoe de agent zijn adres controleert ("-" of sha256//…)
         ['hosts', 'agent_url_fb_pin', 'VARCHAR(200) NULL'],
         ['hosts', 'agent_https', 'VARCHAR(3) NULL'],
