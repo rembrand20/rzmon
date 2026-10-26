@@ -1109,6 +1109,8 @@ function init() {
   $('#api-key-form').addEventListener('submit', createApiKey);
   initSecurity();
   initSysinfo();
+  initTemplates();
+  initAllChecks();
   $('#api-keys').addEventListener('click', apiKeyClick);
   $('#access-form').addEventListener('submit', saveAccess);
   $('#access-form').addEventListener('change', (e) => saveAccess(null, e.target));
@@ -2254,6 +2256,9 @@ function kindAutoText(h, k = null) {
   return auto ? L('Vanzelf: {kind}', { kind: kindLabel(auto) }) : L('Vanzelf (nog niet herkend: overig)');
 }
 
+/** Sjablonen die aan deze server gekoppeld zijn (1.94.0) */
+const hostTpls = (h) => (h && h.id ? ((state.host_tpls || {})[h.id] || []) : []).map(Number);
+
 function hostForm(h) {
   const isNew = !h;
   h = h || { name: '', address: '', mode: 'remote', enabled: 1 };
@@ -2287,6 +2292,11 @@ function hostForm(h) {
         <p class="hint" style="margin-top:0">${L('Extra paden voor deze server, bovenop de algemene lijst (<i>Instellingen → Beveiliging → IDS: detectie</i>). Hetzelfde pad hier gaat voor, bv. om de ernst te veranderen.')}</p>
         <div id="fim-host"></div>
       </details>
+      ${(state.templates || []).length ? `<details class="notify-own" ${isNew || hostTpls(h).length ? 'open' : ''}>
+        <summary>📋 ${L('Sjablonen')}: <span>${hostTpls(h).length ? esc(hostTpls(h).map((id) => (state.templates.find((t) => +t.id === id) || {}).name).join(', ')) : L('geen')}</span></summary>
+        <p class="hint" style="margin-top:0">${L('De checks uit een sjabloon komen vanzelf op deze server, en veranderen mee als je het sjabloon aanpast. Uitvinken koppelt los; de checks blijven dan gewoon staan.')}</p>
+        ${state.templates.map((t) => `<label class="switch"><input type="checkbox" data-tpl="${t.id}" ${hostTpls(h).includes(+t.id) ? 'checked' : ''}><span></span> ${esc(t.name)}</label>`).join('')}
+      </details>` : ''}
       <label class="switch"><input type="checkbox" name="enabled" ${+h.enabled ? 'checked' : ''}><span></span> ${L('Actief')}</label>
       ${isNew ? `<label class="switch"><input type="checkbox" name="add_ping" checked><span></span> ${L('Direct een ping-check toevoegen')}</label>` : ''}`,
     buttons: [
@@ -2300,6 +2310,13 @@ function hostForm(h) {
     onSubmit: async (d) => {
       const snmp = snmpData(d);
       const r = await api('host_save', { ...d, id: h.id, enabled: !!d.enabled, add_ping: !!d.add_ping, snmp, ...(fimHost ? { ids_fim: fimHost.get() } : {}) });
+      // Sjablonen koppelen of loskoppelen (de checks van een losgekoppeld sjabloon blijven staan)
+      const had = hostTpls(h);
+      for (const cb of $$('#modal-body [data-tpl]')) {
+        const tid = +cb.dataset.tpl;
+        if (cb.checked && !had.includes(tid)) await api('template_link', { host_id: r.id, template_id: tid });
+        if (!cb.checked && had.includes(tid)) await api('template_unlink', { host_id: r.id, template_id: tid, keep: true });
+      }
       toast(L('Server opgeslagen'));
       if (snmp.on && !h.snmp) {
         // SNMP net aangezet: meteen laten zien wat er te bewaken valt
@@ -2596,7 +2613,11 @@ function hbFields(c, h, o) {
     </div>`;
 }
 
-function checkForm(c, h, preset = {}) {
+/**
+ * Check toevoegen of bewerken. tpl (1.94.0): { id, name, onSaved } = een check in een sjabloon (h is dan een denkbeeldige
+ * server); opslaan gaat naar het sjabloon en van daaruit naar de gekoppelde servers.
+ */
+function checkForm(c, h, preset = {}, tpl = null) {
   const isNew = !c;
   c = c || { type: 'ping', target: '', name: '', warn_threshold: TYPES.ping.warn, crit_threshold: TYPES.ping.crit, interval_sec: 60, enabled: 1, ...preset };
   const quietOwn = quietOf(c);
@@ -2614,8 +2635,12 @@ function checkForm(c, h, preset = {}) {
   const containers = h.metrics.filter((m) => m.startsWith('container:')).map((m) => m.slice(10));
 
   const { form } = modal({
-    title: isNew ? L('Check toevoegen – {name}', { name: h.name }) : L('Check bewerken – {name}', { name: c.name }),
+    title: tpl ? `📋 ${tpl.name}: ${isNew ? L('check toevoegen') : c.name}` : isNew ? L('Check toevoegen – {name}', { name: h.name }) : L('Check bewerken – {name}', { name: c.name }),
     body: `
+      ${tpl ? `<p class="hint" style="margin-top:0">${L('Gebruik <code>{adres}</code> en <code>{naam}</code> in het doel of de naam: die worden per server ingevuld (bv. <code>https://{adres}/</code>). Opslaan werkt alle gekoppelde servers bij, behalve checks die daar zelf zijn aangepast.')}</p>` : ''}
+      ${!tpl && c.template_item_id ? `<div class="callout small">📋 ${L('Uit het sjabloon <b>{t}</b>.', { t: esc((state.tpl_items || {})[c.template_item_id] || '?') })}
+        ${+c.tpl_override ? `${L('Op deze server aangepast: wijzigingen aan het sjabloon gaan hier niet meer mee.')} <button type="button" class="btn small-btn" id="tpl-reset">↩ ${L('Terug naar het sjabloon')}</button>`
+          : L('Pas je hem hier aan, dan gaat hij niet meer mee met het sjabloon (terugzetten kan altijd).')}</div>` : ''}
       <label>${L('Type')}
         <select name="type">${allowed.map((k) => `<option value="${k}" ${c.type === k ? 'selected' : ''}>${TYPES[k].label}</option>`).join('')}</select>
         <span class="hint" id="type-help"></span>
@@ -2750,12 +2775,12 @@ function checkForm(c, h, preset = {}) {
       <label class="switch" id="verify-wrap"><input type="checkbox" name="verify_ssl" ${+(c.verify_ssl ?? 1) ? 'checked' : ''}><span></span> ${L('Certificaat controleren')} <span class="hint">${L('(uit bij self-signed, bv. Proxmox of een NAS)')}</span></label>
       <label class="switch"><input type="checkbox" name="enabled" ${+c.enabled ? 'checked' : ''}><span></span> ${L('Actief')}</label>`,
     buttons: [
-      ...(isNew ? [] : [{ label: '🗑 ' + L('Verwijderen'), cls: 'danger', style: 'margin-right:auto', onClick: async () => {
+      ...(isNew || tpl ? [] : [{ label: '🗑 ' + L('Verwijderen'), cls: 'danger', style: 'margin-right:auto', onClick: async () => {
         if (!confirm(L('Check "{name}" verwijderen?', { name: c.name }))) return;
         await api('check_delete', { id: c.id });
         $('#modal').close(); toast(L('Check verwijderd')); refresh();
       } }]),
-      { label: isNew ? L('Toevoegen & checken') : L('Opslaan & checken'), cls: 'primary', submit: true },
+      { label: tpl ? L('Opslaan in sjabloon') : isNew ? L('Toevoegen & checken') : L('Opslaan & checken'), cls: 'primary', submit: true },
     ],
     onSubmit: async (d) => {
       const notify = $('#notify-own').checked && ownEditor ? ownEditor.get() : null;
@@ -2770,11 +2795,21 @@ function checkForm(c, h, preset = {}) {
         d.hb_ext = !!d.hb_ext;
         d.hb_new_token = !!d.hb_new_token;
       }
-      await api('check_save', { ...d, res, notify, quiet, command, id: c.id, host_id: h.id, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep, info_only: !!d.info_only });
+      const payload = { ...d, res, notify, quiet, command, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep, info_only: !!d.info_only };
+      if (tpl) {
+        await api('template_item_save', { ...payload, template_id: tpl.id, item_id: c.id });
+        toast(L('Opgeslagen in het sjabloon'));
+        setTimeout(() => tpl.onSaved && tpl.onSaved(), 50);
+        return;
+      }
+      await api('check_save', { ...payload, id: c.id, host_id: h.id });
       toast(L('Check opgeslagen'));
     },
   });
 
+  if ($('#tpl-reset')) $('#tpl-reset').onclick = async () => {
+    try { await api('check_tpl_reset', { id: c.id }); $('#modal').close(); toast(L('Terug naar het sjabloon')); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+  };
   // Eigen meldregels: start met wat er al was, of met de algemene instellingen
   let ownEditor = null;
   const showOwn = async () => {
@@ -5521,6 +5556,7 @@ function initMainTabs() {
 // Elk onderdeel toont een of meer kaarten (data-sk); de kaarten zelf (en hoe ze opslaan) zijn niet veranderd.
 const SET_NAV = [
   ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']], ['conn', L('Verbindingen en taken'), ['conn']]]],
+  ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook']], ['rules', L('Meldregels en stille uren'), ['notify']], ['alarm', L('Alarmgedrag'), ['alarm']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['beveiliging', '🛡️', L('Beveiliging'), [['ids', L('IDS: detectie'), ['ids']], ['ids_attack', L('IDS: aanvallers en verkeer'), ['ids_attack']], ['ids_servers', L('IDS: servers'), ['ids_servers']],
     ['vulns', L('Kwetsbaarheden'), ['vulns']], ['hibp', L('Datalekken'), ['hibp']]]],
@@ -5557,6 +5593,8 @@ function showSettingsSection(id, focusEl) {
   history.replaceState(null, '', '#settings/' + setSection);
   if (setSection === 'overview' || !setHealthAt) loadSettingsHealth();
   if (setSection === 'conn') loadConn();
+  if (setSection === 'templates') loadTemplates();
+  if (setSection === 'allchecks') loadAllChecks();
   if (setSection === 'syscheck') loadSyscheck();
   if (setSection === 'server' || setSection === 'db') loadSetupInfo();
   if (focusEl) {
@@ -6495,6 +6533,269 @@ async function totpSetup(id, username) {
 
 // ---------------------------------------------------------------- Databasewachtwoord vernieuwen
 let dbInfo = null;
+// ---------------------------------------------------------------- 🧩 Sjablonen en alle checks (1.94.0)
+let tplData = null;
+const thrText = (c) => {
+  const u = (TYPES[c.type] || {}).unit;
+  return c.warn_threshold == null && c.crit_threshold == null ? '–'
+    : `${c.warn_threshold == null ? '–' : dec(+c.warn_threshold)} / ${c.crit_threshold == null ? '–' : dec(+c.crit_threshold)}${u ? ' ' + esc(L(u)) : ''}`;
+};
+const typeLabel = (c) => esc((TYPES[c.type] || {}).label || c.type);
+
+/** Keuze met twee knoppen: alleen loskoppelen (checks blijven) of ook de checks op de servers weghalen */
+function keepOrDrop(title, text, onChoice, needConfirm = true) {
+  modal({
+    title,
+    body: `<p style="margin-top:0">${text}</p><label class="switch"><input type="checkbox" name="drop"><span></span> ${L('Ook de checks op de servers verwijderen')}</label>
+      <div id="kd-confirm" hidden>${needConfirm ? confirmField('VERWIJDEREN') : ''}</div>`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Doorgaan'), cls: 'danger', submit: true }],
+    onSubmit: async (d) => { await onChoice(!d.drop, d.confirm); },
+  });
+  const cb = $('#modal-body [name=drop]');
+  cb.onchange = () => { $('#kd-confirm').hidden = !cb.checked; const i = $('#kd-confirm input'); if (i) i.required = cb.checked; };
+  const i = $('#kd-confirm input'); if (i) i.required = false;
+}
+
+async function loadTemplates() {
+  const box = $('#tpl-list');
+  if (!box) return;
+  try { tplData = await api('templates'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  renderTemplates();
+}
+
+function renderTemplates() {
+  const box = $('#tpl-list');
+  const d = tplData;
+  box.innerHTML = d.templates.length ? d.templates.map((t) => {
+    const linked = new Set(t.hosts.map((h) => h.id));
+    return `<div class="tpl-block" data-tpl="${t.id}">
+      <div class="tpl-head"><div class="grow"><h3>📋 ${esc(t.name)}</h3>${t.description ? `<p class="muted small">${esc(t.description)}</p>` : ''}</div>
+        <button type="button" class="btn small-btn" data-tpl-edit="${t.id}" title="${esc(L('Naam en omschrijving'))}">✎</button>
+        <button type="button" class="btn small-btn danger" data-tpl-del="${t.id}" title="${esc(L('Sjabloon verwijderen'))}">🗑</button></div>
+      ${t.items.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Check')}</th><th>${L('Type')}</th><th>${L('Doel')}</th><th>${L('Drempels')}</th><th>${L('Interval')}</th><th></th></tr></thead><tbody>
+        ${t.items.map((c) => `<tr><td>${esc(c.name)}${+c.enabled ? '' : ` <span class="muted small">(${L('uit')})</span>`}</td><td class="small">${typeLabel(c)}</td>
+          <td class="mono small">${esc(c.target || '–')}</td><td class="small nowrap">${thrText(c)}</td><td class="small nowrap">${esc(fmtInterval(c.interval_sec))}</td>
+          <td class="nowrap"><button type="button" class="btn small-btn" data-ti-edit="${c.id}">✎</button> <button type="button" class="btn small-btn" data-ti-del="${c.id}">🗑</button></td></tr>`).join('')}
+        </tbody></table></div>` : `<p class="muted small">${L('Nog geen checks in dit sjabloon.')}</p>`}
+      <div class="btn-row"><button type="button" class="btn small-btn" data-ti-add="${t.id}">＋ ${L('Check toevoegen')}</button></div>
+      <div class="tpl-hosts"><b class="small">${L('Servers')}:</b>
+        ${t.hosts.map((h) => `<span class="tpl-chip">${esc(h.name)} <button type="button" class="icon-btn" data-tpl-unlink="${t.id}" data-host="${h.id}" title="${esc(L('Loskoppelen'))}">✕</button></span>`).join('') || `<span class="muted small">${L('nog geen')}</span>`}
+        <select data-tpl-link="${t.id}"><option value="">＋ ${L('Server koppelen…')}</option>${d.hosts.filter((h) => !linked.has(+h.id)).map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('')}</select>
+        ${t.overridden ? `<span class="muted small">· ${t.overridden === 1 ? L('1 check op een server zelf aangepast') : L('{n} checks op servers zelf aangepast', { n: t.overridden })}</span>` : ''}</div>
+    </div>`;
+  }).join('') : `<p class="muted">${L('Nog geen sjablonen.')}</p>`;
+}
+
+function tplNameDialog(t) {
+  modal({
+    title: t ? L('Sjabloon bewerken') : L('Nieuw sjabloon'),
+    body: `<label>${L('Naam')}<input name="name" value="${esc(t ? t.name : '')}" required placeholder="${esc(L('bv. Linux-webserver'))}"></label>
+      <label>${L('Omschrijving')} <span class="hint">${L('(optioneel)')}</span><input name="description" value="${esc(t ? t.description : '')}"></label>`,
+    buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => { await api('template_save', { id: t ? t.id : 0, ...d }); toast(L('Opgeslagen')); setTimeout(loadTemplates, 50); },
+  });
+}
+
+function tplFromHostDialog() {
+  const hosts = (state.hosts || []).filter((h) => h.checks.length);
+  const render = (hid) => {
+    const h = findHost(+hid);
+    $('#tfh-checks').innerHTML = h ? h.checks.filter((c) => !c.template_item_id).map((c) => `<label class="switch"><input type="checkbox" data-cid="${c.id}" checked><span></span> ${esc(c.name)} <span class="muted small">${typeLabel(c)}</span></label>`).join('')
+      || `<p class="muted small">${L('Alle checks van deze server komen al uit een sjabloon.')}</p>` : '';
+  };
+  modal({
+    title: L('Sjabloon maken van een server'),
+    body: `<label>${L('Server')}<select name="host_id">${hosts.map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('')}</select></label>
+      <label>${L('Naam van het sjabloon')}<input name="name" required></label>
+      <p class="hint">${L('Het adres van de server wordt in het sjabloon <code>{adres}</code>, zodat het op elke server werkt. Deze server wordt meteen gekoppeld.')}</p>
+      <div id="tfh-checks"></div>`,
+    buttons: [{ label: L('Maken'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const ids = $$('#tfh-checks [data-cid]').filter((x) => x.checked).map((x) => +x.dataset.cid);
+      if (!ids.length) throw new Error(L('Kies minstens één check'));
+      await api('template_from_host', { host_id: +d.host_id, name: d.name, check_ids: ids });
+      toast(L('Sjabloon gemaakt')); setTimeout(loadTemplates, 50);
+    },
+  });
+  const sel = $('#modal-body [name=host_id]');
+  sel.onchange = () => { render(sel.value); const h = findHost(+sel.value); const n = $('#modal-body [name=name]'); if (h && !n.dataset.touched) n.value = h.name; };
+  $('#modal-body [name=name]').oninput = (e) => { e.target.dataset.touched = 1; };
+  sel.onchange();
+}
+
+function initTemplates() {
+  if (!$('#tpl-list')) return;
+  $('#tpl-new').onclick = () => tplNameDialog(null);
+  $('#tpl-from-host').onclick = tplFromHostDialog;
+  const box = $('#tpl-list');
+  const tplOf = (id) => tplData.templates.find((t) => t.id === +id);
+  const pseudoHost = (t) => ({ id: 0, name: t.name, address: '{adres}', mode: 'agent', metrics: [], snmp: true, checks: [] });
+  box.addEventListener('click', async (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    try {
+      if (b.dataset.tplEdit) return tplNameDialog(tplOf(b.dataset.tplEdit));
+      if (b.dataset.tplDel) {
+        const t = tplOf(b.dataset.tplDel);
+        return keepOrDrop(L('Sjabloon "{name}" verwijderen', { name: t.name }), L('De checks die uit dit sjabloon komen, blijven op de servers staan (los van het sjabloon), tenzij je hieronder kiest om ze ook te verwijderen.'),
+          async (keep, confirm) => { await api('template_delete', { id: t.id, keep, confirm }); toast(L('Sjabloon verwijderd')); setTimeout(loadTemplates, 50); });
+      }
+      if (b.dataset.tiAdd) {
+        const t = tplOf(b.dataset.tiAdd);
+        return checkForm(null, pseudoHost(t), {}, { id: t.id, name: t.name, onSaved: loadTemplates });
+      }
+      if (b.dataset.tiEdit) {
+        const t = tplData.templates.find((x) => x.items.some((c) => c.id === +b.dataset.tiEdit));
+        return checkForm(t.items.find((c) => c.id === +b.dataset.tiEdit), pseudoHost(t), {}, { id: t.id, name: t.name, onSaved: loadTemplates });
+      }
+      if (b.dataset.tiDel) {
+        return keepOrDrop(L('Check uit het sjabloon halen'), L('De check verdwijnt uit het sjabloon. Op de servers blijft hij staan (los), tenzij je hieronder kiest om hem daar ook te verwijderen.'),
+          async (keep) => { await api('template_item_delete', { id: +b.dataset.tiDel, keep }); toast(L('Verwijderd')); setTimeout(loadTemplates, 50); }, false);
+      }
+      if (b.dataset.tplUnlink) {
+        return keepOrDrop(L('Server loskoppelen'), L('De server hoort niet meer bij dit sjabloon. Zijn checks blijven staan (los), tenzij je hieronder kiest om ze te verwijderen.'),
+          async (keep) => { await api('template_unlink', { template_id: +b.dataset.tplUnlink, host_id: +b.dataset.host, keep }); toast(L('Losgekoppeld')); setTimeout(loadTemplates, 50); }, false);
+      }
+    } catch (ex) { toast(ex.message, 'err'); }
+  });
+  box.addEventListener('change', async (e) => {
+    const sel = e.target.closest('[data-tpl-link]');
+    if (!sel || !sel.value) return;
+    try {
+      const r = await api('template_link', { template_id: +sel.dataset.tplLink, host_id: +sel.value });
+      toast(L('Gekoppeld: {c} nieuwe checks, {a} bestaande overgenomen', { c: r.created, a: r.adopted }));
+      loadTemplates(); refresh();
+    } catch (ex) { toast(ex.message, 'err'); sel.value = ''; }
+  });
+}
+
+// ---- Alle checks: zoeken, aanvinken en meerdere tegelijk aanpassen
+let acData = null;
+const acSel = new Set();
+async function loadAllChecks() {
+  if (!$('#ac-list')) return;
+  try { acData = await api('checks_all'); } catch (ex) { $('#ac-list').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const hs = $('#ac-host'), ts = $('#ac-type');
+  const hv = hs.value, tv = ts.value;
+  hs.innerHTML = `<option value="">${L('Alle servers')}</option>` + acData.hosts.map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('');
+  ts.innerHTML = `<option value="">${L('Alle types')}</option>` + [...new Set(acData.checks.map((c) => c.type))].sort().map((t) => `<option value="${t}">${esc((TYPES[t] || {}).label || t)}</option>`).join('');
+  hs.value = hv; ts.value = tv;
+  const ids = new Set(acData.checks.map((c) => +c.id));
+  [...acSel].forEach((id) => { if (!ids.has(id)) acSel.delete(id); });
+  renderAllChecks();
+}
+
+function acShown() {
+  const q = setSearchNorm($('#ac-q').value), hv = $('#ac-host').value, tv = $('#ac-type').value;
+  return acData.checks.filter((c) => (!hv || +c.host_id === +hv) && (!tv || c.type === tv)
+    && (!q || setSearchNorm(`${c.name} ${c.target} ${c.host_name} ${c.template_name || ''}`).includes(q)));
+}
+
+function renderAllChecks() {
+  const list = acShown();
+  const all = list.length && list.every((c) => acSel.has(+c.id));
+  $('#ac-list').innerHTML = list.length ? `<div class="table-scroll"><table class="vuln-table ac-table"><thead><tr>
+      <th><input type="checkbox" id="ac-all" ${all ? 'checked' : ''} aria-label="${esc(L('Alles aanvinken'))}"></th><th>${L('Server')}</th><th>${L('Check')}</th><th>${L('Type')}</th>
+      <th>${L('Drempels')}</th><th>${L('Interval')}</th><th>${L('Status')}</th><th>${L('Sjabloon')}</th></tr></thead><tbody>
+    ${list.map((c) => `<tr class="${+c.enabled ? '' : 'muted'}"><td><input type="checkbox" data-ac="${c.id}" ${acSel.has(+c.id) ? 'checked' : ''}></td>
+      <td class="small">${esc(c.host_name)}</td><td><a href="#" data-ac-edit="${c.id}">${esc(c.name)}</a>${+c.enabled ? '' : ` <span class="small">(${L('uit')})</span>`}
+        ${c.maintenance_until && new Date(c.maintenance_until.replace(' ', 'T')) > new Date() ? ' 🔧' : ''}${c.target ? `<div class="mono small muted">${esc(c.target)}</div>` : ''}</td>
+      <td class="small">${typeLabel(c)}</td><td class="small nowrap">${thrText(c)}</td><td class="small nowrap">${esc(fmtInterval(c.interval_sec))}</td>
+      <td class="small">${ST_ICON[+c.status] || ''} ${esc(STATUS[+c.status] || '')}</td>
+      <td class="small">${c.template_name ? `📋 ${esc(c.template_name)}${+c.tpl_override ? ` <span class="muted">(${L('aangepast')})</span>` : ''}` : '–'}</td></tr>`).join('')}
+    </tbody></table></div>` : `<p class="muted">${L('Niets gevonden.')}</p>`;
+  acBulkBar();
+}
+
+function acBulkBar() {
+  const bar = $('#ac-bulk');
+  const n = acSel.size;
+  bar.hidden = !n;
+  if (!n) return;
+  const chosen = acData.checks.filter((c) => acSel.has(+c.id));
+  const oneType = new Set(chosen.map((c) => `${c.type}|${c.metric || ''}`)).size === 1;
+  bar.innerHTML = `<b>${n === 1 ? L('1 check gekozen') : L('{n} checks gekozen', { n })}</b>
+    <button type="button" class="btn small-btn" data-bulk="interval">⏱ ${L('Interval')}</button>
+    <button type="button" class="btn small-btn" data-bulk="thr" ${oneType ? '' : `disabled title="${esc(L('Alleen voor checks van hetzelfde type'))}"`}>🎚 ${L('Drempels')}</button>
+    <button type="button" class="btn small-btn" data-bulk="notify">🔔 ${L('Melden')}</button>
+    <button type="button" class="btn small-btn" data-bulk="maint">🔧 ${L('Onderhoud')}</button>
+    <button type="button" class="btn small-btn" data-bulk="on">▶ ${L('Aan')}</button>
+    <button type="button" class="btn small-btn" data-bulk="off">⏸ ${L('Uit')}</button>
+    <button type="button" class="btn small-btn" data-bulk="copy">📋 ${L('Kopiëren naar…')}</button>
+    <button type="button" class="btn small-btn danger" data-bulk="delete">🗑 ${L('Verwijderen')}</button>
+    <button type="button" class="btn small-btn" data-bulk="none">✕ ${L('Niets kiezen')}</button>
+    ${chosen.some((c) => c.template_item_id) ? `<span class="muted small">${L('Checks uit een sjabloon gaan na aanpassen niet meer mee met het sjabloon.')}</span>` : ''}`;
+}
+
+async function acBulk(kind) {
+  const ids = [...acSel];
+  const chosen = acData.checks.filter((c) => acSel.has(+c.id));
+  const done = (r) => { toast(L('{n} checks bijgewerkt', { n: r.n })); setTimeout(() => { loadAllChecks(); refresh(); }, 50); };
+  const set = (values) => api('checks_bulk', { ids, action: 'set', values }).then(done);
+  if (kind === 'none') { acSel.clear(); return renderAllChecks(); }
+  if (kind === 'on' || kind === 'off') return set({ enabled: kind === 'on' }).catch((ex) => toast(ex.message, 'err'));
+  if (kind === 'interval') return modal({ title: L('Interval voor {n} checks', { n: ids.length }),
+    body: `<label>${L('Interval')}<select name="interval_sec">${intervalOptions(chosen[0].interval_sec)}</select></label>`,
+    buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }], onSubmit: (d) => set({ interval_sec: +d.interval_sec }) });
+  if (kind === 'thr') {
+    const t = TYPES[chosen[0].type] || {};
+    return modal({ title: L('Drempels voor {n} checks', { n: ids.length }),
+      body: `<div class="row2"><label>${L('Warning')}${t.unit ? ` (${esc(L(t.unit))})` : ''}<input name="warn" type="number" step="any" value="${chosen[0].warn_threshold ?? ''}"></label>
+        <label>${L('Critical')}${t.unit ? ` (${esc(L(t.unit))})` : ''}<input name="crit" type="number" step="any" value="${chosen[0].crit_threshold ?? ''}"></label></div>
+        <p class="hint">${L('Leeg = geen drempel.')}</p>`,
+      buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }], onSubmit: (d) => set({ warn_threshold: d.warn, crit_threshold: d.crit }) });
+  }
+  if (kind === 'notify') return modal({ title: L('Melden voor {n} checks', { n: ids.length }),
+    body: `<label>${L('Melden na zoveel mislukte checks achter elkaar')} <span class="hint">${L('(leeg = de algemene instelling)')}</span><input name="fails" type="number" min="1" max="100"></label>
+      <label class="switch"><input type="checkbox" name="defaults"><span></span> ${L('Eigen meldregels weghalen: de algemene meldregels gebruiken')}</label>
+      <label>${L('Alleen info (telt nooit als storing)')}<select name="info"><option value="">${L('ongewijzigd')}</option><option value="1">${L('aan')}</option><option value="0">${L('uit')}</option></select></label>`,
+    buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
+    onSubmit: (d) => set({ notify_fails: d.fails === '' ? null : +d.fails, ...(d.info !== '' ? { info_only: d.info === '1' } : {}), ...(d.defaults ? { notify_default: true } : {}) }) });
+  if (kind === 'maint') return modal({ title: L('Onderhoud voor {n} checks', { n: ids.length }),
+    body: `<label>${L('Hoe lang')}<select name="minutes">${[[60, L('1 uur')], [240, L('4 uur')], [1440, L('1 dag')], [10080, L('1 week')], [0, L('Onderhoud beëindigen')]].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
+      <label>${L('Reden')} <span class="hint">${L('(optioneel)')}</span><input name="reason"></label>`,
+    buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
+    onSubmit: (d) => api('checks_bulk', { ids, action: 'maintenance', minutes: +d.minutes, reason: d.reason }).then(done) });
+  if (kind === 'copy') return modal({ title: L('{n} checks kopiëren naar…', { n: ids.length }),
+    body: `<p class="hint" style="margin-top:0">${L('Elke gekozen server krijgt een kopie (los, niet uit een sjabloon). Staat het adres van de oorspronkelijke server in het doel, dan wordt dat het adres van de nieuwe server.')}</p>
+      ${acData.hosts.map((h) => `<label class="switch"><input type="checkbox" data-copy-to="${h.id}"><span></span> ${esc(h.name)}</label>`).join('')}`,
+    buttons: [{ label: L('Kopiëren'), cls: 'primary', submit: true }],
+    onSubmit: async () => {
+      const to = $$('#modal-body [data-copy-to]').filter((x) => x.checked).map((x) => +x.dataset.copyTo);
+      if (!to.length) throw new Error(L('Kies minstens één server'));
+      const r = await api('checks_bulk', { ids, action: 'copy', host_ids: to });
+      toast(L('{n} checks gekopieerd', { n: r.n })); setTimeout(() => { loadAllChecks(); refresh(); }, 50);
+    } });
+  if (kind === 'delete') return modal({ title: L('{n} checks verwijderen', { n: ids.length }),
+    body: `<p style="margin-top:0">${L('De checks en hun geschiedenis worden verwijderd. Checks uit een sjabloon komen niet terug, tenzij je de server opnieuw koppelt.')}</p>${confirmField('VERWIJDEREN')}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Verwijderen'), cls: 'danger', submit: true }],
+    onSubmit: async (d) => { const r = await api('checks_bulk', { ids, action: 'delete', confirm: d.confirm }); acSel.clear(); toast(L('{n} checks verwijderd', { n: r.n })); setTimeout(() => { loadAllChecks(); refresh(); }, 50); } });
+}
+
+function initAllChecks() {
+  if (!$('#ac-list')) return;
+  ['#ac-q', '#ac-host', '#ac-type'].forEach((s) => { $(s).addEventListener(s === '#ac-q' ? 'input' : 'change', renderAllChecks); });
+  $('#ac-list').addEventListener('change', (e) => {
+    if (e.target.id === 'ac-all') { acShown().forEach((c) => (e.target.checked ? acSel.add(+c.id) : acSel.delete(+c.id))); return renderAllChecks(); }
+    const cb = e.target.closest('[data-ac]');
+    if (cb) { cb.checked ? acSel.add(+cb.dataset.ac) : acSel.delete(+cb.dataset.ac); acBulkBar(); }
+  });
+  $('#ac-list').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-ac-edit]');
+    if (!a) return;
+    e.preventDefault();
+    const c = acData.checks.find((x) => +x.id === +a.dataset.acEdit);
+    const h = findHost(+c.host_id);
+    const full = h && h.checks.find((x) => +x.id === +c.id);
+    if (full) checkForm(full, h);
+  });
+  $('#ac-bulk').addEventListener('click', (e) => { const b = e.target.closest('[data-bulk]'); if (b) acBulk(b.dataset.bulk); });
+  // Na een venster (check bewerkt, sjabloon aangepast): de lijst bijwerken
+  $('#modal').addEventListener('close', () => {
+    if (setSection === 'allchecks' && !$('#tab-settings').hidden) setTimeout(loadAllChecks, 300);
+  });
+}
+
 // ---------------------------------------------------------------- 📡 Verbindingen en taken (1.91.0)
 const tsAgo = (ts) => (ts ? ago(new Date(ts * 1000).toISOString()) : L('nooit'));
 const tsWhen = (ts) => (ts ? new Date(ts * 1000).toLocaleString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '–');

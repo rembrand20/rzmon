@@ -7,6 +7,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.94.0 – 2026-10-26
+### Nieuw
+- **📋 Sjablonen** (*Instellingen → 🧩 Checks → Sjablonen*):
+  - Een sjabloon is een set checks die je zelf maakt, met hetzelfde formulier als bij een server, of maakt van een bestaande server.
+  - Koppelen bij het sjabloon of bij *✎ Server bewerken*. Een server kan meerdere sjablonen hebben, en een bestaande check van dezelfde soort wordt overgenomen.
+  - `{adres}` en `{naam}` worden per server ingevuld.
+  - Pas je het sjabloon aan, dan gaan alle gekoppelde servers mee, behalve checks die je op een server zelf hebt aangepast. Die zet je terug met *↩ Terug naar het sjabloon*.
+  - Drie startsjablonen om aan te passen: *Linux-server (agent)*, *Website* en *Netwerkapparaat*.
+- **☑️ Alle checks** (*Instellingen → 🧩 Checks → Alle checks*): alle checks in één lijst, met zoeken en filters per server en type.
+  - Vink er meerdere aan en pas ze tegelijk aan: interval, drempels (bij hetzelfde type), melden, onderhoud, aan of uit.
+  - Kopieer ze naar andere servers, of verwijder ze (met je wachtwoord).
+
+
 ## 1.93.0 – 2026-10-26
 ### Nieuw
 - **Kwetsbaarheden en Datalekken: altijd dicht, en RzMon onthoudt wat jij open had.** Per account (ook op je telefoon), ook met *Alles openen / sluiten*. *Slim openen* telt op deze pagina's niet meer mee. Met zoeken of een filter gaan de blokken met treffers tijdelijk open; daarna staat alles weer zoals jij het had.

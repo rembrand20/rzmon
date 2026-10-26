@@ -40,6 +40,10 @@ Dit is een overzicht van wat RzMon en de agent kunnen, in het kort. Hoe je alles
 
 Elke check heeft eigen drempels voor warning en critical, een eigen interval en een minigrafiek van de laatste 24 uur.
 
+**📋 Sjablonen** (1.94.0): sets checks die je zelf maakt (of maakt van een bestaande server) en aan servers koppelt, met `{adres}` en `{naam}` per server. Pas je het sjabloon aan, dan gaan alle gekoppelde servers mee, behalve checks die je op een server zelf hebt aangepast (terug te zetten). Startsjablonen: *Linux-server*, *Website*, *Netwerkapparaat*.
+
+**☑️ Alle checks** (1.94.0): één lijst met zoeken en filters; vink checks aan en pas ze tegelijk aan (interval, drempels, melden, onderhoud, aan/uit), kopieer ze naar andere servers of verwijder ze.
+
 **⇄ Omgekeerde status** (ping, poort, HTTP, service, container, Podman, commando, Home Assistant): kies zelf de status als de check slaagt (OK, warning of critical) en als hij mislukt. Voor iets dat juist níet mag draaien of bereikbaar mag zijn, zoals telnet of een oude server. Telt niet mee voor de bereikbaarheid van een server.
 
 ## 2. Soorten servers

@@ -734,3 +734,28 @@ CREATE TABLE IF NOT EXISTS ip_geo (
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_blocklists', '1');
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_geo', '1');
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_geo_allowed', 'NL');
+
+-- Check-sjablonen (1.94.0): een sjabloon is een lijst checks (kolommen als JSON); gekoppelde servers krijgen ze,
+-- en een wijziging aan het sjabloon gaat mee naar de checks die niet per server zijn aangepast (checks.tpl_override)
+CREATE TABLE IF NOT EXISTS check_templates (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL,
+    description VARCHAR(300) NOT NULL DEFAULT '',
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS template_items (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    template_id INT UNSIGNED NOT NULL,
+    data        TEXT NOT NULL,
+    CONSTRAINT fk_titem_tpl FOREIGN KEY (template_id) REFERENCES check_templates(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS host_templates (
+    host_id     INT UNSIGNED NOT NULL,
+    template_id INT UNSIGNED NOT NULL,
+    PRIMARY KEY (host_id, template_id),
+    CONSTRAINT fk_htpl_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE,
+    CONSTRAINT fk_htpl_tpl FOREIGN KEY (template_id) REFERENCES check_templates(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

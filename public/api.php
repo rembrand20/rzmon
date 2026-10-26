@@ -975,6 +975,243 @@ $confirm = static function (string $word) use ($user): void {
     }
 };
 
+/**
+ * Een check uit het formulier controleren (1.94.0): de kolommen voor de tabel checks, en of er een nieuwe heartbeat-URL moet komen.
+ * Gebruikt door check_save, sjablonen (template_item_save) en kopiëren. Bij een fout: out() met de foutmelding.
+ */
+$checkCols = static function (array $in) use ($user): array {
+            $type = $in['type'] ?? '';
+            if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat'], true)) {
+                out(['error' => t('Ongeldig type')], 422);
+            }
+            // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
+            $command = null;
+            if ($type === 'command') {
+                $cmdCfg = AgentCommands::clean((array) ($in['command'] ?? []));
+                if (is_string($cmdCfg)) {
+                    out(['error' => $cmdCfg], 422);
+                }
+                $command = json_encode($cmdCfg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                $prev = !empty($in['id']) ? q('SELECT command FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn() : null;
+                if ($prev !== $command) {
+                    AgentCommands::audit($user['username'], empty($in['id']) ? 'commando-check aangemaakt' : 'commando-check gewijzigd',
+                        'server ' . (int) ($in['host_id'] ?? 0) . ': ' . $cmdCfg['cmd'] . ' → ' . AgentCommands::MATCHES[$cmdCfg['match']] . ' "' . $cmdCfg['expect'] . '"');
+                }
+            }
+            $metric = null;   // container: één check met status + gekozen resources (options.res)
+            if ($type === 'ha') {
+                $metric = (string) ($in['metric'] ?? '');
+                if (!in_array($metric, ['backup', 'integrations', 'repairs', 'reboot', 'disklife', 'osupdate', 'usb'], true)) {
+                    out(['error' => t('Kies wat je van Home Assistant wilt bewaken')], 422);
+                }
+                if ($metric === 'usb' && !preg_match('/^[A-Za-z0-9._:+@-]{1,150}$/', trim((string) ($in['target'] ?? '')))) {
+                    out(['error' => t('Kies het USB-apparaat uit de lijst')], 422);
+                }
+            }
+            $target = trim((string) ($in['target'] ?? ''));
+            // SNMP: wat (metric) en, waar nodig, de index uit de discovery of de eigen OID
+            $snmpLow = false;
+            if ($type === 'snmp') {
+                $metric = (string) ($in['metric'] ?? '');
+                $sm = SnmpMonitor::METRICS[$metric] ?? null;
+                if (!$sm) {
+                    out(['error' => t('Kies wat je via SNMP wilt bewaken')], 422);
+                }
+                if ($metric === 'oid') {
+                    $target = ltrim($target, '.');
+                    if (!preg_match('/^1(\.\d{1,10}){3,60}$/', $target)) {
+                        out(['error' => t('Geef een numerieke OID, bv. 1.3.6.1.4.1.6574.1.2.0 (namen als sysName.0 werken niet)')], 422);
+                    }
+                } elseif ($sm['index'] === 'name') {
+                    // UniFi: band of SSID als doel (leeg = totaal, alleen bij clients)
+                    if (($target === '' && $metric !== 'unifi_clients') || mb_strlen($target) > 100 || preg_match('/[\x00-\x1f]/', $target)) {
+                        out(['error' => t('Kies de band of SSID via ＋ SNMP-checks')], 422);
+                    }
+                } elseif ($sm['index'] && !preg_match('/^\d{1,10}(\.\d{1,10}){0,10}$/', $target)) {
+                    out(['error' => t('Kies de interface, schijf of voorraad via ＋ SNMP-checks')], 422);
+                } elseif (!$sm['index']) {
+                    $target = '';
+                }
+                $snmpLow = $sm['low'];
+            }
+            if ($type === 'tcp' && ((int) $target < 1 || (int) $target > 65535)) {
+                out(['error' => t('Geef een geldige poort op (1-65535)')], 422);
+            }
+            if ($type === 'service' && !preg_match('/^[A-Za-z0-9@._:-]+$/', $target)) {
+                out(['error' => t('Geef een geldige servicenaam op')], 422);
+            }
+            if ($type === 'container' && !preg_match('#^([a-z_][a-z0-9_.-]*/)?[A-Za-z0-9][A-Za-z0-9_.-]*$#', $target)) {
+                out(['error' => t('Geef de naam van een container op (rootless: gebruiker/naam)')], 422);
+            }
+            $warn = num($in['warn_threshold'] ?? null);
+            $crit = num($in['crit_threshold'] ?? null);
+            $options = null;
+            if ($type === 'snmp' && $metric === 'oid') {
+                // Eigen OID: getal, teller (per seconde) of tekst vergelijken
+                $mode = in_array($in['oid_mode'] ?? '', ['gauge', 'counter', 'text'], true) ? $in['oid_mode'] : 'gauge';
+                $o = ['mode' => $mode];
+                if ($mode === 'text') {
+                    $o['match'] = in_array($in['oid_match'] ?? '', ['equals', 'contains', 'not_contains', 'regex'], true) ? $in['oid_match'] : 'equals';
+                    $o['expect'] = mb_substr(trim((string) ($in['oid_expect'] ?? '')), 0, 150);
+                    $o['fail'] = ($in['oid_fail'] ?? '') === 'warn' ? 'warn' : 'crit';
+                    if ($o['match'] === 'regex' && @preg_match('~' . str_replace('~', '\\~', $o['expect']) . '~i', '') === false) {
+                        out(['error' => t('De regex klopt niet')], 422);
+                    }
+                    $warn = $crit = null;
+                } else {
+                    $scale = num($in['oid_scale'] ?? null);
+                    if ($scale !== null && $scale != 1) {
+                        $o['scale'] = $scale;
+                    }
+                    $unit = mb_substr(trim((string) ($in['oid_unit'] ?? '')), 0, 12);
+                    if ($unit !== '') {
+                        $o['unit'] = $unit;
+                    }
+                    if (!empty($in['oid_low'])) {
+                        $o['low'] = 1;
+                        $snmpLow = true;
+                    }
+                }
+                $options = json_encode($o, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+            if ($type === 'snmp' && $metric === 'ups_status') {
+                $warn = $crit = null;   // UPS-status: geen drempels
+            }
+            if ($type === 'ssl' || $snmpLow) {
+                // Hier geldt "minder = slechter" (dagen, batterij, toner…)
+                if ($warn !== null && $crit !== null && $warn < $crit) {
+                    out(['error' => $type === 'ssl' ? t('Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel')
+                        : t('Hier is lager slechter: de warning-drempel moet hoger zijn dan de critical-drempel')], 422);
+                }
+            } elseif ($warn !== null && $crit !== null && $warn > $crit) {
+                out(['error' => t('Warning-drempel moet lager zijn dan critical-drempel')], 422);
+            }
+            if ($type === 'ssl' && $target !== '' && !preg_match('#^(https?://)?(\[[0-9a-fA-F:]+\]|[A-Za-z0-9.\-]+)(:\d{1,5})?/?$#', $target)
+                && !preg_match('#^/[^\s\'"]+$#', $target)) {
+                out(['error' => t('Geef een host op, eventueel met poort (example.com of example.com:8443), of het pad van een certificaatbestand dat de agent meldt')], 422);
+            }
+            if (in_array($type, ['ping', 'cpu', 'ram', 'podman', 'ha', 'command', 'reboot'], true)) {
+                $target = '';
+            }
+            if ($type === 'command' || $type === 'reboot') {
+                $warn = $crit = null;   // geen drempels: een commando vergelijkt tekst, een herstart geeft alleen info
+            }
+            if ($type === 'ha' && $metric === 'repairs') {
+                $warn = $crit = null;   // systeemstatus: unhealthy = critical, de rest warning
+            }
+            if ($type === 'container') {
+                // Status altijd; CPU, RAM en disk alleen als aangevinkt, elk met eigen drempels
+                $warn = $crit = null;
+                $res = [];
+                foreach (['cpu' => '%', 'mem' => '%', 'disk' => 'MB'] as $k => $u) {
+                    $r = $in['res'][$k] ?? null;
+                    if (!is_array($r) || empty($r['on'])) {
+                        continue;
+                    }
+                    $w = num($r['warn'] ?? null);
+                    $c = num($r['crit'] ?? null);
+                    if ($w === null && $c === null) {
+                        out(['error' => t('Vul bij {what} minstens één drempel in', ['what' => ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'disk'][$k]])], 422);
+                    }
+                    if ($w !== null && $c !== null && $w > $c) {
+                        out(['error' => t('Bij {what} moet de warning-drempel lager zijn dan de critical-drempel', ['what' => ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'disk'][$k]])], 422);
+                    }
+                    $res[$k] = [$w, $c];
+                }
+                $options = json_encode(['res' => (object) $res]);
+                // Eén check per container: bestaat er al een, dan die aanpassen
+                $dup = q("SELECT id FROM checks WHERE host_id = ? AND type = 'container' AND target = ? AND id <> ?",
+                    [(int) ($in['host_id'] ?? q('SELECT host_id FROM checks WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetchColumn()), $target, (int) ($in['id'] ?? 0)])->fetchColumn();
+                if ($dup) {
+                    out(['error' => t('Container {name} wordt al bewaakt. Pas die check aan (✎).', ['name' => $target]), 'existing_id' => (int) $dup], 409);
+                }
+            }
+            if ($type === 'log') {
+                // Bron: een logbestand (absoluut pad), het systemlog (journal), het log van één service, of kernelmeldingen
+                if (!preg_match('#^(/[A-Za-z0-9._/@+-]{1,250}|journal|journal:[A-Za-z0-9@._:-]{1,100}|kernel|ha:(host|core|supervisor|addon:[a-z0-9_]{1,100}))$#', $target)) {
+                    out(['error' => t('Bron: geef een logbestand (bv. /var/log/secure), "journal", "journal:sshd" of "kernel"; bij Home Assistant "ha:host", "ha:core", "ha:supervisor" of "ha:addon:<slug>"')], 422);
+                }
+                $pattern = trim((string) ($in['pattern'] ?? ''));
+                if ($pattern === '' || mb_strlen($pattern) > 300) {
+                    out(['error' => t('Geef aan waarnaar gezocht moet worden (maximaal 300 tekens)')], 422);
+                }
+                if (@preg_match('~' . str_replace('~', '\\~', $pattern) . '~i', '') === false) {
+                    out(['error' => t('Het zoekpatroon klopt niet (regex). Tip: gebruik | tussen alternatieven, bv. Failed password|Invalid user')], 422);
+                }
+                $options = json_encode(['pattern' => $pattern, 'preset' => mb_substr((string) ($in['preset'] ?? ''), 0, 30)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+            if ($type === 'service') {
+                $testType = in_array($in['test_type'] ?? '', ['url', 'port'], true) ? $in['test_type'] : '';
+                $testTarget = trim((string) ($in['test_target'] ?? ''));
+                if ($testType === 'url' && !preg_match('#^https?://[^\s]+$#i', $testTarget)) {
+                    out(['error' => t('Extra test: geef een URL die met http:// of https:// begint, bv. http://localhost:8080/health')], 422);
+                }
+                if ($testType === 'port' && !preg_match('#^(([A-Za-z0-9.\-]+|\[[0-9a-fA-F:]+\]):)?\d{1,5}$#', $testTarget)) {
+                    out(['error' => t('Extra test: geef een poort (8080) of host:poort (localhost:8080)')], 422);
+                }
+                // Eigen poorten/sockets: "8080, 127.0.0.1:9000, [::1]:80, /run/php-fpm/www.sock" (max. 10)
+                $ports = [];
+                foreach (preg_split('/[\s,;]+/', trim((string) ($in['ports'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) as $pt) {
+                    $isSocket = preg_match('#^/[A-Za-z0-9._/@+-]{1,200}$#', $pt);
+                    $isPort = preg_match('#^(([A-Za-z0-9.\-]+|\[[0-9a-fA-F:]+\]):)?(\d{1,5})$#', $pt, $pm) && (int) $pm[3] >= 1 && (int) $pm[3] <= 65535;
+                    if (!$isSocket && !$isPort) {
+                        out(['error' => t('Poort of socket "{p}" klopt niet. Gebruik bv. 8080, 127.0.0.1:9000 of /run/php-fpm/www.sock', ['p' => $pt])], 422);
+                    }
+                    $ports[] = $pt;
+                }
+                if (count($ports) > 10) {
+                    out(['error' => t('Geef maximaal 10 poorten of sockets op')], 422);
+                }
+                $options = json_encode(['deep' => ($in['deep'] ?? true) ? 1 : 0] + ($ports ? ['ports' => implode(' ', array_unique($ports))] : []) + ($testType !== '' ? [
+                    'test_type' => $testType, 'test_target' => mb_substr($testTarget, 0, 300),
+                    'test_expect' => mb_substr(trim((string) ($in['test_expect'] ?? '')), 0, 100),
+                ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+            // Heartbeat (1.77.0): naam voor rzmon-hb, schema, speling, maximale duur; de geheime URL maakt RzMon zelf
+            $hbNew = false;
+            if ($type === 'heartbeat') {
+                if (!preg_match(Heartbeat::NAME, $target)) {
+                    out(['error' => t('Geef een naam voor de heartbeat: letters, cijfers, punt, - of _ (bv. backup-db)')], 422);
+                }
+                $hid = (int) ($in['host_id'] ?? q('SELECT host_id FROM checks WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetchColumn());
+                if (q("SELECT id FROM checks WHERE host_id = ? AND type = 'heartbeat' AND target = ? AND id <> ?", [$hid, $target, (int) ($in['id'] ?? 0)])->fetchColumn()) {
+                    out(['error' => t('Deze server heeft al een heartbeat met de naam {n}', ['n' => $target])], 409);
+                }
+                $hb = Heartbeat::clean($in);
+                if (is_string($hb)) {
+                    out(['error' => $hb], 422);
+                }
+                if (!isset($hb['unit'])) {
+                    $warn = $crit = null;   // drempels alleen voor een meegestuurde waarde
+                }
+                $options = json_encode($hb, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                $hbNew = !empty($in['hb_new_token']);
+            }
+            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
+                'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'heartbeat' => 'Heartbeat', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
+                'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',
+                    'disklife' => 'SD-kaart/eMMC', 'osupdate' => 'HA OS-update', 'usb' => 'USB'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
+            // Eigen meldregels voor deze check (null = de algemene uit Instellingen → Alarmgedrag)
+            $notify = null;
+            if (is_array($in['notify'] ?? null)) {
+                $notify = json_encode(['rules' => NotifyRules::cleanRules((array) ($in['notify']['rules'] ?? [])),
+                    'channels' => NotifyRules::cleanChannels((array) ($in['notify']['channels'] ?? []))]
+                    + (is_array($in['notify']['flap'] ?? null) ? ['flap' => NotifyRules::cleanFlap($in['notify']['flap'])] : []));
+            }
+            // Stille uren: null = algemeen, of eigen vensters / nooit stil
+            $quiet = is_array($in['quiet'] ?? null) && ($qo = NotifyRules::cleanQuietOwn($in['quiet'])) !== null ? json_encode($qo) : null;
+            // Omgekeerde status (alleen bij werkt-het-wel-of-niet-checks): status als hij slaagt / mislukt
+            $revOk = in_array($type, Checks::REVERSIBLE, true) && in_array((int) ($in['reverse_ok'] ?? 0), [STATUS_WARN, STATUS_CRIT], true) ? (int) $in['reverse_ok'] : null;
+            $revFail = $revOk !== null ? max(STATUS_OK, min(STATUS_CRIT, (int) ($in['reverse_fail'] ?? STATUS_OK))) : null;
+            // Melden na zoveel mislukte checks achter elkaar; leeg = de algemene instelling
+            $fails = trim((string) ($in['notify_fails'] ?? '')) === '' ? null : max(1, min(100, (int) $in['notify_fails']));
+    return [['type' => $type, 'target' => $target, 'name' => mb_substr($name, 0, 100), 'warn_threshold' => $warn, 'crit_threshold' => $crit,
+        'interval_sec' => max(30, (int) ($in['interval_sec'] ?? 60)), 'enabled' => !empty($in['enabled']) ? 1 : 0, 'verify_ssl' => ($in['verify_ssl'] ?? true) ? 1 : 0,
+        'metric' => $metric, 'options' => $options, 'notify' => $notify, 'quiet' => $quiet, 'command' => $command, 'reverse_ok' => $revOk, 'reverse_fail' => $revFail,
+        'notify_fails' => $fails, 'info_only' => !empty($in['info_only']) ? 1 : 0], $hbNew];
+};
+
+
 switch ($action) {
     case 'logout':
         logout();
@@ -1023,6 +1260,10 @@ switch ($action) {
              'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
              'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(), 'health_groups' => Health::groups(),
              'agent_tick' => agent_tick(null),
+             // Sjablonen (1.94.0): item → naam van het sjabloon, en welke sjablonen per server
+             'templates' => q('SELECT id, name FROM check_templates ORDER BY name')->fetchAll(),
+             'tpl_items' => (object) array_column(q('SELECT ti.id, t.name FROM template_items ti JOIN check_templates t ON t.id = ti.template_id')->fetchAll(), 'name', 'id'),
+             'host_tpls' => (object) array_reduce(q('SELECT host_id, template_id FROM host_templates')->fetchAll(), static function ($a, $r) { $a[$r['host_id']][] = (int) $r['template_id']; return $a; }, []),
              'notify_fails' => max(1, (int) setting('notify_fails', '1')),
              // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
              'ids_open' => Ids::enabled() ? (int) q("SELECT COUNT(*) FROM ids_incidents WHERE status = 'open' AND severity = 2")->fetchColumn() : 0,
@@ -1901,248 +2142,159 @@ switch ($action) {
 
     case 'check_save':
         $in = input();
-        $type = $in['type'] ?? '';
-        if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat'], true)) {
-            out(['error' => t('Ongeldig type')], 422);
-        }
-        // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
-        $command = null;
-        if ($type === 'command') {
-            $cmdCfg = AgentCommands::clean((array) ($in['command'] ?? []));
-            if (is_string($cmdCfg)) {
-                out(['error' => $cmdCfg], 422);
-            }
-            $command = json_encode($cmdCfg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            $prev = !empty($in['id']) ? q('SELECT command FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn() : null;
-            if ($prev !== $command) {
-                AgentCommands::audit($user['username'], empty($in['id']) ? 'commando-check aangemaakt' : 'commando-check gewijzigd',
-                    'server ' . (int) ($in['host_id'] ?? 0) . ': ' . $cmdCfg['cmd'] . ' → ' . AgentCommands::MATCHES[$cmdCfg['match']] . ' "' . $cmdCfg['expect'] . '"');
-            }
-        }
-        $metric = null;   // container: één check met status + gekozen resources (options.res)
-        if ($type === 'ha') {
-            $metric = (string) ($in['metric'] ?? '');
-            if (!in_array($metric, ['backup', 'integrations', 'repairs', 'reboot', 'disklife', 'osupdate', 'usb'], true)) {
-                out(['error' => t('Kies wat je van Home Assistant wilt bewaken')], 422);
-            }
-            if ($metric === 'usb' && !preg_match('/^[A-Za-z0-9._:+@-]{1,150}$/', trim((string) ($in['target'] ?? '')))) {
-                out(['error' => t('Kies het USB-apparaat uit de lijst')], 422);
-            }
-        }
-        $target = trim((string) ($in['target'] ?? ''));
-        // SNMP: wat (metric) en, waar nodig, de index uit de discovery of de eigen OID
-        $snmpLow = false;
-        if ($type === 'snmp') {
-            $metric = (string) ($in['metric'] ?? '');
-            $sm = SnmpMonitor::METRICS[$metric] ?? null;
-            if (!$sm) {
-                out(['error' => t('Kies wat je via SNMP wilt bewaken')], 422);
-            }
-            if ($metric === 'oid') {
-                $target = ltrim($target, '.');
-                if (!preg_match('/^1(\.\d{1,10}){3,60}$/', $target)) {
-                    out(['error' => t('Geef een numerieke OID, bv. 1.3.6.1.4.1.6574.1.2.0 (namen als sysName.0 werken niet)')], 422);
-                }
-            } elseif ($sm['index'] === 'name') {
-                // UniFi: band of SSID als doel (leeg = totaal, alleen bij clients)
-                if (($target === '' && $metric !== 'unifi_clients') || mb_strlen($target) > 100 || preg_match('/[\x00-\x1f]/', $target)) {
-                    out(['error' => t('Kies de band of SSID via ＋ SNMP-checks')], 422);
-                }
-            } elseif ($sm['index'] && !preg_match('/^\d{1,10}(\.\d{1,10}){0,10}$/', $target)) {
-                out(['error' => t('Kies de interface, schijf of voorraad via ＋ SNMP-checks')], 422);
-            } elseif (!$sm['index']) {
-                $target = '';
-            }
-            $snmpLow = $sm['low'];
-        }
-        if ($type === 'tcp' && ((int) $target < 1 || (int) $target > 65535)) {
-            out(['error' => t('Geef een geldige poort op (1-65535)')], 422);
-        }
-        if ($type === 'service' && !preg_match('/^[A-Za-z0-9@._:-]+$/', $target)) {
-            out(['error' => t('Geef een geldige servicenaam op')], 422);
-        }
-        if ($type === 'container' && !preg_match('#^([a-z_][a-z0-9_.-]*/)?[A-Za-z0-9][A-Za-z0-9_.-]*$#', $target)) {
-            out(['error' => t('Geef de naam van een container op (rootless: gebruiker/naam)')], 422);
-        }
-        $warn = num($in['warn_threshold'] ?? null);
-        $crit = num($in['crit_threshold'] ?? null);
-        $options = null;
-        if ($type === 'snmp' && $metric === 'oid') {
-            // Eigen OID: getal, teller (per seconde) of tekst vergelijken
-            $mode = in_array($in['oid_mode'] ?? '', ['gauge', 'counter', 'text'], true) ? $in['oid_mode'] : 'gauge';
-            $o = ['mode' => $mode];
-            if ($mode === 'text') {
-                $o['match'] = in_array($in['oid_match'] ?? '', ['equals', 'contains', 'not_contains', 'regex'], true) ? $in['oid_match'] : 'equals';
-                $o['expect'] = mb_substr(trim((string) ($in['oid_expect'] ?? '')), 0, 150);
-                $o['fail'] = ($in['oid_fail'] ?? '') === 'warn' ? 'warn' : 'crit';
-                if ($o['match'] === 'regex' && @preg_match('~' . str_replace('~', '\\~', $o['expect']) . '~i', '') === false) {
-                    out(['error' => t('De regex klopt niet')], 422);
-                }
-                $warn = $crit = null;
-            } else {
-                $scale = num($in['oid_scale'] ?? null);
-                if ($scale !== null && $scale != 1) {
-                    $o['scale'] = $scale;
-                }
-                $unit = mb_substr(trim((string) ($in['oid_unit'] ?? '')), 0, 12);
-                if ($unit !== '') {
-                    $o['unit'] = $unit;
-                }
-                if (!empty($in['oid_low'])) {
-                    $o['low'] = 1;
-                    $snmpLow = true;
-                }
-            }
-            $options = json_encode($o, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-        if ($type === 'snmp' && $metric === 'ups_status') {
-            $warn = $crit = null;   // UPS-status: geen drempels
-        }
-        if ($type === 'ssl' || $snmpLow) {
-            // Hier geldt "minder = slechter" (dagen, batterij, toner…)
-            if ($warn !== null && $crit !== null && $warn < $crit) {
-                out(['error' => $type === 'ssl' ? t('Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel')
-                    : t('Hier is lager slechter: de warning-drempel moet hoger zijn dan de critical-drempel')], 422);
-            }
-        } elseif ($warn !== null && $crit !== null && $warn > $crit) {
-            out(['error' => t('Warning-drempel moet lager zijn dan critical-drempel')], 422);
-        }
-        if ($type === 'ssl' && $target !== '' && !preg_match('#^(https?://)?(\[[0-9a-fA-F:]+\]|[A-Za-z0-9.\-]+)(:\d{1,5})?/?$#', $target)
-            && !preg_match('#^/[^\s\'"]+$#', $target)) {
-            out(['error' => t('Geef een host op, eventueel met poort (example.com of example.com:8443), of het pad van een certificaatbestand dat de agent meldt')], 422);
-        }
-        if (in_array($type, ['ping', 'cpu', 'ram', 'podman', 'ha', 'command', 'reboot'], true)) {
-            $target = '';
-        }
-        if ($type === 'command' || $type === 'reboot') {
-            $warn = $crit = null;   // geen drempels: een commando vergelijkt tekst, een herstart geeft alleen info
-        }
-        if ($type === 'ha' && $metric === 'repairs') {
-            $warn = $crit = null;   // systeemstatus: unhealthy = critical, de rest warning
-        }
-        if ($type === 'container') {
-            // Status altijd; CPU, RAM en disk alleen als aangevinkt, elk met eigen drempels
-            $warn = $crit = null;
-            $res = [];
-            foreach (['cpu' => '%', 'mem' => '%', 'disk' => 'MB'] as $k => $u) {
-                $r = $in['res'][$k] ?? null;
-                if (!is_array($r) || empty($r['on'])) {
-                    continue;
-                }
-                $w = num($r['warn'] ?? null);
-                $c = num($r['crit'] ?? null);
-                if ($w === null && $c === null) {
-                    out(['error' => t('Vul bij {what} minstens één drempel in', ['what' => ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'disk'][$k]])], 422);
-                }
-                if ($w !== null && $c !== null && $w > $c) {
-                    out(['error' => t('Bij {what} moet de warning-drempel lager zijn dan de critical-drempel', ['what' => ['cpu' => 'CPU', 'mem' => 'RAM', 'disk' => 'disk'][$k]])], 422);
-                }
-                $res[$k] = [$w, $c];
-            }
-            $options = json_encode(['res' => (object) $res]);
-            // Eén check per container: bestaat er al een, dan die aanpassen
-            $dup = q("SELECT id FROM checks WHERE host_id = ? AND type = 'container' AND target = ? AND id <> ?",
-                [(int) ($in['host_id'] ?? q('SELECT host_id FROM checks WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetchColumn()), $target, (int) ($in['id'] ?? 0)])->fetchColumn();
-            if ($dup) {
-                out(['error' => t('Container {name} wordt al bewaakt. Pas die check aan (✎).', ['name' => $target]), 'existing_id' => (int) $dup], 409);
-            }
-        }
-        if ($type === 'log') {
-            // Bron: een logbestand (absoluut pad), het systemlog (journal), het log van één service, of kernelmeldingen
-            if (!preg_match('#^(/[A-Za-z0-9._/@+-]{1,250}|journal|journal:[A-Za-z0-9@._:-]{1,100}|kernel|ha:(host|core|supervisor|addon:[a-z0-9_]{1,100}))$#', $target)) {
-                out(['error' => t('Bron: geef een logbestand (bv. /var/log/secure), "journal", "journal:sshd" of "kernel"; bij Home Assistant "ha:host", "ha:core", "ha:supervisor" of "ha:addon:<slug>"')], 422);
-            }
-            $pattern = trim((string) ($in['pattern'] ?? ''));
-            if ($pattern === '' || mb_strlen($pattern) > 300) {
-                out(['error' => t('Geef aan waarnaar gezocht moet worden (maximaal 300 tekens)')], 422);
-            }
-            if (@preg_match('~' . str_replace('~', '\\~', $pattern) . '~i', '') === false) {
-                out(['error' => t('Het zoekpatroon klopt niet (regex). Tip: gebruik | tussen alternatieven, bv. Failed password|Invalid user')], 422);
-            }
-            $options = json_encode(['pattern' => $pattern, 'preset' => mb_substr((string) ($in['preset'] ?? ''), 0, 30)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-        if ($type === 'service') {
-            $testType = in_array($in['test_type'] ?? '', ['url', 'port'], true) ? $in['test_type'] : '';
-            $testTarget = trim((string) ($in['test_target'] ?? ''));
-            if ($testType === 'url' && !preg_match('#^https?://[^\s]+$#i', $testTarget)) {
-                out(['error' => t('Extra test: geef een URL die met http:// of https:// begint, bv. http://localhost:8080/health')], 422);
-            }
-            if ($testType === 'port' && !preg_match('#^(([A-Za-z0-9.\-]+|\[[0-9a-fA-F:]+\]):)?\d{1,5}$#', $testTarget)) {
-                out(['error' => t('Extra test: geef een poort (8080) of host:poort (localhost:8080)')], 422);
-            }
-            // Eigen poorten/sockets: "8080, 127.0.0.1:9000, [::1]:80, /run/php-fpm/www.sock" (max. 10)
-            $ports = [];
-            foreach (preg_split('/[\s,;]+/', trim((string) ($in['ports'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) as $pt) {
-                $isSocket = preg_match('#^/[A-Za-z0-9._/@+-]{1,200}$#', $pt);
-                $isPort = preg_match('#^(([A-Za-z0-9.\-]+|\[[0-9a-fA-F:]+\]):)?(\d{1,5})$#', $pt, $pm) && (int) $pm[3] >= 1 && (int) $pm[3] <= 65535;
-                if (!$isSocket && !$isPort) {
-                    out(['error' => t('Poort of socket "{p}" klopt niet. Gebruik bv. 8080, 127.0.0.1:9000 of /run/php-fpm/www.sock', ['p' => $pt])], 422);
-                }
-                $ports[] = $pt;
-            }
-            if (count($ports) > 10) {
-                out(['error' => t('Geef maximaal 10 poorten of sockets op')], 422);
-            }
-            $options = json_encode(['deep' => ($in['deep'] ?? true) ? 1 : 0] + ($ports ? ['ports' => implode(' ', array_unique($ports))] : []) + ($testType !== '' ? [
-                'test_type' => $testType, 'test_target' => mb_substr($testTarget, 0, 300),
-                'test_expect' => mb_substr(trim((string) ($in['test_expect'] ?? '')), 0, 100),
-            ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-        // Heartbeat (1.77.0): naam voor rzmon-hb, schema, speling, maximale duur; de geheime URL maakt RzMon zelf
-        $hbNew = false;
-        if ($type === 'heartbeat') {
-            if (!preg_match(Heartbeat::NAME, $target)) {
-                out(['error' => t('Geef een naam voor de heartbeat: letters, cijfers, punt, - of _ (bv. backup-db)')], 422);
-            }
-            $hid = (int) ($in['host_id'] ?? q('SELECT host_id FROM checks WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetchColumn());
-            if (q("SELECT id FROM checks WHERE host_id = ? AND type = 'heartbeat' AND target = ? AND id <> ?", [$hid, $target, (int) ($in['id'] ?? 0)])->fetchColumn()) {
-                out(['error' => t('Deze server heeft al een heartbeat met de naam {n}', ['n' => $target])], 409);
-            }
-            $hb = Heartbeat::clean($in);
-            if (is_string($hb)) {
-                out(['error' => $hb], 422);
-            }
-            if (!isset($hb['unit'])) {
-                $warn = $crit = null;   // drempels alleen voor een meegestuurde waarde
-            }
-            $options = json_encode($hb, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            $hbNew = !empty($in['hb_new_token']);
-        }
-        $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
-            'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'heartbeat' => 'Heartbeat', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
-            'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',
-                'disklife' => 'SD-kaart/eMMC', 'osupdate' => 'HA OS-update', 'usb' => 'USB'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
-        // Eigen meldregels voor deze check (null = de algemene uit Instellingen → Alarmgedrag)
-        $notify = null;
-        if (is_array($in['notify'] ?? null)) {
-            $notify = json_encode(['rules' => NotifyRules::cleanRules((array) ($in['notify']['rules'] ?? [])),
-                'channels' => NotifyRules::cleanChannels((array) ($in['notify']['channels'] ?? []))]
-                + (is_array($in['notify']['flap'] ?? null) ? ['flap' => NotifyRules::cleanFlap($in['notify']['flap'])] : []));
-        }
-        // Stille uren: null = algemeen, of eigen vensters / nooit stil
-        $quiet = is_array($in['quiet'] ?? null) && ($qo = NotifyRules::cleanQuietOwn($in['quiet'])) !== null ? json_encode($qo) : null;
-        // Omgekeerde status (alleen bij werkt-het-wel-of-niet-checks): status als hij slaagt / mislukt
-        $revOk = in_array($type, Checks::REVERSIBLE, true) && in_array((int) ($in['reverse_ok'] ?? 0), [STATUS_WARN, STATUS_CRIT], true) ? (int) $in['reverse_ok'] : null;
-        $revFail = $revOk !== null ? max(STATUS_OK, min(STATUS_CRIT, (int) ($in['reverse_fail'] ?? STATUS_OK))) : null;
-        // Melden na zoveel mislukte checks achter elkaar; leeg = de algemene instelling
-        $fails = trim((string) ($in['notify_fails'] ?? '')) === '' ? null : max(1, min(100, (int) $in['notify_fails']));
-        $params = [$type, $target, mb_substr($name, 0, 100), $warn, $crit,
-            max(30, (int) ($in['interval_sec'] ?? 60)), !empty($in['enabled']) ? 1 : 0, ($in['verify_ssl'] ?? true) ? 1 : 0, $metric, $options, $notify, $quiet, $command, $revOk, $revFail, $fails, !empty($in['info_only']) ? 1 : 0];
+        [$cols, $hbNew] = $checkCols($in);
         if (!empty($in['id'])) {
-            q('UPDATE checks SET type = ?, target = ?, name = ?, warn_threshold = ?, crit_threshold = ?, interval_sec = ?, enabled = ?, verify_ssl = ?, metric = ?, options = ?, notify = ?, quiet = ?, command = ?, reverse_ok = ?, reverse_fail = ?, notify_fails = ?, info_only = ? WHERE id = ?',
-                [...$params, (int) $in['id']]);
+            // Uit een sjabloon (1.94.0): met de hand aangepast = los van het sjabloon, tot "terug naar het sjabloon"
+            Templates::updateCheck((int) $in['id'], $cols, true);
             $id = (int) $in['id'];
         } else {
-            q('INSERT INTO checks (type, target, name, warn_threshold, crit_threshold, interval_sec, enabled, verify_ssl, metric, options, notify, quiet, command, reverse_ok, reverse_fail, notify_fails, info_only, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [...$params, (int) ($in['host_id'] ?? 0)]);
-            $id = (int) db()->lastInsertId();
+            $id = Templates::insertCheck((int) ($in['host_id'] ?? 0), $cols);
         }
-        if ($type === 'heartbeat') {
+        if ($cols['type'] === 'heartbeat') {
             // Geheime URL: bij het aanmaken, of nieuw op verzoek (de oude werkt dan meteen niet meer)
             q('UPDATE checks SET hb_token = ? WHERE id = ? AND (hb_token IS NULL OR ?)', [Heartbeat::newToken(), $id, $hbNew ? 1 : 0]);
         }
         Monitor::runCheckById($id);
         out(['ok' => true, 'id' => $id]);
+
+    // ---------------------------------------------------------------- Sjablonen en meerdere checks tegelijk (1.94.0)
+    case 'templates':
+        out(['templates' => Templates::list(), 'hosts' => q('SELECT id, name, address, mode FROM hosts ORDER BY name')->fetchAll()]);
+
+    case 'template_save':
+        $in = input();
+        try {
+            out(['ok' => true, 'id' => Templates::save((int) ($in['id'] ?? 0) ?: null, (string) ($in['name'] ?? ''), (string) ($in['description'] ?? ''))]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'template_delete':
+        $in = input();
+        if (empty($in['keep'])) {
+            $confirm('VERWIJDEREN');   // de checks op de servers gaan mee weg
+        }
+        Templates::delete((int) ($in['id'] ?? 0), !empty($in['keep']));
+        out(['ok' => true]);
+
+    case 'template_item_save':
+        $in = input();
+        $tid = (int) ($in['template_id'] ?? 0);
+        if (!q('SELECT 1 FROM check_templates WHERE id = ?', [$tid])->fetchColumn()) {
+            out(['error' => t('Sjabloon bestaat niet')], 404);
+        }
+        [$cols] = $checkCols(['host_id' => 0, 'id' => 0] + $in);
+        out(['ok' => true, 'id' => Templates::itemSave($tid, (int) ($in['item_id'] ?? 0) ?: null, $cols)]);
+
+    case 'template_item_delete':
+        $in = input();
+        Templates::itemDelete((int) ($in['id'] ?? 0), !empty($in['keep']));
+        out(['ok' => true]);
+
+    case 'template_link':
+        $in = input();
+        try {
+            out(['ok' => true] + Templates::link((int) ($in['host_id'] ?? 0), (int) ($in['template_id'] ?? 0)));
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'template_unlink':
+        $in = input();
+        Templates::unlink((int) ($in['host_id'] ?? 0), (int) ($in['template_id'] ?? 0), !empty($in['keep']));
+        out(['ok' => true]);
+
+    case 'template_from_host':
+        $in = input();
+        try {
+            out(['ok' => true, 'id' => Templates::fromHost((int) ($in['host_id'] ?? 0), (string) ($in['name'] ?? ''), array_map('intval', (array) ($in['check_ids'] ?? [])))]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'check_tpl_reset':
+        try {
+            Templates::reset((int) (input()['id'] ?? 0));
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+        out(['ok' => true]);
+
+    case 'checks_all':
+        out(['checks' => q('SELECT c.id, c.host_id, h.name AS host_name, c.type, c.target, c.name, c.metric, c.warn_threshold, c.crit_threshold, c.interval_sec, c.enabled,
+                c.status, c.notify IS NOT NULL AS own_notify, c.notify_fails, c.info_only, c.maintenance_until, c.last_checked, c.template_item_id, c.tpl_override, t.name AS template_name
+            FROM checks c JOIN hosts h ON h.id = c.host_id LEFT JOIN template_items ti ON ti.id = c.template_item_id LEFT JOIN check_templates t ON t.id = ti.template_id
+            ORDER BY h.name, c.name')->fetchAll(), 'hosts' => q('SELECT id, name, address, mode FROM hosts ORDER BY name')->fetchAll()]);
+
+    case 'checks_bulk':
+        // Meerdere checks tegelijk: set (velden), maintenance, delete of copy (naar servers)
+        $in = input();
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array) ($in['ids'] ?? [])))));
+        if (!$ids || count($ids) > 2000) {
+            out(['error' => t('Kies een of meer checks')], 422);
+        }
+        $list = implode(',', $ids);
+        $act = (string) ($in['action'] ?? '');
+        if ($act === 'delete') {
+            $confirm('VERWIJDEREN');
+            $n = q("DELETE FROM checks WHERE id IN ($list)")->rowCount();
+            out(['ok' => true, 'n' => $n]);
+        }
+        if ($act === 'maintenance') {
+            $minutes = max(0, min(60 * 24 * 90, (int) ($in['minutes'] ?? 0)));
+            $until = $minutes > 0 ? date('Y-m-d H:i:s', time() + $minutes * 60) : null;
+            $n = q("UPDATE checks SET maintenance_until = ?, maintenance_reason = ?, maintenance_auto = 0 WHERE id IN ($list)",
+                [$until, mb_substr(trim((string) ($in['reason'] ?? '')), 0, 200) ?: null])->rowCount();
+            out(['ok' => true, 'n' => $n]);
+        }
+        if ($act === 'copy') {
+            $n = 0;
+            foreach ($ids as $id) {
+                $n += Templates::copy($id, (array) ($in['host_ids'] ?? []));
+            }
+            out(['ok' => true, 'n' => $n]);
+        }
+        if ($act !== 'set') {
+            out(['error' => t('Onbekende actie')], 422);
+        }
+        $v = (array) ($in['values'] ?? []);
+        $set = [];
+        if (isset($v['interval_sec'])) {
+            $set['interval_sec'] = max(30, min(86400, (int) $v['interval_sec']));
+        }
+        foreach (['enabled', 'info_only'] as $b) {
+            if (isset($v[$b])) {
+                $set[$b] = $v[$b] ? 1 : 0;
+            }
+        }
+        if (array_key_exists('notify_fails', $v)) {
+            $set['notify_fails'] = $v['notify_fails'] === null || $v['notify_fails'] === '' ? null : max(1, min(100, (int) $v['notify_fails']));
+        }
+        if (!empty($v['notify_default'])) {
+            $set['notify'] = null;   // terug naar de algemene meldregels
+        }
+        if (array_key_exists('warn_threshold', $v) || array_key_exists('crit_threshold', $v)) {
+            // Drempels alleen voor checks van één soort (anders betekenen de getallen iets anders)
+            $types = q("SELECT DISTINCT CONCAT(type, '|', COALESCE(metric, '')) FROM checks WHERE id IN ($list)")->fetchAll(PDO::FETCH_COLUMN);
+            if (count($types) !== 1) {
+                out(['error' => t('Drempels kun je alleen voor checks van hetzelfde type tegelijk aanpassen')], 422);
+            }
+            $w = num($v['warn_threshold'] ?? null);
+            $c = num($v['crit_threshold'] ?? null);
+            $low = str_starts_with($types[0], 'ssl|');
+            if ($w !== null && $c !== null && ($low ? $w < $c : $w > $c)) {
+                out(['error' => $low ? t('Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel') : t('Warning-drempel moet lager zijn dan critical-drempel')], 422);
+            }
+            $set['warn_threshold'] = $w;
+            $set['crit_threshold'] = $c;
+        }
+        if (!$set) {
+            out(['error' => t('Niets om aan te passen')], 422);
+        }
+        $cols = implode(', ', array_map(static fn($k) => "$k = ?", array_keys($set)));
+        // Met de hand aangepast: sjabloonchecks gaan daarna niet meer mee met het sjabloon
+        q("UPDATE checks SET $cols, tpl_override = IF(template_item_id IS NULL, 0, 1) WHERE id IN ($list)", array_values($set));
+        out(['ok' => true, 'n' => count($ids)]);
 
     case 'check_delete':
         q('DELETE FROM checks WHERE id = ?', [(int) (input()['id'] ?? 0)]);

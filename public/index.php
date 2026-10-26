@@ -927,6 +927,24 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       <?php if (($user['id'] ?? 0) === 0): ?>
       <?php endif; ?>
+      <div data-sk="templates" class="card need-admin" id="templates-card">
+        <h2>📋 <?= th('Sjablonen') ?></h2>
+        <p class="muted small"><?= t('Een sjabloon is een set checks (met drempels, interval en meldregels) die je aan servers koppelt, bv. <i>Linux-server</i> of <i>Website</i>. Pas je het sjabloon aan, dan veranderen de checks op alle gekoppelde servers mee, behalve checks die je op een server zelf hebt aangepast. Koppelen kan hier of bij <i>✎ Server bewerken</i>.') ?></p>
+        <div class="btn-row"><button type="button" class="btn primary" id="tpl-new">＋ <?= th('Nieuw sjabloon') ?></button>
+          <button type="button" class="btn" id="tpl-from-host">📋 <?= th('Sjabloon maken van een server…') ?></button></div>
+        <div id="tpl-list"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+
+      <div data-sk="allchecks" class="card need-admin" id="allchecks-card">
+        <h2>☑️ <?= th('Alle checks') ?></h2>
+        <p class="muted small"><?= th('Vink checks aan om ze tegelijk aan te passen: interval, drempels, melden, onderhoud, aan of uit, kopiëren naar andere servers of verwijderen. Klik op een naam om die check te bewerken.') ?></p>
+        <div class="ac-bar"><input type="search" id="ac-q" placeholder="<?= th('🔍 Zoek check, doel of server…') ?>" autocomplete="off">
+          <select id="ac-host"><option value=""><?= th('Alle servers') ?></option></select>
+          <select id="ac-type"><option value=""><?= th('Alle types') ?></option></select></div>
+        <div id="ac-bulk" class="ac-bulk" hidden></div>
+        <div id="ac-list"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+
       <div data-sk="conn" class="card need-admin" id="conn-card">
         <h2>📡 <?= th('Verbindingen en taken') ?> <button type="button" class="btn small-btn" id="conn-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
         <p class="muted small"><?= th('Wat er bij RzMon binnenkomt en wat RzMon zelf op de achtergrond doet. Lukt een taak te lang niet, dan krijg je een ⚠️-melding (Meldingen → Systeeminfo → Achtergrondtaak lukt niet).') ?></p>

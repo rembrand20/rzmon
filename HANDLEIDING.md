@@ -181,6 +181,7 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 - **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave op dit apparaat** (Blox of L1nes, Small of Large).
 - **Instellingen** (alleen beheerders): links een **zijbalk** met de groepen (vanaf 1.92.0):
   - **✅ Overzicht**: Hoe staat het ervoor? · Verbindingen en taken;
+  - **🧩 Checks**: Sjablonen · Alle checks (vanaf 1.94.0);
   - **🔔 Meldingen**: Kanalen (Pushover, e-mail, Home Assistant-webhook) · Meldregels en stille uren · Alarmgedrag · Systeeminfo;
   - **🛡️ Beveiliging**: IDS: detectie · IDS: aanvallers en verkeer · IDS: servers · Kwetsbaarheden · Datalekken;
   - **🔐 Toegang**: Inloggen · Van buiten (https, onzichtbaar van buiten, apparaten en passkeys) · Gebruikers;
@@ -1053,6 +1054,21 @@ AGENT_DIR=/mnt/<pool>/rzmon-agent bash /mnt/<pool>/rzmon-agent/rzmon-agent.sh --
 - De tijd van de melding is de tijd waarop het script hem gaf, ook als de agent hem pas later doorstuurt.
 
 ---
+
+### 7.9 Sjablonen en alle checks 📋
+
+**Sjablonen** (vanaf 1.94.0, *Instellingen → 🧩 Checks → Sjablonen*): een sjabloon is een set checks, met drempels, interval en meldregels, die je aan servers koppelt.
+- **Zelf maken:** *＋ Nieuw sjabloon*, en dan per check *＋ Check toevoegen*. Dat gaat met hetzelfde formulier als bij een server. Of *📋 Sjabloon maken van een server…*: kies een server en de checks die mee moeten. De server wordt meteen gekoppeld.
+- **Per server invullen:** gebruik `{adres}` en `{naam}` in het doel of de naam, bv. `https://{adres}/` of `Certificaat {naam}`.
+- **Startsjablonen:** *Linux-server (agent)*, *Website* en *Netwerkapparaat*. Pas ze gerust aan of verwijder ze.
+- **Koppelen:** bij het sjabloon (*＋ Server koppelen…*) of bij *✎ Server bewerken → 📋 Sjablonen*. Een server kan meerdere sjablonen hebben. Heeft de server al een check van dezelfde soort (zelfde type en doel), dan neemt het sjabloon die over.
+- **Aanpassen:** wijzig je een check in het sjabloon, dan gaat dat meteen naar alle gekoppelde servers. Pas je een sjablooncheck op één server zelf aan, dan gaat die check daar niet meer mee. In het checkformulier zie je dat, met **↩ Terug naar het sjabloon**.
+- **Loskoppelen of verwijderen:** de checks blijven op de servers staan (los), tenzij je kiest om ze ook te verwijderen (met je wachtwoord).
+
+**Alle checks** (*Instellingen → 🧩 Checks → Alle checks*): een lijst van alle checks, te doorzoeken op naam, doel of server, en te filteren op server en type.
+- **Vink checks aan** en pas ze tegelijk aan: ⏱ interval, 🎚 drempels (alleen bij hetzelfde type), 🔔 melden (na hoeveel mislukte checks, terug naar de algemene meldregels, alleen info), 🔧 onderhoud, ▶ aan of ⏸ uit, 📋 kopiëren naar andere servers, of 🗑 verwijderen (met je wachtwoord).
+- **Kopiëren:** staat het adres van de oorspronkelijke server in het doel, dan krijgt de kopie het adres van de nieuwe server.
+- **Klik op een naam** om die check te bewerken.
 
 ## 8. Agent op Linux-servers
 
