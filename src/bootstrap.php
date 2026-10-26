@@ -62,6 +62,7 @@ require_once __DIR__ . '/Stealth.php';
 require_once __DIR__ . '/Passkey.php';
 require_once __DIR__ . '/Hardening.php';
 require_once __DIR__ . '/WebLog.php';
+require_once __DIR__ . '/Tasks.php';
 require_once __DIR__ . '/SnmpMonitor.php';
 require_once __DIR__ . '/I18n.php';
 require_once __DIR__ . '/AgentText.php';

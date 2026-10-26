@@ -35,6 +35,7 @@ Monitor::pollReceipts();
 save_setting('cron_last_run', now());
 if (setting('mqtt_enabled', '0') === '1') {
     $r = Mqtt::publishAll();
+    Tasks::mqttResult($r['ok'], (string) ($r['error'] ?? ''));
     if (!$r['ok']) {
         fwrite(STDERR, "MQTT: {$r['error']}\n");
     }
@@ -105,4 +106,12 @@ try {
     }
 } catch (Throwable $e) {
     fwrite(STDERR, 'Kwetsbaarheden: ' . $e->getMessage() . "\n");
+}
+// Achtergrondtaken die te lang niet lukken: één melding, en een ✅ als het weer lukt (Instellingen → Systeem → Verbindingen en taken)
+try {
+    if ($msg = Tasks::watch()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Taken: ' . $e->getMessage() . "\n");
 }

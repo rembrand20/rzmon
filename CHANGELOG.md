@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.91.0 – 2026-10-26
+### Nieuw
+- **📡 Verbindingen en taken** (*Instellingen → Systeem*):
+  - **Binnenkomend:** agents (ritme, realtime, laatste rapport), browsers van de laatste 24 uur, API-sleutels en heartbeats.
+  - **Achtergrondtaken:** cron, nieuwe versie zoeken, blocklists, GeoIP, datalekken, kwetsbaarheden, certificaat, MQTT en back-up, met wanneer ze laatst gelukt zijn, de volgende keer en een eventuele fout.
+- **⚠️ Achtergrondtaak lukt niet:** lukt een taak te lang niet, dan één melding via je gewone kanalen en een ✅ als het weer lukt. Kanalen en aan/uit bij *Meldingen → ℹ️ Systeeminfo*. Ook als aandachtspunt in *Hoe staat het ervoor?*.
+- Het interval van een check is minimaal **1 minuut**: de checks draaien één keer per minuut, dus 30 seconden deed in de praktijk hetzelfde. Een bestaande check met 30 s blijft zoals hij is.
+- Handleiding: het schema bij *Hoe werkt het?* bijgewerkt, met een tabel *Wat gebeurt wanneer?*.
+
 ## 1.90.1 – 2026-10-26
 ### Nieuw
 - **Interval van een check in minuten en uren** in plaats van seconden. Het formulier heeft een keuzelijst van 30 seconden tot 24 uur. Een bestaande check met een andere waarde (bv. 90 s) houdt die, als *1,5 minuten (huidig)*. Ook het info-venster van een check toont het zo.

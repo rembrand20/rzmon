@@ -39,11 +39,13 @@ final class Updater
         [$repo, $branch] = self::source();
         $base = "https://raw.githubusercontent.com/$repo/$branch";
         $version = self::fetch("$base/VERSION");
-        $cache = ['checked_at' => time(), 'latest' => null, 'notes' => [], 'error' => null];
+        $okAt = $cache['ok_at'] ?? (empty($cache['error']) ? ($cache['checked_at'] ?? null) : null);   // laatst gelukt (Verbindingen en taken)
+        $cache = ['checked_at' => time(), 'latest' => null, 'notes' => [], 'error' => null, 'ok_at' => $okAt];
         if ($version === null || !preg_match('/^\d+\.\d+\.\d+$/', trim($version))) {
             $cache['error'] = t('Kan de nieuwste versie niet ophalen van {url}', ['url' => "github.com/$repo"]);
         } else {
             $cache['latest'] = trim($version);
+            $cache['ok_at'] = time();
             $md = (string) self::fetch("$base/CHANGELOG.md");
             if (version_compare($cache['latest'], RZMON_VERSION, '>')) {
                 $cache['notes'] = self::notes($md);

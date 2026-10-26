@@ -178,7 +178,7 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 ### Accountmenu, Mijn account en Instellingen (vanaf 1.60.0)
 - **Rechtsboven** staat je naam met een menu: **👤 Mijn account**, **⚙️ Instellingen** (alleen beheerders), het **thema** (auto, licht of donker), de **taal** (NL of EN) en **⏻ Uitloggen**. Ben je zonder wachtwoord binnen via het lokale netwerk, dan staat er **🏠 Lokaal netwerk** met **Inloggen met je account**; *Mijn account* is er dan niet.
 - **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave op dit apparaat** (Blox of L1nes, Small of Large).
-- **Instellingen** (alleen beheerders; het tabblad in de bovenbalk is weg): links een **zijbalk** met de groepen **🔔 Meldingen** (Kanalen · Meldregels en stille uren · Systeeminfo), **📈 Monitoring** (Alarmgedrag · Kwetsbaarheden · IDS), **🔐 Beveiliging** (Toegang en inlogbeveiliging · Gebruikers · API-sleutels · Blokkades en whitelist), **🖥️ Agents** (Agents bijwerken en commando's · Beveiligde verbinding) en **🛠️ Systeem** (RzMon bijwerken · Back-up · Database · Setup). Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan.
+- **Instellingen** (alleen beheerders; het tabblad in de bovenbalk is weg): links een **zijbalk** met de groepen **🔔 Meldingen** (Kanalen · Meldregels en stille uren · Systeeminfo), **📈 Monitoring** (Alarmgedrag · Kwetsbaarheden · IDS), **🔐 Beveiliging** (Toegang en inlogbeveiliging · Gebruikers · API-sleutels · Blokkades en whitelist), **🖥️ Agents** (Agents bijwerken en commando's · Beveiligde verbinding) en **🛠️ Systeem** (RzMon bijwerken · Verbindingen en taken · Back-up · Database · Setup). Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan.
   - **✅ Hoe staat het ervoor?** (vanaf 1.62.0) is het eerste onderdeel; via het accountmenu kom je altijd hier. Een cirkel met een score (0–100%) en een lijst: ✔ groen is in orde, **!** oranje is een aandachtspunt, ✘ rood moet je regelen, grijs is optioneel (telt niet mee). RzMon kijkt naar: een **meldkanaal** (Pushover of e-mail aan en ingevuld), **automatische back-up** (en de laatste niet ouder dan een week), **2FA** voor alle beheerders (accounts die *alleen lokaal* mogen inloggen tellen niet mee), **inlogbeveiliging**, een **nieuwe RzMon-versie**, **agents** op een oudere versie of **onversleuteld**, **HTTPS** (zoals jij RzMon nu opent), en of **kwetsbaarheden** en **IDS** aan staan. Klik op een punt en je staat bij de instelling. In de zijbalk krijgt een groep met een aandachtspunt een oranje (of rood) bolletje.
   - **🔍 Zoek een instelling…** bovenaan de zijbalk (op de telefoon boven de keuzelijst) zoekt in de namen van de onderdelen én in alle velden, schakelaars en koppen, ook ingeklapte. Met **Enter** (of een klik op een resultaat) spring je naar het veld: het licht even op en een ingeklapt *Geavanceerd* gaat open. **Esc** wist de zoekterm.
   - Lange uitleg is ingekort tot twee regels, met **ⓘ meer uitleg** om alles te lezen. Een lange toelichting bij een veld is een **ⓘ**: wijs hem aan (of tik erop) voor de tooltip.
@@ -224,15 +224,31 @@ Alleen voor **beheerders**: via *Instellingen → 🛠️ Systeem → Setup*. An
   Browser ─────────▶│  Webserver (Apache/Nginx) ──▶ PHP ──▶ MariaDB                         │
   Home Assistant ──▶│      /index.php  /setup.php  /api.php  /v1.php (REST API)            │
                     │                                   ▲                                  │
-                    │  cron (elke minuut) ──▶ cron/run.php ──┬──▶ ping / TCP / HTTP ──────────┼──▶ servers, routers, sites
-                    │                                        └──▶ Pushover API ─────────────┼──▶ 📱 jouw telefoon
+                    │  cron (elke minuut) ──▶ cron/run.php ──┬──▶ ping / TCP / HTTP / SNMP ───┼──▶ servers, routers, sites
+                    │                                        ├──▶ Pushover, e-mail, webhook ─┼──▶ 📱 jouw telefoon, Home Assistant
+                    │                                        └──▶ achtergrondtaken ──────────┼──▶ GitHub, blocklists, HIBP, OSV …
                     └───────────────────────────────────▲──────────────────────────────────┘
-                                                        │ HTTPS POST elke minuut (token)
+                                                        │ HTTPS POST (eigen sleutel), standaard elke minuut
                          ┌──────────────────────────────┴───────────────┐
-                         │ Linux-server met rzmon-agent.sh (cron)        │
+                         │ Linux-server met rzmon-agent.sh (systemd)     │
                          │ Home Assistant met add-on "RzMon Agent"       │
                          └──────────────────────────────────────────────┘
 ```
+
+**Wat gebeurt wanneer?** Alles hieronder zie je ook live bij *Instellingen → Systeem → 📡 Verbindingen en taken*.
+
+| Wie | Hoe vaak |
+|---|---|
+| **Agent** (server of HA-add-on) | start elke 30 s; stuurt een rapport als zijn ritme om is: standaard 1 minuut, per server 30 s – 5 min (Agent Manager). Met **realtime** meteen bij een login, gestopte service of gewijzigd bestand. Testlijst en nieuwe agentversie alleen als RzMon zegt dat er iets veranderd is. |
+| **Browser** | ververst elke 20 s, alleen als het tabblad zichtbaar is |
+| **Heartbeat** (`hb.php`) en **REST API** (`v1.php`) | wanneer je scripts, apparaten of Home Assistant zich melden of iets vragen |
+| **Checks** van RzMon zelf | elke minuut kijkt cron welke checks aan de beurt zijn (interval per check, minimaal 1 minuut) |
+| **MQTT** | elke minuut; discovery elk uur |
+| **Nieuwe versie (GitHub), blocklists, datalekken, kwetsbaarheden, certificaat** | dagelijks (kwetsbaarheden om 03:30, instelbaar) |
+| **GeoIP-database** | maandelijks |
+| **Back-up** | dagelijks, wekelijks of maandelijks (instelbaar) |
+
+Lukt een achtergrondtaak te lang niet (bv. blocklists drie dagen niet opgehaald, MQTT een kwartier niet), dan krijg je één ⚠️-melding en een ✅ als het weer lukt. De kanalen kies je bij *Instellingen → Meldingen → ℹ️ Systeeminfo → Achtergrondtaak lukt niet*; vink alles uit om het uit te zetten.
 
 - **Netwerkchecks** (ping, TCP, HTTP) voert de RzMon-server zelf uit.
 - **Agents** sturen hun gegevens zelf naar RzMon. Je hoeft dus geen poort te openen op de remote server; alleen RzMon moet bereikbaar zijn vanaf die server.

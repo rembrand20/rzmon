@@ -135,6 +135,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - de knop **Nu bijwerken** (of het label ⬆ bovenin): een venster met de vraag, eventueel eerst een back-up, en daarna een **voortgangsbalk** met waar de installatie mee bezig is;
   - of **automatisch** op een tijdstip naar keuze.
 - **Database** wordt vanzelf bijgewerkt bij een nieuwe versie.
+- **📡 Verbindingen en taken** (*Instellingen → Systeem*): wat er bij RzMon binnenkomt (agents met hun ritme en realtime, browsers, API-sleutels, heartbeats) en hoe RzMon's eigen achtergrondtaken lopen (cron, updates zoeken, blocklists, GeoIP, datalekken, kwetsbaarheden, certificaat, MQTT, back-up): laatst gelukt, volgende keer en eventuele fout. Lukt een taak te lang niet, dan volgt een ⚠️-melding via je gewone kanalen (en een ✅ als het weer lukt).
 - **💾 Back-up en herstel:**
   - automatisch elke dag, week of maand, of met de hand;
   - een zip met de database en `config.php`, versleuteld met AES-256;

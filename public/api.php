@@ -1253,6 +1253,9 @@ switch ($action) {
     // Info-melding bij agent-updates van deze server (volgt verder de algemene info-regel)
     // ---------- Beveiliging: versleuteling van de agents en blokkades (alleen beheerders) ----------
     // Instellingen → Hoe staat het ervoor?: punten om na te lopen, elk met het onderdeel waar je het regelt
+    case 'connections':   // 1.91.0: Instellingen → Systeem → Verbindingen en taken
+        out(['inbound' => Tasks::inbound(), 'tasks' => Tasks::list(), 'now' => now()]);
+
     case 'settings_health':
         $items = [];
         // $extra (1.78.0): act + label (knop om het meteen te regelen) of code (om te kopiëren)
@@ -1392,6 +1395,9 @@ switch ($action) {
         }
         $add('vulns', Vulns::enabled() ? 'ok' : 'info', t('Kwetsbaarheden'), Vulns::enabled() ? t('scan staat aan') : t('scan staat uit'), 'vulns');
         $add('ids', Ids::enabled() ? 'ok' : 'info', 'IDS', Ids::enabled() ? t('staat aan') : t('staat uit'), 'ids');
+        $tl = array_filter(Tasks::list(), static fn($o) => in_array($o['status'], ['bad', 'warn'], true));
+        $bad = array_filter($tl, static fn($o) => $o['status'] === 'bad');
+        $add('tasks', $bad ? 'bad' : ($tl ? 'warn' : 'ok'), t('Achtergrondtaken'), $tl ? implode(', ', array_column($tl, 'label')) : t('alles loopt'), 'conn');
         out(['items' => $items]);
 
     case 'security':

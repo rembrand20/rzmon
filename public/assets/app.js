@@ -10,7 +10,7 @@ const LOCALE = LANG === 'en' ? 'en-GB' : 'nl-NL';
 /** Decimaalteken: komma in het Nederlands, punt in het Engels */
 const dec = (v) => (LANG === 'en' ? String(v) : String(v).replace('.', ','));
 // Interval van een check (1.90.1): leesbaar in minuten en uren, en de keuzes in het formulier
-const INTERVALS = [30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 21600, 43200, 86400];
+const INTERVALS = [60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 21600, 43200, 86400];
 function fmtInterval(sec) {
   const s = +sec;
   if (s < 60) return L('{n} seconden', { n: s });
@@ -5525,7 +5525,7 @@ const SET_NAV = [
   ['monitoring', '📈', L('Monitoring'), [['alarm', L('Alarmgedrag'), ['alarm']], ['vulns', L('Kwetsbaarheden'), ['vulns']], ['ids', 'IDS', ['ids']]]],
   ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['https', L('Beheer via https'), ['https']], ['users', L('Gebruikers'), ['users']], ['outside', L('Onzichtbaar van buiten'), ['outside']], ['hibp', L('Datalekken'), ['hibp']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades en whitelist'), ['blocks']]]],
   ['agents', '🖥️', L('Agents'), [['agents', L('Agents bijwerken en commando\'s'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']]]],
-  ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['backup', L('Back-up'), ['backup']], ['db', L('Database'), ['db']], ['setup', 'Setup', ['setup']]]],
+  ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['conn', L('Verbindingen en taken'), ['conn']], ['backup', L('Back-up'), ['backup']], ['db', L('Database'), ['db']], ['setup', 'Setup', ['setup']]]],
 ];
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
 let setHealthAt = 0;
@@ -5551,6 +5551,7 @@ function showSettingsSection(id, focusEl) {
   $('#set-mselect').innerHTML = SET_NAV.map(([g, icon, label, subs]) => `<optgroup label="${icon} ${esc(label)}">${subs.map(([k, l]) => `<option value="${k}" ${k === setSection ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('');
   history.replaceState(null, '', '#settings/' + setSection);
   if (setSection === 'overview' || !setHealthAt) loadSettingsHealth();
+  if (setSection === 'conn') loadConn();
   if (focusEl) {
     // Gevonden via zoeken: ingeklapte "Geavanceerd" openen, ernaartoe en even laten oplichten
     for (let d = focusEl.closest('details'); d; d = d.parentElement.closest('details')) d.open = true;
@@ -6116,6 +6117,7 @@ const SYSINFO_ROWS = [
   [L('Onzichtbaar van buiten'), [['device_trust', '📱 ' + L('Apparaat toegestaan of ingetrokken')], ['passkey', '🔑 ' + L('Passkey aangemaakt of verwijderd')],
     ['stealth_door', '🚪 ' + L('Noodlink aangevraagd of gebruikt')]]],
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
+  ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
 ];
 const SYSINFO_CH = [['pushover', '📲 Pushover', 'pushover_enabled'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
 let sysinfoCfg = null;
@@ -6483,6 +6485,43 @@ async function totpSetup(id, username) {
 
 // ---------------------------------------------------------------- Databasewachtwoord vernieuwen
 let dbInfo = null;
+// ---------------------------------------------------------------- 📡 Verbindingen en taken (1.91.0)
+const tsAgo = (ts) => (ts ? ago(new Date(ts * 1000).toISOString()) : L('nooit'));
+const tsWhen = (ts) => (ts ? new Date(ts * 1000).toLocaleString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '–');
+const TASK_ST = { ok: ['ok', '✔ ' + L('loopt')], warn: ['bad', '! ' + L('laatste poging mislukt')], bad: ['bad', '✘ ' + L('lukt niet')], wait: ['', L('nog niet gedaan')], off: ['', L('uit')] };
+
+async function loadConn() {
+  const box = $('#conn-body');
+  if (!box) return;
+  $('#conn-reload').onclick = loadConn;
+  let d;
+  try { d = await api('connections'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const i = d.inbound;
+  const table = (head, rows) => `<div class="table-scroll"><table class="vuln-table"><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+  const tag = (st) => { const [c, l] = TASK_ST[st] || ['', st]; return `<span class="u-tag ${c}">${esc(l)}</span>`; };
+  box.innerHTML = `<h3 class="set-sub">⬇️ ${L('Binnenkomend')}</h3>
+    <h4>🖥️ ${L('Agents')}</h4>
+    <p class="muted small">${L('Starten elke 30 s en sturen een rapport als hun ritme om is (standaard {t}, per server in te stellen in de Agent Manager). Met realtime gaat er bij een login, een gestopte service of een gewijzigd bestand meteen een rapport uit.', { t: fmtInterval(i.agent_tick) })}</p>
+    ${i.agents.length ? table([L('Server'), L('Ritme'), L('Realtime'), L('Laatste rapport'), L('Versie')], i.agents.map((a) => `<tr${a.stale ? ' class="bad"' : ''}>
+      <td>${a.ha ? '🏠 ' : ''}${esc(a.name)}${a.stale ? ` <span class="u-tag bad">${L('stil')}</span>` : ''}</td><td>${esc(fmtInterval(a.tick))}</td>
+      <td>${a.realtime ? '⚡ ' + L('aan') : `<span class="muted">${L('uit')}</span>`}</td>
+      <td title="${esc(a.ip || '')}">${esc(ago(a.seen))}</td><td class="mono small">${esc(a.version || '–')}</td></tr>`)) : `<p class="muted small">${L('Geen agents.')}</p>`}
+    <h4>🌐 ${L('Browsers (laatste 24 uur)')}</h4>
+    <p class="muted small">${L('Een geopend tabblad ververst elke 20 s, alleen als het zichtbaar is.')}</p>
+    ${i.sessions.length ? table([L('Gebruiker'), L('Apparaat'), L('IP-adres'), L('Laatst actief')], i.sessions.map((s) => `<tr><td>${esc(s.username)}</td><td class="small">${esc(s.device || '–')}${+s.n > 1 ? ` <span class="muted">(${L('{n} sessies', { n: s.n })})</span>` : ''}</td>
+      <td class="mono small">${esc(s.ip)}</td><td>${esc(ago(s.last_seen))}</td></tr>`)) : `<p class="muted small">${L('Geen.')}</p>`}
+    ${i.api_keys.length ? `<h4>🔑 ${L('API-sleutels')}</h4><p class="muted small">${L('Wanneer iets erom vraagt, bijvoorbeeld REST-sensoren in Home Assistant.')}</p>
+      ${table([L('Naam'), L('Sleutel'), L('Laatst gebruikt')], i.api_keys.map((k) => `<tr><td>${esc(k.name)}</td><td class="mono small">${esc(k.key_hint)}…</td><td>${esc(ago(k.last_used))}</td></tr>`))}` : ''}
+    ${i.heartbeats.length ? `<h4>💓 ${L('Heartbeats')}</h4><p class="muted small">${L('Wanneer je scripts, cronjobs of apparaten zich melden.')}</p>
+      ${table([L('Check'), L('Server'), L('Laatst gemeld')], i.heartbeats.map((h) => `<tr><td>${esc(h.name)}</td><td>${esc(h.host)}</td><td>${esc(ago(h.last))}</td></tr>`))}` : ''}
+    <h3 class="set-sub">⬆️ ${L('Achtergrondtaken van RzMon')}</h3>
+    <p class="muted small">${L('RzMon draait elke minuut (cron): checks naar je apparaten volgens hun interval, meldingen naar Pushover, e-mail en Home Assistant, en deze taken.')}</p>
+    ${table([L('Taak'), L('Hoe vaak'), L('Laatst gelukt'), L('Volgende'), L('Stand')], d.tasks.map((t) => `<tr${t.status === 'off' ? ' class="muted"' : ''}>
+      <td><b>${esc(t.label)}</b>${t.error && t.status !== 'off' ? `<div class="bad small">${esc(t.error)}</div>` : ''}${t.note ? `<div class="muted small">${esc(t.note)}</div>` : ''}</td>
+      <td class="small">${esc(t.every)}</td><td>${t.status === 'off' ? '–' : esc(tsAgo(t.last_ok))}</td>
+      <td class="small">${t.status === 'off' ? '–' : esc(tsWhen(t.next))}</td><td>${tag(t.status)}</td></tr>`))}`;
+}
+
 async function loadDbInfo() {
   try { dbInfo = await api('db_info'); } catch (ex) { return; }
   $('#db-status').innerHTML = L('Gebruiker {user} op {host}, database {db}', { user: `<code>${esc(dbInfo.db.user)}</code>`, host: `<code>${esc(dbInfo.db.host)}</code>`, db: `<code>${esc(dbInfo.db.name)}</code>` }) + ' · '

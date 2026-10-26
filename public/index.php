@@ -918,6 +918,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <a class="btn" href="setup.php">⚙️ <?= th('Setup openen') ?></a>
       </div>
 
+      <div data-sk="conn" class="card need-admin" id="conn-card">
+        <h2>📡 <?= th('Verbindingen en taken') ?> <button type="button" class="btn small-btn" id="conn-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
+        <p class="muted small"><?= th('Wat er bij RzMon binnenkomt en wat RzMon zelf op de achtergrond doet. Lukt een taak te lang niet, dan krijg je een ⚠️-melding (Meldingen → Systeeminfo → Achtergrondtaak lukt niet).') ?></p>
+        <div id="conn-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+
       <div data-sk="db" class="card need-admin" id="db-card">
         <h2><?= th('Database') ?></h2>
         <p class="muted small"><?= th('RzMon gebruikt een eigen databasegebruiker. Met de knop maak je een nieuw, sterk wachtwoord en slaat RzMon het overal op. Alles blijft gewoon werken: dashboards, cron, API en agents.') ?></p>
