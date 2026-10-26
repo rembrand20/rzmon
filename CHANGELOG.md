@@ -7,6 +7,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.86.0 – 2026-10-26
+### Nieuw
+- **🕶️ Onzichtbaar van buiten** (*Instellingen → 🔐 Beveiliging → Onzichtbaar van buiten*), met schakelaars:
+  - **Niet herkenbaar** (standaard aan): van buiten geen naam of versie meer (ping), het agent-script alleen voor bekende agents of met de downloadsleutel uit de installatiecommando's, en geweigerd of onbekend (agent, REST API, heartbeat, ack-link, geblokkeerd IP) krijgt een gewone **404** zoals nginx die geeft. De reden staat in Meldingen. Ook staat het versienummer niet meer op het inlogscherm.
+  - **Webinterface alleen op toegestane apparaten** (standaard uit): van buiten zie je zonder toegestaan apparaat niet eens een inlogscherm, alleen een 404. Agents, heartbeats, ack-links en de REST API werken gewoon.
+  - **Alleen vanuit je normale landen** (de landen bij IDS → Bekende aanvallers en land).
+  - **Noodlink**: sleutel kwijt onderweg? Een vast adres (`/?nood=jouwnaam`) stuurt een link naar je e-mail (en Pushover voor een beheerder), één keer te gebruiken en 15 minuten geldig.
+- **📱 Toegestane apparaten**, per gebruiker. Je zet een apparaat thuis op de lijst bij *Mijn account → Van buiten en passkeys* (met je wachtwoord). Het krijgt een eigen sleutel (cookie, 1 jaar) en geldt alleen voor jouw account. Beheerders zien, hernoemen en trekken alles in.
+- **🗝️ Passkeys**: inloggen met Face ID, vingerafdruk of een beveiligingssleutel, in plaats van wachtwoord en 2FA (die blijven de reserve). Een passkey werkt alleen voor het echte domein, dus een nep-site kan er niets mee. Alleen via https met een domeinnaam. Per account en per apparaat te verwijderen.
+- Systeeminfo-meldingen (zelfde kanalen als de rest): *📱 apparaat toegestaan of ingetrokken*, *🔑 passkey aangemaakt of verwijderd*, *🚪 noodlink aangevraagd of gebruikt* (standaard ook naar Pushover).
+- Nieuwe agent 1.55.1 (installatiescript met downloadsleutel).
+
 ## 1.85.1 – 2026-10-26
 ### Opgelost
 - **Na een nacht toch uitgelogd, ondanks *Onthoud mij*.** De sleutel van een onthouden apparaat werd bij elke automatische login vervangen. Miste de telefoon het antwoord met de nieuwe sleutel (browser 's nachts in slaap, even geen verbinding), dan zag RzMon later de oude sleutel aan voor een gestolen cookie en vergat het apparaat.

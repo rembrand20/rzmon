@@ -67,6 +67,16 @@ final class IpIntel
         return self::find('ip_geo', 'cc', $ip);
     }
 
+    /** Landcode los van het IDS (1.86.0, voor "alleen vanuit je normale landen"): als de landgegevens er zijn */
+    public static function lookupCountry(string $ip): ?string
+    {
+        try {
+            return self::find('ip_geo', 'cc', $ip);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
     /** "🇩🇪 DE" */
     public static function flag(?string $cc): string
     {

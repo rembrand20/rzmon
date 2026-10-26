@@ -42,6 +42,9 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 
 function respond($data, int $code = 200): never
 {
+    if ($code === 401 || $code === 403 || $code === 503) {
+        Stealth::denyOutside();   // niet herkenbaar van buiten (1.86.0): de reden staat in Meldingen
+    }
     http_response_code($code);
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
     exit;

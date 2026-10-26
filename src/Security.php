@@ -68,6 +68,9 @@ final class Security
             return;
         }
         q('UPDATE rz_blocks SET hits = hits + 1, last_hit = ? WHERE id = ?', [now(), $b['id']]);
+        if (Stealth::hide()) {
+            Stealth::notFound();   // niet herkenbaar: een geblokkeerd IP ziet een gewone 404 (1.86.0)
+        }
         http_response_code(403);
         header('Content-Type: text/plain; charset=utf-8');
         header('Cache-Control: no-store');
@@ -452,6 +455,7 @@ final class Security
         q('DELETE FROM security_fails WHERE created_at < NOW() - INTERVAL 1 DAY');
         q('DELETE FROM login_log WHERE created_at < NOW() - INTERVAL 90 DAY');
         q('DELETE FROM block_log WHERE removed_at < NOW() - INTERVAL ? DAY', [Monitor::alertDays()]);
+        Stealth::purge();
         q('DELETE FROM agent_nonces WHERE created_at < NOW() - INTERVAL 1 HOUR');
     }
 }

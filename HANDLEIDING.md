@@ -1810,6 +1810,34 @@ Ook onthouden apparaten zonder actieve sessie staan erin (💤 *onthouden, nu ni
 - Met **Onthoud mij op dit apparaat** (30 dagen) log je daarna vanzelf weer in. Van buiten je netwerk gaat dat alleen als het apparaat met 2FA is onthouden. Tip: zet dit op je telefoon aan.
 - Sessies staan sinds 1.85.0 in de database. Daardoor gooit de opruimtaak van het systeem (bij Debian/Ubuntu na 24 minuten) ze niet meer weg.
 
+### Onzichtbaar van buiten 🕶️ (vanaf 1.86.0)
+*Instellingen → 🔐 Beveiliging → Onzichtbaar van buiten.* Van buiten je eigen netwerk (alles wat niet bij *Toegang → Lokale netwerken* staat) ziet een vreemde niets dat naar RzMon wijst. Thuis verandert er niets.
+
+- **Niet herkenbaar** (standaard aan):
+  - `api.php?action=ping` geeft van buiten geen naam en versie meer, behalve aan een server die al als agent bekend is (zijn IP-adres).
+  - Het agent-script en het installatiescript krijg je van buiten alleen met de **downloadsleutel**. Die staat vanzelf in de installatiecommando's van de Agent Manager. Een bekende agent mag ze altijd ophalen (om bij te werken).
+  - Geweigerd of onbekend krijgt een gewone **404**, zoals nginx die geeft: een agent met een fout token, de REST API zonder geldige sleutel, een onbekende heartbeat- of ack-link, een geblokkeerd IP. Waarom iets geweigerd is, zie je gewoon in *Meldingen* en de agentlog.
+  - Het versienummer staat niet meer op het inlogscherm.
+- **Webinterface alleen op toegestane apparaten** (standaard uit):
+  - Van buiten krijg je zonder toegestaan apparaat **ook geen inlogscherm**, alleen een 404. Een aanvaller heeft niets om op aan te vallen.
+  - Agents, heartbeats, de ack-links uit Pushover en de REST API blijven gewoon werken.
+  - **Zet eerst je eigen apparaten op de lijst** (zie hieronder), en zet dit pas daarna aan.
+- **Alleen vanuit je normale landen**: ook met een toegestaan apparaat alleen vanuit de landen bij *IDS → Bekende aanvallers en land* (bv. NL). Zonder landgegevens geldt dit niet.
+- **📱 Een apparaat toestaan**: thuis op dat apparaat, *Mijn account → Van buiten en passkeys → Dit apparaat ook van buiten toestaan*, met je wachtwoord.
+  - Het apparaat krijgt een eigen sleutel als cookie (1 jaar). Die geldt **alleen voor jouw account**: met de telefoon van een collega kun je van buiten niet als jezelf inloggen.
+  - Wis je de gegevens van je browser, dan is de sleutel weg en doe je het thuis opnieuw.
+  - Beheerders zien op de kaart *Onzichtbaar van buiten* alle apparaten en passkeys van iedereen (laatst gezien, IP, land), en kunnen ze hernoemen en intrekken.
+- **🗝️ Passkeys**: bij *Mijn account → Passkey aanmaken* (met je wachtwoord).
+  - Daarna log je in met **Inloggen met een passkey**: Face ID, vingerafdruk of pincode, zonder wachtwoord en 2FA-code. Wachtwoord met 2FA blijft de reserve.
+  - De geheime sleutel blijft op je telefoon; RzMon bewaart alleen de openbare sleutel. Een passkey werkt alleen op het echte domein: op een nep-site (`rzrnon.jouwdomein.nl`) biedt je telefoon hem niet eens aan.
+  - Werkt alleen via **https met een domeinnaam** (je beheeradres via SWAG, of thuis via een DNS-rewrite naar dat domein), niet via een IP-adres.
+  - Een passkey die je maakt op een toegestaan apparaat hoort bij dat apparaat: trek je het apparaat in, dan verdwijnt de passkey ook.
+- **🚪 Noodlink** (sleutel kwijt, nieuwe telefoon, terwijl je onderweg bent):
+  - Open `https://jouw-adres/?nood=jouwgebruikersnaam` (staat ook bij *Mijn account*; bewaar het). Je ziet een 404, maar er gaat een link naar je **e-mailadres** (en naar **Pushover** als je beheerder bent).
+  - De link werkt **één keer** en **15 minuten**. Daarna kun je inloggen (met 2FA) en het apparaat opnieuw toestaan.
+  - Hooguit 3 per uur. Elke aanvraag en elk gebruik geeft een melding (🚪, standaard ook Pushover), dus je ziet het als iemand anders het probeert. Zonder de link komt niemand binnen.
+- **Let op:** de vaste bestanden van de webinterface (`/assets/…`) levert de webserver zelf. Wil je ook die van buiten afschermen, zet dan in SWAG een `location /assets/` die alleen werkt met de cookie `rzmon_device`.
+
 **Waar:**
 - **Mijn account → Ingelogde apparaten**: je eigen sessies. Per apparaat **Uitloggen** (of **Vergeten**), en **Alle andere apparaten uitloggen**. De sessie waar je nu in zit blijft altijd; daarvoor gebruik je *Uitloggen* in het accountmenu.
 - **Instellingen → Gebruikers → Ingelogde apparaten** (beheerders): alle sessies van alle gebruikers, te filteren per gebruiker, met per sessie **Uitloggen**, per gebruiker **Alles van deze gebruiker uitloggen**, en de noodknop **Iedereen uitloggen behalve mij** (met je wachtwoord). Ook de knop **📱** bij een gebruiker toont zijn apparaten.

@@ -18,6 +18,9 @@ header('Cache-Control: no-store');
 
 function hb_out(string $text, int $code = 200): never
 {
+    if ($code >= 400) {
+        Stealth::denyOutside();   // niet herkenbaar van buiten (1.86.0)
+    }
     http_response_code($code);
     echo $text . "\n";
     exit;

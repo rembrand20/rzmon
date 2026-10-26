@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.55.0"
+AGENT_VERSION="1.55.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1

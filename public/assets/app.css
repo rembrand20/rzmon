@@ -1493,3 +1493,6 @@ details.adv[open] { padding-bottom: .6rem; }
 .bl-acts { display: flex; flex-direction: column; gap: .3rem; align-items: stretch; }
 .bl-acts .btn { white-space: nowrap; }
 .lock-row select { width: auto; display: inline-block; margin: 0 .3rem; }
+/* Van buiten en passkeys (1.86.0) */
+h4.acc-sub { margin: .9rem 0 .3rem; font-size: .9rem; }
+code.sel-all { user-select: all; word-break: break-all; }

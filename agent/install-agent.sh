@@ -38,6 +38,9 @@ TOKEN=""
 ENC_KEY=""          # sleutel voor versleutelde rapporten (Instellingen → 🔐 Versleuteling)
 PAIR=""             # koppelcode (RzMon → Agent Manager → 🔗 Koppelcode): de agent haalt zijn eigen sleutel op
 PIN=""              # vingerafdruk van het eigen (self-signed) certificaat van RzMon: alleen dat certificaat accepteren
+# Downloadsleutel: RzMon vult hem in als het dit script uitlevert (RzMon 1.86.0). Is RzMon van buiten "niet herkenbaar",
+# dan levert het de agent alleen met deze sleutel (of aan een bekende agent).
+DL_KEY=''
 AGENT_SHA=""        # SHA-256 van de agent zoals RzMon hem levert: de download wordt daarmee gecontroleerd
 SERVICES=""
 CERTS=""
@@ -418,7 +421,7 @@ trap 'rm -f "$tmp" "$tmp.setup"' EXIT
 if [ -n "$SOURCE_FILE" ]; then
     cp "$SOURCE_FILE" "$tmp"
     info "Lokaal bestand: $SOURCE_FILE"
-elif ! curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_script" -o "$tmp" 2>/tmp/rzmon-agent-dl.err; then
+elif ! curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_script${DL_KEY:+&k=$DL_KEY}" -o "$tmp" 2>/tmp/rzmon-agent-dl.err; then
     err=$(cat /tmp/rzmon-agent-dl.err); rm -f /tmp/rzmon-agent-dl.err
     case "$err" in
         *SSL*|*certificate*) die "Certificaatprobleem met $URL. Gebruikt RzMon een self-signed certificaat? Voeg --insecure toe." ;;
@@ -648,7 +651,7 @@ fi
 # Vanaf een bestand gestart (het commando uit RzMon controleert dat bestand eerst): dat bewaren.
 if [ -f "${BASH_SOURCE[0]:-}" ] && { [ -n "$RESULT_FILE" ] || [ -n "$ARG_PAIR" ]; } && [ "$(realpath "${BASH_SOURCE[0]}")" != "$SETUP" ]; then
     install -m 755 -o root -g root "${BASH_SOURCE[0]}" "$SETUP"
-elif curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_install" -o "$tmp.setup" 2>/dev/null && grep -q 'RzMon agent' "$tmp.setup"; then
+elif curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_install${DL_KEY:+&k=$DL_KEY}" -o "$tmp.setup" 2>/dev/null && grep -q 'RzMon agent' "$tmp.setup"; then
     install -m 755 -o root -g root "$tmp.setup" "$SETUP"
 elif [ -f "${BASH_SOURCE[0]:-}" ] && [ "$(realpath "${BASH_SOURCE[0]}")" != "$SETUP" ]; then
     install -m 755 -o root -g root "${BASH_SOURCE[0]}" "$SETUP"

@@ -39,6 +39,7 @@ if (is_configured() && $id > 0 && $token !== '') {
 if ($state === 'invalid') {
     $check = null;
     usleep(300000);
+    Stealth::denyOutside();   // niet herkenbaar van buiten (1.86.0)
     http_response_code(404);
 }
 $labels = ['OK', 'WARNING', 'CRITICAL', t('ONBEKEND')];

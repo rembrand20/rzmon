@@ -11,6 +11,8 @@ if (!is_configured()) {
 }
 // Na een update (nieuwe VERSION) de database automatisch bijwerken
 $schemaError = Installer::ensureSchema();
+// Van buiten alleen op een toegestaan apparaat (1.86.0); anders een gewone 404
+Stealth::gate();
 
 try {
     // Database klaar maar nog geen beheerder (bv. na install-rocky.sh) → setup afmaken
@@ -94,7 +96,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 <?php elseif (!$user): ?>
   <main class="login-wrap">
     <form id="login-form" class="card login-card">
-      <div class="brand big"><?= Brand::logo() ?> <span class="version" title="<?= th('RzMon-versie') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></span></div>
+      <div class="brand big"><?= Brand::logo() ?></div>
       <?php if (!Https::isHttps()): $toHttps = Https::adminUrl(); ?>
         <div class="http-bar<?= Https::loginBlocked() ? ' blocked' : '' ?>">🔓 <?= Https::loginBlocked()
             ? th('Inloggen via http staat uit: je wachtwoord zou leesbaar over het netwerk gaan.')
@@ -122,6 +124,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div>
       <p class="form-error" hidden></p>
       <button class="btn primary block"><?= th('Inloggen') ?></button>
+      <?php if (Passkey::possible()): ?>
+        <button type="button" class="btn block" id="login-passkey" hidden>🔑 <?= th('Inloggen met een passkey') ?></button>
+      <?php endif; ?>
       <p class="small login-links"><a href="#" id="forgot-link"><?= th('Wachtwoord vergeten?') ?></a></p>
       <?php if (lan_login_allowed()): ?>
         <p class="small" style="text-align:center;margin:.9rem 0 0"><a href="index.php?lan=1"><?= th('Verder zonder inloggen (alleen lezen)') ?></a></p>
@@ -781,6 +786,15 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div id="wl-list"></div>
       </div>
 
+      <div data-sk="outside" class="card need-admin" id="outside-card">
+        <h2>🕶️ <?= th('Onzichtbaar van buiten') ?></h2>
+        <p class="muted small"><?= t('Van buiten je eigen netwerk ziet een vreemde niets dat naar RzMon wijst: een gewone <b>404</b>, zoals een webserver die geeft. Agents, heartbeats, de links uit je meldingen en de REST API blijven gewoon werken. Thuis (je lokale netwerken bij <i>Toegang</i>) verandert er niets.') ?></p>
+        <div id="stealth-switches"></div>
+        <h3 class="set-sub">📱 <?= th('Toegestane apparaten en passkeys') ?></h3>
+        <p class="muted small" style="margin-top:-.2rem"><?= t('Per gebruiker. Een apparaat zet je thuis op de lijst bij <i>Mijn account → Van buiten en passkeys</i>; hier kun je alles van iedereen zien, hernoemen en intrekken.') ?></p>
+        <div id="stealth-devices"></div>
+      </div>
+
       <div data-sk="api" class="card need-admin" id="api-card">
         <h2><?= th('API-sleutels') ?></h2>
         <p class="muted small"><?= t('Lees statussen, meetwaarden en het IDS uit via de REST API, bijvoorbeeld vanuit Home Assistant, en blokkeer IP\'s of bevestig storingen vanuit een ander systeem. Per sleutel kies je wat hij mag, eventueel vanaf welke adressen, en hoe lang hij geldig is. Stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.') ?></p>
@@ -891,6 +905,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <button class="btn"><?= th('Wijzigen') ?></button>
       </form>
       <div class="card" id="acct-2fa"><h2>🔐 <?= th('Tweestapsverificatie') ?></h2><div id="acct-2fa-body"></div></div>
+      <div class="card" id="acct-outside"><h2>🕶️ <?= th('Van buiten en passkeys') ?></h2><div id="acct-outside-body"></div></div>
       <div class="card" id="acct-devices"><h2>📱 <?= th('Ingelogde apparaten') ?></h2><div id="acct-devices-body"></div></div>
       <div class="card" id="acct-logins"><h2>🕘 <?= th('Mijn laatste logins') ?></h2><div id="acct-logins-body"></div></div>
       <div class="card view-card">

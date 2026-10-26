@@ -686,6 +686,9 @@ if (pwForce) {
 }
 
 // ---------------------------------------------------------------- Login
+/** base64url ↔ ArrayBuffer (WebAuthn) */
+const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0)).buffer;
 const loginForm = $('#login-form');
 if (loginForm) {
   loginForm.addEventListener('submit', async (e) => {
@@ -722,6 +725,27 @@ if (loginForm) {
       }
     }
   });
+  // Inloggen met een passkey (1.86.0): Face ID, vingerafdruk of beveiligingssleutel, in plaats van wachtwoord en 2FA
+  const pkBtn = $('#login-passkey');
+  if (pkBtn && window.PublicKeyCredential) {
+    pkBtn.hidden = false;
+    pkBtn.onclick = async () => {
+      const err = $('.form-error', loginForm);
+      err.hidden = true;
+      try {
+        const o = await api('passkey_login_options', {});
+        const cred = await navigator.credentials.get({ publicKey: { ...o, challenge: unb64u(o.challenge) } });
+        const r = cred.response;
+        await api('passkey_login', { id: cred.id, clientDataJSON: b64u(r.clientDataJSON), authenticatorData: b64u(r.authenticatorData),
+          signature: b64u(r.signature), userHandle: r.userHandle ? b64u(r.userHandle) : null, remember: loginForm.remember.checked });
+        location.replace(location.pathname);
+      } catch (ex) {
+        if (ex.name === 'NotAllowedError' || ex.name === 'AbortError') return;   // zelf geannuleerd
+        err.textContent = ex.message;
+        err.hidden = false;
+      }
+    };
+  }
 } else if (!resetForm && !pwForce) {
   // Pas starten als het hele script geladen is: opent de pagina direct op een tabblad (bv. #settings),
   // dan gebruikt dat ook constanten die verderop in dit bestand staan
@@ -3699,9 +3723,11 @@ function tickText(t) { return +t >= 120 ? `${+t / 60} min` : `${+t} s`; }
  * Installatiecommando met een koppelcode: eerst het installatiescript downloaden en controleren (SHA-256), dan
  * installeren; het script controleert de agent ook. Bij een eigen certificaat alleen dat certificaat (--pinnedpubkey).
  */
+/** Downloadsleutel (1.86.0): van buiten levert RzMon het installatiescript alleen hiermee */
+const dlArg = () => (state.dl_key ? `&k=${state.dl_key}` : '');
 function pairCommand(base, r, extra = '') {
   const pin = r.pin && base.startsWith('https') ? r.pin : '';
-  return `curl -fsSL${pin ? ` -k --pinnedpubkey 'sha256//${pin}'` : ''} '${base}/api.php?action=agent_install' -o rzmon-install.sh`
+  return `curl -fsSL${pin ? ` -k --pinnedpubkey 'sha256//${pin}'` : ''} '${base}/api.php?action=agent_install${dlArg()}' -o rzmon-install.sh`
     + ` && echo '${r.setup_sha256}  rzmon-install.sh' | sha256sum -c -`
     + ` && sudo bash rzmon-install.sh --url '${base}' --pair '${r.code}' --agent-sha '${r.agent_sha256}'${pin ? ` --pin '${pin}'` : ''}${extra}`;
 }
@@ -3713,7 +3739,7 @@ function agentInstructions(h, pairNow = false) {
   const scriptUrl = location.origin + location.pathname.replace(/\/[^/]*$/, '') + '/api.php?action=agent_script';
   // De oude manier (token, en eventueel de algemene sleutel), voor agents ouder dan 1.50.0
   const keyArg = state.enc_key && h.enc !== 'off' ? ` --key '${state.enc_key}'` : '';
-  const installCmd = `curl -fsSL '${base}/api.php?action=agent_install' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}'${keyArg}`;
+  const installCmd = `curl -fsSL '${base}/api.php?action=agent_install${dlArg()}' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}'${keyArg}`;
   modal({
     title: `Agent Manager – ${h.name}`,
     wide: true,
@@ -5365,7 +5391,7 @@ const SET_NAV = [
   ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'mqtt']], ['rules', L('Meldregels en stille uren'), ['notify']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['monitoring', '📈', L('Monitoring'), [['alarm', L('Alarmgedrag'), ['alarm']], ['vulns', L('Kwetsbaarheden'), ['vulns']], ['ids', 'IDS', ['ids']]]],
-  ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['https', L('Beheer via https'), ['https']], ['users', L('Gebruikers'), ['users']], ['hibp', L('Datalekken'), ['hibp']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades en whitelist'), ['blocks']]]],
+  ['beveiliging', '🔐', L('Beveiliging'), [['access', L('Toegang en inlogbeveiliging'), ['access']], ['https', L('Beheer via https'), ['https']], ['users', L('Gebruikers'), ['users']], ['outside', L('Onzichtbaar van buiten'), ['outside']], ['hibp', L('Datalekken'), ['hibp']], ['api', L('API-sleutels'), ['api']], ['blocks', L('Blokkades en whitelist'), ['blocks']]]],
   ['agents', '🖥️', L('Agents'), [['agents', L('Agents bijwerken en commando\'s'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']]]],
   ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['backup', L('Back-up'), ['backup']], ['db', L('Database'), ['db']], ['setup', 'Setup', ['setup']]]],
 ];
@@ -5610,10 +5636,135 @@ async function loadAccount() {
       }
     } catch (ex) { toast(ex.message, 'err'); }
   };
+  loadAccountOutside();
   $('#acct-logins-body').innerHTML = logins.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Wanneer')}</th><th>IP</th><th>${L('Hoe')}</th><th>${L('Apparaat')}</th></tr></thead><tbody>
     ${logins.map((x) => `<tr class="${+x.ok ? '' : 'bad-row'}"><td class="small">${esc(fmtDateTime(x.created_at))}</td><td class="mono small">${esc(x.ip)}</td>
       <td class="small">${+x.ok ? esc(L(x.how)) : `<span class="bad">✘ ${esc(L(x.how))}</span>`}</td><td class="small">${esc(x.device || '–')}</td></tr>`).join('')}</tbody></table></div>`
     : `<p class="muted" style="margin:0">${L('Nog geen logins bewaard.')}</p>`;
+}
+
+// ---------------------------------------------------------------- Van buiten: toegestane apparaten en passkeys (1.86.0)
+/** Tabellen met apparaten en passkeys; admin: van iedereen (met de gebruiker erbij) */
+function accessTables(devices, passkeys, admin, current = null) {
+  const cc = (x) => (x ? ccTag(x) : '');
+  const dev = devices.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr>${admin ? `<th>${L('Gebruiker')}</th>` : ''}<th>${L('Apparaat')}</th><th>${L('Toegestaan')}</th><th>${L('Laatst gezien')}</th><th>${L('Passkeys')}</th><th></th></tr></thead><tbody>
+    ${devices.map((d) => `<tr>${admin ? `<td>${esc(d.username)}</td>` : ''}<td>${devIcon(d.name)} <b>${esc(d.name)}</b>${d.current || +d.id === current ? ` <span class="badge">${L('dit apparaat')}</span>` : ''}</td>
+      <td class="small">${esc(fmtDateTime(d.created_at))}<br><span class="muted mono">${esc(d.created_ip || '')}</span></td>
+      <td class="small">${esc(ago(d.last_seen))}<br><span class="muted mono">${esc(d.last_ip || '')}</span>${cc(d.last_cc)}</td><td class="small">${+d.passkeys ? '🗝️ ' + d.passkeys : '–'}</td>
+      <td class="nowrap"><button type="button" class="icon-btn" data-acc-ren="dev:${d.id}" title="${esc(L('Hernoemen'))}">✎</button> <button type="button" class="icon-btn" data-acc-del="dev:${d.id}" title="${esc(L('Intrekken: kan RzMon niet meer van buiten openen'))}">✕</button></td></tr>`).join('')}</tbody></table></div>`
+    : `<p class="muted small">${L('Nog geen apparaten toegestaan.')}</p>`;
+  const pk = passkeys.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr>${admin ? `<th>${L('Gebruiker')}</th>` : ''}<th>${L('Passkey')}</th><th>${L('Domein')}</th><th>${L('Aangemaakt')}</th><th>${L('Laatst gebruikt')}</th><th></th></tr></thead><tbody>
+    ${passkeys.map((p) => `<tr>${admin ? `<td>${esc(p.username)}</td>` : ''}<td>🗝️ <b>${esc(p.name)}</b>${p.device_name ? `<br><span class="muted small">${L('hoort bij {d}', { d: esc(p.device_name) })}</span>` : ''}</td>
+      <td class="small mono">${esc(p.rp_id)}</td><td class="small">${esc(fmtDateTime(p.created_at))}</td><td class="small">${p.last_used ? esc(ago(p.last_used)) : L('nog niet')}</td>
+      <td class="nowrap"><button type="button" class="icon-btn" data-acc-ren="pk:${p.id}" title="${esc(L('Hernoemen'))}">✎</button> <button type="button" class="icon-btn" data-acc-del="pk:${p.id}" title="${esc(L('Verwijderen'))}">✕</button></td></tr>`).join('')}</tbody></table></div>`
+    : `<p class="muted small">${L('Nog geen passkeys.')}</p>`;
+  return `<h4 class="acc-sub">📱 ${L('Toegestane apparaten')}</h4>${dev}<h4 class="acc-sub">🗝️ ${L('Passkeys')}</h4>${pk}`;
+}
+
+/** Hernoemen en intrekken in zo'n tabel; reload: daarna opnieuw laden */
+async function accessAction(e, admin, reload) {
+  const ren = e.target.closest('[data-acc-ren]'), del = e.target.closest('[data-acc-del]');
+  const [kind, id] = ((ren || del)?.dataset.accRen || (ren || del)?.dataset.accDel || ':').split(':');
+  if (!id) return;
+  try {
+    if (ren) {
+      const name = prompt(L('Nieuwe naam'));
+      if (!name) return;
+      await api(kind === 'dev' ? 'device_rename' : 'passkey_rename', { id: +id, name, admin });
+    } else {
+      if (!confirm(kind === 'dev' ? L('Dit apparaat intrekken? Het kan RzMon dan niet meer van buiten openen; de passkeys van dit apparaat worden ook verwijderd.') : L('Deze passkey verwijderen?'))) return;
+      await api(kind === 'dev' ? 'device_revoke' : 'passkey_delete', { id: +id, admin });
+      toast(kind === 'dev' ? L('Apparaat ingetrokken') : L('Passkey verwijderd'));
+    }
+    reload();
+  } catch (ex) { toast(ex.message, 'err'); }
+}
+
+/** Een passkey aanmaken op dit apparaat (na bevestigen met je wachtwoord) */
+function passkeyCreate(done) {
+  modal({
+    title: '🗝️ ' + L('Passkey aanmaken'),
+    body: `<p style="margin-top:0">${L('Je telefoon of computer maakt een sleutel die op het apparaat blijft. Daarna log je in met Face ID, je vingerafdruk of je pincode, zonder wachtwoord en 2FA-code. Wachtwoord en 2FA blijven werken als reserve.')}</p>
+      <label>${L('Naam')}<input name="name" value="${esc(navigator.userAgent.includes('iPhone') ? 'iPhone' : navigator.userAgent.includes('Android') ? 'Android' : L('Deze computer'))}" maxlength="100"></label>
+      ${confirmField('PASSKEY')}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '🗝️ ' + L('Aanmaken'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const o = await api('passkey_reg_options', { confirm: d.confirm });
+      let cred;
+      try {
+        cred = await navigator.credentials.create({ publicKey: { ...o, challenge: unb64u(o.challenge), user: { ...o.user, id: unb64u(o.user.id) },
+          excludeCredentials: o.excludeCredentials.map((c) => ({ ...c, id: unb64u(c.id) })) } });
+      } catch (ex) {
+        throw new Error(ex.name === 'InvalidStateError' ? L('Op dit apparaat staat al een passkey voor RzMon') : ex.name === 'NotAllowedError' ? L('Geannuleerd') : ex.message);
+      }
+      await api('passkey_reg_finish', { name: d.name, clientDataJSON: b64u(cred.response.clientDataJSON), attestationObject: b64u(cred.response.attestationObject) });
+      toast(L('Passkey aangemaakt'));
+      done();
+    },
+  });
+}
+
+async function loadAccountOutside() {
+  const box = $('#acct-outside-body');
+  if (!box) return;
+  let a;
+  try { a = await api('my_access'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const door = a.door_url ? (a.door_url.startsWith('/') ? location.origin + location.pathname.replace(/\/[^/]*$/, '') + a.door_url : a.door_url) : '';
+  const isDev = a.current !== null;
+  box.innerHTML = `<p class="muted small" style="margin-top:0">${a.ui_locked
+      ? L('Van buiten je eigen netwerk opent RzMon alleen op een <b>toegestaan apparaat</b> (anders een gewone 404). Zet dit apparaat thuis op de lijst, en maak er een <b>passkey</b> bij: dan log je onderweg in met Face ID of je vingerafdruk.')
+      : L('Een beheerder kan instellen dat RzMon van buiten alleen op <b>toegestane apparaten</b> opent. Je kunt je apparaten nu al op de lijst zetten, en een <b>passkey</b> maken om zonder wachtwoord in te loggen.')}</p>
+    <div class="btn-row">
+      ${isDev ? `<span class="good-txt">✔ ${L('Dit apparaat is toegestaan van buiten')}</span>`
+        : a.can_trust ? `<button type="button" class="btn primary" id="acct-trust">📱 ${L('Dit apparaat ook van buiten toestaan')}</button>`
+        : `<span class="muted small">${L('Dit apparaat toestaan kan alleen thuis (vanaf je eigen netwerk) of na een noodlink.')}</span>`}
+      ${a.passkey_possible ? `<button type="button" class="btn" id="acct-passkey">🗝️ ${L('Passkey aanmaken')}</button>`
+        : a.passkeys_enabled ? `<span class="muted small">${L('Passkeys werken alleen via https met een domeinnaam (bv. {rp}), niet via een IP-adres.', { rp: '<code>' + esc(a.rp_id) + '</code>' })}</span>` : ''}
+    </div>
+    ${accessTables(a.devices, a.passkeys, false, a.current)}
+    ${a.door && door ? `<p class="muted small">🚪 ${L('Sleutel kwijt (browser gewist, nieuwe telefoon) terwijl je onderweg bent? Open dan {url}: je krijgt een 404, maar er gaat een <b>noodlink</b> naar je e-mailadres (en Pushover voor een beheerder). Die werkt één keer, 15 minuten. Bewaar dit adres.', { url: `<code class="sel-all">${esc(door)}</code>` })}</p>` : ''}`;
+  if ($('#acct-trust')) $('#acct-trust').onclick = () => modal({
+    title: '📱 ' + L('Dit apparaat toestaan van buiten'),
+    body: `<p style="margin-top:0">${L('Dit apparaat krijgt een eigen sleutel (een cookie, 1 jaar). Daarmee opent RzMon ook van buiten je netwerk, alleen voor jouw account. Wis je de gegevens van je browser, dan moet je het opnieuw doen.')}</p>
+      <label>${L('Naam')}<input name="name" value="${esc(navigator.userAgent.includes('iPhone') ? 'iPhone' : navigator.userAgent.includes('Android') ? 'Android' : L('Deze computer'))}" maxlength="100"></label>
+      ${confirmField('TOESTAAN')}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '📱 ' + L('Toestaan'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => { await api('device_trust', { name: d.name, confirm: d.confirm }); toast(L('Dit apparaat is toegestaan')); loadAccountOutside(); },
+  });
+  if ($('#acct-passkey')) $('#acct-passkey').onclick = () => passkeyCreate(loadAccountOutside);
+  box.onclick = (e) => accessAction(e, false, loadAccountOutside);
+}
+
+async function loadStealth() {
+  const box = $('#stealth-switches');
+  if (!box) return;
+  let s;
+  try { s = await api('stealth_info'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const sw = (k, on, label, hint) => `<label class="switch"><input type="checkbox" data-stealth="${k}" ${on ? 'checked' : ''}><span></span> <span>${label}</span></label>${hint ? `<p class="muted small" style="margin:-.3rem 0 .6rem 2.6rem">${hint}</p>` : ''}`;
+  box.innerHTML = sw('hide', s.hide, L('<b>Niet herkenbaar</b> van buiten'), L('Geen naam of versie, het agent-script alleen voor bekende agents of met de downloadsleutel, en geweigerd of onbekend krijgt een 404. Waarom iets geweigerd is, zie je in Meldingen.'))
+    + sw('ui', s.ui, L('Webinterface van buiten alleen op <b>toegestane apparaten</b>'), L('Zonder toegestaan apparaat ook geen inlogscherm. Elk apparaat hoort bij één gebruiker. Zet eerst je eigen apparaten op de lijst (Mijn account).')
+      + (s.ui && !s.devices_all.length ? ` <b class="warn-txt">${L('Er staat nog geen apparaat op de lijst: van buiten kan nu niemand in RzMon.')}</b>` : ''))
+    + sw('countries', s.countries, L('Alleen vanuit je <b>normale landen</b> ({list})', { list: esc(s.allowed_countries.join(', ') || '–') }),
+      s.geo_data ? L('In te stellen bij IDS → Bekende aanvallers en land. Zonder landgegevens geldt dit niet.') : `<span class="warn-txt">${L('Er zijn nog geen landgegevens (IDS → Bekende aanvallers en land); tot dan geldt dit niet.')}</span>`)
+    + sw('door', s.door, L('<b>Noodlink</b> als je sleutel kwijt is'), L('Via een vast adres (zie Mijn account) gaat een link naar je e-mail (en Pushover voor een beheerder), één keer te gebruiken, 15 minuten. Je krijgt altijd een melding als iemand hem aanvraagt.'))
+    + sw('passkeys', s.passkeys, L('<b>Passkeys</b> (inloggen met Face ID, vingerafdruk of beveiligingssleutel)'), L('In plaats van wachtwoord en 2FA; die blijven de reserve. Alleen via https met een domeinnaam.'));
+  box.onchange = async (e) => {
+    const c = e.target.closest('[data-stealth]');
+    if (!c) return;
+    const body = { [c.dataset.stealth]: c.checked };
+    const save = async (extra = {}) => { await api('stealth_save', { ...body, ...extra }); savedFlag(c, true); loadStealth(); };
+    if (!c.checked && (c.dataset.stealth === 'hide' || c.dataset.stealth === 'ui')) {
+      return modal({
+        title: '⚠️ ' + L('Minder veilig maken?'),
+        body: `<p style="margin-top:0">${c.dataset.stealth === 'ui' ? L('Van buiten is het inlogscherm dan weer voor iedereen te zien.') : L('Van buiten is dan weer te zien dat hier RzMon draait, en welke versie.')}</p>${confirmField('UITZETTEN')}`,
+        buttons: [{ label: L('Annuleren'), onClick: () => { $('#modal').close(); loadStealth(); } }, { label: L('Uitzetten'), cls: 'danger', submit: true }],
+        onSubmit: (d) => save({ confirm: d.confirm }),
+      });
+    }
+    try { await save(); } catch (ex) { toast(ex.message, 'err'); loadStealth(); }
+  };
+  $('#stealth-devices').innerHTML = accessTables(s.devices_all, s.passkeys_all, true);
+  $('#stealth-devices').onclick = (e) => accessAction(e, true, loadStealth);
 }
 
 async function loadSettings() {
@@ -5621,6 +5772,7 @@ async function loadSettings() {
   loadUsers();
   if (!isAdmin()) return;   // de rest van de instellingen is alleen voor beheerders
   loadApiKeys();
+  loadStealth();
   loadSecurity();
   loadAccess();
   loadHttps();
@@ -5814,6 +5966,8 @@ const SYSINFO_ROWS = [
   [L('Kwetsbaarheden'), [['vuln_new', '🐞 ' + L('Nieuwe kwetsbaarheden')], ['vuln_upgrade', '📦 ' + L('Pakketten bijgewerkt of mislukt')]]],
   [L('Beveiliging'), [['cert', '🔐 ' + L('Certificaat verloopt binnenkort')], ['breach', '🔓 ' + L('Datalek (zonder wachtwoorden of eerste controle)')],
     ['local_only', '🏠 ' + L('Inlogpoging van buiten op een lokaal account')], ['sec', '⚠️ ' + L('Niet-geautoriseerde verbinding')]]],
+  [L('Onzichtbaar van buiten'), [['device_trust', '📱 ' + L('Apparaat toegestaan of ingetrokken')], ['passkey', '🔑 ' + L('Passkey aangemaakt of verwijderd')],
+    ['stealth_door', '🚪 ' + L('Noodlink aangevraagd of gebruikt')]]],
 ];
 const SYSINFO_CH = [['pushover', '📲 Pushover', 'pushover_enabled'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
 let sysinfoCfg = null;
@@ -6065,7 +6219,7 @@ async function onUsersClick(e) {
 
 // ---------------------------------------------------------------- Ingelogde apparaten (1.79.0)
 const SESS_HOW = {
-  password: () => '🔑 ' + L('wachtwoord'), '2fa': () => '🔐 ' + L('wachtwoord + 2FA'), remember: () => '📌 ' + L('onthouden apparaat'),
+  password: () => '🔑 ' + L('wachtwoord'), '2fa': () => '🔐 ' + L('wachtwoord + 2FA'), passkey: () => '🗝️ ' + L('passkey'), remember: () => '📌 ' + L('onthouden apparaat'),
   lan: () => '🏠 ' + L('LAN, zonder wachtwoord'), existing: () => L('al ingelogd'),
 };
 const devIcon = (d) => (/iPhone|Android/.test(d) ? '📱' : /iPad/.test(d) ? '📲' : '💻');

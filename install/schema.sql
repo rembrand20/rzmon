@@ -500,6 +500,48 @@ CREATE TABLE IF NOT EXISTS php_sessions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('session_idle_minutes', '120');
 
+-- 1.86.0: onzichtbaar van buiten. Toegestane apparaten (per gebruiker; de cookie bevat de sleutel, hier alleen de hash),
+-- passkeys (WebAuthn, alleen de openbare sleutel) en noodlinks (eenmalig, 15 minuten)
+CREATE TABLE IF NOT EXISTS trusted_devices (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT UNSIGNED NOT NULL,
+    name       VARCHAR(100) NOT NULL,
+    key_hash   CHAR(64)     NOT NULL UNIQUE,
+    created_at DATETIME     NOT NULL,
+    created_ip VARCHAR(45)  NULL,
+    last_seen  DATETIME     NOT NULL,
+    last_ip    VARCHAR(45)  NULL,
+    last_cc    CHAR(2)      NULL,
+    CONSTRAINT fk_tdev_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS passkeys (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT UNSIGNED NOT NULL,
+    device_id  INT UNSIGNED NULL,
+    name       VARCHAR(100) NOT NULL,
+    cred_id    VARCHAR(255) NOT NULL UNIQUE,
+    public_key TEXT         NOT NULL,
+    alg        INT          NOT NULL,
+    sign_count INT UNSIGNED NOT NULL DEFAULT 0,
+    rp_id      VARCHAR(255) NOT NULL,
+    created_at DATETIME     NOT NULL,
+    last_used  DATETIME     NULL,
+    CONSTRAINT fk_pk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS stealth_doors (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT UNSIGNED NOT NULL,
+    token_hash CHAR(64)     NOT NULL UNIQUE,
+    created_at DATETIME     NOT NULL,
+    expires_at DATETIME     NOT NULL,
+    used_at    DATETIME     NULL,
+    ip         VARCHAR(45)  NULL,
+    CONSTRAINT fk_door_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('stealth_hide', '1'), ('stealth_ui', '0'), ('stealth_countries', '1'), ('stealth_door', '1'), ('passkeys_enabled', '1');
+
 CREATE TABLE IF NOT EXISTS security_fails (
     id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     ip         VARCHAR(45) NOT NULL,

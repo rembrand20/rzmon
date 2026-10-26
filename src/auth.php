@@ -75,6 +75,10 @@ function current_user(): ?array
         if ($user && !empty($_SESSION['remember_id']) && !remember_touch()) {
             $user = null;
         }
+        // Van buiten alleen op een eigen toegestaan apparaat (1.86.0)
+        if ($user && !Stealth::userAllowed((int) $user['id'])) {
+            $user = null;
+        }
         // Uitgelogd vanuit "Ingelogde apparaten" (door jezelf of een beheerder, 1.79.0)
         if ($user && !session_alive($user)) {
             $user = null;
@@ -141,6 +145,11 @@ function login(string $username, string $password, bool $remember = false): stri
         Security::loginFailed($username, $u ? 'verkeerd wachtwoord' : 'onbekende gebruiker', (bool) $u);
         usleep(500000); // brute force afremmen
         return false;
+    }
+    // Van buiten op een toegestaan apparaat van iemand anders (1.86.0): dat apparaat geldt alleen voor zijn eigen gebruiker
+    if (!Stealth::userAllowed((int) $u['id'])) {
+        Security::loginFailed($username, 'apparaat niet toegestaan voor dit account', true);
+        return 'device';
     }
     // Geblokkeerd na te veel mislukte pogingen: alleen nog vanaf het lokale netwerk (zo kan niemand van buiten je buitensluiten).
     // Pas bij een juist wachtwoord zeggen we dat, zodat een aanvaller er niets aan heeft.
@@ -216,12 +225,12 @@ function finish_login(array $u, bool $remember = false, string $how = 'wachtwoor
     unset($_SESSION['pending_2fa'], $_SESSION['lan_auto'], $_SESSION['no_lan_auto'], $_SESSION['remember_id']);
     $_SESSION['user'] = ['id' => (int) $u['id'], 'username' => $u['username'], 'role' => $u['role'] ?? 'admin'];
     $_SESSION['auth_at'] = time();
-    $_SESSION['mfa'] = $how !== 'wachtwoord';   // ingelogd met 2FA (telt van buiten je interne netwerken)
+    $_SESSION['mfa'] = $how !== 'wachtwoord';   // ingelogd met 2FA of een passkey (telt van buiten je interne netwerken)
     q('UPDATE users SET last_login = ? WHERE id = ?', [now(), $u['id']]);
     if ($remember) {
         remember_create((int) $u['id']);
     }
-    session_track($_SESSION['user'], $how === 'wachtwoord' ? 'password' : '2fa');
+    session_track($_SESSION['user'], match ($how) { 'wachtwoord' => 'password', 'passkey' => 'passkey', default => '2fa' });
 }
 
 // ------------------------------------------------------------------ onthoud mij op dit apparaat
@@ -290,6 +299,9 @@ function remember_login(): ?array
     if ($t && Security::accountLocked($t) && !Security::fromLan()) {
         remember_refused('locked');
         return null;   // account geblokkeerd: niet automatisch inloggen (het apparaat blijft bewaard voor na het deblokkeren)
+    }
+    if ($t && !Stealth::userAllowed((int) $t['user_id'])) {
+        return null;   // van buiten op een apparaat dat niet voor dit account is toegestaan (het onthouden apparaat blijft)
     }
     if ($t && !(int) $t['mfa'] && Https::mfaRequired()) {
         remember_refused('mfa');

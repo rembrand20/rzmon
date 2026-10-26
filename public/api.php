@@ -9,6 +9,10 @@ header('Cache-Control: no-store');
 
 function out($data, int $code = 200): never
 {
+    // Agents van buiten: een fout als gewone 404 (niet herkenbaar, 1.86.0); de reden staat in RzMon (agentlog, ⚠️)
+    if ($code >= 400 && !empty($GLOBALS['agent_req'])) {
+        Stealth::denyOutside();
+    }
     http_response_code($code);
     $json = json_encode($data, JSON_UNESCAPED_UNICODE);
     // Versleuteld verzoek van een agent: het antwoord gaat ook versleuteld terug (zelfde sleutel, gebonden aan het verzoek)
@@ -39,6 +43,7 @@ function num($v): ?float
 
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
+$GLOBALS['agent_req'] = $action === 'ping' || str_starts_with((string) $action, 'agent');
 
 // Taal: vóór het inloggen die van dit apparaat of de browser; een agent (geen gebruiker) krijgt de taal van
 // meldingen, want wat hij oplevert (checkberichten, IDS) gaat naar iedereen. Na het inloggen: die van de gebruiker.
@@ -55,13 +60,21 @@ if (str_starts_with($action, 'agent_') && is_configured()) {
 // Zo kan een server de agent rechtstreeks van RzMon installeren, ook als de
 // GitHub-repository privé is.
 if ($action === 'ping') {
-    // Voor de verbindingstest van de agent: "draait hier RzMon?"
+    // Voor de verbindingstest van de agent: "draait hier RzMon?". Van buiten (niet herkenbaar) alleen voor bekende agents.
+    if (!Stealth::pingFull()) {
+        Stealth::notFound();
+    }
     out(['ok' => true, 'app' => 'RzMon', 'agent_version' => AGENT_LATEST, 'version' => RZMON_VERSION, 'configured' => is_configured(), 'time' => date('c')]);
 }
 if ($action === 'agent_script' || $action === 'agent_install') {
+    // Van buiten (niet herkenbaar): alleen voor bekende agents of met de downloadsleutel uit de installatiecommando's
+    if (!Stealth::scriptAllowed()) {
+        Stealth::notFound();
+    }
     header('Content-Type: text/x-shellscript; charset=utf-8');
     header('Cache-Control: no-store');
-    readfile(SM_ROOT . '/agent/' . ($action === 'agent_script' ? 'rzmon-agent.sh' : 'install-agent.sh'));
+    // Het installatiescript krijgt de downloadsleutel mee, zodat het daarna ook de agent zelf kan ophalen
+    echo $action === 'agent_install' && is_configured() ? Stealth::installScript() : file_get_contents(SM_ROOT . '/agent/' . ($action === 'agent_script' ? 'rzmon-agent.sh' : 'install-agent.sh'));
     exit;
 }
 
@@ -744,7 +757,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
         $instruction = [
             'version' => AGENT_LATEST,
             'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
-            'setup_sha256' => hash_file('sha256', SM_ROOT . '/agent/install-agent.sh'),
+            'setup_sha256' => Stealth::installSha(),
         ];
         $sent = now();
         $req ??= now();
@@ -763,6 +776,9 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
         [$req, $sent, $status, $via, $hostId]);
     return $instruction;
 }
+
+// ---------- Webinterface van buiten: alleen op een toegestaan apparaat (1.86.0); anders een 404 ----------
+Stealth::gate();
 
 // ---------- Login ----------
 // Inloggen via http uitgezet (Instellingen → Beveiliging → Certificaat en https): wachtwoorden alleen via https
@@ -785,6 +801,9 @@ if ($action === 'login' && $method === 'POST') {
     if ($r === 'local_only') {
         out(['error' => t('Dit account mag alleen vanaf het interne netwerk inloggen.'), 'local_only' => true], 403);
     }
+    if ($r === 'device') {
+        out(['error' => t('Dit apparaat is van buiten niet toegestaan voor dit account')], 403);
+    }
     if ($r === 'need_2fa') {
         out(['error' => t('Van buiten je interne netwerken is tweestapsverificatie (2FA) verplicht. Stel eerst 2FA in vanaf je thuisnetwerk (Mijn account).'), 'need_2fa' => true], 403);
     }
@@ -798,6 +817,33 @@ if ($action === 'login_totp' && $method === 'POST') {
     // restart: opnieuw beginnen met het wachtwoord (de browser kijkt hiernaar, niet naar de tekst)
     $p = $_SESSION['pending_2fa'] ?? null;
     out(['error' => $r, 'restart' => !$p || $p['tries'] >= 5], 401);
+}
+
+// ---------- Inloggen met een passkey (1.86.0): in plaats van wachtwoord en 2FA ----------
+if ($action === 'passkey_login_options' && $method === 'POST') {
+    Passkey::possible() ? out(Passkey::loginOptions()) : out(['error' => t('Passkeys zijn hier niet beschikbaar')], 422);
+}
+if ($action === 'passkey_login' && $method === 'POST') {
+    if (!Passkey::possible()) {
+        out(['error' => t('Passkeys zijn hier niet beschikbaar')], 422);
+    }
+    $in = input();
+    $u = Passkey::loginFinish($in);
+    if (is_string($u)) {
+        out(['error' => $u], 401);
+    }
+    if (!Stealth::userAllowed($u['id'])) {
+        out(['error' => t('Dit apparaat is van buiten niet toegestaan voor dit account')], 403);
+    }
+    if (Security::accountLocked($u) && !Security::fromLan()) {
+        out(['error' => t('Dit account is geblokkeerd na te veel mislukte pogingen. Vraag een beheerder om het te deblokkeren.'), 'locked' => true], 403);
+    }
+    if ((int) $u['local_only'] && !Https::internal()) {
+        out(['error' => t('Dit account mag alleen vanaf het interne netwerk inloggen.'), 'local_only' => true], 403);
+    }
+    start_session();
+    finish_login($u, !empty($in['remember']), 'passkey');
+    out(['ok' => true, 'csrf' => csrf_token()]);
 }
 
 // ---------- Wachtwoord vergeten (zonder login) ----------
@@ -851,7 +897,8 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
     'state', 'alerts', 'ids', 'ids_access', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
-    'devices', 'device_forget', 'device_forget_all', 'sessions', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
+    'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
+    'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
     default => 'admin',
 };
@@ -977,6 +1024,7 @@ switch ($action) {
              'update_running' => $isAdmin && Updater::running(),
              // Voor het installatiecommando in de Agent Manager (--key): alleen beheerders, net als de tokens
              'enc_key' => $isAdmin && AgentCrypto::globalMode() !== 'off' ? (AgentCrypto::key() ?: null) : null,
+             'dl_key' => $isAdmin ? Stealth::dlKey() : null,   // downloadsleutel voor de installatiecommando's (1.86.0)
              'conn_pin' => AgentCrypto::pinOn(), 'conn_ip_lock' => AgentCrypto::ipLockOn(), 'conn_https' => AgentCrypto::httpsOnly(),
              'url_min' => AgentCrypto::URL_MIN,
              'update' => $isAdmin && ($uc = json_decode((string) setting('update_cache', ''), true)) && !empty($uc['latest'])
@@ -1426,7 +1474,7 @@ switch ($action) {
         $name = $ph['name'];
         $p = AgentCrypto::pairCreate($id);
         AgentCommands::audit($user['username'], 'Koppelcode gemaakt', (string) $name);
-        out($p + ['setup_sha256' => hash_file('sha256', SM_ROOT . '/agent/install-agent.sh'), 'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
+        out($p + ['setup_sha256' => Stealth::installSha(), 'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
             'pin' => AgentCrypto::pin(false, false, $ph) ?? '', 'minutes' => AgentCrypto::PAIR_MINUTES]);
 
     // Per server: certificaat vastzetten en vast IP-adres ('' = algemene instelling, on, off).
@@ -2720,6 +2768,91 @@ switch ($action) {
             [password_hash($new, PASSWORD_DEFAULT), now(), $n === null ? null : 0, $n === null ? null : now(), $user['id']]);
         $_SESSION['auth_at'] = time();
         session_logout('user', (int) $user['id']);   // andere sessies en onthouden apparaten; deze blijft
+        out(['ok' => true]);
+
+    // ---------- Onzichtbaar van buiten (1.86.0): toegestane apparaten en passkeys ----------
+    case 'my_access':
+        $uid = (int) ($user['id'] ?? 0);
+        $dev = Stealth::device();
+        out([
+            'devices' => $uid ? Stealth::devices($uid) : [], 'passkeys' => $uid ? Passkey::list($uid) : [],
+            'current' => $dev && (int) $dev['user_id'] === $uid ? (int) $dev['id'] : null,
+            'can_trust' => $uid > 0 && !is_lan_session() && (!Stealth::outside() || Stealth::viaDoor($uid)),
+            'internal' => !Stealth::outside(), 'ui_locked' => Stealth::uiLocked(), 'door' => setting('stealth_door', '1') === '1',
+            'passkey_possible' => Passkey::possible(), 'passkeys_enabled' => Passkey::enabled(), 'rp_id' => Passkey::rpId(),
+            'door_url' => $uid ? (Https::adminUrl() ?: rtrim((string) config('base_url', ''), '/')) . '/?nood=' . rawurlencode((string) $user['username']) : null,
+        ]);
+
+    case 'device_trust':
+        $uid = (int) ($user['id'] ?? 0);
+        if (!$uid || is_lan_session()) {
+            out(['error' => t('Log in met je eigen account')], 403);
+        }
+        if (Stealth::outside() && !Stealth::viaDoor($uid)) {
+            out(['error' => t('Een apparaat toestaan kan alleen thuis (vanaf je eigen netwerk), of na een noodlink')], 403);
+        }
+        $confirm('TOESTAAN');
+        out(['ok' => true, 'id' => Stealth::trust($user, (string) (input()['name'] ?? ''))]);
+
+    case 'device_revoke':
+        $in = input();
+        $all = $isAdmin && !empty($in['admin']);
+        Stealth::revoke((int) ($in['id'] ?? 0), $all ? null : (int) $user['id'], $user['username']) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);
+
+    case 'device_rename':
+        $in = input();
+        $all = $isAdmin && !empty($in['admin']);
+        Stealth::rename((int) ($in['id'] ?? 0), $all ? null : (int) $user['id'], (string) ($in['name'] ?? '')) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);
+
+    case 'passkey_reg_options':
+        if (empty($user['id']) || is_lan_session()) {
+            out(['error' => t('Log in met je eigen account')], 403);
+        }
+        if (!Passkey::possible()) {
+            out(['error' => t('Passkeys werken alleen via https met een domeinnaam (bv. je beheeradres), niet via een IP-adres')], 422);
+        }
+        $confirm('PASSKEY');
+        out(Passkey::registerOptions($user));
+
+    case 'passkey_reg_finish':
+        $in = input();
+        $dev = Stealth::device();
+        $r = Passkey::registerFinish($user, $in, $dev && (int) $dev['user_id'] === (int) $user['id'] ? (int) $dev['id'] : null);
+        is_int($r) ? out(['ok' => true, 'id' => $r]) : out(['error' => $r], 422);
+
+    case 'passkey_delete':
+        $in = input();
+        $all = $isAdmin && !empty($in['admin']);
+        Passkey::remove((int) ($in['id'] ?? 0), $all ? null : (int) $user['id'], $user['username']) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);
+
+    case 'passkey_rename':
+        $in = input();
+        $all = $isAdmin && !empty($in['admin']);
+        Passkey::rename((int) ($in['id'] ?? 0), $all ? null : (int) $user['id'], (string) ($in['name'] ?? '')) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);
+
+    // Beheerders: alle toegestane apparaten en passkeys, en de instellingen
+    case 'stealth_info':
+        out([
+            'hide' => Stealth::hide(), 'ui' => Stealth::uiLocked(), 'countries' => setting('stealth_countries', '1') === '1', 'door' => setting('stealth_door', '1') === '1',
+            'passkeys' => Passkey::enabled(), 'allowed_countries' => IpIntel::allowedCountries(), 'geo_data' => IpIntel::lookupCountry('8.8.8.8') !== null,
+            'devices_all' => Stealth::devices(null), 'passkeys_all' => Passkey::list(null), 'internal' => !Stealth::outside(),
+        ]);
+
+    case 'stealth_save':
+        $in = input();
+        $map = ['hide' => 'stealth_hide', 'ui' => 'stealth_ui', 'countries' => 'stealth_countries', 'door' => 'stealth_door', 'passkeys' => 'passkeys_enabled'];
+        // Minder veilig maken (niet herkenbaar of de webinterface op slot uitzetten): eerst bevestigen
+        foreach (['hide', 'ui'] as $k) {
+            if (array_key_exists($k, $in) && empty($in[$k]) && setting($map[$k], $k === 'hide' ? '1' : '0') === '1') {
+                $confirm('UITZETTEN');
+            }
+        }
+        foreach ($map as $k => $name) {
+            if (array_key_exists($k, $in)) {
+                save_setting($name, !empty($in[$k]) ? '1' : '0');
+                AgentCommands::audit($user['username'], 'Onzichtbaar van buiten', "$name = " . (!empty($in[$k]) ? 'aan' : 'uit'));
+            }
+        }
         out(['ok' => true]);
 
     case 'my_logins':

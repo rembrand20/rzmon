@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.55.1 – 2026-10-26
+- Het installatiescript haalt de agent op met de **downloadsleutel** die RzMon erin zet (RzMon 1.86.0). Is RzMon van buiten *niet herkenbaar*, dan levert het het script en de agent alleen met die sleutel, of aan een server die al als agent bekend is. Bestaande agents hoeven niet bij te werken: hun bekende IP-adres is genoeg.
+
 ## 1.55.0 – 2026-10-25
 - **Bekende aanvallers** (RzMon 1.82.0): in de modus blokkeren zet de agent de netwerken van Spamhaus DROP en FireHOL level 1 (zo'n 4.500) in een eigen set in zijn firewalltabel `inet rzmon`. Ze worden alleen opnieuw opgebouwd als de lijst verandert (dagelijks).
 
