@@ -3364,4 +3364,12 @@ return [
     'zonder activiteit' => 'without activity',
     'Zolang RzMon open en zichtbaar is, blijf je ingelogd. Ligt je telefoon in je zak of staat de pagina op de achtergrond, dan telt de tijd. Met <b>Onthoud mij op dit apparaat</b> log je daarna vanzelf weer in (30 dagen; van buiten je netwerk alleen als het apparaat met 2FA is onthouden).' => 'As long as RzMon is open and visible, you stay logged in. If your phone is in your pocket or the page is in the background, the time counts. With <b>Remember me on this device</b> you are logged back in automatically afterwards (30 days; from outside your network only if the device was remembered with 2FA).',
     '{n} minuten' => '{n} minutes',
+    'Dit apparaat is onthouden, maar zonder 2FA. Van buiten je eigen netwerk moet je dan opnieuw inloggen. Log een keer in met 2FA en zet Onthoud mij aan; dan blijf je ook onderweg ingelogd.' => 'This device is remembered, but without 2FA. From outside your own network you then have to log in again. Log in once with 2FA and turn on Remember me; then you stay logged in on the go as well.',
+    'Dit account mag alleen vanaf je eigen netwerk inloggen.' => 'This account may only log in from your own network.',
+    'Dit account is geblokkeerd na te veel mislukte pogingen.' => 'This account is locked after too many failed attempts.',
+    'Dit apparaat is langer dan 30 dagen niet gebruikt en daarom vergeten. Log opnieuw in.' => 'This device has not been used for more than 30 days and was forgotten. Please log in again.',
+    'Dit apparaat werd niet meer herkend (een oude sleutel) en is voor de zekerheid vergeten. Log opnieuw in en zet Onthoud mij aan.' => 'This device was no longer recognised (an old key) and was forgotten to be safe. Log in again and turn on Remember me.',
+    'Dit apparaat wordt niet meer onthouden (vergeten bij Ingelogde apparaten). Log opnieuw in.' => 'This device is no longer remembered (forgotten under Logged-in devices). Please log in again.',
+    'Oude sleutel van een onthouden apparaat gebruikt; dat apparaat is vergeten' => 'Old key of a remembered device used; that device has been forgotten',
+    'apparaat' => 'device',
 ];

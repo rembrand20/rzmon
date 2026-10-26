@@ -263,6 +263,16 @@ function remember_create(int $userId): void
  * opduikt (gestolen cookie?) maakt het apparaat ongeldig. Geen 2FA nodig: dit apparaat is vertrouwd. Van buiten je interne
  * netwerken (als 2FA daar verplicht is) alleen een apparaat dat destijds met 2FA is onthouden.
  */
+/** Waarom een onthouden apparaat niet automatisch binnenkwam (voor een uitleg op het inlogscherm, 1.85.1) */
+function remember_refused(?string $why = null): ?string
+{
+    static $r = null;
+    if ($why !== null) {
+        $r = $why;
+    }
+    return $r;
+}
+
 function remember_login(): ?array
 {
     $c = (string) ($_COOKIE[REMEMBER_COOKIE] ?? '');
@@ -274,28 +284,37 @@ function remember_login(): ?array
     }
     $t = q('SELECT r.*, u.username, u.role, u.locked_at, u.locked_until, u.local_only FROM remember_tokens r JOIN users u ON u.id = r.user_id WHERE r.selector = ?', [$m[1]])->fetch();
     if ($t && (int) $t['local_only'] && !Https::internal()) {
+        remember_refused('local_only');
         return null;   // account alleen voor de interne netwerken: van buiten niet automatisch inloggen (het apparaat blijft bewaard)
     }
     if ($t && Security::accountLocked($t) && !Security::fromLan()) {
+        remember_refused('locked');
         return null;   // account geblokkeerd: niet automatisch inloggen (het apparaat blijft bewaard voor na het deblokkeren)
     }
     if ($t && !(int) $t['mfa'] && Https::mfaRequired()) {
+        remember_refused('mfa');
         return null;   // van buiten alleen een apparaat dat met 2FA is onthouden; het apparaat blijft bewaard voor thuis
     }
     if (!$t || strtotime($t['last_used']) < time() - REMEMBER_DAYS * 86400) {
         if ($t) {
             q('DELETE FROM remember_tokens WHERE id = ?', [$t['id']]);
         }
+        remember_refused($t ? 'expired' : 'unknown');
         remember_cookie(null);
         return null;
     }
     $hash = hash('sha256', $m[2]);
     $fresh = hash_equals($t['token_hash'], $hash);
-    // Twee verzoeken tegelijk met dezelfde (net vervangen) sleutel: 60 seconden speling
-    $grace = !$fresh && $t['prev_hash'] && hash_equals($t['prev_hash'], $hash) && strtotime((string) $t['rotated_at']) > time() - 60;
-    if (!$fresh && !$grace) {
+    // De vorige sleutel blijft geldig tot de nieuwe één keer terug is gezien (1.85.1): een telefoon die het antwoord met de
+    // nieuwe cookie miste (browser 's nachts in slaap, verbinding weg), wordt zo niet meer als gestolen cookie gezien
+    $prev = !$fresh && $t['prev_hash'] && hash_equals($t['prev_hash'], $hash);
+    if (!$fresh && !$prev) {
+        // Een sleutel die al vervangen én bevestigd is: waarschijnlijk een gekopieerde cookie → apparaat vergeten
         q('DELETE FROM remember_tokens WHERE id = ?', [$t['id']]);
         remember_cookie(null);
+        remember_refused('reused');
+        Security::unauthorized('login', t('Oude sleutel van een onthouden apparaat gebruikt; dat apparaat is vergeten'),
+            [t('gebruiker') => $t['username'], t('apparaat') => $t['device'] ?: '?']);
         return null;
     }
     session_regenerate_id(true);
@@ -304,14 +323,24 @@ function remember_login(): ?array
     $_SESSION['remember_id'] = (int) $t['id'];
     $_SESSION['remember_touch'] = time();
     $_SESSION['mfa'] = (int) $t['mfa'] === 1;
-    if ($fresh) {
+    $value = $c;   // de cookie zoals hij binnenkwam
+    if ($fresh && !$t['prev_hash'] && (!$t['rotated_at'] || strtotime((string) $t['rotated_at']) < time() - 86400)) {
+        // Hooguit één keer per dag een nieuwe sleutel; de huidige blijft geldig tot de nieuwe terugkomt
         $validator = bin2hex(random_bytes(32));
-        q('UPDATE remember_tokens SET token_hash = ?, prev_hash = ?, rotated_at = ?, last_used = ?, ip = ? WHERE id = ?', [
-            hash('sha256', $validator), $t['token_hash'], now(), now(), mb_substr(client_ip(), 0, 45), $t['id'],
-        ]);
-        $_SESSION['remember_value'] = "{$m[1]}:$validator";
-        remember_cookie($_SESSION['remember_value']);
+        q('UPDATE remember_tokens SET token_hash = ?, prev_hash = ?, rotated_at = ? WHERE id = ?', [hash('sha256', $validator), $t['token_hash'], now(), $t['id']]);
+        $value = "{$m[1]}:$validator";
+    } elseif ($fresh && $t['prev_hash']) {
+        q('UPDATE remember_tokens SET prev_hash = NULL WHERE id = ?', [$t['id']]);   // de nieuwe sleutel is aangekomen
+    } elseif ($prev && strtotime((string) $t['rotated_at']) < time() - 60) {
+        // De nieuwe cookie is nooit aangekomen: nog een keer een nieuwe (de vorige blijft geldig tot die terugkomt).
+        // Binnen 60 s is het een gelijktijdig verzoek; dat krijgt de nieuwe via het andere antwoord.
+        $validator = bin2hex(random_bytes(32));
+        q('UPDATE remember_tokens SET token_hash = ?, rotated_at = ? WHERE id = ?', [hash('sha256', $validator), now(), $t['id']]);
+        $value = "{$m[1]}:$validator";
     }
+    q('UPDATE remember_tokens SET last_used = ?, ip = ? WHERE id = ?', [now(), mb_substr(client_ip(), 0, 45), $t['id']]);
+    $_SESSION['remember_value'] = $value;
+    remember_cookie($value);   // ook bij dezelfde sleutel: weer 30 dagen geldig
     q('UPDATE users SET last_login = ? WHERE id = ?', [now(), $t['user_id']]);
     Security::loginOk(['username' => $t['username']], 'onthouden apparaat');
     $_SESSION['user'] = ['id' => (int) $t['user_id'], 'username' => $t['username'], 'role' => $t['role']];

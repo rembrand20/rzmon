@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.85.1 – 2026-10-26
+### Opgelost
+- **Na een nacht toch uitgelogd, ondanks *Onthoud mij*.** De sleutel van een onthouden apparaat werd bij elke automatische login vervangen. Miste de telefoon het antwoord met de nieuwe sleutel (browser 's nachts in slaap, even geen verbinding), dan zag RzMon later de oude sleutel aan voor een gestolen cookie en vergat het apparaat.
+  - De sleutel wordt nu hooguit één keer per dag vervangen.
+  - De vorige blijft geldig tot de nieuwe echt is aangekomen.
+  - Een echt hergebruikte oude sleutel geeft nu een ⚠️-melding.
+
+### Nieuw
+- Het inlogscherm zegt waarom een onthouden apparaat niet vanzelf binnenkwam. Bijvoorbeeld: onthouden zonder 2FA terwijl je buiten je netwerk bent, langer dan 30 dagen niet gebruikt, of vergeten.
+
 ## 1.85.0 – 2026-10-25
 ### Nieuw
 - **⏱️ Uitloggen na … zonder activiteit** (*Instellingen → Toegang en inlogbeveiliging*): 30 minuten, **2 uur** (standaard), 8 uur of 1 dag. Tot nu toe was dat vast 24 minuten (de standaard van PHP), waardoor je telefoon na een tijdje in je zak uitgelogd was.

@@ -1789,7 +1789,8 @@ De add-on haalt back-up, integraties en systeemstatus elke 5 minuten op, de rest
 Zet bij het inloggen **Onthoud mij op dit apparaat** aan. Dan blijf je op dat apparaat ingelogd, ook na het sluiten van de browser of een herstart, en hoef je geen wachtwoord of 2FA-code meer in te vullen.
 - **30 dagen:** gebruik je het apparaat 30 dagen niet, dan wordt het vergeten. Elk gebruik telt opnieuw vanaf nul.
 - **Gekoppeld aan dat apparaat:** het apparaat krijgt een geheime sleutel in een beveiligde cookie, die alleen in die browser werkt. Wis je de cookies of gebruik je een privévenster, dan moet je opnieuw inloggen.
-- **Veilig:** in de database staat alleen een hash van de sleutel. De sleutel wordt bij elk gebruik vervangen. Duikt een oude sleutel op (bijvoorbeeld een gestolen cookie), dan wordt het apparaat ongeldig.
+- **Veilig:** in de database staat alleen een hash van de sleutel. De sleutel wordt hooguit één keer per dag vervangen. De vorige blijft geldig tot het apparaat de nieuwe één keer heeft gebruikt (vanaf 1.85.1). Zo raakt een telefoon die het antwoord met de nieuwe sleutel miste (browser in slaap, geen verbinding) zijn login niet kwijt. Duikt daarna nog een oude sleutel op (bijvoorbeeld een gekopieerde cookie), dan wordt het apparaat vergeten en krijg je een ⚠️-melding.
+- **Toch op het inlogscherm?** Dan staat erboven waarom. Bijvoorbeeld: het apparaat is onthouden zonder 2FA en je bent buiten je eigen netwerk, het is langer dan 30 dagen niet gebruikt, of het is vergeten.
 - **Apparaten beheren:** bij *Mijn account → Ingelogde apparaten* (zie hieronder). Een vergeten apparaat wordt ook direct uitgelogd, handig bij een verloren telefoon. Beheerders kunnen dit voor alle gebruikers.
 - **Automatisch vergeten** bij uitloggen op dat apparaat, bij een wachtwoordwijziging (alle andere apparaten) en als een beheerder je wachtwoord reset.
 - **Rechten:** je houdt de rechten van je account. Wijzigt een beheerder je rol, dan geldt die meteen.

@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- "Onthoud mij op dit apparaat": per apparaat een sleutel (alleen de SHA-256 hash wordt opgeslagen).
--- De sleutel wordt bij elk gebruik vervangen; prev_hash blijft 60 s geldig voor gelijktijdige verzoeken.
+-- De sleutel wordt hooguit dagelijks vervangen; prev_hash blijft geldig tot de nieuwe sleutel terugkomt (1.85.1).
 CREATE TABLE IF NOT EXISTS remember_tokens (
     id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id    INT UNSIGNED NOT NULL,

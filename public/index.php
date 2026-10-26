@@ -101,6 +101,16 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             : th('Deze verbinding is niet beveiligd: je wachtwoord en sessie zijn leesbaar op het netwerk.') ?>
           <?php if ($toHttps !== ''): ?><a href="<?= htmlspecialchars($toHttps) ?>/"><?= th('Open {url}', ['url' => $toHttps]) ?></a><?php endif; ?></div>
       <?php endif; ?>
+      <?php $refused = remember_refused(); if ($refused !== null): ?>
+        <p class="callout small">🔑 <?= match ($refused) {
+            'mfa' => th('Dit apparaat is onthouden, maar zonder 2FA. Van buiten je eigen netwerk moet je dan opnieuw inloggen. Log een keer in met 2FA en zet Onthoud mij aan; dan blijf je ook onderweg ingelogd.'),
+            'local_only' => th('Dit account mag alleen vanaf je eigen netwerk inloggen.'),
+            'locked' => th('Dit account is geblokkeerd na te veel mislukte pogingen.'),
+            'expired' => th('Dit apparaat is langer dan 30 dagen niet gebruikt en daarom vergeten. Log opnieuw in.'),
+            'reused' => th('Dit apparaat werd niet meer herkend (een oude sleutel) en is voor de zekerheid vergeten. Log opnieuw in en zet Onthoud mij aan.'),
+            default => th('Dit apparaat wordt niet meer onthouden (vergeten bij Ingelogde apparaten). Log opnieuw in.'),
+        } ?></p>
+      <?php endif; ?>
       <div id="login-step1">
         <label><?= th('Gebruikersnaam') ?><input name="username" autocomplete="username" required autofocus></label>
         <label><?= th('Wachtwoord') ?><input name="password" type="password" autocomplete="current-password" required></label>
