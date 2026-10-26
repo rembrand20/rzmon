@@ -1551,6 +1551,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 | **🌐 Uitgaande verbinding naar een bekende aanvaller** (vanaf 1.87.0) | 🔴 critical |
 | Uitgaande verbinding naar een land buiten je normale landen (vanaf 1.87.0) | 🟠 warning |
 | Nieuwe automatisch startende dienst of timer (vanaf 1.87.0) | 🟠 warning |
+| **📜 Aanval in de log van SWAG, Home Assistant of Vaultwarden** (vanaf 1.89.0) | 🟠 warning |
 | **🧰 Beveiliging verslechterd** (vanaf 1.88.0): een hardening-punt dat eerst goed was, is nu fout | 🟠 warning · 🔴 critical (lege wachtwoorden, Docker-socket) |
 | Tweede root-account (UID 0) | 🔴 critical |
 | Nieuwe gebruiker | 🟠 warning |
@@ -1611,6 +1612,27 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
   - `/tmp` met `noexec`, en SELinux.
 - **Klik op de score** voor de lijst. Bij elk fout punt staat waarom het telt en hoe je het dichtzet. Per server kun je een punt **negeren** (dan telt het niet meer mee).
 - **Wordt een punt slechter** (bv. iemand zet root-login via SSH weer aan), dan volgt een incident. Een punt dat al fout was geeft geen melding, alleen een lagere score. Het eerste rapport is de basismeting.
+
+**📜 Logs van webdiensten** (vanaf 1.89.0, agent 1.58.0; *Instellingen → 🛡️ IDS*)
+- **Hoe het werkt:** de agent leest elke minuut de nieuwe regels uit de logs en vat ze per IP samen. RzMon past de scenario's toe en meldt een incident. In de modus blokkeren (en met *blokkeren* aan) wordt het IP ook geblokkeerd, via *Automatische blokkades op alle servers* op al je servers.
+- **Bronnen** (elk aan of uit):
+  - **SWAG**: de access-log van nginx;
+  - **Home Assistant**: mislukte logins in het Core-log;
+  - **Vaultwarden**: *Username or password is incorrect*.
+- **Waar staan de logs?** Laat het veld leeg of op `auto`, dan zoekt de agent zelf:
+  - SWAG: de container van SWAG, `/opt/swag/config/log/nginx/access.log` en andere gangbare mappen;
+  - Home Assistant en Vaultwarden als add-on: via de Supervisor;
+  - Docker of Podman: via de container (bij Vaultwarden met `docker logs`).
+  - Je kunt elk pad (of de naam van de container) ook zelf invullen. Onder de velden zie je per server wat gevonden is.
+- **Scenario's** (elk aan of uit, de aantallen zijn aan te passen):
+  - **Bekend aanvalspad** met een foutcode (`/.env`, `/.git/`, `wp-login.php`, `phpmyadmin`, `/cgi-bin/` …): meteen. Alleen met een foutcode, dus heb je zelf WordPress, dan telt je echte `wp-login.php` (200) niet.
+  - **Scanner** (sqlmap, nikto, nuclei, zgrab …): meteen.
+  - **Veel 404** (standaard 20), **veel 401/403** (10), **zonder hostnaam** (444, standaard 5) binnen de tijd (standaard 10 minuten).
+  - **Mislukte logins** in Home Assistant of Vaultwarden (standaard 5).
+- **Nooit:** je eigen netwerk (privé-adressen en je lokale netwerken) en de ✅ whitelist. Deblokkeren kan bij *Blokkades en whitelist*.
+- **Home Assistant achter SWAG** ziet zonder `use_x_forwarded_for: true` en `trusted_proxies` alleen het IP van SWAG. RzMon herkent dat en zet een ⚠️ bij de gevonden log.
+- **SWAG in Docker:** vanaf agent 1.58.0 blokkeert de agent vóór Docker (prerouting). Daarvoor ging verkeer naar een container (SWAG) langs de blokkade heen.
+- **Voorbeeld:** om 03:12 vraagt `45.148.10.12` op SWAG `/.env` op (404). RzMon meldt *SWAG: aanvalspad /.env* en blokkeert het IP op al je servers. Je Home Assistant, Nextcloud en RzMon achter SWAG zijn meteen beschermd.
 
 **🧱 Isoleren** (vanaf 1.88.0, agent 1.57.0; via de score bij een server)
 - Bij een hack zet je de server met één klik in quarantaine: alleen RzMon, je lokale netwerken (*Toegang*) en jouw IP-adres kunnen er nog bij. Al het andere verkeer stopt: inkomend, uitgaand en van containers. Een aanvaller verliest zijn verbinding, en malware kan niets meer naar buiten sturen.

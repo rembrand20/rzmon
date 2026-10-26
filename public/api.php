@@ -593,6 +593,10 @@ if ($action === 'agent') {
     }
     // Isoleren en gebruikers vergrendelen (agent 1.57.0): de stand bij de agent
     Ids::agentState($host, $in);
+    // Logs van webdiensten (agent 1.58.0): SWAG, Home Assistant, Vaultwarden
+    if (is_array($in['weblog'] ?? null)) {
+        WebLog::process($host, $in['weblog']);
+    }
     // Commando-checks: uitvoer en exitcode (RzMon vergelijkt met het verwachte antwoord)
     foreach ((array) ($in['cmd'] ?? []) as $id => $r) {
         if (ctype_digit((string) $id) && is_array($r)) {
@@ -2162,7 +2166,7 @@ switch ($action) {
             $in['sysinfo'] = json_encode(NotifyRules::cleanSysinfo((array) json_decode((string) $in['sysinfo'], true), NotifyRules::sysinfo()));
         }
         $allowed = ['sysinfo', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden', 'weblog_swag', 'weblog_swag_path', 'weblog_ha', 'weblog_ha_path', 'weblog_vw', 'weblog_vw_path', 'weblog_block', 'wl_paths', 'wl_ua', 'wl_404', 'wl_404_n', 'wl_auth', 'wl_auth_n', 'wl_nohost', 'wl_nohost_n', 'wl_ha_n', 'wl_vw_n', 'wl_minutes',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -2227,6 +2231,18 @@ switch ($action) {
         }
         if (isset($in['ids_weekly_time'])) {
             $in['ids_weekly_time'] = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['ids_weekly_time']) ? (string) $in['ids_weekly_time'] : '08:00';
+        }
+        // Logs van webdiensten (1.89.0): aantallen binnen grenzen, paden zonder spaties (leeg = zelf zoeken)
+        foreach (['wl_404_n' => [3, 10000], 'wl_auth_n' => [3, 10000], 'wl_nohost_n' => [1, 10000], 'wl_ha_n' => [2, 1000], 'wl_vw_n' => [2, 1000], 'wl_minutes' => [1, 1440]] as $k => [$lo, $hi]) {
+            if (isset($in[$k])) {
+                $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
+            }
+        }
+        foreach (['weblog_swag_path', 'weblog_ha_path', 'weblog_vw_path'] as $k) {
+            if (isset($in[$k])) {
+                $v = trim((string) $in[$k]);
+                $in[$k] = $v === '' || preg_match('#^[A-Za-z0-9_./:@-]{1,250}$#', $v) ? ($v ?: 'auto') : 'auto';
+            }
         }
         if (isset($in['alerts_days'])) {
             $in['alerts_days'] = (string) max(1, min(3650, (int) $in['alerts_days']));
@@ -3323,6 +3339,9 @@ switch ($action) {
         }
         $r = Ids::userLock((int) ($in['host_id'] ?? 0), strtolower(trim((string) ($in['user'] ?? ''))), $lock, $user['username']);
         $r === true ? out(['ok' => true]) : out(['error' => $r], 422);
+
+    case 'weblog_status':
+        out(WebLog::status());
 
     case 'ip_timeline':
         $ip = trim((string) ($_GET['ip'] ?? ''));

@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.57.0"
+AGENT_VERSION="1.58.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1785,6 +1785,7 @@ fw_apply() {  # fw_apply <"counter;" of "">
       echo "  set kn6 { type ipv6_addr; flags interval; auto-merge;$ek6 }"
       echo "  set dc4 { type ipv4_addr; flags dynamic,timeout; timeout 1h; }"
       echo "  set dc6 { type ipv6_addr; flags dynamic,timeout; timeout 1h; }"
+      echo "  chain pre { type filter hook prerouting priority -150; policy accept; ip saddr @bl4 drop; ip6 saddr @bl6 drop; ip saddr @kn4 drop; ip6 saddr @kn6 drop; }"
       echo "  chain input { type filter hook input priority -5; policy accept; ip saddr @bl4 drop; ip6 saddr @bl6 drop; ip saddr @kn4 drop; ip6 saddr @kn6 drop;$dc }"
       [ -n "$ob" ] && echo "$ob"
       echo "}"; } | nft -f - 2>"$i_dir/fw.err"
@@ -1850,6 +1851,114 @@ fi
 if [ -n "$ids_json" ]; then
     [ -n "$fw_json" ] || fw_json='"fw":{"state":"off"}'
     ids_json+="$fw_json},"
+fi
+
+# ---------------------------------------------------------------- Logs van webdiensten (agent 1.58.0)
+# Regels "0 <tab> weblog <tab> swag|ha|vw <tab> pad, containernaam of auto" (RzMon 1.89.0). Alleen de nieuwe regels sinds
+# de vorige keer; per IP samengevat (aantallen, een paar paden met een foutcode, scanner); RzMon past de scenario's toe.
+# SWAG: de access-log van nginx. Home Assistant: "invalid authentication". Vaultwarden: "Username or password is incorrect".
+weblog_json=""
+if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
+    w_dir="$t_dir/weblog"; mkdir -p "$w_dir" 2>/dev/null
+    wl_file_new() {  # wl_file_new <naam> <bestand>: nieuwe regels (inode + positie); de eerste keer alleen vastleggen
+        local f=$2 st="$w_dir/$1.pos" ino size pino pos
+        ino=$(stat -c %i "$f" 2>/dev/null) && size=$(stat -c %s "$f" 2>/dev/null) || return 1
+        read -r pino pos 2>/dev/null <"$st"
+        echo "$ino $size" >"$st"
+        [ -n "$pino" ] || return 0
+        if [ "$pino" != "$ino" ] || [ "${pos:-0}" -gt "$size" ]; then pos=0; fi   # geroteerd of nieuw
+        tail -c +$(( ${pos:-0} + 1 )) "$f" 2>/dev/null | head -c $(( size - ${pos:-0} )) | tail -n 20000
+    }
+    wl_docker() {  # wl_docker <image-patroon>: naam van de eerste draaiende container met dat image (docker of podman)
+        local c
+        for c in docker podman; do
+            command -v "$c" >/dev/null 2>&1 || continue
+            "$c" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }' && return 0
+        done
+    }
+    wl_mount() {  # wl_mount <container> <pad in de container>: map op de host
+        local c
+        for c in docker podman; do
+            command -v "$c" >/dev/null 2>&1 || continue
+            "$c" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$1" 2>/dev/null | awk -v d="$2" '$1 == d { print $2; exit }' && return 0
+        done
+    }
+    wl_ip_count() {  # per IP tellen: "IP aantal" → {"ip":n,…}
+        sort | uniq -c | sort -rn | head -n 200 | awk '$2 ~ /^[0-9a-fA-F:.]+$/ { printf "\"%s\":%d,", $2, $1 }' | sed 's/,$//'
+    }
+    while IFS=$'\t' read -r z t w_src w_arg; do
+        [ "$z" = 0 ] && [ "$t" = weblog ] || continue
+        w_path=""; w_err=""; w_body=""
+        case "$w_src" in
+            swag)
+                w_path=$w_arg
+                if [ -z "$w_path" ] || [ "$w_path" = auto ]; then
+                    # Zelf zoeken (één keer per dag): de container van SWAG, gangbare mappen, dan nginx zelf
+                    if [ -f "$w_dir/swag.path" ] && [ $(( $(date +%s) - $(stat -c %Y "$w_dir/swag.path") )) -lt 86400 ]; then w_path=$(cat "$w_dir/swag.path")
+                    else
+                        w_path=""
+                        c=$(wl_docker 'swag|letsencrypt'); [ -n "$c" ] && m=$(wl_mount "$c" /config) && [ -f "$m/log/nginx/access.log" ] && w_path="$m/log/nginx/access.log"
+                        if [ -z "$w_path" ]; then
+                            for f in /opt/swag/config/log/nginx/access.log /srv/swag/config/log/nginx/access.log /docker/swag/config/log/nginx/access.log \
+                                /home/*/swag/config/log/nginx/access.log /home/*/docker/swag/config/log/nginx/access.log /var/log/nginx/access.log; do
+                                [ -f "$f" ] && w_path=$f && break
+                            done
+                        fi
+                        printf '%s\n' "$w_path" >"$w_dir/swag.path"
+                    fi
+                fi
+                if [ -n "$w_path" ] && [ -r "$w_path" ]; then
+                    # nginx "combined": IP - - [tijd] "GET /pad HTTP/1.1" status bytes "referer" "user-agent"; 444 = zonder (bekende) hostnaam
+                    w_body=$(wl_file_new swag "$w_path" | awk -F'"' '
+                        function js(s) { gsub(/[\\"]/, "", s); gsub(/[^ -~]/, "?", s); return substr(s, 1, 120) }
+                        { split($1, a, " "); ip = a[1]; split($3, b, " "); st = b[1] + 0; split($2, r, " "); p = r[2]; ua = tolower($6)
+                          if (ip !~ /^[0-9a-fA-F:.]+$/) next
+                          n[ip]++; if (st == 404) c404[ip]++; if (st == 401 || st == 403) c40x[ip]++; if (st == 444) c444[ip]++
+                          if (match(ua, /(sqlmap|nikto|nmap|masscan|zgrab|nuclei|wpscan|dirbuster|gobuster|ffuf|feroxbuster|l9explore|censysinspect)/)) u[ip] = substr(ua, RSTART, RLENGTH)
+                          if (st >= 400 && np[ip] < 8 && !((ip, p) in seen)) { seen[ip, p] = 1; np[ip]++; ps[ip] = ps[ip] (ps[ip] == "" ? "" : ",") "\"" js(p) "\"" } }
+                        END { k = 0; for (ip in n) { if (!(ip in c404) && !(ip in c40x) && !(ip in c444) && !(ip in u)) continue
+                                if (++k > 300) break
+                                printf "\"%s\":[%d,%d,%d,%d,\"%s\",[%s]],", ip, n[ip], c404[ip], c40x[ip], c444[ip], u[ip], ps[ip] } }' | sed 's/,$//')
+                elif [ -n "$w_path" ]; then w_err="niet leesbaar: $w_path"
+                else w_err="niet gevonden"; fi ;;
+            ha)
+                if [ "$HA_MODE" = 1 ]; then
+                    w_path="core"
+                    w_body=$(ha_log_new /core/logs "$w_dir/ha.mark" | grep -i 'invalid authentication from' \
+                        | sed -n 's/.*invalid authentication from \([0-9a-fA-F:.]*\).*/\1/p' | wl_ip_count)
+                else
+                    w_path=$w_arg
+                    if [ -z "$w_path" ] || [ "$w_path" = auto ]; then
+                        c=$(wl_docker 'home-assistant|homeassistant'); w_path=""
+                        [ -n "$c" ] && m=$(wl_mount "$c" /config) && [ -f "$m/home-assistant.log" ] && w_path="$m/home-assistant.log"
+                    fi
+                    if [ -n "$w_path" ] && [ -r "$w_path" ]; then
+                        w_body=$(wl_file_new ha "$w_path" | grep -i 'invalid authentication from' | sed -n 's/.*invalid authentication from \([0-9a-fA-F:.]*\).*/\1/p' | wl_ip_count)
+                    else w_err="niet gevonden"; w_path=""; fi
+                fi ;;
+            vw)
+                vw_lines=""
+                if [ "$HA_MODE" = 1 ]; then
+                    slug=$(sv /addons | jq -r '.data.addons[]? | select(.slug | test("vaultwarden|bitwarden")) | .slug' 2>/dev/null | head -n 1)
+                    if [ -n "$slug" ]; then w_path="addon:$slug"; vw_lines=$(ha_log_new "/addons/$slug/logs" "$w_dir/vw.mark"); else w_err="niet gevonden"; fi
+                elif [ -n "$w_arg" ] && [ "$w_arg" != auto ] && [ -f "$w_arg" ]; then
+                    w_path=$w_arg; vw_lines=$(wl_file_new vw "$w_arg")
+                else
+                    c=$w_arg; { [ -z "$c" ] || [ "$c" = auto ]; } && c=$(wl_docker 'vaultwarden')
+                    if [ -n "$c" ]; then
+                        w_path="container:$c"
+                        since=$(cat "$w_dir/vw.since" 2>/dev/null); now_v=$(date +%s); echo "$now_v" >"$w_dir/vw.since"
+                        if [ -n "$since" ]; then
+                            for d in docker podman; do command -v "$d" >/dev/null 2>&1 && vw_lines=$("$d" logs --since "$since" "$c" 2>&1 | tail -n 5000) && break; done
+                        fi
+                    else w_err="niet gevonden"; fi
+                fi
+                w_body=$(printf '%s\n' "$vw_lines" | grep -i 'username or password is incorrect' | sed -n 's/.*IP: \([0-9a-fA-F:.]*\).*/\1/p' | wl_ip_count) ;;
+            *) continue ;;
+        esac
+        weblog_json+="\"$w_src\":{\"path\":\"$(json_escape "$w_path")\"${w_err:+,\"err\":\"$(json_escape "$w_err")\"},\"ips\":{$w_body}},"
+    done <"$t_cache"
+    [ -n "$weblog_json" ] && weblog_json="\"weblog\":{${weblog_json%,}},"
 fi
 
 # ---------------------------------------------------------------- Isoleren en gebruiker uitzetten (agent 1.57.0)
@@ -2402,7 +2511,7 @@ fi
 # Opstarttijd (epoch) voor de check Herstart in RzMon
 read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
 
 curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)

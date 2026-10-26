@@ -569,6 +569,29 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <h3 class="set-sub"><?= th('🧰 Hardening') ?> <span class="muted small"><?= th('(agent 1.57.0)') ?></span></h3>
           <label class="switch"><input type="checkbox" name="ids_harden"><span></span> <span><?= t('<b>Hardening-score</b> per server, met een incident als iets slechter wordt') ?></span></label>
           <p class="muted small" style="margin-top:-.4rem"><?= th('Elk uur: SSH met wachtwoord of als root, firewall, automatische updates, open databases, de Docker-socket, accounts zonder wachtwoord, sudo zonder wachtwoord, /tmp en SELinux. Klik op de score bij een server (IDS) voor uitleg en hoe je het dichtzet; daar zit ook isoleren en een gebruiker vergrendelen.') ?></p>
+          <h3 class="set-sub"><?= th('📜 Logs van webdiensten') ?> <span class="muted small"><?= th('(agent 1.58.0)') ?></span></h3>
+          <p class="muted small" style="margin-top:-.2rem"><?= t('De agent leest elke minuut de nieuwe regels en vat ze per IP samen; RzMon herkent aanvallen. Waar staan de logs? Leeg of <code>auto</code> = zelf zoeken (de container van SWAG, gangbare mappen; in Home Assistant via de Supervisor). Je eigen netwerk en de whitelist tellen nooit.') ?></p>
+          <div class="row3">
+            <label class="switch"><input type="checkbox" name="weblog_swag"><span></span> <span><b>SWAG</b> (nginx)</span></label>
+            <label class="switch"><input type="checkbox" name="weblog_ha"><span></span> <span><b>Home Assistant</b></span></label>
+            <label class="switch"><input type="checkbox" name="weblog_vw"><span></span> <span><b>Vaultwarden</b></span></label>
+          </div>
+          <div class="row3">
+            <label><?= th('SWAG: access-log') ?><input name="weblog_swag_path" class="mono" placeholder="auto"></label>
+            <label><?= th('Home Assistant: home-assistant.log') ?><input name="weblog_ha_path" class="mono" placeholder="auto"></label>
+            <label><?= th('Vaultwarden: logbestand of container') ?><input name="weblog_vw_path" class="mono" placeholder="auto"></label>
+          </div>
+          <div id="weblog-status" class="small"></div>
+          <p class="small" style="margin:.6rem 0 .2rem"><b><?= th('Scenario\'s') ?></b> <span class="muted"><?= th('(elk apart aan of uit)') ?></span></p>
+          <label class="switch"><input type="checkbox" name="wl_paths"><span></span> <span><?= t('SWAG: <b>bekend aanvalspad</b> met een foutcode (<code>/.env</code>, <code>/.git/</code>, <code>wp-login.php</code>, <code>phpmyadmin</code> …): meteen') ?></span></label>
+          <label class="switch"><input type="checkbox" name="wl_ua"><span></span> <span><?= t('SWAG: <b>scanner</b> (sqlmap, nikto, nuclei, zgrab …): meteen') ?></span></label>
+          <div class="lock-row"><label class="switch"><input type="checkbox" name="wl_404"><span></span> <span><?= t('SWAG: <b>veel 404</b>, vanaf') ?></span></label> <input type="number" name="wl_404_n" min="3" max="10000" class="num-in"></div>
+          <div class="lock-row"><label class="switch"><input type="checkbox" name="wl_auth"><span></span> <span><?= t('SWAG: <b>veel 401/403</b> (wachtwoorden raden), vanaf') ?></span></label> <input type="number" name="wl_auth_n" min="3" max="10000" class="num-in"></div>
+          <div class="lock-row"><label class="switch"><input type="checkbox" name="wl_nohost"><span></span> <span><?= t('SWAG: <b>zonder hostnaam</b> (444, scant je IP-adres), vanaf') ?></span></label> <input type="number" name="wl_nohost_n" min="1" max="10000" class="num-in"></div>
+          <div class="lock-row"><?= t('<b>Home Assistant</b>: mislukte logins vanaf') ?> <input type="number" name="wl_ha_n" min="2" max="1000" class="num-in"> · <?= t('<b>Vaultwarden</b> vanaf') ?> <input type="number" name="wl_vw_n" min="2" max="1000" class="num-in"></div>
+          <div class="lock-row"><?= th('…binnen (minuten)') ?> <input type="number" name="wl_minutes" min="1" max="1440" class="num-in"></div>
+          <label class="switch"><input type="checkbox" name="weblog_block"><span></span> <span><?= t('In de modus blokkeren zo\'n IP ook <b>blokkeren</b> (op al je servers, via <i>Automatische blokkades op alle servers</i>)') ?></span></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Deblokkeren kan altijd bij <i>Blokkades en whitelist</i>. SWAG in Docker: de agent blokkeert vóór Docker (prerouting), dus ook verkeer naar de container wordt tegengehouden.') ?></p>
           <h3 class="set-sub"><?= th('🌐 Uitgaande verbindingen') ?> <span class="muted small"><?= th('(agent 1.56.0)') ?></span></h3>
           <label class="switch"><input type="checkbox" name="ids_outbound"><span></span> <span><?= t('Melden als een server verbinding maakt met een <b>bekende aanvaller</b> (critical)') ?></span></label>
           <label class="switch"><input type="checkbox" name="ids_outbound_country"><span></span> <span><?= t('…en met een land buiten je <b>normale landen</b> (warning, per programma aan te leren)') ?></span></label>

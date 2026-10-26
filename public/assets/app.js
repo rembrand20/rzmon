@@ -4413,7 +4413,7 @@ function accIgnoreDialog(r) {
 }
 
 const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'kev_port']], ['net', () => '🌐 ' + L('Uitgaand'), ['outbound', 'out_bad', 'out_country']],
-  ['web', () => '🕸️ ' + L('Webshell en diensten'), ['webshell', 'unit_new']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
+  ['web', () => '🕸️ ' + L('Webshell en diensten'), ['webshell', 'unit_new']], ['weblog', () => '📜 ' + L('Webdiensten'), ['web_attack']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
   ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🍯 ' + L('Honeypot'), ['decoy_user', 'decoy_port']]];
 const idsCatOf = (i) => (IDS_CATS.find((c) => c[2].includes(i.type)) || [''])[0];
 
@@ -5884,12 +5884,27 @@ async function loadStealth() {
   $('#stealth-devices').onclick = (e) => accessAction(e, true, loadStealth);
 }
 
+/** Waar de agents de logs van SWAG, Home Assistant en Vaultwarden vonden (1.89.0) */
+async function loadWeblogStatus() {
+  const box = $('#weblog-status');
+  if (!box) return;
+  let rows;
+  try { rows = await api('weblog_status'); } catch (ex) { return; }
+  const names = { swag: 'SWAG', ha: 'Home Assistant', vw: 'Vaultwarden' };
+  const found = rows.filter((r) => !r.err && r.path);
+  box.innerHTML = (found.length ? found.map((r) => `✔ <b>${names[r.src] || esc(r.src)}</b> ${L('op {host}', { host: esc(r.host) })}: <code>${esc(r.path)}</code>`
+      + (r.hint ? `<br><span class="warn-txt">⚠️ ${esc(r.hint)}</span>` : '')).join('<br>')
+    : `<span class="muted">${L('Nog nergens gevonden (agent 1.58.0 nodig; het zoeken gebeurt bij het volgende rapport).')}</span>`)
+    + ['swag', 'ha', 'vw'].filter((s) => !found.some((r) => r.src === s) && rows.some((r) => r.src === s)).map((s) => `<br><span class="muted">– ${names[s]}: ${L('op geen enkele server gevonden')}</span>`).join('');
+}
+
 async function loadSettings() {
   settingsLoaded = true;
   loadUsers();
   if (!isAdmin()) return;   // de rest van de instellingen is alleen voor beheerders
   loadApiKeys();
   loadStealth();
+  loadWeblogStatus();
   loadSecurity();
   loadAccess();
   loadHttps();

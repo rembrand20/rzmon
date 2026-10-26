@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.58.0 – 2026-10-26
+- **Logs van webdiensten** (RzMon 1.89.0): de nieuwe regels van SWAG (nginx access-log), Home Assistant (Core-log, via de Supervisor) en Vaultwarden (add-on, container of logbestand), per IP samengevat. De agent zoekt de logs zelf als RzMon geen pad geeft.
+- **Blokkades ook vóór Docker**: een extra chain `pre` (prerouting) in de tabel `inet rzmon`, zodat geblokkeerde IP's ook containers (SWAG) niet meer bereiken.
+
 ## 1.57.0 – 2026-10-26
 - **Hardening** (RzMon 1.88.0): elk uur de instellingen voor de score (sshd, firewall, automatische updates, open databases, Docker-socket, lege wachtwoorden, sudo NOPASSWD, /tmp, SELinux).
 - **Isoleren**: eigen firewalltabel `inet rzmon_iso`. Alleen RzMon, de toegestane netwerken en de DNS-servers zijn nog bereikbaar. Vervalt vanzelf op de tijd, ook zonder RzMon.

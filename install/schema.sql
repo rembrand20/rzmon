@@ -585,6 +585,32 @@ CREATE TABLE IF NOT EXISTS ids_userlocks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_harden', '1');
 
+-- 1.89.0: logs van webdiensten (SWAG, Home Assistant, Vaultwarden): waar gevonden per server, en pogingen per IP
+CREATE TABLE IF NOT EXISTS weblog_state (
+    host_id INT UNSIGNED NOT NULL,
+    src     VARCHAR(8)   NOT NULL,
+    path    VARCHAR(255) NULL,
+    err     VARCHAR(255) NULL,
+    hint    VARCHAR(500) NULL,
+    seen_at DATETIME     NOT NULL,
+    PRIMARY KEY (host_id, src),
+    CONSTRAINT fk_wls_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS weblog_attempts (
+    id      BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id INT UNSIGNED NOT NULL,
+    src     VARCHAR(8)  NOT NULL,
+    kind    VARCHAR(8)  NOT NULL,
+    ip      VARCHAR(45) NOT NULL,
+    n       INT UNSIGNED NOT NULL,
+    at      DATETIME    NOT NULL,
+    INDEX idx_wla (host_id, src, kind, ip, at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('weblog_swag', '1'), ('weblog_swag_path', 'auto'), ('weblog_ha', '1'), ('weblog_ha_path', 'auto'),
+    ('weblog_vw', '1'), ('weblog_vw_path', 'auto'), ('weblog_block', '0'), ('wl_paths', '1'), ('wl_ua', '1'), ('wl_404', '1'), ('wl_404_n', '20'),
+    ('wl_auth', '1'), ('wl_auth_n', '10'), ('wl_nohost', '1'), ('wl_nohost_n', '5'), ('wl_ha_n', '5'), ('wl_vw_n', '5'), ('wl_minutes', '10');
+
 CREATE TABLE IF NOT EXISTS security_fails (
     id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     ip         VARCHAR(45) NOT NULL,

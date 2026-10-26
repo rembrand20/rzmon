@@ -7,6 +7,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.89.0 – 2026-10-26
+### Nieuw
+- **📜 Logs van webdiensten** (IDS, **agent 1.58.0 nodig**), aan/uit per bron:
+  - **SWAG**: bekend aanvalspad (`/.env`, `/.git/`, `wp-login.php` … met een foutcode) en scanners meteen; veel 404, veel 401/403 en verzoeken zonder hostnaam (444) boven een grens.
+  - **Home Assistant** en **Vaultwarden**: mislukte logins boven een grens.
+  - De agent zoekt de logs zelf (container, gangbare mappen, Supervisor). Je kunt elk pad zelf invullen; per server zie je wat gevonden is.
+  - Elk scenario apart aan of uit, met aanpasbare aantallen en tijd.
+  - In de modus blokkeren optioneel blokkeren op al je servers (standaard uit). Je eigen netwerk en de whitelist nooit; deblokkeren bij *Blokkades en whitelist*.
+  - Een ⚠️ als Home Assistant achter SWAG alleen interne adressen ziet (`use_x_forwarded_for`).
+- Nieuwe agent 1.58.0.
+
+### Opgelost
+- **Blokkades golden niet voor Docker-containers.** Verkeer naar een container (bv. SWAG) ging langs de blokkade heen. Agent 1.58.0 blokkeert vóór Docker (prerouting).
+
 ## 1.88.0 – 2026-10-26
 ### Nieuw
 - **🧰 Hardening-score** per server (IDS, **agent 1.57.0 nodig**). Punten: SSH (wachtwoord, root, lege wachtwoorden), firewall, automatische updates, open databases, Docker-socket, accounts zonder wachtwoord, sudo zonder wachtwoord, `/tmp` noexec en SELinux.

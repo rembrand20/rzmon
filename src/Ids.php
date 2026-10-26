@@ -75,6 +75,8 @@ final class Ids
         foreach (IpIntel::agentNets() as $net) {
             $out[] = implode("\t", [0, 'knet', $net]);
         }
+        // 1.89.0: logs van webdiensten (SWAG, Home Assistant, Vaultwarden)
+        array_push($out, ...WebLog::agentLines());
         // 1.87.0: ook uitgaand naar bekende aanvallers blokkeren, en processen stoppen (webshell)
         if (self::blocking() && setting('ids_outbound_block', '0') === '1') {
             $out[] = implode("\t", [0, 'outblock', 1]);
@@ -239,7 +241,9 @@ final class Ids
 
     /** Redenen van blokkades: zo bewaard (Nederlands), voor de lezer in zijn taal via I18n::stored (1.84.1) */
     public const REASONS = ['Honeypot-gebruiker: {user}', 'Honeypot-poort {port}', 'Brute force: {n} mislukte SSH-logins in {win} min', 'met de hand',
-        'automatisch: {n} mislukte logins ({user})', '{n} mislukte logins binnen {m} minuten', 'Nooit blokkeren (IDS)', '{by}, via de whitelist', 'automatisch'];
+        'automatisch: {n} mislukte logins ({user})', '{n} mislukte logins binnen {m} minuten', 'Nooit blokkeren (IDS)', '{by}, via de whitelist', 'automatisch',
+        'SWAG: aanvalspad {path}', 'SWAG: scanner {ua}', '{src}: {n} mislukte logins', 'SWAG: veel 404 (zoekt naar lekken)', 'SWAG: veel 401/403 (raadt wachtwoorden)',
+        'SWAG: verzoeken zonder bekende hostnaam (scant je IP-adres)'];
     public const REASONS_OLD = ['Lokaas-gebruiker: {user}' => 'Honeypot-gebruiker: {user}', 'Lokaas-poort {port}' => 'Honeypot-poort {port}'];
 
     public static function reasonText(?string $r): ?string
@@ -819,6 +823,17 @@ final class Ids
         }
     }
 
+    /**
+     * Aanval in de log van een webdienst (1.89.0): incident, en in de modus blokkeren (met "blokkeren" aan bij de logs)
+     * een automatische blokkade. Via "automatische blokkades op alle servers" komt die ook op de server met SWAG.
+     */
+    public static function webAttack(array $host, string $src, string $ip, string $title, string $detail, string $reason): void
+    {
+        $ctx = ['host' => $host, 'learning' => false, 'users' => []];
+        $blocked = self::blocking() && setting('weblog_block', '0') === '1' ? self::autoBlock($host, $ip, $reason) : null;
+        self::incident($ctx, 1, 'web_attack', "$src|$ip", $title, $detail . ($blocked ? " · ⛔ $blocked" : ''), $ip);
+    }
+
     /** Regels voor de agent: processen die gestopt moeten worden (hooguit 10 minuten geldig) */
     private static function killLines(int $hostId): array
     {
@@ -1219,6 +1234,7 @@ final class Ids
         self::autoClose();
         q('DELETE FROM ids_attempts WHERE at < NOW() - INTERVAL 1 DAY');
         q('DELETE FROM ids_kills WHERE created_at < NOW() - INTERVAL 30 DAY');
+        WebLog::purge();
         q('DELETE FROM ids_incidents WHERE created_at < NOW() - INTERVAL ? DAY', [Monitor::alertDays()]);
         // Bewaren zo lang als de meldingen, minstens 90 dagen (ook voor "eerder geblokkeerd": bij herhaling langer)
         $days = max(90, Monitor::alertDays());
