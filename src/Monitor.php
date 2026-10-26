@@ -966,6 +966,8 @@ final class Monitor
         q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
         q('DELETE FROM remember_tokens WHERE last_used < NOW() - INTERVAL ? DAY', [REMEMBER_DAYS]);
         q('DELETE FROM user_sessions WHERE last_seen < NOW() - INTERVAL 2 DAY');   // allang verlopen sessies
+        // Tot 1.92.2: elke controle zonder cookies (curl, een HTTP-check op RzMon zelf) gaf een LAN-sessie die nooit terugkwam
+        q("DELETE FROM user_sessions WHERE how = 'lan' AND last_seen <= created_at + INTERVAL 1 MINUTE AND created_at < NOW() - INTERVAL 10 MINUTE");
         PasswordReset::purge();
         Security::purge();
         Ids::purge();

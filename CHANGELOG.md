@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.92.2 – 2026-10-26
+### Opgelost
+- **Elke minuut een nieuwe sessie "LAN, zonder wachtwoord"** bij *Ingelogde apparaten* (met "Inloggen zonder wachtwoord op het LAN" aan). Een controle die RzMon opvraagt zonder cookies te bewaren (de diepere controle van httpd/nginx door de agent op de RzMon-server, of een HTTP-check op RzMon zelf) gaf elke keer een nieuwe sessie. Een LAN-sessie komt nu pas in de lijst als dezelfde browser terugkomt; de oude losse sessies ruimt RzMon vanzelf op.
+
 ## 1.92.1 – 2026-10-26
 ### Opgelost
 - **Bijwerken stopte soms met "PHP-extensie mbstring ontbreekt"** terwijl mbstring er gewoon is. De controle in het installatiescript (`php -m | grep -q`) kon door de manier van uitlezen af en toe mislukken; het script vraagt het nu rechtstreeks aan PHP. Bleef je update daardoor op 1.92.0 met een foutmelding staan? Werk dan bij naar deze versie: het installatiescript loopt dan alsnog helemaal door.

@@ -97,11 +97,12 @@ function current_user(): ?array
     }
 
     // "Inloggen" gekozen op het LAN (?login=1): dan niet automatisch binnenlaten
+    // In "Ingelogde apparaten" pas vanaf het tweede verzoek met dezelfde cookie (session_alive): een browser komt meteen
+    // terug, een controle zonder cookies (curl van een agent, een HTTP-check op RzMon zelf) gaf anders elke minuut een nieuwe sessie
     if (!$user && lan_login_allowed() && empty($_SESSION['no_lan_auto'])) {
         session_regenerate_id(true);
         $_SESSION['lan_auto'] = true;
         $user = $_SESSION['user'] = lan_user();
-        session_track($user, 'lan');
     }
     return $user;
 }
@@ -449,7 +450,8 @@ function session_track(array $user, string $how): void
 function session_alive(array $user): bool
 {
     if (empty($_SESSION['sess_row'])) {
-        session_track($user, 'existing');   // al ingelogd vóór de update: nu ook in de lijst
+        // Automatisch op het LAN (nu terug met de cookie), of al ingelogd vóór 1.79.0: nu ook in de lijst
+        session_track($user, !empty($_SESSION['lan_auto']) ? 'lan' : 'existing');
         return true;
     }
     $r = q('SELECT sid_hash, last_seen FROM user_sessions WHERE id = ?', [(int) $_SESSION['sess_row']])->fetch();
