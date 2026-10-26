@@ -44,9 +44,11 @@ final class Updater
             $cache['error'] = t('Kan de nieuwste versie niet ophalen van {url}', ['url' => "github.com/$repo"]);
         } else {
             $cache['latest'] = trim($version);
+            $md = (string) self::fetch("$base/CHANGELOG.md");
             if (version_compare($cache['latest'], RZMON_VERSION, '>')) {
-                $cache['notes'] = self::notes((string) self::fetch("$base/CHANGELOG.md"));
+                $cache['notes'] = self::notes($md);
             }
+            $cache['versions'] = self::versions($md);   // 1.90.0: om een andere (ook oudere) versie te kiezen
         }
         save_setting('update_cache', json_encode($cache, JSON_UNESCAPED_UNICODE));
         return $cache;
@@ -61,6 +63,13 @@ final class Updater
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
         return is_string($body) && $code === 200 ? $body : null;
+    }
+
+    /** Alle versies uit de changelog (nieuwste eerst, hooguit 80): [['version' => …, 'date' => …], …] */
+    private static function versions(string $md): array
+    {
+        preg_match_all('/^## (\d+\.\d+\.\d+)\s*(?:[–-]\s*(\S+))?/mu', $md, $m, PREG_SET_ORDER);
+        return array_slice(array_map(static fn($x) => ['version' => $x[1], 'date' => $x[2] ?? ''], $m), 0, 80);
     }
 
     /** Changelog-secties van versies nieuwer dan deze (hooguit 15, nieuwste eerst). */
@@ -128,8 +137,18 @@ final class Updater
     }
 
     /** Update aanvragen. @return true|string */
-    public static function request(bool $backup, string $by): true|string
+    public static function request(bool $backup, string $by, ?string $version = null): true|string
     {
+        // Een bepaalde versie (1.90.0; leeg = de nieuwste): alleen een versie uit de changelog van GitHub
+        if ($version !== null && $version !== '') {
+            $known = array_column((array) (self::check()['versions'] ?? []), 'version');
+            if (!preg_match('/^\d{1,4}\.\d{1,4}\.\d{1,4}$/', $version) || !in_array($version, $known, true)) {
+                return t('Onbekende versie: {v}', ['v' => mb_substr($version, 0, 20)]);
+            }
+            if ($version === RZMON_VERSION) {
+                return t('Deze versie is al geïnstalleerd');
+            }
+        }
         if ($why = self::unavailable()) {
             return $why;
         }
@@ -137,10 +156,13 @@ final class Updater
             return t('Er loopt al een update');
         }
         $tmp = self::DIR . '/update.request.tmp';
-        if (file_put_contents($tmp, json_encode(['backup' => $backup, 'by' => $by, 'at' => time()])) === false || !rename($tmp, self::DIR . '/update.request')) {
+        if (file_put_contents($tmp, json_encode(['backup' => $backup, 'by' => $by, 'at' => time()] + ($version ? ['version' => $version] : []))) === false || !rename($tmp, self::DIR . '/update.request')) {
             return t('Kan geen verzoek neerzetten in {dir}', ['dir' => self::DIR]);
         }
-        save_setting('update_requested', json_encode(['from' => RZMON_VERSION, 'by' => $by, 'at' => time()]));
+        save_setting('update_requested', json_encode(['from' => RZMON_VERSION, 'to' => $version ?: null, 'by' => $by, 'at' => time()]));
+        // Bewust een andere versie dan de nieuwste: automatisch bijwerken pauzeert tot je weer naar de nieuwste gaat
+        $latest = (string) (self::check()['latest'] ?? '');
+        save_setting('update_pinned', $version && $version !== $latest ? $version : '');
         return true;
     }
 
@@ -148,7 +170,7 @@ final class Updater
     public static function cron(): ?string
     {
         $cache = self::check();
-        if (setting('update_auto', '0') !== '1' || empty($cache['latest']) || !version_compare($cache['latest'], RZMON_VERSION, '>')) {
+        if (setting('update_auto', '0') !== '1' || setting('update_pinned', '') !== '' || empty($cache['latest']) || !version_compare($cache['latest'], RZMON_VERSION, '>')) {
             return null;
         }
         $time = (string) setting('update_time', '04:00');

@@ -30,8 +30,8 @@ const TYPES = {
   command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → ⬆ Agents bijwerken).') },
   ha:      { label: L('Home Assistant'), target: null, unit: null, help: L('Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.') },
   snmp:    { label: L('SNMP'),          target: null,            unit: null, help: L('RzMon leest het apparaat zelf uit via SNMP (switches, access points, NAS, UPS, printers, Proxmox…). Interfaces, schijven en voorraden kies je het makkelijkst via 📡 SNMP-checks bij de server.') },
-  reboot:  { label: L('🔄 Herstart'), target: null, unit: 'uur', help: L('Ziet wanneer de server opnieuw is opgestart (de uptime wordt korter) en stuurt dan een ℹ️ info-melding. De check zelf is altijd OK. Info staat standaard uit: zet hem aan bij Instellingen → 🔔 Meldingen (rij Info), of alleen voor deze check bij 🔔 Meldingen hieronder. Op agent-servers is agent 1.46.0 of nieuwer nodig.') },
-  heartbeat: { label: L('📥 Heartbeat'), target: L('Naam (voor rzmon-hb)'), unit: null, ph: 'backup-db', help: L('Een script, cronjob of apparaat meldt zich zelf bij RzMon (rzmon-hb op een server met de agent, of de geheime URL). Komt er binnen het schema plus de speling niets binnen: WARNING, na twee keer de speling CRITICAL. Mislukt (fail) = CRITICAL. Met start en klaar meet RzMon de duur.') },
+  reboot:  { label: L('Uptime'), target: null, unit: 'uur', help: L('Ziet wanneer de server opnieuw is opgestart (de uptime wordt korter) en stuurt dan een ℹ️ info-melding. De check zelf is altijd OK. Info staat standaard uit: zet hem aan bij Instellingen → 🔔 Meldingen (rij Info), of alleen voor deze check bij 🔔 Meldingen hieronder. Op agent-servers is agent 1.46.0 of nieuwer nodig.') },
+  heartbeat: { label: L('Heartbeat'), target: L('Naam (voor rzmon-hb)'), unit: null, ph: 'backup-db', help: L('Een script, cronjob of apparaat meldt zich zelf bij RzMon (rzmon-hb op een server met de agent, of de geheime URL). Komt er binnen het schema plus de speling niets binnen: WARNING, na twee keer de speling CRITICAL. Mislukt (fail) = CRITICAL. Met start en klaar meet RzMon de duur.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
@@ -842,7 +842,8 @@ function init() {
 
   $('#settings-form').addEventListener('submit', saveSettings);
   $('#backup-now').onclick = backupNow;
-  $('#update-start').onclick = openUpdateDialog;
+  $('#update-start').onclick = () => openUpdateDialog();
+  $('#update-pick').onclick = () => openUpdateDialog(true);
   // Kwetsbaarheden aan/uit: meteen opslaan (zoals het IDS); het tabblad komt erbij of gaat weg, dus de pagina herladen
   $('#vuln-enabled').onchange = async (e) => {
     try {
@@ -6665,6 +6666,9 @@ async function loadUpdate(force) {
   st.innerHTML = parts.join(' ');
   $('#update-notes').innerHTML = u.available && u.notes.length ? `<details class="update-notes" open><summary>${u.notes.length === 1 ? L('Wat is er nieuw (1 versie)') : L('Wat is er nieuw ({n} versies)', { n: u.notes.length })}</summary>
     ${u.notes.map((n) => `<div class="un-ver"><h3>${esc(n.version)} <span class="muted small">${esc(n.date)}</span></h3>${mdLite(n.text)}</div>`).join('')}</details>` : '';
+  if (u.pinned) parts.push(`<br><span class="warn-txt">📌 ${L('Je hebt bewust versie {v} gekozen: automatisch bijwerken staat op pauze tot je weer naar de nieuwste gaat.', { v: esc(u.pinned) })}</span>`);
+  st.innerHTML = parts.join(' ');
+  $('#update-pick').hidden = !!u.unavailable || !(u.versions || []).some((v) => v.version !== u.current);
   const b = $('#update-start');
   b.hidden = !u.available || !!u.unavailable;
   b.textContent = `⬆ ${L('Nu bijwerken naar {v}', { v: u.latest })}`;
@@ -6727,18 +6731,24 @@ const updateDialogShown = () => $('#modal').open && !!$('#modal-body .upd-dlg:no
 let updatePct = 0;   // de balk gaat tijdens één update nooit terug
 
 /** Vraag "wil je bijwerken?" (met back-up), of meteen de voortgang als er al een update loopt. */
-async function openUpdateDialog() {
+async function openUpdateDialog(pick = false) {
   let u = updateInfo;
   try { u = await api('update_info'); updateInfo = u; } catch (ex) { if (!u) { toast(ex.message, 'err'); return; } }
   if (u.status && ['queued', 'running'].includes(u.status.state)) { showUpdateDialog(u.status, '', true); pollUpdate(); return; }
-  if (!u.available || u.unavailable) {
+  const versions = (u.versions || []).filter((v) => v.version !== u.current);
+  if ((!u.available && !(pick && versions.length)) || u.unavailable) {
     // Niets bij te werken, of het kan (nog) niet vanuit RzMon: de uitleg staat bij Instellingen
     showTab('settings/update');
     return;
   }
   modal({
     title: '⬆ ' + L('RzMon bijwerken'),
-    body: `<p style="margin-top:0">${L('RzMon bijwerken van <b>{from}</b> naar <b>{to}</b>?', { from: esc(u.current), to: esc(u.latest) })}</p>
+    body: `<p style="margin-top:0">${u.available ? L('RzMon bijwerken van <b>{from}</b> naar <b>{to}</b>?', { from: esc(u.current), to: esc(u.latest) }) : L('Je gebruikt <b>{v}</b>.', { v: esc(u.current) })}</p>
+      ${versions.length ? `<label>${L('Versie')} <span class="hint">${L('(niets kiezen = de nieuwste)')}</span>
+        <select name="version"><option value="">${L('De nieuwste ({v})', { v: esc(u.latest || '?') })}</option>
+          ${versions.map((v) => `<option value="${esc(v.version)}">${esc(v.version)}${v.date ? ` – ${esc(v.date)}` : ''}${verCmp(v.version, u.current) < 0 ? ` · ${L('ouder: terugzetten')}` : ''}</option>`).join('')}</select></label>
+        <div id="upd-older" class="callout small" hidden>${L('⚠️ <b>Terugzetten naar een oudere versie.</b> Je instellingen en gegevens blijven staan; de database blijft zoals hij is (nieuwere kolommen worden niet gebruikt). Wat er sindsdien bij kwam, werkt niet meer. Automatisch bijwerken pauzeert tot je weer naar de nieuwste gaat. Agents hoef je niet terug te zetten.')}
+          ${confirmField('TERUGZETTEN')}</div>` : ''}
       ${u.notes.length ? `<details class="update-notes upd-notes"><summary>${u.notes.length === 1 ? L('Wat is er nieuw (1 versie)') : L('Wat is er nieuw ({n} versies)', { n: u.notes.length })}</summary>
         ${u.notes.map((n) => `<div class="un-ver"><h3>${esc(n.version)} <span class="muted small">${esc(n.date)}</span></h3>${mdLite(n.text)}</div>`).join('')}</details>` : ''}
       <label class="switch"><input type="checkbox" name="backup" ${u.backup ? 'checked' : ''}><span></span> ${L('Eerst een back-up maken')}</label>
@@ -6746,10 +6756,12 @@ async function openUpdateDialog() {
     buttons: [
       { label: L('Annuleren'), onClick: () => $('#modal').close() },
       { label: '⬆ ' + L('Bijwerken'), cls: 'primary', onClick: async (btn) => {
-        const backup = $('#modal-form').backup.checked;
+        const f = $('#modal-form');
+        const backup = f.backup.checked;
+        const version = f.version ? f.version.value : '';
         btn.disabled = true;
         try {
-          await api('update_start', { backup });
+          await api('update_start', { backup, version, confirm: f.confirm ? f.confirm.value : '' });
           if ($('#settings-form')) $('#settings-form').update_backup.checked = backup;   // keuze is opgeslagen
           updatePct = 0;
           const s = { state: 'queued', step: 'queued', message: L('Wachten op de hulpdienst…'), at: Date.now() / 1000 };
@@ -6760,6 +6772,9 @@ async function openUpdateDialog() {
       } },
     ],
   });
+  // Een oudere versie gekozen: waarschuwing en bevestigen
+  const sel = $('#modal-form').version;
+  if (sel) sel.onchange = () => { $('#upd-older').hidden = !(sel.value && verCmp(sel.value, u.current) < 0); };
 }
 
 /** Percentage van de balk: van het script (pct), anders een schatting per stap. */

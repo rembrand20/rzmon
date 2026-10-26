@@ -5,9 +5,10 @@
 # /var/lib/rzmon/update.request neerzet. install-helper.sh zet een kopie van dit script in
 # /usr/local/sbin/rzmon-update; die kopie kan de webserver niet wijzigen.
 #
-# Wat het doet, altijd hetzelfde (van de webpagina komt alleen "wel of geen back-up"):
+# Wat het doet, altijd hetzelfde (van de webpagina komt alleen "wel of geen back-up" en eventueel een versie, 1.90.0):
 #   1. eventueel een back-up (php install/install.php --backup)
-#   2. de nieuwste versie ophalen (git pull) en install/install-rocky.sh --yes uitvoeren,
+#   2. de nieuwste versie ophalen (git pull), of de gekozen versie (de commit waarin VERSION dat nummer kreeg),
+#      en install/install-rocky.sh --yes uitvoeren,
 #      precies zoals het handmatige updatecommando: rechten, SELinux, hulpdienst, tabellen
 # Voortgang en uitkomst staan in /var/lib/rzmon/update.status (JSON) en update.log.
 #
@@ -25,6 +26,8 @@ LOG="$HELPER_DIR/update.log"
 [ -f "$REQ" ] || exit 0
 backup=0
 grep -q '"backup":[[:space:]]*true' "$REQ" 2>/dev/null && backup=1
+# Gekozen versie (alleen cijfers en punten; anders de nieuwste)
+want=$(sed -n 's/.*"version":[[:space:]]*"\([0-9]\{1,4\}\.[0-9]\{1,4\}\.[0-9]\{1,4\}\)".*/\1/p' "$REQ" 2>/dev/null | head -n 1)
 rm -f "$REQ"
 
 GROUP=$(stat -c %G "$HELPER_DIR")
@@ -72,11 +75,29 @@ if [ "$backup" = 1 ]; then
 fi
 
 step=download
-status running download "Nieuwste versie ophalen" 30
 branch=$(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)
 git -C "$DIR" config core.fileMode false
-if ! git -C "$DIR" fetch --quiet origin "$branch" >>"$LOG" 2>&1 || ! git -C "$DIR" pull --quiet --ff-only origin "$branch" >>"$LOG" 2>&1; then
-    fail "Ophalen van GitHub mislukt (zie het logboek); er is niets veranderd"
+if [ -n "$want" ]; then
+    status running download "Versie $want ophalen" 30
+    # Hele geschiedenis nodig om een oudere versie te vinden (een ondiepe kopie eerst aanvullen)
+    if [ "$(git -C "$DIR" rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+        git -C "$DIR" fetch --quiet --unshallow origin "$branch" >>"$LOG" 2>&1 || fail "Ophalen van GitHub mislukt (zie het logboek); er is niets veranderd"
+    else
+        git -C "$DIR" fetch --quiet origin "$branch" >>"$LOG" 2>&1 || fail "Ophalen van GitHub mislukt (zie het logboek); er is niets veranderd"
+    fi
+    # De commit waarin VERSION dit nummer kreeg (nieuwste eerst)
+    commit=""
+    while read -r c; do
+        [ "$(git -C "$DIR" show "$c:VERSION" 2>/dev/null)" = "$want" ] && { commit=$c; break; }
+    done < <(git -C "$DIR" log --format=%H "origin/$branch" -- VERSION 2>/dev/null)
+    [ -n "$commit" ] || fail "Versie $want niet gevonden op GitHub; er is niets veranderd"
+    git -C "$DIR" reset --quiet --hard "$commit" >>"$LOG" 2>&1 || fail "Overschakelen naar $want mislukt (zie het logboek)"
+else
+    status running download "Nieuwste versie ophalen" 30
+    # Na een eerdere keuze voor een oudere versie gaat dit gewoon weer vooruit (fast-forward)
+    if ! git -C "$DIR" fetch --quiet origin "$branch" >>"$LOG" 2>&1 || ! git -C "$DIR" pull --quiet --ff-only origin "$branch" >>"$LOG" 2>&1; then
+        fail "Ophalen van GitHub mislukt (zie het logboek); er is niets veranderd"
+    fi
 fi
 to=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
 
@@ -96,6 +117,10 @@ if [ "${PIPESTATUS[0]}" -ne 0 ]; then
 fi
 
 step=klaar
-status ok klaar "RzMon bijgewerkt van $from naar $to" 100
+if [ -n "$want" ] && [ "$(printf '%s\n%s\n' "$to" "$from" | sort -V | head -n 1)" = "$to" ] && [ "$to" != "$from" ]; then
+    status ok klaar "RzMon teruggezet van $from naar $to" 100
+else
+    status ok klaar "RzMon bijgewerkt van $from naar $to" 100
+fi
 finished=1
 exit 0

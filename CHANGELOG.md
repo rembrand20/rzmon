@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.90.0 – 2026-10-26
+### Nieuw
+- **RzMon bijwerken: een versie kiezen** (*🔁 Andere versie…*). Je kiest uit alle versies van de changelog, ook oudere (terugzetten, met je wachtwoord). Niets kiezen is de nieuwste.
+  - Bij een andere versie dan de nieuwste pauzeert automatisch bijwerken, tot je weer naar de nieuwste gaat.
+  - Werkt vanaf de update naar deze versie: de hulpdienst wordt daarbij bijgewerkt.
+- Checktypes zonder icoontjes; *Herstart* heet nu **Uptime**.
+
 ## 1.89.0 – 2026-10-26
 ### Nieuw
 - **📜 Logs van webdiensten** (IDS, **agent 1.58.0 nodig**), aan/uit per bron:

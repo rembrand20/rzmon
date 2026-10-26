@@ -3405,6 +3405,8 @@ switch ($action) {
             'checked_at' => isset($cache['checked_at']) ? date('Y-m-d H:i:s', (int) $cache['checked_at']) : null,
             'error' => $cache['error'] ?? null,
             'notes' => $cache['notes'] ?? [],
+            'versions' => $cache['versions'] ?? [],
+            'pinned' => (string) setting('update_pinned', ''),
             'unavailable' => Updater::unavailable(),
             'status' => Updater::status(),
             'backup' => setting('update_backup', '1') === '1',
@@ -3415,7 +3417,11 @@ switch ($action) {
     case 'update_start':
         $backup = !empty(input()['backup']);
         save_setting('update_backup', $backup ? '1' : '0');   // de schakelaar onthouden
-        $r = Updater::request($backup, $user['username']);
+        $ver = trim((string) (input()['version'] ?? ''));
+        if ($ver !== '' && version_compare($ver, RZMON_VERSION, '<')) {
+            $confirm('TERUGZETTEN');   // naar een oudere versie: eerst bevestigen
+        }
+        $r = Updater::request($backup, $user['username'], $ver !== '' ? $ver : null);
         $r === true ? out(['ok' => true]) : out(['error' => $r], 409);
 
     case 'update_status':

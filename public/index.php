@@ -641,6 +641,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div class="update-actions">
             <button type="button" class="btn primary" id="update-start" hidden><?= th('⬆ Nu bijwerken') ?></button>
             <button type="button" class="btn" id="update-check"><?= th('🔍 Nu controleren') ?></button>
+            <button type="button" class="btn" id="update-pick" hidden><?= th('🔁 Andere versie…') ?></button>
           </div>
           <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="update_backup"><span></span> <?= th('Eerst een back-up maken') ?></label>
           <p class="muted small" style="margin-top:-.4rem"><?= t('Database en instellingen, in de lijst onder <i>Back-up</i>. Geldt voor de knop en voor automatisch bijwerken.') ?></p>

@@ -53,12 +53,12 @@ RzMon bestaat uit vier onderdelen:
 | **Service** | Is een systemd-service `active`? Op agent-servers ook: luistert hij op zijn poorten, antwoordt hij, herstarts en log-fouten (§8.7) | Niet actief of antwoordt niet = CRITICAL; ≥ 3 herstarts/uur of fouten in het log = WARNING | Lokaal + agent |
 | **CPU** | CPU-gebruik over 2 seconden + load average | % gebruik | Lokaal + agent |
 | **RAM** | Geheugengebruik (cache telt niet mee) + swap | % gebruikt | Lokaal + agent |
-| **🔄 Herstart** | Ziet wanneer de server opnieuw is opgestart en stuurt dan een ℹ️ info-melding (§6.2) | Altijd OK; de uptime in uren is de waarde | Lokaal + agent (agent 1.46.0+) |
+| **Uptime** (tot 1.90.0: *Herstart*) | Ziet wanneer de server opnieuw is opgestart en stuurt dan een ℹ️ info-melding (§6.2) | Altijd OK; de uptime in uren is de waarde | Lokaal + agent (agent 1.46.0+) |
 | **Home Assistant** | Core, Supervisor, elke add-on en beschikbare updates | Niet actief = CRITICAL, update beschikbaar = WARNING | HA-add-on |
 | **Podman (algemeen)** | Draait podman; gestopte (foutcode), ongezonde of gepauzeerde containers; pods | Probleem = WARNING | Agent met podman |
 | **Logbestand (zoeken)** | Treffers van een zoekpatroon in een logbestand, het systemlog of kernelmeldingen (bv. mislukte logins, hardwarefouten) | Aantal treffers in de laatste 15 min (instelbaar) | Agent |
 | **Container (Podman)** | Eén check per container: altijd de status (incl. healthcheck en herstarts), plus naar keuze CPU, RAM en disk | Gestopt/ongezond = CRITICAL; CPU/RAM in %, disk in MB, elk met eigen drempels | Agent met podman |
-| **📥 Heartbeat** | Meldt een script, back-up of cronjob zich op tijd? Via `rzmon-hb` (agent) of een geheime URL; met start, ok, fail, duur en een waarde (§7.8) | Te laat = WARNING, 2× de speling = CRITICAL; fail = CRITICAL; te lang bezig = CRITICAL; waarde met eigen drempels | Alle servers (vanaf 1.77.0) |
+| **Heartbeat** | Meldt een script, back-up of cronjob zich op tijd? Via `rzmon-hb` (agent) of een geheime URL; met start, ok, fail, duur en een waarde (§7.8) | Te laat = WARNING, 2× de speling = CRITICAL; fail = CRITICAL; te lang bezig = CRITICAL; waarde met eigen drempels | Alle servers (vanaf 1.77.0) |
 
 **⇄ Omgekeerde status:** bij ping, poort, HTTP, service, container, Podman, commando en Home Assistant kies je zelf welke status een check krijgt als hij slaagt (OK, warning of critical) en als hij mislukt. Zo bewaak je iets dat juist níet mag draaien of bereikbaar mag zijn (§7.2).
 
@@ -494,7 +494,7 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - De drie getallen pas je aan in het blok *Anti-flapping*, en per check in de eigen meldregels.
 
 **ℹ️ Info** (standaard uit): meldingen over gebeurtenissen die **geen storing** zijn.
-- **Server herstart:** met de check **🔄 Herstart** (＋ Check, groep 📊 Systeem; voor de RzMon-server zelf en agent-servers met agent 1.46.0 of nieuwer), de check *HA OS herstart* van Home Assistant (alleen een geplande herstart; een onverwachte is CRITICAL) en de SNMP-check *Uptime*. Bijvoorbeeld *"ℹ️ INFO: WebServer01 – Herstart: Herstart om 22-10 03:12 · was 41 d 6 u aan"*.
+- **Server herstart:** met de check **Uptime** (＋ Check, groep 📊 Systeem; voor de RzMon-server zelf en agent-servers met agent 1.46.0 of nieuwer), de check *HA OS herstart* van Home Assistant (alleen een geplande herstart; een onverwachte is CRITICAL) en de SNMP-check *Uptime*. Bijvoorbeeld *"ℹ️ INFO: WebServer01 – Herstart: Herstart om 22-10 03:12 · was 41 d 6 u aan"*.
 - **SSL-certificaat vernieuwd:** bij een certificaat-check, als er ineens meer dagen over zijn dan bij de vorige controle.
 - **Agent bijgewerkt:** van welke naar welke versie (met de knop, automatisch, via de add-on winkel of met de hand), of ✘ als het bijwerken mislukte. Per server uit te zetten in de **Agent Manager** (*Info bij agent-updates*).
 - **RzMon bijgewerkt:** van welke naar welke versie.
@@ -683,7 +683,7 @@ Klik op een serverkaart op **＋**. Per type:
 | Service | systemd-naam, bv. `nginx`. Bij een HA-agent: `homeassistant`, `supervisor`, `updates` of `addon:<slug>` | – |
 | CPU | – | 85 / 95 % |
 | RAM | – | 85 / 95 % |
-| 🔄 Herstart | – | Geen drempels: altijd OK, bij een herstart een ℹ️ info-melding |
+| Uptime | – | Geen drempels: altijd OK, bij een herstart een ℹ️ info-melding |
 | Podman (algemeen) | – (alleen agent-servers met podman) | – |
 | Container (Podman) | Containernaam, uit de lijst. Status altijd; vink CPU, RAM en/of disk aan, elk met eigen drempels | CPU 80 / 95 %, RAM 85 / 95 %, disk 5000 / 10000 MB |
 | Commando | Een commando en het antwoord dat je verwacht (gelijk aan, bevat, regex of exitcode 0); alleen als commando's voor die server aan staan (§8.10) | Afwijking = critical of warning, naar keuze |
@@ -871,7 +871,7 @@ Wil je iets anders uitlezen, gebruik dan **＋ Eigen OID** in de lijst, of ＋ C
 ### 7.8 Heartbeat: scripts, back-ups en cronjobs 📥
 Bij een **heartbeat-check** (ook wel *passieve check*) vraagt RzMon zelf niets op: het script of apparaat meldt zich bij RzMon als het klaar is. Blijft die melding uit, dan krijg je bericht. Ideaal voor back-ups, cronjobs, certificaatvernieuwing en alles wat 's nachts stil hoort te lukken.
 
-**Aanmaken:** klap de server open → **＋ Check** → type **📥 Heartbeat**.
+**Aanmaken:** klap de server open → **＋ Check** → type **Heartbeat**.
 - **Naam (voor rzmon-hb)**: bv. `backup-db` (letters, cijfers, punt, `-` of `_`; per server uniek).
 - **Verwacht**: *elke … minuten/uren/dagen*, *elke dag om …*, *elke week op …* of een eigen **cron-schema** (`minuut uur dag maand weekdag`, bv. `30 2 * * 1-5` = werkdagen om 02:30). Gebruik hetzelfde schema als je cronjob.
 - **Speling** (standaard 60 minuten): zo lang mag de melding op zich laten wachten. Daarna **WARNING**, na twee keer de speling **CRITICAL**.
@@ -2401,6 +2401,12 @@ Onder **Instellingen → ⬆ RzMon bijwerken** werk je RzMon bij zonder terminal
   4. *Installeren:* het installatiescript (`install-rocky.sh --yes`), net als wanneer je het commando zelf uitvoert: rechten, SELinux, hulpdienst en tabellen.
 
   Daarna laadt de pagina vanzelf de nieuwe versie. (De onderdelen van *Installeren* zie je vanaf de update ná 1.55.0: de hulpdienst zelf wordt bij het installeren bijgewerkt.) Gaat er iets mis, dan zie je de foutmelding en het logboek; is het ophalen mislukt, dan is er niets veranderd.
+- **🔁 Andere versie…** (vanaf 1.90.0): in het venster kies je een **versie** uit de lijst (alle versies uit de changelog op GitHub, met datum).
+  - **Niets kiezen** is gewoon de nieuwste.
+  - Een **oudere** versie (*ouder: terugzetten*) bevestig je met je wachtwoord (op het LAN typ je `TERUGZETTEN`). Je instellingen en gegevens blijven staan. De database blijft zoals hij is; nieuwere kolommen gebruikt de oudere versie gewoon niet. Wat er sindsdien bij kwam, werkt dan niet meer.
+  - De hulpdienst zoekt de commit waarin `VERSION` dat nummer kreeg en zet RzMon daarop (`git reset --hard`), daarna draait het installatiescript zoals altijd. Later weer naar de nieuwste gaat gewoon met *Nu bijwerken*.
+  - Zolang je bewust een andere versie dan de nieuwste gebruikt, **pauzeert automatisch bijwerken** (📌 op de kaart). Anders zou de nacht erna alles terugdraaien.
+  - Kies je een versie van vóór 1.90.0, dan kent de hulpdienst daar nog geen versiekeuze. Ga eerst weer naar de nieuwste om opnieuw te kunnen kiezen.
 - **Automatisch bijwerken:** zet de schakelaar aan en kies een tijdstip (standaard 04:00). Is er een nieuwe versie, dan werkt RzMon zichzelf die dag in het uur na dat tijdstip bij, met een back-up vooraf als die schakelaar aan staat. De agents werk je apart bij (*⬆ Agents bijwerken*).
 - **Eenmalig nodig:** de hulpdienst voor bijwerken. Die zet `install-rocky.sh` klaar; voer na de update naar 1.29.0 het installatiecommando dus nog één keer uit. Controleren: `systemctl status rzmon-update.path`.
 - **Veiligheid:** de webpagina zet alleen een verzoek neer (`/var/lib/rzmon/update.request`). De hulpdienst (`/usr/local/sbin/rzmon-update`, als root) voert altijd dezelfde stappen uit, en weigert als de map ontgrendeld is (`--unlock`) of als een bestand niet van root is. Het logboek staat in `/var/lib/rzmon/update.log`.
