@@ -1849,6 +1849,7 @@ function hostDetail(h, lines = null) {
         ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="btn ack-btn need-user" data-act="ack-host" data-id="${h.id}">✔ ${L('Alles bevestigen')}</button>` : ''}
         <button class="btn need-user" data-act="maint-host" data-id="${h.id}">🔧 ${L('Onderhoud')}</button>
         <button class="btn need-admin" data-act="add-check" data-id="${h.id}">＋ Check</button>
+        ${+h.discover_n ? `<button class="btn need-admin discover-btn" data-act="discover" data-id="${h.id}" title="${esc(L('Nog niet bewaakt: disks, services, containers, certificaten en poorten die de agent ziet'))}">💡 ${+h.discover_n === 1 ? L('1 nieuw gevonden') : L('{n} nieuw gevonden', { n: h.discover_n })}</button>` : ''}
         <button class="btn need-user" data-act="scan" data-id="${h.id}">🔍 ${L('Poorten')}</button>
         ${h.snmp ? `<button class="btn need-admin" data-act="snmp" data-id="${h.id}">📡 ${L('SNMP-checks')}</button>` : ''}
         ${hostKind(h) === 'camera' ? `<button class="btn need-admin" data-act="cam-rec" data-id="${h.id}">${L('＋ Aanbevolen checks')}</button>` : ''}
@@ -2093,6 +2094,7 @@ async function onHostsClick(e) {
     case 'edit-check': { const [c, h] = findCheck(id); return checkForm(c, h); }
     case 'history': { const [c, h] = findCheck(id); return showHistory(c, h); }
     case 'agent': return agentInstructions(findHost(id));
+    case 'discover': return discoverDialog(findHost(id));
     case 'scan': return portScan(findHost(id));
     case 'snmp': return snmpChecks(findHost(id));
     case 'cam-rec': return cameraRecommended(findHost(id));
@@ -2634,6 +2636,22 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const certs = h.metrics.filter((m) => m.startsWith('cert:')).map((m) => m.slice(5));
   const containers = h.metrics.filter((m) => m.startsWith('container:')).map((m) => m.slice(10));
 
+  // Formulier → wat de server verwacht (voor opslaan en voor 🧪 Nu proberen)
+  const payloadOf = (d) => {
+    const notify = $('#notify-own').checked && ownEditor ? ownEditor.get() : null;
+    const qm = $('#quiet-mode').value;
+    const quiet = qm === 'global' ? null : qm === 'never' ? { mode: 'never' } : { mode: 'own', windows: quietOwnEditor ? quietOwnEditor.get().windows : [] };
+    if (qm === 'own' && !quiet.windows.length) throw new Error(L('Stille uren: vul minstens één venster in met een dag'));
+    const command = d.type === 'command' ? { cmd: d.cmd, expect: d.cmd_expect, match: d.cmd_match, timeout: d.cmd_timeout, fail: d.cmd_fail } : undefined;
+    const res = {};
+    ['cpu', 'mem', 'disk'].forEach((k) => { res[k] = { on: !!d[`res_${k}`], warn: d[`res_${k}_warn`], crit: d[`res_${k}_crit`] }; });
+    if (d.type === 'heartbeat') {
+      d.hb_every = Math.round(+d.hb_every_n * +d.hb_every_u);
+      d.hb_ext = !!d.hb_ext;
+      d.hb_new_token = !!d.hb_new_token;
+    }
+    return { ...d, res, notify, quiet, command, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep, info_only: !!d.info_only };
+  };
   const { form } = modal({
     title: tpl ? `📋 ${tpl.name}: ${isNew ? L('check toevoegen') : c.name}` : isNew ? L('Check toevoegen – {name}', { name: h.name }) : L('Check bewerken – {name}', { name: c.name }),
     body: `
@@ -2780,22 +2798,11 @@ function checkForm(c, h, preset = {}, tpl = null) {
         await api('check_delete', { id: c.id });
         $('#modal').close(); toast(L('Check verwijderd')); refresh();
       } }]),
+      ...(tpl ? [] : [{ label: '🧪 ' + L('Nu proberen'), onClick: (btn) => tryCheck(btn) }]),
       { label: tpl ? L('Opslaan in sjabloon') : isNew ? L('Toevoegen & checken') : L('Opslaan & checken'), cls: 'primary', submit: true },
     ],
     onSubmit: async (d) => {
-      const notify = $('#notify-own').checked && ownEditor ? ownEditor.get() : null;
-      const qm = $('#quiet-mode').value;
-      const quiet = qm === 'global' ? null : qm === 'never' ? { mode: 'never' } : { mode: 'own', windows: quietOwnEditor ? quietOwnEditor.get().windows : [] };
-      if (qm === 'own' && !quiet.windows.length) throw new Error(L('Stille uren: vul minstens één venster in met een dag'));
-      const command = d.type === 'command' ? { cmd: d.cmd, expect: d.cmd_expect, match: d.cmd_match, timeout: d.cmd_timeout, fail: d.cmd_fail } : undefined;
-      const res = {};
-      ['cpu', 'mem', 'disk'].forEach((k) => { res[k] = { on: !!d[`res_${k}`], warn: d[`res_${k}_warn`], crit: d[`res_${k}_crit`] }; });
-      if (d.type === 'heartbeat') {
-        d.hb_every = Math.round(+d.hb_every_n * +d.hb_every_u);
-        d.hb_ext = !!d.hb_ext;
-        d.hb_new_token = !!d.hb_new_token;
-      }
-      const payload = { ...d, res, notify, quiet, command, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep, info_only: !!d.info_only };
+      const payload = payloadOf(d);
       if (tpl) {
         await api('template_item_save', { ...payload, template_id: tpl.id, item_id: c.id });
         toast(L('Opgeslagen in het sjabloon'));
@@ -2807,6 +2814,21 @@ function checkForm(c, h, preset = {}, tpl = null) {
     },
   });
 
+  // 🧪 Nu proberen (1.95.0): wat de check nu zou zeggen, zonder iets op te slaan
+  async function tryCheck(btn) {
+    let out = $('#try-out');
+    if (!out) { $('#modal-body').insertAdjacentHTML('beforeend', '<div id="try-out" class="try-out"></div>'); out = $('#try-out'); }
+    btn.disabled = true;
+    out.innerHTML = `<span class="muted">${L('Bezig…')}</span>`;
+    try {
+      const r = await api('check_try', { ...payloadOf(Object.fromEntries(new FormData(form))), host_id: h.id, check_id: c.id || 0 });
+      out.innerHTML = `<b>${ST_ICON[r.status] || ''} ${esc(STATUS[r.status] || '')}</b>${r.value != null ? ` · ${esc(dec(+r.value))}${(TYPES[form.type.value] || {}).unit ? ' ' + esc(L(TYPES[form.type.value].unit)) : ''}` : ''}
+        <div class="small">${esc(r.message)}</div>${h.mode === 'agent' && ['service', 'log', 'command', 'container', 'podman'].includes(form.type.value)
+          ? `<div class="hint">${L('Op een agent-server gebruikt RzMon het laatste rapport; een nieuwe service, log of commando ziet de agent pas bij zijn volgende rapport.')}</div>` : ''}`;
+    } catch (ex) { out.innerHTML = `<span class="bad">${esc(ex.message)}</span>`; }
+    btn.disabled = false;
+    out.scrollIntoView({ block: 'nearest' });
+  }
   if ($('#tpl-reset')) $('#tpl-reset').onclick = async () => {
     try { await api('check_tpl_reset', { id: c.id }); $('#modal').close(); toast(L('Terug naar het sjabloon')); refresh(); } catch (ex) { toast(ex.message, 'err'); }
   };
@@ -6533,6 +6555,37 @@ async function totpSetup(id, username) {
 
 // ---------------------------------------------------------------- Databasewachtwoord vernieuwen
 let dbInfo = null;
+// ---------------------------------------------------------------- 💡 Nog niet bewaakt (1.95.0)
+const DISCOVER_KIND = { disk: () => '💾 ' + L('Disks'), service: () => '⚙️ ' + L('Services'), container: () => '📦 ' + L('Containers'), cert: () => '🔒 ' + L('Certificaten'), port: () => '🌐 ' + L('Poorten') };
+async function discoverDialog(h) {
+  let d;
+  try { d = await api('discover', null, { id: h.id }); } catch (ex) { return toast(ex.message, 'err'); }
+  const groups = Object.keys(DISCOVER_KIND).map((k) => [k, d.items.filter((i) => i.kind === k)]).filter(([, l]) => l.length);
+  modal({
+    title: '💡 ' + L('Nog niet bewaakt – {name}', { name: h.name }),
+    wide: true,
+    body: `<p class="hint" style="margin-top:0">${L('Dit ziet de agent op de server, maar er is nog geen check voor. Vink aan wat je wilt bewaken; de rest kun je negeren, dan komt het niet meer terug.')}</p>
+      ${groups.length ? groups.map(([k, list]) => `<h3 class="set-sub">${DISCOVER_KIND[k]()}</h3>
+        ${list.map((i) => `<label class="switch"><input type="checkbox" data-dk="${esc(i.key)}" ${k === 'port' ? '' : 'checked'}><span></span> <span><b>${esc(i.label)}</b></span></label>`).join('')}`).join('')
+        : `<p class="muted">${L('Alles wordt al bewaakt.')}</p>`}
+      ${d.ignored ? `<p class="small muted">${L('{n} genegeerd.', { n: d.ignored })} <a href="#" id="dk-unignore">${L('Weer tonen')}</a></p>` : ''}`,
+    buttons: groups.length ? [{ label: '🙈 ' + L('Gekozen negeren'), style: 'margin-right:auto', onClick: async () => {
+      const keys = $$('#modal-body [data-dk]').filter((x) => x.checked).map((x) => x.dataset.dk);
+      if (!keys.length) return toast(L('Niets gekozen'), 'err');
+      await api('discover_ignore', { host_id: h.id, keys }); $('#modal').close(); toast(L('Genegeerd')); refresh();
+    } }, { label: L('Checks toevoegen'), cls: 'primary', submit: true }] : [{ label: L('Sluiten'), cls: 'primary', submit: true }],
+    onSubmit: groups.length ? async () => {
+      const keys = new Set($$('#modal-body [data-dk]').filter((x) => x.checked).map((x) => x.dataset.dk));
+      if (!keys.size) throw new Error(L('Niets gekozen'));
+      let n = 0;
+      for (const i of d.items.filter((x) => keys.has(x.key))) { await api('check_save', { host_id: h.id, enabled: true, interval_sec: 60, verify_ssl: true, ...i.data }); n++; }
+      toast(n === 1 ? L('1 check toegevoegd') : L('{n} checks toegevoegd', { n }));
+    } : null,
+  });
+  const un = $('#dk-unignore');
+  if (un) un.onclick = async (e) => { e.preventDefault(); await api('discover_ignore', { host_id: h.id, keys: [], undo: true }); $('#modal').close(); refresh(); setTimeout(() => discoverDialog(findHost(h.id)), 300); };
+}
+
 // ---------------------------------------------------------------- 🧩 Sjablonen en alle checks (1.94.0)
 let tplData = null;
 const thrText = (c) => {

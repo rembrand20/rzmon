@@ -1531,3 +1531,7 @@ code.ip-link { cursor: pointer; text-decoration: underline dotted; }
   border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent); border-radius: 10px; background: var(--card); }
 .ac-table td:first-child, .ac-table th:first-child { width: 2rem; padding-right: 0; }
 .ac-table input[type=checkbox] { width: 1.05rem; height: 1.05rem; }
+
+/* Nog niet bewaakt en Nu proberen (1.95.0) */
+.discover-btn { border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
+.try-out { margin-top: .8rem; padding: .6rem .8rem; border: 1px dashed var(--border); border-radius: 10px; }

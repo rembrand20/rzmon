@@ -979,7 +979,7 @@ $confirm = static function (string $word) use ($user): void {
  * Een check uit het formulier controleren (1.94.0): de kolommen voor de tabel checks, en of er een nieuwe heartbeat-URL moet komen.
  * Gebruikt door check_save, sjablonen (template_item_save) en kopiëren. Bij een fout: out() met de foutmelding.
  */
-$checkCols = static function (array $in) use ($user): array {
+$checkCols = static function (array $in, bool $dry = false) use ($user): array {   // $dry: alleen proberen (geen logboek)
             $type = $in['type'] ?? '';
             if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat'], true)) {
                 out(['error' => t('Ongeldig type')], 422);
@@ -993,7 +993,7 @@ $checkCols = static function (array $in) use ($user): array {
                 }
                 $command = json_encode($cmdCfg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 $prev = !empty($in['id']) ? q('SELECT command FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn() : null;
-                if ($prev !== $command) {
+                if ($prev !== $command && !$dry) {
                     AgentCommands::audit($user['username'], empty($in['id']) ? 'commando-check aangemaakt' : 'commando-check gewijzigd',
                         'server ' . (int) ($in['host_id'] ?? 0) . ': ' . $cmdCfg['cmd'] . ' → ' . AgentCommands::MATCHES[$cmdCfg['match']] . ' "' . $cmdCfg['expect'] . '"');
                 }
@@ -1239,7 +1239,9 @@ switch ($action) {
         foreach ($agent as $a) {
             $metrics[$a['host_id']][] = $a['metric'];
         }
+        $discover = $isAdmin ? Discover::counts() : [];   // 1.95.0: nog niet bewaakt (alleen beheerders voegen checks toe)
         foreach ($hosts as &$h) {
+            $h['discover_n'] = $discover[(int) $h['id']] ?? 0;
             $h['checks'] = $byHost[$h['id']] ?? [];
             $h['metrics'] = $metrics[$h['id']] ?? [];
             $own = $h['maintenance_until'] && strtotime($h['maintenance_until']) > time()
@@ -2220,6 +2222,19 @@ switch ($action) {
         }
         out(['ok' => true]);
 
+    case 'discover':   // 1.95.0: wat er op deze server nog niet bewaakt wordt
+        $host = q('SELECT * FROM hosts WHERE id = ?', [(int) ($_GET['id'] ?? 0)])->fetch();
+        if (!$host) {
+            out(['error' => t('Server bestaat niet')], 404);
+        }
+        $ign = (array) (json_decode((string) $host['discover_ignore'], true) ?: []);
+        out(['items' => Discover::forHost($host), 'ignored' => count($ign)]);
+
+    case 'discover_ignore':
+        $in = input();
+        Discover::ignore((int) ($in['host_id'] ?? 0), (array) ($in['keys'] ?? []), empty($in['undo']));
+        out(['ok' => true]);
+
     case 'checks_all':
         out(['checks' => q('SELECT c.id, c.host_id, h.name AS host_name, c.type, c.target, c.name, c.metric, c.warn_threshold, c.crit_threshold, c.interval_sec, c.enabled,
                 c.status, c.notify IS NOT NULL AS own_notify, c.notify_fails, c.info_only, c.maintenance_until, c.last_checked, c.template_item_id, c.tpl_override, t.name AS template_name
@@ -2295,6 +2310,16 @@ switch ($action) {
         // Met de hand aangepast: sjabloonchecks gaan daarna niet meer mee met het sjabloon
         q("UPDATE checks SET $cols, tpl_override = IF(template_item_id IS NULL, 0, 1) WHERE id IN ($list)", array_values($set));
         out(['ok' => true, 'n' => count($ids)]);
+
+    case 'check_try':   // 1.95.0: proberen vóór opslaan, er wordt niets bewaard
+        $in = input();
+        [$cols] = $checkCols(['id' => (int) ($in['check_id'] ?? 0)] + $in, true);
+        try {
+            $r = Monitor::tryCheck((int) ($in['host_id'] ?? 0), (int) ($in['check_id'] ?? 0), $cols);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+        out(['status' => (int) $r['status'], 'value' => $r['value'], 'message' => (string) $r['message']]);
 
     case 'check_delete':
         q('DELETE FROM checks WHERE id = ?', [(int) (input()['id'] ?? 0)]);

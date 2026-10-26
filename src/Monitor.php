@@ -103,6 +103,35 @@ final class Monitor
         return $res;
     }
 
+    /**
+     * Check proberen zonder op te slaan (1.95.0, "🧪 Nu proberen" in het formulier): de kolommen uit het formulier op deze
+     * server (of over de bestaande check heen), uitgevoerd in een transactie die daarna wordt teruggedraaid.
+     */
+    public static function tryCheck(int $hostId, int $checkId, array $cols): array
+    {
+        $base = $checkId ? q(self::CHECK_SELECT . ' WHERE c.id = ?', [$checkId])->fetch() : false;
+        if (!$base) {
+            $h = q('SELECT id AS hid, name AS host_name, address, mode, agent_seen, agent_version, agent_tick, enabled AS host_enabled, parent_id, snmp AS host_snmp,
+                    kind_auto AS host_kind_auto FROM hosts WHERE id = ?', [$hostId])->fetch();
+            if (!$h) {
+                throw new InvalidArgumentException(t('Server bestaat niet'));
+            }
+            // Alle kolommen van een check, leeg (zoals een nieuwe)
+            $empty = array_fill_keys(q('SHOW COLUMNS FROM checks')->fetchAll(PDO::FETCH_COLUMN), null);
+            $base = array_merge($empty, $h, ['id' => 0, 'host_id' => $hostId, 'status' => STATUS_UNKNOWN, 'fail_count' => 0, 'status_streak' => 0]);
+        }
+        $row = array_merge($base, $cols);
+        $host = ['id' => $row['hid'], 'name' => $row['host_name'], 'address' => $row['address'], 'mode' => $row['mode'], 'agent_seen' => $row['agent_seen'],
+            'agent_version' => $row['agent_version'] ?? null, 'agent_tick' => $row['agent_tick'] ?? null, 'snmp' => $row['host_snmp'] ?? null, 'kind_auto' => $row['host_kind_auto'] ?? null];
+        db()->beginTransaction();
+        try {
+            $res = Checks::reverse($row, Checks::run($row, $host));
+        } finally {
+            db()->rollBack();
+        }
+        return $res;
+    }
+
     // ------------------------------------------------------------------ onderhoud
 
     /** Globaal onderhoud (alles), of null. */

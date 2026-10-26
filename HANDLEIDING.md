@@ -1070,6 +1070,14 @@ AGENT_DIR=/mnt/<pool>/rzmon-agent bash /mnt/<pool>/rzmon-agent/rzmon-agent.sh --
 - **Kopiëren:** staat het adres van de oorspronkelijke server in het doel, dan krijgt de kopie het adres van de nieuwe server.
 - **Klik op een naam** om die check te bewerken.
 
+### 7.10 Nog niet bewaakt 💡 en Nu proberen 🧪
+
+**💡 Nog niet bewaakt** (vanaf 1.95.0): op een agent-server ziet RzMon wat de agent meldt maar nog geen check heeft. Het gaat om disks, services die draaien en automatisch starten, containers, certificaten en poorten die van buiten de server bereikbaar zijn. Systeemservices zoals `systemd-*`, `getty`, `dbus` en `cron` tellen niet mee.
+- Bij de server staat dan **💡 3 nieuw gevonden**. Klik erop, vink aan wat je wilt bewaken en kies **Checks toevoegen** (met gangbare drempels; poorten staan standaard uit).
+- **🙈 Gekozen negeren**: dan komt het voor die server niet meer terug. *Weer tonen* zet alles terug.
+
+**🧪 Nu proberen** (vanaf 1.95.0): in het checkformulier zie je meteen wat de check nu zou zeggen (status, waarde en bericht), voordat je opslaat. Er wordt niets bewaard of gemeld. Op een agent-server gebruikt RzMon het laatste rapport; een nieuwe service, log of commando ziet de agent pas bij zijn volgende rapport.
+
 ## 8. Agent op Linux-servers
 
 Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-servers: Rocky, RHEL, AlmaLinux, Fedora, Debian, Ubuntu, Raspberry Pi OS en Proxmox VE.

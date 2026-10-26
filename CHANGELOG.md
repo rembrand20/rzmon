@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.95.0 – 2026-10-26
+### Nieuw
+- **💡 Nog niet bewaakt:** wat de agent ziet maar nog geen check heeft, staat bij de server als *💡 N nieuw gevonden*. Het gaat om disks, services die draaien en automatisch starten, containers, certificaten en poorten die van buiten bereikbaar zijn. Vink aan en voeg toe, of negeer het, dan komt het niet meer terug.
+- **🧪 Nu proberen** in het checkformulier: zie meteen wat de check zou zeggen (status, waarde, bericht) voordat je opslaat. Er wordt niets bewaard of gemeld.
+
+
 ## 1.94.0 – 2026-10-26
 ### Nieuw
 - **📋 Sjablonen** (*Instellingen → 🧩 Checks → Sjablonen*):

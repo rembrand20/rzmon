@@ -42,6 +42,8 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 
 **📋 Sjablonen** (1.94.0): sets checks die je zelf maakt (of maakt van een bestaande server) en aan servers koppelt, met `{adres}` en `{naam}` per server. Pas je het sjabloon aan, dan gaan alle gekoppelde servers mee, behalve checks die je op een server zelf hebt aangepast (terug te zetten). Startsjablonen: *Linux-server*, *Website*, *Netwerkapparaat*.
 
+**💡 Nog niet bewaakt** (1.95.0): wat de agent ziet maar nog geen check heeft (disks, services, containers, certificaten, open poorten) staat bij de server als *💡 N nieuw gevonden*: met één klik toevoegen of negeren. **🧪 Nu proberen** in het checkformulier toont het resultaat vóór je opslaat.
+
 **☑️ Alle checks** (1.94.0): één lijst met zoeken en filters; vink checks aan en pas ze tegelijk aan (interval, drempels, melden, onderhoud, aan/uit), kopieer ze naar andere servers of verwijder ze.
 
 **⇄ Omgekeerde status** (ping, poort, HTTP, service, container, Podman, commando, Home Assistant): kies zelf de status als de check slaagt (OK, warning of critical) en als hij mislukt. Voor iets dat juist níet mag draaien of bereikbaar mag zijn, zoals telnet of een oude server. Telt niet mee voor de bereikbaarheid van een server.
