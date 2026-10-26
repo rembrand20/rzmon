@@ -178,7 +178,16 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 ### Accountmenu, Mijn account en Instellingen (vanaf 1.60.0)
 - **Rechtsboven** staat je naam met een menu: **👤 Mijn account**, **⚙️ Instellingen** (alleen beheerders), het **thema** (auto, licht of donker), de **taal** (NL of EN) en **⏻ Uitloggen**. Ben je zonder wachtwoord binnen via het lokale netwerk, dan staat er **🏠 Lokaal netwerk** met **Inloggen met je account**; *Mijn account* is er dan niet.
 - **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave op dit apparaat** (Blox of L1nes, Small of Large).
-- **Instellingen** (alleen beheerders; het tabblad in de bovenbalk is weg): links een **zijbalk** met de groepen **🔔 Meldingen** (Kanalen · Meldregels en stille uren · Systeeminfo), **📈 Monitoring** (Alarmgedrag · Kwetsbaarheden · IDS), **🔐 Beveiliging** (Toegang en inlogbeveiliging · Gebruikers · API-sleutels · Blokkades en whitelist), **🖥️ Agents** (Agents bijwerken en commando's · Beveiligde verbinding) en **🛠️ Systeem** (RzMon bijwerken · Verbindingen en taken · Back-up · Database · Setup). Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan.
+- **Instellingen** (alleen beheerders): links een **zijbalk** met de groepen (vanaf 1.92.0):
+  - **✅ Overzicht**: Hoe staat het ervoor? · Verbindingen en taken;
+  - **🔔 Meldingen**: Kanalen (Pushover, e-mail, Home Assistant-webhook) · Meldregels en stille uren · Alarmgedrag · Systeeminfo;
+  - **🛡️ Beveiliging**: IDS: detectie · IDS: aanvallers en verkeer · IDS: servers · Kwetsbaarheden · Datalekken;
+  - **🔐 Toegang**: Inloggen · Van buiten (https, onzichtbaar van buiten, apparaten en passkeys) · Gebruikers;
+  - **🖥️ Agents**: Agents (één tabel met alle agents, bijwerken, ritme) · Beveiligde verbinding · Commando-checks;
+  - **🔗 Koppelingen**: MQTT (Home Assistant) · REST API en API-sleutels;
+  - **🛠️ Systeem**: RzMon bijwerken · Back-up · Database en opslag · Server en PHP · Systeemcheck.
+
+  Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan. **Blokkades en de whitelist** staan in het tabblad **IDS → ⛔ Blokkades**.
   - **✅ Hoe staat het ervoor?** (vanaf 1.62.0) is het eerste onderdeel; via het accountmenu kom je altijd hier. Een cirkel met een score (0–100%) en een lijst: ✔ groen is in orde, **!** oranje is een aandachtspunt, ✘ rood moet je regelen, grijs is optioneel (telt niet mee). RzMon kijkt naar: een **meldkanaal** (Pushover of e-mail aan en ingevuld), **automatische back-up** (en de laatste niet ouder dan een week), **2FA** voor alle beheerders (accounts die *alleen lokaal* mogen inloggen tellen niet mee), **inlogbeveiliging**, een **nieuwe RzMon-versie**, **agents** op een oudere versie of **onversleuteld**, **HTTPS** (zoals jij RzMon nu opent), en of **kwetsbaarheden** en **IDS** aan staan. Klik op een punt en je staat bij de instelling. In de zijbalk krijgt een groep met een aandachtspunt een oranje (of rood) bolletje.
   - **🔍 Zoek een instelling…** bovenaan de zijbalk (op de telefoon boven de keuzelijst) zoekt in de namen van de onderdelen én in alle velden, schakelaars en koppen, ook ingeklapte. Met **Enter** (of een klik op een resultaat) spring je naar het veld: het licht even op en een ingeklapt *Geavanceerd* gaat open. **Esc** wist de zoekterm.
   - Lange uitleg is ingekort tot twee regels, met **ⓘ meer uitleg** om alles te lezen. Een lange toelichting bij een veld is een **ⓘ**: wijs hem aan (of tik erop) voor de tooltip.
@@ -201,13 +210,15 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 - **🔐 Versleutelde agents** (1.49.0+), **⛔ blokkades** op IP-adres of netwerk voor heel RzMon, en meldingen bij niet-geautoriseerde verbindingen (⚠️ + Pushover), logins en agents die verbinden (ℹ️); zie [10.1](#101-versleutelde-agents-blokkades-en-beveiligingsmeldingen-vanaf-1570).
 - **Overige beveiliging:** CSRF-bescherming, HttpOnly/SameSite-cookies, een eigen token per agent en API-sleutels die alleen als hash worden opgeslagen.
 
-### Setup-pagina
-Alleen voor **beheerders**: via *Instellingen → 🛠️ Systeem → Setup*. Andere gebruikers zien de knop niet, en de pagina zelf weigert ze ook.
-- **Systeemcheck:** PHP, extensies, ping, systemctl, schrijfrechten, database en cron.
-- **Database instellen:** verbinding testen, en optioneel de database en gebruiker laten aanmaken.
-- **Tabellen** installeren en bijwerken.
-- **Instellingen:** tijdzone, basis-URL, pad naar ping en PHP-instellingen (`memory_limit`, `max_execution_time`, `display_errors`).
-- **Eerste beheerder** aanmaken en een kant-en-klare cron-regel kopiëren.
+### Setup
+Bij de **installatie** (en als de database niet bereikbaar is) is er de **setup-pagina** (`setup.php`, alleen vanaf je lokale netwerk): systeemcheck, database koppelen (en eventueel laten aanmaken), instellingen en de **eerste beheerder**.
+
+Daarna staat alles in de beheerportal (vanaf 1.92.0; `setup.php` stuurt je erheen), alleen voor **beheerders**:
+- *Instellingen → 🛠️ Systeem → **Systeemcheck***: PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en een kant-en-klare cron-regel.
+- *→ **Database en opslag***: de databaseverbinding (testen, opslaan met je wachtwoord, tabellen bijwerken), het databasewachtwoord vernieuwen en hoe lang historie en meldingen bewaard blijven.
+- *→ **Server en PHP***: tijdzone, basis-URL, pad naar ping en PHP-instellingen (`memory_limit`, `max_execution_time`, `display_errors`).
+
+Is de installatiemap vergrendeld (zoals het hoort), dan kan RzMon `config.php` niet zelf schrijven; je krijgt dan de inhoud om als root te plaatsen.
 
 ### REST API
 - **Alleen lezen** (JSON), met API-sleutels die je in de webinterface beheert.
@@ -235,7 +246,7 @@ Alleen voor **beheerders**: via *Instellingen → 🛠️ Systeem → Setup*. An
                          └──────────────────────────────────────────────┘
 ```
 
-**Wat gebeurt wanneer?** Alles hieronder zie je ook live bij *Instellingen → Systeem → 📡 Verbindingen en taken*.
+**Wat gebeurt wanneer?** Alles hieronder zie je ook live bij *Instellingen → Overzicht → 📡 Verbindingen en taken*.
 
 | Wie | Hoe vaak |
 |---|---|
@@ -419,7 +430,7 @@ Zet de schrijfrechten daarna weer terug:
 ```bash
 sudo chown root /var/www/rzmon
 ```
-Wil je later via *Setup* iets aan de database- of PHP-instellingen veranderen, dan toont de setup de nieuwe inhoud van `config.php`, die je zelf plaatst. Of je geeft tijdelijk weer schrijfrechten.
+Wil je later iets aan de database- of PHP-instellingen veranderen (*Instellingen → Systeem → Database en opslag* of *Server en PHP*), dan toont RzMon de nieuwe inhoud van `config.php`, die je zelf plaatst. Of je geeft tijdelijk weer schrijfrechten.
 
 > **Kan de setup `config.php` niet schrijven?** Dan zie je de inhoud in beeld. Maak het bestand zelf aan met `sudo nano /var/www/rzmon/config.php`, plak de inhoud, sla op en ververs de pagina.
 
@@ -1098,7 +1109,7 @@ Opnieuw uitvoeren is altijd veilig. Bij een bestaande installatie blijft `/etc/d
 Na de eerste installatie (met het commando) werk je de agent bij met een knop:
 
 - **Per server:** klap de server open → **Agent Manager** → **⬆ Bijwerken naar …**. Daar staat ook hoe het afliep.
-- **Allemaal tegelijk:** *Instellingen → ⬆ Agents bijwerken* → **Alle verouderde agents bijwerken**.
+- **Allemaal tegelijk:** *Instellingen → Agents* → **Alle verouderde agents bijwerken**.
 - **Automatisch:** zet op dezelfde kaart **Agents automatisch bijwerken** aan. Een verouderde agent werkt zichzelf dan bij zonder knop, met hooguit één poging per 6 uur.
 
 Zo gaat het:
@@ -1128,7 +1139,7 @@ De agent is **geen daemon**: hij wordt steeds opnieuw gestart, maakt een rapport
 | Home Assistant-add-on | een lus in de add-on, elke **30 s** |
 
 Hoe vaak er echt een **rapport** uitgaat, de **tik**, stel je in RzMon in. Is de tik nog niet om, dan stopt de agent meteen weer (dat kost een paar milliseconden).
-- **Standaard voor alle agents:** *Instellingen → ⬆ Agents bijwerken → Agents rapporteren standaard elke …*: 30 s, 60 s (standaard), 2 min of 5 min.
+- **Standaard voor alle agents:** *Instellingen → Agents → Agents rapporteren standaard elke …*: 30 s, 60 s (standaard), 2 min of 5 min.
 - **Per server:** *Agent Manager → ⏱ Rapporteren elke …*. *standaard* volgt de algemene instelling.
 - De agent neemt een nieuwe tik binnen een minuut over. Bij cron en op TrueNAS is één minuut het minimum.
 - **Agent offline** volgt de tik: een agent geldt pas als stil na minstens 3 gemiste tikken.
@@ -1443,7 +1454,7 @@ Klik op 📈 voor de grafiek van het aantal treffers en de **laatste 5 gevonden 
 Had je de agent al met de hand geïnstalleerd (map, `agent.conf` en een cronjob met de naam *RzMon agent*)? Dan worden je instellingen en die cronjob overgenomen.
 
 Goed om te weten:
-- **Bijwerken:** met de knop in RzMon (*Agent Manager* of *⬆ Agents bijwerken*), net als op andere servers. Met de hand: `bash /mnt/<pool>/rzmon-agent/rzmon-agent-setup --update`.
+- **Bijwerken:** met de knop in RzMon (*Agent Manager* of *Instellingen → Agents*), net als op andere servers. Met de hand: `bash /mnt/<pool>/rzmon-agent/rzmon-agent-setup --update`.
 - **Testen:** `bash /mnt/<pool>/rzmon-agent/rzmon-agent-setup --test`. **Verwijderen:** `… --uninstall`; dat haalt ook de cronjob weg.
 - **Lukt de cronjob via de API niet**, dan zegt het script dat en toont het het commando om hem zelf aan te maken.
 - **Disks:** je pools staan onder `/mnt/…`, bijvoorbeeld een diskcheck op `/mnt/tank`.
@@ -1462,7 +1473,7 @@ Met een **Commando**-check voert de agent een commando uit op de server, en verg
 | `! test -f /var/run/reboot-required` | exitcode is 0 | *(niet nodig)*: OK zolang er geen herstart nodig is |
 | `curl -s localhost:8080/health` | bevat | `"status":"up"` |
 
-**Eerst aanzetten.** Standaard voert geen enkele agent commando's uit. Zet het aan onder **Instellingen → ⬆ Agents bijwerken → 🖥️ Commando-checks**:
+**Eerst aanzetten.** Standaard voert geen enkele agent commando's uit. Zet het aan onder **Instellingen → Agents → 🖥️ Commando-checks**:
 - *Uit* (standaard);
 - *Toestaan, als gebruiker nobody*: voor de meeste commando's genoeg;
 - *Toestaan, als root*: alleen als het echt nodig is.
@@ -1526,7 +1537,7 @@ Op het tabblad **Toegang**:
 | Mislukte sudo of su | ❌ *mislukte sudo · gast*: 3 incorrect password attempts · als root: `cat /etc/shadow` |
 
 Goed om te weten:
-- **Aan/uit:** *Instellingen → 🛡️ IDS → Toegang bijhouden* (standaard aan). Dit staat los van *IDS aan*: logins worden ook bijgehouden als het IDS uit staat. Op een server zelf zet je het altijd uit met `AUTH_EVENTS=0` in de instellingen van de agent.
+- **Aan/uit:** *Instellingen → Beveiliging → IDS: detectie → Toegang bijhouden* (standaard aan). Dit staat los van *IDS aan*: logins worden ook bijgehouden als het IDS uit staat. Op een server zelf zet je het altijd uit met `AUTH_EVENTS=0` in de instellingen van de agent.
 - **Negeren:** in hetzelfde blok vul je gebruikers en/of IP-adressen of netwerken in die niet getoond worden (of klik 🙈 bij een regel), bijvoorbeeld `ansible backup 192.168.2.5 10.0.0.0/8`. Een mislukte poging wordt alleen overgeslagen als *alle* gebruikers erin genegeerd zijn, of het IP-adres.
 - **Mislukte pogingen** worden opgeteld: per server, soort en IP-adres (of gebruiker) komt er per uur één regel, die bijgewerkt wordt (*37×*). Zo loopt de pagina niet vol als een server vanaf internet aangevallen wordt.
 - **Wachtwoorden** in sudo-commando's worden al op de server gemaskeerd, bijvoorbeeld `mysql -p••••` en `password=••••`.
@@ -1547,7 +1558,7 @@ De agent let op tekenen van een inbraak en RzMon vergelijkt dat met wat normaal 
 - **Incidenten als compacte rijen** met de knoppen rechts. **Gelijke incidenten worden gebundeld**: dezelfde soort op dezelfde server op dezelfde dag staat er één keer met **3×**; klik erop om ze te zien, of handel ze met **✔ Afhandelen (3)** in één keer af.
 - **Toegang** in dezelfde stijl als Meldingen: compacte rijen per dag, zoeken, chips per soort, en gelijke regels achter elkaar gebundeld (in L1nes de tabel zoals altijd).
 
-**Aanzetten** gaat op *Instellingen → 🛡️ IDS*:
+**Aanzetten** gaat op *Instellingen → Beveiliging → IDS: detectie*:
 - **IDS aan/uit**: standaard **uit**. Uit = de agents verzamelen niets en er wordt niets geblokkeerd.
 - **🎓 Leren / ⛔ Blokkeren**:
   - **Leren** (standaard): alles wordt gemeld, er wordt niets geblokkeerd.
@@ -1593,13 +1604,13 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - De pagina heeft drie tabbladen: **⚠️ Incidenten**, **🔑 Toegang** (logins, sudo en su, zie [8.11](#811-logins-en-sudo-)) en **⛔ Blokkades**. Het laatst gekozen tabblad wordt per apparaat onthouden.
 - Dezelfde melding binnen 24 uur wordt niet opnieuw gestuurd; de teller loopt op (*5×*).
 
-**🍯 Honeypot** (vanaf 1.81.0, agent 1.54.0; *Instellingen → 🛡️ IDS → Honeypot*)
+**🍯 Honeypot** (vanaf 1.81.0, agent 1.54.0; *Instellingen → Beveiliging → IDS: detectie → Honeypot*)
 - **Honeypot-gebruikers:** namen die bij jou nooit bestaan en die alleen aanvallers proberen. Standaard `admin test guest user oracle ubuntu pi ftp support postgres`; vul gerust aan. Eén mislukte SSH-login met zo'n naam is genoeg: van buiten wordt het IP meteen geblokkeerd (in de modus *blokkeren*), niet pas na 10 pogingen. Bestaat de naam op een server echt (bv. `postgres` op een databaseserver), dan geldt hij daar niet als honeypot.
 - **Honeypot-poort** (standaard TCP **2323**, leeg = uit): niemand van jou maakt daar verbinding mee, dus elke verbinding is een scanner. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel (`inet rzmon`) die het IP onthoudt en de verbinding stil weggooit. Werkt ook in de modus *leren* (dan alleen melden). Is de poort op een server in gebruik, dan staat dat bij die server bovenaan de pagina IDS. RzMon zelf (bv. een poortscan) telt niet mee.
 - **Vanaf je eigen netwerk** is het 🔴 **critical**, met Pushover: een apparaat in je LAN dat dit doet, is waarschijnlijk besmet (camera, slimme stekker). LAN-adressen worden nooit automatisch geblokkeerd.
 - Op de pagina IDS staan ze onder het filter **🍯 Honeypot**.
 
-**🕸️ Webshell en persistentie** (vanaf 1.87.0, agent 1.56.0; *Instellingen → 🛡️ IDS*)
+**🕸️ Webshell en persistentie** (vanaf 1.87.0, agent 1.56.0; *Instellingen → Beveiliging → IDS: servers*)
 - **Webshell:** een webserver (nginx, apache, php-fpm, lighttpd, caddy …) of een webgebruiker (`www-data`, `apache` …) start een shell (`sh`, `bash`) of een netwerkprogramma (`curl`, `wget`, `nc`, `python`, `perl` …). Dat hoort nooit; meestal is via een lek in een website een opdracht uitgevoerd.
   - Critical, ook naar Pushover.
   - PHP-mail via `sendmail` telt niet.
@@ -1617,7 +1628,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **Uitgaand blokkeren** (modus *blokkeren*, standaard uit): verkeer naar bekende aanvallers wordt in de firewalltabel `inet rzmon` ook uitgaand tegengehouden, ook vanuit containers (Docker, Podman).
 - **✅ Vrijgeven:** zet het IP op de ✅ whitelist (1, 7, 30 dagen of altijd). Dan wordt het niet meer gemeld en niet meer geblokkeerd.
 
-**🧰 Hardening-score** (vanaf 1.88.0, agent 1.57.0; aan/uit bij *Instellingen → 🛡️ IDS*)
+**🧰 Hardening-score** (vanaf 1.88.0, agent 1.57.0; aan/uit bij *Instellingen → Beveiliging → IDS: servers*)
 - Elk uur stuurt de agent een paar instellingen die het verschil maken. RzMon maakt er per server een score van 0 tot 100 van (🛡️ bij elke server op de IDS-pagina).
 - De punten:
   - SSH met wachtwoord, als root of met lege wachtwoorden;
@@ -1629,7 +1640,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **Klik op de score** voor de lijst. Bij elk fout punt staat waarom het telt en hoe je het dichtzet. Per server kun je een punt **negeren** (dan telt het niet meer mee).
 - **Wordt een punt slechter** (bv. iemand zet root-login via SSH weer aan), dan volgt een incident. Een punt dat al fout was geeft geen melding, alleen een lagere score. Het eerste rapport is de basismeting.
 
-**📜 Logs van webdiensten** (vanaf 1.89.0, agent 1.58.0; *Instellingen → 🛡️ IDS*)
+**📜 Logs van webdiensten** (vanaf 1.89.0, agent 1.58.0; *Instellingen → Beveiliging → IDS: aanvallers en verkeer*)
 - **Hoe het werkt:** de agent leest elke minuut de nieuwe regels uit de logs en vat ze per IP samen. RzMon past de scenario's toe en meldt een incident. In de modus blokkeren (en met *blokkeren* aan) wordt het IP ook geblokkeerd, via *Automatische blokkades op alle servers* op al je servers.
 - **Bronnen** (elk aan of uit):
   - **SWAG**: de access-log van nginx;
@@ -1668,9 +1679,9 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 
 **🌐 Automatische blokkades op alle servers** (vanaf 1.81.0, standaard aan): wordt een aanvaller op één server automatisch geblokkeerd (brute force, honeypot), dan blokkeren al je servers met de IDS op *blokkeren* hem ook. Een botnet probeert meestal al je servers die van buiten bereikbaar zijn. Met de hand blokkeren geldt alleen voor de server die je kiest. Uit te zetten bij *Instellingen → 🛡️ IDS*.
 
-**📬 Wekelijks overzicht** (vanaf 1.81.0; *Instellingen → 🛡️ IDS → Wekelijks overzicht*): standaard op **maandag 08:00** per **e-mail** (of Pushover, of allebei, of uit). Met daarin, over de afgelopen 7 dagen: geblokkeerde aanvallen, mislukte SSH-logins en de IP's met de meeste pogingen, hoe vaak de honeypot is aangetikt, SSH-logins van buiten, nieuwe incidenten en wat er nog open staat. Met **Nu versturen** zie je meteen hoe het eruitziet.
+**📬 Wekelijks overzicht** (vanaf 1.81.0; *Instellingen → Beveiliging → IDS: detectie → Wekelijks overzicht*): standaard op **maandag 08:00** per **e-mail** (of Pushover, of allebei, of uit). Met daarin, over de afgelopen 7 dagen: geblokkeerde aanvallen, mislukte SSH-logins en de IP's met de meeste pogingen, hoe vaak de honeypot is aangetikt, SSH-logins van buiten, nieuwe incidenten en wat er nog open staat. Met **Nu versturen** zie je meteen hoe het eruitziet.
 
-**☠️ Bekende aanvallers** (vanaf 1.82.0, agent 1.55.0; *Instellingen → 🛡️ IDS → Bekende aanvallers en land*, standaard aan)
+**☠️ Bekende aanvallers** (vanaf 1.82.0, agent 1.55.0; *Instellingen → Beveiliging → IDS: aanvallers en verkeer*, standaard aan)
 - RzMon haalt dagelijks twee openbare lijsten op met netwerken van bekende criminelen en botnets: **Spamhaus DROP** (IPv4 en IPv6) en **FireHOL level 1**. Samen zo'n 4.500 bereiken. Privé- en gereserveerde adressen (je LAN) worden er altijd uit gefilterd, net als alles op je ✅ *whitelist*.
 - In de modus **blokkeren** zetten de agents ze **vooraf** in hun firewall (een eigen set in `inet rzmon`): die adressen komen niet eens tot een inlogpoging.
 - In de modus **leren** krijgen logins (*Toegang*), incidenten en het weekoverzicht van zo'n adres het label **☠️** (met de naam van de lijst). Een geslaagde SSH-login vanaf zo'n adres is altijd 🔴 critical.
@@ -1696,7 +1707,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - Er wordt alleen geblokkeerd **op de server die aangevallen wordt**.
 - **Automatisch** bij brute force: **24 uur** (*Blokkeren (uren)*). Was hetzelfde IP de afgelopen **30 dagen** al eens geblokkeerd, dan **7 dagen** (*Bij herhaling (dagen)*). Permanent blokkeren gaat alleen met de hand.
 - **Handmatig** met **⛔ Blokkeer IP** bij een incident of een regel in *Toegang*, of met de knop **⛔ IP blokkeren** bovenaan de pagina IDS (vul zelf een IP-adres in): 24 uur, 7 dagen, 30 dagen of permanent.
-- **Nooit automatisch geblokkeerd:** je LAN (privé-adressen), RzMon zelf en de ✅ *whitelist* (*Instellingen → Blokkades en whitelist*; tot 1.83.0 de lijst *Nooit blokkeren*). Met de hand blokkeren kan dan ook niet. Een LAN-adres kun je wel zelf blokkeren; je eigen IP-adres niet.
+- **Nooit automatisch geblokkeerd:** je LAN (privé-adressen), RzMon zelf en de ✅ *whitelist* (*IDS → ⛔ Blokkades*; tot 1.83.0 de lijst *Nooit blokkeren*). Met de hand blokkeren kan dan ook niet. Een LAN-adres kun je wel zelf blokkeren; je eigen IP-adres niet.
 - **🔓 Deblokkeren** in het blok *Blokkades*. De agent past het binnen een minuut aan. Eerdere blokkades staan onder *Eerder geblokkeerd*.
 - **Terug naar leren** of **IDS uit**: de agent haalt zijn tabel meteen weg, alle blokkades vervallen op de servers. In RzMon blijven ze staan, zodat ze terugkomen als je weer blokkeert.
 - **Op een server nooit blokkeren:** zet `IDS_BLOCK=0` in `/etc/default/rzmon-agent`. Die server meldt dan wel, maar blokkeert niet.
@@ -1707,7 +1718,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 
 Naast de vaste gevoelige bestanden kun je zelf paden laten bewaken, bijvoorbeeld je eigen scripts, je webroot of configuratie. De agent houdt per bestand de **SHA-256-hash**, de **grootte**, de **rechten** en de **eigenaar** bij. De inhoud wordt nooit verstuurd, dus ook geen wachtwoorden uit configbestanden.
 
-- **Instellen:** *Instellingen → 🛡️ IDS → 📁 Bestanden bewaken*: een pad per regel, met de ernst 🟠 warning of 🔴 critical. Die lijst geldt voor alle servers. Per server voeg je er paden aan toe via *✎ Bewerken* van de server (*📁 Bestanden bewaken (IDS)*); hetzelfde pad daar gaat voor, bijvoorbeeld om de ernst te veranderen.
+- **Instellen:** *Instellingen → Beveiliging → IDS: detectie → 📁 Bestanden bewaken*: een pad per regel, met de ernst 🟠 warning of 🔴 critical. Die lijst geldt voor alle servers. Per server voeg je er paden aan toe via *✎ Bewerken* van de server (*📁 Bestanden bewaken (IDS)*); hetzelfde pad daar gaat voor, bijvoorbeeld om de ernst te veranderen.
 - **Paden:**
   - een map, bv. `/usr/local/bin`, wordt helemaal doorzocht, ook de submappen;
   - een bestand, bv. `/etc/nginx/nginx.conf`;
@@ -2021,7 +2032,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - **Nieuwe sleutel:** de vorige blijft nog **24 uur** geldig. Elke agent krijgt de nieuwe bij zijn volgende rapport (versleuteld met de oude). Is een agent langer offline, dan gooit hij na 3 geweigerde rapporten zijn oude sleutel weg en haalt hij de nieuwe op (bij *Aan*); bij *Verplicht* geef je hem met `--key` opnieuw mee.
 - Zet *Verplicht* pas aan als 🔒 bij alle servers staat. Versleuteling komt **bovenop** HTTPS: het helpt vooral als agents via HTTP of een proxy verbinden, en het bewijst dat een rapport echt van een agent met de sleutel komt.
 
-**⛔ Blokkades en whitelist** (*Instellingen → 🔐 Beveiliging → Blokkades en whitelist*, of ⛔ *blokkeren* bij een melding)
+**⛔ Blokkades en whitelist** (tabblad *IDS → ⛔ Blokkades*, vanaf 1.92.0; of ⛔ *blokkeren* bij een melding)
 - Een geblokkeerd **IP-adres** (`203.0.113.7`) of **netwerk** (`203.0.113.0/24`, ook IPv6) krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de REST API en geen agents (HTTP 403). Per blokkade zie je hoe vaak hij iets tegenhield.
 - Jezelf (je huidige IP) en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: `sudo php install/install.php --unblock-all`.
 - Dit is iets anders dan blokkeren door het IDS: dat gebeurt op de aangevallen server zelf.
@@ -2245,7 +2256,7 @@ Een tabblad naast *Kwetsbaarheden* (alleen voor beheerders): tellers, tegels, zo
 ## 11. REST API en Home Assistant-integratie
 
 ### API-sleutel maken
-**Instellingen → API-sleutels**: vul een naam in, bijvoorbeeld "Home Assistant", kies de rechten en klik op **＋ Sleutel maken**.
+**Instellingen → Koppelingen → API-sleutels**: vul een naam in, bijvoorbeeld "Home Assistant", kies de rechten en klik op **＋ Sleutel maken**.
 
 | Recht | Mag |
 |---|---|
@@ -2259,7 +2270,7 @@ Een tabblad naast *Kwetsbaarheden* (alleen voor beheerders): tellers, tegels, zo
 - De sleutel (`rzm_…`) wordt **één keer** getoond; kopieer hem meteen. Er staan meteen testcommando's bij voor de gekozen rechten.
 - Met **✎** pas je de rechten en *Alleen vanaf* aan, en **verleng** je de sleutel met 6, 12 of 24 maanden vanaf nu. De sleutel zelf blijft hetzelfde.
 - Per sleutel zie je de rechten, tot wanneer hij geldig is en wanneer hij voor het laatst gebruikt is. Met 🗑 trek je een sleutel in.
-- Maken, aanpassen en intrekken komt in het logboek (*Instellingen → Agents bijwerken → Logboek*); wat een sleutel doet ook, met als gebruiker `API: <naam>` en het IP-adres.
+- Maken, aanpassen en intrekken komt in het logboek (*Instellingen → Agents → Commando-checks → Logboek*); wat een sleutel doet ook, met als gebruiker `API: <naam>` en het IP-adres.
 - Sleutels van vóór 1.45.0 krijgen alleen *Status lezen* en hebben geen vervaldatum. Geef ze met ✎ andere rechten.
 
 ### Gebruik
@@ -2449,7 +2460,7 @@ Het script haalt de nieuwste versie op en meldt bijvoorbeeld `RzMon bijgewerkt v
    ```
    Of klik op **Setup → ↻ Tabellen bijwerken**.
 4. **Werk de agents bij:**
-   - Linux-servers: *Instellingen → ⬆ Agents bijwerken* → **Alle verouderde agents bijwerken** (of automatisch, zie 8.2.1). Agents van vóór 1.19.0: één keer `sudo rzmon-agent-setup --update`.
+   - Linux-servers: *Instellingen → Agents* → **Alle verouderde agents bijwerken** (of automatisch, zie 8.2.1). Agents van vóór 1.19.0: één keer `sudo rzmon-agent-setup --update`.
    - Home Assistant: ga naar de add-on winkel → ⋮ → *Controleren op updates* → *Bijwerken*. Er is alleen een update als de agent zelf veranderd is.
 
    Is de agent niet veranderd, dan hoef je hier niets te doen.

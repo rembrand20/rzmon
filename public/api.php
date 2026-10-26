@@ -1253,7 +1253,7 @@ switch ($action) {
     // Info-melding bij agent-updates van deze server (volgt verder de algemene info-regel)
     // ---------- Beveiliging: versleuteling van de agents en blokkades (alleen beheerders) ----------
     // Instellingen → Hoe staat het ervoor?: punten om na te lopen, elk met het onderdeel waar je het regelt
-    case 'connections':   // 1.91.0: Instellingen → Systeem → Verbindingen en taken
+    case 'connections':   // 1.91.0: Instellingen → Overzicht → Verbindingen en taken
         out(['inbound' => Tasks::inbound(), 'tasks' => Tasks::list(), 'now' => now()]);
 
     case 'settings_health':
@@ -1406,8 +1406,9 @@ switch ($action) {
         out([
             'enc' => ['mode' => AgentCrypto::globalMode(), 'key' => $key, 'key_id' => $key !== '' ? AgentCrypto::keyId($key) : null,
                 'old_until' => $until > time() ? date('Y-m-d H:i:s', $until) : null, 'agent_min' => AgentCrypto::AGENT_MIN],
+            'agent_tick' => agent_tick(null),
             'hosts' => array_map(static fn($h) => $h + ['key_days' => $h['agent_key_at'] ? (int) floor((time() - strtotime($h['agent_key_at'])) / 86400) : null],
-                q("SELECT id, name, agent_version, agent_seen, agent_ip, enc, enc_seen, agent_key_seen, agent_key_at, agent_ips, agent_ip_new, agent_ip_new_at, pin_mode, ip_lock,
+                q("SELECT id, name, agent_version, agent_seen, agent_tick, realtime, agent_ip, enc, enc_seen, agent_key_seen, agent_key_at, agent_ips, agent_ip_new, agent_ip_new_at, pin_mode, ip_lock,
                           agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at,
                           agent_url_pin, agent_url_fb_pin, (pair_until > NOW()) AS pairing FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll()),
             'conn' => ['key_days' => (int) setting('agent_key_days', '30'), 'pin' => setting('agent_pin', '1') === '1', 'ip_lock' => setting('agent_ip_lock', '1') === '1',
@@ -3092,6 +3093,43 @@ switch ($action) {
         out(['ok' => true]);
 
     // ---------- Databasewachtwoord vernieuwen (alleen beheerders) ----------
+    case 'setup_info':   // 1.92.0: de setup-pagina in de portal (Instellingen → Systeem)
+        out(['checks' => array_map(static fn($c) => ['label' => $c[0], 'ok' => $c[1], 'detail' => $c[2]], Setup::checks(true, null)),
+            'php_env' => Setup::phpInfo(), 'cron' => Setup::cronLine()] + Setup::config());
+
+    case 'setup_db_test':
+        $in = input();
+        try {
+            out(Setup::dbTest($in));
+        } catch (PDOException $e) {
+            out(['error' => 'Database: ' . $e->getMessage()], 422);
+        }
+
+    case 'setup_db_save':
+        $confirm('DATABASE');
+        $in = input();
+        try {
+            $r = Setup::dbSave($in);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        } catch (PDOException $e) {
+            out(['error' => 'Database: ' . $e->getMessage()], 422);
+        }
+        AgentCommands::audit($user['username'], 'Databaseverbinding', ($in['db_user'] ?? '') . '@' . ($in['db_host'] ?? '') . '/' . ($in['db_name'] ?? ''));
+        out($r);
+
+    case 'setup_schema':
+        Installer::runSchema();
+        out(['ok' => true, 'message' => t('Tabellen bijgewerkt')]);
+
+    case 'setup_app_save':
+        $in = input();
+        try {
+            out(Setup::appSave($in));
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
     case 'db_info':
         $h = Installer::HELPER_DIR;
         $root = realpath(SM_ROOT);
@@ -3180,7 +3218,7 @@ switch ($action) {
         AgentCommands::audit($user['username'], 'Kwetsbaarheid: niet meer genegeerd', '#' . (int) ($in['id'] ?? 0));
         out(['ok' => true]);
 
-    // Kwetsbaarheden aan of uit (Instellingen → 🐞 Kwetsbaarheden); aan = meteen de softwarelijsten laten (her)sturen en scannen
+    // Kwetsbaarheden aan of uit (Instellingen → Beveiliging → Kwetsbaarheden); aan = meteen de softwarelijsten laten (her)sturen en scannen
     case 'vuln_set':
         $on = !empty(input()['enabled']);
         save_setting('vuln_enabled', $on ? '1' : '0');
@@ -3189,7 +3227,7 @@ switch ($action) {
 
     case 'vuln_scan':
         if (!Vulns::enabled()) {
-            out(['error' => t('Kwetsbaarheden staat uit (Instellingen → 🐞 Kwetsbaarheden)')], 422);
+            out(['error' => t('Kwetsbaarheden staat uit (Instellingen → Beveiliging → Kwetsbaarheden)')], 422);
         }
         session_write_close();
         q('UPDATE vuln_inventory SET scanned_at = NULL');

@@ -130,7 +130,7 @@ final class Tasks
                 $watch[$k]['alerted'] = time();
                 $why = $o['last_ok'] ? t('Laatst gelukt: {t}.', ['t' => date('d-m-Y H:i', $o['last_ok'])]) : t('Nog nooit gelukt.');
                 Monitor::sysInfo('task_fail', null, null, '⚠️ RzMon: ' . t('{task} lukt niet', ['task' => $o['label']]),
-                    fn() => $why . ($o['error'] !== '' ? ' ' . t('Fout: {e}', ['e' => $o['error']]) : '') . "\n" . t('Zie Instellingen → Systeem → Verbindingen en taken.'));
+                    fn() => $why . ($o['error'] !== '' ? ' ' . t('Fout: {e}', ['e' => $o['error']]) : '') . "\n" . t('Zie Instellingen → Overzicht → Verbindingen en taken.'));
                 $said[] = "$k mislukt";
             } elseif (!$problem && isset($watch[$k])) {
                 if (!empty($watch[$k]['alerted']) && $o['status'] !== 'off') {

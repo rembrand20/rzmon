@@ -4,7 +4,7 @@
  *
  * Authenticatie: header "Authorization: Bearer <sleutel>" of "X-API-Key: <sleutel>"
  * (of ?key=<sleutel>, minder veilig omdat het in logs belandt).
- * Elke sleutel heeft rechten (Instellingen → API-sleutels): read (status lezen), ids_read (IDS lezen), vulns_read (kwetsbaarheden),
+ * Elke sleutel heeft rechten (Instellingen → Koppelingen → API-sleutels): read (status lezen), ids_read (IDS lezen), vulns_read (kwetsbaarheden),
  * ids_block (IP's blokkeren/deblokkeren) en checks (bevestigen, onderhoud, nu checken); eventueel
  * "alleen vanaf" bepaalde IP's/netwerken, en een vervaldatum.
  *
@@ -77,7 +77,7 @@ if (!$apiKey) {
 }
 if ($apiKey['expires_at'] !== null && strtotime($apiKey['expires_at']) <= time()) {
     Security::unauthorized('api', t('verlopen API-sleutel'), [t('sleutel') => $apiKey['name']]);
-    respond(['error' => t('Deze API-sleutel is verlopen op {date}; verleng hem in RzMon (Instellingen → API-sleutels)', ['date' => date('d-m-Y', strtotime($apiKey['expires_at']))])], 401);
+    respond(['error' => t('Deze API-sleutel is verlopen op {date}; verleng hem in RzMon (Instellingen → Koppelingen → API-sleutels)', ['date' => date('d-m-Y', strtotime($apiKey['expires_at']))])], 401);
 }
 if ((string) $apiKey['allow_from'] !== '' && !ip_in_list(client_ip(), parse_list($apiKey['allow_from']))) {
     Security::unauthorized('api', t('API-sleutel gebruikt vanaf een adres dat niet mag'), [t('sleutel') => $apiKey['name']]);
@@ -332,7 +332,7 @@ if ($method === 'POST') {
 if (($parts[0] ?? '') === 'vulnerabilities') {
     need('vulns_read');
     if (!Vulns::enabled()) {
-        respond(['error' => t('Kwetsbaarheden staat uit (Instellingen → 🐞 Kwetsbaarheden)')], 404);
+        respond(['error' => t('Kwetsbaarheden staat uit (Instellingen → Beveiliging → Kwetsbaarheden)')], 404);
     }
     $o = Vulns::overview();
     if (count($parts) === 1) {

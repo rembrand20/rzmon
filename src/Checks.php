@@ -545,7 +545,7 @@ final class Checks
         }
         $h = q('SELECT commands FROM hosts WHERE id = ?', [$host['id']])->fetch() ?: [];
         if (AgentCommands::modeFor($h) === 'off') {
-            return self::result(STATUS_UNKNOWN, null, t("Commando's staan uit voor deze server. Zet ze aan onder Instellingen → ⬆ Agents bijwerken, of per server in de Agent Manager."));
+            return self::result(STATUS_UNKNOWN, null, t("Commando's staan uit voor deze server. Zet ze aan onder Instellingen → Agents → Commando-checks, of per server in de Agent Manager."));
         }
         $raw = self::agentMetric($host, 'cmd:' . $check['id']);
         if ($raw === null) {

@@ -1509,3 +1509,9 @@ code.ip-link { cursor: pointer; text-decoration: underline dotted; }
 .tl-row { display: grid; grid-template-columns: 3rem 1.5rem 1fr; gap: .3rem; font-size: .88rem; padding: .15rem 0; border-bottom: 1px solid var(--border); }
 .tl-row.crit .tl-x { color: var(--crit, #ef5350); }
 .tl-t { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Verbindingen en taken: binnenkomend in één regel per soort (1.92.0) */
+.conn-row { display: flex; gap: .7rem; align-items: flex-start; padding: .55rem 0; border-bottom: 1px solid var(--border); }
+.conn-row .conn-ic { font-size: 1.1rem; line-height: 1.3; }
+.conn-row .conn-txt { flex: 1; min-width: 0; }
+.conn-row a { margin-top: .1rem; }

@@ -11,7 +11,7 @@ declare(strict_types=1);
  * - Incidenten: warning (1) of critical (2). Critical gaat ook naar Pushover, ook tijdens stille uren.
  *   Dezelfde gebeurtenis binnen 24 uur wordt opgeteld bij het bestaande incident.
  * - Blokkeren: per server, eerst ids_block_hours, bij herhaling ids_repeat_days. Nooit automatisch: privé-
- *   adressen (LAN), RzMon zelf en de whitelist (1.83.0, Instellingen → Blokkades en whitelist). Met de hand kan ook een LAN-adres (behalve het eigen IP).
+ *   adressen (LAN), RzMon zelf en de whitelist (1.83.0, IDS → Blokkades). Met de hand kan ook een LAN-adres (behalve het eigen IP).
  * - Bestanden bewaken (FIM): paden uit ids_fim (algemeen) en hosts.ids_fim (per server). De agent stuurt alleen
  *   wat veranderd is; hier wordt altijd vergeleken met de eigen basismeting (kind 'fim': hash|grootte|rechten|eigenaar),
  *   dus een rapport dat twee keer binnenkomt geeft geen dubbele incidenten.
@@ -1105,7 +1105,7 @@ final class Ids
             return t('Localhost blokkeren kan niet');
         }
         if (Whitelist::ip($ip)) {
-            return t('{net} staat op de whitelist (Instellingen → Blokkades en whitelist); haal het daar eerst af', ['net' => $ip]);
+            return t('{net} staat op de whitelist (IDS → Blokkades); haal het daar eerst af', ['net' => $ip]);
         }
         if (!q("SELECT 1 FROM hosts WHERE id = ? AND mode = 'agent'", [$hostId])->fetchColumn()) {
             return t('Kies een server met agent');

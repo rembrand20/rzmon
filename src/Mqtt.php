@@ -316,7 +316,7 @@ final class Mqtt
         $entity('sensor', 'health_score', $hub, ['name' => t('Gezondheid'), 'state_topic' => $topic,
             'value_template' => '{{ value_json.score }}', 'unit_of_measurement' => '%', 'state_class' => 'measurement', 'icon' => 'mdi:heart-pulse']);
 
-        // Kwetsbaarheden (Instellingen → 🐞 Kwetsbaarheden): per server en in totaal
+        // Kwetsbaarheden (Instellingen → Beveiliging → Kwetsbaarheden): per server en in totaal
         if (Vulns::enabled()) {
             $vt = ['critical' => 0, 'high' => 0, 'exploited' => 0];
             $names = ['critical' => [t('Kwetsbaarheden critical'), 'mdi:bug'], 'high' => [t('Kwetsbaarheden high'), 'mdi:bug-outline'],

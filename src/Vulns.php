@@ -9,7 +9,7 @@ declare(strict_types=1);
  *   OSV kent de adviezen van de distributies zelf, dus ook teruggezette reparaties (backports): geen vals alarm bij "oude" versies.
  * - Aanvullend: actief misbruikt (CISA KEV), kans op misbruik (EPSS) en zo nodig de CVSS-score van NVD.
  * - Scannen: elke dag op het ingestelde tijdstip, en meteen als de pakketlijst van een server verandert (via cron).
- * Aan/uit en instellingen: Instellingen → 🐞 Kwetsbaarheden (vuln_enabled, vuln_time, vuln_min_severity, vuln_exclude).
+ * Aan/uit en instellingen: Instellingen → Beveiliging → Kwetsbaarheden (vuln_enabled, vuln_time, vuln_min_severity, vuln_exclude).
  */
 final class Vulns
 {

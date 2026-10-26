@@ -7,6 +7,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.92.0 – 2026-10-26
+### Nieuw
+- **Instellingen opnieuw ingedeeld**: alles staat één keer, op de plek waar het hoort. Je instellingen veranderen niet en oude links blijven werken.
+  - **✅ Overzicht**: Hoe staat het ervoor? · Verbindingen en taken.
+  - **🔔 Meldingen**: Kanalen · Meldregels en stille uren · Alarmgedrag · Systeeminfo.
+  - **🛡️ Beveiliging**: de IDS in drie pagina's (*detectie*, *aanvallers en verkeer*, *servers*) · Kwetsbaarheden · Datalekken.
+  - **🔐 Toegang**: Inloggen · **Van buiten** (https, onzichtbaar van buiten, apparaten en passkeys op één pagina) · Gebruikers.
+  - **🖥️ Agents**: één tabel met alle agents (versie, ritme, realtime, sleutel, IP, verbinding, laatste rapport en ⚙️ Agent Manager) · Beveiligde verbinding · Commando-checks.
+  - **🔗 Koppelingen**: MQTT · REST API en API-sleutels.
+  - **🛠️ Systeem**: RzMon bijwerken · Back-up · Database en opslag · Server en PHP · Systeemcheck.
+- **De setup zit nu in de beheerportal**: Systeemcheck (met de cron-regel), Database en opslag (verbinding testen en opslaan met je wachtwoord, tabellen bijwerken, databasewachtwoord, bewaartermijnen) en Server en PHP (tijdzone, basis-URL, ping, PHP-waarden). `setup.php` is er alleen nog voor de installatie en stuurt je daarna door.
+- **Blokkades en whitelist** staan in het tabblad **IDS → ⛔ Blokkades** (niet meer dubbel in de instellingen).
+- **Verbindingen en taken**: *Binnenkomend* is nu één regel per soort, met een link naar de volledige lijst.
+- *Agent offline na …* staat bij Agents; de bewaartermijnen staan bij Database en opslag.
+
+
 ## 1.91.0 – 2026-10-26
 ### Nieuw
 - **📡 Verbindingen en taken** (*Instellingen → Systeem*):

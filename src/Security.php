@@ -89,7 +89,7 @@ final class Security
             return t('Geen geldig IP-adres of netwerk: {n}', ['n' => mb_substr($net, 0, 64)]);
         }
         if (Whitelist::ruleFor($n)) {
-            return t('{net} staat op de whitelist (Instellingen → Blokkades en whitelist); haal het daar eerst af', ['net' => $n]);
+            return t('{net} staat op de whitelist (IDS → Blokkades); haal het daar eerst af', ['net' => $n]);
         }
         $mine = client_ip();
         foreach (array_filter([$auto ? '' : $mine, '127.0.0.1', '::1', $_SERVER['SERVER_ADDR'] ?? '']) as $own) {
@@ -176,7 +176,7 @@ final class Security
     }
 
     /**
-     * Overzicht voor Instellingen → Blokkades en whitelist (1.83.0): alles wat nu geblokkeerd is (IP's in RzMon, accounts,
+     * Overzicht voor IDS → Blokkades (1.83.0): alles wat nu geblokkeerd is (IP's in RzMon, accounts,
      * IDS per server) en wat eerder geblokkeerd was (opgeheven of verlopen, zo lang als de meldingen bewaard worden).
      * Per regel: src (rz | user | ids), id, value, type (ip | net | user), cc, where, reason, since, until, by, hits.
      */

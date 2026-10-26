@@ -300,6 +300,23 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="ids-pane" data-pane="blk" hidden>
         <div class="dash-bar"><span class="muted small" id="ids-block-info"></span></div>
         <div class="card" id="ids-blocks"></div>
+      <div class="card need-admin" id="blocks-card">
+        <h2>⛔ <?= th('Blokkades en whitelist') ?></h2>
+        <p class="muted small"><?= t('Een geblokkeerd IP-adres of netwerk krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de API en geen agents. Jezelf en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: <code>sudo php install/install.php --unblock-all</code>') ?></p>
+        <div class="block-add"><input id="block-net" class="mono" placeholder="<?= th('bv. 203.0.113.7 of 203.0.113.0/24') ?>" autocomplete="off">
+          <input id="block-reason" placeholder="<?= th('reden (optioneel)') ?>" autocomplete="off">
+          <button type="button" class="btn danger" id="block-add">⛔ <?= th('Blokkeren') ?></button></div>
+        <p class="muted small"><?= th('Hieronder alles wat nu geblokkeerd is: IP-adressen in RzMon, vergrendelde accounts en de IDS-blokkades op je servers. Deblokkeren werkt meteen; op de whitelist zetten heft de blokkade ook op en voorkomt een nieuwe.') ?></p>
+        <div class="bl-bar"><div class="seg" id="bl-tabs"><button type="button" class="seg-btn active" data-bl-tab="active"></button><button type="button" class="seg-btn" data-bl-tab="history"></button></div>
+          <select id="bl-src"><option value=""><?= th('Alles') ?></option><option value="rz"><?= th('IP in RzMon') ?></option><option value="user"><?= th('Accounts') ?></option><option value="ids"><?= th('IDS (servers)') ?></option></select>
+          <input id="bl-q" type="search" placeholder="<?= th('Zoeken: IP, naam, server, reden…') ?>" autocomplete="off"></div>
+        <div id="blocks-list"></div>
+        <h3 class="set-sub">✅ <?= th('Whitelist (nooit blokkeren)') ?></h3>
+        <p class="muted small" style="margin-top:-.2rem"><?= th('Een IP-adres of netwerk hierop wordt nergens geblokkeerd: niet in RzMon en niet door het IDS op welke server dan ook (ook niet via de lijsten met bekende aanvallers). Een account wordt nooit vergrendeld (het IP van de aanvaller wel). Een naam die geen honeypot-naam is, valt af van de honeypot-namen.') ?></p>
+        <div class="btn-row"><button type="button" class="btn" id="wl-add">✅ <?= th('Op de whitelist zetten…') ?></button></div>
+        <div id="wl-list"></div>
+      </div>
+
       </div>
     </section>
 
@@ -377,10 +394,6 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <span class="muted small"><?= th('Klik op een onderdeel om het te openen of te sluiten.') ?></span>
         <button type="button" class="btn" id="set-toggle-all"><?= th('⊞ Alles openen') ?></button>
       </div>
-      <h3 class="set-group" data-group="meldingen"><?= th('🔔 Meldingen') ?></h3>
-      <h3 class="set-group" data-group="monitoring"><?= th('📈 Monitoring') ?></h3>
-      <h3 class="set-group" data-group="systeem"><?= th('⚙️ Systeem') ?></h3>
-      <h3 class="set-group" data-group="toegang"><?= th('🔐 Toegang') ?></h3>
       <form id="settings-form" class="settings-grid need-admin">
         <div data-sk="pushover" class="card">
           <h2>Pushover</h2>
@@ -440,9 +453,6 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
         <div data-sk="alarm" class="card">
           <h2><?= th('Alarmgedrag') ?></h2>
-          <label><?= th('Agent offline na … minuten zonder rapport') ?><input type="number" name="agent_stale_minutes" min="1"></label>
-          <label><?= th('Historie bewaren (dagen)') ?><input type="number" name="retention_days" min="1"></label>
-          <label><?= th('Meldingen bewaren (dagen)') ?> <span class="muted small"><?= th('(de pagina Meldingen toont ze per dag)') ?></span><input type="number" name="alerts_days" min="1" max="3650"></label>
           <label><?= th('Waarschuwen als een disk binnen … dagen vol raakt') ?> <span class="muted small"><?= th('(0 = uit)') ?></span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
           <details class="adv"><summary><?= th('Geavanceerd') ?></summary>
           <label><?= th('Logbestanden: treffers tellen over de laatste … minuten') ?> <span class="muted small">(5–1440)</span><input type="number" name="log_window" min="5" max="1440"></label>
@@ -524,7 +534,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         </div>
 
         <div data-sk="ids" class="card" id="ids-card">
-          <h2>🛡️ IDS</h2>
+          <h2>🛡️ <?= th('IDS: detectie') ?></h2>
           <p class="muted small"><?= t('Intrusion detection via de agents: gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen en verbindingen, brute force en inbraak na brute force. Resultaten op de pagina <i>🛡️ IDS</i>; critical ook via Pushover (ook tijdens stille uren).') ?></p>
           <div data-nodirty>
             <label class="switch"><input type="checkbox" id="ids-enabled"><span></span> <?= t('<b>IDS aan</b>') ?></label>
@@ -542,7 +552,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Blokkeren (uren)') ?><input type="number" name="ids_block_hours" min="1" max="8760"></label>
             <label><?= th('Bij herhaling (dagen)') ?><input type="number" name="ids_repeat_days" min="1" max="365"></label>
           </div>
-          <p class="small"><b><?= th('Nooit blokkeren') ?></b>: <?= t('je LAN en RzMon zelf worden nooit automatisch geblokkeerd. Andere IP-adressen en netwerken zet je op de <a href="#settings/blocks" data-goto="settings/blocks">✅ whitelist</a>; die geldt voor RzMon én het IDS op al je servers.') ?></p>
+          <p class="small"><b><?= th('Nooit blokkeren') ?></b>: <?= t('je LAN en RzMon zelf worden nooit automatisch geblokkeerd. Andere IP-adressen en netwerken zet je op de <a href="#ids/blk" data-goto="ids/blk">✅ whitelist</a>; die geldt voor RzMon én het IDS op al je servers.') ?></p>
           <label class="switch"><input type="checkbox" name="ids_block_shared"><span></span> <?= th('Automatische blokkades op alle servers') ?></label>
           <p class="muted small" style="margin-top:-.4rem"><?= th('Een aanvaller die op één server automatisch geblokkeerd wordt (brute force, honeypot), wordt meteen op al je servers met de IDS op blokkeren geblokkeerd. Met de hand blokkeren geldt alleen voor de server die je kiest.') ?></p>
           <h3 class="set-sub"><?= th('🍯 Honeypot') ?></h3>
@@ -551,6 +561,30 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <textarea name="ids_decoy_users" rows="2" class="mono"></textarea></label>
           <label><?= th('Honeypot-poort') ?> <span class="muted small"><?= th('(TCP; leeg = uit. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel)') ?></span>
             <input type="number" name="ids_decoy_port" min="1" max="65535" placeholder="2323"></label>
+          <h3 class="set-sub"><?= th('📁 Bestanden bewaken') ?></h3>
+          <p class="muted small" style="margin-top:-.2rem"><?= t('De agent houdt van deze paden de SHA-256-hash, grootte, rechten en eigenaar bij en meldt nieuwe, gewijzigde en verwijderde bestanden (nooit de inhoud). Mappen worden helemaal doorzocht; met jokertekens kies je bestanden, bv. <code>/var/www/**/*.php</code>. Geldt voor alle servers; per server voeg je er paden aan toe via <i>✎ Bewerken</i>. Maximaal 20 paden en 10.000 bestanden per server.') ?></p>
+          <div id="fim-editor"></div>
+          <input type="hidden" name="ids_fim">
+          <label><?= th('Uitsluiten') ?> <span class="muted small"><?= t('(namen als <code>*.log</code>, mappen als <code>cache/</code>, of paden; gescheiden door spaties)') ?></span>
+            <input name="ids_fim_exclude" class="mono" placeholder="*.log *.tmp cache/"></label>
+          <h3 class="set-sub"><?= th('🔑 Toegang') ?></h3>
+          <label class="switch"><input type="checkbox" name="auth_events"><span></span> <?= t('Toegang bijhouden: logins, <code>sudo</code> en <code>su</code>') ?></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Via de agent: inloggen via SSH en de console, <code>sudo</code> en <code>su</code>, ook mislukte pogingen (per IP-adres per uur opgeteld). Op de pagina <i>🛡️ IDS → Toegang</i>; er gaat geen melding uit. Werkt ook als het IDS uit staat. Op een server zelf uit te zetten met <code>AUTH_EVENTS=0</code>.') ?></p>
+          <label><?= th('Negeren') ?> <span class="muted small"><?= th('(gebruikers en/of IP-adressen of netwerken, gescheiden door spaties)') ?></span>
+            <textarea name="auth_ignore" rows="2" placeholder="<?= th('bv. ansible backup 192.168.2.5 10.0.0.0/8') ?>"></textarea></label>
+          <h3 class="set-sub"><?= th('📬 Wekelijks overzicht') ?></h3>
+          <div class="row3">
+            <label><?= th('Versturen via') ?><select name="ids_weekly"><option value="off"><?= th('uit') ?></option><option value="email"><?= th('e-mail') ?></option><option value="pushover">Pushover</option><option value="both"><?= th('e-mail en Pushover') ?></option></select></label>
+            <label><?= th('Dag') ?><select name="ids_weekly_day"><?php foreach ([1 => 'maandag', 2 => 'dinsdag', 3 => 'woensdag', 4 => 'donderdag', 5 => 'vrijdag', 6 => 'zaterdag', 7 => 'zondag'] as $d => $n): ?><option value="<?= $d ?>"><?= th($n) ?></option><?php endforeach; ?></select></label>
+            <label><?= th('Om') ?><input type="time" name="ids_weekly_time"></label>
+          </div>
+          <p class="muted small" style="margin-top:-.2rem"><?= th('Geblokkeerde aanvallen, mislukte logins en de IP\'s met de meeste pogingen, honeypot, SSH-logins van buiten en de open incidenten van de afgelopen 7 dagen.') ?>
+            <button type="button" class="btn small-btn" id="ids-weekly-test"><?= th('Nu versturen') ?></button></p>
+        </div>
+
+        <div data-sk="ids_attack" class="card" id="ids-attack-card">
+          <h2>🌍 <?= th('IDS: aanvallers en verkeer') ?></h2>
+          <p class="muted small"><?= t('Werkt alleen als het IDS aan staat (<a href="#settings/ids" data-goto="settings/ids">IDS: detectie</a>).') ?></p>
           <h3 class="set-sub"><?= th('☠️ Bekende aanvallers en land') ?></h3>
           <label class="switch"><input type="checkbox" name="ids_blocklists"><span></span> <?= th('Bekende aanvallers (Spamhaus DROP en FireHOL level 1, dagelijks bijgewerkt)') ?></label>
           <p class="muted small" style="margin-top:-.4rem"><?= th('In de modus blokkeren zetten de agents deze adressen vooraf in hun firewall; in de modus leren krijgen logins en incidenten van zo\'n adres het label ☠️. Je eigen netwerk staat er nooit in.') ?></p>
@@ -560,15 +594,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="muted small" id="ipintel-status"></p>
           <p class="muted small" style="margin-top:-.4rem"><?= t('IP-landgegevens: <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a> (CC BY 4.0). Opzoeken gebeurt op de RzMon-server zelf; er gaat per login niets naar buiten.') ?>
             <button type="button" class="btn small-btn" id="ipintel-update"><?= th('Nu bijwerken') ?></button></p>
-          <h3 class="set-sub"><?= th('🕸️ Webshell en persistentie') ?> <span class="muted small"><?= th('(agent 1.56.0)') ?></span></h3>
-          <label class="switch"><input type="checkbox" name="ids_webshell"><span></span> <span><?= t('<b>Webshell</b>: een webserver (nginx, apache, php-fpm …) start een shell of een programma als <code>curl</code>, <code>wget</code> of <code>python</code>') ?></span></label>
-          <label class="switch"><input type="checkbox" name="ids_webshell_kill"><span></span> <span><?= t('In de modus blokkeren dat <b>proces meteen stoppen</b>') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Critical, ook naar Pushover. Is het toch normaal (bv. een beheerpaneel dat scripts start)? Klik bij het incident <b>✅ Vrijgeven</b>: dan wordt het voortaan niet meer gemeld of gestopt. PHP-mail via <code>sendmail</code> telt niet.') ?></p>
-          <label class="switch"><input type="checkbox" name="ids_persist"><span></span> <span><?= t('<b>Nieuwe automatisch startende dienst of timer</b> (systemd)') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= th('Zo blijft een aanvaller na een herstart aanwezig. Tijdens een pakketupdate niet gemeld; nieuwe cronjobs en unit-bestanden ziet de IDS al bij de bestanden.') ?></p>
-          <h3 class="set-sub"><?= th('🧰 Hardening') ?> <span class="muted small"><?= th('(agent 1.57.0)') ?></span></h3>
-          <label class="switch"><input type="checkbox" name="ids_harden"><span></span> <span><?= t('<b>Hardening-score</b> per server, met een incident als iets slechter wordt') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= th('Elk uur: SSH met wachtwoord of als root, firewall, automatische updates, open databases, de Docker-socket, accounts zonder wachtwoord, sudo zonder wachtwoord, /tmp en SELinux. Klik op de score bij een server (IDS) voor uitleg en hoe je het dichtzet; daar zit ook isoleren en een gebruiker vergrendelen.') ?></p>
+          <h3 class="set-sub"><?= th('🌐 Uitgaande verbindingen') ?> <span class="muted small"><?= th('(agent 1.56.0)') ?></span></h3>
+          <label class="switch"><input type="checkbox" name="ids_outbound"><span></span> <span><?= t('Melden als een server verbinding maakt met een <b>bekende aanvaller</b> (critical)') ?></span></label>
+          <label class="switch"><input type="checkbox" name="ids_outbound_country"><span></span> <span><?= t('…en met een land buiten je <b>normale landen</b> (warning, per programma aan te leren)') ?></span></label>
+          <label class="switch"><input type="checkbox" name="ids_outbound_block"><span></span> <span><?= t('In de modus blokkeren uitgaand verkeer naar bekende aanvallers <b>blokkeren</b> (ook vanuit containers)') ?></span></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Zo valt een server op die al besmet is: een cryptominer of een verbinding met de aanvaller. In de eerste uren (de basismeting) leert de IDS welke landen normaal zijn. Vrijgeven: bij het incident <b>✅ Vrijgeven</b> zet het IP op de whitelist (1, 7, 30 dagen of altijd), of <b>Dit is normaal</b> voor dat programma en land.') ?></p>
           <h3 class="set-sub"><?= th('📜 Logs van webdiensten') ?> <span class="muted small"><?= th('(agent 1.58.0)') ?></span></h3>
           <p class="muted small" style="margin-top:-.2rem"><?= t('De agent leest elke minuut de nieuwe regels en vat ze per IP samen; RzMon herkent aanvallen. Waar staan de logs? Leeg of <code>auto</code> = zelf zoeken (de container van SWAG, gangbare mappen; in Home Assistant via de Supervisor). Je eigen netwerk en de whitelist tellen nooit.') ?></p>
           <div class="row3">
@@ -592,30 +622,20 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div class="lock-row"><?= th('…binnen (minuten)') ?> <input type="number" name="wl_minutes" min="1" max="1440" class="num-in"></div>
           <label class="switch"><input type="checkbox" name="weblog_block"><span></span> <span><?= t('In de modus blokkeren zo\'n IP ook <b>blokkeren</b> (op al je servers, via <i>Automatische blokkades op alle servers</i>)') ?></span></label>
           <p class="muted small" style="margin-top:-.4rem"><?= t('Deblokkeren kan altijd bij <i>Blokkades en whitelist</i>. SWAG in Docker: de agent blokkeert vóór Docker (prerouting), dus ook verkeer naar de container wordt tegengehouden.') ?></p>
-          <h3 class="set-sub"><?= th('🌐 Uitgaande verbindingen') ?> <span class="muted small"><?= th('(agent 1.56.0)') ?></span></h3>
-          <label class="switch"><input type="checkbox" name="ids_outbound"><span></span> <span><?= t('Melden als een server verbinding maakt met een <b>bekende aanvaller</b> (critical)') ?></span></label>
-          <label class="switch"><input type="checkbox" name="ids_outbound_country"><span></span> <span><?= t('…en met een land buiten je <b>normale landen</b> (warning, per programma aan te leren)') ?></span></label>
-          <label class="switch"><input type="checkbox" name="ids_outbound_block"><span></span> <span><?= t('In de modus blokkeren uitgaand verkeer naar bekende aanvallers <b>blokkeren</b> (ook vanuit containers)') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Zo valt een server op die al besmet is: een cryptominer of een verbinding met de aanvaller. In de eerste uren (de basismeting) leert de IDS welke landen normaal zijn. Vrijgeven: bij het incident <b>✅ Vrijgeven</b> zet het IP op de whitelist (1, 7, 30 dagen of altijd), of <b>Dit is normaal</b> voor dat programma en land.') ?></p>
-          <h3 class="set-sub"><?= th('📬 Wekelijks overzicht') ?></h3>
-          <div class="row3">
-            <label><?= th('Versturen via') ?><select name="ids_weekly"><option value="off"><?= th('uit') ?></option><option value="email"><?= th('e-mail') ?></option><option value="pushover">Pushover</option><option value="both"><?= th('e-mail en Pushover') ?></option></select></label>
-            <label><?= th('Dag') ?><select name="ids_weekly_day"><?php foreach ([1 => 'maandag', 2 => 'dinsdag', 3 => 'woensdag', 4 => 'donderdag', 5 => 'vrijdag', 6 => 'zaterdag', 7 => 'zondag'] as $d => $n): ?><option value="<?= $d ?>"><?= th($n) ?></option><?php endforeach; ?></select></label>
-            <label><?= th('Om') ?><input type="time" name="ids_weekly_time"></label>
-          </div>
-          <p class="muted small" style="margin-top:-.2rem"><?= th('Geblokkeerde aanvallen, mislukte logins en de IP\'s met de meeste pogingen, honeypot, SSH-logins van buiten en de open incidenten van de afgelopen 7 dagen.') ?>
-            <button type="button" class="btn small-btn" id="ids-weekly-test"><?= th('Nu versturen') ?></button></p>
-          <h3 class="set-sub"><?= th('📁 Bestanden bewaken') ?></h3>
-          <p class="muted small" style="margin-top:-.2rem"><?= t('De agent houdt van deze paden de SHA-256-hash, grootte, rechten en eigenaar bij en meldt nieuwe, gewijzigde en verwijderde bestanden (nooit de inhoud). Mappen worden helemaal doorzocht; met jokertekens kies je bestanden, bv. <code>/var/www/**/*.php</code>. Geldt voor alle servers; per server voeg je er paden aan toe via <i>✎ Bewerken</i>. Maximaal 20 paden en 10.000 bestanden per server.') ?></p>
-          <div id="fim-editor"></div>
-          <input type="hidden" name="ids_fim">
-          <label><?= th('Uitsluiten') ?> <span class="muted small"><?= t('(namen als <code>*.log</code>, mappen als <code>cache/</code>, of paden; gescheiden door spaties)') ?></span>
-            <input name="ids_fim_exclude" class="mono" placeholder="*.log *.tmp cache/"></label>
-          <h3 class="set-sub"><?= th('🔑 Toegang') ?></h3>
-          <label class="switch"><input type="checkbox" name="auth_events"><span></span> <?= t('Toegang bijhouden: logins, <code>sudo</code> en <code>su</code>') ?></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Via de agent: inloggen via SSH en de console, <code>sudo</code> en <code>su</code>, ook mislukte pogingen (per IP-adres per uur opgeteld). Op de pagina <i>🛡️ IDS → Toegang</i>; er gaat geen melding uit. Werkt ook als het IDS uit staat. Op een server zelf uit te zetten met <code>AUTH_EVENTS=0</code>.') ?></p>
-          <label><?= th('Negeren') ?> <span class="muted small"><?= th('(gebruikers en/of IP-adressen of netwerken, gescheiden door spaties)') ?></span>
-            <textarea name="auth_ignore" rows="2" placeholder="<?= th('bv. ansible backup 192.168.2.5 10.0.0.0/8') ?>"></textarea></label>
+        </div>
+
+        <div data-sk="ids_servers" class="card" id="ids-servers-card">
+          <h2>🖥️ <?= th('IDS: servers') ?></h2>
+          <p class="muted small"><?= t('Werkt alleen als het IDS aan staat (<a href="#settings/ids" data-goto="settings/ids">IDS: detectie</a>).') ?></p>
+          <h3 class="set-sub"><?= th('🕸️ Webshell en persistentie') ?> <span class="muted small"><?= th('(agent 1.56.0)') ?></span></h3>
+          <label class="switch"><input type="checkbox" name="ids_webshell"><span></span> <span><?= t('<b>Webshell</b>: een webserver (nginx, apache, php-fpm …) start een shell of een programma als <code>curl</code>, <code>wget</code> of <code>python</code>') ?></span></label>
+          <label class="switch"><input type="checkbox" name="ids_webshell_kill"><span></span> <span><?= t('In de modus blokkeren dat <b>proces meteen stoppen</b>') ?></span></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Critical, ook naar Pushover. Is het toch normaal (bv. een beheerpaneel dat scripts start)? Klik bij het incident <b>✅ Vrijgeven</b>: dan wordt het voortaan niet meer gemeld of gestopt. PHP-mail via <code>sendmail</code> telt niet.') ?></p>
+          <label class="switch"><input type="checkbox" name="ids_persist"><span></span> <span><?= t('<b>Nieuwe automatisch startende dienst of timer</b> (systemd)') ?></span></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= th('Zo blijft een aanvaller na een herstart aanwezig. Tijdens een pakketupdate niet gemeld; nieuwe cronjobs en unit-bestanden ziet de IDS al bij de bestanden.') ?></p>
+          <h3 class="set-sub"><?= th('🧰 Hardening') ?> <span class="muted small"><?= th('(agent 1.57.0)') ?></span></h3>
+          <label class="switch"><input type="checkbox" name="ids_harden"><span></span> <span><?= t('<b>Hardening-score</b> per server, met een incident als iets slechter wordt') ?></span></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= th('Elk uur: SSH met wachtwoord of als root, firewall, automatische updates, open databases, de Docker-socket, accounts zonder wachtwoord, sudo zonder wachtwoord, /tmp en SELinux. Klik op de score bij een server (IDS) voor uitleg en hoe je het dichtzet; daar zit ook isoleren en een gebruiker vergrendelen.') ?></p>
         </div>
 
         <div data-sk="vulns" class="card" id="vulns-card">
@@ -651,7 +671,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         </div>
 
         <div data-sk="agents" class="card" id="agents-card">
-          <h2><?= th('⬆ Agents bijwerken') ?></h2>
+          <h2>🖥️ <?= th('Agents') ?></h2>
+          <div data-nodirty id="enc-hosts"></div>
+          <h3 class="set-sub">⬆ <?= th('Bijwerken') ?></h3>
           <p class="muted small"><?= t('Bij een nieuwe versie van RzMon kun je de agents vanaf hier bijwerken: per server in het venster <i>Agent Manager</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzMon op, controleert hem en installeert hem zelf; zijn instellingen blijven staan. De eerste installatie gaat met het commando op de server.') ?></p>
           <p class="small" id="agents-status">…</p>
           <button type="button" class="btn" id="agents-update-all" hidden><?= th('⬆ Alle verouderde agents bijwerken') ?></button>
@@ -659,15 +681,19 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label style="margin-top:.9rem"><?= th('⏱ Agents rapporteren standaard elke') ?>
             <select name="agent_tick"><option value="30"><?= th('30 seconden') ?></option><option value="60"><?= th('60 seconden') ?></option><option value="120"><?= th('2 minuten') ?></option><option value="300"><?= th('5 minuten') ?></option></select>
             <span class="muted small"><?= t('Per server anders in te stellen in de <i>Agent Manager</i>. 30 s werkt met de systemd-timer (agent 1.41.0+); via cron of op TrueNAS minimaal elke minuut.') ?></span></label>
+          <label><?= th('Agent offline na … minuten zonder rapport') ?><input type="number" name="agent_stale_minutes" min="1"></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= t('Verouderde agents werken zichzelf bij zonder dat je op de knop drukt (hooguit één poging per 6 uur). Home Assistant-add-ons werk je bij via de add-on winkel. Een server uitzonderen: <code>REMOTE_UPDATE=0</code> in <code>/etc/default/rzmon-agent</code>.') ?></p>
+        </div>
+
+        <div data-sk="commands" class="card" id="commands-card">
+          <h2><?= th('🖥️ Commando-checks') ?></h2>
           <div class="cmd-box" data-nodirty>
-            <h3><?= th('🖥️ Commando-checks') ?></h3>
             <p class="muted small"><?= t('Met een <i>Commando</i>-check voert de agent een commando uit en vergelijkt RzMon de uitvoer met het antwoord dat je verwacht. Standaard staat dit uit. Aanzetten vraagt om je wachtwoord en komt in het logboek. Op een server zelf blokkeer je het altijd met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent.') ?></p>
             <label><?= th('Commando\'s op agents') ?>
               <select id="agent-commands"><option value="off"><?= th('Uit') ?></option><option value="nobody"><?= th('Toestaan, als gebruiker nobody') ?></option><option value="root"><?= th('Toestaan, als root') ?></option></select></label>
             <p class="small" id="agent-commands-hosts"></p>
             <details class="small api-docs"><summary><?= th('Logboek') ?></summary><div id="audit-log"></div></details>
           </div>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Verouderde agents werken zichzelf bij zonder dat je op de knop drukt (hooguit één poging per 6 uur). Home Assistant-add-ons werk je bij via de add-on winkel. Een server uitzonderen: <code>REMOTE_UPDATE=0</code> in <code>/etc/default/rzmon-agent</code>.') ?></p>
         </div>
 
         <div data-sk="backup" class="card" id="backup-card">
@@ -700,6 +726,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <input type="file" id="backup-file" accept=".zip,application/zip" hidden>
           </div>
           <div id="backup-list" class="key-list"></div>
+        </div>
+
+        <div data-sk="storage" class="card" id="storage-card">
+          <h2>🗄️ <?= th('Opslag') ?></h2>
+          <label><?= th('Historie bewaren (dagen)') ?><input type="number" name="retention_days" min="1"></label>
+          <label><?= th('Meldingen bewaren (dagen)') ?> <span class="muted small"><?= th('(de pagina Meldingen toont ze per dag)') ?></span><input type="number" name="alerts_days" min="1" max="3650"></label>
         </div>
 
       </form>
@@ -796,7 +828,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <label class="switch"><input type="checkbox" id="conn-https"><span></span> <?= t('🔒 Agents alleen via <b>https</b> (via het reserve-adres mag http, met een ⚠️)') ?></label>
         <div class="btn-row"><button type="button" class="btn" id="conn-url-all">🌐 <?= th('Alle agents naar een ander adres…') ?></button>
           <span class="muted small"><?= th('bv. https via je reverse proxy; elke agent test het eerst (agent 1.51.0)') ?></span></div>
-        <div id="enc-hosts"></div>
+        <p class="muted small"><?= t('Per server (sleutel, IP-adres, verbinding): zie de tabel bij <a href="#settings/agents" data-goto="settings/agents">Agents</a>.') ?></p>
         <details class="adv"><summary><?= th('Algemene sleutel (agents 1.49.x)') ?></summary>
           <p class="muted small"><?= t('Agents van versie 1.49.x versleutelen met één algemene sleutel. Nieuwere agents gebruiken die alleen nog om over te stappen op hun eigen sleutel.') ?></p>
           <label><?= th('Sleutel') ?> <span class="hint"><?= th('(64 tekens)') ?></span>
@@ -805,23 +837,6 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
               <button type="button" class="btn" id="enc-copy" title="<?= th('Kopiëren') ?>">📋</button></span></label>
           <div class="btn-row"><button type="button" class="btn" id="enc-generate">🎲 <?= th('Sleutel genereren') ?></button> <span class="muted small" id="enc-info"></span></div>
         </details>
-      </div>
-
-      <div data-sk="blocks" class="card need-admin" id="blocks-card">
-        <h2>⛔ <?= th('Blokkades en whitelist') ?></h2>
-        <p class="muted small"><?= t('Een geblokkeerd IP-adres of netwerk krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de API en geen agents. Jezelf en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: <code>sudo php install/install.php --unblock-all</code>') ?></p>
-        <div class="block-add"><input id="block-net" class="mono" placeholder="<?= th('bv. 203.0.113.7 of 203.0.113.0/24') ?>" autocomplete="off">
-          <input id="block-reason" placeholder="<?= th('reden (optioneel)') ?>" autocomplete="off">
-          <button type="button" class="btn danger" id="block-add">⛔ <?= th('Blokkeren') ?></button></div>
-        <p class="muted small"><?= th('Hieronder alles wat nu geblokkeerd is: IP-adressen in RzMon, vergrendelde accounts en de IDS-blokkades op je servers. Deblokkeren werkt meteen; op de whitelist zetten heft de blokkade ook op en voorkomt een nieuwe.') ?></p>
-        <div class="bl-bar"><div class="seg" id="bl-tabs"><button type="button" class="seg-btn active" data-bl-tab="active"></button><button type="button" class="seg-btn" data-bl-tab="history"></button></div>
-          <select id="bl-src"><option value=""><?= th('Alles') ?></option><option value="rz"><?= th('IP in RzMon') ?></option><option value="user"><?= th('Accounts') ?></option><option value="ids"><?= th('IDS (servers)') ?></option></select>
-          <input id="bl-q" type="search" placeholder="<?= th('Zoeken: IP, naam, server, reden…') ?>" autocomplete="off"></div>
-        <div id="blocks-list"></div>
-        <h3 class="set-sub">✅ <?= th('Whitelist (nooit blokkeren)') ?></h3>
-        <p class="muted small" style="margin-top:-.2rem"><?= th('Een IP-adres of netwerk hierop wordt nergens geblokkeerd: niet in RzMon en niet door het IDS op welke server dan ook (ook niet via de lijsten met bekende aanvallers). Een account wordt nooit vergrendeld (het IP van de aanvaller wel). Een naam die geen honeypot-naam is, valt af van de honeypot-namen.') ?></p>
-        <div class="btn-row"><button type="button" class="btn" id="wl-add">✅ <?= th('Op de whitelist zetten…') ?></button></div>
-        <div id="wl-list"></div>
       </div>
 
       <div data-sk="outside" class="card need-admin" id="outside-card">
@@ -912,20 +927,30 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       <?php if (($user['id'] ?? 0) === 0): ?>
       <?php endif; ?>
-      <div data-sk="setup" class="card need-admin" id="setup-card">
-        <h2>🛠️ <?= th('Setup') ?></h2>
-        <p class="muted small"><?= th('Systeemcheck, database en configuratie, tabellen, tijdzone, basis-URL en PHP-instellingen.') ?></p>
-        <a class="btn" href="setup.php">⚙️ <?= th('Setup openen') ?></a>
-      </div>
-
       <div data-sk="conn" class="card need-admin" id="conn-card">
         <h2>📡 <?= th('Verbindingen en taken') ?> <button type="button" class="btn small-btn" id="conn-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
         <p class="muted small"><?= th('Wat er bij RzMon binnenkomt en wat RzMon zelf op de achtergrond doet. Lukt een taak te lang niet, dan krijg je een ⚠️-melding (Meldingen → Systeeminfo → Achtergrondtaak lukt niet).') ?></p>
         <div id="conn-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
+      <div data-sk="dbconn" class="card need-admin" id="dbconn-card">
+        <h2>🔌 <?= th('Databaseverbinding') ?></h2>
+        <p class="muted small"><?= th('Waar RzMon zijn gegevens bewaart (MariaDB of MySQL). Alleen aanpassen als je de database verhuist; opslaan vraagt je wachtwoord en installeert de tabellen op de nieuwe plek.') ?></p>
+        <div id="dbconn-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+
+      <div data-sk="server" class="card need-admin" id="server-card">
+        <h2>🖧 <?= th('Server en PHP') ?></h2>
+        <div id="server-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+
+      <div data-sk="syscheck" class="card need-admin" id="syscheck-card">
+        <h2>🩺 <?= th('Systeemcheck') ?> <button type="button" class="btn small-btn" id="syscheck-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
+        <div id="syscheck-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+
       <div data-sk="db" class="card need-admin" id="db-card">
-        <h2><?= th('Database') ?></h2>
+        <h2>🔑 <?= th('Databasewachtwoord') ?></h2>
         <p class="muted small"><?= th('RzMon gebruikt een eigen databasegebruiker. Met de knop maak je een nieuw, sterk wachtwoord en slaat RzMon het overal op. Alles blijft gewoon werken: dashboards, cron, API en agents.') ?></p>
         <p class="small" id="db-status">…</p>
         <button type="button" class="btn" id="db-rotate"><?= th('🔑 Databasewachtwoord vernieuwen') ?></button>
