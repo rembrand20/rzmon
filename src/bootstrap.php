@@ -157,6 +157,24 @@ function agent_tick(?int $own): int
     return in_array($t, AGENT_TICKS, true) ? $t : 60;
 }
 
+/**
+ * Contact met de agent (1.99.0): laatste en volgende contact, wanneer hij offline telt, en het ritme dat hij echt
+ * aanhoudt (de mediaan van de laatste tussenpozen; extra rapporten door realtime tellen zo nauwelijks mee).
+ */
+function agent_contact(array $h): array
+{
+    $beats = array_values(array_filter(array_map('intval', explode(',', (string) ($h['agent_beats'] ?? ''))), static fn($t) => $t > 0));
+    $gaps = [];
+    for ($i = 1, $n = count($beats); $i < $n; $i++) {
+        $gaps[] = $beats[$i] - $beats[$i - 1];
+    }
+    sort($gaps);
+    $tick = agent_tick(isset($h['agent_tick']) ? (int) $h['agent_tick'] : null);
+    $seen = $h['agent_seen'] ? strtotime((string) $h['agent_seen']) : null;
+    return ['seen' => $seen ?: null, 'tick' => $tick, 'stale' => agent_stale_seconds(isset($h['agent_tick']) ? (int) $h['agent_tick'] : null),
+        'rhythm' => count($gaps) >= 5 ? $gaps[intdiv(count($gaps), 2)] : null, 'n' => count($gaps), 'realtime' => (int) ($h['realtime'] ?? 0) === 1];
+}
+
 /** Na hoeveel seconden zonder rapport een agent "stil" is: de instelling, maar minstens 3 tikken. */
 function agent_stale_seconds(?int $own): int
 {

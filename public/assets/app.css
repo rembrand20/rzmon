@@ -1547,3 +1547,9 @@ code.ip-link { cursor: pointer; text-decoration: underline dotted; }
 .svc-item .pick-main .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .svc-item .pick-main .hint { margin-left: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .svc-item > .hint { flex: none; }
+/* 1.99.0: contact met de agent */
+.th-sort { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; }
+.th-sort:hover { color: var(--primary); }
+.contact-cell { min-width: 15rem; }
+.contact-cell .contact-live, .contact-row .contact-live { display: block; }
+.contact-row > div { display: inline-block; vertical-align: top; }

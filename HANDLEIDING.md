@@ -186,7 +186,7 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
   - **🔔 Meldingen**: Kanalen (Pushover, e-mail, Home Assistant-webhook) · Meldregels en stille uren · Alarmgedrag · Systeeminfo;
   - **🛡️ Beveiliging**: IDS: detectie · IDS: aanvallers en verkeer · IDS: servers · Kwetsbaarheden · Datalekken;
   - **🔐 Toegang**: Inloggen · Van buiten (https, onzichtbaar van buiten, apparaten en passkeys) · Gebruikers;
-  - **🖥️ Agents**: Agents (één tabel met alle agents, bijwerken, ritme) · Beveiligde verbinding · Commando-checks;
+  - **🖥️ Agents**: Agents (één tabel met alle agents, bijwerken, ritme, laatste en volgende contact) · Beveiligde verbinding · Commando-checks;
   - **🔗 Koppelingen**: MQTT (Home Assistant) · REST API en API-sleutels;
   - **🛠️ Systeem**: RzMon bijwerken · Back-up · Database en opslag · Server en PHP · Systeemcheck · Wijzigingslogboek · Exporteren en importeren.
 
@@ -1209,6 +1209,13 @@ Hoe vaak er echt een **rapport** uitgaat, de **tik**, stel je in RzMon in. Is de
 Of een service draait, CPU, RAM, disks en poorten worden elke tik gemeten. Een service die stopt, zie je dus altijd bij de volgende tik.
 
 **Meteen beoordeeld:** de agent-checks van een server worden beoordeeld zodra het rapport binnen is, niet pas bij de volgende cron-minuut van RzMon. Met een tik van 30 s komt een melding dus hooguit ongeveer 30 s na het probleem (plus je eigen *pas melden na …*). Ping-, poort-, HTTP- en certificaatchecks doet RzMon zelf, elke minuut.
+
+**Contact zien** (vanaf 1.99.0): in de agenttabel (*Instellingen → Agents*, kolom **Contact**), in de *Agent Manager* en op de serverkaart op het dashboard staat wanneer de agent zich het laatst meldde en wanneer het volgende contact verwacht wordt. De tijden lopen live mee (elke seconde, met elke 5 seconden de nieuwste stand).
+- **Laatste:** tijd en "… geleden". **Volgende:** tijd en "over 23 s"; "nu verwacht" als het moment net voorbij is.
+- 🟠 **… te laat:** het contact had er al moeten zijn (na een kwart ritme speling, minstens 15 s). 🔴 **offline sinds …:** na de offline-tijd (*Agent offline na … minuten*, minstens 3 tikken).
+- ⚡ **Realtime aan:** "of eerder bij een gebeurtenis": bij een login, sudo of een service die stopt meldt de agent zich meteen.
+- **Echte ritme:** RzMon onthoudt de laatste 20 contacten en toont het ritme dat de agent werkelijk aanhoudt (de middelste tussenpoos, dus extra realtime-meldingen tellen nauwelijks mee). Komt hij duidelijk minder vaak dan ingesteld, dan staat er ⚠️ *werkelijk elke 1 min (ingesteld 30 s)*: meestal draait hij via cron (minimaal elke minuut) in plaats van de systemd-timer, of duurt een ronde langer dan het ritme. Het volgende contact wordt dan met het echte ritme berekend.
+- **Sorteren:** klik op de kolomkop **Contact ⇅** om de agents die het langst niets lieten horen bovenaan te zetten; nog een keer klikken sorteert weer op naam. Je browser onthoudt de keuze.
 
 > **Bestaande installaties:** de timer van 30 s komt mee met de agent-update (⬆ Bijwerken). Tot die tijd rapporteert de agent zoals zijn oude timer hem start (meestal elke 60 s).
 

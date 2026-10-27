@@ -222,9 +222,10 @@ final class Installer
         ['checks', 'template_item_id', 'INT UNSIGNED NULL'],     // uit welk sjabloon deze check komt (1.94.0)
         ['checks', 'tpl_override', 'TINYINT(1) NOT NULL DEFAULT 0'],   // per server aangepast: gaat niet meer mee met het sjabloon
         ['hosts', 'discover_ignore', 'TEXT NULL'],
-        ['checks', 'run_ms', 'INT UNSIGNED NULL'],
+        ['checks', 'run_ms', 'INT UNSIGNED NULL'],              // hoe lang de laatste uitvoering duurde (1.96.0)
         ['checks', 'proc_start', 'INT UNSIGNED NULL'],           // proces-check: start van het oudste proces (herstart zien, 1.98.0)
-        ['hosts', 'certscan_req', 'INT UNSIGNED NOT NULL DEFAULT 0'],   // "🔄 Opnieuw zoeken" naar certificaten (1.98.0)               // hoe lang de laatste uitvoering duurde (1.96.0)               // voorstellen die je negeert (1.95.0), JSON-lijst van sleutels
+        ['hosts', 'certscan_req', 'INT UNSIGNED NOT NULL DEFAULT 0'],   // "🔄 Opnieuw zoeken" naar certificaten (1.98.0)
+        ['hosts', 'agent_beats', 'VARCHAR(400) NULL'],           // laatste contactmomenten van de agent (unix-tijden, 1.99.0)
         ['hosts', 'agent_url_pin', 'VARCHAR(200) NULL'],   // 1.78.0: hoe de agent zijn adres controleert ("-" of sha256//…)
         ['hosts', 'agent_url_fb_pin', 'VARCHAR(200) NULL'],
         ['hosts', 'agent_https', 'VARCHAR(3) NULL'],

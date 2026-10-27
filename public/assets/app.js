@@ -598,6 +598,58 @@ function toast(msg, type = 'ok') {
   setTimeout(() => el.remove(), 4000);
 }
 
+// ---- Contact met de agent (1.99.0): laatste en volgende contact, live bijgewerkt
+let clockSkew = 0;   // seconden dat de klok van RzMon voorloopt op die van de browser
+const nowS = () => Date.now() / 1000 + clockSkew;
+const syncClock = (ts) => { if (ts) clockSkew = +ts - Date.now() / 1000; };
+const clockText = (ts) => {
+  const d = new Date((ts - clockSkew) * 1000);
+  return Math.abs(nowS() - ts) > 20 * 3600 ? d.toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+};
+/** Wat de agent ongeveer aanhoudt: het gemeten ritme (als dat er is), anders het ingestelde */
+const contactEvery = (c) => (c.rhythm && c.n >= 5 ? c.rhythm : c.tick);
+/** Live element: "full" (tabel, Agent Manager) of "short" (serverkaart) */
+function contactHtml(h, mode = 'full') {
+  const c = h.contact;
+  if (!c) return '';
+  if (!c.seen) return `<span class="muted">${L('nog niet gezien')}</span>`;
+  const slow = c.rhythm && c.n >= 5 && c.rhythm > c.tick * 1.5;
+  const rhythm = mode !== 'full' || !c.rhythm || c.n < 5 ? ''
+    : `<div class="small ${slow ? 'warn-txt' : 'muted'}" title="${esc(slow ? L('De agent komt minder vaak dan ingesteld. Draait hij via cron (minimaal elke minuut) in plaats van de systemd-timer, of duurt een ronde langer dan het ritme?') : L('Gemeten over de laatste {n} contacten', { n: c.n }))}">${slow ? '⚠️ ' + L('werkelijk elke {r} (ingesteld {t})', { r: durText(c.rhythm), t: durText(c.tick) }) : L('ritme: elke {r}', { r: durText(c.rhythm) })}</div>`;
+  return `<span class="contact-live" data-host="${h.id}" data-mode="${mode}" data-seen="${c.seen}" data-every="${contactEvery(c)}" data-stale="${c.stale}" data-rt="${c.realtime ? 1 : 0}">${contactText(c.seen, contactEvery(c), c.stale, c.realtime, mode)}</span>${rhythm}`;
+}
+function contactText(seen, every, stale, rt, mode) {
+  const now = nowS();
+  const since = now - seen;
+  const next = seen + every;
+  const late = now - next;
+  const grace = Math.max(15, every * 0.25);
+  const nextTxt = since > stale ? `<span class="bad">🔴 ${L('offline sinds {t}', { t: clockText(seen) })}</span>`
+    : late > grace ? `<span class="warn-txt">🟠 ${L('{d} te laat', { d: durText(late) })}</span>`
+      : late > 0 ? L('nu verwacht') : L('over {d}', { d: durText(-late) });
+  if (mode === 'short') return `${L('agent {ago}', { ago: L('{d} geleden', { d: durText(since) }) })}${since > stale ? ' · ' + nextTxt : ` · ${L('volgende')} ${nextTxt}`}`;
+  return `<div>${L('Laatste')}: <b>${clockText(seen)}</b> <span class="muted">· ${L('{d} geleden', { d: durText(since) })}</span></div>`
+    + `<div>${L('Volgende')}: ${since > stale ? nextTxt : `<b>${clockText(next)}</b> <span class="muted">·</span> ${nextTxt}`}${rt && since <= stale ? ` <span class="muted">· ${L('of eerder bij een gebeurtenis ⚡')}</span>` : ''}</div>`;
+}
+let contactTick = 0;
+setInterval(async () => {
+  const els = $$('.contact-live');
+  if (!els.length) return;
+  // Elke 5 seconden de laatste contacten ophalen (ook als er een venster openstaat en het dashboard niet ververst)
+  if (++contactTick % 5 === 0 && !document.hidden) {
+    try {
+      const r = await api('contacts');
+      syncClock(r.now_ts);
+      els.forEach((el) => { const c = r.hosts[el.dataset.host]; if (c && c.seen) { el.dataset.seen = c.seen; el.dataset.every = contactEvery(c); } });
+    } catch (e) { /* volgende keer */ }
+  }
+  els.forEach((el) => {
+    const d = el.dataset;
+    el.innerHTML = contactText(+d.seen, +d.every, +d.stale, d.rt === '1', d.mode);
+  });
+}, 1000);
+
 function ago(dt) {
   if (!dt) return L('nooit');
   const s = Math.round((Date.now() - new Date(dt.replace(' ', 'T')).getTime()) / 1000);
@@ -1164,6 +1216,7 @@ async function refresh() {
     // Openstaande tab (Dashboard of Meldingen) telt als gezien, maar alleen als je echt kijkt
     const seen = document.hidden ? '' : ['dashboard', 'alerts'].find((t) => !$('#tab-' + t).hidden) || '';
     state = await api('state', null, seen ? { seen } : {});
+    syncClock(state.now_ts);
     // Info-check: telt nooit als storing. Voor tellers, filters en "Problemen" is hij OK; de echte status staat in info_status
     state.hosts.forEach((h) => h.checks.forEach((c) => { if (+c.info_only && +c.status !== 0) { c.info_status = +c.status; c.status = 0; } }));
     if (state.role && document.body.dataset.role !== state.role) location.reload();   // rol gewijzigd
@@ -1845,7 +1898,7 @@ function groupHead(h, k, title, list, tag) {
 
 function hostDetail(h, lines = null) {
   const agentInfo = h.mode === 'agent'
-    ? `<span class="muted small">Agent: ${h.agent_seen ? ago(h.agent_seen) : L('nog niet gezien')}</span>
+    ? `<span class="muted small">${contactHtml(h, 'short')}</span>
        <button class="btn need-admin" data-act="agent" data-id="${h.id}">Agent Manager</button>` : '';
   return `
     <div class="host-detail">
@@ -1903,7 +1956,7 @@ function hostCard(h, small) {
       <div class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</div>
       ${p.chips(4) ? `<div class="chips">${p.chips(4)}</div>` : ''}
       ${hostSparks(h) ? `<div class="host-sparks">${hostSparks(h)}</div>` : ''}
-      <div class="muted small sum-foot">${p.lastChecked ? L('Laatste check') + ' ' + ago(p.lastChecked) : ''}${h.mode === 'agent' ? ` · agent ${h.agent_seen ? ago(h.agent_seen) : L('nog niet gezien')}${agentVer(h)}` : ''}${uptimeLine(h, true)}</div>
+      <div class="muted small sum-foot">${p.lastChecked ? L('Laatste check') + ' ' + ago(p.lastChecked) : ''}${h.mode === 'agent' ? ` · ${h.agent_seen ? contactHtml(h, 'short') : 'agent ' + L('nog niet gezien')}${agentVer(h)}` : ''}${uptimeLine(h, true)}</div>
     </div>
     ${p.isOpen ? hostDetail(h) : ''}
   </article>`;
@@ -1922,7 +1975,7 @@ function meterCell(h, type) {
 function hostLine(h, large) {
   const p = hostParts(h);
   const u = stats.uptime[h.id];
-  const agent = h.mode === 'agent' ? `agent ${h.agent_seen ? ago(h.agent_seen) : L('nog niet gezien')}${agentVer(h)}` : '';
+  const agent = h.mode === 'agent' ? `${h.agent_seen ? contactHtml(h, 'short') : 'agent ' + L('nog niet gezien')}${agentVer(h)}` : '';
   const cells = large
     ? `<span class="lc-status"><span class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</span>${p.chips(5) ? `<span class="chips">${p.chips(5)}</span>` : ''}</span>
        <span class="lc-m">${meterCell(h, 'cpu')}</span>
@@ -3522,9 +3575,12 @@ function toolsWarning(t, via) {
 
 // ---------------------------------------------------------------- Instellingen: 🔐 Versleuteling en ⛔ Blokkades
 let secInfo = null;
+/** Agenttabel sorteren: op naam, of langst geen contact bovenaan (1.99.0; per browser onthouden) */
+let agentSort = (() => { try { return localStorage.getItem('rzmon_agent_sort') || 'name'; } catch (e) { return 'name'; } })();
 async function loadSecurity() {
   if (!isAdmin() || !$('#enc-card')) return;
   try { secInfo = await api('security'); } catch (ex) { $('#enc-info').textContent = ex.message; return; }
+  syncClock(secInfo.now_ts);
   renderSecurity();
 }
 
@@ -3557,15 +3613,15 @@ function renderSecurity() {
     : h.agent_version && verCmp(h.agent_version, c.ownkey_min) < 0 ? `<span class="warn-txt">${L('agent {v} nodig', { v: c.ownkey_min })}</span>`
     : `<span class="warn-txt">${L('nog geen eigen sleutel')}</span>`;
   $('#enc-hosts').innerHTML = secInfo.hosts.length ? `<div class="table-scroll"><table class="vuln-table enc-table">
-    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Ritme')}</th><th>${L('Realtime')}</th><th>${L('Sleutel')}</th><th>${L('IP-adres')}</th><th>${L('Verbinding')}</th><th>${L('Versleuteld versturen')}</th><th title="${esc(L('Certificaat vastzetten · alleen vanaf het bekende IP-adres · alleen via https'))}">📌 · 🌐 · 🔒</th><th>${L('Laatste rapport')}</th><th></th></tr></thead><tbody>
-    ${secInfo.hosts.map((h) => `<tr><td>${esc(h.name)}</td><td class="mono small">${esc(h.agent_version || '–')}</td>
+    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Ritme')}</th><th>${L('Realtime')}</th><th>${L('Sleutel')}</th><th>${L('IP-adres')}</th><th>${L('Verbinding')}</th><th>${L('Versleuteld versturen')}</th><th title="${esc(L('Certificaat vastzetten · alleen vanaf het bekende IP-adres · alleen via https'))}">📌 · 🌐 · 🔒</th><th><button type="button" class="th-sort" id="contact-sort" title="${esc(agentSort === 'contact' ? L('Weer op naam sorteren') : L('Langst geen contact bovenaan'))}">${L('Contact')} ${agentSort === 'contact' ? '▲' : '⇅'}</button></th><th></th></tr></thead><tbody>
+    ${(agentSort === 'contact' ? [...secInfo.hosts].sort((a, b) => (a.contact?.seen || 0) - (b.contact?.seen || 0)) : secInfo.hosts).map((h) => `<tr><td>${esc(h.name)}</td><td class="mono small">${esc(h.agent_version || '–')}</td>
       <td class="small nowrap">${esc(fmtInterval(+h.agent_tick || secInfo.agent_tick || 60))}</td><td class="small">${+h.realtime ? '⚡ ' + L('aan') : `<span class="muted">${L('uit')}</span>`}</td>
       <td class="small">${keyText(h)}</td>
       <td class="small mono">${h.agent_ips ? esc(h.agent_ips) : `<span class="muted">${L('nog niet bekend')}</span>`}${h.agent_ips ? ` <button type="button" class="icon-btn" data-ip-reset="${h.id}" title="${esc(L('Vergeten: het volgende IP-adres van deze agent wordt het bekende'))}">↺</button>` : ''}</td>
       <td class="small">${connText(h)}</td>
       <td><select data-enc-host="${h.id}">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${k === '' ? `${l} (${ENC_MODES.find((m) => m[0] === e.mode)[1].split(' (')[0].toLowerCase()})` : l}</option>`).join('')}</select></td>
       <td class="conn-cell">📌 ${connSelect('pin', h, c.pin, true)}<br>🌐 ${connSelect('ip', h, c.ip_lock, true)}<br>🔒 ${connSelect('https', h, c.https_only, true)}</td>
-      <td class="small">${encSeenText(h)}</td>
+      <td class="small contact-cell">${contactHtml(h, 'full')}<div class="muted">${encSeenText(h)}</div></td>
       <td class="nowrap"><button type="button" class="btn small-btn" data-am="${h.id}" title="Agent Manager">⚙️</button> <button type="button" class="btn small-btn" data-url-host="${h.id}" title="${esc(L('Adres van RzMon voor deze agent wijzigen'))}">🌐</button> <button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗</button>${+h.agent_key_seen === 1 ? ` <button type="button" class="btn small-btn" data-key-renew="${h.id}" title="${esc(L('Nieuwe sleutel; de agent krijgt hem bij zijn volgende rapport'))}">🔄</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '';
   loadBlocks();
   settingsSummaries();
@@ -3617,6 +3673,11 @@ function initSecurity() {
     catch (ex) { toast(ex.message, 'err'); }
   });
   $('#enc-hosts').addEventListener('click', async (e) => {
+    if (e.target.closest('#contact-sort')) {
+      agentSort = agentSort === 'contact' ? 'name' : 'contact';
+      try { localStorage.setItem('rzmon_agent_sort', agentSort); } catch (ex) { /* alleen voor deze keer */ }
+      return loadSecurity();
+    }
     const am = e.target.closest('[data-am]');
     if (am) return agentInstructions(findHost(+am.dataset.am));
     const urlB = e.target.closest('[data-url-host]');
@@ -3960,6 +4021,7 @@ function agentInstructions(h, pairNow = false) {
     wide: true,
     body: `
       <div class="agent-live" id="agent-live"><span class="muted">${L('Status ophalen…')}</span></div>
+      <div class="cmd-host-row contact-row">📡 ${L('Contact:')} <div>${contactHtml(h, 'full')}</div></div>
       <div class="cmd-host-row need-admin">⏱ ${L('Rapporteren elke:')}
         <select id="host-tick"><option value="0">${L('standaard ({t})', { t: tickText(state.agent_tick) })}</option>${[30, 60, 120, 300].map((t) => `<option value="${t}" ${+h.agent_tick === t ? 'selected' : ''}>${tickText(t)}</option>`).join('')}</select>
         <span class="muted small" id="host-tick-info">${h.agent_update_via === 'direct' ? L('via cron/TrueNAS: minimaal elke minuut') : ''}</span></div>

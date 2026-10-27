@@ -98,7 +98,7 @@ function agent_host(): array
         $kid = preg_match('/^([0-9a-f]{16}):/', (string) ($_SERVER['HTTP_X_AGENT_AUTH'] ?? ''), $m) ? $m[1] : '';
     }
     $ip = client_ip();
-    $cols = 'id, name, mode, agent_version, info_agent, agent_seen, agent_ip, agent_tick, enc, agent_token,
+    $cols = 'id, name, mode, agent_version, info_agent, agent_seen, agent_beats, agent_ip, agent_tick, enc, agent_token,
              agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock, agent_pin_sent, agent_https, agent_fb_at';
     if ($kid !== '') {
         $host = q("SELECT $cols FROM hosts WHERE agent_key_id = ? OR (agent_key_old_id = ? AND agent_key_old_until > ?) LIMIT 1", [$kid, $kid, now()])->fetch();
@@ -716,8 +716,10 @@ if ($action === 'agent') {
     $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
     // ℹ️ als de agent (opnieuw) verbindt: de eerste keer, na stil te zijn geweest, of vanaf een ander IP
     Security::agentConnected($host, $encrypted);
-    q('UPDATE hosts SET agent_seen = ?, agent_ip = ?, agent_version = ?, enc_seen = ? WHERE id = ?',
-        [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $encrypted ? 1 : 0, $host['id']]);
+    // Contactmomenten (1.99.0): de laatste 21, om het echte ritme te zien
+    $beats = array_slice([...array_filter(explode(',', (string) ($host['agent_beats'] ?? ''))), (string) time()], -21);
+    q('UPDATE hosts SET agent_seen = ?, agent_ip = ?, agent_version = ?, enc_seen = ?, agent_beats = ? WHERE id = ?',
+        [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $encrypted ? 1 : 0, implode(',', $beats), $host['id']]);
     // Andere versie dan vorige keer: bijgewerkt (met de knop, automatisch, via de add-on winkel of met de hand) → info
     if ($agentVersion !== null && $host['agent_version'] !== null && $agentVersion !== $host['agent_version']) {
         $from = (string) $host['agent_version'];
@@ -957,7 +959,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'alerts', 'ids', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'state', 'contacts', 'alerts', 'ids', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
@@ -1324,10 +1326,17 @@ switch ($action) {
         logout();
         out(['ok' => true]);
 
+    case 'contacts':   // 1.99.0: laatste contact per agent, voor de live tijden (elke 5 seconden)
+        $out = [];
+        foreach (q("SELECT id, agent_seen, agent_tick, realtime, agent_beats FROM hosts WHERE mode = 'agent'")->fetchAll() as $h) {
+            $out[(int) $h['id']] = agent_contact($h);
+        }
+        out(['hosts' => (object) $out, 'now_ts' => time()]);
+
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen,
                     agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at, agent_url_pin, agent_url_fb_pin,
-                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto FROM hosts ORDER BY name')->fetchAll();
+                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, agent_beats FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
         $global = Monitor::globalMaintenance();
@@ -1355,6 +1364,8 @@ switch ($action) {
                 ? ['scope' => 'host', 'until' => $h['maintenance_until'], 'reason' => (string) $h['maintenance_reason']] : null;
             $h['maintenance'] = $global ?? $own;
             $h['snmp'] = SnmpMonitor::masked($h['snmp']);   // community en wachtwoorden gaan nooit naar de browser
+            $h['contact'] = $h['mode'] === 'agent' ? agent_contact($h) : null;
+            unset($h['agent_beats']);
         }
         unset($h);
         if (!$isAdmin) {
@@ -1368,7 +1379,7 @@ switch ($action) {
         out(['hosts' => $hosts, 'badges' => tab_badges($user, $hosts, (string) ($_GET['seen'] ?? '')), 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
              'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(), 'health_groups' => Health::groups(),
-             'agent_tick' => agent_tick(null),
+             'agent_tick' => agent_tick(null), 'now_ts' => time(),
              // Sjablonen (1.94.0): item → naam van het sjabloon, en welke sjablonen per server
              'templates' => q('SELECT id, name FROM check_templates ORDER BY name')->fetchAll(),
              'tpl_items' => (object) array_column(q('SELECT ti.id, t.name FROM template_items ti JOIN check_templates t ON t.id = ti.template_id')->fetchAll(), 'name', 'id'),
@@ -1759,8 +1770,9 @@ switch ($action) {
             'enc' => ['mode' => AgentCrypto::globalMode(), 'key' => $key, 'key_id' => $key !== '' ? AgentCrypto::keyId($key) : null,
                 'old_until' => $until > time() ? date('Y-m-d H:i:s', $until) : null, 'agent_min' => AgentCrypto::AGENT_MIN],
             'agent_tick' => agent_tick(null),
-            'hosts' => array_map(static fn($h) => $h + ['key_days' => $h['agent_key_at'] ? (int) floor((time() - strtotime($h['agent_key_at'])) / 86400) : null],
-                q("SELECT id, name, agent_version, agent_seen, agent_tick, realtime, agent_ip, enc, enc_seen, agent_key_seen, agent_key_at, agent_ips, agent_ip_new, agent_ip_new_at, pin_mode, ip_lock,
+            'hosts' => array_map(static fn($h) => array_diff_key($h, ['agent_beats' => 1]) + ['key_days' => $h['agent_key_at'] ? (int) floor((time() - strtotime($h['agent_key_at'])) / 86400) : null,
+                'contact' => agent_contact($h)],
+                q("SELECT id, name, agent_version, agent_seen, agent_tick, realtime, agent_beats, agent_ip, enc, enc_seen, agent_key_seen, agent_key_at, agent_ips, agent_ip_new, agent_ip_new_at, pin_mode, ip_lock,
                           agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at,
                           agent_url_pin, agent_url_fb_pin, (pair_until > NOW()) AS pairing FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll()),
             'conn' => ['key_days' => (int) setting('agent_key_days', '30'), 'pin' => setting('agent_pin', '1') === '1', 'ip_lock' => setting('agent_ip_lock', '1') === '1',
@@ -1769,6 +1781,7 @@ switch ($action) {
                 'ownkey_min' => AgentCrypto::OWNKEY_MIN, 'pinurl_min' => AgentCrypto::PINURL_MIN, 'admin_url' => Https::adminUrl()],
             'blocks' => Security::blocks(),
             'my_ip' => client_ip(),
+            'now_ts' => time(),
         ]);
 
     case 'enc_mode':

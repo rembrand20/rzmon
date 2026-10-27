@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.99.0 – 2026-10-27
+### Nieuw
+- **Contact met de agent**: in de agenttabel (*Instellingen → Agents*, kolom **Contact**), in de *Agent Manager* en op de serverkaart zie je wanneer de agent zich het laatst meldde (tijd en "… geleden") en wanneer het volgende contact komt ("over 37 s"), live aftellend. Komt hij niet op tijd: 🟠 "… te laat"; na de offline-tijd 🔴 "offline sinds …". Met realtime aan: "of eerder bij een gebeurtenis ⚡".
+- **Echte ritme**: RzMon onthoudt de laatste 20 contacten per agent en toont het ritme dat de agent werkelijk aanhoudt. Komt hij duidelijk minder vaak dan ingesteld (bv. elke minuut via cron terwijl er 30 s staat), dan staat er ⚠️ "werkelijk elke … (ingesteld …)". Werkt met elke agentversie.
+- **Sorteren op contact**: klik op de kolomkop *Contact ⇅* om de agents die het langst niets van zich lieten horen bovenaan te zetten (je browser onthoudt de keuze). 
+
 ## 1.98.0 – 2026-10-27
 **Nieuwe agent 1.59.0** (agent 1.59.0 nodig voor het zoeken naar certificaatbestanden, certificaten op de server zelf en proces-checks op agent-servers).
 
