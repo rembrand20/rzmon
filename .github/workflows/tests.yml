@@ -23,7 +23,12 @@ jobs:
           elif command -v apk >/dev/null; then apk add -q bash curl procps iproute2 python3 openssl coreutils git; fi
       - uses: actions/checkout@v4
       - name: Agent draaien en het rapport controleren
-        run: bash tests/agent-json.sh
+        shell: bash
+        run: |
+          bash tests/agent-json.sh 2>&1 | tee /tmp/agent.out
+          rc=${PIPESTATUS[0]}
+          # Bij een fout de laatste regels ook als annotatie (zichtbaar in het overzicht van de run)
+          [ "$rc" = 0 ] || { echo "::error title=Agent op ${{ matrix.image }}::$(tail -n 15 /tmp/agent.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
 
   # PHP-tests met een echte MariaDB, daarna een rondje in de browser
   php:
@@ -52,15 +57,19 @@ jobs:
           return ['db' => ['host' => '127.0.0.1', 'port' => 3306, 'name' => 'rzmon', 'user' => 'rzmon', 'pass' => 'rzmon-ci'],
               'timezone' => 'Europe/Amsterdam', 'ping_bin' => '/bin/ping', 'base_url' => '', 'php' => ['display_errors' => '1']];
           PHP
-          echo 'ci-geheim-123' | php install/install.php admin
+          echo 'ci-geheim-123' | php install/install.php admin 2>&1 | tee /tmp/install.out
+          grep -q 'Klaar!' /tmp/install.out || { echo "::error title=Installatie::$(tail -n 15 /tmp/install.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
       - name: PHP-tests
-        run: php tests/php/run.php
+        run: |
+          php tests/php/run.php 2>&1 | tee /tmp/php-tests.out
+          [ "${PIPESTATUS[0]}" = 0 ] || { echo "::error title=PHP-tests::$(grep -E '✘|Fatal|Error' /tmp/php-tests.out | head -n 15 | tr '\n' '|' | cut -c1-3000)"; exit 1; }
       - name: Browserrondje
         run: |
           (cd public && php -S 127.0.0.1:8099 >/tmp/php.log 2>&1 &)
           npm install --no-save --silent playwright@1.47.2
           npx playwright install --with-deps chromium >/dev/null
-          BASE=http://127.0.0.1:8099 RZ_USER=admin RZ_PASS=ci-geheim-123 node tests/e2e/smoke.js
+          BASE=http://127.0.0.1:8099 RZ_USER=admin RZ_PASS=ci-geheim-123 node tests/e2e/smoke.js 2>&1 | tee /tmp/e2e.out
+          [ "${PIPESTATUS[0]}" = 0 ] || { echo "::error title=Browserrondje::$(tail -n 15 /tmp/e2e.out | tr '\n' '|' | cut -c1-3000) || php: $(tail -n 5 /tmp/php.log | tr '\n' '|')"; exit 1; }
       - name: PHP-log bij een fout
         if: failure()
         run: cat /tmp/php.log || true
