@@ -10,8 +10,9 @@ port=18099
 python3 tests/fake_rzmon.py "$port" "$work" &
 srv=$!
 trap 'kill "$srv" "${proc:-}" 2>/dev/null; rm -rf "$work"' EXIT
-# Een proces met een backslash en een aanhalingsteken in de opdrachtregel (zoals grep -E 'sshd\[[0-9]+\]')
-bash -c 'exec -a "grep-test (sshd)\[[0-9]+\] \"x\"" sleep 120' &
+# Een proces met een backslash en een aanhalingsteken in de opdrachtregel (zoals grep -E 'sshd\[[0-9]+\]'), met een
+# eigen procesnaam via prctl (de agent toont per procesnaam één voorbeeld; werkt ook met BusyBox)
+python3 -c 'import ctypes,time;ctypes.CDLL(None).prctl(15,b"rztestproc",0,0,0);time.sleep(120)#"x"\[1]' &
 proc=$!
 sleep 1
 echo "awk: $(readlink -f "$(command -v awk)") · $(awk -W version 2>/dev/null | head -n 1 || true)"
@@ -34,9 +35,9 @@ except ValueError as e:
 for k in ('agent_version', 'hostname', 'cpu', 'mem', 'disks', 'services', 'proc_list', 'svc_list'):
     if k not in d:
         print('✘ ontbreekt in het rapport:', k); sys.exit(1)
-odd = [p for p in d['proc_list'] if '\\[' in p[3]]
+odd = [p for p in d['proc_list'] if p[0] == 'rztestproc' and '\\[' in p[3] and '"x"' in p[3]]
 print('✔ geldige JSON, %d bytes, %d processen, %d disks%s' % (len(raw), len(d['proc_list']), len(d['disks']),
       ', proces met backslash netjes meegestuurd' if odd else ''))
 if not odd:
-    print('✘ het testproces met een backslash ontbreekt in proc_list'); sys.exit(1)
+    print('✘ het testproces met een backslash ontbreekt in proc_list:', [p for p in d['proc_list'] if 'rztest' in str(p) or 'grep-test' in str(p)]); sys.exit(1)
 PY
