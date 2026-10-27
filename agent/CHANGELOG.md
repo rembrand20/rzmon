@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.62.0 – 2026-10-27
+- **🩹 Zelf herstellen** (RzMon 1.107.0, per check aan te zetten): een service of container die niet draait, herstart de agent zelf, vóór zijn rapport. Lukt dat, dan blijft de check OK en komt er een ℹ️-melding; lukt het niet, de gewone melding. Een eigen **herstelcommando** zet je op de server in `/etc/rzmon-agent/heal.d/` (uitvoerbaar, van root, niet door anderen te wijzigen); de agent voert het alleen uit op verzoek van RzMon, in een versleuteld antwoord, als die check misgaat. Hooguit één poging per 10 minuten en 3 per dag per check. `HEAL=0` zet het op een server helemaal uit.
+- **🐕 Waakhond** (per agent aan te zetten in de Agent Manager): bereikt de agent RzMon een tijd niet (standaard 5 minuten), dan stuurt hij zelf een Pushover-bericht, en een herstelbericht als RzMon terug is. Bereikt hij ook Pushover niet, dan lag het aan zijn eigen netwerk; dat hoort RzMon achteraf. Draait RzMon wel maar staan de checks stil (cron), dan meldt hij dat ook. De Pushover-gegevens krijgt de agent alleen versleuteld. `WATCHDOG=0` zet het op een server uit.
+
 ## 1.61.1 – 2026-10-27
 - **Opgelost: "Het laatste rapport was deels onleesbaar" (proc_list, Syntax error).** Een backslash in de opdrachtregel van een proces (bijvoorbeeld `grep -E 'sshd\[[0-9]+\]'`) kwam niet goed in het rapport, waardoor RzMon de proceslijst weggooide. Dat gebeurde met de awk van Debian, dus ook op Proxmox. Dezelfde reparatie geldt voor de SUID-lijst, de pakketwijzigingen en de logins.
 

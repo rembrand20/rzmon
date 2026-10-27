@@ -128,6 +128,14 @@ Beweeg over een grafiek voor de precieze waarde. RzMon houdt hiervoor elk uur **
 
 **Maandrapport per e-mail.** Met de schakelaar **Maandrapport** (alleen beheerders) krijg je op de **1e van elke maand** (na 7:00) een korte samenvatting van de vorige maand: score, beschikbaarheid, storingen, hersteltijd, meldingen, de minst bereikbare servers en wat je nu het best aanpakt. Het gaat naar het e-mailadres bij *Meldingen → Kanalen*; stel dat eerst in. Met **Nu versturen** krijg je het rapport van vorige maand meteen. Standaard staat het uit.
 
+### Live bijwerken ⚡ en Zoeken en doen ⌨️ (vanaf 1.107.0)
+- **Live bijwerken**: RzMon kijkt elke paar seconden of er iets veranderd is (een storing, een melding, iets bevestigd of in onderhoud, een nieuwe checkronde) en werkt dan meteen het scherm bij. Het groene bolletje bij *Laatste check* laat zien dat het werkt (grijs = even geen verbinding). Het is licht voor de server: er blijven geen verbindingen openstaan. Staat er een venster open, dan wacht het tot je dat sluit.
+- **Zoeken en doen (Ctrl+K of ⌘K, op de telefoon de 🔍-knop)**: typ een deel van een server, check, IP-adres, tabblad of instelling en druk op Enter. Met een werkwoord erbij krijg je meteen de actie:
+  - *nu* of *check*: nu checken; *onderhoud*: onderhoud instellen; *bevestig*: een storing bevestigen; *grafiek*: de grafiek; *bewerk*: bewerken; *agent*: de Agent Manager;
+  - een IP-adres: de tijdlijn van dat adres, en (beheerders) *blokkeren*.
+
+  Bijvoorbeeld `rl02 disk onderhoud` of `nas nu`. Je ziet alleen wat je met je rol mag.
+
 ### Soort apparaat: servers en netwerk apart (vanaf 1.75.0)
 Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 switch, 📶 access point, 🧱 firewall, 🗄️ NAS, 🔋 UPS, 📷 camera (vanaf 1.76.0), 🏠 smart home, 🖨️ printer of 📦 overig. Op het dashboard vallen ze in groepen: **🖥️ Servers · 🌐 Netwerk** (router, switch, access point, firewall) **· 🗄️ Opslag · 🔋 Stroom · 📷 Camera's · 🏠 Smart home · 📦 Overig**.
 - **Vanzelf herkend:** een agent is een server, de Home Assistant-add-on smart home; met SNMP kijkt RzMon naar het apparaat zelf (UniFi = access point, Synology/QNAP/TrueNAS = NAS, UPS-MIB of APC = UPS, printer-MIB = printer, MikroTik = router, merken als Cisco, Netgear, TP-Link of HP = switch, pfSense/OPNsense/Fortinet = firewall, Linux/Proxmox/Windows = server). Dat gebeurt bij *🔍 Test SNMP*, bij *📡 SNMP-checks* en anders bij de eerste SNMP-check. Zonder agent of SNMP is het *overig*.
@@ -580,6 +588,15 @@ Bij de update naar 1.25.0 zijn je oude instellingen omgezet, zodat er niets vera
 | Meldingen bewaren (dagen) | 3× de historie (90) | Hoe lang verstuurde meldingen en de statuswijzigingen van checks bewaard worden; de pagina *Meldingen* toont ze per dag. Oudere worden elk uur opgeruimd |
 
 ---
+
+#### Over servers heen bundelen 🔗 (vanaf 1.107.0)
+Met **Ook over servers heen bundelen** (*Instellingen → Meldingen → Alarmgedrag*, standaard aan) krijg je één bericht als er binnen het bundelvenster meerdere servers misgaan, met de **waarschijnlijke oorzaak** als RzMon die vindt:
+- ze hangen volgens *Afhankelijkheden* achter dezelfde server: *"ze hangen allemaal achter Router: kijk daar eerst"*;
+- ze hangen volgens UniFi aan hetzelfde access point of dezelfde switch (netwerkscan met UniFi aan);
+- alle agents zijn tegelijk stil: dan ligt het eerder aan RzMon zelf of aan zijn netwerk;
+- ze zitten in hetzelfde Proxmox-cluster.
+
+De losse checks blijven gewoon zichtbaar in RzMon, en Home Assistant krijgt nog steeds een bericht per check.
 
 ### 6.3 Home Assistant-webhook
 RzMon kan elke melding ook naar Home Assistant sturen. Daar start je er een automatisering mee: een lamp rood kleuren, een TTS-melding, of een notificatie via de HA-app als extra kanaal naast Pushover.
@@ -1125,6 +1142,43 @@ Klik op een naam om de check te bewerken. Met 🙈 (*dit is normaal*) komt het p
 - **Importeren voegt alleen toe.** Een server of sjabloon met dezelfde naam blijft zoals hij is, en een check die er al is (zelfde type, doel en soort) wordt overgeslagen. Je ziet eerst wat er gebeurt; importeren vraagt je wachtwoord.
 
 **🧪 Meldketen testen** (vanaf 1.97.0, *Instellingen → 🔔 Meldingen → Kanalen*): één testmelding door alle kanalen die aan staan (Pushover, e-mail, Home Assistant-webhook, MQTT en de meldingenpagina), met de opgeslagen instellingen, met per kanaal ✓ of ✕ en de fout.
+
+### 7.13 Slimme drempels 🧠 (vanaf 1.107.0)
+Vaste drempels passen niet altijd: een CPU die elke nacht om 3:00 op 100% staat door de back-up, geeft elke nacht een warning, en een website die normaal in 120 ms antwoordt maar nu in 900 ms, merk je met een drempel van 1000 ms niet. Daarom kan RzMon per check **leren wat normaal is**, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en daar de drempels op zetten.
+
+**Per check kies je** (✎ → *Drempels*):
+
+| Modus | Wat het doet |
+|---|---|
+| ✋ **Handmatig** | De vaste drempels, zoals altijd. |
+| 🧠 **Slim** | RzMon leert wat normaal is en zet de drempels zelf. |
+| 🧠🛡️ **Slim met vangnet** | Slim, maar vanaf het vangnet (*Altijd critical vanaf*, bv. RAM 98%) altijd CRITICAL. |
+
+- **Werkt bij** ping, TCP, HTTP, CPU, RAM en SNMP (CPU, geheugen, interface, load, temperatuur, UPS-belasting en -temperatuur, Synology-temperaturen, UniFi-kanaalbezetting en -kwaliteit). **Disks** houden vaste drempels met de voorspelling: een disk heeft geen "normaal per uur", en leren zou een vollopende disk gewoon volgen.
+- **Leren**: uit de meetwaarden van de laatste 28 dagen (de bewaartermijn van meetwaarden telt mee), robuust (mediaan en percentielen, zodat één uitschieter niets verpest). Tot er **7 dagen** gegevens zijn, gelden de vaste drempels (*🧠 leert nog 3/7 dagen*).
+- **Altijd bijgesteld**: elke nacht vanaf 4:00 rekent RzMon alles opnieuw door, en een drempel verschuift **hooguit 10% per nacht**. Een merkbare aanpassing staat in het **wijzigingslogboek** (*🧠 Slimme drempels bijgesteld*) en is daar **terug te draaien**.
+- **Ondergrenzen**: een warning komt nooit onder een zinnige grens (CPU en RAM 50%, ping 20 ms, HTTP 300 ms…): een server die normaal op 3% CPU draait, krijgt geen warning bij 15%.
+- **Sluipende stijging**: stijgt de normaalwaarde in twee weken flink (een geheugenlek, groeiende belasting), dan krijg je een ℹ️-melding (*Systeeminfo → Normaalwaarde stijgt sluipend*) en schuiven de drempels **niet** mee omhoog zolang dat duurt.
+- **In de melding** staat wat normaal is: *"CPU 78% · 🧠 normaal op dit uur 35–60%"*.
+- **Gevoeligheid**: *rustig* (minder meldingen), *normaal* of *scherp* (ziet een afwijking eerder); voor alles bij *Instellingen → Checks → Slimme drempels*, en per check.
+
+**In de popup van een check** (klik op een check) staat de modus, wat er nu normaal is en welke drempels nu gelden, een **weekgrafiekje** (grijs = normaal per uur, lijn = warning, streep = nu), en hoeveel dagen er de afgelopen weken een warning was met de vaste en met de slimme drempels. In de grafiek (📈) zie je de normale band en de geleerde warning.
+
+**Nieuwe en bestaande checks.** Een nieuwe check krijgt bij zijn eerste run de standaard uit *Instellingen → Checks → Slimme drempels* (standaard *slim met vangnet*; een check die niet kan leren, wordt handmatig). **Bestaande checks blijven handmatig**: een update verandert niets. RzMon leert wel ook voor die checks, en laat op dezelfde pagina zien waar slimme drempels minder warnings hadden gegeven (*Voorstel voor bestaande checks*), met knoppen om ze om te zetten. Dat voorstel staat ook in 📊 Analyse onder *Wat nu aanpakken*. Meerdere checks tegelijk omzetten kan ook bij *Alle checks* (🧠 Slim).
+
+### 7.14 Zelf herstellen 🩹 (vanaf 1.107.0, agent 1.62.0)
+Per check (✎ → *🩹 Zelf herstellen*), alleen op servers met de agent:
+- **herstarten** (bij een service- of containercheck): draait de service of container niet, dan herstart de agent hem zelf, vóór zijn rapport. Lukt dat, dan blijft de check OK en krijg je alleen een ℹ️-melding (*Systeeminfo → Zelf hersteld*); lukt het niet, dan de gewone melding.
+- **een eigen herstelcommando** (bij elke check op die server): een script dat je **op de server zelf** zet, in `/etc/rzmon-agent/heal.d/<naam>`: uitvoerbaar, van root en niet door anderen te wijzigen (anders negeert de agent het). Gaat de check mis, dan vraagt RzMon de agent het uit te voeren, en **meldt pas als het niet helpt** (of als er na 5 minuten nog geen uitkomst is). Exitcode 0 = gelukt; de eerste regel uitvoer komt in de melding.
+
+```bash
+sudo mkdir -p /etc/rzmon-agent/heal.d
+printf '#!/bin/sh\nsystemctl restart wg-quick@wg0 && echo "WireGuard herstart"\n' | sudo tee /etc/rzmon-agent/heal.d/vpn-herstart >/dev/null
+sudo chmod 755 /etc/rzmon-agent/heal.d/vpn-herstart
+```
+Na het volgende rapport staat *herstelcommando vpn-herstart* in de keuzelijst.
+
+**Veiligheid**: RzMon kan alleen kiezen uit wat er al op de server staat, en vraagt het alleen via een **versleutelde verbinding** (koppelcode). Iemand die in RzMon binnenkomt, kan dus geen willekeurige commando's op je servers uitvoeren. Per check hooguit **één poging per 10 minuten en 3 per dag**. Staat een check in onderhoud, dan herstelt de agent niet (misschien staat hij expres uit). Met `HEAL=0` in `/etc/default/rzmon-agent` staat zelf herstellen op die server helemaal uit. Let op: de agent draait met `ProtectSystem=full`, dus een herstelcommando kan `/usr` en `/etc` niet wijzigen (een service herstarten kan wel). Op Home Assistant OS werkt zelf herstellen niet.
 
 ## 8. Agent op Linux-servers
 
@@ -2031,6 +2085,13 @@ RzMon zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons
 - Een UniFi IPS of een strenge firewall kan de scan van RzMon als poortscan zien. Sta in dat geval het IP-adres van de RzMon-server toe.
 - Andere VLAN's: daar ziet RzMon alleen IP-adressen (geen MAC-adres of fabrikant), omdat ARP niet over een router gaat.
 
+### 8.15 Waakhond 🐕: wie bewaakt RzMon? (vanaf 1.107.0, agent 1.62.0)
+Valt RzMon zelf uit, dan krijg je van RzMon niets meer, en denk je dat alles goed is. Daarom kan een agent **RzMon bewaken**: zet in de **Agent Manager** van een server *🐕 Waakhond* aan (bij 1 of 2 servers is genoeg; elke waakhond stuurt zijn eigen bericht) en kies na hoeveel minuten (standaard 5).
+- Lukt het rapport aan RzMon zo lang niet, dan stuurt de agent **zelf** een Pushover-bericht (*⚠️ RzMon onbereikbaar*, met de prioriteit van je critical-meldingen), en een herstelbericht als RzMon terug is.
+- **Ligt het aan de server zelf?** Kan de agent ook Pushover niet bereiken, dan lag het aan zijn eigen netwerk: dan geen bericht. Als RzMon terug is, krijg je daar een ℹ️-melding van (*Systeeminfo → Waakhond*): hoe lang het duurde en of het gemeld is.
+- **RzMon draait, maar de checks staan stil** (de cron loopt niet): RzMon geeft bij elk rapport mee wanneer de checks voor het laatst draaiden; is dat langer geleden dan je ingestelde tijd, dan meldt de waakhond ook dat (*⚠️ RzMon: checks staan stil*), en weer als ze draaien.
+- **Nodig**: Pushover aan (*Meldingen → Kanalen*) en een **versleutelde verbinding** (koppelcode): de Pushover-gegevens gaan naar de agent, en staan daar in de cache die alleen root kan lezen. Met `WATCHDOG=0` in `/etc/default/rzmon-agent` doet die server nooit mee. Een Pushover-compatibele dienst gebruiken? Zet `PUSHOVER_API` (standaard `https://api.pushover.net/1/messages.json`).
+
 ## 9. Agent op Home Assistant OS
 
 Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De agent draait daarom als **add-on**.
@@ -2636,6 +2697,13 @@ Herstart Home Assistant. Ideeën:
 - een dashboardkaart met de attribuut-lijst `problems`.
 
 ---
+
+### Statuspagina 🟢 (vanaf 1.107.0)
+Een eenvoudige pagina voor huisgenoten of klanten: *Instellingen → Koppelingen → Statuspagina*.
+- Kies **onderdelen** ("Internet", "NAS", "Plex"…), elk met de checks die erbij horen. Het ergste van die checks telt; checks in onderhoud tonen *Onderhoud*.
+- Per onderdeel een **balk per dag over de laatste 90 dagen** (uit de dagtotalen van Analyse), een eigen **titel** en een **mededeling** ("Zaterdag onderhoud aan de NAS"). De pagina ververst elke minuut, in licht en donker, ook op de telefoon.
+- Er staan **geen IP-adressen, servernamen of foutteksten** op.
+- Te openen via een **geheime link** (`/status.php?k=…`), ook van buiten. Een verkeerde link geeft een gewone 404 (niet herkenbaar als RzMon). Met **↻ Nieuwe link** werkt de oude meteen niet meer. Heet RzMon van buiten anders, vul dan het adres in (`base_url`), dan klopt de link die je kopieert. Zet `/status.php` door in je reverse proxy als je hem van buiten wilt openen.
 
 ## 12. Upgraden
 

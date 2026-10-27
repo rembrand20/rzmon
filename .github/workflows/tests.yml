@@ -1,0 +1,66 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # De agent op verschillende Linux-versies, elk met zijn eigen awk (mawk, gawk, busybox): is het rapport geldige JSON?
+  agent:
+    name: Agent op ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['debian:12', 'debian:trixie', 'ubuntu:24.04', 'rockylinux:9', 'fedora:latest', 'alpine:3.20']
+    container: ${{ matrix.image }}
+    steps:
+      - name: Benodigdheden
+        run: |
+          if command -v apt-get >/dev/null; then apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq bash curl procps iproute2 python3 openssl ca-certificates git >/dev/null
+          elif command -v dnf >/dev/null; then dnf install -y -q bash procps-ng iproute python3 openssl findutils git >/dev/null
+          elif command -v apk >/dev/null; then apk add -q bash curl procps iproute2 python3 openssl coreutils git; fi
+      - uses: actions/checkout@v4
+      - name: Agent draaien en het rapport controleren
+        run: bash tests/agent-json.sh
+
+  # PHP-tests met een echte MariaDB, daarna een rondje in de browser
+  php:
+    name: PHP en browser
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: rzmon
+          MARIADB_USER: rzmon
+          MARIADB_PASSWORD: rzmon-ci
+        ports: ['3306:3306']
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, curl, mbstring, sodium, zip
+      - name: config.php en database
+        run: |
+          cat > config.php <<'PHP'
+          <?php
+          return ['db' => ['host' => '127.0.0.1', 'port' => 3306, 'name' => 'rzmon', 'user' => 'rzmon', 'pass' => 'rzmon-ci'],
+              'timezone' => 'Europe/Amsterdam', 'ping_bin' => '/bin/ping', 'base_url' => '', 'php' => ['display_errors' => '1']];
+          PHP
+          echo 'ci-geheim-123' | php install/install.php admin
+      - name: PHP-tests
+        run: php tests/php/run.php
+      - name: Browserrondje
+        run: |
+          (cd public && php -S 127.0.0.1:8099 >/tmp/php.log 2>&1 &)
+          npm install --no-save --silent playwright@1.47.2
+          npx playwright install --with-deps chromium >/dev/null
+          BASE=http://127.0.0.1:8099 RZ_USER=admin RZ_PASS=ci-geheim-123 node tests/e2e/smoke.js
+      - name: PHP-log bij een fout
+        if: failure()
+        run: cat /tmp/php.log || true

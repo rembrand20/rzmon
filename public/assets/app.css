@@ -1642,3 +1642,55 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .an-kpis { grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); }
 .an-wide { grid-column: span 2; }
 @media (max-width: 760px) { .an-wide { grid-column: auto; } }
+
+/* 1.107.0: 🧠 slimme drempels */
+.smart-wrap { border-left: 3px solid var(--primary); padding: .2rem 0 .1rem .7rem; margin: .2rem 0 .8rem; }
+.smart-wrap .hint { margin-top: .2rem; }
+.smart-box { margin: .6rem 0 .2rem; }
+.smart-box p { margin: .25rem 0; }
+.smart-week svg { display: block; width: 100%; height: 80px; background: var(--card-2); border-radius: 6px; }
+.smart-band { fill: var(--muted); opacity: .28; }
+.smart-warn { fill: none; stroke: var(--warn); stroke-width: 1.6; }
+.smart-now { stroke: var(--text); stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; opacity: .6; }
+.smart-days { display: grid; grid-template-columns: repeat(7, 1fr); font-size: .68rem; color: var(--muted); text-align: center; margin-top: .15rem; }
+.chart-band { fill: var(--muted); opacity: .18; }
+.chart-bandw { fill: none; stroke: var(--warn); stroke-width: 1.2; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.smart-row { display: grid; grid-template-columns: minmax(13rem, 1.4fr) 1fr 1fr; gap: 0 .8rem; }
+@media (max-width: 640px) { .smart-row { grid-template-columns: 1fr; } }
+.smart-prop td, .smart-prop th { padding: .3rem .6rem .3rem 0; text-align: left; }
+.smart-prop .link-btn, .smart-box .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; text-align: left; }
+.live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); vertical-align: middle; animation: live-pulse 2.4s ease-in-out infinite; }
+.live-dot.off { background: var(--muted); animation: none; }
+@keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+
+/* 1.107.0: ⌨️ zoeken en doen (Ctrl+K) */
+.cmdk-btn { display: inline-flex; align-items: center; gap: .45rem; background: var(--card-2); border: 1px solid var(--border); border-radius: 999px; padding: .32rem .7rem; color: var(--muted); cursor: pointer; font: inherit; font-size: .8rem; margin-right: .5rem; }
+.cmdk-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.cmdk-btn:hover { color: var(--text); border-color: var(--primary); }
+.cmdk-kbd { font-size: .7rem; border: 1px solid var(--border); border-radius: 4px; padding: 0 .3rem; }
+@media (max-width: 760px) { .cmdk-kbd { display: none; } .cmdk-btn { padding: .4rem; margin-right: .3rem; } }
+.cmdk { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, .45); display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; }
+.cmdk[hidden] { display: none; }
+.cmdk-box { width: min(640px, 100%); background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, .35); overflow: hidden; display: flex; flex-direction: column; max-height: 70vh; }
+.cmdk-box input { border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: .9rem 1rem; font-size: 1rem; background: transparent; outline: none; width: 100%; }
+.cmdk-list { overflow-y: auto; padding: .35rem; }
+.cmdk-item { display: flex; gap: .65rem; align-items: center; width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: .5rem .6rem; cursor: pointer; color: var(--text); font: inherit; }
+.cmdk-item.sel, .cmdk-item:hover { background: var(--card-2); }
+.cmdk-item.sel { box-shadow: inset 3px 0 0 var(--primary); }
+.cmdk-ic { width: 1.4rem; text-align: center; flex: none; }
+.cmdk-txt { display: flex; flex-direction: column; min-width: 0; }
+.cmdk-l { font-size: .92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdk-s { font-size: .75rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdk-foot { border-top: 1px solid var(--border); padding: .45rem 1rem; }
+.cmdk-none { padding: .8rem; margin: 0; }
+
+/* 1.107.0: 🟢 statuspagina */
+.sp-row { display: grid; grid-template-columns: minmax(8rem, 1fr) 2fr auto; gap: .5rem; align-items: start; margin-bottom: .5rem; }
+.sp-checks { border: 1px solid var(--border); border-radius: 8px; background: var(--card-2); }
+.sp-checks summary { padding: .5rem .7rem; cursor: pointer; font-size: .88rem; }
+.sp-pick { max-height: 14rem; overflow-y: auto; padding: .2rem .7rem .6rem; border-top: 1px solid var(--border); }
+.sp-host { font-weight: 600; font-size: .8rem; margin: .5rem 0 .15rem; color: var(--muted); }
+.sp-c { display: flex; gap: .45rem; align-items: center; font-size: .86rem; font-weight: 400; margin: .1rem 0; }
+.sp-c input { width: auto; margin: 0; }
+@media (max-width: 640px) { .sp-row { grid-template-columns: 1fr auto; } .sp-checks { grid-column: 1 / -1; grid-row: 2; } }

@@ -95,12 +95,13 @@ final class Monitor
             'kind_auto' => $row['host_kind_auto'] ?? null,
         ];
         $t0 = microtime(true);
+        $row = Smart::apply($row);   // 1.107.0: geleerde drempels van dit uur (slim / slim met vangnet)
         $res = Checks::run($row, $host);
         q('UPDATE checks SET run_ms = ? WHERE id = ?', [(int) round((microtime(true) - $t0) * 1000), $row['id']]);   // traagste checks (systeemcheck)
         if ($row['type'] === 'disk') {
             $res = Stats::applyDiskForecast($row, $res);
         }
-        $res = Checks::reverse($row, $res);
+        $res = Smart::annotate($row, Checks::reverse($row, $res));
         self::process($row, $res);
         return $res;
     }
@@ -127,7 +128,8 @@ final class Monitor
             'agent_version' => $row['agent_version'] ?? null, 'agent_tick' => $row['agent_tick'] ?? null, 'snmp' => $row['host_snmp'] ?? null, 'kind_auto' => $row['host_kind_auto'] ?? null];
         db()->beginTransaction();
         try {
-            $res = Checks::reverse($row, Checks::run($row, $host));
+            $row = Smart::apply($row);
+            $res = Smart::annotate($row, Checks::reverse($row, Checks::run($row, $host)));
         } finally {
             db()->rollBack();
         }
@@ -397,6 +399,10 @@ final class Monitor
             $due = $enabled && ($isRepeat
                 ? $r['repeat'] > 0 && $notifiedAt !== null && strtotime($notifiedAt) <= time() - $r['repeat'] * 60
                 : ($r['mode'] === 'now' || $age >= $r['min'] * 60) && $streak >= self::failsNeeded($check));
+            // 1.107.0: eerst het herstelcommando op de server proberen; pas melden als dat niet helpt (of te lang duurt)
+            if ($due && !$isRepeat && Heal::hold($check)) {
+                $due = false;
+            }
             if ($due) {
                 $isWarnish = $status !== STATUS_CRIT;
                 $icon = [STATUS_WARN => '🟠', STATUS_CRIT => '🔴', STATUS_UNKNOWN => '⚪'][$status];
@@ -450,24 +456,28 @@ final class Monitor
     private static function flushQueueInLang(): void
     {
         $win = max(0, (int) setting('notify_group_seconds', 120));
-        foreach (q('SELECT host_id, UNIX_TIMESTAMP(MIN(created_at)) AS first FROM notify_queue GROUP BY host_id')->fetchAll() as $h) {
-            if ($win > 0 && (int) $h['first'] > time() - $win) {
-                continue;   // nog even wachten op meer meldingen van deze server
-            }
+        $groups = q('SELECT host_id, UNIX_TIMESTAMP(MIN(created_at)) AS first, MAX(status <> 0) AS problem FROM notify_queue GROUP BY host_id')->fetchAll();
+        $due = array_filter($groups, static fn($h) => $win === 0 || (int) $h['first'] <= time() - $win);
+        if (!$due) {
+            return;   // nog even wachten op meer meldingen
+        }
+        // 1.107.0: gaan er meerdere servers tegelijk mis, dan één bericht voor allemaal, met de waarschijnlijke oorzaak
+        if ($win > 0 && Bundle::on() && count(array_filter($groups, static fn($h) => (int) $h['problem'])) >= 2) {
             $items = [];
-            foreach (q('SELECT * FROM notify_queue WHERE host_id = ? ORDER BY id', [$h['host_id']])->fetchAll() as $it) {
-                // Eerst uit de wachtrij halen: zo verstuurt een tweede proces (cron + "Nu checken") hem niet nog eens
-                if (q('DELETE FROM notify_queue WHERE id = ?', [$it['id']])->rowCount() !== 1) {
-                    continue;
-                }
-                $c = q(self::CHECK_SELECT . ' WHERE c.id = ?', [$it['check_id']])->fetch();
-                if ($c && NotifyRules::quietUntil(NotifyRules::quietFor($c)) !== null) {
-                    // Stille uren: niet versturen. Onthouden wat de gebruiker het laatst kreeg; na afloop volgt één samenvatting.
-                    q('UPDATE checks SET quiet_held = COALESCE(quiet_held, ?) WHERE id = ?', [(int) $it['previous'], $c['id']]);
-                } elseif ($c) {
-                    $items[] = ['item' => $it, 'check' => $c];
-                }
+            foreach ($groups as $h) {
+                array_push($items, ...self::takeQueued((int) $h['host_id']));
             }
+            if (count(array_unique(array_map(static fn($x) => $x['check']['hid'], $items))) >= 2) {
+                self::sendGroup($items, Bundle::title($items, Bundle::cause($items)));
+            } elseif (count($items) === 1) {
+                self::sendItem($items[0]['check'], $items[0]['item']);
+            } elseif ($items) {
+                self::sendGroup($items);
+            }
+            return;
+        }
+        foreach ($due as $h) {
+            $items = self::takeQueued((int) $h['host_id']);
             if ($win === 0 || count($items) === 1) {
                 foreach ($items as $x) {
                     self::sendItem($x['check'], $x['item']);
@@ -476,6 +486,26 @@ final class Monitor
                 self::sendGroup($items);
             }
         }
+    }
+
+    /** Meldingen van één server uit de wachtrij halen (behalve wat in de stille uren valt) */
+    private static function takeQueued(int $hostId): array
+    {
+        $items = [];
+        foreach (q('SELECT * FROM notify_queue WHERE host_id = ? ORDER BY id', [$hostId])->fetchAll() as $it) {
+            // Eerst uit de wachtrij halen: zo verstuurt een tweede proces (cron + "Nu checken") hem niet nog eens
+            if (q('DELETE FROM notify_queue WHERE id = ?', [$it['id']])->rowCount() !== 1) {
+                continue;
+            }
+            $c = q(self::CHECK_SELECT . ' WHERE c.id = ?', [$it['check_id']])->fetch();
+            if ($c && NotifyRules::quietUntil(NotifyRules::quietFor($c)) !== null) {
+                // Stille uren: niet versturen. Onthouden wat de gebruiker het laatst kreeg; na afloop volgt één samenvatting.
+                q('UPDATE checks SET quiet_held = COALESCE(quiet_held, ?) WHERE id = ?', [(int) $it['previous'], $c['id']]);
+            } elseif ($c) {
+                $items[] = ['item' => $it, 'check' => $c];
+            }
+        }
+        return $items;
     }
 
     /**

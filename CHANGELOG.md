@@ -7,6 +7,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.107.0 – 2026-10-27
+### Nieuw
+- **🧠 Slimme drempels**: RzMon leert per check wat normaal is, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en zet daar de drempels op. Per check te kiezen: ✋ *Handmatig*, 🧠 *Slim* of 🧠🛡️ *Slim met vangnet* (vanaf een harde grens altijd critical).
+  - Werkt bij ping, TCP, HTTP, CPU, RAM en SNMP (CPU, geheugen, interface, load, temperatuur, UPS, UniFi). Disks houden vaste drempels met de voorspelling.
+  - Na 7 dagen gegevens; daarna elke nacht bijgesteld, hooguit 10% per nacht. Elke aanpassing staat in het wijzigingslogboek, terug te draaien.
+  - Stijgt de normaalwaarde sluipend (een lek?), dan een ℹ️-melding, en dan schuiven de drempels niet mee omhoog.
+  - In de popup van een check: wat nu normaal is, een weekgrafiekje en hoeveel dagen met een warning het met vaste en met slimme drempels was; in de grafiek de normale band.
+  - **Nieuwe checks** krijgen de standaard uit *Instellingen → Checks → Slimme drempels* (standaard slim met vangnet). **Bestaande checks blijven handmatig**: daar staat een voorstel om ze om te zetten, ook in 📊 Analyse.
+  - Gevoeligheid (rustig, normaal, scherp) voor alles en per check; ook voor meerdere checks tegelijk.
+- **🔗 Storingen bundelen over servers heen**: gaan er binnen het bundelvenster meerdere servers mis, dan één bericht met de waarschijnlijke oorzaak (dezelfde server erboven, hetzelfde access point of dezelfde switch via UniFi, alle agents tegelijk stil, hetzelfde Proxmox-cluster). Uit te zetten bij *Alarmgedrag*.
+- **🩹 Zelf herstellen** (agent 1.62.0 nodig): per check een service of container laten herstarten, of een eigen herstelcommando dat alleen óp de server staat. RzMon meldt pas als het niet helpt.
+- **🐕 Waakhond** (agent 1.62.0 nodig): per agent aan te zetten in de Agent Manager. De agent stuurt zelf een Pushover-bericht als RzMon onbereikbaar is of de checks stilstaan.
+- **⚡ Live bijwerken**: wijzigingen (storingen, meldingen, bevestigen, onderhoud) staan binnen een paar seconden op je scherm, zonder de pagina telkens helemaal te laden. Een groen bolletje bij *Laatste check* laat zien dat het werkt.
+- **⌨️ Zoeken en doen (Ctrl+K)**: servers, checks, tabbladen, instellingen en IP-adressen, en met een woord als *onderhoud*, *nu*, *bevestig*, *grafiek*, *bewerk* of *blokkeer* meteen de actie. Op de telefoon met de 🔍-knop.
+- **🟢 Statuspagina**: een eenvoudige pagina voor huisgenoten of klanten via een geheime link (ook van buiten), met de onderdelen die je kiest, een balk per dag over 90 dagen en een eigen mededeling. *Instellingen → Koppelingen → Statuspagina*.
+- **🧪 Automatische tests** in GitHub: de agent op Debian, Ubuntu, Rocky, Fedora en Alpine (elk met zijn eigen awk), PHP-tests met een echte database en een rondje in de browser.
+- *Nieuwe agent 1.62.0.*
+
 ## 1.106.2 – 2026-10-27
 ### Opgelost
 - **📊 Analyse: de grafiekjes in de kerncijfers** staken onder de tegel uit en stonden naar rechts verschoven. Ze staan nu netjes onderaan in de tegel, op één lijn.

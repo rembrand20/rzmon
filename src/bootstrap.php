@@ -16,7 +16,8 @@ const REMEMBER_DAYS = 30;
 // Instellingen die nooit naar de browser gaan (alleen "ingevuld of niet")
 const SECRET_SETTINGS = ['pushover_token', 'smtp_pass', 'mqtt_pass', 'backup_pass', 'enc_key', 'enc_key_old', 'hibp_key', 'unifi_pass', 'unifi_key', 'adguard_pass'];
 
-const SM_CONFIG_FILE = SM_ROOT . '/config.php';
+// RZMON_CONFIG: een ander configbestand (tests op een aparte database)
+define('SM_CONFIG_FILE', getenv('RZMON_CONFIG') ?: SM_ROOT . '/config.php');
 // Versie van RzMon: de enige bron is het bestand VERSION (bijwerken met tools/bump-version.sh)
 define('RZMON_VERSION', trim((string) @file_get_contents(SM_ROOT . '/VERSION')) ?: '0.0.0');
 // Nieuwste agent: eigen nummer, los van RzMon (agent/VERSION; bijwerken met tools/bump-version.sh agent …)
@@ -76,6 +77,10 @@ require_once __DIR__ . '/NetScan.php';
 require_once __DIR__ . '/NetLinks.php';
 require_once __DIR__ . '/Pve.php';
 require_once __DIR__ . '/Analytics.php';
+require_once __DIR__ . '/Smart.php';
+require_once __DIR__ . '/Bundle.php';
+require_once __DIR__ . '/Heal.php';
+require_once __DIR__ . '/StatusPage.php';
 SelfCheck::register();   // PHP-fouten bijhouden voor de systeemcheck (1.96.0)
 require_once __DIR__ . '/SnmpMonitor.php';
 require_once __DIR__ . '/I18n.php';
@@ -130,14 +135,13 @@ function q(string $sql, array $params = []): PDOStatement
 
 function settings(): array
 {
-    static $cache = null;
-    if ($cache === null) {
-        $cache = [];
+    if (!isset($GLOBALS['rz_settings'])) {
+        $GLOBALS['rz_settings'] = [];
         foreach (q('SELECT name, value FROM settings') as $row) {
-            $cache[$row['name']] = $row['value'];
+            $GLOBALS['rz_settings'][$row['name']] = $row['value'];
         }
     }
-    return $cache;
+    return $GLOBALS['rz_settings'];
 }
 
 function setting(string $name, $default = null)
@@ -148,6 +152,9 @@ function setting(string $name, $default = null)
 function save_setting(string $name, string $value): void
 {
     q('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)', [$name, $value]);
+    if (isset($GLOBALS['rz_settings'])) {
+        $GLOBALS['rz_settings'][$name] = $value;   // de rest van dit verzoek ziet de nieuwe waarde
+    }
 }
 
 /** Rechten van een API-sleutel: status lezen, IDS lezen, IDS blokkeren, checks bedienen. */

@@ -80,6 +80,8 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Overig:** licht en donker thema, werkt op je telefoon, ververst elke 20 seconden, en **↻ Alles nu checken**.
 - **Meldingenoverzicht per dag:** elke verstuurde melding met de kanalen waarlangs hij ging, gegroepeerd per dag met tellers. Vandaag staat open. De bewaartermijn stel je zelf in. **Sorteren** op tijd, status, server, check, bericht of kanalen (klik op de kolomkop; in Blox een keuzelijst), en klik op een melding voor de popup van de check.
 - **📊 Analyse** (vanaf 1.106.0, alleen voor beheerders en gebruikers): een eigen tabblad over een periode die je kiest (24 uur, 7, 30, 90 of 365 dagen, of eigen datums), steeds vergeleken met de periode ervoor. Kerncijfers (beschikbaarheid, storingen, hersteltijd, meldingen, IDS, score), **🎯 Wat nu aanpakken** (disks die vollopen, guests zonder back-up, flappende checks, riskante poorten, kwetsbaarheden met een oplossing …), betrouwbaarheid (per server, storingen per weekdag en uur, lastigste checks, responstijden), capaciteit, beveiliging, netwerk (ook UniFi en AdGuard), back-ups en meldingen/ruis. Dagtotalen blijven een jaar bewaard. Een **maandrapport per e-mail** zet je zelf aan of uit.
+- **⚡ Live bijwerken** (vanaf 1.107.0): wijzigingen binnen een paar seconden op je scherm. **⌨️ Zoeken en doen (Ctrl+K)**: servers, checks, IP's, tabbladen en instellingen, en met een werkwoord (*onderhoud*, *nu*, *bevestig*, *grafiek*, *blokkeer*) meteen de actie.
+- **🟢 Statuspagina** (vanaf 1.107.0): voor huisgenoten of klanten via een geheime link, met de onderdelen die je kiest en 90 dagen per dag.
 
 ## 4. Meldingen
 - **Kanalen:**
@@ -104,6 +106,10 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Herstelmelding** zodra het weer goed gaat. Een **nieuwe melding bij escalatie** (warning → critical).
 - **Automatisch onderhoud** na herhaalde meldingen voor dezelfde storing, tot hij is opgelost.
 - **Testknoppen** per kanaal.
+- **🧠 Slimme drempels** (vanaf 1.107.0): RzMon leert per check wat normaal is per uur van de week en zet daar de drempels op (handmatig, slim, of slim met vangnet); elke nacht bijgesteld (hooguit 10%), in het wijzigingslogboek terug te draaien, met een ℹ️ bij een sluipende stijging.
+- **🔗 Bundelen over servers heen** (vanaf 1.107.0): meerdere servers tegelijk mis = één bericht met de waarschijnlijke oorzaak.
+- **🩹 Zelf herstellen** (vanaf 1.107.0, agent 1.62.0): een service of container herstarten, of een eigen herstelcommando van de server; melden pas als het niet helpt.
+- **🐕 Waakhond** (vanaf 1.107.0, agent 1.62.0): een agent meldt via Pushover als RzMon onbereikbaar is of de checks stilstaan.
 
 ## 5. Storingen, onderhoud en afhankelijkheden
 - **✔ Bevestigen:**

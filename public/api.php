@@ -172,7 +172,7 @@ function agent_host(): array
     }
     $ip = client_ip();
     $cols = 'id, name, mode, agent_version, info_agent, agent_seen, agent_beats, agent_ip, agent_tick, enc, agent_token,
-             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock, agent_pin_sent, agent_https, agent_fb_at';
+             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock, agent_pin_sent, agent_https, agent_fb_at, watchdog';
     if ($kid !== '') {
         $host = q("SELECT $cols FROM hosts WHERE agent_key_id = ? OR (agent_key_old_id = ? AND agent_key_old_until > ?) LIMIT 1", [$kid, $kid, now()])->fetch();
         $reason = $host ? null : t('onbekende sleutel (vernieuwd of opnieuw gekoppeld?): koppel de agent opnieuw met een koppelcode');
@@ -381,7 +381,8 @@ function agent_enc_fields(array $host, ?string $agentVersion): array
  * Wat de agent van RzMon moet weten, één regel per item (tab-gescheiden):
  * welke services hij bewaakt, logzoekopdrachten, eigen poorten van services en extra tests.
  */
-function agent_tests_text(int $hostId): string
+/** @param bool $secure de lijst gaat versleuteld terug (dan mogen de gegevens voor de waakhond erin) */
+function agent_tests_text(int $hostId, bool $secure = false): string
 {
     $out = [];
     // Hoe vaak de agent rapporteert: 0 <tab> tick <tab> seconden
@@ -455,14 +456,16 @@ function agent_tests_text(int $hostId): string
             }
         }
     }
+    // 1.107.0: zelf herstellen (services en containers) en de waakhond
+    array_push($out, ...Heal::testLines($hostId, $secure));
     return $out ? implode("\n", $out) . "\n" : '';
 }
 
 /** Kenmerk van die lijst: verandert het, dan haalt de agent hem meteen opnieuw op. */
-function agent_tests_rev(int $hostId): string
+function agent_tests_rev(int $hostId, bool $secure = false): string
 {
     // Zelfde inhoud als het cachebestand van de agent (die zet er één regeleinde achter)
-    return substr(sha1(rtrim(agent_tests_text($hostId), "\n") . "\n"), 0, 12);
+    return substr(sha1(rtrim(agent_tests_text($hostId, $secure), "\n") . "\n"), 0, 12);
 }
 
 // Koppelen met een koppelcode (agent 1.50.0+): het bericht is versleuteld met een sleutel uit de koppelcode (X-Agent-Pair:
@@ -517,7 +520,7 @@ if ($action === 'agent_tests') {
         out(['error' => t('Geweigerd')], 403);
     }
     header('Content-Type: text/plain; charset=utf-8');
-    $text = agent_tests_text((int) $host['id']);
+    $text = agent_tests_text((int) $host['id'], $key !== null);
     echo $key !== null ? AgentCrypto::seal($text, $key, $m[2]) : $text;
     exit;
 }
@@ -809,6 +812,8 @@ if ($action === 'agent') {
     if ($salvaged) {
         $st->execute([$host['id'], 'report_warn', json_encode($salvaged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $now]);
     }
+    // 1.107.0: zelf herstellen (uitkomsten, herstelcommando's op de server) en de waakhond
+    Heal::fromAgent($host, $in, $st, $now);
     // Vorige stand van de verbindingscontrole (1.100.0), vóór de oude regels verdwijnen
     $prevSec = q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'sec_state'", [$host['id']])->fetchColumn();
     q('DELETE FROM agent_data WHERE host_id = ? AND updated_at < ?', [$host['id'], $now]);
@@ -828,7 +833,14 @@ if ($action === 'agent') {
         'disks' => count($in['disks'] ?? []), 'services' => count($in['services'] ?? []), 'ports' => count($in['ports'] ?? []),
         'certs' => count((array) ($in['certs'] ?? [])), 'containers' => count((array) ($in['podman']['containers'] ?? [])),
     ]];
-    $resp['tests_rev'] = agent_tests_rev((int) $host['id']);
+    $resp['tests_rev'] = agent_tests_rev((int) $host['id'], $encrypted);
+    // 1.107.0: herstelcommando's (alleen versleuteld) en, voor de waakhond, hoe lang de checks al niet gedraaid hebben
+    if ($encrypted && ($run = Heal::runList((int) $host['id']))) {
+        $resp['heal_run'] = $run;
+    }
+    if ((int) ($host['watchdog'] ?? 0) === 1) {
+        $resp['cron_age'] = Heal::cronAge();
+    }
     $resp += agent_enc_fields($host, $agentVersion);
     if ($u = agent_url_report($host, $in, $agentVersion, $encrypted)) {
         $resp['url_set'] = $u;
@@ -1065,10 +1077,10 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'analytics', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
+    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1469,7 +1481,7 @@ switch ($action) {
         out(['hosts' => (object) $out, 'now_ts' => time()]);
 
     case 'state':
-        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen,
+        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen, watchdog, watchdog_min,
                     agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at, agent_url_pin, agent_url_fb_pin,
                     enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, agent_beats FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
@@ -1520,6 +1532,7 @@ switch ($action) {
              'tpl_items' => (object) array_column(q('SELECT ti.id, t.name FROM template_items ti JOIN check_templates t ON t.id = ti.template_id')->fetchAll(), 'name', 'id'),
              'host_tpls' => (object) array_reduce(q('SELECT host_id, template_id FROM host_templates')->fetchAll(), static function ($a, $r) { $a[$r['host_id']][] = (int) $r['template_id']; return $a; }, []),
              'notify_fails' => max(1, (int) setting('notify_fails', '1')),
+             'thresh_default' => (string) setting('thresh_default', 'guard'), 'smart_sens' => (string) setting('smart_sens', 'normal'),
              // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
              'net_new' => NetScan::enabled() ? NetScan::newCount() : 0,
              'ids_open' => Ids::enabled() ? (int) q("SELECT COUNT(*) FROM ids_incidents WHERE status = 'open' AND severity = 2")->fetchColumn() : 0,
@@ -1571,7 +1584,7 @@ switch ($action) {
         }
         unset($ch);
         out(['check' => $c, 'uptime' => ['d1' => $pct($up['ok1'], $up['n1']), 'd7' => $pct($up['ok7'], $up['n7'])],
-             'changes' => $changes, 'now' => now()]);
+             'changes' => $changes, 'now' => now(), 'smart' => Smart::info($c)]);
 
     case 'history':
         $id = (int) ($_GET['check_id'] ?? 0);
@@ -1617,7 +1630,15 @@ switch ($action) {
             $lr = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = ?", [$hid, "logrun:$id"])->fetchColumn(), true);
             $logLines = array_map(fn($l) => ['time' => date('Y-m-d H:i:s', (int) $l[0]), 'line' => $l[1]], $lr['lines'] ?? []);
         }
-        out(['points' => $pts, 'uptime' => $up, 'forecast' => $forecast, 'log_lines' => $logLines, 'series' => $series]);
+        // 1.107.0: slimme drempels: de normale band (10e–95e percentiel) en de warning op het uur van elk punt
+        $band = null;
+        if ($type && ($m = Smart::model($id)) && (int) ($m['days'] ?? 0) >= Smart::MIN_DAYS) {
+            $band = array_map(static function ($p) use ($m) {
+                $h = Smart::how($p['t']);
+                return [$m['lo'][$h], $m['hi'][$h], $m['w'][$h], $m['c'][$h]];
+            }, $pts);
+        }
+        out(['points' => $pts, 'uptime' => $up, 'forecast' => $forecast, 'log_lines' => $logLines, 'series' => $series, 'band' => $band]);
 
     case 'stats':
         // Beschikbaarheid per server en minigrafieken per check; 2 minuten bewaard
@@ -1747,6 +1768,17 @@ switch ($action) {
         $in = input();
         q('UPDATE hosts SET realtime = ? WHERE id = ?', [!empty($in['on']) ? 1 : 0, (int) ($in['id'] ?? 0)]);
         AgentCommands::audit($user['username'], 'Realtime', (!empty($in['on']) ? 'aan' : 'uit') . ' voor server ' . (int) ($in['id'] ?? 0));
+        out(['ok' => true]);
+
+    // 🐕 Waakhond (1.107.0): deze agent bewaakt RzMon (Pushover als RzMon onbereikbaar is of de checks stilstaan)
+    case 'host_watchdog':
+        $in = input();
+        $hid = (int) ($in['id'] ?? 0);
+        $before = ChangeLog::hostRow($hid);
+        q('UPDATE hosts SET watchdog = ?, watchdog_min = ? WHERE id = ? AND mode = ?', [!empty($in['on']) ? 1 : 0, max(2, min(120, (int) ($in['min'] ?? 5))), $hid, 'agent']);
+        if ($before) {
+            ChangeLog::record('host', $hid, 'update', $before['name'] . ' (🐕 ' . t('waakhond') . ')', $before, ChangeLog::hostRow($hid));
+        }
         out(['ok' => true]);
 
     // Info-melding bij agent-updates van deze server (volgt verder de algemene info-regel)
@@ -2362,7 +2394,7 @@ switch ($action) {
 
     case 'agent_status':
         $id = (int) ($_GET['id'] ?? 0);
-        $h = q('SELECT agent_seen, agent_ip, agent_version, mode, agent_update_req, agent_update_status, agent_update_via, realtime FROM hosts WHERE id = ?', [$id])->fetch();
+        $h = q('SELECT agent_seen, agent_ip, agent_version, mode, agent_update_req, agent_update_status, agent_update_via, realtime, watchdog, watchdog_min, enc_seen FROM hosts WHERE id = ?', [$id])->fetch();
         if (!$h) {
             out(['error' => t('Server niet gevonden')], 404);
         }
@@ -2378,7 +2410,10 @@ switch ($action) {
              'audit' => AgentAudit::items(q('SELECT ' . AgentAudit::HOST_COLS . ' FROM hosts WHERE id = ?', [$id])->fetch() ?: [], AgentAudit::cfg($id)),
              'report_warn' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'report_warn'", [$id])->fetchColumn(), true),
              'realtime' => ['on' => (bool) $h['realtime'], 'status' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'realtime'", [$id])->fetchColumn(), true),
-                 'tools' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'tools'", [$id])->fetchColumn(), true)]]);
+                 'tools' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'tools'", [$id])->fetchColumn(), true)],
+             'watchdog' => ['on' => (bool) $h['watchdog'], 'min' => (int) ($h['watchdog_min'] ?: 5), 'enc' => (bool) $h['enc_seen'],
+                 'pushover' => setting('pushover_enabled', '0') === '1' && setting('pushover_user', '') !== '' && setting('pushover_token', '') !== ''],
+             'heal_cmds' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'heal_cmds'", [$id])->fetchColumn(), true) ?: []]);
 
     case 'podman':
         // Overzicht van alle containers die de agent van deze server meldt
@@ -2469,6 +2504,11 @@ switch ($action) {
             $id = (int) $in['id'];
         } else {
             $id = Templates::insertCheck((int) ($in['host_id'] ?? 0), $cols);
+        }
+        Smart::saveForm($id, $in);   // 1.107.0: drempelmodus, vangnet en gevoeligheid
+        if (array_key_exists('heal', $in)) {   // 1.107.0: zelf herstellen (alleen op een server met de agent)
+            $hc = q('SELECT c.type, h.mode FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.id = ?', [$id])->fetch();
+            q('UPDATE checks SET heal = ?, heal_state = NULL WHERE id = ?', [$hc && $hc['mode'] === 'agent' ? Heal::clean($hc, $in['heal']) : null, $id]);
         }
         if ($cols['type'] === 'heartbeat') {
             // Geheime URL: bij het aanmaken, of nieuw op verzoek (de oude werkt dan meteen niet meer)
@@ -2746,8 +2786,24 @@ switch ($action) {
             $set['warn_threshold'] = $w;
             $set['crit_threshold'] = $c;
         }
-        if (!$set) {
+        // 1.107.0: drempelmodus en gevoeligheid (checks die niet kunnen leren, blijven handmatig)
+        $smartN = null;
+        if (isset($v['thresh_mode']) || array_key_exists('smart_sens', $v)) {
+            $smartN = 0;
+            foreach ($ids as $bid) {
+                $c = q('SELECT * FROM checks WHERE id = ?', [$bid])->fetch();
+                if ($c && Smart::eligible($c)) {
+                    Smart::saveForm($bid, array_intersect_key($v, array_flip(['thresh_mode', 'smart_sens'])));
+                    $smartN++;
+                }
+            }
+        }
+        if (!$set && $smartN === null) {
             out(['error' => t('Niets om aan te passen')], 422);
+        }
+        if (!$set) {
+            $bulkLog('update');
+            out(['ok' => true, 'n' => $smartN]);
         }
         $cols = implode(', ', array_map(static fn($k) => "$k = ?", array_keys($set)));
         // Met de hand aangepast: sjabloonchecks gaan daarna niet meer mee met het sjabloon
@@ -2804,8 +2860,8 @@ switch ($action) {
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
-            'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
+            'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -2824,6 +2880,12 @@ switch ($action) {
         if (isset($in['notify_channels'])) {
             $in['notify_channels'] = json_encode(array_replace(NotifyRules::defaults()['channels'],
                 NotifyRules::cleanChannels((array) (is_string($in['notify_channels']) ? json_decode($in['notify_channels'], true) : $in['notify_channels']))));
+        }
+        if (isset($in['thresh_default']) && !in_array($in['thresh_default'], Smart::MODES, true)) {
+            $in['thresh_default'] = 'guard';
+        }
+        if (isset($in['smart_sens']) && !in_array($in['smart_sens'], Smart::SENS, true)) {
+            $in['smart_sens'] = 'normal';
         }
         if (isset($in['auth_ignore'])) {
             $in['auth_ignore'] = implode(' ', array_slice(parse_list(mb_substr((string) $in['auth_ignore'], 0, 2000)), 0, 100));
@@ -3506,6 +3568,38 @@ switch ($action) {
             'links' => ['unifi' => NetLinks::unifiOn(), 'unifi_block' => NetLinks::unifiCanBlock(), 'adguard' => NetLinks::adguardOn()], 'my_ip' => client_ip()]);
 
     // 1.106.0: 📊 Analyse – alles voor één periode (5 minuten bewaard per periode), en het maandrapport
+    case 'status_get':   // 1.107.0: statuspagina (instellingen)
+        $base = rtrim((string) config('base_url', ''), '/');
+        out(['on' => setting('status_on', '0') === '1', 'title' => (string) setting('status_title', ''), 'note' => (string) setting('status_note', ''),
+            'items' => StatusPage::items(), 'url' => ($base !== '' ? $base : '') . '/status.php?k=' . StatusPage::token(), 'has_base' => $base !== '']);
+
+    case 'status_save':
+        StatusPage::save(input());
+        out(['ok' => true]);
+
+    case 'status_token_new':
+        StatusPage::newToken();
+        out(['ok' => true]);
+
+    case 'rev':   // 1.107.0: live bijwerken: een klein kenmerk; verandert het, dan haalt de browser de stand opnieuw op
+        $r = q("SELECT (SELECT MAX(id) FROM status_changes), (SELECT MAX(id) FROM alerts), (SELECT MAX(id) FROM change_log),
+                       (SELECT COUNT(*) FROM checks WHERE acked_at IS NOT NULL), (SELECT COUNT(*) FROM checks WHERE maintenance_until > NOW()),
+                       (SELECT COUNT(*) FROM checks WHERE enabled = 1), (SELECT value FROM settings WHERE name = 'cron_last_run')")->fetch(PDO::FETCH_NUM);
+        out(['rev' => substr(md5(implode('|', array_map('strval', $r))), 0, 12)]);
+
+    case 'smart_proposals':   // 1.107.0: handmatige checks die op slim kunnen (bestaande checks blijven handmatig tot je ze omzet)
+        out(['list' => Smart::proposals(), 'default' => (string) setting('thresh_default', 'guard'), 'sens' => (string) setting('smart_sens', 'normal')]);
+
+    case 'smart_set':
+        $in = input();
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array) ($in['ids'] ?? [])))));
+        try {
+            $n = Smart::setMode($ids, (string) ($in['mode'] ?? ''));
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+        out(['ok' => true, 'n' => $n]);
+
     case 'analytics':
         $period = (string) ($_GET['period'] ?? '30d');
         if (!preg_match('/^(1d|7d|30d|90d|365d|\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2})$/', $period)) {

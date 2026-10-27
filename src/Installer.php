@@ -234,6 +234,14 @@ final class Installer
         ['hosts', 'kind_auto', 'VARCHAR(16) NULL'],   // soort apparaat, herkend via de agent of SNMP
         ['net_devices', 'blocked', 'TEXT NULL'],
         ['hosts', 'pve_cluster', 'VARCHAR(64) NULL'],   // Proxmox: losse nodes samen als cluster aangemerkt (1.105.0)      // geweerd van het netwerk (1.104.0): wanneer, tot wanneer, via wat
+        // 1.107.0: slimme drempels (Smart). Bestaande checks blijven handmatig; daarna wordt de standaard 'auto' (zie migrate)
+        ['checks', 'thresh_mode', "VARCHAR(8) NOT NULL DEFAULT 'manual'"],
+        ['checks', 'guard_threshold', 'DOUBLE NULL'],     // vangnet: vanaf hier altijd CRITICAL
+        ['checks', 'smart_sens', 'VARCHAR(6) NULL'],      // gevoeligheid; NULL = de standaard
+        ['checks', 'heal', 'VARCHAR(80) NULL'],           // zelf herstellen: restart, of cmd:<naam> uit heal.d op de server
+        ['checks', 'heal_state', 'VARCHAR(40) NULL'],     // herstelcommando: req:/sent:/done:<unix-tijd>
+        ['hosts', 'watchdog', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 🐕 deze agent bewaakt RzMon
+        ['hosts', 'watchdog_min', 'SMALLINT UNSIGNED NULL'],      // na hoeveel minuten melden (NULL = 5)
     ];
 
     private static function migrate(PDO $pdo): void
@@ -249,6 +257,8 @@ final class Installer
                 }
             }
         }
+        // 1.107.0: nieuwe checks (elke manier van toevoegen) beginnen op 'auto': bij de eerste run de standaard drempelmodus
+        $pdo->exec("ALTER TABLE checks ALTER COLUMN thresh_mode SET DEFAULT 'auto'");
         self::mergeContainerChecks($pdo);
         Whitelist::migrate($pdo);
         NotifyRules::migrate($pdo);

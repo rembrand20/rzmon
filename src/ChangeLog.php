@@ -105,12 +105,13 @@ final class ChangeLog
 
     private static function canUndo(array $r, ?array $b): bool
     {
-        if ($r['undone_at'] !== null || !in_array($r['action'], ['create', 'update', 'delete'], true)) {
+        if ($r['undone_at'] !== null || !in_array($r['action'], ['create', 'update', 'delete', 'smart'], true)) {
             return false;   // al teruggezet, of zelf een terugzetting / alleen info
         }
         return match ($r['kind']) {
             'setting' => (bool) array_filter((array) $b, static fn($v) => $v !== '••••••••'),
-            'check', 'host' => true,
+            'check' => $r['action'] !== 'smart' || isset($b['_model']),   // 1.107.0: slimme drempels, als er vorige waren
+            'host' => $r['action'] !== 'smart',
             default => false,
         };
     }
@@ -130,6 +131,7 @@ final class ChangeLog
             'check:update' => self::restoreRow('checks', (int) $r['ref_id'], $b, $a),
             'check:delete' => self::reinsert('checks', $b),
             'check:create' => self::drop('checks', (int) $r['ref_id']),
+            'check:smart' => Smart::restore((int) $r['ref_id'], $b),
             'host:update' => self::restoreRow('hosts', (int) $r['ref_id'], $b, $a),
             'host:delete' => self::reinsertHost($b),
             'host:create' => self::drop('hosts', (int) $r['ref_id']),

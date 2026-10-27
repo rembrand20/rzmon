@@ -845,7 +845,7 @@ final class NetScan
             $before = $info;
             if ($r['mac'] && isset($links['unifi'][$r['mac']])) {
                 $c = $links['unifi'][$r['mac']];
-                $info['unifi'] = array_filter(['name' => $c['name'], 'hostname' => $c['hostname'], 'essid' => $c['essid'], 'ap' => $c['ap'],
+                $info['unifi'] = array_filter(['name' => $c['name'], 'hostname' => $c['hostname'], 'essid' => $c['essid'], 'ap' => $c['ap'], 'sw' => $c['sw'] ?? '',
                     'wired' => $c['wired'], 'blocked' => $c['blocked']], fn($v) => $v !== '' && $v !== null);
             }
             $ag = ($r['mac'] ? ($links['ag_macs'][$r['mac']] ?? null) : null) ?? ($links['ag_ips'][$r['ip']] ?? null);

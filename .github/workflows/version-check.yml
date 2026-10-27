@@ -14,7 +14,7 @@ jobs:
         run: bash tools/check-version.sh
       - name: Syntaxcontrole shellscripts
         run: |
-          for f in agent/*.sh install/*.sh tools/*.sh ha-addon/rzmon_agent/*.sh; do bash -n "$f"; done
+          for f in agent/*.sh install/*.sh tools/*.sh tests/*.sh ha-addon/rzmon_agent/*.sh; do bash -n "$f"; done
       - name: Syntaxcontrole PHP
         run: |
           for f in $(git ls-files '*.php'); do php -l "$f" >/dev/null; done

@@ -562,6 +562,12 @@ final class Analytics
         if (!$lastBk || strtotime((string) $lastBk) < time() - 8 * 86400) {
             $out[] = [1, '🗄️', $lastBk ? t('De laatste back-up van RzMon zelf is van {d}', ['d' => date('d-m-Y', strtotime((string) $lastBk))]) : t('Er is nog geen back-up van RzMon zelf'), 'settings/backup'];
         }
+        // 1.107.0: handmatige checks die met slimme drempels flink minder warnings hadden gegeven
+        $gain = array_filter(Smart::proposals(), static fn($p) => $p['gain'] >= 3);
+        if ($gain) {
+            $out[] = [0, '🧠', t('{n} check(s) zouden met slimme drempels minder warnings geven (bv. {c} op {h}: {a} → {b} dagen)',
+                ['n' => count($gain), 'c' => $gain[0]['name'], 'h' => $gain[0]['host'], 'a' => $gain[0]['fixed'], 'b' => $gain[0]['smart']]), 'settings/smart'];
+        }
         usort($out, fn($a, $b) => $b[0] <=> $a[0]);
         return array_map(fn($x) => ['sev' => $x[0], 'icon' => $x[1], 'text' => $x[2], 'go' => $x[3]], array_slice($out, 0, 25));
     }

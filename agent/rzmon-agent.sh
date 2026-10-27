@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.61.1"
+AGENT_VERSION="1.62.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -89,6 +89,15 @@ AGENT_SETUP="${AGENT_SETUP:-/usr/local/sbin/rzmon-agent-setup}"
 # (Instellingen → Agents). Hier op de server kun je dat inperken: COMMANDS=0 = nooit uitvoeren,
 # COMMANDS=nobody = nooit als root. Leeg = wat RzMon zegt.
 COMMANDS="${COMMANDS-}"
+# Zelf herstellen (agent 1.62.0, per check in RzMon aan te zetten): een service of container die niet draait, herstart
+# de agent zelf; een eigen herstelcommando staat alleen hier, in HEAL_DIR (uitvoerbaar, van root, niet door anderen te
+# wijzigen). HEAL=0 = op deze server nooit zelf herstellen.
+HEAL="${HEAL:-1}"
+HEAL_DIR="${HEAL_DIR:-/etc/rzmon-agent/heal.d}"
+# Waakhond (agent 1.62.0, per agent in RzMon aan te zetten): Pushover als RzMon onbereikbaar is of de checks stilstaan.
+# WATCHDOG=0 = op deze server nooit.
+WATCHDOG="${WATCHDOG:-1}"
+PUSHOVER_API="${PUSHOVER_API:-https://api.pushover.net/1/messages.json}"
 # Logins (SSH en console), sudo en su melden op de pagina Meldingen, als dat in RzMon aan staat
 # (Instellingen → Alarmgedrag). AUTH_EVENTS=0 zet het op deze server altijd uit.
 AUTH_EVENTS="${AUTH_EVENTS-}"
@@ -968,6 +977,54 @@ due_cached() {  # due_cached <bestand> <interval>: 0 = vorige uitkomst is nog ve
 }
 # Te bewaken services: die met een service-check in RzMon, plus (verouderd) SERVICES uit de instellingen
 svc_all=$(printf '%s\n' $SERVICES $rz_services | awk 'NF && !seen[$0]++' | tr '\n' ' ')
+
+# ---------------------------------------------------------------- Zelf herstellen (agent 1.62.0)
+# Per check in RzMon aan te zetten (✎ → 🩹 Zelf herstellen). Een service of container die niet draait, herstart de
+# agent hier, vóór het rapport: lukt dat, dan blijft de check in RzMon OK en komt er een ℹ️-melding; lukt het niet, dan
+# gaat de gewone melding uit. Een eigen herstelcommando (HEAL_DIR) start de agent alleen op verzoek van RzMon, in een
+# versleuteld antwoord, als die check misgaat (zie "Versturen"). Hooguit één poging per 10 minuten en 3 per dag per check.
+heal_dir="$t_dir/heal"
+heal_ok() {  # heal_ok <check-id>: mag er nu een poging?
+    local f="$heal_dir/$1.tries" now n last
+    now=$(date +%s)
+    [ -r "$f" ] || return 0
+    n=$(awk -v t=$(( now - 86400 )) '$1 > t' "$f" | wc -l)
+    last=$(tail -n 1 "$f")
+    [ "$n" -lt 3 ] && [ $(( now - ${last:-0} )) -ge 600 ]
+}
+heal_log() {  # heal_log <check-id> <ok: 0/1> <bericht>: poging onthouden, en de uitkomst gaat mee met het volgende rapport
+    mkdir -p "$heal_dir" 2>/dev/null || return 0
+    date +%s >>"$heal_dir/$1.tries"
+    tail -n 5 "$heal_dir/$1.tries" >"$heal_dir/$1.tmp" 2>/dev/null && mv -f "$heal_dir/$1.tmp" "$heal_dir/$1.tries"
+    printf '{"id":%s,"ok":%s,"t":%s,"m":"%s"}\n' "$1" "$2" "$(date +%s)" "$(json_escape "$(printf '%s' "$3" | tr '\n\t' '  ' | cut -c1-200)")" >>"$heal_dir/done"
+}
+heal_cmd_ok() {  # heal_cmd_ok <pad>: alleen uitvoerbaar, van root en niet door anderen te wijzigen
+    [ -f "$1" ] && [ ! -L "$1" ] && [ -x "$1" ] && [ "$(stat -c '%u' "$1")" = 0 ] && ! find "$1" -perm /022 | grep -q .
+}
+if [ "$HA_MODE" = 0 ] && [ "$HEAL" != 0 ] && [ "$TEST" != 1 ] && [ "$(id -u)" = 0 ] && [ -r "${t_cache-}" ]; then
+    while IFS=$'\t' read -r h_id h_type h_kind h_target; do
+        [ "$h_type" = heal ] && [[ "$h_id" =~ ^[0-9]+$ ]] || continue
+        if [ "$h_kind" = svc ] && [[ "$h_target" =~ ^[A-Za-z0-9@._:-]+$ ]] && command -v systemctl >/dev/null 2>&1; then
+            h_st=$(systemctl is-active "$h_target" 2>/dev/null)
+            [ "$h_st" = failed ] || [ "$h_st" = inactive ] || continue
+            heal_ok "$h_id" || continue
+            timeout 60 systemctl restart "$h_target" >/dev/null 2>&1 && sleep 5
+            h_st2=$(systemctl is-active "$h_target" 2>/dev/null)
+            if [ "$h_st2" = active ]; then heal_log "$h_id" 1 "service $h_target was $h_st, herstart gelukt"
+            else heal_log "$h_id" 0 "service $h_target was $h_st, herstart mislukt (nu ${h_st2:-onbekend})"; fi
+        elif [ "$h_kind" = ctr ] && [[ "$h_target" =~ ^([a-z_][a-z0-9_.-]*)/([A-Za-z0-9][A-Za-z0-9_.-]*)$ ]] && [ ${#podman_ctx[@]} -gt 0 ]; then
+            h_ctx=${BASH_REMATCH[1]}; h_name=${BASH_REMATCH[2]}
+            [ "$h_ctx" = root ] || id -u "$h_ctx" >/dev/null 2>&1 || continue
+            h_st=$(pm "$h_ctx" inspect --format '{{.State.Status}}' "$h_name" 2>/dev/null | head -n 1)
+            case "$h_st" in exited|stopped|created|dead) ;; *) continue ;; esac
+            heal_ok "$h_id" || continue
+            pm "$h_ctx" start "$h_name" >/dev/null 2>&1 && sleep 5
+            h_st2=$(pm "$h_ctx" inspect --format '{{.State.Status}}' "$h_name" 2>/dev/null | head -n 1)
+            if [ "$h_st2" = running ]; then heal_log "$h_id" 1 "container $h_name was $h_st, gestart"
+            else heal_log "$h_id" 0 "container $h_name was $h_st, starten mislukt (nu ${h_st2:-onbekend})"; fi
+        fi
+    done <"$t_cache"
+fi
 
 # ---------------------------------------------------------------- Services
 services=""
@@ -2874,13 +2931,31 @@ elif [ "$(id -u)" = 0 ] && [ "$HA_MODE" != 1 ]; then
     { mkdir -p "$hb_dir" && chmod 1733 "$hb_dir"; } 2>/dev/null
 fi
 
+# ---------------------------------------------------------------- Zelf herstellen en waakhond: meesturen
+# Uitkomsten van herstelpogingen (weg na een geslaagd rapport), de herstelcommando's die hier staan, en een periode
+# waarin de waakhond RzMon niet bereikte
+heal_json=""; heal_cmds=""
+if [ -s "$heal_dir/done" ]; then
+    mv -f "$heal_dir/done" "$heal_dir/done.sending" 2>/dev/null
+    heal_json=$(grep -E '^\{"id":[0-9]+,"ok":[01],"t":[0-9]+,"m":"([^"\\]|\\.)*"\}$' "$heal_dir/done.sending" 2>/dev/null | tail -n 50 | paste -sd, -)
+fi
+if [ "$HA_MODE" = 0 ] && [ -d "$HEAL_DIR" ]; then
+    for hc_f in "$HEAL_DIR"/*; do
+        hc_n=${hc_f##*/}
+        [[ "$hc_n" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] && heal_cmd_ok "$hc_f" && heal_cmds+="${heal_cmds:+,}\"$hc_n\""
+    done
+fi
+wd_file="$t_dir/watchdog"
+wd_gap=""
+[ -s "$wd_file.gap" ] && wd_gap=$(grep -E '^\{"down":[0-9]+,"up":[0-9]+,"sent":[01],"self":[01]\}$' "$wd_file.gap" | head -n 1)
+
 # ---------------------------------------------------------------- Versturen
 # Opstarttijd (epoch) voor de check Herstart in RzMon
 read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
 # Wat er naast de vaste onderdelen meegaat, voor --status (1.60.0)
 parts="processen=$(grep -o '\["' <<<"$proc_list" | wc -l) certificaatbestanden=$(grep -o '"path"' <<<"$cert_found" | wc -l) softwarelijst=$( [ -n "$pkgs_json" ] && echo ja || echo ongewijzigd) heartbeats=${#hb_files[@]} ids=$( [ -n "$ids_json" ] && echo ja || echo nee)"
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}}"
 
 curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
@@ -3124,5 +3199,77 @@ if [ "$rc" -eq 0 ]; then
     fi
     [ -n "$pkg_result" ] && rm -f "$pk_dir/upgrade.result"
     [[ "$resp" =~ \"pkg_upgrade\":[[:space:]]*\{ ]] && [ -n "$pk_mgr" ] && pkg_upgrade "$resp"
+    # Zelf herstellen: de uitkomsten zijn binnen; vraagt RzMon om een herstelcommando (alleen versleuteld)?
+    rm -f "$heal_dir/done.sending" "$t_dir/watchdog.gap"
+    if [ -n "$seal_n" ] && [ "$HEAL" != 0 ] && [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [[ "$resp" =~ \"heal_run\":\[(\[[0-9]+,\"[A-Za-z0-9._-]+\"\],?)+\] ]]; then
+        while IFS=, read -r hr_id hr_name; do
+            hr_id=${hr_id//[^0-9]/}; hr_name=${hr_name//\"/}; hr_name=${hr_name%]}
+            [[ "$hr_id" =~ ^[0-9]+$ ]] && [[ "$hr_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || continue
+            heal_ok "$hr_id" || continue
+            hr_f="$HEAL_DIR/$hr_name"
+            if ! heal_cmd_ok "$hr_f"; then
+                heal_log "$hr_id" 0 "herstelcommando $hr_f niet gebruikt: bestaat niet, of is niet uitvoerbaar, niet van root of door anderen te wijzigen"
+                continue
+            fi
+            hr_out=$(timeout 120 "$hr_f" 2>&1); hr_rc=$?
+            hr_msg=$(grep -v '^[[:space:]]*$' <<<"$hr_out" | head -n 1 | cut -c1-150)
+            if [ "$hr_rc" = 0 ]; then heal_log "$hr_id" 1 "herstelcommando $hr_name uitgevoerd${hr_msg:+: $hr_msg}"
+            elif [ "$hr_rc" = 124 ]; then heal_log "$hr_id" 0 "herstelcommando $hr_name duurde langer dan 120 seconden"
+            else heal_log "$hr_id" 0 "herstelcommando $hr_name mislukt (code $hr_rc)${hr_msg:+: $hr_msg}"; fi
+        done < <(grep -o '\[[0-9]*,"[A-Za-z0-9._-]*"\]' <<<"${BASH_REMATCH[0]#*:}" | tr -d '[]')
+    fi
+elif [ -s "$heal_dir/done.sending" ]; then
+    cat "$heal_dir/done.sending" >>"$heal_dir/done" 2>/dev/null && rm -f "$heal_dir/done.sending"   # volgende keer opnieuw
+fi
+
+# ---------------------------------------------------------------- 🐕 Waakhond (agent 1.62.0)
+# In RzMon per agent aan te zetten (Agent Manager). Lukt het rapport een tijd niet (standaard 5 minuten), dan stuurt de
+# agent zelf een Pushover-bericht, en een herstelbericht als RzMon terug is. Bereikt de agent ook Pushover niet, dan ligt
+# het aan zijn eigen netwerk: dan geen bericht, wel een notitie voor RzMon. Draait RzMon wel, maar staan de checks stil
+# (cron), dan meldt hij dat ook. De Pushover-gegevens komen versleuteld van RzMon (cache, alleen voor root).
+wd_line=$(awk -F'\t' '$1 == "0" && $2 == "watchdog" { print; exit }' "${t_cache:-/dev/null}" 2>/dev/null)
+if [ -n "$wd_line" ] && [ "$WATCHDOG" != 0 ] && [ "$TEST" != 1 ]; then
+    IFS=$'\t' read -r _ _ wd_min wd_user wd_token wd_prio <<<"$wd_line"
+    [[ "$wd_min" =~ ^[0-9]+$ ]] || wd_min=5
+    [[ "$wd_prio" =~ ^-?[0-2]$ ]] || wd_prio=1
+    wd_push() {  # wd_push <titel> <bericht> <prioriteit>: 0 = verstuurd
+        [ "$wd_user" != - ] && [ "$wd_token" != - ] && [ -n "$wd_user" ] || return 1
+        local extra=()
+        [ "$3" = 2 ] && extra=(--form-string retry=120 --form-string expire=3600)
+        curl -fsS -m 15 -o /dev/null --form-string "token=$wd_token" --form-string "user=$wd_user" --form-string "title=$1" \
+            --form-string "message=$2" --form-string "priority=$3" "${extra[@]}" "$PUSHOVER_API" 2>/dev/null
+    }
+    wd_down=0; wd_sent=0; wd_self=0; wd_cron=0
+    # shellcheck disable=SC1090
+    [ -r "$wd_file" ] && . <(grep -E '^wd_(down|sent|self|cron)=[0-9]+$' "$wd_file")
+    wd_now=$(date +%s)
+    if [ "$rc" != 0 ]; then
+        [ "$wd_down" -gt 0 ] || wd_down=$wd_now
+        if [ "$wd_sent" = 0 ] && [ $(( wd_now - wd_down )) -ge $(( wd_min * 60 )) ]; then
+            if wd_push "⚠️ RzMon onbereikbaar" "RzMon is vanaf $hostname niet bereikbaar sinds $(date -d "@$wd_down" +%H:%M 2>/dev/null || date +%H:%M)${st_err:+ ($st_err)}. Gemeld door de waakhond op $hostname." "$wd_prio"; then
+                wd_sent=1; wd_self=0
+            else
+                wd_self=1   # Pushover ook niet bereikbaar (of geen gegevens): eerder het netwerk van deze server
+            fi
+        fi
+    else
+        if [ "$wd_down" -gt 0 ]; then
+            [ "$wd_sent" = 1 ] && wd_push "✅ RzMon weer bereikbaar" "RzMon is vanaf $hostname weer bereikbaar ($(( (wd_now - wd_down + 59) / 60 )) min weg)." -1
+            # Voor RzMon (ℹ️ in het volgende rapport): alleen als het langer duurde dan de ingestelde tijd
+            [ $(( wd_now - wd_down )) -ge $(( wd_min * 60 )) ] && printf '{"down":%s,"up":%s,"sent":%s,"self":%s}\n' "$wd_down" "$wd_now" "$wd_sent" "$wd_self" >"$wd_file.gap"
+            wd_down=0; wd_sent=0; wd_self=0
+        fi
+        # RzMon antwoordt, maar staan de checks stil (cron)?
+        wd_age=$(sed -n 's/.*"cron_age":[[:space:]]*\([0-9]\{1,9\}\).*/\1/p' <<<"$resp" | head -n 1)
+        if [[ "$wd_age" =~ ^[0-9]+$ ]]; then
+            if [ "$wd_age" -ge $(( wd_min * 60 )) ] && [ "$wd_cron" = 0 ]; then
+                wd_push "⚠️ RzMon: checks staan stil" "RzMon antwoordt, maar de checks hebben al $(( wd_age / 60 )) min niet gedraaid (cron). Gemeld door de waakhond op $hostname." "$wd_prio" && wd_cron=1
+            elif [ "$wd_age" -lt 300 ] && [ "$wd_cron" = 1 ]; then
+                wd_push "✅ RzMon: checks draaien weer" "De checks in RzMon draaien weer (gezien vanaf $hostname)." -1
+                wd_cron=0
+            fi
+        fi
+    fi
+    (umask 077; printf 'wd_down=%s\nwd_sent=%s\nwd_self=%s\nwd_cron=%s\n' "$wd_down" "$wd_sent" "$wd_self" "$wd_cron" >"$wd_file") 2>/dev/null
 fi
 exit "$rc"

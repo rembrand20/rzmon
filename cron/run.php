@@ -134,6 +134,12 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, 'Analyse: ' . $e->getMessage() . "\n");
 }
+// Slimme drempels (1.107.0): elke nacht vanaf 4:00 opnieuw leren, een paar checks per minuut
+try {
+    Smart::cron();
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Slimme drempels: ' . $e->getMessage() . "\n");
+}
 // Achtergrondtaken die te lang niet lukken: één melding, en een ✅ als het weer lukt (Instellingen → Systeem → Verbindingen en taken)
 try {
     if ($msg = Tasks::watch()) {

@@ -212,7 +212,8 @@ final class NetLinks
             if ($mac = NetScan::normMac($c['mac'] ?? null)) {
                 $out[$mac] = array_replace($out[$mac] ?? [], ['name' => (string) ($c['name'] ?? ($out[$mac]['name'] ?? '')), 'hostname' => (string) ($c['hostname'] ?? ''),
                     'ip' => (string) ($c['ip'] ?? ''), 'wired' => !empty($c['is_wired']), 'essid' => (string) ($c['essid'] ?? ''),
-                    'ap' => $aps[NetScan::normMac($c['ap_mac'] ?? null) ?? ''] ?? '', 'blocked' => !empty($c['blocked']), 'online' => true]);
+                    'ap' => $aps[NetScan::normMac($c['ap_mac'] ?? null) ?? ''] ?? '', 'blocked' => !empty($c['blocked']), 'online' => true,
+                    'sw' => $aps[NetScan::normMac($c['sw_mac'] ?? null) ?? ''] ?? '']);   // 1.107.0: switch van een bekabelde client (bundelen)
             }
         }
         return ['ok' => true, 'mode' => self::$u['mode'], 'clients' => $out, 'devices' => $aps];

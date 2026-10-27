@@ -159,6 +159,14 @@ const MODES = { local: L('Lokaal (deze server)'), agent: L('Remote met agent'), 
 let state = { hosts: [], alerts: [] };
 // Omgekeerde status (zie Checks::REVERSIBLE)
 const REVERSIBLE = ['ping', 'tcp', 'http', 'service', 'container', 'podman', 'command', 'ha'];
+// 1.107.0: slimme drempels (zoals Smart::SPEC): welke checks kunnen leren, en het standaard vangnet
+const SMART_GUARD = { ping: 1000, tcp: 3000, http: 10000, cpu: null, ram: 98, 'snmp:cpu': null, 'snmp:mem': 98, 'snmp:if': 98, 'snmp:load': null, 'snmp:temp': 85,
+  'snmp:ups_load': 98, 'snmp:ups_temp': 45, 'snmp:syno_system': 75, 'snmp:syno_disk': 62, 'snmp:unifi_cu': null, 'snmp:unifi_quality': null };
+const smartKey = (type, metric) => (type === 'snmp' ? `snmp:${metric}` : type);
+const smartEligible = (type, metric) => smartKey(type, metric) in SMART_GUARD;
+const smartGuard = (type, metric) => SMART_GUARD[smartKey(type, metric)];
+const SMART_MODES = { manual: '✋ ' + L('Handmatig'), smart: '🧠 ' + L('Slim'), guard: '🧠🛡️ ' + L('Slim met vangnet') };
+const SMART_SENS = { calm: L('rustig'), normal: L('normaal'), sharp: L('scherp') };
 const REV_OK = [[0, L('OK (normaal)')], [1, '🟠 ' + L('WARNING (omgekeerd)')], [2, '🔴 ' + L('CRITICAL (omgekeerd)')]];
 const REV_FAIL = [[0, '✅ OK'], [1, '🟠 WARNING'], [2, '🔴 CRITICAL']];
 const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', L('onbekend')];
@@ -859,6 +867,7 @@ function init() {
 
   initAccountMenu();
   initSettingsNav();
+  initCmdk();
   if ($('#logout')) $('#logout').onclick = async () => { await api('logout', {}); location.reload(); };
   $('#add-host').onclick = () => hostForm();
   $('#run-all').onclick = async (e) => {
@@ -1200,7 +1209,26 @@ function init() {
   initHibp();
 
   refresh();
-  setInterval(() => { if (!document.hidden && !$('#modal').open) refresh(); }, 20000);
+  // 1.107.0: live bijwerken. Elke 3 s een klein kenmerk ophalen (statuswissels, meldingen, bevestigd, onderhoud,
+  // wijzigingen, een nieuwe checkronde); verandert het, dan meteen alles opnieuw. Licht voor de server: geen open
+  // verbindingen die PHP bezet houden. Staat er een venster open, dan wacht het tot dat dicht is.
+  let liveRev = null, liveFail = 0, liveFull = Date.now();
+  setInterval(async () => {
+    if (document.hidden) return;
+    try {
+      const r = await api('rev');
+      liveFail = 0;
+      $('#live-dot')?.classList.remove('off');
+      if ((liveRev !== null && r.rev !== liveRev) || Date.now() - liveFull > 60000) {
+        if ($('#modal').open) return;   // later, als het venster dicht is (liveRev blijft staan)
+        liveFull = Date.now();
+        await refresh();
+      }
+      liveRev = r.rev;
+    } catch (e) {
+      if (++liveFail >= 3) $('#live-dot')?.classList.add('off');
+    }
+  }, 3000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 }
 
@@ -2238,7 +2266,8 @@ async function checkInfo(id) {
   const rows = [
     ['Type', `${esc(t.label)}${c.target ? ` · <code>${esc(c.target)}</code>` : ''}`],
     ['Interval', fmtInterval(c.interval_sec)],
-    ...(unit && (c.warn_threshold !== null || c.crit_threshold !== null) ? [[L('Drempels'), `${t.low ? L('onder') + ' ' : ''}${c.warn_threshold ?? '–'} / ${c.crit_threshold ?? '–'} ${esc(L(unit))}`]] : []),
+    ...(unit && (c.warn_threshold !== null || c.crit_threshold !== null) ? [[r.smart && r.smart.mode !== 'manual' ? L('Vaste drempels') : L('Drempels'), `${t.low ? L('onder') + ' ' : ''}${c.warn_threshold ?? '–'} / ${c.crit_threshold ?? '–'} ${esc(L(unit))}`
+      + (r.smart && r.smart.mode !== 'manual' ? ` <span class="muted small">(${r.smart.days >= r.smart.min_days ? L('niet in gebruik: slimme drempels') : L('in gebruik tot RzMon genoeg geleerd heeft')})</span>` : '')]] : []),
     [L('Laatste check'), c.last_checked ? ago(c.last_checked) : L('nog niet')],
     [L('Beschikbaar'), r.uptime.d1 === null ? `<span class="muted">${L('nog geen metingen')}</span>` : `${L('24 u')} <b>${fmtPct(r.uptime.d1)}</b> · ${L('7 d')} <b>${fmtPct(r.uptime.d7)}</b>`],
   ];
@@ -2274,6 +2303,10 @@ async function checkInfo(id) {
       btn.disabled = true;
       try { await api('check_run', { id: c.id }); await refresh(); checkInfo(c.id); } catch (ex) { toast(ex.message, 'err'); btn.disabled = false; }
     } },
+    ...(r.smart && r.smart.mode === 'manual' && r.smart.days >= r.smart.min_days ? [{ label: '🧠 ' + L('Slim met vangnet'), cls: 'need-admin', onClick: async (btn) => {
+      btn.disabled = true;
+      try { await api('smart_set', { ids: [c.id], mode: 'guard' }); toast(L('Deze check gebruikt nu slimme drempels met vangnet')); await refresh(); checkInfo(c.id); } catch (ex) { toast(ex.message, 'err'); btn.disabled = false; }
+    } }] : []),
     ...(sc ? [{ label: '📈 ' + L('Grafiek'), onClick: () => { close(); showHistory(sc, h); } }] : []),
     ...(sc ? [{ label: '✎ ' + L('Bewerken'), cls: 'need-admin', onClick: () => checkForm(sc, h) }] : []),
   ];
@@ -2284,11 +2317,239 @@ async function checkInfo(id) {
       <p class="ci-status s${st}"><b>${STATUS[st]}</b>${since}<br><span class="ci-msg">${esc(c.last_message || '–')}</span></p>
       <dl class="ci-grid">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
       <p class="small muted ci-tags">${tags.join(' · ')}</p>
+      ${r.smart ? smartBlock(r.smart, c) : ''}
       <h3 class="ci-h">${L('Laatste 5 statuswijzigingen')}</h3>
       ${changes ? `<ol class="ci-changes">${changes}</ol>` : `<p class="muted small">${L('Nog geen statuswijzigingen bewaard. Ze worden bijgehouden vanaf versie 1.37.0.')}</p>`}
     </div>`,
     buttons: btns,
   });
+}
+
+/**
+ * 🧠 Slimme drempels in de popup (1.107.0): modus, wat er nu geldt, de week als grafiekje (normale band en warning per uur),
+ * en hoeveel dagen met een warning het met vaste en met slimme drempels was.
+ */
+function smartBlock(m, c) {
+  const u = m.unit === '%' || m.unit === '°C' ? m.unit : m.unit ? ' ' + m.unit : '';
+  const n = (v) => (v == null ? '–' : dec(Math.abs(v) >= 10 ? Math.round(v) : Math.round(v * 10) / 10));
+  const days = [L('ma'), L('di'), L('wo'), L('do'), L('vr'), L('za'), L('zo')];
+  const ready = m.days >= m.min_days && m.w;
+  const guard = c.thresh_mode === 'guard' && c.guard_threshold != null ? +c.guard_threshold : null;
+  let head = `<b>${SMART_MODES[m.mode] || SMART_MODES.guard}</b>`;
+  if (m.mode !== 'manual' && !ready) head += ` · ${L('leert nog ({d}/{n} dagen); tot die tijd gelden de vaste drempels', { d: m.days, n: m.min_days })}`;
+  let now = '';
+  if (ready) {
+    const h = m.how;
+    let w = m.w[h], cr = m.c[h];
+    if (guard !== null) { cr = Math.min(cr, guard); w = Math.min(w, cr); }
+    now = `<p class="small">${L('Nu ({d} {h}:00): normaal {lo}–{hi}{u}', { d: days[Math.floor(h / 24)], h: h % 24, lo: n(m.lo[h]), hi: n(m.hi[h]), u })}`
+      + (m.mode === 'manual' ? ` · ${L('slim zou zijn: warning vanaf {w}{u}, critical vanaf {c}{u}', { w: n(w), c: n(cr), u })}` : ` · ${L('warning vanaf {w}{u}, critical vanaf {c}{u}', { w: n(w), c: n(cr), u })}`)
+      + (guard !== null ? ` · 🛡️ ${L('altijd critical vanaf {g}{u}', { g: n(guard), u })}` : '') + '</p>';
+  }
+  const sim = m.sim && ready ? `<p class="small">${m.sim.fixed == null ? '' : L('Afgelopen {d} dagen: met vaste drempels op {f} dag(en) een warning, met slimme drempels op {s}.', { d: m.sim.days, f: m.sim.fixed, s: m.sim.smart })}</p>` : '';
+  const drift = m.drift ? `<p class="small warn-txt">⚠️ ${L('De normaalwaarde stijgt: van {a}{u} naar {b}{u} in twee weken. Zolang dat zo is, schuiven de drempels niet mee omhoog.', { a: n(m.drift[0]), b: n(m.drift[1]), u })}</p>` : '';
+  return `<div class="smart-box"><h3 class="ci-h">🧠 ${L('Drempels')}</h3><p class="small">${head}</p>${now}${ready ? smartWeek(m, guard, u) : ''}${sim}${drift}</div>`;
+}
+
+/** De week (168 uur): band 10e–95e percentiel, warning als lijn; critical boven de grafiek valt weg */
+function smartWeek(m, guard, u) {
+  const W = 672, H = 80, top = 4, bot = H - 2;
+  const ws = m.w.map((w, i) => (guard !== null ? Math.min(w, guard) : w));
+  const hi = Math.max(...m.hi, 1) * 1.35;
+  const cap = Math.max(hi, Math.min(Math.max(...ws), hi * 1.6));
+  const x = (i) => (i / 167) * W;
+  const y = (v) => bot - Math.min(v, cap) / cap * (bot - top);
+  const band = m.hi.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ') + ' ' + m.lo.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).reverse().join(' ');
+  const wl = ws.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  const days = [L('ma'), L('di'), L('wo'), L('do'), L('vr'), L('za'), L('zo')];
+  const hits = m.w.map((_, i) => `<rect x="${(x(i) - 2).toFixed(1)}" y="0" width="4" height="${bot}" fill="transparent"><title>${days[Math.floor(i / 24)]} ${i % 24}:00 · ${L('normaal')} ${dec(Math.round(m.lo[i]))}–${dec(Math.round(m.hi[i]))}${u} · ${L('warning')} ${dec(Math.round(ws[i]))}${u}</title></rect>`).join('');
+  const now = `<line x1="${x(m.how)}" x2="${x(m.how)}" y1="${top}" y2="${bot}" class="smart-now"/>`;
+  return `<div class="smart-week"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(L('Normaal per uur van de week'))}">
+    <polygon points="${band}" class="smart-band"/><path d="${wl}" class="smart-warn" vector-effect="non-scaling-stroke"/>${now}${hits}
+    </svg><div class="smart-days">${days.map((d) => `<span>${d}</span>`).join('')}</div>
+    <p class="small muted">${L('Grijs: normaal (10e–95e percentiel) per uur van de week. Lijn: warning. Streep: nu.')}</p></div>`;
+}
+
+/** Instellingen → Checks → Slimme drempels: handmatige checks waar slim minder warnings had gegeven */
+async function loadSmartProposals() {
+  const el = $('#smart-proposals');
+  if (!el) return;
+  let r;
+  try { r = await api('smart_proposals'); } catch (ex) { el.innerHTML = `<p class="err-txt small">${esc(ex.message)}</p>`; return; }
+  if (!r.list.length) { el.innerHTML = `<p class="muted small">${L('Nog geen voorstellen: RzMon heeft per check minstens 7 dagen meetwaarden nodig, of al je checks die kunnen leren staan al op slim.')}</p>`; return; }
+  el.innerHTML = `<div class="table-wrap"><table class="small smart-prop"><thead><tr><th><input type="checkbox" id="smart-all" ${isAdmin() ? '' : 'disabled'}></th><th>${L('Check')}</th><th>${L('Server')}</th>
+      <th title="${esc(L('Dagen met een warning in de laatste weken'))}">${L('Vast')}</th><th>${L('Slim')}</th></tr></thead><tbody>
+    ${r.list.map((p) => `<tr><td><input type="checkbox" data-smart-id="${p.id}" ${p.gain > 0 ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}></td>
+      <td><button type="button" class="link-btn" data-smart-open="${p.id}">${esc(p.name)}</button></td><td>${esc(p.host)}</td>
+      <td>${p.fixed == null ? '–' : L('{n} van {d} dagen', { n: p.fixed, d: p.days })}</td><td class="${p.gain > 0 ? 'good-txt' : ''}">${L('{n} van {d} dagen', { n: p.smart, d: p.days })}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="btn-row need-admin" style="margin-top:.6rem"><button type="button" class="btn primary" data-smart-go="guard">🧠🛡️ ${L('Gekozen checks: slim met vangnet')}</button>
+      <button type="button" class="btn" data-smart-go="smart">🧠 ${L('Slim')}</button></div>`;
+  $('#smart-all').onchange = (e) => $$('[data-smart-id]', el).forEach((c) => { c.checked = e.target.checked; });
+  $$('[data-smart-open]', el).forEach((b) => { b.onclick = () => checkInfo(+b.dataset.smartOpen); });
+  $$('[data-smart-go]', el).forEach((b) => {
+    b.onclick = async () => {
+      const ids = $$('[data-smart-id]:checked', el).map((c) => +c.dataset.smartId);
+      if (!ids.length) return toast(L('Kies een of meer checks'), 'err');
+      try {
+        const res = await api('smart_set', { ids, mode: b.dataset.smartGo });
+        toast(L('{n} check(s) omgezet', { n: res.n }));
+        await refresh();
+        loadSmartProposals();
+      } catch (ex) { toast(ex.message, 'err'); }
+    };
+  });
+}
+
+// ---------------------------------------------------------------- 🟢 Statuspagina (1.107.0)
+async function loadStatusPage() {
+  const el = $('#statuspage-body');
+  if (!el) return;
+  let d;
+  try { d = await api('status_get'); } catch (ex) { el.innerHTML = `<p class="err-txt small">${esc(ex.message)}</p>`; return; }
+  const url = d.has_base ? d.url : location.origin + location.pathname.replace(/[^/]*$/, '') + d.url.replace(/^\//, '');
+  // Per onderdeel: een naam en checks om aan te vinken (per server), met een samenvatting van wat gekozen is
+  const names = (ids) => state.hosts.flatMap((h) => h.checks.filter((c) => ids.includes(+c.id)).map((c) => `${h.name} – ${c.name}`));
+  const sum = (ids) => (ids.length ? L('{n} check(s): {list}', { n: ids.length, list: names(ids).slice(0, 3).join(', ') + (ids.length > 3 ? ' …' : '') }) : L('kies checks'));
+  const row = (it) => {
+    const sel = (it.checks || []).map(Number);
+    return `<div class="sp-row"><input class="sp-label" maxlength="60" placeholder="${esc(L('bv. Internet, NAS, Plex'))}" value="${esc(it.label || '')}">
+      <details class="sp-checks"><summary>${esc(sum(sel))}</summary><div class="sp-pick">
+        ${state.hosts.map((h) => `<div class="sp-host">${esc(h.name)}</div>${h.checks.map((c) => `<label class="sp-c"><input type="checkbox" value="${c.id}" ${sel.includes(+c.id) ? 'checked' : ''}> ${esc(c.name)}</label>`).join('')}`).join('')}
+      </div></details>
+      <button type="button" class="btn small-btn sp-del" title="${esc(L('Weghalen'))}">✕</button></div>`;
+  };
+  el.innerHTML = `<label class="switch"><input type="checkbox" id="sp-on" ${d.on ? 'checked' : ''}><span></span> <b>${L('Statuspagina aan')}</b></label>
+    <label>${L('Titel')}<input id="sp-title" maxlength="80" value="${esc(d.title)}" placeholder="${esc(L('Status'))}"></label>
+    <label>${L('Mededeling')} <span class="hint">${L('(optioneel, bv. "Zaterdag 9:00–10:00 onderhoud aan de NAS")')}</span><textarea id="sp-note" rows="2" maxlength="500">${esc(d.note)}</textarea></label>
+    <h3 class="small" style="margin:1rem 0 .3rem">${L('Onderdelen')}</h3>
+    <p class="hint" style="margin-top:0">${L('Per onderdeel een naam en de checks die erbij horen (klik om ze aan te vinken). Het ergste van die checks telt; checks in onderhoud tonen "Onderhoud".')}</p>
+    <div id="sp-rows">${(d.items.length ? d.items : [{ label: '', checks: [] }]).map(row).join('')}</div>
+    <button type="button" class="btn small-btn" id="sp-add">＋ ${L('Onderdeel')}</button>
+    <h3 class="small" style="margin:1rem 0 .3rem">${L('Geheime link')}</h3>
+    <div class="copy-line"><pre class="code" id="sp-url">${esc(url)}</pre><button type="button" class="btn" id="sp-copy">${L('Kopieer')}</button></div>
+    <p class="hint">${d.has_base ? '' : L('Tip: vul bij Instellingen → Systeem het adres van RzMon in (base_url) als RzMon van buiten anders heet. ')}${L('Een nieuwe link maken? Dan werkt de oude meteen niet meer.')}
+      <button type="button" class="btn small-btn" id="sp-new">↻ ${L('Nieuwe link')}</button> <a href="${esc(url)}" target="_blank" rel="noopener" class="btn small-btn">${L('Openen')} ↗</a></p>
+    <div class="btn-row" style="margin-top:.8rem"><button type="button" class="btn primary" id="sp-save">${L('Opslaan')}</button></div>`;
+  const rows = $('#sp-rows');
+  rows.addEventListener('click', (e) => { if (e.target.closest('.sp-del')) e.target.closest('.sp-row').remove(); });
+  rows.addEventListener('change', (e) => {
+    const d = e.target.closest('.sp-checks');
+    if (d) $('summary', d).textContent = sum($$('input:checked', d).map((i) => +i.value));
+  });
+  $('#sp-add').onclick = () => rows.insertAdjacentHTML('beforeend', row({}));
+  $('#sp-copy').onclick = () => { navigator.clipboard?.writeText($('#sp-url').textContent); toast(L('Gekopieerd')); };
+  $('#sp-new').onclick = async () => {
+    if (!confirm(L('Nieuwe link maken? De oude link werkt dan meteen niet meer.'))) return;
+    try { await api('status_token_new', {}); loadStatusPage(); } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#sp-save').onclick = async () => {
+    const items = $$('.sp-row', rows).map((r) => ({ label: $('.sp-label', r).value.trim(), checks: $$('.sp-checks input:checked', r).map((i) => +i.value) })).filter((x) => x.label);
+    try { await api('status_save', { on: $('#sp-on').checked, title: $('#sp-title').value, note: $('#sp-note').value, items }); toast(L('Opgeslagen')); loadStatusPage(); }
+    catch (ex) { toast(ex.message, 'err'); }
+  };
+}
+
+// ---------------------------------------------------------------- ⌨️ Zoeken en doen (Ctrl+K, 1.107.0)
+// Servers, checks, tabbladen, instellingen en IP-adressen; met een werkwoord in de zoekopdracht ("onderhoud", "nu",
+// "bevestig", "grafiek", "blokkeer", "bewerk", "agent") ook acties. Alleen wat je met je rol mag.
+const CMDK_VERBS = {
+  run: ['nu', 'check', 'checken', 'run', 'now'], maint: ['onderhoud', 'maintenance', 'pauze'], ack: ['bevestig', 'bevestigen', 'ack', 'acknowledge'],
+  graph: ['grafiek', 'graph', 'chart', 'historie'], edit: ['bewerk', 'bewerken', 'edit', 'wijzig'], block: ['blokkeer', 'blokkeren', 'block'], agent: ['agent', 'manager'],
+};
+let cmdkSel = 0, cmdkItems = [];
+function cmdkRole() { return document.body.dataset.role || 'readonly'; }
+function cmdkBuild(q) {
+  const role = cmdkRole(), user = role !== 'readonly', admin = role === 'admin';
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const verb = (k) => words.some((w) => CMDK_VERBS[k].includes(w));
+  const plain = words.filter((w) => !Object.values(CMDK_VERBS).some((v) => v.includes(w)));
+  const match = (hay) => plain.every((w) => hay.includes(w));
+  const items = [];
+  const add = (score, icon, label, sub, run, hay) => { if (match((hay || `${label} ${sub}`).toLowerCase())) items.push({ score, icon, label, sub, run }); };
+  // IP-adres: tijdlijn (en blokkeren voor beheerders)
+  const ip = q.trim().split(/\s+/).find((w) => IP_RE.test(w));
+  if (ip) {
+    items.push({ score: 100, icon: '🔎', label: L('Tijdlijn van {ip}', { ip }), sub: L('IDS, logins en blokkades van dit adres'), run: () => ipTimeline(ip) });
+    if (admin) items.push({ score: 99, icon: '⛔', label: L('{ip} blokkeren', { ip }), sub: L('op al je servers'), run: () => blockDialog(ip) });
+  }
+  const free = ip ? plain.filter((w) => w !== ip.toLowerCase()) : plain;
+  if (ip && !free.length) return items;
+  // Servers en hun checks
+  for (const h of state.hosts || []) {
+    const hHay = `${h.name} ${h.address || ''}`;
+    if (!verb('run') && !verb('maint') && !verb('agent') && !verb('edit')) add(60, '🖥️', h.name, h.address || '', () => { showTab('dashboard'); jumpToHost(h.id); }, hHay);
+    if (user && verb('maint')) add(70, '🔧', L('Onderhoud: {n}', { n: h.name }), L('hele server'), () => maintenanceDialog('host', h.id, h.name, null), hHay);
+    if (admin && verb('agent') && h.mode === 'agent') add(70, '🛰️', L('Agent Manager: {n}', { n: h.name }), h.address || '', () => agentInstructions(h), hHay);
+    if (admin && verb('edit')) add(65, '✎', L('Server bewerken: {n}', { n: h.name }), h.address || '', () => hostForm(h), hHay);
+    for (const c of h.checks || []) {
+      const hay = `${c.name} ${h.name} ${c.target || ''} ${(TYPES[c.type] || {}).label || c.type}`;
+      const st = +c.status, prob = st !== 0 && +c.enabled && !+c.info_only;
+      const tl = (TYPES[c.type] || {}).label || c.type;
+      const sub = `${h.name} · ${tl} · ${STATUS[st] || ''}${c.last_message ? ' · ' + String(c.last_message).slice(0, 60) : ''}`;
+      const where = `${h.name} · ${tl}`;
+      if (!Object.keys(CMDK_VERBS).some(verb)) add(prob ? 55 : 50, ST_ICON[st] || '•', c.name, sub, () => checkInfo(c.id), hay);
+      if (user && verb('run')) add(72, '↻', L('Nu checken: {c}', { c: c.name }), where, async () => { try { await api('check_run', { id: c.id }); toast(L('{c} gecheckt', { c: c.name })); refresh(); } catch (ex) { toast(ex.message, 'err'); } }, hay);
+      if (user && verb('maint')) add(68, '🔧', L('Onderhoud: {c}', { c: c.name }), where, () => maintenanceDialog('check', c.id, `${h.name} – ${c.name}`, null), hay);
+      if (user && verb('ack') && prob && !c.acked_at) add(75, '✔', L('Bevestigen: {c}', { c: c.name }), sub, () => ackDialog('check', c.id, `${h.name} – ${c.name}`, c.last_message), hay);
+      if (verb('graph')) add(66, '📈', L('Grafiek: {c}', { c: c.name }), where, () => showHistory(c, h), hay);
+      if (admin && verb('edit')) add(64, '✎', L('Check bewerken: {c}', { c: c.name }), where, () => checkForm(c, h), hay);
+    }
+  }
+  // Tabbladen en instellingen
+  $$('.main-tabs .tab').forEach((t) => add(40, '📑', t.textContent.trim(), L('tabblad'), () => showTab(t.dataset.tab)));
+  if (admin && $('#tab-settings')) {
+    for (const [, icon, group, subs] of SET_NAV) for (const [k, label] of subs) add(35, icon, label, `${L('Instellingen')} › ${group}`, () => showTab('settings/' + k));
+  }
+  if (user && !free.length && verb('run')) items.push({ score: 80, icon: '↻', label: L('Alles nu checken'), sub: '', run: () => $('#run-all')?.click() });
+  if (admin && !free.length && verb('maint')) items.push({ score: 80, icon: '🔧', label: L('Onderhoud: alles'), sub: L('alle meldingen pauzeren'), run: () => maintenanceDialog('all', 0, L('alle servers'), state.maintenance) });
+  // Beste eerst: hogere score, en een naam die met de zoekterm begint
+  const first = (plain[0] || '');
+  items.forEach((it) => { if (first && it.label.toLowerCase().startsWith(first)) it.score += 5; });
+  return items.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label)).slice(0, 40);
+}
+function cmdkRender() {
+  const q = $('#cmdk-in').value;
+  cmdkItems = q.trim() ? cmdkBuild(q) : cmdkBuild('').filter((it) => it.icon === '📑' || it.score >= 55).slice(0, 12);
+  cmdkSel = Math.min(cmdkSel, Math.max(0, cmdkItems.length - 1));
+  $('#cmdk-list').innerHTML = cmdkItems.length
+    ? cmdkItems.map((it, i) => `<button type="button" class="cmdk-item${i === cmdkSel ? ' sel' : ''}" role="option" aria-selected="${i === cmdkSel}" data-i="${i}">
+        <span class="cmdk-ic">${it.icon}</span><span class="cmdk-txt"><span class="cmdk-l">${esc(it.label)}</span>${it.sub ? `<span class="cmdk-s">${esc(it.sub)}</span>` : ''}</span></button>`).join('')
+    : `<p class="muted small cmdk-none">${L('Niets gevonden')}</p>`;
+  $('.cmdk-item.sel')?.scrollIntoView({ block: 'nearest' });
+}
+function cmdkOpen() {
+  const el = $('#cmdk');
+  if (!el) return;
+  el.hidden = false;
+  $('#cmdk-in').value = '';
+  cmdkSel = 0;
+  cmdkRender();
+  $('#cmdk-in').focus();
+}
+function cmdkClose() { const el = $('#cmdk'); if (el) el.hidden = true; }
+function cmdkDo(i) {
+  const it = cmdkItems[i];
+  if (!it) return;
+  cmdkClose();
+  it.run();
+}
+function initCmdk() {
+  const el = $('#cmdk');
+  if (!el) return;
+  $('#cmdk-btn').onclick = cmdkOpen;
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); el.hidden ? cmdkOpen() : cmdkClose(); }
+  });
+  $('#cmdk-in').addEventListener('input', () => { cmdkSel = 0; cmdkRender(); });
+  $('#cmdk-in').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); cmdkSel = Math.min(cmdkSel + 1, cmdkItems.length - 1); cmdkRender(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); cmdkSel = Math.max(cmdkSel - 1, 0); cmdkRender(); }
+    else if (e.key === 'Enter') { e.preventDefault(); cmdkDo(cmdkSel); }
+    else if (e.key === 'Escape') { e.preventDefault(); cmdkClose(); }
+  });
+  $('#cmdk-list').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) cmdkDo(+b.dataset.i); });
+  el.addEventListener('mousedown', (e) => { if (e.target === el) cmdkClose(); });
 }
 
 // ---------------------------------------------------------------- Modal helper
@@ -2727,6 +2988,8 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const containers = h.metrics.filter((m) => m.startsWith('container:')).map((m) => m.slice(10));
 
   // Formulier → wat de server verwacht (voor opslaan en voor 🧪 Nu proberen)
+  // 1.107.0: slimme drempels. Nieuwe check: de standaard uit Instellingen; 'auto' (nog niet gedraaid) ook
+  const smartMode = !c.thresh_mode || c.thresh_mode === 'auto' ? (state.thresh_default || 'guard') : c.thresh_mode;
   const payloadOf = (d) => {
     const notify = $('#notify-own').checked && ownEditor ? ownEditor.get() : null;
     const qm = $('#quiet-mode').value;
@@ -2894,6 +3157,24 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <label><span class="thr-word">${L('Warning vanaf')}</span> <span class="hint unit"></span><input name="warn_threshold" type="number" step="any" value="${c.warn_threshold ?? ''}"></label>
         <label><span class="thr-word">${L('Critical vanaf')}</span> <span class="hint unit"></span><input name="crit_threshold" type="number" step="any" value="${c.crit_threshold ?? ''}"></label>
         <label>${L('Interval')}<select name="interval_sec">${intervalOptions(c.interval_sec)}</select></label>
+      </div>
+      <div id="smart-wrap" class="smart-wrap" hidden>
+        <div class="smart-row">
+          <label>${L('Drempels')}<select name="thresh_mode">${Object.entries(SMART_MODES).map(([k, l]) => `<option value="${k}" ${smartMode === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <label data-smart="guard"><span>${L('Altijd critical vanaf')}</span> <span class="hint unit"></span><input name="guard_threshold" type="number" step="any" value="${c.guard_threshold ?? ''}"></label>
+          <label data-smart="smart guard">${L('Gevoeligheid')}<select name="smart_sens">
+            <option value="">${L('standaard ({s})', { s: SMART_SENS[state.smart_sens] || SMART_SENS.normal })}</option>
+            ${Object.entries(SMART_SENS).map(([k, l]) => `<option value="${k}" ${c.smart_sens === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        </div>
+        <p class="hint" id="smart-hint"></p>
+      </div>
+      <div id="heal-wrap" hidden>
+        <label>🩹 ${L('Zelf herstellen')}<select name="heal" id="heal-sel">
+          <option value="">${L('uit')}</option>
+          <option value="restart" ${c.heal === 'restart' ? 'selected' : ''}>${L('herstarten (service of container)')}</option>
+          ${c.heal && c.heal.startsWith('cmd:') ? `<option value="${esc(c.heal)}" selected>${L('herstelcommando {n}', { n: esc(c.heal.slice(4)) })}</option>` : ''}
+        </select></label>
+        <p class="hint" id="heal-hint"></p>
       </div>
       <div id="deep-wrap" hidden>
         <label class="switch"><input type="checkbox" name="deep" ${+(opts.deep ?? 1) ? 'checked' : ''}><span></span> ${L('Diepere controle')}</label>
@@ -3070,6 +3351,33 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('[name=target]', form).placeholder = t.ph || '';
     $$('.unit', form).forEach((u) => (u.textContent = t.unit ? L(t.unit) : ''));
     $$('#thr-wrap label', form).slice(0, 2).forEach((l) => (l.hidden = !t.unit));
+    // Slimme drempels: alleen bij checks die kunnen leren (niet in een sjabloon, niet omgekeerd)
+    const smartOk = !tpl && smartEligible(typeSel.value, isSnmp ? snmpSel.value : null) && !(+$('[name=reverse_ok]', form).value > 0);
+    $('#smart-wrap').hidden = !smartOk;
+    $$('#smart-wrap select, #smart-wrap input', form).forEach((el) => { el.disabled = !smartOk; });
+    const sm = smartOk ? $('[name=thresh_mode]', form).value : 'manual';
+    $$('#smart-wrap [data-smart]', form).forEach((el) => {
+      const on = el.dataset.smart.split(' ').includes(sm);
+      el.hidden = !on;
+      $$('input, select', el).forEach((i) => { i.disabled = !smartOk || !on; });
+    });
+    // 🩹 Zelf herstellen: alleen op een server met de agent (niet in een sjabloon)
+    const healOk = !tpl && h.mode === 'agent' && !isHaHost(h);
+    $('#heal-wrap').hidden = !healOk;
+    $('#heal-sel').disabled = !healOk;
+    const canRestart = ['service', 'container'].includes(typeSel.value);
+    const rOpt = $('#heal-sel option[value=restart]');
+    rOpt.hidden = rOpt.disabled = !canRestart;
+    if (!canRestart && $('#heal-sel').value === 'restart') $('#heal-sel').value = '';
+    const hv = $('#heal-sel').value;
+    $('#heal-hint').innerHTML = !healOk ? '' : hv === 'restart'
+      ? L('Draait de {w} niet, dan herstart de agent hem zelf, vóór zijn rapport. Lukt dat, dan krijg je alleen een ℹ️-melding; lukt het niet, de gewone melding. Hooguit één poging per 10 minuten en 3 per dag.', { w: typeSel.value === 'service' ? L('service') : L('container') })
+      : hv.startsWith('cmd:') ? L('Gaat deze check mis, dan voert de agent het herstelcommando uit (alleen via een versleutelde verbinding) en meldt RzMon pas als dat niet helpt, of na 5 minuten. Het commando zelf staat alleen op de server, in <code>/etc/rzmon-agent/heal.d/</code>.')
+      : L('Eigen herstelcommando\'s zet je op de server in <code>/etc/rzmon-agent/heal.d/</code> (uitvoerbaar, van root, niet door anderen te wijzigen); daarna staan ze hier.');
+    if (smartOk && sm === 'guard' && $('[name=guard_threshold]', form).value === '' && setDefaults) $('[name=guard_threshold]', form).value = smartGuard(typeSel.value, isSnmp ? snmpSel.value : null) ?? '';
+    $('#smart-hint').innerHTML = !smartOk ? '' : sm === 'manual' ? L('De drempels hierboven gelden altijd.')
+      : L('RzMon leert {n} dagen wat normaal is, per uur van de week; tot die tijd gelden de drempels hierboven. Daarna stelt hij ze elke nacht bij (hooguit 10% per nacht). Elke aanpassing staat in het wijzigingslogboek, terug te draaien.', { n: 7 })
+        + (sm === 'guard' ? ' ' + L('Vanaf het vangnet is het altijd CRITICAL, wat RzMon ook geleerd heeft.') : '');
     const words = $$('.thr-word', form);
     words[0].textContent = t.low ? L('Warning onder') : L('Warning vanaf');
     words[1].textContent = t.low ? L('Critical onder') : L('Critical vanaf');
@@ -3121,7 +3429,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#target-list').innerHTML = list.map((v) => `<option value="${esc(v)}">`).join('');
     $('#svc-pick-wrap').hidden = !(typeSel.value === 'service' && h.mode === 'agent' && svcList);
     if (typeSel.value === 'service' && h.mode === 'agent') renderSvcPick();
-    if (setDefaults) {
+    if (setDefaults && setDefaults !== 'smart') {
       $('[name=warn_threshold]', form).value = t.warn ?? '';
       $('[name=crit_threshold]', form).value = t.crit ?? '';
       if (setDefaults !== 'metric') $('[name=target]', form).value = typeSel.value === 'disk' ? '/' : '';
@@ -3262,6 +3570,18 @@ function checkForm(c, h, preset = {}, tpl = null) {
   });
   typeSel.onchange = () => update(true);
   $('[name=hb_sched]', form).onchange = () => update(false);
+  $('[name=thresh_mode]', form).onchange = () => update('smart');
+  $('#heal-sel').onchange = () => update('smart');
+  // Herstelcommando's die op deze server staan (de agent meldt ze)
+  if (h.mode === 'agent' && !tpl && isAdmin()) {
+    api('agent_status', null, { id: h.id }).then((r) => {
+      const sel = $('#heal-sel');
+      if (!sel) return;
+      (r.heal_cmds || []).forEach((n) => {
+        if (!$(`option[value="cmd:${CSS.escape(n)}"]`, sel)) sel.insertAdjacentHTML('beforeend', `<option value="cmd:${esc(n)}">${L('herstelcommando {n}', { n: esc(n) })}</option>`);
+      });
+    }).catch(() => {});
+  }
   $('[name=hb_unit]', form).oninput = () => update(false);
   $('[name=target]', form).addEventListener('input', (e) => {
     const n = e.target.value.trim() || 'NAAM';
@@ -3357,20 +3677,22 @@ async function showHistory(c, h) {
       }).join('');
       return;
     }
-    $('#chart-svg').innerHTML = chartSvg(d.points, c, t, +hours);
+    $('#chart-svg').innerHTML = chartSvg(d.points, c, t, +hours, 260, d.band);
   };
   $('#range').onchange = load;
   load();
 }
 
-function chartSvg(pts, c, t, hours, H = 260) {
+/** @param band 1.107.0: per punt [laag, hoog, warning, critical] van de slimme drempels (of null) */
+function chartSvg(pts, c, t, hours, H = 260, band = null) {
   if (!pts.length) return `<p class="muted">${L('Nog geen meetgegevens.')}</p>`;
   const W = 860, PL = 48, R = 12, T = 12, B = 40;
   const t1 = Math.floor(Date.now() / 1000), t0 = t1 - hours * 3600;
   const x = (ts) => PL + ((ts - t0) / (t1 - t0)) * (W - PL - R);
   const vals = pts.map((p) => p.v).filter((v) => v !== null);
   const hasVals = t.unit && vals.length;
-  let max = hasVals ? Math.max(...vals, +c.crit_threshold || 0, +c.warn_threshold || 0) * 1.1 : 1;
+  const smart = band && band.length === pts.length && c.thresh_mode && c.thresh_mode !== 'manual';
+  let max = hasVals ? Math.max(...vals, ...(smart ? band.map((b) => b[1]) : [+c.crit_threshold || 0, +c.warn_threshold || 0])) * 1.1 : 1;
   if (t.unit === '%') max = Math.max(100, ...vals);   // CPU van een container kan boven 100% (meer cores)
   const y = (v) => T + (1 - v / max) * (H - T - B - 14);
   let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" style="height:${H}px">`;
@@ -3382,8 +3704,15 @@ function chartSvg(pts, c, t, hours, H = 260) {
       svg += `<line x1="${PL}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${PL - 6}" y="${y(v) + 4}" text-anchor="end">${Math.round(v)}</text>`;
     }
     svg += '</g>';
-    if (c.warn_threshold !== null) svg += `<line class="thr-w" x1="${PL}" x2="${W - R}" y1="${y(+c.warn_threshold)}" y2="${y(+c.warn_threshold)}"/>`;
-    if (c.crit_threshold !== null) svg += `<line class="thr-c" x1="${PL}" x2="${W - R}" y1="${y(+c.crit_threshold)}" y2="${y(+c.crit_threshold)}"/>`;
+    if (smart) {
+      // Slimme drempels: de normale band per uur en de geleerde warning (gestippeld); wat buiten de grafiek valt, niet
+      const cl = (v) => Math.min(v, max);
+      svg += `<polygon class="chart-band" points="${pts.map((p, i) => `${x(p.t).toFixed(1)},${y(cl(band[i][1])).toFixed(1)}`).join(' ')} ${pts.map((p, i) => `${x(p.t).toFixed(1)},${y(cl(band[i][0])).toFixed(1)}`).reverse().join(' ')}"/>`;
+      svg += `<path class="chart-bandw" d="${pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(cl(band[i][2])).toFixed(1)}`).join('')}"/>`;
+    } else {
+      if (c.warn_threshold !== null) svg += `<line class="thr-w" x1="${PL}" x2="${W - R}" y1="${y(+c.warn_threshold)}" y2="${y(+c.warn_threshold)}"/>`;
+      if (c.crit_threshold !== null) svg += `<line class="thr-c" x1="${PL}" x2="${W - R}" y1="${y(+c.crit_threshold)}" y2="${y(+c.crit_threshold)}"/>`;
+    }
     const segs = [];
     let cur = [];
     pts.forEach((p) => { if (p.v === null) { if (cur.length) segs.push(cur); cur = []; } else cur.push(p); });
@@ -4109,6 +4438,10 @@ function agentInstructions(h, pairNow = false) {
       <div class="cmd-host-row need-admin">⚡ Realtime:
         <select id="host-realtime"><option value="0" ${+h.realtime ? '' : 'selected'}>${L('uit')}</option><option value="1" ${+h.realtime ? 'selected' : ''}>${L('aan')}</option></select>
         <span class="muted small" id="host-realtime-info">${h.agent_update_via === 'direct' ? L('werkt alleen met systemd (niet via cron of op TrueNAS)') : L('logins, sudo, services en 🔴-bestanden meteen')}</span></div>
+      <div class="cmd-host-row need-admin">🐕 ${L('Waakhond:')}
+        <select id="host-watchdog"><option value="0" ${+h.watchdog ? '' : 'selected'}>${L('uit')}</option><option value="1" ${+h.watchdog ? 'selected' : ''}>${L('aan')}</option></select>
+        ${L('melden na')} <input id="host-wd-min" type="number" min="2" max="120" value="${+h.watchdog_min || 5}" style="width:4.5rem"> ${L('min')}
+        <span class="muted small" id="host-wd-info">${L('deze agent stuurt zelf een Pushover-bericht als RzMon onbereikbaar is of de checks stilstaan')}</span></div>
       <div class="cmd-host-row need-admin">ℹ️ ${L('Info bij agent-updates:')}
         <select id="host-info-agent"><option value="1" ${+(h.info_agent ?? 1) ? 'selected' : ''}>${L('aan (volgt de algemene info-regel)')}</option><option value="0" ${+(h.info_agent ?? 1) ? '' : 'selected'}>${L('uit')}</option></select></div>
       <div class="cmd-host-row need-admin">🔐 ${L('Versleuteld versturen:')}
@@ -4216,6 +4549,15 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
       refresh();
     } catch (ex) { toast(ex.message, 'err'); }
   };
+  const wdSave = async () => {
+    try {
+      await api('host_watchdog', { id: h.id, on: $('#host-watchdog').value === '1', min: +$('#host-wd-min').value || 5 });
+      toast($('#host-watchdog').value === '1' ? L('Waakhond aan voor {name}; de agent pakt het binnen een paar minuten op', { name: h.name }) : L('Waakhond uit voor {name}', { name: h.name }));
+      refresh();
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#host-watchdog').onchange = wdSave;
+  $('#host-wd-min').onchange = () => { if ($('#host-watchdog').value === '1') wdSave(); };
   $('#host-enc').onchange = async (e) => {
     try { await api('host_enc', { host_id: h.id, enc: e.target.value }); toast(L('Opgeslagen; de agent pakt het op bij zijn volgende rapport')); refresh(); }
     catch (ex) { toast(ex.message, 'err'); }
@@ -4559,6 +4901,14 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
       html += `<div class="small">${L('Agent-versie <b>{v}</b>', { v: s.agent_version ? esc(s.agent_version) : L('onbekend (ouder dan 1.6.0)') })}${old ? ', ' + L('nieuwste agent {v}', { v: esc(s.version) }) : ' ✔ ' + L('nieuwste')}</div>`;
       if (u.status) html += `<div class="small agent-upd-status">${esc(u.status)}</div>`;
       html += `<div class="small">${realtimeText(s.realtime)}</div>`;
+      // 🐕 Waakhond: werkt alleen met Pushover en een versleutelde verbinding (de gegevens gaan naar de agent)
+      const wdi = $('#host-wd-info');
+      if (wdi && s.watchdog) {
+        wdi.innerHTML = !s.watchdog.pushover ? `<span class="warn-txt">⚠️ ${L('Zet eerst Pushover aan (Meldingen → Kanalen): de waakhond meldt via Pushover')}</span>`
+          : !s.watchdog.enc ? `<span class="warn-txt">⚠️ ${L('Werkt alleen versleuteld: koppel de agent met een koppelcode (de Pushover-gegevens gaan naar de agent)')}</span>`
+          : s.watchdog.on ? `✔ ${L('actief: na {n} min zonder RzMon een Pushover-bericht, en een bericht als de checks stilstaan', { n: s.watchdog.min })}`
+          : L('deze agent stuurt zelf een Pushover-bericht als RzMon onbereikbaar is of de checks stilstaan');
+      }
       const tw = toolsWarning(s.realtime && s.realtime.tools, s.update && s.update.via);
       if (tw) html += `<div class="small tools-warn">${tw}</div>`;
       if (isAdmin() && u.pending) {
@@ -6124,13 +6474,13 @@ function initMainTabs() {
 // Elk onderdeel toont een of meer kaarten (data-sk); de kaarten zelf (en hoe ze opslaan) zijn niet veranderd.
 const SET_NAV = [
   ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']], ['conn', L('Verbindingen en taken'), ['conn']]]],
-  ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']], ['cleanup', L('Opschoonadvies'), ['cleanup']]]],
+  ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']], ['smart', L('Slimme drempels'), ['smart']], ['cleanup', L('Opschoonadvies'), ['cleanup']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'chain']], ['rules', L('Meldregels en stille uren'), ['notify']], ['alarm', L('Alarmgedrag'), ['alarm']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['beveiliging', '🛡️', L('Beveiliging'), [['ids', L('IDS: detectie'), ['ids']], ['ids_attack', L('IDS: aanvallers en verkeer'), ['ids_attack']], ['ids_servers', L('IDS: servers'), ['ids_servers']],
     ['vulns', L('Kwetsbaarheden'), ['vulns']], ['hibp', L('Datalekken'), ['hibp']], ['netscan', L('Netwerkscan'), ['netscan']]]],
   ['toegang', '🔐', L('Toegang'), [['access', L('Inloggen'), ['access']], ['outside', L('Van buiten'), ['https', 'outside']], ['users', L('Gebruikers'), ['users']]]],
   ['agents', '🖥️', L('Agents'), [['agents', L('Agents'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']], ['commands', L('Commando-checks'), ['commands']]]],
-  ['koppelingen', '🔗', L('Koppelingen'), [['netlinks', L('UniFi en AdGuard Home'), ['netlinks']], ['mqtt', L('MQTT (Home Assistant)'), ['mqtt']], ['api', L('REST API en API-sleutels'), ['api']]]],
+  ['koppelingen', '🔗', L('Koppelingen'), [['netlinks', L('UniFi en AdGuard Home'), ['netlinks']], ['mqtt', L('MQTT (Home Assistant)'), ['mqtt']], ['api', L('REST API en API-sleutels'), ['api']], ['statuspage', L('Statuspagina'), ['statuspage']]]],
   ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['backup', L('Back-up'), ['backup']], ['db', L('Database en opslag'), ['dbconn', 'db', 'storage']],
     ['server', L('Server en PHP'), ['server']], ['syscheck', L('Systeemcheck'), ['syscheck']], ['changelog', L('Wijzigingslogboek'), ['changelog']], ['transfer', L('Exporteren en importeren'), ['transfer']]]],
 ];
@@ -6163,6 +6513,8 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'conn') loadConn();
   if (setSection === 'templates') loadTemplates();
   if (setSection === 'allchecks') loadAllChecks();
+  if (setSection === 'smart') loadSmartProposals();
+  if (setSection === 'statuspage') loadStatusPage();
   if (setSection === 'cleanup') loadCleanup();
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'syscheck') loadSyscheck();
@@ -6790,6 +7142,8 @@ const SYSINFO_ROWS = [
     ['stealth_door', '🚪 ' + L('Noodlink aangevraagd of gebruikt')]]],
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
   [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')]]],
+  [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
+    ['watchdog', '🐕 ' + L('Waakhond: RzMon was onbereikbaar of de checks stonden stil')]]],
   ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
 ];
 const SYSINFO_CH = [['pushover', '📲 Pushover', 'pushover_enabled'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
@@ -7373,6 +7727,7 @@ function acBulkBar() {
   bar.innerHTML = `<b>${n === 1 ? L('1 check gekozen') : L('{n} checks gekozen', { n })}</b>
     <button type="button" class="btn small-btn" data-bulk="interval">⏱ ${L('Interval')}</button>
     <button type="button" class="btn small-btn" data-bulk="thr" ${oneType ? '' : `disabled title="${esc(L('Alleen voor checks van hetzelfde type'))}"`}>🎚 ${L('Drempels')}</button>
+    <button type="button" class="btn small-btn" data-bulk="smart">🧠 ${L('Slim')}</button>
     <button type="button" class="btn small-btn" data-bulk="notify">🔔 ${L('Melden')}</button>
     <button type="button" class="btn small-btn" data-bulk="maint">🔧 ${L('Onderhoud')}</button>
     <button type="button" class="btn small-btn" data-bulk="on">▶ ${L('Aan')}</button>
@@ -7401,6 +7756,12 @@ async function acBulk(kind) {
         <p class="hint">${L('Leeg = geen drempel.')}</p>`,
       buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }], onSubmit: (d) => set({ warn_threshold: d.warn, crit_threshold: d.crit }) });
   }
+  if (kind === 'smart') return modal({ title: L('Drempels voor {n} checks', { n: ids.length }),
+    body: `<label>${L('Drempels')}<select name="mode"><option value="">${L('ongewijzigd')}</option>${Object.entries(SMART_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+      <label>${L('Gevoeligheid')}<select name="sens"><option value="-">${L('ongewijzigd')}</option><option value="">${L('standaard')}</option>${Object.entries(SMART_SENS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+      <p class="hint">${L('Alleen voor checks die kunnen leren (ping, TCP, HTTP, CPU, RAM, SNMP); de andere blijven zoals ze zijn. Bij slim met vangnet krijgt een check zonder vangnet het standaard vangnet.')}</p>`,
+    buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
+    onSubmit: (d) => set({ ...(d.mode ? { thresh_mode: d.mode } : {}), ...(d.sens !== '-' ? { smart_sens: d.sens || null } : {}) }) });
   if (kind === 'notify') return modal({ title: L('Melden voor {n} checks', { n: ids.length }),
     body: `<label>${L('Melden na zoveel mislukte checks achter elkaar')} <span class="hint">${L('(leeg = de algemene instelling)')}</span><input name="fails" type="number" min="1" max="100"></label>
       <label class="switch"><input type="checkbox" name="defaults"><span></span> ${L('Eigen meldregels weghalen: de algemene meldregels gebruiken')}</label>
@@ -7491,7 +7852,7 @@ async function loadCleanup() {
 
 // ---------------------------------------------------------------- 📜 Wijzigingslogboek, 📦 export/import, 🧪 meldketen (1.97.0)
 const CL_KIND = { setting: () => '⚙️ ' + L('Instelling'), host: () => '🖥️ ' + L('Server'), check: () => '✔ ' + L('Check'), template: () => '📋 ' + L('Sjabloon'), system: () => '🛠️ ' + L('Systeem') };
-const CL_ACTION = { create: () => L('aangemaakt'), update: () => L('gewijzigd'), delete: () => L('verwijderd'), undo: () => L('teruggezet'), info: () => '' };
+const CL_ACTION = { create: () => L('aangemaakt'), update: () => L('gewijzigd'), delete: () => L('verwijderd'), undo: () => L('teruggezet'), smart: () => L('geleerd'), info: () => '' };
 async function loadChangeLog() {
   const box = $('#cl-list');
   if (!box) return;

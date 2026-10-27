@@ -161,6 +161,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <?php if ($showNet): ?><button class="tab" data-tab="net" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/><path d="M12 7v5M5 17v-2.5a1.5 1.5 0 0 1 1.5-1.5h11a1.5 1.5 0 0 1 1.5 1.5V17"/></svg><span class="tab-badge s1" id="net-badge" hidden></span></span><span class="tab-lbl"><?= th('Netwerk') ?></span></button><?php endif; ?>
     </nav>
     <div class="top-actions">
+      <button type="button" class="cmdk-btn" id="cmdk-btn" title="<?= th('Zoeken en doen (Ctrl+K)') ?>" aria-label="<?= th('Zoeken') ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="cmdk-kbd">Ctrl K</span></button>
       <?php $hasAccount = !is_lan_session(); $uname = (string) ($user['username'] ?? ''); ?>
       <div class="acct" id="acct">
         <button type="button" class="acct-btn" id="acct-btn" aria-haspopup="menu" aria-expanded="false" title="<?= $hasAccount ? th('Je account, instellingen en uitloggen') : th('Ingelogd zonder wachtwoord omdat je op het lokale netwerk zit') ?>">
@@ -192,7 +193,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="dash-counters" id="dash-counters">
         <div class="dash-in">
           <div class="health-counts" id="health-counts" role="group" aria-label="<?= th('Filter op status') ?>"></div>
-          <span class="dash-last muted small" id="last-run"></span>
+          <span class="dash-last muted small"><span class="live-dot" id="live-dot" title="<?= th('Live: wijzigingen komen binnen een paar seconden binnen') ?>"></span> <span id="last-run"></span></span>
         </div>
       </div>
       <div class="kpis" id="health"></div>
@@ -480,6 +481,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label class="switch" style="align-self:end"><input type="checkbox" name="notify_recovery_acked"><span></span> <?= th('Ook herstel melden na een bevestigde storing') ?></label>
           </div>
           <p class="muted small" style="margin-top:-.3rem"><?= th('Bundelen: gaan op één server binnen deze tijd meerdere checks mis (of herstellen ze), dan komt er één bericht met alles erin. De eerste melding wacht daardoor hooguit zo lang. Home Assistant krijgt wel een bericht per check, voor je automatiseringen.') ?></p>
+          <label class="switch"><input type="checkbox" name="notify_bundle_hosts"><span></span> <?= t('🔗 <b>Ook over servers heen bundelen</b>, met de waarschijnlijke oorzaak') ?></label>
+          <p class="muted small" style="margin-top:-.3rem"><?= th('Gaan er binnen het bundelvenster meerdere servers mis, dan komt er één bericht, bv. "🔴 CRITICAL: 5 servers tegelijk · waarschijnlijk: ze hangen allemaal aan Switch-zolder (UniFi)". RzMon kijkt naar je afhankelijkheden, naar UniFi (welk access point of welke switch), naar agents die allemaal tegelijk stil zijn en naar je Proxmox-clusters.') ?></p>
         </div>
 
         <div data-sk="sysinfo" class="card" id="sysinfo-card">
@@ -730,6 +733,21 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
           <div id="netscan-nets" class="small"></div>
           <p class="muted small"><?= t('Een nieuw apparaat geeft een ℹ️-melding <i>Nieuw apparaat op je netwerk</i> (standaard alleen op de meldingenpagina; kanalen bij <i>Meldingen → Systeeminfo</i>). De eerste scan is de basismeting: die geeft geen meldingen. Met <code>fping</code> en <code>avahi-browse</code> (pakket <code>avahi-tools</code> of <code>avahi-utils</code>) op de RzMon-server gaat het sneller en herkent RzMon meer, maar nodig zijn ze niet. De fabrikant komt uit de lijst van Wireshark (maandelijks bijgewerkt, uitgaand HTTPS naar <code>www.wireshark.org</code>).') ?></p>
+        </div>
+
+        <div data-sk="smart" class="card" id="smart-card">
+          <h2>🧠 <?= th('Slimme drempels') ?></h2>
+          <p class="muted small"><?= t('RzMon leert per check wat normaal is, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en zet daar de drempels op. Na 7 dagen gegevens; daarna stelt hij ze elke nacht bij, hooguit 10% per nacht. Elke aanpassing staat in het <i>Wijzigingslogboek</i> en is terug te draaien. Werkt bij ping, TCP, HTTP, CPU, RAM en SNMP (CPU, geheugen, interface, load, temperatuur, UPS, UniFi); disks houden vaste drempels met de voorspelling.') ?></p>
+          <div class="row2">
+            <label><?= th('Nieuwe checks') ?>
+              <select name="thresh_default"><option value="guard">🧠🛡️ <?= th('Slim met vangnet') ?></option><option value="smart">🧠 <?= th('Slim') ?></option><option value="manual">✋ <?= th('Handmatig') ?></option></select></label>
+            <label><?= th('Gevoeligheid') ?>
+              <select name="smart_sens"><option value="calm"><?= th('rustig') ?></option><option value="normal"><?= th('normaal') ?></option><option value="sharp"><?= th('scherp') ?></option></select></label>
+          </div>
+          <p class="muted small"><?= t('<b>Slim met vangnet</b>: geleerd, maar vanaf een harde grens altijd CRITICAL (bv. RAM 98%). <b>Rustig</b> geeft minder meldingen, <b>scherp</b> ziet een afwijking eerder. Per check aan te passen (✎). Stijgt de normaalwaarde van een check sluipend (een lek?), dan krijg je een ℹ️-melding en schuiven de drempels niet mee omhoog.') ?></p>
+          <h3 class="small" style="margin:1rem 0 .3rem"><?= th('Voorstel voor bestaande checks') ?></h3>
+          <p class="muted small" style="margin-top:0"><?= th('Bestaande checks blijven handmatig tot je ze omzet. RzMon leert ook voor die checks, en laat hier zien waar slimme drempels minder warnings hadden gegeven.') ?></p>
+          <div id="smart-proposals"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
 
         <div data-sk="update" class="card" id="update-card">
@@ -1037,6 +1055,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div id="cleanup-list"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
+      <div data-sk="statuspage" class="card need-admin" id="statuspage-card">
+        <h2>🟢 <?= th('Statuspagina') ?></h2>
+        <p class="muted small"><?= t('Een eenvoudige pagina voor huisgenoten of klanten: de onderdelen die je hieronder kiest, of ze nu werken, en een balk per dag over de laatste 90 dagen. Geen IP-adressen, servernamen of foutteksten. Te openen via een <b>geheime link</b>, ook van buiten (met <i>Onzichtbaar van buiten</i> aan geeft een verkeerde link gewoon een 404).') ?></p>
+        <div id="statuspage-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+
       <div data-sk="chain" class="card need-admin" id="chain-card">
         <h2>🧪 <?= th('Meldketen testen') ?></h2>
         <p class="muted small"><?= th('Stuurt één testmelding door alle kanalen die aan staan (Pushover, e-mail, Home Assistant-webhook, MQTT en de meldingenpagina), met de opgeslagen instellingen, en laat per kanaal zien of het lukte.') ?></p>
@@ -1158,6 +1182,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <script src="assets/vendor/qrcode.js?v=1.4.4"></script>
 <?php endif; ?>
   <script>window.LANG = <?= json_encode(I18n::lang()) ?>; window.I18N = <?= I18n::lang() === 'en' ? json_encode(I18n::dict(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) : '{}' ?>;</script>
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-box" role="dialog" aria-modal="true" aria-label="<?= th('Zoeken en doen') ?>">
+    <input id="cmdk-in" type="search" autocomplete="off" spellcheck="false" placeholder="<?= th('Server, check, IP-adres of instelling… (bv. "rl02 disk onderhoud")') ?>">
+    <div class="cmdk-list" id="cmdk-list" role="listbox"></div>
+    <div class="cmdk-foot muted small"><?= th('↑↓ kiezen · Enter doen · Esc sluiten · woorden als "onderhoud", "nu", "bevestig", "grafiek", "blokkeer" geven acties') ?></div>
+  </div>
+</div>
   <script src="assets/app.js?v=<?= $v ?>"></script>
 </body>
 </html>

@@ -865,3 +865,14 @@ CREATE TABLE IF NOT EXISTS stats_daily (
     KEY idx_sd_metric (metric, ref, day)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('report_monthly', '0');
+
+-- 1.107.0: slimme drempels: wat RzMon per check geleerd heeft (per uur van de week)
+CREATE TABLE IF NOT EXISTS check_smart (
+    check_id   INT UNSIGNED NOT NULL PRIMARY KEY,
+    model      MEDIUMTEXT   NULL,
+    learned_at DATETIME     NULL,
+    CONSTRAINT fk_smart_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('thresh_default', 'guard');
+INSERT IGNORE INTO settings (name, value) VALUES ('smart_sens', 'normal');
+INSERT IGNORE INTO settings (name, value) VALUES ('notify_bundle_hosts', '1');
