@@ -1553,3 +1553,10 @@ code.ip-link { cursor: pointer; text-decoration: underline dotted; }
 .contact-cell { min-width: 15rem; }
 .contact-cell .contact-live, .contact-row .contact-live { display: block; }
 .contact-row > div { display: inline-block; vertical-align: top; }
+/* 1.100.0: verbindingscontrole in de Agent Manager */
+.audit-box { margin-top: .5rem; }
+.audit-box summary { cursor: pointer; }
+.audit-list { list-style: none; margin: .35rem 0 .4rem; padding: 0; display: grid; gap: .15rem; }
+.audit-list li { display: flex; gap: .4rem; align-items: baseline; flex-wrap: wrap; }
+.audit-badge { white-space: nowrap; cursor: help; }
+button.audit-badge { background: none; border: 0; padding: 0; font: inherit; text-decoration: underline dotted; cursor: pointer; }

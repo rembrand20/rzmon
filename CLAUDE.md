@@ -22,7 +22,7 @@ RzMon en de agent hebben **elk een eigen versienummer**. Verhoog alleen het numm
 
 ## Updates veranderen geen instellingen
 - Een update van RzMon laat `config.php` en bestaande rijen in `settings` ongemoeid: `Installer::runSchema` zet elke bestaande instelling terug die het schema of een migratie zou veranderen. Nieuwe standaardwaarden gaan met `INSERT IGNORE`.
-- `install-agent.sh` schrijft `/etc/default/rzmon-agent` alleen bij een nieuwe installatie. Bij een bestaande installatie past het alleen de regels aan die je zelf meegeeft (`--url`, `--token` …).
+- `install-agent.sh` schrijft `/etc/default/rzmon-agent` alleen bij een nieuwe installatie. Bij een bestaande installatie past het alleen de regels aan die je zelf meegeeft (`--url`, `--pair` …). Uitzondering (agent 1.60.0, op verzoek): `--update` en `--cleanup` maken eerst een reservekopie en halen dan alleen regels weg die niet meer nodig zijn (`cleanup_conf`); wat de gebruiker zelf instelde blijft.
 
 ## Teksten in de interface (Nederlands en Engels)
 - Schrijf teksten in het **Nederlands** in de code, via `t('…')` / `th('…')` (PHP, `th` = met HTML-escaping) of `L('…')` (JavaScript). Variabele delen als `{naam}`: `L('{n} meldingen', { n })`.

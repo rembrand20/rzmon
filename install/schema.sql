@@ -696,6 +696,8 @@ CREATE TABLE IF NOT EXISTS hibp_catalog (
 
 -- Agents alleen via https (1.72.0): verzoeken van agents via http weigeren, behalve via hun reserve-adres (met een ⚠️)
 INSERT IGNORE INTO settings (name, value) VALUES ('agent_https_only', '0');
+-- Alleen agents met een eigen sleutel (1.100.0); koppelen met een koppelcode blijft altijd kunnen
+INSERT IGNORE INTO settings (name, value) VALUES ('agent_ownkey_only', '0');
 
 -- Heartbeat-checks (1.77.0): laatste start, ok, fail, duur en bericht per check
 CREATE TABLE IF NOT EXISTS hb_state (

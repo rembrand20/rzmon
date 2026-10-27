@@ -20,10 +20,11 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.59.2"
+AGENT_VERSION="1.60.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
+STATUS=0; [ "${1-}" = "--status" ] && STATUS=1
 if [ "${1-}" = "--version" ]; then
     echo "rzmon-agent $AGENT_VERSION"
     exit 0
@@ -616,6 +617,190 @@ if [ "$TEST" = 1 ]; then
     rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$
 fi
 
+# ---------------------------------------------------------------- Status en instellingen (1.60.0)
+# Elk contact met RzMon wordt bijgehouden in $st_dir (laatste rapport, de laatste 30 contacten, fouten en de
+# beveiligingscontrole van RzMon), voor "rzmon-agent-setup --status". Daarnaast meldt de agent welke regels in
+# zijn instellingen overbodig zijn (alleen de namen, nooit de waarden), zodat RzMon kan laten opruimen.
+st_dir="$t_dir/status"
+conf_file=""
+if [ "$HA_MODE" != 1 ]; then
+    if [ -n "${AGENT_DIR-}" ] && [ -f "$AGENT_DIR/agent.conf" ]; then conf_file="$AGENT_DIR/agent.conf"
+    elif [ -f /etc/default/rzmon-agent ]; then conf_file=/etc/default/rzmon-agent; fi
+fi
+if [ -n "${AGENT_DIR-}" ]; then bk_dir="$AGENT_DIR/backup"; else bk_dir=/var/lib/rzmon-agent/backup; fi
+now_ms() { local n; n=$(date +%s%3N 2>/dev/null); [[ "$n" =~ ^[0-9]{13}$ ]] && echo "$n" || echo $(( $(date +%s) * 1000 )); }
+conf_has() { [ -n "$conf_file" ] && grep -q "^$1=" "$conf_file" 2>/dev/null; }
+conf_val() { local v; v=$(grep "^$1=" "$conf_file" 2>/dev/null | tail -1); v=${v#*=}; v=${v#\"}; v=${v%\"}; printf '%s' "$v"; }
+# Overbodige regels, met dezelfde regels als rzmon-agent-setup --cleanup
+conf_obsolete() {
+    local n v
+    [ -n "$conf_file" ] && [ -r "$conf_file" ] || return 0
+    for n in TOKEN ENC_KEY PAIR_CODE; do   # met een eigen sleutel niet meer nodig
+        conf_has "$n" || continue
+        v=$(conf_val "$n"); { [ -z "$v" ] || [ -n "$own_key" ]; } && echo "$n"
+    done
+    conf_has INTERVAL && echo INTERVAL   # de tik komt uit RzMon
+    if conf_has PIN; then v=$(conf_val PIN); { [ -z "$v" ] || [ -s "$k_dir/pin" ] || [ -s "$k_dir/url.pins" ]; } && echo PIN; fi
+    if conf_has INSECURE; then
+        v=$(conf_val INSECURE); { [ "$v" != 1 ] || [[ "$MONITOR_URL" != https://* ]] || [ -n "$pin" ] || [ -n "$(url_spec "$MONITOR_URL")" ]; } && echo INSECURE
+    fi
+    conf_has SERVICES && echo SERVICES   # wordt een service-check in RzMon
+    conf_has MONITOR_URL_FALLBACK && [ -z "$(conf_val MONITOR_URL_FALLBACK)" ] && echo MONITOR_URL_FALLBACK
+    [ -n "$own_key" ] && [ -e "$enc_file" ] && echo enc.key   # bestand met de oude algemene sleutel
+    return 0
+}
+cfg_sched() {
+    if [ "$HA_MODE" = 1 ]; then echo ha
+    elif [ -n "${AGENT_DIR-}" ]; then echo truenas
+    elif [ -n "${INVOCATION_ID-}" ]; then echo systemd
+    elif [ -f /etc/cron.d/rzmon-agent ]; then echo cron
+    else echo manual; fi
+}
+cfg_json() {
+    local ob sv sha perm bk=0 bl="" ins=0
+    ob=$(conf_obsolete | awk 'NF { printf "%s\"%s\"", (n++ ? "," : ""), $0 }')
+    sv=$(tr ' ' '\n' <<<"${SERVICES-}" | awk 'NF && /^[A-Za-z0-9@._:-]+$/ { printf "%s\"%s\"", (n++ ? "," : ""), $0 }')
+    sha=$(sha256sum "${BASH_SOURCE[0]}" 2>/dev/null | cut -d' ' -f1)
+    perm=$( [ -n "$conf_file" ] && stat -c '%a' "$conf_file" 2>/dev/null)
+    if [ -d "$bk_dir" ]; then
+        bk=$(find "$bk_dir" -maxdepth 1 -name 'agent-*.sh' 2>/dev/null | wc -l)
+        bl=$(ls -1t "$bk_dir"/agent-*.sh 2>/dev/null | head -1); bl=${bl##*/}
+    fi
+    [ "${INSECURE-0}" = 1 ] && [[ "$MONITOR_URL" == https://* ]] && [ -z "$pin" ] && [ -z "$(url_spec "$MONITOR_URL")" ] && ins=1
+    printf '{"conf":"%s","perm":"%s","obsolete":[%s],"services":[%s],"insecure":%d,"sha":"%s","backups":%d,"backup_last":"%s","sched":"%s"}' \
+        "$(json_escape "$conf_file")" "$perm" "$ob" "$sv" "$ins" "$sha" "$bk" "$(json_escape "$bl")" "$(cfg_sched)"
+}
+
+# ---------------------------------------------------------------- --status (1.60.0)
+if [ "${STATUS-0}" = 1 ]; then
+    sl() { printf '  %-18s %s\n' "$1" "$2"; }
+    if [ -t 1 ]; then b1=$'\e[1m'; b0=$'\e[0m'; else b1=""; b0=""; fi   # vet alleen op een terminal
+    hd() { printf '\n%s── %s%s\n' "$b1" "$1" "$b0"; }
+    dt() { date -d "@$1" '+%d-%m-%Y %H:%M:%S' 2>/dev/null || echo "$1"; }
+    ago_s() { local s=$(( $(date +%s) - $1 )); if [ "$s" -lt 120 ]; then echo "$s s geleden"; elif [ "$s" -lt 7200 ]; then echo "$(( s / 60 )) min geleden"; elif [ "$s" -lt 172800 ]; then echo "$(( s / 3600 )) uur geleden"; else echo "$(( s / 86400 )) dagen geleden"; fi; }
+    kb() { awk -v b="$1" 'BEGIN { if (b < 1024) printf "%d bytes", b; else printf "%.1f KB", b / 1024 }'; }
+    st_get() { sed -n "s/^$1=//p" "$st_dir/last" 2>/dev/null | head -1; }
+    printf '%sRzMon agent %s%s – status van %s op %s\n' "$b1" "$AGENT_VERSION" "$b0" "$(hostname)" "$(date '+%d-%m-%Y %H:%M:%S')"
+
+    hd "Agent"
+    sl "Versie:" "$AGENT_VERSION"
+    sl "Script:" "${BASH_SOURCE[0]} (sha256 $(sha256sum "${BASH_SOURCE[0]}" 2>/dev/null | cut -c1-16)…)"
+    case "$(cfg_sched)" in
+        systemd|manual)
+            if command -v systemctl >/dev/null 2>&1 && [ "$(systemctl is-active rzmon-agent.timer 2>/dev/null)" = active ]; then
+                nx=$(systemctl show rzmon-agent.timer -p NextElapseUSecRealtime --value 2>/dev/null)
+                sl "Gestart door:" "systemd-timer (actief${nx:+, volgende start: $nx})"
+            elif [ -f /etc/cron.d/rzmon-agent ]; then sl "Gestart door:" "cron (/etc/cron.d/rzmon-agent)"
+            else sl "Gestart door:" "⚠️ geen actieve timer of cronjob gevonden"; fi
+            if command -v systemctl >/dev/null 2>&1; then
+                sl "Realtime-watcher:" "$(systemctl is-active rzmon-watch.service 2>/dev/null || echo uit)"
+            fi ;;
+        cron) sl "Gestart door:" "cron (/etc/cron.d/rzmon-agent)" ;;
+        truenas) sl "Gestart door:" "TrueNAS-cronjob (System → Advanced → Cron Jobs)" ;;
+        ha) sl "Gestart door:" "Home Assistant-add-on" ;;
+    esac
+    if [ -n "$conf_file" ]; then
+        ob=$(conf_obsolete | tr '\n' ' '); ob=${ob% }
+        sl "Instellingen:" "$conf_file (rechten $(stat -c '%a %U' "$conf_file" 2>/dev/null))"
+        if [ -n "$ob" ]; then sl "" "⚠️ overbodig: $ob → opruimen: rzmon-agent-setup --cleanup (of 🧹 in de Agent Manager)"
+        else sl "" "✔ opgeruimd: geen overbodige regels"; fi
+    fi
+    if [ -d "$bk_dir" ] && ls "$bk_dir"/agent-*.sh >/dev/null 2>&1; then
+        bl=$(ls -1t "$bk_dir"/agent-*.sh | head -1)
+        sl "Reservekopie:" "$(find "$bk_dir" -maxdepth 1 -name 'agent-*.sh' | wc -l) × in $bk_dir (laatste: ${bl##*/}, $(dt "$(stat -c %Y "$bl")"))"
+    fi
+
+    hd "Verbinding met RzMon"
+    sl "Adres:" "$MONITOR_URL"
+    [ -n "$MONITOR_URL_FALLBACK" ] && sl "Reserve-adres:" "$MONITOR_URL_FALLBACK (als het gewone adres niet bereikbaar is)"
+    if [[ "$MONITOR_URL" != https://* ]]; then sl "Certificaat:" "⚠️ via http: de inhoud is versleuteld, maar niet verborgen dat er verkeer is (zet RzMon op https)"
+    elif [ -n "$pin" ]; then sl "Certificaat:" "🔒 vastgezet (sha256//${pin:0:12}…): alleen dit certificaat wordt geaccepteerd"
+    elif [ "${INSECURE-0}" = 1 ]; then sl "Certificaat:" "⚠️ niet gecontroleerd (INSECURE=1, geen vingerafdruk)"
+    else sl "Certificaat:" "✔ gewone controle (vertrouwd certificaat)"; fi
+    pr=$(LC_ALL=C curl -sS "${tls[@]}" -m 10 -o /dev/null -w '%{http_code} %{time_namelookup} %{time_connect} %{time_appconnect} %{time_total} %{local_ip} %{remote_ip}' \
+        "${MONITOR_URL%/}/api.php?action=ping" 2>&1)
+    read -r p_code p_dns p_con p_tls p_tot p_lip p_rip <<<"$pr"
+    if [ "$p_code" = 200 ]; then
+        sl "Nu bereikbaar:" "✔ in $(awk -v t="$p_tot" 'BEGIN { printf "%d", t * 1000 }') ms (DNS $(awk -v t="$p_dns" 'BEGIN { printf "%d", t * 1000 }') ms, verbinden $(awk -v t="$p_con" 'BEGIN { printf "%d", t * 1000 }') ms$( [[ "$MONITOR_URL" == https://* ]] && printf ', TLS %d ms' "$(awk -v t="$p_tls" 'BEGIN { printf "%d", t * 1000 }')")), van $p_lip naar $p_rip"
+    else
+        pr=${pr#curl: }; sl "Nu bereikbaar:" "✘ $(head -1 <<<"$pr" | cut -c1-160)"
+    fi
+    if [[ "$MONITOR_URL" == https://* ]] && command -v openssl >/dev/null 2>&1; then
+        hp=${MONITOR_URL#https://}; hp=${hp%%/*}; h_h=${hp%:*}; h_p=443; [[ "$hp" == *:* ]] && h_p=${hp##*:}
+        so=$(LC_ALL=C timeout 10 openssl s_client -connect "$h_h:$h_p" -servername "$h_h" </dev/null 2>/dev/null)
+        # OpenSSL 3: "New, TLSv1.3, Cipher is …"; ouder: "Protocol : …" en "Cipher : …"
+        pv=$(sed -n 's/^New, \(TLSv[0-9.]*\), Cipher is \(.*\)$/\1, \2/p' <<<"$so" | head -1)
+        [ -n "$pv" ] || pv="$(sed -n 's/^ *Protocol *: *//p' <<<"$so" | head -1), $(sed -n 's/^ *Cipher *: *//p' <<<"$so" | head -1)"
+        [ "$pv" != ", " ] && sl "TLS:" "$pv"
+        if crt=$(openssl x509 2>/dev/null <<<"$so"); then
+            c_cn=$(openssl x509 -noout -subject -nameopt RFC2253 <<<"$crt" | grep -o 'CN=[^,]*' | head -1 | cut -c4-)
+            c_na=$(date -d "$(openssl x509 -noout -enddate <<<"$crt" | cut -d= -f2)" '+%d-%m-%Y' 2>/dev/null)
+            c_pin=$(openssl x509 -pubkey -noout <<<"$crt" | openssl pkey -pubin -outform der 2>/dev/null | openssl dgst -sha256 -binary | base64)
+            pm=""; [ -n "$pin" ] && { [ "$c_pin" = "$pin" ] && pm=" · vingerafdruk klopt ✔" || pm=" · ⚠️ vingerafdruk wijkt af (RzMon stuurt de nieuwe bij het volgende rapport)"; }
+            sl "Certificaat RzMon:" "${c_cn:-?}, geldig tot ${c_na:-?}$pm"
+        fi
+    fi
+
+    hd "Versleuteling"
+    if [ -n "$own_key" ]; then
+        sl "Sleutel:" "🔑 eigen sleutel van deze server (kenmerk $(enc_sub "$own_key" id | cut -c1-16)), sinds $(dt "$(stat -c %Y "$own_file")")"
+        sl "" "RzMon vernieuwt hem vanzelf; er gaat geen token of sleutel over de lijn"
+    elif [ -n "$enc_key" ]; then sl "Sleutel:" "⚠️ alleen de oude algemene sleutel: koppel opnieuw met een koppelcode (rzmon-agent-setup --pair …)"
+    else sl "Sleutel:" "⚠️ geen sleutel: rapporten gaan onversleuteld met een token. Koppel met: rzmon-agent-setup --pair …"; fi
+    [ -n "$enc_key" ] && sl "Methode:" "AES-256-CBC + HMAC-SHA256; elk bericht uniek (nonce) en 5 minuten geldig; antwoorden van RzMon ondertekend"
+    [ -n "$own_key" ] && [ -e "$enc_file" ] && sl "Oude sleutel:" "⚠️ het bestand met de algemene sleutel staat er nog ($enc_file) → --cleanup"
+
+    hd "Contact"
+    if [ -r "$st_dir/last" ]; then
+        l_t=$(st_get time); l_rc=$(st_get rc)
+        if [ "$l_rc" = 0 ]; then
+            sl "Laatste rapport:" "✔ $(dt "$l_t") ($(ago_s "$l_t")), HTTP $(st_get http), $(st_get ms) ms (versturen $(st_get send_ms) ms)"
+        else
+            sl "Laatste rapport:" "✘ $(dt "$l_t") ($(ago_s "$l_t")): $(st_get error)"
+        fi
+        sl "Verstuurd:" "$(kb "$(st_get bytes)") ($( [ "$(st_get enc)" = 1 ] && echo "🔒 versleuteld $(kb "$(st_get sent)")" || echo "⚠️ onversleuteld")), via $( [ "$(st_get via)" = fallback ] && echo "⚠️ het reserve-adres" || echo "het gewone adres")"
+        rv=$(st_get received | tr -d '"' | tr ',' '\n' | awk -F: '{ n = $1; sub(/^disks$/, "disks", n); sub(/^ports$/, "poorten", n); sub(/^certs$/, "certificaten", n)
+            printf "%s%s %s", (NR > 1 ? ", " : ""), $2, n }')
+        [ -n "$rv" ] && sl "RzMon ontving:" "$rv"
+        pt=$(st_get parts | sed 's/ / · /g; s/=/: /g'); [ -n "$pt" ] && sl "Ook meegestuurd:" "$pt"
+        ok_t=$(awk -F'\t' '$2 == 0 { t = $1 } END { print t }' "$st_dir/history" 2>/dev/null)
+        [ -n "$ok_t" ] && [ "$l_rc" != 0 ] && sl "Laatst gelukt:" "$(dt "$ok_t") ($(ago_s "$ok_t"))"
+    else
+        sl "Laatste rapport:" "nog niet bijgehouden (komt na het volgende rapport)"
+    fi
+    tk=$(awk -F'\t' '$1 == "0" && $2 == "tick" { print $3; exit }' "$t_cache" 2>/dev/null)
+    if [ -n "$tk" ]; then
+        sl "Ritme:" "elke $tk s (ingesteld in RzMon)$( [ -n "${l_t-}" ] && echo "; volgende rapport rond $(date -d "@$(( l_t + tk ))" '+%H:%M:%S' 2>/dev/null)")"
+    fi
+    if [ -s "$st_dir/history" ]; then
+        echo "  Laatste contacten:"
+        tail -n 10 "$st_dir/history" | tac 2>/dev/null | while IFS=$'\t' read -r h_t h_rc h_c h_ms h_b h_e h_v; do
+            printf '    %s  %s  %6s ms  %9s  %s%s\n' "$(dt "$h_t")" "$( [ "$h_rc" = 0 ] && echo "✔ $h_c" || echo "✘ ${h_c:-curl $h_rc}")" "$h_ms" "$(kb "$h_b")" \
+                "$( [ "$h_e" = 1 ] && echo 🔒 || echo ⚠️)" "$( [ "$h_v" = fallback ] && echo ' via reserve-adres')"
+        done
+    fi
+    if [ -s "$st_dir/errors" ]; then
+        n_e=$(awk -F'\t' -v d="$(( $(date +%s) - 86400 ))" '$1 >= d' "$st_dir/errors" | wc -l)
+        if [ "$n_e" -gt 0 ]; then
+            sl "Fouten (24 uur):" "$n_e×, laatste: $(tail -1 "$st_dir/errors" | cut -f2) ($(dt "$(tail -1 "$st_dir/errors" | cut -f1)"))"
+        fi
+    fi
+    if [ -r "$t_cache" ]; then
+        n_svc=$(grep -c $'^[0-9]*\tsvc\t' "$t_cache"); n_crt=$(grep -c $'^0\tcert\t' "$t_cache"); n_pr=$(grep -c $'^[0-9]*\tproc\t' "$t_cache")
+        n_log=$(grep -c $'^[0-9]*\tlog\t' "$t_cache"); n_cmd=$(grep -c $'^[0-9]*\tcmd\t' "$t_cache")
+        idsm=$(awk -F'\t' '$1 == "0" && $2 == "ids" { print $3; exit }' "$t_cache")
+        case "$idsm" in block) idsm="aan, met blokkeren" ;; "") idsm=uit ;; *) idsm="aan ($idsm)" ;; esac
+        sl "Bewaakt (RzMon):" "$n_svc services, $n_crt certificaten, $n_pr processen, $n_log logzoekopdrachten, $n_cmd commando's; IDS: $idsm"
+        sl "" "instellingen van RzMon opgehaald $(ago_s "$(stat -c %Y "$t_cache")")"
+    fi
+
+    hd "Beveiligingscontrole door RzMon"
+    if [ -s "$st_dir/sec" ]; then sed 's/^/  /' "$st_dir/sec"
+    else echo "  (komt mee met het volgende rapport; RzMon 1.100.0 of nieuwer)"; fi
+    echo
+    exit 0
+fi
+
 # Supervisor API (alleen HA-modus)
 sv() { curl -fsS -m 10 -H "Authorization: Bearer $SUPERVISOR_TOKEN" "$SUPERVISOR_URL$1" 2>/dev/null; }
 
@@ -656,6 +841,7 @@ if [ "$TEST" != 1 ] && command -v flock >/dev/null 2>&1; then
     fi
 fi
 touch "$t_dir/last.run" 2>/dev/null
+run_t0=$(now_ms)
 
 # ---------------------------------------------------------------- Disk
 disks=""
@@ -2615,7 +2801,9 @@ fi
 # Opstarttijd (epoch) voor de check Herstart in RzMon
 read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
+# Wat er naast de vaste onderdelen meegaat, voor --status (1.60.0)
+parts="processen=$(grep -o '\["' <<<"$proc_list" | wc -l) certificaatbestanden=$(grep -o '"path"' <<<"$cert_found" | wc -l) softwarelijst=$( [ -n "$pkgs_json" ] && echo ja || echo ongewijzigd) heartbeats=${#hb_files[@]} ids=$( [ -n "$ids_json" ] && echo ja || echo nee)"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
 
 curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
@@ -2728,6 +2916,7 @@ if [ "$TEST" = 1 ]; then
     exit "$TEST_FAILED"
 fi
 
+s_t0=$(now_ms); fb_used=0
 resp=$(curl "${curl_opts[@]}" \
     -H "Content-Type: application/json" \
     "${auth[@]}" \
@@ -2752,7 +2941,7 @@ if [ -n "$MONITOR_URL_FALLBACK" ] && { [[ " 6 7 28 35 52 56 60 " == *" $rc "* ]]
     echo "RzMon niet bereikbaar via $MONITOR_URL (curl $rc${h_code:+, HTTP $h_code}); via het reserve-adres $MONITOR_URL_FALLBACK" >&2
     if [ -n "$seal_n" ]; then seal "$payload_file" "$payload_file.enc" || seal_n=""; fi
     spec_tls "$MONITOR_URL_FALLBACK" "$(url_spec "$MONITOR_URL_FALLBACK")"
-    fb_opts=(-fsS -m 20 -X POST "${s_tls[@]}")
+    fb_opts=(-fsS -m 20 -X POST "${s_tls[@]}"); fb_used=1
     resp=$(curl "${fb_opts[@]}" -H "X-Agent-Fallback: 1" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$send_file" \
         -w '\n%{http_code}' "$MONITOR_URL_FALLBACK/api.php?action=agent")
     rc=$?
@@ -2772,6 +2961,34 @@ elif [ "$rc" = 0 ]; then
     rm -f "$t_dir/enc.fail"
 fi
 if [ "$rc" = 0 ]; then resp=$(open_resp "$resp") || rc=1; fi
+# Dit contact bijhouden voor --status (1.60.0): laatste rapport, de laatste 30 contacten, fouten, controle van RzMon
+if mkdir -p "$st_dir" 2>/dev/null && [ -w "$st_dir" ]; then
+    st_now=$(date +%s); st_ms=$(( $(now_ms) - run_t0 )); st_sms=$(( $(now_ms) - s_t0 ))
+    st_err=""
+    if [ "$rc" != 0 ]; then
+        case "$rc" in
+            22) st_err="RzMon weigerde het rapport (HTTP ${h_code:-?}); de reden staat in RzMon (Agent Manager)" ;;
+            6) st_err="naam van RzMon niet gevonden (DNS)" ;; 7) st_err="geen verbinding (poort dicht of RzMon uit)" ;;
+            28) st_err="geen antwoord binnen 20 seconden" ;; 35|60) st_err="TLS/certificaat klopt niet" ;; 90) st_err="certificaat past niet bij de vingerafdruk" ;;
+            1) st_err="antwoord van RzMon niet te vertrouwen (handtekening)" ;; *) st_err="curl $rc${h_code:+, HTTP $h_code}" ;;
+        esac
+    fi
+    st_rcv=$(sed -n 's/.*"received":{\([^}]*\)}.*/\1/p' <<<"$resp" | head -c 300)
+    (umask 077; printf 'time=%s\nrc=%s\nhttp=%s\nms=%s\nsend_ms=%s\nbytes=%s\nsent=%s\nenc=%s\nvia=%s\nerror=%s\nreceived=%s\nparts=%s\n' \
+        "$st_now" "$rc" "${h_code:-}" "$st_ms" "$st_sms" "$(wc -c <"$payload_file")" "$(wc -c <"$send_file")" "$( [ -n "$seal_n" ] && echo 1 || echo 0)" \
+        "$( [ "$fb_used" = 1 ] && echo fallback || echo primary)" "$st_err" "$st_rcv" "$parts" >"$st_dir/last") 2>/dev/null
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$st_now" "$rc" "${h_code:-}" "$st_ms" "$(wc -c <"$send_file")" "$( [ -n "$seal_n" ] && echo 1 || echo 0)" \
+        "$( [ "$fb_used" = 1 ] && echo fallback || echo primary)" >>"$st_dir/history" 2>/dev/null
+    [ "$(wc -l <"$st_dir/history" 2>/dev/null)" -gt 30 ] && { tail -n 30 "$st_dir/history" >"$st_dir/history.tmp" && mv -f "$st_dir/history.tmp" "$st_dir/history"; }
+    if [ -n "$st_err" ]; then
+        printf '%s\t%s\n' "$st_now" "$st_err" >>"$st_dir/errors" 2>/dev/null
+        [ "$(wc -l <"$st_dir/errors" 2>/dev/null)" -gt 20 ] && { tail -n 20 "$st_dir/errors" >"$st_dir/errors.tmp" && mv -f "$st_dir/errors.tmp" "$st_dir/errors"; }
+    fi
+    # De beveiligingscontrole van RzMon (regels tekst, RzMon 1.100.0+)
+    if [ "$rc" = 0 ] && [[ "$resp" =~ \"sec\":\[([^]]*)\] ]]; then
+        grep -o '"[^"]*"' <<<"${BASH_REMATCH[1]}" | sed 's/^"//; s/"$//; s#\\/#/#g' >"$st_dir/sec" 2>/dev/null
+    fi
+fi
 # Uitvoer (komt in het logboek): zonder sleutels
 sed -E 's/"(agent_key|enc_key)":"[0-9a-f]{64}"/"\1":"…"/g' <<<"$resp"
 if [ "$rc" -eq 0 ]; then

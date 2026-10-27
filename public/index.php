@@ -829,6 +829,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <label class="switch"><input type="checkbox" id="conn-iplock"><span></span> <?= t('🌐 Agents alleen vanaf hun <b>bekende IP-adres</b>') ?></label>
         <p class="muted small" style="margin-top:-.4rem"><?= t('Het eerste IP-adres van een agent wordt onthouden. Komt hij van een ander adres, dan weigert RzMon hem en krijg je een melding; hierboven kun je het nieuwe adres dan <b>toestaan</b>.') ?></p>
         <label class="switch"><input type="checkbox" id="conn-https"><span></span> <?= t('🔒 Agents alleen via <b>https</b> (via het reserve-adres mag http, met een ⚠️)') ?></label>
+        <label class="switch"><input type="checkbox" id="conn-ownkey"><span></span> <?= t('🔑 Alleen agents met een <b>eigen sleutel</b> (een agent met alleen een token wordt geweigerd; koppelen met een koppelcode blijft altijd kunnen)') ?></label>
+        <div class="btn-row"><button type="button" class="btn" id="conn-cleanup">🧹 <?= th('Alle agents opruimen…') ?></button>
+          <span class="muted small" id="conn-cleanup-info"><?= th('oude tokens en de algemene sleutel wissen, en de agents opnieuw laten installeren met een reservekopie') ?></span></div>
         <div class="btn-row"><button type="button" class="btn" id="conn-url-all">🌐 <?= th('Alle agents naar een ander adres…') ?></button>
           <span class="muted small"><?= th('bv. https via je reverse proxy; elke agent test het eerst (agent 1.51.0)') ?></span></div>
         <p class="muted small"><?= t('Per server (sleutel, IP-adres, verbinding): zie de tabel bij <a href="#settings/agents" data-goto="settings/agents">Agents</a>.') ?></p>

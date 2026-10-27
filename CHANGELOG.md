@@ -7,6 +7,37 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.100.0 – 2026-10-27
+**Nieuwe agent 1.60.0** (agent 1.60.0 nodig voor `--status`, het melden van overbodige instellingen en de controle of het script ongewijzigd is).
+
+### Nieuw
+- **🔐 Verbindingscontrole per agent**, in de Agent Manager, de agenttabel (kolom 🔐) en *Hoe staat het ervoor?*. RzMon controleert:
+  - eigen sleutel;
+  - versleuteld;
+  - via https;
+  - certificaat gecontroleerd;
+  - IP-slot;
+  - versie;
+  - sleutel vernieuwd;
+  - geen oud token meer;
+  - instellingen op de server opgeruimd;
+  - agent-script ongewijzigd (dezelfde SHA-256 als de agent van RzMon);
+  - reservekopie.
+
+  De uitkomst gaat ook terug naar de server, voor `rzmon-agent-setup --status`.
+- **🧹 Opruimen**:
+  - **per agent** in de Agent Manager: het oude token wissen, en de agent installeert zichzelf opnieuw met een reservekopie en opgeruimde instellingen;
+  - **alle agents tegelijk**: *Instellingen → Agents → Beveiligde verbinding → Alle agents opruimen*, of de knop in *Hoe staat het ervoor?*. Hebben alle agents een eigen sleutel, dan wordt ook de oude algemene sleutel gewist en gaat *alleen agents met een eigen sleutel* aan.
+- **Alleen agents met een eigen sleutel**: nieuwe instelling. Een agent die zich met alleen een token meldt, wordt geweigerd; koppelen met een koppelcode blijft altijd kunnen. Aanzetten kan alleen als alle agents een eigen sleutel hebben.
+- **Tokens weg**: zodra een agent een eigen sleutel heeft (koppelen of eerste versleutelde rapport) wist RzMon zijn token; een token over de lijn kan dan niet meer.
+- **SERVICES wordt een service-check**: services uit de verouderde regel `SERVICES` op de server worden service-checks in RzMon (in het wijzigingslogboek); daarna haalt het opruimen de regel weg.
+- **⚠️ Melding als een agent niet veilig verbindt**: zonder eigen sleutel, onversleuteld, het script gewijzigd, of het certificaat van RzMon niet gecontroleerd. ✅ als het weer goed is. Kanalen: *Instellingen → ℹ️ Systeeminfo → Agent verbindt niet veilig*.
+- **🌐 Naar https** in de Agent Manager voor een agent die nog via http verbindt (de agent test het nieuwe adres eerst).
+
+### Opgelost
+- Bijwerken vanuit RzMon (en `rzmon-agent-setup --update`) mislukte bij agents die met een koppelcode waren gekoppeld (agent 1.60.0).
+
+
 ## 1.99.2 – 2026-10-27
 **Nieuwe agent 1.59.2.**
 

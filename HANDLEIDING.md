@@ -1151,15 +1151,28 @@ Het installatiescript blijft op de server staan als `rzmon-agent-setup`:
 | Wat | Commando |
 |---|---|
 | **Verbinding testen** | `sudo rzmon-agent-setup --test` (zie 8.4) |
-| Status bekijken | `systemctl status rzmon-agent.timer` en `journalctl -u rzmon-agent -n 20` |
+| **Alles over de agent** | `sudo rzmon-agent-setup --status` (zie 8.2.3) |
+| Logboek | `systemctl status rzmon-agent.timer` en `journalctl -u rzmon-agent -n 20` |
+| Nieuwe koppelcode invullen | `sudo rzmon-agent-setup --pair 'ABCD-EFGH-…'` (code uit de Agent Manager → 🔗 Koppelcode) |
+| Instellingen opruimen | `sudo rzmon-agent-setup --cleanup` (met reservekopie; zie 8.2.3) |
 | Services kiezen | In RzMon: **＋ Check → Service** (zie 8.2.2) |
 | Certificaten wijzigen | `sudo rzmon-agent-setup --certs "/etc/letsencrypt/live/*/cert.pem localhost:8443"` (zie 8.5) |
 | Podman uitzetten | Zet `PODMAN=0` in `/etc/default/rzmon-agent` (zie 8.6) |
 | Agent bijwerken | Knop **⬆ Bijwerken** in RzMon (zie 8.2.1), of `sudo rzmon-agent-setup --update` (haalt de nieuwste versie van RzMon) |
-| Nieuw token | `sudo rzmon-agent-setup --token <nieuw token>` |
 | Verwijderen | `sudo rzmon-agent-setup --uninstall` |
 
-Opnieuw uitvoeren is altijd veilig. Bij een bestaande installatie blijft `/etc/default/rzmon-agent` precies zoals het is, met je eigen regels en commentaar. Geef je zelf iets mee, bijvoorbeeld `--token` of `--interval`, dan wordt alleen die ene regel aangepast. Bijwerken (`--update` of de knop ⬆) verandert nooit iets aan de instellingen.
+Opnieuw uitvoeren is altijd veilig. Geef je zelf iets mee, bijvoorbeeld `--pair` of `--certs`, dan wordt alleen die regel aangepast.
+
+**Bijwerken = schoon installeren (vanaf agent 1.60.0).** `--update` en de knop ⬆ maken eerst een **reservekopie** van de huidige agent en `/etc/default/rzmon-agent` in `/var/lib/rzmon-agent/backup`. Daar blijven de laatste 5 bewaard; op TrueNAS staan ze in de map `backup` van de agent. Daarna komt de nieuwe agent erop, met **opgeruimde instellingen**:
+- **Wat weggaat:**
+  - `TOKEN`, `ENC_KEY` en `PAIR_CODE` (met een eigen sleutel niet meer nodig);
+  - `INTERVAL` (de tik komt uit RzMon);
+  - `PIN` (staat naast de sleutel);
+  - `INSECURE` (als het certificaat vastgezet is of je http gebruikt);
+  - lege regels;
+  - `SERVICES`, zodra RzMon voor elke service een check heeft. RzMon maakt die checks zelf aan.
+- **Wat blijft:** alles wat je zelf instelde, zoals het adres, het reserve-adres, `CERTS`, `CERT_DIRS`, `COMMANDS` en `REMOTE_UPDATE`. Regels die RzMon niet kent, blijven ook staan.
+- **Terugzetten:** `sudo cp /var/lib/rzmon-agent/backup/conf-<datum> /etc/default/rzmon-agent`. De oude agent staat ernaast als `agent-<versie>-<datum>.sh`.
 
 #### 8.2.1 Bijwerken vanuit RzMon ⬆
 Na de eerste installatie (met het commando) werk je de agent bij met een knop:
@@ -1242,6 +1255,43 @@ Normaal ziet RzMon een gebeurtenis bij de volgende tik. Met **realtime** weet Rz
 - **Op een server altijd uit:** `REALTIME=0` in `/etc/default/rzmon-agent`.
 - **Niet beschikbaar** via cron of op TrueNAS SCALE (daar kun je geen blijvende eigen dienst toevoegen).
 - **Home Assistant-add-on:** daar kijkt de add-on elke 5 seconden of er iets verandert aan de add-ons, Core of de boot-tijd van HA OS; zo ja, dan volgt meteen een rapport.
+
+#### 8.2.3 Status, verbindingscontrole en opruimen 🔐
+**Op de server: `sudo rzmon-agent-setup --status`** (agent 1.60.0+) geeft alles in één overzicht:
+
+| Onderdeel | Wat je ziet |
+|---|---|
+| Agent | Versie en controlegetal (SHA-256) van het script; hoe hij gestart wordt (systemd-timer met de volgende start, cron, TrueNAS of de HA-add-on); de realtime-watcher; het instellingenbestand (rechten, en welke regels overbodig zijn); de reservekopieën |
+| Verbinding | Het adres en het reserve-adres; hoe het certificaat van RzMon gecontroleerd wordt (vastgezet, gewoon, of ⚠️ niet); of RzMon **nu** bereikbaar is, met de tijd voor DNS, verbinden en TLS; de TLS-versie en het versleutelingsalgoritme; het certificaat van RzMon (naam, geldig tot) en of de vingerafdruk klopt |
+| Versleuteling | Eigen sleutel (kenmerk, sinds wanneer) of ⚠️ nog een token of de oude algemene sleutel; de methode (AES-256 + HMAC-SHA256, elk bericht uniek en 5 minuten geldig) |
+| Contact | Het laatste rapport: tijd, gelukt of de fout, duur, grootte, versleuteld, en via het gewone of het reserve-adres. Verder: wat RzMon ontving (disks, services, poorten …), wat er nog meeging (processen, certificaatbestanden, softwarelijst, heartbeats, IDS), het ritme en wanneer het volgende rapport komt, de laatste 10 contacten, de fouten van de laatste 24 uur, en wat RzMon laat bewaken |
+| Beveiligingscontrole | De uitkomst van de verbindingscontrole van RzMon (hieronder), van het laatste rapport |
+
+**In RzMon: de verbindingscontrole.** Per agent staat in de **Agent Manager** een lijst met ✅ of ⚠️. In de agenttabel (*Instellingen → Agents*) staat dezelfde uitkomst in de kolom 🔐. Een ⚠️ in die kolom opent de Agent Manager. De punten:
+- eigen sleutel;
+- versleuteld;
+- via https (rechtstreeks met vastgezet certificaat, of via de proxy);
+- het certificaat van RzMon wordt gecontroleerd (geen `INSECURE=1` zonder vingerafdruk);
+- IP-slot;
+- de nieuwste versie;
+- de sleutel is op tijd vernieuwd;
+- geen oud token meer in RzMon;
+- instellingen op de server opgeruimd, met rechten 600;
+- **agent ongewijzigd**: het script op de server heeft dezelfde SHA-256 als de agent die RzMon levert, dus niemand heeft eraan gezeten;
+- een reservekopie.
+
+*Hoe staat het ervoor?* toont een samenvatting, met de knop **🧹 Alles opruimen**.
+
+**🧹 Opruimen**
+- **Per agent** (Agent Manager → 🧹 Opruimen): RzMon wist het oude token. De agent installeert zichzelf opnieuw bij zijn volgende rapport: eerst de reservekopie, daarna de nieuwste agent met opgeruimde instellingen.
+- **Alle agents** (*Instellingen → Agents → Beveiligde verbinding → 🧹 Alle agents opruimen*, met je wachtwoord): dit doet hetzelfde voor elke agent. Hebben ze allemaal een eigen sleutel, dan wist RzMon ook de oude **algemene sleutel** en zet het **alleen agents met een eigen sleutel** aan.
+- **Op de server:** `sudo rzmon-agent-setup --cleanup` ruimt alleen de instellingen op, met een reservekopie.
+
+**Alleen agents met een eigen sleutel** (*Beveiligde verbinding*): een agent die zich meldt met alleen een token, wordt geweigerd. Koppelen met een koppelcode blijft altijd kunnen. Dit aanzetten kan alleen als alle agents een eigen sleutel hebben. Zodra een agent een eigen sleutel heeft, wist RzMon zijn token vanzelf.
+
+**Melding:** verbindt een agent niet meer veilig, dan krijg je een ⚠️ via je kanalen, en een ✅ als het weer goed is. Dat geldt voor: geen eigen sleutel, onversleuteld, het script gewijzigd, of het certificaat niet gecontroleerd. De kanalen kies je bij *Instellingen → ℹ️ Systeeminfo → Agent verbindt niet veilig*.
+
+**Via http?** Klik in de Agent Manager op **🌐 Naar https**. De agent test het nieuwe adres eerst en gaat pas over als het werkt. Daarna kun je *Agents alleen via https* aanzetten.
 
 #### 8.2.2 Services kiezen in RzMon
 Welke services de agent bewaakt, stel je in RzMon in, niet meer op de server:

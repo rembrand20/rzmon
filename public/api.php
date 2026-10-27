@@ -183,6 +183,8 @@ function agent_host(): array
             !$host => t('onbekend token (verkeerd gekopieerd, of in RzMon vernieuwd?)'),
             (int) $host['agent_key_seen'] === 1 && AgentCrypto::hostMode($host) !== 'off'
                 => t('alleen een token, maar deze server heeft een eigen sleutel: koppel de agent opnieuw met een koppelcode'),
+            // 1.100.0: alleen agents met een eigen sleutel (koppelen met een koppelcode blijft altijd mogelijk)
+            setting('agent_ownkey_only', '0') === '1' => t('alleen agents met een eigen sleutel worden toegelaten: koppel deze agent met een koppelcode'),
             default => null,
         };
     }
@@ -249,7 +251,7 @@ function agent_body(array $host): bool
         $GLOBALS['agent_seal'] = [$key, $nonce];
         // De agent gebruikt zijn eigen sleutel: vanaf nu is een token alleen niet meer genoeg
         if ($key === ($host['agent_key'] ?? null) && (int) $host['agent_key_seen'] !== 1) {
-            q('UPDATE hosts SET agent_key_seen = 1 WHERE id = ?', [$host['id']]);
+            q('UPDATE hosts SET agent_key_seen = 1, agent_token = NULL WHERE id = ?', [$host['id']]);   // 1.100.0: token is dan niet meer nodig
         }
         return true;
     }
@@ -489,13 +491,14 @@ if ($action === 'agent_pair') {
     $GLOBALS['agent_seal'] = [$pkey, $nonce];
     // Nieuwe sleutel (de vorige vervalt meteen), het IP-adres van nu wordt het bekende, de code is op
     $key = AgentCrypto::newHostKey((int) $host['id'], false);
-    q('UPDATE hosts SET agent_key_seen = 1, pair_key = NULL, pair_until = NULL, agent_ips = ?, agent_ip_new = NULL, agent_ip_new_at = NULL WHERE id = ?',
+    // 1.100.0: met de eigen sleutel is het token niet meer nodig (agent_token = NULL)
+    q('UPDATE hosts SET agent_key_seen = 1, agent_token = NULL, pair_key = NULL, pair_until = NULL, agent_ips = ?, agent_ip_new = NULL, agent_ip_new_at = NULL WHERE id = ?',
         [mb_substr($ip, 0, 45), $host['id']]);
     $ver = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : '?';
     AgentCommands::audit('agent', 'Agent gekoppeld', "{$host['name']} vanaf $ip (agent $ver)");
     Monitor::sysInfo('agent_connect', (int) $host['id'], (string) $host['name'], 'ℹ️ ' . t('Agent gekoppeld: {name}', ['name' => $host['name']]),
         fn() => t('Agent op {name} is gekoppeld met een koppelcode en heeft een eigen sleutel', ['name' => $host['name']]) . " · IP $ip · agent $ver", $ip);
-    out(['ok' => true, 'host' => $host['name'], 'agent_key' => $key, 'token' => $host['agent_token'], 'pin' => AgentCrypto::pin(false, true, $host) ?? '',
+    out(['ok' => true, 'host' => $host['name'], 'agent_key' => $key, 'pin' => AgentCrypto::pin(false, true, $host) ?? '',
         'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh')]);
 }
 
@@ -798,6 +801,8 @@ if ($action === 'agent') {
     if ($salvaged) {
         $st->execute([$host['id'], 'report_warn', json_encode($salvaged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $now]);
     }
+    // Vorige stand van de verbindingscontrole (1.100.0), vóór de oude regels verdwijnen
+    $prevSec = q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'sec_state'", [$host['id']])->fetchColumn();
     q('DELETE FROM agent_data WHERE host_id = ? AND updated_at < ?', [$host['id'], $now]);
     $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
     // ℹ️ als de agent (opnieuw) verbindt: de eerste keer, na stil te zijn geweest, of vanaf een ander IP
@@ -819,6 +824,13 @@ if ($action === 'agent') {
     $resp += agent_enc_fields($host, $agentVersion);
     if ($u = agent_url_report($host, $in, $agentVersion, $encrypted)) {
         $resp['url_set'] = $u;
+    }
+    // Verbindingscontrole (1.100.0): instellingen op de server, SERVICES omzetten, ⚠️/✅ bij een wisseling; de uitkomst
+    // gaat mee terug voor rzmon-agent-setup --status
+    try {
+        $resp['sec'] = AgentAudit::fromAgent($host, $in, $st, $now, $prevSec === false ? null : (string) $prevSec);
+    } catch (Throwable $e) {
+        error_log('RzMon: verbindingscontrole mislukt: ' . $e->getMessage());
     }
     // Agent 1.53.0: per adres hoe hij het moet controleren (vastzetten of gewoon); alleen versleuteld
     if ($encrypted && $agentVersion && version_compare($agentVersion, AgentCrypto::PINURL_MIN, '>=')) {
@@ -1768,6 +1780,24 @@ switch ($action) {
                     t('alle agents verbinden al via https; zet "alleen via https" aan, dan weigert RzMon rapporten die via http komen'), 'enc',
                     ['act' => 'agent_https_only', 'label' => t('Aanzetten')]);
             }
+            // Verbindingscontrole (1.100.0): overbodige instellingen, gewijzigd script, tokens; en alleen agents met eigen sleutel
+            $audit = AgentAudit::all();
+            $viaLabel = t('Via https');   // heeft hieronder een eigen punt
+            foreach ($audit as &$a) {
+                $a['issues'] = array_values(array_diff($a['issues'], [$viaLabel]));
+            }
+            unset($a);
+            $issues = array_filter($audit, static fn($a) => (bool) $a['issues']);
+            $fix = array_filter($audit, static fn($a) => $a['fixable']);
+            $add('agent_audit', $issues ? 'warn' : 'ok', t('Verbindingscontrole agents'), $issues
+                ? implode(' · ', array_map(static fn($a) => $a['name'] . ': ' . implode(', ', $a['issues']), array_slice($issues, 0, 4))) . (count($issues) > 4 ? ' …' : '')
+                : t('alle {t} agents in orde (sleutel, versleuteling, versie, instellingen, script)', ['t' => count($audit)]), 'agents',
+                $fix ? ['act' => 'agents_cleanup', 'label' => '🧹 ' . t('Alles opruimen')] : []);
+            if (!$nokey && setting('agent_ownkey_only', '0') !== '1') {
+                $add('agent_ownkey_only', 'warn', t('Alleen agents met een eigen sleutel'),
+                    t('alle agents hebben een eigen sleutel; zet dit aan, dan weigert RzMon agents die zich met alleen een token melden (koppelen met een koppelcode blijft kunnen)'), 'enc',
+                    ['act' => 'agent_ownkey_only', 'label' => t('Aanzetten')]);
+            }
             $newip = array_column(array_filter($agents, static fn($h) => !empty($h['agent_ip_new'])), 'name');
             if ($newip) {
                 $add('agent_ip', 'bad', t('Agent van een nieuw IP-adres'), t('geweigerd, wacht op je toestemming: {names}', ['names' => implode(', ', $newip)]), 'enc');
@@ -1864,7 +1894,9 @@ switch ($action) {
             'conn' => ['key_days' => (int) setting('agent_key_days', '30'), 'pin' => setting('agent_pin', '1') === '1', 'ip_lock' => setting('agent_ip_lock', '1') === '1',
                 'https_only' => setting('agent_https_only', '0') === '1', 'url_min' => AgentCrypto::URL_MIN, 'base_url' => rtrim((string) config('base_url', ''), '/'),
                 'pin_value' => AgentCrypto::pin(false, false, ['pin_mode' => 'on']), 'https' => Https::isHttps(),
-                'ownkey_min' => AgentCrypto::OWNKEY_MIN, 'pinurl_min' => AgentCrypto::PINURL_MIN, 'admin_url' => Https::adminUrl()],
+                'ownkey_min' => AgentCrypto::OWNKEY_MIN, 'pinurl_min' => AgentCrypto::PINURL_MIN, 'admin_url' => Https::adminUrl(),
+                'ownkey_only' => setting('agent_ownkey_only', '0') === '1'],
+            'audit' => (object) AgentAudit::all(),
             'blocks' => Security::blocks(),
             'my_ip' => client_ip(),
             'now_ts' => time(),
@@ -1919,7 +1951,18 @@ switch ($action) {
                 out(['error' => t('Deze agents komen nog via http: {names}. Zet ze eerst over (🌐 Adres), of zet "alleen via https" per server uit.', ['names' => implode(', ', $plain)]), 'plain' => $plain], 409);
             }
         }
-        foreach (['agent_key_days' => (string) $days, 'agent_pin' => $pin, 'agent_ip_lock' => $lock, 'agent_https_only' => $https] as $k => $v) {
+        // Alleen agents met een eigen sleutel (1.100.0): aan alleen als alle agents er een hebben (anders vallen ze weg)
+        $ownOnly = array_key_exists('ownkey_only', $in) ? (!empty($in['ownkey_only']) ? '1' : '0') : setting('agent_ownkey_only', '0');
+        if ($ownOnly === '0' && setting('agent_ownkey_only', '0') === '1') {
+            $confirm('UITZETTEN');
+        }
+        if ($ownOnly === '1' && setting('agent_ownkey_only', '0') !== '1') {
+            $nokey = q("SELECT name FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_key_seen <> 1")->fetchAll(PDO::FETCH_COLUMN);
+            if ($nokey) {
+                out(['error' => t('Deze agents hebben nog geen eigen sleutel: {names}. Koppel ze eerst met een koppelcode.', ['names' => implode(', ', $nokey)])], 409);
+            }
+        }
+        foreach (['agent_key_days' => (string) $days, 'agent_pin' => $pin, 'agent_ip_lock' => $lock, 'agent_https_only' => $https, 'agent_ownkey_only' => $ownOnly] as $k => $v) {
             if (setting($k, '') !== $v) {
                 save_setting($k, $v);
                 AgentCommands::audit($user['username'], 'Beveiligde verbinding', "$k = $v");
@@ -2252,6 +2295,19 @@ switch ($action) {
         }
         out(['ok' => true, 'count' => count($ids)]);
 
+    // 🧹 Opruimen (1.100.0): één server (id) of alle agents. Tokens en (bij alle) de algemene sleutel wissen, agents opnieuw
+    // laten installeren met een reservekopie en opgeruimde instellingen
+    case 'agents_cleanup':
+        $in = input();
+        $hid = !empty($in['id']) ? (int) $in['id'] : null;
+        if ($hid === null) {
+            $confirm('OPRUIMEN');
+        }
+        $r = AgentAudit::cleanup($hid);
+        AgentCommands::audit($user['username'], 'Agents opruimen', ($hid ? "server $hid" : 'alle') . ': ' . json_encode($r));
+        ChangeLog::record('system', $hid, 'info', t('Agents opgeruimd'), null, $r);
+        out(['ok' => true] + $r);
+
     case 'agent_update_cancel':
         q('UPDATE hosts SET agent_update_req = NULL, agent_update_sent = NULL, agent_update_status = NULL WHERE id = ?', [(int) (input()['id'] ?? 0)]);
         out(['ok' => true]);
@@ -2271,6 +2327,7 @@ switch ($action) {
         out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now(),
              'agent_version' => $h['agent_version'], 'version' => AGENT_LATEST,
              'update' => ['pending' => $h['agent_update_req'] !== null, 'status' => $h['agent_update_status'], 'via' => $h['agent_update_via']],
+             'audit' => AgentAudit::items(q('SELECT ' . AgentAudit::HOST_COLS . ' FROM hosts WHERE id = ?', [$id])->fetch() ?: [], AgentAudit::cfg($id)),
              'report_warn' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'report_warn'", [$id])->fetchColumn(), true),
              'realtime' => ['on' => (bool) $h['realtime'], 'status' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'realtime'", [$id])->fetchColumn(), true),
                  'tools' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'tools'", [$id])->fetchColumn(), true)]]);

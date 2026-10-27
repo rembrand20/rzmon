@@ -50,7 +50,7 @@ INTERVAL=""
 SCHED="auto"          # auto | systemd | cron
 EPEL="${EPEL-}"       # 0 = nooit EPEL installeren (--no-epel of EPEL=0 in de instellingen)
 ASSUME_YES=0
-MODE="install"        # install | update | uninstall
+MODE="install"        # install | update | status | cleanup | test | uninstall | version
 SOURCE_FILE=""        # lokale rzmon-agent.sh i.p.v. downloaden
 RESULT_FILE=""        # bijwerken vanuit RzMon: uitkomst hierin voor de agent ("ok …" of "error …")
 TRUENAS=0             # 1 = TrueNAS SCALE (automatisch herkend, of --truenas)
@@ -103,7 +103,11 @@ Gebruik: sudo bash install-agent.sh --url URL --pair KOPPELCODE [opties]
   --result PAD         (intern) uitkomst van een update vanuit RzMon in dit bestand zetten
   -y, --yes            Niets vragen
   --test               Verbindingstest: planning, netwerk, token en een proefrapport
-  --update             Alleen de agent zelf bijwerken (instellingen blijven)
+  --update             De agent bijwerken: eerst een reservekopie, daarna de nieuwe agent en opgeruimde
+                       instellingen (wat je zelf instelde blijft; alleen wat niet meer nodig is gaat weg)
+  --status             Alles over deze agent: verbinding, versleuteling, laatste contacten, wat er
+                       meegestuurd wordt en de beveiligingscontrole van RzMon
+  --cleanup            Alleen de instellingen opruimen (met een reservekopie)
   --uninstall          Agent verwijderen
   --version            Geïnstalleerde agentversie tonen
   -h, --help           Deze hulp
@@ -132,6 +136,8 @@ while [ $# -gt 0 ]; do
         --result) RESULT_FILE="${2:?}"; shift ;;
         -y|--yes) ASSUME_YES=1 ;;
         --update) MODE="update" ;;
+        --status) MODE="status" ;;
+        --cleanup) MODE="cleanup" ;;
         --test) MODE="test" ;;
         --uninstall) MODE="uninstall" ;;
         --version) MODE="version" ;;
@@ -257,6 +263,105 @@ fi
 INSECURE=${INSECURE:-0}
 INTERVAL=${INTERVAL:-60}
 
+# ----------------------------------------------------------------- reservekopie en opruimen (1.60.0)
+# Vóór elke update en bij --cleanup: een kopie van de huidige agent en instellingen (de laatste 5 van elk). Daarna
+# gaan de regels die niet meer nodig zijn uit de instellingen; wat je zelf instelde blijft precies zoals het was.
+if [ "$TRUENAS" = 1 ]; then KDIR="$TN_DIR/keys"; BKDIR="$TN_DIR/backup"; TCACHE=""
+else KDIR=/var/lib/rzmon-agent; BKDIR=/var/lib/rzmon-agent/backup; TCACHE=/var/cache/rzmon-agent; fi
+BK_CONF=""
+backup_now() {
+    { mkdir -p "$BKDIR" && chmod 700 "$BKDIR"; } 2>/dev/null || { warn "Geen reservekopie: kan $BKDIR niet aanmaken"; return 0; }
+    local ts v
+    ts=$(date +%Y%m%d-%H%M%S)
+    if [ -f "$BIN" ]; then
+        v=$(bash "$BIN" --version 2>/dev/null | awk '{print $2}')
+        cp -p "$BIN" "$BKDIR/agent-${v:-oud}-$ts.sh" && chmod 600 "$BKDIR/agent-${v:-oud}-$ts.sh"
+    fi
+    if [ -f "$CONF" ]; then
+        BK_CONF="$BKDIR/conf-$ts"
+        cp -p "$CONF" "$BK_CONF" && chmod 600 "$BK_CONF"
+    fi
+    ls -1t "$BKDIR"/agent-*.sh 2>/dev/null | tail -n +6 | xargs -r rm -f
+    ls -1t "$BKDIR"/conf-* 2>/dev/null | tail -n +6 | xargs -r rm -f
+    ok "Reservekopie van de huidige agent ${v:+($v) }en instellingen in $BKDIR"
+}
+# Uitleg boven elke regel in het opgeruimde bestand
+conf_comment() {
+    case "$1" in
+        MONITOR_URL) echo "# Adres van RzMon" ;;
+        MONITOR_URL_FALLBACK) echo "# Reserve-adres: als MONITOR_URL niet bereikbaar is (RzMon meldt dat met ⚠️)" ;;
+        TOKEN) echo "# Token (oude manier): nodig zolang deze server nog geen eigen sleutel heeft" ;;
+        PAIR_CODE) echo "# Koppelcode: hiermee haalt de agent zijn eigen sleutel op" ;;
+        ENC_KEY) echo "# Algemene sleutel (oude manier): nodig zolang deze server nog geen eigen sleutel heeft" ;;
+        PIN) echo "# Vingerafdruk van het certificaat van RzMon" ;;
+        INSECURE) echo "# ⚠️ Certificaat van RzMon niet controleren (beter: een vingerafdruk via een koppelcode)" ;;
+        SERVICES) echo "# (verouderd) Services; RzMon maakt er service-checks van, daarna kan deze regel weg" ;;
+        CERTS) echo "# Certificaten: bestanden (wildcards mogen) en/of host:poort" ;;
+        CERT_DIRS) echo "# Mappen waarin de agent naar certificaatbestanden zoekt" ;;
+        COMMANDS) echo "# Commando-checks op deze server: leeg = zoals RzMon zegt, 0 = nooit, nobody = nooit als root" ;;
+        REMOTE_UPDATE) echo "# 0 = niet bijwerken vanuit RzMon" ;;
+        EPEL) echo "# Rocky/Alma/RHEL: EPEL niet installeren (geen bestanden in realtime)" ;;
+        AGENT_DIR|AGENT_SETUP) echo "# TrueNAS: map van de agent en het installatiescript" ;;
+    esac
+}
+CLEAN_GONE=""
+cleanup_conf() {
+    [ -f "$CONF" ] || return 0
+    local own=0 pinf=0 line n v s svc_ok cur_url tmpc keep=() gone=()
+    [ -s "$KDIR/agent.key" ] && own=1
+    { [ -s "$KDIR/pin" ] || [ -s "$KDIR/url.pins" ]; } && pinf=1
+    cur_url=$(sed -n 's/^MONITOR_URL="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$CONF" | tail -1)
+    while IFS= read -r line || [ -n "$line" ]; do
+        [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue   # uitleg en lege regels: het nieuwe bestand krijgt eigen uitleg
+        if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            n=${BASH_REMATCH[1]}; v=${BASH_REMATCH[2]}; v=${v#\"}; v=${v%\"}
+            case "$n" in
+                TOKEN|ENC_KEY|PAIR_CODE) if [ -z "$v" ] || [ "$own" = 1 ]; then gone+=("$n"); continue; fi ;;
+                INTERVAL) gone+=("$n"); continue ;;   # de tik komt uit RzMon
+                PIN) if [ -z "$v" ] || [ "$pinf" = 1 ]; then gone+=("$n"); continue; fi ;;
+                INSECURE) if [ "$v" != 1 ] || [[ "$cur_url" != https://* ]] || [ "$pinf" = 1 ]; then gone+=("$n"); continue; fi ;;
+                MONITOR_URL_FALLBACK) if [ -z "$v" ]; then gone+=("$n"); continue; fi ;;
+                SERVICES)
+                    # Pas weg als RzMon voor elke service een check heeft (dan staat hij in de lijst van RzMon)
+                    svc_ok=1
+                    for s in $v; do grep -q "^[0-9]*"$'\t'"svc"$'\t'"$s\$" "$TCACHE/tests.cache" 2>/dev/null || svc_ok=0; done
+                    if [ -z "$v" ] || [ "$svc_ok" = 1 ]; then gone+=("$n"); continue; fi ;;
+            esac
+            [ "$n" = MONITOR_URL ] && { keep=("$(conf_comment "$n")" "$line" "${keep[@]}"); continue; }
+            s=$(conf_comment "$n"); [ -n "$s" ] && keep+=("$s")
+        fi
+        keep+=("$line")
+    done <"$CONF"
+    if [ "$own" = 1 ] && [ -n "$TCACHE" ] && [ -e "$TCACHE/enc.key" ]; then
+        rm -f "$TCACHE/enc.key" "$TCACHE/enc.fail"; gone+=(enc.key)
+    fi
+    if [ ${#gone[@]} -eq 0 ]; then ok "Instellingen: niets overbodig"; return 0; fi
+    CLEAN_GONE="${gone[*]}"
+    tmpc=$(mktemp "$CONF.XXXXXX")
+    {
+        echo "# RzMon agent – opgeruimd door rzmon-agent-setup op $(date '+%d-%m-%Y %H:%M')${BK_CONF:+ (vorige versie: $BK_CONF)}"
+        echo "# De tik, services, sleutels en de vingerafdruk regelt RzMon zelf; die staan hier niet meer."
+        printf '%s\n' "${keep[@]}"
+    } >"$tmpc"
+    chmod 600 "$tmpc"; mv -f "$tmpc" "$CONF"
+    ok "Instellingen opgeruimd; weggehaald: ${gone[*]}"
+}
+
+if [ "$MODE" = "status" ]; then
+    [ -f "$CONF" ] || die "Nog geen agent geïnstalleerd ($CONF ontbreekt)."
+    # shellcheck disable=SC1090
+    (set -a; . "$CONF"; bash "$BIN" --status)
+    exit $?
+fi
+if [ "$MODE" = "cleanup" ]; then
+    [ -f "$CONF" ] || die "Nog geen agent geïnstalleerd ($CONF ontbreekt)."
+    step "Instellingen opruimen"
+    backup_now
+    cleanup_conf
+    [ -n "$CLEAN_GONE" ] && info "Terugzetten kan met: cp $BK_CONF $CONF"
+    exit 0
+fi
+
 # ----------------------------------------------------------------- verbindingstest
 if [ "$MODE" = "test" ]; then
     [ -f "$CONF" ] || die "Nog geen agent geïnstalleerd ($CONF ontbreekt)."
@@ -316,7 +421,9 @@ if [ -z "$URL" ]; then
     interactive || die "Geef het adres van RzMon mee: --url http://…"
     URL=$(ask "Adres van RzMon (bv. http://192.168.1.10)" "")
 fi
-if [ -z "$TOKEN" ] && [ -z "$PAIR" ]; then
+# Een token of koppelcode is alleen nodig voor een nieuwe koppeling: niet bij bijwerken, en niet als deze server al een
+# eigen sleutel heeft (1.60.0; daarvoor stopte --update bij een agent die met een koppelcode was gekoppeld)
+if [ -z "$TOKEN" ] && [ -z "$PAIR" ] && [ "$MODE" != "update" ] && [ ! -s "$KDIR/agent.key" ]; then
     interactive || die "Geef de koppelcode mee: --pair … (RzMon → server → Agent Manager → 🔗 Koppelcode)"
     PAIR=$(ask "Koppelcode (RzMon → server → Agent Manager → 🔗 Koppelcode)" "")
 fi
@@ -438,6 +545,8 @@ if [ -n "$AGENT_SHA" ]; then
 fi
 old_version=$([ -f "$BIN" ] && bash "$BIN" --version 2>/dev/null | awk '{print $2}' || true)
 new_version=$(sed -n 's/^AGENT_VERSION="\([^"]*\)".*/\1/p' "$tmp")
+# Reservekopie van wat er nu staat (bijwerken of opnieuw installeren), daarna de nieuwe agent
+if [ -f "$BIN" ] || [ -f "$CONF" ]; then backup_now; fi
 install -m 755 -o root -g root "$tmp" "$BIN"
 # rzmon-hb: scripts en cronjobs melden zich bij RzMon (heartbeat, agent 1.52.0). Op TrueNAS (alleen-lezen systeem):
 # "$TN_DIR/rzmon-agent.sh --hb NAAM", met de wachtrij in de map van de agent.
@@ -552,6 +661,9 @@ EOF
     ok "$CONF (alleen leesbaar voor root)"
 fi
 
+# Bijwerken of opnieuw installeren: overbodige regels uit de instellingen (1.60.0)
+if [ -f "$CONF" ] && { [ "$MODE" = "update" ] || [ -n "$BK_CONF" ]; }; then cleanup_conf; fi
+
 use_systemd=0
 if [ "$TRUENAS" = 0 ] && [ "$SCHED" != "cron" ] && has_systemd; then
     use_systemd=1
@@ -661,7 +773,7 @@ rm -f "$tmp.setup"
 # ----------------------------------------------------------------- 5. testrapport
 step "5/5 Testrapport naar RzMon"
 # shellcheck disable=SC1090
-if out=$(set -a; . "$CONF"; bash "$BIN" 2>&1); then
+if out=$(set -a; . "$CONF"; RZ_FORCE=1 bash "$BIN" 2>&1); then   # ook als de tik nog niet om is
     ok "RzMon antwoordt: $out"
 else
     warn "Rapport mislukt: $out"

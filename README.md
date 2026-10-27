@@ -195,6 +195,16 @@ EOF
 echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh >/dev/null 2>&1' | sudo tee /etc/cron.d/rzmon-agent
 ```
 
+Daarna, op de server:
+
+| Commando | Wat het doet |
+|---|---|
+| `sudo rzmon-agent-setup --status` | Alles over de verbinding: adres, TLS, versleuteling, laatste contacten, fouten, wat er verstuurd wordt en de beveiligingscontrole van RzMon |
+| `sudo rzmon-agent-setup --pair 'CODE'` | Een nieuwe koppelcode invullen |
+| `sudo rzmon-agent-setup --update` | Bijwerken: eerst een reservekopie, dan de nieuwe agent met opgeruimde instellingen |
+| `sudo rzmon-agent-setup --cleanup` | Alleen de instellingen opruimen (met een reservekopie) |
+| `sudo rzmon-agent-setup --test` | Verbindingstest met een proefrapport |
+
 ### Home Assistant OS / Supervised (add-on)
 Op Home Assistant OS kun je geen cron-scripts op de host zetten. Daarom zit de agent er ook bij als **add-on**: `ha-addon/rzmon_agent`.
 

@@ -5,6 +5,26 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.60.0 – 2026-10-27
+- **`rzmon-agent-setup --status`**: alles over deze agent in één overzicht:
+  - versie en controlegetal van het script;
+  - hoe hij gestart wordt (timer of cron, met de volgende start) en de realtime-watcher;
+  - de instellingen (met wat er overbodig is) en de reservekopieën;
+  - het adres van RzMon, of het nu bereikbaar is (met DNS-, verbind- en TLS-tijd), de TLS-versie, het certificaat van RzMon en of de vingerafdruk klopt;
+  - de eigen sleutel (kenmerk, sinds wanneer) en hoe er versleuteld wordt;
+  - het laatste rapport (tijd, duur, grootte, versleuteld, gewone of reserve-adres), wat RzMon ontving, het ritme en wanneer het volgende rapport komt;
+  - de laatste 10 contacten, de fouten van de laatste 24 uur en wat RzMon laat bewaken;
+  - de beveiligingscontrole van RzMon.
+- **Bijwerken = schoon installeren**: `--update` (ook vanuit RzMon) maakt eerst een reservekopie van de huidige agent en instellingen in `/var/lib/rzmon-agent/backup` (de laatste 5). Daarna installeert hij de nieuwe agent met opgeruimde instellingen.
+  - Weg gaan: `TOKEN`, `ENC_KEY` en `PAIR_CODE` (met een eigen sleutel niet meer nodig), `INTERVAL` (de tik komt uit RzMon), `PIN` (bewaard naast de sleutel), `INSECURE` (als het certificaat vastgezet is), lege regels, en `SERVICES` zodra RzMon voor elke service een check heeft.
+  - Wat je zelf instelde, blijft staan: adres, certificaten, commando's en dergelijke.
+- **`rzmon-agent-setup --cleanup`**: alleen de instellingen opruimen, met een reservekopie (terugzetten: `cp` van de kopie, het commando staat erbij).
+- **De agent meldt zijn instellingen aan RzMon**: welke regels overbodig zijn (alleen de namen, nooit de waarden), de rechten van het bestand, de SHA-256 van het script (zo ziet RzMon of het script ongewijzigd is) en de reservekopieën.
+- **`--pair`** blijft: daarmee vul je een nieuwe koppelcode in.
+- **Opgelost**:
+  - `--update` stopte bij een agent die met een koppelcode was gekoppeld ("Geef de koppelcode mee"), ook bij bijwerken vanuit RzMon.
+  - Het testrapport na het installeren bleef leeg als de agent net had gerapporteerd.
+
 ## 1.59.2 – 2026-10-27
 - **Opgelost: proceslijst kon het rapport nog steeds onleesbaar maken**: `ps` en `awk` draaien voor de processen nu met `LC_ALL=C`: altijd een punt als decimaalteken (niet `0,4` bij een Nederlandse of Duitse landinstelling) en alleen gewone tekens.
 

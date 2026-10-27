@@ -3599,6 +3599,7 @@ function renderSecurity() {
   $('#conn-pin').checked = c.pin;
   $('#conn-iplock').checked = c.ip_lock;
   $('#conn-https').checked = c.https_only;
+  $('#conn-ownkey').checked = !!c.ownkey_only;
   $('#conn-pin-info').innerHTML = !c.pin ? L('Uit: agents met <code>INSECURE=1</code> accepteren elk certificaat.')
     : c.pin_value ? `${L('Vingerafdruk van RzMon')}: <code>sha256//${esc(c.pin_value.slice(0, 16))}…</code> · ${L('de agents krijgen hem vanzelf (versleuteld); bij een nieuw certificaat controleren ze het met hun sleutel')}`
     : c.pin_value === '' ? (c.https ? L('Niet nodig: het certificaat van RzMon is geldig (bekende uitgever), de agents controleren het gewoon.') : L('Niet nodig: je opent RzMon via http. Met https en een eigen certificaat zet RzMon het vanzelf vast.'))
@@ -3613,7 +3614,7 @@ function renderSecurity() {
     : h.agent_version && verCmp(h.agent_version, c.ownkey_min) < 0 ? `<span class="warn-txt">${L('agent {v} nodig', { v: c.ownkey_min })}</span>`
     : `<span class="warn-txt">${L('nog geen eigen sleutel')}</span>`;
   $('#enc-hosts').innerHTML = secInfo.hosts.length ? `<div class="table-scroll"><table class="vuln-table enc-table">
-    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Ritme')}</th><th>${L('Realtime')}</th><th>${L('Sleutel')}</th><th>${L('IP-adres')}</th><th>${L('Verbinding')}</th><th>${L('Versleuteld versturen')}</th><th title="${esc(L('Certificaat vastzetten · alleen vanaf het bekende IP-adres · alleen via https'))}">📌 · 🌐 · 🔒</th><th><button type="button" class="th-sort" id="contact-sort" title="${esc(agentSort === 'contact' ? L('Weer op naam sorteren') : L('Langst geen contact bovenaan'))}">${L('Contact')} ${agentSort === 'contact' ? '▲' : '⇅'}</button></th><th></th></tr></thead><tbody>
+    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Ritme')}</th><th>${L('Realtime')}</th><th>${L('Sleutel')}</th><th>${L('IP-adres')}</th><th>${L('Verbinding')}</th><th>${L('Versleuteld versturen')}</th><th title="${esc(L('Certificaat vastzetten · alleen vanaf het bekende IP-adres · alleen via https'))}">📌 · 🌐 · 🔒</th><th title="${esc(L('Verbindingscontrole: eigen sleutel, versleuteld, https, IP-slot, versie, sleutel vernieuwd, instellingen op de server, script ongewijzigd'))}">🔐</th><th><button type="button" class="th-sort" id="contact-sort" title="${esc(agentSort === 'contact' ? L('Weer op naam sorteren') : L('Langst geen contact bovenaan'))}">${L('Contact')} ${agentSort === 'contact' ? '▲' : '⇅'}</button></th><th></th></tr></thead><tbody>
     ${(agentSort === 'contact' ? [...secInfo.hosts].sort((a, b) => (a.contact?.seen || 0) - (b.contact?.seen || 0)) : secInfo.hosts).map((h) => `<tr><td>${esc(h.name)}</td><td class="mono small">${esc(h.agent_version || '–')}</td>
       <td class="small nowrap">${esc(fmtInterval(+h.agent_tick || secInfo.agent_tick || 60))}</td><td class="small">${+h.realtime ? '⚡ ' + L('aan') : `<span class="muted">${L('uit')}</span>`}</td>
       <td class="small">${keyText(h)}</td>
@@ -3621,6 +3622,7 @@ function renderSecurity() {
       <td class="small">${connText(h)}</td>
       <td><select data-enc-host="${h.id}">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${k === '' ? `${l} (${ENC_MODES.find((m) => m[0] === e.mode)[1].split(' (')[0].toLowerCase()})` : l}</option>`).join('')}</select></td>
       <td class="conn-cell">📌 ${connSelect('pin', h, c.pin, true)}<br>🌐 ${connSelect('ip', h, c.ip_lock, true)}<br>🔒 ${connSelect('https', h, c.https_only, true)}</td>
+      <td class="small">${auditBadge(h.id)}</td>
       <td class="small contact-cell">${contactHtml(h, 'full')}<div class="muted">${encSeenText(h)}</div></td>
       <td class="nowrap"><button type="button" class="btn small-btn" data-am="${h.id}" title="Agent Manager">⚙️</button> <button type="button" class="btn small-btn" data-url-host="${h.id}" title="${esc(L('Adres van RzMon voor deze agent wijzigen'))}">🌐</button> <button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗</button>${+h.agent_key_seen === 1 ? ` <button type="button" class="btn small-btn" data-key-renew="${h.id}" title="${esc(L('Nieuwe sleutel; de agent krijgt hem bij zijn volgende rapport'))}">🔄</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '';
   loadBlocks();
@@ -3645,25 +3647,28 @@ function initSecurity() {
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '🎲 ' + L('Genereren'), cls: 'primary', submit: true }],
     onSubmit: async (d) => { await api('enc_generate', { confirm: d.confirm }); toast(L('Nieuwe sleutel opgeslagen')); loadSecurity(); },
   });
-  const connSave = (extra = {}) => api('conn_save', { key_days: +$('#conn-days').value, pin: $('#conn-pin').checked, ip_lock: $('#conn-iplock').checked, https_only: $('#conn-https').checked, ...extra });
+  const connSave = (extra = {}) => api('conn_save', { key_days: +$('#conn-days').value, pin: $('#conn-pin').checked, ip_lock: $('#conn-iplock').checked, https_only: $('#conn-https').checked,
+    ownkey_only: $('#conn-ownkey').checked, ...extra });
+  $('#conn-cleanup').onclick = () => agentsCleanupDialog();
   $('#conn-url-all').onclick = () => agentUrlDialog();
   const connChange = async (e) => {
     const off = (e.target.id === 'conn-pin' && !e.target.checked && secInfo.conn.pin) || (e.target.id === 'conn-iplock' && !e.target.checked && secInfo.conn.ip_lock)
-      || (e.target.id === 'conn-https' && !e.target.checked && secInfo.conn.https_only);
+      || (e.target.id === 'conn-https' && !e.target.checked && secInfo.conn.https_only) || (e.target.id === 'conn-ownkey' && !e.target.checked && secInfo.conn.ownkey_only);
     if (!off) {
-      try { await connSave(); savedFlag(e.target, true); loadSecurity(); } catch (ex) { savedFlag(e.target, false, ex.message); toast(ex.message, 'err'); if (e.target.id === 'conn-https') e.target.checked = false; }
+      try { await connSave(); savedFlag(e.target, true); loadSecurity(); } catch (ex) { savedFlag(e.target, false, ex.message); toast(ex.message, 'err'); if (e.target.id === 'conn-https' || e.target.id === 'conn-ownkey') e.target.checked = false; }
       return;
     }
     // Uitzetten maakt de verbinding minder veilig: eerst bevestigen
     modal({
       title: '⚠️ ' + L('Minder veilig maken?'),
       body: `<p style="margin-top:0">${e.target.id === 'conn-pin' ? L('Zonder vastgezet certificaat accepteren agents met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzMon.')
-        : e.target.id === 'conn-https' ? L('Agents mogen dan ook weer via http verbinden (de berichten blijven versleuteld).') : L('Agents worden dan vanaf elk IP-adres geaccepteerd (met hun sleutel).')}</p>${confirmField('UITZETTEN')}`,
+        : e.target.id === 'conn-https' ? L('Agents mogen dan ook weer via http verbinden (de berichten blijven versleuteld).')
+          : e.target.id === 'conn-ownkey' ? L('Agents mogen zich dan weer met alleen een token melden (onversleuteld, zonder eigen sleutel).') : L('Agents worden dan vanaf elk IP-adres geaccepteerd (met hun sleutel).')}</p>${confirmField('UITZETTEN')}`,
       buttons: [{ label: L('Annuleren'), onClick: () => { $('#modal').close(); loadSecurity(); } }, { label: L('Uitzetten'), cls: 'danger', submit: true }],
       onSubmit: async (d) => { await connSave({ confirm: d.confirm }); toast(L('Opgeslagen')); loadSecurity(); },
     });
   };
-  ['#conn-days', '#conn-pin', '#conn-iplock', '#conn-https'].forEach((id) => ($(id).onchange = connChange));
+  ['#conn-days', '#conn-pin', '#conn-iplock', '#conn-https', '#conn-ownkey'].forEach((id) => ($(id).onchange = connChange));
   $('#conn-ipwait').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-ip-allow]');
     if (!b) return;
@@ -3836,6 +3841,34 @@ function blockDialog(ip) {
 // ---------------------------------------------------------------- Versleuteling van de agents
 const ENC_MODES = [['off', L('Uit')], ['on', L('Aan (oude agents mogen nog onversleuteld)')], ['required', L('Verplicht')]];
 const ENC_HOST_MODES = [['', L('algemene instelling')], ['on', L('aan')], ['required', L('verplicht')], ['off', L('uit')]];
+/** Verbindingscontrole in de agenttabel (1.100.0): ✅ alles goed of ⚠️ met het aantal punten; de punten als uitleg */
+function auditBadge(id) {
+  const a = secInfo && secInfo.audit ? secInfo.audit[id] : null;
+  if (!a) return '<span class="muted">–</span>';
+  return a.bad ? `<button type="button" class="link-btn audit-badge warn-txt" data-am="${id}" title="${esc(a.issues.join(', '))}">⚠️ ${a.bad}</button>`
+    : `<span class="audit-badge good" title="${esc(L('{n} punten in orde', { n: a.good }))}">✅ ${a.good}</span>`;
+}
+
+/** 🧹 Alle agents opruimen (1.100.0), met wachtwoord en het woord OPRUIMEN */
+function agentsCleanupDialog(after) {
+  modal({
+    title: '🧹 ' + L('Alle agents opruimen'),
+    body: `<p style="margin-top:0">${L('Dit doet RzMon:')}</p><ul class="small">
+      <li>${L('het oude token wissen van elke agent met een eigen sleutel;')}</li>
+      <li>${L('als alle agents een eigen sleutel hebben: de algemene sleutel wissen en <b>alleen agents met een eigen sleutel</b> aanzetten (koppelen met een koppelcode blijft kunnen);')}</li>
+      <li>${L('elke agent die zichzelf kan bijwerken installeert zichzelf opnieuw: eerst een reservekopie van de huidige agent en instellingen op de server, daarna de nieuwste agent met alleen de regels die nog nodig zijn.')}</li></ul>
+      <p class="small muted">${L('Wat je zelf instelde (adres, certificaten, commando-checks …) blijft staan. Een agent die het niet zelf kan: op de server')} <code>sudo rzmon-agent-setup --update</code>.</p>${confirmField('OPRUIMEN')}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '🧹 ' + L('Opruimen'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const r = await api('agents_cleanup', { confirm: d.confirm });
+      toast(L('Opgeruimd: {t} token(s) gewist, {r} agent(s) installeren zichzelf opnieuw', { t: r.tokens, r: r.reinstall })
+        + (r.global_key ? ' · ' + L('algemene sleutel gewist') : '') + (r.ownkey_only ? ' · ' + L('alleen agents met een eigen sleutel: aan') : ''));
+      loadSecurity(); refresh();
+      if (after) after();
+    },
+  });
+}
+
 /** Hoe kwam het laatste rapport binnen: 🔒 versleuteld, 🔓 niet, of nog niets */
 function encSeenText(h) {
   if (!h.agent_seen) return L('nog geen rapport');
@@ -4188,6 +4221,17 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   if (amUrl) amUrl.onclick = () => agentUrlDialog(findHost(h.id));
   if (pairNow && isAdmin()) makePair();
   $('#agent-live').onclick = async (e) => {
+    if (e.target.closest('[data-agent-https]')) return agentUrlDialog(findHost(h.id));
+    const cl = e.target.closest('[data-agent-clean]');
+    if (cl) {
+      if (!confirm(L('Opruimen: RzMon wist het oude token van deze server, en de agent installeert zichzelf opnieuw (eerst een reservekopie van de huidige agent en instellingen, daarna zonder overbodige regels). Doorgaan?'))) return;
+      cl.disabled = true;
+      try {
+        const r = await api('agents_cleanup', { id: h.id });
+        toast(r.reinstall ? L('Opruimen gevraagd; de agent pakt het op bij zijn volgende rapport') : L('Token gewist. Deze agent kan zichzelf niet opnieuw installeren: op de server rzmon-agent-setup --update'));
+      } catch (ex) { toast(ex.message, 'err'); }
+      return pollAgentStatus(h.id);
+    }
     const b = e.target.closest('[data-agent-upd]');
     if (!b) return;
     b.disabled = true;
@@ -4354,6 +4398,17 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
             : u.via === 'off' ? L('Op afstand bijwerken staat uit op deze server (REMOTE_UPDATE=0).')
             : L('Deze agent kan dat nog niet: werk hem één keer bij op de server met <code>sudo rzmon-agent-setup --update</code>.')}</span></div>`;
       }
+    }
+    // Verbindingscontrole (1.100.0)
+    if (s.mode === 'agent' && s.seen && s.audit && s.audit.length) {
+      const bad = s.audit.filter((i) => i.ok === false);
+      const fixable = bad.some((i) => ['config', 'token', 'integrity', 'version'].includes(i.key));
+      html += `<details class="audit-box" ${bad.length ? 'open' : ''}><summary class="small">🔐 <b>${L('Verbindingscontrole')}</b>: ${bad.length
+        ? `<span class="warn-txt">${L('{n} aandachtspunt(en)', { n: bad.length })}</span>` : `<span class="good">${L('alles in orde')}</span>`}</summary>
+        <ul class="audit-list">${s.audit.map((i) => `<li class="small"><span>${i.ok === true ? '✅' : i.ok === false ? '⚠️' : '·'}</span> <b>${esc(i.label)}</b> <span class="muted">${esc(i.detail)}</span></li>`).join('')}</ul>
+        ${isAdmin() ? `<div class="btn-row">${fixable ? `<button type="button" class="btn small-btn primary" data-agent-clean>🧹 ${L('Opruimen')}</button>` : ''}
+          ${s.audit.some((i) => i.key === 'https' && i.ok === false) ? `<button type="button" class="btn small-btn" data-agent-https>🌐 ${L('Naar https')}</button>` : ''}
+          <span class="muted small">${L('Alles over de verbinding, op de server zelf:')} <code>rzmon-agent-setup --status</code></span></div>` : ''}</details>`;
     }
     if (s.report_warn && s.report_warn.length) {
       html += `<div class="fails"><span class="small warn-txt">⚠️ ${L('Het laatste rapport was deels onleesbaar; dit onderdeel is weggelaten (de rest kwam gewoon binnen):')}</span>
@@ -5931,6 +5986,13 @@ async function healthAction(act, b) {
       const c = (await api('security')).conn;
       await api('conn_save', { key_days: c.key_days, pin: c.pin, ip_lock: c.ip_lock, https_only: true });
       toast(L('Agents alleen via https: aan'));
+    } else if (act === 'agent_ownkey_only') {
+      const c = (await api('security')).conn;
+      await api('conn_save', { key_days: c.key_days, pin: c.pin, ip_lock: c.ip_lock, https_only: c.https_only, ownkey_only: true });
+      toast(L('Alleen agents met een eigen sleutel: aan'));
+    } else if (act === 'agents_cleanup') {
+      b.disabled = false;
+      return agentsCleanupDialog(() => loadSettingsHealth());
     } else if (act === 'http_login_block') {
       const s = await api('https_info');
       await api('https_save', { admin_url: s.admin_url, https_only: s.https_only, http_login_block: true, mfa_external: s.mfa_external });
@@ -6388,7 +6450,8 @@ function quietEditor(el, cfg, withSwitch) {
 // ---------------------------------------------------------------- ℹ️ Systeeminfo: per melding de kanalen
 const SYSINFO_ROWS = [
   ['RzMon', [['rzmon_update', '⬆ ' + L('RzMon bijgewerkt')]]],
-  [L('Agents'), [['agent_update', '⬆ ' + L('Agent bijgewerkt')], ['agent_update_fail', '✘ ' + L('Agent bijwerken mislukt')], ['agent_connect', '🔌 ' + L('Agent verbonden')]]],
+  [L('Agents'), [['agent_update', '⬆ ' + L('Agent bijgewerkt')], ['agent_update_fail', '✘ ' + L('Agent bijwerken mislukt')], ['agent_connect', '🔌 ' + L('Agent verbonden')],
+    ['agent_sec', '⚠️ ' + L('Agent verbindt niet veilig (en weer veilig)')]]],
   [L('Inloggen'), [['login_ok', '🔑 ' + L('Ingelogd')], ['login_fail', '❌ ' + L('Mislukte login')], ['server_login', '🖥️ ' + L('Login op een server, van binnen (SSH of console)')]]],
   [L('Blokkades'), [['account_lock', '🔒 ' + L('Account geblokkeerd')], ['account_unlock', '🔓 ' + L('Account gedeblokkeerd')],
     ['ip_block', '⛔ ' + L('IP geblokkeerd')], ['ip_unblock', '✅ ' + L('Blokkade opgeheven')]]],
