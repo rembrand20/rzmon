@@ -25,6 +25,9 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **🧪 Automatische tests** in GitHub: de agent op Debian, Ubuntu, Rocky, Fedora en Alpine (elk met zijn eigen awk), PHP-tests met een echte database en een rondje in de browser.
 - *Nieuwe agent 1.62.0.*
 
+### Opgelost
+- **Installeren op MariaDB 11.7 of nieuwer** mislukte (*SQL syntax … near 'VARCHAR(200) NULL'*): de kolom `vector` is daar een gereserveerd woord. Gevonden door de nieuwe automatische tests.
+
 ## 1.106.2 – 2026-10-27
 ### Opgelost
 - **📊 Analyse: de grafiekjes in de kerncijfers** staken onder de tegel uit en stonden naar rechts verschoven. Ze staan nu netjes onderaan in de tegel, op één lijn.
