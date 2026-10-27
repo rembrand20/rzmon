@@ -8270,13 +8270,19 @@ function anLine(series, { unit = '', d = 0, h = 110, cls = '' } = {}) {
   if (lo === hi) { lo = Math.min(0, lo); hi = hi || 1; }
   const x = (i) => (ks.length < 2 ? W / 2 : i / (ks.length - 1) * W);
   const y = (v) => bot - (v - lo) / (hi - lo) * (bot - top);
-  let path = '', area = '';
+  // Lijn en vlak per aaneengesloten stuk: dagen zonder gegevens blijven leeg
+  let path = '', area = '', seg = [];
+  const close = () => {
+    if (seg.length) area += `M${seg[0][0]},${bot}${seg.map(([px, py]) => `L${px},${py}`).join('')}L${seg[seg.length - 1][0]},${bot}Z`;
+    seg = [];
+  };
   vals.forEach((v, i) => {
-    if (v === null || v === undefined) return;
-    const cmd = path === '' || vals[i - 1] === null || vals[i - 1] === undefined ? 'M' : 'L';
-    path += `${cmd}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+    if (v === null || v === undefined) { close(); return; }
+    const p = [x(i).toFixed(1), y(v).toFixed(1)];
+    path += `${seg.length ? 'L' : 'M'}${p[0]},${p[1]}`;
+    seg.push(p);
   });
-  area = path.replace(/M/g, 'L').replace(/^L/, 'M') + `L${x(ks.length - 1).toFixed(1)},${bot}L0,${bot}Z`;
+  close();
   const step = ks.length < 2 ? W : W / (ks.length - 1);
   const hits = ks.map((k, i) => `<rect x="${(x(i) - step / 2).toFixed(1)}" y="0" width="${step.toFixed(1)}" height="${h}" fill="transparent"><title>${esc(anDay(k))}: ${vals[i] === null ? '–' : anNum(vals[i], d) + unit}</title></rect>`).join('');
   return `<div class="an-chart ${cls}"><svg viewBox="0 0 ${W} ${h}" preserveAspectRatio="none" role="img">
@@ -8330,7 +8336,7 @@ function renderAnalytics() {
   $('#an-report').innerHTML = `<label class="switch small" title="${esc(L('Op de 1e van elke maand een samenvatting per e-mail (naar het e-mailadres bij Meldingen → Kanalen)'))}"><input type="checkbox" data-an-report ${d.report_monthly ? 'checked' : ''} ${d.mail ? '' : 'disabled'}><span></span> 📧 ${L('Maandrapport')}</label>
     <button type="button" class="btn small-btn" data-an-send ${d.mail ? '' : 'disabled'} title="${esc(d.mail ? L('Het rapport van vorige maand nu versturen') : L('Stel eerst e-mail in (Meldingen → Kanalen)'))}">${L('Nu versturen')}</button>`;
   const tile = (lbl, val, sub, spark = '', cls = '') => `<div class="kpi ${cls}"><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${val}</div><div class="kpi-sub">${sub}</div>${spark}</div>`;
-  const kspark = (s) => `<div class="an-kspark">${anLine(s, { h: 34 }).replace(/<div class="an-yl">[\s\S]*$/, '</div>')}</div>`;
+  const kspark = (s) => `<div class="an-kspark">${anLine(s, { h: 34, cls: 'an-mini' })}</div>`;
   const score = k.score;
   const kpis = `<div class="kpis an-kpis">
     ${tile(L('Score'), `${score}<small>/100</small>`, score >= 90 ? L('prima') : score >= 70 ? L('een paar aandachtspunten') : L('werk aan de winkel'), '', score >= 90 ? '' : score >= 70 ? 'warn' : 'bad')}

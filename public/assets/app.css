@@ -1600,9 +1600,10 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .an-custom { display: inline-flex; align-items: center; gap: .3rem; font-size: .85rem; }
 .an-custom input[type=date] { width: auto; padding: .3rem .45rem; font-size: .82rem; }
 .an-report { display: inline-flex; align-items: center; gap: .5rem; }
-.an-kpis .kpi { position: relative; }
-.an-kspark { margin-top: .35rem; height: 34px; }
-.an-kspark .an-chart, .an-kspark svg { height: 34px; }
+.an-kpis .kpi { position: relative; display: flex; flex-direction: column; }
+.an-kspark { margin-top: auto; padding-top: .5rem; }
+.an-kspark .an-mini svg { height: 34px; }
+.an-kspark p { display: none; }
 .an-sec h2 { margin-bottom: .6rem; }
 .an-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem 1.4rem; }
 .an-box { min-width: 0; }

@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.106.2 – 2026-10-27
+### Opgelost
+- **📊 Analyse: de grafiekjes in de kerncijfers** staken onder de tegel uit en stonden naar rechts verschoven. Ze staan nu netjes onderaan in de tegel, op één lijn.
+- Een grafiek met dagen zonder gegevens (bijvoorbeeld vóór de eerste meting) tekende een schuin vlak vanaf links; die dagen blijven nu leeg.
+
 ## 1.106.1 – 2026-10-27
 ### Opgelost
 - **Nieuwe agent 1.61.1**: een proces met een backslash in zijn opdrachtregel maakte het rapport deels onleesbaar (*proc_list · Syntax error*), vooral op Debian en Proxmox. Werk de agent bij via de Agent Manager.
