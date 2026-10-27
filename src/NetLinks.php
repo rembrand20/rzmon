@@ -56,7 +56,9 @@ final class NetLinks
                 return strlen($h);
             }]);
         $body = json_encode(['username' => (string) setting('unifi_user', ''), 'password' => (string) setting('unifi_pass', ''), 'remember' => false]);
-        // Eerst UniFi OS (UDM, UCG, Cloud Key Gen2+), dan de zelf gehoste Network-app
+        // Allebei proberen: UniFi OS (UDM, UCG, Cloud Key Gen2+) en de zelf gehoste Network-app. Een klassieke controller kent
+        // /api/auth/login niet en antwoordt dan 401 "LoginRequired": dat zegt niets over het wachtwoord (1.105.1).
+        $tried = [];
         foreach (['unifios' => '/api/auth/login', 'classic' => '/api/login'] as $mode => $path) {
             curl_setopt_array($ch, [CURLOPT_URL => $url . $path, CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body]);
             $raw = curl_exec($ch);
@@ -67,16 +69,32 @@ final class NetLinks
                 return t('UniFi niet bereikbaar: {e}', ['e' => $err]);
             }
             if ($code === 200) {
+                // Klassieke controller: de CSRF-sleutel staat in een cookie (csrf_token), niet in een header
+                if ($csrf === '') {
+                    foreach (curl_getinfo($ch, CURLINFO_COOKIELIST) ?: [] as $c) {
+                        $f = explode("\t", $c);
+                        if (($f[5] ?? '') === 'csrf_token' && ($f[6] ?? '') !== '') {
+                            $csrf = $f[6];
+                        }
+                    }
+                }
                 self::$u = ['ch' => $ch, 'base' => $url . ($mode === 'unifios' ? '/proxy/network' : ''), 'csrf' => &$csrf, 'mode' => $mode];
                 return null;
             }
-            if (in_array($code, [400, 401, 403], true) && $mode === 'unifios' && str_contains((string) $raw, 'rror')) {
-                curl_close($ch);
-                return t('UniFi: gebruikersnaam of wachtwoord klopt niet (gebruik een lokaal account, zonder 2FA)');
-            }
+            $j = json_decode((string) $raw, true);
+            $tried[$mode] = [$code, (string) ($j['meta']['msg'] ?? $j['error'] ?? $j['message'] ?? $j['code'] ?? '')];
         }
         curl_close($ch);
-        return t('UniFi: inloggen lukt niet (HTTP {c}); klopt het adres?', ['c' => $code ?? 0]);
+        $msgs = strtolower(implode(' ', array_column($tried, 1)));
+        if (str_contains($msgs, '2fa') || str_contains($msgs, 'mfa') || str_contains($msgs, 'token_required')) {
+            return t('UniFi vraagt voor dit account een tweede stap (2FA of e-mailcode); maak een lokaal account zonder 2FA');
+        }
+        // Wachtwoord fout: klassiek "api.err.Invalid" (400), UniFi OS 401/403 met een eigen melding (niet LoginRequired)
+        $wrong = (($tried['classic'][0] ?? 0) === 400 && str_contains($msgs, 'invalid'))
+            || (in_array($tried['unifios'][0] ?? 0, [401, 403], true) && ($tried['unifios'][1] ?? '') !== '' && !str_contains(strtolower($tried['unifios'][1]), 'loginrequired'));
+        $detail = implode(' · ', array_map(fn($m, $r) => "$m: HTTP {$r[0]}" . ($r[1] !== '' ? " {$r[1]}" : ''), array_keys($tried), $tried));
+        return ($wrong ? t('UniFi: gebruikersnaam of wachtwoord klopt niet (gebruik een lokaal account, zonder 2FA)') : t('UniFi: inloggen lukt niet; klopt het adres (met poort, bv. :8443)?'))
+            . " ($detail)";
     }
 
     /** Verzoek aan de klassieke API (/api/s/<site>/…). @return array{0: ?array, 1: ?string} [data, fout] */

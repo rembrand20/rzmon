@@ -4586,4 +4586,6 @@ return [
     'Geef losse nodes dezelfde naam om ze hier samen te zien.' => 'Give separate nodes the same name to see them together here.',
     'Nog geen Proxmox-gegevens. Werk de agent bij naar {v} of nieuwer.' => 'No Proxmox data yet. Update the agent to {v} or newer.',
     'Check toegevoegd' => 'Check added',
+    'UniFi vraagt voor dit account een tweede stap (2FA of e-mailcode); maak een lokaal account zonder 2FA' => 'UniFi asks for a second step (2FA or email code) for this account; create a local account without 2FA',
+    'UniFi: inloggen lukt niet; klopt het adres (met poort, bv. :8443)?' => 'UniFi: login failed; is the address correct (with port, e.g. :8443)?',
 ];

@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.105.1 – 2026-10-27
+### Opgelost
+- **UniFi: "gebruikersnaam of wachtwoord klopt niet" bij een zelf gehoste Network-app**, terwijl ze wel klopten. RzMon probeerde eerst het inlogadres van UniFi OS; een zelf gehoste controller antwoordt daar met *LoginRequired*, en RzMon stopte dan al. Nu probeert RzMon beide, en gebruikt bij de zelf gehoste controller ook de juiste CSRF-sleutel (nodig om te weren).
+- Lukt inloggen niet, dan staat het antwoord van de controller erbij, en een account dat om een tweede stap (2FA of e-mailcode) vraagt, krijgt een eigen melding.
+
 ## 1.105.0 – 2026-10-27
 ### Nieuw
 - **🖥️ Proxmox VE** (agent 1.61.0 nodig; *Nieuwe agent 1.61.0*). De agent op een Proxmox-host leest Proxmox zelf uit, en RzMon heeft er een nieuw checktype voor:
