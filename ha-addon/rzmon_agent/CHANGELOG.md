@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.61.1 – 2026-10-27
+- **Opgelost: "Het laatste rapport was deels onleesbaar" (proc_list, Syntax error).** Een backslash in de opdrachtregel van een proces (bijvoorbeeld `grep -E 'sshd\[[0-9]+\]'`) kwam niet goed in het rapport, waardoor RzMon de proceslijst weggooide. Dat gebeurde met de awk van Debian, dus ook op Proxmox. Dezelfde reparatie geldt voor de SUID-lijst, de pakketwijzigingen en de logins.
+
 ## 1.61.0 – 2026-10-27
 - **Proxmox VE:** op een Proxmox-host (als root) leest de agent ook Proxmox zelf uit met `pvesh`, zonder API-token en zonder `jq`:
   - guests (VM's en containers): status, CPU, RAM, disk, uptime, lock, sjabloon, automatisch starten en of de QEMU guest agent antwoordt;

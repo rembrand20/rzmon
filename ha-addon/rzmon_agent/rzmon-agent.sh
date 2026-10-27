@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.61.0"
+AGENT_VERSION="1.61.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1731,9 +1731,9 @@ if [ -n "$ids_mode" ]; then
         ids_bg pkgdiff 86400 "debsums -c 2>/dev/null | grep -E '^/(usr/)?(s?bin|lib|lib64)/' | head -n 100"
     fi
     suid_part=""
-    [ -f "$i_dir/suid" ] && suid_part=",\"suid\":[$(awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "\"%s\",", $0 }' "$i_dir/suid" | sed 's/,$//')]"
+    [ -f "$i_dir/suid" ] && suid_part=",\"suid\":[$(awk '{ gsub(/\\/, "&&"); gsub(/"/, "\\\""); printf "\"%s\",", $0 }' "$i_dir/suid" | sed 's/,$//')]"
     pkg_part=""
-    [ -f "$i_dir/pkgdiff" ] && pkg_part=",\"pkgdiff\":[$(awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "\"%s\",", $0 }' "$i_dir/pkgdiff" | sed 's/,$//')]"
+    [ -f "$i_dir/pkgdiff" ] && pkg_part=",\"pkgdiff\":[$(awk '{ gsub(/\\/, "&&"); gsub(/"/, "\\\""); printf "\"%s\",", $0 }' "$i_dir/pkgdiff" | sed 's/,$//')]"
     # Laatste pakketactiviteit (dnf/apt): bestanden die dan veranderen zijn waarschijnlijk de update
     pkg_t=0
     for f in /var/log/dnf.rpm.log /var/log/dnf5.log /var/log/dpkg.log /var/log/apt/history.log; do
@@ -1922,7 +1922,7 @@ if [ -n "$ids_mode" ]; then
             $6 == "?" { if (!($1 in nh)) next; $6 = nh[$1] } { print }' "$fim_dir/hashes" "$fim_dir/new0" >"$fim_dir/state.new"
         # Wat RzMon moet weten: c = nieuw/gewijzigd, b = onder een nieuw bewaakt pad (basismeting), d = weg, u = niet meer bewaakt
         fim_json=$(awk -F'\t' -v full="$fim_full" '
-            function j(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return "\"" s "\"" }
+            function j(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); return "\"" s "\"" }
             FILENAME == ARGV[1] { if ($1 == "p") cur[$3] = 1; next }
             FILENAME == ARGV[2] { oldroot[$0] = 1; next }
             FILENAME == ARGV[3] { old[$1] = $2 "|" $4 "|" $5 "|" $6; osev[$1] = $7; oroot[$1] = $8; next }
@@ -2282,7 +2282,7 @@ if [ ${#podman_ctx[@]} -gt 0 ]; then
         podman_raw+=$'\n'"$vol_sizes"
     fi
     podman_json=$(awk -F'|' -v now="$now_s" '
-        function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
+        function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); return s }
         function num(v) { return (v ~ /^[0-9]+(\.[0-9]+)?$/) ? v : 0 }
         # "11.8kB (virtual 8.12MB)" → bytes (podman gebruikt SI: kB = 1000)
         function bytes(s,   n, u) {
@@ -2547,7 +2547,7 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ]; then
     if [ -n "$ps_raw" ]; then
         now_ts=$(date +%s)
         proc_list=$(LC_ALL=C awk -v self=$$ '
-            function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/\t/, " ", s); return s }
+            function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); gsub(/\t/, " ", s); return s }
             $2 == 2 || $1 == 2 || $1 == self || $2 == self { next }
             { a = ""; for (i = 8; i <= NF; i++) a = a (i > 8 ? " " : "") $i
               if (a ~ /^\[/) next

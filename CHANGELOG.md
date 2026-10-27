@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.106.1 – 2026-10-27
+### Opgelost
+- **Nieuwe agent 1.61.1**: een proces met een backslash in zijn opdrachtregel maakte het rapport deels onleesbaar (*proc_list · Syntax error*), vooral op Debian en Proxmox. Werk de agent bij via de Agent Manager.
+
 ## 1.106.0 – 2026-10-27
 ### Nieuw
 - **📊 Analyse**: een nieuw tabblad dat laat zien hoe het over langere tijd gaat, alleen voor beheerders en gebruikers (niet voor *alleen lezen*). Kies een periode (24 uur tot 365 dagen, of eigen datums); elk cijfer wordt vergeleken met de periode ervoor.
