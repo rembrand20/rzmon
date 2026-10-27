@@ -429,7 +429,7 @@ CREATE TABLE IF NOT EXISTS vuln_cve (
     cve        VARCHAR(40) NOT NULL PRIMARY KEY,
     severity   TINYINT UNSIGNED NOT NULL DEFAULT 0,
     cvss       DECIMAL(3,1) NULL,
-    vector     VARCHAR(200) NULL,
+    `vector`   VARCHAR(200) NULL,   -- tussen backticks: gereserveerd woord sinds MariaDB 11.7
     epss       DECIMAL(6,5) NULL,
     kev        TINYINT(1) NOT NULL DEFAULT 0,
     kev_added  DATE NULL,

@@ -25,6 +25,7 @@ jobs:
       - name: Agent draaien en het rapport controleren
         shell: bash
         run: |
+          set +e +o pipefail
           bash tests/agent-json.sh 2>&1 | tee /tmp/agent.out
           rc=${PIPESTATUS[0]}
           # Bij een fout de laatste regels ook als annotatie (zichtbaar in het overzicht van de run)

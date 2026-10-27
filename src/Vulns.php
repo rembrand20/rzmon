@@ -371,9 +371,9 @@ final class Vulns
     {
         [$sev, $score, $vector] = self::recordSeverity($rec);
         $kev = in_array($cve, self::kevList(), true) ? 1 : 0;
-        q('INSERT INTO vuln_cve (cve, severity, cvss, vector, kev) VALUES (?, ?, ?, ?, ?)
+        q('INSERT INTO vuln_cve (cve, severity, cvss, `vector`, kev) VALUES (?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE severity = IF(severity = 0 OR (cvss IS NULL AND VALUES(cvss) IS NOT NULL), VALUES(severity), severity),
-             cvss = COALESCE(cvss, VALUES(cvss)), vector = COALESCE(vector, VALUES(vector)), kev = GREATEST(kev, VALUES(kev))',
+             cvss = COALESCE(cvss, VALUES(cvss)), `vector` = COALESCE(`vector`, VALUES(`vector`)), kev = GREATEST(kev, VALUES(kev))',
             [$cve, $sev, $score, $vector, $kev]);
     }
 
@@ -667,7 +667,7 @@ final class Vulns
                 }
             }
             if ($d) {
-                q('UPDATE vuln_cve SET cvss = ?, vector = COALESCE(vector, ?), severity = ?, nvd_at = ? WHERE cve = ?',
+                q('UPDATE vuln_cve SET cvss = ?, `vector` = COALESCE(`vector`, ?), severity = ?, nvd_at = ? WHERE cve = ?',
                     [round((float) $d['baseScore'], 1), mb_substr((string) ($d['vectorString'] ?? ''), 0, 200) ?: null, self::fromScore((float) $d['baseScore']), now(), $cve]);
             } else {
                 q('UPDATE vuln_cve SET nvd_at = ? WHERE cve = ?', [now(), $cve]);
