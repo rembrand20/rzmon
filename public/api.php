@@ -649,6 +649,14 @@ if ($action === 'agent') {
         $st->execute([$host['id'], 'proclist', json_encode($pl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
     }
     // Podman: overzicht, en per container en pod een eigen regel (sleutel: naam, of gebruiker/naam bij rootless)
+    // Proxmox VE (agent 1.61.0): guests, opslag, ZFS, back-ups en taken
+    if (isset($in['pve']) && is_array($in['pve'])) {
+        try {
+            Pve::fromAgent($host, $in['pve'], $st, $now);
+        } catch (Throwable $e) {
+            error_log('RzMon: Proxmox-gegevens niet verwerkt: ' . $e->getMessage());
+        }
+    }
     if (isset($in['podman']) && is_array($in['podman'])) {
         $pd = $in['podman'];
         $key = static fn(array $x): string => mb_substr((($x['user'] ?? 'root') !== 'root' ? $x['user'] . '/' : '') . ($x['name'] ?? ''), 0, 150);
@@ -1060,7 +1068,7 @@ $need = match ($action) {
     'state', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
+    'net_devices', 'pve_overview', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1146,7 +1154,7 @@ $confirm = static function (string $word) use ($user): void {
  */
 $checkCols = static function (array $in, bool $dry = false) use ($user): array {   // $dry: alleen proberen (geen logboek)
             $type = $in['type'] ?? '';
-            if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat', 'process'], true)) {
+            if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat', 'process', 'pve'], true)) {
                 out(['error' => t('Ongeldig type')], 422);
             }
             // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -1174,6 +1182,25 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 }
             }
             $target = trim((string) ($in['target'] ?? ''));
+            // Proxmox VE (1.105.0): wat, en voor een guest de VMID
+            if ($type === 'pve') {
+                $metric = (string) ($in['metric'] ?? 'overview');
+                if (!in_array($metric, Pve::METRICS, true)) {
+                    out(['error' => t('Kies wat je van Proxmox wilt bewaken')], 422);
+                }
+                if ($metric === 'guest' && !preg_match('/^\d{1,9}$/', $target)) {
+                    out(['error' => t('Vul de VMID van de guest in (bv. 100)')], 422);
+                }
+                if ($metric === 'backups' && $target !== '' && !preg_match('/^\d{1,9}$/', $target)) {
+                    out(['error' => t('Laat leeg voor alle guests, of vul één VMID in')], 422);
+                }
+                if ($metric === 'storage' && $target !== '' && !preg_match('/^[A-Za-z0-9._-]{1,60}$/', $target)) {
+                    out(['error' => t('Ongeldige naam van de opslag')], 422);
+                }
+                if (in_array($metric, ['overview', 'zfs'], true)) {
+                    $target = '';
+                }
+            }
             // SNMP: wat (metric) en, waar nodig, de index uit de discovery of de eigen OID
             $snmpLow = false;
             if ($type === 'snmp') {
@@ -1386,6 +1413,10 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                     + ($res ? ['res' => $res] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 $warn = $crit = null;
             }
+            if ($type === 'pve' && $metric === 'backups') {
+                $per = trim(mb_substr((string) ($in['pve_per'] ?? ''), 0, 500));
+                $options = $per !== '' ? json_encode(['per' => $per]) : null;
+            }
             // Certificaat (1.98.0): vanaf RzMon of vanaf de server zelf (agent); leeg = automatisch (bestand of localhost → agent)
             if ($type === 'ssl') {
                 if (preg_match('/\s/', $target)) {
@@ -1393,6 +1424,12 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 }
                 $from = in_array($in['cert_from'] ?? '', ['agent', 'rzmon'], true) ? $in['cert_from'] : '';
                 $options = $from !== '' ? json_encode(['from' => $from]) : null;
+            }
+            if ($type === 'pve' && trim((string) ($in['name'] ?? '')) === '') {
+                $g = $metric === 'guest' ? q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [(int) ($in['host_id'] ?? 0), "pveg:$target"])->fetchColumn() : false;
+                $g = $g ? json_decode((string) $g, true) : null;
+                $in['name'] = ['overview' => 'Proxmox', 'guest' => $g ? ($g['kind'] === 'ct' ? '📦 ' : '🖥️ ') . ($g['name'] ?: "VM $target") : "VM $target",
+                    'backups' => $target !== '' ? t('Back-up {id}', ['id' => $target]) : t('Proxmox-back-ups'), 'storage' => t('Proxmox-opslag') . ($target !== '' ? " $target" : ''), 'zfs' => 'ZFS'][$metric];
             }
             $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
                 'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'heartbeat' => 'Heartbeat', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
@@ -3467,6 +3504,16 @@ switch ($action) {
         out(['enabled' => NetScan::enabled(), 'devices' => NetScan::list(), 'state' => NetScan::state(), 'networks' => $nets,
             'risky_reasons' => NetScan::riskyReasons(), 'kinds' => NetScan::KINDS, 'now' => now(), 'vendors' => (int) q('SELECT COUNT(*) FROM mac_vendors')->fetchColumn(),
             'links' => ['unifi' => NetLinks::unifiOn(), 'unifi_block' => NetLinks::unifiCanBlock(), 'adguard' => NetLinks::adguardOn()], 'my_ip' => client_ip()]);
+
+    // 1.105.0: Proxmox VE – overzicht van een node (of de cluster) en losse nodes als cluster aanmerken
+    case 'pve_overview':
+        $o = Pve::overview((int) ($_GET['host_id'] ?? 0));
+        $o ? out($o) : out(['error' => t('Niet gevonden')], 404);
+
+    case 'pve_cluster_set':
+        $in = input();
+        Pve::setCluster((int) ($in['host_id'] ?? 0), (string) ($in['name'] ?? ''), $user['username']);
+        out(['ok' => true]);
 
     // 1.104.0: UniFi en AdGuard Home testen, een apparaat weren of weer toelaten, en de domeinen van een apparaat
     case 'net_links_test':

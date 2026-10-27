@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.105.0 – 2026-10-27
+### Nieuw
+- **🖥️ Proxmox VE** (agent 1.61.0 nodig; *Nieuwe agent 1.61.0*). De agent op een Proxmox-host leest Proxmox zelf uit, en RzMon heeft er een nieuw checktype voor:
+  - **Overzicht van de node**: een guest die automatisch moet starten maar uit staat, opslag die niet beschikbaar is, een ongezonde ZFS-pool, geen quorum (CRITICAL); een gepauzeerde of vergrendelde guest of een mislukte back-uptaak (WARNING).
+  - **Eén guest**: draait hij, RAM-gebruik, en of de guest agent antwoordt.
+  - **Back-ups**: de nieuwste back-up per guest (standaard 2 dagen warning, 7 dagen critical, per guest aan te passen), nooit een back-up, en guests die in **geen enkele back-uptaak** zitten.
+  - **Opslag** en **ZFS-pools**: vulling, beschikbaarheid, gezondheid en de laatste scrub.
+  - **🖥️ Proxmox** bij de server: alle guests met status, gebruik en laatste back-up, ＋ Check per guest, opslag, ZFS en de back-uptaken.
+  - **Losse nodes als cluster**: geef ze dezelfde clusternaam en het overzicht toont ze samen.
+  - **＋ Aanbevolen checks** herkent Proxmox, en de Agent Manager heeft een tabblad **🖥️ Proxmox VE**.
+
 ## 1.104.0 – 2026-10-27
 ### Nieuw
 - **📡 UniFi en AdGuard Home voor de netwerkscan** (*Instellingen → Koppelingen → UniFi en AdGuard Home*, met **🧪 Verbinding testen**).

@@ -1598,6 +1598,34 @@ Goed om te weten:
 - **Apps:** TrueNAS SCALE 24.10 en nieuwer gebruikt Docker; de agent kent alleen Podman, dus apps worden niet gemeld.
 - **TrueNAS CORE** (FreeBSD) kan de agent niet draaien. Voeg hem toe als **Remote** met ping, poorten (445 SMB, 2049 NFS, 22 SSH) en HTTP(S) op de webinterface.
 
+### 8.9a Proxmox VE 🖥️ (vanaf 1.105.0, agent 1.61.0)
+Proxmox VE is Debian: de gewone agent draait er gewoon, als **root** op de host (niet in een VM of container). Een update van Proxmox laat de agent staan. Vanaf agent 1.61.0 leest de agent ook **Proxmox zelf** uit met `pvesh`, zonder API-token: alles gaat over de bestaande versleutelde verbinding.
+
+**Installeren:** *Agent Manager* → tabblad **🖥️ Proxmox VE** → koppelcode maken en het commando uitvoeren in de shell van de node (*Datacenter → node → Shell*). Stond de agent er al (zoals op je PVE nu), dan is **bijwerken** met de knop genoeg.
+
+**Wat de agent meldt**
+- **Guests** (VM's en containers): status, CPU, RAM, disk (containers), uptime, een lock (bv. `backup` of `migrate`), of het een sjabloon is, of hij **automatisch start** (`onboot`) en of de **QEMU guest agent** antwoordt. Elke 2 minuten.
+- **Opslag:** per opslag actief of niet, en hoe vol. **ZFS-pools:** gezondheid, vulling en de laatste scrub.
+- **Back-ups:** de **nieuwste back-up per guest** uit elke opslag met back-ups (vzdump-bestanden en Proxmox Backup Server), de **back-uptaken** (*Datacenter → Backup*) en de laatste vzdump-taken. Elk kwartier.
+- **Cluster:** de nodes en het quorum (bij een echte Proxmox-cluster).
+- Uitzetten op een node: `PVE=0` in `/etc/default/rzmon-agent`. `sudo rzmon-agent-setup --status` toont de regel *Proxmox VE*.
+
+**Checks (type Proxmox VE)** – het snelst via **＋ Aanbevolen checks** in de Agent Manager:
+
+| Bewaken | Wat | Standaard |
+|---|---|---|
+| **Overzicht van de node** | CRITICAL: een guest die automatisch moet starten staat uit, een opslag is niet beschikbaar, een ZFS-pool is niet gezond, geen quorum. WARNING: een gepauzeerde of vergrendelde guest, een mislukte back-uptaak | – |
+| **Eén guest** (VMID) | Uit = CRITICAL; RAM-gebruik met drempels; WARNING als de guest agent niet antwoordt of de guest vergrendeld is | 90 / 95% |
+| **Back-ups** (alle guests of één VMID) | Leeftijd van de nieuwste back-up per guest; nooit = CRITICAL; een guest die in **geen enkele back-uptaak** zit, of een mislukte taak = WARNING. Afwijkend per guest: `101=7/14 105=uit` | 2 / 7 dagen |
+| **Opslag** (alle of één) | Hoe vol (%); niet beschikbaar (bv. een NFS-share die weg is) = CRITICAL | 85 / 95% |
+| **ZFS-pools** | Niet ONLINE = CRITICAL; vulling; laatste scrub langer dan 35 dagen geleden = WARNING | 80 / 90% |
+
+**Het overzicht (🖥️ Proxmox bij de server):** alle guests met status, gebruik, laatste back-up (groen, oranje na 2 dagen, rood na 7 dagen of nooit) en of ze in een back-uptaak zitten, met per guest **＋ Check**. Daaronder de opslag, ZFS, de back-uptaken en de laatste taak.
+
+**Losse nodes als cluster:** geef in het overzicht meerdere nodes dezelfde **clusternaam** (bv. *Thuislab*). Het overzicht toont ze dan samen, per node. Proxmox zelf merkt daar niets van.
+
+**Goed om te weten:** dit is nog niet op een echte Proxmox getest; laat weten als iets niet klopt. De oude commando-voorinstellingen voor Proxmox (§8.10) blijven werken, maar de checks hierboven zijn uitgebreider.
+
 ### 8.10 Commando-checks 🖥️
 Met een **Commando**-check voert de agent een commando uit op de server, en vergelijkt RzMon de uitvoer met het antwoord dat je verwacht. Voorbeelden:
 

@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.60.0"
+AGENT_VERSION="1.61.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -791,6 +791,16 @@ if [ "${STATUS-0}" = 1 ]; then
         idsm=$(awk -F'\t' '$1 == "0" && $2 == "ids" { print $3; exit }' "$t_cache")
         case "$idsm" in block) idsm="aan, met blokkeren" ;; "") idsm=uit ;; *) idsm="aan ($idsm)" ;; esac
         sl "Bewaakt (RzMon):" "$n_svc services, $n_crt certificaten, $n_pr processen, $n_log logzoekopdrachten, $n_cmd commando's; IDS: $idsm"
+        if command -v pvesh >/dev/null 2>&1 && [ "${PVE:-1}" != 0 ]; then
+            if [ -s "$t_dir/pve/live" ]; then
+                p_vm=$(grep -o '"vmid":[0-9]*' <(sed -n 's/.*"qemu":\(\[[^]]*\]\).*/\1/p' "$t_dir/pve/live") | wc -l)
+                p_ct=$(grep -o '"vmid":[0-9]*' <(sed -n 's/.*"lxc":\(\[[^]]*\]\).*/\1/p' "$t_dir/pve/live") | wc -l)
+                p_run=$(grep -o '"status":"running"' "$t_dir/pve/live" | wc -l)
+                sl "Proxmox VE:" "$p_vm VM's en $p_ct containers ($p_run draaien), bijgewerkt $(ago_s "$(stat -c %Y "$t_dir/pve/live")")"
+            else
+                sl "Proxmox VE:" "nog niet uitgelezen (komt bij het volgende rapport)"
+            fi
+        fi
         sl "" "instellingen van RzMon opgehaald $(ago_s "$(stat -c %Y "$t_cache")")"
     fi
 
@@ -2314,6 +2324,73 @@ if [ ${#podman_ctx[@]} -gt 0 ]; then
         }' <<<"$podman_raw")
 fi
 
+# ---------------------------------------------------------------- Proxmox VE (agent 1.61.0)
+# Alleen op een Proxmox-host, als root: guests (VM's en containers), opslag, ZFS-pools, de cluster, back-ups per guest en de
+# back-uptaken. pvesh geeft JSON; dat gaat ongewijzigd mee (RzMon leest het), dus jq is niet nodig.
+# Guests en opslag elke 2 minuten, back-ups en taken elk kwartier. PVE=0 in de instellingen zet het uit.
+pve_json=""
+if [ "$HA_MODE" = 0 ] && [ "${PVE:-1}" != 0 ] && command -v pvesh >/dev/null 2>&1 && [ "$(id -u)" = 0 ]; then
+    pve_dir="$t_dir/pve"
+    mkdir -p "$pve_dir" 2>/dev/null
+    pve_node=$(hostname -s)   # Proxmox noemt de node naar de korte hostnaam
+    pj() {  # pj <tijd> <pad> [opties…]: JSON van pvesh, of null
+        local to=$1 o; shift
+        o=$(timeout "$to" pvesh get "$@" --output-format json 2>/dev/null)
+        case "$o" in '['*|'{'*) printf '%s' "$o" ;; *) printf 'null' ;; esac
+    }
+    if ! due_cached "$pve_dir/live" 120; then
+        # Uit de configuratiebestanden: automatisch starten, guest agent aan, sjabloon (alleen het deel vóór [snapshots])
+        pve_conf=$(for f in /etc/pve/qemu-server/*.conf /etc/pve/lxc/*.conf; do
+            [ -f "$f" ] || continue
+            awk -v id="$(basename "$f" .conf)" -v t="$([[ "$f" == */lxc/* ]] && echo lxc || echo qemu)" '
+                /^\[/ { exit } /^onboot: *1/ { ob = 1 } /^agent: *(1|enabled=1)/ { ag = 1 } /^template: *1/ { tp = 1 }
+                END { if (id ~ /^[0-9]+$/) printf "[\"%s\",%s,%d,%d,%d],", t, id, ob, ag, tp }' "$f"
+        done)
+        # ZFS-pools: gezondheid, vulling en de laatste scrub
+        pve_zfs=""
+        if command -v zpool >/dev/null 2>&1; then
+            while IFS=$'\t' read -r z_name z_health z_size z_alloc z_cap; do
+                [ -n "$z_name" ] || continue
+                z_scan=$(timeout 10 zpool status "$z_name" 2>/dev/null | sed -n 's/^ *scan: *//p' | head -1)
+                pve_zfs+="{\"name\":\"$(json_escape "$z_name")\",\"health\":\"$(json_escape "$z_health")\",\"size\":${z_size:-0},\"alloc\":${z_alloc:-0},\"cap\":${z_cap%\%},\"scan\":\"$(json_escape "$z_scan")\"},"
+            done < <(timeout 10 zpool list -Hp -o name,health,size,alloc,capacity 2>/dev/null)
+        fi
+        printf '"node":"%s","version":"%s","qemu":%s,"lxc":%s,"storage":%s,"cluster":%s,"conf":[%s],"zfs":[%s],' \
+            "$(json_escape "$pve_node")" "$(json_escape "$(pveversion 2>/dev/null | head -1)")" \
+            "$(pj 20 "/nodes/$pve_node/qemu")" "$(pj 20 "/nodes/$pve_node/lxc")" "$(pj 30 "/nodes/$pve_node/storage")" \
+            "$(pj 15 /cluster/status)" "${pve_conf%,}" "${pve_zfs%,}" >"$pve_dir/live.tmp" && mv -f "$pve_dir/live.tmp" "$pve_dir/live"
+    fi
+    if ! due_cached "$pve_dir/slow" 900; then
+        # Back-ups per guest: de nieuwste per VMID uit elke opslag met back-ups (vzdump-bestanden en Proxmox Backup Server)
+        pve_bk=$(for st in $(timeout 20 pvesm status --content backup 2>/dev/null | awk 'NR > 1 && $3 == "active" { print $1 }'); do
+            [[ "$st" =~ ^[A-Za-z0-9._-]+$ ]] || continue
+            timeout 60 pvesm list "$st" --content backup 2>/dev/null | awk -v st="$st" 'NR > 1 { print st "\t" $1 "\t" $NF }'
+        done | awk -F'\t' '
+            {
+                id = $3; d = ""
+                # (geen {4} in de patronen: mawk op Debian kent dat niet altijd)
+                if (match($2, /[0-9][0-9][0-9][0-9]_[0-9][0-9]_[0-9][0-9]-[0-9][0-9]_[0-9][0-9]_[0-9][0-9]/)) { d = substr($2, RSTART, RLENGTH); gsub(/_/, "-", d); d = substr(d, 1, 10) " " substr(d, 12, 2) ":" substr(d, 15, 2) ":" substr(d, 18, 2) }
+                else if (match($2, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z/)) { d = substr($2, RSTART, 10) " " substr($2, RSTART + 11, 8) "Z" }
+                if (id !~ /^[0-9]+$/ || d == "") next
+                n[id]++; if (d > last[id]) { last[id] = d; where[id] = $1 }
+            }
+            END { for (id in n) printf "\"%s\":[\"%s\",%d,\"%s\"],", id, last[id], n[id], where[id] }')
+        printf '"backups":{%s},"jobs":%s,"tasks":%s,' "${pve_bk%,}" "$(pj 15 /cluster/backup)" \
+            "$(pj 20 "/nodes/$pve_node/tasks" --typefilter vzdump --limit 30)" >"$pve_dir/slow.tmp" && mv -f "$pve_dir/slow.tmp" "$pve_dir/slow"
+        # Guest agent: antwoordt hij (alleen draaiende VM's met de agent aan)?
+        pve_ga=""
+        for f in /etc/pve/qemu-server/*.conf; do
+            [ -f "$f" ] || continue
+            id=$(basename "$f" .conf)
+            awk '/^\[/ { exit } /^agent: *(1|enabled=1)/ { f = 1 } END { exit !f }' "$f" || continue
+            [ -e "/var/run/qemu-server/$id.pid" ] || continue
+            if timeout 4 qm agent "$id" ping >/dev/null 2>&1; then pve_ga+="\"$id\":1,"; else pve_ga+="\"$id\":0,"; fi
+        done
+        printf '"gagent":{%s},' "${pve_ga%,}" >>"$pve_dir/slow"
+    fi
+    pve_json="{$(cat "$pve_dir/live" "$pve_dir/slow" 2>/dev/null)\"at\":$(date +%s)}"
+fi
+
 # ---------------------------------------------------------------- Certificaten
 # Per bron: onderwerp (CN), uitgever, vervaldatum (epoch) en of het certificaat vertrouwd wordt.
 # RzMon rekent zelf het aantal dagen uit, dus een uur oude gegevens zijn geen probleem.
@@ -2803,7 +2880,7 @@ read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
 # Wat er naast de vaste onderdelen meegaat, voor --status (1.60.0)
 parts="processen=$(grep -o '\["' <<<"$proc_list" | wc -l) certificaatbestanden=$(grep -o '"path"' <<<"$cert_found" | wc -l) softwarelijst=$( [ -n "$pkgs_json" ] && echo ja || echo ongewijzigd) heartbeats=${#hb_files[@]} ids=$( [ -n "$ids_json" ] && echo ja || echo nee)"
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
 
 curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)

@@ -40,6 +40,7 @@ const TYPES = {
   container: { label: L('Container (Podman)'), target: L('Container'), unit: null, ph: L('naam, of gebruiker/naam (rootless)'), help: L('Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.') },
   log:     { label: L('Logbestand (zoeken)'), target: L('Bron'), unit: 'treffers', warn: 5, crit: 20, ph: L('/var/log/secure, journal, journal:sshd of kernel'), help: L('De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.') },
   command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents → Commando-checks).') },
+  pve:     { label: L('Proxmox VE'), target: null, unit: null, help: L('Via de agent op een Proxmox-host (agent 1.61.0 of nieuwer, als root): de guests (VM\'s en containers), back-ups, opslag en ZFS. Kies hieronder wat je wilt bewaken.') },
   ha:      { label: L('Home Assistant'), target: null, unit: null, help: L('Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.') },
   snmp:    { label: L('SNMP'),          target: null,            unit: null, help: L('RzMon leest het apparaat zelf uit via SNMP (switches, access points, NAS, UPS, printers, Proxmox…). Interfaces, schijven en voorraden kies je het makkelijkst via 📡 SNMP-checks bij de server.') },
   reboot:  { label: L('Uptime'), target: null, unit: 'uur', help: L('Ziet wanneer de server opnieuw is opgestart (de uptime wordt korter) en stuurt dan een ℹ️ info-melding. De check zelf is altijd OK. Info staat standaard uit: zet hem aan bij Instellingen → 🔔 Meldingen (rij Info), of alleen voor deze check bij 🔔 Meldingen hieronder. Op agent-servers is agent 1.46.0 of nieuwer nodig.') },
@@ -134,12 +135,22 @@ const HA_METRICS = {
   osupdate:     { label: L('OS-update mislukt (A/B-terugval)'), unit: null, help: L('CRITICAL als een OS-update niet wilde opstarten en Home Assistant OS is teruggevallen op de vorige versie.') },
   usb:          { label: L('USB-apparaat aanwezig'), unit: null, target: L('USB-apparaat'), ph: L('kies uit de lijst'), help: L('CRITICAL als het apparaat (Zigbee- of Z-Wave-stick, Bluetooth) niet meer gezien wordt door Home Assistant OS.') },
 };
+/** Proxmox VE (1.105.0): wat een pve-check bewaakt */
+const PVE_METRICS = {
+  overview: { label: L('Overzicht van de node'), unit: null, help: L('CRITICAL als een guest die automatisch moet starten uit staat, een opslag niet beschikbaar is, een ZFS-pool niet gezond is of de cluster geen quorum heeft; WARNING bij een gepauzeerde of vergrendelde guest of een mislukte back-uptaak.') },
+  guest: { label: L('Eén guest (VM of container)'), unit: '%', warn: 90, crit: 95, target: L('VMID'), ph: '100', help: L('Draait de guest? Uit = CRITICAL. De drempels gelden voor het RAM-gebruik (%). Ook WARNING als de guest agent niet antwoordt, of de guest vergrendeld of gepauzeerd is.') },
+  backups: { label: L('Back-ups'), unit: 'dagen', warn: 2, crit: 7, target: L('VMID (leeg = alle guests)'), ph: L('leeg = alle'), help: L('Hoe oud de nieuwste back-up per guest is (warning en critical in dagen). Nooit een back-up = CRITICAL; een guest die in geen enkele back-uptaak zit of een mislukte taak = WARNING. Afwijkend per guest: zie hieronder.') },
+  storage: { label: L('Opslag'), unit: '%', warn: 85, crit: 95, target: L('Opslag (leeg = alle)'), ph: L('leeg = alle'), help: L('Hoe vol de opslag is (%), en CRITICAL als een opslag niet beschikbaar is (bv. een NFS-share die weg is).') },
+  zfs: { label: L('ZFS-pools'), unit: '%', warn: 80, crit: 90, help: L('Gezondheid van de pools (niet ONLINE = CRITICAL), hoe vol ze zijn (%), en WARNING als de laatste scrub langer dan 35 dagen geleden is.') },
+};
+const isPveHost = (h) => h.metrics.includes('pve');
 /** Home Assistant-add-on? (meldt ha:-gegevens of de Supervisor) */
 function isHaHost(h) { return h.agent_update_via === 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor'); }
 /** Type-beschrijving van een check (container: één check met status + resources, geen eigen eenheid). */
 function typeOf(c) {
   if (c.type === 'snmp') return snmpType(c);
   if (c.type === 'ha') return { ...TYPES.ha, ...(HA_METRICS[c.metric] || {}), label: 'Home Assistant' };
+  if (c.type === 'pve') return { ...TYPES.pve, ...(PVE_METRICS[c.metric] || PVE_METRICS.overview), label: 'Proxmox' };
   return c.type === 'container' && c.metric ? { ...TYPES.container, ...METRICS[c.metric], label: TYPES.container.label } : TYPES[c.type];
 }
 
@@ -1927,6 +1938,7 @@ function hostDetail(h, lines = null) {
         ${h.snmp ? `<button class="btn need-admin" data-act="snmp" data-id="${h.id}">📡 ${L('SNMP-checks')}</button>` : ''}
         ${hostKind(h) === 'camera' ? `<button class="btn need-admin" data-act="cam-rec" data-id="${h.id}">${L('＋ Aanbevolen checks')}</button>` : ''}
         ${h.metrics.includes('podman') ? `<button class="btn" data-act="podman" data-id="${h.id}">📦 Containers</button>` : ''}
+        ${isPveHost(h) ? `<button class="btn" data-act="pve" data-id="${h.id}">🖥️ Proxmox</button>` : ''}
         <button class="btn need-admin" data-act="edit-host" data-id="${h.id}">✎ ${L('Bewerken')}</button>
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
       </div>
@@ -2172,6 +2184,7 @@ async function onHostsClick(e) {
     case 'snmp': return snmpChecks(findHost(id));
     case 'cam-rec': return cameraRecommended(findHost(id));
     case 'podman': return podmanOverview(findHost(id));
+    case 'pve': return pveOverview(findHost(id));
     case 'toggle': return toggleHost(id);
     case 'ack': { const [c, h] = findCheck(id); return ackDialog('check', id, `${h.name} – ${c.name}`, c.last_message); }
     case 'ack-host': { const h = findHost(id); const n = h.checks.filter((c) => +c.enabled && +c.status !== 0 && !c.acked_at).length; return ackDialog('host', id, h.name, L('{n} onbevestigde storing(en)', { n })); }
@@ -2698,7 +2711,8 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const quietOwn = quietOf(c);
   const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
   const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'snmp', 'heartbeat']
-    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command'].includes(k))
+    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command', 'pve'].includes(k))
+      .filter((k) => k !== 'pve' || isPveHost(h) || c?.type === 'pve')
       .filter((k) => k !== 'reboot' || h.mode !== 'remote' || c?.type === 'reboot')
       .filter((k) => k !== 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor') || c?.type === 'ha'))
     .filter((k) => k !== 'snmp' || h.snmp || c?.type === 'snmp')
@@ -2778,6 +2792,12 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <div class="svc-pick-head"><span class="hint" id="cert-pick-info">${L('Gevonden certificaten ophalen…')}</span>
           <button type="button" class="btn small-btn" id="cert-rescan">🔄 ${L('Opnieuw zoeken')}</button></div>
         <div class="svc-pick" id="cert-pick" role="listbox"></div>
+      </div>
+      <div id="pve-wrap" hidden>
+        <label>${L('Bewaken')}<select name="metric">${Object.entries(PVE_METRICS).map(([k, m]) => `<option value="${k}" ${(c.type === 'pve' ? c.metric || 'overview' : 'overview') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+          <span class="hint" id="pve-help"></span></label>
+        <label id="pve-per-wrap" hidden>${L('Afwijkend per guest')} <span class="hint">${L('(bv. <code>101=7/14 105=uit</code>: warning/critical in dagen, of niet bewaken)')}</span>
+          <input name="pve_per" value="${esc(opts.per || '')}" placeholder="101=7/14 105=uit"></label>
       </div>
       <label id="ha-wrap" hidden>${L('Bewaken')}
         <select name="metric">${Object.entries(HA_METRICS).map(([k, m]) => `<option value="${k}" ${(c.metric || 'backup') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
@@ -2985,15 +3005,18 @@ function checkForm(c, h, preset = {}, tpl = null) {
   showQuiet();
   const typeSel = $('[name=type]', form);
   const haSel = $('#ha-wrap [name=metric]', form);
+  const pveSel = $('#pve-wrap [name=metric]', form);
   $('[name=reverse_ok]', form).onchange = () => update(false);
   const snmpSel = $('#snmp-metric');
   const update = (setDefaults) => {
     const isContainer = typeSel.value === 'container';
     const isHa = typeSel.value === 'ha';
+    const isPve = typeSel.value === 'pve';
     const isSnmp = typeSel.value === 'snmp';
     const oidMode = $('[name=oid_mode]', form).value;
     const isHb = typeSel.value === 'heartbeat';
     const t = isHa ? { ...TYPES.ha, ...HA_METRICS[haSel.value] }
+      : isPve ? { ...TYPES.pve, ...PVE_METRICS[pveSel.value] }
       : isSnmp ? snmpType({ metric: snmpSel.value, options: JSON.stringify({ mode: oidMode, unit: $('[name=oid_unit]', form).value, low: $('[name=oid_low]', form).checked }) })
         : isHb ? { ...TYPES.heartbeat, unit: $('[name=hb_unit]', form).value.trim() || null }
           : TYPES[typeSel.value];
@@ -3005,6 +3028,11 @@ function checkForm(c, h, preset = {}, tpl = null) {
     }
     $('#ha-wrap').hidden = !isHa;
     haSel.disabled = !isHa;   // niet meesturen bij andere types
+    $('#pve-wrap').hidden = !isPve;
+    pveSel.disabled = !isPve;
+    $('#pve-per-wrap').hidden = !isPve || pveSel.value !== 'backups';
+    $('[name=pve_per]', form).disabled = !isPve || pveSel.value !== 'backups';
+    $('#pve-help').textContent = isPve ? PVE_METRICS[pveSel.value].help : '';
     $('#snmp-wrap-chk').hidden = !isSnmp;
     $('#snmp-metric-wrap').hidden = !isSnmp;
     snmpSel.disabled = !isSnmp;
@@ -3065,6 +3093,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     const haLogs = ['ha:host', 'ha:core', 'ha:supervisor', ...svcs.filter((x) => x.startsWith('addon:')).map((x) => `ha:${x}`)];
     const usbs = h.metrics.filter((m) => m.startsWith('usb:')).map((m) => m.slice(4));
     const list = isHa && haSel.value === 'usb' ? usbs
+      : isPve ? h.metrics.filter((m) => m.startsWith(pveSel.value === 'storage' ? 'pves:' : 'pveg:')).map((m) => m.slice(5))
       : { disk: disks, service: svcs, ssl: certs, container: containers, log: isHaHost(h) ? haLogs : LOG_SOURCES }[typeSel.value] || [];
     $('#log-wrap').hidden = typeSel.value !== 'log';
     const isCmd = typeSel.value === 'command';
@@ -3244,6 +3273,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     catch (ex) { getSelection().selectAllChildren(b.previousElementSibling); toast(L('Geselecteerd — druk Ctrl+C'), 'err'); }
   }));
   haSel.onchange = () => update('metric');
+  pveSel.onchange = () => update('metric');
   snmpSel.onchange = () => update('metric');
   $('[name=oid_mode]', form).onchange = () => update(false);
   $('[name=oid_low]', form).onchange = () => update(false);
@@ -4095,6 +4125,17 @@ function agentInstructions(h, pairNow = false) {
         <button type="button" class="seg-btn active" data-seg="linux">🐧 ${L('Linux-server')}</button>
         <button type="button" class="seg-btn" data-seg="ha">🏠 Home Assistant OS</button>
         <button type="button" class="seg-btn" data-seg="truenas">🗄️ TrueNAS SCALE</button>
+        <button type="button" class="seg-btn" data-seg="proxmox">🖥️ Proxmox VE</button>
+      </div>
+      <div data-pane="proxmox" hidden>
+        <p>${L('Proxmox VE is Debian: de gewone agent draait er, als <b>root</b> op de host (niet in een VM of container). Vanaf agent 1.61.0 leest hij ook Proxmox zelf uit met <code>pvesh</code>: de guests (VM\'s en containers), de opslag, ZFS-pools, de cluster, de nieuwste back-up per guest en de back-uptaken. Een update van Proxmox laat de agent staan.')}</p>
+        <ol class="steps">
+          <li>${L('Open de shell van de node (<i>Datacenter → node → Shell</i>, of SSH als root).')}</li>
+          <li>${L('Maak een koppelcode en voer het commando uit:')}
+            <div data-pair-pane="proxmox">${pairButton()}</div></li>
+          <li>${L('Daarna: <b>＋ Aanbevolen checks</b> (overzicht, back-ups, opslag, ZFS en guests naar keuze), en <b>🖥️ Proxmox</b> bij deze server voor het overzicht.')}</li>
+        </ol>
+        <p class="muted small">${L('Meerdere losse nodes? Zet ze in het overzicht (🖥️ Proxmox) in dezelfde <i>cluster</i>; dan zie je ze samen. Uitzetten op een node: <code>PVE=0</code> in <code>/etc/default/rzmon-agent</code>. Controleren: <code>sudo rzmon-agent-setup --status</code> toont de regel <i>Proxmox VE</i>.')}</p>
       </div>
       <div data-pane="truenas" hidden>
         <p>${L('Op TrueNAS SCALE horen <code>/usr</code> en <code>/etc</code> bij TrueNAS zelf. De agent komt daarom op je <b>pool</b> (<code>/mnt/&lt;pool&gt;/rzmon-agent</code>), en draait via een <b>cronjob van TrueNAS</b> die ook na een TrueNAS-update blijft staan.')}</p>
@@ -4264,9 +4305,121 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   // Raad Home Assistant bij een naam of agent-gegevens die erop wijzen
   if (/home.?assistant|hass|haos/i.test(h.name) || h.metrics.includes('service:homeassistant')) show('ha');
   else if (/truenas|freenas/i.test(h.name) || h.metrics.some((m) => m.startsWith('service:middlewared'))) show('truenas');
+  else if (isPveHost(h) || /proxmox|\bpve/i.test(h.name) || h.metrics.includes('service:pvedaemon')) show('proxmox');
 }
 
 /** Aanbevolen commando-checks voor deze server (TrueNAS, Proxmox of Linux), met vinkjes; bestaande slaan we over. */
+/** Aanbevolen checks voor een Proxmox-host (1.105.0): overzicht, back-ups, opslag, ZFS en guests naar keuze */
+async function pveRecommended(h) {
+  let o;
+  try { o = await api('pve_overview', null, { host_id: h.id }); } catch (ex) { return toast(ex.message, 'err'); }
+  const me = o.nodes.find((n) => +n.host_id === +h.id);
+  if (!me) return toast(L('Nog geen Proxmox-gegevens van deze server'), 'err');
+  const has = (metric, target = '') => h.checks.some((c) => c.type === 'pve' && c.metric === metric && (c.target || '') === target);
+  const items = [
+    { key: 'overview', label: PVE_METRICS.overview.label, on: true, data: { metric: 'overview' } },
+    { key: 'backups', label: L('Back-ups van alle guests (2 / 7 dagen)'), on: true, data: { metric: 'backups', warn_threshold: 2, crit_threshold: 7 } },
+    { key: 'storage', label: L('Opslag (alle, 85 / 95%)'), on: true, data: { metric: 'storage', warn_threshold: 85, crit_threshold: 95 } },
+    ...(me.node.zfs.length ? [{ key: 'zfs', label: L('ZFS-pools ({list})', { list: me.node.zfs.map((z) => z.name).join(', ') }), on: true, data: { metric: 'zfs', warn_threshold: 80, crit_threshold: 90 } }] : []),
+    ...me.guests.filter((g) => !+g.template).map((g) => ({ key: 'g' + g.vmid, guest: g, on: false,
+      label: `${g.kind === 'ct' ? '📦' : '🖥️'} ${g.kind === 'ct' ? 'CT' : 'VM'} ${g.vmid} ${g.name}`, data: { metric: 'guest', target: String(g.vmid), warn_threshold: 90, crit_threshold: 95 } })),
+  ].map((x) => ({ ...x, exists: has(x.data.metric, x.data.target || '') }));
+  const row = (x) => `<label class="rec-row ${x.exists ? 'muted' : ''}"><input type="checkbox" name="rec_${x.key}" ${x.exists ? 'disabled' : x.on ? 'checked' : ''}>
+    <span><b>${esc(x.label)}</b>${x.guest ? ` <span class="muted small">${esc(x.guest.status)}${+x.guest.onboot ? ' · ' + L('start automatisch') : ''}</span>` : ''}${x.exists ? ' · ' + L('al aanwezig') : ''}</span></label>`;
+  modal({
+    title: L('＋ Aanbevolen checks – {name}', { name: h.name }),
+    wide: true,
+    body: `<p style="margin-top:0">${L('Herkend als <b>Proxmox VE</b> ({v}). Vink aan wat je wilt bewaken.', { v: esc((me.node.version || '').replace(/^pve-manager\/([\d.]+).*$/, '$1')) })}</p>
+      <div class="rec-list">${items.filter((x) => !x.guest).map(row).join('')}</div>
+      <h4 class="acc-sub">${L('Guests: een eigen check per guest (aan of uit, RAM, guest agent)')}</h4>
+      <p class="muted small" style="margin-top:0">${L('Het overzicht meldt al een guest die automatisch moet starten en uit staat. Kies hier de guests die je los wilt volgen.')}</p>
+      <div class="rec-list">${items.filter((x) => x.guest).map(row).join('') || `<p class="muted small">${L('Geen guests gevonden.')}</p>`}</div>`,
+    buttons: [{ label: L('Toevoegen'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const chosen = items.filter((x) => !x.exists && d['rec_' + x.key]);
+      if (!chosen.length) throw new Error(L('Vink minstens één check aan'));
+      for (const x of chosen) await api('check_save', { host_id: h.id, type: 'pve', enabled: true, interval_sec: x.data.metric === 'backups' ? 900 : 120, verify_ssl: true, ...x.data });
+      toast(L('{n} check(s) toegevoegd', { n: chosen.length }));
+      refresh();
+    },
+  });
+}
+
+const pveBytes = (b) => (+b ? (+b / 1073741824 >= 1024 ? dec((+b / 1099511627776).toFixed(1)) + ' TB' : dec((+b / 1073741824).toFixed(+b >= 10737418240 ? 0 : 1)) + ' GB') : '–');
+const pveAgo = (ts) => (ts ? ago(new Date(ts * 1000).toISOString()) : '–');
+
+/** Overzicht van een Proxmox-node, of van alle nodes in dezelfde (aangemerkte) cluster */
+async function pveOverview(h) {
+  let o;
+  try { o = await api('pve_overview', null, { host_id: h.id }); } catch (ex) { return toast(ex.message, 'err'); }
+  const now = Date.now() / 1000;
+  const bkCls = (g) => (!g.bk_last ? 'crit-txt' : now - g.bk_last > 7 * 86400 ? 'crit-txt' : now - g.bk_last > 2 * 86400 ? 'warn-txt' : 'good-txt');
+  const nodeHtml = (n) => {
+    const p = n.node;
+    const chk = (metric, target = '') => n.checks.find((c) => c.metric === metric && (c.target || '') === String(target));
+    const guests = n.guests.map((g) => {
+      const run = g.status === 'running';
+      const memPct = +g.maxmem ? Math.round(g.mem / g.maxmem * 100) : null;
+      const c = chk('guest', g.vmid);
+      return `<tr class="${+g.template ? 'muted' : ''}"><td class="nowrap">${g.kind === 'ct' ? '📦' : '🖥️'} <b>${g.vmid}</b></td>
+        <td><b>${esc(g.name || '–')}</b>${+g.template ? ` <span class="badge">${L('sjabloon')}</span>` : ''}${g.lock ? ` <span class="badge-root">🔒 ${esc(g.lock)}</span>` : ''}
+          <br><span class="muted small">${g.kind === 'ct' ? L('container') : 'VM'}${+g.onboot ? ' · ' + L('start automatisch') : ''}${g.kind === 'vm' && +g.agent ? ' · ' + (g.ga === 0 ? '⚠️ ' + L('guest agent antwoordt niet') : L('guest agent')) : ''}</span></td>
+        <td>${run ? `<span class="good-txt">● ${L('draait')}</span>` : `<span class="${+g.onboot && !+g.template ? 'crit-txt' : 'muted'}">○ ${esc(g.status)}</span>`}${run ? `<br><span class="muted small">${L('aan sinds {t}', { t: esc(pveAgo(now - g.uptime)) })}</span>` : ''}</td>
+        <td class="small">${run ? `CPU ${dec(g.cpu ?? 0)}% · ${g.cpus} vCPU<br>RAM ${pveBytes(g.mem)} / ${pveBytes(g.maxmem)}${memPct !== null ? ` (${memPct}%)` : ''}` : `<span class="muted">RAM ${pveBytes(g.maxmem)}</span>`}</td>
+        <td class="small">${+g.template ? '–' : `<span class="${bkCls(g)}">${g.bk_last ? esc(pveAgo(g.bk_last)) : L('nooit')}</span>${g.bk_n ? `<br><span class="muted">${L('{n}× op {s}', { n: g.bk_n, s: esc(g.bk_store || '') })}</span>` : ''}${g.job === 0 ? `<br><span class="warn-txt">${L('in geen back-uptaak')}</span>` : ''}`}</td>
+        <td class="nowrap">${c ? `<span class="badge" title="${esc(L('Er is al een check voor deze guest'))}">✔ ${L('check')}</span>` : +g.template ? '' : `<button type="button" class="btn small-btn need-admin" data-pve-add="${n.host_id}:${g.vmid}">＋ Check</button>`}</td></tr>`;
+    }).join('');
+    const stor = p.storage.map((s) => {
+      const pct = +s.total ? Math.round(s.used / s.total * 100) : null;
+      return `<tr><td><b>${esc(s.name)}</b><br><span class="muted small">${esc(s.type)}${+s.shared ? ' · ' + L('gedeeld') : ''}</span></td>
+        <td>${!+s.enabled ? `<span class="muted">${L('uit')}</span>` : +s.active ? `<span class="good-txt">● ${L('actief')}</span>` : `<span class="crit-txt">✘ ${L('niet beschikbaar')}</span>`}</td>
+        <td class="small">${pct !== null ? `<span class="${pct >= 95 ? 'crit-txt' : pct >= 85 ? 'warn-txt' : ''}">${pct}%</span> · ${pveBytes(s.used)} / ${pveBytes(s.total)}` : '–'}</td>
+        <td class="small muted">${esc(s.content.replace(/,/g, ', '))}</td></tr>`;
+    }).join('');
+    const zfs = p.zfs.map((z) => `<li><b>${esc(z.name)}</b>: <span class="${z.health === 'ONLINE' ? 'good-txt' : 'crit-txt'}">${esc(z.health)}</span> · ${z.cap}% ${L('vol')} (${pveBytes(z.alloc)} / ${pveBytes(z.size)})
+      <br><span class="muted small">${esc(z.scan || '')}</span></li>`).join('');
+    const jobs = p.jobs.map((j) => `<li>${j.on ? '✔' : `<span class="muted">${L('uit')}</span>`} <b>${esc(j.id || '?')}</b> · ${esc(j.schedule || '')} → ${esc(j.storage || '')} · ${j.all ? L('alle guests') : j.pool ? L('pool {p}', { p: esc(j.pool) }) : esc(j.vmids.join(', '))}</li>`).join('');
+    const lt = p.last_task, lf = p.last_fail;
+    return `<section class="pve-node">
+      <h3 style="margin:.4rem 0">🖥️ ${esc(p.node || n.host)} <span class="muted small">${esc((p.version || '').replace(/^pve-manager\/([\d.]+).*$/, 'PVE $1'))} · ${L('{r} van {t} draaien', { r: p.n.running, t: p.n.vm + p.n.ct })} · ${L('bijgewerkt {t}', { t: esc(pveAgo(p.at)) })}</span></h3>
+      <div class="table-scroll"><table class="vuln-table"><thead><tr><th>ID</th><th>${L('Naam')}</th><th>${L('Status')}</th><th>${L('Gebruik')}</th><th>${L('Laatste back-up')}</th><th></th></tr></thead><tbody>${guests || `<tr><td colspan="6" class="muted">${L('Geen guests.')}</td></tr>`}</tbody></table></div>
+      <h4 class="acc-sub">💾 ${L('Opslag')}</h4>
+      <div class="table-scroll"><table class="vuln-table"><tbody>${stor}</tbody></table></div>
+      ${zfs ? `<h4 class="acc-sub">🗄️ ZFS</h4><ul class="small">${zfs}</ul>` : ''}
+      <h4 class="acc-sub">📅 ${L('Back-uptaken')}</h4>
+      ${jobs ? `<ul class="small">${jobs}</ul>` : `<p class="warn-txt small">${L('Geen back-uptaken (Datacenter → Backup).')}</p>`}
+      <p class="small">${lt ? L('Laatste taak: {t} · {s}', { t: esc(new Date(lt.start * 1000).toLocaleString(LOCALE)), s: lt.status === 'OK' ? '✔ OK' : '✘ ' + esc(lt.status) }) : L('Nog geen back-uptaak gezien.')}
+        ${lf && (!lt || lf.start !== lt.start) ? `<br><span class="muted">${L('Laatst mislukt: {t} ({s})', { t: esc(new Date(lf.start * 1000).toLocaleString(LOCALE)), s: esc(lf.status) })}</span>` : ''}</p>
+    </section>`;
+  };
+  const clusterOpts = o.clusters.map((c) => `<option value="${esc(c)}">`).join('');
+  modal({
+    title: '🖥️ ' + (o.cluster ? L('Proxmox-cluster {c}', { c: o.cluster }) : L('Proxmox – {name}', { name: h.name })),
+    wide: true,
+    body: `<div class="cmd-host-row need-admin">🔗 ${L('Cluster:')} <input id="pve-cluster" list="pve-clusters" value="${esc(o.cluster)}" placeholder="${esc(L('geen (losse node)'))}" style="max-width:14rem">
+        <datalist id="pve-clusters">${clusterOpts}</datalist> <button type="button" class="btn small-btn" id="pve-cluster-save">${L('Opslaan')}</button>
+        <span class="muted small">${L('Geef losse nodes dezelfde naam om ze hier samen te zien.')}</span></div>
+      ${o.nodes.length ? o.nodes.map(nodeHtml).join('') : `<p class="muted">${L('Nog geen Proxmox-gegevens. Werk de agent bij naar {v} of nieuwer.', { v: '1.61.0' })}</p>`}`,
+    buttons: [...(isAdmin() ? [{ label: L('＋ Aanbevolen checks'), style: 'margin-right:auto', onClick: () => { $('#modal').close(); pveRecommended(findHost(h.id)); } }] : []),
+      { label: L('Sluiten'), onClick: () => $('#modal').close() }],
+  });
+  $('#pve-cluster-save').onclick = async () => {
+    try { await api('pve_cluster_set', { host_id: h.id, name: $('#pve-cluster').value }); toast(L('Opgeslagen')); $('#modal').close(); pveOverview(h); } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#modal-body').onclick = async (e) => {
+    const b = e.target.closest('[data-pve-add]');
+    if (!b) return;
+    const [hid, vmid] = b.dataset.pveAdd.split(':');
+    b.disabled = true;
+    try {
+      await api('check_save', { host_id: +hid, type: 'pve', metric: 'guest', target: vmid, enabled: true, interval_sec: 120, verify_ssl: true, warn_threshold: 90, crit_threshold: 95 });
+      b.outerHTML = `<span class="badge">✔ ${L('check')}</span>`;
+      toast(L('Check toegevoegd'));
+      refresh();
+    } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
+  };
+}
+
 /** Aanbevolen checks voor de Home Assistant-add-on: OS, containers, USB-sticks en logs */
 function haRecommended(h) {
   const has = (type, metric, target = '') => h.checks.some((c) => c.type === type && (c.metric || '') === metric && (target === '' || c.target === target));
@@ -4328,6 +4481,7 @@ function cameraRecommended(h) {
 
 async function recommendedChecks(h) {
   if (isHaHost(h)) return haRecommended(h);
+  if (isPveHost(h)) return pveRecommended(h);
   let list = null, mode = 'off';
   try { list = (await api('agent_services', null, { id: h.id })).list; } catch (e) { /* zonder lijst: Linux */ }
   try { mode = ((await api('agent_commands')).hosts.find((x) => x.id === +h.id) || {}).mode || 'off'; } catch (e) { /* leeg */ }

@@ -232,7 +232,8 @@ final class Installer
         ['checks', 'hb_token', 'CHAR(32) NULL'],      // geheime URL van een heartbeat-check (1.77.0)
         ['hosts', 'kind', 'VARCHAR(16) NULL'],        // soort apparaat, zelf gekozen (1.75.0); NULL = herkend
         ['hosts', 'kind_auto', 'VARCHAR(16) NULL'],   // soort apparaat, herkend via de agent of SNMP
-        ['net_devices', 'blocked', 'TEXT NULL'],      // geweerd van het netwerk (1.104.0): wanneer, tot wanneer, via wat
+        ['net_devices', 'blocked', 'TEXT NULL'],
+        ['hosts', 'pve_cluster', 'VARCHAR(64) NULL'],   // Proxmox: losse nodes samen als cluster aangemerkt (1.105.0)      // geweerd van het netwerk (1.104.0): wanneer, tot wanneer, via wat
     ];
 
     private static function migrate(PDO $pdo): void

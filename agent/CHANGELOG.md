@@ -5,6 +5,14 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.61.0 – 2026-10-27
+- **Proxmox VE:** op een Proxmox-host (als root) leest de agent ook Proxmox zelf uit met `pvesh`, zonder API-token en zonder `jq`:
+  - guests (VM's en containers): status, CPU, RAM, disk, uptime, lock, sjabloon, automatisch starten en of de QEMU guest agent antwoordt;
+  - opslag, ZFS-pools (gezondheid, vulling, laatste scrub) en de cluster;
+  - de nieuwste back-up per guest (vzdump en Proxmox Backup Server), de back-uptaken en de laatste vzdump-taken.
+  - Guests en opslag elke 2 minuten, back-ups en taken elk kwartier. Uitzetten met `PVE=0`. `--status` toont een regel *Proxmox VE*.
+- Werkt ook met `mawk` (Debian/Proxmox).
+
 ## 1.60.0 – 2026-10-27
 - **`rzmon-agent-setup --status`**: alles over deze agent in één overzicht:
   - versie en controlegetal van het script;
