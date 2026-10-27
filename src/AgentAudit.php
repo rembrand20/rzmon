@@ -136,7 +136,7 @@ final class AgentAudit
                 'sched' => preg_replace('/[^a-z]/', '', (string) ($c['sched'] ?? '')),
             ];
             $st->execute([$hid, 'cfg', json_encode($cfg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
-            self::servicesToChecks($host, $cfg['services']);
+            self::servicesToChecks($host, $cfg['services'], (array) ($in['services'] ?? []));
         }
         $h = q('SELECT ' . self::HOST_COLS . ' FROM hosts WHERE id = ?', [$hid])->fetch() ?: $host;
         $items = self::items($h, $cfg);
@@ -157,20 +157,50 @@ final class AgentAudit
         return self::lines($items);
     }
 
-    /** Services uit de verouderde regel SERVICES: een service-check in RzMon als die er nog niet is */
-    private static function servicesToChecks(array $host, array $services): void
+    /**
+     * Services uit de verouderde regel SERVICES: een service-check in RzMon als die er nog niet is.
+     * Alleen services die nu draaien (1.101.1): oude installaties hebben vaak namen die op die server niet
+     * bestaan (ssh/cron op Rocky heten sshd/crond) of niet als vaste service draaien (podman).
+     */
+    private static function servicesToChecks(array $host, array $services, array $states): void
     {
         if (!$services) {
             return;
         }
         $have = array_flip(q("SELECT target FROM checks WHERE host_id = ? AND type = 'service'", [(int) $host['id']])->fetchAll(PDO::FETCH_COLUMN));
         foreach ($services as $s) {
-            if (isset($have[$s])) {
+            if (isset($have[$s]) || ($states[$s] ?? '') !== 'active') {
                 continue;
             }
             $id = Templates::insertCheck((int) $host['id'], ['type' => 'service', 'target' => $s, 'name' => $s, 'interval_sec' => 60, 'enabled' => 1, 'verify_ssl' => 1,
                 'options' => json_encode(['deep' => true])]);
             ChangeLog::record('check', $id, 'create', t('Service-check {s} op {host} (uit SERVICES op de server)', ['s' => $s, 'host' => $host['name']]), null, ChangeLog::checkRow($id));
+        }
+    }
+
+    /**
+     * 1.101.1: service-checks die 1.100.0 uit SERVICES maakte voor services die op de server niet draaien
+     * (bestaan niet of zijn uit) weer weghalen. Vóór 1.100.0 gaven die nooit een melding. Via het
+     * wijzigingslogboek terug te zetten. Daarna doet servicesToChecks dit niet meer.
+     */
+    public static function migrateServiceChecks(PDO $pdo): void
+    {
+        $rows = $pdo->query("SELECT c.id, c.host_id, c.target, c.name, h.name AS host FROM change_log l
+                             JOIN checks c ON c.id = l.ref_id AND c.type = 'service'
+                             JOIN hosts h ON h.id = c.host_id
+                             WHERE l.kind = 'check' AND l.action = 'create' AND l.undone_at IS NULL AND l.label LIKE '%SERVICES%'
+                               AND NOT EXISTS (SELECT 1 FROM change_log d WHERE d.kind = 'check' AND d.ref_id = c.id AND d.action = 'delete')")->fetchAll();
+        $state = $pdo->prepare("SELECT value FROM agent_data WHERE host_id = ? AND metric = ?");
+        foreach ($rows as $r) {
+            $state->execute([$r['host_id'], 'service:' . $r['target']]);
+            $v = $state->fetchColumn();
+            if ($v === false || $v === 'active') {   // nog niets gemeld, of draait gewoon: laten staan
+                continue;
+            }
+            if ($row = ChangeLog::checkRow((int) $r['id'])) {
+                ChangeLog::record('check', (int) $r['id'], 'delete', $r['host'] . ' · ' . $r['name'] . ' (' . t('draaide niet; uit SERVICES') . ')', $row, null);
+            }
+            $pdo->prepare('DELETE FROM checks WHERE id = ?')->execute([$r['id']]);
         }
     }
 

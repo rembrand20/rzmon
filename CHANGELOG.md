@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.101.1 – 2026-10-27
+### Opgelost
+- **Onterechte critical-meldingen voor services als `ssh`, `cron`, `nginx` of `podman`** na 1.100.0. RzMon maakte van de oude regel `SERVICES` in `/etc/default/rzmon-agent` service-checks, ook voor namen die op die server niet bestaan (op Rocky heten ze `sshd` en `crond`) of niet als vaste service draaien (`podman`). Vóór 1.100.0 gaven die nooit een melding.
+  - Een service uit `SERVICES` wordt nu alleen een check als hij op de server draait.
+  - De checks die al zo gemaakt waren en niet draaien, haalt de update één keer weg. Ze staan in het **wijzigingslogboek** (*draaide niet; uit SERVICES*) en zijn daar terug te zetten. Checks die je zelf maakte, blijven ongemoeid.
+
 ## 1.101.0 – 2026-10-27
 ### Nieuw
 - **Klik op een IDS-incident** voor een venster met:

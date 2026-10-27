@@ -251,6 +251,7 @@ final class Installer
         Whitelist::migrate($pdo);
         NotifyRules::migrate($pdo);
         self::moveAccessLog($pdo);
+        AgentAudit::migrateServiceChecks($pdo);
     }
 
     /** 1.38.0: logins en sudo van de pagina Meldingen (alerts) naar IDS → Toegang (access_log). Eenmalig; daarna leeg. */

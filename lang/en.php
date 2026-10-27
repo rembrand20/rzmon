@@ -4056,6 +4056,7 @@ return [
     'Agent {name} verbindt niet veilig' => 'Agent {name} does not connect securely',
     'Agent {name} verbindt weer veilig' => 'Agent {name} connects securely again',
     'Alle punten van de verbindingscontrole zijn weer in orde.' => 'All points of the connection check are fine again.',
+    'draaide niet; uit SERVICES' => 'was not running; from SERVICES',
     'Service-check {s} op {host} (uit SERVICES op de server)' => 'Service check {s} on {host} (from SERVICES on the host)',
     'Opruimen gevraagd: de agent installeert zichzelf opnieuw (met reservekopie) bij zijn volgende rapport' => 'Clean-up requested: the agent reinstalls itself (with a backup) at its next report',
     'Verbindingscontrole: eigen sleutel, versleuteld, https, IP-slot, versie, sleutel vernieuwd, instellingen op de server, script ongewijzigd' => 'Connection check: own key, encrypted, https, IP lock, version, key renewed, settings on the host, script unchanged',
