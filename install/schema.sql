@@ -825,3 +825,30 @@ CREATE TABLE IF NOT EXISTS device_requests (
     KEY idx_devreq_ip (created_ip, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('stealth_requests', '1');
+
+-- 1.103.0: netwerkscan – apparaten op je lokale netwerken (sleutel: MAC-adres, of het IP-adres als er geen MAC is)
+CREATE TABLE IF NOT EXISTS net_devices (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    mac         CHAR(17)     NULL UNIQUE,
+    ip          VARCHAR(45)  NOT NULL,
+    random_mac  TINYINT(1)   NOT NULL DEFAULT 0,
+    vendor      VARCHAR(120) NULL,
+    hostname    VARCHAR(100) NULL,
+    name        VARCHAR(100) NULL,
+    kind        VARCHAR(16)  NOT NULL DEFAULT 'unknown',
+    kind_user   VARCHAR(16)  NULL,
+    status      VARCHAR(10)  NOT NULL DEFAULT 'new',
+    ports       TEXT         NULL,
+    info        TEXT         NULL,
+    notes       VARCHAR(500) NULL,
+    first_seen  DATETIME     NOT NULL,
+    last_seen   DATETIME     NOT NULL,
+    deep_at     DATETIME     NULL,
+    KEY idx_netdev_ip (ip),
+    KEY idx_netdev_seen (last_seen)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS mac_vendors (
+    prefix  VARCHAR(9)   NOT NULL PRIMARY KEY,
+    vendor  VARCHAR(120) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('net_scan', '0'), ('net_sweep_minutes', '60'), ('net_deep_per_day', '4');

@@ -199,7 +199,7 @@ final class NotifyRules
     /** Systeeminfo-meldingen (geen checks), elk met eigen kanalen en Pushover-prioriteit (Instellingen → ℹ️ Systeeminfo) */
     public const SYSINFO = ['rzmon_update', 'agent_update', 'agent_update_fail', 'agent_connect', 'login_ok', 'login_fail',
         'account_lock', 'account_unlock', 'ip_block', 'ip_unblock', 'vuln_new', 'vuln_upgrade', 'cert', 'breach', 'local_only', 'sec', 'server_login',
-        'device_trust', 'passkey', 'stealth_door', 'isolate', 'task_fail', 'agent_sec', 'device_request'];   // 1.102.0: geweigerd apparaat van buiten; 1.86.0: toegestane apparaten, passkeys, noodlink; 1.91.0: achtergrondtaak; 1.100.0: verbindingscontrole
+        'device_trust', 'passkey', 'stealth_door', 'isolate', 'task_fail', 'agent_sec', 'device_request', 'net_new'];   // 1.103.0: nieuw apparaat op het netwerk; 1.102.0: geweigerd apparaat van buiten; 1.86.0: toegestane apparaten, passkeys, noodlink; 1.91.0: achtergrondtaak; 1.100.0: verbindingscontrole
     /** Tot 1.58 altijd op de meldingenpagina, ook als de rij Info dat niet zei */
     private const SYSINFO_ALWAYS_PAGE = ['agent_connect', 'login_ok', 'login_fail', 'account_lock', 'account_unlock', 'ip_block', 'ip_unblock'];
 
@@ -216,7 +216,7 @@ final class NotifyRules
         foreach (self::SYSINFO as $k) {
             $out[$k] = $k === 'sec' || $k === 'stealth_door' || $k === 'task_fail' || $k === 'agent_sec'   // noodlink: ook als iemand anders hem aanvraagt, wil je dat weten
                 ? ['pushover' => true, 'email' => false, 'webhook' => false, self::PAGE => true, 'prio' => 0]
-                : ($k === 'server_login' || $k === 'device_request'   // 1.80.0: logins op je servers van binnen; veel berichten, dus standaard alleen op de pagina
+                : ($k === 'server_login' || $k === 'device_request' || $k === 'net_new'   // 1.80.0: logins op je servers van binnen; veel berichten, dus standaard alleen op de pagina
                     ? ['pushover' => false, 'email' => false, 'webhook' => false, self::PAGE => true, 'prio' => -1]
                 : ['pushover' => $on && $ch['pushover'], 'email' => $on && $ch['email'], 'webhook' => $on && $ch['webhook'],
                     self::PAGE => in_array($k, self::SYSINFO_ALWAYS_PAGE, true) || ($ch[self::PAGE] ?? true), 'prio' => -1]);

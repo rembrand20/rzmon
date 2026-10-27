@@ -43,6 +43,7 @@ $mustChange = $user && !$resetToken && must_change_password($user);
 // Tabblad Kwetsbaarheden: CVE's (scan aan) en/of Datalekken (controle aan, alleen beheerders)
 $showVulns = Vulns::enabled() && $role !== 'readonly';
 $showLeaks = $user && Hibp::enabled() && $role === 'admin';
+$showNet = $role !== 'readonly' && (NetScan::enabled() || $role === 'admin');   // 1.103.0: netwerkscan
 $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.css');
 ?>
 <!doctype html>
@@ -155,6 +156,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <button class="tab" data-tab="alerts" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="tab-badge" id="alerts-badge" hidden></span></span><span class="tab-lbl"><?= th('Meldingen') ?></span></button>
       <button class="tab" data-tab="ids" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span class="tab-badge" id="ids-badge" hidden></span></span><span class="tab-lbl">IDS</span></button>
       <?php if ($showVulns || $showLeaks): ?><button class="tab" data-tab="vulns" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.5 13H3M21 13h-3.5M6 17l-2.5 2M18 17l2.5 2M6 9 3.5 7.5M18 9l2.5-1.5"/></svg><span class="tab-badge" id="vuln-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Kwetsbaarheden') ?></span><span class="tab-lbl-s"><?= th('CVE\'s') ?></span></button><?php endif; ?>
+      <?php if ($showNet): ?><button class="tab" data-tab="net" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/><path d="M12 7v5M5 17v-2.5a1.5 1.5 0 0 1 1.5-1.5h11a1.5 1.5 0 0 1 1.5 1.5V17"/></svg><span class="tab-badge s1" id="net-badge" hidden></span></span><span class="tab-lbl"><?= th('Netwerk') ?></span></button><?php endif; ?>
     </nav>
     <div class="top-actions">
       <?php $hasAccount = !is_lan_session(); $uname = (string) ($user['username'] ?? ''); ?>
@@ -376,6 +378,26 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div id="leak-list"></div>
       </div>
       <?php endif; ?>
+    </section>
+    <?php endif; ?>
+
+    <?php if ($showNet): ?>
+    <section id="tab-net" class="tab-panel" hidden>
+      <!-- 1.103.0: netwerkscan, zelfde opbouw als het dashboard -->
+      <div class="dash-counters"><div class="dash-in">
+        <div class="health-counts" id="net-counts"></div>
+        <span class="dash-last muted small" id="net-last"></span>
+      </div></div>
+      <div id="net-banner"></div>
+      <div class="kpis" id="net-kpis"></div>
+      <div class="dash-bar">
+        <input type="search" id="net-search" placeholder="<?= th('🔍 Zoek naam, IP, MAC of fabrikant…') ?>" autocomplete="off">
+        <div class="dash-chips" id="net-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
+        <span class="dash-sp"></span>
+        <button type="button" class="btn need-admin" id="net-approve-all"><?= th('✔ Alle nieuwe bekend') ?></button>
+        <button type="button" class="btn need-admin" id="net-scan">🔍 <?= th('Nu scannen') ?></button>
+      </div>
+      <div class="card net-card"><div id="net-list"></div></div>
     </section>
     <?php endif; ?>
 
@@ -651,6 +673,20 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div class="vuln-exclude"><span class="muted small"><?= th('Niet scannen:') ?></span> <span id="vuln-exclude-list"></span></div>
           <p class="muted small"><?= t('Nodig: uitgaand HTTPS naar <code>api.osv.dev</code>, <code>www.cisa.gov</code>, <code>api.first.org</code> en <code>services.nvd.nist.gov</code>. Een ℹ️ info-melding bij een nieuwe critical of actief misbruikte kwetsbaarheid volgt de rij Info bij 🔔 Meldingen. Bijwerken via de agent kan als commando\'s als root aan staan voor die server; anders krijg je het commando om zelf uit te voeren.') ?></p>
           <div class="btn-row"><button type="button" class="btn" id="vuln-scan-now">🔍 <?= th('Nu scannen') ?></button> <span class="muted small" id="vuln-scan-info"></span></div>
+        </div>
+
+        <div data-sk="netscan" class="card" id="netscan-card">
+          <h2>🔎 <?= th('Netwerkscan') ?></h2>
+          <p class="muted small"><?= t('RzMon zoekt wat er op je <b>lokale netwerken</b> zit (<i>Toegang → Lokale netwerken</i>): elk apparaat met IP-adres, MAC-adres, fabrikant, naam, open poorten en een gok wat voor apparaat het is. Je ziet ze op het tabblad <b>Netwerk</b>, waar je ze een naam geeft, als bekend markeert, negeert of met één klik aan RzMon toevoegt. Alleen privé-netwerken tot /22; nooit internet.') ?></p>
+          <label class="switch"><input type="checkbox" name="net_scan"><span></span> <?= t('<b>Netwerkscan aan</b> (tabblad Netwerk)') ?></label>
+          <div class="row2">
+            <label><?= th('Snelle ronde (ping en ARP) elke') ?>
+              <select name="net_sweep_minutes"><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 <?= th('uur') ?></option><option value="120">2 <?= th('uur') ?></option><option value="360">6 <?= th('uur') ?></option></select></label>
+            <label><?= th('Diepere scan (poorten, namen, merk)') ?>
+              <select name="net_deep_per_day"><option value="1"><?= th('1× per dag') ?></option><option value="2"><?= th('2× per dag') ?></option><option value="4"><?= th('4× per dag') ?></option><option value="6"><?= th('6× per dag') ?></option><option value="12"><?= th('12× per dag') ?></option></select></label>
+          </div>
+          <div id="netscan-nets" class="small"></div>
+          <p class="muted small"><?= t('Een nieuw apparaat geeft een ℹ️-melding <i>Nieuw apparaat op je netwerk</i> (standaard alleen op de meldingenpagina; kanalen bij <i>Meldingen → Systeeminfo</i>). De eerste scan is de basismeting: die geeft geen meldingen. Met <code>fping</code> en <code>avahi-browse</code> (pakket <code>avahi-tools</code> of <code>avahi-utils</code>) op de RzMon-server gaat het sneller en herkent RzMon meer, maar nodig zijn ze niet. De fabrikant komt uit de lijst van Wireshark (maandelijks bijgewerkt, uitgaand HTTPS naar <code>www.wireshark.org</code>).') ?></p>
         </div>
 
         <div data-sk="update" class="card" id="update-card">

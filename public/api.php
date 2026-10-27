@@ -1060,7 +1060,7 @@ $need = match ($action) {
     'state', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
+    'net_devices', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1484,6 +1484,7 @@ switch ($action) {
              'host_tpls' => (object) array_reduce(q('SELECT host_id, template_id FROM host_templates')->fetchAll(), static function ($a, $r) { $a[$r['host_id']][] = (int) $r['template_id']; return $a; }, []),
              'notify_fails' => max(1, (int) setting('notify_fails', '1')),
              // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
+             'net_new' => NetScan::enabled() ? NetScan::newCount() : 0,
              'ids_open' => Ids::enabled() ? (int) q("SELECT COUNT(*) FROM ids_incidents WHERE status = 'open' AND severity = 2")->fetchColumn() : 0,
              // Voor beheerders: label "⬆ x.y.z" bovenin als er een nieuwere versie is
              'update_running' => $isAdmin && Updater::running(),
@@ -1871,6 +1872,13 @@ switch ($action) {
                 : (setting('hibp_last_error', '') !== '' ? (string) setting('hibp_last_error', '')
                     : ($hs['open'] ? t('{n} open lekken op {e} adressen ({p} met wachtwoorden)', ['n' => $hs['open'], 'e' => $hs['emails'], 'p' => $hs['with_passwords']])
                         : t('{n} adressen gecontroleerd, geen open lekken', ['n' => $hs['checked']]))), 'hibp');
+        }
+        if (!NetScan::enabled()) {   // 1.103.0
+            $add('netscan', 'info', t('Netwerkscan'), t('staat uit: zet hem aan om te zien wat er allemaal op je netwerk zit'), 'netscan');
+        } elseif (($nnew = NetScan::newCount()) > 0) {
+            $add('netscan', 'warn', t('Netwerkscan'), t('{n} nieuwe apparaten nog niet beoordeeld (tabblad Netwerk)', ['n' => $nnew]), 'netscan');
+        } else {
+            $add('netscan', 'ok', t('Netwerkscan'), t('alle apparaten beoordeeld'), 'netscan');
         }
         if (Stealth::uiLocked() && ($nreq = Stealth::requestCount()) > 0) {   // 1.102.0
             $add('device_requests', 'warn', t('Wachtende apparaten'), t('{n} apparaat/apparaten van buiten geweigerd: toestaan, negeren of blokkeren', ['n' => $nreq]), 'outside');
@@ -2760,7 +2768,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_time', 'vuln_min_severity', 'vuln_exclude',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -2783,7 +2791,7 @@ switch ($action) {
         if (isset($in['auth_ignore'])) {
             $in['auth_ignore'] = implode(' ', array_slice(parse_list(mb_substr((string) $in['auth_ignore'], 0, 2000)), 0, 100));
         }
-        foreach (['ids_baseline_hours' => [0, 720], 'ids_fail_count' => [2, 1000], 'ids_fail_minutes' => [1, 1440], 'ids_block_hours' => [1, 8760], 'ids_repeat_days' => [1, 365]] as $k => [$lo, $hi]) {
+        foreach (['net_sweep_minutes' => [15, 1440], 'net_deep_per_day' => [1, 24], 'ids_baseline_hours' => [0, 720], 'ids_fail_count' => [2, 1000], 'ids_fail_minutes' => [1, 1440], 'ids_block_hours' => [1, 8760], 'ids_repeat_days' => [1, 365]] as $k => [$lo, $hi]) {
             if (isset($in[$k])) {
                 $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
             }
@@ -3452,6 +3460,33 @@ switch ($action) {
             'requests_on' => setting('stealth_requests', '1') === '1', 'requests' => Stealth::requests(),
             'users' => q('SELECT id, username, role FROM users ORDER BY username')->fetchAll(),
         ]);
+
+    // 1.103.0: netwerkscan – alle apparaten op je lokale netwerken
+    case 'net_devices':
+        $nets = NetScan::networks();
+        out(['enabled' => NetScan::enabled(), 'devices' => NetScan::list(), 'state' => NetScan::state(), 'networks' => $nets,
+            'risky_reasons' => NetScan::riskyReasons(), 'kinds' => NetScan::KINDS, 'now' => now(), 'vendors' => (int) q('SELECT COUNT(*) FROM mac_vendors')->fetchColumn()]);
+
+    case 'net_device_save':
+        $in = input();
+        NetScan::save((int) ($in['id'] ?? 0), $in, $user['username']) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);
+
+    case 'net_approve_all':
+        out(['ok' => true, 'n' => NetScan::approveAll($user['username'])]);
+
+    case 'net_forget':
+        NetScan::forget((int) (input()['id'] ?? 0), $user['username']) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);
+
+    case 'net_scan_now':
+        if (!NetScan::networks()['scan']) {
+            out(['error' => t('Geen netwerk om te scannen: zet je netwerk (bv. 192.168.1.0/24) bij Toegang → Lokale netwerken')], 422);
+        }
+        @set_time_limit(120);
+        $msg = NetScan::sweep();
+        if (!empty(input()['deep'])) {
+            $msg .= ' · ' . NetScan::deep();
+        }
+        out(['ok' => true, 'message' => $msg]);
 
     // 1.102.0: apparaten die van buiten geweigerd werden (wachtende apparaten)
     case 'device_request_approve':

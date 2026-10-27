@@ -60,6 +60,16 @@ final class Tasks
         $out[] = ['key' => 'mqtt', 'label' => t('MQTT naar Home Assistant'), 'on' => $setting('mqtt_enabled', '0') === '1', 'every' => t('elke minuut; discovery elk uur'),
             'last_ok' => $ts($m['ok_at'] ?? null), 'last_try' => $ts($m['at'] ?? null), 'error' => (string) ($m['error'] ?? ''), 'stale' => 900, 'alert' => true];
 
+        $ns = json_decode((string) $setting('net_state', ''), true) ?: [];
+        $nsEvery = max(15, (int) $setting('net_sweep_minutes', '60'));
+        $out[] = ['key' => 'netscan', 'label' => t('Netwerkscan'), 'on' => $setting('net_scan', '0') === '1',
+            'every' => t('elke {m} min; {n}× per dag dieper', ['m' => $nsEvery, 'n' => (int) $setting('net_deep_per_day', '4')]),
+            'last_ok' => $ts($ns['sweep_at'] ?? null), 'last_try' => $ts($ns['sweep_try'] ?? null), 'error' => (string) ($ns['sweep_error'] ?? ''),
+            'next' => isset($ns['sweep_at']) ? (int) $ns['sweep_at'] + $nsEvery * 60 : null, 'stale' => max(3 * 3600, $nsEvery * 180), 'alert' => true];
+        $out[] = ['key' => 'macvendors', 'label' => t('Fabrikantenlijst (MAC-adressen)'), 'on' => $setting('net_scan', '0') === '1', 'every' => t('maandelijks'),
+            'last_ok' => $ts($ns['vendors_ok'] ?? null), 'last_try' => $ts($ns['vendors_try'] ?? null), 'error' => (string) ($ns['vendors_error'] ?? ''),
+            'next' => isset($ns['vendors_ok']) ? (int) $ns['vendors_ok'] + 30 * self::DAY : null, 'stale' => 45 * self::DAY, 'alert' => true];
+
         $freq = (string) $setting('backup_freq', 'off');
         $err = (string) $setting('backup_last_error', '');
         $out[] = ['key' => 'backup', 'label' => t('Automatische back-up'), 'on' => $freq !== 'off',

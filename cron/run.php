@@ -58,6 +58,7 @@ try {
 if (strtotime((string) setting('purge_at', '')) < time() - 3600) {
     save_setting('purge_at', now());
     Monitor::purge();
+    NetScan::purge();
 }
 echo date('c') . " $n check(s) uitgevoerd\n";
 
@@ -113,6 +114,14 @@ try {
     }
 } catch (Throwable $e) {
     fwrite(STDERR, 'Kwetsbaarheden: ' . $e->getMessage() . "\n");
+}
+// Netwerkscan (1.103.0): elk uur een ronde, een paar keer per dag dieper (Instellingen → Beveiliging → Netwerkscan)
+try {
+    if ($msg = NetScan::cron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Netwerkscan: ' . $e->getMessage() . "\n");
 }
 // Achtergrondtaken die te lang niet lukken: één melding, en een ✅ als het weer lukt (Instellingen → Systeem → Verbindingen en taken)
 try {

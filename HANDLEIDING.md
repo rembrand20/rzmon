@@ -1940,6 +1940,34 @@ Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) h
 
 **Nog niet**: de Home Assistant-add-on, Podman-containers, en software die niet via de pakketbeheerder is geïnstalleerd (zelf gecompileerd, pip, npm…). Fedora en openSUSE worden nog niet ondersteund.
 
+### 8.14 Netwerkscan: wat zit er op je netwerk? 🔎 (vanaf 1.103.0)
+RzMon zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons, laptops, camera's, printers, slimme stekkers, je NAS. Je ziet ze op het tabblad **Netwerk**.
+
+**Aanzetten:** *Instellingen → Beveiliging → Netwerkscan* (standaard uit).
+- **Welke netwerken:** de netwerken bij *Toegang → Lokale netwerken*, bv. `192.168.2.0/24`. Losse adressen (zoals `127.0.0.1`), IPv6, netwerken die geen privé-adressen zijn en netwerken groter dan /22 (1024 adressen) slaat RzMon over; de kaart laat zien wat wel en niet gescand wordt. Internet wordt nooit gescand.
+- **Snelle ronde** (standaard elk uur): een ping naar elk adres, daarna de ARP-tabel van de RzMon-server. Zo vindt RzMon ook apparaten die niet op ping antwoorden. Nieuwe apparaten krijgen hun DNS-naam (via je DNS-server, bv. AdGuard Home).
+- **Diepere scan** (standaard 4× per dag): open poorten (een vaste lijst van ruim 40 bekende poorten), de NetBIOS-naam (Windows, NAS), UPnP (merk en model van tv's, mediaspelers, routers), mDNS/Bonjour (als `avahi-browse` op de RzMon-server staat) en de titel van de webpagina. Daaruit maakt RzMon een gok wat voor apparaat het is.
+- **Fabrikant:** uit het MAC-adres, met de lijst van Wireshark (maandelijks bijgewerkt).
+- **Sneller en beter:** installeer op de RzMon-server `fping` en `avahi-tools` (Rocky) of `avahi-utils` (Debian). Nodig zijn ze niet.
+
+**Het tabblad Netwerk**
+- **Tellers:** 🆕 nieuw (nog niet beoordeeld), ⚠️ riskante poort, ➕ niet in RzMon en ✔ in RzMon. Klik erop om te filteren.
+- **Kerncijfers:** apparaten (gezien in de laatste 24 uur / totaal), nieuw, niet in RzMon, riskante poorten en welke netwerken gescand worden.
+- **Per apparaat:** icoon en soort, naam, IP-adres, MAC-adres en fabrikant, open poorten (riskante in rood), wanneer gezien en sinds wanneer. **🎭 privé** betekent een willekeurig MAC-adres: telefoons en laptops gebruiken per wifi-netwerk zo'n adres, en soms wisselt het.
+- **Knoppen:** **＋ RzMon** (opent *Server toevoegen* met naam, adres en soort al ingevuld), **✔ Bekend** en **🙈 Negeren**. Met **✔ Alle nieuwe bekend** keur je in één keer alles goed, handig na de eerste scan.
+- **Klik op een apparaat** voor alle details (DNS-naam, NetBIOS, mDNS, UPnP, webpagina, eerdere IP-adressen) en om een **eigen naam**, de **soort**, een **notitie** of de **status** te zetten. **Vergeten** haalt het apparaat weg; is het er nog, dan komt het bij de volgende scan terug als nieuw.
+- **🔍 Nu scannen** doet meteen een snelle en een diepere ronde.
+
+**Riskante poorten:** Telnet (23), FTP (21), VNC (5900), RDP (3389, niet op servers), een Docker-API zonder TLS (2375), Redis, Elasticsearch, Memcached en MongoDB. In het venster staat waarom, en wat je eraan doet.
+
+**Meldingen:** een nieuw apparaat geeft een ℹ️ *Nieuw apparaat op je netwerk*, standaard alleen op de meldingenpagina. Andere kanalen (Pushover, e-mail) zet je aan bij *Instellingen → Meldingen → ℹ️ Systeeminfo → Nieuw apparaat op het netwerk*. Komen er veel tegelijk (meer dan 5), dan krijg je één bericht. De **eerste scan is de basismeting** en geeft geen meldingen.
+
+**Goed om te weten**
+- In *Hoe staat het ervoor?* staat hoeveel apparaten nog niet beoordeeld zijn; het tabblad Netwerk krijgt een oranje teller.
+- Apparaten die 90 dagen niet gezien zijn, verdwijnen, behalve bekende apparaten met een eigen naam.
+- Een UniFi IPS of een strenge firewall kan de scan van RzMon als poortscan zien. Sta in dat geval het IP-adres van de RzMon-server toe.
+- Andere VLAN's: daar ziet RzMon alleen IP-adressen (geen MAC-adres of fabrikant), omdat ARP niet over een router gaat.
+
 ## 9. Agent op Home Assistant OS
 
 Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De agent draait daarom als **add-on**.

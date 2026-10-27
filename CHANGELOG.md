@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.103.0 – 2026-10-27
+### Nieuw
+- **🔎 Netwerkscan en het tabblad Netwerk.** RzMon zoekt welke apparaten er op je lokale netwerken zitten (*Toegang → Lokale netwerken*, alleen privé-netwerken tot /22). Aanzetten bij *Instellingen → Beveiliging → Netwerkscan* (standaard uit).
+  - Elk uur een snelle ronde (ping en ARP-tabel), standaard 4× per dag een diepere scan: open poorten, NetBIOS-naam, UPnP (merk en model), mDNS (met `avahi-browse`) en de titel van de webpagina. De fabrikant komt uit het MAC-adres (lijst van Wireshark, maandelijks bijgewerkt).
+  - Per apparaat: soort (gok, zelf aan te passen), naam, IP, MAC, fabrikant, open poorten en wanneer gezien; willekeurige (privé) MAC-adressen worden herkend.
+  - **＋ RzMon** opent *Server toevoegen* met naam, adres en soort al ingevuld; verder **bekend**, **negeren**, een eigen naam en een notitie.
+  - **Riskante poorten** (Telnet, FTP, VNC, RDP, Docker zonder TLS, Redis …) in rood, met uitleg.
+  - ℹ️-melding **Nieuw apparaat op je netwerk** (standaard alleen op de meldingenpagina, in te stellen bij *Systeeminfo*); de eerste scan is de basismeting.
+  - Een teller op het tabblad, een punt bij *Hoe staat het ervoor?*, en de scan bij *Verbindingen en taken*.
+
 ## 1.102.0 – 2026-10-27
 ### Nieuw
 - **⏳ Wachtende apparaten** (*Instellingen → Van buiten → Onzichtbaar van buiten*). Staat de webinterface van buiten alleen open voor toegestane apparaten, dan komt een browser die geweigerd wordt nu op een lijst in de beheerportal. Daar kun je hem **toestaan** voor één gebruiker, **negeren** of het IP **blokkeren**.

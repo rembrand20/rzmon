@@ -1578,3 +1578,18 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .hard-help { padding-top: .4rem; }
 #modal .hard-item .hard-ign { display: inline-flex; flex-direction: row; align-items: center; gap: .3rem; width: auto; margin: 0 0 0 auto; font-weight: 400; }
 #modal .hard-item .hard-ign input { width: auto; margin: 0; }
+
+/* 1.103.0: netwerkscan */
+.net-table td { vertical-align: top; }
+.net-open { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.net-open:hover b { text-decoration: underline; }
+.net-ic { display: inline-block; width: 1.3rem; text-align: center; }
+.port-tag { display: inline-block; font-family: var(--mono, monospace); font-size: .72rem; padding: 0 .3rem; margin: 0 .1rem .15rem 0; border-radius: 4px; background: var(--card-2); border: 1px solid var(--border); }
+.port-tag.bad { background: color-mix(in srgb, var(--crit) 14%, transparent); border-color: color-mix(in srgb, var(--crit) 45%, transparent); color: var(--crit); font-weight: 700; }
+.callout.bad-callout { border-left-color: var(--crit); background: color-mix(in srgb, var(--crit) 8%, transparent); }
+.callout.bad-callout ul { margin: .3rem 0 .4rem 1.1rem; padding: 0; }
+.net-card { padding: .4rem .6rem; }
+@media (max-width: 640px) {
+  .net-table th:nth-child(3), .net-table td:nth-child(3), .net-table th:nth-child(4), .net-table td:nth-child(4), .net-table th:nth-child(5), .net-table td:nth-child(5) { display: none; }
+  .net-table td.nowrap { white-space: normal; }
+}

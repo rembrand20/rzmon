@@ -819,6 +819,7 @@ if (loginForm) {
 // ---------------------------------------------------------------- App
 function init() {
   if ($('#vuln-search')) initVulns();
+  if ($('#net-search')) initNet();
   if ($('#leak-list')) initLeaks();
   $('#vuln-scan-now').onclick = async (e) => {
     const b = e.currentTarget;
@@ -1210,6 +1211,7 @@ function showTab(name) {
   if (name === 'alerts') loadAlerts();
   if ((name === 'dashboard' || name === 'alerts') && state.badges) refresh();   // tab gezien: teller naar 0
   if (name === 'ids') loadIds();
+  if (name === 'net') loadNet();
   if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
 }
 
@@ -1227,6 +1229,7 @@ async function refresh() {
     if (!$('#tab-ids').hidden) loadIds();
     if ($('#tab-vulns') && !$('#tab-vulns').hidden) loadVulns();
     renderTabBadges();
+    if ($('#net-badge')) { $('#net-badge').hidden = !state.net_new; $('#net-badge').textContent = state.net_new || ''; }
     $('#ids-badge').hidden = !state.ids_open;
     $('#ids-badge').textContent = state.ids_open || '';
     if (isAdmin()) renderAgentUpdates();
@@ -2320,9 +2323,9 @@ function kindAutoText(h, k = null) {
 /** Sjablonen die aan deze server gekoppeld zijn (1.94.0) */
 const hostTpls = (h) => (h && h.id ? ((state.host_tpls || {})[h.id] || []) : []).map(Number);
 
-function hostForm(h) {
+function hostForm(h, preset = null) {
   const isNew = !h;
-  h = h || { name: '', address: '', mode: 'remote', enabled: 1 };
+  h = h || { name: '', address: '', mode: 'remote', enabled: 1, ...(preset || {}) };
   modal({
     title: isNew ? L('Server toevoegen') : `${L('Server bewerken')} – ${h.name}`,
     body: `
@@ -5957,7 +5960,7 @@ const SET_NAV = [
   ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']], ['cleanup', L('Opschoonadvies'), ['cleanup']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'chain']], ['rules', L('Meldregels en stille uren'), ['notify']], ['alarm', L('Alarmgedrag'), ['alarm']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['beveiliging', '🛡️', L('Beveiliging'), [['ids', L('IDS: detectie'), ['ids']], ['ids_attack', L('IDS: aanvallers en verkeer'), ['ids_attack']], ['ids_servers', L('IDS: servers'), ['ids_servers']],
-    ['vulns', L('Kwetsbaarheden'), ['vulns']], ['hibp', L('Datalekken'), ['hibp']]]],
+    ['vulns', L('Kwetsbaarheden'), ['vulns']], ['hibp', L('Datalekken'), ['hibp']], ['netscan', L('Netwerkscan'), ['netscan']]]],
   ['toegang', '🔐', L('Toegang'), [['access', L('Inloggen'), ['access']], ['outside', L('Van buiten'), ['https', 'outside']], ['users', L('Gebruikers'), ['users']]]],
   ['agents', '🖥️', L('Agents'), [['agents', L('Agents'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']], ['commands', L('Commando-checks'), ['commands']]]],
   ['koppelingen', '🔗', L('Koppelingen'), [['mqtt', L('MQTT (Home Assistant)'), ['mqtt']], ['api', L('REST API en API-sleutels'), ['api']]]],
@@ -6426,6 +6429,7 @@ async function loadSettings() {
   loadHttps();
   loadHibp();
   loadDbInfo();
+  loadNetscanSettings();
   const s = await api('settings');
   const f = $('#settings-form');
   $('#mqtt-status').innerHTML = s.mqtt_enabled !== '1' ? ''
@@ -6618,6 +6622,7 @@ const SYSINFO_ROWS = [
   [L('Onzichtbaar van buiten'), [['device_request', '⏳ ' + L('Geweigerd apparaat van buiten (wachtend)')], ['device_trust', '📱 ' + L('Apparaat toegestaan of ingetrokken')], ['passkey', '🔑 ' + L('Passkey aangemaakt of verwijderd')],
     ['stealth_door', '🚪 ' + L('Noodlink aangevraagd of gebruikt')]]],
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
+  [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')]]],
   ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
 ];
 const SYSINFO_CH = [['pushover', '📲 Pushover', 'pushover_enabled'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
@@ -8040,6 +8045,172 @@ async function backupUpload(file) {
   btn.disabled = false;
   btn.textContent = '⬆ ' + L('Zip uploaden');
   $('#backup-file').value = '';
+}
+
+// ---------------------------------------------------------------- Netwerk (1.103.0)
+const NET_KIND = {
+  router: ['🌐', () => L('Router')], network: ['🔀', () => L('Netwerkapparaat')], server: ['🖥️', () => L('Server')], nas: ['🗄️', () => 'NAS'],
+  computer: ['💻', () => L('Computer')], phone: ['📱', () => L('Telefoon of tablet')], media: ['📺', () => L('Tv of media')], printer: ['🖨️', () => L('Printer')],
+  camera: ['📷', () => L('Camera')], iot: ['💡', () => L('Slim apparaat (IoT)')], smarthome: ['🏠', () => L('Smart home')], unknown: ['❔', () => L('Onbekend')],
+};
+/** Soort in RzMon (hostForm) bij de soort uit de netwerkscan */
+const NET_TO_HOST = { router: 'router', network: 'switch', server: 'server', nas: 'nas', printer: 'printer', camera: 'camera', smarthome: 'smarthome', iot: 'smarthome' };
+let netData = null;
+let netFilter = 'all';
+const netKind = (d) => d.kind_user || d.kind || 'unknown';
+
+function initNet() {
+  $('#net-search').oninput = () => renderNet();
+  $('#net-filter').onclick = (e) => { const b = e.target.closest('[data-nf]'); if (b) { netFilter = b.dataset.nf; renderNet(); } };
+  $('#net-counts').onclick = (e) => { const b = e.target.closest('[data-nf]'); if (b) { netFilter = netFilter === b.dataset.nf ? 'all' : b.dataset.nf; renderNet(); } };
+  $('#net-scan').onclick = (e) => netScanNow(e.currentTarget);
+  $('#net-banner').onclick = (e) => { if (e.target.closest('[data-net-scan]')) netScanNow(e.target.closest('[data-net-scan]')); };
+  $('#net-approve-all').onclick = async () => {
+    const n = (netData?.devices || []).filter((d) => d.status === 'new').length;
+    if (!n || !confirm(L('Alle {n} nieuwe apparaten als bekend markeren?', { n }))) return;
+    try { await api('net_approve_all', {}); toast(L('{n} apparaten bekend', { n })); loadNet(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#net-list').onclick = netClick;
+}
+
+async function loadNet() {
+  try { netData = await api('net_devices'); renderNet(); } catch (ex) { $('#net-list').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; }
+}
+
+async function netScanNow(btn) {
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = '⏳ ' + L('Scannen…');
+  try { const r = await api('net_scan_now', { deep: true }); toast(r.message); await loadNet(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+  btn.disabled = false;
+  btn.textContent = old;
+}
+
+function renderNet() {
+  const d = netData;
+  if (!d) return;
+  const devs = d.devices;
+  const day = Date.now() - 86400e3;
+  const online = (x) => new Date(String(x.last_seen).replace(' ', 'T')).getTime() > day;
+  const cnt = {
+    all: devs.length, new: devs.filter((x) => x.status === 'new').length, norz: devs.filter((x) => !x.host && x.status !== 'ignored').length,
+    rz: devs.filter((x) => x.host).length, risky: devs.filter((x) => x.risky.length && x.status !== 'ignored').length,
+    known: devs.filter((x) => x.status === 'known').length, ignored: devs.filter((x) => x.status === 'ignored').length, online: devs.filter(online).length,
+  };
+  $('#net-counts').innerHTML = [['new', '🆕', L('Nieuw'), 's1'], ['risky', '⚠️', L('Riskante poort'), 's2'], ['norz', '➕', L('Niet in RzMon'), 'si'], ['rz', '✔', L('In RzMon'), 's0']]
+    .map(([k, ic, w, cls]) => `<button type="button" class="hc ${cls} ${cnt[k] ? '' : 'zero'} ${netFilter === k ? 'on' : ''}" data-nf="${k}"><span class="hc-dot"></span><b>${cnt[k]}</b> <span class="hc-w">${ic} ${w}</span></button>`).join('');
+  const st = d.state || {};
+  $('#net-last').textContent = st.sweep_at ? L('laatste scan {t}', { t: ago(new Date(st.sweep_at * 1000).toISOString()) }) + (st.deep_at ? ' · ' + L('diep {t}', { t: ago(new Date(st.deep_at * 1000).toISOString()) }) : '') : '';
+  // Uitleg bovenaan: uit, geen netwerk, of nog nooit gescand
+  const nets = d.networks || { scan: [], skip: [] };
+  $('#net-banner').innerHTML = !d.enabled
+    ? `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Beveiliging → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`
+    : !nets.scan.length ? `<div class="v-banner">⚠️ <span>${L('Geen netwerk om te scannen: zet je netwerk (bv. 192.168.1.0/24) bij <a href="#settings/access" data-goto="settings/access">Toegang → Lokale netwerken</a>.')}</span></div>`
+    : st.sweep_error ? `<div class="v-banner">⚠️ <span>${esc(st.sweep_error)}</span></div>`
+    : !st.sweep_at ? `<div class="v-banner">⏳ <span>${L('Nog niet gescand. De eerste scan volgt binnen een minuut, of start hem nu.')}</span> <button type="button" class="btn need-admin" data-net-scan>🔍 ${L('Nu scannen')}</button></div>` : '';
+  $('#net-kpis').innerHTML = `
+    <div class="kpi kpi-main"><div class="kpi-txt"><div class="kpi-lbl">${L('Apparaten')}</div><div class="kpi-val">${cnt.online}<small>/${cnt.all}</small></div>
+      <div class="kpi-sub">${L('laatste 24 uur gezien')}</div></div></div>
+    <div class="kpi ${cnt.new ? 'warn' : ''}"><div class="kpi-lbl">${L('Nieuw')}</div><div class="kpi-val">${cnt.new}</div><div class="kpi-sub">${cnt.new ? L('nog niet beoordeeld') : L('alles beoordeeld')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Niet in RzMon')}</div><div class="kpi-val">${cnt.norz}</div><div class="kpi-sub">${L('{n} wel', { n: cnt.rz })}</div></div>
+    <div class="kpi ${cnt.risky ? 'bad' : ''}"><div class="kpi-lbl">${L('Riskante poort open')}</div><div class="kpi-val">${cnt.risky}</div><div class="kpi-sub">${cnt.risky ? L('Telnet, FTP, VNC …') : L('niets gevonden')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Netwerken')}</div><div class="kpi-val kpi-val-txt">${esc(nets.scan.join(', ') || '–')}</div>
+      <div class="kpi-sub">${st.sweep_ms ? L('scan duurde {s} s', { s: dec((st.sweep_ms / 1000).toFixed(1)) }) : ''}</div></div>`;
+  $('#net-filter').innerHTML = [['all', L('Alles')], ['new', '🆕 ' + L('Nieuw')], ['norz', L('Niet in RzMon')], ['known', L('Bekend')], ['risky', '⚠️ ' + L('Riskant')], ['ignored', L('Genegeerd')]]
+    .map(([k, l]) => `<button type="button" class="dchip ${netFilter === k ? 'on' : ''}" data-nf="${k}">${l} <b>${cnt[k]}</b></button>`).join('');
+  const q = $('#net-search').value.trim().toLowerCase();
+  const list = devs.filter((x) => (netFilter === 'all' ? x.status !== 'ignored' : netFilter === 'new' ? x.status === 'new' : netFilter === 'norz' ? !x.host && x.status !== 'ignored'
+      : netFilter === 'rz' ? x.host : netFilter === 'known' ? x.status === 'known' : netFilter === 'risky' ? x.risky.length && x.status !== 'ignored' : x.status === 'ignored')
+    && (!q || [x.label, x.ip, x.mac, x.vendor, x.hostname, x.name, x.info.netbios, x.info.ssdp?.model].some((v) => String(v || '').toLowerCase().includes(q))));
+  if (!devs.length) { $('#net-list').innerHTML = `<p class="muted">${d.enabled ? L('Nog geen apparaten gevonden.') : L('De netwerkscan staat uit.')}</p>`; return; }
+  if (!list.length) { $('#net-list').innerHTML = `<p class="muted">${L('Niets gevonden met dit filter.')}</p>`; return; }
+  $('#net-list').innerHTML = `<div class="table-scroll"><table class="vuln-table net-table"><thead><tr><th>${L('Apparaat')}</th><th>${L('IP-adres')}</th><th>${L('MAC en fabrikant')}</th><th>${L('Poorten')}</th><th>${L('Gezien')}</th><th></th></tr></thead><tbody>
+    ${list.map((x) => {
+      const [ic, kl] = NET_KIND[netKind(x)] || NET_KIND.unknown;
+      const sub = [kl(), x.name && x.hostname ? x.hostname : '', x.info.ssdp?.model || ''].filter(Boolean).join(' · ');
+      return `<tr class="${x.status === 'ignored' ? 'muted' : ''}" data-net="${x.id}"><td><button type="button" class="link-btn net-open" data-net-open="${x.id}"><span class="net-ic">${ic}</span> <b>${esc(x.label)}</b></button>
+          ${x.status === 'new' ? ` <span class="badge-root">${L('nieuw')}</span>` : ''}${x.host ? ` <span class="badge" title="${esc(L('In RzMon als {name}', { name: x.host.name }))}">✔ RzMon</span>` : ''}
+          <br><span class="muted small">${esc(sub)}</span></td>
+        <td class="small"><span class="mono">${esc(x.ip)}</span>${online(x) ? '' : ` <span class="muted">(${L('offline')})</span>`}</td>
+        <td class="small">${x.mac ? `<span class="mono">${esc(x.mac.toUpperCase())}</span>` : '–'}${+x.random_mac ? ` <span class="badge" title="${esc(L('Willekeurig MAC-adres (privé-wifiadres): telefoons en laptops gebruiken dat per netwerk, en soms wisselt het'))}">🎭 ${L('privé')}</span>` : ''}<br><span class="muted">${esc(x.vendor || '')}</span></td>
+        <td class="small">${x.ports.length ? x.ports.map((p) => `<span class="port-tag ${x.risky.includes(p) ? 'bad' : ''}" title="${esc(x.risky.includes(p) ? d.risky_reasons[p] : '')}">${p}</span>`).join(' ') : `<span class="muted">${x.deep_at ? L('geen') : '…'}</span>`}</td>
+        <td class="small">${esc(ago(x.last_seen))}<br><span class="muted">${L('sinds {d}', { d: esc(fmtDay(x.first_seen)) })}</span></td>
+        <td class="nowrap">${!x.host ? `<button type="button" class="btn small-btn need-admin" data-net-add="${x.id}" title="${esc(L('Toevoegen aan RzMon'))}">＋ RzMon</button>` : ''}
+          ${x.status !== 'known' ? `<button type="button" class="icon-btn need-admin" data-net-st="known:${x.id}" title="${esc(L('Bekend: dit apparaat hoort hier'))}">✔</button>` : ''}
+          ${x.status !== 'ignored' ? `<button type="button" class="icon-btn need-admin" data-net-st="ignored:${x.id}" title="${esc(L('Negeren: niet meer tonen'))}">🙈</button>` : `<button type="button" class="icon-btn need-admin" data-net-st="new:${x.id}" title="${esc(L('Weer tonen'))}">↩</button>`}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+async function netClick(e) {
+  const open = e.target.closest('[data-net-open]'), add = e.target.closest('[data-net-add]'), stb = e.target.closest('[data-net-st]');
+  const find = (id) => netData.devices.find((x) => +x.id === +id);
+  if (open) return netDialog(find(open.dataset.netOpen));
+  if (add) return netAddHost(find(add.dataset.netAdd));
+  if (stb) {
+    const [status, id] = stb.dataset.netSt.split(':');
+    try { await api('net_device_save', { id: +id, status }); await loadNet(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+  }
+}
+
+/** Server toevoegen met naam, adres en soort uit de scan; ping-check aan */
+function netAddHost(x) {
+  if (!x) return;
+  hostForm(null, { name: x.name || x.label, address: x.ip, kind: NET_TO_HOST[netKind(x)] || '' });
+}
+
+function netDialog(x) {
+  if (!x) return;
+  const [ic] = NET_KIND[netKind(x)] || NET_KIND.unknown;
+  const i = x.info || {};
+  const row = (k, v) => (v ? `<tr><th>${k}</th><td>${v}</td></tr>` : '');
+  const admin = isAdmin();
+  modal({
+    title: `${ic} ${x.label}`,
+    wide: true,
+    body: `<table class="kv-table">
+        ${row(L('IP-adres'), `<span class="mono">${esc(x.ip)}</span>${(i.ips || []).length ? ` <span class="muted small">(${L('eerder: {ips}', { ips: esc(i.ips.join(', ')) })})</span>` : ''}`)}
+        ${row(L('MAC-adres'), x.mac ? `<span class="mono">${esc(x.mac.toUpperCase())}</span>${+x.random_mac ? ' · 🎭 ' + L('privé-adres (willekeurig)') : ''}` : L('onbekend (ander netwerk)'))}
+        ${row(L('Fabrikant'), esc(x.vendor || ''))}
+        ${row(L('DNS-naam'), esc(x.hostname || ''))}
+        ${row('NetBIOS', esc(i.netbios || ''))}
+        ${row('mDNS', i.mdns ? esc([i.mdns.name, i.mdns.host].filter(Boolean).join(' · ')) + (i.mdns.types?.length ? `<br><span class="muted small">${esc(i.mdns.types.join(', '))}</span>` : '') : '')}
+        ${row('UPnP', i.ssdp ? esc([i.ssdp.name, i.ssdp.maker, i.ssdp.model, i.ssdp.type].filter(Boolean).join(' · ')) + (i.ssdp.server ? `<br><span class="muted small">${esc(i.ssdp.server)}</span>` : '') : '')}
+        ${row(L('Webpagina'), i.http ? `${esc(i.http.title || '–')} <span class="muted small">(${L('poort {p}', { p: i.http.port })}${i.http.server ? ' · ' + esc(i.http.server) : ''})</span>` : '')}
+        ${row(L('Open poorten'), x.ports.length ? x.ports.map((p) => `<span class="port-tag ${x.risky.includes(p) ? 'bad' : ''}">${p}</span>`).join(' ') : (x.deep_at ? L('geen gevonden') : L('nog niet gescand')))}
+        ${row(L('In RzMon'), x.host ? `✔ ${esc(x.host.name)}` : L('nee'))}
+        ${row(L('Gezien'), `${esc(fmtDateTime(x.first_seen))} – ${esc(ago(x.last_seen))}`)}
+      </table>
+      ${x.risky.length ? `<div class="callout bad-callout"><b>⚠️ ${L('Riskante poorten')}</b><ul>${x.risky.map((p) => `<li><b>${p}</b>: ${esc(netData.risky_reasons[p] || '')}</li>`).join('')}</ul>
+        <p class="small" style="margin:0">${L('Heb je deze dienst niet nodig, zet hem dan uit in de instellingen van het apparaat. Anders: zorg voor een sterk wachtwoord en laat de poort nooit van internet bereikbaar zijn.')}</p></div>` : ''}
+      ${admin ? `<label>${L('Eigen naam')}<input name="name" value="${esc(x.name || '')}" maxlength="100" placeholder="${esc(x.label)}"></label>
+      <label>${L('Soort apparaat')}<select name="kind_user"><option value="">${L('vanzelf: {k}', { k: (NET_KIND[x.kind] || NET_KIND.unknown)[1]() })}</option>
+        ${Object.entries(NET_KIND).map(([k, [ki, kl]]) => `<option value="${k}" ${x.kind_user === k ? 'selected' : ''}>${ki} ${esc(kl())}</option>`).join('')}</select></label>
+      <label>${L('Notitie')} <span class="hint">${L('(optioneel)')}</span><input name="notes" value="${esc(x.notes || '')}" maxlength="500"></label>
+      <label>${L('Status')}<select name="status">${[['new', '🆕 ' + L('Nieuw (nog niet beoordeeld)')], ['known', '✔ ' + L('Bekend')], ['ignored', '🙈 ' + L('Negeren')]]
+        .map(([k, l]) => `<option value="${k}" ${x.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}`,
+    buttons: admin ? [
+      { label: '🗑 ' + L('Vergeten'), cls: 'danger', style: 'margin-right:auto', onClick: async () => {
+        if (!confirm(L('Dit apparaat vergeten? Bij de volgende scan komt het terug als nieuw, als het er nog is.'))) return;
+        try { await api('net_forget', { id: +x.id }); $('#modal').close(); loadNet(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+      } },
+      ...(!x.host ? [{ label: '＋ ' + L('Toevoegen aan RzMon'), onClick: () => { $('#modal').close(); netAddHost(x); } }] : []),
+      { label: L('Opslaan'), cls: 'primary', submit: true },
+    ] : [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
+    onSubmit: async (f) => { await api('net_device_save', { id: +x.id, name: f.name, kind_user: f.kind_user, notes: f.notes, status: f.status }); toast(L('Opgeslagen')); loadNet(); },
+  });
+}
+
+/** Instellingen → Netwerkscan: welke netwerken gescand worden */
+async function loadNetscanSettings() {
+  const box = $('#netscan-nets');
+  if (!box) return;
+  try {
+    const d = await api('net_devices');
+    const n = d.networks;
+    box.innerHTML = `<p>${n.scan.length ? L('Wordt gescand: {list}', { list: n.scan.map((x) => `<code>${esc(x)}</code>`).join(', ') }) : `<b class="warn-txt">${L('Er is geen netwerk om te scannen.')}</b>`}
+      ${n.skip.length ? `<br><span class="muted">${L('Overgeslagen: {list}', { list: n.skip.map((x) => `<code>${esc(x.net)}</code> (${esc(x.why)})`).join(', ') })}</span>` : ''}
+      <br><span class="muted">${L('Aanpassen bij <a href="#settings/access" data-goto="settings/access">Toegang → Lokale netwerken</a>.')} ${d.vendors ? L('Fabrikantenlijst: {n} fabrikanten.', { n: d.vendors.toLocaleString(LOCALE) }) : ''}</span></p>`;
+  } catch (ex) { box.textContent = ex.message; }
 }
 
 // ---------------------------------------------------------------- Kwetsbaarheden
