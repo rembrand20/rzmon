@@ -849,6 +849,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <h2>🕶️ <?= th('Onzichtbaar van buiten') ?></h2>
         <p class="muted small"><?= t('Van buiten je eigen netwerk ziet een vreemde niets dat naar RzMon wijst: een gewone <b>404</b>, zoals een webserver die geeft. Agents, heartbeats, de links uit je meldingen en de REST API blijven gewoon werken. Thuis (je lokale netwerken bij <i>Toegang</i>) verandert er niets.') ?></p>
         <div id="stealth-switches"></div>
+        <div id="stealth-requests"></div>
         <h3 class="set-sub">📱 <?= th('Toegestane apparaten en passkeys') ?></h3>
         <p class="muted small" style="margin-top:-.2rem"><?= t('Per gebruiker. Een apparaat zet je thuis op de lijst bij <i>Mijn account → Van buiten en passkeys</i>; hier kun je alles van iedereen zien, hernoemen en intrekken.') ?></p>
         <div id="stealth-devices"></div>

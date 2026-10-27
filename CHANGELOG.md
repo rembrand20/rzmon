@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.102.0 – 2026-10-27
+### Nieuw
+- **⏳ Wachtende apparaten** (*Instellingen → Van buiten → Onzichtbaar van buiten*). Staat de webinterface van buiten alleen open voor toegestane apparaten, dan komt een browser die geweigerd wordt nu op een lijst in de beheerportal. Daar kun je hem **toestaan** voor één gebruiker, **negeren** of het IP **blokkeren**.
+  - De bezoeker krijgt dezelfde 404 als altijd, met een wachtende sleutel in een cookie. Sta je hem toe, dan krijgt hij bij zijn volgende bezoek het inlogscherm (alleen voor die gebruiker, met 2FA). Een ander apparaat vanaf hetzelfde IP blijft een 404 krijgen.
+  - Alleen browsers uit je normale landen; scanners en bots komen er niet op. Hooguit 3 nieuwe per IP per uur; een wachtend apparaat vervalt na 7 dagen.
+  - Een ℹ️-melding *Geweigerd apparaat van buiten* (standaard alleen op de meldingenpagina), een punt bij *Hoe staat het ervoor?* en een bolletje in de zijbalk.
+  - Aan of uit met *Geweigerde apparaten bijhouden* (standaard aan).
+
 ## 1.101.1 – 2026-10-27
 ### Opgelost
 - **Onterechte critical-meldingen voor services als `ssh`, `cron`, `nginx` of `podman`** na 1.100.0. RzMon maakte van de oude regel `SERVICES` in `/etc/default/rzmon-agent` service-checks, ook voor namen die op die server niet bestaan (op Rocky heten ze `sshd` en `crond`) of niet als vaste service draaien (`podman`). Vóór 1.100.0 gaven die nooit een melding.

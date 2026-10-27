@@ -804,3 +804,24 @@ CREATE TABLE IF NOT EXISTS ip_info (
     fetched_at DATETIME NOT NULL,
     KEY idx_ipinfo_at (fetched_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.102.0: apparaten die van buiten geweigerd werden (webinterface alleen op toegestane apparaten); een beheerder kan ze toestaan.
+-- key_hash: sha256 van de wachtende sleutel in de cookie van dat apparaat; bij toestaan wordt dat een toegestaan apparaat.
+CREATE TABLE IF NOT EXISTS device_requests (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    key_hash    CHAR(64)     NOT NULL UNIQUE,
+    name        VARCHAR(100) NOT NULL DEFAULT '',
+    ua          VARCHAR(255) NOT NULL DEFAULT '',
+    created_at  DATETIME     NOT NULL,
+    created_ip  VARCHAR(45)  NOT NULL DEFAULT '',
+    last_seen   DATETIME     NOT NULL,
+    last_ip     VARCHAR(45)  NOT NULL DEFAULT '',
+    last_cc     CHAR(2)      NULL,
+    hits        INT UNSIGNED NOT NULL DEFAULT 1,
+    status      VARCHAR(10)  NOT NULL DEFAULT 'pending',
+    handled_by  VARCHAR(64)  NULL,
+    handled_at  DATETIME     NULL,
+    KEY idx_devreq_status (status, last_seen),
+    KEY idx_devreq_ip (created_ip, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('stealth_requests', '1');

@@ -9,12 +9,21 @@ declare(strict_types=1);
  * - stealth_ui (standaard uit): de webinterface en het inloggen werken van buiten alleen op een toegestaan apparaat
  *   (apparaatsleutel als cookie, per gebruiker), eventueel alleen vanuit je normale landen. Anders: dezelfde 404.
  *   Agents, heartbeats, ack-links en de REST API werken gewoon. Sleutel kwijt: een noodlink (stealth_door).
+ * - stealth_requests (1.102.0, standaard aan): een browser die zo geweigerd wordt, krijgt (bij dezelfde 404) een wachtende
+ *   sleutel in een cookie met een neutrale naam en komt op de lijst *Wachtende apparaten*. Een beheerder kan dat apparaat
+ *   toestaan voor één gebruiker: de wachtende sleutel wordt dan de apparaatsleutel. Alleen browsers uit je normale landen.
  */
 final class Stealth
 {
     public const COOKIE = 'rzmon_device';
     private const DOOR_MINUTES = 15;
     private const DOOR_PER_HOUR = 3;
+    /** Wachtende sleutel van een geweigerd apparaat: een neutrale naam, die niet verraadt dat hier RzMon draait */
+    public const PENDING_COOKIE = 'sid';
+    private const REQ_PER_HOUR = 3;      // nieuwe wachtende apparaten per IP per uur
+    private const REQ_MAX = 100;         // hooguit zoveel wachtende tegelijk
+    private const REQ_DAYS = 7;          // daarna vervalt een wachtend apparaat
+    private static ?string $pendingKey = null;
 
     public static function hide(): bool
     {
@@ -49,6 +58,9 @@ final class Stealth
         header('Cache-Control: no-store');
         header_remove('X-CSRF-Token');
         header_remove('Set-Cookie');
+        if (self::$pendingKey !== null) {   // nieuw geweigerd apparaat (1.102.0): de wachtende sleutel
+            self::setCookie(self::PENDING_COOKIE, self::$pendingKey);
+        }
         echo "<html>\r\n<head><title>404 Not Found</title></head>\r\n<body>\r\n<center><h1>404 Not Found</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n";
         exit;
     }
@@ -126,6 +138,15 @@ final class Stealth
         if (preg_match('/^[0-9a-f]{64}$/', $c)) {
             $dev = q('SELECT d.*, u.username FROM trusted_devices d JOIN users u ON u.id = d.user_id WHERE d.key_hash = ?', [hash('sha256', $c)])->fetch() ?: null;
         }
+        // Door een beheerder toegestaan (1.102.0): de wachtende sleutel is nu de apparaatsleutel; zet hem als gewone cookie
+        $p = (string) ($_COOKIE[self::PENDING_COOKIE] ?? '');
+        if ($dev === null && preg_match('/^[0-9a-f]{64}$/', $p)) {
+            $dev = q('SELECT d.*, u.username FROM trusted_devices d JOIN users u ON u.id = d.user_id WHERE d.key_hash = ?', [hash('sha256', $p)])->fetch() ?: null;
+            if ($dev !== null && !headers_sent()) {
+                self::cookie($p);
+                self::setCookie(self::PENDING_COOKIE, null);
+            }
+        }
         return $dev;
     }
 
@@ -174,6 +195,7 @@ final class Stealth
             self::notFound();
         }
         if (!self::uiAllowed()) {
+            self::recordRequest();
             self::notFound();
         }
         if ($dev = self::device()) {
@@ -223,8 +245,14 @@ final class Stealth
 
     public static function cookie(?string $key): void
     {
+        self::setCookie(self::COOKIE, $key);
+    }
+
+    /** Cookie van een jaar (of weghalen met null), alleen voor RzMon en niet leesbaar voor JavaScript */
+    private static function setCookie(string $name, ?string $key): void
+    {
         $path = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
-        setcookie(self::COOKIE, $key ?? '', ['expires' => $key !== null ? time() + 365 * 86400 : time() - 3600, 'path' => $path,
+        setcookie($name, $key ?? '', ['expires' => $key !== null ? time() + 365 * 86400 : time() - 3600, 'path' => $path,
             'httponly' => true, 'secure' => Https::isHttps(), 'samesite' => 'Lax']);
     }
 
@@ -263,6 +291,97 @@ final class Stealth
             $r['current'] = $cur !== null && (int) $cur['id'] === (int) $r['id'];
         }
         return $rows;
+    }
+
+    // ------------------------------------------------------------------ wachtende apparaten (1.102.0)
+
+    /** Ziet dit verzoek eruit als een mens die de webinterface opent (en niet als een scanner of bot)? */
+    private static function looksHuman(): bool
+    {
+        $ua = (string) ($_SERVER['HTTP_USER_AGENT'] ?? '');
+        return ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
+            && basename((string) ($_SERVER['SCRIPT_NAME'] ?? '')) === 'index.php'
+            && str_contains((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'text/html')
+            && str_starts_with($ua, 'Mozilla/5.0') && preg_match('#(Safari|Firefox|Chrome|Edg)/#', $ua)
+            && !preg_match('#bot|crawl|spider|slurp|headless|preview|scan|curl|wget|python|go-http|java/|okhttp|facebookexternalhit|zgrab|nmap|censys|shodan#i', $ua);
+    }
+
+    /** Geweigerd door "alleen toegestane apparaten": op de lijst Wachtende apparaten zetten (of bijwerken) */
+    private static function recordRequest(): void
+    {
+        try {
+            if (self::setting('stealth_requests', '1') !== '1' || !self::looksHuman()) {
+                return;
+            }
+            $ip = client_ip();
+            $cc = IpIntel::lookupCountry($ip);
+            $allowed = IpIntel::allowedCountries();
+            if ($cc !== null && $allowed && !in_array($cc, $allowed, true)) {
+                return;   // alleen vanuit je normale landen
+            }
+            $ua = mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
+            $p = (string) ($_COOKIE[self::PENDING_COOKIE] ?? '');
+            if (preg_match('/^[0-9a-f]{64}$/', $p)
+                && q('UPDATE device_requests SET last_seen = ?, last_ip = ?, last_cc = ?, hits = hits + 1, ua = ? WHERE key_hash = ?',
+                    [now(), mb_substr($ip, 0, 45), $cc, $ua, hash('sha256', $p)])->rowCount() > 0) {
+                return;   // al bekend (wachtend of genegeerd): alleen bijwerken
+            }
+            if ((int) q('SELECT COUNT(*) FROM device_requests WHERE created_ip = ? AND created_at >= NOW() - INTERVAL 1 HOUR', [$ip])->fetchColumn() >= self::REQ_PER_HOUR
+                || (int) q("SELECT COUNT(*) FROM device_requests WHERE status = 'pending'")->fetchColumn() >= self::REQ_MAX) {
+                return;
+            }
+            $key = bin2hex(random_bytes(32));
+            $name = device_name();
+            q('INSERT INTO device_requests (key_hash, name, ua, created_at, created_ip, last_seen, last_ip, last_cc) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [hash('sha256', $key), mb_substr($name, 0, 100), $ua, now(), mb_substr($ip, 0, 45), now(), mb_substr($ip, 0, 45), $cc]);
+            self::$pendingKey = $key;
+            Monitor::sysInfo('device_request', null, null, '📱 ' . t('Geweigerd apparaat van buiten: {name}', ['name' => $name]),
+                fn() => t('{name} probeerde RzMon te openen vanaf {ip} en kreeg een 404. Toestaan kan bij Instellingen → Van buiten → Wachtende apparaten.',
+                    ['name' => $name, 'ip' => $ip . ($cc ? " ($cc)" : '')]), $ip);
+        } catch (Throwable $e) {
+            error_log('RzMon: wachtend apparaat vastleggen mislukt: ' . $e->getMessage());
+        }
+    }
+
+    /** Wachtende apparaten (nieuwste eerst) */
+    public static function requests(): array
+    {
+        return q("SELECT id, name, ua, created_at, created_ip, last_seen, last_ip, last_cc, hits FROM device_requests
+                  WHERE status = 'pending' AND last_seen >= NOW() - INTERVAL " . self::REQ_DAYS . ' DAY ORDER BY last_seen DESC')->fetchAll();
+    }
+
+    public static function requestCount(): int
+    {
+        return (int) q("SELECT COUNT(*) FROM device_requests WHERE status = 'pending' AND last_seen >= NOW() - INTERVAL " . self::REQ_DAYS . ' DAY')->fetchColumn();
+    }
+
+    /** Een wachtend apparaat toestaan voor één gebruiker: de wachtende sleutel wordt de apparaatsleutel. @return string|null fout */
+    public static function approveRequest(int $id, int $userId, string $name, string $by): ?string
+    {
+        $r = q("SELECT * FROM device_requests WHERE id = ? AND status = 'pending'", [$id])->fetch();
+        $u = q('SELECT id, username FROM users WHERE id = ?', [$userId])->fetch();
+        if (!$r || !$u) {
+            return t('Niet gevonden');
+        }
+        $name = mb_substr(trim($name), 0, 100) ?: (string) $r['name'];
+        q('INSERT INTO trusted_devices (user_id, name, key_hash, created_at, created_ip, last_seen, last_ip, last_cc) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$u['id'], $name, $r['key_hash'], now(), $r['last_ip'], $r['last_seen'], $r['last_ip'], $r['last_cc']]);
+        q("UPDATE device_requests SET status = 'approved', handled_by = ?, handled_at = ? WHERE id = ?", [mb_substr($by, 0, 64), now(), $id]);
+        AgentCommands::audit($by, 'Wachtend apparaat toegestaan', "{$u['username']}: $name ({$r['last_ip']})");
+        Monitor::sysInfo('device_trust', null, null, '📱 ' . t('Apparaat toegestaan van buiten: {name}', ['name' => $name]),
+            fn() => t('{by} heeft {name} ({ip}) toegestaan voor {user}; bij het volgende bezoek krijgt het het inlogscherm', ['by' => $by, 'name' => $name, 'ip' => $r['last_ip'], 'user' => $u['username']]),
+            (string) $r['last_ip']);
+        return null;
+    }
+
+    /** Negeren: niet meer op de lijst en geen meldingen meer van dit apparaat */
+    public static function ignoreRequest(int $id, string $by): bool
+    {
+        $ok = q("UPDATE device_requests SET status = 'ignored', handled_by = ?, handled_at = ? WHERE id = ? AND status = 'pending'", [mb_substr($by, 0, 64), now(), $id])->rowCount() > 0;
+        if ($ok) {
+            AgentCommands::audit($by, 'Wachtend apparaat genegeerd', (string) $id);
+        }
+        return $ok;
     }
 
     // ------------------------------------------------------------------ noodlink
@@ -328,5 +447,6 @@ final class Stealth
     public static function purge(): void
     {
         q('DELETE FROM stealth_doors WHERE created_at < NOW() - INTERVAL 7 DAY');
+        q("DELETE FROM device_requests WHERE (status = 'pending' AND last_seen < NOW() - INTERVAL " . self::REQ_DAYS . " DAY) OR last_seen < NOW() - INTERVAL 30 DAY");
     }
 }

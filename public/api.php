@@ -1872,6 +1872,9 @@ switch ($action) {
                     : ($hs['open'] ? t('{n} open lekken op {e} adressen ({p} met wachtwoorden)', ['n' => $hs['open'], 'e' => $hs['emails'], 'p' => $hs['with_passwords']])
                         : t('{n} adressen gecontroleerd, geen open lekken', ['n' => $hs['checked']]))), 'hibp');
         }
+        if (Stealth::uiLocked() && ($nreq = Stealth::requestCount()) > 0) {   // 1.102.0
+            $add('device_requests', 'warn', t('Wachtende apparaten'), t('{n} apparaat/apparaten van buiten geweigerd: toestaan, negeren of blokkeren', ['n' => $nreq]), 'outside');
+        }
         $add('vulns', Vulns::enabled() ? 'ok' : 'info', t('Kwetsbaarheden'), Vulns::enabled() ? t('scan staat aan') : t('scan staat uit'), 'vulns');
         $add('ids', Ids::enabled() ? 'ok' : 'info', 'IDS', Ids::enabled() ? t('staat aan') : t('staat uit'), 'ids');
         $tl = array_filter(Tasks::list(), static fn($o) => in_array($o['status'], ['bad', 'warn'], true));
@@ -3446,11 +3449,23 @@ switch ($action) {
             'hide' => Stealth::hide(), 'ui' => Stealth::uiLocked(), 'countries' => setting('stealth_countries', '1') === '1', 'door' => setting('stealth_door', '1') === '1',
             'passkeys' => Passkey::enabled(), 'allowed_countries' => IpIntel::allowedCountries(), 'geo_data' => IpIntel::lookupCountry('8.8.8.8') !== null,
             'devices_all' => Stealth::devices(null), 'passkeys_all' => Passkey::list(null), 'internal' => !Stealth::outside(),
+            'requests_on' => setting('stealth_requests', '1') === '1', 'requests' => Stealth::requests(),
+            'users' => q('SELECT id, username, role FROM users ORDER BY username')->fetchAll(),
         ]);
+
+    // 1.102.0: apparaten die van buiten geweigerd werden (wachtende apparaten)
+    case 'device_request_approve':
+        $in = input();
+        $confirm('TOESTAAN');
+        ($err = Stealth::approveRequest((int) ($in['id'] ?? 0), (int) ($in['user_id'] ?? 0), (string) ($in['name'] ?? ''), $user['username'])) === null
+            ? out(['ok' => true]) : out(['error' => $err], 404);
+
+    case 'device_request_ignore':
+        Stealth::ignoreRequest((int) (input()['id'] ?? 0), $user['username']) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);
 
     case 'stealth_save':
         $in = input();
-        $map = ['hide' => 'stealth_hide', 'ui' => 'stealth_ui', 'countries' => 'stealth_countries', 'door' => 'stealth_door', 'passkeys' => 'passkeys_enabled'];
+        $map = ['hide' => 'stealth_hide', 'ui' => 'stealth_ui', 'countries' => 'stealth_countries', 'door' => 'stealth_door', 'passkeys' => 'passkeys_enabled', 'requests' => 'stealth_requests'];
         // Minder veilig maken (niet herkenbaar of de webinterface op slot uitzetten): eerst bevestigen
         foreach (['hide', 'ui'] as $k) {
             if (array_key_exists($k, $in) && empty($in[$k]) && setting($map[$k], $k === 'hide' ? '1' : '0') === '1') {

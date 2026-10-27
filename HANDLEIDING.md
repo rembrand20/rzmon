@@ -2069,6 +2069,13 @@ Ook onthouden apparaten zonder actieve sessie staan erin (💤 *onthouden, nu ni
   - Het apparaat krijgt een eigen sleutel als cookie (1 jaar). Die geldt **alleen voor jouw account**: met de telefoon van een collega kun je van buiten niet als jezelf inloggen.
   - Wis je de gegevens van je browser, dan is de sleutel weg en doe je het thuis opnieuw.
   - Beheerders zien op de kaart *Onzichtbaar van buiten* alle apparaten en passkeys van iedereen (laatst gezien, IP, land), en kunnen ze hernoemen en intrekken.
+- **⏳ Wachtende apparaten** (vanaf 1.102.0; schakelaar *Geweigerde apparaten bijhouden*, standaard aan): een apparaat van buiten dat nog niet is toegestaan, kun je als beheerder toestaan zonder dat je erbij hoeft te zijn.
+  - Opent een browser uit je **normale landen** RzMon van buiten, dan krijgt hij gewoon de **404**, zoals altijd. Wel krijgt hij een wachtende sleutel mee in een cookie met een neutrale naam, en komt hij op de lijst *Wachtende apparaten* (bij deze kaart), met het soort apparaat, IP-adres, land, hoe vaak en wanneer.
+  - Je krijgt een ℹ️-melding *Geweigerd apparaat van buiten* (standaard alleen op de meldingenpagina; kanalen bij *Instellingen → Meldingen → ℹ️ Systeeminfo*), *Hoe staat het ervoor?* wijst erop en de zijbalk krijgt een oranje bolletje.
+  - Per apparaat: **✅ Toestaan** (je kiest de gebruiker en de naam, ziet de gegevens van het IP-adres zoals eigenaar en DNS-naam, en bevestigt met je wachtwoord), **🙈 Negeren** (niet meer tonen, geen meldingen meer) of **⛔ IP blokkeren**.
+  - Na *Toestaan* krijgt dat apparaat bij zijn volgende bezoek het inlogscherm, alleen voor die gebruiker, met 2FA als die aan staat. Een ander apparaat vanaf hetzelfde IP blijft een 404 krijgen.
+  - Scanners, bots en `curl` komen niet op de lijst. Per IP hooguit 3 nieuwe per uur, hooguit 100 wachtend tegelijk; een wachtend apparaat vervalt na 7 dagen.
+  - Alles komt in het logboek.
 - **🗝️ Passkeys**: bij *Mijn account → Passkey aanmaken* (met je wachtwoord).
   - Daarna log je in met **Inloggen met een passkey**: Face ID, vingerafdruk of pincode, zonder wachtwoord en 2FA-code. Wachtwoord met 2FA blijft de reserve.
   - De geheime sleutel blijft op je telefoon; RzMon bewaart alleen de openbare sleutel. Een passkey werkt alleen op het echte domein: op een nep-site (`rzrnon.jouwdomein.nl`) biedt je telefoon hem niet eens aan.

@@ -6335,7 +6335,9 @@ async function loadStealth() {
     + sw('countries', s.countries, L('Alleen vanuit je <b>normale landen</b> ({list})', { list: esc(s.allowed_countries.join(', ') || '–') }),
       (s.geo_data ? L('In te stellen bij <a href="#settings/ids_attack" data-goto="settings/ids_attack">IDS: aanvallers en verkeer</a>. Zonder landgegevens geldt dit niet.') : `<span class="warn-txt">${L('Er zijn nog geen landgegevens (<a href="#settings/ids_attack" data-goto="settings/ids_attack">IDS: aanvallers en verkeer</a>); tot dan geldt dit niet.')}</span>`))
     + sw('door', s.door, L('<b>Noodlink</b> als je sleutel kwijt is'), L('Via een vast adres (zie Mijn account) gaat een link naar je e-mail (en Pushover voor een beheerder), één keer te gebruiken, 15 minuten. Je krijgt altijd een melding als iemand hem aanvraagt.'))
-    + sw('passkeys', s.passkeys, L('<b>Passkeys</b> (inloggen met Face ID, vingerafdruk of beveiligingssleutel)'), L('In plaats van wachtwoord en 2FA; die blijven de reserve. Alleen via https met een domeinnaam.'));
+    + sw('passkeys', s.passkeys, L('<b>Passkeys</b> (inloggen met Face ID, vingerafdruk of beveiligingssleutel)'), L('In plaats van wachtwoord en 2FA; die blijven de reserve. Alleen via https met een domeinnaam.'))
+    + sw('requests', s.requests_on, L('<b>Geweigerde apparaten</b> bijhouden, om ze hier toe te staan'), L('Een browser uit je normale landen die van buiten een 404 krijgt, komt onder <i>Wachtende apparaten</i>. Hij krijgt dezelfde 404, plus een wachtende sleutel in een cookie; sta je hem toe, dan krijgt hij bij zijn volgende bezoek het inlogscherm. Scanners en bots tellen niet mee.'));
+  renderDeviceRequests(s);
   box.onchange = async (e) => {
     const c = e.target.closest('[data-stealth]');
     if (!c) return;
@@ -6353,6 +6355,49 @@ async function loadStealth() {
   };
   $('#stealth-devices').innerHTML = accessTables(s.devices_all, s.passkeys_all, true);
   $('#stealth-devices').onclick = (e) => accessAction(e, true, loadStealth);
+}
+
+/** Wachtende apparaten (1.102.0): van buiten geweigerd, toe te staan voor één gebruiker */
+function renderDeviceRequests(s) {
+  const box = $('#stealth-requests');
+  if (!box) return;
+  if (!s.ui || !s.requests_on) { box.innerHTML = ''; return; }
+  const rows = s.requests || [];
+  box.innerHTML = `<h3 class="set-sub">⏳ ${L('Wachtende apparaten')}${rows.length ? ` <span class="badge-root">${rows.length}</span>` : ''}</h3>`
+    + (rows.length ? `<p class="muted small" style="margin-top:-.2rem">${L('Van buiten geweigerd (404). Sta een apparaat alleen toe als je weet van wie het is; inloggen (met 2FA) blijft daarna nodig.')}</p>
+      <div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Apparaat')}</th><th>${L('IP-adres')}</th><th>${L('Eerst gezien')}</th><th>${L('Laatst gezien')}</th><th></th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td>${devIcon(r.name)} <b>${esc(r.name)}</b>${+r.hits > 1 ? ` <span class="muted small">${r.hits}×</span>` : ''}</td>
+        <td class="small"><span class="mono">${esc(r.last_ip)}</span>${r.last_cc ? ccTag(r.last_cc) : ''}${r.created_ip !== r.last_ip ? `<br><span class="muted">${L('eerst: {ip}', { ip: esc(r.created_ip) })}</span>` : ''}</td>
+        <td class="small">${esc(fmtDateTime(r.created_at))}</td><td class="small">${esc(ago(r.last_seen))}</td>
+        <td class="nowrap"><button type="button" class="btn small-btn" data-req-ok="${r.id}">✅ ${L('Toestaan')}</button>
+          <button type="button" class="icon-btn" data-req-ign="${r.id}" title="${esc(L('Negeren: niet meer tonen en geen meldingen meer van dit apparaat'))}">🙈</button>
+          <button type="button" class="icon-btn" data-req-block="${esc(r.last_ip)}" title="${esc(L('IP blokkeren'))}">⛔</button></td></tr>`).join('')}</tbody></table></div>`
+      : `<p class="muted small" style="margin-top:-.2rem">${L('Geen wachtende apparaten. Krijgt een browser van buiten een 404, dan zie je hem hier.')}</p>`);
+  box.onclick = async (e) => {
+    const ok = e.target.closest('[data-req-ok]'), ign = e.target.closest('[data-req-ign]'), blk = e.target.closest('[data-req-block]');
+    if (ok) return deviceRequestDialog(rows.find((r) => +r.id === +ok.dataset.reqOk), s.users);
+    if (blk) return blockDialog(blk.dataset.reqBlock);
+    if (ign) {
+      try { await api('device_request_ignore', { id: +ign.dataset.reqIgn }); toast(L('Genegeerd')); loadStealth(); } catch (ex) { toast(ex.message, 'err'); }
+    }
+  };
+}
+
+function deviceRequestDialog(r, users) {
+  if (!r) return;
+  modal({
+    title: '✅ ' + L('Apparaat toestaan'),
+    body: `<p style="margin-top:0">${devIcon(r.name)} <b>${esc(r.name)}</b> · <span class="mono">${esc(r.last_ip)}</span>${r.last_cc ? ccTag(r.last_cc) : ''} · ${L('{n}× geprobeerd, laatst {t}', { n: r.hits, t: esc(ago(r.last_seen)) })}</p>
+      <p class="muted small mono" style="word-break:break-all">${esc(r.ua)}</p>
+      <div id="req-ipinfo"></div>
+      <label>${L('Voor gebruiker')}<select name="user_id" required>${users.map((u) => `<option value="${u.id}">${esc(u.username)}</option>`).join('')}</select></label>
+      <label>${L('Naam van het apparaat')}<input name="name" value="${esc(r.name)}" maxlength="100"></label>
+      <p class="muted small">${L('Bij het volgende bezoek krijgt dit apparaat het inlogscherm, alleen voor deze gebruiker en met 2FA als die aan staat. Intrekken kan altijd hieronder.')}</p>
+      ${confirmField('TOESTAAN')}`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '✅ ' + L('Toestaan'), submit: true }],
+    onSubmit: async (d) => { await api('device_request_approve', { id: +r.id, user_id: +d.user_id, name: d.name, confirm: d.confirm }); toast(L('Apparaat toegestaan')); loadStealth(); },
+  });
+  fillIpInfo($('#req-ipinfo'), r.last_ip);
 }
 
 /** Waar de agents de logs van SWAG, Home Assistant en Vaultwarden vonden (1.89.0) */
@@ -6570,7 +6615,7 @@ const SYSINFO_ROWS = [
   [L('Kwetsbaarheden'), [['vuln_new', '🐞 ' + L('Nieuwe kwetsbaarheden')], ['vuln_upgrade', '📦 ' + L('Pakketten bijgewerkt of mislukt')]]],
   [L('Beveiliging'), [['cert', '🔐 ' + L('Certificaat verloopt binnenkort')], ['breach', '🔓 ' + L('Datalek (zonder wachtwoorden of eerste controle)')],
     ['local_only', '🏠 ' + L('Inlogpoging van buiten op een lokaal account')], ['sec', '⚠️ ' + L('Niet-geautoriseerde verbinding')]]],
-  [L('Onzichtbaar van buiten'), [['device_trust', '📱 ' + L('Apparaat toegestaan of ingetrokken')], ['passkey', '🔑 ' + L('Passkey aangemaakt of verwijderd')],
+  [L('Onzichtbaar van buiten'), [['device_request', '⏳ ' + L('Geweigerd apparaat van buiten (wachtend)')], ['device_trust', '📱 ' + L('Apparaat toegestaan of ingetrokken')], ['passkey', '🔑 ' + L('Passkey aangemaakt of verwijderd')],
     ['stealth_door', '🚪 ' + L('Noodlink aangevraagd of gebruikt')]]],
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
   ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
