@@ -4089,8 +4089,14 @@ switch ($action) {
         $in = input();
         $confirm('ISOLEREN');
         $hid = (int) ($in['host_id'] ?? 0);
-        if (!q("SELECT 1 FROM hosts WHERE id = ? AND mode = 'agent'", [$hid])->fetchColumn()) {
+        if (!($ih = q("SELECT address, agent_ips FROM hosts WHERE id = ? AND mode = 'agent'", [$hid])->fetch())) {
             out(['error' => t('Kies een server met agent')], 422);
+        }
+        // 1.105.2: de RzMon-server zelf isoleren legt alle checks stil (ping, SNMP, poorten naar andere netwerken)
+        foreach (array_merge([(string) $ih['address']], parse_list((string) $ih['agent_ips'])) as $a) {
+            if ($a !== '' && NetScan::isOwnIp(filter_var($a, FILTER_VALIDATE_IP) ? $a : (string) gethostbyname($a))) {
+                out(['error' => t('Dit is de RzMon-server zelf: isoleren zou al je checks stilleggen')], 422);
+            }
         }
         Ids::isolate($hid, (int) ($in['hours'] ?? 24), $user['username'], client_ip());
         out(['ok' => true]);

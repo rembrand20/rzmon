@@ -217,6 +217,12 @@ final class NetScan
         return $out;
     }
 
+    /** Is dit een adres van de RzMon-server zelf? (1.105.2) */
+    public static function isOwnIp(string $ip): bool
+    {
+        return in_array($ip, ['127.0.0.1', '::1'], true) || array_key_exists($ip, self::ownInterfaces());
+    }
+
     /** IPv4-adressen van deze server zelf, met het MAC-adres van die netwerkkaart */
     private static function ownInterfaces(): array
     {

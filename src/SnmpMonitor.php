@@ -1233,7 +1233,16 @@ final class SnmpConn
             throw new SnmpDown(t('Geen antwoord via SNMP van {peer}: controleer of SNMP aan staat op het apparaat, en de versie, community of v3-gebruiker en of RzMon toegang heeft', ['peer' => $this->peer]));
         }
         if ($no === SNMP::ERRNO_GENERIC) {
-            throw new SnmpDown(t('SNMP-fout') . ': ' . $this->s->getError());
+            $err = $this->s->getError();
+            // 1.105.2: "sendto (Operation not permitted)" = de firewall van de RzMon-server zelf houdt het pakket tegen
+            if (stripos($err, 'not permitted') !== false) {
+                $iso = q('SELECT name FROM hosts WHERE isolate_until > NOW()')->fetchAll(PDO::FETCH_COLUMN);
+                throw new SnmpDown(t('De RzMon-server zelf mag niets naar {peer} sturen: een firewallregel op deze server (nftables/firewalld) houdt het tegen, nog vóór het netwerk', ['peer' => $this->peer])
+                    . ($iso ? '. ' . t('Geïsoleerd: {list}; is dat de RzMon-server? Hef de isolatie op of zet dit netwerk bij Lokale netwerken.', ['list' => implode(', ', $iso)])
+                        : '. ' . t('Kijk op de RzMon-server met: sudo nft list ruleset'))
+                    . ' (' . $err . ')');
+            }
+            throw new SnmpDown(t('SNMP-fout') . ': ' . $err);
         }
     }
 }

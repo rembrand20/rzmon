@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.105.2 – 2026-10-27
+### Opgelost
+- **SNMP: "Failure in sendto (Operation not permitted)"** krijgt nu uitleg: een firewallregel op de RzMon-server zelf houdt het pakket tegen, nog vóór het netwerk. Is er een server geïsoleerd, dan staat erbij welke (misschien de RzMon-server zelf), anders hoe je de regels bekijkt (`sudo nft list ruleset`).
+- **De RzMon-server zelf isoleren kan niet meer**: dat legt alle checks stil (ping, SNMP en poorten naar netwerken buiten je *Lokale netwerken*).
+
 ## 1.105.1 – 2026-10-27
 ### Opgelost
 - **UniFi: "gebruikersnaam of wachtwoord klopt niet" bij een zelf gehoste Network-app**, terwijl ze wel klopten. RzMon probeerde eerst het inlogadres van UniFi OS; een zelf gehoste controller antwoordt daar met *LoginRequired*, en RzMon stopte dan al. Nu probeert RzMon beide, en gebruikt bij de zelf gehoste controller ook de juiste CSRF-sleutel (nodig om te weren).

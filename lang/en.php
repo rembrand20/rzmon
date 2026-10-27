@@ -4588,4 +4588,8 @@ return [
     'Check toegevoegd' => 'Check added',
     'UniFi vraagt voor dit account een tweede stap (2FA of e-mailcode); maak een lokaal account zonder 2FA' => 'UniFi asks for a second step (2FA or email code) for this account; create a local account without 2FA',
     'UniFi: inloggen lukt niet; klopt het adres (met poort, bv. :8443)?' => 'UniFi: login failed; is the address correct (with port, e.g. :8443)?',
+    'De RzMon-server zelf mag niets naar {peer} sturen: een firewallregel op deze server (nftables/firewalld) houdt het tegen, nog vóór het netwerk' => 'The RzMon server itself may not send anything to {peer}: a firewall rule on this server (nftables/firewalld) stops it, before it reaches the network',
+    'Geïsoleerd: {list}; is dat de RzMon-server? Hef de isolatie op of zet dit netwerk bij Lokale netwerken.' => 'Isolated: {list}; is that the RzMon server? Lift the isolation or add this network to Local networks.',
+    'Kijk op de RzMon-server met: sudo nft list ruleset' => 'Check on the RzMon server with: sudo nft list ruleset',
+    'Dit is de RzMon-server zelf: isoleren zou al je checks stilleggen' => 'This is the RzMon server itself: isolating it would stop all your checks',
 ];
