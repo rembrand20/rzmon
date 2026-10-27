@@ -110,6 +110,10 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **🔗 Bundelen over servers heen** (vanaf 1.107.0): meerdere servers tegelijk mis = één bericht met de waarschijnlijke oorzaak.
 - **🩹 Zelf herstellen** (vanaf 1.107.0, agent 1.62.0): een service of container herstarten, of een eigen herstelcommando van de server; melden pas als het niet helpt.
 - **🐕 Waakhond** (vanaf 1.107.0, agent 1.62.0): een agent meldt via Pushover als RzMon onbereikbaar is of de checks stilstaan.
+- **⏫ Escaleren** (vanaf 1.108.0, standaard uit): een storing die niemand bevestigt, na een instelbare tijd nog een keer melden, een stap hoger (warning → critical, critical → nood); niet tijdens de stille uren.
+- **💡 Slimme voorstellen** (vanaf 1.108.0): elke nacht voorstellen voor *melden na N*, vaste onderhoudsvensters en afhankelijkheden, uit de geschiedenis; jij klikt op Toepassen of Negeren.
+- **⏱️ Slim interval** (vanaf 1.108.0, standaard uit): bij een probleem elke 20 seconden checken, als alles een uur goed is trager.
+- **📈 Afwijkingen zonder drempels, 💾 disk groeit hard, 🕵️ oorzaak erbij, 📥 heartbeat-ritme** (vanaf 1.108.0): een ℹ️ bij een ongewone waarde of een snel vollopende disk, in de melding wat er vlak ervoor gebeurde, en een warning als een heartbeat later is dan normaal of een vreemde waarde meestuurt.
 
 ## 5. Storingen, onderhoud en afhankelijkheden
 - **✔ Bevestigen:**
@@ -122,6 +126,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - met een duur of een eindtijd, en een reden;
   - checks blijven draaien; wat na afloop nog mis is, wordt alsnog gemeld.
 - **🔗 Afhankelijkheden:** valt een router, switch, VPN of hypervisor uit, dan krijg je één melding in plaats van een melding per server erachter.
+- **🗓️ Vaste onderhoudsvensters** (vanaf 1.108.0): elke dag of op een weekdag een vaste tijd zonder meldingen, voor een server of één check.
 
 ## 6. Home Assistant
 - **MQTT discovery:** al je servers en checks verschijnen in Home Assistant als apparaten en sensoren, met de status en de meetwaarden. Er is ook een sensor **Algehele status** en een sensor **Gezondheid** (%). Stopt RzMon, dan worden de sensoren *niet beschikbaar*.

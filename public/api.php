@@ -1632,7 +1632,7 @@ switch ($action) {
         }
         // 1.107.0: slimme drempels: de normale band (10e–95e percentiel) en de warning op het uur van elk punt
         $band = null;
-        if ($type && ($m = Smart::model($id)) && (int) ($m['days'] ?? 0) >= Smart::MIN_DAYS) {
+        if ($type && ($m = Smart::model($id)) && isset($m['w']) && (int) ($m['days'] ?? 0) >= Smart::MIN_DAYS) {
             $band = array_map(static function ($p) use ($m) {
                 $h = Smart::how($p['t']);
                 return [$m['lo'][$h], $m['hi'][$h], $m['w'][$h], $m['c'][$h]];
@@ -2861,7 +2861,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -2880,6 +2880,11 @@ switch ($action) {
         if (isset($in['notify_channels'])) {
             $in['notify_channels'] = json_encode(array_replace(NotifyRules::defaults()['channels'],
                 NotifyRules::cleanChannels((array) (is_string($in['notify_channels']) ? json_decode($in['notify_channels'], true) : $in['notify_channels']))));
+        }
+        foreach (['esc_warn_min' => [0, 1440], 'esc_crit_min' => [0, 1440], 'esc_crit_prio' => [-1, 2], 'smart_fast' => [10, 300], 'smart_slow' => [1, 10], 'disk_jump_pct' => [1, 50]] as $k => [$lo, $hi]) {
+            if (isset($in[$k])) {
+                $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
+            }
         }
         if (isset($in['thresh_default']) && !in_array($in['thresh_default'], Smart::MODES, true)) {
             $in['thresh_default'] = 'guard';
@@ -3568,6 +3573,31 @@ switch ($action) {
             'links' => ['unifi' => NetLinks::unifiOn(), 'unifi_block' => NetLinks::unifiCanBlock(), 'adguard' => NetLinks::adguardOn()], 'my_ip' => client_ip()]);
 
     // 1.106.0: 📊 Analyse – alles voor één periode (5 minuten bewaard per periode), en het maandrapport
+    case 'advice_list':   // 1.108.0: slimme voorstellen en vaste onderhoudsvensters
+        out(['list' => Advice::list(), 'windows' => Advice::windows(), 'last' => (string) setting('advice_day', '')]);
+
+    case 'advice_decide':
+        $in = input();
+        try {
+            out(['ok' => true, 'message' => Advice::decide((int) ($in['id'] ?? 0), !empty($in['apply']))]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'advice_run':   // nu opnieuw bepalen (anders elke nacht)
+        out(['ok' => true, 'n' => Advice::cron(true)]);
+
+    case 'window_save':
+        try {
+            out(['ok' => true, 'id' => Advice::windowSave(input())]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'window_delete':
+        Advice::windowDelete((int) (input()['id'] ?? 0));
+        out(['ok' => true]);
+
     case 'status_get':   // 1.107.0: statuspagina (instellingen)
         $base = rtrim((string) config('base_url', ''), '/');
         out(['on' => setting('status_on', '0') === '1', 'title' => (string) setting('status_title', ''), 'note' => (string) setting('status_note', ''),

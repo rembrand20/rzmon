@@ -868,6 +868,11 @@ function init() {
   initAccountMenu();
   initSettingsNav();
   initCmdk();
+  if ($('#advice-run')) $('#advice-run').onclick = async (e) => {
+    e.target.disabled = true;
+    try { const r = await api('advice_run', {}); toast(L('{n} nieuwe voorstel(len)', { n: r.n })); loadAdvice(); } catch (ex) { toast(ex.message, 'err'); }
+    e.target.disabled = false;
+  };
   if ($('#logout')) $('#logout').onclick = async () => { await api('logout', {}); location.reload(); };
   $('#add-host').onclick = () => hostForm();
   $('#run-all').onclick = async (e) => {
@@ -2399,6 +2404,50 @@ async function loadSmartProposals() {
       } catch (ex) { toast(ex.message, 'err'); }
     };
   });
+}
+
+// ---------------------------------------------------------------- 💡 Slimme voorstellen en vaste onderhoudsvensters (1.108.0)
+const ADVICE_KIND = { fails: ['🔔', L('Melden na N mislukte checks')], maint: ['🗓️', L('Vast onderhoudsvenster')], dep: ['🔗', L('Afhankelijkheid')] };
+const WIN_DAYS = () => [L('elke dag'), L('maandag'), L('dinsdag'), L('woensdag'), L('donderdag'), L('vrijdag'), L('zaterdag'), L('zondag')];
+async function loadAdvice() {
+  const el = $('#advice-list');
+  if (!el) return;
+  let r;
+  try { r = await api('advice_list'); } catch (ex) { el.innerHTML = `<p class="err-txt small">${esc(ex.message)}</p>`; return; }
+  el.innerHTML = r.list.length ? `<div class="adv-list">${r.list.map((a) => `<div class="adv-item">
+      <span class="adv-ic" title="${esc(ADVICE_KIND[a.kind][1])}">${ADVICE_KIND[a.kind][0]}</span>
+      <div class="adv-txt"><b>${esc(a.label)}</b><span class="small">${esc(a.text)}</span></div>
+      <div class="adv-btns"><button type="button" class="btn small-btn primary" data-adv="${a.id}" data-apply="1">${L('Toepassen')}</button>
+        <button type="button" class="btn small-btn" data-adv="${a.id}" data-apply="0">${L('Negeren')}</button></div></div>`).join('')}</div>`
+    : `<p class="muted small">✔ ${L('Geen open voorstellen.')} ${r.last ? L('Laatst bekeken: {d}.', { d: esc(r.last) }) : L('De eerste keer vannacht (of nu met 🔄).')}</p>`;
+  $$('[data-adv]', el).forEach((b) => {
+    b.onclick = async () => {
+      b.disabled = true;
+      try { const x = await api('advice_decide', { id: +b.dataset.adv, apply: b.dataset.apply === '1' }); toast(x.message); refresh(); loadAdvice(); }
+      catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
+    };
+  });
+  // Vaste onderhoudsvensters: lijst, toevoegen, weghalen
+  const days = WIN_DAYS();
+  const opts = state.hosts.map((h) => `<option value="host:${h.id}">🖥️ ${esc(h.name)} (${L('hele server')})</option>${h.checks.map((c) => `<option value="check:${c.id}">&nbsp;&nbsp;${esc(h.name)} – ${esc(c.name)}</option>`).join('')}`).join('');
+  $('#window-list').innerHTML = `${r.windows.length ? `<div class="table-wrap"><table class="small adv-win"><thead><tr><th>${L('Voor')}</th><th>${L('Wanneer')}</th><th>${L('Reden')}</th><th></th></tr></thead><tbody>
+      ${r.windows.map((w) => `<tr><td>${w.scope === 'host' ? '🖥️ ' : ''}${esc(w.label)}</td><td>${esc(days[w.dow])} ${esc(w.start)} · ${w.minutes} min</td><td>${esc(w.reason)}</td>
+        <td><button type="button" class="btn small-btn" data-win-del="${w.id}" title="${esc(L('Weghalen'))}">✕</button></td></tr>`).join('')}</tbody></table></div>` : `<p class="muted small">${L('Nog geen vaste onderhoudsvensters.')}</p>`}
+    <details class="adv-add"><summary>＋ ${L('Venster toevoegen')}</summary>
+      <div class="row2"><label>${L('Voor')}<select id="win-ref">${opts}</select></label><label>${L('Wanneer')}<select id="win-dow">${days.map((d, i) => `<option value="${i}">${esc(d)}</option>`).join('')}</select></label></div>
+      <div class="row3"><label>${L('Vanaf')}<input id="win-start" type="time" value="02:00"></label><label>${L('Minuten')}<input id="win-min" type="number" min="5" max="1440" value="30"></label>
+        <label>${L('Reden')} <span class="hint">${L('(optioneel)')}</span><input id="win-reason" maxlength="200"></label></div>
+      <button type="button" class="btn primary" id="win-add">${L('Toevoegen')}</button></details>`;
+  $$('[data-win-del]').forEach((b) => {
+    b.onclick = async () => { try { await api('window_delete', { id: +b.dataset.winDel }); toast(L('Weggehaald')); refresh(); loadAdvice(); } catch (ex) { toast(ex.message, 'err'); } };
+  });
+  $('#win-add').onclick = async () => {
+    const [scope, ref] = $('#win-ref').value.split(':');
+    try {
+      await api('window_save', { scope, ref_id: +ref, dow: +$('#win-dow').value, start: $('#win-start').value, minutes: +$('#win-min').value, reason: $('#win-reason').value });
+      toast(L('Vast onderhoudsvenster toegevoegd')); refresh(); loadAdvice();
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
 }
 
 // ---------------------------------------------------------------- 🟢 Statuspagina (1.107.0)
@@ -6474,7 +6523,7 @@ function initMainTabs() {
 // Elk onderdeel toont een of meer kaarten (data-sk); de kaarten zelf (en hoe ze opslaan) zijn niet veranderd.
 const SET_NAV = [
   ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']], ['conn', L('Verbindingen en taken'), ['conn']]]],
-  ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']], ['smart', L('Slimme drempels'), ['smart']], ['cleanup', L('Opschoonadvies'), ['cleanup']]]],
+  ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']], ['smart', L('Slimme drempels'), ['smart']], ['advice', L('Slimme voorstellen'), ['advice', 'smartmore']], ['cleanup', L('Opschoonadvies'), ['cleanup']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'chain']], ['rules', L('Meldregels en stille uren'), ['notify']], ['alarm', L('Alarmgedrag'), ['alarm']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
   ['beveiliging', '🛡️', L('Beveiliging'), [['ids', L('IDS: detectie'), ['ids']], ['ids_attack', L('IDS: aanvallers en verkeer'), ['ids_attack']], ['ids_servers', L('IDS: servers'), ['ids_servers']],
     ['vulns', L('Kwetsbaarheden'), ['vulns']], ['hibp', L('Datalekken'), ['hibp']], ['netscan', L('Netwerkscan'), ['netscan']]]],
@@ -6515,6 +6564,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'allchecks') loadAllChecks();
   if (setSection === 'smart') loadSmartProposals();
   if (setSection === 'statuspage') loadStatusPage();
+  if (setSection === 'advice') loadAdvice();
   if (setSection === 'cleanup') loadCleanup();
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'syscheck') loadSyscheck();

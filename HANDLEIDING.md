@@ -598,6 +598,19 @@ Met **Ook over servers heen bundelen** (*Instellingen → Meldingen → Alarmged
 
 De losse checks blijven gewoon zichtbaar in RzMon, en Home Assistant krijgt nog steeds een bericht per check.
 
+#### Escaleren ⏫ (vanaf 1.108.0)
+Bevestigt niemand een storing, dan kan RzMon hem na een tijd **nog een keer melden, een stap hoger** (*Instellingen → Meldingen → Meldregels en stille uren*, onder het bundelen). Standaard **uit**.
+
+| Instelling | Standaard | Uitleg |
+|---|---|---|
+| Escaleren | uit | Aan/uit voor alles |
+| Warning: na … min | 30 | Een warning die zo lang open en onbevestigd is, gaat nog een keer uit **als critical** (met de prioriteit van je critical-meldingen). 0 = nooit |
+| Critical: na … min | 15 | Een critical die zo lang open en onbevestigd is, gaat nog een keer uit met de prioriteit hieronder. 0 = nooit |
+| Critical wordt | nood | *Hoge prioriteit*, of *nood*: Pushover herhaalt dan tot je bevestigt |
+| Niet escaleren tijdens de stille uren | aan | 's Nachts geen noodmelding; na de stille uren gaat hij alsnog uit als de storing er dan nog is |
+
+Het bericht heet *"⏫ ESCALATIE: CRITICAL – WebServer01 – MariaDB"*, met *"Al 32 min critical en niet bevestigd"*. Eén keer per storing; **bevestigen** (in RzMon, via de link of in de Pushover-app) stopt het. Een check in onderhoud escaleert niet.
+
 ### 6.3 Home Assistant-webhook
 RzMon kan elke melding ook naar Home Assistant sturen. Daar start je er een automatisering mee: een lamp rood kleuren, een TTS-melding, of een notificatie via de HA-app als extra kanaal naast Pushover.
 
@@ -1179,6 +1192,41 @@ sudo chmod 755 /etc/rzmon-agent/heal.d/vpn-herstart
 Na het volgende rapport staat *herstelcommando vpn-herstart* in de keuzelijst.
 
 **Veiligheid**: RzMon kan alleen kiezen uit wat er al op de server staat, en vraagt het alleen via een **versleutelde verbinding** (koppelcode). Iemand die in RzMon binnenkomt, kan dus geen willekeurige commando's op je servers uitvoeren. Per check hooguit **één poging per 10 minuten en 3 per dag**. Staat een check in onderhoud, dan herstelt de agent niet (misschien staat hij expres uit). Met `HEAL=0` in `/etc/default/rzmon-agent` staat zelf herstellen op die server helemaal uit. Let op: de agent draait met `ProtectSystem=full`, dus een herstelcommando kan `/usr` en `/etc` niet wijzigen (een service herstarten kan wel). Op Home Assistant OS werkt zelf herstellen niet.
+
+### 7.15 Slim, deel 2 💡 (vanaf 1.108.0)
+Naast de slimme drempels (§ 7.13) kijkt RzMon nog op meer plekken naar wat normaal is. Alles staat bij *Instellingen → Checks → Slimme voorstellen* en is apart **aan en uit** te zetten.
+
+#### Slimme voorstellen
+Elke nacht (vanaf 4:30) bekijkt RzMon de geschiedenis en doet **voorstellen**. Er verandert niets tot jij op **Toepassen** klikt; **Negeren** = dat voorstel komt nooit meer terug. Met 🔄 bepaal je ze meteen opnieuw. Toegepaste voorstellen staan in het **wijzigingslogboek** (met *💡 voorstel*) en zijn daar terug te draaien. Open voorstellen staan ook in 📊 Analyse onder *Wat nu aanpakken*.
+
+| Voorstel | Wanneer |
+|---|---|
+| 🔔 **Melden na meer mislukte checks** | Een check had de laatste 30 dagen minstens 5 storingen en 70% daarvan was binnen 5 minuten vanzelf weer goed. RzMon rekent uit na hoeveel mislukte checks (2 tot 6) die korte haperingen wegvallen. |
+| 🔔 **Meteen melden** | Een check staat op *melden na 3 of meer*, maar de storingen duren eigenlijk altijd lang (80% langer dan 15 minuten): dan wacht je voor niets. |
+| 🗓️ **Vast onderhoudsvenster** | Iets gaat steeds op hetzelfde moment kort mis (hooguit 90 minuten) en herstelt vanzelf: minstens 3 weken op dezelfde weekdag en tijd, of minstens 5 van de laatste 14 dagen op dezelfde tijd. Bijvoorbeeld de back-up om 2:00 of de herstart op zondag. Gaan er op één server 2 of meer checks tegelijk mis, dan geldt het venster voor de hele server. |
+| 🔗 **Afhankelijkheid** | Volgens UniFi hangt een server aan een switch of access point dat zelf in RzMon staat, of een server valt (bij ping, anders TCP/HTTP) minstens 80% van de keren tegelijk uit met een andere, meestal een router, switch, access point of firewall. |
+
+#### Vaste onderhoudsvensters
+Onder de voorstellen staat de lijst met **vaste onderhoudsvensters**: elke dag of op één weekdag, een begintijd en een duur, voor een **server** of **één check**, met een reden. Je kunt ze daar ook zelf toevoegen (*＋ Venster toevoegen*) en weghalen. Tijdens zo'n venster gaan er geen meldingen uit, net als bij gewoon onderhoud (§ 5); de checks draaien door. Een venster over middernacht (23:30, 60 min) werkt ook.
+
+#### Slim interval ⏱️ (standaard uit)
+- **Bij een probleem sneller checken**: gaat een ping-, TCP-, HTTP- of SNMP-check mis, dan checkt RzMon hem elke **20 seconden** (instelbaar), ook binnen de cronminuut. Zo weet je sneller of een storing echt is, en wanneer hij voorbij is.
+- **Stabiel = trager**: is een check al een uur goed, dan mag zijn interval tot **2×** zo lang worden (instelbaar, nooit trager dan een uur).
+- Checks van de agent volgen het rapport van de agent; daar verandert dit niets aan.
+
+#### Afwijkingen zonder drempels 📈
+Checks met een getal maar **zonder drempels** (SNMP-verkeer en -clients, eigen OID's, het aantal processen, logregels, commando's, en ook een ping/CPU/… op handmatig zonder drempels) krijgen geen melding, want er is niets om aan te toetsen. RzMon leert daar nu wat normaal is per uur van de week (mediaan, 10e en 95e percentiel, na 7 dagen gegevens). Is de waarde **3 metingen achter elkaar** flink anders dan normaal op dat uur, dan krijg je een ℹ️ *"📈 Switch – eth0: Ongebruikelijk hoog: 812 Mbit/s · normaal op dit uur 4–60"*. Hooguit eens per 6 uur per check. Staat bij *Systeeminfo → Afwijking*, standaard **alleen op de meldingenpagina**.
+
+#### Disk groeit hard 💾
+Groeit een disk in een uur met **5 procentpunt** of meer (instelbaar), dan krijg je een ℹ️, ook al zit hij nog ver onder de drempel: *"Groeit hard: +11 procentpunt in een uur (nu 61%). Een log of download die uit de hand loopt?"*. Hooguit eens per 6 uur per disk (*Systeeminfo → Disk groeit hard*).
+
+#### Oorzaak erbij 🕵️
+Bij de **eerste** melding van een storing kijkt RzMon wat er in de 20 minuten ervoor op die server gebeurde: een agent- of RzMon-update, een herstart, bijgewerkte pakketten, zelf herstellen, of een wijziging in RzMon zelf (wijzigingslogboek). Dat komt onderaan de melding: *"🕵️ Kort ervoor: 3 min eerder: Agent bijgewerkt van 1.61.1 naar 1.62.0"*.
+
+#### Heartbeats leren hun ritme 📥
+Een heartbeat-check (§ 7.8) onthoudt wanneer hij de laatste 30 keer binnenkwam en welke waarde er meekwam:
+- **Te laat volgens zijn ritme**: komt een dagelijkse back-up altijd rond 2:10 binnen, en is er om 3:00 nog niets, dan krijg je al een warning (*"vandaag nog niet binnen: meestal rond 02:12"*), ook als de ingestelde periode nog niet om is.
+- **Vreemde waarde**: stuur je een waarde mee (bv. de grootte van de back-up), en is die minder dan de helft of meer dan 3× zo groot als normaal, dan een warning: *"veel minder dan normaal (1,2 GB, meestal 14 GB)"*.
 
 ## 8. Agent op Linux-servers
 

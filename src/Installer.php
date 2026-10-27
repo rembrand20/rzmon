@@ -242,6 +242,9 @@ final class Installer
         ['checks', 'heal_state', 'VARCHAR(40) NULL'],     // herstelcommando: req:/sent:/done:<unix-tijd>
         ['hosts', 'watchdog', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 🐕 deze agent bewaakt RzMon
         ['hosts', 'watchdog_min', 'SMALLINT UNSIGNED NULL'],      // na hoeveel minuten melden (NULL = 5)
+        // 1.108.0: slim, deel 2
+        ['checks', 'escalated', 'TINYINT UNSIGNED NOT NULL DEFAULT 0'],   // escalatie: al een stap hoger gemeld voor deze storing
+        ['checks', 'anom_streak', 'TINYINT UNSIGNED NOT NULL DEFAULT 0'], // afwijking: zoveel metingen achter elkaar
     ];
 
     private static function migrate(PDO $pdo): void

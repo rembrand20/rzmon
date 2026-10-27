@@ -74,7 +74,7 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 .rz-logo svg { display: block; }
 .rz-icon rect { fill: var(--rz-tile, #151B2E); }
 .rz-icon { width: 1.75rem; height: 1.75rem; }
-.rz-word { height: 1.3rem; width: auto; aspect-ratio: 278 / 108; }
+.rz-word { height: 1.3rem; width: auto; aspect-ratio: 348 / 108; }
 .brand.big .rz-icon { width: 2.8rem; height: 2.8rem; }
 .brand.big .rz-word { height: 2.1rem; }
 .brand .version { font-size: .7rem; font-weight: 500; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: .05rem .45rem; text-decoration: none; }
@@ -1694,3 +1694,13 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .sp-c { display: flex; gap: .45rem; align-items: center; font-size: .86rem; font-weight: 400; margin: .1rem 0; }
 .sp-c input { width: auto; margin: 0; }
 @media (max-width: 640px) { .sp-row { grid-template-columns: 1fr auto; } .sp-checks { grid-column: 1 / -1; grid-row: 2; } }
+
+/* 1.108.0: 💡 slimme voorstellen */
+.adv-list { display: grid; gap: .5rem; }
+.adv-item { display: grid; grid-template-columns: 1.8rem 1fr auto; gap: .6rem; align-items: center; background: var(--card-2); border-radius: 10px; padding: .55rem .75rem; }
+.adv-ic { font-size: 1.15rem; text-align: center; }
+.adv-txt { display: flex; flex-direction: column; min-width: 0; }
+.adv-btns { display: flex; gap: .35rem; }
+@media (max-width: 640px) { .adv-item { grid-template-columns: 1.8rem 1fr; } .adv-btns { grid-column: 1 / -1; } }
+.adv-win td, .adv-win th { padding: .3rem .6rem .3rem 0; text-align: left; }
+.adv-add { margin-top: .6rem; } .adv-add summary { cursor: pointer; color: var(--primary); font-size: .9rem; }

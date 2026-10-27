@@ -140,6 +140,14 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, 'Slimme drempels: ' . $e->getMessage() . "\n");
 }
+// Slimme voorstellen (1.108.0): één keer per nacht vanaf 4:30
+try {
+    if ($n = Advice::cron()) {
+        echo date('c') . " $n nieuwe slimme voorstellen\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Slimme voorstellen: ' . $e->getMessage() . "\n");
+}
 // Achtergrondtaken die te lang niet lukken: één melding, en een ✅ als het weer lukt (Instellingen → Systeem → Verbindingen en taken)
 try {
     if ($msg = Tasks::watch()) {
@@ -154,4 +162,12 @@ try {
     SelfCheck::cronDone(microtime(true) - $cronStart);
 } catch (Throwable $e) {
     fwrite(STDERR, 'Systeemcheck: ' . $e->getMessage() . "\n");
+}
+// Slim interval (1.108.0): checks met een probleem tussendoor opnieuw, tot vlak voor de volgende cron-minuut
+if (!$force) {
+    try {
+        Monitor::runFastLoop($cronStart + 50);
+    } catch (Throwable $e) {
+        fwrite(STDERR, 'Slim interval: ' . $e->getMessage() . "\n");
+    }
 }

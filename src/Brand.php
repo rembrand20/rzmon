@@ -21,17 +21,19 @@ final class Brand
     {
         $g = 'rzg' . (++self::$n);
         $i = 'rzi' . self::$n;
-        return '<span class="rz-logo" role="img" aria-label="RzMon">'
+        return '<span class="rz-logo" role="img" aria-label="RzMon AI">'
             . '<svg class="rz-icon" viewBox="0 0 120 120" aria-hidden="true"><defs>' . self::grad($i) . '</defs>'
             . '<rect width="120" height="120" rx="26" fill="#151B2E"/>'
             . '<path transform="translate(14 13) scale(.77)" d="M60 6 L105 22 V56 C105 86 86 104 60 115 C34 104 15 86 15 56 V22 Z" fill="none" stroke="url(#' . $i . ')" stroke-width="8" stroke-linejoin="round"/>'
             . '<path transform="translate(0.14 -2.45) scale(.82)" d="M54 51 H90 L55 94 H92" fill="none" stroke="url(#' . $i . ')" stroke-width="15" stroke-linejoin="round" stroke-linecap="round"/></svg>'
-            . '<svg class="rz-word" viewBox="-1 -1 278 108" aria-hidden="true"><defs>' . self::grad($g) . '</defs>'
+            . '<svg class="rz-word" viewBox="-1 -1 348 108" aria-hidden="true"><defs>' . self::grad($g) . '</defs>'
             . '<g fill="none" stroke="currentColor" stroke-width="12" stroke-linejoin="round" stroke-linecap="round">'
             . '<path d="M6 100 V6 H32 A25 25 0 0 1 32 56 H6 M30 56 L57 95"/>'
             . '<path d="M54 51 H90 L55 94 H92" stroke="url(#' . $g . ')"/>'
             . '<path d="M108 100 V8 L135 66 L162 8 V100"/>'
             . '<circle cx="200" cy="74" r="22" stroke-width="11"/><path d="M238 100 V68 A16 16 0 0 1 270 68 V100 M238 52 V68" stroke-width="11"/>'
+            // 1.108.0: "AI" klein rechtsboven, effen oranje (een verloop tekent niet op een rechte lijn zonder breedte)
+            . '<path d="M290 46 L303 8 L316 46 M294.5 33 H311.5 M334 8 V46" stroke="#FFA51E" stroke-width="8"/>'
             . '</g></svg></span>';
     }
 

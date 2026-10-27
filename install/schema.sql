@@ -876,3 +876,30 @@ CREATE TABLE IF NOT EXISTS check_smart (
 INSERT IGNORE INTO settings (name, value) VALUES ('thresh_default', 'guard');
 INSERT IGNORE INTO settings (name, value) VALUES ('smart_sens', 'normal');
 INSERT IGNORE INTO settings (name, value) VALUES ('notify_bundle_hosts', '1');
+
+-- 1.108.0: slimme voorstellen (melden na N, vaste onderhoudsvensters, afhankelijkheden); jij past ze toe of negeert ze
+CREATE TABLE IF NOT EXISTS advice (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    kind       VARCHAR(16)  NOT NULL,
+    ref_id     INT UNSIGNED NOT NULL,
+    fp         VARCHAR(64)  NOT NULL,
+    data       TEXT         NOT NULL,
+    state      VARCHAR(10)  NOT NULL DEFAULT 'open',
+    created_at DATETIME     NOT NULL,
+    decided_at DATETIME     NULL,
+    UNIQUE KEY uq_advice (kind, ref_id, fp)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 1.108.0: vaste (terugkerende) onderhoudsvensters, voor een server of één check
+CREATE TABLE IF NOT EXISTS maint_windows (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    scope      VARCHAR(5)   NOT NULL,
+    ref_id     INT UNSIGNED NOT NULL,
+    dow        TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    start      CHAR(5)      NOT NULL,
+    minutes    SMALLINT UNSIGNED NOT NULL,
+    reason     VARCHAR(200) NULL,
+    created_at DATETIME     NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('esc_on', '0'), ('esc_warn_min', '30'), ('esc_crit_min', '15'), ('esc_crit_prio', '2'), ('esc_quiet', '1');
+INSERT IGNORE INTO settings (name, value) VALUES ('smart_interval', '0'), ('smart_fast', '20'), ('smart_slow', '2');
+INSERT IGNORE INTO settings (name, value) VALUES ('anomaly_on', '1'), ('disk_jump_on', '1'), ('disk_jump_pct', '5'), ('context_on', '1'), ('hb_learn', '1');

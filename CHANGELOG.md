@@ -7,6 +7,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.108.0 – 2026-10-27
+### Nieuw
+- **Nieuw logo**: RzMon met een klein oranje **AI** erachter, in de bovenbalk, op het inlogscherm en in `brand/`.
+- **💡 Slimme voorstellen** (*Instellingen → Checks → Slimme voorstellen*): elke nacht bekijkt RzMon de geschiedenis en stelt voor wat beter kan. Er verandert niets tot jij op **Toepassen** klikt; een genegeerd voorstel komt niet terug. Alles staat in het wijzigingslogboek, ook in 📊 Analyse.
+  - **Melden na N**: een check die vaak kort hapert en vanzelf herstelt, krijgt een voorstel voor *melden na 2 tot 6 mislukte checks*; een check die lang wacht terwijl storingen altijd lang duren, een voorstel om meteen te melden.
+  - **Vast onderhoudsvenster**: gaat iets steeds op hetzelfde moment kort mis (de back-up om 2:00, de herstart op zondag), dan een voorstel voor een vast venster, voor de server of één check.
+  - **Afhankelijkheden**: volgens UniFi, of omdat een server steeds tegelijk uitvalt met een router of switch.
+- **🗓️ Vaste onderhoudsvensters**: elke dag of op één weekdag een vaste tijd zonder meldingen, voor een server of één check. Zelf toe te voegen op dezelfde pagina.
+- **⏫ Escaleren** (standaard uit, *Meldregels en stille uren*): een storing die niemand bevestigt, na een tijd nog een keer melden, een stap hoger (warning na 30 min als critical, critical na 15 min als noodmelding). Instelbaar, en niet tijdens de stille uren.
+- **⏱️ Slim interval** (standaard uit): bij een probleem checkt RzMon een ping-, TCP-, HTTP- of SNMP-check elke 20 seconden; is alles een uur goed, dan mag het interval tot 2× zo lang. Beide instelbaar.
+- **📈 Afwijkingen zonder drempels**: bij checks met een getal maar zonder drempels (verkeer, clients, processen, logregels, commando's) leert RzMon wat normaal is per uur, en meldt een flinke afwijking als ℹ️ (standaard alleen op de meldingenpagina).
+- **💾 Disk groeit hard**: een ℹ️ als een disk in een uur 5 procentpunt (instelbaar) of meer groeit, ook ver onder de drempel.
+- **🕵️ Oorzaak erbij**: in de eerste melding van een storing staat wat er vlak ervoor op die server gebeurde (update, herstart, wijziging in RzMon).
+- **📥 Heartbeats leren hun ritme**: een warning als een heartbeat later is dan hij normaal binnenkomt, of als de meegestuurde waarde veel kleiner of groter is dan normaal.
+- Alles apart aan en uit te zetten; een update verandert geen bestaande instellingen.
+
 ## 1.107.0 – 2026-10-27
 ### Nieuw
 - **🧠 Slimme drempels**: RzMon leert per check wat normaal is, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en zet daar de drempels op. Per check te kiezen: ✋ *Handmatig*, 🧠 *Slim* of 🧠🛡️ *Slim met vangnet* (vanaf een harde grens altijd critical).

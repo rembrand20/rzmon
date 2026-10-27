@@ -119,5 +119,98 @@ Analytics::cron();
 $rep = Analytics::report('7d');
 ok(isset($rep['kpi'], $rep['todo'], $rep['reliability']), 'rapport over 7 dagen');
 
+section('Slimme voorstellen (1.108.0)');
+// Een check die 6× kort misging (binnen 2 minuten weer goed), elke nacht om 2:05
+q('INSERT INTO checks (host_id, type, target, name, interval_sec, thresh_mode) VALUES (?, ?, ?, ?, 60, ?)', [$hb, 'tcp', '22', 'SSH', 'manual']);
+$ssh = (int) db()->lastInsertId();
+for ($d = 6; $d >= 1; $d--) {
+    $t = strtotime(date('Y-m-d', strtotime("-$d days")) . ' 02:05:00');
+    q('INSERT INTO status_changes (check_id, from_status, to_status, message, created_at) VALUES (?, 0, 2, ?, ?), (?, 2, 0, ?, ?)',
+        [$ssh, 'down', date('Y-m-d H:i:s', $t), $ssh, 'up', date('Y-m-d H:i:s', $t + 100)]);
+}
+// Samen uitvallen: ci-b valt 4× tegelijk uit met ci-gw (een router)
+q("UPDATE hosts SET kind = 'router' WHERE id = ?", [$gw]);
+q('INSERT INTO checks (host_id, type, name) VALUES (?, ?, ?)', [$gw, 'ping', 'Ping']);
+$gwPing = (int) db()->lastInsertId();
+q('INSERT INTO checks (host_id, type, name) VALUES (?, ?, ?)', [$hb, 'ping', 'Ping']);
+$bPing = (int) db()->lastInsertId();
+for ($i = 1; $i <= 4; $i++) {
+    $t = date('Y-m-d H:i:s', strtotime("-$i days 14:00"));
+    q('INSERT INTO status_changes (check_id, from_status, to_status, message, created_at) VALUES (?, 0, 2, ?, ?), (?, 0, 2, ?, ?)', [$gwPing, 'x', $t, $bPing, 'x', $t]);
+}
+$nAdv = Advice::cron(true);
+$adv = Advice::list();
+$kinds = array_count_values(array_column($adv, 'kind'));
+ok(($kinds['fails'] ?? 0) >= 1, 'voorstel: melden na meer mislukte checks');
+ok(($kinds['maint'] ?? 0) >= 1, 'voorstel: vast onderhoudsvenster rond 2:00');
+ok(($kinds['dep'] ?? 0) >= 1 && in_array('ci-gw', array_column($adv, 'parent'), true), 'voorstel: ci-b hangt af van ci-gw');
+foreach ($adv as $a) {
+    Advice::decide($a['id'], true);
+}
+ok((int) q('SELECT notify_fails FROM checks WHERE id = ?', [$ssh])->fetchColumn() >= 2, 'toegepast: melden na N staat hoger');
+ok((int) q('SELECT parent_id FROM hosts WHERE id = ?', [$hb])->fetchColumn() === $gw, 'toegepast: afhankelijkheid ingesteld');
+$w = q('SELECT * FROM maint_windows LIMIT 1')->fetch();
+ok($w && $w['start'] === '01:55', 'toegepast: venster vanaf 01:55, net voor de storingen van 2:05 (' . ($w['start'] ?? '-') . ', ' . ($w['minutes'] ?? '-') . ' min)');
+$in = strtotime(date('Y-m-d') . ' 02:10:00');
+ok(Advice::windowFor($ssh, $hb, $in) !== null && Advice::windowFor($ssh, $hb, $in + 3 * 3600) === null, 'venster geldt om 2:10, niet om 5:10');
+Advice::cron(true);
+ok(Advice::openCount() === 0, 'toegepaste voorstellen komen niet terug');
+
+section('Escaleren, oorzaak, afwijkingen, disk, heartbeat, interval');
+$esc = new ReflectionMethod('Monitor', 'escalation');
+save_setting('esc_on', '0');
+ok($esc->invoke(null, ['id' => $ssh], STATUS_CRIT, 3600) === null, 'escaleren uit: niets');
+save_setting('esc_on', '1');
+save_setting('esc_crit_min', '15');
+save_setting('esc_quiet', '0');
+ok($esc->invoke(null, ['id' => $ssh], STATUS_CRIT, 600) === null && $esc->invoke(null, ['id' => $ssh], STATUS_CRIT, 1000) === 2, 'critical na 15 min → nood (prioriteit 2)');
+q("INSERT INTO alerts (check_id, host_id, status, title, message, kind, created_at) VALUES (NULL, ?, 0, 'ℹ️ INFO: ci-b', 'Agent bijgewerkt van 1.61.1 naar 1.62.0', 'info', NOW() - INTERVAL 3 MINUTE)", [$hb]);
+$why = Context::recent(['hid' => $hb]);
+ok(str_contains($why, 'Agent bijgewerkt') && str_contains($why, '3 min'), 'oorzaak erbij: ' . $why);
+// Afwijking: een SNMP-interfacecheck zonder drempels, normaal ~10, dan 3× 500
+q("INSERT INTO checks (host_id, type, metric, target, name, thresh_mode) VALUES (?, 'snmp', 'if', '1', 'eth0', 'manual')", [$ha]);
+$if = (int) db()->lastInsertId();
+$rows = [];
+for ($t = time() - 10 * 86400; $t < time(); $t += 900) {
+    $rows[] = sprintf('(%d, 0, %.2f, %s)', $if, 10 + mt_rand(0, 30) / 10, db()->quote(date('Y-m-d H:i:s', $t)));
+}
+foreach (array_chunk($rows, 1000) as $ch) {
+    q('INSERT INTO results (check_id, status, value, created_at) VALUES ' . implode(',', $ch));
+}
+$ifRow = q('SELECT c.*, h.name AS host_name, h.id AS hid FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.id = ?', [$if])->fetch();
+ok(Smart::anomEligible($ifRow) && Smart::learnAnom($ifRow) !== null, 'leert wat normaal is bij een check zonder drempels');
+$before = (int) q("SELECT COUNT(*) FROM alerts WHERE title LIKE '% eth0'")->fetchColumn();
+for ($i = 0; $i < 3; $i++) {
+    $ifRow['anom_streak'] = $i;
+    Smart::anomaly($ifRow, ['value' => 500.0, 'status' => 0]);
+}
+ok((int) q("SELECT COUNT(*) FROM alerts WHERE title LIKE '% eth0'")->fetchColumn() === $before + 1, 'afwijking na 3 metingen: één ℹ️');
+// Disk groeit hard
+q("INSERT INTO checks (host_id, type, target, name, warn_threshold, crit_threshold, thresh_mode) VALUES (?, 'disk', '/var', 'Disk /var', 80, 90, 'manual')", [$ha]);
+$disk = (int) db()->lastInsertId();
+q('INSERT INTO results (check_id, status, value, created_at) VALUES (?, 0, 50, NOW() - INTERVAL 60 MINUTE)', [$disk]);
+$dj = new ReflectionMethod('Monitor', 'diskJump');
+$dj->invoke(null, ['id' => $disk, 'hid' => $ha, 'host_name' => 'ci-a', 'name' => 'Disk /var'], ['value' => 61.0]);
+ok((int) q("SELECT COUNT(*) FROM alerts WHERE title LIKE '% Disk /var'")->fetchColumn() === 1, 'disk groeit hard: +11 procentpunt in een uur');
+// Heartbeat: elke dag rond 2:10, vandaag om 3:00 nog niets
+$late = new ReflectionMethod('Heartbeat', 'lateByRhythm');
+$oks = [];
+for ($d = 6; $d >= 1; $d--) {
+    $oks[] = strtotime(date('Y-m-d', strtotime("-$d days")) . ' 02:' . sprintf('%02d', 8 + $d));
+}
+$msg = $late->invoke(null, ['oks' => $oks], strtotime(date('Y-m-d') . ' 03:00:00'));
+ok($msg !== null && str_contains($msg, '02:1'), 'heartbeat te laat volgens zijn ritme: ' . $msg);
+ok($late->invoke(null, ['oks' => $oks], strtotime(date('Y-m-d') . ' 02:15:00')) === null, 'heartbeat om 2:15 nog op tijd');
+$odd = new ReflectionMethod('Heartbeat', 'oddValue');
+ok($odd->invoke(null, ['vals' => [40, 41, 39, 42, 40, 12]], 'GB') !== null, 'back-up veel kleiner dan normaal');
+// Slim interval: de query klopt (geen fout) en een check met een probleem is sneller aan de beurt
+save_setting('smart_interval', '1');
+$sql = new ReflectionMethod('Monitor', 'intervalSql');
+$iv = $sql->invoke(null);
+q("UPDATE checks SET status = 2, fail_count = 1, interval_sec = 300, last_checked = NOW() - INTERVAL 30 SECOND WHERE id = ?", [$bPing]);
+ok((int) q("SELECT COUNT(*) FROM checks c WHERE c.id = ? AND c.last_checked <= NOW() - INTERVAL ($iv - LEAST(15, $iv DIV 4)) SECOND", [$bPing])->fetchColumn() === 1,
+    'slim interval: probleem → na 20 s al weer aan de beurt (interval 5 min)');
+save_setting('smart_interval', '0');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -17,7 +17,8 @@ final class Monitor
     {
         $sql = self::CHECK_SELECT . ' WHERE c.enabled = 1 AND h.enabled = 1';
         if (!$force) {
-            $sql .= ' AND (c.last_checked IS NULL OR c.last_checked <= NOW() - INTERVAL c.interval_sec SECOND + INTERVAL 15 SECOND)';
+            $iv = self::intervalSql();
+            $sql .= " AND (c.last_checked IS NULL OR c.last_checked <= NOW() - INTERVAL ($iv - LEAST(15, $iv DIV 4)) SECOND)";
         }
         $rows = q($sql)->fetchAll();
 
@@ -33,6 +34,57 @@ final class Monitor
         self::releaseQuiet();
         self::flushQueue();
         return count($rows);
+    }
+
+    /** Checks die RzMon zelf uitvoert en die bij een probleem sneller mogen (slim interval) */
+    private const FAST_TYPES = ['ping', 'tcp', 'http', 'snmp'];
+
+    /**
+     * Interval van een check in SQL (1.108.0, slim interval, Instellingen → Checks → Slimme voorstellen): bij een probleem
+     * (of een mislukte meting) sneller (smart_fast, standaard 20 s, alleen checks die RzMon zelf doet), na een uur stabiel OK
+     * trager (hooguit smart_slow × het interval en nooit trager dan een uur, tenzij het interval zelf al langer is).
+     */
+    private static function intervalSql(): string
+    {
+        if (setting('smart_interval', '0') !== '1') {
+            return 'c.interval_sec';
+        }
+        $fast = max(10, min(300, (int) setting('smart_fast', '20')));
+        $slow = max(1, min(10, (int) setting('smart_slow', '2')));
+        $types = "'" . implode("','", self::FAST_TYPES) . "'";
+        return "(CASE WHEN c.type IN ($types) AND (c.status <> 0 OR c.fail_count > 0) THEN LEAST(c.interval_sec, $fast)
+                 WHEN c.status = 0 AND c.fail_count = 0 AND c.flapping_since IS NULL AND c.status_since < NOW() - INTERVAL 1 HOUR
+                 THEN GREATEST(c.interval_sec, LEAST(c.interval_sec * $slow, 3600)) ELSE c.interval_sec END)";
+    }
+
+    /**
+     * Tussen twee cron-minuten (1.108.0, slim interval): checks met een probleem die sneller moeten, opnieuw uitvoeren
+     * tot $deadline (unix-tijd). Zo kan "elke 20 s" ook met een cron die eens per minuut start.
+     */
+    public static function runFastLoop(float $deadline): int
+    {
+        if (setting('smart_interval', '0') !== '1') {
+            return 0;
+        }
+        $n = 0;
+        $types = "'" . implode("','", self::FAST_TYPES) . "'";
+        while (microtime(true) < $deadline - 5) {
+            sleep(5);
+            $iv = self::intervalSql();
+            $rows = q(self::CHECK_SELECT . " WHERE c.enabled = 1 AND h.enabled = 1 AND c.type IN ($types) AND (c.status <> 0 OR c.fail_count > 0)
+                      AND c.last_checked <= NOW() - INTERVAL ($iv - LEAST(15, $iv DIV 4)) SECOND")->fetchAll();
+            foreach ($rows as $row) {
+                if (microtime(true) > $deadline) {
+                    break;
+                }
+                I18n::forNotify(fn() => self::runOne($row));
+                $n++;
+            }
+            if ($rows) {
+                self::flushQueue();
+            }
+        }
+        return $n;
     }
 
     /** Checks die op gegevens van de agent draaien (niet ping/poort/HTTP/certificaat: die doet RzMon zelf). */
@@ -51,8 +103,9 @@ final class Monitor
     private static function runAgentHostInLang(int $hostId): int
     {
         $types = "'" . implode("','", self::AGENT_TYPES) . "'";
+        $iv = self::intervalSql();
         $rows = q(self::CHECK_SELECT . " WHERE c.host_id = ? AND c.enabled = 1 AND h.enabled = 1 AND h.mode = 'agent' AND c.type IN ($types)
-                  AND (c.last_checked IS NULL OR c.last_checked <= NOW() - INTERVAL c.interval_sec SECOND + INTERVAL 15 SECOND)", [$hostId])->fetchAll();
+                  AND (c.last_checked IS NULL OR c.last_checked <= NOW() - INTERVAL ($iv - LEAST(15, $iv DIV 4)) SECOND)", [$hostId])->fetchAll();
         $n = 0;
         foreach ($rows as $row) {
             $claim = q('UPDATE checks SET last_checked = NOW() WHERE id = ? AND (last_checked <=> ?)', [$row['id'], $row['last_checked']]);
@@ -100,7 +153,9 @@ final class Monitor
         q('UPDATE checks SET run_ms = ? WHERE id = ?', [(int) round((microtime(true) - $t0) * 1000), $row['id']]);   // traagste checks (systeemcheck)
         if ($row['type'] === 'disk') {
             $res = Stats::applyDiskForecast($row, $res);
+            self::diskJump($row, $res);
         }
+        Smart::anomaly($row, $res);   // 1.108.0: afwijking bij checks zonder drempels
         $res = Smart::annotate($row, Checks::reverse($row, $res));
         self::process($row, $res);
         return $res;
@@ -163,6 +218,11 @@ final class Monitor
                 return ['scope' => $scope, 'until' => $until, 'reason' => (string) ($check[$prefix . 'reason'] ?? ''),
                     'auto' => $scope === 'check' && !empty($check['maintenance_auto'])];
             }
+        }
+        // 1.108.0: vast onderhoudsvenster (elke dag of op één weekdag)
+        $hid = (int) ($check['hid'] ?? $check['host_id'] ?? 0);
+        if (!empty($check['id']) && $hid && ($w = Advice::windowFor((int) $check['id'], $hid))) {
+            return ['scope' => 'window', 'until' => $w['until'], 'reason' => $w['reason'], 'auto' => false];
         }
         return null;
     }
@@ -414,17 +474,72 @@ final class Monitor
                         $extra = "\n" . t('Meldingen van {n} afhankelijke server(s) worden onderdrukt.', ['n' => $children]);
                     }
                 }
+                // 1.108.0: wat er vlak ervoor gebeurde op deze server (update, herstart, wijziging): een hint naar de oorzaak
+                if (!$isRepeat && ($why = Context::recent($check)) !== '') {
+                    $extra .= "\n🕵️ " . $why;
+                }
                 self::enqueue($check, $status, $isRepeat ? 'reminder' : 'problem', $notified,
                     sprintf('%s %s: %s', $icon, STATUS_LABELS[$status], $title), $message . $extra, $prio, $res['value']);
                 $notified = $status;
                 $notifiedAt = now();
+            } elseif ($enabled && $status === $notified && in_array($status, [STATUS_WARN, STATUS_CRIT], true) && (int) ($check['escalated'] ?? 0) === 0
+                && ($esc = self::escalation($check, $status, $age)) !== null) {
+                // 1.108.0: escaleren: al zo lang open en niet bevestigd → nog een keer, een stap hoger
+                self::enqueue($check, $status, 'escalate', $notified, '⏫ ' . t('ESCALATIE') . ': ' . sprintf('%s – %s', STATUS_LABELS[$status], $title),
+                    t('Al {m} min {s} en niet bevestigd.', ['m' => (int) round($age / 60), 's' => STATUS_LABELS[$status]]) . "\n" . $message, $esc, $res['value']);
+                q('UPDATE checks SET escalated = 1 WHERE id = ?', [$check['id']]);
             }
+        }
+        // Een nieuwe storing (of herstel) mag weer escaleren
+        if ((int) ($check['escalated'] ?? 0) === 1 && ($status === STATUS_OK || $status !== (int) $check['status'])) {
+            q('UPDATE checks SET escalated = 0 WHERE id = ?', [$check['id']]);
         }
 
         q('UPDATE checks SET notified_status = ?, notified_at = ?, flapping_since = ?, flap_notified = ?, flap_ended_at = ? WHERE id = ?', [
             $notified, $notifiedAt, $flapping ? ($check['flapping_since'] ?: now()) : null, $flapping ? implode(',', array_unique($flapSent)) : null,
             $flapEvent === 'stable' ? date('Y-m-d H:i:s', time() - $age) : $check['flap_ended_at'], $check['id'],
         ]);
+    }
+
+    /**
+     * Escalatie (1.108.0, Instellingen → Meldingen → Meldregels en stille uren): na zoveel minuten open en onbevestigd de prioriteit van de herhaling,
+     * of null (uit, nog niet, of stille uren als dat zo ingesteld is). Warning → de prioriteit van critical; critical → de ingestelde.
+     */
+    private static function escalation(array $check, int $status, int $age): ?int
+    {
+        if (setting('esc_on', '0') !== '1') {
+            return null;
+        }
+        $min = (int) setting($status === STATUS_CRIT ? 'esc_crit_min' : 'esc_warn_min', $status === STATUS_CRIT ? '15' : '30');
+        if ($min <= 0 || $age < $min * 60) {
+            return null;
+        }
+        if (setting('esc_quiet', '1') === '1' && NotifyRules::quietUntil(NotifyRules::quietFor($check)) !== null) {
+            return null;   // stille uren: niet escaleren (na afloop komt de samenvatting)
+        }
+        return $status === STATUS_CRIT ? max(-1, min(2, (int) setting('esc_crit_prio', '2'))) : max(0, min(2, (int) setting('pushover_priority_crit', '1')));
+    }
+
+    /**
+     * Plotselinge groei van een disk (1.108.0): zoveel procentpunten erbij in het laatste uur → ℹ️ (hooguit eens per 6 uur).
+     * Naast "vol over X dagen": dit vangt een log of download die uit de hand loopt.
+     */
+    private static function diskJump(array $row, array $res): void
+    {
+        if (setting('disk_jump_on', '1') !== '1' || !is_numeric($res['value'] ?? null)) {
+            return;
+        }
+        $prev = q('SELECT value FROM results WHERE check_id = ? AND created_at <= NOW() - INTERVAL 55 MINUTE AND created_at >= NOW() - INTERVAL 90 MINUTE AND value IS NOT NULL
+                   ORDER BY id DESC LIMIT 1', [$row['id']])->fetchColumn();
+        $jump = $prev === false ? 0.0 : (float) $res['value'] - (float) $prev;
+        $key = 'disk_jump_' . $row['id'];
+        if ($jump < max(1.0, (float) setting('disk_jump_pct', '5')) || strtotime((string) setting($key, '')) > time() - 6 * 3600) {
+            return;
+        }
+        save_setting($key, now());
+        $now = (float) $res['value'];
+        self::sysInfo('disk_jump', (int) $row['hid'], (string) $row['host_name'], '💾 ' . $row['host_name'] . ' – ' . $row['name'],
+            fn() => t('Groeit hard: +{j} procentpunt in een uur (nu {n}%). Een log of download die uit de hand loopt?', ['j' => I18n::dec((string) round($jump, 1)), 'n' => I18n::dec((string) round($now, 1))]));
     }
 
     /** Zoveel mislukte checks achter elkaar voordat er een melding uitgaat: van de check zelf, anders algemeen */
@@ -598,6 +713,7 @@ final class Monitor
                 'reminder' => t('nog steeds {status}', ['status' => STATUS_LABELS[$st]]),
                 'flap' => '🔀 ' . t('flapt, nu {status}', ['status' => STATUS_LABELS[$st]]),
                 'stable' => t('weer stabiel, {status}', ['status' => STATUS_LABELS[$st]]),
+                'escalate' => '⏫ ' . t('nog niet bevestigd, {status}', ['status' => STATUS_LABELS[$st]]),
                 default => STATUS_LABELS[$st],
             };
             $lines[] = $icon[$st] . ' ' . ($multi ? "{$c['host_name']} – " : '') . "{$c['name']} ($what): " . strtok($it['message'], "\n");

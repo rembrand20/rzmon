@@ -481,6 +481,15 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label class="switch" style="align-self:end"><input type="checkbox" name="notify_recovery_acked"><span></span> <?= th('Ook herstel melden na een bevestigde storing') ?></label>
           </div>
           <p class="muted small" style="margin-top:-.3rem"><?= th('Bundelen: gaan op één server binnen deze tijd meerdere checks mis (of herstellen ze), dan komt er één bericht met alles erin. De eerste melding wacht daardoor hooguit zo lang. Home Assistant krijgt wel een bericht per check, voor je automatiseringen.') ?></p>
+          <h3 class="small" style="margin:1rem 0 .3rem">⏫ <?= th('Escaleren') ?></h3>
+          <label class="switch"><input type="checkbox" name="esc_on"><span></span> <?= t('<b>Escaleren</b>: een storing die niemand bevestigt, na een tijd nog een keer melden, een stap hoger') ?></label>
+          <div class="row3">
+            <label><?= th('Warning: na … min') ?> <span class="muted small"><?= th('(0 = nooit)') ?></span><input type="number" name="esc_warn_min" min="0" max="1440"></label>
+            <label><?= th('Critical: na … min') ?> <span class="muted small"><?= th('(0 = nooit)') ?></span><input type="number" name="esc_crit_min" min="0" max="1440"></label>
+            <label><?= th('Critical wordt') ?><select name="esc_crit_prio"><option value="1"><?= th('hoge prioriteit') ?></option><option value="2"><?= th('nood (herhaalt tot je bevestigt)') ?></option></select></label>
+          </div>
+          <label class="switch"><input type="checkbox" name="esc_quiet"><span></span> <?= th('Niet escaleren tijdens de stille uren') ?></label>
+          <p class="muted small" style="margin-top:-.3rem"><?= th('Een warning gaat dan als critical (de prioriteit van je critical-meldingen), een critical krijgt de prioriteit hierboven. Eén keer per storing; bevestigen stopt het.') ?></p>
           <label class="switch"><input type="checkbox" name="notify_bundle_hosts"><span></span> <?= t('🔗 <b>Ook over servers heen bundelen</b>, met de waarschijnlijke oorzaak') ?></label>
           <p class="muted small" style="margin-top:-.3rem"><?= th('Gaan er binnen het bundelvenster meerdere servers mis, dan komt er één bericht, bv. "🔴 CRITICAL: 5 servers tegelijk · waarschijnlijk: ze hangen allemaal aan Switch-zolder (UniFi)". RzMon kijkt naar je afhankelijkheden, naar UniFi (welk access point of welke switch), naar agents die allemaal tegelijk stil zijn en naar je Proxmox-clusters.') ?></p>
         </div>
@@ -748,6 +757,23 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <h3 class="small" style="margin:1rem 0 .3rem"><?= th('Voorstel voor bestaande checks') ?></h3>
           <p class="muted small" style="margin-top:0"><?= th('Bestaande checks blijven handmatig tot je ze omzet. RzMon leert ook voor die checks, en laat hier zien waar slimme drempels minder warnings hadden gegeven.') ?></p>
           <div id="smart-proposals"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
+
+        <div data-sk="smartmore" class="card" id="smartmore-card">
+          <h2>🧠 <?= th('Slim: overige instellingen') ?></h2>
+          <h3 class="small" style="margin:.3rem 0">⏱️ <?= th('Slim interval') ?></h3>
+          <label class="switch"><input type="checkbox" name="smart_interval"><span></span> <?= t('<b>Slim interval</b>: bij een probleem sneller checken, als alles al een uur goed is trager') ?></label>
+          <div class="row2">
+            <label><?= th('Bij een probleem elke … seconden') ?> <span class="muted small"><?= th('(ping, TCP, HTTP, SNMP)') ?></span><input type="number" name="smart_fast" min="10" max="300"></label>
+            <label><?= th('Stabiel: hooguit … × het interval') ?> <span class="muted small"><?= th('(nooit trager dan een uur)') ?></span><input type="number" name="smart_slow" min="1" max="10"></label>
+          </div>
+          <p class="muted small" style="margin-top:-.3rem"><?= th('Sneller checken laat je eerder weten of een storing echt is (en wanneer hij voorbij is); trager checken ontlast je servers als alles goed gaat. Checks van de agent volgen het rapport van de agent.') ?></p>
+          <h3 class="small" style="margin:1rem 0 .3rem">📈 <?= th('Afwijkingen en hints') ?></h3>
+          <label class="switch"><input type="checkbox" name="anomaly_on"><span></span> <?= t('<b>Afwijkingen</b> bij checks zonder drempels (verkeer, clients, processen, logregels): ℹ️ als het flink anders is dan normaal op dat uur') ?></label>
+          <label class="switch"><input type="checkbox" name="disk_jump_on"><span></span> <?= t('<b>Disk groeit hard</b>: ℹ️ als een disk in een uur zoveel procentpunt groeit:') ?> <input type="number" name="disk_jump_pct" min="1" max="50" style="width:4.5rem;display:inline-block"></label>
+          <label class="switch"><input type="checkbox" name="context_on"><span></span> <?= t('<b>Oorzaak erbij</b>: in de melding wat er vlak ervoor gebeurde (update, herstart, wijziging)') ?></label>
+          <label class="switch"><input type="checkbox" name="hb_learn"><span></span> <?= t('<b>Heartbeats leren hun ritme</b>: warning als hij later is dan normaal, of de meegestuurde waarde veel kleiner of groter') ?></label>
+          <p class="muted small"><?= th('Afwijkingen en "disk groeit hard" staan bij Meldingen → Systeeminfo; standaard alleen op de meldingenpagina.') ?></p>
         </div>
 
         <div data-sk="update" class="card" id="update-card">
@@ -1053,6 +1079,15 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <h2>🧹 <?= th('Opschoonadvies') ?> <button type="button" class="btn small-btn" id="cleanup-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
         <p class="muted small"><?= th('Checks die je aandacht verdienen: al dagen onbekend, de meeste meldingen (ruismakers), steeds wisselend, al lang in warning, net onder de drempel, of al lang uit. Met een voorstel; wat normaal is, zet je op "niet meer tonen".') ?></p>
         <div id="cleanup-list"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+
+      <div data-sk="advice" class="card need-admin" id="advice-card">
+        <h2>💡 <?= th('Slimme voorstellen') ?> <button type="button" class="btn small-btn" id="advice-run" title="<?= th('Nu opnieuw bepalen (anders elke nacht)') ?>">🔄</button></h2>
+        <p class="muted small"><?= th('Elke nacht kijkt RzMon naar de geschiedenis en stelt voor: melden na meer (of minder) mislukte checks, een vast onderhoudsvenster voor iets dat steeds op hetzelfde moment gebeurt, en afhankelijkheden (volgens UniFi, of omdat servers steeds samen uitvallen). Niets verandert tot jij op Toepassen klikt; een genegeerd voorstel komt niet terug. Alles staat in het wijzigingslogboek.') ?></p>
+        <div id="advice-list"><p class="muted"><?= th('Laden…') ?></p></div>
+        <h3 class="small" style="margin:1.2rem 0 .3rem">🗓️ <?= th('Vaste onderhoudsvensters') ?></h3>
+        <p class="muted small" style="margin-top:0"><?= th('Elke dag of op één weekdag een tijd zonder meldingen, voor een server of één check (bv. de back-up om 2:00 of de herstart op zondag).') ?></p>
+        <div id="window-list"></div>
       </div>
 
       <div data-sk="statuspage" class="card need-admin" id="statuspage-card">

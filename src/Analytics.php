@@ -562,6 +562,10 @@ final class Analytics
         if (!$lastBk || strtotime((string) $lastBk) < time() - 8 * 86400) {
             $out[] = [1, '🗄️', $lastBk ? t('De laatste back-up van RzMon zelf is van {d}', ['d' => date('d-m-Y', strtotime((string) $lastBk))]) : t('Er is nog geen back-up van RzMon zelf'), 'settings/backup'];
         }
+        // 1.108.0: slimme voorstellen die openstaan (melden na N, vaste onderhoudsvensters, afhankelijkheden)
+        if ($nAdv = Advice::openCount()) {
+            $out[] = [0, '💡', t('{n} slimme voorstel(len) om te bekijken (melden na N, vaste onderhoudsvensters, afhankelijkheden)', ['n' => $nAdv]), 'settings/advice'];
+        }
         // 1.107.0: handmatige checks die met slimme drempels flink minder warnings hadden gegeven
         $gain = array_filter(Smart::proposals(), static fn($p) => $p['gain'] >= 3);
         if ($gain) {

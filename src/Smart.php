@@ -207,23 +207,118 @@ final class Smart
         $t0 = microtime(true);
         $today = date('Y-m-d');
         $rows = q("SELECT c.*, s.model, s.learned_at FROM checks c LEFT JOIN check_smart s ON s.check_id = c.id
-                   WHERE c.enabled = 1 AND c.type IN ('ping','tcp','http','cpu','ram','snmp') AND c.thresh_mode <> 'auto'
+                   WHERE c.enabled = 1 AND c.type IN ('ping','tcp','http','cpu','ram','snmp','process','log','command') AND c.thresh_mode <> 'auto'
                    AND (s.learned_at IS NULL OR s.learned_at < ?) ORDER BY s.learned_at IS NOT NULL, s.learned_at, c.id LIMIT 200", [$today . ' 00:00:00'])->fetchAll();
         foreach ($rows as $r) {
             if (microtime(true) - $t0 > $budgetSec) {
                 break;
             }
-            if (!self::eligible($r)) {
+            $anom = self::anomEligible($r);
+            if (!self::eligible($r) && !$anom) {
                 q('INSERT INTO check_smart (check_id, model, learned_at) VALUES (?, NULL, ?) ON DUPLICATE KEY UPDATE model = NULL, learned_at = VALUES(learned_at)', [$r['id'], now()]);
                 continue;
             }
             try {
-                self::learn($r);
+                $anom ? self::learnAnom($r) : self::learn($r);
             } catch (Throwable $e) {
                 q('INSERT INTO check_smart (check_id, learned_at) VALUES (?, ?) ON DUPLICATE KEY UPDATE learned_at = VALUES(learned_at)', [$r['id'], now()]);
                 SelfCheck::log('warning', 'Smart::learn ' . $r['id'] . ': ' . $e->getMessage(), __FILE__, __LINE__);
             }
         }
+    }
+
+    // ------------------------------------------------------------------ afwijkingen zonder drempel (1.108.0)
+
+    /**
+     * Checks met een getal maar zonder drempels (SNMP-verkeer, clients, eigen OID, aantal processen, logregels, commando's):
+     * daar leert RzMon alleen wat normaal is, en meldt een flinke afwijking als ℹ️ (Systeeminfo → Afwijking).
+     */
+    public static function anomEligible(array $check): bool
+    {
+        if ($check['warn_threshold'] !== null || $check['crit_threshold'] !== null || ($check['reverse_ok'] ?? null) !== null) {
+            return false;
+        }
+        if (self::eligible($check)) {
+            return ($check['thresh_mode'] ?? 'manual') === 'manual';   // slim: daar zijn de drempels het geleerde normaal
+        }
+        if (($check['type'] ?? '') === 'snmp') {
+            return !in_array((string) $check['metric'], ['uptime', 'ups_status', 'printer', 'unifi_ap', 'unifi_ssid'], true);
+        }
+        return in_array($check['type'] ?? '', ['process', 'log', 'command'], true);
+    }
+
+    /** Normaal per uur van de week (zonder drempels): mediaan, 10e en 95e percentiel */
+    public static function learnAnom(array $check): ?array
+    {
+        $id = (int) $check['id'];
+        $byHow = array_fill(0, 168, []);
+        $days = [];
+        $all = [];
+        $st = db()->prepare('SELECT WEEKDAY(created_at) * 24 + HOUR(created_at), value, DATE(created_at) FROM results
+                             WHERE check_id = ? AND created_at >= NOW() - INTERVAL ' . self::WINDOW_DAYS . ' DAY AND value IS NOT NULL');
+        $st->execute([$id]);
+        while ($r = $st->fetch(PDO::FETCH_NUM)) {
+            $byHow[(int) $r[0]][] = (float) $r[1];
+            $days[$r[2]] = true;
+            $all[] = (float) $r[1];
+        }
+        $st->closeCursor();
+        if (!$all) {
+            q('INSERT INTO check_smart (check_id, model, learned_at) VALUES (?, NULL, ?) ON DUPLICATE KEY UPDATE model = NULL, learned_at = VALUES(learned_at)', [$id, now()]);
+            return null;
+        }
+        $g = self::stats($all);
+        $m = ['v' => 1, 'anom' => 1, 'days' => count($days), 'n' => count($all), 'm' => [], 'lo' => [], 'hi' => [], 'at' => now()];
+        for ($h = 0; $h < 168; $h++) {
+            $v = $byHow[$h];
+            if (count($v) < 20) {
+                $v = [...$byHow[($h + 167) % 168], ...$v, ...$byHow[($h + 1) % 168]];
+            }
+            [$med, $p10, $p95] = count($v) >= 20 ? self::stats($v) : $g;
+            $m['m'][] = round($med, 3);
+            $m['lo'][] = round($p10, 3);
+            $m['hi'][] = round($p95, 3);
+        }
+        q('INSERT INTO check_smart (check_id, model, learned_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE model = VALUES(model), learned_at = VALUES(learned_at)',
+            [$id, json_encode($m), now()]);
+        self::$models[$id] = $m;
+        return $m;
+    }
+
+    /**
+     * Na elke meting: flink buiten het normale (3× de spreiding boven het 95e percentiel, of onder een vijfde van de mediaan)
+     * en dat 3 metingen achter elkaar → ℹ️, hooguit eens per 6 uur per check.
+     */
+    public static function anomaly(array $row, array $res): void
+    {
+        if (setting('anomaly_on', '1') !== '1' || empty($row['id']) || !is_numeric($res['value'] ?? null) || !self::anomEligible($row)) {
+            return;
+        }
+        $m = self::model((int) $row['id']);
+        if (!$m || empty($m['anom']) || (int) ($m['days'] ?? 0) < self::MIN_DAYS) {
+            return;
+        }
+        $h = self::how();
+        $v = (float) $res['value'];
+        [$med, $lo, $hi] = [(float) $m['m'][$h], (float) $m['lo'][$h], (float) $m['hi'][$h]];
+        $spread = max($hi - $lo, abs($med) * 0.1, 1e-6);
+        $dir = $v > $hi + 3 * $spread ? 'up' : ($med >= 5 && $v < $med * 0.2 ? 'down' : null);
+        $streak = (int) ($row['anom_streak'] ?? 0);
+        if ($dir === null) {
+            if ($streak) {
+                q('UPDATE checks SET anom_streak = 0 WHERE id = ?', [$row['id']]);
+            }
+            return;
+        }
+        q('UPDATE checks SET anom_streak = LEAST(anom_streak + 1, 250) WHERE id = ?', [$row['id']]);
+        $key = 'anom_' . $row['id'];
+        if ($streak + 1 !== 3 || strtotime((string) setting($key, '')) > time() - 6 * 3600) {
+            return;
+        }
+        save_setting($key, now());
+        Monitor::sysInfo('anomaly', (int) ($row['hid'] ?? $row['host_id']), (string) ($row['host_name'] ?? ''), '📈 ' . ($row['host_name'] ?? '') . ' – ' . $row['name'],
+            fn() => ($dir === 'up' ? t('Ongebruikelijk hoog: {v}', ['v' => self::fmt($v)]) : t('Ongebruikelijk laag: {v}', ['v' => self::fmt($v)]))
+                . ' · ' . t('normaal op dit uur {lo}–{hi}', ['lo' => self::fmt($lo), 'hi' => self::fmt($hi)]));
     }
 
     /** Percentiel van een gesorteerde lijst (lineair tussen twee waarden) */

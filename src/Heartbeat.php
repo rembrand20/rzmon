@@ -236,6 +236,13 @@ final class Heartbeat
                 $s['fail_msg'] = $msg;
             }
             $s['value'] = $value;
+            // 1.108.0: ritme leren: wanneer hij meestal binnenkomt, en de meegestuurde waarde (bv. de grootte van de back-up)
+            if ($kind === 'ok') {
+                $s['oks'] = array_slice([...($s['oks'] ?? []), $at], -30);
+                if ($value !== null) {
+                    $s['vals'] = array_slice([...($s['vals'] ?? []), $value], -30);
+                }
+            }
         }
         self::save($checkId, $s);
     }
@@ -286,6 +293,66 @@ final class Heartbeat
         $day = date('Y-m-d', $t);
         $rel = [date('Y-m-d') => t('vandaag'), date('Y-m-d', strtotime('-1 day')) => t('gisteren'), date('Y-m-d', strtotime('+1 day')) => t('morgen')];
         return ($rel[$day] ?? date('d-m', $t)) . ' ' . date('H:i', $t);
+    }
+
+    /**
+     * Komt hij ongeveer elke dag (tussen 20 en 28 uur ertussen), dan weet RzMon hoe laat meestal. Is het daar ruim voorbij
+     * (minstens 20 minuten, of 3× de normale spreiding) en is er vandaag nog niets binnen: een tekst voor de warning.
+     */
+    private static function lateByRhythm(array $s, int $now): ?string
+    {
+        $oks = $s['oks'] ?? [];
+        if (count($oks) < 5) {
+            return null;
+        }
+        $gaps = [];
+        for ($i = 1; $i < count($oks); $i++) {
+            $gaps[] = $oks[$i] - $oks[$i - 1];
+        }
+        sort($gaps);
+        $gap = $gaps[intdiv(count($gaps), 2)];
+        if ($gap < 20 * 3600 || $gap > 28 * 3600) {
+            return null;
+        }
+        $mins = array_map(static fn($t) => (int) date('G', $t) * 60 + (int) date('i', $t), $oks);
+        if (max($mins) - min($mins) > 360) {
+            return null;   // te verspreid (of rond middernacht): geen vast tijdstip
+        }
+        sort($mins);
+        $med = $mins[intdiv(count($mins), 2)];
+        $dev = array_map(static fn($m) => abs($m - $med), $mins);
+        sort($dev);
+        $tol = max(20, 3 * $dev[intdiv(count($dev), 2)]);
+        $expected = strtotime(date('Y-m-d', $now) . ' 00:00:00') + $med * 60;
+        $lastOk = (int) end($oks);
+        if ($now > $expected + $tol * 60 && $lastOk < $expected - 6 * 3600) {
+            return t('vandaag nog niet binnen: meestal rond {t}', ['t' => sprintf('%02d:%02d', intdiv($med, 60), $med % 60)]);
+        }
+        return null;
+    }
+
+    /** De laatste meegestuurde waarde veel lager (minder dan de helft) of hoger (meer dan 3×) dan normaal */
+    private static function oddValue(array $s, string $unit): ?string
+    {
+        $vals = $s['vals'] ?? [];
+        if (count($vals) < 6) {
+            return null;
+        }
+        $last = (float) end($vals);
+        $prev = array_slice($vals, 0, -1);
+        sort($prev);
+        $med = (float) $prev[intdiv(count($prev), 2)];
+        if ($med <= 0) {
+            return null;
+        }
+        $f = static fn($v) => rtrim(rtrim(number_format((float) $v, 2, '.', ''), '0'), '.') . ($unit !== '' ? " $unit" : '');
+        if ($last < $med * 0.5) {
+            return t('veel minder dan normaal ({v}, meestal {m})', ['v' => $f($last), 'm' => $f($med)]);
+        }
+        if ($last > $med * 3) {
+            return t('veel meer dan normaal ({v}, meestal {m})', ['v' => $f($last), 'm' => $f($med)]);
+        }
+        return null;
     }
 
     /** Status van een heartbeat-check op dit moment */
@@ -358,6 +425,17 @@ final class Heartbeat
         if (isset($s['dur']) && (isset($o['max']) ? $s['dur'] > $o['max'] * 60 : ($prev !== null && $s['dur'] > max(300, 2 * $prev)))) {
             $status = STATUS_WARN;
             $last .= ' · ' . t('veel langer dan normaal ({n})', ['n' => SnmpMonitor::duration((int) (isset($o['max']) ? $o['max'] * 60 : $prev))]);
+        }
+        // 1.108.0: geleerd ritme en geleerde waarde (Instellingen → Checks → Slimme voorstellen: hb_learn)
+        if (setting('hb_learn', '1') === '1' && $status === STATUS_OK) {
+            if (($late = self::lateByRhythm($s, $now)) !== null) {
+                $status = STATUS_WARN;
+                $last .= ' · ' . $late;
+            }
+            if (($odd = self::oddValue($s, (string) ($o['unit'] ?? ''))) !== null) {
+                $status = STATUS_WARN;
+                $last .= ' · ' . $odd;
+            }
         }
         // Meegestuurde waarde met drempels (hoger = slechter)
         if (!empty($o['unit']) && $value !== null) {
