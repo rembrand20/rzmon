@@ -1560,3 +1560,21 @@ code.ip-link { cursor: pointer; text-decoration: underline dotted; }
 .audit-list li { display: flex; gap: .4rem; align-items: baseline; flex-wrap: wrap; }
 .audit-badge { white-space: nowrap; cursor: help; }
 button.audit-badge { background: none; border: 0; padding: 0; font: inherit; text-decoration: underline dotted; cursor: pointer; }
+/* 1.101.0: incidentvenster met advies, hardening-uitleg */
+.inc-open { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.inc-open:hover { text-decoration: underline; color: var(--primary); }
+.inc-detail { background: var(--bg2, rgba(127,127,127,.08)); border-radius: 8px; padding: .5rem .7rem; word-break: break-word; }
+.inc-ask .btn-row { margin: .5rem 0 .3rem; }
+.inc-actions { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: .8rem; }
+.adv-cmd { margin: .35rem 0 .6rem; }
+.adv-cmd .copy-line { margin-top: .15rem; }
+.kv-table { border-collapse: collapse; width: 100%; }
+.kv-table th { text-align: left; font-weight: 600; padding: .25rem .8rem .25rem 0; white-space: nowrap; vertical-align: top; width: 1%; }
+.kv-table td { padding: .25rem 0; word-break: break-word; }
+.hard-list { display: grid; gap: .35rem; }
+.hard-item { border: 1px solid var(--border); border-radius: 8px; padding: .45rem .7rem; }
+.hard-item > summary { cursor: pointer; display: flex; gap: .45rem; align-items: baseline; flex-wrap: wrap; }
+.hard-item .hard-ign { margin-left: auto; }
+.hard-help { padding-top: .4rem; }
+#modal .hard-item .hard-ign { display: inline-flex; flex-direction: row; align-items: center; gap: .3rem; width: auto; margin: 0 0 0 auto; font-weight: 400; }
+#modal .hard-item .hard-ign input { width: auto; margin: 0; }

@@ -1057,7 +1057,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'contacts', 'alerts', 'ids', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'state', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
@@ -3915,6 +3915,22 @@ switch ($action) {
             }
         }
         out(['ok' => true]);
+
+    // Incidentvenster (1.101.0): het incident met advies; de gegevens over het IP-adres apart (ip_info), met time-outs
+    case 'ids_incident_info':
+        $inc = q('SELECT i.*, h.name AS host_name, h.mode AS host_mode FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.id = ?', [(int) ($_GET['id'] ?? 0)])->fetch();
+        if (!$inc) {
+            out(['error' => t('Incident niet gevonden')], 404);
+        }
+        out(['incident' => $inc, 'advice' => IdsAdvice::forIncident($inc), 'my_ip' => client_ip(),
+            'ignored' => (bool) q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'ignore' AND item = ?", [$inc['host_id'], mb_substr($inc['type'] . '|' . $inc['dkey'], 0, 255)])->fetchColumn()]);
+
+    case 'ip_info':
+        $ip = trim((string) ($_GET['ip'] ?? ''));
+        if (@inet_pton($ip) === false) {
+            out(['error' => t('Ongeldig IP-adres')], 422);
+        }
+        out(IdsAdvice::ipInfo($ip, ($_GET['fresh'] ?? '') === '1' && $isAdmin));
 
     case 'ids_block':
         $in = input();

@@ -56,6 +56,65 @@ final class Hardening
         };
     }
 
+    /**
+     * Uitgebreid advies (1.101.0): wat is het, waarom belangrijk, hoe controleer je het, hoe zet je het dicht (commando's per
+     * systeem) en waar je op moet letten.
+     * @return array{what: string, why: string, check: string, fix: string, cmds: list<array{0: string, 1: string}>, caution: string}
+     */
+    public static function help(string $item): array
+    {
+        [$title, $short] = self::text($item);
+        $h = match ($item) {
+            'ssh_pw' => [t('Met SSH kun je inloggen met alleen een wachtwoord.'), t('Wachtwoorden worden op internet de hele dag geraden. Met alleen SSH-sleutels heeft raden geen zin: zonder de sleutel kom je niet binnen.'),
+                'sudo sshd -T | grep -i passwordauthentication',
+                [[t('1. Sleutel maken (op je eigen computer) en naar de server zetten'), 'ssh-keygen -t ed25519 && ssh-copy-id gebruiker@server'],
+                 [t('2. Wachtwoorden uitzetten'), "echo 'PasswordAuthentication no' | sudo tee /etc/ssh/sshd_config.d/10-rzmon.conf && { sudo systemctl reload ssh 2>/dev/null || sudo systemctl reload sshd; }"]],
+                t('Test in een tweede venster of je met je sleutel binnenkomt vóór je het oude venster sluit, anders sluit je jezelf buiten.')],
+            'ssh_root' => [t('root kan direct inloggen via SSH.'), t('root bestaat op elke server, dus aanvallers hoeven alleen het wachtwoord te raden. Wie als root binnenkomt, kan alles.'),
+                'sudo sshd -T | grep -i permitrootlogin',
+                [[t('Root-login uitzetten'), "echo 'PermitRootLogin no' | sudo tee /etc/ssh/sshd_config.d/11-rzmon.conf && { sudo systemctl reload ssh 2>/dev/null || sudo systemctl reload sshd; }"]],
+                t('Zorg eerst dat je een gewone gebruiker hebt die sudo mag (sudo -v werkt).')],
+            'ssh_empty' => [t('SSH staat inloggen met een leeg wachtwoord toe.'), t('Een account zonder wachtwoord is dan van buiten bereikbaar zonder dat iemand iets hoeft te raden.'),
+                'sudo sshd -T | grep -i permitemptypasswords',
+                [[t('Uitzetten'), "echo 'PermitEmptyPasswords no' | sudo tee /etc/ssh/sshd_config.d/12-rzmon.conf && { sudo systemctl reload ssh 2>/dev/null || sudo systemctl reload sshd; }"]], ''],
+            'firewall' => [t('Er draait geen firewall.'), t('Elke dienst die per ongeluk op alle netwerken luistert, is dan meteen bereikbaar. Een firewall laat alleen door wat je openzet.'),
+                'sudo ufw status 2>/dev/null; sudo firewall-cmd --state 2>/dev/null; sudo nft list ruleset | head',
+                [[t('Debian/Ubuntu'), 'sudo ufw allow OpenSSH && sudo ufw enable'], [t('Rocky/RHEL'), 'sudo systemctl enable --now firewalld && sudo firewall-cmd --list-all']],
+                t('Zet SSH (en wat je verder nodig hebt, zoals 80/443) eerst open, anders kom je er niet meer bij. Proxmox heeft een eigen firewall in de webinterface.')],
+            'autoupdate' => [t('Beveiligingsupdates worden niet automatisch geïnstalleerd.'), t('De meeste hacks gebruiken lekken waarvoor al een update is. Automatisch bijwerken sluit die binnen een dag.'),
+                'systemctl list-timers | grep -E "apt|dnf"',
+                [[t('Debian/Ubuntu'), 'sudo apt install -y unattended-upgrades && sudo dpkg-reconfigure -plow unattended-upgrades'],
+                 [t('Rocky/RHEL'), "sudo dnf install -y dnf-automatic && sudo sed -i 's/^apply_updates.*/apply_updates = yes/' /etc/dnf/automatic.conf && sudo systemctl enable --now dnf-automatic.timer"]],
+                t('Op Proxmox liever met de hand bijwerken (of alleen beveiligingsupdates), en altijd na een back-up.')],
+            'open_db' => [t('Een database luistert op alle netwerken.'), t('Databases op internet worden binnen uren gevonden en leeggehaald of versleuteld voor losgeld.'),
+                'sudo ss -tlpn | grep -E ":(3306|5432|6379|27017|9200)\\b"',
+                [[t('MariaDB/MySQL alleen lokaal'), "echo -e '[mysqld]\\nbind-address = 127.0.0.1' | sudo tee /etc/mysql/conf.d/rzmon-bind.cnf && sudo systemctl restart mariadb"],
+                 [t('Redis alleen lokaal'), "sudo sed -i 's/^bind .*/bind 127.0.0.1 ::1/' /etc/redis/redis.conf && sudo systemctl restart redis"]],
+                t('Hebben andere servers de database nodig: zet de poort alleen voor hun IP-adressen open in de firewall.')],
+            'docker_sock' => [t('De Docker-socket is te ruim toegankelijk.'), t('Wie de Docker-socket kan gebruiken, kan een container starten met de hele schijf erin: dat is root.'),
+                'ls -l /var/run/docker.sock; sudo ss -tlpn | grep -E ":(2375|2376)\\b"',
+                [[t('Rechten herstellen'), 'sudo chmod 660 /var/run/docker.sock && sudo chown root:docker /var/run/docker.sock']],
+                t('Docker nooit via tcp (2375) zonder TLS; en alleen vertrouwde gebruikers in de groep docker.')],
+            'empty_pw' => [t('Er is een account zonder wachtwoord.'), t('Zo\'n account kan (lokaal, of via diensten die wachtwoorden gebruiken) zonder iets binnen.'),
+                "sudo awk -F: '(\$2 == \"\") {print \$1}' /etc/shadow",
+                [[t('Account op slot zetten'), 'sudo passwd -l NAAM']], t('Vervang NAAM door de naam uit de controle hierboven.')],
+            'sudo_nopw' => [t('Een gebruiker mag sudo zonder wachtwoord.'), t('Wie die gebruiker overneemt (bv. via een gestolen SSH-sleutel) is meteen root, zonder nog iets te hoeven weten.'),
+                'sudo grep -rn NOPASSWD /etc/sudoers /etc/sudoers.d/',
+                [[t('Bewerken (veilig, met controle)'), 'sudo visudo -f /etc/sudoers.d/BESTAND']],
+                t('Laat NOPASSWD alleen staan voor één vaste opdracht, bv. voor een back-upscript.')],
+            'tmp_noexec' => [t('/tmp mag programma\'s uitvoeren.'), t('Malware wordt vaak in /tmp gezet (daar mag iedereen schrijven) en daar gestart. Met noexec lukt dat niet.'),
+                'findmnt /tmp',
+                [[t('/tmp als tmpfs met noexec'), "echo 'tmpfs /tmp tmpfs defaults,noexec,nosuid,nodev,size=1G 0 0' | sudo tee -a /etc/fstab && sudo mount -o remount /tmp 2>/dev/null || sudo mount /tmp"]],
+                t('Sommige installers draaien vanuit /tmp; zet het dan even terug (mount -o remount,exec /tmp).')],
+            'selinux' => [t('SELinux staat uit.'), t('SELinux beperkt wat een dienst mag, ook als hij gehackt is: een gehackte webserver kan dan niet zomaar overal bij.'),
+                'getenforce; sestatus',
+                [[t('Eerst testen (permissive), daarna afdwingen'), "sudo sed -i 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config && sudo touch /.autorelabel && sudo reboot"]],
+                t('Na de herstart: kijk een paar dagen in de logboeken (ausearch -m avc), en zet het daarna op enforcing.')],
+            default => [$short, '', '', [], ''],
+        };
+        return ['title' => $title, 'what' => $h[0], 'why' => $h[1], 'check' => $h[2], 'fix' => $short, 'cmds' => $h[3], 'caution' => $h[4]];
+    }
+
     /** Rapport van de agent verwerken: opslaan, en bij een verslechtering een incident (het eerste rapport is stil) */
     public static function store(array $host, array $hard, callable $incident): void
     {
@@ -91,7 +150,7 @@ final class Hardening
                 continue;
             }
             [$title, $advice] = self::text($r['item']);
-            $out[] = ['item' => $r['item'], 'title' => $title, 'advice' => $advice, 'value' => $r['value'], 'ok' => $r['ok'] === null ? null : (bool) $r['ok'],
+            $out[] = ['item' => $r['item'], 'title' => $title, 'advice' => $advice, 'help' => self::help($r['item']), 'value' => $r['value'], 'ok' => $r['ok'] === null ? null : (bool) $r['ok'],
                 'ignored' => (bool) $r['ignored'], 'weight' => self::ITEMS[$r['item']][0], 'updated_at' => $r['updated_at']];
         }
         usort($out, static fn($a, $b) => [$a['ok'] === false && !$a['ignored'] ? 0 : 1, -$a['weight']] <=> [$b['ok'] === false && !$b['ignored'] ? 0 : 1, -$b['weight']]);

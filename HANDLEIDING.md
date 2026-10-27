@@ -1692,6 +1692,12 @@ De agent let op tekenen van een inbraak en RzMon vergelijkt dat met wat normaal 
 - **Servers** als compacte regels: laatste IDS-rapport, basismeting, firewall, bewaakte bestanden, realtime en het aantal open incidenten.
 - **⚠️ Incidenten · 🔑 Toegang · ⛔ Blokkades** als tabbladen. Bij *Incidenten*: zoeken, de chips *Open · Alles* en per soort (*Poorten · Bestanden · Processen · Logins*), **⛔ IP blokkeren** en ⋯.
 - **Incidenten als compacte rijen** met de knoppen rechts. **Gelijke incidenten worden gebundeld**: dezelfde soort op dezelfde server op dezelfde dag staat er één keer met **3×**; klik erop om ze te zien, of handel ze met **✔ Afhandelen (3)** in één keer af.
+- **Klik op een incident** (vanaf 1.101.0) voor een venster met alles op één plek:
+  - **Wat is dit?** en **Hoe erg is het?** in gewone taal, met de details van het incident;
+  - **Was jij dit?** bij logins, nieuwe gebruikers en dergelijke: *Ja, dat was ik* handelt het incident af als normaal; *Nee* toont meteen de **noodstappen** (IP blokkeren, gebruiker vergrendelen, server isoleren) met de commando's;
+  - **Wat te doen** en **Voorkomen**: stappen met commando's om te kopiëren (📋), ingevuld met de gebruiker, het bestand of het IP uit het incident;
+  - **Over het IP-adres**: land, **DNS-naam** (alleen als die terug naar hetzelfde IP wijst), **eigenaar** en netwerk (via RDAP, de opvolger van whois), het abuse-adres om misbruik te melden, of het een **hosting/VPN-netwerk** is, of het een **bekende aanvaller** is en of het een van je eigen servers is. Plus de tijdlijn: hoe vaak dit IP al op je servers is gezien. Het opzoeken is kort gehouden (DNS 2 seconden, RDAP maximaal 5) en wordt 7 dagen bewaard; mislukt het, dan wordt het na een uur opnieuw geprobeerd. *↻ Opnieuw opzoeken* (beheerders) haalt het meteen opnieuw op. Alleen het IP-adres gaat naar rdap.org;
+  - **alle knoppen** onderaan: afhandelen, *dit is normaal* of heropenen, ⛔ blokkeren, ✅ whitelist, 🕑 tijdlijn, 🔒 gebruiker vergrendelen, 🧯 isoleren (24 uur), 🛡️ beveiliging van de server en de Agent Manager.
 - **Toegang** in dezelfde stijl als Meldingen: compacte rijen per dag, zoeken, chips per soort, en gelijke regels achter elkaar gebundeld (in L1nes de tabel zoals altijd).
 
 **Aanzetten** gaat op *Instellingen → Beveiliging → IDS: detectie*:
@@ -1773,7 +1779,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
   - de Docker-socket;
   - accounts zonder wachtwoord en sudo zonder wachtwoord;
   - `/tmp` met `noexec`, en SELinux.
-- **Klik op de score** voor de lijst. Bij elk fout punt staat waarom het telt en hoe je het dichtzet. Per server kun je een punt **negeren** (dan telt het niet meer mee).
+- **Klik op de score** voor de lijst. Vanaf 1.101.0 klapt elk punt open (een fout punt staat al open) met **Wat is het?**, **Controleren** (een commando om het zelf na te kijken), **Oplossen** met commando's om te kopiëren, en een **⚠️ Let op** (bv. eerst een SSH-sleutel testen voordat je wachtwoorden uitzet). Per server kun je een punt **negeren** (dan telt het niet meer mee).
 - **Wordt een punt slechter** (bv. iemand zet root-login via SSH weer aan), dan volgt een incident. Een punt dat al fout was geeft geen melding, alleen een lagere score. Het eerste rapport is de basismeting.
 
 **📜 Logs van webdiensten** (vanaf 1.89.0, agent 1.58.0; *Instellingen → Beveiliging → IDS: aanvallers en verkeer*)

@@ -71,6 +71,7 @@ require_once __DIR__ . '/Cleanup.php';
 require_once __DIR__ . '/ChangeLog.php';
 require_once __DIR__ . '/Transfer.php';
 require_once __DIR__ . '/AgentAudit.php';
+require_once __DIR__ . '/IdsAdvice.php';
 SelfCheck::register();   // PHP-fouten bijhouden voor de systeemcheck (1.96.0)
 require_once __DIR__ . '/SnmpMonitor.php';
 require_once __DIR__ . '/I18n.php';

@@ -1036,6 +1036,8 @@ function init() {
     if (e.target.closest('#ids-incidents') && toggleBundle(e)) return;
     const hsb = e.target.closest('[data-hostsec]');
     if (hsb) return hostSecDialog(+hsb.dataset.hostsec);
+    const io = e.target.closest('[data-inc]');
+    if (io) return incidentDialog(+io.dataset.inc);
     const b = e.target.closest('[data-ids], [data-unblock], [data-rebase]');
     if (!b) return;
     try {
@@ -4889,9 +4891,14 @@ async function hostSecDialog(hostId) {
     title: `🛡️ ${esc(h.name)}`,
     wide: true,
     body: `<h3 class="set-sub" style="margin-top:0">${L('Hardening')} ${d.score !== null ? `<span class="hard-chip ${d.score >= 85 ? 'good' : d.score >= 60 ? 'warn' : 'bad'}">${d.score}/100</span>` : ''}</h3>
-      ${d.items.length ? `<div class="table-scroll"><table class="vuln-table hard-table"><tbody>${d.items.map((i) => `<tr class="${i.ignored ? 'muted' : ''}">
-        <td>${ic(i)}</td><td><b>${esc(i.title)}</b>${i.value ? ` <code>${esc(i.value)}</code>` : ''}${i.ok === false && !i.ignored ? `<br><span class="small">${esc(i.advice)}</span>` : ''}</td>
-        <td class="nowrap need-admin"><label class="small"><input type="checkbox" data-hard-ign="${esc(i.item)}" ${i.ignored ? 'checked' : ''}> ${L('negeren')}</label></td></tr>`).join('')}</tbody></table></div>`
+      ${d.items.length ? `<p class="muted small" style="margin-top:-.3rem">${L('Klik op een punt voor uitleg, hoe je het controleert en hoe je het dichtzet.')}</p>
+        <div class="hard-list">${d.items.map((i, n) => { const hp = i.help || {}; return `<details class="hard-item ${i.ignored ? 'muted' : ''}" ${i.ok === false && !i.ignored ? 'open' : ''}>
+        <summary>${ic(i)} <b>${esc(i.title)}</b>${i.value ? ` <code>${esc(i.value)}</code>` : ''}
+          <label class="small need-admin hard-ign" onclick="event.stopPropagation()"><input type="checkbox" data-hard-ign="${esc(i.item)}" ${i.ignored ? 'checked' : ''}> ${L('negeren')}</label></summary>
+        <div class="hard-help">${hp.what ? `<p><b>${L('Wat is het?')}</b> ${esc(i.ok === true ? hp.why : hp.what + ' ' + hp.why)}</p>` : ''}
+          ${hp.check ? `<div class="adv-cmd"><span class="small muted">${L('Controleren')}</span>${copyBox(`hard-chk-${n}`, hp.check)}</div>` : ''}
+          ${i.ok !== true ? `<p><b>${L('Oplossen')}</b> ${esc(hp.fix || i.advice)}</p>${cmdList(hp.cmds || [], `hard-fix-${n}`)}` : `<p class="good small">✔ ${L('In orde; niets te doen.')}</p>`}
+          ${hp.caution && i.ok !== true ? `<p class="callout small">⚠️ ${esc(hp.caution)}</p>` : ''}</div></details>`; }).join('')}</div>`
         : `<p class="muted small">${L('Nog geen gegevens: agent 1.57.0 nodig; hij stuurt ze elk uur.')}</p>`}
       <div class="need-admin">
       <h3 class="set-sub">🧱 ${L('Isoleren')}</h3>
@@ -4909,6 +4916,7 @@ async function hostSecDialog(hostId) {
     buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
   });
   const body = $('#modal-form');
+  wireCopy(body);
   body.onchange = async (e) => {
     const c = e.target.closest('[data-hard-ign]');
     if (!c) return;
@@ -4982,6 +4990,110 @@ document.addEventListener('mouseover', (e) => {
   if (c && !c.dataset.ipc && IP_RE.test(c.textContent.trim())) { c.dataset.ipc = '1'; c.classList.add('ip-link'); c.title = L('Tijdlijn van dit IP-adres'); }
 });
 
+// ---------------------------------------------------------------- Incidentvenster met advies (1.101.0)
+/** Commando's om te kopiëren, met een uitleg erboven */
+function cmdList(list, prefix) {
+  return list.map(([label, cmd], n) => `<div class="adv-cmd"><span class="small muted">${esc(label)}</span>${copyBox(`${prefix}-${n}`, cmd)}</div>`).join('');
+}
+/** Gegevens over een IP-adres (eigenaar, DNS, land, eerder gezien) in het incidentvenster; apart opgehaald met time-outs */
+async function fillIpInfo(box, ip, fresh = false) {
+  box.innerHTML = `<span class="muted small">⏳ ${L('Gegevens van {ip} ophalen (hooguit een paar seconden)…', { ip: esc(ip) })}</span>`;
+  let d;
+  try { d = await api('ip_info', null, fresh ? { ip, fresh: 1 } : { ip }); } catch (ex) { box.innerHTML = `<span class="bad small">${esc(ex.message)}</span>`; return; }
+  const r = d.rdap || {};
+  const rows = [
+    [L('Waar'), d.internal ? '🏠 ' + L('je eigen netwerk') + (d.rzmon_host ? ` · ${L('server {name} in RzMon', { name: `<b>${esc(d.rzmon_host)}</b>` })}` : '') : (ccTag(d.cc || r.country) || '–')],
+    [L('DNS-naam'), d.rdns && d.rdns.name ? `<code>${esc(d.rdns.name)}</code> ${d.rdns.confirmed ? `<span class="good small">✔ ${L('wijst terug naar dit IP')}</span>`
+      : `<span class="warn-txt small">${L('wijst niet terug naar dit IP (niet te vertrouwen)')}</span>`}` : `<span class="muted">${d.rdns ? L('geen') : L('niet op te zoeken')}</span>`],
+    ...(d.internal ? [] : [
+      [L('Eigenaar'), r.error ? `<span class="muted">${esc(r.error)}</span>` : esc(r.org || '–') + (d.hosting ? ` <span class="warn-txt small">· ${L('hosting/cloud: vandaar komen vooral scanners en gehackte servers')}</span>` : '')],
+      [L('Netwerk'), r.error ? '' : esc([r.name, r.cidr || r.range].filter(Boolean).join(' · ') || '–') + (r.registry ? ` <span class="muted small">(${esc(r.registry)})</span>` : '')],
+      [L('Misbruik melden'), r.abuse ? `<a href="mailto:${esc(r.abuse)}">${esc(r.abuse)}</a>` : '<span class="muted">–</span>'],
+    ]),
+    [L('Bekende aanvaller'), d.bad ? `<b class="bad">☠️ ${esc(d.bad)}</b>` : `<span class="muted">${L('niet op de lijsten')}</span>`],
+    [L('In RzMon'), [d.whitelist ? '✅ ' + L('op de whitelist') : '', d.blocked_rz ? '⛔ ' + L('geblokkeerd in RzMon') : '', d.blocked_ids.length ? '⛔ ' + L('geblokkeerd op {list}', { list: esc(d.blocked_ids.join(', ')) }) : '',
+      d.events ? L('{n} gebeurtenissen sinds {t}', { n: d.events, t: esc(fmtDateTime(d.first)) }) : L('nog niet eerder gezien'), d.hosts.length ? L('servers: {list}', { list: esc(d.hosts.join(', ')) }) : ''].filter(Boolean).join(' · ')],
+  ].filter(([, v]) => v !== '');
+  box.innerHTML = `<table class="kv-table small">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
+    <p class="muted small">${d.cached_at ? L('Opgezocht {t}', { t: esc(fmtDateTime(d.cached_at)) }) + ' · ' : ''}<button type="button" class="linkbtn need-admin" data-ip-fresh>${L('opnieuw opzoeken')}</button></p>`;
+  const fb = $('[data-ip-fresh]', box);
+  if (fb) fb.onclick = () => fillIpInfo(box, ip, true);
+}
+
+async function incidentDialog(id) {
+  let d;
+  try { d = await api('ids_incident_info', null, { id }); } catch (ex) { toast(ex.message, 'err'); return; }
+  const i = d.incident, a = d.advice;
+  const open = i.status === 'open';
+  const agentHost = i.host_mode === 'agent';
+  const sevTxt = +i.severity === 2 ? '🔴 Critical' : '🟠 Warning';
+  modal({
+    title: `${+i.severity === 2 ? '🔴' : '🟠'} ${esc(i.title)}`,
+    wide: true,
+    body: `<p class="small" style="margin-top:0">${sevTxt} · <b>${esc(i.host_name)}</b> · ${esc(fmtDateTime(i.created_at))}${+i.hits > 1 ? ` · ${L('{n}× gezien, laatst {t}', { n: i.hits, t: esc(fmtDateTime(i.last_seen || i.created_at)) })}` : ''}
+        · ${open ? `<b class="warn-txt">${L('open')}</b>` : `✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}`}${d.ignored ? ` · <span class="muted">${L('wordt niet meer gemeld (normaal)')}</span>` : ''}</p>
+      ${i.detail ? `<p class="small inc-detail">${esc(i.detail)}</p>` : ''}
+      <h3 class="set-sub">💡 ${L('Wat is dit?')}</h3><p>${esc(a.what)}</p>
+      ${a.risk ? `<h3 class="set-sub">⚖️ ${L('Hoe erg is het?')}</h3><p>${esc(a.risk)}</p>` : ''}
+      ${a.ask && open ? `<div class="callout inc-ask need-admin"><b>❓ ${L('Was jij dit (of ken je het)?')}</b>
+        <div class="btn-row"><button type="button" class="btn primary" data-inc-act="normal">✅ ${L('Ja, dit was ik / bekend')}</button>
+        <button type="button" class="btn danger" data-inc-no>❌ ${L('Nee, ik ken dit niet')}</button></div>
+        <p class="muted small">${L('"Ja" handelt het af en meldt dit voortaan niet meer (voor deze server). "Nee" toont meteen de noodstappen.')}</p></div>` : ''}
+      <div id="inc-emergency" ${a.ask && open ? 'hidden' : ''}>
+        <h3 class="set-sub">🚨 ${a.ask ? L('Niet van jou: dit moet je nu doen') : L('Als het misgaat: noodstappen')}</h3>
+        <ol>${a.emergency.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>${cmdList(a.ecmds, 'inc-ec')}</div>
+      ${a.steps.length || a.cmds.length ? `<h3 class="set-sub">🛠️ ${L('Wat te doen')}</h3>${a.steps.length ? `<ul>${a.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${cmdList(a.cmds, 'inc-c')}` : ''}
+      ${a.prevent ? `<h3 class="set-sub">🛡️ ${L('Voorkomen')}</h3><p>${esc(a.prevent)}</p>` : ''}
+      ${a.ip ? `<h3 class="set-sub">🌐 ${L('IP-adres')} <code>${esc(a.ip)}</code></h3><div id="inc-ip"></div>` : ''}
+      <div class="btn-row need-admin inc-actions">
+        ${open ? `<button type="button" class="btn" data-inc-act="handle">✔ ${L('Afhandelen')}</button>
+          <button type="button" class="btn" data-inc-act="normal" title="${esc(L('Afhandelen en dit voortaan niet meer melden'))}">🚫 ${L('Dit is normaal')}</button>`
+          : `<button type="button" class="btn" data-inc-act="reopen">↺ ${L('Heropenen')}</button>`}
+        ${a.ip ? `<button type="button" class="btn" data-inc-block>⛔ ${L('Blokkeer IP')}</button>
+          <button type="button" class="btn" data-inc-wl>✅ ${L('Op de whitelist')}</button>
+          <button type="button" class="btn" data-inc-tl>🔎 ${L('Tijdlijn van dit IP')}</button>` : ''}
+        ${a.user && agentHost && a.user !== 'root' ? `<button type="button" class="btn danger" data-inc-lock>🔒 ${L('Vergrendel {user}', { user: esc(a.user) })}</button>` : ''}
+        ${agentHost ? `<button type="button" class="btn danger" data-inc-iso>🧱 ${L('Isoleer server (24 uur)')}</button>
+          <button type="button" class="btn" data-inc-sec>🛡️ ${L('Beveiliging van {name}', { name: esc(i.host_name) })}</button>
+          <button type="button" class="btn" data-inc-am>⚙️ Agent Manager</button>` : ''}
+      </div>`,
+    buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
+  });
+  const body = $('#modal-form');
+  wireCopy(body);
+  if (a.ip) fillIpInfo($('#inc-ip'), a.ip);
+  const reload = () => { $('#modal').close(); loadIds(); };
+  body.onclick = async (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    try {
+      if (b.dataset.incAct) {
+        await api('ids_incident', { id: i.id, action: b.dataset.incAct });
+        toast(b.dataset.incAct === 'normal' ? L('Afgehandeld; dit wordt voortaan niet meer gemeld') : b.dataset.incAct === 'reopen' ? L('Weer open') : L('Afgehandeld'));
+        return reload();
+      }
+      if (b.hasAttribute('data-inc-no')) { $('#inc-emergency').hidden = false; $('#inc-emergency').scrollIntoView({ block: 'nearest' }); return; }
+      if (b.hasAttribute('data-inc-block')) { $('#modal').close(); return idsBlockDialog(a.ip, i.host_id, i.title.slice(0, 200)); }
+      if (b.hasAttribute('data-inc-wl')) { $('#modal').close(); return wlDialog({ type: 'ip', value: a.ip, src: 'ids', wl: false }); }
+      if (b.hasAttribute('data-inc-tl')) { $('#modal').close(); return ipTimeline(a.ip); }
+      if (b.hasAttribute('data-inc-sec')) { $('#modal').close(); return hostSecDialog(+i.host_id); }
+      if (b.hasAttribute('data-inc-am')) { $('#modal').close(); return agentInstructions(findHost(+i.host_id)); }
+      if (b.hasAttribute('data-inc-lock')) {
+        const pw = prompt(L('{user} op {name} vergrendelen? Bevestig met je wachtwoord (op het LAN: typ VERGRENDELEN)', { user: a.user, name: i.host_name }));
+        if (pw === null) return;
+        await api('host_userlock', { host_id: +i.host_id, user: a.user, lock: true, confirm: pw });
+        toast(L('{user} wordt vergrendeld', { user: a.user }));
+      }
+      if (b.hasAttribute('data-inc-iso')) {
+        const pw = prompt(L('Isoleren bevestigen met je wachtwoord (op het LAN: typ ISOLEREN)'));
+        if (pw === null) return;
+        await api('host_isolate', { host_id: +i.host_id, hours: 24, confirm: pw });
+        toast(L('{name} wordt geïsoleerd; de agent past het binnen een minuut toe', { name: i.host_name }));
+      }
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+}
+
 /** Eén incident als compacte rij; group = alle incidenten van een bundel (dan met 3× en een knop voor allemaal) */
 function idsRow(i, group = null) {
   const sev = +i.severity === 2 ? 2 : 1;
@@ -4996,7 +5108,7 @@ function idsRow(i, group = null) {
   const many = group && !done ? group.filter((x) => x.status === 'open').map((x) => x.id).join(',') : '';
   return `<div class="irow s${sev} ${done ? 'ids-done' : ''}">
     <i class="adot s${sev}"></i>
-    <span class="m-tt">${esc(i.title)}${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort – klik om ze te tonen', { n: group.length }))}">${group.length}×</button>` : ''}
+    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort – klik om ze te tonen', { n: group.length }))}">${group.length}×</button>` : ''}
       <small>${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>${ccTag(i.cc)}` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</small></span>
     <span class="m-sv">${esc(i.host_name)}</span>
     <span class="m-t" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))}</span>

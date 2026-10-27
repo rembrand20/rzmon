@@ -945,7 +945,7 @@ final class Ids
     }
 
     /** Je eigen netwerken (Instellingen → Toegang → Lokale netwerken); console-logins (zonder IP) gelden als binnen */
-    private static function internalIp(string $ip): bool
+    public static function internalIp(string $ip): bool
     {
         $nets = parse_list((string) setting('trusted_networks', '')) ?: PRIVATE_NETWORKS;
         return $ip === '' || ip_in_list($ip, $nets);

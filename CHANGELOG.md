@@ -7,6 +7,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.101.0 – 2026-10-27
+### Nieuw
+- **Klik op een IDS-incident** voor een venster met:
+  - **💡 Wat is dit** en **⚖️ Hoe erg is het**, in gewone taal en ingevuld met de gegevens van het incident (gebruiker, IP-adres, pad, poort, proces);
+  - **❓ Was jij dit?**: *Ja, dit was ik / bekend* handelt het af en meldt het voortaan niet meer; *Nee* toont meteen de noodstappen;
+  - **🛠️ Wat te doen**, met commando's om te kopiëren (waarden uit het incident staan altijd tussen aanhalingstekens, zodat kopiëren nooit iets anders uitvoert);
+  - **🛡️ Voorkomen** en **🚨 Noodstappen**;
+  - alle acties: afhandelen, dit is normaal, IP blokkeren, op de whitelist, tijdlijn van het IP, gebruiker vergrendelen, server isoleren, beveiliging van de server en de Agent Manager.
+- **🌐 IP-gegevens in het venster**:
+  - omgekeerde DNS, en of die naam ook terugwijst naar het IP (anders is de naam niet te vertrouwen);
+  - eigenaar en netwerk via RDAP (de opvolger van whois), met het adres om misbruik te melden;
+  - land, en of het een hosting- of cloudbedrijf is (vandaar komen vooral scanners);
+  - of het op een lijst van aanvallers staat;
+  - een eigen server in RzMon, whitelist of blokkades, en hoe vaak het eerder gezien is.
+
+  Opzoeken gebeurt los van het venster (dat opent meteen), met korte time-outs (DNS 2 s, register 5 s) en wordt 7 dagen bewaard. Een mislukte opzoeking wordt na een uur opnieuw geprobeerd.
+- **Hardening-score**: klik op de score (zoals nu), en elk punt klapt open met wat het is, waarom het belangrijk is, hoe je het controleert, hoe je het oplost (commando's per systeem) en waar je op moet letten. Punten die niet goed zijn, staan meteen open.
+
 ## 1.100.0 – 2026-10-27
 **Nieuwe agent 1.60.0** (agent 1.60.0 nodig voor `--status`, het melden van overbodige instellingen en de controle of het script ongewijzigd is).
 

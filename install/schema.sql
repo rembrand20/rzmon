@@ -796,3 +796,11 @@ INSERT IGNORE INTO settings (name, value) VALUES ('changelog_days', '90');
 
 -- Certificaten zoeken (1.98.0): extra mappen voor de agents (spatie-gescheiden)
 INSERT IGNORE INTO settings (name, value) VALUES ('cert_dirs', '');
+
+-- Gegevens over een IP-adres (1.101.0): omgekeerde DNS en de eigenaar (RDAP), 7 dagen bewaard voor het incidentvenster
+CREATE TABLE IF NOT EXISTS ip_info (
+    ip         VARCHAR(45) NOT NULL PRIMARY KEY,
+    data       TEXT NOT NULL,
+    fetched_at DATETIME NOT NULL,
+    KEY idx_ipinfo_at (fetched_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
