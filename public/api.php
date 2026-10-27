@@ -33,7 +33,8 @@ function raw_input(): string
 function input(): array
 {
     static $in = null;
-    return $in ??= (json_decode(raw_input(), true) ?: []);
+    // Een los ongeldig UTF-8-teken (bv. een afgeknipte é) maakt niet het hele verzoek onleesbaar (1.99.1)
+    return $in ??= (json_decode(raw_input(), true, 512, JSON_INVALID_UTF8_SUBSTITUTE) ?: []);
 }
 
 function num($v): ?float
@@ -472,7 +473,7 @@ if ($action === 'agent') {
         // Zo'n losse backslash herstellen, dan blijft die agent werken (en kan hij met de knop bijgewerkt worden).
         $raw = raw_input();
         $fixed = preg_replace_callback('/\\\\(.?)/s', static fn($m) => $m[1] !== '' && str_contains('"\\\\/bfnrtu', $m[1]) ? $m[0] : '\\' . $m[0], $raw);
-        $in = json_decode((string) $fixed, true) ?: [];
+        $in = json_decode((string) $fixed, true, 512, JSON_INVALID_UTF8_SUBSTITUTE) ?: [];
     }
     if (!$in) {
         // Onleesbaar rapport: niets wegschrijven (anders lijken alle gegevens verdwenen) en de reden loggen

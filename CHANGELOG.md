@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.99.1 – 2026-10-27
+**Nieuwe agent 1.59.1.**
+
+### Opgelost
+- **Agent 1.59.0 meldde zich niet meer** (vooral op Proxmox/Debian): stond er in een opdrachtregel van een proces een teken als é op de verkeerde plek, dan was het rapport ongeldige UTF-8 en weigerde RzMon het helemaal. RzMon leest zo'n rapport nu gewoon (alleen dat ene teken wordt vervangen), dus een agent 1.59.0 werkt meteen weer; agent 1.59.1 verstuurt alleen nog geldige UTF-8.
+- **"Agent stil sinds …"** toont de tijd nu als `dd-mm-jjjj uu:mm:ss`.
+
 ## 1.99.0 – 2026-10-27
 ### Nieuw
 - **Contact met de agent**: in de agenttabel (*Instellingen → Agents*, kolom **Contact**), in de *Agent Manager* en op de serverkaart zie je wanneer de agent zich het laatst meldde (tijd en "… geleden") en wanneer het volgende contact komt ("over 37 s"), live aftellend. Komt hij niet op tijd: 🟠 "… te laat"; na de offline-tijd 🔴 "offline sinds …". Met realtime aan: "of eerder bij een gebeurtenis ⚡".

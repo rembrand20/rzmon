@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.59.1 – 2026-10-27
+- **Opgelost: agent meldt zich niet meer** (vooral Proxmox/Debian): de proceslijst knipte opdrachtregels af op 120 bytes; viel die knip midden in een teken als é, dan was het hele rapport ongeldige UTF-8 en weigerde RzMon het, elke keer weer. De agent verstuurt nu alleen geldige UTF-8 (`iconv`).
+
 ## 1.59.0 – 2026-10-27
 - **Certificaatbestanden zoeken** (RzMon 1.98.0): eens per dag (of meteen als je in RzMon op 🔄 Opnieuw zoeken klikt) zoekt de agent naar `.crt`, `.pem`, `.cer` en `.cert` in de bekende mappen (`/etc/ssl`, `/etc/pki`, `/etc/letsencrypt`, `/etc/nginx`, `/opt`, `/srv` …) plus de mappen die je in RzMon of met `CERT_DIRS` opgeeft. De CA-lijsten van het systeem en CA-bundels worden overgeslagen.
 - **Certificaten op de server zelf**: een bestand of `localhost:poort` uit een SSL-check leest de agent zelf uit, ook op poorten die alleen lokaal open staan.

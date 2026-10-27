@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.59.0"
+AGENT_VERSION="1.59.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -2620,8 +2620,14 @@ curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
 # wordt curl met een lang argument stil afgebroken en komt er niets aan.
 payload_file=$(mktemp "${TMPDIR:-/tmp}/rzmon-report.XXXXXX") || { echo "Kan geen tijdelijk bestand maken" >&2; exit 1; }
-trap 'rm -f "$payload_file" "$payload_file.enc"' EXIT
+trap 'rm -f "$payload_file" "$payload_file.enc" "$payload_file.u"' EXIT
 printf '%s' "$payload" >"$payload_file"
+# Alleen geldige UTF-8 versturen (1.59.1): een afgeknipt teken (mawk knipt op bytes) maakte het hele rapport onleesbaar
+if command -v iconv >/dev/null 2>&1; then
+    iconv -f UTF-8 -t UTF-8 -c <"$payload_file" >"$payload_file.u" 2>/dev/null
+    [ -s "$payload_file.u" ] && mv -f "$payload_file.u" "$payload_file"
+    rm -f "$payload_file.u"
+fi
 send_file=$payload_file; seal_n=""
 if [ -n "$enc_key" ]; then
     if seal "$payload_file" "$payload_file.enc"; then send_file="$payload_file.enc"
