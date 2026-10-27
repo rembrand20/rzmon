@@ -5,6 +5,12 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.59.0 – 2026-10-27
+- **Certificaatbestanden zoeken** (RzMon 1.98.0): eens per dag (of meteen als je in RzMon op 🔄 Opnieuw zoeken klikt) zoekt de agent naar `.crt`, `.pem`, `.cer` en `.cert` in de bekende mappen (`/etc/ssl`, `/etc/pki`, `/etc/letsencrypt`, `/etc/nginx`, `/opt`, `/srv` …) plus de mappen die je in RzMon of met `CERT_DIRS` opgeeft. De CA-lijsten van het systeem en CA-bundels worden overgeslagen.
+- **Certificaten op de server zelf**: een bestand of `localhost:poort` uit een SSL-check leest de agent zelf uit, ook op poorten die alleen lokaal open staan.
+- **Hele keten**: bij een bestand met meerdere certificaten of een server die een keten stuurt, meldt de agent ook welk certificaat in de keten het eerst verloopt.
+- **Processen**: voor een proces-check telt de agent hoeveel processen er draaien (op naam of op een patroon in de opdrachtregel, eventueel van één gebruiker), met CPU, geheugen en starttijd. Plus een lijst van wat er draait, om in RzMon uit te kiezen.
+
 ## 1.58.0 – 2026-10-26
 - **Logs van webdiensten** (RzMon 1.89.0): de nieuwe regels van SWAG (nginx access-log), Home Assistant (Core-log, via de Supervisor) en Vaultwarden (add-on, container of logbestand), per IP samengevat. De agent zoekt de logs zelf als RzMon geen pad geeft.
 - **Blokkades ook vóór Docker**: een extra chain `pre` (prerouting) in de tabel `inet rzmon`, zodat geblokkeerde IP's ook containers (SWAG) niet meer bereiken.

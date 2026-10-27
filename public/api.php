@@ -343,6 +343,27 @@ function agent_tests_text(int $hostId): string
             $out[] = implode("\t", [$c['id'], $o['test_type'], str_replace(["\t", "\n"], ' ', $o['test_target']), str_replace(["\t", "\n"], ' ', (string) ($o['test_expect'] ?? ''))]);
         }
     }
+    // Certificaten (1.98.0): wat de agent moet uitlezen (bestanden, en host:poort gezien vanaf de server zelf),
+    // extra mappen om in te zoeken, en "opnieuw zoeken" (een teller die verandert)
+    foreach (q("SELECT target, options FROM checks WHERE host_id = ? AND type = 'ssl' AND enabled = 1", [$hostId]) as $c) {
+        $src = Checks::agentCertSource($c);
+        if ($src !== null) {
+            $out[] = implode("\t", [0, 'cert', $src]);
+        }
+    }
+    $dirs = implode(' ', array_filter(preg_split('/\s+/', (string) setting('cert_dirs', '')) ?: [], static fn($d) => preg_match('#^/[A-Za-z0-9._@+/-]{1,200}$#', $d) && !str_contains($d, '..')));
+    if ($dirs !== '') {
+        $out[] = implode("\t", [0, 'certdirs', $dirs]);
+    }
+    $scan = (int) (q('SELECT certscan_req FROM hosts WHERE id = ?', [$hostId])->fetchColumn() ?: 0);
+    if ($scan) {
+        $out[] = implode("\t", [0, 'certscan', $scan]);
+    }
+    // Proces-checks: id <tab> proc <tab> name|pattern <tab> naam of patroon (base64) <tab> gebruiker
+    foreach (q("SELECT id, target, options FROM checks WHERE host_id = ? AND type = 'process' AND enabled = 1", [$hostId]) as $c) {
+        $o = json_decode((string) $c['options'], true) ?: [];
+        $out[] = implode("\t", [$c['id'], 'proc', ($o['mode'] ?? '') === 'pattern' ? 'pattern' : 'name', base64_encode((string) $c['target']), (string) ($o['user'] ?? '')]);
+    }
     // Logins, sudo en su: voor de pagina Meldingen en/of het IDS (0 <tab> auth <tab> 1)
     if (AuthEvents::enabled() || Ids::enabled()) {
         $out[] = implode("\t", [0, 'auth', 1]);
@@ -506,7 +527,41 @@ if ($action === 'agent') {
             'not_after' => isset($c['not_after']) && is_numeric($c['not_after']) ? (int) $c['not_after'] : null,
             'verify' => isset($c['verify']) ? mb_substr((string) $c['verify'], 0, 120) : null,
             'error' => mb_substr((string) ($c['error'] ?? ''), 0, 200),
+            // De hele keten (agent 1.59.0): hoeveel certificaten, en welk het eerst verloopt
+            'chain_n' => (int) ($c['chain_n'] ?? 0),
+            'chain_min' => isset($c['chain_min']) && is_numeric($c['chain_min']) ? (int) $c['chain_min'] : null,
+            'chain_cn' => mb_substr((string) ($c['chain_cn'] ?? ''), 0, 200),
         ], JSON_UNESCAPED_UNICODE), $now]);
+    }
+    // Gevonden certificaatbestanden (agent 1.59.0), om bij een SSL-check uit te kiezen
+    if (isset($in['cert_found']) && is_array($in['cert_found'])) {
+        $found = [];
+        foreach (array_slice($in['cert_found'], 0, 300) as $c) {
+            $path = (string) ($c['path'] ?? '');
+            if (is_array($c) && preg_match('#^/[^\s]{1,250}$#', $path)) {
+                $found[] = ['path' => $path, 'cn' => mb_substr((string) ($c['cn'] ?? ''), 0, 120), 'issuer' => mb_substr((string) ($c['issuer'] ?? ''), 0, 120),
+                    'not_after' => is_numeric($c['not_after'] ?? null) ? (int) $c['not_after'] : null, 'n' => (int) ($c['n'] ?? 1),
+                    'chain_min' => is_numeric($c['chain_min'] ?? null) ? (int) $c['chain_min'] : null];
+            }
+        }
+        $st->execute([$host['id'], 'certfound', json_encode($found, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
+    }
+    // Processen (agent 1.59.0): per proces-check de meting, en een lijst van wat er draait (om uit te kiezen)
+    foreach (array_slice((array) ($in['procs'] ?? []), 0, 200, true) as $pid => $pv) {
+        if (ctype_digit((string) $pid) && is_array($pv)) {
+            $st->execute([$host['id'], 'proc:' . (int) $pid, json_encode(['n' => (int) ($pv['n'] ?? 0), 'pids' => mb_substr((string) ($pv['pids'] ?? ''), 0, 200),
+                'cpu' => (float) ($pv['cpu'] ?? 0), 'rss' => (int) ($pv['rss'] ?? 0), 'start' => is_numeric($pv['start'] ?? null) ? (int) $pv['start'] : null]), $now]);
+        }
+    }
+    if (isset($in['proc_list']) && is_array($in['proc_list'])) {
+        $pl = [];
+        foreach (array_slice($in['proc_list'], 0, 300) as $e) {
+            if (is_array($e) && preg_match('/^[^\x00-\x1f]{1,64}$/u', (string) ($e[0] ?? ''))) {
+                $pl[] = [(string) $e[0], (int) ($e[1] ?? 1), mb_substr((string) ($e[2] ?? ''), 0, 32), mb_substr((string) ($e[3] ?? ''), 0, 120)];
+            }
+        }
+        usort($pl, static fn($a, $b) => strcasecmp($a[0], $b[0]));
+        $st->execute([$host['id'], 'proclist', json_encode($pl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
     }
     // Podman: overzicht, en per container en pod een eigen regel (sleutel: naam, of gebruiker/naam bij rootless)
     if (isset($in['podman']) && is_array($in['podman'])) {
@@ -991,7 +1046,7 @@ $confirm = static function (string $word) use ($user): void {
  */
 $checkCols = static function (array $in, bool $dry = false) use ($user): array {   // $dry: alleen proberen (geen logboek)
             $type = $in['type'] ?? '';
-            if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat'], true)) {
+            if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat', 'process'], true)) {
                 out(['error' => t('Ongeldig type')], 422);
             }
             // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -1197,7 +1252,49 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 $options = json_encode($hb, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 $hbNew = !empty($in['hb_new_token']);
             }
-            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
+            // Proces (1.98.0): op naam of op een patroon in de opdrachtregel, eventueel van één gebruiker; aantal en CPU/RAM
+            if ($type === 'process') {
+                $pmode = ($in['proc_mode'] ?? '') === 'pattern' ? 'pattern' : 'name';
+                if ($pmode === 'name' && !preg_match('/^[A-Za-z0-9@._:+-]{1,100}$/', $target)) {
+                    out(['error' => t('Geef de naam van het proces, bv. nginx of python3 (of kies "patroon" voor een deel van de opdrachtregel)')], 422);
+                }
+                if ($pmode === 'pattern' && ($target === '' || mb_strlen($target) > 200 || preg_match('/[\t\n\r]/', $target) || @preg_match('~' . str_replace('~', '\\~', $target) . '~', '') === false)) {
+                    out(['error' => t('Het patroon klopt niet (regex), bv. python3 .*main\.py')], 422);
+                }
+                $puser = trim((string) ($in['proc_user'] ?? ''));
+                if ($puser !== '' && !preg_match('/^[a-z_][a-z0-9_.-]{0,31}$/i', $puser)) {
+                    out(['error' => t('Ongeldige gebruikersnaam')], 422);
+                }
+                $pmin = trim((string) ($in['proc_min'] ?? '')) === '' ? null : max(1, min(10000, (int) $in['proc_min']));
+                $pmax = trim((string) ($in['proc_max'] ?? '')) === '' ? null : max(1, min(10000, (int) $in['proc_max']));
+                if ($pmin !== null && $pmax !== null && $pmin > $pmax) {
+                    out(['error' => t('Het minimum mag niet hoger zijn dan het maximum')], 422);
+                }
+                $res = [];
+                foreach (['cpu', 'mem'] as $k) {
+                    $r = $in['res'][$k] ?? null;
+                    if (is_array($r) && !empty($r['on'])) {
+                        $w = num($r['warn'] ?? null);
+                        $c = num($r['crit'] ?? null);
+                        if ($w !== null && $c !== null && $w > $c) {
+                            out(['error' => t('Bij {what} moet de warning-drempel lager zijn dan de critical-drempel', ['what' => $k === 'cpu' ? 'CPU' : 'RAM'])], 422);
+                        }
+                        $res[$k] = [$w, $c];
+                    }
+                }
+                $options = json_encode(['mode' => $pmode] + ($puser !== '' ? ['user' => $puser] : []) + ($pmin !== null ? ['min' => $pmin] : []) + ($pmax !== null ? ['max' => $pmax] : [])
+                    + ($res ? ['res' => $res] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                $warn = $crit = null;
+            }
+            // Certificaat (1.98.0): vanaf RzMon of vanaf de server zelf (agent); leeg = automatisch (bestand of localhost → agent)
+            if ($type === 'ssl') {
+                if (preg_match('/\s/', $target)) {
+                    out(['error' => t('Een pad of adres zonder spaties')], 422);
+                }
+                $from = in_array($in['cert_from'] ?? '', ['agent', 'rzmon'], true) ? $in['cert_from'] : '';
+                $options = $from !== '' ? json_encode(['from' => $from]) : null;
+            }
+            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
                 'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'heartbeat' => 'Heartbeat', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
                 'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',
                     'disklife' => 'SD-kaart/eMMC', 'osupdate' => 'HA OS-update', 'usb' => 'USB'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
@@ -2261,6 +2358,34 @@ switch ($action) {
         Discover::ignore((int) ($in['host_id'] ?? 0), (array) ($in['keys'] ?? []), empty($in['undo']));
         out(['ok' => true]);
 
+    // 1.98.0: certificaatbestanden en processen die de agent op de server vond (voor de keuzelijst in het checkformulier)
+    case 'agent_certs':
+    case 'agent_procs':
+        $hid = (int) ($_GET['id'] ?? 0);
+        $host = q('SELECT id, mode, agent_version FROM hosts WHERE id = ?', [$hid])->fetch();
+        if (!$host) {
+            out(['error' => t('Server bestaat niet')], 404);
+        }
+        $metric = $action === 'agent_certs' ? 'certfound' : 'proclist';
+        $row = q('SELECT value, updated_at FROM agent_data WHERE host_id = ? AND metric = ?', [$hid, $metric])->fetch();
+        $items = $row ? (array) (json_decode((string) $row['value'], true) ?: []) : [];
+        if ($action === 'agent_certs') {
+            $have = array_flip(q("SELECT target FROM checks WHERE host_id = ? AND type = 'ssl'", [$hid])->fetchAll(PDO::FETCH_COLUMN));
+            foreach ($items as &$it) {
+                $it['monitored'] = isset($have[$it['path'] ?? '']);
+            }
+            unset($it);
+        } elseif ($host['mode'] === 'local') {
+            $items = Checks::localProcList();
+        }
+        out(['items' => $items, 'at' => $row['updated_at'] ?? null, 'mode' => $host['mode'], 'agent_version' => $host['agent_version'],
+            'pending' => $action === 'agent_certs' ? (int) q('SELECT certscan_req FROM hosts WHERE id = ?', [$hid])->fetchColumn() : 0]);
+
+    case 'certscan':   // 1.98.0: de agent zoekt bij zijn volgende rapport opnieuw naar certificaatbestanden
+        $hid = (int) (input()['host_id'] ?? 0);
+        q('UPDATE hosts SET certscan_req = certscan_req + 1 WHERE id = ?', [$hid]);
+        out(['ok' => true]);
+
     // ---------------------------------------------------------------- Wijzigingslogboek, export/import, meldketen (1.97.0)
     case 'changelog':
         out(['items' => ChangeLog::list(preg_replace('/[^a-z]/', '', (string) ($_GET['kind'] ?? ''))), 'days' => (int) setting('changelog_days', '90')]);
@@ -2468,7 +2593,7 @@ switch ($action) {
             $in['sysinfo'] = json_encode(NotifyRules::cleanSysinfo((array) json_decode((string) $in['sysinfo'], true), NotifyRules::sysinfo()));
         }
         $allowed = ['sysinfo', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden', 'weblog_swag', 'weblog_swag_path', 'weblog_ha', 'weblog_ha_path', 'weblog_vw', 'weblog_vw_path', 'weblog_block', 'wl_paths', 'wl_ua', 'wl_404', 'wl_404_n', 'wl_auth', 'wl_auth_n', 'wl_nohost', 'wl_nohost_n', 'wl_ha_n', 'wl_vw_n', 'wl_minutes',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'cert_dirs', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden', 'weblog_swag', 'weblog_swag_path', 'weblog_ha', 'weblog_ha_path', 'weblog_vw', 'weblog_vw_path', 'weblog_block', 'wl_paths', 'wl_ua', 'wl_404', 'wl_404_n', 'wl_auth', 'wl_auth_n', 'wl_nohost', 'wl_nohost_n', 'wl_ha_n', 'wl_vw_n', 'wl_minutes',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -2511,6 +2636,11 @@ switch ($action) {
         }
         if (isset($in['ids_fim_exclude'])) {
             $in['ids_fim_exclude'] = Ids::cleanFimExclude((string) $in['ids_fim_exclude']);
+        }
+        // Eigen mappen waarin de agent naar certificaatbestanden zoekt (1.98.0): absolute paden zonder spaties, hooguit 20
+        if (isset($in['cert_dirs'])) {
+            $in['cert_dirs'] = implode(' ', array_slice(array_values(array_unique(array_filter(preg_split('/[\s,]+/', mb_substr((string) $in['cert_dirs'], 0, 4000)),
+                static fn($d) => (bool) preg_match('#^/[A-Za-z0-9._@+/-]{1,200}$#', $d) && !str_contains($d, '..')))), 0, 20));
         }
         // IDS (1.81.0): honeypot-gebruikers (namen), honeypot-poort (leeg = uit), wekelijks overzicht
         if (isset($in['ids_decoy_users'])) {

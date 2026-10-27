@@ -682,6 +682,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <select name="agent_tick"><option value="30"><?= th('30 seconden') ?></option><option value="60"><?= th('60 seconden') ?></option><option value="120"><?= th('2 minuten') ?></option><option value="300"><?= th('5 minuten') ?></option></select>
             <span class="muted small"><?= t('Per server anders in te stellen in de <i>Agent Manager</i>. 30 s werkt met de systemd-timer (agent 1.41.0+); via cron of op TrueNAS minimaal elke minuut.') ?></span></label>
           <label><?= th('Agent offline na … minuten zonder rapport') ?><input type="number" name="agent_stale_minutes" min="1"></label>
+          <label><?= th('🔒 Ook zoeken naar certificaten in') ?> <span class="muted small"><?= th('(optioneel)') ?></span>
+            <textarea name="cert_dirs" rows="2" class="mono" placeholder="/data/certs /home/app/ssl"></textarea>
+            <span class="muted small"><?= t('De agent (1.59.0+) zoekt eens per dag naar certificaatbestanden (.crt, .pem, .cer) in de bekende mappen (/etc/ssl, /etc/pki, /etc/letsencrypt, /etc/nginx, /opt, /srv …). Zet hier extra mappen, gescheiden door spaties; ze gelden voor alle agents. Per server kan ook <code>CERT_DIRS</code> in <code>/etc/default/rzmon-agent</code>.') ?></span></label>
           <p class="muted small" style="margin-top:-.4rem"><?= t('Verouderde agents werken zichzelf bij zonder dat je op de knop drukt (hooguit één poging per 6 uur). Home Assistant-add-ons werk je bij via de add-on winkel. Een server uitzonderen: <code>REMOTE_UPDATE=0</code> in <code>/etc/default/rzmon-agent</code>.') ?></p>
         </div>
 

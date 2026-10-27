@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.58.0"
+AGENT_VERSION="1.59.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -61,6 +61,9 @@ INSECURE="${INSECURE:-0}"
 CERTS="${CERTS-/etc/letsencrypt/live/*/cert.pem}"
 # Certificaten veranderen zelden: elk uur opnieuw uitlezen is genoeg (seconden)
 CERT_INTERVAL="${CERT_INTERVAL:-3600}"
+# Certificaten zoeken (1.59.0): in deze mappen naar .crt/.pem/.cer, één keer per dag (of meteen als RzMon erom vraagt).
+# In RzMon kies je welke bewaakt worden; extra mappen stel je daar in (Instellingen → Agents). Leeg ("") = niet zoeken.
+CERT_DIRS="${CERT_DIRS-/etc/ssl /etc/pki /etc/letsencrypt /etc/nginx /etc/apache2 /etc/httpd /etc/haproxy /etc/lighttpd /etc/caddy /etc/traefik /etc/postfix /etc/dovecot /etc/mosquitto /etc/cockpit /etc/pve /etc/ipa /opt /srv /usr/local/etc /var/lib/docker/volumes /config /ssl}"
 # Diepere controle van services: draait het proces, luistert het op zijn poorten, antwoordt het
 # (HTTP, database, SSH, mail, DNS…), herstarts en fouten in het log. SERVICE_DEEP=0 zet het uit.
 SERVICE_DEEP="${SERVICE_DEEP:-1}"
@@ -2128,10 +2131,29 @@ fi
 # ---------------------------------------------------------------- Certificaten
 # Per bron: onderwerp (CN), uitgever, vervaldatum (epoch) en of het certificaat vertrouwd wordt.
 # RzMon rekent zelf het aantal dagen uit, dus een uur oude gegevens zijn geen probleem.
-cert_line() {  # bron cn uitgever not_after verify fout
-    printf '{"source":"%s","cn":"%s","issuer":"%s","not_after":%s,"verify":%s,"error":"%s"},' \
+cert_line() {  # bron cn uitgever not_after verify fout [aantal in de keten, eerste vervaldatum in de keten, cn daarvan]
+    printf '{"source":"%s","cn":"%s","issuer":"%s","not_after":%s,"verify":%s,"error":"%s","chain_n":%s,"chain_min":%s,"chain_cn":"%s"},' \
         "$(json_escape "$1")" "$(json_escape "$2")" "$(json_escape "$3")" "${4:-null}" \
-        "$( [ -n "$5" ] && printf '"%s"' "$(json_escape "$5")" || echo null)" "$(json_escape "$6")"
+        "$( [ -n "$5" ] && printf '"%s"' "$(json_escape "$5")" || echo null)" "$(json_escape "$6")" "${7:-0}" "${8:-null}" "$(json_escape "${9-}")"
+}
+# Alle certificaten in een PEM-tekst (stdin; fullchain of de keten van een server, 1.59.0): chain_n, en welk
+# certificaat het eerst verloopt (chain_min, chain_cn). Zo valt ook een verlopen tussencertificaat op.
+chain_info() {
+    local tmp blk na
+    chain_n=0; chain_min=""; chain_cn=""
+    tmp=$(mktemp -d 2>/dev/null) || { cat >/dev/null; return 0; }
+    awk -v d="$tmp" '/-----BEGIN CERTIFICATE-----/ { n++; f = d "/c" n } f { print > f } /-----END CERTIFICATE-----/ { if (f) close(f); f = ""; if (n >= 30) exit }'
+    for blk in "$tmp"/c*; do
+        [ -f "$blk" ] || continue
+        na=$(openssl x509 -noout -enddate <"$blk" 2>/dev/null | sed -n 's/^notAfter=//p')
+        na=$(date -d "$na" +%s 2>/dev/null) || continue
+        chain_n=$((chain_n + 1))
+        if [ -z "$chain_min" ] || [ "$na" -lt "$chain_min" ]; then
+            chain_min=$na
+            chain_cn=$(openssl x509 -noout -subject -nameopt RFC2253 <"$blk" 2>/dev/null | grep -o 'CN=[^,]*' | head -1 | cut -c4-)
+        fi
+    done
+    rm -rf "$tmp"
 }
 # Leest een PEM-certificaat van stdin en zet cn, issuer en not_after
 parse_cert() {
@@ -2144,7 +2166,7 @@ parse_cert() {
 }
 collect_certs() {
     local entry f host port out code rc
-    for entry in $CERTS; do
+    for entry in $cert_list; do
         if [[ "$entry" == /* ]]; then
             # Bestand(en); een wildcard zonder treffers is geen fout (bv. geen Let's Encrypt)
             if [[ "$entry" == *[*?[]* ]]; then
@@ -2154,7 +2176,8 @@ collect_certs() {
                 if [ ! -r "$f" ]; then
                     cert_line "$f" "" "" "" "" "bestand niet gevonden of niet leesbaar"
                 elif parse_cert <"$f"; then
-                    cert_line "$f" "$cn" "$issuer" "$not_after" "" ""
+                    chain_info <"$f"
+                    cert_line "$f" "$cn" "$issuer" "$not_after" "" "" "$chain_n" "$chain_min" "$chain_cn"
                 else
                     cert_line "$f" "" "" "" "" "geen geldig certificaat (PEM) in dit bestand"
                 fi
@@ -2167,12 +2190,13 @@ collect_certs() {
             else host=${entry#[}; host=${host%]}; port=443; fi
             local src="$host:$port"
             [[ "$host" == *:* ]] && src="[$host]:$port"
-            out=$(timeout 15 openssl s_client -connect "$src" -servername "$host" -verify_hostname "$host" </dev/null 2>&1)
+            out=$(timeout 15 openssl s_client -connect "$src" -servername "$host" -verify_hostname "$host" -showcerts </dev/null 2>&1)
             rc=$?
             if parse_cert <<<"$out"; then
                 code=$(sed -n 's/^ *Verify return code: \([0-9]*\) (\(.*\))/\1 \2/p' <<<"$out" | tail -1)
                 [ "${code%% *}" = 0 ] && code=ok || code=${code#* }
-                cert_line "$src" "$cn" "$issuer" "$not_after" "${code:-onbekend}" ""
+                chain_info <<<"$out"
+                cert_line "$src" "$cn" "$issuer" "$not_after" "${code:-onbekend}" "" "$chain_n" "$chain_min" "$chain_cn"
             else
                 case "$out" in
                     *"Connection refused"*) out="poort dicht (verbinding geweigerd)" ;;
@@ -2187,7 +2211,11 @@ collect_certs() {
     done
 }
 certs=""
-if [ -n "$CERTS" ]; then
+# Te controleren: CERTS van deze server, plus wat je in RzMon gekozen hebt (regels "0 <tab> cert <tab> bron", 1.59.0)
+cert_list="$CERTS"
+[ -r "${t_cache-}" ] && cert_list="$cert_list $(awk -F'\t' '$1 == "0" && $2 == "cert" && $3 !~ /[[:space:]]/ { print $3 }' "$t_cache" | head -200 | tr '\n' ' ')"
+cert_list=$(tr -s ' ' <<<"$cert_list"); cert_list=${cert_list# }; cert_list=${cert_list% }
+if [ -n "$cert_list" ]; then
     if ! command -v openssl >/dev/null 2>&1; then
         certs=$(cert_line "openssl" "" "" "" "" "openssl ontbreekt op deze server (installeer het pakket openssl)")
     else
@@ -2195,7 +2223,7 @@ if [ -n "$CERTS" ]; then
         cache_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
         mkdir -p "$cache_dir" 2>/dev/null && [ -w "$cache_dir" ] || cache_dir="${TMPDIR:-/tmp}"
         cache="$cache_dir/certs.cache"
-        key=$(printf '%s' "$CERTS" | cksum | cut -d' ' -f1)
+        key=$(printf '%s' "$cert_list" | cksum | cut -d' ' -f1)
         # Cache: regel 1 = sleutel van CERTS, regel 2 = tijdstip, regel 3 = resultaat
         if [ "$TEST" = 0 ] && [ -r "$cache" ] && [ "$(sed -n 1p "$cache")" = "$key" ] \
             && [ $(( $(date +%s) - $(sed -n 2p "$cache") )) -lt "$CERT_INTERVAL" ]; then
@@ -2203,6 +2231,81 @@ if [ -n "$CERTS" ]; then
         else
             certs=$(collect_certs)
             (umask 077; printf '%s\n%s\n%s\n' "$key" "$(date +%s)" "$certs" >"$cache") 2>/dev/null || true
+        fi
+    fi
+fi
+
+# ---------------------------------------------------------------- Certificaten zoeken (1.59.0)
+# Bestanden met een certificaat in de mappen van CERT_DIRS (plus de mappen die je in RzMon opgeeft), om in RzMon
+# uit te kiezen. Eén keer per dag, of meteen als RzMon erom vraagt (regel "0 <tab> certscan <tab> teller").
+# Overgeslagen: de CA-lijsten van het systeem en van programmeertalen (Python, Ruby), testmappen, CA-bundels (meer dan
+# 20 certificaten) en sleutels zonder certificaat.
+cert_found=""
+if [ "$TEST" != 1 ] && command -v openssl >/dev/null 2>&1; then
+    cs_dirs="$CERT_DIRS"
+    [ -r "${t_cache-}" ] && cs_dirs="$cs_dirs $(awk -F'\t' '$1 == "0" && $2 == "certdirs" { print $3; exit }' "$t_cache")"
+    cs_req=$( [ -r "${t_cache-}" ] && awk -F'\t' '$1 == "0" && $2 == "certscan" { print $3; exit }' "$t_cache")
+    cs_cache="${cache_dir:-${CACHE_DIRECTORY:-/var/cache/rzmon-agent}}/certfound.cache"
+    mkdir -p "${cs_cache%/*}" 2>/dev/null
+    cs_key=$(printf '%s|%s' "$cs_dirs" "$cs_req" | cksum | cut -d' ' -f1)
+    if [ -r "$cs_cache" ] && [ "$(sed -n 1p "$cs_cache")" = "$cs_key" ] && [ $(( $(date +%s) - $(sed -n 2p "$cs_cache") )) -lt 86400 ]; then
+        cert_found=$(sed -n 3p "$cs_cache")
+    elif [ -n "${cs_dirs// /}" ]; then
+        cs_ex=()
+        for d in $cs_dirs; do [[ "$d" == /* && "$d" != *..* && -d "$d" ]] && cs_ex+=("$d"); done
+        if [ "${#cs_ex[@]}" -gt 0 ]; then
+            cs_n=0
+            while IFS= read -r -d '' f; do
+                [ -f "$f" ] && [ -r "$f" ] || continue
+                grep -q -- '-----BEGIN CERTIFICATE-----' "$f" 2>/dev/null || continue
+                [ "$(grep -c -- '-----BEGIN CERTIFICATE-----' "$f")" -le 20 ] || continue   # CA-bundel
+                parse_cert <"$f" || continue
+                chain_info <"$f"
+                cert_found+=$(printf '{"path":"%s","cn":"%s","issuer":"%s","not_after":%s,"n":%s,"chain_min":%s},' "$(json_escape "$f")" "$(json_escape "$cn")" \
+                    "$(json_escape "$issuer")" "$not_after" "$chain_n" "${chain_min:-null}")
+                cs_n=$((cs_n + 1)); [ "$cs_n" -ge 300 ] && break
+            done < <(timeout 120 find "${cs_ex[@]}" -xdev -maxdepth 8 \( -path /etc/ssl/certs -o -path /etc/pki/ca-trust -o -path /etc/letsencrypt/archive \
+                -o -path '*/ca-certificates' -o -path /etc/pki/tls/certs/ca-bundle.crt -o -name node_modules -o -name .git -o -name site-packages \
+                -o -name dist-packages -o -name ssl_certs -o -name certifi -o -iname 'cacert.pem' -o -iname '*ca-bundle*' -o -name test -o -name tests \) -prune \
+                -o \( -type f -o -type l \) \( -iname '*.crt' -o -iname '*.pem' -o -iname '*.cer' -o -iname '*.cert' \) -size -200k -print0 2>/dev/null)
+        fi
+        (umask 077; printf '%s\n%s\n%s\n' "$cs_key" "$(date +%s)" "$cert_found" >"$cs_cache") 2>/dev/null || true
+    fi
+fi
+
+# ---------------------------------------------------------------- Processen (1.59.0)
+# Proces-checks uit RzMon: "id <tab> proc <tab> name|pattern <tab> naam of patroon (base64) <tab> gebruiker".
+# Per check: aantal, PID's, CPU (%), geheugen (kB) en wanneer het oudste proces startte (om een herstart te zien).
+# Plus een lijst van wat er draait (zonder kernelprocessen), om in RzMon uit te kiezen.
+procs_json=""; proc_list=""
+if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ]; then
+    ps_raw=$(ps -eo pid=,ppid=,user:32=,etimes=,pcpu=,rss=,comm=,args= 2>/dev/null)
+    if [ -n "$ps_raw" ]; then
+        now_ts=$(date +%s)
+        proc_list=$(awk -v self=$$ '
+            function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/\t/, " ", s); return s }
+            $2 == 2 || $1 == 2 || $1 == self || $2 == self { next }
+            { a = ""; for (i = 8; i <= NF; i++) a = a (i > 8 ? " " : "") $i
+              if (a ~ /^\[/) next
+              n[$7]++; if (!($7 in ex)) { ex[$7] = substr(a, 1, 120); us[$7] = $3 } }
+            END { c = 0; for (k in n) { if (c++ >= 200) break; printf "[\"%s\",%d,\"%s\",\"%s\"],", esc(k), n[k], esc(us[k]), esc(ex[k]) } }' <<<"$ps_raw")
+        if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tproc\t' "$t_cache"; then
+            while IFS=$'\t' read -r p_id p_type p_mode p_val p_user; do
+                [ "$p_type" = proc ] && [[ "$p_id" =~ ^[0-9]+$ ]] || continue
+                p_val=$(printf '%s' "$p_val" | base64 -d 2>/dev/null) || continue
+                [ -n "$p_val" ] || continue
+                # Het patroon via de omgeving: awk -v zou de backslashes in een regex opeten
+                procs_json+=$(P_VAL="$p_val" awk -v id="$p_id" -v mode="$p_mode" -v usr="$p_user" -v self=$$ -v now="$now_ts" '
+                    BEGIN { val = ENVIRON["P_VAL"] }
+                    $1 == self || $2 == self || $2 == 2 { next }
+                    { a = ""; for (i = 8; i <= NF; i++) a = a (i > 8 ? " " : "") $i
+                      if (a ~ /^\[/) next
+                      if (usr != "" && $3 != usr) next
+                      if (mode == "pattern") { if (a !~ val) next }
+                      else { b = $8; sub(/.*\//, "", b); sub(/:$/, "", b); if ($7 != val && b != val && substr(val, 1, 15) != $7) next }
+                      n++; pids = pids (pids == "" ? "" : " ") $1; cpu += $5; rss += $6; if ($4 > age) age = $4 }
+                    END { printf "\"%s\":{\"n\":%d,\"pids\":\"%s\",\"cpu\":%.1f,\"rss\":%d,\"start\":%s},", id, n, substr(pids, 1, 200), cpu, rss, n ? now - age : "null" }' <<<"$ps_raw")
+            done <"$t_cache"
         fi
     fi
 fi
@@ -2511,7 +2614,7 @@ fi
 # Opstarttijd (epoch) voor de check Herstart in RzMon
 read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}}"
 
 curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)

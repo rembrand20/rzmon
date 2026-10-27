@@ -25,7 +25,8 @@ Dit is een overzicht van wat RzMon en de agent kunnen, in het kort. Hoe je alles
 | **Ping** | Reageert de server (3 pings); gemiddelde responstijd, pakketverlies | Alle servers |
 | **TCP-poort** | Staat een dienst open (SSH, MariaDB, MQTT…), met verbindingstijd | Alle servers |
 | **HTTP(S)** | Website of API bereikbaar, statuscode, responstijd; waarschuwt ook als het certificaat bijna verloopt | Alle servers |
-| **SSL-certificaat** | Hoeveel dagen een certificaat nog geldig is: elke TLS-poort in je netwerk of op internet, of certificaatbestanden via de agent | Alle servers |
+| **SSL-certificaat** | Hoeveel dagen een certificaat nog geldig is: elke TLS-poort in je netwerk of op internet, of via de agent certificaatbestanden (die hij zelf zoekt, om uit te kiezen) en `localhost:poort`; bij een keten telt het certificaat dat het eerst verloopt | Alle servers |
+| **Proces** | Draait een proces (op naam of patroon in de opdrachtregel, eventueel van één gebruiker), met aantal, CPU en RAM; een herstart geeft een ℹ️ info-melding. Kiezen uit wat er draait | Lokaal + agent |
 | **Diskruimte** | % gebruikt per mount, plus een **voorspelling** wanneer de disk vol is | Lokaal, agent |
 | **CPU** | Gebruik over 2 seconden en load average | Lokaal, agent |
 | **RAM** | Geheugengebruik (cache telt niet mee) en swap | Lokaal, agent |

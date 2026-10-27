@@ -1542,3 +1542,8 @@ code.ip-link { cursor: pointer; text-decoration: underline dotted; }
 .cl-row { display: flex; gap: .8rem; align-items: flex-start; padding: .55rem 0; border-bottom: 1px solid var(--border); }
 .cl-row .grow { flex: 1; min-width: 0; }
 .cl-act { display: flex; gap: .3rem; flex: none; }
+/* 1.98.0: keuzelijsten voor certificaatbestanden en processen */
+.svc-item .pick-main { min-width: 0; display: flex; flex-direction: column; }
+.svc-item .pick-main .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svc-item .pick-main .hint { margin-left: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.svc-item > .hint { flex: none; }

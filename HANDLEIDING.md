@@ -48,9 +48,10 @@ RzMon bestaat uit vier onderdelen:
 | **Ping** | Reageert de server? 3 pings | Gemiddelde ms. Pakketverlies = minstens WARNING, 100% verlies = CRITICAL | Alle servers |
 | **TCP poort** | Staat een dienst open, zoals SSH, MariaDB of MQTT? | Verbindingstijd in ms. Dicht = CRITICAL | Alle servers |
 | **HTTP(S)** | Website of API bereikbaar, statuscode < 400 | Responstijd in ms. Statuscode ≥ 400 = CRITICAL. SSL-certificaat < 14 dagen geldig = WARNING, < 3 dagen = CRITICAL | Alle servers |
-| **SSL-certificaat** | Hoe lang is het certificaat nog geldig? Werkt op elke TLS-poort | Dagen: warning **onder** 21, critical **onder** 7. Verlopen of ongeldig = CRITICAL | Alle servers |
+| **SSL-certificaat** | Hoe lang is het certificaat nog geldig? Werkt op elke TLS-poort, en via de agent ook op certificaatbestanden en `localhost:poort`. Bij een keten telt het certificaat dat het eerst verloopt (§8.5) | Dagen: warning **onder** 21, critical **onder** 7. Verlopen of ongeldig = CRITICAL | Alle servers |
 | **Diskruimte** | Percentage gebruikt per mount, plus een voorspelling wanneer hij vol is | % gebruikt. Vol binnen 7 dagen (instelbaar) = WARNING | Lokaal + agent |
 | **Service** | Is een systemd-service `active`? Op agent-servers ook: luistert hij op zijn poorten, antwoordt hij, herstarts en log-fouten (§8.7) | Niet actief of antwoordt niet = CRITICAL; ≥ 3 herstarts/uur of fouten in het log = WARNING | Lokaal + agent |
+| **Proces** | Draait een proces? Op naam of op een patroon in de opdrachtregel, eventueel van één gebruiker; plus aantal, CPU en RAM (§8.5a) | Draait niet = CRITICAL; te weinig/te veel = WARNING; CPU in %, RAM in MB naar keuze. Herstart = ℹ️ info | Lokaal + agent (agent 1.59.0+) |
 | **CPU** | CPU-gebruik over 2 seconden + load average | % gebruik | Lokaal + agent |
 | **RAM** | Geheugengebruik (cache telt niet mee) + swap | % gebruikt | Lokaal + agent |
 | **Uptime** (tot 1.90.0: *Herstart*) | Ziet wanneer de server opnieuw is opgestart en stuurt dan een ℹ️ info-melding (§6.2) | Altijd OK; de uptime in uren is de waarde | Lokaal + agent (agent 1.46.0+) |
@@ -711,9 +712,10 @@ Klik op een serverkaart op **＋**. Per type:
 | Ping | – | Warning 100 ms, critical 500 ms |
 | TCP poort | Poortnummer, bv. `22` | 500 / 2000 ms |
 | HTTP(S) | Volledige URL (`https://site.nl/`) of een pad (`/status`, dan wordt het adres van de server gebruikt) | 1000 / 3000 ms |
-| SSL-certificaat | Host met eventueel een poort: `site.nl`, `nas.lan:5001`, `mqtt.lan:8883`. Leeg = adres van de server op poort 443. Bij een agent-server kies je ook uit de certificaten die de agent meldt (§8.5) | Warning **onder** 21 dagen, critical **onder** 7 dagen |
+| SSL-certificaat | Host met eventueel een poort: `site.nl`, `nas.lan:5001`, `mqtt.lan:8883`, `localhost:443`, of een bestand: `/etc/ssl/mijn.crt`. Leeg = adres van de server op poort 443. Bij een agent-server kies je ook uit de certificaatbestanden die de agent vond (§8.5) | Warning **onder** 21 dagen, critical **onder** 7 dagen |
 | Diskruimte | Mount, bv. `/` of `/data`. Bij agent-servers kies je uit een lijst | 80 / 90 %. Plus WARNING als hij binnen 7 dagen vol raakt |
 | Service | systemd-naam, bv. `nginx`. Bij een HA-agent: `homeassistant`, `supervisor`, `updates` of `addon:<slug>` | – |
+| Proces | Procesnaam (zoals in `ps`/`top`, bv. `mariadbd`) of een patroon in de opdrachtregel (bv. `python3 .*main\.py`), uit de lijst of zelf getypt; eventueel alleen van één gebruiker (§8.5a) | Optioneel min/max aantal, CPU 80 / 95 %, RAM 1024 / 2048 MB |
 | CPU | – | 85 / 95 % |
 | RAM | – | 85 / 95 % |
 | Uptime | – | Geen drempels: altijd OK, bij een herstart een ℹ️ info-melding |
@@ -733,7 +735,7 @@ Klik op een serverkaart op **＋**. Per type:
 
   De statuswijzigingen worden bijgehouden vanaf versie 1.37.0, ook als er geen melding uitging, en net zo lang bewaard als de meldingen. Je opent de popup ook door op een melding op de pagina *Meldingen* te klikken.
 - **⇄ Omgekeerde status** (zie hieronder): voor iets dat juist níet mag draaien of bereikbaar mag zijn.
-- **Certificaat controleren** (bij HTTP(S) en SSL-certificaat): zet dit uit voor apparaten met een self-signed certificaat, zoals Proxmox of een NAS. De vervaldatum wordt dan nog steeds bewaakt.
+- **Certificaat controleren** (bij HTTP(S) en SSL-certificaat): zet dit uit voor apparaten met een self-signed certificaat, zoals Proxmox of een NAS. De vervaldatum wordt dan nog steeds bewaakt. Bij een **nieuwe** SSL-check staat dit sinds 1.98.0 standaard uit: alleen de vervaldatum telt. Bestaande checks blijven zoals ze waren.
 
 **⇄ Omgekeerde status**
 
@@ -1303,9 +1305,19 @@ Het verloop van certificaten kun je op twee manieren bewaken. Je kunt ze ook com
 
 | | **Zonder agent** (RzMon meet zelf) | **Via de agent** |
 |---|---|---|
-| Wat | Elke TLS-poort die RzMon kan bereiken: servers in je netwerk én op internet | Certificaat**bestanden** op de server, en `host:poort` gezien **vanaf die server** |
+| Wat | Elke TLS-poort die RzMon kan bereiken: servers in je netwerk én op internet | Certificaat**bestanden** op de server, en `host:poort` gezien **vanaf die server** (ook `localhost:443`) |
 | Handig voor | Websites, NAS, Proxmox, MQTT, mailservers… | Diensten die alleen lokaal luisteren of achter een firewall zitten, Let's Encrypt-certificaten (ook als de dienst plat ligt), en servers die alleen die server kan bereiken |
-| Instellen | Check *SSL-certificaat* met `host` of `host:poort` (of in de poortscan op **＋ Cert**) | `CERTS` op de server, daarna een check *SSL-certificaat* en het certificaat kiezen uit de lijst |
+| Instellen | Check *SSL-certificaat* met `host` of `host:poort` (of in de poortscan op **＋ Cert**) | Check *SSL-certificaat*: kies een bestand uit de lijst die de agent vond, of typ een pad of `localhost:poort` (agent 1.59.0+). Of `CERTS` op de server |
+
+**Certificaatbestanden kiezen** (agent 1.59.0+): de agent zoekt eens per dag naar `.crt`, `.pem`, `.cer` en `.cert` in de bekende mappen (`/etc/ssl`, `/etc/pki`, `/etc/letsencrypt`, `/etc/nginx`, `/etc/apache2`, `/etc/httpd`, `/etc/haproxy`, `/etc/postfix`, `/etc/dovecot`, `/etc/mosquitto`, `/etc/pve`, `/opt`, `/srv`, `/usr/local/etc`, Docker-volumes …). De CA-lijsten van het systeem en van Python/Ruby, testmappen en CA-bundels (meer dan 20 certificaten in één bestand) slaat hij over.
+- Klik bij de server op **＋ Check**, kies *SSL-certificaat*: onder het veld staat de lijst met pad, naam (CN), uitgever en vervaldatum (🟢 / 🟠 binnen 21 dagen / 🔴 binnen 7 dagen of verlopen). Wat al bewaakt wordt, staat grijs.
+- **🔄 Opnieuw zoeken**: de agent zoekt bij zijn volgende rapporten meteen opnieuw (meestal binnen een paar minuten), handig na een nieuw certificaat.
+- **Extra mappen**: *Instellingen → Agents → Ook zoeken naar certificaten in* (voor alle agents), of `CERT_DIRS` in `/etc/default/rzmon-agent` (per server; vervangt de standaardmappen).
+- **Zelf invullen** kan altijd: een pad (`/data/certs/app.crt`) of `localhost:8443`.
+- **Certificaat lezen**: *Automatisch* leest een bestand en `localhost`/`127.0.0.1` via de agent, en de rest vanaf RzMon. Kies *Op de server zelf (agent)* om ook een andere naam vanaf die server te bekijken, of *Vanaf RzMon* om het via het netwerk te doen.
+- **Hele keten**: staan er meerdere certificaten in een bestand (fullchain) of stuurt de dienst een keten mee, dan kijkt de agent naar alle certificaten. Verloopt een tussencertificaat eerder dan het certificaat zelf, dan telt die datum, met "let op: … in de keten verloopt eerder" in het bericht.
+- **Voorstellen**: bij *🔎 Wat wordt nog niet bewaakt* staan ook gevonden bestanden (behalve al lang verlopen) en TLS-poorten op de server (443, 8443, 9443, 993, 995, 465, 636, 853, 5986, 8883, 6443) als certificaatcheck via de agent.
+- Op de **RzMon-server zelf** (type *Lokaal*) leest RzMon een bestand rechtstreeks; de webserver moet het dan wel mogen lezen.
 
 **Wat de agent meldt:** de regel `CERTS` in `/etc/default/rzmon-agent`, met spaties tussen de waarden:
 ```bash
@@ -1319,11 +1331,24 @@ CERTS="/etc/letsencrypt/live/*/cert.pem /etc/pki/tls/certs/mijn.crt localhost:84
 - **Hoe vaak:** elk uur. RzMon rekent zelf het aantal dagen uit, dus vaker is niet nodig.
 - **Benodigd:** `openssl`; het installatiescript installeert dat zo nodig.
 
-**In RzMon:** klik bij de server op **＋ Check** en kies *SSL-certificaat*. In het veld *Host[:poort]* verschijnt een lijst met de certificaten die de agent meldt. Een check daarop krijgt "· via agent" in het bericht.
+**In RzMon:** klik bij de server op **＋ Check** en kies *SSL-certificaat*. In het veld *Host[:poort] of bestand* verschijnt ook een lijst met de certificaten uit `CERTS`. Een check daarop krijgt "· via agent" in het bericht.
 - *Certificaat controleren* aan: een certificaat dat de agent niet vertrouwt, zoals een self-signed certificaat, wordt CRITICAL.
 - Bij bestanden wordt alleen de vervaldatum bekeken.
 
 **Controleren:** `sudo rzmon-agent-setup --test` toont per certificaat bijvoorbeeld `localhost:8443: nas.lan, nog 63 dagen geldig`, of wat er mis is, zoals "poort dicht" of "bestand niet gevonden".
+
+
+### 8.5a Processen bewaken ⚙️
+Met de check **Proces** kijk je of een programma draait dat geen systemd-service is (of waarvan je het aantal of het geheugen wilt weten): een Python-script, een Java-app, een game-server, `mariadbd` in een container op de host…
+
+- **Zoeken op naam**: de naam zoals `ps` of `top` hem toont (`nginx`, `mariadbd`, `python3`). Ook de bestandsnaam van het programma werkt.
+- **Zoeken op patroon**: een regex in de hele opdrachtregel, bv. `python3 .*main\.py` of `java .*-jar /opt/app/app.jar`. Handig als er meerdere `python3`-processen draaien.
+- **Alleen van gebruiker** (optioneel): bv. `www-data`.
+- **Keuzelijst**: op een agent-server (agent 1.59.0+) en op de RzMon-server zelf zie je onder het veld wat er draait, met aantal, gebruiker en opdrachtregel. Klik om te kiezen, of typ om te filteren.
+- **Uitkomst**: draait het niet: CRITICAL. Optioneel een **minimaal** of **maximaal aantal** (WARNING), en drempels voor **CPU** (%, 100% = één core) en **RAM** (MB, werkgeheugen) van alle gevonden processen samen.
+- **Herstart**: is het oudste proces later gestart dan bij de vorige controle, dan komt er een ℹ️ info-melding "Proces … is herstart" (info staat standaard uit, §6.2).
+- In het bericht: aantal, CPU, RAM en sinds wanneer het draait.
+- Niet op Home Assistant-agents en niet op servers zonder agent (dan kan RzMon de processen niet zien). Processen staan niet bij *🔎 Wat wordt nog niet bewaakt*: je kiest ze zelf.
 
 
 ### 8.6 Podman-containers 📦

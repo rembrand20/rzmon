@@ -13,6 +13,9 @@ final class Checks
         if ($host['mode'] === 'remote' && in_array($check['type'], ['disk', 'service', 'cpu', 'ram', 'reboot'], true)) {
             return self::result(STATUS_UNKNOWN, null, t('Disk/service/CPU/RAM checks vereisen host-type lokaal of agent'));
         }
+        if ($host['mode'] === 'remote' && $check['type'] === 'process') {
+            return self::result(STATUS_UNKNOWN, null, t('Een proces bewaken kan alleen op de RzMon-server zelf of op een server met de agent'));
+        }
         if ($host['mode'] !== 'agent' && in_array($check['type'], ['podman', 'container', 'log', 'command'], true)) {
             return self::result(STATUS_UNKNOWN, null, t('Deze check werkt via de agent: zet de server op type "Remote met agent" en installeer de agent'));
         }
@@ -35,6 +38,7 @@ final class Checks
                 'snmp' => SnmpMonitor::check($check, $host),
                 'reboot' => self::reboot($check, $host),
                 'heartbeat' => Heartbeat::check($check),
+                'process' => self::process($check, $host),
                 default => self::result(STATUS_UNKNOWN, null, t('Onbekend checktype')),
             };
         } catch (Throwable $e) {
@@ -217,10 +221,51 @@ final class Checks
      * Op een agent-server komen certificaten die de agent meldt (bestanden, of host:poort gezien
      * vanaf die server) van de agent; al het andere meet RzMon zelf via het netwerk.
      */
+    /**
+     * Wat de agent voor deze SSL-check uitleest (1.98.0), of null als RzMon het zelf via het netwerk doet:
+     * een bestand altijd; host:poort als "controleren vanaf" op de agent staat, of automatisch bij localhost/127.x.
+     */
+    public static function agentCertSource(array $check): ?string
+    {
+        $target = trim((string) $check['target']);
+        $from = (json_decode((string) ($check['options'] ?? ''), true) ?: [])['from'] ?? '';
+        if ($target !== '' && $target[0] === '/') {
+            return preg_match('#^/\S{1,250}$#', $target) ? $target : null;
+        }
+        if ($from === 'rzmon') {
+            return null;
+        }
+        $hp = self::hostPort($target !== '' ? $target : 'localhost');
+        if ($hp === null) {
+            return null;
+        }
+        $local = in_array(strtolower($hp[0]), ['localhost', '::1'], true) || str_starts_with($hp[0], '127.');
+        return $from === 'agent' || ($local && $target !== '') ? self::fmtHostPort($hp) : null;
+    }
+
     private static function ssl(array $check, array $host): array
     {
         $target = trim($check['target']) ?: $host['address'];
-        if ($host['mode'] === 'agent' && $host['id']) {
+        // Op de RzMon-server zelf: een certificaatbestand rechtstreeks lezen
+        if ($host['mode'] === 'local' && $target[0] === '/') {
+            $pem = @file_get_contents($target);
+            $info = $pem !== false ? @openssl_x509_parse($pem) : false;
+            if (!$info) {
+                return self::result(STATUS_UNKNOWN, null, t('Kan {cert} niet lezen (bestaat het, en mag de webserver het lezen?)', ['cert' => $target]));
+            }
+            $issuer = $info['issuer']['O'] ?? ($info['issuer']['CN'] ?? '?');
+            return self::certResult($check, (int) $info['validTo_time_t'], (string) ($info['subject']['CN'] ?? '?'), is_array($issuer) ? implode(', ', $issuer) : (string) $issuer, null);
+        }
+        // Agent-server: bestanden, en host:poort gezien vanaf de server zelf (1.98.0: de agent krijgt ze van RzMon)
+        if ($host['mode'] === 'agent' && $host['id'] && ($src = self::agentCertSource($check)) !== null) {
+            if (($raw = self::agentMetric($host, "cert:$src")) !== null) {
+                return self::agentSsl($check, $host, json_decode($raw, true) ?: []);
+            }
+            return ($stale = self::agentStale($host)) ? $stale
+                : self::result(STATUS_UNKNOWN, null, t('De agent leest {cert} uit bij zijn volgende rapport (agent 1.59.0 of nieuwer nodig)', ['cert' => $src]));
+        }
+        $from = (json_decode((string) ($check['options'] ?? ''), true) ?: [])['from'] ?? '';
+        if ($host['mode'] === 'agent' && $host['id'] && $from !== 'rzmon') {
             // De agent meldt bestanden met hun pad en adressen als host:poort
             $hp = $target[0] === '/' ? null : self::hostPort($target);
             $metric = $target[0] === '/' ? "cert:$target" : ($hp ? 'cert:' . self::fmtHostPort($hp) : null);
@@ -284,9 +329,127 @@ final class Checks
         if ((int) ($check['verify_ssl'] ?? 1) === 1 && isset($d['verify']) && $d['verify'] !== 'ok') {
             $invalid = t('certificaat niet vertrouwd ({reason})', ['reason' => $d['verify']]);
         }
-        $r = self::certResult($check, (int) $d['not_after'], (string) ($d['cn'] ?: '?'), (string) ($d['issuer'] ?: '?'), $invalid);
-        $r['message'] .= ' · ' . t('via agent');
+        // De hele keten (agent 1.59.0): verloopt een tussencertificaat eerder, dan telt dat
+        $notAfter = (int) $d['not_after'];
+        $chainNote = '';
+        if (!empty($d['chain_min']) && (int) $d['chain_min'] < $notAfter) {
+            $notAfter = (int) $d['chain_min'];
+            $chainNote = ' · ' . t('let op: {cn} in de keten verloopt eerder', ['cn' => $d['chain_cn'] ?: '?']);
+        }
+        $r = self::certResult($check, $notAfter, (string) ($d['cn'] ?: '?'), (string) ($d['issuer'] ?: '?'), $invalid);
+        $r['message'] .= $chainNote . ((int) ($d['chain_n'] ?? 0) > 1 ? ' · ' . t('keten van {n}', ['n' => (int) $d['chain_n']]) : '') . ' · ' . t('via agent');
         return $r;
+    }
+
+    /**
+     * Proces (1.98.0): draait het (op naam, of een patroon in de opdrachtregel), hoeveel, CPU en geheugen, en is het
+     * herstart (het oudste proces is jonger dan bij de vorige controle: een info-melding). Geen proces = CRITICAL;
+     * minder of meer dan ingesteld, of boven een drempel = WARNING (of CRITICAL bij de critical-drempel).
+     */
+    private static function process(array $check, array $host): array
+    {
+        $o = json_decode((string) ($check['options'] ?? ''), true) ?: [];
+        $name = (string) $check['target'];
+        if ($host['mode'] === 'agent') {
+            if ($stale = self::agentStale($host)) {
+                return $stale;
+            }
+            $raw = self::agentMetric($host, 'proc:' . (int) $check['id']);
+            if ($raw === null) {
+                return self::result(STATUS_UNKNOWN, null, t('De agent meldt proces {p} nog niet (agent 1.59.0 of nieuwer; binnen ~2 minuten na het toevoegen)', ['p' => $name]));
+            }
+            $d = json_decode($raw, true) ?: [];
+        } else {
+            $d = self::localProcess($name, $o);
+        }
+        $n = (int) ($d['n'] ?? 0);
+        if ($n === 0) {
+            return self::result(STATUS_CRIT, 0, t('Proces {p} draait niet', ['p' => $name]) . (!empty($o['user']) ? ' (' . t('gebruiker {u}', ['u' => $o['user']]) . ')' : ''));
+        }
+        $status = STATUS_OK;
+        $bad = [];
+        if (isset($o['min']) && $n < (int) $o['min']) {
+            $status = STATUS_WARN;
+            $bad[] = t('{n} draaien, minimaal {m}', ['n' => $n, 'm' => (int) $o['min']]);
+        }
+        if (isset($o['max']) && $n > (int) $o['max']) {
+            $status = STATUS_WARN;
+            $bad[] = t('{n} draaien, maximaal {m}', ['n' => $n, 'm' => (int) $o['max']]);
+        }
+        $cpu = round((float) ($d['cpu'] ?? 0), 1);
+        $mem = round((int) ($d['rss'] ?? 0) / 1024, 1);
+        foreach (['cpu' => [$cpu, '%', 'CPU'], 'mem' => [$mem, 'MB', 'RAM']] as $k => [$v, $u, $l]) {
+            [$w, $c] = array_pad((array) (($o['res'] ?? [])[$k] ?? []), 2, null);
+            if ($c !== null && $v >= (float) $c) {
+                $status = STATUS_CRIT;
+                $bad[] = "$l $v $u ≥ $c";
+            } elseif ($w !== null && $v >= (float) $w) {
+                $status = max($status, STATUS_WARN);
+                $bad[] = "$l $v $u ≥ $w";
+            }
+        }
+        $start = isset($d['start']) ? (int) $d['start'] : null;
+        $msg = ($bad ? implode(' · ', $bad) . ' · ' : '') . t('{n} × {p} · CPU {cpu}% · RAM {mem} MB', ['n' => $n, 'p' => $name, 'cpu' => $cpu, 'mem' => $mem])
+            . ($start ? ' · ' . t('draait sinds {t}', ['t' => date('d-m H:i', $start)]) : '');
+        $res = self::result($status, (float) $n, $msg);
+        // Herstart: het oudste proces is (meer dan een minuut) later gestart dan bij de vorige controle
+        $prev = isset($check['proc_start']) ? (int) $check['proc_start'] : 0;
+        if ($start && $prev && $start > $prev + 60) {
+            $res['info'] = t('Proces {p} is herstart om {t}', ['p' => $name, 't' => date('d-m H:i', $start)]);
+        }
+        if ($start && (int) ($check['id'] ?? 0) > 0 && abs($start - $prev) > 60) {
+            q('UPDATE checks SET proc_start = ? WHERE id = ?', [$start, (int) $check['id']]);
+        }
+        return $res;
+    }
+
+    /** Processen op de server van RzMon zelf, voor de keuzelijst: [naam, aantal, gebruiker, voorbeeld-commandoregel] */
+    public static function localProcList(): array
+    {
+        $by = [];
+        foreach (explode("\n", (string) @shell_exec('ps -eo ppid=,user:32=,comm=,args= 2>/dev/null')) as $line) {
+            $f = preg_split('/\s+/', trim($line), 4);
+            if (count($f) < 4 || (int) $f[0] === 2 || str_starts_with($f[3], '[')) {
+                continue;
+            }
+            $by[$f[2]] ??= [$f[2], 0, $f[1], mb_substr($f[3], 0, 200)];
+            $by[$f[2]][1]++;
+        }
+        ksort($by);
+        return array_slice(array_values($by), 0, 200);
+    }
+
+    /** Proces op de RzMon-server zelf (ps), zelfde uitkomst als de agent */
+    private static function localProcess(string $name, array $o): array
+    {
+        $out = (string) @shell_exec('ps -eo pid=,ppid=,user:32=,etimes=,pcpu=,rss=,comm=,args= 2>/dev/null');
+        $n = 0;
+        $cpu = 0.0;
+        $rss = 0;
+        $age = 0;
+        $pids = [];
+        foreach (explode("\n", $out) as $line) {
+            $f = preg_split('/\s+/', trim($line), 8);
+            if (count($f) < 8 || (int) $f[1] === 2 || str_starts_with($f[7], '[') || (int) $f[0] === getmypid()) {
+                continue;
+            }
+            if (!empty($o['user']) && $f[2] !== $o['user']) {
+                continue;
+            }
+            if (($o['mode'] ?? '') === 'pattern') {
+                if (!@preg_match('~' . str_replace('~', '\\~', $name) . '~', $f[7])) {
+                    continue;
+                }
+            } elseif ($f[6] !== $name && basename(explode(' ', $f[7])[0]) !== $name && substr($name, 0, 15) !== $f[6]) {
+                continue;
+            }
+            $n++;
+            $pids[] = $f[0];
+            $cpu += (float) $f[4];
+            $rss += (int) $f[5];
+            $age = max($age, (int) $f[3]);
+        }
+        return ['n' => $n, 'pids' => implode(' ', array_slice($pids, 0, 30)), 'cpu' => $cpu, 'rss' => $rss, 'start' => $n ? time() - $age : null];
     }
 
     /** Status bij een vervaldatum: dagen-drempels ("onder"), verlopen of ongeldig = CRITICAL. */

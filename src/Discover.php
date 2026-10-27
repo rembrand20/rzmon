@@ -13,6 +13,9 @@ final class Discover
         . 'unattended-upgrades|apparmor|ufw|firewalld|tuned|rtkit|wpa_supplicant|cloud-|qemu-guest-agent|open-vm-tools|vgauth|e2scrub|fstrim|plymouth|blk-availability|'
         . 'console-|keyboard-|setvtrgb|dm-event|lxcfs|atd|smartd|mdmonitor|sysstat|mcelog|nfs-|rpcbind|gssproxy|crond?$|chronyd?$|ntp|systemd$|selinux|import-state|nis-domainname|loadmodules)/i';
 
+    /** Poorten waar meestal TLS achter zit (https, mail, LDAPS, DNS-over-TLS, MQTT, WinRM, Kubernetes) */
+    private const TLS_PORTS = [443, 8443, 9443, 993, 995, 465, 636, 853, 5986, 8883, 6443];
+
     private static function ignored(array $host): array
     {
         return array_flip((array) (json_decode((string) ($host['discover_ignore'] ?? ''), true) ?: []));
@@ -31,7 +34,7 @@ final class Discover
         }
         $ign = self::ignored($host);
         $data = [];
-        foreach (q("SELECT metric, value FROM agent_data WHERE host_id = ? AND (metric LIKE 'disk:%' OR metric LIKE 'container:%' OR metric LIKE 'cert:%' OR metric IN ('svclist', 'ports'))", [$hid]) as $r) {
+        foreach (q("SELECT metric, value FROM agent_data WHERE host_id = ? AND (metric LIKE 'disk:%' OR metric LIKE 'container:%' OR metric LIKE 'cert:%' OR metric IN ('svclist', 'ports', 'certfound'))", [$hid]) as $r) {
             $data[$r['metric']] = $r['value'];
         }
         $out = [];
@@ -54,6 +57,19 @@ final class Discover
                     'warn_threshold' => 21, 'crit_threshold' => 7, 'interval_sec' => 3600]);
             }
         }
+        // Certificaatbestanden die de agent vond (1.98.0); verlopen of zelfgemaakte CA's ook, je kiest zelf
+        foreach ((array) json_decode((string) ($data['certfound'] ?? '[]'), true) as $c) {
+            $path = (string) ($c['path'] ?? '');
+            if ($path === '' || isset($have["ssl:$path"]) || isset($data["cert:$path"])) {
+                continue;
+            }
+            $na = isset($c['not_after']) ? (int) $c['not_after'] : null;
+            if ($na && $na < time() - 30 * 86400) {
+                continue;   // al lang verlopen: een oud of voorbeeldbestand (in de keuzelijst staat hij nog wel)
+            }
+            $add("cert:$path", 'cert', '🔒 ' . $path, t('Certificaat') . (($c['cn'] ?? '') !== '' ? ' · ' . $c['cn'] : '') . ($na ? ' · ' . t('geldig tot {d}', ['d' => date('d-m-Y', $na)]) : ''),
+                ['type' => 'ssl', 'target' => $path, 'name' => t('Certificaat {n}', ['n' => ($c['cn'] ?? '') ?: basename($path)]), 'warn_threshold' => 21, 'crit_threshold' => 7, 'interval_sec' => 3600]);
+        }
         // Services die nu draaien en bij het opstarten starten
         foreach ((array) json_decode((string) ($data['svclist'] ?? '[]'), true) as $s) {
             [$name, $state, $enabled] = array_pad((array) $s, 3, null);
@@ -62,10 +78,18 @@ final class Discover
             }
         }
         // Poorten die van buiten bereikbaar zijn (niet alleen op 127.0.0.1); RzMon kijkt of ze open staan
-        $seen = [];
+        $seen = $tls = [];
         foreach ((array) json_decode((string) ($data['ports'] ?? '[]'), true) as $p) {
             $port = (int) ($p['port'] ?? 0);
             $addr = (string) ($p['addr'] ?? '');
+            // TLS-poort (ook alleen op 127.0.0.1): het certificaat erachter, gelezen door de agent op de server zelf
+            if (in_array($port, self::TLS_PORTS, true) && !isset($tls[$port]) && !isset($have["ssl:localhost:$port"]) && !isset($have["ssl:127.0.0.1:$port"])) {
+                $tls[$port] = true;
+                $proc = (string) ($p['proc'] ?? '');
+                $add("tls:$port", 'cert', '🔒 localhost:' . $port . ($proc !== '' ? " ($proc)" : ''), t('Certificaat achter poort {p}', ['p' => $port]),
+                    ['type' => 'ssl', 'target' => "localhost:$port", 'name' => t('Certificaat poort {p}', ['p' => $port]), 'warn_threshold' => 21, 'crit_threshold' => 7,
+                        'interval_sec' => 3600, 'cert_from' => 'agent', 'verify_ssl' => false]);
+            }
             if ($port < 1 || $port >= 32768 || isset($seen[$port]) || str_starts_with($addr, '127.') || $addr === '::1' || isset($have["tcp:$port"])) {
                 continue;
             }

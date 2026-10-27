@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS hosts (
 CREATE TABLE IF NOT EXISTS checks (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     host_id         INT UNSIGNED NOT NULL,
-    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat') NOT NULL,
+    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process') NOT NULL,
     target          VARCHAR(255) NOT NULL DEFAULT '',
     name            VARCHAR(100) NOT NULL,
     warn_threshold  DOUBLE NULL,
@@ -221,7 +221,7 @@ INSERT IGNORE INTO settings (name, value) VALUES ('notify_fails', '1');
 INSERT IGNORE INTO settings (name, value) VALUES ('notify_lang', 'nl');
 
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
-ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat') NOT NULL;
+ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;
 
 INSERT IGNORE INTO settings (name, value) VALUES
@@ -791,3 +791,6 @@ CREATE TABLE IF NOT EXISTS change_log (
     INDEX idx_change_log_kind (kind)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('changelog_days', '90');
+
+-- Certificaten zoeken (1.98.0): extra mappen voor de agents (spatie-gescheiden)
+INSERT IGNORE INTO settings (name, value) VALUES ('cert_dirs', '');

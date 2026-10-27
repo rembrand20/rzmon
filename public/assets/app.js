@@ -32,7 +32,7 @@ const TYPES = {
   ping:    { label: L('Ping'),          target: null,            unit: 'ms', warn: 100, crit: 500, help: L('Gemiddelde responstijd van 3 pings. Geen antwoord = CRITICAL.') },
   tcp:     { label: L('TCP poort'),     target: L('Poort'),         unit: 'ms', warn: 500, crit: 2000, ph: '22', help: L('Controleert of de poort open staat (bv. 22 SSH, 3306 MariaDB, 443 HTTPS).') },
   http:    { label: L('HTTP(S)'),       target: L('URL of pad'),    unit: 'ms', warn: 1000, crit: 3000, ph: L('https://example.com/ of /status'), help: L('HTTP status ≥ 400 = CRITICAL. SSL-certificaat < 14 dagen = WARNING (voor eigen drempels: gebruik de check SSL-certificaat).') },
-  ssl:     { label: L('SSL-certificaat'), target: L('Host[:poort]'), unit: 'dagen', warn: 21, crit: 7, low: true, ph: L('example.com of nas.lan:5001'), help: L('Waarschuwt als het certificaat bijna verloopt. Leeg = adres van de server op poort 443. Werkt op elke TLS-poort (8443, 993, 8883…), ook op internet. Bij een agent-server kun je ook kiezen uit de certificaten die de agent meldt (bestanden en adressen gezien vanaf die server).') },
+  ssl:     { label: L('SSL-certificaat'), target: L('Host[:poort] of bestand'), unit: 'dagen', warn: 21, crit: 7, low: true, ph: L('example.com, localhost:443 of /etc/ssl/mijn.crt'), help: L('Waarschuwt als het certificaat bijna verloopt. Leeg = adres van de server op poort 443. Werkt op elke TLS-poort (8443, 993, 8883…), ook op internet. Een bestand (.crt/.pem) of localhost:poort leest de agent op de server zelf; kies een bestand uit de lijst die de agent vond. Bij een keten telt het certificaat dat het eerst verloopt.') },
   disk:    { label: L('Diskruimte'),    target: L('Mount / pad'),   unit: '%',  warn: 80, crit: 90, ph: '/', help: L('Percentage gebruikt. Op agent-servers: mount zoals de agent meldt.') },
   cpu:     { label: L('CPU'),           target: null,            unit: '%',  warn: 85, crit: 95, help: L('CPU-gebruik gemeten over 2 seconden, met load average in het bericht. Tip: zet "alarm na N fouten" op 3+ om korte pieken te negeren.') },
   ram:     { label: L('RAM'),           target: null,            unit: '%',  warn: 85, crit: 95, help: L('Percentage geheugen in gebruik (op basis van MemAvailable, dus cache telt niet mee). Swap staat in het bericht.') },
@@ -44,9 +44,12 @@ const TYPES = {
   snmp:    { label: L('SNMP'),          target: null,            unit: null, help: L('RzMon leest het apparaat zelf uit via SNMP (switches, access points, NAS, UPS, printers, Proxmox…). Interfaces, schijven en voorraden kies je het makkelijkst via 📡 SNMP-checks bij de server.') },
   reboot:  { label: L('Uptime'), target: null, unit: 'uur', help: L('Ziet wanneer de server opnieuw is opgestart (de uptime wordt korter) en stuurt dan een ℹ️ info-melding. De check zelf is altijd OK. Info staat standaard uit: zet hem aan bij Instellingen → 🔔 Meldingen (rij Info), of alleen voor deze check bij 🔔 Meldingen hieronder. Op agent-servers is agent 1.46.0 of nieuwer nodig.') },
   heartbeat: { label: L('Heartbeat'), target: L('Naam (voor rzmon-hb)'), unit: null, ph: 'backup-db', help: L('Een script, cronjob of apparaat meldt zich zelf bij RzMon (rzmon-hb op een server met de agent, of de geheime URL). Komt er binnen het schema plus de speling niets binnen: WARNING, na twee keer de speling CRITICAL. Mislukt (fail) = CRITICAL. Met start en klaar meet RzMon de duur.') },
+  process: { label: L('Proces'),        target: L('Naam of patroon'), unit: null, ph: 'nginx', help: L('Draait het proces? Op naam (zoals in ps of top) of op een patroon in de opdrachtregel, eventueel alleen van één gebruiker. Draait het niet: CRITICAL. Daarnaast optioneel het aantal en het CPU- en RAM-gebruik. Is het herstart, dan komt er een ℹ️ info-melding. Op agent-servers kies je hem uit de lijst; agent 1.59.0 of nieuwer nodig.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
+// Standaarddrempels voor CPU (%) en RAM (MB) bij een proces-check (1.98.0)
+const PROC_RES = { cpu: [80, 95], mem: [1024, 2048] };
 const LOG_PRESETS = {
   ssh:      { label: L('🔐 Mislukte logins (SSH)'), src: 'journal', warn: 5, crit: 20,
               pat: 'Failed password|Invalid user|authentication failure|Connection closed by authenticating user|maximum authentication attempts' },
@@ -2629,7 +2632,8 @@ function checkForm(c, h, preset = {}, tpl = null) {
     : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command'].includes(k))
       .filter((k) => k !== 'reboot' || h.mode !== 'remote' || c?.type === 'reboot')
       .filter((k) => k !== 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor') || c?.type === 'ha'))
-    .filter((k) => k !== 'snmp' || h.snmp || c?.type === 'snmp');
+    .filter((k) => k !== 'snmp' || h.snmp || c?.type === 'snmp')
+    .filter((k) => k !== 'process' || !isHaHost(h) || c?.type === 'process');
   const disks = h.metrics.filter((m) => m.startsWith('disk:')).map((m) => m.slice(5));
   const svcs = h.metrics.filter((m) => m.startsWith('service:')).map((m) => m.slice(8));
   let opts = {};
@@ -2697,6 +2701,15 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <span class="hint" id="snmp-help"></span>
       </label>
       <label id="target-wrap"><span id="target-label"></span><input name="target" value="${esc(c.target)}" list="target-list" class="mono"></label>
+      <div id="proc-pick-wrap" hidden>
+        <div class="svc-pick-head"><span class="hint" id="proc-pick-info">${L('Processen op deze server ophalen…')}</span></div>
+        <div class="svc-pick" id="proc-pick" role="listbox"></div>
+      </div>
+      <div id="cert-pick-wrap" hidden>
+        <div class="svc-pick-head"><span class="hint" id="cert-pick-info">${L('Gevonden certificaten ophalen…')}</span>
+          <button type="button" class="btn small-btn" id="cert-rescan">🔄 ${L('Opnieuw zoeken')}</button></div>
+        <div class="svc-pick" id="cert-pick" role="listbox"></div>
+      </div>
       <label id="ha-wrap" hidden>${L('Bewaken')}
         <select name="metric">${Object.entries(HA_METRICS).map(([k, m]) => `<option value="${k}" ${(c.metric || 'backup') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
         <span class="hint" id="ha-help"></span>
@@ -2724,18 +2737,38 @@ function checkForm(c, h, preset = {}, tpl = null) {
           </label>
         </div>
       </div>
+      <div id="proc-wrap" hidden>
+        <div class="row2">
+          <label>${L('Zoeken op')}
+            <select name="proc_mode"><option value="name" ${opts.mode !== 'pattern' ? 'selected' : ''}>${L('Naam van het proces')}</option><option value="pattern" ${opts.mode === 'pattern' ? 'selected' : ''}>${L('Patroon in de opdrachtregel (regex)')}</option></select>
+          </label>
+          <label>${L('Alleen van gebruiker')} <span class="hint">${L('(optioneel)')}</span><input name="proc_user" class="mono" maxlength="32" value="${esc(opts.user || '')}" placeholder="${L('bv. www-data')}"></label>
+        </div>
+        <div class="row2">
+          <label>${L('Minimaal aantal')} <span class="hint">${L('(optioneel; minder = WARNING)')}</span><input name="proc_min" type="number" min="1" max="10000" value="${opts.min ?? ''}"></label>
+          <label>${L('Maximaal aantal')} <span class="hint">${L('(optioneel; meer = WARNING)')}</span><input name="proc_max" type="number" min="1" max="10000" value="${opts.max ?? ''}"></label>
+        </div>
+      </div>
+      <div id="ssl-from-wrap" hidden>
+        <label>${L('Certificaat lezen')}
+          <select name="cert_from">${[['', L('Automatisch (bestand en localhost via de agent, de rest vanaf RzMon)')], ['rzmon', L('Vanaf RzMon (via het netwerk)')], ['agent', L('Op de server zelf (agent)')]]
+            .map(([v, l]) => `<option value="${v}" ${(opts.from || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+          <span class="hint">${L('Via de agent zie je wat de server zelf aanbiedt, ook op poorten die alleen lokaal open staan.')}</span>
+        </label>
+      </div>
       <div id="res-wrap" hidden>
-        <p class="hint" style="margin-top:0">${L('✓ De <b>status</b> wordt altijd bewaakt: gestopt of ongezond = CRITICAL, gepauzeerd of net automatisch herstart = WARNING. Vink aan wat je daarnaast wilt bewaken:')}</p>
+        <p class="hint" style="margin-top:0" id="res-intro">${L('✓ De <b>status</b> wordt altijd bewaakt: gestopt of ongezond = CRITICAL, gepauzeerd of net automatisch herstart = WARNING. Vink aan wat je daarnaast wilt bewaken:')}</p>
         ${['cpu', 'mem', 'disk'].map((k) => {
           const r = (opts.res || {})[k];
           const u = k === 'disk' ? 'MB' : '%';
-          return `<div class="res-row">
+          const def = c.type === 'process' ? PROC_RES[k] || [] : [METRICS[k].warn, METRICS[k].crit];
+          return `<div class="res-row" data-res="${k}">
             <label class="switch small" title="${esc(METRICS[k].help)}"><input type="checkbox" name="res_${k}" ${r ? 'checked' : ''}><span></span> ${METRICS[k].label}</label>
-            <label>${L('Warning vanaf')} <span class="hint">${u}</span><input type="number" step="any" min="0" name="res_${k}_warn" value="${r ? (r[0] ?? '') : METRICS[k].warn}"></label>
-            <label>${L('Critical vanaf')} <span class="hint">${u}</span><input type="number" step="any" min="0" name="res_${k}_crit" value="${r ? (r[1] ?? '') : METRICS[k].crit}"></label>
+            <label>${L('Warning vanaf')} <span class="hint res-unit">${u}</span><input type="number" step="any" min="0" name="res_${k}_warn" value="${r ? (r[0] ?? '') : def[0] ?? ''}"></label>
+            <label>${L('Critical vanaf')} <span class="hint res-unit">${u}</span><input type="number" step="any" min="0" name="res_${k}_crit" value="${r ? (r[1] ?? '') : def[1] ?? ''}"></label>
           </div>`;
         }).join('')}
-        <p class="hint">${L('CPU: 100% = één volledige core. RAM: percentage van de geheugenlimiet van de container. Disk: schrijflaag plus volumes.')}</p>
+        <p class="hint" id="res-foot"></p>
       </div>
       <datalist id="target-list"></datalist>
       <div id="svc-pick-wrap" hidden>
@@ -2824,7 +2857,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     try {
       const r = await api('check_try', { ...payloadOf(Object.fromEntries(new FormData(form))), host_id: h.id, check_id: c.id || 0 });
       out.innerHTML = `<b>${ST_ICON[r.status] || ''} ${esc(STATUS[r.status] || '')}</b>${r.value != null ? ` · ${esc(dec(+r.value))}${(TYPES[form.type.value] || {}).unit ? ' ' + esc(L(TYPES[form.type.value].unit)) : ''}` : ''}
-        <div class="small">${esc(r.message)}</div>${h.mode === 'agent' && ['service', 'log', 'command', 'container', 'podman'].includes(form.type.value)
+        <div class="small">${esc(r.message)}</div>${h.mode === 'agent' && ['service', 'log', 'command', 'container', 'podman', 'process'].includes(form.type.value)
           ? `<div class="hint">${L('Op een agent-server gebruikt RzMon het laatste rapport; een nieuwe service, log of commando ziet de agent pas bij zijn volgende rapport.')}</div>` : ''}`;
     } catch (ex) { out.innerHTML = `<span class="bad">${esc(ex.message)}</span>`; }
     btn.disabled = false;
@@ -2912,7 +2945,26 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $$('#oid-wrap [data-oid]', form).forEach((el) => { el.hidden = (el.dataset.oid === 'text') !== (oidMode === 'text'); });
     $('#ha-help').textContent = isHa ? HA_METRICS[haSel.value].help : '';
     $('#type-help').textContent = TYPES[typeSel.value].help;
-    $('#res-wrap').hidden = !isContainer;
+    const isProc = typeSel.value === 'process';
+    $('#res-wrap').hidden = !isContainer && !isProc;
+    $('#proc-wrap').hidden = !isProc;
+    $$('#proc-wrap input, #proc-wrap select', form).forEach((el) => { el.disabled = !isProc; });
+    $('[data-res=disk]', form).hidden = isProc;
+    $('[name=res_disk]', form).disabled = isProc;
+    $$('[data-res=mem] .res-unit', form).forEach((u) => (u.textContent = isProc ? 'MB' : '%'));
+    $('#res-intro').innerHTML = isProc ? L('Vink aan wat je daarnaast wilt bewaken (alle processen met deze naam of dit patroon samen):')
+      : L('✓ De <b>status</b> wordt altijd bewaakt: gestopt of ongezond = CRITICAL, gepauzeerd of net automatisch herstart = WARNING. Vink aan wat je daarnaast wilt bewaken:');
+    $('#res-foot').textContent = isProc ? L('CPU: 100% = één volledige core. RAM: werkgeheugen (RSS) in MB.')
+      : L('CPU: 100% = één volledige core. RAM: percentage van de geheugenlimiet van de container. Disk: schrijflaag plus volumes.');
+    const isSsl = typeSel.value === 'ssl';
+    $('#ssl-from-wrap').hidden = !isSsl || h.mode === 'remote';
+    $('[name=cert_from]', form).disabled = !isSsl;
+    $('#cert-pick-wrap').hidden = !(isSsl && h.mode === 'agent' && certList);
+    $('#proc-pick-wrap').hidden = !(isProc && procList);
+    if (isSsl && h.mode === 'agent' && h.id && !certList) loadCerts();
+    if (isProc && h.mode !== 'remote' && h.id && !procList) loadProcs();
+    if (isSsl) renderCertPick();
+    if (isProc) renderProcPick();
     $$('#res-wrap input[type=number]', form).forEach((i) => { i.disabled = !$(`[name=${i.name.replace(/_(warn|crit)$/, '')}]`, form).checked; });
     $('#target-wrap').hidden = !t.target;
     $('#target-label').textContent = t.target || '';
@@ -2922,7 +2974,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     const words = $$('.thr-word', form);
     words[0].textContent = t.low ? L('Warning onder') : L('Warning vanaf');
     words[1].textContent = t.low ? L('Critical onder') : L('Critical vanaf');
-    $('#verify-wrap').hidden = !['http', 'ssl'].includes(typeSel.value);
+    $('#verify-wrap').hidden = !['http', 'ssl'].includes(typeSel.value) || (isSsl && $('[name=target]', form).value.trim().startsWith('/'));
     // Omgekeerde status: alleen bij werkt-het-wel-of-niet-checks
     const rev = REVERSIBLE.includes(typeSel.value);
     $('#rev-wrap').hidden = !rev;
@@ -2973,6 +3025,14 @@ function checkForm(c, h, preset = {}, tpl = null) {
       $('[name=warn_threshold]', form).value = t.warn ?? '';
       $('[name=crit_threshold]', form).value = t.crit ?? '';
       if (setDefaults !== 'metric') $('[name=target]', form).value = typeSel.value === 'disk' ? '/' : '';
+      // 1.98.0: nieuwe certificaatcheck telt alleen de vervaldatum (self-signed en eigen CA's zijn dan ook goed)
+      if (isSsl && isNew) form.verify_ssl.checked = false;
+      if (isProc || isContainer) {
+        ['cpu', 'mem'].forEach((k) => {
+          const d = isProc ? PROC_RES[k] : [METRICS[k].warn, METRICS[k].crit];
+          if (!$(`[name=res_${k}]`, form).checked) { $(`[name=res_${k}_warn]`, form).value = d[0]; $(`[name=res_${k}_crit]`, form).value = d[1]; }
+        });
+      }
     }
   };
   let cmdInfoLoaded = false;
@@ -3018,6 +3078,88 @@ function checkForm(c, h, preset = {}, tpl = null) {
     };
     $('[name=target]', form).addEventListener('input', () => { if (typeSel.value === 'service') renderSvcPick(); });
   }
+  // Proceskiezer (1.98.0): wat er nu draait op de server (agent, of RzMon zelf), filtert op wat je typt
+  let procList = null;
+  const loadProcs = () => {
+    procList = [];
+    api('agent_procs', null, { id: h.id }).then((r) => {
+      procList = r.items || [];
+      if (!procList.length) $('#proc-pick-info').textContent = h.mode === 'agent' ? L('Deze agent stuurt nog geen lijst met processen (agent 1.59.0 of nieuwer). Typ de naam zelf.') : L('Geen processen gevonden. Typ de naam zelf.');
+      update(false);
+    }).catch(() => {});
+  };
+  const procWatched = new Set((h.checks || []).filter((x) => x.type === 'process' && (!c.id || +x.id !== +c.id)).map((x) => x.target));
+  const renderProcPick = () => {
+    if (!procList || !procList.length) { $('#proc-pick').innerHTML = ''; return; }
+    const q = $('[name=target]', form).value.trim().toLowerCase();
+    const rows = procList.filter(([n, , , a]) => !q || n.toLowerCase().includes(q) || String(a || '').toLowerCase().includes(q)).slice(0, 150);
+    $('#proc-pick').innerHTML = rows.length ? rows.map(([n, cnt, u, a]) => `
+      <button type="button" class="svc-item${$('[name=target]', form).value === n ? ' sel' : ''}" data-proc="${esc(n)}" data-user="${esc(u || '')}" ${procWatched.has(n) ? 'disabled' : ''}>
+        <span class="svc-dot ok"></span>
+        <span class="pick-main"><span class="mono">${esc(n)}</span><span class="hint mono" title="${esc(a || '')}">${esc(a || '')}</span></span>
+        <span class="hint">${cnt > 1 ? `${cnt}× · ` : ''}${esc(u || '')}${procWatched.has(n) ? ' · ' + L('wordt al bewaakt') : ''}</span>
+      </button>`).join('') : `<p class="hint">${L('Geen proces gevonden met "{q}". Je kunt de naam of een patroon ook zelf typen.', { q: esc(q) })}</p>`;
+    $('#proc-pick-info').textContent = L('{n} processen op {name}. Klik om te kiezen, of typ een naam of patroon.', { n: procList.length, name: h.name });
+  };
+  $('#proc-pick').onclick = (e) => {
+    const b = e.target.closest('[data-proc]');
+    if (!b) return;
+    const name = $('[name=name]', form);
+    if (!name.value || name.value === $('[name=target]', form).value || name.value === L('Proces')) name.value = b.dataset.proc;
+    $('[name=target]', form).value = b.dataset.proc;
+    form.proc_mode.value = 'name';
+    renderProcPick();
+  };
+  // Certificaatkiezer (1.98.0): bestanden die de agent op de server vond, met vervaldatum
+  let certList = null;
+  let certInfo = {};
+  const loadCerts = () => {
+    certList = certList || [];
+    api('agent_certs', null, { id: h.id }).then((r) => { certList = r.items || []; certInfo = r; update(false); }).catch(() => {});
+  };
+  const renderCertPick = () => {
+    if (!certList) return;
+    const q = $('[name=target]', form).value.trim().toLowerCase();
+    const rows = certList.filter((x) => !q || x.path.toLowerCase().includes(q) || String(x.cn || '').toLowerCase().includes(q));
+    const now = Date.now() / 1000;
+    $('#cert-pick').innerHTML = rows.length ? rows.map((x) => {
+      const end = Math.min(x.not_after || Infinity, x.chain_min || Infinity);
+      const days = end === Infinity ? null : Math.floor((end - now) / 86400);
+      const cls = days === null ? 'off' : days < 7 ? 'crit' : days < 21 ? 'warn' : 'ok';
+      const mine = $('[name=target]', form).value === x.path;
+      return `<button type="button" class="svc-item${mine ? ' sel' : ''}" data-cert="${esc(x.path)}" data-cn="${esc(x.cn || '')}" ${x.monitored && !mine ? 'disabled' : ''}>
+        <span class="svc-dot ${cls}"></span>
+        <span class="pick-main"><span class="mono" title="${esc(x.path)}">${esc(x.path)}</span><span class="hint">${esc(x.cn || '?')}${x.issuer && x.issuer !== x.cn ? ' · ' + esc(x.issuer) : x.issuer ? ' · ' + L('self-signed') : ''}${+x.n > 1 ? ' · ' + L('keten van {n}', { n: +x.n }) : ''}</span></span>
+        <span class="hint">${days === null ? '?' : days < 0 ? L('VERLOPEN') : new Date(end * 1000).toLocaleDateString(LOCALE)}${x.monitored && !mine ? ' · ' + L('wordt al bewaakt') : ''}</span>
+      </button>`;
+    }).join('') : `<p class="hint">${q && certList.length ? L('Geen certificaat gevonden met "{q}". Je kunt een pad of adres ook zelf typen.', { q: esc(q) })
+      : L('Nog geen certificaatbestanden gevonden. De agent (1.59.0 of nieuwer) zoekt eens per dag, of nu via 🔄 Opnieuw zoeken. Je kunt een pad of adres ook zelf typen.')}</p>`;
+    $('#cert-pick-info').textContent = certList.length ? L('{n} certificaatbestanden op {name}, gezocht {ago}. Klik om te kiezen.', { n: certList.length, name: h.name, ago: ago(certInfo.at) }) : '';
+  };
+  $('#cert-pick').onclick = (e) => {
+    const b = e.target.closest('[data-cert]');
+    if (!b) return;
+    const name = $('[name=name]', form);
+    const t = $('[name=target]', form);
+    if (!name.value || name.value === t.value || name.value.startsWith(L('Certificaat'))) name.value = L('Certificaat {n}', { n: b.dataset.cn || b.dataset.cert.split('/').pop() });
+    t.value = b.dataset.cert;
+    form.cert_from.value = '';
+    update(false);
+  };
+  $('#cert-rescan').onclick = async (e) => {
+    e.target.disabled = true;
+    try {
+      await api('certscan', { host_id: h.id });
+      toast(L('De agent zoekt bij zijn volgende rapport opnieuw (meestal binnen een paar minuten)'));
+      $('#cert-pick-info').textContent = L('Zoeken aangevraagd…');
+      setTimeout(() => { if ($('#cert-pick')) loadCerts(); }, 90000);
+    } catch (ex) { toast(ex.message, 'err'); }
+    e.target.disabled = false;
+  };
+  $('[name=target]', form).addEventListener('input', () => {
+    if (typeSel.value === 'process') renderProcPick();
+    if (typeSel.value === 'ssl') { renderCertPick(); $('#verify-wrap').hidden = $('[name=target]', form).value.trim().startsWith('/'); }
+  });
   typeSel.onchange = () => update(true);
   $('[name=hb_sched]', form).onchange = () => update(false);
   $('[name=hb_unit]', form).oninput = () => update(false);

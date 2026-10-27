@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.98.0 – 2026-10-27
+**Nieuwe agent 1.59.0** (agent 1.59.0 nodig voor het zoeken naar certificaatbestanden, certificaten op de server zelf en proces-checks op agent-servers).
+
+### Nieuw
+- **Certificaatbestanden kiezen**: bij een SSL-check op een agent-server staat een lijst met de certificaatbestanden die de agent op de server vond, met naam (CN), uitgever en vervaldatum. Klik er een aan om hem te bewaken. Met **🔄 Opnieuw zoeken** zoekt de agent meteen opnieuw (anders eens per dag). Extra mappen: Instellingen → Agents → *Ook zoeken naar certificaten in*.
+- **Zelf invullen**: een pad (`/etc/ssl/mijn.crt`) of `localhost:443` werkt ook. Een bestand en `localhost` leest de agent op de server zelf; bij *Certificaat lezen* kies je anders zelf: automatisch, vanaf RzMon of op de server zelf.
+- **Hele keten**: verloopt een tussencertificaat eerder dan het certificaat zelf, dan telt die datum ("let op: … in de keten verloopt eerder").
+- **Nieuwe certificaatcheck telt alleen de vervaldatum**: *Certificaat controleren* staat bij een nieuwe SSL-check standaard uit, zodat self-signed en eigen CA's ook gewoon werken. Bestaande checks blijven zoals ze zijn.
+- **Proces-check**: nieuw checktype *Proces*, net als een service. Op naam of op een patroon in de opdrachtregel (regex), eventueel alleen van één gebruiker. Draait het niet: CRITICAL. Optioneel een minimum en maximum aantal (WARNING) en drempels voor CPU (%) en RAM (MB). Is het proces herstart, dan komt er een ℹ️ info-melding. Op agent-servers kies je hem uit de lijst van wat er draait; op de server van RzMon zelf werkt hij zonder agent.
+- **Voorstellen** (🔎 Wat wordt nog niet bewaakt): ook gevonden certificaatbestanden en TLS-poorten op de server (443, 8443, 993, 8883 …), als certificaatcheck via de agent. 
+
 ## 1.97.0 – 2026-10-26
 ### Nieuw
 - **📜 Wijzigingslogboek** (*Instellingen → Systeem*): wie veranderde wat en wanneer, met de oude en de nieuwe waarde. Het gaat om instellingen, servers, checks (ook bij meerdere tegelijk) en sjablonen.
