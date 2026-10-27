@@ -4006,4 +4006,5 @@ return [
     'Langst geen contact bovenaan' => 'Longest without contact on top',
     'Contact' => 'Contact',
     'Contact:' => 'Contact:',
+    'Het laatste rapport was deels onleesbaar; dit onderdeel is weggelaten (de rest kwam gewoon binnen):' => 'The last report was partly unreadable; this part was left out (the rest came in normally):',
 ];

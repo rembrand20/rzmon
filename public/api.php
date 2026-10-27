@@ -37,6 +37,78 @@ function input(): array
     return $in ??= (json_decode(raw_input(), true, 512, JSON_INVALID_UTF8_SUBSTITUTE) ?: []);
 }
 
+/**
+ * Onleesbaar agentrapport (1.99.2): per onderdeel op het hoogste niveau ("disks", "proc_list" …) apart lezen en alleen
+ * de kapotte onderdelen weglaten, zodat één fout (bv. een vreemd teken in een opdrachtregel) niet het hele rapport
+ * tegenhoudt. @return array{0: array, 1: list<array{key: string, error: string, near: string}>}
+ */
+function agent_json_salvage(string $raw): array
+{
+    $raw = trim($raw);
+    if ($raw === '' || $raw[0] !== '{') {
+        return [[], []];
+    }
+    $out = $bad = [];
+    $len = strlen($raw);
+    $inStr = $esc = false;
+    $depth = 0;
+    $start = 1;
+    $flush = static function (int $end) use ($raw, &$start, &$out, &$bad): void {
+        $m = trim(substr($raw, $start, $end - $start));
+        $start = $end + 1;
+        if ($m === '') {
+            return;
+        }
+        $d = json_decode('{' . $m . '}', true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
+        if (is_array($d)) {
+            $out += $d;
+            return;
+        }
+        $err = json_last_error_msg();
+        preg_match('/^"([A-Za-z0-9_]{1,40})"/', $m, $k);
+        // Het stukje waar het misgaat: begin van het onderdeel, of rond een stuurteken of een losse backslash
+        // stuurteken, een losse backslash (oneven aantal) of een aanhalingsteken midden in een tekst
+        $pos = 0;
+        foreach (['/[\x00-\x1f]/', '/(?<!\\\\)(?:\\\\\\\\)*(\\\\)(?![\\\\\/"bfnrt]|u[0-9a-fA-F]{4})/', '/[^\[{,:\s\\\\]"[^,\]}:\s]/'] as $re) {
+            if (preg_match($re, $m, $mm, PREG_OFFSET_CAPTURE)) {
+                $pos = $mm[count($mm) - 1][1];
+                break;
+            }
+        }
+        $near = mb_substr(mb_convert_encoding(substr($m, max(0, $pos - 60), 140), 'UTF-8', 'UTF-8'), 0, 140);
+        $bad[] = ['key' => $k[1] ?? '?', 'error' => $err, 'near' => preg_replace('/[\x00-\x1f]/', '␣', $near)];
+    };
+    for ($i = 1; $i < $len; $i++) {
+        $c = $raw[$i];
+        if ($inStr) {
+            if ($esc) {
+                $esc = false;
+            } elseif ($c === '\\') {
+                $esc = true;
+            } elseif ($c === '"') {
+                $inStr = false;
+            }
+            continue;
+        }
+        if ($c === '"') {
+            $inStr = true;
+        } elseif ($c === '{' || $c === '[') {
+            $depth++;
+        } elseif (($c === '}' || $c === ']') && $depth > 0) {
+            $depth--;
+        } elseif (($c === ',' && $depth === 0) || ($c === '}' && $depth === 0)) {
+            $flush($i);
+            if ($c === '}') {
+                break;
+            }
+        }
+    }
+    if ($start < $len) {
+        $flush($len);
+    }
+    return [$out, $bad];
+}
+
 function num($v): ?float
 {
     return ($v === '' || $v === null) ? null : (float) $v;
@@ -475,9 +547,18 @@ if ($action === 'agent') {
         $fixed = preg_replace_callback('/\\\\(.?)/s', static fn($m) => $m[1] !== '' && str_contains('"\\\\/bfnrtu', $m[1]) ? $m[0] : '\\' . $m[0], $raw);
         $in = json_decode((string) $fixed, true, 512, JSON_INVALID_UTF8_SUBSTITUTE) ?: [];
     }
+    $salvaged = [];
+    if (!$in) {
+        // Nog steeds onleesbaar: per onderdeel lezen en alleen wat kapot is weglaten (1.99.2)
+        $jsonErr = json_last_error_msg();
+        [$in, $salvaged] = agent_json_salvage(raw_input());
+        if (!isset($in['agent_version'])) {
+            $in = [];   // te weinig over om als rapport te gebruiken
+        }
+    }
     if (!$in) {
         // Onleesbaar rapport: niets wegschrijven (anders lijken alle gegevens verdwenen) en de reden loggen
-        $reason = 'onleesbaar rapport (JSON: ' . json_last_error_msg() . '); werk de agent bij';
+        $reason = 'onleesbaar rapport (JSON: ' . ($jsonErr ?? json_last_error_msg()) . ($salvaged ? ', bij ' . implode(', ', array_column($salvaged, 'key')) : '') . '); werk de agent bij';
         q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'], mb_substr(client_ip(), 0, 45), $reason]);
         out(['error' => "Geweigerd: $reason"], 400);
     }
@@ -712,6 +793,10 @@ if ($action === 'agent') {
         }
         usort($list, static fn($a, $b) => strcmp($a[0], $b[0]));
         $st->execute([$host['id'], 'svclist', json_encode($list), $now]);
+    }
+    // Deels onleesbaar rapport (1.99.2): wat er werd weggelaten en waarom, voor de Agent Manager
+    if ($salvaged) {
+        $st->execute([$host['id'], 'report_warn', json_encode($salvaged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $now]);
     }
     q('DELETE FROM agent_data WHERE host_id = ? AND updated_at < ?', [$host['id'], $now]);
     $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
@@ -2186,6 +2271,7 @@ switch ($action) {
         out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now(),
              'agent_version' => $h['agent_version'], 'version' => AGENT_LATEST,
              'update' => ['pending' => $h['agent_update_req'] !== null, 'status' => $h['agent_update_status'], 'via' => $h['agent_update_via']],
+             'report_warn' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'report_warn'", [$id])->fetchColumn(), true),
              'realtime' => ['on' => (bool) $h['realtime'], 'status' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'realtime'", [$id])->fetchColumn(), true),
                  'tools' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'tools'", [$id])->fetchColumn(), true)]]);
 

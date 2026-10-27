@@ -4355,6 +4355,10 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
             : L('Deze agent kan dat nog niet: werk hem één keer bij op de server met <code>sudo rzmon-agent-setup --update</code>.')}</span></div>`;
       }
     }
+    if (s.report_warn && s.report_warn.length) {
+      html += `<div class="fails"><span class="small warn-txt">⚠️ ${L('Het laatste rapport was deels onleesbaar; dit onderdeel is weggelaten (de rest kwam gewoon binnen):')}</span>
+        ${s.report_warn.map((w) => `<div class="small"><b>${esc(w.key)}</b> · ${esc(w.error)}<br><code class="small">${esc(w.near)}</code></div>`).join('')}</div>`;
+    }
     if (s.failures.length) {
       html += `<div class="fails"><span class="muted small">${L('Geweigerde pogingen (24 uur):')}</span>
         ${s.failures.map((f) => `<div class="small"><code>${esc(f.ip)}</code> · ${ago(f.created_at)}${+f.n > 1 ? ` (${f.n}×)` : ''} · ${esc(f.reason)}</div>`).join('')}</div>`;

@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.59.1"
+AGENT_VERSION="1.59.2"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -2279,10 +2279,11 @@ fi
 # Plus een lijst van wat er draait (zonder kernelprocessen), om in RzMon uit te kiezen.
 procs_json=""; proc_list=""
 if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ]; then
-    ps_raw=$(ps -eo pid=,ppid=,user:32=,etimes=,pcpu=,rss=,comm=,args= 2>/dev/null)
+    # LC_ALL=C (1.59.2): punt als decimaalteken en alleen ASCII (andere tekens als ?), zodat de JSON altijd klopt
+    ps_raw=$(LC_ALL=C ps -eo pid=,ppid=,user:32=,etimes=,pcpu=,rss=,comm=,args= 2>/dev/null)
     if [ -n "$ps_raw" ]; then
         now_ts=$(date +%s)
-        proc_list=$(awk -v self=$$ '
+        proc_list=$(LC_ALL=C awk -v self=$$ '
             function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/\t/, " ", s); return s }
             $2 == 2 || $1 == 2 || $1 == self || $2 == self { next }
             { a = ""; for (i = 8; i <= NF; i++) a = a (i > 8 ? " " : "") $i
@@ -2295,7 +2296,7 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ]; then
                 p_val=$(printf '%s' "$p_val" | base64 -d 2>/dev/null) || continue
                 [ -n "$p_val" ] || continue
                 # Het patroon via de omgeving: awk -v zou de backslashes in een regex opeten
-                procs_json+=$(P_VAL="$p_val" awk -v id="$p_id" -v mode="$p_mode" -v usr="$p_user" -v self=$$ -v now="$now_ts" '
+                procs_json+=$(P_VAL="$p_val" LC_ALL=C awk -v id="$p_id" -v mode="$p_mode" -v usr="$p_user" -v self=$$ -v now="$now_ts" '
                     BEGIN { val = ENVIRON["P_VAL"] }
                     $1 == self || $2 == self || $2 == 2 { next }
                     { a = ""; for (i = 8; i <= NF; i++) a = a (i > 8 ? " " : "") $i

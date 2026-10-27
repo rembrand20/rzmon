@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.99.2 – 2026-10-27
+**Nieuwe agent 1.59.2.**
+
+### Opgelost
+- **Agent bleef stil met "RzMon weigert dit rapport" (HTTP 400)**: is een rapport onleesbaar, dan leest RzMon het nu per onderdeel (disks, services, processen, certificaten …) en laat alleen het kapotte onderdeel weg. De agent meldt zich dus gewoon, ook met een oudere agent. In de *Agent Manager* staat dan ⚠️ welk onderdeel het was, met het stukje tekst waar het misging.
+- Agent 1.59.2: de proceslijst is altijd geldige JSON, ook met een landinstelling met decimale komma.
+
 ## 1.99.1 – 2026-10-27
 **Nieuwe agent 1.59.1.**
 

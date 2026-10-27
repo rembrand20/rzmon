@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.59.2 – 2026-10-27
+- **Opgelost: proceslijst kon het rapport nog steeds onleesbaar maken**: `ps` en `awk` draaien voor de processen nu met `LC_ALL=C`: altijd een punt als decimaalteken (niet `0,4` bij een Nederlandse of Duitse landinstelling) en alleen gewone tekens.
+
 ## 1.59.1 – 2026-10-27
 - **Opgelost: agent meldt zich niet meer** (vooral Proxmox/Debian): de proceslijst knipte opdrachtregels af op 120 bytes; viel die knip midden in een teken als é, dan was het hele rapport ongeldige UTF-8 en weigerde RzMon het, elke keer weer. De agent verstuurt nu alleen geldige UTF-8 (`iconv`).
 
