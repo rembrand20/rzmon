@@ -102,6 +102,7 @@ final class NetScan
             return null;   // de vorige scan loopt nog
         }
         $msg = [];
+        self::expireBlocks();
         $st = self::state();
         if ((int) ($st['vendors_ok'] ?? 0) < time() - 30 * 86400 && (int) ($st['vendors_try'] ?? 0) < time() - 3600) {
             $msg[] = self::updateVendors();
@@ -152,6 +153,13 @@ final class NetScan
                 $alive[$ip] = $mac;
             }
         }
+        // UniFi (1.104.0): clients die nu verbonden zijn, ook als ze niet op ping of ARP antwoorden (slapende telefoons)
+        $links = self::linkData();
+        foreach ($links['unifi'] as $mac => $c) {
+            if (!empty($c['online']) && self::inScope((string) $c['ip'], $nets)) {
+                $alive[$c['ip']] ??= $mac;
+            }
+        }
         $first = !q('SELECT 1 FROM net_devices LIMIT 1')->fetchColumn();
         $new = [];
         foreach ($alive as $ip => $mac) {
@@ -159,12 +167,14 @@ final class NetScan
                 $new[] = $d;
             }
         }
-        // DNS-naam en fabrikant van nieuwe apparaten
+        // DNS-naam van nieuwe apparaten, en de namen uit UniFi en AdGuard
         self::enrichBasic(array_column($new, 'id'));
+        self::applyLinks($links);
         if ($new && !$first) {
             self::notifyNew(array_column($new, 'id'));
         }
-        self::state(['sweep_at' => time(), 'sweep_error' => '', 'sweep_n' => count($alive), 'sweep_ms' => (int) ((microtime(true) - $t0) * 1000)]);
+        self::state(['sweep_at' => time(), 'sweep_error' => '', 'sweep_n' => count($alive), 'sweep_ms' => (int) ((microtime(true) - $t0) * 1000),
+            'links_error' => implode(' · ', $links['errors'])]);
         return 'Netwerkscan: ' . count($alive) . ' apparaten, ' . count($new) . ' nieuw';
     }
 
@@ -256,7 +266,7 @@ final class NetScan
             return null;
         }
         q('INSERT INTO net_devices (mac, ip, random_mac, vendor, status, first_seen, last_seen, info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [$mac, $ip, (int) self::randomMac($mac), $mac ? self::vendor($mac) : null, 'new', $now, $now, '{}']);
+            [$mac, $ip, (int) self::randomMac($mac), $mac && !self::randomMac($mac) ? self::vendor($mac) : null, 'new', $now, $now, '{}']);
         return ['id' => (int) db()->lastInsertId(), 'ip' => $ip, 'mac' => $mac, 'first' => $first];
     }
 
@@ -324,7 +334,8 @@ final class NetScan
     public static function label(array $r): string
     {
         $info = is_array($r['info'] ?? null) ? $r['info'] : (json_decode((string) ($r['info'] ?? ''), true) ?: []);
-        foreach ([$r['name'] ?? '', $r['hostname'] ?? '', $info['netbios'] ?? '', $info['mdns']['name'] ?? '', $info['ssdp']['name'] ?? ''] as $n) {
+        foreach ([$r['name'] ?? '', $info['unifi']['name'] ?? '', $info['adguard'] ?? '', $r['hostname'] ?? '', $info['unifi']['hostname'] ?? '', $info['netbios'] ?? '',
+            $info['mdns']['name'] ?? '', $info['ssdp']['name'] ?? ''] as $n) {
             if (trim((string) $n) !== '') {
                 return preg_replace('/\.(local|lan|home|fritz\.box|localdomain)$/i', '', trim((string) $n));
             }
@@ -380,7 +391,7 @@ final class NetScan
             $p = $ports[$ip] ?? [];
             $r['info'] = $info;
             $r['hostname'] = $dns[$ip] ?? $r['hostname'];
-            if ($r['mac'] && !$r['vendor']) {
+            if ($r['mac'] && !$r['vendor'] && !self::randomMac($r['mac'])) {   // een willekeurig MAC-adres heeft geen fabrikant
                 $r['vendor'] = self::vendor($r['mac']);
             }
             q('UPDATE net_devices SET hostname = ?, vendor = ?, ports = ?, kind = ?, info = ?, deep_at = ? WHERE id = ?', [
@@ -610,7 +621,7 @@ final class NetScan
     {
         $info = is_array($r['info'] ?? null) ? $r['info'] : (json_decode((string) ($r['info'] ?? ''), true) ?: []);
         $v = strtolower((string) ($r['vendor'] ?? ''));
-        $names = strtolower(implode(' ', array_filter([$r['hostname'] ?? '', $info['netbios'] ?? '', $info['mdns']['name'] ?? '', $info['mdns']['host'] ?? '',
+        $names = strtolower(implode(' ', array_filter([$r['hostname'] ?? '', $info['unifi']['name'] ?? '', $info['unifi']['hostname'] ?? '', $info['adguard'] ?? '', $info['netbios'] ?? '', $info['mdns']['name'] ?? '', $info['mdns']['host'] ?? '',
             $info['ssdp']['name'] ?? '', $info['ssdp']['model'] ?? '', $info['ssdp']['maker'] ?? '', $info['ssdp']['type'] ?? '', $info['http']['title'] ?? ''])));
         $types = ' ' . implode(' ', (array) ($info['mdns']['types'] ?? [])) . ' ';
         $has = static fn(int ...$p) => (bool) array_intersect($p, $ports);
@@ -669,7 +680,7 @@ final class NetScan
             q('INSERT IGNORE INTO mac_vendors (prefix, vendor) VALUES ' . implode(',', array_fill(0, count($chunk), '(?, ?)')), array_merge(...$chunk));
         }
         db()->commit();
-        foreach (q('SELECT id, mac FROM net_devices WHERE mac IS NOT NULL AND vendor IS NULL')->fetchAll() as $d) {
+        foreach (q('SELECT id, mac FROM net_devices WHERE mac IS NOT NULL AND vendor IS NULL AND random_mac = 0')->fetchAll() as $d) {
             if ($v = self::vendor((string) $d['mac'])) {
                 q('UPDATE net_devices SET vendor = ? WHERE id = ?', [$v, $d['id']]);
             }
@@ -715,12 +726,19 @@ final class NetScan
             }
         }
         $out = [];
+        $own = array_keys(self::ownInterfaces());
         foreach (q('SELECT * FROM net_devices ORDER BY INET_ATON(ip)')->fetchAll() as $r) {
             $r['info'] = json_decode((string) $r['info'], true) ?: [];
             $r['ports'] = array_map('intval', json_decode((string) $r['ports'], true) ?: []);
+            $r['blocked'] = json_decode((string) ($r['blocked'] ?? ''), true) ?: null;
             $h = $byAddr[$r['ip']] ?? ($r['hostname'] ? ($byAddr[strtolower((string) $r['hostname'])] ?? $byAddr[strtolower(preg_replace('/\..*$/', '', (string) $r['hostname']))] ?? null) : null);
             $r['host'] = $h ? ['id' => (int) $h['id'], 'name' => $h['name']] : null;
-            $r['label'] = self::label($r);
+            $r['self'] = in_array($r['ip'], $own, true);   // de RzMon-server zelf
+            if ($r['self']) {
+                $r['host'] ??= ['id' => 0, 'name' => 'RzMon'];
+                $r['kind'] = 'server';
+            }
+            $r['label'] = $r['self'] && !$r['name'] ? t('RzMon-server (deze server)') : self::label($r);
             $r['risky'] = array_values(array_intersect(self::RISKY, $r['ports']));
             if ($r['kind'] === 'nas' || $r['kind'] === 'server' || $r['host']) {
                 $r['risky'] = array_values(array_diff($r['risky'], [3389]));   // RDP op een server: normaal
@@ -787,11 +805,175 @@ final class NetScan
         return (bool) $r;
     }
 
+    // ------------------------------------------------------------------ UniFi en AdGuard (1.104.0)
+
+    /** Clients uit UniFi en namen uit AdGuard (fouten apart, de scan gaat gewoon door) */
+    private static function linkData(): array
+    {
+        $out = ['unifi' => [], 'ag_ips' => [], 'ag_macs' => [], 'errors' => []];
+        try {
+            if (NetLinks::unifiOn()) {
+                $u = NetLinks::unifiClients();
+                $u['ok'] ? $out['unifi'] = $u['clients'] : $out['errors'][] = $u['error'];
+            }
+            if (NetLinks::adguardOn()) {
+                $a = NetLinks::adguardNames();
+                $out['ag_ips'] = $a['ips'];
+                $out['ag_macs'] = $a['macs'];
+                array_push($out['errors'], ...$a['errors']);
+            }
+        } catch (Throwable $e) {
+            $out['errors'][] = $e->getMessage();
+        }
+        return $out;
+    }
+
+    /** Namen, wifi-netwerk, access point en blokkade uit UniFi en AdGuard bij de apparaten zetten */
+    private static function applyLinks(array $links): void
+    {
+        if (!$links['unifi'] && !$links['ag_ips'] && !$links['ag_macs']) {
+            return;
+        }
+        foreach (q('SELECT id, mac, ip, info FROM net_devices')->fetchAll() as $r) {
+            $info = json_decode((string) $r['info'], true) ?: [];
+            $before = $info;
+            if ($r['mac'] && isset($links['unifi'][$r['mac']])) {
+                $c = $links['unifi'][$r['mac']];
+                $info['unifi'] = array_filter(['name' => $c['name'], 'hostname' => $c['hostname'], 'essid' => $c['essid'], 'ap' => $c['ap'],
+                    'wired' => $c['wired'], 'blocked' => $c['blocked']], fn($v) => $v !== '' && $v !== null);
+            }
+            $ag = ($r['mac'] ? ($links['ag_macs'][$r['mac']] ?? null) : null) ?? ($links['ag_ips'][$r['ip']] ?? null);
+            if ($ag !== null && $ag !== '') {
+                $info['adguard'] = mb_substr($ag, 0, self::NAME_LEN);
+            }
+            if ($info !== $before) {
+                q('UPDATE net_devices SET info = ? WHERE id = ?', [json_encode($info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $r['id']]);
+            }
+        }
+    }
+
+    /** Waarom dit apparaat niet geweerd mag worden, of null */
+    public static function cannotBlock(array $r, string $byIp): ?string
+    {
+        $ip = (string) $r['ip'];
+        $own = array_keys(self::ownInterfaces());
+        return match (true) {
+            $ip === $byIp => t('Dit is het apparaat waarmee je nu in RzMon zit'),
+            in_array($ip, $own, true) => t('Dit is de RzMon-server zelf'),
+            $ip === self::gateway() => t('Dit is je router (standaardgateway); dan valt je hele netwerk om'),
+            in_array($ip, NetLinks::ownIps(), true) => t('Dit is je UniFi-controller of een AdGuard-server; die weren sluit je zelf buiten'),
+            (bool) q("SELECT 1 FROM hosts WHERE address = ? OR CONCAT(' ', COALESCE(agent_ips, ''), ' ') LIKE ? LIMIT 1", [$ip, '% ' . $ip . ' %'])->fetchColumn()
+                => t('Dit apparaat staat in RzMon als server; haal het daar eerst weg'),
+            Whitelist::ip($ip) => t('{ip} staat op de whitelist (IDS → Blokkades)', ['ip' => $ip]),
+            default => null,
+        };
+    }
+
+    /**
+     * Een apparaat weren: van het wifi (UniFi, op MAC), geen DNS meer (AdGuard, op IP) en geen toegang tot RzMon en je
+     * servers (op IP). $days 0 = tot je het weer toelaat. @return array{ok: bool, done: list<string>, errors: list<string>}
+     */
+    public static function block(int $id, array $via, int $days, string $reason, string $by, string $byIp): array
+    {
+        $r = q('SELECT * FROM net_devices WHERE id = ?', [$id])->fetch();
+        if (!$r) {
+            return ['ok' => false, 'done' => [], 'errors' => [t('Niet gevonden')]];
+        }
+        if ($why = self::cannotBlock($r, $byIp)) {
+            return ['ok' => false, 'done' => [], 'errors' => [$why]];
+        }
+        $ip = (string) $r['ip'];
+        $until = $days > 0 ? date('Y-m-d H:i:s', time() + $days * 86400) : null;
+        $reason = mb_substr(trim($reason) ?: t('geweerd van het netwerk'), 0, 200);
+        $done = [];
+        $errors = [];
+        if (!empty($via['unifi'])) {
+            if (!$r['mac']) {
+                $errors[] = t('UniFi: geen MAC-adres bekend');
+            } elseif (($e = NetLinks::unifiBlock((string) $r['mac'], true)) === true) {
+                $done[] = 'unifi';
+            } else {
+                $errors[] = $e;
+            }
+        }
+        if (!empty($via['adguard'])) {
+            ($e = NetLinks::adguardDisallow($ip, true)) === true ? $done[] = 'adguard' : $errors[] = $e;
+        }
+        if (!empty($via['rzmon'])) {
+            $e = Security::block($ip, $reason . ' (' . self::label($r) . ')', $by, $until);
+            if ($e === true || str_contains((string) $e, 'al ')) {
+                $done[] = 'rzmon';
+            } else {
+                $errors[] = 'RzMon: ' . $e;
+            }
+            foreach (q("SELECT id FROM hosts WHERE mode = 'agent' AND enabled = 1")->fetchAll(PDO::FETCH_COLUMN) as $hid) {
+                Ids::block((int) $hid, $ip, $days > 0 ? $days * 24 : null, $reason, $by, $byIp);   // al geblokkeerd: geen probleem
+            }
+        }
+        if ($done) {
+            $b = ['at' => now(), 'until' => $until, 'by' => $by, 'via' => $done, 'ip' => $ip, 'mac' => $r['mac'], 'reason' => $reason];
+            q('UPDATE net_devices SET blocked = ? WHERE id = ?', [json_encode($b, JSON_UNESCAPED_UNICODE), $id]);
+            AgentCommands::audit($by, 'Netwerkapparaat geweerd', self::label($r) . " ($ip, " . ($r['mac'] ?? '-') . '): ' . implode(', ', $done) . ($until ? " tot $until" : ' tot weer toegelaten'));
+            Monitor::sysInfo('ip_block', null, null, '⛔ ' . t('Apparaat geweerd: {name}', ['name' => self::label($r)]),
+                fn() => t('{name} ({ip}) is geweerd via {via} door {by}', ['name' => self::label($r), 'ip' => $ip, 'via' => implode(', ', self::viaLabels($done)), 'by' => $by])
+                    . ($until ? ' · ' . t('tot {t}', ['t' => date('d-m-Y H:i', strtotime($until))]) : ''), $ip);
+        }
+        return ['ok' => (bool) $done, 'done' => $done, 'errors' => $errors];
+    }
+
+    public static function viaLabels(array $via): array
+    {
+        return array_map(fn($v) => ['unifi' => t('UniFi (wifi)'), 'adguard' => t('AdGuard (DNS)'), 'rzmon' => t('RzMon en je servers')][$v] ?? $v, $via);
+    }
+
+    /** Weer toelaten: alles terugdraaien wat bij het weren gedaan is */
+    public static function unblock(int $id, string $by, bool $auto = false): array
+    {
+        $r = q('SELECT * FROM net_devices WHERE id = ?', [$id])->fetch();
+        $b = $r ? json_decode((string) ($r['blocked'] ?? ''), true) : null;
+        if (!$b) {
+            return ['ok' => false, 'errors' => [t('Niet geweerd')]];
+        }
+        $errors = [];
+        $ip = (string) ($b['ip'] ?? $r['ip']);
+        if (in_array('unifi', $b['via'], true) && !empty($b['mac']) && ($e = NetLinks::unifiBlock((string) $b['mac'], false)) !== true) {
+            $errors[] = $e;
+        }
+        if (in_array('adguard', $b['via'], true) && ($e = NetLinks::adguardDisallow($ip, false)) !== true) {
+            $errors[] = $e;
+        }
+        if (in_array('rzmon', $b['via'], true)) {
+            foreach (q('SELECT id FROM rz_blocks WHERE net = ?', [$ip])->fetchAll(PDO::FETCH_COLUMN) as $bid) {
+                Security::unblock((int) $bid, $by);
+            }
+            foreach (q('SELECT id FROM ids_blocks WHERE ip = ? AND removed_at IS NULL', [$ip])->fetchAll(PDO::FETCH_COLUMN) as $bid) {
+                Ids::unblock((int) $bid, $by);
+            }
+        }
+        q('UPDATE net_devices SET blocked = NULL WHERE id = ?', [$id]);
+        AgentCommands::audit($by, 'Netwerkapparaat weer toegelaten', self::label($r) . " ($ip)" . ($auto ? ' (verlopen)' : '') . ($errors ? ' · ' . implode(' · ', $errors) : ''));
+        Monitor::sysInfo('ip_unblock', null, null, '✅ ' . t('Apparaat weer toegelaten: {name}', ['name' => self::label($r)]),
+            fn() => t('{name} ({ip}) mag weer op het netwerk', ['name' => self::label($r), 'ip' => $ip]) . ($auto ? ' (' . t('de tijd was om') . ')' : ' · ' . t('door {by}', ['by' => $by]))
+                . ($errors ? "\n⚠️ " . implode(' · ', $errors) : ''), $ip);
+        return ['ok' => !$errors, 'errors' => $errors];
+    }
+
+    /** Vanuit cron: verlopen weringen opheffen */
+    public static function expireBlocks(): void
+    {
+        foreach (q("SELECT id, blocked FROM net_devices WHERE blocked IS NOT NULL")->fetchAll() as $r) {
+            $b = json_decode((string) $r['blocked'], true) ?: [];
+            if (!empty($b['until']) && strtotime((string) $b['until']) <= time()) {
+                self::unblock((int) $r['id'], 'RzMon', true);
+            }
+        }
+    }
+
     /** Opruimen: apparaten die 90 dagen niet gezien zijn (behalve bekende met een eigen naam) */
     public static function purge(): void
     {
         try {
-            q("DELETE FROM net_devices WHERE last_seen < NOW() - INTERVAL 90 DAY AND NOT (status = 'known' AND name IS NOT NULL)");
+            q("DELETE FROM net_devices WHERE last_seen < NOW() - INTERVAL 90 DAY AND blocked IS NULL AND NOT (status = 'known' AND name IS NOT NULL)");
         } catch (Throwable) {
         }
     }

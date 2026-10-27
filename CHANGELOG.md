@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.104.0 – 2026-10-27
+### Nieuw
+- **📡 UniFi en AdGuard Home voor de netwerkscan** (*Instellingen → Koppelingen → UniFi en AdGuard Home*, met **🧪 Verbinding testen**).
+  - **UniFi** (Network-app, ook 9 en 10; UniFi OS of zelf gehost): naam, wifi-netwerk, access point en bedraad of niet, ook van apparaten die niet op ping antwoorden. Met een lokaal account, of alleen lezen met een API-sleutel.
+  - **AdGuard Home** (meerdere instanties): namen van clients, en in het venster van een apparaat **met welke domeinen het praat** (query-log, met wat er geblokkeerd werd).
+- **⛔ Een apparaat weren** (tabblad Netwerk, beheerders, met je wachtwoord): van het wifi (UniFi), geen DNS meer (alle AdGuard-instanties) en geen toegang tot RzMon en je servers; 1 dag, 7 dagen of tot je het weer toelaat. **✅ Weer toelaten** draait alles terug, en na de gekozen tijd gebeurt dat vanzelf. RzMon zelf, je router, de controller, de AdGuard-servers, servers in RzMon, de whitelist en je eigen apparaat kun je niet weren. Nieuw filter *⛔ Geweerd*.
+- De RzMon-server staat in de lijst als *RzMon-server (deze server)*.
+
+### Opgelost
+- Een willekeurig (privé) MAC-adres krijgt geen fabrikant meer: zo'n adres hoort bij geen enkele fabrikant.
+
 ## 1.103.0 – 2026-10-27
 ### Nieuw
 - **🔎 Netwerkscan en het tabblad Netwerk.** RzMon zoekt welke apparaten er op je lokale netwerken zitten (*Toegang → Lokale netwerken*, alleen privé-netwerken tot /22). Aanzetten bij *Instellingen → Beveiliging → Netwerkscan* (standaard uit).

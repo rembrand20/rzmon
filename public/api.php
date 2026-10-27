@@ -2768,7 +2768,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -3465,7 +3465,33 @@ switch ($action) {
     case 'net_devices':
         $nets = NetScan::networks();
         out(['enabled' => NetScan::enabled(), 'devices' => NetScan::list(), 'state' => NetScan::state(), 'networks' => $nets,
-            'risky_reasons' => NetScan::riskyReasons(), 'kinds' => NetScan::KINDS, 'now' => now(), 'vendors' => (int) q('SELECT COUNT(*) FROM mac_vendors')->fetchColumn()]);
+            'risky_reasons' => NetScan::riskyReasons(), 'kinds' => NetScan::KINDS, 'now' => now(), 'vendors' => (int) q('SELECT COUNT(*) FROM mac_vendors')->fetchColumn(),
+            'links' => ['unifi' => NetLinks::unifiOn(), 'unifi_block' => NetLinks::unifiCanBlock(), 'adguard' => NetLinks::adguardOn()], 'my_ip' => client_ip()]);
+
+    // 1.104.0: UniFi en AdGuard Home testen, een apparaat weren of weer toelaten, en de domeinen van een apparaat
+    case 'net_links_test':
+        out(NetLinks::test());
+
+    case 'net_block':
+        $in = input();
+        $confirm('WEREN');
+        $r = NetScan::block((int) ($in['id'] ?? 0), ['unifi' => !empty($in['unifi']), 'adguard' => !empty($in['adguard']), 'rzmon' => !empty($in['rzmon'])],
+            max(0, min(3650, (int) ($in['days'] ?? 1))), (string) ($in['reason'] ?? ''), $user['username'], client_ip());
+        $r['ok'] ? out($r) : out(['error' => implode(' · ', $r['errors']) ?: t('Niets gekozen om mee te weren')], 422);
+
+    case 'net_unblock':
+        $r = NetScan::unblock((int) (input()['id'] ?? 0), $user['username']);
+        out($r);
+
+    case 'net_domains':
+        $d = q('SELECT ip FROM net_devices WHERE id = ?', [(int) ($_GET['id'] ?? 0)])->fetch();
+        if (!$d) {
+            out(['error' => t('Niet gevonden')], 404);
+        }
+        if (!NetLinks::adguardOn()) {
+            out(['error' => t('AdGuard Home is niet ingesteld (Instellingen → Koppelingen → UniFi en AdGuard Home)')], 422);
+        }
+        out(NetLinks::adguardDomains((string) $d['ip']));
 
     case 'net_device_save':
         $in = input();

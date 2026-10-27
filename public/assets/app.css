@@ -1593,3 +1593,4 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
   .net-table th:nth-child(3), .net-table td:nth-child(3), .net-table th:nth-child(4), .net-table td:nth-child(4), .net-table th:nth-child(5), .net-table td:nth-child(5) { display: none; }
   .net-table td.nowrap { white-space: normal; }
 }
+.badge-root.bad-badge { background: color-mix(in srgb, var(--crit) 18%, transparent); color: var(--crit); }

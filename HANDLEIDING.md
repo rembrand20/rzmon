@@ -1962,6 +1962,24 @@ RzMon zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons
 
 **Meldingen:** een nieuw apparaat geeft een ℹ️ *Nieuw apparaat op je netwerk*, standaard alleen op de meldingenpagina. Andere kanalen (Pushover, e-mail) zet je aan bij *Instellingen → Meldingen → ℹ️ Systeeminfo → Nieuw apparaat op het netwerk*. Komen er veel tegelijk (meer dan 5), dan krijg je één bericht. De **eerste scan is de basismeting** en geeft geen meldingen.
 
+**📡 UniFi en AdGuard Home** (vanaf 1.104.0; *Instellingen → Koppelingen → UniFi en AdGuard Home*)
+- **UniFi** (de Network-app, ook versie 9 en 10, op een UniFi OS-console zoals een UDM/UCG/Cloud Key, of zelf gehost):
+  - vul het **adres van de controller** in (bv. `https://192.168.2.1`), de site (meestal `default`) en een **lokaal account** voor RzMon: *Admins & Users → Add admin → Restrict to local access only*, met beheerrechten voor Network en zonder 2FA;
+  - alleen lezen kan ook met een **API-sleutel** (*Settings → Control Plane → Integrations*), maar dan kan RzMon niet weren;
+  - RzMon haalt elke ronde de clientlijst op: de **naam** die je in UniFi gaf, het **wifi-netwerk** (SSID), het **access point** en of het apparaat bedraad is. Een telefoon die slaapt en niet op ping antwoordt, staat er via UniFi toch in.
+- **AdGuard Home:** vul **alle** adressen in (één per regel, bv. de instanties op RL02 en RL03), met gebruikersnaam en wachtwoord. RzMon gebruikt:
+  - de **namen** van je clients (eigen clients en wat AdGuard zelf vond);
+  - **🌐 met welke domeinen een apparaat praat**: klap het in het venster van een apparaat open. Je ziet de meest opgevraagde domeinen (uit de query-log van alle instanties samen), hoe vaak en welke geblokkeerd werden (⛔). Handig om te zien of een slim apparaat "naar huis belt".
+- **🧪 Verbinding testen** laat per koppeling zien of het werkt, hoeveel clients UniFi kent en of weren kan.
+
+**⛔ Weren** (vanaf 1.104.0, beheerders): in het venster van een apparaat. Je kiest waarmee, en hoe lang (1 dag, 7 dagen of tot je het weer toelaat), en bevestigt met je wachtwoord.
+- **📶 UniFi:** het apparaat komt niet meer op je **wifi** (blokkeren op MAC-adres). Een bedraad apparaat haal je zo niet van het netwerk; zet daarvoor de poort op de switch uit.
+- **🌐 AdGuard:** het IP-adres komt op de lijst *Niet toegestane clients* van **alle** AdGuard-instanties: geen DNS meer, dus geen internet via namen.
+- **🛡️ RzMon en je servers:** geen toegang meer tot RzMon, en een blokkade op al je servers met agent (als het IDS op *blokkeren* staat; anders alleen vastgelegd).
+- **Nooit te weren:** het apparaat waarmee je nu werkt, de RzMon-server, je router, de UniFi-controller en de AdGuard-servers, servers die in RzMon staan, en adressen op de whitelist.
+- **✅ Weer toelaten** draait alles terug. Is de tijd om, dan doet RzMon dat vanzelf. Elk weren en toelaten geeft een ℹ️-melding (rij *IP geblokkeerd / Blokkade opgeheven* bij Systeeminfo) en komt in het logboek.
+- **Let op:** een telefoon met een **privé-adres** kan een nieuw MAC-adres nemen en zo weer op het wifi komen. Een apparaat met een eigen DNS-server of een vast IP-adres komt langs AdGuard.
+
 **Goed om te weten**
 - In *Hoe staat het ervoor?* staat hoeveel apparaten nog niet beoordeeld zijn; het tabblad Netwerk krijgt een oranje teller.
 - Apparaten die 90 dagen niet gezien zijn, verdwijnen, behalve bekende apparaten met een eigen naam.

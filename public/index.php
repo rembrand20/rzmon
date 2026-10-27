@@ -528,6 +528,33 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="email-test"><?= th('📧 Testmail sturen') ?></button>
         </div>
 
+        <div data-sk="netlinks" class="card" id="netlinks-card">
+          <h2>📡 <?= th('UniFi en AdGuard Home') ?></h2>
+          <p class="muted small"><?= t('Voor de <b>netwerkscan</b> (tabblad Netwerk): namen, wifi-netwerk en access point uit UniFi, namen en de domeinen per apparaat uit AdGuard Home, en een apparaat <b>weren</b> (van het wifi en/of geen DNS meer). Wachtwoorden en de API-sleutel gaan nooit terug naar de browser.') ?></p>
+          <h3 class="set-sub">UniFi</h3>
+          <div class="row2">
+            <label><?= th('Adres van de controller') ?> <span class="hint"><?= th('(bv. https://192.168.2.1 of https://unifi:8443)') ?></span><input name="unifi_url" class="mono" placeholder="https://192.168.2.1"></label>
+            <label><?= th('Site') ?> <span class="hint"><?= th('(meestal default)') ?></span><input name="unifi_site" class="mono" placeholder="default"></label>
+          </div>
+          <div class="row2">
+            <label><?= th('Gebruikersnaam (lokaal account)') ?><input name="unifi_user" autocomplete="off"></label>
+            <label><?= th('Wachtwoord') ?><input name="unifi_pass" type="password" autocomplete="new-password"></label>
+          </div>
+          <label><?= th('of alleen een API-sleutel') ?> <span class="hint"><?= th('(Network 9 of nieuwer: alleen lezen, weren kan dan niet)') ?></span><input name="unifi_key" type="password" autocomplete="new-password" class="mono"></label>
+          <label class="switch"><input type="checkbox" name="unifi_verify_ssl"><span></span> <?= th('Certificaat controleren') ?> <span class="hint"><?= th('(uit bij het eigen certificaat van UniFi)') ?></span></label>
+          <p class="muted small"><?= t('Maak in UniFi een <b>lokaal account</b> voor RzMon (<i>Admins &amp; Users → Add admin → Restrict to local access only</i>, rol met beheerrechten voor Network, zonder 2FA). Met alleen een API-sleutel (<i>Settings → Control Plane → Integrations</i>) kan RzMon lezen maar niet weren.') ?></p>
+          <h3 class="set-sub">AdGuard Home</h3>
+          <label><?= th('Adressen') ?> <span class="hint"><?= th('(één per regel; gesynchroniseerde instanties allemaal invullen)') ?></span>
+            <textarea name="adguard_urls" rows="2" class="mono" placeholder="http://192.168.2.203:3000&#10;http://192.168.2.204:3000"></textarea></label>
+          <div class="row2">
+            <label><?= th('Gebruikersnaam') ?><input name="adguard_user" autocomplete="off"></label>
+            <label><?= th('Wachtwoord') ?><input name="adguard_pass" type="password" autocomplete="new-password"></label>
+          </div>
+          <label class="switch"><input type="checkbox" name="adguard_verify_ssl"><span></span> <?= th('Certificaat controleren') ?></label>
+          <div class="btn-row"><button type="button" class="btn" id="netlinks-test">🧪 <?= th('Verbinding testen') ?></button></div>
+          <div id="netlinks-result" class="small"></div>
+        </div>
+
         <div data-sk="mqtt" class="card">
           <h2><?= th('MQTT (Home Assistant)') ?></h2>
           <p class="muted small"><?= t('RzMon meldt zich via <b>MQTT discovery</b> bij Home Assistant: elke server wordt een apparaat met sensoren voor de status en meetwaarden van zijn checks. Je hebt een MQTT-broker nodig, bv. de <i>Mosquitto broker</i>-add-on, en de MQTT-integratie in HA. Gebruik bij Mosquitto een HA-gebruiker (of een aparte gebruiker) als login.') ?></p>

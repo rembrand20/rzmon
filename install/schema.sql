@@ -852,3 +852,5 @@ CREATE TABLE IF NOT EXISTS mac_vendors (
     vendor  VARCHAR(120) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('net_scan', '0'), ('net_sweep_minutes', '60'), ('net_deep_per_day', '4');
+-- 1.104.0: koppelingen voor de netwerkscan (UniFi en AdGuard Home); zelf-ondertekende certificaten zijn daar normaal
+INSERT IGNORE INTO settings (name, value) VALUES ('unifi_site', 'default'), ('unifi_verify_ssl', '0'), ('adguard_verify_ssl', '0');
