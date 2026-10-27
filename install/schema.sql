@@ -854,3 +854,14 @@ CREATE TABLE IF NOT EXISTS mac_vendors (
 INSERT IGNORE INTO settings (name, value) VALUES ('net_scan', '0'), ('net_sweep_minutes', '60'), ('net_deep_per_day', '4');
 -- 1.104.0: koppelingen voor de netwerkscan (UniFi en AdGuard Home); zelf-ondertekende certificaten zijn daar normaal
 INSERT IGNORE INTO settings (name, value) VALUES ('unifi_site', 'default'), ('unifi_verify_ssl', '0'), ('adguard_verify_ssl', '0');
+
+-- 1.106.0: dagtotalen voor 📊 Analyse (een jaar bewaard); metric/ref zie src/Analytics.php
+CREATE TABLE IF NOT EXISTS stats_daily (
+    day    DATE         NOT NULL,
+    metric VARCHAR(24)  NOT NULL,
+    ref    INT UNSIGNED NOT NULL DEFAULT 0,
+    v      DOUBLE       NOT NULL,
+    PRIMARY KEY (day, metric, ref),
+    KEY idx_sd_metric (metric, ref, day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('report_monthly', '0');

@@ -1594,3 +1594,50 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
   .net-table td.nowrap { white-space: normal; }
 }
 .badge-root.bad-badge { background: color-mix(in srgb, var(--crit) 18%, transparent); color: var(--crit); }
+
+/* 1.106.0: 📊 Analyse */
+.an-toolbar { flex-wrap: wrap; }
+.an-custom { display: inline-flex; align-items: center; gap: .3rem; font-size: .85rem; }
+.an-custom input[type=date] { width: auto; padding: .3rem .45rem; font-size: .82rem; }
+.an-report { display: inline-flex; align-items: center; gap: .5rem; }
+.an-kpis .kpi { position: relative; }
+.an-kspark { margin-top: .35rem; height: 34px; }
+.an-kspark .an-chart, .an-kspark svg { height: 34px; }
+.an-sec h2 { margin-bottom: .6rem; }
+.an-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem 1.4rem; }
+.an-box { min-width: 0; }
+.an-box h3 { font-size: .9rem; margin: 0 0 .4rem; }
+.an-help { margin: -.2rem 0 .5rem; }
+.an-chart { position: relative; padding-left: 3rem; padding-bottom: 1.1rem; }
+.an-chart svg { display: block; width: 100%; height: 110px; overflow: visible; }
+.an-mini { padding-left: 0; padding-bottom: 0; } .an-mini svg { height: 46px; } .an-mini .an-yl, .an-mini .an-xl { display: none; }
+.an-axis { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.an-line { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.an-area { fill: var(--primary); opacity: .1; }
+.an-bar { fill: var(--primary); }
+.an-crit .an-bar { fill: var(--crit); }
+.an-chart rect:hover + .an-bar, .an-chart g:hover .an-bar { opacity: .75; }
+.an-yl { position: absolute; left: 0; top: 0; bottom: 1.1rem; width: 2.8rem; display: flex; flex-direction: column; justify-content: space-between; font-size: .68rem; color: var(--muted); text-align: right; padding-right: .3rem; }
+.an-xl { position: absolute; left: 3rem; right: 0; bottom: 0; display: flex; justify-content: space-between; font-size: .68rem; color: var(--muted); }
+.an-hbars { display: grid; gap: .3rem; }
+.an-hrow { display: grid; grid-template-columns: minmax(6rem, 38%) 1fr auto; align-items: center; gap: .5rem; font-size: .82rem; }
+.an-hl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-ht { height: 10px; background: var(--card-2); border-radius: 5px; overflow: hidden; }
+.an-hb { display: block; height: 100%; background: var(--primary); border-radius: 5px; }
+.an-hb.ok { background: var(--ok); } .an-hb.warn { background: var(--warn); } .an-hb.crit { background: var(--crit); }
+.an-hv { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: .8rem; }
+.an-heat { display: grid; grid-template-columns: 1.8rem repeat(24, 1fr); gap: 2px; font-size: .62rem; color: var(--muted); }
+.an-hh { text-align: center; } .an-hd { line-height: 14px; }
+.an-cell { height: 14px; border-radius: 2px; background: var(--card-2); position: relative; }
+.an-cell::after { content: ''; position: absolute; inset: 0; border-radius: 2px; background: var(--crit); opacity: var(--o); }
+.an-todo { margin: 0; padding-left: 1.4rem; display: grid; gap: .35rem; font-size: .88rem; }
+.an-todo .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; }
+.an-sec .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; text-align: left; }
+.an-stats { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; margin-bottom: .4rem; }
+.an-stats div { display: flex; flex-direction: column; } .an-stats b { font-size: 1.25rem; } .an-stats span { font-size: .75rem; color: var(--muted); }
+.an-resp { margin-bottom: .6rem; } .an-resp > div:first-child { font-size: .84rem; }
+.an-table td { vertical-align: top; }
+@media (max-width: 640px) { .an-grid { grid-template-columns: 1fr; } .an-hrow { grid-template-columns: minmax(5rem, 40%) 1fr auto; } }
+.an-kpis { grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); }
+.an-wide { grid-column: span 2; }
+@media (max-width: 760px) { .an-wide { grid-column: auto; } }

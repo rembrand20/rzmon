@@ -1068,7 +1068,7 @@ $need = match ($action) {
     'state', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
+    'net_devices', 'pve_overview', 'analytics', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -2805,7 +2805,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -3504,6 +3504,32 @@ switch ($action) {
         out(['enabled' => NetScan::enabled(), 'devices' => NetScan::list(), 'state' => NetScan::state(), 'networks' => $nets,
             'risky_reasons' => NetScan::riskyReasons(), 'kinds' => NetScan::KINDS, 'now' => now(), 'vendors' => (int) q('SELECT COUNT(*) FROM mac_vendors')->fetchColumn(),
             'links' => ['unifi' => NetLinks::unifiOn(), 'unifi_block' => NetLinks::unifiCanBlock(), 'adguard' => NetLinks::adguardOn()], 'my_ip' => client_ip()]);
+
+    // 1.106.0: 📊 Analyse – alles voor één periode (5 minuten bewaard per periode), en het maandrapport
+    case 'analytics':
+        $period = (string) ($_GET['period'] ?? '30d');
+        if (!preg_match('/^(1d|7d|30d|90d|365d|\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2})$/', $period)) {
+            $period = '30d';
+        }
+        $cf = sys_get_temp_dir() . '/rzmon-analytics-' . md5(SM_ROOT . '|' . $period . '|' . I18n::lang()) . '.json';
+        if (empty($_GET['fresh']) && is_file($cf) && filemtime($cf) > time() - 300 && ($c = json_decode((string) file_get_contents($cf), true))) {
+            out($c + ['cached' => true]);
+        }
+        if (!q('SELECT 1 FROM stats_daily LIMIT 1')->fetchColumn()) {
+            @set_time_limit(300);
+            Analytics::cron();   // de eerste keer meteen berekenen, niet op cron wachten
+        }
+        $r = Analytics::report($period) + ['report_monthly' => Analytics::reportOn(), 'mail' => setting('email_enabled', '0') === '1' && setting('mail_to', '') !== ''];
+        @file_put_contents($cf, json_encode($r));
+        out($r);
+
+    case 'analytics_report_send':
+        $m = (string) (input()['month'] ?? date('Y-m', strtotime('first day of last month')));
+        if (!preg_match('/^\d{4}-\d{2}$/', $m)) {
+            out(['error' => t('Ongeldige maand')], 422);
+        }
+        $r = Analytics::sendMonthly($m);
+        $r['ok'] ? out(['ok' => true]) : out(['error' => $r['error'] ?? t('Versturen mislukt')], 422);
 
     // 1.105.0: Proxmox VE – overzicht van een node (of de cluster) en losse nodes als cluster aanmerken
     case 'pve_overview':

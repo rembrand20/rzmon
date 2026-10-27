@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.106.0 – 2026-10-27
+### Nieuw
+- **📊 Analyse**: een nieuw tabblad dat laat zien hoe het over langere tijd gaat, alleen voor beheerders en gebruikers (niet voor *alleen lezen*). Kies een periode (24 uur tot 365 dagen, of eigen datums); elk cijfer wordt vergeleken met de periode ervoor.
+  - **Kerncijfers**: beschikbaarheid, storingen, gemiddelde hersteltijd, meldingen, IDS-incidenten en een score.
+  - **🎯 Wat nu aanpakken**: concrete punten, de belangrijkste eerst (disks die vollopen, guests zonder back-up, flappende checks, riskante poorten, kwetsbaarheden met een update …), met een klik naar de plek waar je het oplost.
+  - **Betrouwbaarheid, capaciteit, beveiliging, netwerk** (ook UniFi en AdGuard Home), **back-ups** en **meldingen en ruis**, met grafieken.
+- RzMon houdt elk uur **dagtotalen** bij en bewaart die een jaar, ook als de losse meetwaarden al zijn opgeruimd. De eerste keer rekent RzMon terug wat er nog is.
+- **Maandrapport per e-mail** op de 1e van de maand, zelf aan en uit te zetten (standaard uit), met **Nu versturen**.
+
 ## 1.105.2 – 2026-10-27
 ### Opgelost
 - **SNMP: "Failure in sendto (Operation not permitted)"** krijgt nu uitleg: een firewallregel op de RzMon-server zelf houdt het pakket tegen, nog vóór het netwerk. Is er een server geïsoleerd, dan staat erbij welke (misschien de RzMon-server zelf), anders hoe je de regels bekijkt (`sudo nft list ruleset`).

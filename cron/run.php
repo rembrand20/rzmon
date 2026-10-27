@@ -123,6 +123,17 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, 'Netwerkscan: ' . $e->getMessage() . "\n");
 }
+// Analyse (1.106.0): dagtotalen elk uur bijwerken, en het maandrapport op de 1e van de maand
+try {
+    if ($msg = Analytics::cron()) {
+        echo date('c') . " $msg\n";
+    }
+    if ($msg = Analytics::monthlyCron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Analyse: ' . $e->getMessage() . "\n");
+}
 // Achtergrondtaken die te lang niet lukken: één melding, en een ✅ als het weer lukt (Instellingen → Systeem → Verbindingen en taken)
 try {
     if ($msg = Tasks::watch()) {

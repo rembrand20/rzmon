@@ -75,6 +75,7 @@ require_once __DIR__ . '/IdsAdvice.php';
 require_once __DIR__ . '/NetScan.php';
 require_once __DIR__ . '/NetLinks.php';
 require_once __DIR__ . '/Pve.php';
+require_once __DIR__ . '/Analytics.php';
 SelfCheck::register();   // PHP-fouten bijhouden voor de systeemcheck (1.96.0)
 require_once __DIR__ . '/SnmpMonitor.php';
 require_once __DIR__ . '/I18n.php';

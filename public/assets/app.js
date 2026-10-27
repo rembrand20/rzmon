@@ -831,6 +831,7 @@ if (loginForm) {
 function init() {
   if ($('#vuln-search')) initVulns();
   if ($('#net-search')) initNet();
+  if ($('#an-body')) initAnalytics();
   if ($('#leak-list')) initLeaks();
   $('#netlinks-test').onclick = async (e) => {   // 1.104.0: UniFi en AdGuard Home
     const btn = e.currentTarget, box = $('#netlinks-result');
@@ -1234,6 +1235,7 @@ function showTab(name) {
   if ((name === 'dashboard' || name === 'alerts') && state.badges) refresh();   // tab gezien: teller naar 0
   if (name === 'ids') loadIds();
   if (name === 'net') loadNet();
+  if (name === 'analytics') loadAnalytics();
   if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
 }
 
@@ -8210,6 +8212,217 @@ async function backupUpload(file) {
   btn.disabled = false;
   btn.textContent = '⬆ ' + L('Zip uploaden');
   $('#backup-file').value = '';
+}
+
+// ---------------------------------------------------------------- Analyse (1.106.0)
+let anPeriod = (() => { try { return localStorage.getItem('rzmon-an-period') || '30d'; } catch (e) { return '30d'; } })();
+let anData = null;
+const AN_PERIODS = [['1d', () => L('24 uur')], ['7d', () => L('7 dagen')], ['30d', () => L('30 dagen')], ['90d', () => L('90 dagen')], ['365d', () => L('1 jaar')]];
+
+function initAnalytics() {
+  $('#an-period').onclick = (e) => { const b = e.target.closest('[data-anp]'); if (b) { anPeriod = b.dataset.anp; try { localStorage.setItem('rzmon-an-period', anPeriod); } catch (ex) { /* alleen nu */ } loadAnalytics(); } };
+  $('#an-go').onclick = () => { const f = $('#an-from').value, t = $('#an-to').value; if (f && t && f <= t) { anPeriod = `${f}..${t}`; loadAnalytics(); } };
+  $('#an-body').onclick = (e) => {
+    const g = e.target.closest('[data-an-go]');
+    if (!g) return;
+    const go = g.dataset.anGo;
+    if (go.startsWith('check:')) checkInfo(go.slice(6)); else showTab(go);
+  };
+  $('#an-report').onchange = async (e) => {
+    if (!e.target.matches('[data-an-report]')) return;
+    try { await api('settings_save', { report_monthly: e.target.checked ? '1' : '0' }); toast(e.target.checked ? L('Maandrapport staat aan: op de 1e van elke maand per e-mail') : L('Maandrapport staat uit')); } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#an-report').onclick = async (e) => {
+    if (!e.target.closest('[data-an-send]')) return;
+    try { await api('analytics_report_send', {}); toast(L('Rapport van vorige maand verstuurd')); } catch (ex) { toast(ex.message, 'err'); }
+  };
+}
+
+async function loadAnalytics(fresh = false) {
+  $('#an-period').innerHTML = AN_PERIODS.map(([k, l]) => `<button type="button" class="dchip ${anPeriod === k ? 'on' : ''}" data-anp="${k}">${l()}</button>`).join('');
+  $('#an-info').textContent = '⏳';
+  try { anData = await api('analytics', null, { period: anPeriod, ...(fresh ? { fresh: 1 } : {}) }); } catch (ex) { $('#an-body').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  renderAnalytics();
+}
+
+/** Getal met eenheid; dec() voor de komma */
+const anNum = (v, d = 0) => (v === null || v === undefined ? '–' : dec((+v).toFixed(d)));
+const anDur = (s) => (s === null || s === undefined ? '–' : s >= 86400 ? `${anNum(s / 86400, 1)} ${L('dagen')}` : s >= 3600 ? `${anNum(s / 3600, 1)} ${L('uur')}` : `${Math.max(1, Math.round(s / 60))} min`);
+const anDay = (d) => new Date(d + 'T12:00:00').toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
+
+/** Verschil met de vorige periode: ▲/▼ en of dat goed of slecht is */
+function anDelta(now, prev, lowerBetter = false, unit = '%') {
+  if (now === null || prev === null || prev === undefined || now === undefined) return `<span class="muted small">${L('geen vorige periode')}</span>`;
+  const diff = unit === 'pt' ? now - prev : prev ? (now - prev) / prev * 100 : (now ? 100 : 0);
+  if (Math.abs(diff) < (unit === 'pt' ? 0.01 : 0.5)) return `<span class="muted small">= ${L('gelijk')}</span>`;
+  const better = lowerBetter ? diff < 0 : diff > 0;
+  return `<span class="small ${better ? 'good-txt' : 'crit-txt'}" title="${esc(L('t.o.v. de vorige periode van dezelfde lengte'))}">${diff > 0 ? '▲' : '▼'} ${anNum(Math.abs(diff), unit === 'pt' ? 2 : 0)}${unit === 'pt' ? ' ' + L('punt') : '%'}</span> <span class="muted small">${L('vs. vorige')}</span>`;
+}
+
+/** Lijn (of vlak) over de dagen, één reeks, met een tooltip per dag */
+function anLine(series, { unit = '', d = 0, h = 110, cls = '' } = {}) {
+  const ks = Object.keys(series);
+  const vals = ks.map((k) => series[k]);
+  const nums = vals.filter((v) => v !== null && v !== undefined);
+  if (!nums.length) return `<p class="muted small">${L('Nog geen gegevens in deze periode.')}</p>`;
+  const W = 600, top = 6, bot = h - 18;
+  let lo = Math.min(...nums), hi = Math.max(...nums);
+  if (lo === hi) { lo = Math.min(0, lo); hi = hi || 1; }
+  const x = (i) => (ks.length < 2 ? W / 2 : i / (ks.length - 1) * W);
+  const y = (v) => bot - (v - lo) / (hi - lo) * (bot - top);
+  let path = '', area = '';
+  vals.forEach((v, i) => {
+    if (v === null || v === undefined) return;
+    const cmd = path === '' || vals[i - 1] === null || vals[i - 1] === undefined ? 'M' : 'L';
+    path += `${cmd}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+  });
+  area = path.replace(/M/g, 'L').replace(/^L/, 'M') + `L${x(ks.length - 1).toFixed(1)},${bot}L0,${bot}Z`;
+  const step = ks.length < 2 ? W : W / (ks.length - 1);
+  const hits = ks.map((k, i) => `<rect x="${(x(i) - step / 2).toFixed(1)}" y="0" width="${step.toFixed(1)}" height="${h}" fill="transparent"><title>${esc(anDay(k))}: ${vals[i] === null ? '–' : anNum(vals[i], d) + unit}</title></rect>`).join('');
+  return `<div class="an-chart ${cls}"><svg viewBox="0 0 ${W} ${h}" preserveAspectRatio="none" role="img">
+      <line x1="0" x2="${W}" y1="${bot}" y2="${bot}" class="an-axis"/><path d="${area}" class="an-area"/><path d="${path}" class="an-line" vector-effect="non-scaling-stroke"/>${hits}</svg>
+    <div class="an-yl"><span>${anNum(hi, d)}${unit}</span><span>${anNum(lo, d)}${unit}</span></div>
+    <div class="an-xl"><span>${esc(anDay(ks[0]))}</span><span>${esc(anDay(ks[ks.length - 1]))}</span></div></div>`;
+}
+
+/** Staafjes per dag (aantallen), één reeks */
+function anBars(series, { h = 90, cls = '' } = {}) {
+  const ks = Object.keys(series);
+  const vals = ks.map((k) => +series[k] || 0);
+  const hi = Math.max(...vals, 0);
+  if (!hi) return `<p class="muted small">${L('Niets in deze periode.')}</p>`;
+  const W = 600, bot = h - 2, bw = W / ks.length;
+  const bars = vals.map((v, i) => {
+    const bh = v ? Math.max(2, v / hi * (bot - 4)) : 0;
+    return `<g><rect x="${(i * bw + 1).toFixed(1)}" y="0" width="${Math.max(1, bw - 2).toFixed(1)}" height="${h}" fill="transparent"/>${bh ? `<rect class="an-bar" x="${(i * bw + 1).toFixed(1)}" y="${(bot - bh).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${bh.toFixed(1)}" rx="2"/>` : ''}<title>${esc(anDay(ks[i]))}: ${anNum(v)}</title></g>`;
+  }).join('');
+  return `<div class="an-chart ${cls}"><svg viewBox="0 0 ${W} ${h}" preserveAspectRatio="none" role="img"><line x1="0" x2="${W}" y1="${bot}" y2="${bot}" class="an-axis"/>${bars}</svg>
+    <div class="an-yl"><span>${anNum(hi)}</span><span>0</span></div><div class="an-xl"><span>${esc(anDay(ks[0]))}</span><span>${esc(anDay(ks[ks.length - 1]))}</span></div></div>`;
+}
+
+/** Horizontale balken met label en waarde (ranglijst) */
+function anHbars(rows, { max = null, fmt = (v) => anNum(v), cls = () => '' } = {}) {
+  if (!rows.length) return `<p class="muted small">${L('Niets in deze periode.')}</p>`;
+  const m = max ?? Math.max(...rows.map((r) => +r.v || 0), 1);
+  return `<div class="an-hbars">${rows.map((r) => `<div class="an-hrow" title="${esc(r.title || '')}"><span class="an-hl">${r.html ?? esc(r.label)}</span>
+    <span class="an-ht"><span class="an-hb ${cls(r)}" style="width:${Math.max(1, (+r.v || 0) / m * 100).toFixed(1)}%"></span></span><span class="an-hv">${fmt(r.v, r)}</span></div>`).join('')}</div>`;
+}
+
+/** Heatmap weekdag × uur (één kleur, donkerder = vaker) */
+function anHeat(m) {
+  const hi = Math.max(...m.flat(), 0);
+  if (!hi) return `<p class="muted small">${L('Geen storingen in deze periode.')}</p>`;
+  const days = [L('ma'), L('di'), L('wo'), L('do'), L('vr'), L('za'), L('zo')];
+  return `<div class="an-heat"><span></span>${Array.from({ length: 24 }, (_, h) => `<span class="an-hh">${h % 3 === 0 ? h : ''}</span>`).join('')}
+    ${m.map((row, w) => `<span class="an-hd">${days[w]}</span>${row.map((n, h) => `<span class="an-cell" style="--o:${n ? (0.18 + n / hi * 0.82).toFixed(2) : 0}" title="${esc(days[w])} ${h}:00–${h + 1}:00 · ${n} ${L('storing(en)')}"></span>`).join('')}`).join('')}</div>`;
+}
+
+const anSec = (icon, title, body, sub = '') => `<section class="card an-sec"><h2>${icon} ${title}${sub ? ` <span class="muted small">${sub}</span>` : ''}</h2>${body}</section>`;
+const anBox = (title, body, help = '', wide = false) => `<div class="an-box${wide ? ' an-wide' : ''}"><h3>${title}</h3>${help ? `<p class="muted small an-help">${help}</p>` : ''}${body}</div>`;
+
+function renderAnalytics() {
+  const d = anData;
+  const k = d.kpi;
+  // Geen vorige periode als er toen nog geen gegevens waren (dan is elk verschil "100%")
+  if (!d.since || d.prev[1] < d.since) ['avail', 'incidents', 'mttr', 'alerts', 'security'].forEach((x) => { k[x][1] = null; });
+  $('#an-info').textContent = `${anDay(d.from)} – ${anDay(d.to)}${d.since ? ' · ' + L('gegevens sinds {d}', { d: anDay(d.since) }) : ''}${d.cached ? '' : ''}`;
+  $('#an-from').value = d.from; $('#an-to').value = d.to;
+  $('#an-report').innerHTML = `<label class="switch small" title="${esc(L('Op de 1e van elke maand een samenvatting per e-mail (naar het e-mailadres bij Meldingen → Kanalen)'))}"><input type="checkbox" data-an-report ${d.report_monthly ? 'checked' : ''} ${d.mail ? '' : 'disabled'}><span></span> 📧 ${L('Maandrapport')}</label>
+    <button type="button" class="btn small-btn" data-an-send ${d.mail ? '' : 'disabled'} title="${esc(d.mail ? L('Het rapport van vorige maand nu versturen') : L('Stel eerst e-mail in (Meldingen → Kanalen)'))}">${L('Nu versturen')}</button>`;
+  const tile = (lbl, val, sub, spark = '', cls = '') => `<div class="kpi ${cls}"><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${val}</div><div class="kpi-sub">${sub}</div>${spark}</div>`;
+  const kspark = (s) => `<div class="an-kspark">${anLine(s, { h: 34 }).replace(/<div class="an-yl">[\s\S]*$/, '</div>')}</div>`;
+  const score = k.score;
+  const kpis = `<div class="kpis an-kpis">
+    ${tile(L('Score'), `${score}<small>/100</small>`, score >= 90 ? L('prima') : score >= 70 ? L('een paar aandachtspunten') : L('werk aan de winkel'), '', score >= 90 ? '' : score >= 70 ? 'warn' : 'bad')}
+    ${tile(L('Beschikbaarheid'), k.avail[0] === null ? '–' : `${anNum(k.avail[0], 2)}<small>%</small>`, anDelta(k.avail[0], k.avail[1], false, 'pt'), kspark(k.avail[2]))}
+    ${tile(L('Storingen'), anNum(k.incidents[0]), anDelta(k.incidents[0], k.incidents[1], true), kspark(k.incidents[2]), k.incidents[0] ? 'warn' : '')}
+    ${tile(L('Hersteltijd (gemiddeld)'), anDur(k.mttr[0]), k.mttr[2] ? L('{n} storingen opgelost', { n: k.mttr[2] }) + (k.mttr[1] !== null && k.mttr[1] !== undefined ? ' · ' + anDelta(k.mttr[0], k.mttr[1], true) : '') : L('geen storingen opgelost'))}
+    ${tile(L('Meldingen'), anNum(k.alerts[0]), anDelta(k.alerts[0], k.alerts[1], true), kspark(k.alerts[2]))}
+    ${tile(L('IDS (critical)'), anNum(k.security[0]), anDelta(k.security[0], k.security[1], true), kspark(k.security[2]), k.security[0] ? 'bad' : '')}
+  </div>`;
+  // 🎯 Wat nu aanpakken
+  const sevCls = ['muted', 'warn-txt', 'crit-txt'], sevIc = ['ℹ️', '⚠️', '🔴'];
+  const todo = anSec('🎯', L('Wat nu aanpakken'), d.todo.length
+    ? `<ol class="an-todo">${d.todo.map((t) => `<li><span class="${sevCls[t.sev]}">${sevIc[t.sev]}</span> ${t.icon} ${esc(t.text)} <button type="button" class="link-btn small" data-an-go="${esc(t.go)}">${L('bekijken')} →</button></li>`).join('')}</ol>`
+    : `<p class="good-txt">✔ ${L('Niets dringends. Netjes!')}</p>`);
+  // 🟢 Betrouwbaarheid
+  const r = d.reliability;
+  const availCls = (x) => (x.v < 95 ? 'crit' : x.v < 99 ? 'warn' : 'ok');
+  const rel = anSec('🟢', L('Betrouwbaarheid'), `<div class="an-grid">
+    ${anBox(L('Beschikbaarheid per dag (alle servers)'), anLine(d.avail_series, { unit: '%', d: 2 }))}
+    ${anBox(L('Beschikbaarheid per server'), anHbars(r.hosts.map((h) => ({ label: h.name, v: h.pct, title: L('~{m} min onbereikbaar', { m: h.down_min }) + (h.mttr ? ' · ' + L('hersteltijd {t}', { t: anDur(h.mttr.avg) }) : '') })),
+      { max: 100, fmt: (v, x) => `${anNum(v, 2)}% <span class="muted">${x.title.split(' · ')[0]}</span>`, cls: availCls }), L('Slechtste bovenaan. Gebaseerd op ping, anders TCP en HTTP.'))}
+    ${anBox(L('Wanneer gaat het mis? (storingen per weekdag en uur)'), anHeat(r.heat), L('Een donker vakje dat steeds terugkomt wijst op iets geplands: back-ups, updates of een herstart.'))}
+    ${anBox(L('Lastigste checks'), r.top.length ? `<table class="vuln-table an-table"><thead><tr><th>${L('Check')}</th><th>${L('Wissels')}</th><th>${L('Niet OK')}</th><th>${L('Laatste oorzaak')}</th></tr></thead><tbody>
+      ${r.top.map((c) => `<tr><td><button type="button" class="link-btn" data-an-go="check:${c.id}">${esc(c.name)}</button><br><span class="muted small">${esc(c.host)}</span></td><td>${anNum(c.chg)}</td><td>${anNum(c.bad_pct, 1)}%</td>
+        <td class="small muted">${c.last ? esc(String(c.last.message).slice(0, 90)) : '–'}</td></tr>`).join('')}</tbody></table>` : `<p class="muted small">${L('Geen wisselingen in deze periode.')}</p>`, '', true)}
+    ${anBox(L('Responstijden (gemiddeld per dag)'), r.resp.length ? r.resp.map((c) => `<div class="an-resp"><div><b>${esc(c.name)}</b> <span class="muted small">${esc(c.host)} · ${L('gem.')} ${anNum(c.avg, 1)} ms${c.trend !== null ? ` · <span class="${c.trend > 20 ? 'warn-txt' : c.trend < -10 ? 'good-txt' : 'muted'}">${c.trend > 0 ? '▲' : '▼'} ${Math.abs(c.trend)}%</span>` : ''}</span></div>${anLine(c.series, { unit: ' ms', d: 1, h: 46, cls: 'an-mini' })}</div>`).join('') : `<p class="muted small">${L('Geen ping- of HTTP-metingen in deze periode.')}</p>`)}
+    ${r.reboots.length ? anBox(L('Herstarts'), anHbars(r.reboots.map((x) => ({ label: x.name, v: +x.n })))) : ''}
+  </div>`);
+  // 📈 Capaciteit
+  const c = d.capacity;
+  const cap = anSec('📈', L('Capaciteit'), `<div class="an-grid">
+    ${anBox(L('Disks: wanneer vol?'), c.disks.length ? anHbars(c.disks.map((x) => ({ label: `${x.host} ${x.mount}`, v: x.pct, days: x.days })), { max: 100,
+      fmt: (v, x) => `${anNum(v, 1)}% <span class="${x.days !== null && x.days <= 30 ? 'crit-txt' : 'muted'}">${x.days !== null ? L('vol over ~{n} d', { n: Math.round(x.days) }) : ''}</span>`, cls: (x) => (x.v >= 90 ? 'crit' : x.v >= 80 ? 'warn' : '') }) : `<p class="muted small">${L('Geen diskchecks.')}</p>`, L('Voorspelling uit de groei van de laatste 7 dagen; de eerstvolgende bovenaan.'))}
+    ${anBox(L('CPU en RAM per server'), Object.keys(c.res).length ? `<table class="vuln-table an-table"><thead><tr><th>${L('Server')}</th><th>CPU ${L('gem. / piek')}</th><th>RAM ${L('gem. / piek')}</th></tr></thead><tbody>
+      ${Object.entries(c.res).map(([h, x]) => `<tr><td>${esc(h)}</td>${['cpu', 'ram'].map((t) => `<td>${x[t] ? `<span class="${x[t].avg >= 85 ? 'crit-txt' : x[t].avg >= 70 ? 'warn-txt' : ''}">${anNum(x[t].avg)}%</span> / ${anNum(x[t].max)}%` : '–'}</td>`).join('')}</tr>`).join('')}</tbody></table>
+      <p class="muted small">${L('Hoog gemiddelde = structureel te krap; alleen een hoge piek = korte drukte.')}</p>` : `<p class="muted small">${L('Geen CPU- of RAM-checks.')}</p>`)}
+    ${c.pve.length ? anBox(L('Proxmox: grootste guests (RAM)'), anHbars(c.pve.map((g) => ({ label: `${g.kind === 'ct' ? '📦' : '🖥️'} ${g.vmid} ${g.name}`, v: g.mem / 1073741824, title: g.host })), { fmt: (v, g) => `${anNum(v, 1)} GB <span class="muted">${esc(g.title)}</span>` })) : ''}
+    ${anBox(L('Groei'), `<p class="small">${L('{h} servers, {c} checks', { h: c.now.hosts, c: c.now.checks })}</p>${anLine(c.growth.checks, { h: 60 })}`, L('Aantal checks per dag (vanaf nu bijgehouden).'))}
+  </div>`);
+  // 🛡️ Beveiliging
+  const s = d.security;
+  const lg = s.logins;
+  const sec = anSec('🛡️', L('Beveiliging'), `<div class="an-grid">
+    ${anBox(L('Mislukte logins per dag'), anBars(s.series.auth_fail))}
+    ${anBox(L('IDS-incidenten per dag (critical)'), anBars(s.series.ids, { cls: 'an-crit' }))}
+    ${anBox(L('Nieuwe blokkades per dag'), anBars(s.series.blk) + `<p class="muted small">${L('{t} IP\'s geblokkeerd, waarvan {a} automatisch', { t: anNum(s.blk_total), a: anNum(s.blk_auto) })}</p>`)}
+    ${anBox(L('Waar komen aanvallen vandaan?'), anHbars(s.countries.map((x) => ({ html: ccTag(x.cc) || esc(x.cc), v: +x.n }))))}
+    ${anBox(L('Meest actieve IP\'s'), s.ips.length ? `<table class="vuln-table an-table"><tbody>${s.ips.map((x) => `<tr><td class="mono small">${esc(x.ip)}${x.cc ? ccTag(x.cc) : ''}</td><td>${anNum(x.hits)}×</td><td class="small">${L('{n} server(s)', { n: x.hosts })}</td><td>${x.blocked ? `<span class="good-txt small">⛔ ${L('geblokkeerd')}</span>` : `<span class="warn-txt small">${L('niet geblokkeerd')}</span>`}</td></tr>`).join('')}</tbody></table>` : `<p class="muted small">${L('Niets in deze periode.')}</p>`, '', true)}
+    ${anBox(L('Meest aangevallen servers'), anHbars(s.targets.map((x) => ({ label: x.name, v: x.n }))))}
+    ${anBox(L('Logins op je servers'), `<div class="an-stats"><div><b>${anNum(lg.ok)}</b><span>${L('geslaagd')}</span></div><div><b class="${lg.outside ? 'warn-txt' : ''}">${anNum(lg.outside)}</b><span>${L('van buiten')}</span></div>
+      <div><b class="${lg.night ? 'warn-txt' : ''}">${anNum(lg.night)}</b><span>${L('\'s nachts (0–6 uur)')}</span></div><div><b class="${lg.fail ? 'crit-txt' : ''}">${anNum(lg.fail)}</b><span>${L('mislukt')}</span></div></div>`)}
+    ${s.vulns ? anBox(L('Kwetsbaarheden'), `<div class="an-stats">${[4, 3, 2, 1].map((sv) => { const x = s.vulns.by_sev.find((y) => +y.s === sv) || { n: 0, fix: 0 }; return `<div><b class="${sv >= 4 && +x.n ? 'crit-txt' : sv === 3 && +x.n ? 'warn-txt' : ''}">${anNum(x.n)}</b><span>${['', 'low', 'medium', 'high', 'critical'][sv]} · ${L('{n} op te lossen', { n: x.fix })}</span></div>`; }).join('')}</div>${anLine(s.vulns.series, { h: 60 })}`, L('Open kwetsbaarheden per dag (vanaf nu bijgehouden).')) : ''}
+    ${s.hardening.length ? anBox(L('Hardening-score per server'), anHbars(s.hardening.map((x) => ({ label: x.name, v: x.score })), { max: 100, fmt: (v) => `${v}/100`, cls: (x) => (x.v < 70 ? 'crit' : x.v < 90 ? 'warn' : 'ok') })) : ''}
+  </div>`);
+  // 🌐 Netwerk
+  const n = d.network;
+  const nk = (k2) => (NET_KIND[k2] || NET_KIND.unknown);
+  const net = !n.on ? anSec('🌐', L('Netwerk'), `<p class="muted">${L('De netwerkscan staat uit (Instellingen → Beveiliging → Netwerkscan).')}</p>`)
+    : anSec('🌐', L('Netwerk'), `<div class="an-grid">
+    ${anBox(L('Apparaten'), `<div class="an-stats"><div><b>${n.total}</b><span>${L('totaal')}</span></div><div><b class="${n.new_open ? 'warn-txt' : ''}">${n.new_open}</b><span>${L('nog niet beoordeeld')}</span></div><div><b>${n.blocked}</b><span>${L('geweerd')}</span></div><div><b class="${n.risky.length ? 'crit-txt' : ''}">${n.risky.length}</b><span>${L('met riskante poort')}</span></div></div>
+      <h4 class="acc-sub">${L('Nieuwe apparaten per dag')}</h4>${anBars(n.series.new)}`)}
+    ${anBox(L('Soorten apparaten'), anHbars(Object.entries(n.kinds).map(([k2, v]) => ({ html: `${nk(k2)[0]} ${esc(nk(k2)[1]())}`, v }))))}
+    ${anBox(L('Fabrikanten'), anHbars(Object.entries(n.vendors).map(([k2, v]) => ({ label: k2, v }))))}
+    ${Object.keys(n.aps).length ? anBox(L('Wifi: clients per access point'), anHbars(Object.entries(n.aps).map(([k2, v]) => ({ label: k2, v }))) + `<h4 class="acc-sub">${L('Per wifi-netwerk')}</h4>` + anHbars(Object.entries(n.ssids).map(([k2, v]) => ({ label: k2, v })))) : ''}
+    ${n.adguard ? anBox(L('DNS (AdGuard Home)'), `<div class="an-stats"><div><b>${anNum(n.adguard.queries)}</b><span>${L('verzoeken')}</span></div><div><b>${anNum(n.adguard.blocked)}</b><span>${L('geblokkeerd')} (${n.adguard.queries ? anNum(n.adguard.blocked / n.adguard.queries * 100, 1) : 0}%)</span></div></div>
+      <h4 class="acc-sub">${L('Meeste verzoeken')}</h4>${anHbars(Object.entries(n.adguard.clients).map(([k2, v]) => ({ label: k2, v })))}
+      <h4 class="acc-sub">${L('Meest geblokkeerd')}</h4>${anHbars(Object.entries(n.adguard.blocked_domains).map(([k2, v]) => ({ label: k2, v })))}`, L('Uit de statistiek van AdGuard (zijn eigen periode, meestal 24 uur).')) : ''}
+  </div>`);
+  // 💾 Back-ups
+  const b = d.backups;
+  const now = Date.now() / 1000;
+  const bk = anSec('💾', L('Back-ups'), `<div class="an-grid">
+    ${b.pve.length ? anBox(L('Proxmox: laatste back-up per guest'), anHbars(b.pve.map((g) => ({ label: `${g.kind === 'ct' ? '📦' : '🖥️'} ${g.vmid} ${g.name}`, v: g.last ? (now - g.last) / 86400 : 30, g })), { max: 14,
+      fmt: (v, x) => (x.g.last ? `${anNum(v, 1)} ${L('dagen')}` : `<span class="crit-txt">${L('nooit')}</span>`) + (x.g.job === 0 ? ` <span class="warn-txt">${L('geen taak')}</span>` : ''), cls: (x) => (!x.g.last || x.v > 7 ? 'crit' : x.v > 2 ? 'warn' : 'ok') }), L('Langer balkje = ouder. Groen tot 2 dagen, oranje tot 7, daarna rood.')) : ''}
+    ${b.tasks.length ? anBox(L('Back-uptaken Proxmox'), b.tasks.map((t) => `<p class="small"><b>${esc(t.host)}</b>: ${t.last ? `${t.last.status === 'OK' ? '<span class="good-txt">✔ OK</span>' : '<span class="crit-txt">✘ ' + esc(t.last.status) + '</span>'} · ${esc(new Date(t.last.start * 1000).toLocaleString(LOCALE))}` : L('nog geen taak')}${t.fail && (!t.last || t.fail.start !== t.last.start) ? `<br><span class="muted">${L('Laatst mislukt: {t} ({s})', { t: esc(new Date(t.fail.start * 1000).toLocaleString(LOCALE)), s: esc(t.fail.status) })}</span>` : ''}</p>`).join('')) : ''}
+    ${b.hb.length ? anBox(L('Heartbeats (scripts en back-ups)'), `<table class="vuln-table an-table"><tbody>${b.hb.map((x) => `<tr><td><button type="button" class="link-btn" data-an-go="check:${x.id}">${esc(x.name)}</button><br><span class="muted small">${esc(x.host)}</span></td>
+      <td>${+x.status === 0 ? '<span class="good-txt">✔</span>' : +x.status === 1 ? '<span class="warn-txt">⚠️</span>' : +x.status === 2 ? '<span class="crit-txt">✘</span>' : '<span class="muted">?</span>'}</td>
+      <td class="small">${x.last ? esc(ago(new Date(x.last * 1000).toISOString())) : '–'}${x.dur ? ` · ${L('duur {d}', { d: anDur(x.dur) })}` : ''}</td></tr>`).join('')}</tbody></table>`) : ''}
+    ${anBox(L('RzMon zelf'), `<p class="small">${b.rzmon ? L('Laatste back-up van RzMon: {t}', { t: esc(fmtDateTime(b.rzmon)) }) : `<span class="warn-txt">${L('Nog geen back-up van RzMon zelf.')}</span>`}</p>
+      ${b.tasks_rz.length ? `<p class="small warn-txt">${L('Achtergrondtaken met een probleem: {list}', { list: esc(b.tasks_rz.map((t) => t.label).join(', ')) })}</p>` : `<p class="small good-txt">✔ ${L('Alle achtergrondtaken lopen.')}</p>`}`)}
+  </div>`);
+  // 🔔 Meldingen en ruis
+  const no = d.noise;
+  const noise = anSec('🔔', L('Meldingen en ruis'), `<div class="an-grid">
+    ${anBox(L('Meldingen per dag (storingen en herstel)'), anBars(no.series.notify))}
+    ${anBox(L('Per kanaal'), anHbars([['📱 Pushover', no.totals.push], ['✉️ ' + L('E-mail'), no.totals.mail], ['🔗 Webhook', no.totals.hook]].map(([l, v]) => ({ html: l, v })))
+      + `<p class="muted small">${L('Daarnaast {i} info-meldingen, {d} IDS en {s} beveiliging.', { i: anNum(no.totals.info), d: anNum(no.totals.ids), s: anNum(no.totals.sec) })}</p>`)}
+    ${anBox(L('Meeste meldingen'), anHbars(no.top.map((x) => ({ html: `<button type="button" class="link-btn" data-an-go="check:${x.check_id}">${esc(x.name)}</button> <span class="muted small">${esc(x.host)}</span>`, v: +x.n }))))}
+    ${anBox(L('Snel weer goed (ruis)'), no.quick.length ? anHbars(no.quick.map((x) => ({ html: `<button type="button" class="link-btn" data-an-go="check:${x.id}">${esc(x.name)}</button> <span class="muted small">${esc(x.host)}</span>`, v: x.n })), { fmt: (v) => `${v}× ${L('binnen 5 min')}` })
+      + `<p class="muted small">${L('Zet bij zulke checks "melden na N fouten" op 3: dan krijg je alleen nog een melding als het echt mis is.')}</p>` : `<p class="good-txt small">✔ ${L('Geen checks die steeds binnen 5 minuten herstelden.')}</p>`)}
+  </div>`);
+  $('#an-body').innerHTML = kpis + todo + rel + cap + sec + net + bk + noise;
 }
 
 // ---------------------------------------------------------------- Netwerk (1.103.0)

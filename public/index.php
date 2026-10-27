@@ -43,6 +43,7 @@ $mustChange = $user && !$resetToken && must_change_password($user);
 // Tabblad Kwetsbaarheden: CVE's (scan aan) en/of Datalekken (controle aan, alleen beheerders)
 $showVulns = Vulns::enabled() && $role !== 'readonly';
 $showLeaks = $user && Hibp::enabled() && $role === 'admin';
+$showStats = $role !== 'readonly';   // 1.106.0: 📊 Analyse, voor beheerders en gebruikers
 $showNet = $role !== 'readonly' && (NetScan::enabled() || $role === 'admin');   // 1.103.0: netwerkscan
 $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.css');
 ?>
@@ -156,6 +157,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <button class="tab" data-tab="alerts" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="tab-badge" id="alerts-badge" hidden></span></span><span class="tab-lbl"><?= th('Meldingen') ?></span></button>
       <button class="tab" data-tab="ids" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span class="tab-badge" id="ids-badge" hidden></span></span><span class="tab-lbl">IDS</span></button>
       <?php if ($showVulns || $showLeaks): ?><button class="tab" data-tab="vulns" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.5 13H3M21 13h-3.5M6 17l-2.5 2M18 17l2.5 2M6 9 3.5 7.5M18 9l2.5-1.5"/></svg><span class="tab-badge" id="vuln-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Kwetsbaarheden') ?></span><span class="tab-lbl-s"><?= th('CVE\'s') ?></span></button><?php endif; ?>
+      <?php if ($showStats): ?><button class="tab" data-tab="analytics" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span><span class="tab-lbl"><?= th('Analyse') ?></span></button><?php endif; ?>
       <?php if ($showNet): ?><button class="tab" data-tab="net" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/><path d="M12 7v5M5 17v-2.5a1.5 1.5 0 0 1 1.5-1.5h11a1.5 1.5 0 0 1 1.5 1.5V17"/></svg><span class="tab-badge s1" id="net-badge" hidden></span></span><span class="tab-lbl"><?= th('Netwerk') ?></span></button><?php endif; ?>
     </nav>
     <div class="top-actions">
@@ -378,6 +380,20 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div id="leak-list"></div>
       </div>
       <?php endif; ?>
+    </section>
+    <?php endif; ?>
+
+    <?php if ($showStats): ?>
+    <section id="tab-analytics" class="tab-panel" hidden>
+      <!-- 1.106.0: trends door de tijd -->
+      <div class="dash-bar an-toolbar">
+        <div class="dash-chips" id="an-period" role="group" aria-label="<?= th('Periode') ?>"></div>
+        <span class="an-custom"><input type="date" id="an-from" aria-label="<?= th('Van') ?>"> – <input type="date" id="an-to" aria-label="<?= th('Tot en met') ?>"> <button type="button" class="btn small-btn" id="an-go"><?= th('Toon') ?></button></span>
+        <span class="dash-sp"></span>
+        <span class="muted small" id="an-info"></span>
+        <div class="an-report need-admin" id="an-report"></div>
+      </div>
+      <div id="an-body"><p class="muted">⏳ <?= th('Analyse laden…') ?></p></div>
     </section>
     <?php endif; ?>
 

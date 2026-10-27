@@ -366,6 +366,32 @@ final class NetLinks
         return $errors ? implode(' · ', $errors) : true;
     }
 
+    /** Statistiek van AdGuard Home (1.106.0, voor 📊 Analyse): verzoeken, geblokkeerd, top-clients en top-geblokkeerde domeinen, alle instanties samen */
+    public static function adguardStats(): array
+    {
+        $out = ['queries' => 0, 'blocked' => 0, 'clients' => [], 'blocked_domains' => [], 'at' => time()];
+        foreach (self::adguardUrls() as $base) {
+            [$j, $e] = self::ag($base, 'stats');
+            if ($e || !is_array($j)) {
+                continue;
+            }
+            $out['queries'] += (int) ($j['num_dns_queries'] ?? 0);
+            $out['blocked'] += (int) ($j['num_blocked_filtering'] ?? 0);
+            foreach (['top_clients' => 'clients', 'top_blocked_domains' => 'blocked_domains'] as $src => $dst) {
+                foreach ((array) ($j[$src] ?? []) as $row) {
+                    foreach ((array) $row as $k => $n) {
+                        $out[$dst][(string) $k] = ($out[$dst][(string) $k] ?? 0) + (int) $n;
+                    }
+                }
+            }
+        }
+        foreach (['clients', 'blocked_domains'] as $k) {
+            arsort($out[$k]);
+            $out[$k] = array_slice($out[$k], 0, 10, true);
+        }
+        return $out;
+    }
+
     // ------------------------------------------------------------------ testen (instellingen)
 
     public static function test(): array
