@@ -732,7 +732,8 @@ Restart=always
 RestartSec=10
 Nice=10
 $hardening
-PrivateTmp=yes
+# Geen eigen /tmp: de endpoint-bewaking (agent 1.63.0) moet nieuwe programma's in het echte /tmp en /var/tmp zien
+PrivateTmp=no
 CacheDirectory=rzmon-agent
 ProtectSystem=full
 

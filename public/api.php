@@ -172,7 +172,7 @@ function agent_host(): array
     }
     $ip = client_ip();
     $cols = 'id, name, mode, agent_version, info_agent, agent_seen, agent_beats, agent_ip, agent_tick, enc, agent_token,
-             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock, agent_pin_sent, agent_https, agent_fb_at, watchdog';
+             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock, agent_pin_sent, agent_https, agent_fb_at, watchdog, edr_on';
     if ($kid !== '') {
         $host = q("SELECT $cols FROM hosts WHERE agent_key_id = ? OR (agent_key_old_id = ? AND agent_key_old_until > ?) LIMIT 1", [$kid, $kid, now()])->fetch();
         $reason = $host ? null : t('onbekende sleutel (vernieuwd of opnieuw gekoppeld?): koppel de agent opnieuw met een koppelcode');
@@ -446,6 +446,8 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     }
     // IDS: aan + modus, en de IP's die de agent moet blokkeren
     array_push($out, ...Ids::agentLines($hostId));
+    // 1.110.0: endpoint-sensoren (aan per server)
+    array_push($out, ...Edr::agentLines(q('SELECT id, mode, edr_on FROM hosts WHERE id = ?', [$hostId])->fetch() ?: []));
     // Commando-checks: id <tab> cmd <tab> commando (base64) <tab> time-out <tab> nobody|root <tab> interval
     $mode = AgentCommands::modeFor(q('SELECT commands FROM hosts WHERE id = ?', [$hostId])->fetch() ?: []);
     if ($mode !== 'off') {
@@ -747,7 +749,13 @@ if ($action === 'agent') {
     // Logs van webdiensten (agent 1.58.0): SWAG, Home Assistant, Vaultwarden
     if (is_array($in['weblog'] ?? null)) {
         WebLog::process($host, $in['weblog']);
+        // 1.110.0: payload-inspectie van verdachte verzoeken (SWAG)
+        if (is_array($in['weblog']['swag']['req'] ?? null)) {
+            Inspect::requests($host, $in['weblog']['swag']['req']);
+        }
     }
+    // 1.110.0: endpoint-sensoren (processen, netwerk, bestanden, containers)
+    $edrResp = is_array($in['edr'] ?? null) ? Edr::process($host, $in['edr']) : [];
     // Commando-checks: uitvoer en exitcode (RzMon vergelijkt met het verwachte antwoord)
     foreach ((array) ($in['cmd'] ?? []) as $id => $r) {
         if (ctype_digit((string) $id) && is_array($r)) {
@@ -837,6 +845,10 @@ if ($action === 'agent') {
     // 1.107.0: herstelcommando's (alleen versleuteld) en, voor de waakhond, hoe lang de checks al niet gedraaid hebben
     if ($encrypted && ($run = Heal::runList((int) $host['id']))) {
         $resp['heal_run'] = $run;
+    }
+    // 1.110.0: processen die RzMon meteen laat stoppen (alleen versleuteld; anders via de testlijst, bij de volgende run)
+    if ($encrypted && $edrResp) {
+        $resp += $edrResp;
     }
     if ((int) ($host['watchdog'] ?? 0) === 1) {
         $resp['cron_age'] = Heal::cronAge();
@@ -1077,7 +1089,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
@@ -1483,7 +1495,7 @@ switch ($action) {
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen, watchdog, watchdog_min,
                     agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at, agent_url_pin, agent_url_fb_pin,
-                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, agent_beats FROM hosts ORDER BY name')->fetchAll();
+                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, agent_beats, edr_on, edr_info FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
         $global = Monitor::globalMaintenance();
@@ -2861,7 +2873,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -3598,6 +3610,68 @@ switch ($action) {
         Advice::windowDelete((int) (input()['id'] ?? 0));
         out(['ok' => true]);
 
+    // ---------- 1.110.0: endpoint-bewaking ----------
+    case 'edr_host':   // per server: aan/uit, sensoren, wat ontbreekt
+        $h = q('SELECT * FROM hosts WHERE id = ?', [(int) ($_GET['id'] ?? 0)])->fetch();
+        if (!$h) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        out(Edr::status($h) + ['ids' => Ids::enabled(), 'global' => setting('edr_on', '1') === '1', 'blocking' => Ids::blocking(),
+            'install' => json_decode((string) ($h['vuln_upgrade_status'] ?? ''), true)]);
+
+    case 'edr_host_set':
+        $in = input();
+        $h = q('SELECT id, name FROM hosts WHERE id = ?', [(int) ($in['host_id'] ?? 0)])->fetch();
+        if (!$h) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        q('UPDATE hosts SET edr_on = ? WHERE id = ?', [!empty($in['on']) ? 1 : 0, $h['id']]);
+        AgentCommands::audit($user['username'], !empty($in['on']) ? 'Endpoint-bewaking aan' : 'Endpoint-bewaking uit', (string) $h['name']);
+        out(['ok' => true]);
+
+    case 'edr_install':   // ontbrekend onderdeel via de agent installeren (bevestigen, net als bijwerken)
+        $in = input();
+        $h = q('SELECT * FROM hosts WHERE id = ?', [(int) ($in['host_id'] ?? 0)])->fetch();
+        if (!$h) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        $confirm('INSTALLEREN');
+        $r = Edr::install($h, (string) ($in['comp'] ?? ''), $user['username']);
+        if ($r !== true) {
+            out(['error' => $r], 422);
+        }
+        out(['ok' => true]);
+
+    case 'edr_feed':   // Live: de laatste gebeurtenissen
+        out(['events' => Edr::feed((int) ($_GET['limit'] ?? 200), ($hid = (int) ($_GET['host'] ?? 0)) ?: null, ($_GET['hits'] ?? '') === '1', (int) ($_GET['after'] ?? 0)),
+            'on' => Ids::enabled() && setting('edr_on', '1') === '1']);
+
+    case 'edr_rules':   // Regels: eigen en Sigma, met aan/uit
+        $off = array_flip((array) json_decode((string) setting('edr_rules_off', '[]'), true));
+        $hits = array_column(q("SELECT rule, COUNT(*) AS n FROM edr_events WHERE rule IS NOT NULL GROUP BY rule")->fetchAll(), 'n', 'rule');
+        $list = [];
+        foreach (EdrRules::all() as $r) {
+            $list[] = ['id' => $r['id'], 'src' => 'rzmon', 'title' => t($r['title']), 'what' => t($r['what']), 'sev' => $r['sev'], 'act' => $r['act'], 'tags' => $r['tags'],
+                'kinds' => $r['kinds'], 'on' => !isset($off[$r['id']]), 'hits' => (int) ($hits[$r['id']] ?? 0)];
+        }
+        foreach (Sigma::rules() as $r) {
+            $list[] = ['id' => $r['id'], 'src' => 'sigma', 'title' => $r['title'], 'what' => $r['desc'], 'sev' => $r['level'] >= 2 ? 2 : 1, 'act' => $r['level'] >= 3 ? ['kill'] : [],
+                'tags' => $r['tags'], 'kinds' => $r['kinds'], 'on' => !isset($off[$r['id']]), 'hits' => (int) ($hits[$r['id']] ?? 0), 'author' => $r['author'], 'url' => $r['src'], 'level' => $r['level']];
+        }
+        out(['rules' => $list, 'sigma_on' => setting('edr_sigma', '1') === '1']);
+
+    case 'edr_rule_set':
+        $in = input();
+        $id = (string) ($in['id'] ?? '');
+        if (!preg_match('/^[A-Za-z0-9-]{3,64}$/', $id)) {
+            out(['error' => t('Onbekende regel')], 422);
+        }
+        $off = (array) json_decode((string) setting('edr_rules_off', '[]'), true);
+        $off = array_values(array_unique(!empty($in['on']) ? array_diff($off, [$id]) : [...$off, $id]));
+        save_setting('edr_rules_off', json_encode($off));
+        Edr::reset();
+        out(['ok' => true]);
+
     case 'status_get':   // 1.107.0: statuspagina (instellingen)
         $base = rtrim((string) config('base_url', ''), '/');
         out(['on' => setting('status_on', '0') === '1', 'title' => (string) setting('status_title', ''), 'note' => (string) setting('status_note', ''),
@@ -3613,7 +3687,7 @@ switch ($action) {
 
     case 'rev':   // 1.107.0: live bijwerken: een klein kenmerk; verandert het, dan haalt de browser de stand opnieuw op
         // 1.109.0: ook nieuwe meetwaarden (MAX(id) van results is snel: primaire sleutel), zodat waarden live meelopen
-        $r = q("SELECT (SELECT MAX(id) FROM status_changes), (SELECT MAX(id) FROM alerts), (SELECT MAX(id) FROM change_log), (SELECT MAX(id) FROM results),
+        $r = q("SELECT (SELECT MAX(id) FROM status_changes), (SELECT MAX(id) FROM alerts), (SELECT MAX(id) FROM change_log), (SELECT MAX(id) FROM results), (SELECT MAX(id) FROM edr_events),
                        (SELECT COUNT(*) FROM checks WHERE acked_at IS NOT NULL), (SELECT COUNT(*) FROM checks WHERE maintenance_until > NOW()),
                        (SELECT COUNT(*) FROM checks WHERE enabled = 1), (SELECT value FROM settings WHERE name = 'cron_last_run')")->fetch(PDO::FETCH_NUM);
         out(['rev' => substr(md5(implode('|', array_map('strval', $r))), 0, 12)]);
@@ -4196,7 +4270,7 @@ switch ($action) {
         if (!$inc) {
             out(['error' => t('Incident niet gevonden')], 404);
         }
-        out(['incident' => $inc, 'advice' => IdsAdvice::forIncident($inc), 'my_ip' => client_ip(),
+        out(['incident' => $inc, 'advice' => IdsAdvice::forIncident($inc), 'my_ip' => client_ip(), 'evidence' => Edr::evidenceFor((int) $inc['id']),
             'ignored' => (bool) q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'ignore' AND item = ?", [$inc['host_id'], mb_substr($inc['type'] . '|' . $inc['dkey'], 0, 255)])->fetchColumn()]);
 
     case 'ip_info':

@@ -35,6 +35,9 @@ except ValueError as e:
 for k in ('agent_version', 'hostname', 'cpu', 'mem', 'disks', 'services', 'proc_list', 'svc_list'):
     if k not in d:
         print('✘ ontbreekt in het rapport:', k); sys.exit(1)
+info = (d.get('edr') or {}).get('info') or {}
+if 'audit' not in info or not isinstance(d['edr'].get('ev'), list):
+    print('✘ endpoint-bewaking ontbreekt in het rapport (edr.info/ev):', d.get('edr')); sys.exit(1)
 odd = [p for p in d['proc_list'] if p[0] == 'rztestproc' and '\\[' in p[3] and '"x"' in p[3]]
 print('✔ geldige JSON, %d bytes, %d processen, %d disks%s' % (len(raw), len(d['proc_list']), len(d['disks']),
       ', proces met backslash netjes meegestuurd' if odd else ''))

@@ -2057,6 +2057,44 @@ Naast de vaste gevoelige bestanden kun je zelf paden laten bewaken, bijvoorbeeld
 - **Betrouwbaar:** de agent onthoudt de nieuwe stand pas als RzMon het rapport heeft ontvangen. Mislukt een rapport, dan komt de wijziging bij het volgende rapport alsnog binnen.
 - Werkt op Linux-servers en TrueNAS SCALE met agent **1.40.0** of nieuwer, niet in de Home Assistant-add-on.
 
+**🛰️ Endpoint-bewaking** (vanaf 1.110.0, agent 1.63.0)
+
+De agent kijkt nu op het moment zelf mee op de server, en niet pas bij het volgende rapport. RzMon toetst wat hij ziet aan regels, en grijpt zo nodig zelf in.
+
+- **Wat de agent ziet:**
+  - **processen**: elk nieuw programma met opdracht, ouder, gebruiker en map (via `auditd`);
+  - **gevoelige paden**: wie aankomt aan `passwd`, `shadow`, `sudoers`, `ld.so.preload`, cron, systemd-units en `/root/.ssh`, en het laden van kernelmodules (`auditd`);
+  - **netwerk**: nieuwe uitgaande verbindingen en nieuwe luisterpoorten, met het programma erbij;
+  - **bestanden**: nieuwe bestanden in `/tmp`, `/var/tmp`, `/dev/shm` en de webmappen (via `inotify-tools`): grootte, of het een programma is (ELF), SHA-256 en verdachte code (`eval(base64_decode(`, `system($_GET` …);
+  - **containers**: starten, `exec` en containers met `--privileged` (Docker en Podman);
+  - **webverzoeken** via SWAG (zie *Payload-inspectie* hieronder).
+- **Regels:**
+  - de **eigen regels van RzMon**, met uitleg: webshell (een webserver die een shell start), reverse shell, *download en uitvoeren* (`curl … | sh`), programma's uit `/dev/shm` of een verborgen map, cryptominers, history wissen, SUID zetten, SSH-sleutels, uitbreken uit een container, kernelmodules, `ld.so.preload`, nieuwe cron/systemd/ssh-bestanden, een shell met een netwerkverbinding en meer;
+  - de **Linux-regels van [SigmaHQ](https://github.com/SigmaHQ/sigma)** (121 regels, *medium* en hoger; licentie DRL 1.1, de maker staat bij elke treffer). *medium* wordt 🟠 warning, *high* 🔴 critical, *critical* ook 🔴 en het proces stoppen.
+  - Op *🛡️ IDS → 🔏 Regels* staan ze allemaal, met wat ze doen en hoe vaak ze de laatste 3 dagen raak waren. Een regel zet je daar uit **voor alle servers**; *Dit is normaal* bij een incident geldt voor **één server**.
+- **Een treffer** wordt een IDS-incident, met het bewijs erbij (hooguit 20 per incident) in het blok **Inspectie**: het programma, de opdracht, de ouder, de gebruiker, de verbinding of het bestand, de MITRE ATT&CK-technieken (klikbaar) en wat RzMon deed.
+- **Zelf ingrijpen** (alleen in de modus ⛔ *Blokkeren*; in 🎓 *Leren* wordt het alleen gemeld, met *modus Leren: RzMon greep niet in*):
+  - **proces stoppen** bij een regel die dat zegt (webshell, reverse shell, cryptominer, *download en uitvoeren* …). RzMon stuurt dat versleuteld in het antwoord op het rapport; de agent controleert eerst dat het nog hetzelfde proces is (pid en starttijd) en meldt bij het volgende rapport of het lukte;
+  - **IP blokkeren** bij een webaanval met een herkende payload;
+  - **server isoleren** (24 uur) bij een reverse shell of cryptominer: alleen RzMon en je LAN kunnen er dan nog bij.
+  - Elk van de drie zet je los aan of uit. Wat RzMon deed, staat altijd in het incident; een critical gaat ook naar Pushover.
+- **🛰️ Live** (*🛡️ IDS → 🛰️ Live*): alles wat de agents de laatste 3 dagen zagen (hooguit 300), met *Alleen treffers*, een filter per server en de treffers per regel. Werkt live bij.
+- **Payload-inspectie van webverzoeken (SWAG):** de agent stuurt verdachte verzoeken mee (met wachtwoorden en tokens weggelakt). RzMon decodeert ze (ook dubbel gecodeerd) en herkent **SQL-injectie, XSS, command injection, path traversal, PHP-wrappers, RFI, Log4Shell, SSRF, Shellshock, SSTI, PHP-code en OGNL**, bekende exploits met hun **CVE** (34 stuks, bv. `eval-stdin.php` = CVE-2017-9841) en scanners (`sqlmap`, `nuclei`, `zgrab` …). Eén incident per IP, met de laatste 10 verzoeken en het verdachte stuk gemarkeerd. Kreeg een verzoek een gewoon antwoord (2xx/3xx), dan staat dat erbij: kijk dan of het lukte. Je LAN en de whitelist worden nooit geblokkeerd.
+
+**Aanzetten**
+- **Algemeen:** *Instellingen → IDS → Endpoint-bewaking* (standaard aan zodra het IDS aan staat): de bewaking zelf, de Sigma-regels, de payload-inspectie en de drie acties.
+- **Per server:** *Agent Manager → server → 🛡️ Endpoint-bewaking* aan of uit (standaard aan). Daar zie je ook welke sensoren werken.
+- **Op de server zelf** zet `EDR=0` in `/etc/default/rzmon-agent` het altijd uit.
+- **Ontbreekt er iets** (`auditd` of `inotify-tools`), dan staat dat **onder de servernaam** op het Dashboard (*🛡️ ontbreekt: auditd · installeren?*) en in de Agent Manager. Klik erop: je ziet wat er geïnstalleerd wordt en het commando om het zelf te doen. **Installeren via de agent** (beheerders, typ `INSTALLEREN` en je wachtwoord; alleen als commando's als root aan staan) installeert het pakket bij het volgende rapport, met een voortgangsbalk. Op Rocky/Alma komt `inotify-tools` uit EPEL; dat wordt dan eerst geïnstalleerd. Daarna zet de agent `auditd` aan.
+
+**Goed om te weten (endpoint-bewaking)**
+- De agent zet zijn eigen `auditd`-regels (sleutels `rzmon_*`) met `auditctl`, alleen zolang het aan staat; ze blijven niet na een herstart staan, de agent zet ze dan opnieuw. Staat `auditd` op slot (`-e 2`), dan pas na een herstart.
+- Op een drukke server wordt het audit-log groter. De agent stuurt dubbele gebeurtenissen hooguit één keer per 10 minuten door en hooguit 200 per minuut; is de wachtrij vol (2 MB), dan telt hij wat hij oversloeg.
+- De sensoren draaien in de realtime-watcher (`rzmon-watch`), dus alleen met systemd. Die draait nu met `PrivateTmp=no`, anders ziet hij `/tmp` niet.
+- **Niet in de Home Assistant-add-on** en niet op TrueNAS SCALE (geen `auditd`); op Alpine zonder systemd alleen bij de gewone runs.
+- Een webapplicatie die zelf `exec()` gebruikt, kan de regel *webshell* raken. Klik dan *Dit is normaal*.
+- Gebeurtenissen worden 3 dagen bewaard, wat een server normaal doet 60 dagen (voor de afwijkingen in een volgende versie).
+
 **Goed om te weten**
 - Werkt op Linux-servers met agent **1.35.0** of nieuwer. Werk de agents bij met de knop in de Agent Manager.
 - **TrueNAS SCALE: alleen detecteren.** De firewall hoort daar bij TrueNAS zelf; de agent blokkeert er niets.

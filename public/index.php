@@ -266,6 +266,19 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <button type="button" class="seg-btn active" data-it="inc"><?= th('⚠️ Incidenten') ?> <span class="it-n" id="it-n-inc"></span></button>
         <button type="button" class="seg-btn" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
         <button type="button" class="seg-btn" data-it="blk"><?= th('⛔ Blokkades') ?> <span class="it-n" id="it-n-blk"></span></button>
+        <button type="button" class="seg-btn" data-it="live"><?= th('🛰️ Live') ?></button>
+        <button type="button" class="seg-btn" data-it="rules"><?= th('🔏 Regels') ?></button>
+      </div>
+      <div class="ids-pane" data-pane="live" hidden>
+        <div class="dash-bar"><select id="edr-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
+          <label class="switch small"><input type="checkbox" id="edr-hits"><span></span> <?= th('Alleen treffers') ?></label>
+          <span class="muted small" id="edr-info"></span></div>
+        <div class="card" id="edr-feed"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+      <div class="ids-pane" data-pane="rules" hidden>
+        <div class="dash-bar"><div class="seg" id="rule-src"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzMon</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button></div>
+          <input id="rule-q" type="search" placeholder="<?= th('Zoeken: naam, techniek (T1059) …') ?>" autocomplete="off"></div>
+        <div class="card" id="edr-rules"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="inc">
         <div class="dash-bar">
@@ -657,6 +670,19 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
           <p class="muted small" style="margin-top:-.2rem"><?= th('Geblokkeerde aanvallen, mislukte logins en de IP\'s met de meeste pogingen, honeypot, SSH-logins van buiten en de open incidenten van de afgelopen 7 dagen.') ?>
             <button type="button" class="btn small-btn" id="ids-weekly-test"><?= th('Nu versturen') ?></button></p>
+        </div>
+
+        <div data-sk="ids_edr" class="card" id="ids-edr-card">
+          <h2>🛡️ <?= th('Endpoint-bewaking') ?></h2>
+          <p class="muted small"><?= t('De agent (1.63.0) kijkt op het moment zelf mee: nieuwe <b>processen</b> (auditd), <b>verbindingen</b> en luisterpoorten, nieuwe <b>bestanden</b> in tijdelijke mappen en webmappen (inotify) en <b>containers</b>. RzMon toetst alles aan zijn eigen regels en aan de open <b>Sigma</b>-regels; een treffer wordt een incident, met het bewijs erbij. Alles staat ook op <i>🛡️ IDS → 🛰️ Live</i>. Per server aan/uit in de Agent Manager.') ?></p>
+          <label class="switch"><input type="checkbox" name="edr_on"><span></span> <?= t('<b>Endpoint-bewaking aan</b> (op de servers waar het in de Agent Manager aan staat)') ?></label>
+          <label class="switch"><input type="checkbox" name="edr_sigma"><span></span> <?= t('<b>Sigma-regels</b> van SigmaHQ gebruiken (naast de eigen regels van RzMon)') ?></label>
+          <label class="switch"><input type="checkbox" name="edr_web"><span></span> <?= t('<b>Payload-inspectie</b> van verdachte webverzoeken (SWAG): SQL-injectie, XSS, Log4Shell, bekende exploits met CVE …') ?></label>
+          <h3 class="set-sub"><?= th('Zelf ingrijpen (alleen in de modus ⛔ Blokkeren)') ?></h3>
+          <label class="switch"><input type="checkbox" name="edr_kill"><span></span> <?= t('<b>Proces stoppen</b> bij een regel die dat zegt (webshell, reverse shell, cryptominer …)') ?></label>
+          <label class="switch"><input type="checkbox" name="edr_block"><span></span> <?= t('<b>IP blokkeren</b> bij een webaanval met een herkende payload') ?></label>
+          <label class="switch"><input type="checkbox" name="edr_isolate"><span></span> <?= t('<b>Server isoleren</b> (24 uur) bij een reverse shell of cryptominer: alleen RzMon en je LAN kunnen er dan nog bij') ?></label>
+          <p class="muted small"><?= th('Wat RzMon zelf doet, staat altijd in het incident en gaat als critical ook naar Pushover. In de modus 🎓 Leren grijpt RzMon nooit in, maar meldt het wel.') ?></p>
         </div>
 
         <div data-sk="ids_attack" class="card" id="ids-attack-card">

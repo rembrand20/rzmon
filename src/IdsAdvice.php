@@ -265,6 +265,26 @@ final class IdsAdvice
                 $a['prevent'] = t('Een web-application-firewall of fail2ban voor de website, en alles bijgewerkt.');
                 break;
 
+            case 'edr':   // 1.110.0: endpoint-regel (eigen regel of Sigma); de uitleg van de regel staat bij het bewijs
+                $a['what'] = (string) $inc['detail'];
+                $a['risk'] = (int) $inc['severity'] === 2
+                    ? t('Ernstig: dit gedrag past bij een inbraak. Ga uit van een hack tot je zeker weet dat jij of een bekend programma dit deed.')
+                    : t('Verdacht, maar vaak ook gewoon onderhoud. Kijk naar het programma, de ouder en de gebruiker bij het bewijs hieronder.');
+                $a['steps'] = [t('Was jij dit, of een programma dat je kent? Klik "Ja, dit was ik": dan wordt het voor deze server niet meer gemeld.'),
+                    t('Niet: laat het proces stoppen, isoleer de server en zoek uit hoe het binnenkwam.')];
+                $a['cmds'] = [[t('Processen als boom, met hun verbindingen'), 'ps -ef --forest | head -120; sudo ss -tupn | grep -v 127.0.0.1'],
+                    [t('Wat er net gebeurde (auditd)'), 'sudo ausearch -k rzmon_exec -ts recent -i 2>/dev/null | tail -60']];
+                $a['prevent'] = t('Houd alles bijgewerkt, laat diensten niet als root draaien, en zet /tmp en /dev/shm op noexec.');
+                break;
+
+            case 'web_payload':   // 1.110.0: webaanval met de payload erbij
+                $a['ask'] = false;
+                $a['what'] = t('Vanaf {ip} kwamen verzoeken met een aanval erin (zie het bewijs hieronder: de techniek, het verdachte stuk en, als het bekend is, de CVE).', ['ip' => $ip ?? '?']);
+                $a['risk'] = t('Meestal een geautomatiseerde scanner die het hele internet afgaat. Ernstig als een verzoek een gewoon antwoord (2xx) kreeg en jouw software kwetsbaar is voor die CVE.');
+                $a['steps'] = [t('Blokkeer het IP-adres (gebeurt vanzelf in de modus Blokkeren).'), t('Staat er een CVE bij: controleer of je die software gebruikt en bijgewerkt hebt (tabblad Kwetsbaarheden).')];
+                $a['prevent'] = t('Houd websites en diensten achter SWAG bijgewerkt; zet alleen open wat echt van buiten bereikbaar moet zijn.');
+                break;
+
             case 'harden':
                 $h = Hardening::help($key);
                 $a['what'] = $h['what'];

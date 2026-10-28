@@ -751,6 +751,24 @@ final class Vulns
         return true;
     }
 
+    /**
+     * Onderdelen installeren (1.110.0, endpoint-bewaking: auditd, inotify-tools …): zelfde weg als bijwerken, met
+     * mode = install. Alleen pakketnamen die RzMon zelf kiest (Edr::COMPONENTS); de agent (1.63.0) controleert ze ook.
+     */
+    public static function requestInstall(array $host, array $pkgs, string $by): true|string
+    {
+        if ($why = self::upgradeBlocked($host)) {
+            return $why;
+        }
+        if (version_compare((string) $host['agent_version'], '1.63.0', '<')) {
+            return t('agent {v} of nieuwer nodig', ['v' => '1.63.0']);
+        }
+        $req = ['id' => bin2hex(random_bytes(8)), 'pkgs' => array_values($pkgs), 'mode' => 'install', 'by' => $by, 'at' => now(), 'sent' => null];
+        q('UPDATE hosts SET vuln_upgrade_req = ?, vuln_upgrade_status = ? WHERE id = ?',
+            [json_encode($req), json_encode(['state' => 'queued', 'at' => now(), 'pkgs' => $req['pkgs'], 'mode' => 'install']), $host['id']]);
+        return true;
+    }
+
     /** Opdracht voor de agent (één keer meesturen; na 30 minuten zonder antwoord vervalt hij) */
     private static function pendingUpgrade(int $hostId): ?array
     {
@@ -768,7 +786,7 @@ final class Vulns
         $req['sent'] = now();
         q('UPDATE hosts SET vuln_upgrade_req = ?, vuln_upgrade_status = ? WHERE id = ?',
             [json_encode($req), json_encode(['state' => 'running', 'at' => now(), 'sent' => now(), 'pkgs' => $req['pkgs']]), $hostId]);
-        return ['id' => $req['id'], 'pkgs' => $req['pkgs']];
+        return ['id' => $req['id'], 'pkgs' => $req['pkgs']] + (($req['mode'] ?? '') === 'install' ? ['mode' => 'install'] : []);
     }
 
     /** Voortgang van de agent tijdens het bijwerken (stap, procent, pakket, laatste uitvoer), of de uitkomst als hij klaar is */
@@ -806,13 +824,15 @@ final class Vulns
         q('UPDATE hosts SET vuln_upgrade_req = NULL, vuln_upgrade_status = ? WHERE id = ?',
             [json_encode(['state' => $ok ? 'ok' : 'error', 'at' => now(), 'sent' => $prev['sent'] ?? $req['sent'], 'pkgs' => $req['pkgs'], 'log' => AgentText::tr($log)],
                 JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), $host['id']]);
-        AgentCommands::audit((string) $req['by'], $ok ? 'Pakketten bijgewerkt' : 'Pakketten bijwerken mislukt', "{$host['name']}: " . implode(' ', $req['pkgs']));
+        $inst = ($req['mode'] ?? '') === 'install';   // 1.110.0: onderdelen installeren
+        AgentCommands::audit((string) $req['by'], $inst ? ($ok ? 'Onderdelen geïnstalleerd' : 'Onderdelen installeren mislukt') : ($ok ? 'Pakketten bijgewerkt' : 'Pakketten bijwerken mislukt'),
+            "{$host['name']}: " . implode(' ', $req['pkgs']));
         // De nieuwe softwarelijst komt met het volgende rapport; daarna scant RzMon vanzelf opnieuw (andere lijst)
         $pkgs = implode(' ', array_slice($req['pkgs'], 0, 20)) . (count($req['pkgs']) > 20 ? ' …' : '');
         $last = trim((string) strrchr("\n" . trim($log), "\n"));
         Monitor::infoHost(['info_agent' => 1] + $host, fn() => $ok
-            ? '✔ ' . t('Pakketten bijgewerkt: {p}', ['p' => $pkgs])
-            : '✘ ' . t('Pakketten bijwerken mislukt: {p}', ['p' => $pkgs]) . ($last !== '' ? ' – ' . mb_substr(AgentText::tr($last), 0, 200) : ''), 'vuln_upgrade');
+            ? '✔ ' . ($inst ? t('Geïnstalleerd: {p}', ['p' => $pkgs]) : t('Pakketten bijgewerkt: {p}', ['p' => $pkgs]))
+            : '✘ ' . ($inst ? t('Installeren mislukt: {p}', ['p' => $pkgs]) : t('Pakketten bijwerken mislukt: {p}', ['p' => $pkgs])) . ($last !== '' ? ' – ' . mb_substr(AgentText::tr($last), 0, 200) : ''), 'vuln_upgrade');
     }
 
     /** Het commando om het zelf te doen, per pakketbeheerder */

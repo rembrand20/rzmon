@@ -245,6 +245,10 @@ final class Installer
         // 1.108.0: slim, deel 2
         ['checks', 'escalated', 'TINYINT UNSIGNED NOT NULL DEFAULT 0'],   // escalatie: al een stap hoger gemeld voor deze storing
         ['checks', 'anom_streak', 'TINYINT UNSIGNED NOT NULL DEFAULT 0'], // afwijking: zoveel metingen achter elkaar
+        // 1.110.0: endpoint-bewaking per server aan/uit, en wat de sensoren melden (auditd, inotify, containers)
+        ['hosts', 'edr_on', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['hosts', 'edr_info', 'TEXT NULL'],
+        ['hosts', 'edr_at', 'DATETIME NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

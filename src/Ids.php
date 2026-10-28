@@ -820,6 +820,9 @@ final class Ids
             q('UPDATE ids_kills SET done_at = ?, result = ? WHERE id = ?', [now(), mb_substr($label, 0, 100), $row['id']]);
             q("UPDATE ids_incidents SET detail = LEFT(CONCAT(REPLACE(detail, ?, ''), ?), 1000) WHERE host_id = ? AND type = 'webshell' AND dkey = ? AND created_at >= NOW() - INTERVAL 1 DAY",
                 [' · ⛔ ' . t('proces wordt gestopt'), " · ⛔ pid $pid $label", $hid, $row['dkey']]);
+            // Endpoint-regels (1.110.0): "proces 123 wordt gestopt" → "pid 123 gestopt"
+            q("UPDATE ids_incidents SET detail = LEFT(REPLACE(detail, ?, ?), 1000) WHERE host_id = ? AND type = 'edr' AND created_at >= NOW() - INTERVAL 1 DAY",
+                [t('proces {pid} wordt gestopt', ['pid' => $pid]), "pid $pid $label", $hid]);
         }
     }
 
@@ -837,7 +840,8 @@ final class Ids
     /** Regels voor de agent: processen die gestopt moeten worden (hooguit 10 minuten geldig) */
     private static function killLines(int $hostId): array
     {
-        if (!self::blocking() || setting('ids_webshell_kill', '0') !== '1') {
+        // Webshells (ids_webshell_kill) of de endpoint-regels (edr_kill, 1.110.0)
+        if (!self::blocking() || (setting('ids_webshell_kill', '0') !== '1' && setting('edr_kill', '1') !== '1')) {
             return [];
         }
         return array_map(static fn($k) => implode("\t", [0, 'kill', (int) $k['pid'], (int) $k['start']]),
@@ -1023,6 +1027,19 @@ final class Ids
         return true;
     }
 
+    /**
+     * Incident van buiten deze klasse (1.110.0: endpoint-sensoren en web-inspectie): zoals incident(), maar geeft het id
+     * terug (nieuw of het bestaande van vandaag dat werd opgeteld), voor het bewijs (ids_evidence). null = genegeerd.
+     */
+    public static function raise(array $host, int $sev, string $type, string $key, string $title, string $detail, ?string $ip = null): ?int
+    {
+        $ctx = ['host' => $host, 'learning' => false, 'users' => []];
+        self::incident($ctx, $sev, $type, $key, $title, $detail, $ip);
+        $id = q('SELECT id FROM ids_incidents WHERE host_id = ? AND type = ? AND dkey = ? AND created_at >= NOW() - INTERVAL 1 DAY ORDER BY id DESC LIMIT 1',
+            [$host['id'], $type, mb_substr($key, 0, 255)])->fetchColumn();
+        return $id ? (int) $id : null;
+    }
+
     /** Naar Pushover (ook tijdens stille uren), en in Meldingen. Critical, of (SSH-login van buiten) warning. */
     private static function notify(string $title, string $detail, int $status = STATUS_CRIT): void
     {
@@ -1057,7 +1074,7 @@ final class Ids
     }
 
     /** @return string|null beschrijving van de blokkade, of null als er niet geblokkeerd is */
-    private static function autoBlock(array $host, string $ip, string $reason, ?string $decoy = null): ?string
+    public static function autoBlock(array $host, string $ip, string $reason, ?string $decoy = null): ?string
     {
         if (!self::blocking() || self::protectedIp($ip)) {
             return null;

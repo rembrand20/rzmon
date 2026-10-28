@@ -236,5 +236,57 @@ ok(Monitor::failsReached(['type' => 'cpu', 'notify_fails' => 3, 'interval_sec' =
 save_setting('smart_interval', '0');
 ok(Monitor::failsReached($p3, 3, 0) && !Monitor::failsReached($p3, 2, 999), 'zonder slim interval: gewoon N keer');
 
+
+section('Endpoint-bewaking en inspectie (1.110.0)');
+save_setting('ids_enabled', '1');
+save_setting('ids_mode', 'learn');
+Edr::reset();
+ok(count(Sigma::rules()) > 100, 'Sigma-regels geladen (' . count(Sigma::rules()) . ')');
+$host = q('SELECT * FROM hosts WHERE id = ?', [$ha])->fetch();
+$ws = ['k' => 'x', 't' => time(), 'pid' => 4242, 'st' => 777, 'uid' => 33, 'u' => 'www-data', 'exe' => '/usr/bin/dash', 'comm' => 'sh', 'argv' => ['sh', '-c', 'id'], 'cmd' => 'sh -c id', 'pc' => 'php-fpm8.2'];
+$r = Edr::process($host, ['ev' => [$ws], 'info' => ['audit' => 'ok', 'file' => 'missing', 'fam' => 'deb']]);
+$inc = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'edr' ORDER BY id DESC LIMIT 1", [$ha])->fetch();
+ok($inc && (int) $inc['severity'] === 2 && str_starts_with((string) $inc['dkey'], 'rz-webshell|'), 'webserver start een shell → critical (eigen regel)');
+ok($r === [] && str_contains((string) $inc['detail'], 'Leren'), 'modus Leren: niets gestopt, wel gemeld');
+ok(count(Edr::evidenceFor((int) $inc['id'])) === 1, 'bewijs bij het incident');
+save_setting('ids_mode', 'block');
+$ws['pid'] = 4243;
+$r = Edr::process($host, ['ev' => [$ws]]);
+ok(($r['edr_kill'] ?? null) === [[4243, 777]] && (int) q('SELECT COUNT(*) FROM ids_kills WHERE host_id = ? AND pid = 4243', [$ha])->fetchColumn() === 1, 'modus Blokkeren: proces wordt meteen gestopt');
+$st = Edr::status(q('SELECT * FROM hosts WHERE id = ?', [$ha])->fetch());
+ok($st['missing'] === ['inotify'], 'ontbrekend onderdeel gemeld: inotify-tools');
+// Sigma-regel (alleen Sigma kent deze): chattr -i
+Edr::process($host, ['ev' => [['k' => 'x', 't' => time(), 'pid' => 50, 'st' => 1, 'uid' => 0, 'u' => 'root', 'exe' => '/usr/bin/chattr', 'comm' => 'chattr', 'argv' => ['chattr', '-i', '/etc/passwd'], 'cmd' => 'chattr -i /etc/passwd', 'pc' => 'bash']]]);
+$sig = q("SELECT i.* FROM ids_incidents i WHERE host_id = ? AND type = 'edr' AND title LIKE 'Sigma:%' ORDER BY id DESC LIMIT 1", [$ha])->fetch();
+ok($sig && (int) $sig['severity'] === 1 && str_contains((string) $sig['detail'], 'SigmaHQ'), 'Sigma-regel raak, met bronvermelding: ' . ($sig['title'] ?? '-'));
+// Reverse shell via het netwerk: shell met een verbinding naar buiten
+Edr::process($host, ['ev' => [['k' => 'n', 't' => time(), 'dir' => 'out', 'pid' => 61, 'st' => 2, 'exe' => '/usr/bin/bash', 'comm' => 'bash', 'rip' => '203.0.113.9', 'rp' => 9001, 'lp' => 51234]]]);
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'edr' AND dkey LIKE 'rz-net-shell|%' AND ip = '203.0.113.9'", [$ha])->fetchColumn() === 1, 'shell met een verbinding naar buiten → critical');
+// Gewoon proces: geen incident, wel in Live en in edr_seen
+$before = (int) q("SELECT COUNT(*) FROM ids_incidents WHERE type = 'edr'")->fetchColumn();
+Edr::process($host, ['ev' => [['k' => 'x', 't' => time(), 'pid' => 70, 'st' => 3, 'uid' => 0, 'u' => 'root', 'exe' => '/usr/bin/ls', 'comm' => 'ls', 'argv' => ['ls', '-la'], 'cmd' => 'ls -la', 'pc' => 'bash']]]);
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE type = 'edr'")->fetchColumn() === $before && count(Edr::feed(10, $ha)) >= 4, 'gewoon proces: alleen in Live');
+// Per server uit: niets verwerken
+q('UPDATE hosts SET edr_on = 0 WHERE id = ?', [$ha]);
+$n0 = (int) q('SELECT COUNT(*) FROM edr_events')->fetchColumn();
+Edr::process(q('SELECT * FROM hosts WHERE id = ?', [$ha])->fetch(), ['ev' => [$ws]]);
+ok((int) q('SELECT COUNT(*) FROM edr_events')->fetchColumn() === $n0 && Edr::agentLines(q('SELECT * FROM hosts WHERE id = ?', [$ha])->fetch()) === [], 'per server uit: geen sensoren, niets verwerkt');
+q('UPDATE hosts SET edr_on = 1 WHERE id = ?', [$ha]);
+// Web: SQL-injectie en een bekende exploit, wachtwoord gemaskeerd, IP geblokkeerd
+$a = Inspect::analyze('GET', "/item.php?id=1%27%20UNION%20SELECT%20password%20FROM%20users--", 'Mozilla/5.0');
+ok(in_array('sqli', array_column($a['tech'], 0), true), 'SQL-injectie herkend (URL-gecodeerd)');
+ok((Inspect::analyze('POST', '/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php', 'curl')['cve'][0] ?? '') === 'CVE-2017-9841', 'bekende exploit met CVE herkend');
+ok(Inspect::analyze('GET', '/index.php?page=home', 'Mozilla/5.0')['tech'] === [], 'gewoon verzoek: niets');
+ok(Inspect::redact('/login?user=a&password=geheim&x=1') === '/login?user=a&password=***&x=1', 'wachtwoord in de query gemaskeerd');
+Inspect::requests($host, [['198.51.100.7', time(), 'GET', "/?q=%24%7Bjndi%3Aldap%3A%2F%2Fx.y%2Fa%7D", 404, 0, 'Mozilla/5.0', '-']]);
+$wi = q("SELECT * FROM ids_incidents WHERE type = 'web_payload' AND ip = '198.51.100.7'")->fetch();
+ok($wi && str_contains((string) $wi['title'], 'Log4Shell') && str_contains((string) $wi['detail'], '⛔'), 'Log4Shell-poging: incident en IP geblokkeerd');
+// Zoals de agent het stuurt: tijd uit de log, " als \x22 (nginx)
+Inspect::requests($host, [['192.0.2.50', '28/Oct/2026:10:00:02 +0100', 'GET', '/?x=1\\x22 OR \\x221\\x22=\\x221', 200, 10, 'Mozilla/5.0', '-']]);
+$ev = q("SELECT e.data FROM ids_evidence e JOIN ids_incidents i ON i.id = e.incident_id WHERE i.ip = '192.0.2.50'")->fetchColumn();
+$evd = json_decode((string) $ev, true)['ev'] ?? [];
+ok(($evd['uri'] ?? '') === '/?x=1" OR "1"="1' && ($evd['at'] ?? 0) === 1793178002, 'verzoek van de agent: \\x22 teruggezet, tijd uit de log (' . ($evd['uri'] ?? '-') . ')');
+save_setting('ids_mode', 'learn');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

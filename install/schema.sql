@@ -903,3 +903,43 @@ CREATE TABLE IF NOT EXISTS maint_windows (
 INSERT IGNORE INTO settings (name, value) VALUES ('esc_on', '0'), ('esc_warn_min', '30'), ('esc_crit_min', '15'), ('esc_crit_prio', '2'), ('esc_quiet', '1');
 INSERT IGNORE INTO settings (name, value) VALUES ('smart_interval', '0'), ('smart_fast', '20'), ('smart_slow', '2');
 INSERT IGNORE INTO settings (name, value) VALUES ('anomaly_on', '1'), ('disk_jump_on', '1'), ('disk_jump_pct', '5'), ('context_on', '1'), ('hb_learn', '1');
+
+-- 1.110.0: endpoint-bewaking. Alle gebeurtenissen van de sensoren (Live, 3 dagen); rule/sev als een regel raak was
+CREATE TABLE IF NOT EXISTS edr_events (
+    id      BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id INT UNSIGNED NOT NULL,
+    at      DATETIME     NOT NULL,
+    kind    CHAR(1)      NOT NULL,
+    sig     VARCHAR(255) NOT NULL,
+    data    TEXT         NOT NULL,
+    rule    VARCHAR(80)  NULL,
+    sev     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    INDEX idx_edre_at (at),
+    INDEX idx_edre_host (host_id, id),
+    CONSTRAINT fk_edre_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.110.0: wat een server al eerder deed (per soort en kenmerk), voor de anomaliedetectie (60 dagen)
+CREATE TABLE IF NOT EXISTS edr_seen (
+    host_id    INT UNSIGNED NOT NULL,
+    kind       CHAR(1)      NOT NULL,
+    sig        VARCHAR(255) NOT NULL,
+    first_seen DATETIME     NOT NULL,
+    last_seen  DATETIME     NOT NULL,
+    n          INT UNSIGNED NOT NULL DEFAULT 1,
+    PRIMARY KEY (host_id, kind, sig),
+    CONSTRAINT fk_edrs_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.110.0: bewijs bij een IDS-incident (het proces, de verbinding, het webverzoek …) met de regel die raak was
+CREATE TABLE IF NOT EXISTS ids_evidence (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    incident_id BIGINT UNSIGNED NOT NULL,
+    at          DATETIME     NOT NULL,
+    kind        VARCHAR(10)  NOT NULL,
+    rule        VARCHAR(80)  NOT NULL DEFAULT '',
+    data        TEXT         NOT NULL,
+    INDEX idx_idse_inc (incident_id, id),
+    CONSTRAINT fk_idse_inc FOREIGN KEY (incident_id) REFERENCES ids_incidents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('edr_on', '1'), ('edr_kill', '1'), ('edr_block', '1'), ('edr_isolate', '1'), ('edr_sigma', '1'), ('edr_web', '1'), ('edr_rules_off', '[]');

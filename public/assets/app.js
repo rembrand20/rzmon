@@ -1136,6 +1136,21 @@ function init() {
     days.forEach((x) => { x.open = !all; });
   };
   $('#ids-block-add').onclick = () => idsBlockDialog();
+  $('#edr-host').onchange = () => loadEdrFeed();
+  $('#edr-hits').onchange = () => loadEdrFeed();
+  $('#rule-q').oninput = () => renderEdrRules();
+  $('#rule-src').onclick = (e) => {
+    const b = e.target.closest('[data-rs]');
+    if (!b) return;
+    ruleSrc = b.dataset.rs;
+    $$('#rule-src .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+    renderEdrRules();
+  };
+  $('#edr-rules').onchange = async (e) => {
+    const c = e.target.closest('[data-rule]');
+    if (!c) return;
+    try { await api('edr_rule_set', { id: c.dataset.rule, on: c.checked }); toast(c.checked ? L('Regel aan') : L('Regel uit')); loadEdrRules(); } catch (ex) { toast(ex.message, 'err'); c.checked = !c.checked; }
+  };
   $('#ids-tabs').onclick = (e) => {
     const b = e.target.closest('[data-it]');
     if (!b) return;
@@ -1356,7 +1371,7 @@ function showTab(name) {
   if (/^(ids|vulns)\//.test(name)) {
     const [tab, s] = name.split('/');
     name = tab;
-    if (tab === 'ids' && ['inc', 'acc', 'blk'].includes(s)) idsTab = s;
+    if (tab === 'ids' && ['inc', 'acc', 'blk', 'live', 'rules'].includes(s)) idsTab = s;
     if (tab === 'vulns' && ['cve', 'leak'].includes(s)) vulnTab = s;
   }
   if (qs) {
@@ -2122,6 +2137,20 @@ function hostDetail(h, lines = null) {
 
 // Blox: een tegel per server
 /** Blox-tegel. Small: compacte tegel (naam, status, problemen), meer per rij; Large: met meters en details. */
+/**
+ * Endpoint-bewaking (1.110.0): ontbreekt er iets op deze server (auditd, inotify-tools), dan een regel onder de naam,
+ * alleen voor beheerders. Klik: de Agent Manager, waar je het kunt laten installeren.
+ */
+const EDR_COMP = { auditd: ['auditd', () => L('nieuwe processen, kernelmodules en bewaakte paden')], inotify: ['inotify-tools', () => L('nieuwe bestanden in tijdelijke mappen en webmappen')] };
+function edrNote(h) {
+  if (!isAdmin() || h.mode !== 'agent' || !+(h.edr_on ?? 1) || !h.edr_info) return '';
+  let i;
+  try { i = JSON.parse(h.edr_info); } catch (e) { return ''; }
+  const miss = [i.audit === 'missing' ? 'auditd' : null, i.audit === 'stopped' ? L('auditd draait niet') : null, i.file === 'missing' ? 'inotify-tools' : null].filter(Boolean);
+  if (!miss.length) return '';
+  return `<button type="button" class="edr-note" data-act="edr-am" data-id="${h.id}" title="${esc(L('Endpoint-bewaking: klik om het via de agent te installeren'))}">🛡️ ${esc(L('ontbreekt: {what}', { what: miss.join(', ') }))} · ${L('installeren?')}</button>`;
+}
+
 function hostCard(h, small) {
   const p = hostParts(h);
   if (small) {
@@ -2132,7 +2161,7 @@ function hostCard(h, small) {
       <span class="dot"></span>
       <div class="host-title">
         <strong>${esc(h.name)}</strong>
-        <span class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</span>${p.maint}
+        <span class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</span>${p.maint}${edrNote(h)}
       </div>
       <span class="counts">${p.counts}</span>
     </div>
@@ -2148,7 +2177,7 @@ function hostCard(h, small) {
       <div class="host-title">
         <strong>${esc(h.name)}${+h.enabled ? '' : ` <span class="badge">${L('uit')}</span>`}</strong>
         <span class="muted mono host-sub">${esc(h.address)} · ${isHa(h) ? 'Home Assistant' : esc(h.mode)}${h.mode === 'agent' && h.agent_version ? ' ' + esc(h.agent_version) + (+h.agent_key_seen === 1 ? ' 🔑' : '') : ''}</span>${p.via}
-        ${p.maint}
+        ${p.maint}${edrNote(h)}
       </div>
       <span class="counts">${p.counts}</span>
       <span class="chev" aria-hidden="true">›</span>
@@ -2191,7 +2220,7 @@ function hostLine(h, large) {
     <div class="line-row" data-act="toggle" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${p.isOpen}"
          title="${p.isOpen ? L('Inklappen') : L('Klik voor alle checks')}">
       <span class="dot"></span>
-      <span class="lc-name"><strong><span class="lc-ic" aria-hidden="true">${hostIcon(h)}</span> ${p.title}</strong>${large ? `<span class="muted mono small">${esc(h.address)}</span>${p.via}${p.maint}` : ''}</span>
+      <span class="lc-name"><strong><span class="lc-ic" aria-hidden="true">${hostIcon(h)}</span> ${p.title}</strong>${large ? `<span class="muted mono small">${esc(h.address)}</span>${p.via}${p.maint}` : ''}${edrNote(h)}</span>
       ${large ? '' : `<span class="lc-addr muted mono small">${esc(h.address)}</span>`}
       ${cells}
       <span class="chev" aria-hidden="true">›</span>
@@ -2335,6 +2364,7 @@ async function onHostsClick(e) {
   }
   const id = b.dataset.id;
   switch (b.dataset.act) {
+    case 'edr-am': agentInstructions(findHost(id)); return;
     case 'grp': {
       // Groep in- of uitklappen (zonder alles opnieuw op te bouwen)
       const key = `${id}:${b.dataset.g}`;
@@ -4661,6 +4691,10 @@ function agentInstructions(h, pairNow = false) {
         <select id="host-watchdog"><option value="0" ${+h.watchdog ? '' : 'selected'}>${L('uit')}</option><option value="1" ${+h.watchdog ? 'selected' : ''}>${L('aan')}</option></select>
         ${L('melden na')} <input id="host-wd-min" type="number" min="2" max="120" value="${+h.watchdog_min || 5}" style="width:4.5rem"> ${L('min')}
         <span class="muted small" id="host-wd-info">${L('deze agent stuurt zelf een Pushover-bericht als RzMon onbereikbaar is of de checks stilstaan')}</span></div>
+      <div class="cmd-host-row need-admin">🛡️ ${L('Endpoint-bewaking:')}
+        <select id="host-edr"><option value="1" ${+(h.edr_on ?? 1) ? 'selected' : ''}>${L('aan')}</option><option value="0" ${+(h.edr_on ?? 1) ? '' : 'selected'}>${L('uit')}</option></select>
+        <span class="muted small">${L('processen, netwerk, bestanden en containers meteen bekeken; RzMon grijpt in bij een aanval')}</span></div>
+      <div id="host-edr-info" class="need-admin edr-host"></div>
       <div class="cmd-host-row need-admin">ℹ️ ${L('Info bij agent-updates:')}
         <select id="host-info-agent"><option value="1" ${+(h.info_agent ?? 1) ? 'selected' : ''}>${L('aan (volgt de algemene info-regel)')}</option><option value="0" ${+(h.info_agent ?? 1) ? '' : 'selected'}>${L('uit')}</option></select></div>
       <div class="cmd-host-row need-admin">🔐 ${L('Versleuteld versturen:')}
@@ -4761,6 +4795,15 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   };
   $$('.seg-btn', body).forEach((b) => (b.onclick = () => show(b.dataset.seg)));
   pollAgentStatus(h.id);
+  $('#host-edr').onchange = async (e) => {
+    try {
+      await api('edr_host_set', { host_id: h.id, on: e.target.value === '1' });
+      toast(e.target.value === '1' ? L('Endpoint-bewaking aan voor {name}; de agent pakt het binnen een minuut op', { name: h.name }) : L('Endpoint-bewaking uit voor {name}', { name: h.name }));
+      loadEdrHost(h);
+      refresh();
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+  loadEdrHost(h);
   $('#host-realtime').onchange = async (e) => {
     try {
       await api('host_realtime', { id: h.id, on: e.target.value === '1' });
@@ -5098,6 +5141,57 @@ function agentVer(h) {
   return ` · v${esc(h.agent_version)}${state.agent_latest && verCmp(h.agent_version, state.agent_latest) < 0 ? ' ⬆' : ''}${busy}`;
 }
 
+/** Endpoint-bewaking in de Agent Manager: welke sensoren werken, wat ontbreekt (met installeren), en de voortgang */
+const EDR_AUDIT = { ok: ['✔', () => L('processen en bewaakte paden (auditd)')], missing: ['✘', () => L('auditd ontbreekt')], stopped: ['⚠️', () => L('auditd is geïnstalleerd maar draait niet')],
+  locked: ['⚠️', () => L('auditd staat op slot (-e 2): regels pas na een herstart')], noroot: ['✘', () => L('de agent draait niet als root')], off: ['·', () => L('uit')] };
+async function loadEdrHost(h, poll = false) {
+  const box = $('#host-edr-info');
+  if (!box || !$('#modal').open) return;
+  let d;
+  try { d = await api('edr_host', null, { id: h.id }); } catch (ex) { box.innerHTML = `<span class="small bad">${esc(ex.message)}</span>`; return; }
+  const i = d.info || {};
+  const lines = [];
+  if (!d.ids) lines.push(`<span class="warn-txt">⚠️ ${L('Werkt pas als het IDS aan staat (Instellingen → IDS).')}</span>`);
+  else if (!d.global) lines.push(`<span class="muted">${L('Staat voor alle servers uit (Instellingen → IDS → Endpoint-bewaking).')}</span>`);
+  else if (!d.on) lines.push(`<span class="muted">${L('Uit voor deze server.')}</span>`);
+  else if (!d.at) lines.push(`<span class="muted">${L('Nog geen gegevens van de agent (agent {v} of nieuwer nodig).', { v: '1.63.0' })}</span>`);
+  else {
+    const a = EDR_AUDIT[i.audit] || ['·', () => esc(i.audit || '?')];
+    lines.push([`${a[0]} ${a[1]()}`, i.file === 'ok' ? `✔ ${L('bestanden (inotify)')}` : `✘ ${L('inotify-tools ontbreekt')}`, `✔ ${L('netwerk')}`,
+      i.ctr && i.ctr !== 'none' ? `✔ ${L('containers ({rt})', { rt: esc(i.ctr) })}` : `· ${L('geen containers')}`,
+      i.watch === 'on' ? `✔ ${L('realtime-watcher actief')}` : `⚠️ ${+i.systemd ? L('de realtime-watcher draait (nog) niet') : L('geen systemd: alleen bij de gewone runs')}`].join(' · '));
+    if (+i.drop > 0) lines.push(`<span class="warn-txt">${L('{n} gebeurtenissen overgeslagen (te veel tegelijk)', { n: +i.drop })}</span>`);
+  }
+  const up = d.install && d.install.mode === 'install' ? d.install : null;
+  const busy = up && (up.state === 'queued' || up.state === 'running');
+  if (busy) lines.push(`⏳ ${L('Wordt geïnstalleerd: {p}', { p: esc((up.pkgs || []).join(' ')) })}${up.pct ? ` (${+up.pct}%)` : ''}`);
+  else if (up && up.state === 'ok' && Date.now() - new Date(up.at.replace(' ', 'T')) < 3600e3) lines.push(`<span class="good">✔ ${L('Geïnstalleerd: {p}', { p: esc((up.pkgs || []).join(' ')) })}</span>`);
+  else if (up && up.state === 'error') lines.push(`<span class="bad">✘ ${L('Installeren mislukt: {p}', { p: esc((up.pkgs || []).join(' ')) })}</span>${up.log ? `<pre class="code small">${esc(up.log.slice(-400))}</pre>` : ''}`);
+  if (d.on && d.ids && d.missing.length && !busy) {
+    const rpm = d.fam === 'rhel';
+    const cmd = (c) => (c === 'auditd' ? (rpm ? 'sudo dnf install audit && sudo systemctl enable --now auditd' : 'sudo apt install auditd')
+      : (rpm ? 'sudo dnf install epel-release && sudo dnf install inotify-tools' : 'sudo apt install inotify-tools'));
+    lines.push(d.missing.map((c) => `<div class="edr-miss"><b>${esc(EDR_COMP[c][0])}</b> <span class="muted small">${EDR_COMP[c][1]()}</span>
+      ${d.install_blocked ? `<span class="muted small">· ${L('via de agent kan het hier niet: {why}', { why: esc(d.install_blocked) })}</span> <code>${esc(cmd(c))}</code>`
+        : `<button type="button" class="btn small-btn primary" data-edr-install="${c}">⬇ ${L('Installeren via de agent')}</button> <span class="muted small">${L('of zelf:')} <code>${esc(cmd(c))}</code></span>`}</div>`).join(''));
+  }
+  withMorph(() => { box.innerHTML = `<div class="small">${lines.join('<br>')}</div>`; });
+  $$('[data-edr-install]', box).forEach((b) => {
+    b.onclick = async () => {
+      const c = b.dataset.edrInstall;
+      const lan = !!document.querySelector('.lan-badge');
+      const pw = prompt(L('{c} installeren op {name}? {how}', { c: EDR_COMP[c][0], name: h.name, how: lan ? L('Typ INSTALLEREN om te bevestigen.') : L('Bevestig met je wachtwoord.') }));
+      if (pw === null) return;
+      try {
+        await api('edr_install', { host_id: h.id, comp: c, confirm: pw });
+        toast(L('De agent installeert {c} bij zijn volgende rapport', { c: EDR_COMP[c][0] }));
+        loadEdrHost(h, true);
+      } catch (ex) { toast(ex.message, 'err'); }
+    };
+  });
+  if (busy || poll) setTimeout(() => loadEdrHost(h, busy), 4000);
+}
+
 /** Live-status van de agent in het venster, elke 5 s zolang het open is. */
 let agentPollGen = 0;
 async function pollAgentStatus(hostId, gen = ++agentPollGen) {
@@ -5266,14 +5360,71 @@ const IDS_FW = {
 async function loadIds() {
   try { [idsData, accData] = await Promise.all([api('ids'), api('ids_access')]); } catch (ex) { toast(ex.message, 'err'); return; }
   keepOpen($('#tab-ids'), () => { renderIds(); renderAccess(); });
-  showIdsTab();
+  showIdsTab();   // Live en Regels worden daar (opnieuw) geladen
 }
 
 function showIdsTab() {
-  if (!['inc', 'acc', 'blk'].includes(idsTab)) idsTab = 'inc';
+  if (!['inc', 'acc', 'blk', 'live', 'rules'].includes(idsTab)) idsTab = 'inc';
   $$('#ids-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab));
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
   if (idsTab === 'blk' && isAdmin()) loadBlocks();
+  if (idsTab === 'live') loadEdrFeed();
+  if (idsTab === 'rules') loadEdrRules();
+}
+
+// ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
+let edrFeed = null, edrRules = null, ruleSrc = '';
+const EDR_KIND_IC = { exec: '⚙️', net: '🌐', file: '📄', audit: '🔐', ctr: '📦' };
+const EDR_AUDIT_KEY = { rzmon_id: () => L('accounts/sudo'), rzmon_persist: () => L('cron/systemd/ssh'), rzmon_mod: () => L('kernelmodule') };
+const edrBase = (p) => String(p || '').split('/').pop();
+function edrSummary(e) {
+  const v = e.ev || {};
+  switch (e.kind) {
+    case 'exec': return `<b>${esc(edrBase(v.exe) || v.comm || '?')}</b> <code class="edr-cmd">${esc((v.cmd || '').slice(0, 160))}</code> <span class="muted">· ${esc(v.u || v.uid || '?')} · ${L('ouder')} ${esc(v.pc || '?')}</span>`;
+    case 'net': return v.dir === 'listen' ? `<b>${esc(v.comm || edrBase(v.exe) || '?')}</b> ${L('luistert op poort {p}', { p: +v.lp })}`
+      : `<b>${esc(v.comm || edrBase(v.exe) || '?')}</b> → <code>${esc(v.rip || '')}:${+v.rp}</code>`;
+    case 'file': return `<code>${esc(v.path || '')}</code> <span class="muted">· ${fmtBytes(+v.size || 0)}${+v.elf ? ' · ELF' : ''}${v.susp ? ' · ' + esc(v.susp) : ''}</span>`;
+    case 'audit': return `${esc((EDR_AUDIT_KEY[v.key] || (() => v.key))())}: <code>${esc(v.name || '')}</code> <span class="muted">· ${esc(edrBase(v.exe))} · ${esc(v.u || v.uid || '?')}</span>`;
+    case 'ctr': return `${esc(v.rt || '')} <b>${esc(v.act || '')}</b> ${esc(v.name || '')} <span class="muted">${esc(v.img || '')}${v.cmd ? ' · ' + esc(v.cmd) : ''}${+v.priv ? ' · --privileged' : ''}</span>`;
+    default: return esc(e.sig);
+  }
+}
+async function loadEdrFeed() {
+  const host = $('#edr-host').value, hits = $('#edr-hits').checked;
+  try { edrFeed = await api('edr_feed', null, { limit: 300, ...(host ? { host } : {}), ...(hits ? { hits: 1 } : {}) }); } catch (ex) { $('#edr-feed').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const sel = $('#edr-host');
+  if (sel.options.length < 2) sel.innerHTML += (state.hosts || []).filter((h) => h.mode === 'agent').map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('');
+  const evs = edrFeed.events;
+  $('#edr-info').textContent = !edrFeed.on ? L('Endpoint-bewaking staat uit (Instellingen → IDS → Endpoint-bewaking)') : L('{n} gebeurtenissen (laatste 3 dagen, hooguit 300)', { n: evs.length });
+  withMorph(() => {
+    $('#edr-feed').innerHTML = evs.length ? `<div class="edr-list">${evs.map((e) => `<div class="edr-row ${e.rule ? 'hit s' + e.sev : ''}" data-key="e${e.id}">
+      <span class="m-t" title="${esc(e.at)}">${esc(e.at.slice(5, 16).replace(' ', ' · '))}</span>
+      <span class="edr-k" title="${esc(e.kind)}">${EDR_KIND_IC[e.kind] || '·'}</span>
+      <span class="m-sv">${esc(e.host)}</span>
+      <span class="edr-sum">${edrSummary(e)}${e.rule ? `<br><span class="edr-hit">${e.sev === 2 ? '🔴' : '🟠'} ${esc(e.rule_title || e.rule)}</span>` : ''}</span></div>`).join('')}</div>`
+      : `<p class="muted">${edrFeed.on ? L('Nog niets gezien. Staat de endpoint-bewaking aan op je servers (Agent Manager), en is de agent 1.63.0 of nieuwer?') : ''}</p>`;
+  });
+}
+async function loadEdrRules() {
+  try { edrRules = await api('edr_rules'); } catch (ex) { $('#edr-rules').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  renderEdrRules();
+}
+function renderEdrRules() {
+  if (!edrRules) return;
+  const q = ($('#rule-q').value || '').trim().toLowerCase();
+  const list = edrRules.rules.filter((r) => (!ruleSrc || r.src === ruleSrc) && (!q || (r.title + ' ' + r.what + ' ' + r.tags.join(' ') + ' ' + r.id).toLowerCase().includes(q)));
+  const act = (a) => a.map((x) => ({ kill: '⛔ ' + L('stopt het proces'), block: '🚫 ' + L('blokkeert het IP'), isolate: '🧱 ' + L('isoleert de server') }[x] || x)).join(' · ');
+  const on = edrRules.rules.filter((r) => r.on).length;
+  withMorph(() => {
+    $('#edr-rules').innerHTML = `<p class="muted small" style="margin-top:0">${L('{on} van {n} regels aan. Eigen regels van RzMon (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). Een regel uitzetten geldt voor alle servers; "Dit is normaal" bij een incident geldt voor één server.', { on, n: edrRules.rules.length })}
+      ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → IDS → Endpoint-bewaking).')}</span>`}</p>
+      <div class="table-scroll"><table class="vuln-table rule-table"><thead><tr><th></th><th>${L('Regel')}</th><th>${L('Ernst')}</th><th>${L('Doet zelf')}</th><th>MITRE</th><th title="${esc(L('Treffers in de laatste 3 dagen'))}">${L('Treffers')}</th></tr></thead><tbody>
+      ${list.map((r) => `<tr class="${r.on ? '' : 'muted'}" data-key="${esc(r.id)}"><td><label class="switch small need-admin"><input type="checkbox" data-rule="${esc(r.id)}" ${r.on ? 'checked' : ''}><span></span></label></td>
+        <td><b>${esc(r.title)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : 'RzMon'}</span><br><span class="small muted">${esc((r.what || '').slice(0, 260))}${r.src === 'sigma' ? ` · ${esc(r.author || '')} · <a href="${esc(r.url)}" target="_blank" rel="noopener">${L('bron')}</a>` : ''}</span></td>
+        <td class="nowrap">${r.sev === 2 ? '🔴 Critical' : '🟠 Warning'}</td><td class="small">${act(r.act) || '<span class="muted">–</span>'}</td>
+        <td class="small mono">${r.tags.map((t) => `<a href="https://attack.mitre.org/techniques/${esc(t.replace('.', '/'))}/" target="_blank" rel="noopener">${esc(t)}</a>`).join(' ')}</td><td>${r.hits || ''}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  });
 }
 
 // ---------------------------------------------------------------- IDS: bestanden bewaken
@@ -5759,6 +5910,54 @@ async function fillIpInfo(box, ip, fresh = false) {
   if (fb) fb.onclick = () => fillIpInfo(box, ip, true);
 }
 
+/**
+ * 🔎 Inspectie (1.110.0): het bewijs bij een incident. Webverzoeken met de techniek en het verdachte stuk gemarkeerd;
+ * processen, verbindingen, bestanden en containers met alle gegevens, en de regel die raak was (met MITRE en bron).
+ */
+function inspectHtml(list) {
+  if (!list.length) return '';
+  const mark = (txt, parts) => {
+    let h = esc(txt);
+    for (const p of parts) { const e = esc(p); if (e && e.length >= 2) h = h.split(e).join(`<mark>${e}</mark>`); }
+    return h;
+  };
+  const web = list.filter((x) => x.kind === 'web');
+  const other = list.filter((x) => x.kind !== 'web');
+  let html = '';
+  if (web.length) {
+    const techs = [...new Set(web.flatMap((x) => (x.ev.tech || []).map((t) => L(t[1]))))];
+    const cves = [...new Set(web.map((x) => x.ev.cve && x.ev.cve[0]).filter(Boolean))];
+    html += `<div class="insp-tags">${techs.map((t) => `<span class="chip">${esc(t)}</span>`).join('')}${cves.map((c) => `<a class="chip crit" href="https://nvd.nist.gov/vuln/detail/${esc(c)}" target="_blank" rel="noopener">${esc(c)}</a>`).join('')}
+      ${web.some((x) => x.ev.scanner) ? `<span class="chip">🤖 ${esc(web.find((x) => x.ev.scanner).ev.scanner)}</span>` : ''}</div>
+      <div class="table-scroll"><table class="vuln-table insp-web"><thead><tr><th>${L('Tijd')}</th><th>${L('Verzoek')}</th><th>${L('Status')}</th><th>User-Agent</th></tr></thead><tbody>
+      ${web.map((x) => { const v = x.ev; const hit = (v.tech || []).map((t) => t[2]);
+        return `<tr><td class="small">${esc(new Date(v.at * 1000).toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }))}</td>
+          <td class="mono small insp-uri"><b>${esc(v.method)}</b> ${mark(v.uri, hit)}${v.dec ? `<br><span class="muted" title="${esc(L('Gedecodeerd'))}">↳ ${mark(v.dec, hit)}</span>` : ''}${v.cve ? `<br><span class="crit-txt">${esc(v.cve[0] ? v.cve[0] + ' · ' : '')}${esc(L(v.cve[1]))}</span>` : ''}</td>
+          <td class="${v.status >= 200 && v.status < 400 ? 'warn-txt' : 'muted'}" title="${esc(v.status >= 200 && v.status < 400 ? L('Gewoon antwoord: kijk of het lukte') : L('Geweigerd of niet gevonden'))}">${v.status}</td>
+          <td class="small">${mark(v.ua, hit)}</td></tr>`; }).join('')}
+      </tbody></table></div>`;
+  }
+  for (const x of other.slice(0, 5)) {
+    const v = x.ev, r = x.info || {};
+    const rows = {
+      exec: [[L('Programma'), `<code>${esc(v.exe || v.comm)}</code>`], [L('Opdracht'), `<code class="insp-cmd">${esc(v.cmd || '')}</code>`], [L('Ouder'), esc(v.pc || '?')],
+        [L('Gebruiker'), `${esc(v.u || '?')} (uid ${esc(v.uid)}${+v.auid && +v.auid < 4294967295 ? ', ' + L('ingelogd als uid {n}', { n: esc(v.auid) }) : ''})`], ['pid', esc(v.pid)], [L('Map'), esc(v.cwd || '')]],
+      net: [[L('Programma'), `<code>${esc(v.exe || v.comm)}</code>`], [v.dir === 'listen' ? L('Luistert op') : L('Naar'), v.dir === 'listen' ? esc(v.lp) : `<code>${esc(v.rip)}:${esc(v.rp)}</code>`], [L('Gebruiker'), esc(v.u || '?')], ['pid', esc(v.pid)]],
+      file: [[L('Bestand'), `<code>${esc(v.path)}</code>`], [L('Grootte'), fmtBytes(+v.size || 0)], ['ELF', +v.elf ? L('ja (programma)') : L('nee')], [L('Verdachte code'), esc(v.susp || '–')], ['SHA-256', `<code class="small">${esc(v.sha || '')}</code>`]],
+      audit: [[L('Pad'), `<code>${esc(v.name)}</code>`], [L('Door'), `<code>${esc(v.exe)}</code> (${esc(v.u || v.uid)})`], [L('Sleutel'), esc(v.key)]],
+      ctr: [[L('Container'), `${esc(v.name)} <span class="muted">${esc(v.img || '')}</span>`], [L('Actie'), esc(v.act) + (+v.priv ? ' · --privileged' : '')], [L('Opdracht'), `<code>${esc(v.cmd || '')}</code>`]],
+    }[x.kind] || [];
+    html += `<div class="insp-ev"><div class="insp-head">${EDR_KIND_IC[x.kind] || ''} <b>${esc(r.title || x.rule)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : 'RzMon'}</span>
+        ${(r.tags || []).map((t) => `<a class="chip" href="https://attack.mitre.org/techniques/${esc(t.replace('.', '/'))}/" target="_blank" rel="noopener">${esc(t)}</a>`).join('')}
+        <span class="muted small">${esc(fmtDateTime(x.at))}</span></div>
+      <table class="kv-table small">${rows.map(([k, val]) => `<tr><th>${k}</th><td>${val}</td></tr>`).join('')}
+        ${(v._done || []).length ? `<tr><th>${L('RzMon deed')}</th><td>⛔ ${esc(v._done.join(', '))}</td></tr>` : ''}</table>
+      ${r.what ? `<p class="small muted">${esc(r.what)}</p>` : ''}
+      ${r.src === 'sigma' ? `<p class="small muted">${L('Sigma-regel van {a}', { a: esc(r.author || '?') })} · <a href="${esc(r.url)}" target="_blank" rel="noopener">${L('bron')}</a> · DRL 1.1${(r.fp || []).length ? ' · ' + L('kan ook: {fp}', { fp: esc(r.fp.join(', ')) }) : ''}</p>` : ''}</div>`;
+  }
+  return `<h3 class="set-sub">🔎 ${L('Inspectie')}</h3>${html}`;
+}
+
 async function incidentDialog(id) {
   let d;
   try { d = await api('ids_incident_info', null, { id }); } catch (ex) { toast(ex.message, 'err'); return; }
@@ -5772,6 +5971,7 @@ async function incidentDialog(id) {
     body: `<p class="small" style="margin-top:0">${sevTxt} · <b>${esc(i.host_name)}</b> · ${esc(fmtDateTime(i.created_at))}${+i.hits > 1 ? ` · ${L('{n}× gezien, laatst {t}', { n: i.hits, t: esc(fmtDateTime(i.last_seen || i.created_at)) })}` : ''}
         · ${open ? `<b class="warn-txt">${L('open')}</b>` : `✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}`}${d.ignored ? ` · <span class="muted">${L('wordt niet meer gemeld (normaal)')}</span>` : ''}</p>
       ${i.detail ? `<p class="small inc-detail">${esc(i.detail)}</p>` : ''}
+      ${inspectHtml(d.evidence || [])}
       <h3 class="set-sub">💡 ${L('Wat is dit?')}</h3><p>${esc(a.what)}</p>
       ${a.risk ? `<h3 class="set-sub">⚖️ ${L('Hoe erg is het?')}</h3><p>${esc(a.risk)}</p>` : ''}
       ${a.ask && open ? `<div class="callout inc-ask need-admin"><b>❓ ${L('Was jij dit (of ken je het)?')}</b>
@@ -6695,7 +6895,7 @@ const SET_NAV = [
   ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']], ['conn', L('Verbindingen en taken'), ['conn']]]],
   ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']], ['smart', L('Slimme drempels'), ['smart']], ['advice', L('Slimme voorstellen'), ['advice', 'smartmore']], ['cleanup', L('Opschoonadvies'), ['cleanup']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'chain']], ['rules', L('Meldregels en stille uren'), ['notify']], ['alarm', L('Alarmgedrag'), ['alarm']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
-  ['beveiliging', '🛡️', L('Beveiliging'), [['ids', L('IDS: detectie'), ['ids']], ['ids_attack', L('IDS: aanvallers en verkeer'), ['ids_attack']], ['ids_servers', L('IDS: servers'), ['ids_servers']],
+  ['beveiliging', '🛡️', L('Beveiliging'), [['ids', L('IDS: detectie'), ['ids']], ['ids_edr', L('IDS: endpoint-bewaking'), ['ids_edr']], ['ids_attack', L('IDS: aanvallers en verkeer'), ['ids_attack']], ['ids_servers', L('IDS: servers'), ['ids_servers']],
     ['vulns', L('Kwetsbaarheden'), ['vulns']], ['hibp', L('Datalekken'), ['hibp']], ['netscan', L('Netwerkscan'), ['netscan']]]],
   ['toegang', '🔐', L('Toegang'), [['access', L('Inloggen'), ['access']], ['outside', L('Van buiten'), ['https', 'outside']], ['users', L('Gebruikers'), ['users']]]],
   ['agents', '🖥️', L('Agents'), [['agents', L('Agents'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']], ['commands', L('Commando-checks'), ['commands']]]],

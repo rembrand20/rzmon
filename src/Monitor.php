@@ -1172,5 +1172,6 @@ final class Monitor
         ChangeLog::purge();   // wijzigingslogboek: bewaartermijn instelbaar (1.97.0)
         Security::purge();
         Ids::purge();
+        Edr::purge();
     }
 }

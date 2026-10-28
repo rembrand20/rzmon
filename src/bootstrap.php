@@ -82,6 +82,10 @@ require_once __DIR__ . '/Bundle.php';
 require_once __DIR__ . '/Heal.php';
 require_once __DIR__ . '/StatusPage.php';
 require_once __DIR__ . '/Advice.php';
+require_once __DIR__ . '/Sigma.php';
+require_once __DIR__ . '/EdrRules.php';
+require_once __DIR__ . '/Edr.php';
+require_once __DIR__ . '/Inspect.php';
 require_once __DIR__ . '/Context.php';
 SelfCheck::register();   // PHP-fouten bijhouden voor de systeemcheck (1.96.0)
 require_once __DIR__ . '/SnmpMonitor.php';

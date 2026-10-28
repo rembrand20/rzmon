@@ -1719,3 +1719,22 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 @media (max-width: 640px) { .adv-item { grid-template-columns: 1.8rem 1fr; } .adv-btns { grid-column: 1 / -1; } }
 .adv-win td, .adv-win th { padding: .3rem .6rem .3rem 0; text-align: left; }
 .adv-add { margin-top: .6rem; } .adv-add summary { cursor: pointer; color: var(--primary); font-size: .9rem; }
+
+/* 1.110.0: endpoint-bewaking */
+.edr-note { display: inline-block; margin-top: .25rem; padding: .1rem .5rem; border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); border-radius: 999px;
+  background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--text); font: inherit; font-size: .78rem; cursor: pointer; }
+.edr-note:hover { border-color: var(--warn); }
+.edr-host { margin: -.2rem 0 .6rem 1.6rem; }
+.edr-miss { margin: .3rem 0; } .edr-miss code { font-size: .78rem; }
+.edr-list { display: flex; flex-direction: column; }
+.edr-row { display: grid; grid-template-columns: 6.5rem 1.6rem 8rem 1fr; gap: .5rem; align-items: start; padding: .35rem .2rem; border-bottom: 1px solid var(--border); font-size: .88rem; }
+.edr-row.hit { background: color-mix(in srgb, var(--warn) 7%, transparent); } .edr-row.hit.s2 { background: color-mix(in srgb, var(--crit) 8%, transparent); }
+.edr-row .m-t { color: var(--muted); font-size: .8rem; white-space: nowrap; } .edr-row .m-sv { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edr-sum { min-width: 0; overflow-wrap: anywhere; } .edr-cmd { font-size: .8rem; } .edr-hit { font-size: .8rem; font-weight: 600; }
+@media (max-width: 640px) { .edr-row { grid-template-columns: 1.4rem 1fr; } .edr-row .m-t, .edr-row .m-sv { grid-column: 2; } }
+.rule-table td { vertical-align: top; } .rule-table tr.muted td { opacity: .55; } .rule-table a { color: var(--primary); }
+.insp-tags { display: flex; flex-wrap: wrap; gap: .3rem; margin: .2rem 0 .5rem; } .insp-tags .chip.crit { border-color: var(--crit); color: var(--crit); }
+.insp-uri { overflow-wrap: anywhere; } .insp-web mark, .insp-ev mark { background: color-mix(in srgb, var(--crit) 25%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
+.insp-ev { border: 1px solid var(--border); border-radius: 10px; padding: .6rem .8rem; margin: .5rem 0; }
+.insp-head { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-bottom: .3rem; } .insp-cmd { overflow-wrap: anywhere; white-space: pre-wrap; }
+.insp-tags .chip, .insp-head .chip { display: inline-block; padding: .05rem .45rem; border: 1px solid var(--border); border-radius: 999px; font-size: .75rem; color: inherit; text-decoration: none; }

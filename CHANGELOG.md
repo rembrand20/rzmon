@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.110.0 – 2026-10-28
+### Nieuw
+- **🛰️ Endpoint-bewaking** (IDS 2.0, deel 1; **agent 1.63.0 nodig**): de agent kijkt op het moment zelf mee naar nieuwe processen, gevoelige paden (passwd, sudoers, cron, systemd, SSH-sleutels, kernelmodules), verbindingen en luisterpoorten, nieuwe bestanden in `/tmp`, `/dev/shm` en de webmappen, en containers. RzMon toetst alles aan **eigen regels met uitleg** (webshell, reverse shell, `curl | sh`, cryptominer, programma's uit `/dev/shm` …) en aan **121 Linux-regels van SigmaHQ**. Een treffer wordt een IDS-incident met het bewijs erbij.
+- **Zelf ingrijpen** (in de modus ⛔ Blokkeren, elk los aan/uit): **proces stoppen**, **IP blokkeren** of de **server isoleren** (24 uur). Het staat altijd in het incident, en een critical gaat naar Pushover. In de modus Leren wordt het alleen gemeld.
+- **Per server aan/uit** in de Agent Manager (standaard aan), algemeen in *Instellingen → IDS → Endpoint-bewaking*.
+- **Ontbrekende onderdelen onder de servernaam**: mist een server `auditd` of `inotify-tools`, dan zie je dat op het Dashboard en in de Agent Manager, met **installeren via de agent** (met bevestiging en je wachtwoord) of het commando om het zelf te doen.
+- **Payload-inspectie van webverzoeken** (SWAG): RzMon decodeert verdachte verzoeken en herkent SQL-injectie, XSS, command injection, path traversal, Log4Shell, SSRF, SSTI en meer, bekende exploits met hun **CVE** en scanners zoals sqlmap. Eén incident per IP, met het verdachte stuk gemarkeerd; in de modus Blokkeren wordt het IP geblokkeerd.
+- **Inspectie in het incidentvenster**: het programma, de opdracht, de ouder, de gebruiker, de verbinding of het bestand, de verzoeken, MITRE ATT&CK-technieken (klikbaar) en wat RzMon deed.
+- **🛡️ IDS → 🛰️ Live**: alles wat de agents de laatste 3 dagen zagen, live bijgewerkt, met *Alleen treffers* en een filter per server. **🔏 Regels**: alle regels met uitleg en treffers, per regel aan of uit.
+- Nieuwe agent 1.63.0.
+
 ## 1.109.0 – 2026-10-28
 ### Nieuw
 - **⚡ Echt live**: RzMon bouwt het scherm niet meer elke keer opnieuw op, maar past alleen aan wat veranderde. Wat je openklapte (een server, een dag bij Meldingen, *Verbindingscontrole* in de Agent Manager), een menu, wat je typt en je scrollpositie blijven staan. Op Dashboard, Meldingen, IDS, Kwetsbaarheden en Netwerk.

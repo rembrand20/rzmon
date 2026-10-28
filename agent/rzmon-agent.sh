@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.62.0"
+AGENT_VERSION="1.63.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -113,6 +113,295 @@ REALTIME="${REALTIME-}"
 HA_MODE=0
 [ -n "${SUPERVISOR_TOKEN:-}" ] && HA_MODE=1
 
+# ---------------------------------------------------------------- Endpoint-bewaking (agent 1.63.0)
+# Aan per server in RzMon (regel "0 <tab> edr <tab> 1"); EDR=0 zet het op deze server altijd uit. De realtime-watcher
+# start dan sensoren die elke gebeurtenis meteen in een wachtrij zetten (edr.spool) en een run starten. RzMon toetst
+# ze aan zijn regels (eigen regels en Sigma) en kan het proces laten stoppen, het IP blokkeren of de server isoleren.
+#  - processen (auditd, execve), bewaakte paden (accounts, sudo, cron, systemd, ssh) en kernelmodules;
+#  - netwerk (ss, elke 5 s): nieuwe uitgaande verbindingen en nieuwe luisterpoorten;
+#  - bestanden (inotify): nieuwe programma's in /tmp, /var/tmp en /dev/shm, en webshells in webmappen;
+#  - containers (podman/docker events): exec, en starten met --privileged.
+# Processen van de agent zelf tellen niet mee; dezelfde gebeurtenis (zelfde programma, ouder, gebruiker en opdracht)
+# hooguit eens per 10 minuten, tenzij hij er verdacht uitziet; hooguit 200 processen per minuut.
+EDR="${EDR-}"
+edr_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
+edr_spool="$edr_dir/edr.spool"
+
+edr_j() {  # edr_j <tekst>: veilig binnen "…" in JSON
+    local s=${1//\\/\\\\}
+    s=${s//\"/\\\"}
+    printf '%s' "${s//[$'\001'-$'\037']/ }"
+}
+
+edr_emit() {  # edr_emit <json>: in de wachtrij (hooguit 2 MB) en de watcher wakker maken
+    if [ -f "$edr_spool" ] && [ "$(stat -c %s "$edr_spool" 2>/dev/null || echo 0)" -gt 2097152 ]; then
+        echo $(( $(cat "$edr_dir/edr.drop" 2>/dev/null || echo 0) + 1 )) >"$edr_dir/edr.drop" 2>/dev/null
+        return 0
+    fi
+    printf '%s\n' "$1" >>"$edr_spool" 2>/dev/null
+    printf 'e\n' >&7 2>/dev/null
+    return 0
+}
+
+# auditd-log (stdin) → één JSON-regel per gebeurtenis met een sleutel rzmon_* (stdout)
+edr_audit_awk() {
+    awk -v dropf="$edr_dir/edr.drop" '
+    BEGIN {
+        hx = "0123456789ABCDEF"; for (i = 0; i < 16; i++) hv[substr(hx, i + 1, 1)] = i
+        while ((getline l < "/etc/passwd") > 0) { n = split(l, pw, ":"); if (n >= 3) un[pw[3]] = pw[1] }
+        close("/etc/passwd")
+        cur = ""; minute = 0; sent = 0; drop = 0; reset = 0
+    }
+    function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); gsub(/[\001-\037\177]/, " ", s); return s }
+    function fv(l, k,   p, r, q) {
+        p = index(l, " " k "=")
+        if (!p) return ""
+        r = substr(l, p + length(k) + 2)
+        if (substr(r, 1, 1) == "\"") { r = substr(r, 2); q = index(r, "\""); return q ? substr(r, 1, q - 1) : r }
+        q = index(r, " "); return q ? substr(r, 1, q - 1) : r
+    }
+    function quoted(l, k,   p) { p = index(l, " " k "="); return p && substr(l, p + length(k) + 2, 1) == "\"" }
+    function unhex(s,   o, i, c) {
+        s = toupper(s); o = ""
+        for (i = 1; i < length(s); i += 2) {
+            c = hv[substr(s, i, 1)] * 16 + hv[substr(s, i + 1, 1)]
+            o = o (c >= 32 && c < 127 ? sprintf("%c", c) : (c == 0 ? " " : "?"))
+        }
+        return o
+    }
+    function arg(l, k,   v) {
+        v = fv(l, k)
+        if (quoted(l, k)) return v
+        if (v == "(null)") return ""
+        if (v ~ /^[0-9A-Fa-f]+$/ && length(v) % 2 == 0) return unhex(v)
+        return v
+    }
+    function rd(f,   x) { x = ""; if ((getline x < f) <= 0) x = ""; close(f); return x }
+    function num(v) { return v ~ /^[0-9]+$/ ? v : 0 }
+    function flush(   ts, pc, u, sus, k, s, sf, st, cmd, i, out, nm) {
+        if (cur == "" || ekey == "") { cur = ""; return }
+        ts = cur; sub(/\..*/, "", ts); ts = ts + 0
+        if (ts - reset > 600) { split("", seen); reset = ts }
+        u = (uid in un) ? un[uid] : uid
+        if (ekey == "rzmon_exec") {
+            pc = rd("/proc/" num(ppid) "/comm")
+            if (pc ~ /^rzmon-agent/ || comm ~ /^rzmon-agent/) { cur = ""; return }
+            cmd = ""
+            for (i = 0; i < argc && i < 16; i++) cmd = cmd (i ? " " : "") av[i]
+            sus = (pc ~ /^(nginx|apache2|httpd|lighttpd|caddy|php|uwsgi|gunicorn)/ || exe ~ /^\/(tmp|var\/tmp|dev\/shm|run\/shm)\// || exe ~ /\/\.[^\/]*$/ \
+                || u ~ /^(www-data|apache|nginx|http|wwwrun|lighttpd)$/ \
+                || tolower(cmd) ~ /(\/dev\/(tcp|udp)\/|\| *(sudo +)?(ba|z|da)?sh( |$)|base64 +(-d|--decode)|(^| )(nc|ncat|netcat|socat|telnet|xmrig|insmod|chattr|mkfifo|curl|wget)( |$)|stratum\+|authorized_keys|history +-c|histfile|ld\.so\.preload|python[0-9.]* +-c|perl +-e|php +-r|ruby +-e)/)
+            k = exe "|" pc "|" uid "|" substr(cmd, 1, 200); gsub(/[0-9]+/, "#", k)
+            if (!sus && (k in seen)) { cur = ""; return }
+            seen[k] = 1
+            if (int(ts / 60) != minute) { minute = int(ts / 60); sent = 0 }
+            if (++sent > 200) { drop++; print drop > dropf; close(dropf); cur = ""; return }
+            st = ""; s = rd("/proc/" num(pid) "/stat"); if (s != "") { split(s, sf, " "); st = sf[22] }
+            out = "{\"k\":\"x\",\"t\":" ts ",\"pid\":" num(pid) ",\"ppid\":" num(ppid) (st ~ /^[0-9]+$/ ? ",\"st\":" st : "") ",\"uid\":" num(uid) ",\"euid\":" num(euid) \
+                ",\"auid\":" num(auid) ",\"u\":\"" esc(u) "\",\"exe\":\"" esc(exe) "\",\"comm\":\"" esc(comm) "\",\"pc\":\"" esc(pc) "\",\"cwd\":\"" esc(cwd) "\",\"argv\":["
+            for (i = 0; i < argc && i < 16; i++) out = out (i ? "," : "") "\"" esc(substr(av[i], 1, 200)) "\""
+            print out "],\"cmd\":\"" esc(substr(cmd, 1, 1000)) "\",\"sc\":\"execve\"}"
+        } else {
+            nm = pname
+            if (nm != "" && substr(nm, 1, 1) != "/" && cwd != "") nm = cwd "/" nm
+            k = ekey "|" nm "|" exe
+            if (k in seen) { cur = ""; return }
+            seen[k] = 1
+            print "{\"k\":\"a\",\"t\":" ts ",\"key\":\"" esc(ekey) "\",\"pid\":" num(pid) ",\"uid\":" num(uid) ",\"auid\":" num(auid) ",\"u\":\"" esc(u) \
+                "\",\"exe\":\"" esc(exe) "\",\"comm\":\"" esc(comm) "\",\"name\":\"" esc(nm) "\"}"
+        }
+        fflush()
+        cur = ""
+    }
+    {
+        line = $0
+        g = index(line, "\035"); if (g) line = substr(line, 1, g - 1)   # ENRICHED-formaat: alleen het ruwe deel
+        line = " " line
+        m = index(line, "msg=audit(")
+        if (!m) next
+        id = substr(line, m + 10); id = substr(id, 1, index(id, ")") - 1)
+        if (id != cur) { flush(); cur = id; ekey = ""; argc = 0; split("", av); pname = ""; cwd = "" }
+        t = fv(line, "type")
+        if (t == "SYSCALL") {
+            ekey = fv(line, "key"); if (ekey !~ /^rzmon_/) ekey = ""
+            pid = fv(line, "pid"); ppid = fv(line, "ppid"); uid = fv(line, "uid"); euid = fv(line, "euid"); auid = fv(line, "auid")
+            comm = arg(line, "comm"); exe = arg(line, "exe")
+        } else if (t == "EXECVE") {
+            argc = fv(line, "argc") + 0
+            for (i = 0; i < argc && i < 16; i++) av[i] = arg(line, "a" i)
+        } else if (t == "CWD") {
+            cwd = arg(line, "cwd")
+        } else if (t == "PATH") {
+            if (fv(line, "nametype") != "PARENT") pname = arg(line, "name")
+        } else if (t == "EOE") {
+            flush()
+        }
+    }
+    END { flush() }'
+}
+
+# SWAG/nginx-log (stdin) → verdachte verzoeken als JSON (zonder haakjes), hooguit 100:
+# [ip, tijd, methode, pad+query, status, bytes, user-agent, verwijzer]; RzMon beoordeelt ze precies
+edr_swag_req() {
+    awk -F'"' '
+    function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); gsub(/[\001-\037\177]/, " ", s); return s }
+    {
+        split($1, a, " "); ip = a[1]
+        if (ip !~ /^[0-9a-fA-F:.]+$/) next
+        tm = $1; sub(/^[^[]*\[/, "", tm); sub(/\].*$/, "", tm)
+        req = $2; m = req; sub(/ .*/, "", m); uri = req; sub(/^[^ ]* /, "", uri); sub(/ HTTP\/[0-9.]+$/, "", uri)
+        split($3, b, " "); st = b[1] + 0; by = b[2] + 0
+        ref = $4; ua = $6
+        l = tolower(req " " ua)
+        if (l !~ /(%27|%22|%3c|%3e|%24%7b|%2e%2e|\.\.\/|\$\{|\$\(|`|;|\||<|>|'"'"'|\\x22|union|select|sleep\(|\/etc\/|cmd=|exec|eval|system\(|base64|php:\/\/|jndi|\.env|\.git\/|wp-login|xmlrpc|phpunit|cgi-bin|boaform|hnap1|actuator|\/shell\?|\(\) *\{|sqlmap|nikto|nuclei|masscan|zgrab|wpscan)/ \
+            && m ~ /^(GET|POST|HEAD|OPTIONS|-)$/) next
+        if (++n > 100) exit
+        printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",%d,%d,\"%s\",\"%s\"]", (n > 1 ? "," : ""), ip, esc(tm), esc(substr(m, 1, 20)), esc(substr(uri, 1, 512)),
+            st, by, esc(substr(ua, 1, 200)), esc(substr(ref, 1, 200))
+    }'
+}
+
+edr_proc() {  # edr_proc <pid>: "starttijd<tab>programma<tab>gebruiker" (leeg als het proces al weg is)
+    local p=$1 st exe u
+    [[ "$p" =~ ^[0-9]+$ ]] && [ -r "/proc/$p/stat" ] || return 0
+    st=$(awk '{ print $22 }' "/proc/$p/stat" 2>/dev/null)
+    exe=$(readlink "/proc/$p/exe" 2>/dev/null)
+    u=$(stat -c %U "/proc/$p" 2>/dev/null)
+    printf '%s\t%s\t%s' "$st" "$exe" "$u"
+}
+
+# Netwerk: elke 5 s nieuwe uitgaande verbindingen (zelfde programma, adres en poort hooguit eens per uur) en nieuwe
+# luisterpoorten. De eerste keer alleen vastleggen.
+edr_net_once() {  # edr_net_once <1 = eerste keer>
+    local lp out pid comm rip rp lport st exe u now
+    now=$(date +%s)
+    lp=$(ss -ltnH 2>/dev/null | awk '{ n = split($4, a, ":"); print a[n] }' | sort -u | tr '\n' ' ')
+    out=$(ss -tnpH state established 2>/dev/null | awk -v lp=" $lp" -v sf="$edr_dir/net.state" -v now="$now" '
+        BEGIN { FS = "[ \t]+"; while ((getline l < sf) > 0) { split(l, a, "\t"); if (now - a[2] < 3600) seen[a[1]] = a[2] }; close(sf) }
+        {
+            nl = split($3, L, ":"); lport = L[nl]
+            if (index(lp " ", " " lport " ")) next
+            np = split($4, P, ":"); rport = P[np]; rip = substr($4, 1, length($4) - length(rport) - 1)
+            gsub(/^\[|\]$/, "", rip); sub(/^::ffff:/, "", rip)
+            if (rip ~ /^127\./ || rip == "::1" || rip == "") next
+            comm = ""; pid = 0
+            if (match($0, /users:\(\("[^"]*",pid=[0-9]+/)) { u = substr($0, RSTART + 9, RLENGTH - 9); comm = u; sub(/".*/, "", comm); pid = u; sub(/.*pid=/, "", pid) }
+            k = comm "|" rip "|" rport
+            if (k in seen) next
+            seen[k] = now
+            print pid "\t" comm "\t" rip "\t" rport "\t" lport
+        }
+        END { for (k in seen) print k "\t" seen[k] > sf }')
+    if [ "$1" != 1 ] && [ -n "$out" ]; then
+        while IFS=$'\t' read -r pid comm rip rp lport; do
+            st=""; exe=""; u=""; pid=${pid//[^0-9]/}; rp=${rp//[^0-9]/}; lport=${lport//[^0-9]/}
+            IFS=$'\t' read -r st exe u < <(edr_proc "$pid")
+            edr_emit "{\"k\":\"n\",\"t\":$now,\"dir\":\"out\",\"pid\":${pid:-0}${st:+,\"st\":$st},\"comm\":\"$(edr_j "$comm")\",\"exe\":\"$(edr_j "$exe")\",\"u\":\"$(edr_j "$u")\",\"rip\":\"$(edr_j "$rip")\",\"rp\":${rp:-0},\"lp\":${lport:-0}}"
+        done <<<"$out"
+    fi
+    # Luisterpoorten: programma + poort
+    out=$(ss -ltnpH 2>/dev/null | awk -v sf="$edr_dir/listen.state" -v first="$1" '
+        BEGIN { while ((getline l < sf) > 0) seen[l] = 1; close(sf) }
+        { n = split($4, a, ":"); port = a[n]; comm = ""; pid = 0
+          if (match($0, /users:\(\("[^"]*",pid=[0-9]+/)) { u = substr($0, RSTART + 9, RLENGTH - 9); comm = u; sub(/".*/, "", comm); pid = u; sub(/.*pid=/, "", pid) }
+          k = comm "|" port; now[k] = 1
+          if (!(k in seen) && first != 1) print pid "\t" comm "\t" port }
+        END { for (k in now) print k > sf }')
+    if [ -n "$out" ]; then
+        while IFS=$'\t' read -r pid comm lport; do
+            st=""; exe=""; u=""; pid=${pid//[^0-9]/}; lport=${lport//[^0-9]/}
+            IFS=$'\t' read -r st exe u < <(edr_proc "$pid")
+            edr_emit "{\"k\":\"n\",\"t\":$now,\"dir\":\"listen\",\"pid\":${pid:-0}${st:+,\"st\":$st},\"comm\":\"$(edr_j "$comm")\",\"exe\":\"$(edr_j "$exe")\",\"u\":\"$(edr_j "$u")\",\"lp\":${lport:-0}}"
+        done <<<"$out"
+    fi
+}
+edr_net_loop() {
+    command -v ss >/dev/null 2>&1 || return 0
+    local first=1
+    while true; do
+        edr_net_once "$first"; first=0
+        sleep 5
+    done
+}
+
+# Bestanden: nieuwe programma's (ELF) en scripts met de uitvoerbit in /tmp, /var/tmp en /dev/shm; nieuwe scripts met
+# webshell-code in de webmappen (alleen mappen met hooguit 5000 submappen: inotify heeft een grens)
+edr_file() {
+    local p=$1 sz h elf=0 x=0 susp="" sha
+    [ -f "$p" ] && [ ! -L "$p" ] || return 0
+    sz=$(stat -c %s "$p" 2>/dev/null) || return 0
+    [ "$sz" -gt 0 ] && [ "$sz" -le 20971520 ] || return 0
+    case "$p" in
+        /tmp/*|/var/tmp/*|/dev/shm/*)
+            case "$p" in *.so|*.so.*|*.o) return 0 ;; esac
+            h=$(od -An -tx1 -N18 "$p" 2>/dev/null | tr -d ' \n')
+            if [ "${h:0:8}" = 7f454c46 ]; then case "${h:32:2}" in 02|03) elf=1 ;; esac; fi
+            [ -x "$p" ] && x=1
+            if [ "$elf" != 1 ]; then
+                [ "$x" = 1 ] || return 0
+                case "$p" in *.sh|*.py|*.pl|*.php|*.elf|*.bin) ;; *) return 0 ;; esac
+            fi ;;
+        *)
+            case "$p" in *.php|*.phtml|*.php[3-8]|*.phar|*.jsp|*.jspx|*.asp|*.aspx|*.cgi) ;; *) return 0 ;; esac
+            grep -q -E -i '(eval|assert|system|passthru|shell_exec|proc_open|popen)[[:space:]]*\(.*\$_(POST|GET|REQUEST|COOKIE)|\$_(POST|GET|REQUEST|COOKIE).*(eval|assert|system|passthru|shell_exec)[[:space:]]*\(|eval[[:space:]]*\([[:space:]]*(base64_decode|gzinflate|str_rot13|gzuncompress)' "$p" 2>/dev/null || return 0
+            susp=$(grep -o -E -i '(eval|assert|system|passthru|shell_exec|proc_open|popen|base64_decode|gzinflate|str_rot13)' "$p" 2>/dev/null | tr 'A-Z' 'a-z' | sort -u | head -n 4 | tr '\n' ',')
+            susp=${susp%,} ;;
+    esac
+    sha=$(sha256sum "$p" 2>/dev/null | cut -c1-64)
+    edr_emit "{\"k\":\"f\",\"t\":$(date +%s),\"path\":\"$(edr_j "$p")\",\"size\":$sz,\"elf\":$elf,\"x\":$x,\"sha\":\"$sha\"${susp:+,\"susp\":\"$(edr_j "$susp")\"}}"
+}
+edr_file_loop() {
+    command -v inotifywait >/dev/null 2>&1 || return 0
+    local roots=() d last="" lt=0
+    for d in /tmp /var/tmp /dev/shm /run/shm /var/www /srv/www /srv/http /usr/share/nginx/html; do
+        [ -d "$d" ] && [ ! -L "$d" ] || continue
+        [ "$(find "$d" -xdev -type d 2>/dev/null | head -n 5001 | wc -l)" -le 5000 ] && roots+=("$d")
+    done
+    [ ${#roots[@]} -gt 0 ] || return 0
+    inotifywait -m -r -q -e close_write,moved_to --format '%w%f' "${roots[@]}" 2>/dev/null | while IFS= read -r p; do
+        # Hetzelfde bestand niet vaker dan eens per 10 s bekijken
+        [ "$p" = "$last" ] && [ $(( $(date +%s) - lt )) -lt 10 ] && continue
+        last=$p; lt=$(date +%s)
+        edr_file "$p"
+    done
+}
+
+# Containers: exec, en starten (met --privileged gemarkeerd)
+edr_ctr_loop() {
+    local rt="" l name img act cmd priv
+    if [ "${PODMAN-}" != 0 ] && command -v podman >/dev/null 2>&1 && podman ps -q >/dev/null 2>&1; then rt=podman
+    elif command -v docker >/dev/null 2>&1 && docker ps -q >/dev/null 2>&1; then rt=docker; fi
+    [ -n "$rt" ] || return 0
+    if [ "$rt" = podman ]; then
+        podman events --format json --filter event=exec --filter event=start 2>/dev/null
+    else
+        docker events --format '{{json .}}' --filter event=exec_start --filter event=start 2>/dev/null
+    fi | while IFS= read -r l; do
+        if [ "$rt" = podman ]; then
+            name=$(sed -n 's/.*"Name":"\([^"]*\)".*/\1/p' <<<"$l"); img=$(sed -n 's/.*"Image":"\([^"]*\)".*/\1/p' <<<"$l")
+            act=$(sed -n 's/.*"Status":"\([^"]*\)".*/\1/p' <<<"$l"); cmd=""
+        else
+            name=$(sed -n 's/.*"name":"\([^"]*\)".*/\1/p' <<<"$l"); img=$(sed -n 's/.*"image":"\([^"]*\)".*/\1/p' <<<"$l")
+            act=$(sed -n 's/.*"Action":"\([^"]*\)".*/\1/p' <<<"$l"); cmd=${act#exec_start: }; [ "$cmd" = "$act" ] && cmd=""; act=${act%%:*}
+            [ "$act" = exec_start ] && act="exec"
+        fi
+        [ -n "$name" ] || continue
+        priv=0
+        [ "$act" = start ] && [ "$("$rt" inspect --format '{{.HostConfig.Privileged}}' "$name" 2>/dev/null)" = true ] && priv=1
+        edr_emit "{\"k\":\"c\",\"t\":$(date +%s),\"rt\":\"$rt\",\"act\":\"$(edr_j "$act")\",\"name\":\"$(edr_j "$name")\",\"img\":\"$(edr_j "$img")\",\"priv\":$priv,\"cmd\":\"$(edr_j "${cmd:0:300}")\"}"
+    done
+}
+
+# Testen zonder RzMon (tests/agent-edr.sh): rzmon-agent.sh --edr-parse audit|swag < bestand
+if [ "${1-}" = "--edr-parse" ]; then
+    case "${2-}" in
+        audit) edr_audit_awk ;;
+        swag) edr_swag_req; echo ;;
+        *) echo "Gebruik: $0 --edr-parse audit|swag < bestand" >&2; exit 2 ;;
+    esac
+    exit 0
+fi
+
 # ---------------------------------------------------------------- Realtime-watcher (--watch)
 # Draait als aparte dienst (rzmon-watch). Doet zelf geen analyse: hij let alleen op en start bij een
 # gebeurtenis meteen een gewone agent-run, die alles verwerkt (logins, brute force, IDS, services, bestanden)
@@ -127,25 +416,37 @@ if [ "${1-}" = "--watch" ]; then
     mkdir -p "$w_dir" 2>/dev/null
     w_cache="$w_dir/tests.cache"
     w_self=$(readlink -f "$0")
-    w_status() { printf '%s %s %s %s\n' "$1" "$(date +%s)" "$2" "$3" >"$w_dir/watch.state" 2>/dev/null; }
+    w_status() { printf '%s %s %s %s %s\n' "$1" "$(date +%s)" "$2" "$3" "${4:--}" >"$w_dir/watch.state" 2>/dev/null; }
     w_pids=()
-    w_stop() { [ ${#w_pids[@]} -gt 0 ] && kill "${w_pids[@]}" 2>/dev/null; w_pids=(); }
+    # Elke volger (een pijplijn) in een eigen procesgroep, zodat stoppen ook tail, awk en podman events meeneemt
+    set -m
+    w_stop() {
+        local p
+        for p in $(jobs -p); do kill -- -"$p" 2>/dev/null || kill "$p" 2>/dev/null; done
+        w_pids=()
+    }
     trap 'w_stop; w_status off - -; exit 0' TERM INT
     while true; do
-        if [ "$REALTIME" = 0 ] || ! grep -q $'^0\trealtime\t1' "$w_cache" 2>/dev/null; then
+        rt_on=0; edr_on=0
+        [ "$REALTIME" != 0 ] && grep -q $'^0\trealtime\t1' "$w_cache" 2>/dev/null && rt_on=1
+        # Endpoint-bewaking (agent 1.63.0): als RzMon het voor deze server aanzet, als root, niet op Home Assistant OS
+        [ "$EDR" != 0 ] && [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && grep -q $'^0\tedr\t1' "$w_cache" 2>/dev/null && edr_on=1
+        if [ "$rt_on" = 0 ] && [ "$edr_on" = 0 ]; then
             w_status off - -
             sleep 60
             continue
         fi
-        w_sig=$(grep -E $'^(0\t(realtime|fim)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)
+        w_sig=$(grep -E $'^(0\t(realtime|fim|edr)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)
         units=$(awk -F'\t' '$2 == "svc" && $3 ~ /^[A-Za-z0-9@._:-]+$/ { gsub(/\./, "\\.", $3); printf "%s%s", (n++ ? "|" : ""), $3 }' "$w_cache")
         pat='(sshd|sshd-session)\[[0-9]+\]: (Accepted|Failed|Invalid user|Connection closed by authenticating)|sudo(\[[0-9]+\])?: |[ :]su(\[[0-9]+\])?: |login\[[0-9]+\]: '
         [ -n "$units" ] && pat+="|systemd\\[1\\]: .*($units)(\\.service)?[: ]"
         fifo="$w_dir/watch.fifo"
         rm -f "$fifo"; mkfifo -m 600 "$fifo"
         exec 7<>"$fifo"
-        j=-; i=-
-        if [ -d /run/systemd/journal ] && command -v journalctl >/dev/null 2>&1; then
+        j=-; i=-; e=-
+        if [ "$rt_on" = 0 ]; then
+            :   # alleen endpoint-bewaking
+        elif [ -d /run/systemd/journal ] && command -v journalctl >/dev/null 2>&1; then
             journalctl -f -n 0 -q -o short 2>/dev/null | grep --line-buffered -E "$pat" >&7 &
             w_pids+=($!); j=ok
         else
@@ -167,7 +468,7 @@ if [ "${1-}" = "--watch" ]; then
                 [ -e "${base:-/}" ] && roots+=("${base:-/}")
             done < <(printf '%s' "$fim_b64" | base64 -d 2>/dev/null)
         fi
-        if [ ${#roots[@]} -gt 0 ]; then
+        if [ ${#roots[@]} -gt 0 ] && [ "$rt_on" = 1 ]; then
             if command -v inotifywait >/dev/null 2>&1; then
                 inotifywait -m -r -q -e create,modify,attrib,moved_to,delete --format '%w%f' "${roots[@]}" >&7 2>/dev/null &
                 w_pids+=($!); i=ok
@@ -175,19 +476,34 @@ if [ "${1-}" = "--watch" ]; then
                 i=missing   # inotify-tools ontbreekt: bestanden alleen via de gewone runs
             fi
         fi
-        w_status active "$j" "$i"
+        # Endpoint-sensoren: processen en bewaakte paden (auditd), netwerk, bestanden, containers
+        gap=10
+        if [ "$edr_on" = 1 ]; then
+            e=ok; gap=5
+            if [ -r /var/log/audit/audit.log ] && command -v auditctl >/dev/null 2>&1; then
+                tail -n 0 -F /var/log/audit/audit.log 2>/dev/null | edr_audit_awk | while IFS= read -r l; do edr_emit "$l"; done &
+                w_pids+=($!)
+            else
+                e=noaudit
+            fi
+            edr_net_loop & w_pids+=($!)
+            # Bestanden en containers: niet in w_pids (zonder mappen of containers stoppen ze meteen, en dat is goed)
+            edr_file_loop &
+            edr_ctr_loop &
+        fi
+        w_status active "$j" "$i" "$e"
         last_run=0; pending=0; next_check=$(( $(date +%s) + 60 ))
         while true; do
             IFS= read -r -t 5 _ <&7 && pending=1
             now=$(date +%s)
-            if [ "$pending" = 1 ] && [ $(( now - last_run )) -ge 10 ]; then
+            if [ "$pending" = 1 ] && [ $(( now - last_run )) -ge "$gap" ]; then
                 RZ_FORCE=1 "$w_self" >/dev/null 2>&1
                 last_run=$(date +%s); pending=0
             fi
             if [ "$now" -ge "$next_check" ]; then
                 next_check=$(( now + 60 ))
                 # Instellingen in RzMon veranderd, realtime uitgezet, of een volger gestopt: opnieuw opbouwen
-                [ "$(grep -E $'^(0\t(realtime|fim)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)" = "$w_sig" ] || break
+                [ "$(grep -E $'^(0\t(realtime|fim|edr)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)" = "$w_sig" ] || break
                 w_dead=0
                 for p in "${w_pids[@]}"; do kill -0 "$p" 2>/dev/null || w_dead=1; done
                 [ "$w_dead" = 1 ] && break
@@ -1843,6 +2159,8 @@ if [ -n "$ids_mode" ]; then
     # 6d. Proces stoppen (agent 1.56.0, alleen in de modus blokkeren): regel "0 <tab> kill <tab> pid <tab> starttijd" van
     #     RzMon (webshell). Alleen als de starttijd klopt, dus nooit een ander proces dat dat nummer later kreeg.
     killed_json=""
+    # Wat de agent meteen na het vorige rapport stopte (endpoint-bewaking, agent 1.63.0)
+    [ -s "$i_dir/killed.pending" ] && killed_json=$(cat "$i_dir/killed.pending") && rm -f "$i_dir/killed.pending"
     if [ "$ids_mode" = block ]; then
         while IFS=$'\t' read -r z t k_pid k_start; do
             [ "$z" = 0 ] && [ "$t" = kill ] && [[ "$k_pid" =~ ^[0-9]+$ ]] && [[ "$k_start" =~ ^[0-9]+$ ]] || continue
@@ -2144,7 +2462,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
     }
     while IFS=$'\t' read -r z t w_src w_arg; do
         [ "$z" = 0 ] && [ "$t" = weblog ] || continue
-        w_path=""; w_err=""; w_body=""
+        w_path=""; w_err=""; w_body=""; w_req=""
         case "$w_src" in
             swag)
                 w_path=$w_arg
@@ -2165,7 +2483,10 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
                 fi
                 if [ -n "$w_path" ] && [ -r "$w_path" ]; then
                     # nginx "combined": IP - - [tijd] "GET /pad HTTP/1.1" status bytes "referer" "user-agent"; 444 = zonder (bekende) hostnaam
-                    w_body=$(wl_file_new swag "$w_path" | awk -F'"' '
+                    # Agent 1.63.0: ook de verdachte verzoeken zelf, voor de payload-inspectie in RzMon (w_req)
+                    w_lines=$(wl_file_new swag "$w_path")
+                    w_req=$(printf '%s\n' "$w_lines" | edr_swag_req)
+                    w_body=$(printf '%s\n' "$w_lines" | awk -F'"' '
                         function js(s) { gsub(/[\\"]/, "", s); gsub(/[^ -~]/, "?", s); return substr(s, 1, 120) }
                         { split($1, a, " "); ip = a[1]; split($3, b, " "); st = b[1] + 0; split($2, r, " "); p = r[2]; ua = tolower($6)
                           if (ip !~ /^[0-9a-fA-F:.]+$/) next
@@ -2212,9 +2533,72 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
                 w_body=$(printf '%s\n' "$vw_lines" | grep -i 'username or password is incorrect' | sed -n 's/.*IP: \([0-9a-fA-F:.]*\).*/\1/p' | wl_ip_count) ;;
             *) continue ;;
         esac
-        weblog_json+="\"$w_src\":{\"path\":\"$(json_escape "$w_path")\"${w_err:+,\"err\":\"$(json_escape "$w_err")\"},\"ips\":{$w_body}},"
+        weblog_json+="\"$w_src\":{\"path\":\"$(json_escape "$w_path")\"${w_err:+,\"err\":\"$(json_escape "$w_err")\"},\"ips\":{$w_body}${w_req:+,\"req\":[$w_req]}},"
     done <"$t_cache"
     [ -n "$weblog_json" ] && weblog_json="\"weblog\":{${weblog_json%,}},"
+fi
+
+# ---------------------------------------------------------------- Endpoint-bewaking: regels, wachtrij en stand (agent 1.63.0)
+# auditd-regels (sleutels rzmon_*) zetten zolang het in RzMon aan staat, en weghalen als het uit gaat. Ze staan alleen
+# in de kernel (auditctl), niet in /etc/audit: na een herstart zet de eerstvolgende run ze terug. De wachtrij van de
+# watcher gaat mee met het rapport (hooguit 500 per keer; wat niet aankomt, blijft voor de volgende keer).
+edr_json=""
+edr_keys="rzmon_exec rzmon_id rzmon_persist rzmon_mod"
+edr_rules() {  # edr_rules on|off: 0 = gelukt (of niets te doen)
+    command -v auditctl >/dev/null 2>&1 || return 1
+    local k have a p
+    have=$(auditctl -l 2>/dev/null | grep -c 'key=rzmon_')
+    if [ "$1" = off ]; then
+        [ "$have" -gt 0 ] && for k in $edr_keys; do auditctl -D -k "$k" >/dev/null 2>&1; done
+        return 0
+    fi
+    [ "$have" -ge 3 ] && return 0
+    for k in $edr_keys; do auditctl -D -k "$k" >/dev/null 2>&1; done
+    for a in b64 b32; do auditctl -a always,exit -F arch=$a -S execve -k rzmon_exec >/dev/null 2>&1; done
+    for p in /etc/passwd /etc/shadow /etc/group /etc/sudoers /etc/sudoers.d; do
+        [ -e "$p" ] && auditctl -w "$p" -p wa -k rzmon_id >/dev/null 2>&1
+    done
+    for p in /etc/ld.so.preload /etc/crontab /etc/cron.d /var/spool/cron /etc/systemd/system /root/.ssh; do
+        [ -e "$p" ] && auditctl -w "$p" -p wa -k rzmon_persist >/dev/null 2>&1
+    done
+    auditctl -a always,exit -F arch=b64 -S init_module -S finit_module -k rzmon_mod >/dev/null 2>&1
+    [ "$(auditctl -l 2>/dev/null | grep -c 'key=rzmon_')" -gt 0 ]
+}
+edr_want=0
+[ "$EDR" != 0 ] && [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\tedr\t1' "$t_cache" && edr_want=1
+if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
+    e_audit=off
+    if [ "$(id -u)" != 0 ]; then e_audit=noroot
+    elif ! command -v auditctl >/dev/null 2>&1; then e_audit=missing
+    elif ! pidof auditd >/dev/null 2>&1; then e_audit=stopped
+    elif edr_rules on; then e_audit=ok
+    else e_audit=locked; fi
+    e_file=missing; command -v inotifywait >/dev/null 2>&1 && e_file=ok
+    e_ctr=none
+    if [ "${PODMAN-}" != 0 ] && command -v podman >/dev/null 2>&1; then e_ctr=podman; elif command -v docker >/dev/null 2>&1; then e_ctr=docker; fi
+    e_fam=other; e_epel=0
+    if command -v rpm >/dev/null 2>&1 && { command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; }; then
+        e_fam=rhel; rpm -q epel-release >/dev/null 2>&1 && e_epel=1
+    elif command -v apt-get >/dev/null 2>&1; then e_fam=deb; fi
+    e_watch=off; e_sys=1
+    [ -d /run/systemd/system ] || e_sys=0
+    read -r e_ws _ _ _ e_we <"$edr_dir/watch.state" 2>/dev/null
+    [ "$e_ws" = active ] && [ "$e_we" != - ] && e_watch=on
+    e_drop=$(cat "$edr_dir/edr.drop" 2>/dev/null); [[ "$e_drop" =~ ^[0-9]+$ ]] || e_drop=0
+    # Wachtrij: wat er nog lag (niet aangekomen) plus de nieuwe gebeurtenissen
+    e_send="$edr_dir/edr.sending"
+    if [ -s "$edr_spool" ]; then
+        mv -f "$edr_spool" "$edr_spool.tmp" 2>/dev/null && { cat "$edr_spool.tmp" >>"$e_send"; rm -f "$edr_spool.tmp"; }
+    fi
+    e_ev=""
+    if [ -s "$e_send" ]; then
+        e_ev=$(head -n 500 "$e_send" | grep -E '^\{.*\}$' | tr '\n' ',' | sed 's/,$//')
+    fi
+    edr_json="{\"ev\":[$e_ev],\"info\":{\"audit\":\"$e_audit\",\"file\":\"$e_file\",\"ctr\":\"$e_ctr\",\"fam\":\"$e_fam\",\"epel\":$e_epel,\"watch\":\"$e_watch\",\"systemd\":$e_sys,\"drop\":$e_drop,\"queue\":$(wc -l <"$e_send" 2>/dev/null || echo 0)}}"
+elif [ "$edr_want" = 0 ] && [ "$(id -u)" = 0 ] && [ "$HA_MODE" = 0 ]; then
+    # Uit (in RzMon of met EDR=0): regels weg en de wachtrij leeg
+    edr_rules off >/dev/null 2>&1
+    rm -f "$edr_spool" "$edr_dir/edr.sending" 2>/dev/null
 fi
 
 # ---------------------------------------------------------------- Isoleren en gebruiker uitzetten (agent 1.57.0)
@@ -2718,12 +3102,16 @@ if [ -r "$pk_dir/upgrade.result" ]; then
 fi
 
 pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade" van de meegestuurde pakketnamen, als root
-    local id names n=() out="$pk_dir/upgrade.result" why=""
+    # Agent 1.63.0: of "install" (mode), alleen voor de onderdelen van de endpoint-bewaking (vaste lijst hieronder)
+    local id names n=() out="$pk_dir/upgrade.result" why="" mode=upgrade
     id=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"id":[[:space:]]*"\([0-9a-f]\{8,32\}\)".*/\1/p' <<<"$1")
     names=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"pkgs":[[:space:]]*\[\([^]]*\)\].*/\1/p' <<<"$1" | tr -d '"' | tr ',' ' ')
+    [[ "$1" =~ \"pkg_upgrade\":[[:space:]]*\{[^}]*\"mode\":[[:space:]]*\"install\" ]] && mode=install
     [ -n "$id" ] && [ -d "$pk_dir" ] || return 0
     for p in $names; do
-        [[ "$p" =~ ^[A-Za-z0-9][A-Za-z0-9.+_:~-]{0,99}$ ]] && n+=("$p")
+        [[ "$p" =~ ^[A-Za-z0-9][A-Za-z0-9.+_:~-]{0,99}$ ]] || continue
+        if [ "$mode" = install ]; then case "$p" in audit|auditd|inotify-tools|epel-release|yara) ;; *) continue ;; esac; fi
+        n+=("$p")
     done
     case "$COMMANDS" in 0|off|no|nee|nobody) why="geblokkeerd op de server (COMMANDS=$COMMANDS in /etc/default/rzmon-agent)" ;; esac
     [ "$(id -u)" = 0 ] || why="de agent draait niet als root"
@@ -2744,7 +3132,8 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
     # Het script meldt zijn voortgang elke paar seconden zelf aan RzMon (stap, procent, pakket, laatste uitvoer);
     # de uitkomst gaat daarnaast via upgrade.result mee met het volgende rapport (als de voortgang niet aankwam).
     # shellcheck disable=SC2016  # het script krijgt zijn waarden als argumenten mee, niet via de tekst
-    local script='id=$1; mgr=$2; dir=$3; shift 3
+    local script='id=$1; mgr=${2%%:*}; mode=${2#*:}; dir=$3; shift 3
+        [ "$mode" = "$2" ] && mode=upgrade
         url=""; tok=""; ins=0; enc_key=""; last=0; stage=update; pct=2; detail=""; count=""
         if [ -r "$dir/upgrade.conf" ]; then { read -r url; read -r tok; read -r ins; read -r enc_key; } <"$dir/upgrade.conf"; rm -f "$dir/upgrade.conf"; fi
         log="$dir/upgrade.log"; : >"$log"
@@ -2764,6 +3153,11 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
         post
         if [ "$mgr" = rpm ]; then
             cmd=(dnf -y upgrade "$@"); command -v dnf >/dev/null 2>&1 || cmd=(yum -y update "$@")
+            if [ "$mode" = install ]; then
+                # EPEL eerst apart (inotify-tools en yara staan daarin), dan de rest
+                if [ "$1" = epel-release ]; then dnf -y install epel-release >>"$log" 2>&1 || yum -y install epel-release >>"$log" 2>&1; shift; fi
+                cmd=(dnf -y install "$@"); command -v dnf >/dev/null 2>&1 || cmd=(yum -y install "$@")
+            fi
             "${cmd[@]}" 2>&1 | while IFS= read -r l; do
                 printf "%s\n" "$l" >>"$log"
                 if [[ "$l" =~ ^\(([0-9]+)/([0-9]+)\):\ ([^ ]+) ]]; then          # (3/7): openssl-libs-3.2.2.rpm   downloaden
@@ -2783,7 +3177,8 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
             if [ "$rc" = 0 ]; then
                 stage=download; pct=15; post
                 # APT::Status-Fd: apt meldt zelf het percentage (dlstatus = downloaden, pmstatus = installeren per pakket)
-                apt-get install -y -q --only-upgrade -o Dpkg::Options::=--force-confold -o APT::Status-Fd=3 "$@" 3>&1 >>"$log" 2>&1 \
+                up=--only-upgrade; [ "$mode" = install ] && up=--no-install-recommends
+                apt-get install -y -q "$up" -o Dpkg::Options::=--force-confold -o APT::Status-Fd=3 "$@" 3>&1 >>"$log" 2>&1 \
                     | while IFS=: read -r kind p1 p2 _; do
                         p2=${p2%%.*}; [[ "$p2" =~ ^[0-9]+$ ]] || continue
                         case "$kind" in
@@ -2794,6 +3189,8 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
                 rc=${PIPESTATUS[0]}
             fi
         fi
+        # auditd na het installeren meteen starten (de agent zet de regels bij de volgende run)
+        if [ "$mode" = install ] && [ "$rc" = 0 ] && command -v auditctl >/dev/null 2>&1; then systemctl enable --now auditd >>"$log" 2>&1 || service auditd start >>"$log" 2>&1; fi
         printf "%s\t%s\t%s\n" "$id" "$([ "$rc" = 0 ] && echo ok || echo error)" "$(tail -c 1500 "$log" | base64 -w0)" >"$dir/upgrade.result.tmp" \
             && mv -f "$dir/upgrade.result.tmp" "$dir/upgrade.result"
         stage=done; pct=100; detail=""; count=""
@@ -2806,10 +3203,10 @@ $script"   # versleutelen kan het script dan zelf
     (umask 077; printf '%s\n' "$script" >"$pk_dir/upgrade.sh") \
         || { printf '%s\terror\t%s\n' "$id" "$(printf 'kan upgrade.sh niet schrijven' | base64 -w0)" >"$out"; rm -f "$pk_dir/upgrade.lock"; return 0; }
     if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
-        systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
+        systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
             || { printf '%s\terror\t%s\n' "$id" "$(printf 'systemd-run mislukt' | base64 -w0)" >"$out"; rm -f "$pk_dir/upgrade.lock"; }
     else
-        setsid /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr" "$pk_dir" "${n[@]}" </dev/null >/dev/null 2>&1 &
+        setsid /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode" "$pk_dir" "${n[@]}" </dev/null >/dev/null 2>&1 &
     fi
 }
 
@@ -2955,7 +3352,7 @@ read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
 # Wat er naast de vaste onderdelen meegaat, voor --status (1.60.0)
 parts="processen=$(grep -o '\["' <<<"$proc_list" | wc -l) certificaatbestanden=$(grep -o '"path"' <<<"$cert_found" | wc -l) softwarelijst=$( [ -n "$pkgs_json" ] && echo ja || echo ongewijzigd) heartbeats=${#hb_files[@]} ids=$( [ -n "$ids_json" ] && echo ja || echo nee)"
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}}"
 
 curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
@@ -3198,6 +3595,26 @@ if [ "$rc" -eq 0 ]; then
         elif [[ "$resp" =~ \"packages_ok\":[[:space:]]*true ]]; then printf '%s' "$pk_hash" >"$pk_dir/sent"; fi
     fi
     [ -n "$pkg_result" ] && rm -f "$pk_dir/upgrade.result"
+    # Endpoint-bewaking: de meegestuurde gebeurtenissen zijn binnen; vraagt RzMon om processen meteen te stoppen?
+    # (alleen versleuteld, en alleen als de starttijd klopt: nooit een ander proces dat dat nummer later kreeg)
+    if [ -n "$edr_json" ] && [ -s "$edr_dir/edr.sending" ]; then
+        tail -n +501 "$edr_dir/edr.sending" >"$edr_dir/edr.rest" 2>/dev/null && mv -f "$edr_dir/edr.rest" "$edr_dir/edr.sending"
+        [ -s "$edr_dir/edr.sending" ] || rm -f "$edr_dir/edr.sending"
+        rm -f "$edr_dir/edr.drop"
+    fi
+    if [ -n "$seal_n" ] && [ "$IDS_BLOCK" != 0 ] && [ "$(id -u)" = 0 ] && [[ "$resp" =~ \"edr_kill\":\[(\[[0-9]+,[0-9]+\],?)+\] ]]; then
+        mkdir -p "$t_dir/ids" 2>/dev/null
+        while IFS=, read -r k_pid k_start; do
+            [[ "$k_pid" =~ ^[0-9]+$ ]] && [[ "$k_start" =~ ^[0-9]+$ ]] && [ "$k_pid" -gt 1 ] || continue
+            [ -f "$t_dir/ids/killed.$k_pid.$k_start" ] && continue
+            k_res=weg
+            if [ "$(awk '{ print $22 }' "/proc/$k_pid/stat" 2>/dev/null)" = "$k_start" ]; then
+                if kill -KILL "$k_pid" 2>/dev/null; then k_res=ok; else k_res=fout; fi
+            fi
+            : >"$t_dir/ids/killed.$k_pid.$k_start"
+            printf '[%s,%s,"%s"],' "$k_pid" "$k_start" "$k_res" >>"$t_dir/ids/killed.pending"
+        done < <(grep -o '\[[0-9]*,[0-9]*\]' <<<"${BASH_REMATCH[0]#*:}" | tr -d '[]')
+    fi
     [[ "$resp" =~ \"pkg_upgrade\":[[:space:]]*\{ ]] && [ -n "$pk_mgr" ] && pkg_upgrade "$resp"
     # Zelf herstellen: de uitkomsten zijn binnen; vraagt RzMon om een herstelcommando (alleen versleuteld)?
     rm -f "$heal_dir/done.sending" "$t_dir/watchdog.gap"
