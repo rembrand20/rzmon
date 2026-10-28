@@ -182,10 +182,11 @@ def convert(path, base):
     det.pop('timeframe', None)
     sels = {name: conds_of(sel, kinds) for name, sel in det.items()}
     tags = [t[7:].upper() for t in r.get('tags') or [] if re.match(r'^attack\.t\d{4}', t)]
+    tactics = [t[7:] for t in r.get('tags') or [] if re.match(r'^attack\.[a-z]+(-[a-z]+)*$', t)]
     return {
         'id': r['id'], 'title': r['title'], 'level': level, 'author': r.get('author', ''),
         'src': 'https://github.com/SigmaHQ/sigma/blob/master/' + os.path.relpath(path, base).replace(os.sep, '/'),
-        'tags': tags, 'kinds': kinds, 'desc': ' '.join(str(r.get('description', '')).split())[:400],
+        'tags': tags, 'tactics': tactics, 'kinds': kinds, 'desc': ' '.join(str(r.get('description', '')).split())[:400],
         'fp': [str(x) for x in (r.get('falsepositives') or [])][:3], 'sel': sels, 'cond': parse_cond(str(cond), set(sels)),
     }
 

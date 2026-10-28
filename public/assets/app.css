@@ -1738,3 +1738,32 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .insp-ev { border: 1px solid var(--border); border-radius: 10px; padding: .6rem .8rem; margin: .5rem 0; }
 .insp-head { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-bottom: .3rem; } .insp-cmd { overflow-wrap: anywhere; white-space: pre-wrap; }
 .insp-tags .chip, .insp-head .chip { display: inline-block; padding: .05rem .45rem; border: 1px solid var(--border); border-radius: 999px; font-size: .75rem; color: inherit; text-decoration: none; }
+
+/* 1.111.0: afwijkingen, ketens en MITRE */
+.linklike { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.linklike:hover { text-decoration: underline; color: var(--primary); }
+.chip.tac, .chain-steps .chip, .edr-sum .chip { display: inline-block; padding: .02rem .45rem; border: 1px solid var(--border); border-radius: 999px; font-size: .72rem; color: var(--muted); text-decoration: none; margin-left: .2rem; white-space: nowrap; }
+.score-tag { display: inline-block; min-width: 1.6rem; text-align: center; border-radius: 6px; font-size: .75rem; font-weight: 600; padding: .05rem .25rem; background: color-mix(in srgb, var(--muted) 15%, transparent); }
+.score-tag.warn { background: color-mix(in srgb, var(--warn) 22%, transparent); } .score-tag.crit { background: color-mix(in srgb, var(--crit) 22%, transparent); }
+.learn-table td { vertical-align: middle; } .learn-table .cl-meter { display: inline-flex; align-items: center; gap: .4rem; } .learn-table .bar { width: 7rem; --c: var(--primary); }
+.chain-card { border: 1px solid var(--border); border-left: 4px solid var(--warn); border-radius: 10px; padding: .5rem .8rem; margin: .5rem 0; }
+.chain-card.s2 { border-left-color: var(--crit); }
+.chain-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem; }
+.chain-steps { list-style: none; margin: .4rem 0 .2rem; padding: 0 0 0 .9rem; border-left: 2px solid var(--border); }
+.chain-steps li { position: relative; display: grid; grid-template-columns: 8.5rem minmax(0, 11rem) 1fr; gap: .5rem; padding: .25rem 0; font-size: .86rem; }
+.chain-steps li::before { content: ''; position: absolute; left: -1.27rem; top: .55rem; width: .6rem; height: .6rem; border-radius: 50%; background: var(--muted); }
+.chain-steps li.warn::before { background: var(--warn); } .chain-steps li.crit::before { background: var(--crit); }
+.chain-steps .cs-t { color: var(--muted); font-size: .8rem; white-space: nowrap; } .chain-steps .cs-l { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .chain-steps li { grid-template-columns: 1fr; gap: .1rem; } }
+.mitre-scroll { overflow-x: auto; padding-bottom: .4rem; }
+.mitre-grid { display: grid; grid-template-columns: repeat(15, minmax(9.5rem, 1fr)); gap: .35rem; min-width: 100%; }
+.mt-col { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.mt-head { display: flex; flex-direction: column; padding: .35rem .45rem; border-radius: 8px; background: color-mix(in srgb, var(--muted) 10%, transparent); position: relative; min-height: 3.2rem; }
+.mt-col.hit .mt-head { background: color-mix(in srgb, var(--warn) 18%, transparent); }
+.mt-head b { font-size: .82rem; } .mt-head .muted { font-size: .7rem; }
+.mt-head .mt-n { position: absolute; right: .4rem; top: .3rem; font-weight: 700; font-size: .8rem; }
+.mt-cell { text-align: left; font: inherit; font-size: .76rem; line-height: 1.25; padding: .3rem .4rem; border-radius: 6px; border: 1px solid var(--border); background: var(--card, transparent); color: var(--text); cursor: pointer; overflow-wrap: anywhere; }
+.mt-cell.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); border-color: color-mix(in srgb, var(--warn) 50%, var(--border)); }
+.mt-cell.crit { background: color-mix(in srgb, var(--crit) 16%, transparent); border-color: color-mix(in srgb, var(--crit) 50%, var(--border)); }
+.mt-cell.cov { border-style: dashed; opacity: .7; }
+.mt-cell:hover { border-color: var(--primary); } .mt-cell .mt-n { float: right; }

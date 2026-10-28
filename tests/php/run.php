@@ -286,6 +286,69 @@ Inspect::requests($host, [['192.0.2.50', '28/Oct/2026:10:00:02 +0100', 'GET', '/
 $ev = q("SELECT e.data FROM ids_evidence e JOIN ids_incidents i ON i.id = e.incident_id WHERE i.ip = '192.0.2.50'")->fetchColumn();
 $evd = json_decode((string) $ev, true)['ev'] ?? [];
 ok(($evd['uri'] ?? '') === '/?x=1" OR "1"="1' && ($evd['at'] ?? 0) === 1793178002, 'verzoek van de agent: \\x22 teruggezet, tijd uit de log (' . ($evd['uri'] ?? '-') . ')');
+// "Dit is normaal" bij een endpoint-incident: niet meer melden en niet meer ingrijpen
+q("INSERT INTO ids_baseline (host_id, kind, item) VALUES (?, 'ignore', ?)", [$ha, mb_substr('edr|' . $inc['dkey'], 0, 255)]);
+$ws['pid'] = 4244;
+ok(Edr::process($host, ['ev' => [$ws]]) === [], '"Dit is normaal": proces niet meer gestopt');
+
+section('Afwijkingen, ketens en MITRE (1.111.0)');
+ok(Mitre::tech('T1059.004')['name'] === 'Unix Shell' && Mitre::tacticsOf(['T1105']) === ['command-and-control'] && count(Mitre::tactics()) >= 14, 'MITRE ATT&CK geladen');
+ok((int) q("SELECT COUNT(*) FROM ids_signals WHERE host_id = ? AND src = 'rule' AND FIND_IN_SET('T1505.003', techs)", [$ha])->fetchColumn() >= 1, 'regeltreffer wordt een signaal met MITRE-techniek');
+ok((int) q("SELECT COUNT(*) FROM ids_signals WHERE host_id = ? AND src = 'ids' AND feature = 'web_payload' AND FIND_IN_SET('initial-access', tactics)", [$ha])->fetchColumn() >= 1, 'IDS-incident (webaanval) wordt een signaal: Binnenkomen');
+$host = q('SELECT * FROM hosts WHERE id = ?', [$ha])->fetch();
+ok($host['edr_learn_from'] !== null && Anomaly::learning($host) && (int) q("SELECT COUNT(*) FROM ids_signals WHERE src = 'anom'")->fetchColumn() === 0, 'leerperiode: alles wordt geleerd, niets gemeld');
+// Leren afronden; daarna is een nieuw programma onder nginx een afwijking (incident), een nieuw systeemprogramma alleen een signaal
+Anomaly::relearn($ha, true);
+$host = q('SELECT * FROM hosts WHERE id = ?', [$ha])->fetch();
+$nx = ['k' => 'x', 't' => time(), 'pid' => 900, 'st' => 9, 'uid' => 1001, 'u' => 'app', 'exe' => '/opt/app/worker', 'comm' => 'worker', 'argv' => ['worker'], 'cmd' => 'worker', 'pc' => 'nginx'];
+Edr::process($host, ['ev' => [$nx]]);
+$an = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'anomaly' ORDER BY id DESC LIMIT 1", [$ha])->fetch();
+ok($an && str_contains((string) $an['title'], 'nginx start worker') && (int) $an['severity'] === 1, 'na het leren: nieuw programma onder nginx → afwijking (warning): ' . ($an['title'] ?? '-'));
+$n1 = (int) q("SELECT COUNT(*) FROM ids_signals WHERE src = 'anom'")->fetchColumn();
+Edr::process($host, ['ev' => [$nx]]);
+ok((int) q("SELECT COUNT(*) FROM ids_signals WHERE src = 'anom'")->fetchColumn() === $n1, 'zelfde nog eens: al geleerd, geen nieuwe afwijking');
+$ni = (int) q("SELECT COUNT(*) FROM ids_incidents WHERE type = 'anomaly'")->fetchColumn();
+Edr::process($host, ['ev' => [['k' => 'x', 't' => time(), 'pid' => 901, 'st' => 9, 'uid' => 0, 'u' => 'root', 'exe' => '/usr/bin/tree', 'comm' => 'tree', 'argv' => ['tree'], 'cmd' => 'tree', 'pc' => 'bash']]]);
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE type = 'anomaly'")->fetchColumn() === $ni && count(Anomaly::list(1, $ha)) === 2, 'kleine afwijking (nieuw systeemprogramma): alleen op de pagina');
+// Ketens op een eigen server: webaanval en daarna code van de webserver
+q("INSERT INTO hosts (name, address, mode, edr_on, edr_learn_from) VALUES ('ci-c', '10.0.0.3', 'agent', 1, NOW() - INTERVAL 30 DAY), ('ci-d', '10.0.0.4', 'agent', 1, NOW() - INTERVAL 30 DAY)");
+$hc = q("SELECT * FROM hosts WHERE name = 'ci-c'")->fetch();
+$hd = q("SELECT * FROM hosts WHERE name = 'ci-d'")->fetch();
+Chain::reset();
+Inspect::requests($hc, [['203.0.113.77', time(), 'GET', '/shop.php?id=1%27%20UNION%20SELECT%201,2--', 200, 10, 'Mozilla/5.0', '-']]);
+Edr::process($hc, ['ev' => [['k' => 'x', 't' => time(), 'pid' => 300, 'st' => 4, 'uid' => 33, 'u' => 'www-data', 'exe' => '/usr/bin/php8.2', 'comm' => 'php8.2', 'argv' => ['php8.2', 'x.php'], 'cmd' => 'php8.2 x.php', 'pc' => 'php-fpm8.2']]]);
+Chain::check($hc);
+$ch = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'chain'", [$hc['id']])->fetch();
+ok($ch && $ch['dkey'] === 'web|203.0.113.77' && (int) $ch['severity'] === 2, 'keten: webaanval gevolgd door code op de webserver → critical');
+ok($ch && str_contains((string) $ch['detail'], '203.0.113.77') && (int) q("SELECT COUNT(*) FROM ids_blocks WHERE host_id = ? AND ip = '203.0.113.77' AND removed_at IS NULL", [$hc['id']])->fetchColumn() >= 1, 'keten in de modus Blokkeren: aanvaller geblokkeerd');
+$steps = Chain::list(30, (int) $hc['id'])[0]['steps'] ?? [];
+ok(count($steps) >= 2 && in_array('initial-access', $steps[0]['tactics'], true), 'stappen van de keten in volgorde, met tactiek (' . count($steps) . ')');
+Chain::check($hc);
+ok((int) q("SELECT hits FROM ids_incidents WHERE id = ?", [$ch['id']])->fetchColumn() === 1, 'niets nieuws: keten niet opnieuw');
+// Binnenhalen en daarna contact naar buiten (dropper): isoleren
+Chain::reset();
+Edr::process($hd, ['ev' => [['k' => 'f', 't' => time(), 'path' => '/tmp/.cache/kd', 'size' => 1000, 'elf' => 1, 'x' => 1, 'sha' => str_repeat('a', 64)],
+    ['k' => 'n', 't' => time() + 1, 'dir' => 'out', 'pid' => 400, 'st' => 5, 'comm' => 'kd', 'exe' => '/tmp/.cache/kd', 'u' => 'root', 'rip' => '198.51.100.99', 'rp' => 3333, 'lp' => 40000]]]);
+Chain::check($hd);
+$dr = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'chain' AND dkey = 'dropper'", [$hd['id']])->fetch();
+ok($dr && (int) $dr['severity'] === 2 && q('SELECT isolate_until > NOW() FROM hosts WHERE id = ?', [$hd['id']])->fetchColumn(), 'keten: binnengehaald en contact naar buiten → server geïsoleerd');
+// Verder het netwerk in: login op ci-c vanaf ci-d (waar net een keten was)
+Chain::reset();
+Chain::lateral($hc, '10.0.0.4', 'bob');
+Chain::check($hc);
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'chain' AND dkey = ?", [$hc['id'], 'lateral|' . $hd['id']])->fetchColumn() === 1, 'keten: login vanaf een gehackte eigen server → verder het netwerk in');
+// MITRE-overzicht
+$ov = Chain::overview(30);
+$exe = array_values(array_filter($ov['tactics'], static fn($t) => $t['slug'] === 'initial-access'))[0] ?? [];
+$t1190 = array_values(array_filter($exe['techs'] ?? [], static fn($t) => $t['id'] === 'T1190'))[0] ?? [];
+ok(($t1190['n'] ?? 0) >= 2 && count($ov['tactics']) >= 14, 'MITRE-overzicht: T1190 gezien (' . ($t1190['n'] ?? 0) . '×)');
+ok(count(Chain::signals(30, null, null, 'T1190')) >= 2, 'MITRE: signalen bij een techniek');
+// Ongewoon tijdstip: actief op een uur waarop dat nooit gebeurde
+for ($d = 1; $d <= 8; $d++) {
+    q("INSERT INTO edr_hourly (host_id, hr, kind, n) VALUES (?, ?, 'i', 5)", [$hd['id'], date('Y-m-d', strtotime("-$d day")) . ' ' . sprintf('%02d', (int) date('G') === 10 ? 11 : 10) . ':00:00']);
+}
+Edr::process($hd, ['ev' => [['k' => 'x', 't' => time(), 'pid' => 500, 'st' => 6, 'uid' => 1000, 'auid' => '1000', 'u' => 'bob', 'exe' => '/usr/bin/ls', 'comm' => 'ls', 'argv' => ['ls'], 'cmd' => 'ls', 'pc' => 'bash']]]);
+ok((int) q("SELECT COUNT(*) FROM ids_signals WHERE host_id = ? AND feature = 'hour'", [$hd['id']])->fetchColumn() === 1, 'ongewoon tijdstip: actief op een uur zonder geschiedenis');
 save_setting('ids_mode', 'learn');
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");

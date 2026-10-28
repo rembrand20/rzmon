@@ -7,6 +7,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.111.0 – 2026-10-28
+### Nieuw
+- **🧬 Afwijkingen** (IDS 2.0, deel 2): RzMon leert per server 14 dagen wat normaal is (welke programma's, wie ze start, gebruikers, verbindingen, luisterpoorten, landen, container-images en hoeveel er per uur gebeurt) en meldt daarna wat die server nog nooit deed. Elke afwijking krijgt een score; vanaf 40 wordt het een incident (warning), lager staat het alleen op de pagina. Per server *Leren afronden* of *Opnieuw leren*.
+- **🔗 Ketens en combinaties**: RzMon kijkt na elk rapport of de meldingen van het laatste uur samen een aanval vormen: *webaanval gevolgd door code op de webserver*, *inloggen gevolgd door rechten of een achterdeur*, *programma binnengehaald en daarna contact naar buiten*, *meerdere stappen van een aanval*, *veel afwijkingen tegelijk* en *mogelijk verder het netwerk in* (een login vanaf een eigen server waar net een aanval was). Een keten is critical (Pushover), met alle stappen in volgorde. In de modus Blokkeren blokkeert RzMon de aanvaller en isoleert hij de server bij een webshell of malware.
+- **🛡️ IDS → 🧬 Afwijkingen**: de leerstatus per server, de ketens en de afwijkingen op één pagina.
+- **🛡️ IDS → 🧭 MITRE**: alles van de laatste 7, 30 of 90 dagen in de matrix van MITRE ATT&CK (versie 20), per stap van een aanval; klik op een techniek voor de meldingen. Ook te zien: welke technieken de regels herkennen.
+- Instellingen in *IDS → Endpoint-bewaking → 🧬 Afwijkingen en ketens*.
+- Payload-inspectie herkent nu ook WordPress File Manager (CVE-2020-25213).
+
+### Opgelost
+- *Ja, dit was ik* bij een endpoint-incident: RzMon stopte het proces daarna toch nog (alleen de melding bleef weg).
+
 ## 1.110.0 – 2026-10-28
 ### Nieuw
 - **🛰️ Endpoint-bewaking** (IDS 2.0, deel 1; **agent 1.63.0 nodig**): de agent kijkt op het moment zelf mee naar nieuwe processen, gevoelige paden (passwd, sudoers, cron, systemd, SSH-sleutels, kernelmodules), verbindingen en luisterpoorten, nieuwe bestanden in `/tmp`, `/dev/shm` en de webmappen, en containers. RzMon toetst alles aan **eigen regels met uitleg** (webshell, reverse shell, `curl | sh`, cryptominer, programma's uit `/dev/shm` …) en aan **121 Linux-regels van SigmaHQ**. Een treffer wordt een IDS-incident met het bewijs erbij.

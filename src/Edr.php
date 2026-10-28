@@ -8,8 +8,7 @@ declare(strict_types=1);
  * - n: nieuwe uitgaande verbindingen en luisterpoorten;
  * - f: nieuwe uitvoerbare bestanden en scripts in tijdelijke mappen en webmappen (inotify);
  * - c: containers (exec, start met volledige rechten).
- * Hier wordt elke gebeurtenis bewaard (Live, 3 dagen), bijgehouden wat een server al eerder deed (edr_seen, voor de
- * anomaliedetectie van ronde 2) en getoetst aan de eigen regels (EdrRules) en de Sigma-regels (Sigma). Een treffer wordt
+ * Hier wordt elke gebeurtenis bewaard (Live, 3 dagen), geleerd wat een server normaal doet (Anomaly, 1.111.0) en getoetst aan de eigen regels (EdrRules) en de Sigma-regels (Sigma). Een treffer wordt
  * een IDS-incident met het bewijs erbij; in de modus Blokkeren stopt RzMon het proces, blokkeert het IP of isoleert de
  * server (per soort aan/uit, Instellingen → IDS). Alles wat RzMon zelf doet, wordt ook gemeld.
  * Aan/uit: algemeen (edr_on) en per server (hosts.edr_on); het IDS moet aan staan.
@@ -76,6 +75,9 @@ final class Edr
             return [];
         }
         $evs = array_slice(array_values(array_filter((array) ($edr['ev'] ?? []), 'is_array')), 0, self::MAX_EVENTS);
+        if ($evs) {
+            Anomaly::start($host);   // het leren (afwijkingen, 1.111.0) begint bij de eerste gebeurtenis
+        }
         foreach ($evs as $ev) {
             $kind = self::KINDS[$ev['k'] ?? ''] ?? null;
             if ($kind === null) {
@@ -84,8 +86,7 @@ final class Edr
             $ev = self::clean($ev);
             $f = self::fields($kind, $ev);
             $sig = self::sig($kind, $ev);
-            q('INSERT INTO edr_seen (host_id, kind, sig, first_seen, last_seen, n) VALUES (?, ?, ?, ?, ?, ?)
-               ON DUPLICATE KEY UPDATE last_seen = VALUES(last_seen), n = n + VALUES(n)', [$hid, $ev['k'], $sig, now(), now(), max(1, (int) ($ev['n'] ?? 1))]);
+            $at = self::when($ev);
             $hit = null;
             foreach (self::rules() as $r) {
                 if (in_array($kind, (array) $r['kinds'], true) && Sigma::match($r, $f)) {
@@ -93,9 +94,13 @@ final class Edr
                     break;   // één incident per gebeurtenis: de eerste (eigen regels gaan voor)
                 }
             }
+            Anomaly::observe($host, $kind, $ev, $sig, $hit !== null, $at);
             q('INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [$hid, self::when($ev), $ev['k'], $sig, json_encode($ev, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE),
+                [$hid, $at, $ev['k'], $sig, json_encode($ev, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE),
                     $hit['rule'] ?? null, $hit['sev'] ?? 0]);
+        }
+        if ($evs) {
+            Anomaly::flush($host);
         }
         return self::$kills ? ['edr_kill' => array_values(self::$kills)] : [];
     }
@@ -120,7 +125,7 @@ final class Edr
         return $out;
     }
 
-    private static function when(array $ev): string
+    public static function when(array $ev): string
     {
         $t = (int) ($ev['t'] ?? 0);
         return date('Y-m-d H:i:s', $t > time() - 86400 && $t <= time() + 300 ? $t : time());
@@ -181,9 +186,13 @@ final class Edr
         return mb_substr($n($s), 0, 255);
     }
 
-    /** Een regel is raak: incident, bewijs, reactie. @return array{rule: string, sev: int} */
-    private static function handle(array $host, string $kind, array $ev, array $f, array $r): array
+    /** Een regel is raak: incident, bewijs, reactie, signaal. @return array{rule: string, sev: int}|null null = "Dit is normaal" */
+    private static function handle(array $host, string $kind, array $ev, array $f, array $r): ?array
     {
+        $key = $r['id'] . '|' . ($kind === 'exec' ? ($f['Image'] . '<' . ($ev['pc'] ?? '')) : self::sig($kind, $ev));
+        if (Ids::ignored((int) $host['id'], 'edr', $key)) {
+            return null;   // "Dit is normaal" voor deze server: niet melden en niet ingrijpen
+        }
         $sigma = !empty($r['sigma']);
         $level = (int) ($r['level'] ?? 0);
         $sev = $sigma ? ($level >= 2 ? 2 : 1) : (int) $r['sev'];
@@ -223,13 +232,15 @@ final class Edr
         }
         $detail = implode(' · ', array_filter([$facts, $sigma ? t('Sigma-regel van {a} (SigmaHQ, DRL 1.1)', ['a' => $r['author'] ?: '?']) : t($r['what']),
             $done ? '⛔ ' . implode(', ', $done) : '']));
-        $key = $r['id'] . '|' . ($kind === 'exec' ? ($f['Image'] . '<' . ($ev['pc'] ?? '')) : self::sig($kind, $ev));
         $ip = $kind === 'net' && !empty($ev['rip']) && !Ids::internalIp((string) $ev['rip']) ? (string) $ev['rip'] : null;
         $id = Ids::raise($host, $sev, 'edr', $key, $title, $detail, $ip);
         self::evidence($id, $kind, $ev + ['_done' => $done], (string) $r['id'], [
             'title' => $sigma ? $r['title'] : t($r['title']), 'src' => $sigma ? 'sigma' : 'rzmon', 'tags' => $r['tags'] ?? [],
             'author' => $r['author'] ?? '', 'url' => $r['src'] ?? '', 'what' => $sigma ? ($r['desc'] ?? '') : t($r['what']), 'fp' => $r['fp'] ?? [],
         ]);
+        $techs = (array) ($r['tags'] ?? []);
+        Chain::signal($host, 'rule', mb_substr((string) $r['id'], 0, 20), ($sigma ? (array) ($r['tactics'] ?? []) : []) ?: Mitre::tacticsOf($techs), $techs,
+            $title, $sev >= 2 ? 60 : 35, $ip, $id, "rule|$key", ['_web' => Anomaly::isWeb($kind, $ev) ? 1 : 0, 'k' => $kind], 10, self::when($ev));
         return ['rule' => mb_substr((string) $r['id'], 0, 80), 'sev' => $sev];
     }
 
@@ -343,5 +354,7 @@ final class Edr
     {
         q('DELETE FROM edr_events WHERE at < NOW() - INTERVAL 3 DAY');
         q('DELETE FROM edr_seen WHERE last_seen < NOW() - INTERVAL 60 DAY');
+        Anomaly::purge();
+        Chain::purge();
     }
 }

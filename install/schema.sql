@@ -943,3 +943,35 @@ CREATE TABLE IF NOT EXISTS ids_evidence (
     CONSTRAINT fk_idse_inc FOREIGN KEY (incident_id) REFERENCES ids_incidents(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('edr_on', '1'), ('edr_kill', '1'), ('edr_block', '1'), ('edr_isolate', '1'), ('edr_sigma', '1'), ('edr_web', '1'), ('edr_rules_off', '[]');
+
+-- 1.111.0: signalen voor ketens en het MITRE-overzicht (regeltreffers, afwijkingen, IDS-incidenten), 90 dagen bewaard
+CREATE TABLE IF NOT EXISTS ids_signals (
+    id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id  INT UNSIGNED NOT NULL,
+    at       DATETIME     NOT NULL,
+    src      VARCHAR(10)  NOT NULL,
+    feature  VARCHAR(20)  NOT NULL DEFAULT '',
+    tactics  VARCHAR(160) NOT NULL DEFAULT '',
+    techs    VARCHAR(160) NOT NULL DEFAULT '',
+    label    VARCHAR(250) NOT NULL,
+    score    TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    ip       VARCHAR(45)  NULL,
+    ref      BIGINT UNSIGNED NULL,
+    dkey     VARCHAR(255) NOT NULL DEFAULT '',
+    data     TEXT         NULL,
+    INDEX idx_idssig_host (host_id, at),
+    INDEX idx_idssig_at (at),
+    INDEX idx_idssig_ip (ip, at),
+    CONSTRAINT fk_idssig_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.111.0: aantal gebeurtenissen per server per uur (voor "ongewoon veel" en "ongewoon tijdstip"), 30 dagen bewaard
+CREATE TABLE IF NOT EXISTS edr_hourly (
+    host_id INT UNSIGNED NOT NULL,
+    hr      DATETIME     NOT NULL,
+    kind    CHAR(1)      NOT NULL,
+    n       INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (host_id, hr, kind),
+    CONSTRAINT fk_edrh_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('edr_anom', '1'), ('edr_learn_days', '14'), ('edr_anom_min', '40'), ('edr_chain', '1'), ('edr_chain_min', '60'), ('edr_chain_act', '1');

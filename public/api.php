@@ -172,7 +172,7 @@ function agent_host(): array
     }
     $ip = client_ip();
     $cols = 'id, name, mode, agent_version, info_agent, agent_seen, agent_beats, agent_ip, agent_tick, enc, agent_token,
-             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock, agent_pin_sent, agent_https, agent_fb_at, watchdog, edr_on';
+             agent_key, agent_key_id, agent_key_at, agent_key_seen, agent_key_old, agent_key_old_until, agent_ips, pin_mode, ip_lock, agent_pin_sent, agent_https, agent_fb_at, watchdog, edr_on, edr_learn_from';
     if ($kid !== '') {
         $host = q("SELECT $cols FROM hosts WHERE agent_key_id = ? OR (agent_key_old_id = ? AND agent_key_old_until > ?) LIMIT 1", [$kid, $kid, now()])->fetch();
         $reason = $host ? null : t('onbekende sleutel (vernieuwd of opnieuw gekoppeld?): koppel de agent opnieuw met een koppelcode');
@@ -756,6 +756,8 @@ if ($action === 'agent') {
     }
     // 1.110.0: endpoint-sensoren (processen, netwerk, bestanden, containers)
     $edrResp = is_array($in['edr'] ?? null) ? Edr::process($host, $in['edr']) : [];
+    // 1.111.0: vormen de signalen van deze server (regels, afwijkingen, IDS) samen een keten?
+    Chain::check($host);
     // Commando-checks: uitvoer en exitcode (RzMon vergelijkt met het verwachte antwoord)
     foreach ((array) ($in['cmd'] ?? []) as $id => $r) {
         if (ctype_digit((string) $id) && is_array($r)) {
@@ -1089,7 +1091,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
@@ -2873,7 +2875,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -2893,7 +2895,7 @@ switch ($action) {
             $in['notify_channels'] = json_encode(array_replace(NotifyRules::defaults()['channels'],
                 NotifyRules::cleanChannels((array) (is_string($in['notify_channels']) ? json_decode($in['notify_channels'], true) : $in['notify_channels']))));
         }
-        foreach (['esc_warn_min' => [0, 1440], 'esc_crit_min' => [0, 1440], 'esc_crit_prio' => [-1, 2], 'smart_fast' => [10, 300], 'smart_slow' => [1, 10], 'disk_jump_pct' => [1, 50]] as $k => [$lo, $hi]) {
+        foreach (['esc_warn_min' => [0, 1440], 'esc_crit_min' => [0, 1440], 'esc_crit_prio' => [-1, 2], 'smart_fast' => [10, 300], 'smart_slow' => [1, 10], 'disk_jump_pct' => [1, 50], 'edr_learn_days' => [1, 90], 'edr_anom_min' => [1, 100], 'edr_chain_min' => [5, 1440]] as $k => [$lo, $hi]) {
             if (isset($in[$k])) {
                 $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
             }
@@ -3645,6 +3647,33 @@ switch ($action) {
     case 'edr_feed':   // Live: de laatste gebeurtenissen
         out(['events' => Edr::feed((int) ($_GET['limit'] ?? 200), ($hid = (int) ($_GET['host'] ?? 0)) ?: null, ($_GET['hits'] ?? '') === '1', (int) ($_GET['after'] ?? 0)),
             'on' => Ids::enabled() && setting('edr_on', '1') === '1']);
+
+    // ---------- 1.111.0: afwijkingen, ketens en MITRE ----------
+    case 'ids_anom':   // Afwijkingen: leerstatus per server, ketens en afwijkingen
+        $hid = (int) ($_GET['host'] ?? 0) ?: null;
+        $days = (int) ($_GET['days'] ?? 7) ?: 7;
+        out(['hosts' => Anomaly::hosts(), 'chains' => Chain::list(max(30, $days), $hid), 'anomalies' => Anomaly::list($days, $hid),
+            'on' => Ids::enabled() && setting('edr_on', '1') === '1', 'anom' => Anomaly::on(), 'chain' => Chain::on(), 'learn_days' => Anomaly::learnDays(),
+            'min' => (int) setting('edr_anom_min', '40'), 'scenarios' => array_map(static fn($s) => ['title' => t($s['title']), 'what' => t($s['what'])], Chain::scenarios())]);
+
+    case 'ids_mitre':   // MITRE ATT&CK: wat er gezien is per tactiek en techniek, en de dekking van de regels
+        $hid = (int) ($_GET['host'] ?? 0) ?: null;
+        $days = (int) ($_GET['days'] ?? 30) ?: 30;
+        if (isset($_GET['tech']) || isset($_GET['tactic'])) {
+            out(['signals' => Chain::signals($days, $hid, ($_GET['tactic'] ?? '') ?: null, isset($_GET['tech']) ? (string) $_GET['tech'] : null)]);
+        }
+        out(Chain::overview($days, $hid));
+
+    case 'edr_learn':   // leren afronden of opnieuw beginnen
+        $in = input();
+        $h = q('SELECT id, name FROM hosts WHERE id = ?', [(int) ($in['host_id'] ?? 0)])->fetch();
+        if (!$h) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        $finish = ($in['action'] ?? '') === 'finish';
+        Anomaly::relearn((int) $h['id'], $finish);
+        AgentCommands::audit($user['username'], $finish ? 'Leren afgerond (afwijkingen)' : 'Opnieuw leren (afwijkingen)', (string) $h['name']);
+        out(['ok' => true]);
 
     case 'edr_rules':   // Regels: eigen en Sigma, met aan/uit
         $off = array_flip((array) json_decode((string) setting('edr_rules_off', '[]'), true));

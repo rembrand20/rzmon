@@ -1136,6 +1136,34 @@ function init() {
     days.forEach((x) => { x.open = !all; });
   };
   $('#ids-block-add').onclick = () => idsBlockDialog();
+  $('#anom-host').onchange = () => loadAnom();
+  $('#anom-days').onclick = (e) => {
+    const b = e.target.closest('[data-ad]');
+    if (!b) return;
+    anomDays = +b.dataset.ad;
+    $$('#anom-days .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+    loadAnom();
+  };
+  $('#anom-learn').onclick = async (e) => {
+    const b = e.target.closest('[data-learn]');
+    if (!b) return;
+    const finish = b.dataset.learn === 'finish';
+    if (!confirm(finish ? L('Leren nu afronden? Vanaf nu meldt RzMon alles wat deze server nog niet deed.') : L('Opnieuw leren? Alles wat RzMon over deze server geleerd heeft, gaat weg; de komende dagen wordt er niets als afwijking gemeld.'))) return;
+    try { await api('edr_learn', { host_id: +b.dataset.h, action: b.dataset.learn }); toast(finish ? L('Leren afgerond') : L('De server leert opnieuw')); loadAnom(); } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#mitre-host').onchange = () => loadMitre();
+  $('#mitre-cover').onchange = () => renderMitre();
+  $('#mitre-days').onclick = (e) => {
+    const b = e.target.closest('[data-md]');
+    if (!b) return;
+    mitreDays = +b.dataset.md;
+    $$('#mitre-days .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+    loadMitre();
+  };
+  $('#mitre-matrix').onclick = (e) => {
+    const b = e.target.closest('[data-mt]');
+    if (b) mitreSignals(b.dataset.mt, b.dataset.ta);
+  };
   $('#edr-host').onchange = () => loadEdrFeed();
   $('#edr-hits').onchange = () => loadEdrFeed();
   $('#rule-q').oninput = () => renderEdrRules();
@@ -1371,7 +1399,7 @@ function showTab(name) {
   if (/^(ids|vulns)\//.test(name)) {
     const [tab, s] = name.split('/');
     name = tab;
-    if (tab === 'ids' && ['inc', 'acc', 'blk', 'live', 'rules'].includes(s)) idsTab = s;
+    if (tab === 'ids' && ['inc', 'acc', 'blk', 'live', 'rules', 'anom', 'mitre'].includes(s)) idsTab = s;
     if (tab === 'vulns' && ['cve', 'leak'].includes(s)) vulnTab = s;
   }
   if (qs) {
@@ -5364,12 +5392,16 @@ async function loadIds() {
 }
 
 function showIdsTab() {
-  if (!['inc', 'acc', 'blk', 'live', 'rules'].includes(idsTab)) idsTab = 'inc';
+  if (!['inc', 'acc', 'blk', 'live', 'rules', 'anom', 'mitre'].includes(idsTab)) idsTab = 'inc';
   $$('#ids-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab));
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
+  const nAnom = ((idsData && idsData.incidents) || []).filter((i) => (i.type === 'chain' || i.type === 'anomaly') && i.status === 'open').length;
+  $('#it-n-anom').textContent = nAnom || '';
   if (idsTab === 'blk' && isAdmin()) loadBlocks();
   if (idsTab === 'live') loadEdrFeed();
   if (idsTab === 'rules') loadEdrRules();
+  if (idsTab === 'anom') loadAnom();
+  if (idsTab === 'mitre') loadMitre();
 }
 
 // ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
@@ -5425,6 +5457,102 @@ function renderEdrRules() {
         <td class="small mono">${r.tags.map((t) => `<a href="https://attack.mitre.org/techniques/${esc(t.replace('.', '/'))}/" target="_blank" rel="noopener">${esc(t)}</a>`).join(' ')}</td><td>${r.hits || ''}</td></tr>`).join('')}
       </tbody></table></div>`;
   });
+}
+
+// ---------------------------------------------------------------- IDS: 🧬 Afwijkingen, ketens en 🧭 MITRE (1.111.0)
+let anomData = null, anomDays = 7, mitreData = null, mitreDays = 30;
+const TACTIC_NL = {
+  reconnaissance: () => L('Verkennen'), 'resource-development': () => L('Voorbereiden'), 'initial-access': () => L('Binnenkomen'), execution: () => L('Uitvoeren'),
+  persistence: () => L('Blijven'), 'privilege-escalation': () => L('Rechten verhogen'), stealth: () => L('Verbergen'), 'defense-impairment': () => L('Beveiliging uitschakelen'),
+  'credential-access': () => L('Wachtwoorden stelen'), discovery: () => L('Rondkijken'), 'lateral-movement': () => L('Verder het netwerk in'), collection: () => L('Verzamelen'),
+  'command-and-control': () => L('Op afstand besturen'), exfiltration: () => L('Gegevens weghalen'), impact: () => L('Schade'),
+};
+const tacticName = (s) => (TACTIC_NL[s] || (() => s))();
+const techLink = (t) => `<a class="chip" href="https://attack.mitre.org/techniques/${esc(t.replace('.', '/'))}/" target="_blank" rel="noopener">${esc(t)}</a>`;
+const scoreTag = (n) => `<span class="score-tag ${n >= 60 ? 'crit' : n >= 40 ? 'warn' : ''}" title="${esc(L('Score: hoe ongewoon (0–100)'))}">${n}</span>`;
+function hostOptions(sel) {
+  if (sel.options.length < 2) sel.innerHTML += (state.hosts || []).filter((h) => h.mode === 'agent').map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('');
+}
+/** Stappen van een keten als tijdlijn (op de pagina en in het incidentvenster) */
+function chainSteps(steps, attr = 'data-inc') {
+  return `<ol class="chain-steps">${steps.map((s) => `<li class="${s.score >= 60 ? 'crit' : s.score >= 40 ? 'warn' : ''}">
+    <span class="cs-t">${esc(fmtDateTime(s.at))}</span>
+    <span class="cs-tac">${(s.tactics || []).slice(0, 2).map((t) => `<span class="chip tac">${esc(tacticName(t))}</span>`).join('')}</span>
+    <span class="cs-l">${s.ref ? `<button type="button" class="linklike" ${attr}="${s.ref}">${esc(s.label)}</button>` : esc(s.label)}
+      <span class="muted small">${s.src === 'anom' ? L('afwijking') : s.src === 'rule' ? L('regel') : 'IDS'}${(s.techs || []).length ? ' · ' + s.techs.slice(0, 3).map(esc).join(' ') : ''}</span></span></li>`).join('')}</ol>`;
+}
+async function loadAnom() {
+  const host = $('#anom-host').value;
+  try { anomData = await api('ids_anom', null, { days: anomDays, ...(host ? { host } : {}) }); } catch (ex) { $('#anom-learn').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  hostOptions($('#anom-host'));
+  const d = anomData;
+  $('#anom-info').textContent = !d.on ? L('Endpoint-bewaking staat uit (Instellingen → IDS → Endpoint-bewaking)') : !d.anom ? L('Afwijkingen staan uit (Instellingen → IDS → Endpoint-bewaking)') : '';
+  withMorph(() => {
+    $('#anom-learn').innerHTML = `<h3 class="set-sub" style="margin-top:0">🎓 ${L('Wat is normaal? (leren per server)')}</h3>
+      <p class="muted small">${L('Elke server leert {d} dagen wat normaal is: welke programma\'s, gebruikers, verbindingen en poorten. Daarna meldt RzMon wat die server nog nooit deed. Na een grote wijziging (nieuwe software) kun je hem opnieuw laten leren.', { d: d.learn_days })}</p>
+      ${d.hosts.length ? `<div class="table-scroll"><table class="vuln-table learn-table"><thead><tr><th>Server</th><th>${L('Leren')}</th><th>${L('Geleerd')}</th><th>${L('Afwijkingen (7 dagen)')}</th><th class="need-admin"></th></tr></thead><tbody>
+      ${d.hosts.map((h) => `<tr data-key="lh${h.id}"><td><b>${esc(h.name)}</b>${h.on ? '' : ` <span class="muted small">(${L('uit')})</span>`}</td>
+        <td>${h.learning ? `<span class="cl-meter"><span class="bar"><i style="width:${h.pct}%"></i></span> <span class="small">${L('dag {n} van {d}', { n: Math.max(1, h.day), d: h.days })}</span></span>`
+          : `✔ <span class="small">${L('klaar, meldt sinds {t}', { t: esc(fmtDateTime(h.until)) })}</span>`}</td>
+        <td class="small">${L('{n} kenmerken', { n: h.learned })}</td><td>${h.anoms || '<span class="muted">0</span>'}</td>
+        <td class="need-admin nowrap">${h.learning ? `<button type="button" class="btn small-btn" data-learn="finish" data-h="${h.id}">${L('Leren afronden')}</button>` : ''}
+          <button type="button" class="btn small-btn" data-learn="restart" data-h="${h.id}">↺ ${L('Opnieuw leren')}</button></td></tr>`).join('')}</tbody></table></div>`
+        : `<p class="muted">${L('Nog geen servers met endpoint-bewaking (agent 1.63.0 of nieuwer, en aan in de Agent Manager).')}</p>`}`;
+    $('#anom-chains').innerHTML = `<h3 class="set-sub" style="margin-top:0">🔗 ${L('Ketens')} <span class="muted small">${L('(laatste 30 dagen)')}</span></h3>
+      ${!d.chain ? `<p class="warn-txt small">${L('Ketens staan uit (Instellingen → IDS → Endpoint-bewaking).')}</p>` : ''}
+      ${d.chains.length ? d.chains.map((c) => `<div class="chain-card s${c.severity}" data-key="ch${c.id}">
+        <div class="chain-head">${c.severity === 2 ? '🔴' : '🟠'} <button type="button" class="linklike" data-inc="${c.id}"><b>${esc(c.title)}</b></button>
+          <span class="muted small">· ${esc(c.host)} · ${esc(fmtDateTime(c.created_at))}${c.hits > 1 ? ' · ' + L('{n}× gegroeid', { n: c.hits }) : ''} · ${c.status === 'open' ? `<b class="warn-txt">${L('open')}</b>` : '✔'}</span></div>
+        ${chainSteps(c.steps)}${c.done.length ? `<p class="small">⛔ ${esc(c.done.join(', '))}</p>` : ''}</div>`).join('')
+        : `<p class="muted">${L('Geen ketens 👌')}</p>`}
+      <details class="small"><summary>${L('Welke ketens herkent RzMon?')}</summary><ul>${Object.values(d.scenarios).map((s) => `<li><b>${esc(s.title)}</b>: ${esc(s.what)}</li>`).join('')}</ul></details>`;
+    $('#anom-list').innerHTML = `<h3 class="set-sub" style="margin-top:0">🧬 ${L('Afwijkingen')} <span class="muted small">${L('(vanaf score {n} ook een incident)', { n: d.min })}</span></h3>
+      ${d.anomalies.length ? `<div class="edr-list">${d.anomalies.map((a) => `<div class="edr-row" data-key="a${a.id}">
+        <span class="m-t" title="${esc(a.at)}">${esc(a.at.slice(5, 16).replace(' ', ' · '))}</span>${scoreTag(a.score)}
+        <span class="m-sv">${esc(a.host)}</span>
+        <span class="edr-sum">${a.ref ? `<button type="button" class="linklike" data-inc="${a.ref}">${esc(a.label)}</button>` : esc(a.label)}
+          ${a.tactics.slice(0, 2).map((t) => `<span class="chip tac">${esc(tacticName(t))}</span>`).join('')}</span></div>`).join('')}</div>`
+        : `<p class="muted">${d.hosts.some((h) => !h.learning) ? L('Geen afwijkingen 👌') : L('Nog niets: de servers zijn nog aan het leren.')}</p>`}`;
+  });
+}
+async function loadMitre() {
+  const host = $('#mitre-host').value;
+  try { mitreData = await api('ids_mitre', null, { days: mitreDays, ...(host ? { host } : {}) }); } catch (ex) { $('#mitre-matrix').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  hostOptions($('#mitre-host'));
+  renderMitre();
+}
+function renderMitre() {
+  const d = mitreData;
+  if (!d) return;
+  const cover = $('#mitre-cover').checked;
+  const total = d.tactics.reduce((s, t) => s + t.n, 0);
+  withMorph(() => {
+    $('#mitre-matrix').innerHTML = `<p class="muted small" style="margin-top:0">${L('Alles wat RzMon de laatste {d} dagen zag (regels, afwijkingen en IDS-meldingen), gerangschikt naar de stappen van een aanval volgens MITRE ATT&CK. Klik op een techniek voor de meldingen.', { d: d.days })}
+      ${total ? '' : ' <b>' + L('Niets gezien 👌') + '</b>'}</p>
+      <div class="mitre-scroll"><div class="mitre-grid">${d.tactics.map((t) => {
+        const techs = t.techs.filter((x) => x.n > 0 || (cover && x.nrules > 0));
+        return `<div class="mt-col ${t.n ? 'hit' : ''}" data-key="${esc(t.slug)}"><div class="mt-head" title="${esc(t.name + ' (' + t.id + ')')}"><b>${esc(t.nl)}</b><span class="muted small">${esc(t.name)}</span>${t.n ? `<span class="mt-n">${t.n}</span>` : ''}</div>
+          ${techs.map((x) => `<button type="button" class="mt-cell ${x.n ? (x.score >= 60 ? 'crit' : 'warn') : 'cov'}" data-mt="${esc(x.id)}" data-ta="${esc(t.slug)}"
+            title="${esc((x.id ? x.id + ' · ' : '') + x.name + (x.nrules ? '\n' + L('{n} regel(s) kunnen dit zien', { n: x.nrules }) + ': ' + x.rules.join(', ') : ''))}">
+            <span class="mono small">${esc(x.id || '–')}</span> ${esc(x.name)}${x.n ? ` <b class="mt-n">${x.n}</b>` : ` <span class="muted small">🛡 ${x.nrules}</span>`}</button>`).join('') || `<span class="muted small">–</span>`}</div>`;
+      }).join('')}</div></div>
+      <p class="muted small">${esc(d.source)}. ${esc(d.license)}</p>`;
+  });
+}
+async function mitreSignals(tech, tactic) {
+  const host = $('#mitre-host').value;
+  let d;
+  try { d = await api('ids_mitre', null, { days: mitreDays, tech, tactic, ...(host ? { host } : {}) }); } catch (ex) { return toast(ex.message, 'err'); }
+  const info = mitreData.tactics.find((t) => t.slug === tactic)?.techs.find((x) => x.id === tech) || {};
+  modal({
+    title: `🧭 ${esc(tech || L('overig'))} ${esc(info.name || '')}`,
+    wide: true,
+    body: `<p class="small" style="margin-top:0">${L('Stap: {t}', { t: esc(tacticName(tactic)) })}${tech ? ` · <a href="https://attack.mitre.org/techniques/${esc(tech.replace('.', '/'))}/" target="_blank" rel="noopener">${L('uitleg bij MITRE')}</a>` : ''}</p>
+      ${d.signals.length ? `<div class="edr-list">${d.signals.map((s) => `<div class="edr-row"><span class="m-t">${esc(s.at.slice(5, 16).replace(' ', ' · '))}</span>${scoreTag(s.score)}<span class="m-sv">${esc(s.host)}</span>
+        <span class="edr-sum">${s.ref ? `<button type="button" class="linklike" data-inc-step="${s.ref}">${esc(s.label)}</button>` : esc(s.label)} <span class="muted small">${s.src === 'anom' ? L('afwijking') : s.src === 'rule' ? L('regel') : 'IDS'}</span></span></div>`).join('')}</div>`
+        : `<p class="muted">${L('Geen meldingen in deze periode. Deze regels kunnen het zien:')}</p><ul class="small">${(info.rules || []).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`}`,
+  });
+  $$('#modal [data-inc-step]').forEach((b) => { b.onclick = () => incidentDialog(+b.dataset.incStep); });
 }
 
 // ---------------------------------------------------------------- IDS: bestanden bewaken
@@ -5937,7 +6065,16 @@ function inspectHtml(list) {
           <td class="small">${mark(v.ua, hit)}</td></tr>`; }).join('')}
       </tbody></table></div>`;
   }
-  for (const x of other.slice(0, 5)) {
+  for (const x of other.filter((y) => y.kind === 'chain').slice(0, 1)) {
+    const r = x.info || {};
+    html += `<div class="insp-ev"><div class="insp-head">🔗 <b>${esc(r.title || '')}</b> ${(r.tactics || []).map((t) => `<span class="chip tac">${esc(tacticName(t))}</span>`).join('')}
+        <span class="muted small">${esc(fmtDateTime(x.at))}</span></div>
+      ${chainSteps(x.ev.steps || [], 'data-inc-step')}
+      ${(x.ev._done || []).length ? `<p class="small">⛔ ${L('RzMon deed')}: ${esc(x.ev._done.join(', '))}</p>` : ''}
+      ${r.what ? `<p class="small muted">${esc(r.what)}</p>` : ''}
+      <p class="small">${(r.tags || []).map(techLink).join(' ')}</p></div>`;
+  }
+  for (const x of other.filter((y) => y.kind !== 'chain').slice(0, 5)) {
     const v = x.ev, r = x.info || {};
     const rows = {
       exec: [[L('Programma'), `<code>${esc(v.exe || v.comm)}</code>`], [L('Opdracht'), `<code class="insp-cmd">${esc(v.cmd || '')}</code>`], [L('Ouder'), esc(v.pc || '?')],
@@ -5947,7 +6084,7 @@ function inspectHtml(list) {
       audit: [[L('Pad'), `<code>${esc(v.name)}</code>`], [L('Door'), `<code>${esc(v.exe)}</code> (${esc(v.u || v.uid)})`], [L('Sleutel'), esc(v.key)]],
       ctr: [[L('Container'), `${esc(v.name)} <span class="muted">${esc(v.img || '')}</span>`], [L('Actie'), esc(v.act) + (+v.priv ? ' · --privileged' : '')], [L('Opdracht'), `<code>${esc(v.cmd || '')}</code>`]],
     }[x.kind] || [];
-    html += `<div class="insp-ev"><div class="insp-head">${EDR_KIND_IC[x.kind] || ''} <b>${esc(r.title || x.rule)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : 'RzMon'}</span>
+    html += `<div class="insp-ev"><div class="insp-head">${EDR_KIND_IC[x.kind] || ''} <b>${esc(r.title || x.rule)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : r.src === 'anomaly' ? L('Afwijking') : 'RzMon'}</span>
         ${(r.tags || []).map((t) => `<a class="chip" href="https://attack.mitre.org/techniques/${esc(t.replace('.', '/'))}/" target="_blank" rel="noopener">${esc(t)}</a>`).join('')}
         <span class="muted small">${esc(fmtDateTime(x.at))}</span></div>
       <table class="kv-table small">${rows.map(([k, val]) => `<tr><th>${k}</th><td>${val}</td></tr>`).join('')}
@@ -6000,6 +6137,7 @@ async function incidentDialog(id) {
   });
   const body = $('#modal-form');
   wireCopy(body);
+  $$('[data-inc-step]', body).forEach((b) => { b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); incidentDialog(+b.dataset.incStep); }; });
   if (a.ip) fillIpInfo($('#inc-ip'), a.ip);
   const reload = () => { $('#modal').close(); loadIds(); };
   body.onclick = async (e) => {

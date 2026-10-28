@@ -249,6 +249,7 @@ final class Installer
         ['hosts', 'edr_on', 'TINYINT(1) NOT NULL DEFAULT 1'],
         ['hosts', 'edr_info', 'TEXT NULL'],
         ['hosts', 'edr_at', 'DATETIME NULL'],
+        ['hosts', 'edr_learn_from', 'DATETIME NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

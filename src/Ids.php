@@ -772,7 +772,7 @@ final class Ids
     // ------------------------------------------------------------------ webshell en uitgaand (1.87.0)
 
     /** Vrijgeven of "Dit is normaal" gebruikt? (dan geen incident en niets stoppen) */
-    private static function ignored(int $hid, string $type, string $key): bool
+    public static function ignored(int $hid, string $type, string $key): bool
     {
         return (bool) q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'ignore' AND item = ?", [$hid, mb_substr("$type|$key", 0, 255)])->fetchColumn();
     }
@@ -941,6 +941,9 @@ final class Ids
                     }
                 }
             }
+            if ($k === 'ssh' && $ip !== '' && self::internalIp($ip)) {
+                Chain::lateral($ctx['host'], $ip, $user);   // vanaf een eigen server waar net een aanval was? (1.111.0)
+            }
             if ($special || AuthEvents::ignored([$user], $ip)) {
                 continue;
             }
@@ -1012,6 +1015,7 @@ final class Ids
         if ($prev) {
             q('UPDATE ids_incidents SET hits = hits + 1, last_seen = NOW(), title = ?, detail = ? WHERE id = ?',
                 [mb_substr($title, 0, 250), mb_substr($detail, 0, 1000), $prev]);
+            Chain::fromIncident($ctx['host'], $type, $key, $sev, $title, $ip, (int) $prev);
             return false;
         }
         // Land en bekende aanvaller (1.82.0)
@@ -1021,6 +1025,7 @@ final class Ids
         }
         q('INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip, cc) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [$hid, $sev, $type, $key, mb_substr($title, 0, 250), mb_substr($detail, 0, 1000), $ip !== null && $ip !== '' ? mb_substr($ip, 0, 45) : null, $cc]);
+        Chain::fromIncident($ctx['host'], $type, $key, $sev, $title, $ip, (int) db()->lastInsertId());
         if ($sev === 2) {
             self::notify($ctx['host']['name'] . ': ' . $title, $detail);
         }

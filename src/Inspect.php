@@ -31,6 +31,7 @@ final class Inspect
     public const EXPLOITS = [
         ['~/vendor/phpunit/.*/eval-stdin\.php~i', 'CVE-2017-9841', 'PHPUnit eval-stdin (code uitvoeren)'],
         ['~/_ignition/execute-solution~i', 'CVE-2021-3129', 'Laravel Ignition (code uitvoeren)'],
+        ['~/wp-file-manager/lib/php/connector\.minimal\.php~i', 'CVE-2020-25213', 'WordPress File Manager: bestanden uploaden zonder inloggen'],
         ['~/(cgi-bin|icons)/(\.%2e|%2e%2e|\.\.)/~i', 'CVE-2021-41773', 'Apache 2.4.49/50 path traversal'],
         ['~/remote/fgt_lang\?lang=/\.\./~i', 'CVE-2018-13379', 'Fortinet SSL-VPN bestanden lezen'],
         ['~/dana-na/~i', 'CVE-2019-11510', 'Pulse Secure VPN'],

@@ -285,6 +285,29 @@ final class IdsAdvice
                 $a['prevent'] = t('Houd websites en diensten achter SWAG bijgewerkt; zet alleen open wat echt van buiten bereikbaar moet zijn.');
                 break;
 
+            case 'anomaly':   // 1.111.0: iets wat deze server in de leerperiode nooit deed
+                $a['what'] = t('Deze server deed iets wat hij in de leerperiode nooit deed: {what}.', ['what' => preg_replace('/^[^:]+:\s*/u', '', (string) $inc['title'])]);
+                $a['risk'] = t('Meestal onschuldig: nieuwe software, een update of iets wat je zelf instelde. Verdacht als niemand iets veranderde, of als er tegelijk andere meldingen zijn (zie Ketens).');
+                $a['steps'] = [t('Was jij dit of een update? Klik "Ja, dit was ik". Het is al geleerd: het wordt niet nog eens gemeld.'),
+                    t('Niet: kijk bij het bewijs welk programma het was, wie het startte en waar het mee verbindt.')];
+                $a['cmds'] = [[t('Processen als boom, met hun verbindingen'), 'ps -ef --forest | head -120; sudo ss -tupn | grep -v 127.0.0.1']];
+                $a['prevent'] = t('Laat de server na een grote wijziging opnieuw leren (IDS → Afwijkingen), dan blijft de lijst rustig.');
+                break;
+
+            case 'chain':   // 1.111.0: meerdere signalen die samen op een aanval wijzen
+                $a['what'] = t('Meerdere dingen kort na elkaar die samen het verloop van een aanval vormen. De stappen staan hieronder, in volgorde.');
+                $a['risk'] = (int) $inc['severity'] === 2
+                    ? t('Ernstig: ga uit van een inbraak tot je elke stap kunt verklaren.')
+                    : t('Verdacht: elke stap los kan onschuldig zijn, samen is het de moeite van controleren waard.');
+                $a['steps'] = [t('Loop de stappen na: klik op een stap om het incident erbij te openen.'),
+                    t('Kun je ze niet verklaren: isoleer de server, verander wachtwoorden en SSH-sleutels, en zoek uit hoe het binnenkwam.'),
+                    t('Was jij het: klik "Ja, dit was ik". Deze soort keten wordt dan voor deze server niet meer gemeld.')];
+                $a['cmds'] = [[t('Wie is er ingelogd, en sinds wanneer'), 'w; last -n 20 | head -25'],
+                    [t('Processen als boom, met hun verbindingen'), 'ps -ef --forest | head -120; sudo ss -tupn | grep -v 127.0.0.1'],
+                    [t('Wat er net gebeurde (auditd)'), 'sudo ausearch -k rzmon_exec -ts recent -i 2>/dev/null | tail -60']];
+                $a['prevent'] = t('Gebruik SSH-sleutels in plaats van wachtwoorden, houd alles bijgewerkt en laat RzMon in de modus Blokkeren staan.');
+                break;
+
             case 'harden':
                 $h = Hardening::help($key);
                 $a['what'] = $h['what'];

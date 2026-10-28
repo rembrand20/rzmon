@@ -268,6 +268,22 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <button type="button" class="seg-btn" data-it="blk"><?= th('⛔ Blokkades') ?> <span class="it-n" id="it-n-blk"></span></button>
         <button type="button" class="seg-btn" data-it="live"><?= th('🛰️ Live') ?></button>
         <button type="button" class="seg-btn" data-it="rules"><?= th('🔏 Regels') ?></button>
+        <button type="button" class="seg-btn" data-it="anom"><?= th('🧬 Afwijkingen') ?> <span class="it-n" id="it-n-anom"></span></button>
+        <button type="button" class="seg-btn" data-it="mitre"><?= th('🧭 MITRE') ?></button>
+      </div>
+      <div class="ids-pane" data-pane="anom" hidden>
+        <div class="dash-bar"><select id="anom-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
+          <div class="seg" id="anom-days"><button type="button" class="seg-btn" data-ad="1"><?= th('24 uur') ?></button><button type="button" class="seg-btn active" data-ad="7"><?= th('7 dagen') ?></button><button type="button" class="seg-btn" data-ad="30"><?= th('30 dagen') ?></button></div>
+          <span class="muted small" id="anom-info"></span></div>
+        <div class="card" id="anom-learn"><p class="muted"><?= th('Laden…') ?></p></div>
+        <div class="card" id="anom-chains"></div>
+        <div class="card" id="anom-list"></div>
+      </div>
+      <div class="ids-pane" data-pane="mitre" hidden>
+        <div class="dash-bar"><select id="mitre-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
+          <div class="seg" id="mitre-days"><button type="button" class="seg-btn" data-md="7"><?= th('7 dagen') ?></button><button type="button" class="seg-btn active" data-md="30"><?= th('30 dagen') ?></button><button type="button" class="seg-btn" data-md="90"><?= th('90 dagen') ?></button></div>
+          <label class="switch small"><input type="checkbox" id="mitre-cover"><span></span> <?= th('Ook wat de regels kunnen zien') ?></label></div>
+        <div class="card" id="mitre-matrix"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="live" hidden>
         <div class="dash-bar"><select id="edr-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
@@ -683,6 +699,16 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label class="switch"><input type="checkbox" name="edr_block"><span></span> <?= t('<b>IP blokkeren</b> bij een webaanval met een herkende payload') ?></label>
           <label class="switch"><input type="checkbox" name="edr_isolate"><span></span> <?= t('<b>Server isoleren</b> (24 uur) bij een reverse shell of cryptominer: alleen RzMon en je LAN kunnen er dan nog bij') ?></label>
           <p class="muted small"><?= th('Wat RzMon zelf doet, staat altijd in het incident en gaat als critical ook naar Pushover. In de modus 🎓 Leren grijpt RzMon nooit in, maar meldt het wel.') ?></p>
+          <h3 class="set-sub"><?= th('🧬 Afwijkingen en ketens') ?></h3>
+          <label class="switch"><input type="checkbox" name="edr_anom"><span></span> <?= t('<b>Afwijkingen melden</b> (RzMon leert per server wat normaal is)') ?></label>
+          <div class="row">
+            <label><?= th('Leerperiode (dagen)') ?> <input name="edr_learn_days" type="number" min="1" max="90"></label>
+            <label><?= th('Incident vanaf score') ?> <span class="muted small"><?= th('(lager: alleen op de pagina)') ?></span> <input name="edr_anom_min" type="number" min="1" max="100"></label>
+          </div>
+          <label class="switch"><input type="checkbox" name="edr_chain"><span></span> <?= t('<b>Ketens melden</b> (combinaties die samen op een aanval wijzen)') ?></label>
+          <label><?= th('Venster voor een keten (minuten)') ?> <input name="edr_chain_min" type="number" min="5" max="1440"></label>
+          <label class="switch"><input type="checkbox" name="edr_chain_act"><span></span> <?= t('<b>Ingrijpen bij een keten</b> (aanvaller blokkeren; isoleren bij webshell of malware)') ?></label>
+          <p class="muted small"><?= t('Een afwijking is iets wat de server in de leerperiode nooit deed; boven de score wordt het een incident (warning). Een keten is een combinatie, zoals webaanval → webshell, inloggen → achterdeur of binnenhalen → contact naar buiten; die is critical en gaat naar Pushover. Ingrijpen gebeurt alleen in de modus ⛔ Blokkeren. Alles staat op <i>🛡️ IDS → 🧬 Afwijkingen</i> en <i>🧭 MITRE</i>.') ?></p>
         </div>
 
         <div data-sk="ids_attack" class="card" id="ids-attack-card">

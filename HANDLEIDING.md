@@ -2093,7 +2093,46 @@ De agent kijkt nu op het moment zelf mee op de server, en niet pas bij het volge
 - De sensoren draaien in de realtime-watcher (`rzmon-watch`), dus alleen met systemd. Die draait nu met `PrivateTmp=no`, anders ziet hij `/tmp` niet.
 - **Niet in de Home Assistant-add-on** en niet op TrueNAS SCALE (geen `auditd`); op Alpine zonder systemd alleen bij de gewone runs.
 - Een webapplicatie die zelf `exec()` gebruikt, kan de regel *webshell* raken. Klik dan *Dit is normaal*.
-- Gebeurtenissen worden 3 dagen bewaard, wat een server normaal doet 60 dagen (voor de afwijkingen in een volgende versie).
+- Gebeurtenissen worden 3 dagen bewaard, wat een server normaal doet 60 dagen (als iets 60 dagen niet meer voorkwam, is het weer nieuw), de meldingen voor ketens en MITRE 90 dagen.
+
+**🧬 Afwijkingen, ketens en MITRE** (vanaf 1.111.0)
+
+Bovenop de regels leert RzMon per server wat normaal is, en kijkt hij of losse meldingen samen een aanval vormen.
+
+- **Leren (standaard 14 dagen):** vanaf de eerste gebeurtenis van de endpoint-bewaking onthoudt RzMon per server welke programma's er draaien en wie ze start, welke gebruikers actief zijn, welke programma's luisteren en naar buiten verbinden (en naar welke landen), welke bestanden, bewaakte paden en container-images er zijn, en hoeveel er per uur gebeurt. In die periode wordt niets als afwijking gemeld.
+  - Op *🛡️ IDS → 🧬 Afwijkingen* zie je per server *dag 5 van 14* of *klaar*. Met **Leren afronden** stop je eerder; met **↺ Opnieuw leren** begint een server opnieuw (handig na een grote wijziging, zoals nieuwe software).
+- **Afwijkingen** (na de leerperiode): wat een server nog nooit deed, met een **score** van 0 tot 100:
+
+| Afwijking | Score |
+|---|---|
+| Een dienst (nginx, PHP, database, sshd …) start iets nieuws | 40 |
+| Nieuw programma dat luistert op het netwerk | 45 |
+| Een dienst maakt een nieuwe verbinding naar buiten | 40 |
+| Iemand voor het eerst actief na inloggen | 40 |
+| Nieuwe gebruiker die programma's uitvoert | 35 |
+| Nieuw programma buiten de systeemmappen; nieuw programmabestand (ELF) | 35 |
+| Eerste verbinding naar een nieuw land | 30 |
+| Iemand actief op een uur waarop dat nooit gebeurt; ongewoon veel nieuwe processen of verbindingen in een uur | 30 |
+| Nieuw bewaakt pad aangeraakt; nieuw container-image | 25–30 |
+| Nieuw systeemprogramma, nieuwe uitgaande poort, nieuw bestand | 10–20 |
+
+  - Vanaf **score 40** (instelbaar) wordt een afwijking een IDS-incident (🟠 warning), met het bewijs. Lager staat hij alleen op de pagina. Wat al door een regel gemeld is, telt niet nog eens als afwijking.
+  - Wat eenmaal gemeld is, is geleerd: hetzelfde komt niet nog eens.
+- **🔗 Ketens:** na elk rapport kijkt RzMon of de meldingen van die server van het laatste uur (instelbaar) samen het verloop van een aanval vormen. Alle meldingen tellen mee: regeltreffers, afwijkingen en de gewone IDS-incidenten (logins, brute force, webaanvallen, nieuwe gebruikers …).
+
+| Keten | Ernst | Wat RzMon doet (modus ⛔ Blokkeren) |
+|---|---|---|
+| **Webaanval gevolgd door code op de webserver** (de webserver start iets, of er komt een bestand in de webmap) | 🔴 | de aanvaller(s) blokkeren; de server isoleren als er een critical treffer bij zat (zoals een webshell) |
+| **Inloggen gevolgd door rechten of een achterdeur** (sudoers, nieuwe gebruiker, cron, systemd, SSH-sleutel) | 🔴 bij een verdachte login (nieuw IP, na brute force, ongewoon tijdstip), anders 🟠 | alleen melden |
+| **Programma binnengehaald en daarna contact naar buiten** | 🔴 | het IP van de bestemming blokkeren en de server isoleren |
+| **Meerdere stappen van een aanval** (3 of meer MITRE-tactieken) | 🔴 | alleen melden |
+| **Veel afwijkingen tegelijk** | 🟠 | alleen melden |
+| **Mogelijk verder het netwerk in** (een SSH-login vanaf een andere eigen server waar net een aanval was; werkt als het adres van die server in RzMon een IP-adres is) | 🔴 | alleen melden |
+
+  - Een keten wordt een IDS-incident met **alle stappen in volgorde** (klik op een stap voor dat incident). Ingrijpen gebeurt één keer, als de keten nieuw is; *Ingrijpen bij een keten* zet je los uit.
+  - *Ja, dit was ik* bij een keten: die soort keten wordt voor die server niet meer gemeld.
+- **🧭 MITRE** (*🛡️ IDS → 🧭 MITRE*): alle meldingen van de laatste 7, 30 of 90 dagen in de matrix van [MITRE ATT&CK](https://attack.mitre.org) (versie 20): per stap van een aanval (Binnenkomen, Uitvoeren, Blijven, Rechten verhogen …) de technieken die gezien zijn, hoe vaak en hoe ernstig. Klik op een techniek voor de meldingen. **Ook wat de regels kunnen zien** toont ook de technieken die de regels herkennen maar die nog niet voorkwamen (de dekking).
+- **Instellen:** *Instellingen → IDS → Endpoint-bewaking → 🧬 Afwijkingen en ketens*: afwijkingen aan/uit, de leerperiode, de score voor een incident, ketens aan/uit, het venster en of RzMon bij een keten ingrijpt.
 
 **Goed om te weten**
 - Werkt op Linux-servers met agent **1.35.0** of nieuwer. Werk de agents bij met de knop in de Agent Manager.

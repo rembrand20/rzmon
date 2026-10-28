@@ -12,6 +12,10 @@
 "T1567",
 "T1105"
 ],
+"tactics":[
+"exfiltration",
+"command-and-control"
+],
 "kinds":[
 "exec"
 ],
@@ -100,6 +104,9 @@
 "tags":[
 "T1548"
 ],
+"tactics":[
+"privilege-escalation"
+],
 "kinds":[
 "file"
 ],
@@ -132,6 +139,10 @@
 "author":"Nasreddine Bencherchali (Nextron Systems)",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_triple_cross_rootkit_execve_hijack.yml",
 "tags":[],
+"tactics":[
+"privilege-escalation",
+"stealth"
+],
 "kinds":[
 "exec"
 ],
@@ -173,6 +184,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/execve/lnx_auditd_coinminer.yml",
 "tags":[
 "T1068"
+],
+"tactics":[
+"privilege-escalation"
 ],
 "kinds":[
 "exec",
@@ -303,6 +317,9 @@
 "tags":[
 "T1531"
 ],
+"tactics":[
+"impact"
+],
 "kinds":[
 "exec"
 ],
@@ -336,6 +353,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_nice_shell_execution.yml",
 "tags":[
 "T1083"
+],
+"tactics":[
+"discovery"
 ],
 "kinds":[
 "exec"
@@ -384,6 +404,10 @@
 "T1592.004",
 "T1552.001"
 ],
+"tactics":[
+"reconnaissance",
+"credential-access"
+],
 "kinds":[
 "exec"
 ],
@@ -418,6 +442,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_susp_process_reading_sudoers.yml",
 "tags":[
 "T1592.004"
+],
+"tactics":[
+"reconnaissance"
 ],
 "kinds":[
 "exec"
@@ -471,6 +498,10 @@
 "tags":[
 "T1547.006"
 ],
+"tactics":[
+"persistence",
+"privilege-escalation"
+],
 "kinds":[
 "exec",
 "audit"
@@ -521,6 +552,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_susp_history_delete.yml",
 "tags":[
 "T1565.001"
+],
+"tactics":[
+"impact"
 ],
 "kinds":[
 "exec"
@@ -589,6 +623,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/execve/lnx_auditd_susp_cmds.yml",
 "tags":[
 "T1059.004"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "exec",
@@ -739,6 +776,10 @@
 "T1059.004",
 "T1027"
 ],
+"tactics":[
+"execution",
+"stealth"
+],
 "kinds":[
 "file"
 ],
@@ -774,6 +815,11 @@
 "tags":[
 "T1053.003"
 ],
+"tactics":[
+"privilege-escalation",
+"execution",
+"persistence"
+],
 "kinds":[
 "file"
 ],
@@ -807,6 +853,10 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/path/lnx_auditd_systemd_service_creation.yml",
 "tags":[
 "T1543.002"
+],
+"tactics":[
+"privilege-escalation",
+"persistence"
 ],
 "kinds":[
 "exec",
@@ -890,6 +940,9 @@
 "tags":[
 "T1014"
 ],
+"tactics":[
+"stealth"
+],
 "kinds":[
 "exec"
 ],
@@ -940,6 +993,9 @@
 "author":"@d4ns4n_, Nasreddine Bencherchali (Nextron Systems)",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_perl_reverse_shell.yml",
 "tags":[],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -1016,6 +1072,9 @@
 "T1059",
 "T1203"
 ],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -1088,6 +1147,10 @@
 "T1059.012",
 "T1529"
 ],
+"tactics":[
+"execution",
+"impact"
+],
 "kinds":[
 "exec"
 ],
@@ -1130,6 +1193,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_python_shell_os_system.yml",
 "tags":[
 "T1059"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "exec"
@@ -1208,6 +1274,9 @@
 "author":"Joseliyo Sanchez, @Joseliyo_Jstnk",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_susp_shell_child_process_from_parent_tmp_folder.yml",
 "tags":[],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -1254,6 +1323,9 @@
 "author":"Joseliyo Sanchez, @Joseliyo_Jstnk",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_susp_shell_script_exec_from_susp_location.yml",
 "tags":[],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -1328,6 +1400,9 @@
 "tags":[
 "T1036"
 ],
+"tactics":[
+"stealth"
+],
 "kinds":[
 "exec"
 ],
@@ -1383,6 +1458,9 @@
 "tags":[
 "T1070.006"
 ],
+"tactics":[
+"stealth"
+],
 "kinds":[
 "exec"
 ],
@@ -1432,6 +1510,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/execve/lnx_auditd_modify_system_firewall.yml",
 "tags":[
 "T1686"
+],
+"tactics":[
+"defense-impairment"
 ],
 "kinds":[
 "exec",
@@ -1580,6 +1661,9 @@
 "author":"@d4ns4n_, Nasreddine Bencherchali (Nextron Systems)",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_python_reverse_shell.yml",
 "tags":[],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -1628,6 +1712,10 @@
 "T1033",
 "T1007",
 "T1059.012"
+],
+"tactics":[
+"discovery",
+"execution"
 ],
 "kinds":[
 "exec"
@@ -1691,6 +1779,9 @@
 "tags":[
 "T1222.002"
 ],
+"tactics":[
+"defense-impairment"
+],
 "kinds":[
 "exec"
 ],
@@ -1732,6 +1823,10 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_av_kaspersky_av_disabled.yml",
 "tags":[
 "T1685"
+],
+"tactics":[
+"execution",
+"defense-impairment"
 ],
 "kinds":[
 "exec"
@@ -1779,6 +1874,10 @@
 "T1685",
 "T1690",
 "T1059.012"
+],
+"tactics":[
+"execution",
+"defense-impairment"
 ],
 "kinds":[
 "exec"
@@ -1831,6 +1930,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_iptables_flush_ufw.yml",
 "tags":[
 "T1686"
+],
+"tactics":[
+"defense-impairment"
 ],
 "kinds":[
 "exec"
@@ -1909,6 +2011,9 @@
 "tags":[
 "T1048.003"
 ],
+"tactics":[
+"exfiltration"
+],
 "kinds":[
 "exec"
 ],
@@ -1975,6 +2080,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_clear_syslog.yml",
 "tags":[
 "T1685.006"
+],
+"tactics":[
+"defense-impairment"
 ],
 "kinds":[
 "exec"
@@ -2232,6 +2340,9 @@
 "author":"Joseliyo Sanchez, @Joseliyo_Jstnk",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_nohup_susp_execution.yml",
 "tags":[],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -2273,6 +2384,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_git_shell_execution.yml",
 "tags":[
 "T1059"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "exec"
@@ -2327,6 +2441,10 @@
 "tags":[
 "T1003",
 "T1056.001"
+],
+"tactics":[
+"collection",
+"credential-access"
 ],
 "kinds":[
 "exec",
@@ -2391,6 +2509,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_flock_shell_execution.yml",
 "tags":[
 "T1083"
+],
+"tactics":[
+"discovery"
 ],
 "kinds":[
 "exec"
@@ -2457,6 +2578,12 @@
 "tags":[
 "T1574.006"
 ],
+"tactics":[
+"privilege-escalation",
+"persistence",
+"execution",
+"stealth"
+],
 "kinds":[
 "exec",
 "audit"
@@ -2499,6 +2626,10 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_dd_process_injection.yml",
 "tags":[
 "T1055.009"
+],
+"tactics":[
+"privilege-escalation",
+"stealth"
 ],
 "kinds":[
 "exec"
@@ -2543,6 +2674,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_xterm_reverse_shell.yml",
 "tags":[
 "T1059"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "exec"
@@ -2594,6 +2728,10 @@
 "tags":[
 "T1059.006",
 "T1027.010"
+],
+"tactics":[
+"execution",
+"stealth"
 ],
 "kinds":[
 "exec"
@@ -2664,6 +2802,10 @@
 "tags":[
 "T1027.011"
 ],
+"tactics":[
+"stealth",
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -2699,6 +2841,10 @@
 "T1033",
 "T1007",
 "T1059.012"
+],
+"tactics":[
+"discovery",
+"execution"
 ],
 "kinds":[
 "exec"
@@ -2749,6 +2895,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_chmod_targeting_sensitive_directories.yml",
 "tags":[
 "T1222.002"
+],
+"tactics":[
+"defense-impairment"
 ],
 "kinds":[
 "exec"
@@ -2910,6 +3059,10 @@
 "author":"TuanLe (GTSC)",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_usermod_susp_group.yml",
 "tags":[],
+"tactics":[
+"privilege-escalation",
+"persistence"
+],
 "kinds":[
 "exec"
 ],
@@ -2952,6 +3105,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_find_shell_execution.yml",
 "tags":[
 "T1083"
+],
+"tactics":[
+"discovery"
 ],
 "kinds":[
 "exec"
@@ -3019,6 +3175,11 @@
 "tags":[
 "T1053.003"
 ],
+"tactics":[
+"execution",
+"persistence",
+"privilege-escalation"
+],
 "kinds":[
 "exec"
 ],
@@ -3060,6 +3221,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_install_suspicious_packages.yml",
 "tags":[
 "T1553.004"
+],
+"tactics":[
+"defense-impairment"
 ],
 "kinds":[
 "exec"
@@ -3205,6 +3369,9 @@
 "tags":[
 "T1686"
 ],
+"tactics":[
+"defense-impairment"
+],
 "kinds":[
 "exec",
 "audit"
@@ -3284,6 +3451,9 @@
 "tags":[
 "T1136.001"
 ],
+"tactics":[
+"persistence"
+],
 "kinds":[
 "exec",
 "audit"
@@ -3344,6 +3514,10 @@
 "author":"Nasreddine Bencherchali (Nextron Systems)",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_bpf_kprob_tracing_enabled.yml",
 "tags":[],
+"tactics":[
+"execution",
+"stealth"
+],
 "kinds":[
 "exec"
 ],
@@ -3388,6 +3562,10 @@
 "tags":[
 "T1059",
 "T1083"
+],
+"tactics":[
+"execution",
+"discovery"
 ],
 "kinds":[
 "exec"
@@ -3466,6 +3644,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_netcat_reverse_shell.yml",
 "tags":[
 "T1059"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "exec"
@@ -3568,6 +3749,9 @@
 "T1106",
 "T1059"
 ],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec",
 "audit"
@@ -3628,6 +3812,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_clear_logs.yml",
 "tags":[
 "T1685.006"
+],
+"tactics":[
+"defense-impairment"
 ],
 "kinds":[
 "exec"
@@ -3730,6 +3917,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_webshell_detection.yml",
 "tags":[
 "T1505.003"
+],
+"tactics":[
+"persistence"
 ],
 "kinds":[
 "exec"
@@ -3860,6 +4050,9 @@
 "tags":[
 "T1083"
 ],
+"tactics":[
+"discovery"
+],
 "kinds":[
 "exec"
 ],
@@ -3908,6 +4101,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/network_connection/net_connection_lnx_back_connect_shell_dev.yml",
 "tags":[
 "T1059.004"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "net"
@@ -3964,6 +4160,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_disable_ufw.yml",
 "tags":[
 "T1686"
+],
+"tactics":[
+"defense-impairment"
 ],
 "kinds":[
 "exec"
@@ -4028,6 +4227,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_susp_sensitive_file_access.yml",
 "tags":[
 "T1565.001"
+],
+"tactics":[
+"impact"
 ],
 "kinds":[
 "exec"
@@ -4164,6 +4366,9 @@
 "tags":[
 "T1059"
 ],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -4232,6 +4437,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_susp_pipe_shell.yml",
 "tags":[
 "T1140"
+],
+"tactics":[
+"stealth"
 ],
 "kinds":[
 "exec"
@@ -4303,6 +4511,9 @@
 "tags":[
 "T1531"
 ],
+"tactics":[
+"impact"
+],
 "kinds":[
 "exec"
 ],
@@ -4336,6 +4547,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_awk_shell_spawn.yml",
 "tags":[
 "T1059"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "exec"
@@ -4404,6 +4618,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_celery_worker_shell_spawn.yml",
 "tags":[
 "T1059.004"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "exec"
@@ -4487,6 +4704,9 @@
 "tags":[
 "T1496"
 ],
+"tactics":[
+"impact"
+],
 "kinds":[
 "exec"
 ],
@@ -4537,6 +4757,11 @@
 "tags":[
 "T1059.012",
 "T1098"
+],
+"tactics":[
+"persistence",
+"execution",
+"privilege-escalation"
 ],
 "kinds":[
 "exec"
@@ -4590,6 +4815,9 @@
 "tags":[
 "T1685"
 ],
+"tactics":[
+"defense-impairment"
+],
 "kinds":[
 "exec",
 "audit"
@@ -4635,6 +4863,9 @@
 "tags":[
 "T1046"
 ],
+"tactics":[
+"discovery"
+],
 "kinds":[
 "exec"
 ],
@@ -4667,6 +4898,9 @@
 "author":"Nasreddine Bencherchali (Nextron Systems)",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_mkfifo_named_pipe_creation_susp_location.yml",
 "tags":[],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -4708,6 +4942,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_gcc_shell_execution.yml",
 "tags":[
 "T1083"
+],
+"tactics":[
+"discovery"
 ],
 "kinds":[
 "exec"
@@ -4776,6 +5013,9 @@
 "tags":[
 "T1036.003"
 ],
+"tactics":[
+"stealth"
+],
 "kinds":[
 "exec",
 "audit"
@@ -4832,6 +5072,10 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_susp_hktl_execution.yml",
 "tags":[
 "T1587"
+],
+"tactics":[
+"execution",
+"resource-development"
 ],
 "kinds":[
 "exec"
@@ -5021,6 +5265,9 @@
 "T1059.004",
 "T1203"
 ],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -5093,6 +5340,9 @@
 "T1587",
 "T1584"
 ],
+"tactics":[
+"resource-development"
+],
 "kinds":[
 "exec",
 "audit"
@@ -5152,6 +5402,9 @@
 "tags":[
 "T1222.002"
 ],
+"tactics":[
+"defense-impairment"
+],
 "kinds":[
 "exec",
 "audit"
@@ -5202,6 +5455,10 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/path/lnx_auditd_unix_shell_configuration_modification.yml",
 "tags":[
 "T1546.004"
+],
+"tactics":[
+"privilege-escalation",
+"persistence"
 ],
 "kinds":[
 "exec",
@@ -5271,6 +5528,10 @@
 "T1136",
 "T1059.012"
 ],
+"tactics":[
+"persistence",
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -5314,6 +5575,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/execve/lnx_auditd_change_file_time_attr.yml",
 "tags":[
 "T1070.006"
+],
+"tactics":[
+"stealth"
 ],
 "kinds":[
 "exec",
@@ -5387,6 +5651,9 @@
 "tags":[
 "T1071.001"
 ],
+"tactics":[
+"command-and-control"
+],
 "kinds":[
 "exec"
 ],
@@ -5429,6 +5696,9 @@
 "author":"@d4ns4n_",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_ruby_reverse_shell.yml",
 "tags":[],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -5487,6 +5757,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_base64_execution.yml",
 "tags":[
 "T1140"
+],
+"tactics":[
+"stealth"
 ],
 "kinds":[
 "exec"
@@ -5557,6 +5830,9 @@
 "tags":[
 "T1083"
 ],
+"tactics":[
+"discovery"
+],
 "kinds":[
 "exec"
 ],
@@ -5600,6 +5876,9 @@
 "tags":[
 "T1685.004"
 ],
+"tactics":[
+"defense-impairment"
+],
 "kinds":[
 "exec"
 ],
@@ -5641,6 +5920,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_env_shell_invocation.yml",
 "tags":[
 "T1059.004"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "exec"
@@ -5686,6 +5968,9 @@
 "author":"Nasreddine Bencherchali (Nextron Systems)",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/file_event/file_event_lnx_triple_cross_rootkit_lock_file.yml",
 "tags":[],
+"tactics":[
+"stealth"
+],
 "kinds":[
 "file"
 ],
@@ -5719,6 +6004,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/syscall/lnx_auditd_web_rce.yml",
 "tags":[
 "T1505.003"
+],
+"tactics":[
+"persistence"
 ],
 "kinds":[
 "exec",
@@ -5772,6 +6060,10 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_systemctl_mask_power_settings.yml",
 "tags":[
 "T1653"
+],
+"tactics":[
+"persistence",
+"impact"
 ],
 "kinds":[
 "exec"
@@ -5834,6 +6126,9 @@
 "author":"Nasreddine Bencherchali (Nextron Systems)",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_crontab_removal.yml",
 "tags":[],
+"tactics":[
+"stealth"
+],
 "kinds":[
 "exec"
 ],
@@ -5875,6 +6170,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_python_pty_spawn.yml",
 "tags":[
 "T1059"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "exec"
@@ -5957,6 +6255,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/execve/lnx_auditd_binary_padding.yml",
 "tags":[
 "T1027.001"
+],
+"tactics":[
+"stealth"
 ],
 "kinds":[
 "exec",
@@ -6052,6 +6353,9 @@
 "author":"@d4ns4n_",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_php_reverse_shell.yml",
 "tags":[],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -6111,6 +6415,9 @@
 "tags":[
 "T1685"
 ],
+"tactics":[
+"defense-impairment"
+],
 "kinds":[
 "exec",
 "audit"
@@ -6155,6 +6462,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/execve/lnx_auditd_data_exfil_wget.yml",
 "tags":[
 "T1048.003"
+],
+"tactics":[
+"exfiltration"
 ],
 "kinds":[
 "exec",
@@ -6206,6 +6516,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_wget_download_suspicious_directory.yml",
 "tags":[
 "T1105"
+],
+"tactics":[
+"command-and-control"
 ],
 "kinds":[
 "exec"
@@ -6285,6 +6598,9 @@
 "tags":[
 "T1593.003"
 ],
+"tactics":[
+"reconnaissance"
+],
 "kinds":[
 "exec"
 ],
@@ -6359,6 +6675,9 @@
 "tags":[
 "T1059"
 ],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -6411,6 +6730,10 @@
 "T1033",
 "T1007",
 "T1059.012"
+],
+"tactics":[
+"discovery",
+"execution"
 ],
 "kinds":[
 "exec"
@@ -6473,6 +6796,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_susp_history_recon.yml",
 "tags":[
 "T1592.004"
+],
+"tactics":[
+"reconnaissance"
 ],
 "kinds":[
 "exec"
@@ -6543,6 +6869,10 @@
 "tags":[
 "T1083",
 "T1552.001"
+],
+"tactics":[
+"discovery",
+"credential-access"
 ],
 "kinds":[
 "exec"
@@ -6624,6 +6954,9 @@
 "tags":[
 "T1059"
 ],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -6665,6 +6998,10 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/network_connection/net_connection_lnx_susp_malware_callback_port.yml",
 "tags":[
 "T1571"
+],
+"tactics":[
+"persistence",
+"command-and-control"
 ],
 "kinds":[
 "net"
@@ -6745,6 +7082,10 @@
 "tags":[
 "T1685",
 "T1489"
+],
+"tactics":[
+"defense-impairment",
+"impact"
 ],
 "kinds":[
 "exec"
@@ -6906,6 +7247,9 @@
 "tags":[
 "T1552.001"
 ],
+"tactics":[
+"credential-access"
+],
 "kinds":[
 "exec",
 "audit"
@@ -6960,6 +7304,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_rsync_shell_execution.yml",
 "tags":[
 "T1059"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "exec"
@@ -7038,6 +7385,9 @@
 "tags":[
 "T1082"
 ],
+"tactics":[
+"discovery"
+],
 "kinds":[
 "exec"
 ],
@@ -7082,6 +7432,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_security_tools_disabling.yml",
 "tags":[
 "T1686"
+],
+"tactics":[
+"defense-impairment"
 ],
 "kinds":[
 "exec"
@@ -7418,6 +7771,11 @@
 "T1685",
 "T1055.009"
 ],
+"tactics":[
+"privilege-escalation",
+"stealth",
+"defense-impairment"
+],
 "kinds":[
 "exec",
 "audit"
@@ -7512,6 +7870,9 @@
 "tags":[
 "T1059.004"
 ],
+"tactics":[
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -7547,6 +7908,10 @@
 "T1033",
 "T1007",
 "T1059.012"
+],
+"tactics":[
+"discovery",
+"execution"
 ],
 "kinds":[
 "exec"
@@ -7610,6 +7975,10 @@
 "tags":[
 "T1059.004",
 "T1036"
+],
+"tactics":[
+"execution",
+"stealth"
 ],
 "kinds":[
 "exec"
@@ -7692,6 +8061,10 @@
 "T1489",
 "T1499"
 ],
+"tactics":[
+"execution",
+"impact"
+],
 "kinds":[
 "exec",
 "audit"
@@ -7736,6 +8109,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/execve/lnx_auditd_susp_histfile_operations.yml",
 "tags":[
 "T1552.003"
+],
+"tactics":[
+"credential-access"
 ],
 "kinds":[
 "exec",
@@ -7797,6 +8173,10 @@
 "tags":[
 "T1564"
 ],
+"tactics":[
+"credential-access",
+"stealth"
+],
 "kinds":[
 "exec"
 ],
@@ -7839,6 +8219,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/syscall/lnx_auditd_clean_disable_dmesg_logs_via_syslog.yml",
 "tags":[
 "T1685.006"
+],
+"tactics":[
+"defense-impairment"
 ],
 "kinds":[
 "exec",
@@ -7895,6 +8278,11 @@
 "T1552",
 "T1005",
 "T1059.004"
+],
+"tactics":[
+"credential-access",
+"execution",
+"collection"
 ],
 "kinds":[
 "exec"
@@ -7964,6 +8352,10 @@
 "T1007",
 "T1059.012"
 ],
+"tactics":[
+"discovery",
+"execution"
+],
 "kinds":[
 "exec"
 ],
@@ -8024,6 +8416,9 @@
 "author":"Marie Euler",
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/auditd/lnx_auditd_susp_c2_commands.yml",
 "tags":[],
+"tactics":[
+"command-and-control"
+],
 "kinds":[
 "exec",
 "audit"
@@ -8058,6 +8453,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_bpftrace_unsafe_option_usage.yml",
 "tags":[
 "T1059.004"
+],
+"tactics":[
+"execution"
 ],
 "kinds":[
 "exec"
@@ -8100,6 +8498,10 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_ssm_agent_abuse.yml",
 "tags":[
 "T1219.002"
+],
+"tactics":[
+"command-and-control",
+"persistence"
 ],
 "kinds":[
 "exec"
@@ -8145,6 +8547,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_cp_passwd_or_shadow_tmp.yml",
 "tags":[
 "T1552.001"
+],
+"tactics":[
+"credential-access"
 ],
 "kinds":[
 "exec"
@@ -8214,6 +8619,9 @@
 "src":"https://github.com/SigmaHQ/sigma/blob/master/rules/linux/process_creation/proc_creation_lnx_base64_shebang_cli.yml",
 "tags":[
 "T1140"
+],
+"tactics":[
+"stealth"
 ],
 "kinds":[
 "exec"
