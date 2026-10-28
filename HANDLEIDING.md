@@ -2215,10 +2215,11 @@ Wat RzMon zelf doet of veroorzaakt, houdt het IDS nooit tegen. Het wordt wel gel
 
 **Gebundelde incidenten doorlopen** (vanaf 1.116.0)
 
-- Staan er meer incidenten van dezelfde soort op dezelfde server en dag (*8×* in de lijst), dan staan onderin het incidentvenster **nummers**: ‹ 1 2 3 … 8 ›. Per nummer een stip: • open, ✔ afgehandeld. Rechts: *3 van 8 · ✔ 2 afgehandeld · 6 open*.
+- Staan er meer incidenten van dezelfde soort op dezelfde server achter elkaar, dan staan ze in de lijst als één regel met een **blauw bolletje** (*8×*). **Klik op het bolletje** om ze in de lijst open te klappen; **klik op de titel** voor het incidentvenster. Ga met de muis over het bolletje voor de server, hoeveel er open zijn en van hoe laat tot hoe laat.
+- Is één incident vaker gezien, dan staat er een **paars bolletje** (*3×*); met de muis erover zie je wanneer het eerst en laatst gezien is.
+- In het incidentvenster staan onderin **nummers** voor precies de incidenten van die regel (vanaf 1.118.0): ‹ 1 2 3 … 8 ›. Per nummer een stip: • open, ✔ afgehandeld. Rechts: *3 van 8 · ✔ 2 afgehandeld · 6 open*. Een los incident heeft geen nummers.
 - Bladeren kan ook met de **pijltjestoetsen ← →**.
 - Klik je **Afhandelen**, **Dit is normaal** of **Heropenen**, dan gaat het venster vanzelf door naar het volgende open incident van de bundel. Is alles afgehandeld, dan sluit het.
-- Met **▶ Doorlopen** achter het aantal in de lijst open je de bundel meteen bij het eerste incident.
 - Is één incident vaker gezien (meerdere gebeurtenissen in *Inspectie*), dan kies je met **Gebeurtenis 1 2 3 …** welke je ziet; de nieuwste staat voorop.
 - Bij een afgehandeld incident staat bovenin wie het afhandelde en wanneer.
 

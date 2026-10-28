@@ -5560,8 +5560,6 @@ return [
     'Vorige (←)' => 'Previous (←)',
     'Volgende (→)' => 'Next (→)',
     '{p} van {n} · ✔ {d} afgehandeld · {o} open' => '{p} of {n} · ✔ {d} handled · {o} open',
-    'Eén voor één bekijken en afhandelen' => 'Review and handle one by one',
-    'Doorlopen' => 'Step through',
     '<b>Moderne weergave</b> van de pagina IDS (score, Nu aandacht nodig, serverkaarten, grafiek)' => '<b>Modern view</b> of the IDS page (score, Needs attention now, server cards, chart)',
     'Uit: de compacte weergave van vóór 1.117.0, met de modus als tegel en de servers als regels.' => 'Off: the compact view from before 1.117.0, with the mode as a tile and the servers as rows.',
     'Actie nodig' => 'Action needed',
@@ -5580,4 +5578,6 @@ return [
     'Aanvallen per dag' => 'Attacks per day',
     '14 dagen · {n} incidenten' => '14 days · {n} incidents',
     'Servers met open incidenten' => 'Servers with open incidents',
+    'Dit incident is {n}× gezien · eerst {a} · laatst {b}' => 'This incident was seen {n}× · first {a} · last {b}',
+    '{n} incidenten van deze soort op {host} ({o} open) · van {a} tot {b} · klik om ze te tonen; klik op de titel om ze één voor één te bekijken' => '{n} incidents of this kind on {host} ({o} open) · from {a} to {b} · click to show them; click the title to review them one by one',
 ];

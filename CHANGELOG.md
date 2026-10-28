@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.118.0 – 2026-10-28
+### Nieuw
+- **Bolletjes bij incidenten** (*IDS → Incidenten*): een bundel heeft een **blauw bolletje** (*7×*), een incident dat vaker gezien is een **paars bolletje** (*3×*) in plaats van de grijze *(3×)*. Met de muis erover zie je meer: bij een bundel de server, hoeveel open en van hoe laat tot hoe laat; bij een herhaling wanneer het eerst en laatst gezien is.
+- Klik op het blauwe bolletje om de bundel open te klappen (zoals voorheen), en op de titel voor het incidentvenster.
+
+### Opgelost
+- De nummers onderin het incidentvenster lopen nu alleen door de incidenten van de regel waarop je klikte. Eerder kwamen er ook incidenten van dezelfde soort uit andere regels van die dag bij (bijvoorbeeld al afgehandelde).
+- De knop **▶ Doorlopen** is weg: klik op de titel.
+
 ## 1.117.0 – 2026-10-28
 ### Nieuw
 - **De pagina IDS in de stijl van het dashboard** (boven alle tabbladen):

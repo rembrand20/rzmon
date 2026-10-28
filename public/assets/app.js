@@ -1274,10 +1274,8 @@ function init() {
     if (e.target.closest('[data-ids-attn-more]')) { idsAttnOpen = !idsAttnOpen; return renderIdsAttention(idsData.incidents.filter((i) => i.status === 'open')); }
     const ih = e.target.closest('[data-ihost]');
     if (ih) { const h = idsData.hosts.find((x) => +x.id === +ih.dataset.ihost); idsFilter = 'open'; idsCat = ''; $('#ids-search').value = h ? h.name : ''; showTab('ids/inc'); renderIds(); return $('#ids-incidents').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
-    const walk = e.target.closest('[data-inc-walk]');
-    if (walk) { const ids = walk.dataset.incWalk.split(',').map(Number); const nav = incidentNav(ids[0]); return incidentDialog(ids[0], nav.length ? nav : ids); }
     const io = e.target.closest('[data-inc]');
-    if (io) return incidentDialog(+io.dataset.inc);
+    if (io) return incidentDialog(+io.dataset.inc, io.dataset.incList ? io.dataset.incList.split(',').map(Number) : null);
     const b = e.target.closest('[data-ids], [data-unblock], [data-rebase]');
     if (!b) return;
     try {
@@ -6112,8 +6110,9 @@ function renderIds() {
           <span class="muted small ad-total">${items.length === 1 ? L('1 incident') : L('{n} incidenten', { n: items.length })}</span></summary>
         <div class="ad-body">${bundleRuns(items, (i) => `${i.type}|${i.host_id}|${i.status}`, true).map((g) => {
           if (g.items.length === 1) return idsRow(g.items[0]);
+          // In het venster loop je met de nummers door precies de incidenten van deze bundel
           const key = 'i' + g.items[g.items.length - 1].id;
-          return `<div class="bundle${idsBundles.has(key) ? ' open' : ''}" data-bundle="${key}">${idsRow(g.items[0], g.items)}${g.items.slice(1).map((i) => idsRow(i)).join('')}</div>`;
+          return `<div class="bundle${idsBundles.has(key) ? ' open' : ''}" data-bundle="${key}">${idsRow(g.items[0], g.items, g.items)}${g.items.slice(1).map((i) => idsRow(i, null, g.items)).join('')}</div>`;
         }).join('')}</div></details>`;
     }).join('');
     $$('.alert-day', el).forEach((det) => (det.ontoggle = () => { idsDayOpen[det.dataset.day] = det.open; idsToggleLabel(); }));
@@ -6365,16 +6364,6 @@ function inspectHtml(list) {
   return `<h3 class="set-sub">🔎 ${L('Inspectie')}</h3>${html}`;
 }
 
-/**
- * Incidenten die in de lijst samen gebundeld staan (zelfde soort, server en dag), in de volgorde van de lijst: daar loop
- * je in het venster met nummers doorheen (1.116.0). Alle statussen, zodat je ziet wat al afgehandeld is.
- */
-function incidentNav(id) {
-  const all = (idsData && idsData.incidents) || [];
-  const me = all.find((x) => +x.id === +id);
-  if (!me) return [];
-  return all.filter((x) => x.type === me.type && +x.host_id === +me.host_id && x.created_at.slice(0, 10) === me.created_at.slice(0, 10)).map((x) => +x.id);
-}
 document.addEventListener('keydown', (e) => {
   const m = $('#modal');
   if (!m || !m.open || !m.dataset.incNav || e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ''))) return;
@@ -6408,7 +6397,7 @@ function incidentPager(nav, id) {
 async function incidentDialog(id, nav = null) {
   let d;
   try { d = await api('ids_incident_info', null, { id }); } catch (ex) { toast(ex.message, 'err'); return; }
-  nav = nav && nav.includes(+id) ? nav : incidentNav(id);
+  nav = nav && nav.includes(+id) ? nav : [+id];   // alleen de incidenten van de regel waarop je klikte (1.118.0)
   const i = d.incident, a = d.advice;
   const open = i.status === 'open';
   const agentHost = i.host_mode === 'agent';
@@ -6507,8 +6496,8 @@ async function incidentDialog(id, nav = null) {
   };
 }
 
-/** Eén incident als compacte rij; group = alle incidenten van een bundel (dan met 3× en een knop voor allemaal) */
-function idsRow(i, group = null) {
+/** Eén incident als compacte rij; group = alle incidenten van een bundel (dan met 3× en een knop voor allemaal); nav = de bundel voor de nummers in het venster */
+function idsRow(i, group = null, nav = null) {
   const sev = +i.severity === 2 ? 2 : 1;
   const done = i.status !== 'open';
   const fim = i.type === 'fim' || i.type === 'fim_bulk';
@@ -6521,8 +6510,7 @@ function idsRow(i, group = null) {
   const many = group && !done ? group.filter((x) => x.status === 'open').map((x) => x.id).join(',') : '';
   return `<div class="irow s${sev} ${done ? 'ids-done' : ''}">
     <i class="adot s${sev}"></i>
-    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}${actChips(((idsData && idsData.prot) || {})[i.id])}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort – klik om ze te tonen', { n: group.length }))}">${group.length}×</button>
-        <button type="button" class="linklike walk" data-inc-walk="${group.map((x) => x.id).join(',')}" title="${esc(L('Eén voor één bekijken en afhandelen'))}">▶ ${L('Doorlopen')}</button>` : ''}
+    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" ${nav && nav.length > 1 ? `data-inc-list="${nav.map((x) => x.id).join(',')}"` : ''} title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${actChips(((idsData && idsData.prot) || {})[i.id])}${+i.hits > 1 ? ` <span class="rep hits" tabindex="0" title="${esc(L('Dit incident is {n}× gezien · eerst {a} · laatst {b}', { n: i.hits, a: fmtDateTime(i.created_at), b: fmtDateTime(i.last_seen || i.created_at) }))}">${i.hits}×</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort op {host} ({o} open) · van {a} tot {b} · klik om ze te tonen; klik op de titel om ze één voor één te bekijken', { n: group.length, host: i.host_name, o: group.filter((x) => x.status === 'open').length, a: group[group.length - 1].created_at.slice(11, 16), b: group[0].created_at.slice(11, 16) }))}">${group.length}×</button>` : ''}
       <small>${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>${ccTag(i.cc)}` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</small></span>
     <span class="m-sv">${esc(i.host_name)}</span>
     <span class="m-t" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))}</span>

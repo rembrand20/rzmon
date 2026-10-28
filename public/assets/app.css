@@ -1282,6 +1282,7 @@ details.adv[open] { padding-bottom: .6rem; }
 .bundle:not(.open) > .mrow + .mrow { display: none; }
 .bundle.open > .mrow + .mrow { background: color-mix(in srgb, var(--primary) 4%, transparent); }
 .bundle.open .rep { background: var(--primary); color: #fff; }
+.rep.hits, .bundle.open .rep.hits { color: color-mix(in srgb, var(--maint) 75%, var(--text)); background: color-mix(in srgb, var(--maint) 22%, transparent); cursor: help; }   /* 1.118.0: zo vaak gezien (één incident) */
 @media (max-width: 720px) {
   .mrow { grid-template-columns: 40px 10px minmax(0, 1fr) auto; gap: .55rem; padding: .5rem .8rem; }
   .m-sv { display: none; }
@@ -1800,7 +1801,6 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .pg-n.open i { color: var(--warn); } .pg-n.done i { color: var(--ok); }
 .pg-n.on { background: var(--primary); color: #fff; border-color: var(--primary); } .pg-n.on i { color: #fff; }
 .pg-n:hover, .pg-arrow:hover { border-color: var(--primary); } .pg-gap { color: var(--muted); padding: 0 .2rem; }
-.walk { margin-left: .35rem; font-size: .75rem; font-weight: 600; color: var(--primary); }
 .ev-pager { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; margin: .3rem 0; } .ev-pager .pg-n { min-width: 1.8rem; height: 1.8rem; }
 
 /* 1.117.0: IDS-pagina in de stijl van het dashboard */
