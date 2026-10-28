@@ -1157,14 +1157,16 @@ function init() {
   let idsSearchT;
   $('#ids-search').addEventListener('input', () => { clearTimeout(idsSearchT); idsSearchT = setTimeout(renderIds, 200); });
   $('#acc-search').addEventListener('input', () => { clearTimeout(idsSearchT); idsSearchT = setTimeout(renderAccess, 200); });
-  $('#ids-counts').addEventListener('click', (e) => {
+  const idsGo = (e) => {
     const b = e.target.closest('[data-igo]');
     if (!b) return;
     idsTab = b.dataset.igo;
     if (idsTab === 'acc') { accFilter = b.dataset.fail ? 'fail' : 'all'; $$('#acc-filter .seg-btn').forEach((x) => { x.classList.toggle('active', x.dataset.ac === accFilter); x.classList.toggle('on', x.dataset.ac === accFilter); }); renderAccess(); }
     if (idsTab === 'inc') { idsFilter = 'open'; idsCat = ''; renderIds(); }
     showIdsTab();
-  });
+  };
+  $('#ids-counts').addEventListener('click', idsGo);
+  $('#ids-kpis').addEventListener('click', idsGo);
   $('#ids-toggle').onclick = () => {
     const days = $$('#ids-incidents .alert-day');
     const all = days.every((x) => x.open);
@@ -1269,6 +1271,9 @@ function init() {
     if (e.target.closest('#ids-incidents') && toggleBundle(e)) return;
     const hsb = e.target.closest('[data-hostsec]');
     if (hsb) return hostSecDialog(+hsb.dataset.hostsec);
+    if (e.target.closest('[data-ids-attn-more]')) { idsAttnOpen = !idsAttnOpen; return renderIdsAttention(idsData.incidents.filter((i) => i.status === 'open')); }
+    const ih = e.target.closest('[data-ihost]');
+    if (ih) { const h = idsData.hosts.find((x) => +x.id === +ih.dataset.ihost); idsFilter = 'open'; idsCat = ''; $('#ids-search').value = h ? h.name : ''; showTab('ids/inc'); renderIds(); return $('#ids-incidents').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
     const walk = e.target.closest('[data-inc-walk]');
     if (walk) { const ids = walk.dataset.incWalk.split(',').map(Number); const nav = incidentNav(ids[0]); return incidentDialog(ids[0], nav.length ? nav : ids); }
     const io = e.target.closest('[data-inc]');
@@ -5900,6 +5905,114 @@ function accLast24() {
   return [ok, fail, hours];
 }
 
+let idsAttnOpen = false;   // "Nu aandacht nodig" op de IDS-pagina: alles tonen (anders 5)
+
+/** Leren of Blokkeren als pil in de tellerbalk (1.117.0); klik = naar de instellingen */
+function idsModePill(d) {
+  if (!d.enabled) return `<a class="mode-pill off" href="#settings/ids" data-goto="settings/ids">⚠️ ${L('IDS staat uit')}</a>`;
+  return `<a class="mode-pill ${d.mode === 'block' ? 'block' : 'learn'}" href="#settings/ids" data-goto="settings/ids" title="${esc(d.mode === 'block' ? L('brute force wordt gemeld én geblokkeerd') : L('alles wordt gemeld, er wordt niets geblokkeerd'))}">${d.mode === 'block' ? '⛔ ' + L('Blokkeren') : '🎓 ' + L('Leren')}</a>`;
+}
+
+/** Score-tegel met ring (1.117.0): gemiddelde hardening van de bewaakte servers, de toestand uit de open incidenten */
+function idsScoreTile(d, open, o2) {
+  const scores = d.hosts.filter((h) => !h.ha && h.hard && h.hard.score !== null).map((h) => +h.hard.score);
+  const score = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+  const chains = open.filter((i) => i.type === 'chain').length;
+  const st = !d.enabled ? 'warn' : o2 || chains ? 'bad' : open.length ? 'warn' : 'ok';
+  const label = !d.enabled ? L('IDS staat uit') : o2 || chains ? L('Actie nodig') : open.length ? L('Aandacht') : L('Rustig');
+  return `<div class="kpi kpi-main ${st}" data-igo="inc" title="${esc(L('Klik: de open incidenten'))}">
+    <div class="ring" style="--p:${score ?? 0}" title="${esc(L('Gemiddelde hardening-score van je servers'))}"><span data-flash>${score ?? '–'}</span></div>
+    <div class="kpi-txt"><div class="kpi-state">${{ ok: '🟢', warn: '🟠', bad: '🔴' }[st]} ${label}</div>
+      <div class="kpi-sub">${open.length ? [o2 ? `${o2} critical` : '', open.length - o2 ? `${open.length - o2} warning` : '', chains ? L('{n} aanvalsketen(s)', { n: chains }) : ''].filter(Boolean).join(' · ') : L('niets open')}</div>
+      <div class="kpi-sub">🛡️ ${score === null ? L('nog geen hardening-score') : L('hardening gemiddeld {n}', { n: score })}</div></div></div>`;
+}
+
+/** Nu aandacht nodig (1.117.0): open critical-incidenten en aanvalsketens, nieuwste eerst; maximaal 5, de rest uitklappen */
+function renderIdsAttention(open) {
+  const box = $('#ids-attn');
+  const list = open.filter((i) => +i.severity === 2 || i.type === 'chain');
+  if (!list.length) {
+    box.innerHTML = `<div class="attn-ok">✔ ${L('Niets dringends')} 👌${open.length ? ` <span class="muted small">· ${L('{n} warning(s) open', { n: open.length })}</span>` : ''}</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="sec-h"><h2>⚠️ ${L('Nu aandacht nodig')}</h2><span>${list.length === 1 ? L('1 incident') : L('{n} incidenten', { n: list.length })} · ${L('critical en aanvalsketens')}</span></div>
+    <div class="attn ids-attn-l ${idsAttnOpen ? 'all' : ''}">${list.map((i) => `<div class="arow">
+      <i class="adot s2"></i>
+      <span class="a-srv">${esc(i.host_name)}</span>
+      <button type="button" class="a-chk linklike" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${i.type === 'chain' ? '🔗 ' : ''}${esc(i.title)}</button>
+      <span class="a-msg">${esc(i.detail || '')}</span>
+      <span class="a-since">${dur(i.created_at)}</span>
+      <span class="a-acts need-admin"><button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">✔ ${L('Afhandelen')}</button>${i.ip ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}" title="${esc(L('Blokkeer IP'))}">⛔</button>` : ''}</span>
+    </div>`).join('')}
+    ${list.length > 3 ? `<button type="button" class="attn-more ${list.length > 5 ? '' : 'mob-only'}" data-ids-attn-more>${idsAttnOpen ? '▴ ' + L('Minder tonen') : '▾ ' + L('Alle {n} tonen', { n: list.length })}</button>` : ''}</div>`;
+}
+
+/** Incidenten per dag van één server, de laatste n dagen: [[dag, aantal, critical], …] */
+function idsPerDay(hostId, n) {
+  const out = [];
+  for (let k = n - 1; k >= 0; k--) {
+    const t = new Date(idsData.today + 'T12:00:00');
+    t.setDate(t.getDate() - k);
+    const day = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    const xs = idsData.incidents.filter((i) => (hostId === null || +i.host_id === +hostId) && i.created_at.slice(0, 10) === day);
+    out.push([day, xs, xs.filter((i) => +i.severity === 2).length]);
+  }
+  return out;
+}
+
+/** Kaart van een server met open incidenten (1.117.0): aantallen, hardening, blokkades en een staafje per dag (7 dagen) */
+function idsHostCard(h) {
+  const n = h.open[1] + h.open[2];
+  const hs = h.hard && h.hard.score !== null ? +h.hard.score : null;
+  const days = idsPerDay(h.id, 7);
+  const max = Math.max(1, ...days.map((x) => x[1].length));
+  const bars = days.map(([day, xs, c], k) => `<rect class="${c ? 'c' : xs.length ? 'w' : 'z'}" x="${k * 14 + 1}" y="${xs.length ? 26 - Math.max(3, xs.length / max * 24) : 24}" width="11" height="${xs.length ? Math.max(3, xs.length / max * 24) : 2}" rx="2"><title>${esc(dayLabel(day, idsData.today))}: ${xs.length}</title></rect>`).join('');
+  return `<article class="ids-card ${h.open[2] ? 's2' : 's1'}">
+    <div class="ic-head"><span class="ok-ic">🖥️</span><span class="ok-nm"><strong>${esc(h.name)}</strong><small>${h.last_report ? L('IDS-rapport {ago}', { ago: ago(h.last_report) }) : L('nog geen IDS-rapport (agent 1.35.0+)')}</small></span>
+      <button type="button" class="hard-chip ${hs === null ? '' : hs >= 85 ? 'good' : hs >= 60 ? 'warn' : 'bad'}" data-hostsec="${h.id}" title="${esc(L('Hardening, isoleren en gebruikers'))}">🛡️ ${hs === null ? '–' : hs}</button></div>
+    <div class="ic-nums">
+      <button type="button" class="ic-n" data-ihost="${h.id}" title="${esc(L('Toon de open incidenten van deze server'))}"><b class="${h.open[2] ? 'danger-txt' : 'warn-txt'}">${n}</b><small>${L('open')}</small></button>
+      <span class="ic-n"><b>${h.open[2]}</b><small>critical</small></span>
+      <span class="ic-n"><b>${h.blocks || 0}</b><small>${L('geblokkeerd')}</small></span>
+      <svg class="ic-spark" viewBox="0 0 98 26" role="img" aria-label="${esc(L('Incidenten per dag, 7 dagen'))}">${bars}</svg>
+    </div>
+    ${h.iso ? `<div class="small"><span class="iso-chip">🧱 ${h.iso.isolate_until ? L('geïsoleerd tot {t}', { t: esc(fmtUntil(h.iso.isolate_until)) }) : esc(h.iso.isolate_state)}</span></div>` : ''}
+  </article>`;
+}
+
+/** Aanvallen per dag (1.117.0): 14 dagen, gestapeld per soort; uitklapbaar en standaard dicht */
+const IDS_CHART = [['login', () => L('Logins'), ['logins', 'decoy']], ['web', () => L('Web'), ['web', 'weblog']], ['net', () => L('Netwerk'), ['ports', 'net']],
+  ['host', () => L('Processen en bestanden'), ['procs', 'files']], ['other', () => L('Overig'), null]];
+function renderIdsChart() {
+  const box = $('#ids-chart');
+  let isOpen = false;
+  try { isOpen = localStorage.getItem('rzmon-ids-chart') === '1'; } catch (e) { /* standaard dicht */ }
+  const days = idsPerDay(null, 14);
+  const grp = (i) => { const c = idsCatOf(i); return (IDS_CHART.find((g) => g[2] && g[2].includes(c)) || IDS_CHART[4])[0]; };
+  const rows = days.map(([day, xs]) => [day, IDS_CHART.map(([k]) => xs.filter((i) => grp(i) === k).length)]);
+  const total = rows.reduce((a, [, v]) => a + v.reduce((x, y) => x + y, 0), 0);
+  const sums = IDS_CHART.map((g, k) => rows.reduce((a, [, v]) => a + v[k], 0));
+  const max = Math.max(1, ...rows.map(([, v]) => v.reduce((x, y) => x + y, 0)));
+  const W = 700, H = 120, bw = W / 14;
+  const bars = rows.map(([day, v], k) => {
+    let y = H;
+    const segs = v.map((n, s) => {
+      if (!n) return '';
+      const h = n / max * (H - 8);
+      y -= h;
+      return `<rect class="ser-${s + 1}" x="${k * bw + 6}" y="${y.toFixed(1)}" width="${bw - 12}" height="${Math.max(1, h - 2).toFixed(1)}" rx="3"/>`;
+    }).join('');
+    const tip = `${dayLabel(day, idsData.today)}: ${v.reduce((x, y2) => x + y2, 0)}\n` + IDS_CHART.map(([, l], s) => v[s] ? `${l()}: ${v[s]}` : '').filter(Boolean).join('\n');
+    return `<g class="ch-col"><rect class="ch-hit" x="${k * bw}" y="0" width="${bw}" height="${H}"><title>${esc(tip)}</title></rect>${segs}</g>`;
+  }).join('');
+  const lbl = rows.map(([day], k) => (k % 2 === 1 || k === 13 ? `<span style="left:${((k + .5) / 14 * 100).toFixed(2)}%">${esc(new Date(day + 'T12:00:00').toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }))}</span>` : '')).join('');
+  box.innerHTML = `<details class="card ids-chart" ${isOpen ? 'open' : ''}><summary><b>📊 ${L('Aanvallen per dag')}</b> <span class="muted small">${L('14 dagen · {n} incidenten', { n: total })}</span></summary>
+    <div class="ch-legend small">${IDS_CHART.map(([, l], k) => sums[k] ? `<span><i class="ser-${k + 1}"></i>${esc(l())} <b>${sums[k]}</b></span>` : '').join('')}</div>
+    <svg class="ch-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(L('Aanvallen per dag'))}"><line x1="0" y1="${H - .5}" x2="${W}" y2="${H - .5}" class="ch-base"/>${bars}</svg>
+    <div class="ch-x small muted">${lbl}</div></details>`;
+  $('details', box).ontoggle = (e) => { try { localStorage.setItem('rzmon-ids-chart', e.target.open ? '1' : '0'); } catch (ex) { /* alleen voor nu */ } };
+}
+
 function renderIds() {
   const d = idsData;
   if (!d) return;
@@ -5921,11 +6034,14 @@ function renderIds() {
   const maxF = Math.max(1, ...failHours);
   let fp = '';
   failHours.forEach((v, i) => { fp += `${fp ? 'L' : 'M'}${(i / 23 * 100).toFixed(1)},${(24 - v / maxF * 20).toFixed(1)}`; });
+  const modern = d.modern !== false;
+  $('#tab-ids').classList.toggle('ids-modern', modern);
+  if (modern) $('#ids-last').innerHTML = idsModePill(d) + (lastRep ? ` <span>${esc(L('IDS-rapport {ago}', { ago: ago(lastRep) }))}</span>` : '');
   $('#ids-kpis').innerHTML = `
-    <div class="kpi kpi-main ${!d.enabled ? 'warn' : ''}"><div class="kpi-txt"><div class="kpi-lbl">${L('Modus')}</div>
+    ${modern ? idsScoreTile(d, open, o2) : `<div class="kpi kpi-main ${!d.enabled ? 'warn' : ''}"><div class="kpi-txt"><div class="kpi-lbl">${L('Modus')}</div>
       ${d.enabled ? `<div class="ids-mode"><span class="${d.mode !== 'block' ? 'on' : ''}">🎓 ${L('Leren')}</span><span class="${d.mode === 'block' ? 'on bad' : ''}">⛔ ${L('Blokkeren')}</span></div>
         <div class="kpi-sub">${d.mode === 'block' ? L('brute force wordt gemeld én geblokkeerd') : L('alles wordt gemeld, er wordt niets geblokkeerd')} · <a href="#settings/ids" data-goto="settings/ids">${L('instellingen')}</a></div>`
-        : `<div class="kpi-state">${L('IDS staat uit')}</div><div class="kpi-sub"><a href="#settings/ids" data-goto="settings/ids">${L('aanzetten')}</a></div>`}</div></div>
+        : `<div class="kpi-state">${L('IDS staat uit')}</div><div class="kpi-sub"><a href="#settings/ids" data-goto="settings/ids">${L('aanzetten')}</a></div>`}</div></div>`}
     <div class="kpi ${missing && d.enabled ? 'warn' : ''}"><div class="kpi-lbl">${L('Servers bewaakt')}</div><div class="kpi-val">${watched.length}<small>/${real.length}</small></div>
       <div class="kpi-sub">${missing && d.enabled ? L('{name}: nog geen IDS-rapport', { name: esc(missing.name) }) : real.length ? L('allemaal') : L('nog geen servers met agent')}</div></div>
     <div class="kpi ${o2 ? 'bad' : open.length ? 'warn' : ''}"><div class="kpi-lbl">${L('Open incidenten')}</div><div class="kpi-val">${open.length}</div>
@@ -5934,8 +6050,11 @@ function renderIds() {
       <div class="kpi-sub">${d.blocks.length ? esc(d.blocks.slice(0, 3).map((b) => b.ip).join(' · ')) : d.mode === 'block' ? L('niets') : L('modus leren')}</div></div>
     <div class="kpi"><div class="kpi-lbl">${L('Mislukte logins 24 u')}</div><div class="kpi-val">${accFail}</div>
       <svg class="kpi-spark" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><path d="${fp}L100,26L0,26Z" fill="var(--warn)" opacity=".14"/><path d="${fp}" fill="none" stroke="var(--warn)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg></div>`;
-  // Servers: compacte regels
-  $('#ids-hosts').innerHTML = d.hosts.length ? d.hosts.map((h) => {
+  $('#ids-attn').hidden = !modern;
+  $('#ids-chart').hidden = !modern;
+  if (modern) { renderIdsAttention(open); renderIdsChart(); }
+  // Servers: compacte regels (modern: met open incidenten als kaart, de rest compact eronder)
+  const hostRow = (h) => {
     if (h.ha) return `<div class="srv-row"><span class="ok-ic">🏠</span><span class="ok-nm"><strong>${esc(h.name)}</strong><small>${L('niet beschikbaar in de Home Assistant-add-on: die draait in een container en ziet het systeem zelf niet')}</small></span><span class="srv-st"></span><span class="srv-n muted small">–</span></div>`;
     const st = [!h.baseline_until ? '' : h.learning ? L('📏 basismeting tot {t}', { t: esc(fmtUntil(h.baseline_until)) }) : '✔ ' + L('bewaakt'),
       h.fw_state ? (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : '',
@@ -5952,7 +6071,15 @@ function renderIds() {
       <span class="ok-nm"><strong>${esc(h.name)}</strong><small>${h.last_report ? L('IDS-rapport {ago}', { ago: ago(h.last_report) }) : d.enabled ? L('nog geen IDS-rapport (agent 1.35.0+)') : ''}</small></span>
       <span class="srv-st small">${sec} ${st}${h.baseline_until ? ` <button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="${L('Alles wat er nu is als normaal vastleggen')}">↺ ${L('basismeting opnieuw')}</button>` : ''}</span>
       <span class="srv-n">${n ? `<b class="${h.open[2] ? 'danger-txt' : 'warn-txt'}">● ${L('{n} open', { n })}</b>` : `<b class="good-txt">● ${L('geen incidenten')}</b>`}</span></div>`;
-  }).join('') : '<p class="muted">' + L('Nog geen servers met agent.') + '</p>';
+  };
+  const busy = (h) => !h.ha && (h.open[1] + h.open[2] > 0 || !!h.iso);
+  const cards = modern ? d.hosts.filter(busy) : [];
+  const rows = d.hosts.filter((h) => !cards.includes(h));
+  $('#ids-hosts').className = modern ? 'ids-hosts-m' : 'srv-list';
+  $('#ids-hosts').innerHTML = !d.hosts.length ? '<p class="muted">' + L('Nog geen servers met agent.') + '</p>'
+    : !modern ? rows.map(hostRow).join('')
+    : (cards.length ? `<div class="sec-h hosts-h"><h2>🖥️ ${L('Servers met open incidenten')}</h2><span>${cards.length}</span></div><div class="ids-cards">${cards.map(idsHostCard).join('')}</div>` : '')
+      + (rows.length ? `<div class="sec-h hosts-h"><h2>✔ ${L('Rustig')}</h2><span>${rows.length === 1 ? L('1 server') : L('{n} servers', { n: rows.length })}</span></div><div class="srv-list">${rows.map(hostRow).join('')}</div>` : '');
 
   // Incidenten per dag; dezelfde soort op dezelfde server achter elkaar gebundeld
   const q = $('#ids-search').value.trim().toLowerCase();

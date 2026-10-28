@@ -540,5 +540,12 @@ $x = Protect::describe(q('SELECT * FROM ids_incidents ORDER BY id DESC LIMIT 1')
 ok(($x['card']['id'] ?? '') === 'revshell' && in_array('isolate', array_column($x['actions'], 't'), true), 'oud incident: kaart en isolatie uit de tekst');
 save_setting('ids_mode', 'learn');
 
+section('Moderne IDS-pagina (1.117.0)');
+ok(setting('ids_modern') === '1', 'moderne weergave staat standaard aan');
+save_setting('ids_modern', '0');
+Installer::runSchema();
+ok(setting('ids_modern') === '0', 'een update zet de keuze voor de compacte weergave niet terug');
+save_setting('ids_modern', '1');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -1867,6 +1867,15 @@ De agent let op tekenen van een inbraak en RzMon vergelijkt dat met wat normaal 
   - **alle knoppen** onderaan: afhandelen, *dit is normaal* of heropenen, ⛔ blokkeren, ✅ whitelist, 🕑 tijdlijn, 🔒 gebruiker vergrendelen, 🧯 isoleren (24 uur), 🛡️ beveiliging van de server en de Agent Manager.
 - **Toegang** in dezelfde stijl als Meldingen: compacte rijen per dag, zoeken, chips per soort, en gelijke regels achter elkaar gebundeld (in L1nes de tabel zoals altijd).
 
+**Moderne weergave** (vanaf 1.117.0, standaard aan): het bovenste deel staat boven alle tabbladen van de IDS-pagina.
+- In de **tellerbalk** staat rechts de modus als pil (*⛔ Blokkeren* of *🎓 Leren*); klik erop voor de instellingen.
+- De eerste tegel is een **score-tegel met ring**: de gemiddelde **hardening-score** van je servers, met de toestand uit de open incidenten: 🔴 *Actie nodig* (open critical of een aanvalsketen), 🟠 *Aandacht* (alleen warnings) of 🟢 *Rustig*. Klik erop voor de open incidenten.
+- **⚠️ Nu aandacht nodig**: de open critical-incidenten en aanvalsketens, nieuwste eerst, met **✔ Afhandelen** en **⛔** (IP blokkeren). Maximaal 5 (op de telefoon 3); de rest met *Alle … tonen*. Is er niets, dan staat er één regel: *✔ Niets dringends 👌*.
+- **Servers met open incidenten** als kaart: open, critical, geblokkeerd, de hardening-score (klik voor details) en een staafje per dag over 7 dagen (rood = er was een critical). Klik op het aantal open voor de incidenten van die server. Servers zonder open incidenten staan eronder als compacte regel onder *✔ Rustig*.
+- **📊 Aanvallen per dag**: 14 dagen, gestapeld per soort (Logins, Web, Netwerk, Processen en bestanden, Overig), met een legenda met aantallen; ga met de muis over een dag voor de cijfers. Standaard dicht; de browser onthoudt of je hem open hebt.
+- De **werkbalk** van *Incidenten* staat op één regel; de chips schuiven opzij als ze niet passen.
+- Liever de oude, compacte weergave? Zet **Moderne weergave** uit bij *Instellingen → Beveiliging → IDS: detectie*.
+
 **Aanzetten** gaat op *Instellingen → Beveiliging → IDS: detectie*:
 - **IDS aan/uit**: standaard **uit**. Uit = de agents verzamelen niets en er wordt niets geblokkeerd.
 - **🎓 Leren / ⛔ Blokkeren**:

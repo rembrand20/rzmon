@@ -7,6 +7,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.117.0 – 2026-10-28
+### Nieuw
+- **De pagina IDS in de stijl van het dashboard** (boven alle tabbladen):
+  - een **score-tegel met ring**: de gemiddelde hardening-score, met 🔴 *Actie nodig*, 🟠 *Aandacht* of 🟢 *Rustig*; de modus (Leren/Blokkeren) staat nu als pil in de tellerbalk;
+  - **⚠️ Nu aandacht nodig**: open critical-incidenten en aanvalsketens met **Afhandelen** en **⛔ IP blokkeren**; maximaal 5, de rest uitklappen. Niets dringends? Dan één regel;
+  - **serverkaarten** voor servers met open incidenten: aantallen, hardening, blokkades en een staafje per dag over 7 dagen; de andere servers compact onder *✔ Rustig*;
+  - **📊 Aanvallen per dag**: 14 dagen gestapeld per soort, uitklapbaar (standaard dicht);
+  - de werkbalk van *Incidenten* op één regel.
+- Schakelaar **Moderne weergave** bij *Instellingen → Beveiliging → IDS: detectie* (standaard aan); uit = de compacte weergave van voorheen.
+
 ## 1.116.0 – 2026-10-28
 ### Nieuw
 - **Gebundelde incidenten doorlopen** (*IDS → Incidenten*): onderin het incidentvenster staan nummers (‹ 1 2 3 … 8 ›) voor alle incidenten van dezelfde soort, server en dag, met per nummer • open of ✔ afgehandeld en *3 van 8 · ✔ 2 afgehandeld · 6 open*. Bladeren kan ook met ← →.

@@ -261,7 +261,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <span class="dash-last muted small" id="ids-last"></span>
       </div></div>
       <div class="kpis" id="ids-kpis"></div>
+      <div class="attn-sec" id="ids-attn" hidden></div>
       <div class="srv-list" id="ids-hosts"></div>
+      <div id="ids-chart" hidden></div>
       <div class="subtabs ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
         <button type="button" class="seg-btn active" data-it="inc"><?= th('⚠️ Incidenten') ?> <span class="it-n" id="it-n-inc"></span></button>
         <button type="button" class="seg-btn" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
@@ -655,6 +657,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
               <span id="ids-l-block"><?= th('⛔ Blokkeren') ?></span></div>
             <p class="muted small" id="ids-mode-info"></p>
           </div>
+          <label class="switch"><input type="checkbox" name="ids_modern"><span></span> <span><?= t('<b>Moderne weergave</b> van de pagina IDS (score, Nu aandacht nodig, serverkaarten, grafiek)') ?></span></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= th('Uit: de compacte weergave van vóór 1.117.0, met de modus als tegel en de servers als regels.') ?></p>
           <div class="row2">
             <label><?= th('Basismeting (uren)') ?> <span class="muted small"><?= th('eerst alleen vastleggen wat normaal is') ?></span><input type="number" name="ids_baseline_hours" min="0" max="720"></label>
             <label><?= th('Brute force bij … mislukte SSH-logins') ?><input type="number" name="ids_fail_count" min="2" max="1000"></label>
