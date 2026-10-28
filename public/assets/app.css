@@ -1767,3 +1767,10 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .mt-cell.crit { background: color-mix(in srgb, var(--crit) 16%, transparent); border-color: color-mix(in srgb, var(--crit) 50%, var(--border)); }
 .mt-cell.cov { border-style: dashed; opacity: .7; }
 .mt-cell:hover { border-color: var(--primary); } .mt-cell .mt-n { float: right; }
+
+/* 1.114.0: toegestaan (RzMon zelf) in Live */
+.edr-row.own { background: color-mix(in srgb, var(--ok, #16a34a) 8%, transparent); }
+.edr-row.own .edr-k { color: var(--ok, #16a34a); font-weight: 700; }
+.own-tag { color: var(--ok, #16a34a); font-weight: 600; font-size: .8rem; margin-right: .3rem; }
+.own-det summary { cursor: pointer; list-style: none; } .own-det summary::-webkit-details-marker { display: none; }
+.own-det ul { margin: .3rem 0 0; padding-left: 1.1rem; } .own-det code { font-size: .75rem; overflow-wrap: anywhere; }

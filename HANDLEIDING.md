@@ -2171,6 +2171,22 @@ Instellen: *Instellingen → IDS → Dreigingsinformatie → 🧭 Netwerk*.
 - **Suricata** (agent 1.64.0): draait [Suricata](https://suricata.io) op een server, dan stuurt de agent de nieuwe alerts uit `/var/log/suricata/eve.json` mee (ander pad: `SURICATA_EVE=…`, uit: `SURICATA=0` in `/etc/default/rzmon-agent`). Ernst 1 wordt 🔴 critical, ernst 2 🟠 warning, ernst 3 alleen een signaal (Afwijkingen, MITRE). Bij ernst 1 van buiten blokkeert RzMon de aanvaller (modus Blokkeren, los uit te zetten). Elk alert krijgt een stap van een aanval (MITRE), zodat het meetelt in de ketens.
 - **YARA** (agent 1.64.0): staat `yara` op een server, dan controleert de agent elk nieuw bestand in de tijdelijke mappen en elk nieuw script in de webmappen met de YARA-regels van RzMon. Die regels stuurt RzMon zelf (versleuteld) naar de agent, en opnieuw als ze veranderen. Ze herkennen PHP- en JSP-webshells, cryptominers, reverse shells, IoT-botnets (Mirai, Gafgyt), Kinsing, LD_PRELOAD-rootkits en scripts die iets binnenhalen en starten (🔴), en ingepakte of sterk versleutelde bestanden (🟠). YARA installeer je via de Agent Manager (*⬇ Installeren via de agent*, optioneel) of zelf (`apt install yara`, op Rocky/Alma uit EPEL).
 
+**✔ RzMon zelf: toegestaan** (vanaf 1.114.0, agent 1.65.0)
+
+Wat RzMon zelf doet of veroorzaakt, houdt het IDS nooit tegen. Het wordt wel gelogd: als groene regel *✔ toegestaan* op *🛡️ IDS → 🛰️ Live*.
+
+- **Wat telt als RzMon zelf:**
+  - **de agent** en alles wat hij start, ook verder door (commando-checks, zelf herstellen, bijwerken, pakketten installeren, YARA, de firewall). Herkend aan de systemd-groep `rzmon-*.service`, of (zonder systemd) aan een proces van root dat de agent is;
+  - **RzMon op zijn eigen server**: de webinterface, de API en de cron (PHP in de map van RzMon, als de gebruiker van de webserver of root), en wat die starten (zoals het opzoeken van een DNS-naam);
+  - **verkeer met RzMon**: de agent die naar RzMon rapporteert, en RzMon's checks en netwerkscan naar je servers (Suricata, de DNS-controle en de weblogs herkennen de adressen van RzMon).
+- **Nooit:** geen proces stoppen, niets blokkeren of isoleren, geen incident of Pushover, en het telt niet mee voor afwijkingen, ketens of dreigingsinformatie. De agent stopt bovendien zelf nooit een proces van RzMon, ook niet als RzMon daar om zou vragen.
+- **In Live:** per rapport één groene regel per soort (*✔ toegestaan · agent 38 proces(sen), 4 verbinding(en)*). Klik erop voor de lijst. Een aparte groene regel krijgt:
+  - iets wat een regel geraakt zou hebben, met *zou … raken, maar is RzMon zelf*;
+  - iets bijzonders (pakketten installeren, een herstelcommando, bijwerken).
+  - **Toegestaan tonen** zet de groene regels aan of uit.
+- **Veilig:** een programma dat zich "rzmon-agent" noemt maar van een gewone gebruiker is, telt niet als RzMon. Op de RzMon-server zelf telt PHP van de RzMon-gebruiker in de map van RzMon als RzMon; zet daar dus geen andere websites onder dezelfde gebruiker in die map.
+- Andere monitoring (Home Assistant, Uptime Kuma …) zet je op de whitelist.
+
 **Goed om te weten**
 - Werkt op Linux-servers met agent **1.35.0** of nieuwer. Werk de agents bij met de knop in de Agent Manager.
 - **TrueNAS SCALE: alleen detecteren.** De firewall hoort daar bij TrueNAS zelf; de agent blokkeert er niets.

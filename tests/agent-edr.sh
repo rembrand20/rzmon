@@ -7,20 +7,23 @@ set -u
 cd "$(dirname "$0")/.." || exit 1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse audit <tests/data/audit.log >"$work/audit.out" 2>"$work/err" || { echo "✘ audit-parser faalde"; cat "$work/err"; exit 1; }
+CACHE_DIRECTORY="$work" EDR_ROOT=/opt/rzmon EDR_USER=www-data bash agent/rzmon-agent.sh --edr-parse audit <tests/data/audit.log >"$work/audit.out" 2>"$work/err" || { echo "✘ audit-parser faalde"; cat "$work/err"; exit 1; }
 CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse swag <tests/data/swag.log >"$work/swag.out" 2>>"$work/err" || { echo "✘ swag-parser faalde"; cat "$work/err"; exit 1; }
 CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse eve <tests/data/eve.json >"$work/eve.out" 2>>"$work/err" || { echo "✘ Suricata-parser faalde"; cat "$work/err"; exit 1; }
 python3 - "$work/audit.out" "$work/swag.out" "$work/eve.out" <<'PY'
 import json, sys
 ev = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
 bad = []
-x = [e for e in ev if e['k'] == 'x']
+own = [e for e in ev if e['k'] == 'x' and e.get('own')]
+x = [e for e in ev if e['k'] == 'x' and not e.get('own')]
 a = [e for e in ev if e['k'] == 'a']
-if len(x) != 2: bad.append('verwacht 2 processen (webshell en één keer ls), kreeg %d: %s' % (len(x), [e.get('cmd') for e in x]))
+if len(x) != 3: bad.append('verwacht 3 gewone processen (webshell, één keer ls, nagemaakte agent), kreeg %d: %s' % (len(x), [e.get('cmd') for e in x]))
+if [(e['cmd'], e['own']) for e in own] != [('bash /usr/local/bin/rzmon-agent.sh', 'agent'), ('ss -tnpH', 'agent'), ('php /opt/rzmon/cron/run.php', 'rzmon'), ('sh -c timeout 2 getent hosts 203.0.113.5', 'rzmon')]:
+    bad.append('eigen processen (agent, kind van de agent, RzMon-cron en zijn kind) niet goed herkend: %r' % [(e.get('cmd'), e.get('own')) for e in own])
 ws = next((e for e in x if e['pid'] == 4242), None)
 if not ws or ws['argv'] != ['sh', '-c', 'id && cat "/etc/passwd"\\x'] or ws['exe'] != '/usr/bin/dash' or ws['uid'] != 33 or ws['cwd'] != '/var/www/html':
     bad.append('webshell-proces niet goed gelezen: %r' % ws)
-if any(e.get('comm', '').startswith('rzmon-agent') for e in x): bad.append('proces van de agent zelf niet overgeslagen')
+if not any(e.get('exe') == '/tmp/.x/rzmon-agent.sh' for e in x): bad.append('nagemaakte rzmon-agent (gewone gebruiker) mag niet als eigen proces tellen')
 if len(a) != 1 or a[0]['key'] != 'rzmon_id' or a[0]['name'] != '/etc/passwd' or a[0]['exe'] != '/usr/bin/vim.basic':
     bad.append('bewaakt pad niet goed gelezen: %r' % a)
 req = json.loads('[' + open(sys.argv[2]).read().strip() + ']')
@@ -34,5 +37,5 @@ if len(eve) != 2 or eve[0][:7] != ['2026-10-28T10:00:01.123456+0100', '203.0.113
     bad.append('Suricata-alerts niet goed gelezen: %r' % eve)
 if bad:
     print('✘ ' + '\n✘ '.join(bad)); sys.exit(1)
-print('✔ auditd: %d gebeurtenissen (proces met hex-argument, bewaakt pad, dubbel en agent overgeslagen) · SWAG: %d verdachte verzoeken · Suricata: %d alerts' % (len(ev), len(req), len(eve)))
+print('✔ auditd: %d gebeurtenissen (proces met hex-argument, bewaakt pad, dubbel overgeslagen, eigen processen herkend) · SWAG: %d verdachte verzoeken · Suricata: %d alerts' % (len(ev), len(req), len(eve)))
 PY

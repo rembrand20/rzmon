@@ -20,3 +20,17 @@ type=EOE msg=audit(1761660004.000:1005):
 type=SYSCALL msg=audit(1761660005.000:1006): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=1 pid=5003 auid=0 uid=0 euid=0 comm="rzmon-agent.sh" exe="/usr/bin/bash" key="rzmon_exec"
 type=EXECVE msg=audit(1761660005.000:1006): argc=2 a0="bash" a1="/usr/local/bin/rzmon-agent.sh"
 type=EOE msg=audit(1761660005.000:1006): 
+type=SYSCALL msg=audit(1761660006.000:1007): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=5003 pid=5004 auid=0 uid=0 euid=0 comm="ss" exe="/usr/bin/ss" key="rzmon_exec"
+type=EXECVE msg=audit(1761660006.000:1007): argc=2 a0="ss" a1="-tnpH"
+type=EOE msg=audit(1761660006.000:1007): 
+type=SYSCALL msg=audit(1761660007.000:1008): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=1 pid=6001 auid=4294967295 uid=33 euid=33 comm="rzmon-agent.sh" exe="/tmp/.x/rzmon-agent.sh" key="rzmon_exec"
+type=EXECVE msg=audit(1761660007.000:1008): argc=1 a0="rzmon-agent.sh"
+type=EOE msg=audit(1761660007.000:1008): 
+type=SYSCALL msg=audit(1761660008.000:1009): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=1 pid=7001 auid=4294967295 uid=0 euid=0 comm="php" exe="/usr/bin/php8.2" key="rzmon_exec"
+type=EXECVE msg=audit(1761660008.000:1009): argc=2 a0="php" a1="/opt/rzmon/cron/run.php"
+type=CWD msg=audit(1761660008.000:1009): cwd="/"
+type=EOE msg=audit(1761660008.000:1009): 
+type=SYSCALL msg=audit(1761660009.000:1010): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=7001 pid=7002 auid=4294967295 uid=0 euid=0 comm="sh" exe="/usr/bin/dash" key="rzmon_exec"
+type=EXECVE msg=audit(1761660009.000:1010): argc=3 a0="sh" a1="-c" a2="timeout 2 getent hosts 203.0.113.5"
+type=CWD msg=audit(1761660009.000:1010): cwd="/"
+type=EOE msg=audit(1761660009.000:1010): 

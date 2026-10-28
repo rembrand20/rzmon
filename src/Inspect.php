@@ -156,6 +156,9 @@ final class Inspect
             }
             $ip = (string) $r[0];
             if (@inet_pton($ip) === false || Ids::internalIp($ip) || Ids::protectedIp($ip)) {
+                if (Ids::isRzmon($ip) && self::analyze((string) ($r[2] ?? ''), (string) ($r[3] ?? ''), (string) ($r[6] ?? ''))['tech']) {
+                    Edr::allowed($host, 'w', "web|$ip", ['ip' => $ip, 'method' => (string) ($r[2] ?? ''), 'uri' => self::redact(mb_substr((string) ($r[3] ?? ''), 0, 300))]);
+                }
                 continue;
             }
             // nginx schrijft " en \ en vreemde tekens als \xHH; terugzetten, dan pas beoordelen

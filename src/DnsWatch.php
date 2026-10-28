@@ -209,6 +209,10 @@ final class DnsWatch
         if (!$on) {
             return 0;
         }
+        if (Ids::isRzmon($client)) {   // RzMon zelf (1.114.0): toegestaan, alleen loggen
+            Edr::allowed($on, 'd', "dns|$key", ['title' => $title, 'detail' => $detail]);
+            return 0;
+        }
         $id = Ids::raise($on, $sev, $type, $key, $title, $detail);
         if ($host) {
             Chain::signal($host, 'ids', $type, ['command-and-control'], $techs, $title, $score, null, $id, "dns|$key", null, 60);

@@ -53,6 +53,11 @@ final class Suricata
                 continue;   // in dit rapport al gezien: één keer optellen is genoeg
             }
             $seen[$key] = true;
+            if (Ids::isRzmon($src) || Ids::isRzmon($dst)) {
+                // Verkeer van of naar RzMon zelf (checks, netwerkscan, rapporten van de agent): toegestaan, alleen loggen
+                Edr::allowed($host, 's', "sur|$key", ['sig' => $sig, 'cat' => $cat, 'src' => $src, 'dst' => $dst, 'dport' => (int) $dport, 'sev' => $sev]);
+                continue;
+            }
             $title = t('Suricata: {sig}', ['sig' => $sig]) . ($ext ? ' · ' . $ext : '');
             $detail = "$src:" . (int) $sport . " → $dst:" . (int) $dport . ' ' . mb_substr((string) $proto, 0, 8) . ' · ' . ($cat !== '' ? $cat . ' · ' : '')
                 . t('ernst {n}', ['n' => $sev]) . ($act === 'blocked' ? ' · ' . t('Suricata blokkeerde het') : '') . ' · sid ' . (int) $sid;

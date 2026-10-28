@@ -1199,6 +1199,7 @@ function init() {
   };
   $('#edr-host').onchange = () => loadEdrFeed();
   $('#edr-hits').onchange = () => loadEdrFeed();
+  $('#edr-own').onchange = () => loadEdrFeed();
   $('#rule-q').oninput = () => renderEdrRules();
   $('#rule-src').onclick = (e) => {
     const b = e.target.closest('[data-rs]');
@@ -5459,19 +5460,35 @@ function edrSummary(e) {
     default: return esc(e.sig);
   }
 }
+/** Groene regel: iets van RzMon zelf, toegestaan (1.114.0) */
+const EDR_OWN = { agent: () => L('agent'), rzmon: () => 'RzMon', net: () => L('verkeer met RzMon') };
+function edrOwn(e) {
+  const v = e.ev || {};
+  const who = (EDR_OWN[e.own] || (() => e.own))();
+  const tag = `<span class="own-tag">✔ ${L('toegestaan')} · ${esc(who)}</span>`;
+  if (e.kind === 'own') {
+    const n = v.n || {};
+    const parts = [n.exec ? L('{n} proces(sen)', { n: n.exec }) : '', n.net ? L('{n} verbinding(en)', { n: n.net }) : '', n.audit ? L('{n} bewaakt(e) pad(en)', { n: n.audit }) : '', n.file ? L('{n} bestand(en)', { n: n.file }) : ''].filter(Boolean);
+    return `<details class="own-det"><summary>${tag} ${esc(parts.join(', '))}</summary><ul class="small">${(v.s || []).map((x) => `<li><code>${esc(x)}</code></li>`).join('')}</ul></details>`;
+  }
+  if (e.kind === 'sur') return `${tag} Suricata: ${esc(v.sig || '')} <span class="muted">· ${esc(v.src)} → ${esc(v.dst)}:${+v.dport}</span>`;
+  if (e.kind === 'dns') return `${tag} ${esc(v.title || '')}`;
+  if (e.kind === 'web') return `${tag} ${esc(v.method || '')} <code>${esc(v.uri || '')}</code> <span class="muted">${L('van {ip}', { ip: esc(v.ip) })}</span>`;
+  return `${tag} ${edrSummary(e)}${v._would ? `<br><span class="muted small">${L('zou {r} raken, maar is RzMon zelf', { r: esc(v._would) })}</span>` : ''}`;
+}
 async function loadEdrFeed() {
-  const host = $('#edr-host').value, hits = $('#edr-hits').checked;
-  try { edrFeed = await api('edr_feed', null, { limit: 300, ...(host ? { host } : {}), ...(hits ? { hits: 1 } : {}) }); } catch (ex) { $('#edr-feed').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const host = $('#edr-host').value, hits = $('#edr-hits').checked, own = $('#edr-own').checked;
+  try { edrFeed = await api('edr_feed', null, { limit: 300, ...(host ? { host } : {}), ...(hits ? { hits: 1 } : {}), ...(own ? {} : { own: 0 }) }); } catch (ex) { $('#edr-feed').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const sel = $('#edr-host');
   if (sel.options.length < 2) sel.innerHTML += (state.hosts || []).filter((h) => h.mode === 'agent').map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('');
   const evs = edrFeed.events;
   $('#edr-info').textContent = !edrFeed.on ? L('Endpoint-bewaking staat uit (Instellingen → IDS → Endpoint-bewaking)') : L('{n} gebeurtenissen (laatste 3 dagen, hooguit 300)', { n: evs.length });
   withMorph(() => {
-    $('#edr-feed').innerHTML = evs.length ? `<div class="edr-list">${evs.map((e) => `<div class="edr-row ${e.rule ? 'hit s' + e.sev : ''}" data-key="e${e.id}">
+    $('#edr-feed').innerHTML = evs.length ? `<div class="edr-list">${evs.map((e) => `<div class="edr-row ${e.rule ? 'hit s' + e.sev : ''}${e.own ? ' own' : ''}" data-key="e${e.id}">
       <span class="m-t" title="${esc(e.at)}">${esc(e.at.slice(5, 16).replace(' ', ' · '))}</span>
-      <span class="edr-k" title="${esc(e.kind)}">${EDR_KIND_IC[e.kind] || '·'}</span>
+      <span class="edr-k" title="${esc(e.kind)}">${e.own ? '✔' : EDR_KIND_IC[e.kind] || '·'}</span>
       <span class="m-sv">${esc(e.host)}</span>
-      <span class="edr-sum">${edrSummary(e)}${e.rule ? `<br><span class="edr-hit">${e.sev === 2 ? '🔴' : '🟠'} ${esc(e.rule_title || e.rule)}</span>` : ''}</span></div>`).join('')}</div>`
+      <span class="edr-sum">${e.own ? edrOwn(e) : edrSummary(e)}${e.rule ? `<br><span class="edr-hit">${e.sev === 2 ? '🔴' : '🟠'} ${esc(e.rule_title || e.rule)}</span>` : ''}</span></div>`).join('')}</div>`
       : `<p class="muted">${edrFeed.on ? L('Nog niets gezien. Staat de endpoint-bewaking aan op je servers (Agent Manager), en is de agent 1.63.0 of nieuwer?') : ''}</p>`;
   });
 }

@@ -5,6 +5,11 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.65.0 – 2026-10-28
+- **Eigen processen herkennen** (RzMon 1.114.0): wat de agent start (systemd-groep `rzmon-*.service`, of als root vanuit de agent) en RzMon op zijn eigen server (PHP in de map van RzMon) gaan als "van RzMon" mee, samen met verbindingen met RzMon. RzMon logt dat als toegestaan en grijpt er nooit op in. Eigen processen tellen niet mee voor de grens van 200 per minuut.
+- De agent stopt nooit een proces van zichzelf of van RzMon, ook niet op verzoek.
+- Opgelost: een programma van een gewone gebruiker met de naam "rzmon-agent" werd overgeslagen; nu alleen de echte agent.
+
 ## 1.64.0 – 2026-10-28
 - **YARA** (RzMon 1.113.0): staat `yara` op de server, dan controleert de watcher elk nieuw bestand in `/tmp`, `/var/tmp` en `/dev/shm` en elk nieuw script in de webmappen met de YARA-regels van RzMon (webshells, miners, reverse shells, botnets, rootkits). De regels komen versleuteld van RzMon; de agent vervangt ze alleen als `yara` ze kan lezen. YARA kan ook via RzMon geïnstalleerd worden.
 - **Suricata**: nieuwe alerts uit `/var/log/suricata/eve.json` gaan mee met het rapport (hooguit 200 per keer; de positie wordt pas bewaard als het rapport aankwam). Ander pad: `SURICATA_EVE=…`; uit: `SURICATA=0`.

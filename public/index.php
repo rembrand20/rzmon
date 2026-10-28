@@ -288,6 +288,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="ids-pane" data-pane="live" hidden>
         <div class="dash-bar"><select id="edr-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
           <label class="switch small"><input type="checkbox" id="edr-hits"><span></span> <?= th('Alleen treffers') ?></label>
+          <label class="switch small"><input type="checkbox" id="edr-own" checked><span></span> <?= th('Toegestaan tonen (RzMon zelf)') ?></label>
           <span class="muted small" id="edr-info"></span></div>
         <div class="card" id="edr-feed"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>

@@ -3645,7 +3645,7 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'edr_feed':   // Live: de laatste gebeurtenissen
-        out(['events' => Edr::feed((int) ($_GET['limit'] ?? 200), ($hid = (int) ($_GET['host'] ?? 0)) ?: null, ($_GET['hits'] ?? '') === '1', (int) ($_GET['after'] ?? 0)),
+        out(['events' => Edr::feed((int) ($_GET['limit'] ?? 200), ($hid = (int) ($_GET['host'] ?? 0)) ?: null, ($_GET['hits'] ?? '') === '1', (int) ($_GET['after'] ?? 0), ($_GET['own'] ?? '1') !== '0'),
             'on' => Ids::enabled() && setting('edr_on', '1') === '1']);
 
     // ---------- 1.112.0: dreigingsinformatie ----------

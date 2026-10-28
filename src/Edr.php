@@ -16,6 +16,12 @@ declare(strict_types=1);
 final class Edr
 {
     public const KINDS = ['x' => 'exec', 'a' => 'audit', 'n' => 'net', 'f' => 'file', 'c' => 'ctr'];
+    /** In Live ook: samenvatting van wat RzMon zelf deed (o) en toegestaan verkeer van RzMon (s = Suricata, d = DNS, w = web) */
+    private const FEED_KINDS = self::KINDS + ['o' => 'own', 's' => 'sur', 'd' => 'dns', 'w' => 'web'];
+    /** Van RzMon zelf (agent 1.65.0): agent = de agent en wat hij start, rzmon = RzMon op zijn eigen server, net = verkeer met RzMon */
+    public const OWN = ['agent', 'rzmon', 'net'];
+    /** Per rapport: wat RzMon zelf deed, opgeteld [soort => [aantallen, voorbeelden]] */
+    private static array $ownAgg = [];
     private const MAX_EVENTS = 500;
     private static ?array $rules = null;
     /** Processen die RzMon in dit rapport meteen laat stoppen (gaan mee in het antwoord aan de agent) */
@@ -29,7 +35,12 @@ final class Edr
     /** Regel voor de agent: sensoren aan */
     public static function agentLines(array $host): array
     {
-        return self::onFor($host) ? [implode("\t", [0, 'edr', 1])] : [];
+        if (!self::onFor($host)) {
+            return [];
+        }
+        // 1.114.0: zo herkent de agent RzMon zelf op zijn eigen server (de map, en de gebruiker van de webserver)
+        $user = function_exists('posix_geteuid') ? (string) (posix_getpwuid(posix_geteuid())['name'] ?? '') : get_current_user();
+        return [implode("\t", [0, 'edr', 1]), implode("\t", [0, 'edrself', SM_ROOT, preg_replace('/[^A-Za-z0-9._-]/', '', $user)])];
     }
 
     /** Alle regels die aan staan: eigen regels en (als dat aan staat) Sigma */
@@ -87,6 +98,10 @@ final class Edr
             $f = self::fields($kind, $ev);
             $sig = self::sig($kind, $ev);
             $at = self::when($ev);
+            if (in_array($ev['own'] ?? '', self::OWN, true)) {
+                self::own($host, (string) $ev['own'], $kind, $ev, $f, $sig, $at);   // RzMon zelf: loggen, nooit ingrijpen
+                continue;
+            }
             $hit = null;
             foreach (self::rules() as $r) {
                 if (in_array($kind, (array) $r['kinds'], true) && Sigma::match($r, $f)) {
@@ -109,6 +124,7 @@ final class Edr
         if ($evs) {
             Anomaly::flush($host);
         }
+        self::ownFlush($host);
         // 1.113.0: Suricata-alerts, en de YARA-regels naar de agent als die nog niet de nieuwste heeft
         if (is_array($edr['sur'] ?? null)) {
             Suricata::process($host, $edr['sur']);
@@ -117,6 +133,65 @@ final class Edr
             return (self::$kills ? ['edr_kill' => array_values(self::$kills)] : []) + ['edr_yara' => base64_encode(self::yaraRules())];
         }
         return self::$kills ? ['edr_kill' => array_values(self::$kills)] : [];
+    }
+
+    /**
+     * Iets van RzMon zelf (agent 1.65.0): nooit een incident, nooit ingrijpen, niet meetellen voor afwijkingen, ketens of
+     * dreigingsinformatie. Wel loggen als "toegestaan": opgeteld per rapport, en apart als een regel raak zou zijn
+     * geweest, of bij iets bijzonders (pakketten installeren, zelf herstellen, commando's van RzMon).
+     */
+    private static function own(array $host, string $own, string $kind, array $ev, array $f, string $sig, string $at): void
+    {
+        $would = null;
+        foreach (self::rules() as $r) {
+            if (in_array($kind, (array) $r['kinds'], true) && Sigma::match($r, $f)) {
+                $would = $r;
+                break;
+            }
+        }
+        $cmd = (string) ($ev['cmd'] ?? '');
+        $special = $kind === 'exec' && (preg_match('#/(apt-get|apt|dpkg|dnf|yum|rpm|apk)$#', (string) ($ev['exe'] ?? '')) || str_contains($cmd, '/heal.d/') || str_contains($cmd, 'rzmon-agent-setup'));
+        if ($would || $special) {
+            $ev['_would'] = $would ? (!empty($would['sigma']) ? 'Sigma: ' . $would['title'] : t($would['title'])) : null;
+            q('INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev, own) VALUES (?, ?, ?, ?, ?, NULL, 0, ?)',
+                [$host['id'], $at, array_search($kind, self::KINDS, true) ?: 'x', $sig, json_encode($ev, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $own]);
+            return;
+        }
+        $a = &self::$ownAgg[(int) $host['id']][$own];
+        $a['n'][$kind] = ($a['n'][$kind] ?? 0) + 1;
+        $a['from'] = min($a['from'] ?? $at, $at);
+        $a['to'] = max($a['to'] ?? $at, $at);
+        $text = match ($kind) {
+            'exec' => basename((string) ($ev['exe'] ?? ($ev['comm'] ?? '?'))) . ($cmd !== '' ? ': ' . mb_substr($cmd, 0, 120) : ''),
+            'net' => basename((string) ($ev['exe'] ?? ($ev['comm'] ?? '?'))) . (($ev['dir'] ?? '') === 'out' ? ' → ' . ($ev['rip'] ?? '') . ':' . ($ev['rp'] ?? '') : ' ' . t('luistert op poort {p}', ['p' => $ev['lp'] ?? '?'])),
+            'audit' => basename((string) ($ev['exe'] ?? '?')) . ' → ' . ($ev['name'] ?? ''),
+            default => $sig,
+        };
+        if (count($a['s'] ?? []) < 25 && !in_array($text, $a['s'] ?? [], true)) {
+            $a['s'][] = $text;
+        }
+        unset($a);
+    }
+
+    /** Eén groene regel per soort (agent, RzMon, netwerk) voor dit rapport */
+    private static function ownFlush(array $host): void
+    {
+        foreach (self::$ownAgg[(int) $host['id']] ?? [] as $own => $a) {
+            q('INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev, own) VALUES (?, ?, ?, ?, ?, NULL, 0, ?)',
+                [$host['id'], $a['to'], 'o', "own $own", json_encode(['own' => $own, 'n' => $a['n'], 's' => $a['s'] ?? [], 'from' => $a['from']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $own]);
+        }
+        unset(self::$ownAgg[(int) $host['id']]);
+    }
+
+    /** Toegestaan verkeer van RzMon dat anders gemeld zou zijn (Suricata, DNS, web): een groene regel, hooguit eens per uur */
+    public static function allowed(array $host, string $kind, string $sig, array $data): void
+    {
+        $sig = mb_substr($sig, 0, 255);
+        if (q('SELECT 1 FROM edr_events WHERE host_id = ? AND kind = ? AND sig = ? AND at >= NOW() - INTERVAL 1 HOUR LIMIT 1', [$host['id'], $kind, $sig])->fetchColumn()) {
+            return;
+        }
+        q('INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev, own) VALUES (?, ?, ?, ?, ?, NULL, 0, ?)',
+            [$host['id'], now(), $kind, $sig, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), 'net']);
     }
 
     /** Alleen bekende velden, begrensd */
@@ -347,10 +422,13 @@ final class Edr
     }
 
     /** Live: de laatste gebeurtenissen (alle servers of één), nieuwste eerst */
-    public static function feed(int $limit = 200, ?int $hostId = null, bool $hitsOnly = false, int $after = 0): array
+    public static function feed(int $limit = 200, ?int $hostId = null, bool $hitsOnly = false, int $after = 0, bool $own = true): array
     {
         $w = ['e.id > ?'];
         $p = [$after];
+        if (!$own) {
+            $w[] = 'e.own IS NULL';
+        }
         if ($hostId) {
             $w[] = 'e.host_id = ?';
             $p[] = $hostId;
@@ -359,8 +437,8 @@ final class Edr
             $w[] = 'e.rule IS NOT NULL';
         }
         $titles = self::titles();
-        return array_map(static fn($r) => ['id' => (int) $r['id'], 'host_id' => (int) $r['host_id'], 'host' => $r['host'], 'at' => $r['at'], 'kind' => self::KINDS[$r['kind']] ?? $r['kind'],
-            'sig' => $r['sig'], 'rule' => $r['rule'], 'rule_title' => $r['rule'] ? ($titles[$r['rule']] ?? $r['rule']) : null, 'sev' => (int) $r['sev'], 'ev' => json_decode((string) $r['data'], true) ?: []],
+        return array_map(static fn($r) => ['id' => (int) $r['id'], 'host_id' => (int) $r['host_id'], 'host' => $r['host'], 'at' => $r['at'], 'kind' => self::FEED_KINDS[$r['kind']] ?? $r['kind'],
+            'own' => $r['own'], 'sig' => $r['sig'], 'rule' => $r['rule'], 'rule_title' => $r['rule'] ? ($titles[$r['rule']] ?? $r['rule']) : null, 'sev' => (int) $r['sev'], 'ev' => json_decode((string) $r['data'], true) ?: []],
             q('SELECT e.*, h.name AS host FROM edr_events e JOIN hosts h ON h.id = e.host_id WHERE ' . implode(' AND ', $w) . ' ORDER BY e.id DESC LIMIT ' . max(1, min(500, $limit)), $p)->fetchAll());
     }
 

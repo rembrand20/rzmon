@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.64.0"
+AGENT_VERSION="1.65.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -145,12 +145,24 @@ edr_emit() {  # edr_emit <json>: in de wachtrij (hooguit 2 MB) en de watcher wak
 
 # auditd-log (stdin) → één JSON-regel per gebeurtenis met een sleutel rzmon_* (stdout)
 edr_audit_awk() {
-    awk -v dropf="$edr_dir/edr.drop" '
+    awk -v dropf="$edr_dir/edr.drop" -v rzroot="${EDR_ROOT-}" -v rzuser="${EDR_USER-}" '
     BEGIN {
         hx = "0123456789ABCDEF"; for (i = 0; i < 16; i++) hv[substr(hx, i + 1, 1)] = i
         while ((getline l < "/etc/passwd") > 0) { n = split(l, pw, ":"); if (n >= 3) un[pw[3]] = pw[1] }
         close("/etc/passwd")
-        cur = ""; minute = 0; sent = 0; drop = 0; reset = 0
+        cur = ""; minute = 0; sent = 0; drop = 0; reset = 0; ownn = 0
+    }
+    # Van RzMon zelf (agent 1.65.0): de agent en wat hij start (systemd-groep rzmon-*.service, of als root vanuit
+    # rzmon-agent), en RzMon op zijn eigen server (PHP in de RzMon-map, als de gebruiker van RzMon of root). Kinderen
+    # erven het. RzMon logt dat als "toegestaan" en grijpt er nooit op in.
+    function owner(pc, u, cmd,   cg) {
+        if (num(ppid) in own) return own[num(ppid)]
+        cg = rd("/proc/" num(ppid) "/cgroup") rd("/proc/" num(pid) "/cgroup")
+        if (cg ~ /\/rzmon-[^\/]*\.service/) return "agent"
+        if (uid == "0" && (comm ~ /^rzmon-agent/ || pc ~ /^rzmon-agent/)) return "agent"
+        if (rzroot != "" && exe ~ /\/php[0-9.]*$|php-fpm/ && (uid == "0" || u == rzuser) && (index(cwd, rzroot) == 1 || index(cmd, rzroot "/cron/") || index(cmd, rzroot "/install/"))) return "rzmon"
+        if (rzuser != "" && u == rzuser && pc ~ /^php/ && index(cwd, rzroot) == 1) return "rzmon"
+        return ""
     }
     function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); gsub(/[\001-\037\177]/, " ", s); return s }
     function fv(l, k,   p, r, q) {
@@ -185,9 +197,20 @@ edr_audit_awk() {
         u = (uid in un) ? un[uid] : uid
         if (ekey == "rzmon_exec") {
             pc = rd("/proc/" num(ppid) "/comm")
-            if (pc ~ /^rzmon-agent/ || comm ~ /^rzmon-agent/) { cur = ""; return }
             cmd = ""
             for (i = 0; i < argc && i < 16; i++) cmd = cmd (i ? " " : "") av[i]
+            ow = owner(pc, u, cmd)
+            if (ow != "") {
+                if (++ownn > 5000) { split("", own); ownn = 0 }
+                own[num(pid)] = ow
+                # Eigen processen: per programma en ouder hooguit eens per 10 minuten, en niet binnen de grens van 200
+                k = "own|" exe "|" pc; gsub(/[0-9]+/, "#", k)
+                if (k in seen) { cur = ""; return }
+                seen[k] = 1
+                print "{\"k\":\"x\",\"t\":" ts ",\"pid\":" num(pid) ",\"ppid\":" num(ppid) ",\"uid\":" num(uid) ",\"u\":\"" esc(u) "\",\"exe\":\"" esc(exe) \
+                    "\",\"comm\":\"" esc(comm) "\",\"pc\":\"" esc(pc) "\",\"cwd\":\"" esc(cwd) "\",\"cmd\":\"" esc(substr(cmd, 1, 300)) "\",\"own\":\"" ow "\"}"
+                fflush(); cur = ""; return
+            }
             sus = (pc ~ /^(nginx|apache2|httpd|lighttpd|caddy|php|uwsgi|gunicorn)/ || exe ~ /^\/(tmp|var\/tmp|dev\/shm|run\/shm)\// || exe ~ /\/\.[^\/]*$/ \
                 || u ~ /^(www-data|apache|nginx|http|wwwrun|lighttpd)$/ \
                 || tolower(cmd) ~ /(\/dev\/(tcp|udp)\/|\| *(sudo +)?(ba|z|da)?sh( |$)|base64 +(-d|--decode)|(^| )(nc|ncat|netcat|socat|telnet|xmrig|insmod|chattr|mkfifo|curl|wget)( |$)|stratum\+|authorized_keys|history +-c|histfile|ld\.so\.preload|python[0-9.]* +-c|perl +-e|php +-r|ruby +-e)/)
@@ -207,8 +230,10 @@ edr_audit_awk() {
             k = ekey "|" nm "|" exe
             if (k in seen) { cur = ""; return }
             seen[k] = 1
+            pc = rd("/proc/" num(ppid) "/comm"); cmd = ""
+            ow = (num(pid) in own) ? own[num(pid)] : owner(pc, u, cmd)
             print "{\"k\":\"a\",\"t\":" ts ",\"key\":\"" esc(ekey) "\",\"pid\":" num(pid) ",\"uid\":" num(uid) ",\"auid\":" num(auid) ",\"u\":\"" esc(u) \
-                "\",\"exe\":\"" esc(exe) "\",\"comm\":\"" esc(comm) "\",\"name\":\"" esc(nm) "\"}"
+                "\",\"exe\":\"" esc(exe) "\",\"comm\":\"" esc(comm) "\",\"name\":\"" esc(nm) "\"" (ow != "" ? ",\"own\":\"" ow "\"" : "") "}"
         }
         fflush()
         cur = ""
@@ -261,6 +286,19 @@ edr_swag_req() {
     }'
 }
 
+# Van RzMon zelf? (agent 1.65.0) edr_own <pid> <programma> <gebruiker> [<ip>]: agent, rzmon, net (verkeer met RzMon) of leeg
+edr_own() {
+    local cg=""
+    [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -gt 0 ] && cg=$(cat "/proc/$1/cgroup" 2>/dev/null)
+    if [[ "$cg" =~ /rzmon-[^/]*\.service ]]; then echo agent; return 0; fi
+    if [ -n "${EDR_ROOT-}" ] && [[ "$1" =~ ^[0-9]+$ ]] && { [ "$3" = root ] || [ "$3" = "${EDR_USER-}" ]; } && [[ "$2" == php* ]] \
+        && { [[ "$(readlink "/proc/$1/cwd" 2>/dev/null)" == "$EDR_ROOT"* ]] || tr '\0' ' ' <"/proc/$1/cmdline" 2>/dev/null | grep -qF -- "$EDR_ROOT/cron/"; }; then
+        echo rzmon; return 0
+    fi
+    if [ -n "${4-}" ] && [[ " ${EDR_RZIPS-} " == *" $4 "* ]]; then echo net; fi
+    return 0
+}
+
 edr_proc() {  # edr_proc <pid>: "starttijd<tab>programma<tab>gebruiker" (leeg als het proces al weg is)
     local p=$1 st exe u
     [[ "$p" =~ ^[0-9]+$ ]] && [ -r "/proc/$p/stat" ] || return 0
@@ -273,7 +311,7 @@ edr_proc() {  # edr_proc <pid>: "starttijd<tab>programma<tab>gebruiker" (leeg al
 # Netwerk: elke 5 s nieuwe uitgaande verbindingen (zelfde programma, adres en poort hooguit eens per uur) en nieuwe
 # luisterpoorten. De eerste keer alleen vastleggen.
 edr_net_once() {  # edr_net_once <1 = eerste keer>
-    local lp out pid comm rip rp lport st exe u now
+    local lp out pid comm rip rp lport st exe u now ow
     now=$(date +%s)
     lp=$(ss -ltnH 2>/dev/null | awk '{ n = split($4, a, ":"); print a[n] }' | sort -u | tr '\n' ' ')
     out=$(ss -tnpH state established 2>/dev/null | awk -v lp=" $lp" -v sf="$edr_dir/net.state" -v now="$now" '
@@ -296,7 +334,8 @@ edr_net_once() {  # edr_net_once <1 = eerste keer>
         while IFS=$'\t' read -r pid comm rip rp lport; do
             st=""; exe=""; u=""; pid=${pid//[^0-9]/}; rp=${rp//[^0-9]/}; lport=${lport//[^0-9]/}
             IFS=$'\t' read -r st exe u < <(edr_proc "$pid")
-            edr_emit "{\"k\":\"n\",\"t\":$now,\"dir\":\"out\",\"pid\":${pid:-0}${st:+,\"st\":$st},\"comm\":\"$(edr_j "$comm")\",\"exe\":\"$(edr_j "$exe")\",\"u\":\"$(edr_j "$u")\",\"rip\":\"$(edr_j "$rip")\",\"rp\":${rp:-0},\"lp\":${lport:-0}}"
+            ow=$(edr_own "${pid:-0}" "$comm" "$u" "$rip")
+            edr_emit "{\"k\":\"n\",\"t\":$now,\"dir\":\"out\",\"pid\":${pid:-0}${st:+,\"st\":$st},\"comm\":\"$(edr_j "$comm")\",\"exe\":\"$(edr_j "$exe")\",\"u\":\"$(edr_j "$u")\",\"rip\":\"$(edr_j "$rip")\",\"rp\":${rp:-0},\"lp\":${lport:-0}${ow:+,\"own\":\"$ow\"}}"
         done <<<"$out"
     fi
     # Luisterpoorten: programma + poort
@@ -311,7 +350,8 @@ edr_net_once() {  # edr_net_once <1 = eerste keer>
         while IFS=$'\t' read -r pid comm lport; do
             st=""; exe=""; u=""; pid=${pid//[^0-9]/}; lport=${lport//[^0-9]/}
             IFS=$'\t' read -r st exe u < <(edr_proc "$pid")
-            edr_emit "{\"k\":\"n\",\"t\":$now,\"dir\":\"listen\",\"pid\":${pid:-0}${st:+,\"st\":$st},\"comm\":\"$(edr_j "$comm")\",\"exe\":\"$(edr_j "$exe")\",\"u\":\"$(edr_j "$u")\",\"lp\":${lport:-0}}"
+            ow=$(edr_own "${pid:-0}" "$comm" "$u")
+            edr_emit "{\"k\":\"n\",\"t\":$now,\"dir\":\"listen\",\"pid\":${pid:-0}${st:+,\"st\":$st},\"comm\":\"$(edr_j "$comm")\",\"exe\":\"$(edr_j "$exe")\",\"u\":\"$(edr_j "$u")\",\"lp\":${lport:-0}${ow:+,\"own\":\"$ow\"}}"
         done <<<"$out"
     fi
 }
@@ -463,7 +503,18 @@ if [ "${1-}" = "--watch" ]; then
             sleep 60
             continue
         fi
-        w_sig=$(grep -E $'^(0\t(realtime|fim|edr)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)
+        w_sig=$(grep -E $'^(0\t(realtime|fim|edr|edrself)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)
+        # Wat van RzMon zelf is (agent 1.65.0): de map en gebruiker van RzMon (alleen op zijn eigen server van belang)
+        # en de adressen van RzMon; dat wordt gelogd als "toegestaan", nooit als aanval
+        IFS=$'\t' read -r EDR_ROOT EDR_USER < <(awk -F'\t' '$1 == "0" && $2 == "edrself" { print $3 "\t" $4; exit }' "$w_cache")
+        [[ "${EDR_ROOT-}" == /?* ]] || EDR_ROOT=""
+        EDR_RZIPS=""
+        for u in "$MONITOR_URL" "${MONITOR_URL_FALLBACK-}"; do
+            [ -n "$u" ] || continue
+            h=${u#*://}; h=${h%%/*}; h=${h%:*}; h=${h#[}; h=${h%]}
+            EDR_RZIPS+=" $h $(getent ahosts "$h" 2>/dev/null | awk '{ print $1 }' | sort -u | tr '\n' ' ')"
+        done
+        export EDR_ROOT EDR_USER EDR_RZIPS
         units=$(awk -F'\t' '$2 == "svc" && $3 ~ /^[A-Za-z0-9@._:-]+$/ { gsub(/\./, "\\.", $3); printf "%s%s", (n++ ? "|" : ""), $3 }' "$w_cache")
         pat='(sshd|sshd-session)\[[0-9]+\]: (Accepted|Failed|Invalid user|Connection closed by authenticating)|sudo(\[[0-9]+\])?: |[ :]su(\[[0-9]+\])?: |login\[[0-9]+\]: '
         [ -n "$units" ] && pat+="|systemd\\[1\\]: .*($units)(\\.service)?[: ]"
@@ -530,7 +581,7 @@ if [ "${1-}" = "--watch" ]; then
             if [ "$now" -ge "$next_check" ]; then
                 next_check=$(( now + 60 ))
                 # Instellingen in RzMon veranderd, realtime uitgezet, of een volger gestopt: opnieuw opbouwen
-                [ "$(grep -E $'^(0\t(realtime|fim|edr)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)" = "$w_sig" ] || break
+                [ "$(grep -E $'^(0\t(realtime|fim|edr|edrself)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)" = "$w_sig" ] || break
                 w_dead=0
                 for p in "${w_pids[@]}"; do kill -0 "$p" 2>/dev/null || w_dead=1; done
                 [ "$w_dead" = 1 ] && break
@@ -2194,7 +2245,9 @@ if [ -n "$ids_mode" ]; then
             [ -f "$i_dir/killed.$k_pid.$k_start" ] && continue   # al gedaan; de regel kan nog even in de lijst staan
             k_res=weg
             if [ "$(awk '{ print $22 }' "/proc/$k_pid/stat" 2>/dev/null)" = "$k_start" ]; then
-                if kill -KILL "$k_pid" 2>/dev/null; then k_res=ok; else k_res=fout; fi
+                # Nooit iets van RzMon of de agent zelf (agent 1.65.0)
+                if [[ "$(cat "/proc/$k_pid/cgroup" 2>/dev/null)" =~ /rzmon-[^/]*\.service ]]; then k_res=eigen
+                elif kill -KILL "$k_pid" 2>/dev/null; then k_res=ok; else k_res=fout; fi
             fi
             : >"$i_dir/killed.$k_pid.$k_start"
             killed_json+="[$k_pid,$k_start,\"$k_res\"],"
@@ -3665,7 +3718,9 @@ if [ "$rc" -eq 0 ]; then
             [ -f "$t_dir/ids/killed.$k_pid.$k_start" ] && continue
             k_res=weg
             if [ "$(awk '{ print $22 }' "/proc/$k_pid/stat" 2>/dev/null)" = "$k_start" ]; then
-                if kill -KILL "$k_pid" 2>/dev/null; then k_res=ok; else k_res=fout; fi
+                # Nooit iets van RzMon of de agent zelf (agent 1.65.0)
+                if [[ "$(cat "/proc/$k_pid/cgroup" 2>/dev/null)" =~ /rzmon-[^/]*\.service ]]; then k_res=eigen
+                elif kill -KILL "$k_pid" 2>/dev/null; then k_res=ok; else k_res=fout; fi
             fi
             : >"$t_dir/ids/killed.$k_pid.$k_start"
             printf '[%s,%s,"%s"],' "$k_pid" "$k_start" "$k_res" >>"$t_dir/ids/killed.pending"

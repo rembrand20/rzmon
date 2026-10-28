@@ -475,6 +475,35 @@ ok(!q("SELECT 1 FROM ids_incidents WHERE dkey = '192.168.1.90|old.malware.evil.e
     'AdGuard-log: alleen nieuwe regels (de eerste keer alleen vastleggen)');
 DnsWatch::$fetch = null;
 save_setting('adguard_urls', '');
+
+section('RzMon zelf: toegestaan, nooit ingrijpen (1.114.0)');
+ok(in_array("0\tedrself\t" . SM_ROOT, array_map(static fn($l) => implode("\t", array_slice(explode("\t", $l), 0, 3)), Edr::agentLines($hc)), true), 'agent krijgt de map van RzMon (om RzMon zelf te herkennen)');
+Chain::reset();
+$sig0 = (int) q('SELECT COUNT(*) FROM ids_signals')->fetchColumn();
+$inc0 = (int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn();
+$r = Edr::process($hc, ['ev' => [
+    ['k' => 'x', 't' => time(), 'pid' => 8001, 'st' => 5, 'uid' => 33, 'u' => 'www-data', 'exe' => '/usr/bin/dash', 'comm' => 'sh', 'pc' => 'php-fpm8.2', 'cwd' => SM_ROOT . '/public', 'cmd' => 'sh -c timeout 2 getent hosts 203.0.113.5', 'own' => 'rzmon'],
+    ['k' => 'x', 't' => time(), 'pid' => 8002, 'uid' => 0, 'u' => 'root', 'exe' => '/usr/bin/ss', 'comm' => 'ss', 'pc' => 'rzmon-agent.sh', 'cmd' => 'ss -tnpH', 'own' => 'agent'],
+    ['k' => 'x', 't' => time(), 'pid' => 8003, 'uid' => 0, 'u' => 'root', 'exe' => '/usr/bin/awk', 'comm' => 'awk', 'pc' => 'rzmon-agent.sh', 'cmd' => 'awk {print}', 'own' => 'agent'],
+    ['k' => 'n', 't' => time(), 'dir' => 'out', 'pid' => 8004, 'st' => 6, 'comm' => 'bash', 'exe' => '/usr/bin/bash', 'u' => 'root', 'rip' => '203.0.113.200', 'rp' => 4444, 'lp' => 50000, 'own' => 'agent']]]);
+ok($r === [] && (int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn() === $inc0 && (int) q('SELECT COUNT(*) FROM ids_signals')->fetchColumn() === $sig0,
+    'RzMon zelf (ook iets wat op een webshell lijkt): geen incident, niets gestopt, niet voor ketens');
+$would = q("SELECT data FROM edr_events WHERE host_id = ? AND own = 'rzmon' AND kind = 'x'", [$hc['id']])->fetchColumn();
+ok($would && str_contains((string) json_decode((string) $would, true)['_would'], 'Webserver start een shell'), 'groene regel: zou rz-webshell raken, maar is RzMon zelf');
+$sum = json_decode((string) q("SELECT data FROM edr_events WHERE host_id = ? AND kind = 'o' AND own = 'agent' ORDER BY id DESC LIMIT 1", [$hc['id']])->fetchColumn(), true);
+ok(($sum['n']['exec'] ?? 0) === 2 && count($sum['s'] ?? []) === 2, 'agent: één samengevatte groene regel per rapport (2 processen)');
+ok(q("SELECT 1 FROM edr_events WHERE host_id = ? AND own = 'agent' AND kind = 'n'", [$hc['id']])->fetchColumn() !== false, 'verbinding van de agent die op een reverse shell lijkt: groen, met de regel erbij');
+$f = Edr::feed(50, (int) $hc['id']);
+$f2 = Edr::feed(50, (int) $hc['id'], false, 0, false);
+ok(array_filter($f, static fn($e) => $e['own'] === 'agent' && $e['kind'] === 'own') && !array_filter($f2, static fn($e) => $e['own'] !== null), 'Live: groene regels, en te verbergen');
+// Verkeer van of naar RzMon (Suricata, DNS): toegestaan
+save_setting('rz_own_ips', json_encode(['10.0.0.9']));
+$inc0 = (int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn();
+Suricata::process($hc, [['2026-10-28T10:00:01+0100', '10.0.0.9', 40000, '10.0.0.3', 22, 'TCP', 2010937, 'ET SCAN Suspicious inbound to SSH (nmap)', 'Attempted Information Leak', 1, 'allowed']]);
+DnsWatch::check([['client' => '10.0.0.9', 'client_info' => ['name' => 'rzmon'], 'question' => ['name' => 'x.malware.evil.example'], 'reason' => 'NotFilteredNotFound', 'status' => 'NOERROR', 'time' => date('c')]]);
+ok((int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn() === $inc0 && (int) q("SELECT COUNT(*) FROM edr_events WHERE own = 'net' AND kind IN ('s', 'd')")->fetchColumn() === 2,
+    'netwerkscan van RzMon (Suricata) en DNS van RzMon: geen incident, wel een groene regel');
+ok(Ids::protectedIp('10.0.0.9') && Ids::autoBlock($hc, '10.0.0.9', 'test') === null, 'RzMon wordt nooit geblokkeerd');
 save_setting('ids_mode', 'learn');
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");

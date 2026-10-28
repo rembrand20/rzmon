@@ -7,6 +7,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.114.0 – 2026-10-28
+### Nieuw
+- **✔ RzMon zelf is altijd toegestaan** (**agent 1.65.0 nodig**): wat de agent doet (en alles wat hij start), wat RzMon op zijn eigen server doet (webinterface, API en cron) en het verkeer met RzMon (rapporten, checks, netwerkscan) houdt het IDS nooit meer tegen: geen proces stoppen, niet blokkeren of isoleren, geen incident, en het telt niet mee voor afwijkingen, ketens of dreigingsinformatie.
+- **Wel gelogd, in het groen** op *🛡️ IDS → 🛰️ Live*: per rapport één samengevatte regel (*✔ toegestaan · agent: 38 proces(sen)*, klik voor de lijst), en apart als een regel geraakt zou zijn (*zou … raken, maar is RzMon zelf*) of bij iets bijzonders (installeren, herstellen, bijwerken). Met de schakelaar *Toegestaan tonen*.
+- Suricata, de DNS-controle en de weblogs herkennen de adressen van RzMon: een netwerkscan van RzMon wordt een groene regel in plaats van een incident.
+- Nieuwe agent 1.65.0.
+
+### Opgelost
+- Een programma van een gewone gebruiker dat zich "rzmon-agent" noemde, werd door de endpoint-bewaking overgeslagen. Nu telt alleen de echte agent als RzMon.
+- RzMon kon zijn eigen opzoeking van een DNS-naam (PHP die een shell start) aanzien voor een webshell.
+
 ## 1.113.0 – 2026-10-28
 ### Nieuw
 - **🧭 DNS-controle via AdGuard** (IDS 2.0, deel 4): RzMon leest elke minuut de query-log van AdGuard Home en meldt per apparaat (ook zonder agent: tv, camera's, IoT) domeinen van malware en botnets (URLhaus, ThreatFox), wat AdGuard Safe Browsing tegenhield, antwoorden die naar een bekende aanvaller wijzen, mogelijke DNS-tunnels en verzonnen domeinen. Is het apparaat een server, dan telt het mee voor de ketens.

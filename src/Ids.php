@@ -816,7 +816,7 @@ final class Ids
             if (!$row) {
                 continue;
             }
-            $label = ['ok' => t('gestopt'), 'weg' => t('was al gestopt'), 'fout' => t('stoppen mislukt')][$res] ?? $res;
+            $label = ['ok' => t('gestopt'), 'weg' => t('was al gestopt'), 'fout' => t('stoppen mislukt'), 'eigen' => t('niet gestopt: hoort bij RzMon')][$res] ?? $res;
             q('UPDATE ids_kills SET done_at = ?, result = ? WHERE id = ?', [now(), mb_substr($label, 0, 100), $row['id']]);
             q("UPDATE ids_incidents SET detail = LEFT(CONCAT(REPLACE(detail, ?, ''), ?), 1000) WHERE host_id = ? AND type = 'webshell' AND dkey = ? AND created_at >= NOW() - INTERVAL 1 DAY",
                 [' · ⛔ ' . t('proces wordt gestopt'), " · ⛔ pid $pid $label", $hid, $row['dkey']]);
@@ -1090,7 +1090,39 @@ final class Ids
         if ($base !== '') {
             $own = @inet_pton($base) !== false ? [$base] : (gethostbynamel($base) ?: []);
         }
-        return in_array($ip, $own, true);
+        return in_array($ip, $own, true) || self::isRzmon($ip);
+    }
+
+    /**
+     * De adressen van RzMon zelf (1.114.0): het adres uit base_url, de naam van deze server en het adres waarop de
+     * webserver bereikt wordt (onthouden, zodat de cron ze ook kent). Verkeer van of naar RzMon is toegestaan.
+     */
+    public static function rzmonIps(): array
+    {
+        static $ips = null, $raw = null;
+        $cur = (string) setting('rz_own_ips', '[]');
+        if ($ips !== null && $raw === $cur) {
+            return $ips;
+        }
+        $saved = json_decode($cur, true) ?: [];
+        $now = [];
+        $base = (string) parse_url((string) config('base_url', ''), PHP_URL_HOST);
+        if ($base !== '') {
+            $now = @inet_pton($base) !== false ? [$base] : (@gethostbynamel($base) ?: []);
+        }
+        $now = array_merge($now, @gethostbynamel((string) gethostname()) ?: [], isset($_SERVER['SERVER_ADDR']) ? [(string) $_SERVER['SERVER_ADDR']] : []);
+        $now = array_values(array_filter(array_unique($now), static fn($ip) => @inet_pton($ip) !== false && !str_starts_with($ip, '127.') && $ip !== '::1'));
+        $ips = array_values(array_unique(array_merge($saved, $now)));
+        if (array_diff($ips, $saved)) {
+            save_setting('rz_own_ips', json_encode(array_slice($ips, -20)));
+        }
+        $raw = (string) setting('rz_own_ips', '[]');
+        return $ips;
+    }
+
+    public static function isRzmon(string $ip): bool
+    {
+        return $ip !== '' && in_array($ip, self::rzmonIps(), true);
     }
 
     /** @return string|null beschrijving van de blokkade, of null als er niet geblokkeerd is */
