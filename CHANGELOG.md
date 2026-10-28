@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.112.0 – 2026-10-28
+### Nieuw
+- **🌐 Dreigingsinformatie** (IDS 2.0, deel 3, *Instellingen → IDS → Dreigingsinformatie*): RzMon zoekt de IP-adressen en bestanden uit je incidenten op bij **AbuseIPDB** (met een veld voor je eigen API-sleutel en een knop *Sleutel testen*), **GreyNoise**, **Shodan InternetDB**, **CIRCL hashlookup**, **abuse.ch** (Feodo Tracker, URLhaus, en met een gratis Auth-Key ook MalwareBazaar en ThreatFox) en de lijst met **Tor-uitgangen**. Op de achtergrond, met een cache en een limiet per dag; er gaat alleen het IP-adres of de hash naar buiten.
+- **Oordeel** per IP (bekende aanvaller, verdacht, scanner, onschuldig, Tor) bij het incident, en alle details bij het IP-adres in het incidentvenster, met links.
+- **RzMon handelt ernaar**: een bekende aanvaller blokkeren (modus Blokkeren), een login vanaf een bekende aanvaller critical maken, een webaanval van een onschuldige scanner vanzelf afhandelen, een verbinding met een botnet-server meteen critical (en het proces stoppen), bekende malware critical. Elk los aan of uit.
+- **Aanval op een lek dat de server echt heeft**: een webaanval met een CVE die volgens *🐞 Kwetsbaarheden* op die server openstaat, is critical, met het pakket en de versie die het oplost.
+- **Melden bij AbuseIPDB** (standaard uit): wie RzMon automatisch blokkeert, hooguit één keer per dag per IP.
+- abuse.ch Feodo Tracker (botnet-servers) hoort nu bij de bekende aanvallers die de agents vooraf blokkeren; Tor-uitgangen kun je daar ook bij zetten.
+
 ## 1.111.0 – 2026-10-28
 ### Nieuw
 - **🧬 Afwijkingen** (IDS 2.0, deel 2): RzMon leert per server 14 dagen wat normaal is (welke programma's, wie ze start, gebruikers, verbindingen, luisterpoorten, landen, container-images en hoeveel er per uur gebeurt) en meldt daarna wat die server nog nooit deed. Elke afwijking krijgt een score; vanaf 40 wordt het een incident (warning), lager staat het alleen op de pagina. Per server *Leren afronden* of *Opnieuw leren*.

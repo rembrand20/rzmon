@@ -19,6 +19,9 @@ final class IpIntel
         'spamhaus4' => ['label' => 'Spamhaus DROP', 'url' => 'https://www.spamhaus.org/drop/drop_v4.json'],
         'spamhaus6' => ['label' => 'Spamhaus DROPv6', 'url' => 'https://www.spamhaus.org/drop/drop_v6.json'],
         'firehol1' => ['label' => 'FireHOL level 1', 'url' => 'https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset'],
+        // 1.112.0: botnet-servers (C2) van abuse.ch, en (alleen als je dat aanzet) de Tor-uitgangen
+        'feodo' => ['label' => 'abuse.ch Feodo Tracker', 'url' => 'https://feodotracker.abuse.ch/downloads/ipblocklist.txt', 'setting' => 'ti_feodo'],
+        'tor' => ['label' => 'Tor', 'url' => 'https://check.torproject.org/torbulkexitlist', 'setting' => 'ti_tor_block', 'default' => '0'],
     ];
     /** Nooit als aanvaller: privé, loopback, link-local, CGNAT, documentatie, multicast en gereserveerd */
     private const RESERVED = ['0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16', '172.16.0.0/12', '192.0.0.0/24',
@@ -156,6 +159,9 @@ final class IpIntel
         $per = [];
         $errors = [];
         foreach (self::SOURCES as $src => $s) {
+            if (isset($s['setting']) && setting($s['setting'], $s['default'] ?? '1') !== '1') {
+                continue;
+            }
             $raw = self::get(self::url($src, $s['url']));
             if ($raw === null) {
                 $errors[] = $s['label'];

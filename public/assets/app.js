@@ -1069,6 +1069,35 @@ function init() {
     ].filter(Boolean).join(' · ');
   };
   api('ipintel_status').then(ipintelShow).catch(() => {});
+  // Dreigingsinformatie (1.112.0): stand, sleutels testen, lijsten bijwerken
+  const tiShow = (s) => {
+    const prov = { abuse: 'AbuseIPDB', greynoise: 'GreyNoise', shodan: 'Shodan', circl: 'CIRCL', bazaar: 'MalwareBazaar', report: L('gemeld') };
+    $('#ti-status').innerHTML = [
+      s.lists_at ? L('Lijsten bijgewerkt {t}: {list}', { t: esc(fmtDateTime(s.lists_at)), list: esc(Object.entries(s.lists).map(([k, n]) => `${k} ${(+n).toLocaleString(LOCALE)}`).join(', ') || '–') }) : L('Lijsten nog niet opgehaald'),
+      s.lists_error ? `<span class="warn-txt">${esc(s.lists_error)}</span>` : '',
+      Object.keys(s.used).length ? L('Vandaag: {list}', { list: esc(Object.entries(s.used).map(([k, n]) => `${prov[k] || k} ${n}/${s.limits[k]}`).join(', ')) }) : '',
+      s.malicious ? L('{n} bekende aanvallers in 7 dagen', { n: s.malicious }) : '',
+      s.reported ? L('{n} aanvallers gemeld bij AbuseIPDB', { n: s.reported }) : '',
+      ...Object.entries(s.errors || {}).map(([k, e]) => `<span class="warn-txt">${esc(prov[k] || k)}: ${esc(e.msg)} (${esc(fmtDateTime(e.at))})</span>`),
+    ].filter(Boolean).join(' · ');
+  };
+  const tiLoad = () => api('ti_status').then(tiShow).catch(() => {});
+  tiLoad();
+  $('#ids-ti-card').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-ti-test]');
+    if (!b) return;
+    const res = $(`[data-ti-res="${b.dataset.tiTest}"]`);
+    b.disabled = true;
+    res.textContent = '⏳';
+    try { const r = await api('ti_test', { p: b.dataset.tiTest }); res.innerHTML = r.ok ? `<span class="good">✔ ${esc(r.msg)}</span>` : `<span class="bad">✘ ${esc(r.msg)}</span>`; } catch (ex) { res.textContent = ex.message; }
+    b.disabled = false;
+  });
+  $('#ti-lists').onclick = async (e) => {
+    e.target.disabled = true;
+    toast(L('Bijwerken… (kan een minuut duren)'));
+    try { const r = await api('ti_lists', {}); toast(r.msg); tiLoad(); } catch (ex) { toast(ex.message, 'err'); }
+    e.target.disabled = false;
+  };
   $('#ipintel-update').onclick = async (e) => {
     e.target.disabled = true;
     toast(L('Bijwerken… (het land kan een minuut duren)'));
@@ -6014,6 +6043,20 @@ function cmdList(list, prefix) {
   return list.map(([label, cmd], n) => `<div class="adv-cmd"><span class="small muted">${esc(label)}</span>${copyBox(`${prefix}-${n}`, cmd)}</div>`).join('');
 }
 /** Gegevens over een IP-adres (eigenaar, DNS, land, eerder gezien) in het incidentvenster; apart opgehaald met time-outs */
+/** Dreigingsinformatie bij een IP (1.112.0): oordeel, AbuseIPDB, GreyNoise, Shodan, met links */
+const TI_VERDICT = { malicious: () => '☠️ ' + L('bekende aanvaller'), suspicious: () => '⚠️ ' + L('verdacht'), benign: () => '✔ ' + L('onschuldig'), scanner: () => '🤖 ' + L('scanner'),
+  tor: () => '🧅 Tor', clean: () => L('niet bekend als aanvaller'), unknown: () => L('onbekend') };
+function tiRows(t, ip) {
+  const e = encodeURIComponent(ip);
+  const rows = [[L('Oordeel'), `<b class="${t.verdict === 'malicious' ? 'bad' : t.verdict === 'suspicious' ? 'warn-txt' : t.verdict === 'benign' ? 'good' : ''}">${(TI_VERDICT[t.verdict] || (() => t.verdict))()}</b>
+    <span class="score-tag ${t.score >= 80 ? 'crit' : t.score >= 40 ? 'warn' : ''}">${+t.score}</span>${(t.why || []).length ? `<br><span class="small">${esc(t.why.join(' · '))}</span>` : ''}`]];
+  if (t.abuse) rows.push(['AbuseIPDB', `<a href="https://www.abuseipdb.com/check/${e}" target="_blank" rel="noopener">${L('{s}% · {n} meldingen', { s: t.abuse.score, n: t.abuse.reports })}</a>
+    <span class="muted small">${esc([t.abuse.usage, t.abuse.isp, t.abuse.domain].filter(Boolean).join(' · '))}${t.abuse.last ? ' · ' + L('laatst {t}', { t: esc(fmtDateTime(t.abuse.last)) }) : ''}</span>`]);
+  if (t.gn) rows.push(['GreyNoise', `<a href="https://viz.greynoise.io/ip/${e}" target="_blank" rel="noopener">${esc(t.gn.riot ? L('bekende dienst') : t.gn.class || (t.gn.noise ? L('scant het internet') : L('niet gezien')))}</a>${t.gn.name ? ` <span class="muted small">${esc(t.gn.name)}</span>` : ''}`]);
+  if (t.shodan) rows.push(['Shodan', `<a href="https://www.shodan.io/host/${e}" target="_blank" rel="noopener">${t.shodan.ports.length ? L('poorten {list}', { list: esc(t.shodan.ports.slice(0, 12).join(', ')) }) : L('geen open poorten bekend')}</a>
+    ${t.shodan.tags.length ? ' · ' + esc(t.shodan.tags.join(', ')) : ''}${t.shodan.nvulns ? ` · <span class="warn-txt">${L('{n} lekken', { n: t.shodan.nvulns })}</span>` : ''}`]);
+  return rows;
+}
 async function fillIpInfo(box, ip, fresh = false) {
   box.innerHTML = `<span class="muted small">⏳ ${L('Gegevens van {ip} ophalen (hooguit een paar seconden)…', { ip: esc(ip) })}</span>`;
   let d;
@@ -6029,6 +6072,7 @@ async function fillIpInfo(box, ip, fresh = false) {
       [L('Misbruik melden'), r.abuse ? `<a href="mailto:${esc(r.abuse)}">${esc(r.abuse)}</a>` : '<span class="muted">–</span>'],
     ]),
     [L('Bekende aanvaller'), d.bad ? `<b class="bad">☠️ ${esc(d.bad)}</b>` : `<span class="muted">${L('niet op de lijsten')}</span>`],
+    ...(d.ti ? tiRows(d.ti, ip) : (d.ti_on && !d.internal ? [[L('Dreigingsinformatie'), `<span class="muted">${L('niets bekend (of de limiet van vandaag is bereikt)')}</span>`]] : [])),
     [L('In RzMon'), [d.whitelist ? '✅ ' + L('op de whitelist') : '', d.blocked_rz ? '⛔ ' + L('geblokkeerd in RzMon') : '', d.blocked_ids.length ? '⛔ ' + L('geblokkeerd op {list}', { list: esc(d.blocked_ids.join(', ')) }) : '',
       d.events ? L('{n} gebeurtenissen sinds {t}', { n: d.events, t: esc(fmtDateTime(d.first)) }) : L('nog niet eerder gezien'), d.hosts.length ? L('servers: {list}', { list: esc(d.hosts.join(', ')) }) : ''].filter(Boolean).join(' · ')],
   ].filter(([, v]) => v !== '');
@@ -6080,7 +6124,9 @@ function inspectHtml(list) {
       exec: [[L('Programma'), `<code>${esc(v.exe || v.comm)}</code>`], [L('Opdracht'), `<code class="insp-cmd">${esc(v.cmd || '')}</code>`], [L('Ouder'), esc(v.pc || '?')],
         [L('Gebruiker'), `${esc(v.u || '?')} (uid ${esc(v.uid)}${+v.auid && +v.auid < 4294967295 ? ', ' + L('ingelogd als uid {n}', { n: esc(v.auid) }) : ''})`], ['pid', esc(v.pid)], [L('Map'), esc(v.cwd || '')]],
       net: [[L('Programma'), `<code>${esc(v.exe || v.comm)}</code>`], [v.dir === 'listen' ? L('Luistert op') : L('Naar'), v.dir === 'listen' ? esc(v.lp) : `<code>${esc(v.rip)}:${esc(v.rp)}</code>`], [L('Gebruiker'), esc(v.u || '?')], ['pid', esc(v.pid)]],
-      file: [[L('Bestand'), `<code>${esc(v.path)}</code>`], [L('Grootte'), fmtBytes(+v.size || 0)], ['ELF', +v.elf ? L('ja (programma)') : L('nee')], [L('Verdachte code'), esc(v.susp || '–')], ['SHA-256', `<code class="small">${esc(v.sha || '')}</code>`]],
+      file: [[L('Bestand'), `<code>${esc(v.path)}</code>`], [L('Grootte'), fmtBytes(+v.size || 0)], ['ELF', +v.elf ? L('ja (programma)') : L('nee')], [L('Verdachte code'), esc(v.susp || '–')], ['SHA-256', `<code class="small">${esc(v.sha || '')}</code>`],
+        ...(x.ti ? [[L('Bekend als'), x.ti.verdict === 'malware' ? `<b class="bad">☠️ ${esc((x.ti.bazaar && x.ti.bazaar.family) || L('malware'))}</b> <a href="https://bazaar.abuse.ch/sample/${esc(v.sha)}/" target="_blank" rel="noopener">MalwareBazaar</a>`
+          : x.ti.verdict === 'known_good' ? `<span class="good">✔ ${L('bekend, goed bestand')}</span> <span class="muted small">CIRCL · ${esc((x.ti.circl && (x.ti.circl.name || x.ti.circl.source)) || '')}</span>` : `<span class="muted">${L('niet bekend bij {src}', { src: esc((x.ti.src || []).join(', ') || '–') })}</span>`]] : [])],
       audit: [[L('Pad'), `<code>${esc(v.name)}</code>`], [L('Door'), `<code>${esc(v.exe)}</code> (${esc(v.u || v.uid)})`], [L('Sleutel'), esc(v.key)]],
       ctr: [[L('Container'), `${esc(v.name)} <span class="muted">${esc(v.img || '')}</span>`], [L('Actie'), esc(v.act) + (+v.priv ? ' · --privileged' : '')], [L('Opdracht'), `<code>${esc(v.cmd || '')}</code>`]],
     }[x.kind] || [];
@@ -7033,7 +7079,7 @@ const SET_NAV = [
   ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']], ['conn', L('Verbindingen en taken'), ['conn']]]],
   ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']], ['smart', L('Slimme drempels'), ['smart']], ['advice', L('Slimme voorstellen'), ['advice', 'smartmore']], ['cleanup', L('Opschoonadvies'), ['cleanup']]]],
   ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'chain']], ['rules', L('Meldregels en stille uren'), ['notify']], ['alarm', L('Alarmgedrag'), ['alarm']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
-  ['beveiliging', '🛡️', L('Beveiliging'), [['ids', L('IDS: detectie'), ['ids']], ['ids_edr', L('IDS: endpoint-bewaking'), ['ids_edr']], ['ids_attack', L('IDS: aanvallers en verkeer'), ['ids_attack']], ['ids_servers', L('IDS: servers'), ['ids_servers']],
+  ['beveiliging', '🛡️', L('Beveiliging'), [['ids', L('IDS: detectie'), ['ids']], ['ids_edr', L('IDS: endpoint-bewaking'), ['ids_edr']], ['ids_ti', L('IDS: dreigingsinformatie'), ['ids_ti']], ['ids_attack', L('IDS: aanvallers en verkeer'), ['ids_attack']], ['ids_servers', L('IDS: servers'), ['ids_servers']],
     ['vulns', L('Kwetsbaarheden'), ['vulns']], ['hibp', L('Datalekken'), ['hibp']], ['netscan', L('Netwerkscan'), ['netscan']]]],
   ['toegang', '🔐', L('Toegang'), [['access', L('Inloggen'), ['access']], ['outside', L('Van buiten'), ['https', 'outside']], ['users', L('Gebruikers'), ['users']]]],
   ['agents', '🖥️', L('Agents'), [['agents', L('Agents'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']], ['commands', L('Commando-checks'), ['commands']]]],

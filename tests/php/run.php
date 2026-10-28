@@ -349,6 +349,77 @@ for ($d = 1; $d <= 8; $d++) {
 }
 Edr::process($hd, ['ev' => [['k' => 'x', 't' => time(), 'pid' => 500, 'st' => 6, 'uid' => 1000, 'auid' => '1000', 'u' => 'bob', 'exe' => '/usr/bin/ls', 'comm' => 'ls', 'argv' => ['ls'], 'cmd' => 'ls', 'pc' => 'bash']]]);
 ok((int) q("SELECT COUNT(*) FROM ids_signals WHERE host_id = ? AND feature = 'hour'", [$hd['id']])->fetchColumn() === 1, 'ongewoon tijdstip: actief op een uur zonder geschiedenis');
+
+section('Dreigingsinformatie (1.112.0)');
+// Nep-internet: AbuseIPDB, GreyNoise, Shodan, CIRCL, MalwareBazaar, ThreatFox, Tor, URLhaus
+$tiLog = [];
+ThreatIntel::$http = static function (string $m, string $url, array $h, ?string $body) use (&$tiLog) {
+    $tiLog[] = "$m $url";
+    $bad = str_contains($url, '203.0.113.60') || str_contains($url, '203.0.113.61');
+    return match (true) {
+        str_contains($url, 'abuseipdb.com/api/v2/check') => [200, json_encode(['data' => $bad ? ['abuseConfidenceScore' => 100, 'totalReports' => 523, 'numDistinctUsers' => 210, 'usageType' => 'Data Center/Web Hosting/Transit', 'isp' => 'Evil BV', 'isTor' => false]
+            : ['abuseConfidenceScore' => 0, 'totalReports' => 0, 'numDistinctUsers' => 0, 'isWhitelisted' => false]])],
+        str_contains($url, 'abuseipdb.com/api/v2/report') => [200, '{"data":{"abuseConfidenceScore":100}}'],
+        str_contains($url, 'greynoise') => str_contains($url, '203.0.113.70') ? [200, '{"noise":true,"riot":false,"classification":"benign","name":"Shodan.io"}']
+            : ($bad ? [200, '{"noise":true,"riot":false,"classification":"malicious","name":"unknown"}'] : [404, '{"message":"IP not observed"}']),
+        str_contains($url, 'internetdb.shodan.io') => [404, '{"detail":"No information available"}'],
+        str_contains($url, 'hashlookup.circl.lu') => str_contains($url, str_repeat('b', 64)) ? [200, '{"FileName":"./usr/bin/ls","source":"NSRL"}'] : [404, '{}'],
+        str_contains($url, 'mb-api.abuse.ch') => str_contains((string) $body, str_repeat('e', 64)) ? [200, '{"query_status":"ok","data":[{"signature":"XMRig","file_type":"elf","tags":["miner"]}]}'] : [200, '{"query_status":"hash_not_found"}'],
+        str_contains($url, 'threatfox') => [200, json_encode(['query_status' => 'ok', 'data' => [['ioc' => '198.51.100.66:443', 'ioc_type' => 'ip:port', 'malware_printable' => 'Cobalt Strike', 'threat_type' => 'botnet_cc'],
+            ['ioc' => 'c2.badguys.example', 'ioc_type' => 'domain', 'malware_printable' => 'AsyncRAT', 'threat_type' => 'botnet_cc']]])],
+        str_contains($url, 'torbulkexitlist') => [200, "198.51.100.200\n198.51.100.201\n"],
+        str_contains($url, 'urlhaus') => [200, "# URLhaus\n127.0.0.1\tmalware.evil.example\n127.0.0.1\tdrop.bad.example\n"],
+        default => [0, ''],
+    };
+};
+save_setting('ti_abuseipdb_key', 'test-key');
+save_setting('ti_abusech_key', 'test-abusech');
+save_setting('ids_mode', 'block');
+$v = ThreatIntel::lookupIp('203.0.113.61');
+ok($v['verdict'] === 'malicious' && $v['score'] === 100 && str_contains(implode(' ', $v['why']), 'AbuseIPDB 100%'), 'AbuseIPDB 100% + GreyNoise kwaadaardig → bekende aanvaller');
+ok(ThreatIntel::lookupIp('203.0.113.70')['verdict'] === 'benign', 'GreyNoise: onschuldige scanner (Shodan) → onschuldig');
+ok(ThreatIntel::lookupIp('203.0.113.80')['verdict'] === 'clean', 'niets bekend → niet bekend als aanvaller');
+// Wachtrij: login van buiten vanaf een bekende aanvaller → critical, geblokkeerd, oordeel bij het incident
+q('DELETE FROM ti_ip');
+$li = Ids::raise($hc, 1, 'ssh_login', 'root|203.0.113.60', 'SSH-login van buiten: root vanaf 203.0.113.60', 'Geslaagde login', '203.0.113.60');
+$wp = Ids::raise($hc, 1, 'web_payload', 'swag|203.0.113.70', 'Webaanval vanaf 203.0.113.70: scanner', 'scanner', '203.0.113.70');
+ok((int) q('SELECT COUNT(*) FROM ti_queue')->fetchColumn() >= 2, 'nieuwe incidenten met een IP van buiten in de wachtrij');
+Chain::reset();
+ThreatIntel::cron();
+$li2 = q('SELECT * FROM ids_incidents WHERE id = ?', [$li])->fetch();
+ok((int) $li2['severity'] === 2 && str_contains((string) $li2['detail'], '🌐') && str_contains((string) $li2['detail'], 'bekende aanvaller'), 'login vanaf een bekende aanvaller → critical, met het oordeel');
+ok((int) q("SELECT COUNT(*) FROM ids_blocks WHERE host_id = ? AND ip = '203.0.113.60' AND removed_at IS NULL", [$hc['id']])->fetchColumn() === 1, 'bekende aanvaller automatisch geblokkeerd');
+ok(q('SELECT status FROM ids_incidents WHERE id = ?', [$wp])->fetchColumn() === 'done', 'webaanval van een onschuldige scanner vanzelf afgehandeld');
+ok(ThreatIntel::listed('i', '198.51.100.200')['src'] === 'tor' && (ThreatIntel::domain('x.malware.evil.example')['src'] ?? '') === 'urlhaus'
+    && (ThreatIntel::domain('c2.badguys.example')['info'] ?? '') === 'AsyncRAT botnet_cc', 'lijsten opgehaald: Tor, URLhaus en ThreatFox');
+ok(ThreatIntel::domain('example') === null && ThreatIntel::domain('evil.example') === null, 'alleen het domein zelf of een subdomein telt');
+// Verbinding met een adres van ThreatFox: meteen critical en proces stoppen
+$r = Edr::process($hc, ['ev' => [['k' => 'n', 't' => time(), 'dir' => 'out', 'pid' => 777, 'st' => 70, 'comm' => 'updater', 'exe' => '/opt/x/updater', 'u' => 'root', 'rip' => '198.51.100.66', 'rp' => 443, 'lp' => 50000]]]);
+$c2 = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'ti_ip' AND ip = '198.51.100.66'", [$hc['id']])->fetch();
+ok($c2 && (int) $c2['severity'] === 2 && str_contains((string) $c2['detail'], 'Cobalt Strike') && ($r['edr_kill'] ?? null) === [[777, 70]], 'verbinding met een botnet-server (ThreatFox) → critical, proces gestopt');
+// Bestanden: bekende malware (MalwareBazaar) en een bekend goed bestand (CIRCL)
+Edr::process($hc, ['ev' => [['k' => 'f', 't' => time(), 'path' => '/opt/tools/xm', 'size' => 9000, 'elf' => 1, 'x' => 1, 'sha' => str_repeat('e', 64)],
+    ['k' => 'f', 't' => time(), 'path' => '/opt/tools/ls', 'size' => 9000, 'elf' => 1, 'x' => 1, 'sha' => str_repeat('b', 64)]]]);
+ThreatIntel::cron();
+$mw = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'ti_malware'", [$hc['id']])->fetch();
+ok($mw && (int) $mw['severity'] === 2 && str_contains((string) $mw['title'], 'XMRig') && str_contains((string) $mw['title'], '/opt/tools/xm'), 'bekende malware (MalwareBazaar) → critical: ' . ($mw['title'] ?? '-'));
+ok((ThreatIntel::hash(str_repeat('b', 64))['verdict'] ?? '') === 'known_good', 'bekend goed bestand (CIRCL)');
+// Aanval op een lek dat de server echt heeft
+q("INSERT INTO vuln_findings (host_id, package, version, source, vuln_id, cve, fixed_version, first_seen) VALUES (?, 'phpunit', '5.6.2', 'composer', 'GHSA-x', 'CVE-2017-9841', '5.6.3', NOW())", [$hc['id']]);
+Inspect::requests($hc, [['203.0.113.90', time(), 'POST', '/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php', 200, 10, 'curl/8', '-']]);
+$wc = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'web_cve'", [$hc['id']])->fetch();
+ok($wc && (int) $wc['severity'] === 2 && str_contains((string) $wc['detail'], 'phpunit 5.6.2'), 'aanval op een lek dat deze server heeft (CVE-2017-9841) → critical');
+// Melden bij AbuseIPDB (alleen als het aan staat), één keer per dag
+$tiLog = [];
+ThreatIntel::cron();
+ok(!array_filter($tiLog, static fn($l) => str_contains($l, '/report')), 'melden staat standaard uit');
+save_setting('ti_report', '1');
+ThreatIntel::cron();
+ThreatIntel::cron();
+ok(count(array_filter($tiLog, static fn($l) => str_contains($l, '/report'))) === count(array_unique(q("SELECT ip FROM ids_blocks WHERE auto = 1 AND created_at >= NOW() - INTERVAL 1 HOUR AND ip NOT LIKE '10.%' AND ip NOT LIKE '192.168.%'")->fetchAll(PDO::FETCH_COLUMN)))
+    && q("SELECT reported_at FROM ti_ip WHERE ip = '203.0.113.60'")->fetchColumn(), 'geblokkeerde aanvallers gemeld bij AbuseIPDB, één keer per IP');
+save_setting('ti_report', '0');
+ThreatIntel::$http = null;
 save_setting('ids_mode', 'learn');
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");

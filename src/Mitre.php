@@ -26,7 +26,7 @@ final class Mitre
         'user_new' => ['T1136.001'], 'group_add' => ['T1098'], 'suid_new' => ['T1548.001'], 'module_new' => ['T1547.006'],
         'pkg_changed' => ['T1554'], 'proc_suspicious' => ['T1059.004'], 'revshell' => ['T1059.004'], 'webshell' => ['T1505.003'],
         'outbound' => ['T1071'], 'out_country' => ['T1071'], 'out_bad' => ['T1071'], 'port_new' => ['T1571'], 'kev_port' => ['T1190'],
-        'web_attack' => ['T1190'], 'web_payload' => ['T1190'], 'fim' => ['T1565.001'], 'fim_bulk' => ['T1565.001'],
+        'web_attack' => ['T1190'], 'web_payload' => ['T1190'], 'web_cve' => ['T1190'], 'ti_ip' => ['T1071'], 'ti_malware' => ['T1204.002'], 'fim' => ['T1565.001'], 'fim_bulk' => ['T1565.001'],
     ];
 
     public static function data(): array

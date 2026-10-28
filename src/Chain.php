@@ -21,9 +21,9 @@ final class Chain
     private static array $new = [];
 
     /** Score van IDS-incidenten (anders: critical 60, warning 30) */
-    private const SCORES = ['breakin' => 70, 'newip' => 40, 'rootlogin' => 30, 'webshell' => 70, 'revshell' => 70, 'out_bad' => 60, 'decoy_user' => 50, 'decoy_port' => 40];
+    private const SCORES = ['breakin' => 70, 'newip' => 40, 'rootlogin' => 30, 'webshell' => 70, 'revshell' => 70, 'out_bad' => 60, 'decoy_user' => 50, 'decoy_port' => 40, 'web_cve' => 70];
     private const LOGIN = ['ssh_login', 'newip', 'rootlogin', 'breakin'];
-    private const WEB = ['web_payload', 'web_attack'];
+    private const WEB = ['web_payload', 'web_attack', 'web_cve'];
     private const NOISE = ['discovery', 'reconnaissance', 'resource-development'];
 
     public static function on(): bool
@@ -56,7 +56,7 @@ final class Chain
     /** Signaal bij een IDS-incident (nieuw of opgeteld; hetzelfde hooguit eens per 10 minuten) */
     public static function fromIncident(array $host, string $type, string $key, int $sev, string $title, ?string $ip, ?int $incidentId): void
     {
-        if (in_array($type, ['edr', 'anomaly', 'chain', 'harden'], true)) {
+        if (in_array($type, ['edr', 'anomaly', 'chain', 'harden', 'ti_ip', 'ti_malware'], true)) {
             return;   // die maken hun eigen signaal, of horen niet bij een aanval
         }
         $score = self::SCORES[$type] ?? ($sev >= 2 ? 60 : 30);

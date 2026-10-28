@@ -122,6 +122,28 @@ final class Inspect
      * Verzoeken van de agent: [ip, tijd (unix), methode, pad+query, status, bytes, user-agent, verwijzer], hooguit 100.
      * Per IP één incident per dag (opgeteld), met de verzoeken als bewijs.
      */
+    /**
+     * 1.112.0: een aanval op een lek (CVE) dat deze server volgens de kwetsbaarheden-scan echt heeft: critical, want
+     * dan kan het lukken. Een geaccepteerd risico (vuln_ignore) telt niet.
+     */
+    private static function cveHere(array $host, string $ip, array $reqs): void
+    {
+        if (setting('ti_cve', '1') !== '1') {
+            return;
+        }
+        foreach (array_unique(array_filter(array_map(static fn($q) => $q['cve'][0] ?? '', $reqs))) as $cve) {
+            $f = q('SELECT package, version, fixed_version FROM vuln_findings f WHERE host_id = ? AND cve = ?
+                    AND NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.host_id IS NULL OR i.host_id = f.host_id)) LIMIT 1', [$host['id'], $cve])->fetch();
+            if (!$f) {
+                continue;
+            }
+            $ok = array_filter($reqs, static fn($q) => ($q['cve'][0] ?? '') === $cve && $q['status'] >= 200 && $q['status'] < 400);
+            Ids::raise($host, 2, 'web_cve', "$cve|$ip", t('Aanval op een lek dat deze server heeft: {cve} vanaf {ip}', ['cve' => $cve, 'ip' => $ip]),
+                t('{pkg} {ver} heeft dit lek{fix}. Werk het bij (tabblad Kwetsbaarheden) en kijk of de aanval lukte.', ['pkg' => $f['package'], 'ver' => $f['version'],
+                    'fix' => $f['fixed_version'] ? ' ' . t('(opgelost in {v})', ['v' => $f['fixed_version']]) : '']) . ($ok ? ' · ' . t('{n} kreeg een gewoon antwoord (2xx/3xx): kijk of het lukte', ['n' => count($ok)]) : ''), $ip);
+        }
+    }
+
     public static function requests(array $host, array $list): void
     {
         if (!Ids::enabled() || setting('edr_web', '1') !== '1') {
@@ -164,6 +186,7 @@ final class Inspect
             foreach (array_slice($reqs, -10) as $q) {
                 Edr::evidence($id, 'web', $q, $q['cve'][0] ?? ($q['tech'][0][0] ?? 'scanner'));
             }
+            self::cveHere($host, $ip, $reqs);
         }
     }
 }

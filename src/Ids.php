@@ -1025,7 +1025,11 @@ final class Ids
         }
         q('INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip, cc) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [$hid, $sev, $type, $key, mb_substr($title, 0, 250), mb_substr($detail, 0, 1000), $ip !== null && $ip !== '' ? mb_substr($ip, 0, 45) : null, $cc]);
-        Chain::fromIncident($ctx['host'], $type, $key, $sev, $title, $ip, (int) db()->lastInsertId());
+        $newId = (int) db()->lastInsertId();
+        Chain::fromIncident($ctx['host'], $type, $key, $sev, $title, $ip, $newId);
+        if ($ip !== null && $ip !== '' && !in_array($type, ['ti_ip', 'chain'], true)) {
+            ThreatIntel::queue('i', $ip, $hid, $newId);   // 1.112.0: wat is er over dit IP bekend? (in de cron)
+        }
         if ($sev === 2) {
             self::notify($ctx['host']['name'] . ': ' . $title, $detail);
         }
@@ -1043,6 +1047,17 @@ final class Ids
         $id = q('SELECT id FROM ids_incidents WHERE host_id = ? AND type = ? AND dkey = ? AND created_at >= NOW() - INTERVAL 1 DAY ORDER BY id DESC LIMIT 1',
             [$host['id'], $type, mb_substr($key, 0, 255)])->fetchColumn();
         return $id ? (int) $id : null;
+    }
+
+    /** Warning → critical, met de reden erbij en een melding (1.112.0: bv. ingelogd vanaf een bekende aanvaller) */
+    public static function escalate(int $incidentId, string $why): void
+    {
+        $i = q('SELECT i.*, h.name AS host FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.id = ?', [$incidentId])->fetch();
+        if (!$i || (int) $i['severity'] === 2) {
+            return;
+        }
+        q('UPDATE ids_incidents SET severity = 2, detail = ? WHERE id = ?', [mb_substr($i['detail'] . ' · ⚠️ ' . $why, 0, 1000), $incidentId]);
+        self::notify($i['host'] . ': ' . $i['title'], $why);
     }
 
     /** Naar Pushover (ook tijdens stille uren), en in Meldingen. Critical, of (SSH-login van buiten) warning. */

@@ -202,6 +202,9 @@ final class Anomaly
             Edr::evidence($ref, $kind, $ev, 'anomaly', ['title' => $ft['label'], 'src' => 'anomaly', 'tags' => $ft['techs'], 'author' => '', 'url' => '',
                 'what' => t('Deze server deed dit in de leerperiode nooit. Dat hoeft geen aanval te zijn (een nieuw programma, een update), maar past het niet bij wat je deed, kijk dan verder.'), 'fp' => []]);
         }
+        if ($ip !== null) {
+            ThreatIntel::queue('i', $ip, (int) $host['id'], $ref, $ft['label']);   // 1.112.0: een bekende aanvaller?
+        }
         Chain::signal($host, 'anom', $ft['k'], $ft['tactics'], $ft['techs'], $ft['label'], $ft['score'], $ip, $ref, "anom|$dkey",
             $ev + ['_web' => self::isWeb($kind, $ev) ? 1 : 0, 'k' => $kind], 0, $at);
     }

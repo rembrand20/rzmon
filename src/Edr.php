@@ -95,6 +95,13 @@ final class Edr
                 }
             }
             Anomaly::observe($host, $kind, $ev, $sig, $hit !== null, $at);
+            // 1.112.0: dreigingsinformatie: nieuw programma of script opzoeken; verbinding met een bekende botnet-server
+            if ($kind === 'file' && !empty($ev['sha']) && ((int) ($ev['elf'] ?? 0) === 1 || (int) ($ev['x'] ?? 0) === 1 || !empty($ev['susp']))) {
+                ThreatIntel::queue('h', (string) $ev['sha'], $hid, $hit['inc'] ?? null, (string) ($ev['path'] ?? ''));
+            }
+            if ($kind === 'net' && ($ev['dir'] ?? '') === 'out' && $hit === null) {
+                self::knownBad($host, $ev);
+            }
             q('INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev) VALUES (?, ?, ?, ?, ?, ?, ?)',
                 [$hid, $at, $ev['k'], $sig, json_encode($ev, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE),
                     $hit['rule'] ?? null, $hit['sev'] ?? 0]);
@@ -241,7 +248,41 @@ final class Edr
         $techs = (array) ($r['tags'] ?? []);
         Chain::signal($host, 'rule', mb_substr((string) $r['id'], 0, 20), ($sigma ? (array) ($r['tactics'] ?? []) : []) ?: Mitre::tacticsOf($techs), $techs,
             $title, $sev >= 2 ? 60 : 35, $ip, $id, "rule|$key", ['_web' => Anomaly::isWeb($kind, $ev) ? 1 : 0, 'k' => $kind], 10, self::when($ev));
-        return ['rule' => mb_substr((string) $r['id'], 0, 80), 'sev' => $sev];
+        return ['rule' => mb_substr((string) $r['id'], 0, 80), 'sev' => $sev, 'inc' => $id];
+    }
+
+    /**
+     * Uitgaande verbinding naar een adres op een lijst (Feodo/Spamhaus/FireHOL, ThreatFox): zonder iets op te zoeken
+     * meteen critical (meestal malware die naar huis belt); in de modus Blokkeren het proces stoppen.
+     */
+    private static function knownBad(array $host, array $ev): void
+    {
+        $ip = (string) ($ev['rip'] ?? '');
+        if ($ip === '' || Ids::internalIp($ip) || !ThreatIntel::on()) {
+            return;
+        }
+        $tf = ThreatIntel::listed('i', $ip);
+        $list = IpIntel::bad($ip) ?? ($tf && $tf['src'] === 'threatfox' ? 'ThreatFox (' . $tf['info'] . ')' : null);
+        if ($list === null) {
+            return;
+        }
+        $exe = basename((string) ($ev['exe'] ?? ($ev['comm'] ?? '?')));
+        $done = [];
+        if (Ids::blocking() && setting('ti_block', '1') === '1') {
+            $pid = (int) ($ev['pid'] ?? 0);
+            $st = (int) ($ev['st'] ?? 0);
+            if ($pid > 1 && $st > 0 && setting('edr_kill', '1') === '1') {
+                q('INSERT IGNORE INTO ids_kills (host_id, pid, start, dkey, created_at) VALUES (?, ?, ?, ?, ?)', [$host['id'], $pid, $st, mb_substr("ti|$ip", 0, 255), now()]);
+                self::$kills["$pid:$st"] = [$pid, $st];
+                $done[] = t('proces {pid} wordt gestopt', ['pid' => $pid]);
+            }
+        }
+        $id = Ids::raise($host, 2, 'ti_ip', $ip, t('Verbinding met een bekende aanvaller: {exe} → {ip}', ['exe' => $exe, 'ip' => $ip . ':' . ($ev['rp'] ?? '')]),
+            '☠️ ' . $list . ' · ' . self::facts('net', $ev) . ($done ? ' · ⛔ ' . implode(', ', $done) : ''), $ip);
+        self::evidence($id, 'net', $ev + ['_done' => $done], 'ti-c2', ['title' => t('Verbinding met een bekende aanvaller'), 'src' => 'ti', 'tags' => ['T1071'], 'author' => '', 'url' => '',
+            'what' => t('Dit adres staat op een lijst met botnet- en malwareservers ({list}). Een programma op de server praat ermee: meestal malware die opdrachten ophaalt.', ['list' => $list]), 'fp' => []]);
+        Chain::signal($host, 'ids', 'ti_c2', ['command-and-control'], ['T1071'], t('Verbinding met een bekende aanvaller: {exe} → {ip}', ['exe' => $exe, 'ip' => $ip]), 80, $ip, $id,
+            "ti|c2|$ip", ['k' => 'net'], 10, self::when($ev));
     }
 
     /** De belangrijkste gegevens in één regel */
@@ -277,7 +318,10 @@ final class Edr
     {
         return array_map(static function ($r) {
             $d = json_decode((string) $r['data'], true) ?: [];
-            return ['at' => $r['at'], 'kind' => $r['kind'], 'rule' => $r['rule'], 'ev' => $d['ev'] ?? [], 'info' => $d['rule'] ?? []];
+            $ev = $d['ev'] ?? [];
+            // 1.112.0: wat er over het bestand bekend is (CIRCL, MalwareBazaar)
+            $ti = $r['kind'] === 'file' && !empty($ev['sha']) && is_string($ev['sha']) ? ThreatIntel::hash($ev['sha']) : null;
+            return ['at' => $r['at'], 'kind' => $r['kind'], 'rule' => $r['rule'], 'ev' => $ev, 'info' => $d['rule'] ?? [], 'ti' => $ti];
         }, q('SELECT * FROM ids_evidence WHERE incident_id = ? ORDER BY id DESC', [$incidentId])->fetchAll());
     }
 
@@ -356,5 +400,6 @@ final class Edr
         q('DELETE FROM edr_seen WHERE last_seen < NOW() - INTERVAL 60 DAY');
         Anomaly::purge();
         Chain::purge();
+        ThreatIntel::purge();
     }
 }

@@ -975,3 +975,43 @@ CREATE TABLE IF NOT EXISTS edr_hourly (
     CONSTRAINT fk_edrh_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('edr_anom', '1'), ('edr_learn_days', '14'), ('edr_anom_min', '40'), ('edr_chain', '1'), ('edr_chain_min', '60'), ('edr_chain_act', '1');
+
+-- 1.112.0: dreigingsinformatie (AbuseIPDB, GreyNoise, Shodan, CIRCL, abuse.ch, Tor): per IP en bestand een dag/week bewaard
+CREATE TABLE IF NOT EXISTS ti_ip (
+    ip          VARCHAR(45)  NOT NULL PRIMARY KEY,
+    checked_at  DATETIME     NOT NULL,
+    score       TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    verdict     VARCHAR(20)  NOT NULL DEFAULT '',
+    data        TEXT         NULL,
+    reported_at DATETIME     NULL,
+    INDEX idx_tiip_at (checked_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ti_hash (
+    sha        CHAR(64)     NOT NULL PRIMARY KEY,
+    checked_at DATETIME     NOT NULL,
+    verdict    VARCHAR(20)  NOT NULL DEFAULT '',
+    data       TEXT         NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Lijsten die dagelijks worden opgehaald: i = IP (Tor, ThreatFox), d = domein (URLhaus, ThreatFox)
+CREATE TABLE IF NOT EXISTS ti_list (
+    kind  CHAR(1)      NOT NULL,
+    value VARCHAR(253) NOT NULL,
+    src   VARCHAR(20)  NOT NULL,
+    info  VARCHAR(120) NOT NULL DEFAULT '',
+    PRIMARY KEY (kind, value, src)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ti_queue (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    kind        CHAR(1)      NOT NULL,
+    value       VARCHAR(253) NOT NULL,
+    host_id     INT UNSIGNED NOT NULL,
+    incident_id BIGINT UNSIGNED NULL,
+    ctx         VARCHAR(250) NOT NULL DEFAULT '',
+    added_at    DATETIME     NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('ti_on', '1'), ('ti_greynoise', '1'), ('ti_shodan', '1'), ('ti_circl', '1'), ('ti_tor', '1'), ('ti_tor_block', '0'),
+    ('ti_urlhaus', '1'), ('ti_feodo', '1'), ('ti_block', '1'), ('ti_block_score', '80'), ('ti_escalate', '1'), ('ti_close_benign', '1'), ('ti_report', '0'), ('ti_cve', '1');
+

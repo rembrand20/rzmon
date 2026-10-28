@@ -96,6 +96,10 @@ try {
     if ($msg = IpIntel::cron()) {
         echo date('c') . " $msg\n";
     }
+    // 1.112.0: dreigingsinformatie (AbuseIPDB, GreyNoise, Shodan, abuse.ch, Tor): lijsten en de wachtrij
+    if ($msg = ThreatIntel::cron()) {
+        echo date('c') . " $msg\n";
+    }
 } catch (Throwable $e) {
     fwrite(STDERR, 'Agents/certificaat: ' . $e->getMessage() . "\n");
 }

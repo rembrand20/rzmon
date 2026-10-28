@@ -285,6 +285,31 @@ final class IdsAdvice
                 $a['prevent'] = t('Houd websites en diensten achter SWAG bijgewerkt; zet alleen open wat echt van buiten bereikbaar moet zijn.');
                 break;
 
+            case 'ti_ip':   // 1.112.0: verbinding met een adres dat als aanvaller of botnet-server bekend is
+                $a['what'] = t('Een programma op deze server had contact met {ip}, een adres dat bekendstaat als aanvaller of botnet-server (zie hieronder waarom).', ['ip' => $ip ?? '?']);
+                $a['risk'] = t('Ernstig: meestal malware die opdrachten ophaalt of gegevens wegstuurt. Soms vals alarm, bijvoorbeeld een gedeeld cloud-adres.');
+                $a['steps'] = [t('Kijk bij het bewijs welk programma het was en waar het staat.'), t('Herken je het niet: stop het, isoleer de server en zoek uit hoe het binnenkwam.')];
+                $a['cmds'] = $ip ? [[t('Welk proces praat met dit adres'), 'sudo ss -tupn | grep -F ' . self::q($ip)]] : [];
+                $a['prevent'] = t('Zet "uitgaand naar bekende aanvallers blokkeren" aan bij IDS → Aanvallers en verkeer.');
+                break;
+
+            case 'ti_malware':   // 1.112.0: een nieuw bestand staat bij MalwareBazaar of CIRCL als malware
+                $a['what'] = t('Er kwam een bestand op de server dat bekendstaat als malware.');
+                $a['risk'] = t('Ernstig: ga ervan uit dat iemand op de server kon komen of dat een programma het binnenhaalde.');
+                $a['steps'] = [t('Verwijder het bestand niet meteen: kijk eerst wie het maakte (Live, auditd) en of het draait.'),
+                    t('Isoleer de server, stop het proces en verwijder het bestand.'), t('Zoek uit hoe het binnenkwam (webaanval, gestolen wachtwoord) en verander wachtwoorden en sleutels.')];
+                $a['cmds'] = [[t('Waar staat het bestand?'), 'sudo find /tmp /var/tmp /dev/shm /var/www /home /opt -xdev -type f -size -100M -exec sha256sum {} + 2>/dev/null | grep -i ' . self::q($key)]];
+                $a['prevent'] = t('Zet /tmp en /dev/shm op noexec en houd alles bijgewerkt.');
+                break;
+
+            case 'web_cve':   // 1.112.0: aanval op een lek dat de server volgens de scan echt heeft
+                $a['what'] = t('Iemand probeerde een lek dat deze server volgens de kwetsbaarheden-scan echt heeft. Zo\'n aanval kan dus lukken.');
+                $a['risk'] = t('Ernstig, zeker als een verzoek een gewoon antwoord (2xx) kreeg.');
+                $a['steps'] = [t('Werk het pakket meteen bij (tabblad Kwetsbaarheden).'), t('Blokkeer het IP-adres (gebeurt vanzelf in de modus Blokkeren).'),
+                    t('Kijk of er daarna iets gebeurde (IDS → Afwijkingen en Ketens).')];
+                $a['prevent'] = t('Zet automatische beveiligingsupdates aan, of werk wekelijks bij via de agent.');
+                break;
+
             case 'anomaly':   // 1.111.0: iets wat deze server in de leerperiode nooit deed
                 $a['what'] = t('Deze server deed iets wat hij in de leerperiode nooit deed: {what}.', ['what' => preg_replace('/^[^:]+:\s*/u', '', (string) $inc['title'])]);
                 $a['risk'] = t('Meestal onschuldig: nieuwe software, een update of iets wat je zelf instelde. Verdacht als niemand iets veranderde, of als er tegelijk andere meldingen zijn (zie Ketens).');

@@ -711,6 +711,40 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="muted small"><?= t('Een afwijking is iets wat de server in de leerperiode nooit deed; boven de score wordt het een incident (warning). Een keten is een combinatie, zoals webaanval → webshell, inloggen → achterdeur of binnenhalen → contact naar buiten; die is critical en gaat naar Pushover. Ingrijpen gebeurt alleen in de modus ⛔ Blokkeren. Alles staat op <i>🛡️ IDS → 🧬 Afwijkingen</i> en <i>🧭 MITRE</i>.') ?></p>
         </div>
 
+        <div data-sk="ids_ti" class="card" id="ids-ti-card">
+          <h2>🌐 <?= th('Dreigingsinformatie') ?></h2>
+          <p class="muted small"><?= t('RzMon vraagt na wat er op internet bekend is over de IP-adressen en bestanden uit je incidenten: is dit een bekende aanvaller, een onschuldige scanner, een Tor-uitgang, bekende malware? Dat staat dan bij het incident en bij het IP-adres, en RzMon handelt ernaar. Er gaat alleen het IP-adres of de hash van een bestand naar buiten, nooit namen van servers of gebruikers. Werkt alleen als het IDS aan staat.') ?></p>
+          <label class="switch"><input type="checkbox" name="ti_on"><span></span> <?= t('<b>Dreigingsinformatie aan</b>') ?></label>
+          <h3 class="set-sub">AbuseIPDB</h3>
+          <label><?= th('API-sleutel') ?> <span class="hint"><?= t('(gratis: <a href="https://www.abuseipdb.com/account/api" target="_blank" rel="noopener">abuseipdb.com → Account → API</a>; 1.000 opzoekingen per dag)') ?></span>
+            <input name="ti_abuseipdb_key" type="password" autocomplete="new-password" class="mono" placeholder="<?= th('plak hier je sleutel') ?>"></label>
+          <p class="small"><button type="button" class="btn small-btn" data-ti-test="abuse"><?= th('Sleutel testen') ?></button> <span class="muted" data-ti-res="abuse"></span></p>
+          <label class="switch"><input type="checkbox" name="ti_report"><span></span> <?= t('<b>Melden</b> bij AbuseIPDB wie RzMon automatisch blokkeert (brute force, webaanval, honeypot; hooguit één keer per dag per IP)') ?></label>
+          <p class="muted small" style="margin-top:-.4rem"><?= th('Dan gaan het IP-adres, de soort aanval en de tekst "RzMon IDS" naar AbuseIPDB, zodat anderen die aanvaller ook kunnen weren. Nooit adressen uit je eigen netwerk of van de whitelist.') ?></p>
+          <h3 class="set-sub"><?= th('Andere bronnen (gratis)') ?></h3>
+          <label class="switch"><input type="checkbox" name="ti_greynoise"><span></span> <?= t('<b>GreyNoise</b> (scant dit IP het hele internet, is het een bekende dienst zoals Google of Shodan, of kwaadaardig)') ?></label>
+          <label><?= th('GreyNoise-sleutel') ?> <span class="hint"><?= th('(niet nodig; zonder sleutel ongeveer 50 per dag)') ?></span><input name="ti_greynoise_key" type="password" autocomplete="new-password" class="mono"></label>
+          <label class="switch"><input type="checkbox" name="ti_shodan"><span></span> <?= t('<b>Shodan InternetDB</b> (open poorten, lekken en labels zoals c2 of malware van het IP zelf)') ?></label>
+          <label class="switch"><input type="checkbox" name="ti_circl"><span></span> <?= t('<b>CIRCL hashlookup</b> (is een nieuw programma een bekend, goed bestand)') ?></label>
+          <label class="switch"><input type="checkbox" name="ti_tor"><span></span> <?= t('<b>Tor-uitgangen</b> herkennen (dagelijkse lijst)') ?></label>
+          <label class="switch"><input type="checkbox" name="ti_tor_block"><span></span> <?= t('Tor-uitgangen ook <b>vooraf blokkeren</b> op de servers (modus Blokkeren, bij de bekende aanvallers)') ?></label>
+          <label class="switch"><input type="checkbox" name="ti_feodo"><span></span> <?= t('<b>abuse.ch Feodo Tracker</b> (botnet-servers bij de bekende aanvallers; een verbinding ernaartoe is critical)') ?></label>
+          <label class="switch"><input type="checkbox" name="ti_urlhaus"><span></span> <?= t('<b>abuse.ch URLhaus</b> (domeinen met malware, voor de DNS-controle via AdGuard)') ?></label>
+          <h3 class="set-sub">abuse.ch <span class="muted small"><?= th('(optioneel)') ?></span></h3>
+          <label><?= th('abuse.ch Auth-Key') ?> <span class="hint"><?= t('(gratis: <a href="https://auth.abuse.ch/" target="_blank" rel="noopener">auth.abuse.ch</a>; voor MalwareBazaar en ThreatFox)') ?></span>
+            <input name="ti_abusech_key" type="password" autocomplete="new-password" class="mono"></label>
+          <p class="small"><button type="button" class="btn small-btn" data-ti-test="abusech"><?= th('Sleutel testen') ?></button> <span class="muted" data-ti-res="abusech"></span></p>
+          <h3 class="set-sub"><?= th('Wat RzMon ermee doet') ?></h3>
+          <label class="switch"><input type="checkbox" name="ti_block"><span></span> <?= t('<b>Bekende aanvallers blokkeren</b> (modus ⛔ Blokkeren), vanaf deze score:') ?></label>
+          <label><?= th('Score voor "bekende aanvaller" (0–100)') ?> <span class="hint"><?= th('(AbuseIPDB-percentage, of 80–90 bij GreyNoise/Shodan/abuse.ch)') ?></span><input name="ti_block_score" type="number" min="10" max="100"></label>
+          <label class="switch"><input type="checkbox" name="ti_escalate"><span></span> <?= t('Een <b>login</b> vanaf een bekende aanvaller wordt critical (Pushover)') ?></label>
+          <label class="switch"><input type="checkbox" name="ti_close_benign"><span></span> <?= t('Een webaanval van een <b>onschuldige scanner</b> (GreyNoise) vanzelf afhandelen') ?></label>
+          <label class="switch"><input type="checkbox" name="ti_cve"><span></span> <?= t('Een webaanval op een <b>lek dat de server echt heeft</b> (tabblad Kwetsbaarheden) is critical') ?></label>
+          <p class="muted small" id="ti-status"></p>
+          <p class="small"><button type="button" class="btn small-btn" id="ti-lists"><?= th('Lijsten nu bijwerken') ?></button></p>
+          <p class="muted small"><?= t('Bronnen: AbuseIPDB, GreyNoise Community, Shodan InternetDB, CIRCL hashlookup, abuse.ch (Feodo Tracker, URLhaus, ThreatFox, MalwareBazaar), Tor Project. Opzoeken gaat op de achtergrond (cron), met een cache van een dag en een limiet per dag.') ?></p>
+        </div>
+
         <div data-sk="ids_attack" class="card" id="ids-attack-card">
           <h2>🌍 <?= th('IDS: aanvallers en verkeer') ?></h2>
           <p class="muted small"><?= t('Werkt alleen als het IDS aan staat (<a href="#settings/ids" data-goto="settings/ids">IDS: detectie</a>).') ?></p>

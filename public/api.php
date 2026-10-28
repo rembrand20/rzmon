@@ -2875,7 +2875,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -2895,7 +2895,7 @@ switch ($action) {
             $in['notify_channels'] = json_encode(array_replace(NotifyRules::defaults()['channels'],
                 NotifyRules::cleanChannels((array) (is_string($in['notify_channels']) ? json_decode($in['notify_channels'], true) : $in['notify_channels']))));
         }
-        foreach (['esc_warn_min' => [0, 1440], 'esc_crit_min' => [0, 1440], 'esc_crit_prio' => [-1, 2], 'smart_fast' => [10, 300], 'smart_slow' => [1, 10], 'disk_jump_pct' => [1, 50], 'edr_learn_days' => [1, 90], 'edr_anom_min' => [1, 100], 'edr_chain_min' => [5, 1440]] as $k => [$lo, $hi]) {
+        foreach (['esc_warn_min' => [0, 1440], 'esc_crit_min' => [0, 1440], 'esc_crit_prio' => [-1, 2], 'smart_fast' => [10, 300], 'smart_slow' => [1, 10], 'disk_jump_pct' => [1, 50], 'edr_learn_days' => [1, 90], 'edr_anom_min' => [1, 100], 'edr_chain_min' => [5, 1440], 'ti_block_score' => [10, 100]] as $k => [$lo, $hi]) {
             if (isset($in[$k])) {
                 $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
             }
@@ -3648,6 +3648,16 @@ switch ($action) {
         out(['events' => Edr::feed((int) ($_GET['limit'] ?? 200), ($hid = (int) ($_GET['host'] ?? 0)) ?: null, ($_GET['hits'] ?? '') === '1', (int) ($_GET['after'] ?? 0)),
             'on' => Ids::enabled() && setting('edr_on', '1') === '1']);
 
+    // ---------- 1.112.0: dreigingsinformatie ----------
+    case 'ti_status':
+        out(ThreatIntel::status() + ['on' => ThreatIntel::on()]);
+
+    case 'ti_test':   // werkt de sleutel? (eerst opslaan, dan testen)
+        out(ThreatIntel::test((string) (input()['p'] ?? '')));
+
+    case 'ti_lists':   // lijsten nu bijwerken
+        out(['msg' => ThreatIntel::updateLists()]);
+
     // ---------- 1.111.0: afwijkingen, ketens en MITRE ----------
     case 'ids_anom':   // Afwijkingen: leerstatus per server, ketens en afwijkingen
         $hid = (int) ($_GET['host'] ?? 0) ?: null;
@@ -4307,7 +4317,10 @@ switch ($action) {
         if (@inet_pton($ip) === false) {
             out(['error' => t('Ongeldig IP-adres')], 422);
         }
-        out(IdsAdvice::ipInfo($ip, ($_GET['fresh'] ?? '') === '1' && $isAdmin));
+        $fresh = ($_GET['fresh'] ?? '') === '1' && $isAdmin;
+        // 1.112.0: dreigingsinformatie (uit de cache; nu opzoeken als het er nog niet is, of bij "opnieuw opzoeken")
+        out(IdsAdvice::ipInfo($ip, $fresh) + ['ti' => ThreatIntel::on() && !Ids::internalIp($ip) ? ($fresh ? ThreatIntel::lookupIp($ip) : ThreatIntel::ip($ip, true)) : null,
+            'ti_on' => ThreatIntel::on()]);
 
     case 'ids_block':
         $in = input();

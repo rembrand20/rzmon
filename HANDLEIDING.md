@@ -2134,6 +2134,29 @@ Bovenop de regels leert RzMon per server wat normaal is, en kijkt hij of losse m
 - **🧭 MITRE** (*🛡️ IDS → 🧭 MITRE*): alle meldingen van de laatste 7, 30 of 90 dagen in de matrix van [MITRE ATT&CK](https://attack.mitre.org) (versie 20): per stap van een aanval (Binnenkomen, Uitvoeren, Blijven, Rechten verhogen …) de technieken die gezien zijn, hoe vaak en hoe ernstig. Klik op een techniek voor de meldingen. **Ook wat de regels kunnen zien** toont ook de technieken die de regels herkennen maar die nog niet voorkwamen (de dekking).
 - **Instellen:** *Instellingen → IDS → Endpoint-bewaking → 🧬 Afwijkingen en ketens*: afwijkingen aan/uit, de leerperiode, de score voor een incident, ketens aan/uit, het venster en of RzMon bij een keten ingrijpt.
 
+**🌐 Dreigingsinformatie** (vanaf 1.112.0)
+
+RzMon vraagt na wat er op internet bekend is over de IP-adressen en bestanden uit je incidenten, en handelt ernaar. Instellen: *Instellingen → IDS → Dreigingsinformatie*.
+
+- **Bronnen:**
+  - **AbuseIPDB** (eigen API-sleutel, gratis, 1.000 opzoekingen per dag): hoe vaak een IP gemeld is, door hoeveel mensen, het soort netwerk en de provider. De sleutel maak je op [abuseipdb.com → Account → API](https://www.abuseipdb.com/account/api); plak hem in het veld **API-sleutel** en klik **Sleutel testen**.
+  - **GreyNoise** (gratis, zonder sleutel ongeveer 50 per dag): scant dit IP het hele internet, en is het een bekende dienst (Google, Shodan …), onschuldig of kwaadaardig.
+  - **Shodan InternetDB** (gratis): open poorten, lekken en labels (c2, malware) van het IP zelf.
+  - **CIRCL hashlookup** (gratis): is een nieuw programma een bekend, goed bestand (bv. uit een Linux-pakket).
+  - **abuse.ch**: **Feodo Tracker** (botnet-servers, bij de bekende aanvallers die de agents vooraf blokkeren) en **URLhaus** (domeinen met malware, voor de DNS-controle). Met een gratis **Auth-Key** van [auth.abuse.ch](https://auth.abuse.ch/) ook **MalwareBazaar** (bekende malware per bestand) en **ThreatFox** (adressen en domeinen van botnets).
+  - **Tor-uitgangen** (dagelijkse lijst van het Tor Project); als je wilt ook vooraf blokkeren.
+- **Wanneer:** bij elk nieuw IDS-incident met een IP van buiten, bij een nieuwe verbinding naar buiten (afwijking) en bij elk nieuw programma of script (hash). Het opzoeken gebeurt op de achtergrond (cron), met een cache van een dag (bestanden een week) en een limiet per dag. Er gaat alleen het IP-adres of de hash naar buiten.
+- **Oordeel:** een score van 0 tot 100 en een soort: ☠️ **bekende aanvaller** (vanaf 80, instelbaar), ⚠️ verdacht, 🤖 scanner, ✔ onschuldig (bekende dienst of onschuldige scanner), 🧅 Tor. Het staat bij het incident (*🌐 bekende aanvaller: AbuseIPDB 100% (523 meldingen van 210 mensen), GreyNoise: kwaadaardig*) en met alle details bij het IP-adres in het incidentvenster, met links naar AbuseIPDB, GreyNoise en Shodan.
+- **Wat RzMon ermee doet** (elk los aan/uit):
+  - een **bekende aanvaller blokkeren** (modus ⛔ Blokkeren);
+  - een **login** vanaf een bekende aanvaller wordt **critical** (Pushover);
+  - een **webaanval van een onschuldige scanner** (GreyNoise, bv. Shodan of Censys) wordt vanzelf afgehandeld;
+  - een **verbinding naar een botnet-server** (Feodo, ThreatFox of de andere lijsten) is meteen **critical**, zonder iets op te zoeken; in de modus Blokkeren stopt RzMon het proces;
+  - een **bestand dat als malware bekend is** (MalwareBazaar) wordt een critical incident; een bekend goed bestand (CIRCL) krijgt *✔ bekend bestand* bij het incident;
+  - een **webaanval op een lek dat de server echt heeft** (volgens de scan op *🐞 Kwetsbaarheden*, zonder geaccepteerd risico) is **critical**, met het pakket en de versie die het oplost.
+- **Melden bij AbuseIPDB** (standaard uit): wie RzMon automatisch blokkeert (brute force, webaanval, honeypot) gaat naar AbuseIPDB, hooguit één keer per dag per IP, met alleen het IP-adres, de soort aanval en de tekst *RzMon IDS*. Nooit adressen uit je eigen netwerk of van de whitelist.
+- Onderaan de kaart staat hoeveel er vandaag is opgezocht per bron, wanneer de lijsten zijn bijgewerkt (**Lijsten nu bijwerken**) en of een bron een fout gaf. Een bron die "te veel" (429) of "sleutel geweigerd" antwoordt, wordt een uur (bij 429 tot morgen) overgeslagen.
+
 **Goed om te weten**
 - Werkt op Linux-servers met agent **1.35.0** of nieuwer. Werk de agents bij met de knop in de Agent Manager.
 - **TrueNAS SCALE: alleen detecteren.** De firewall hoort daar bij TrueNAS zelf; de agent blokkeert er niets.
