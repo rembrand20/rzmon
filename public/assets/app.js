@@ -1269,6 +1269,8 @@ function init() {
     if (e.target.closest('#ids-incidents') && toggleBundle(e)) return;
     const hsb = e.target.closest('[data-hostsec]');
     if (hsb) return hostSecDialog(+hsb.dataset.hostsec);
+    const walk = e.target.closest('[data-inc-walk]');
+    if (walk) { const ids = walk.dataset.incWalk.split(',').map(Number); const nav = incidentNav(ids[0]); return incidentDialog(ids[0], nav.length ? nav : ids); }
     const io = e.target.closest('[data-inc]');
     if (io) return incidentDialog(+io.dataset.inc);
     const b = e.target.closest('[data-ids], [data-unblock], [data-rebase]');
@@ -6206,7 +6208,12 @@ function inspectHtml(list) {
       ${r.what ? `<p class="small muted">${esc(r.what)}</p>` : ''}
       <p class="small">${(r.tags || []).map(techLink).join(' ')}</p></div>`;
   }
-  for (const x of other.filter((y) => y.kind !== 'chain').slice(0, 5)) {
+  const evs = other.filter((y) => y.kind !== 'chain').slice(0, 20);
+  if (evs.length > 1) {
+    html += `<div class="ev-pager small"><span class="muted">${L('Gebeurtenis')}</span> ${evs.map((x, k) => `<button type="button" class="pg-n ${k === 0 ? 'on' : ''}" data-ev-nav="${k}" title="${esc(fmtDateTime(x.at))}">${k + 1}</button>`).join('')}
+      <span class="muted">${L('{n} keer gezien; nieuwste eerst', { n: evs.length })}</span></div>`;
+  }
+  for (const [k, x] of evs.entries()) {
     const v = x.ev, r = x.info || {};
     const rows = {
       exec: [[L('Programma'), `<code>${esc(v.exe || v.comm)}</code>`], [L('Opdracht'), `<code class="insp-cmd">${esc(v.cmd || '')}</code>`], [L('Ouder'), esc(v.pc || '?')],
@@ -6220,7 +6227,7 @@ function inspectHtml(list) {
         [L('Verkeer'), `<code>${esc(v.src)}:${esc(v.sport)} → ${esc(v.dst)}:${esc(v.dport)}</code> ${esc(v.proto || '')}`], [L('Ernst'), `${esc(v.sev)}${v.act === 'blocked' ? ' · ' + L('Suricata blokkeerde het') : ''}`]],
       ctr: [[L('Container'), `${esc(v.name)} <span class="muted">${esc(v.img || '')}</span>`], [L('Actie'), esc(v.act) + (+v.priv ? ' · --privileged' : '')], [L('Opdracht'), `<code>${esc(v.cmd || '')}</code>`]],
     }[x.kind] || [];
-    html += `<div class="insp-ev"><div class="insp-head">${EDR_KIND_IC[x.kind] || ''} <b>${esc(r.title || x.rule)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : r.src === 'anomaly' ? L('Afwijking') : r.src === 'suricata' ? 'Suricata' : 'RzMon'}</span>
+    html += `<div class="insp-ev" data-evi="${k}" ${k > 0 ? 'hidden' : ''}><div class="insp-head">${EDR_KIND_IC[x.kind] || ''} <b>${esc(r.title || x.rule)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : r.src === 'anomaly' ? L('Afwijking') : r.src === 'suricata' ? 'Suricata' : 'RzMon'}</span>
         ${(r.tags || []).map((t) => `<a class="chip" href="https://attack.mitre.org/techniques/${esc(t.replace('.', '/'))}/" target="_blank" rel="noopener">${esc(t)}</a>`).join('')}
         <span class="muted small">${esc(fmtDateTime(x.at))}</span></div>
       <table class="kv-table small">${rows.map(([k, val]) => `<tr><th>${k}</th><td>${val}</td></tr>`).join('')}
@@ -6231,9 +6238,50 @@ function inspectHtml(list) {
   return `<h3 class="set-sub">🔎 ${L('Inspectie')}</h3>${html}`;
 }
 
-async function incidentDialog(id) {
+/**
+ * Incidenten die in de lijst samen gebundeld staan (zelfde soort, server en dag), in de volgorde van de lijst: daar loop
+ * je in het venster met nummers doorheen (1.116.0). Alle statussen, zodat je ziet wat al afgehandeld is.
+ */
+function incidentNav(id) {
+  const all = (idsData && idsData.incidents) || [];
+  const me = all.find((x) => +x.id === +id);
+  if (!me) return [];
+  return all.filter((x) => x.type === me.type && +x.host_id === +me.host_id && x.created_at.slice(0, 10) === me.created_at.slice(0, 10)).map((x) => +x.id);
+}
+document.addEventListener('keydown', (e) => {
+  const m = $('#modal');
+  if (!m || !m.open || !m.dataset.incNav || e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ''))) return;
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const nav = m.dataset.incNav.split(',').map(Number);
+  const pos = nav.indexOf(+m.dataset.incCur);
+  e.preventDefault();
+  incidentDialog(nav[(pos + (e.key === 'ArrowRight' ? 1 : -1) + nav.length) % nav.length], nav);
+});
+/** Nummers onderin het venster: ‹ 1 2 [3] 4 … 12 › met per nummer ✔ (afgehandeld) of • (open) */
+function incidentPager(nav, id) {
+  if (nav.length < 2) return '';
+  const all = (idsData && idsData.incidents) || [];
+  const st = (x) => (all.find((y) => +y.id === x) || {}).status;
+  const pos = nav.indexOf(+id);
+  const show = new Set([0, nav.length - 1, pos - 2, pos - 1, pos, pos + 1, pos + 2].filter((k) => k >= 0 && k < nav.length));
+  const nums = [];
+  let prev = -1;
+  [...show].sort((x, y) => x - y).forEach((k) => {
+    if (prev >= 0 && k > prev + 1) nums.push('<span class="pg-gap">…</span>');
+    const s = st(nav[k]);
+    nums.push(`<button type="button" class="pg-n ${k === pos ? 'on' : ''} ${s === 'open' ? 'open' : 'done'}" data-inc-nav="${nav[k]}" title="${esc(s === 'open' ? L('open') : L('afgehandeld'))}">${k + 1}<i>${s === 'open' ? '•' : '✔'}</i></button>`);
+    prev = k;
+  });
+  const done = nav.filter((x) => st(x) !== 'open').length;
+  return `<div class="inc-pager"><button type="button" class="pg-arrow" data-inc-nav="${nav[(pos - 1 + nav.length) % nav.length]}" title="${esc(L('Vorige (←)'))}">‹</button>${nums.join('')}
+    <button type="button" class="pg-arrow" data-inc-nav="${nav[(pos + 1) % nav.length]}" title="${esc(L('Volgende (→)'))}">›</button>
+    <span class="small muted">${L('{p} van {n} · ✔ {d} afgehandeld · {o} open', { p: pos + 1, n: nav.length, d: done, o: nav.length - done })}</span></div>`;
+}
+
+async function incidentDialog(id, nav = null) {
   let d;
   try { d = await api('ids_incident_info', null, { id }); } catch (ex) { toast(ex.message, 'err'); return; }
+  nav = nav && nav.includes(+id) ? nav : incidentNav(id);
   const i = d.incident, a = d.advice;
   const open = i.status === 'open';
   const agentHost = i.host_mode === 'agent';
@@ -6242,7 +6290,7 @@ async function incidentDialog(id) {
     title: `${+i.severity === 2 ? '🔴' : '🟠'} ${esc(i.title)}`,
     wide: true,
     body: `<p class="small" style="margin-top:0">${sevTxt} · <b>${esc(i.host_name)}</b> · ${esc(fmtDateTime(i.created_at))}${+i.hits > 1 ? ` · ${L('{n}× gezien, laatst {t}', { n: i.hits, t: esc(fmtDateTime(i.last_seen || i.created_at)) })}` : ''}
-        · ${open ? `<b class="warn-txt">${L('open')}</b>` : `✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}`}${d.ignored ? ` · <span class="muted">${L('wordt niet meer gemeld (normaal)')}</span>` : ''}</p>
+        · ${open ? `<b class="warn-txt">${L('open')}</b>` : `✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}${i.handled_at ? ' (' + esc(fmtDateTime(i.handled_at)) + ')' : ''}`}${d.ignored ? ` · <span class="muted">${L('wordt niet meer gemeld (normaal)')}</span>` : ''}</p>
       ${d.explain ? explainHtml(d.explain) : i.detail ? `<p class="small inc-detail">${esc(i.detail)}</p>` : ''}
       ${inspectHtml(d.evidence || [])}
       <h3 class="set-sub">💡 ${L('Wat is dit?')}</h3><p>${esc(a.what)}</p>
@@ -6268,10 +6316,13 @@ async function incidentDialog(id) {
         ${agentHost ? `<button type="button" class="btn danger" data-inc-iso>🧱 ${L('Isoleer server (24 uur)')}</button>
           <button type="button" class="btn" data-inc-sec>🛡️ ${L('Beveiliging van {name}', { name: esc(i.host_name) })}</button>
           <button type="button" class="btn" data-inc-am>⚙️ Agent Manager</button>` : ''}
-      </div>`,
+      </div>
+      ${incidentPager(nav, id)}`,
     buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
   });
   const body = $('#modal-form');
+  $('#modal').dataset.incNav = nav.length > 1 ? nav.join(',') : '';
+  $('#modal').dataset.incCur = id;
   wireCopy(body);
   $$('[data-inc-step]', body).forEach((b) => { b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); incidentDialog(+b.dataset.incStep); }; });
   $$('[data-prot-card]', body).forEach((b) => {
@@ -6285,10 +6336,22 @@ async function incidentDialog(id) {
     };
   });
   if (a.ip) fillIpInfo($('#inc-ip'), a.ip);
-  const reload = () => { $('#modal').close(); loadIds(); };
+  // Na afhandelen: in een bundel door naar het volgende open incident, anders sluiten
+  const reload = async () => {
+    await loadIds();
+    const opens = nav.filter((x) => x !== +i.id && ((idsData.incidents || []).find((y) => +y.id === x) || {}).status === 'open');
+    const after = opens.find((x) => nav.indexOf(x) > nav.indexOf(+i.id)) || opens[0];
+    if (after) incidentDialog(after, nav); else $('#modal').close();
+  };
   body.onclick = async (e) => {
     const b = e.target.closest('button');
     if (!b) return;
+    if (b.dataset.incNav) return incidentDialog(+b.dataset.incNav, nav);
+    if (b.dataset.evNav !== undefined) {   // door de gebeurtenissen van één incident (herhalingen)
+      $$('[data-evi]', body).forEach((x) => { x.hidden = x.dataset.evi !== b.dataset.evNav; });
+      $$('[data-ev-nav]', body).forEach((x) => x.classList.toggle('on', x === b));
+      return;
+    }
     try {
       if (b.dataset.incAct) {
         await api('ids_incident', { id: i.id, action: b.dataset.incAct });
@@ -6331,7 +6394,8 @@ function idsRow(i, group = null) {
   const many = group && !done ? group.filter((x) => x.status === 'open').map((x) => x.id).join(',') : '';
   return `<div class="irow s${sev} ${done ? 'ids-done' : ''}">
     <i class="adot s${sev}"></i>
-    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}${actChips(((idsData && idsData.prot) || {})[i.id])}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort – klik om ze te tonen', { n: group.length }))}">${group.length}×</button>` : ''}
+    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}${actChips(((idsData && idsData.prot) || {})[i.id])}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort – klik om ze te tonen', { n: group.length }))}">${group.length}×</button>
+        <button type="button" class="linklike walk" data-inc-walk="${group.map((x) => x.id).join(',')}" title="${esc(L('Eén voor één bekijken en afhandelen'))}">▶ ${L('Doorlopen')}</button>` : ''}
       <small>${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>${ccTag(i.cc)}` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</small></span>
     <span class="m-sv">${esc(i.host_name)}</span>
     <span class="m-t" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))}</span>

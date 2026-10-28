@@ -2204,6 +2204,15 @@ Wat RzMon zelf doet of veroorzaakt, houdt het IDS nooit tegen. Het wordt wel gel
   - **Pushover** krijgt dezelfde drie regels onder de titel.
   - Oude incidenten krijgen een eenvoudige versie, afgeleid uit het soort incident, de blokkades en de gestopte processen.
 
+**Gebundelde incidenten doorlopen** (vanaf 1.116.0)
+
+- Staan er meer incidenten van dezelfde soort op dezelfde server en dag (*8×* in de lijst), dan staan onderin het incidentvenster **nummers**: ‹ 1 2 3 … 8 ›. Per nummer een stip: • open, ✔ afgehandeld. Rechts: *3 van 8 · ✔ 2 afgehandeld · 6 open*.
+- Bladeren kan ook met de **pijltjestoetsen ← →**.
+- Klik je **Afhandelen**, **Dit is normaal** of **Heropenen**, dan gaat het venster vanzelf door naar het volgende open incident van de bundel. Is alles afgehandeld, dan sluit het.
+- Met **▶ Doorlopen** achter het aantal in de lijst open je de bundel meteen bij het eerste incident.
+- Is één incident vaker gezien (meerdere gebeurtenissen in *Inspectie*), dan kies je met **Gebeurtenis 1 2 3 …** welke je ziet; de nieuwste staat voorop.
+- Bij een afgehandeld incident staat bovenin wie het afhandelde en wanneer.
+
 **Goed om te weten**
 - Werkt op Linux-servers met agent **1.35.0** of nieuwer. Werk de agents bij met de knop in de Agent Manager.
 - **TrueNAS SCALE: alleen detecteren.** De firewall hoort daar bij TrueNAS zelf; de agent blokkeert er niets.

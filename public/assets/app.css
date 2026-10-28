@@ -1790,3 +1790,15 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .act-chip.t-close, .act-chip.ok.t-close { border-color: color-mix(in srgb, var(--ok) 60%, var(--border)); background: color-mix(in srgb, var(--ok) 12%, transparent); }
 .act-chip.learn { text-decoration: line-through; opacity: .7; } .act-chip.t-learn { opacity: .8; } .act-chip.bad { border-color: var(--crit); }
 .explain th { white-space: nowrap; width: 6rem; vertical-align: top; } .explain .act-line.ok { color: var(--ok); } .explain .act-line.bad { color: var(--crit); }
+
+/* 1.116.0: door gebundelde incidenten en gebeurtenissen lopen */
+.inc-pager { position: sticky; bottom: -.4rem; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .8rem -1.2rem -.4rem; padding: .55rem 1.2rem;
+  background: var(--card, var(--bg)); border-top: 1px solid var(--border); z-index: 2; }
+.inc-pager .small { margin-left: auto; }
+.pg-n, .pg-arrow { min-width: 2.1rem; height: 2.1rem; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; cursor: pointer; position: relative; padding: 0 .4rem; }
+.pg-n i { position: absolute; right: 2px; top: -1px; font-style: normal; font-size: .6rem; }
+.pg-n.open i { color: var(--warn); } .pg-n.done i { color: var(--ok); }
+.pg-n.on { background: var(--primary); color: #fff; border-color: var(--primary); } .pg-n.on i { color: #fff; }
+.pg-n:hover, .pg-arrow:hover { border-color: var(--primary); } .pg-gap { color: var(--muted); padding: 0 .2rem; }
+.walk { margin-left: .35rem; font-size: .75rem; font-weight: 600; color: var(--primary); }
+.ev-pager { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; margin: .3rem 0; } .ev-pager .pg-n { min-width: 1.8rem; height: 1.8rem; }

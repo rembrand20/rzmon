@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.116.0 – 2026-10-28
+### Nieuw
+- **Gebundelde incidenten doorlopen** (*IDS → Incidenten*): onderin het incidentvenster staan nummers (‹ 1 2 3 … 8 ›) voor alle incidenten van dezelfde soort, server en dag, met per nummer • open of ✔ afgehandeld en *3 van 8 · ✔ 2 afgehandeld · 6 open*. Bladeren kan ook met ← →.
+- Na **Afhandelen**, **Dit is normaal** of **Heropenen** gaat het venster vanzelf door naar het volgende open incident van de bundel; is alles klaar, dan sluit het.
+- **▶ Doorlopen** in de lijst opent een bundel meteen bij het eerste incident.
+- Herhalingen binnen één incident: kies met **Gebeurtenis 1 2 3 …** welke gebeurtenis je ziet (nieuwste voorop).
+- Bij een afgehandeld incident staat ook wanneer het werd afgehandeld.
+
 ## 1.115.0 – 2026-10-28
 ### Nieuw
 - **🛡️ IDS → Bescherming**: alles wat het IDS doet, als kaarten per groep. Per kaart wat het ziet (met de drempel), de ernst, de actie (alleen melden, IP blokkeren, proces stoppen, server isoleren, vanzelf afhandelen), een schakelaar, hoe vaak het de laatste 7 dagen raak was (met *Toon incidenten*) en een aandachtspunt als het ergens niet werkt. Bovenaan de modus Leren of Blokkeren.

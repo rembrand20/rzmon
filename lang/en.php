@@ -5555,4 +5555,11 @@ return [
     'server isoleren' => 'isolate the server',
     'vanzelf afhandelen' => 'handle automatically',
     'vooraf blokkeren' => 'block in advance',
+    'Gebeurtenis' => 'Event',
+    '{n} keer gezien; nieuwste eerst' => 'seen {n} times; newest first',
+    'Vorige (←)' => 'Previous (←)',
+    'Volgende (→)' => 'Next (→)',
+    '{p} van {n} · ✔ {d} afgehandeld · {o} open' => '{p} of {n} · ✔ {d} handled · {o} open',
+    'Eén voor één bekijken en afhandelen' => 'Review and handle one by one',
+    'Doorlopen' => 'Step through',
 ];
