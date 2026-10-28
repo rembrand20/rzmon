@@ -212,6 +212,7 @@ let alertData = null;         // meldingen van de bewaartermijn (pagina Meldinge
 const alertDayOpen = {};      // datum → open/dicht (anders: alleen vandaag open)
 let idsData = null;           // pagina 🛡️ IDS
 let idsFilter = 'open';       // open | all
+let idsCard = '';             // 1.115.0: alleen incidenten van één kaart van Bescherming
 let idsCat = '';              // '' of een soort: ports, files, procs, logins (chips)
 const idsBundles = new Set(); // uitgeklapte bundels van incidenten en toegang
 const idsDayOpen = {};
@@ -1147,9 +1148,10 @@ function init() {
     setAgentCommands(null, sel.value, sel.dataset.current || 'off', L('alle agents'), () => { showTab('settings/agents'); loadAgentCommands(); });
   };
   $('#ids-filter').onclick = (e) => {
-    const b = e.target.closest('[data-if], [data-icat]');
+    const b = e.target.closest('[data-if], [data-icat], [data-icard-off]');
     if (!b) return;
-    if (b.dataset.if) { idsFilter = b.dataset.if; idsCat = ''; } else idsCat = idsCat === b.dataset.icat ? '' : b.dataset.icat;
+    if (b.dataset.icardOff) idsCard = '';
+    else if (b.dataset.if) { idsFilter = b.dataset.if; idsCat = ''; } else idsCat = idsCat === b.dataset.icat ? '' : b.dataset.icat;
     renderIds();
   };
   let idsSearchT;
@@ -1183,6 +1185,17 @@ function init() {
     const finish = b.dataset.learn === 'finish';
     if (!confirm(finish ? L('Leren nu afronden? Vanaf nu meldt RzMon alles wat deze server nog niet deed.') : L('Opnieuw leren? Alles wat RzMon over deze server geleerd heeft, gaat weg; de komende dagen wordt er niets als afwijking gemeld.'))) return;
     try { await api('edr_learn', { host_id: +b.dataset.h, action: b.dataset.learn }); toast(finish ? L('Leren afgerond') : L('De server leert opnieuw')); loadAnom(); } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#prot-cards').onchange = async (e) => {
+    const c = e.target.closest('[data-prot-toggle]');
+    if (!c) return;
+    try { await api('settings_save', { [c.dataset.protToggle]: c.checked ? '1' : '0' }); toast(c.checked ? L('Aangezet') : L('Uitgezet')); loadProt(); } catch (ex) { toast(ex.message, 'err'); c.checked = !c.checked; }
+  };
+  $('#prot-cards').onclick = (e) => {
+    const b = e.target.closest('[data-prot-show]');
+    if (!b) return;
+    idsCard = b.dataset.protShow; idsFilter = 'all'; idsCat = '';
+    showTab('ids/inc');
   };
   $('#mitre-host').onchange = () => loadMitre();
   $('#mitre-cover').onchange = () => renderMitre();
@@ -1433,7 +1446,7 @@ function showTab(name) {
   if (/^(ids|vulns)\//.test(name)) {
     const [tab, s] = name.split('/');
     name = tab;
-    if (tab === 'ids' && ['inc', 'acc', 'blk', 'live', 'rules', 'anom', 'mitre'].includes(s)) idsTab = s;
+    if (tab === 'ids' && ['inc', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre'].includes(s)) idsTab = s;
     if (tab === 'vulns' && ['cve', 'leak'].includes(s)) vulnTab = s;
   }
   if (qs) {
@@ -5431,7 +5444,7 @@ async function loadIds() {
 }
 
 function showIdsTab() {
-  if (!['inc', 'acc', 'blk', 'live', 'rules', 'anom', 'mitre'].includes(idsTab)) idsTab = 'inc';
+  if (!['inc', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre'].includes(idsTab)) idsTab = 'inc';
   $$('#ids-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab));
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
   const nAnom = ((idsData && idsData.incidents) || []).filter((i) => (i.type === 'chain' || i.type === 'anomaly') && i.status === 'open').length;
@@ -5441,6 +5454,7 @@ function showIdsTab() {
   if (idsTab === 'rules') loadEdrRules();
   if (idsTab === 'anom') loadAnom();
   if (idsTab === 'mitre') loadMitre();
+  if (idsTab === 'prot') loadProt();
 }
 
 // ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
@@ -5608,6 +5622,50 @@ async function mitreSignals(tech, tactic) {
         : `<p class="muted">${L('Geen meldingen in deze periode. Deze regels kunnen het zien:')}</p><ul class="small">${(info.rules || []).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`}`,
   });
   $$('#modal [data-inc-step]').forEach((b) => { b.onclick = () => incidentDialog(+b.dataset.incStep); });
+}
+
+// ---------------------------------------------------------------- IDS: 🛡️ Bescherming en Waarom/Trigger/Actie (1.115.0)
+let protData = null;
+/** Labels met wat RzMon deed, achter de titel in de lijst (alleen echte acties, geen "gemeld") */
+function actChips(p) {
+  if (!p || !p.acts) return '';
+  const short = { block: L('geblokkeerd'), kill: L('gestopt'), isolate: L('geïsoleerd'), close: L('afgehandeld'), learn: L('niet ingegrepen'), escalate: 'critical' };
+  return p.acts.filter((a) => short[a[2]]).map(([icon, text, t, ok]) => ` <span class="act-chip ${ok === true ? 'ok' : ok === false ? 'bad' : ''} t-${t}" title="${esc(text)}">${icon} ${esc(short[t])}</span>`).join('');
+}
+/** Waarom / Trigger / Actie in het incidentvenster */
+function explainHtml(x) {
+  return `<table class="kv-table small explain"><tbody>
+    ${x.why ? `<tr><th>${L('Waarom')}</th><td>${esc(x.why)}${x.card ? ` <a href="#ids/prot" class="small" data-goto="ids/prot" data-prot-card="${esc(x.card.id)}">🛡️ ${esc(x.card.title)}</a>` : ''}</td></tr>` : ''}
+    ${x.trigger ? `<tr><th>${L('Trigger')}</th><td>${esc(x.trigger)}</td></tr>` : ''}
+    <tr><th>${L('Actie')}</th><td>${x.actions.map((a) => `<div class="act-line ${a.ok === true ? 'ok' : a.ok === false ? 'bad' : ''}">${a.icon} ${esc(a.text)}${a.ok === true ? ' ✔' : a.ok === false ? ' ✘' : ''}</div>`).join('')}</td></tr>
+  </tbody></table>`;
+}
+async function loadProt() {
+  try { protData = await api('ids_protect'); } catch (ex) { $('#prot-cards').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  renderProt();
+}
+function renderProt() {
+  const d = protData;
+  if (!d) return;
+  const block = d.mode === 'block';
+  $('#it-n-prot').textContent = d.attention || '';
+  withMorph(() => {
+    $('#prot-mode').innerHTML = !d.enabled ? `<div class="prot-mode off">⚠️ ${L('Het IDS staat uit: er wordt niets bewaakt.')} <a href="#settings/ids" data-goto="settings/ids">${L('Aanzetten')}</a></div>`
+      : `<div class="prot-mode ${block ? 'block' : 'learn'}">${block ? '⛔ ' + L('Modus Blokkeren: RzMon voert de acties hieronder zelf uit.') : '🎓 ' + L('Modus Leren: alles wordt alleen gemeld, RzMon grijpt nergens in.')}
+        <a href="#settings/ids" data-goto="settings/ids" class="need-admin">${block ? L('Naar Leren') : L('Overschakelen naar Blokkeren')}</a>
+        <br><span class="small muted">${L('{on} van {n} onderdelen aan', { on: d.on, n: d.total })}${d.attention ? ` · <span class="warn-txt">${L('{n} aandachtspunt(en)', { n: d.attention })}</span>` : ''}</span></div>`;
+    $('#prot-cards').innerHTML = Object.entries(d.groups).map(([g, [icon, name]]) => `<h3 class="set-sub">${icon} ${esc(name)}</h3><div class="prot-grid">
+      ${d.cards.filter((c) => c.g === g).map((c) => `<div class="prot-card ${c.toggle && !c.toggle.on ? 'off' : ''}" data-key="${esc(c.id)}" id="prot-${esc(c.id)}">
+        <div class="prot-head"><b>${esc(c.title)}</b>${c.toggle ? `<label class="switch small need-admin" title="${esc(c.toggle.label)}"><input type="checkbox" data-prot-toggle="${esc(c.toggle.key)}" ${c.toggle.on ? 'checked' : ''}><span></span></label>` : ''}</div>
+        <p class="small muted">${esc(c.what)}</p>
+        <div class="prot-acts">${c.sev === 2 ? '<span class="sev-chip s2">🔴 critical</span>' : c.sev === 1 ? '<span class="sev-chip s1">🟠 warning</span>' : ''} →
+          ${c.acts.map(([icon, text, a]) => `<span class="act-chip t-${a} ${!block && ['block', 'kill', 'isolate', 'preblock'].includes(a) ? 'learn' : ''}" title="${esc(!block && ['block', 'kill', 'isolate', 'preblock'].includes(a) ? L('in de modus Leren alleen melden') : text)}">${icon} ${esc(text)}</span>`).join(' ')}
+          ${c.toggle ? `<span class="small muted">(${esc(c.toggle.label)}: ${c.toggle.on ? L('aan') : L('uit')})</span>` : ''}</div>
+        ${c.why ? `<p class="small">${esc(c.why)}</p>` : ''}
+        <p class="small">${c.stat ? esc(c.stat) : c.n ? `${L('7 dagen: {n}×', { n: c.n })} · ${L('laatst {t}', { t: esc(fmtDateTime(c.last.at)) })} · <button type="button" class="linklike" data-prot-show="${esc(c.id)}">${L('Toon incidenten')}</button>`
+          : `<span class="muted">${L('7 dagen: niets')}</span>`}</p>
+        ${c.attention ? `<p class="small warn-txt">⚠️ ${esc(c.attention)}</p>` : ''}</div>`).join('')}</div>`).join('');
+  });
 }
 
 // ---------------------------------------------------------------- IDS: bestanden bewaken
@@ -5900,9 +5958,13 @@ function renderIds() {
   $('#ids-filter').innerHTML = [['open', 'Open', open.length], ['all', L('Alles'), d.incidents.length]].map(([k, l, n]) => `<button type="button" class="dchip ${idsFilter === k && !idsCat ? 'on' : ''}" data-if="${k}">${l} <b>${n}</b></button>`).join('')
     + IDS_CATS.map(([k, l]) => [k, l(), scope.filter((i) => idsCatOf(i) === k).length]).filter(([, , n]) => n)
       .map(([k, l, n]) => `<button type="button" class="dchip ${idsCat === k ? 'on' : ''}" data-icat="${k}">${l} <b>${n}</b></button>`).join('');
-  const list = scope.filter((i) => (!idsCat || idsCatOf(i) === idsCat) && (!q || `${i.title} ${i.detail} ${i.host_name} ${i.ip || ''}`.toLowerCase().includes(q)) && fxPass('ids', i));
+  if (idsCard) {
+    const cardTitle = (((protData && protData.cards) || []).find((c) => c.id === idsCard) || {}).title || idsCard;
+    $('#ids-filter').innerHTML += ` <button type="button" class="dchip on" data-icard-off="1" title="${esc(L('Filter weghalen'))}">🛡️ ${esc(cardTitle)} ✕</button>`;
+  }
+  const list = scope.filter((i) => (!idsCard || ((d.prot || {})[i.id] || {}).card === idsCard) && (!idsCat || idsCatOf(i) === idsCat) && (!q || `${i.title} ${i.detail} ${i.host_name} ${i.ip || ''}`.toLowerCase().includes(q)) && fxPass('ids', i));
   fxRender('ids');
-  const narrowed = !!q || !!idsCat || fxActive('ids');
+  const narrowed = !!q || !!idsCat || !!idsCard || fxActive('ids');
   $('#ids-info').textContent = L('{open} open · {n} in de laatste {days} dagen', { open: open.length, n: d.incidents.length, days: d.days });
   $('#it-n-inc').textContent = open.length ? open.length : '';
   const el = $('#ids-incidents');
@@ -6181,7 +6243,7 @@ async function incidentDialog(id) {
     wide: true,
     body: `<p class="small" style="margin-top:0">${sevTxt} · <b>${esc(i.host_name)}</b> · ${esc(fmtDateTime(i.created_at))}${+i.hits > 1 ? ` · ${L('{n}× gezien, laatst {t}', { n: i.hits, t: esc(fmtDateTime(i.last_seen || i.created_at)) })}` : ''}
         · ${open ? `<b class="warn-txt">${L('open')}</b>` : `✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}`}${d.ignored ? ` · <span class="muted">${L('wordt niet meer gemeld (normaal)')}</span>` : ''}</p>
-      ${i.detail ? `<p class="small inc-detail">${esc(i.detail)}</p>` : ''}
+      ${d.explain ? explainHtml(d.explain) : i.detail ? `<p class="small inc-detail">${esc(i.detail)}</p>` : ''}
       ${inspectHtml(d.evidence || [])}
       <h3 class="set-sub">💡 ${L('Wat is dit?')}</h3><p>${esc(a.what)}</p>
       ${a.risk ? `<h3 class="set-sub">⚖️ ${L('Hoe erg is het?')}</h3><p>${esc(a.risk)}</p>` : ''}
@@ -6212,6 +6274,16 @@ async function incidentDialog(id) {
   const body = $('#modal-form');
   wireCopy(body);
   $$('[data-inc-step]', body).forEach((b) => { b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); incidentDialog(+b.dataset.incStep); }; });
+  $$('[data-prot-card]', body).forEach((b) => {
+    b.onclick = async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      $('#modal').close();
+      showTab('ids/prot');
+      await loadProt();
+      const c = $('#prot-' + b.dataset.protCard);
+      if (c) { c.scrollIntoView({ block: 'center' }); c.classList.add('live-pulse'); }
+    };
+  });
   if (a.ip) fillIpInfo($('#inc-ip'), a.ip);
   const reload = () => { $('#modal').close(); loadIds(); };
   body.onclick = async (e) => {
@@ -6259,7 +6331,7 @@ function idsRow(i, group = null) {
   const many = group && !done ? group.filter((x) => x.status === 'open').map((x) => x.id).join(',') : '';
   return `<div class="irow s${sev} ${done ? 'ids-done' : ''}">
     <i class="adot s${sev}"></i>
-    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort – klik om ze te tonen', { n: group.length }))}">${group.length}×</button>` : ''}
+    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${+i.hits > 1 ? ` <span class="muted small">(${i.hits}×)</span>` : ''}${actChips(((idsData && idsData.prot) || {})[i.id])}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort – klik om ze te tonen', { n: group.length }))}">${group.length}×</button>` : ''}
       <small>${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>${ccTag(i.cc)}` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</small></span>
     <span class="m-sv">${esc(i.host_name)}</span>
     <span class="m-t" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))}</span>

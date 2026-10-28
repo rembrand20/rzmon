@@ -251,6 +251,7 @@ final class Installer
         ['hosts', 'edr_at', 'DATETIME NULL'],
         ['hosts', 'edr_learn_from', 'DATETIME NULL'],
         ['edr_events', 'own', 'VARCHAR(10) NULL'],
+        ['ids_incidents', 'mode', 'CHAR(1) NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

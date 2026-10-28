@@ -2187,6 +2187,23 @@ Wat RzMon zelf doet of veroorzaakt, houdt het IDS nooit tegen. Het wordt wel gel
 - **Veilig:** een programma dat zich "rzmon-agent" noemt maar van een gewone gebruiker is, telt niet als RzMon. Op de RzMon-server zelf telt PHP van de RzMon-gebruiker in de map van RzMon als RzMon; zet daar dus geen andere websites onder dezelfde gebruiker in die map.
 - Andere monitoring (Home Assistant, Uptime Kuma …) zet je op de whitelist.
 
+**🛡️ Bescherming en Waarom / Trigger / Actie** (vanaf 1.115.0)
+
+- **🛡️ IDS → Bescherming**: alles wat het IDS doet, als kaarten in groepen (Inloggen, Web, Processen en bestanden, Netwerk en DNS, Afwijkingen en ketens, Dreigingsinformatie). Per kaart:
+  - wat het ziet (kort) en, waar dat speelt, de drempel (*meer dan 10 mislukte SSH-logins binnen 10 minuten*);
+  - de ernst (🟠/🔴) en de actie: 🔔 alleen melden, 🚫 IP blokkeren, ⛔ proces stoppen, 🧱 server isoleren, ✔ vanzelf afhandelen, 🚫 vooraf blokkeren. In de modus Leren zijn de acties doorgestreept: dan wordt alles alleen gemeld;
+  - een schakelaar (beheerders) voor dat onderdeel of de actie ervan; dezelfde instelling als bij *Instellingen*;
+  - hoe vaak het de laatste 7 dagen raak was, met **Toon incidenten** (de lijst gefilterd op die kaart);
+  - een ⚠️ aandachtspunt als het ergens niet werkt (auditd ontbreekt op een server, geen AbuseIPDB-sleutel, AdGuard niet gekoppeld).
+  - Bovenaan staat de modus (Leren of Blokkeren) met een knop om te wisselen, en hoeveel onderdelen aan staan.
+- **Bij elk incident** staan drie regels in het incidentvenster:
+  - **Waarom**: de regel in gewone taal, met de drempel, en een link naar de kaart;
+  - **Trigger**: de feiten die het deden afgaan (aantallen, IP, gebruiker, programma en opdracht, bestand, domein …);
+  - **Actie**: wat RzMon deed, met de stand van nu: *IP geblokkeerd tot …*, *IP was al geblokkeerd*, *proces 4242 wordt gestopt* → *gestopt ✔*, *server geïsoleerd tot …*, *gedeblokkeerd door …*, *blokkade verlopen*, *vanzelf afgehandeld*. In de modus Leren: *alleen gemeld (modus Leren; in Blokkeren: IP blokkeren)*.
+  - In de lijst staat achter de titel een label met de actie (*🚫 geblokkeerd*, *⛔ gestopt*, *🧱 geïsoleerd*, *✔ afgehandeld*, *🎓 niet ingegrepen*).
+  - **Pushover** krijgt dezelfde drie regels onder de titel.
+  - Oude incidenten krijgen een eenvoudige versie, afgeleid uit het soort incident, de blokkades en de gestopte processen.
+
 **Goed om te weten**
 - Werkt op Linux-servers met agent **1.35.0** of nieuwer. Werk de agents bij met de knop in de Agent Manager.
 - **TrueNAS SCALE: alleen detecteren.** De firewall hoort daar bij TrueNAS zelf; de agent blokkeert er niets.

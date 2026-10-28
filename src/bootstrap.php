@@ -92,6 +92,7 @@ require_once __DIR__ . '/Chain.php';
 require_once __DIR__ . '/ThreatIntel.php';
 require_once __DIR__ . '/Suricata.php';
 require_once __DIR__ . '/DnsWatch.php';
+require_once __DIR__ . '/Protect.php';
 require_once __DIR__ . '/Context.php';
 SelfCheck::register();   // PHP-fouten bijhouden voor de systeemcheck (1.96.0)
 require_once __DIR__ . '/SnmpMonitor.php';

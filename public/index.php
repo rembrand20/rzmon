@@ -266,10 +266,15 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <button type="button" class="seg-btn active" data-it="inc"><?= th('⚠️ Incidenten') ?> <span class="it-n" id="it-n-inc"></span></button>
         <button type="button" class="seg-btn" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
         <button type="button" class="seg-btn" data-it="blk"><?= th('⛔ Blokkades') ?> <span class="it-n" id="it-n-blk"></span></button>
+        <button type="button" class="seg-btn" data-it="prot"><?= th('🛡️ Bescherming') ?> <span class="it-n" id="it-n-prot"></span></button>
         <button type="button" class="seg-btn" data-it="live"><?= th('🛰️ Live') ?></button>
         <button type="button" class="seg-btn" data-it="rules"><?= th('🔏 Regels') ?></button>
         <button type="button" class="seg-btn" data-it="anom"><?= th('🧬 Afwijkingen') ?> <span class="it-n" id="it-n-anom"></span></button>
         <button type="button" class="seg-btn" data-it="mitre"><?= th('🧭 MITRE') ?></button>
+      </div>
+      <div class="ids-pane" data-pane="prot" hidden>
+        <div id="prot-mode"></div>
+        <div class="card" id="prot-cards"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="anom" hidden>
         <div class="dash-bar"><select id="anom-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>

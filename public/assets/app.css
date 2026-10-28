@@ -1774,3 +1774,19 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .own-tag { color: var(--ok, #16a34a); font-weight: 600; font-size: .8rem; margin-right: .3rem; }
 .own-det summary { cursor: pointer; list-style: none; } .own-det summary::-webkit-details-marker { display: none; }
 .own-det ul { margin: .3rem 0 0; padding-left: 1.1rem; } .own-det code { font-size: .75rem; overflow-wrap: anywhere; }
+
+/* 1.115.0: Bescherming en Waarom/Trigger/Actie */
+.prot-mode { border-radius: 10px; padding: .6rem .9rem; margin: 0 0 .7rem; border: 1px solid var(--border); }
+.prot-mode.learn { background: color-mix(in srgb, var(--warn) 12%, transparent); } .prot-mode.block { background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.prot-mode.off { background: color-mix(in srgb, var(--crit) 12%, transparent); } .prot-mode a { margin-left: .5rem; color: var(--primary); }
+.prot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: .6rem; }
+.prot-card { border: 1px solid var(--border); border-radius: 10px; padding: .6rem .8rem; } .prot-card.off { opacity: .6; }
+.prot-card p { margin: .3rem 0; } .prot-head { display: flex; justify-content: space-between; gap: .5rem; align-items: center; }
+.prot-acts { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; font-size: .8rem; }
+.act-chip, .sev-chip { display: inline-block; padding: .05rem .45rem; border-radius: 999px; font-size: .74rem; border: 1px solid var(--border); white-space: nowrap; }
+.act-chip.t-block, .act-chip.t-preblock { border-color: color-mix(in srgb, var(--warn) 60%, var(--border)); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.act-chip.t-kill { border-color: color-mix(in srgb, var(--crit) 55%, var(--border)); background: color-mix(in srgb, var(--crit) 10%, transparent); }
+.act-chip.t-isolate { border-color: var(--crit); background: color-mix(in srgb, var(--crit) 20%, transparent); }
+.act-chip.t-close, .act-chip.ok.t-close { border-color: color-mix(in srgb, var(--ok) 60%, var(--border)); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.act-chip.learn { text-decoration: line-through; opacity: .7; } .act-chip.t-learn { opacity: .8; } .act-chip.bad { border-color: var(--crit); }
+.explain th { white-space: nowrap; width: 6rem; vertical-align: top; } .explain .act-line.ok { color: var(--ok); } .explain .act-line.bad { color: var(--crit); }

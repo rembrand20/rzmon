@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.115.0 – 2026-10-28
+### Nieuw
+- **🛡️ IDS → Bescherming**: alles wat het IDS doet, als kaarten per groep. Per kaart wat het ziet (met de drempel), de ernst, de actie (alleen melden, IP blokkeren, proces stoppen, server isoleren, vanzelf afhandelen), een schakelaar, hoe vaak het de laatste 7 dagen raak was (met *Toon incidenten*) en een aandachtspunt als het ergens niet werkt. Bovenaan de modus Leren of Blokkeren.
+- **Waarom / Trigger / Actie bij elk incident**: waarom het een melding is (de regel en de drempel), wat het deed afgaan, en wat RzMon deed met de stand van nu (geblokkeerd tot, gestopt ✔, geïsoleerd, gedeblokkeerd door, verlopen). In de modus Leren staat erbij wat RzMon in Blokkeren zou doen. Ook in Pushover, en als label achter de titel in de lijst. Oude incidenten krijgen een eenvoudige versie.
+
 ## 1.114.0 – 2026-10-28
 ### Nieuw
 - **✔ RzMon zelf is altijd toegestaan** (**agent 1.65.0 nodig**): wat de agent doet (en alles wat hij start), wat RzMon op zijn eigen server doet (webinterface, API en cron) en het verkeer met RzMon (rapporten, checks, netwerkscan) houdt het IDS nooit meer tegen: geen proces stoppen, niet blokkeren of isoleren, geen incident, en het telt niet mee voor afwijkingen, ketens of dreigingsinformatie.

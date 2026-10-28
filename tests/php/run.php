@@ -504,6 +504,40 @@ DnsWatch::check([['client' => '10.0.0.9', 'client_info' => ['name' => 'rzmon'], 
 ok((int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn() === $inc0 && (int) q("SELECT COUNT(*) FROM edr_events WHERE own = 'net' AND kind IN ('s', 'd')")->fetchColumn() === 2,
     'netwerkscan van RzMon (Suricata) en DNS van RzMon: geen incident, wel een groene regel');
 ok(Ids::protectedIp('10.0.0.9') && Ids::autoBlock($hc, '10.0.0.9', 'test') === null, 'RzMon wordt nooit geblokkeerd');
+
+section('Bescherming: waarom, trigger en actie (1.115.0)');
+save_setting('ids_mode', 'block');
+Protect::reset();
+$b = Ids::autoBlock($hd, '203.0.113.150', 'Brute force: 12 mislukte SSH-logins in 10 min');
+$bf = Ids::raise($hd, 1, 'bruteforce', '203.0.113.150', 'Brute force op SSH vanaf 203.0.113.150 (12 pogingen in 10 min)', 'Gebruikers: root, admin · ⛔ ' . $b, '203.0.113.150');
+$x = Protect::describe(q('SELECT * FROM ids_incidents WHERE id = ?', [$bf])->fetch());
+ok(($x['card']['id'] ?? '') === 'bruteforce' && str_contains($x['why'], 'Meer dan 10 mislukte SSH-logins binnen 10 minuten'), 'waarom: de regel met de drempel');
+ok($x['trigger'] === 'Gebruikers: root, admin', 'trigger: de feiten, zonder de actie (' . $x['trigger'] . ')');
+ok(($x['actions'][0]['t'] ?? '') === 'block' && $x['actions'][0]['ok'] === true && str_contains($x['actions'][0]['text'], 'IP geblokkeerd tot'), 'actie: IP geblokkeerd, met de tijd');
+Ids::unblock((int) q("SELECT id FROM ids_blocks WHERE ip = '203.0.113.150' AND removed_at IS NULL")->fetchColumn(), 'Rehman');
+$x = Protect::describe(q('SELECT * FROM ids_incidents WHERE id = ?', [$bf])->fetch());
+ok(str_contains($x['actions'][0]['text'], 'gedeblokkeerd door Rehman'), 'stand bijgewerkt: gedeblokkeerd door wie');
+$r = Edr::process($hd, ['ev' => [['k' => 'x', 't' => time(), 'pid' => 9100, 'st' => 44, 'uid' => 33, 'u' => 'www-data', 'exe' => '/usr/bin/dash', 'comm' => 'sh', 'argv' => ['sh', '-c', 'id'], 'cmd' => 'sh -c id', 'pc' => 'php-fpm8.2']]]);
+$ws = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'edr' AND dkey LIKE 'rz-webshell|%' ORDER BY id DESC LIMIT 1", [$hd['id']])->fetch();
+$x = Protect::describe($ws);
+ok(($x['card']['id'] ?? '') === 'webshell' && str_contains($x['actions'][0]['text'], 'proces 9100 wordt gestopt') && str_contains($x['why'], 'webserver'), 'webshell: waarom uit de regel, proces wordt gestopt');
+q("UPDATE ids_kills SET done_at = NOW(), result = ? WHERE pid = 9100", [t('gestopt')]);
+ok(Protect::describe($ws)['actions'][0]['ok'] === true, 'stand bijgewerkt: gestopt, bevestigd door de agent');
+save_setting('ids_mode', 'learn');
+$wl = Ids::raise($hd, 1, 'web_payload', 'swag|203.0.113.151', 'Webaanval vanaf 203.0.113.151: SQL-injectie', '1 verdachte verzoek(en)', '203.0.113.151');
+$x = Protect::describe(q('SELECT * FROM ids_incidents WHERE id = ?', [$wl])->fetch());
+ok(($x['actions'][0]['t'] ?? '') === 'learn' && str_contains($x['actions'][0]['text'], 'IP blokkeren'), 'modus Leren: wat RzMon in Blokkeren zou doen');
+$p = Protect::pushText($bf);
+ok(str_contains($p, 'Waarom: Meer dan 10') && str_contains($p, 'Trigger: Gebruikers') && str_contains($p, 'Actie: ↩'), 'Pushover: waarom, trigger en actie');
+$all = Protect::describeAll(q('SELECT * FROM ids_incidents WHERE id IN (?, ?)', [$bf, $wl])->fetchAll());
+ok(($all[$bf]['card'] ?? '') === 'bruteforce' && ($all[$wl]['acts'][0][2] ?? '') === 'learn', 'lijst: kaart en acties per incident');
+$ov = Protect::overview();
+$bfc = array_values(array_filter($ov['cards'], static fn($c) => $c['id'] === 'bruteforce'))[0] ?? [];
+ok($ov['total'] >= 25 && ($bfc['n'] ?? 0) >= 1 && count(array_filter($ov['cards'], static fn($c) => $c['toggle'] !== null)) >= 18, 'Bescherming: kaarten met schakelaar en cijfers (' . $ov['total'] . ')');
+// Een oud incident (zonder modus, met de actie alleen in de tekst) krijgt toch een uitleg
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip) VALUES (?, 2, 'revshell', 'x', 'Reverse shell', 'bash -i · ⛔ server geïsoleerd (24 uur)', NULL)", [$hd['id']]);
+$x = Protect::describe(q('SELECT * FROM ids_incidents ORDER BY id DESC LIMIT 1')->fetch());
+ok(($x['card']['id'] ?? '') === 'revshell' && in_array('isolate', array_column($x['actions'], 't'), true), 'oud incident: kaart en isolatie uit de tekst');
 save_setting('ids_mode', 'learn');
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
