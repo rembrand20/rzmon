@@ -769,6 +769,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Stabiel: hooguit … × het interval') ?> <span class="muted small"><?= th('(nooit trager dan een uur)') ?></span><input type="number" name="smart_slow" min="1" max="10"></label>
           </div>
           <p class="muted small" style="margin-top:-.3rem"><?= th('Sneller checken laat je eerder weten of een storing echt is (en wanneer hij voorbij is); trager checken ontlast je servers als alles goed gaat. Checks van de agent volgen het rapport van de agent.') ?></p>
+          <p class="muted small"><?= t('<i>Melden na N</i> blijft gelijk: bij een check op <i>melden na 3</i> en een interval van 1 minuut gaat de melding pas uit als het <b>2 minuten</b> mis is, net als zonder slim interval. Het snellere checken maakt een korte hapering dus niet alsnog tot een melding; wel weet RzMon sneller dat het weer goed is.') ?></p>
           <h3 class="small" style="margin:1rem 0 .3rem">📈 <?= th('Afwijkingen en hints') ?></h3>
           <label class="switch"><input type="checkbox" name="anomaly_on"><span></span> <?= t('<b>Afwijkingen</b> bij checks zonder drempels (verkeer, clients, processen, logregels): ℹ️ als het flink anders is dan normaal op dat uur') ?></label>
           <label class="switch"><input type="checkbox" name="disk_jump_on"><span></span> <?= t('<b>Disk groeit hard</b>: ℹ️ als een disk in een uur zoveel procentpunt groeit:') ?> <input type="number" name="disk_jump_pct" min="1" max="50" style="width:4.5rem;display:inline-block"></label>

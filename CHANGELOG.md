@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.108.2 – 2026-10-28
+### Opgelost
+- **Slim interval en melden na N**: met slim interval checkt RzMon bij een probleem elke 20 seconden, waardoor *melden na N* veel sneller bereikt werd (melden na 6 = 2 minuten in plaats van 6). Nu telt het ook in tijd: een check op *melden na 3* met een interval van 1 minuut meldt pas na 2 minuten, net als zonder slim interval. Een korte hapering blijft dus stil. De tabel bij *Slimme drempels* telt op dezelfde manier.
+
 ## 1.108.1 – 2026-10-28
 ### Opgelost
 - **Slimme drempels, voorstel voor bestaande checks**: een dag met een warning telt nu net als een echte melding, pas als er zoveel metingen achter elkaar te hoog waren als de check vraagt (*melden na N*). Eerder telde één losse piek al, waardoor bv. een camera "8 van 8 dagen" kreeg. De cijfers worden vannacht opnieuw berekend.

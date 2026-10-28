@@ -229,7 +229,12 @@ $iv = $sql->invoke(null);
 q("UPDATE checks SET status = 2, fail_count = 1, interval_sec = 300, last_checked = NOW() - INTERVAL 30 SECOND WHERE id = ?", [$bPing]);
 ok((int) q("SELECT COUNT(*) FROM checks c WHERE c.id = ? AND c.last_checked <= NOW() - INTERVAL ($iv - LEAST(15, $iv DIV 4)) SECOND", [$bPing])->fetchColumn() === 1,
     'slim interval: probleem → na 20 s al weer aan de beurt (interval 5 min)');
+// 1.108.2: melden na 3 telt met slim interval ook in tijd (3 gewone checks = 2 minuten), niet 3× 20 s
+$p3 = ['type' => 'ping', 'notify_fails' => 3, 'interval_sec' => 60];
+ok(!Monitor::failsReached($p3, 3, 40) && Monitor::failsReached($p3, 7, 110), 'slim interval: melden na 3 = na ~2 minuten, niet na 40 s');
+ok(Monitor::failsReached(['type' => 'cpu', 'notify_fails' => 3, 'interval_sec' => 60], 3, 0), 'checks die niet sneller gaan: gewoon N keer');
 save_setting('smart_interval', '0');
+ok(Monitor::failsReached($p3, 3, 0) && !Monitor::failsReached($p3, 2, 999), 'zonder slim interval: gewoon N keer');
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

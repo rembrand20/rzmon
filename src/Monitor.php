@@ -352,7 +352,7 @@ final class Monitor
 
         // Info-check: nooit een storing; bij een echte statuswissel (na het ingestelde aantal mislukte checks) één info-melding
         if ((int) ($check['info_only'] ?? 0) === 1) {
-            if ($upstream === null && $status !== $notified && ($status === STATUS_OK || $streak >= self::failsNeeded($check))) {
+            if ($upstream === null && $status !== $notified && ($status === STATUS_OK || self::failsReached($check, $streak, $age))) {
                 self::infoCheck($check, ($status === STATUS_OK ? t('weer OK') : t('nu {status}', ['status' => STATUS_LABELS[$status]])) . ': ' . $message);
                 $notified = $status;
             }
@@ -390,7 +390,7 @@ final class Monitor
         $iconOf = [STATUS_OK => '✅', STATUS_WARN => '🟠', STATUS_CRIT => '🔴', STATUS_UNKNOWN => '⚪'];
 
         // Ook bij flappen geldt "melden na N mislukte checks"; herstel alleen als er een probleem gemeld was
-        $countOk = $status === STATUS_OK ? $notified !== STATUS_OK : $streak >= self::failsNeeded($check);
+        $countOk = $status === STATUS_OK ? $notified !== STATUS_OK : self::failsReached($check, $streak, $age);
         if ($silenced) {
             // niets versturen
         } elseif ($flapEvent === 'start' && !$countOk) {
@@ -458,7 +458,7 @@ final class Monitor
             // Eerste melding: de regel (direct / na X minuten) én zoveel mislukte checks achter elkaar in deze status
             $due = $enabled && ($isRepeat
                 ? $r['repeat'] > 0 && $notifiedAt !== null && strtotime($notifiedAt) <= time() - $r['repeat'] * 60
-                : ($r['mode'] === 'now' || $age >= $r['min'] * 60) && $streak >= self::failsNeeded($check));
+                : ($r['mode'] === 'now' || $age >= $r['min'] * 60) && self::failsReached($check, $streak, $age));
             // 1.107.0: eerst het herstelcommando op de server proberen; pas melden als dat niet helpt (of te lang duurt)
             if ($due && !$isRepeat && Heal::hold($check)) {
                 $due = false;
@@ -540,6 +540,29 @@ final class Monitor
         $now = (float) $res['value'];
         self::sysInfo('disk_jump', (int) $row['hid'], (string) $row['host_name'], '💾 ' . $row['host_name'] . ' – ' . $row['name'],
             fn() => t('Groeit hard: +{j} procentpunt in een uur (nu {n}%). Een log of download die uit de hand loopt?', ['j' => I18n::dec((string) round($jump, 1)), 'n' => I18n::dec((string) round($now, 1))]));
+    }
+
+    /**
+     * Is "melden na N" bereikt? N keer achter elkaar deze status. Met slim interval (1.108.2) checkt RzMon bij een probleem
+     * sneller (bv. elke 20 s); dan telt het ook in tijd: minstens zo lang als N gewone checks zouden duren
+     * ((N-1) × het gewone interval, met wat speling voor de cron). Zo blijft een korte hapering stil, net als zonder slim interval.
+     */
+    public static function failsReached(array $check, int $streak, int $age): bool
+    {
+        return $streak >= self::failsNeeded($check) && $age >= self::failsWindow($check);
+    }
+
+    /**
+     * Zo lang moet het met slim interval minstens mis zijn: (N-1) × het gewone interval, min wat speling.
+     * 0 zonder slim interval, bij N = 1, en bij checks die niet sneller gaan (agent, heartbeat …).
+     */
+    public static function failsWindow(array $check): int
+    {
+        if (setting('smart_interval', '0') !== '1' || !in_array($check['type'] ?? '', self::FAST_TYPES, true)) {
+            return 0;
+        }
+        $iv = max(10, (int) ($check['interval_sec'] ?? 60));
+        return max(0, (self::failsNeeded($check) - 1) * $iv - min(15, intdiv($iv, 4)));
     }
 
     /** Zoveel mislukte checks achter elkaar voordat er een melding uitgaat: van de check zelf, anders algemeen */

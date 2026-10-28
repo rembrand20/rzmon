@@ -254,7 +254,7 @@ final class Smart
         $byHow = array_fill(0, 168, []);
         $days = [];
         $all = [];
-        $st = db()->prepare('SELECT WEEKDAY(created_at) * 24 + HOUR(created_at), value, DATE(created_at) FROM results
+        $st = db()->prepare('SELECT WEEKDAY(created_at) * 24 + HOUR(created_at), value, DATE(created_at), created_at FROM results
                              WHERE check_id = ? AND created_at >= NOW() - INTERVAL ' . self::WINDOW_DAYS . ' DAY AND value IS NOT NULL ORDER BY created_at, id');
         $st->execute([$id]);
         while ($r = $st->fetch(PDO::FETCH_NUM)) {
@@ -369,7 +369,7 @@ final class Smart
         $byHour = array_fill(0, 24, []);
         $byDay = [];
         $all = $pts = [];
-        $st = db()->prepare('SELECT WEEKDAY(created_at) * 24 + HOUR(created_at), value, DATE(created_at) FROM results
+        $st = db()->prepare('SELECT WEEKDAY(created_at) * 24 + HOUR(created_at), value, DATE(created_at), created_at FROM results
                              WHERE check_id = ? AND created_at >= NOW() - INTERVAL ' . self::WINDOW_DAYS . ' DAY AND value IS NOT NULL ORDER BY created_at, id');
         $st->execute([$id]);
         while ($r = $st->fetch(PDO::FETCH_NUM)) {
@@ -378,7 +378,7 @@ final class Smart
             $byHour[(int) $r[0] % 24][] = $v;
             $byDay[$r[2]][] = $v;
             $all[] = $v;
-            $pts[] = [(int) $r[0], $v, $r[2]];
+            $pts[] = [(int) $r[0], $v, $r[2], $r[3]];
         }
         $st->closeCursor();
         $days = count($byDay);
@@ -459,18 +459,29 @@ final class Smart
         $fixed = is_numeric($check['warn_threshold']) ? (float) $check['warn_threshold'] : null;
         $guard = self::mode($check) === 'guard' && is_numeric($check['guard_threshold'] ?? null) ? (float) $check['guard_threshold'] : null;
         $need = Monitor::failsNeeded($check);
+        $win = Monitor::failsWindow($check);   // met slim interval ook in tijd (1.108.2): N gewone checks lang
         $dF = $dS = $dS1 = [];
         $runF = $runS = 0;
-        foreach ($pts as [$h, $v, $d]) {
-            $runF = $fixed !== null && $v >= $fixed ? $runF + 1 : 0;
-            $runS = $v >= ($guard !== null ? min($m['w'][$h], $guard) : $m['w'][$h]) ? $runS + 1 : 0;
-            if ($runF >= $need) {
+        $t0F = $t0S = 0;
+        foreach ($pts as [$h, $v, $d, $at]) {
+            $hitF = $fixed !== null && $v >= $fixed;
+            $hitS = $v >= ($guard !== null ? min($m['w'][$h], $guard) : $m['w'][$h]);
+            $t = ($hitF || $hitS) ? (int) strtotime((string) $at) : 0;
+            $runF = $hitF ? $runF + 1 : 0;
+            $runS = $hitS ? $runS + 1 : 0;
+            if ($runF === 1) {
+                $t0F = $t;
+            }
+            if ($runS === 1) {
+                $t0S = $t;
+            }
+            if ($runF >= $need && $t - $t0F >= $win) {
                 $dF[$d] = true;
             }
             if ($runS >= 1) {
                 $dS1[$d] = true;
             }
-            if ($runS >= $need) {
+            if ($runS >= $need && $t - $t0S >= $win) {
                 $dS[$d] = true;
             }
         }
