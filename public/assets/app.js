@@ -609,12 +609,117 @@ FX.leaks = {
   ],
 };
 
-function toast(msg, type = 'ok') {
-  const el = document.createElement('div');
-  el.className = 'toast ' + type;
+// ---------------------------------------------------------------- Live bijwerken zonder opnieuw opbouwen (1.109.0)
+/*
+ * morph(el, html): zet de nieuwe HTML niet in één keer neer, maar past alleen aan wat anders is. Wat je open hebt
+ * (uitgeklapte onderdelen, menu's, een veld waarin je typt, je scrollpositie) blijft zo staan. Elementen met een sleutel
+ * (id, data-cid, data-host, data-day …) worden op sleutel herkend, de rest op plek en soort.
+ * Live-effecten: een getal in [data-flash] licht even op en telt naar de nieuwe waarde; een check die van status
+ * wisselt, kleurt even mee.
+ */
+const MORPH_KEYS = ['id', 'data-cid', 'data-host', 'data-day', 'data-key', 'data-email', 'data-bundle', 'data-k', 'data-st', 'data-kpi'];
+let morphOn = 0;
+function morphKey(n) {
+  if (n.nodeType !== 1) return null;
+  for (const k of MORPH_KEYS) { const v = n.getAttribute(k); if (v !== null && v !== '') return n.nodeName + '|' + k + '=' + v; }
+  return null;
+}
+function morph(el, html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;   // een template hangt niet in de pagina: gewone innerHTML
+  morphKids(el, tpl.content);
+}
+function morphKids(from, to) {
+  const olds = [...from.childNodes];
+  const keyed = new Map(), dup = new Set();
+  olds.forEach((n) => { const k = morphKey(n); if (k) { if (keyed.has(k)) dup.add(k); keyed.set(k, n); } });
+  dup.forEach((k) => keyed.delete(k));
+  const used = new Set();
+  let cur = 0;
+  [...to.childNodes].forEach((nw, i) => {
+    const k = morphKey(nw);
+    let old = k && keyed.has(k) && !used.has(keyed.get(k)) ? keyed.get(k) : null;
+    if (!old) {
+      for (let j = cur; j < olds.length; j++) {
+        const o = olds[j];
+        if (used.has(o) || (morphKey(o) && keyed.has(morphKey(o)))) continue;
+        if (o.nodeType === nw.nodeType && o.nodeName === nw.nodeName && (!k || !morphKey(o))) { old = o; cur = j + 1; break; }
+      }
+    }
+    const at = from.childNodes[i] || null;
+    if (old) {
+      used.add(old);
+      if (old !== at) from.insertBefore(old, at);
+      morphNode(old, nw);
+    } else {
+      from.insertBefore(nw.cloneNode(true), at);
+    }
+  });
+  olds.forEach((o) => { if (!used.has(o) && o.parentNode === from) o.remove(); });
+}
+function morphNode(a, b) {
+  if (a.nodeType === 3 || a.nodeType === 8) {
+    if (a.nodeValue !== b.nodeValue) liveText(a, b.nodeValue);
+    return;
+  }
+  if (a.nodeType !== 1 || a.isEqualNode(b)) return;
+  // Kenmerken: alles van de nieuwe, behalve "open" van een <details> die je zelf open- of dichtklapte
+  const keepOpen = a.nodeName === 'DETAILS' && !b.hasAttribute('data-fresh');
+  const sBefore = a.hasAttribute('data-cid') ? (a.className.match(/\bs(\d)\b/) || [])[1] : null;
+  for (const at of [...a.attributes]) if (!b.hasAttribute(at.name) && !(keepOpen && at.name === 'open')) a.removeAttribute(at.name);
+  for (const at of [...b.attributes]) if (a.getAttribute(at.name) !== at.value && !(keepOpen && at.name === 'open')) a.setAttribute(at.name, at.value);
+  if (sBefore !== null) {
+    const sAfter = (a.className.match(/\bs(\d)\b/) || [])[1];
+    if (sAfter !== sBefore) { a.classList.remove('live-pulse'); void a.offsetWidth; a.classList.add('live-pulse'); }
+  }
+  // Velden: wat je typt of aanvinkt blijft (de browser laat de waarde staan zodra je iets wijzigde)
+  if (a.nodeName === 'TEXTAREA' && a === document.activeElement) return;
+  morphKids(a, b);
+}
+/** Tekst wijzigen; in een [data-flash] met een getal: oplichten en naar de nieuwe waarde tellen */
+function liveText(node, text) {
+  const host = node.parentElement && node.parentElement.closest('[data-flash], .kpi-val');
+  const re = /-?\d+(?:[.,]\d+)?/;
+  const mo = host && (node.nodeValue || '').match(re), mn = host && text.match(re);
+  if (!host) { node.nodeValue = text; return; }
+  host.classList.remove('live-flash'); void host.offsetWidth; host.classList.add('live-flash');
+  const from = mo ? parseFloat(mo[0].replace(',', '.')) : NaN, to = mn ? parseFloat(mn[0].replace(',', '.')) : NaN;
+  if (isNaN(from) || isNaN(to) || from === to || matchMedia('(prefers-reduced-motion: reduce)').matches) { node.nodeValue = text; return; }
+  const decs = (mn[0].split(/[.,]/)[1] || '').length, sep = mn[0].includes(',') ? ',' : '.';
+  const t0 = performance.now(), D = 600;
+  node._liveTo = text;
+  const step = (t) => {
+    if (node._liveTo !== text) return;   // er kwam al een nieuwere waarde
+    const f = Math.min(1, (t - t0) / D), e = 1 - Math.pow(1 - f, 3);
+    node.nodeValue = f >= 1 ? text : text.replace(re, (from + (to - from) * e).toFixed(decs).replace('.', sep));
+    if (f < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+/** Tijdens fn: elke innerHTML = … in de pagina wordt een morph */
+function withMorph(fn) {
+  morphOn++;
+  try { return fn(); } finally { morphOn--; }
+}
+(() => {
+  const d = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+  Object.defineProperty(Element.prototype, 'innerHTML', {
+    configurable: true,
+    get() { return d.get.call(this); },
+    set(v) { if (morphOn && this.isConnected) morph(this, String(v)); else d.set.call(this, v); },
+  });
+})();
+/** "12 s geleden" telt gewoon door: <span class="ago" data-ts="…"> */
+const agoSpan = (dt) => (dt ? `<span class="ago" data-ts="${esc(dt)}">${ago(dt)}</span>` : ago(dt));
+setInterval(() => { if (!document.hidden) $$('.ago[data-ts]').forEach((e) => { const t = ago(e.dataset.ts); if (e.textContent !== t) e.textContent = t; }); }, 1000);
+
+function toast(msg, type = 'ok', onClick = null) {
+  const el = document.createElement(onClick ? 'button' : 'div');
+  el.className = 'toast ' + type + (onClick ? ' toast-click' : '');
   el.textContent = msg;
+  if (onClick) { el.type = 'button'; el.onclick = () => { el.remove(); onClick(); }; }
   $('#toasts').append(el);
-  setTimeout(() => el.remove(), 4000);
+  setTimeout(() => el.remove(), onClick ? 9000 : 4000);
 }
 
 // ---- Contact met de agent (1.99.0): laatste en volgende contact, live bijgewerkt
@@ -1214,24 +1319,28 @@ function init() {
   initHibp();
 
   refresh();
-  // 1.107.0: live bijwerken. Elke 3 s een klein kenmerk ophalen (statuswissels, meldingen, bevestigd, onderhoud,
-  // wijzigingen, een nieuwe checkronde); verandert het, dan meteen alles opnieuw. Licht voor de server: geen open
-  // verbindingen die PHP bezet houden. Staat er een venster open, dan wacht het tot dat dicht is.
-  let liveRev = null, liveFail = 0, liveFull = Date.now();
+  // 1.107.0: live bijwerken. Elke 3 s een klein kenmerk ophalen (statuswissels, meldingen, nieuwe meetwaarden,
+  // bevestigd, onderhoud, wijzigingen); verandert het, dan de stand ophalen. Licht voor de server: geen open
+  // verbindingen die PHP bezet houden. 1.109.0: alleen wat veranderde wordt bijgewerkt (morph), dus ook met een
+  // venster open; dat venster werkt zelf mee (liveModal).
+  let liveRev = null, liveFail = 0, liveFull = Date.now(), liveBusy = false;
   setInterval(async () => {
-    if (document.hidden) return;
+    if (document.hidden || liveBusy) return;
+    liveBusy = true;
     try {
       const r = await api('rev');
       liveFail = 0;
       $('#live-dot')?.classList.remove('off');
       if ((liveRev !== null && r.rev !== liveRev) || Date.now() - liveFull > 60000) {
-        if ($('#modal').open) return;   // later, als het venster dicht is (liveRev blijft staan)
         liveFull = Date.now();
-        await refresh();
+        await refresh(true);
+        liveModal();
       }
       liveRev = r.rev;
     } catch (e) {
       if (++liveFail >= 3) $('#live-dot')?.classList.add('off');
+    } finally {
+      liveBusy = false;
     }
   }, 3000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
@@ -1272,19 +1381,45 @@ function showTab(name) {
   if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
 }
 
-async function refresh() {
+/** Het open venster live bijwerken (1.109.0): het venster van een check; de Agent Manager doet dat zelf al */
+function liveModal() {
+  const dlg = $('#modal');
+  if (!dlg.open || !dlg.dataset.live) return;
+  const [kind, id] = dlg.dataset.live.split(':');
+  if (kind === 'check') checkInfo(id, true);
+}
+
+/** Nieuwe problemen (er ging echt een melding uit: melden na N gehaald) als klikbaar meldinkje rechtsonder */
+function liveToasts(prev) {
+  if (!prev) return;
+  const fresh = [];
+  state.hosts.forEach((h) => h.checks.forEach((c) => {
+    const p = prev.get(+c.id);
+    const s = +c.notified_status;
+    if (p === undefined || !+c.enabled || +c.info_only || c.maintenance || c.acked_at || !(s === 1 || s === 2) || p === s || +c.status !== s) return;
+    fresh.push([c, h]);
+  }));
+  if (fresh.length > 3) return toast(L('{n} nieuwe problemen', { n: fresh.length }), 'err', () => showTab('dashboard'));
+  fresh.forEach(([c, h]) => toast(`${ST_ICON[+c.status]} ${h.name} – ${c.name}: ${STATUS[+c.status]}`, +c.status === 2 ? 'err' : 'warn', () => checkInfo(c.id)));
+}
+
+let statsAt = 0;
+async function refresh(live = false) {
   try {
     // Openstaande tab (Dashboard of Meldingen) telt als gezien, maar alleen als je echt kijkt
     const seen = document.hidden ? '' : ['dashboard', 'alerts'].find((t) => !$('#tab-' + t).hidden) || '';
+    const prev = live && state && state.hosts ? new Map(state.hosts.flatMap((h) => h.checks.map((c) => [+c.id, +c.notified_status]))) : null;
     state = await api('state', null, seen ? { seen } : {});
     syncClock(state.now_ts);
     // Info-check: telt nooit als storing. Voor tellers, filters en "Problemen" is hij OK; de echte status staat in info_status
     state.hosts.forEach((h) => h.checks.forEach((c) => { if (+c.info_only && +c.status !== 0) { c.info_status = +c.status; c.status = 0; } }));
     if (state.role && document.body.dataset.role !== state.role) location.reload();   // rol gewijzigd
     render();
+    liveToasts(prev);
     if (!$('#tab-alerts').hidden) loadAlerts();
     if (!$('#tab-ids').hidden) loadIds();
     if ($('#tab-vulns') && !$('#tab-vulns').hidden) loadVulns();
+    if (live && $('#tab-net') && !$('#tab-net').hidden) loadNet();
     renderTabBadges();
     if ($('#net-badge')) { $('#net-badge').hidden = !state.net_new; $('#net-badge').textContent = state.net_new || ''; }
     $('#ids-badge').hidden = !state.ids_open;
@@ -1298,8 +1433,9 @@ async function refresh() {
   } catch (ex) {
     toast(ex.message, 'err');
   }
-  // Beschikbaarheid en minigrafieken apart: mag iets langer duren
-  try { stats = await api('stats'); render(); } catch (ex) { /* niet kritiek */ }
+  // Beschikbaarheid en minigrafieken apart: mag iets langer duren; live hooguit eens per 30 s
+  if (live && Date.now() - statsAt < 30000) return;
+  try { stats = await api('stats'); statsAt = Date.now(); render(); } catch (ex) { /* niet kritiek */ }
 }
 
 /** Tellers op de tabs Dashboard (nieuwe problemen, kleur van het ergste) en Meldingen (nieuwe meldingen). */
@@ -1434,7 +1570,7 @@ function renderHealth() {
     const n = hl.counts[key];
     return `<button type="button" class="hc s${st} ${statusFilter === st ? 'on' : ''} ${n ? '' : 'zero'}" data-st="${st}"
       title="${n} check${n === 1 ? '' : 's'} ${HEALTH_TITLES[st]}${statusFilter === st ? ' – ' + L('klik om het filter op te heffen') : ' – ' + L('klik om alleen deze te tonen')}">
-      <span class="hc-dot"></span><b>${n}</b> <span class="hc-w">${WORD[st]}</span></button>`;
+      <span class="hc-dot"></span><b data-flash>${n}</b> <span class="hc-w">${WORD[st]}</span></button>`;
   }).join('');
 
   // Kerncijfers als tegels
@@ -1451,7 +1587,7 @@ function renderHealth() {
   $('#health').className = 'kpis k-' + hl.state;
   $('#health').innerHTML = `
     <div class="kpi kpi-main ${stateCls}" data-kpi="problems" title="${L('Klik: alleen problemen tonen')}">
-      <div class="ring" style="--p:${hl.score}"><span>${hl.score}%</span></div>
+      <div class="ring" style="--p:${hl.score}"><span data-flash>${hl.score}%</span></div>
       <div class="kpi-txt"><div class="kpi-state">${{ ok: '🟢', attention: '🟠', outage: '🔴' }[hl.state]} ${L(hl.label)}</div>
         <div class="kpi-sub">${nProb ? [hl.counts.critical ? `${hl.counts.critical} critical` : '', hl.counts.warning ? `${hl.counts.warning} warning` : '', hl.counts.unknown ? L('{n} onbekend', { n: hl.counts.unknown }) : ''].filter(Boolean).join(' · ') : L('Geen problemen')}</div>
         ${extra ? `<div class="kpi-sub">${extra}</div>` : ''}</div></div>
@@ -1538,7 +1674,9 @@ function jumpToHost(id) {
   }
 }
 
-function render() {
+/** Dashboard tekenen; live: alleen wat veranderde (morph) */
+function render() { withMorph(renderNow); }
+function renderNow() {
   renderHealth();
   const banner = $('#maint-banner');
   banner.hidden = !state.maintenance;
@@ -1547,7 +1685,7 @@ function render() {
       ${L('Checks draaien door, maar er gaan geen meldingen uit.')}</span>
       <button class="btn need-user" data-maint-end="all">${L('Beëindigen')}</button>`;
   }
-  $('#last-run').textContent = state.last_run ? L('Laatste check') + ' ' + ago(state.last_run) : '';
+  $('#last-run').innerHTML = state.last_run ? esc(L('Laatste check')) + ' ' + agoSpan(state.last_run) : '';
   let open = 0;
   if (state.badges) open = state.badges.dashboard + state.badges.alerts;   // nieuwe problemen + nieuwe meldingen
   else state.hosts.forEach((h) => +h.enabled && h.checks.forEach((c) => +c.enabled && !c.maintenance && +c.status === 2 && !c.acked_at && open++));
@@ -2019,7 +2157,7 @@ function hostCard(h, small) {
       <div class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</div>
       ${p.chips(4) ? `<div class="chips">${p.chips(4)}</div>` : ''}
       ${hostSparks(h) ? `<div class="host-sparks">${hostSparks(h)}</div>` : ''}
-      <div class="muted small sum-foot">${p.lastChecked ? L('Laatste check') + ' ' + ago(p.lastChecked) : ''}${h.mode === 'agent' ? ` · ${h.agent_seen ? contactHtml(h, 'short') : 'agent ' + L('nog niet gezien')}${agentVer(h)}` : ''}${uptimeLine(h, true)}</div>
+      <div class="muted small sum-foot">${p.lastChecked ? L('Laatste check') + ' ' + agoSpan(p.lastChecked) : ''}${h.mode === 'agent' ? ` · ${h.agent_seen ? contactHtml(h, 'short') : 'agent ' + L('nog niet gezien')}${agentVer(h)}` : ''}${uptimeLine(h, true)}</div>
     </div>
     ${p.isOpen ? hostDetail(h) : ''}
   </article>`;
@@ -2032,7 +2170,7 @@ function meterCell(h, type) {
   if (!c) return '<span class="muted">–</span>';
   const v = Math.min(100, Math.round(+c.last_value));
   return `<span class="meter s${c.maintenance ? 4 : c.status}" title="${esc(c.name)}: ${esc(c.last_message || '')}">
-    <span class="meter-bar"><i style="width:${v}%"></i></span><b>${v}%</b></span>`;
+    <span class="meter-bar"><i style="width:${v}%"></i></span><b data-flash>${v}%</b></span>`;
 }
 
 function hostLine(h, large) {
@@ -2045,7 +2183,7 @@ function hostLine(h, large) {
        <span class="lc-m">${meterCell(h, 'ram')}</span>
        <span class="lc-m">${meterCell(h, 'disk')}</span>
        <span class="lc-up" title="${L('Bereikbaar afgelopen 7 dagen')}">${u ? pct(u.d7) : '<span class="muted">–</span>'}</span>
-       <span class="lc-last muted small">${p.lastChecked ? ago(p.lastChecked) : ''}${agent ? `<br>${agent}` : ''}</span>`
+       <span class="lc-last muted small">${p.lastChecked ? agoSpan(p.lastChecked) : ''}${agent ? `<br>${agent}` : ''}</span>`
     : `<span class="lc-status"><span class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</span></span>
        <span class="counts">${p.counts}</span>`;
   return `
@@ -2114,12 +2252,12 @@ function checkRow(c) {
   return `
   <li class="chk ${b.cls}" title="${b.title}" data-cid="${c.id}">
     <span class="dot"></span>
-    <span class="chk-name">${esc(c.name)}<span class="type">${b.t.label}${b.num ? ` · ${b.num}` : ''}</span>${b.flags}</span>
+    <span class="chk-name">${esc(c.name)}<span class="type">${b.t.label}${b.num ? ` · <span data-flash>${b.num}</span>` : ''}</span>${b.flags}</span>
     <span class="chk-actions">${b.actions}
     </span>
     ${bar}
     ${sparkSvg(c)}
-    <span class="chk-msg">${b.msg} · ${ago(c.last_checked)}</span>
+    <span class="chk-msg">${b.msg} · ${agoSpan(c.last_checked)}</span>
   </li>`;
 }
 
@@ -2166,8 +2304,8 @@ function checkLines(h, large) {
 function checkLine(c, large) {
   const b = checkBits(c);
   const value = b.pctVal !== null
-    ? `<span class="cl-meter" title="${fmt(b.pctVal, '%')}"><span class="bar"><i style="width:${b.pctVal}%"></i>${b.ticks}</span><b>${Math.round(b.pctVal)}%</b></span>`
-    : b.num ? `<span class="cl-num">${b.num}</span>` : '<span class="muted">–</span>';
+    ? `<span class="cl-meter" title="${fmt(b.pctVal, '%')}"><span class="bar"><i style="width:${b.pctVal}%"></i>${b.ticks}</span><b data-flash>${Math.round(b.pctVal)}%</b></span>`
+    : b.num ? `<span class="cl-num" data-flash>${b.num}</span>` : '<span class="muted">–</span>';
   return `
   <div class="cl chk ${b.cls}" title="${b.title}" data-cid="${c.id}">
     <span class="dot"></span>
@@ -2175,7 +2313,7 @@ function checkLine(c, large) {
     <span class="cl-value">${value}</span>
     ${large ? `<span class="cl-spark">${sparkSvg(c) || '<span class="muted small">–</span>'}</span>` : ''}
     <span class="cl-msg">${b.msg}</span>
-    <span class="cl-last muted small">${ago(c.last_checked)}</span>
+    <span class="cl-last muted small">${agoSpan(c.last_checked)}</span>
     <span class="chk-actions">${b.actions}
     </span>
   </div>`;
@@ -2258,9 +2396,11 @@ function whenText(dt) {
   return (today ? '' : d.toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + dt.slice(11, 16);
 }
 
-async function checkInfo(id) {
+async function checkInfo(id, live = false) {
   let r;
-  try { r = await api('check_info', null, { id }); } catch (ex) { return toast(ex.message, 'err'); }
+  try { r = await api('check_info', null, { id }); } catch (ex) { return live ? null : toast(ex.message, 'err'); }
+  // Live (1.109.0): alleen bijwerken als dit venster nog open is voor deze check
+  if (live && !($('#modal').open && $('#modal').dataset.live === 'check:' + id)) return;
   const c = r.check;
   const [sc, h] = findCheck(c.id);   // dashboardgegevens (onderhoud, bevestigd) als die er zijn
   const now = toTime(r.now);
@@ -2315,19 +2455,25 @@ async function checkInfo(id) {
     ...(sc ? [{ label: '📈 ' + L('Grafiek'), onClick: () => { close(); showHistory(sc, h); } }] : []),
     ...(sc ? [{ label: '✎ ' + L('Bewerken'), cls: 'need-admin', onClick: () => checkForm(sc, h) }] : []),
   ];
-  modal({
-    title: `${ST_ICON[st]} ${c.name} – ${c.host_name}`,
-    wide: true,
-    body: `<div class="ci">
+  const ciBody = `<div class="ci">
       <p class="ci-status s${st}"><b>${STATUS[st]}</b>${since}<br><span class="ci-msg">${esc(c.last_message || '–')}</span></p>
       <dl class="ci-grid">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
       <p class="small muted ci-tags">${tags.join(' · ')}</p>
       ${r.smart ? smartBlock(r.smart, c) : ''}
       <h3 class="ci-h">${L('Laatste 5 statuswijzigingen')}</h3>
       ${changes ? `<ol class="ci-changes">${changes}</ol>` : `<p class="muted small">${L('Nog geen statuswijzigingen bewaard. Ze worden bijgehouden vanaf versie 1.37.0.')}</p>`}
-    </div>`,
-    buttons: btns,
-  });
+    </div>`;
+  const title = `${ST_ICON[st]} ${c.name} – ${c.host_name}`;
+  if (live) {
+    $('#modal-title').textContent = title;
+    withMorph(() => { $('#modal-body').innerHTML = ciBody; });
+    // Knoppen alleen opnieuw als er een bij kwam of af ging (bv. Bevestigen), anders blijven ze staan
+    const sig = btns.map((b) => b.label).join('|');
+    if ($('#modal').dataset.btns === sig) return;
+  }
+  modal({ title, wide: true, body: ciBody, buttons: btns });
+  $('#modal').dataset.live = 'check:' + id;
+  $('#modal').dataset.btns = btns.map((b) => b.label).join('|');
 }
 
 /**
@@ -2628,6 +2774,7 @@ function initCmdk() {
 function modal({ title, body, buttons = [], wide = false, onSubmit }) {
   const dlg = $('#modal');
   const form = $('#modal-form');
+  dlg.dataset.live = '';   // een ander venster: niet meer live bijwerken als check (checkInfo zet het weer)
   dlg.classList.toggle('wide', wide);
   $('#modal-title').textContent = title;
   $('#modal-body').innerHTML = body;
@@ -5012,7 +5159,7 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
       html += `<div class="fails"><span class="muted small">${L('Geweigerde pogingen (24 uur):')}</span>
         ${s.failures.map((f) => `<div class="small"><code>${esc(f.ip)}</code> · ${ago(f.created_at)}${+f.n > 1 ? ` (${f.n}×)` : ''} · ${esc(f.reason)}</div>`).join('')}</div>`;
     }
-    if (gen === agentPollGen) box.innerHTML = html;
+    if (gen === agentPollGen) withMorph(() => { box.innerHTML = html; });   // 1.109.0: wat je openklapte blijft open
   } catch (ex) {
     if (gen === agentPollGen) box.innerHTML = `<span class="muted small">${esc(ex.message)}</span>`;
   }
@@ -5101,7 +5248,7 @@ function keepOpen(root, draw) {
   root.querySelectorAll('details').forEach((d) => was.set(key(d), d.open));
   const rows = new Set([...root.querySelectorAll('tr.at-open')].map(key));
   const y = window.scrollY;
-  draw();
+  withMorph(draw);
   root.querySelectorAll('details').forEach((d) => { const k = key(d); if (!d.dataset.fresh && was.has(k) && d.open !== was.get(k)) d.open = was.get(k); });
   if (rows.size) root.querySelectorAll('tr').forEach((tr) => { if (rows.has(key(tr))) tr.classList.add('at-open'); });
   if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);
@@ -5258,7 +5405,7 @@ function renderAccess() {
         <span class="muted small ad-total">${rows.length === 1 ? L('1 regel') : L('{n} regels', { n: rows.length })}</span></summary>
       <div class="ad-body">${isOpen(day) ? accBody(rows) : ''}</div></details>`;
   }).join('');
-  $$('.alert-day', el).forEach((det) => det.addEventListener('toggle', () => {
+  $$('.alert-day', el).forEach((det) => (det.ontoggle = () => {
     accDayOpen[det.dataset.day] = det.open;
     if (det.open && !$('.ad-body', det).innerHTML) $('.ad-body', det).innerHTML = accBody(byDay.get(det.dataset.day));
     accToggleLabel();
@@ -5366,7 +5513,7 @@ function renderIds() {
   const o2 = open.filter((i) => +i.severity === 2).length;
   const [accOk, accFail, failHours] = accLast24();
   // Tellers
-  const cnt = (cls, n, word, attrs, zeroOk = false) => `<button type="button" class="hc ${cls} ${n || zeroOk ? '' : 'zero'}" ${attrs}><span class="hc-dot"></span><b>${n}</b> <span class="hc-w">${word}</span></button>`;
+  const cnt = (cls, n, word, attrs, zeroOk = false) => `<button type="button" class="hc ${cls} ${n || zeroOk ? '' : 'zero'}" ${attrs}><span class="hc-dot"></span><b data-flash>${n}</b> <span class="hc-w">${word}</span></button>`;
   $('#ids-counts').innerHTML = cnt('s2', o2, 'Critical', 'data-igo="inc"') + cnt('s1', open.length - o2, 'Warning', 'data-igo="inc"')
     + cnt('sx2', d.blocks.length, '⛔ ' + L('Geblokkeerd'), 'data-igo="blk"') + cnt('si', accOk, '🔑 ' + L('Logins 24 u'), 'data-igo="acc"')
     + cnt('sx', accFail, '❌ ' + L('Mislukt 24 u'), 'data-igo="acc" data-fail="1"');
@@ -5444,7 +5591,7 @@ function renderIds() {
           return `<div class="bundle${idsBundles.has(key) ? ' open' : ''}" data-bundle="${key}">${idsRow(g.items[0], g.items)}${g.items.slice(1).map((i) => idsRow(i)).join('')}</div>`;
         }).join('')}</div></details>`;
     }).join('');
-    $$('.alert-day', el).forEach((det) => det.addEventListener('toggle', () => { idsDayOpen[det.dataset.day] = det.open; idsToggleLabel(); }));
+    $$('.alert-day', el).forEach((det) => (det.ontoggle = () => { idsDayOpen[det.dataset.day] = det.open; idsToggleLabel(); }));
   }
   idsToggleLabel();
 
@@ -5988,7 +6135,7 @@ function renderAlerts() {
       <div class="ad-body">${isOpen(day) ? alertRows(list, layout, density) : ''}</div>
     </details>`).join('');
   // Pas bij openen opbouwen: snel, ook met duizenden meldingen
-  $$('.alert-day', el).forEach((det) => det.addEventListener('toggle', () => {
+  $$('.alert-day', el).forEach((det) => (det.ontoggle = () => {
     alertDayOpen[det.dataset.day] = det.open;
     if (det.open && !$('.ad-body', det).innerHTML) $('.ad-body', det).innerHTML = alertRows(byDay.get(det.dataset.day), layout, density);
     alertToggleLabel();
@@ -8904,7 +9051,8 @@ async function netScanNow(btn) {
   btn.textContent = old;
 }
 
-function renderNet() {
+function renderNet() { withMorph(renderNetNow); }
+function renderNetNow() {
   const d = netData;
   if (!d) return;
   const devs = d.devices;
@@ -9233,7 +9381,7 @@ function renderLeaks() {
   $('#leak-counts').innerHTML = [
     ['open', open.length, L('Open lekken'), 's2'], ['pw', pw.length, L('Met wachtwoorden'), 's2'], ['', hit.size, L('Adressen getroffen'), 's1'],
     ['', pwUsers.length, L('Gelekte wachtwoorden'), 's2'], ['handled', handled, L('Afgehandeld'), 's0'],
-  ].map(([k, n, w, c]) => `<button type="button" class="hc ${c} ${n ? '' : 'zero'} ${k && leakFilter === k ? 'on' : ''}" ${k ? `data-lf="${k}"` : ''}><span class="hc-dot"></span><b>${n}</b> <span class="hc-w">${w}</span></button>`).join('');
+  ].map(([k, n, w, c]) => `<button type="button" class="hc ${c} ${n ? '' : 'zero'} ${k && leakFilter === k ? 'on' : ''}" ${k ? `data-lf="${k}"` : ''}><span class="hc-dot"></span><b data-flash>${n}</b> <span class="hc-w">${w}</span></button>`).join('');
   $('#leak-info').textContent = d.check_at ? L('laatste controle {t}', { t: ago(d.check_at) }) + ' · ' + L('dagelijks') : '';
   if ($('#vt-n-leak')) $('#vt-n-leak').textContent = open.length || '';
   // Meldingen bovenaan: geen sleutel, fouten

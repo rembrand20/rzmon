@@ -129,7 +129,14 @@ Beweeg over een grafiek voor de precieze waarde. RzMon houdt hiervoor elk uur **
 **Maandrapport per e-mail.** Met de schakelaar **Maandrapport** (alleen beheerders) krijg je op de **1e van elke maand** (na 7:00) een korte samenvatting van de vorige maand: score, beschikbaarheid, storingen, hersteltijd, meldingen, de minst bereikbare servers en wat je nu het best aanpakt. Het gaat naar het e-mailadres bij *Meldingen → Kanalen*; stel dat eerst in. Met **Nu versturen** krijg je het rapport van vorige maand meteen. Standaard staat het uit.
 
 ### Live bijwerken ⚡ en Zoeken en doen ⌨️ (vanaf 1.107.0)
-- **Live bijwerken**: RzMon kijkt elke paar seconden of er iets veranderd is (een storing, een melding, iets bevestigd of in onderhoud, een nieuwe checkronde) en werkt dan meteen het scherm bij. Het groene bolletje bij *Laatste check* laat zien dat het werkt (grijs = even geen verbinding). Het is licht voor de server: er blijven geen verbindingen openstaan. Staat er een venster open, dan wacht het tot je dat sluit.
+- **Live bijwerken**: RzMon kijkt elke paar seconden of er iets veranderd is (een storing, een melding, iets bevestigd of in onderhoud, een nieuwe checkronde) en werkt dan meteen het scherm bij. Het groene bolletje bij *Laatste check* laat zien dat het werkt (grijs = even geen verbinding). Het is licht voor de server: er blijven geen verbindingen openstaan.
+- **Echt live** (vanaf 1.109.0): RzMon bouwt het scherm niet meer opnieuw op, maar past **alleen aan wat veranderde**. Wat je openklapte (een server, een dag bij Meldingen, *Verbindingscontrole* in de Agent Manager), een menu, wat je typt en je scrollpositie blijven gewoon staan. Dat geldt op elke pagina: Dashboard, Meldingen, IDS, Kwetsbaarheden en Netwerk.
+  - Ook **nieuwe meetwaarden** komen meteen binnen: een waarde die verandert, **licht even op** en **telt** naar de nieuwe waarde (bv. CPU 23% → 41%). Een check die van status wisselt, kleurt even mee.
+  - *"Laatste check 12 s geleden"* telt gewoon door.
+  - Een **nieuw probleem** (er ging echt een melding uit, dus na *melden na N*) geeft een klein **meldinkje rechtsonder**: *"🔴 NAS – SMB: CRITICAL"*. Klik erop en de check opent. Bij meer dan 3 tegelijk één meldinkje.
+  - Het **venster van een check** werkt ook live bij (status, bericht, statuswijzigingen) zolang je het open hebt; de Agent Manager deed dat al.
+  - De minigrafiekjes en de beschikbaarheid lopen elke 30 seconden mee. Instellingen en Analyse worden niet live bijgewerkt (daar ben je aan het invullen of kijk je naar een periode).
+  - Wie liever geen beweging ziet: met *verminder beweging* aan in je besturingssysteem lichten waarden niet op en tellen ze niet.
 - **Zoeken en doen (Ctrl+K of ⌘K, op de telefoon de 🔍-knop)**: typ een deel van een server, check, IP-adres, tabblad of instelling en druk op Enter. Met een werkwoord erbij krijg je meteen de actie:
   - *nu* of *check*: nu checken; *onderhoud*: onderhoud instellen; *bevestig*: een storing bevestigen; *grafiek*: de grafiek; *bewerk*: bewerken; *agent*: de Agent Manager;
   - een IP-adres: de tijdlijn van dat adres, en (beheerders) *blokkeren*.

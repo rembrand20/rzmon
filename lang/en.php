@@ -4957,4 +4957,5 @@ return [
     '– met slim' => '– with smart',
     'Waarom' => 'Why',
     '<i>Melden na N</i> blijft gelijk: bij een check op <i>melden na 3</i> en een interval van 1 minuut gaat de melding pas uit als het <b>2 minuten</b> mis is, net als zonder slim interval. Het snellere checken maakt een korte hapering dus niet alsnog tot een melding; wel weet RzMon sneller dat het weer goed is.' => '<i>Alert after N</i> stays the same: for a check on <i>alert after 3</i> with a 1-minute interval, the alert only goes out once it has been failing for <b>2 minutes</b>, just like without smart interval. Faster checking therefore doesn\'t turn a brief hiccup into an alert after all; RzMon does see sooner that it\'s fine again.',
+    '{n} nieuwe problemen' => '{n} new problems',
 ];

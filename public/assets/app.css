@@ -388,6 +388,17 @@ pre.code { background: var(--bg); border: 1px solid var(--border); border-radius
 #toasts { position: fixed; bottom: 1rem; right: 1rem; display: flex; flex-direction: column; gap: .5rem; z-index: 100; }
 .toast { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--c, var(--primary)); padding: .7rem 1rem; border-radius: 10px; box-shadow: var(--shadow); animation: pop .2s; max-width: 360px; }
 .toast.ok { --c: var(--ok); } .toast.err { --c: var(--crit); }
+.toast.warn { --c: var(--warn); }
+/* 1.109.0: klikbaar meldinkje bij een nieuw probleem */
+.toast-click { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.toast-click:hover { border-color: var(--c); }
+/* 1.109.0: live: een waarde die verandert licht even op; een check die van status wisselt, kleurt even mee */
+@keyframes live-flash { from { background: color-mix(in srgb, var(--primary) 30%, transparent); } to { background: transparent; } }
+.live-flash { animation: live-flash 1.2s ease-out; border-radius: 4px; }
+@keyframes live-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 55%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+.live-pulse { animation: live-pulse 1.4s ease-out; }
+.chk.s2.live-pulse { --primary: var(--crit); } .chk.s1.live-pulse { --primary: var(--warn); } .chk.s0.live-pulse { --primary: var(--ok); }
+@media (prefers-reduced-motion: reduce) { .live-flash, .live-pulse { animation: none; } }
 
 @media (max-width: 720px) {
   .topbar { flex-wrap: wrap; padding: .6rem 1rem; }

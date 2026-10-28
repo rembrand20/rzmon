@@ -3612,7 +3612,8 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'rev':   // 1.107.0: live bijwerken: een klein kenmerk; verandert het, dan haalt de browser de stand opnieuw op
-        $r = q("SELECT (SELECT MAX(id) FROM status_changes), (SELECT MAX(id) FROM alerts), (SELECT MAX(id) FROM change_log),
+        // 1.109.0: ook nieuwe meetwaarden (MAX(id) van results is snel: primaire sleutel), zodat waarden live meelopen
+        $r = q("SELECT (SELECT MAX(id) FROM status_changes), (SELECT MAX(id) FROM alerts), (SELECT MAX(id) FROM change_log), (SELECT MAX(id) FROM results),
                        (SELECT COUNT(*) FROM checks WHERE acked_at IS NOT NULL), (SELECT COUNT(*) FROM checks WHERE maintenance_until > NOW()),
                        (SELECT COUNT(*) FROM checks WHERE enabled = 1), (SELECT value FROM settings WHERE name = 'cron_last_run')")->fetch(PDO::FETCH_NUM);
         out(['rev' => substr(md5(implode('|', array_map('strval', $r))), 0, 12)]);
