@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.113.0 – 2026-10-28
+### Nieuw
+- **🧭 DNS-controle via AdGuard** (IDS 2.0, deel 4): RzMon leest elke minuut de query-log van AdGuard Home en meldt per apparaat (ook zonder agent: tv, camera's, IoT) domeinen van malware en botnets (URLhaus, ThreatFox), wat AdGuard Safe Browsing tegenhield, antwoorden die naar een bekende aanvaller wijzen, mogelijke DNS-tunnels en verzonnen domeinen. Is het apparaat een server, dan telt het mee voor de ketens.
+- **Suricata** (**agent 1.64.0 nodig**): de agent stuurt nieuwe alerts uit `eve.json` mee; ernst 1 is critical (en de aanvaller van buiten wordt geblokkeerd), ernst 2 warning, ernst 3 een signaal. Met de stap van een aanval (MITRE) erbij.
+- **YARA** (**agent 1.64.0 nodig**): RzMon stuurt zijn eigen YARA-regels versleuteld naar de agents. Staat `yara` op een server, dan wordt elk nieuw bestand in tijdelijke mappen en elk nieuw script in webmappen gecontroleerd op webshells, cryptominers, reverse shells, IoT-botnets, Kinsing en rootkits. YARA installeren kan via de Agent Manager (optioneel).
+- Instellingen in *IDS → Dreigingsinformatie → 🧭 Netwerk*.
+- Nieuwe agent 1.64.0.
+
 ## 1.112.0 – 2026-10-28
 ### Nieuw
 - **🌐 Dreigingsinformatie** (IDS 2.0, deel 3, *Instellingen → IDS → Dreigingsinformatie*): RzMon zoekt de IP-adressen en bestanden uit je incidenten op bij **AbuseIPDB** (met een veld voor je eigen API-sleutel en een knop *Sleutel testen*), **GreyNoise**, **Shodan InternetDB**, **CIRCL hashlookup**, **abuse.ch** (Feodo Tracker, URLhaus, en met een gratis Auth-Key ook MalwareBazaar en ThreatFox) en de lijst met **Tor-uitgangen**. Op de achtergrond, met een cache en een limiet per dag; er gaat alleen het IP-adres of de hash naar buiten.

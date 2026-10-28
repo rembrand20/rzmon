@@ -2157,6 +2157,20 @@ RzMon vraagt na wat er op internet bekend is over de IP-adressen en bestanden ui
 - **Melden bij AbuseIPDB** (standaard uit): wie RzMon automatisch blokkeert (brute force, webaanval, honeypot) gaat naar AbuseIPDB, hooguit één keer per dag per IP, met alleen het IP-adres, de soort aanval en de tekst *RzMon IDS*. Nooit adressen uit je eigen netwerk of van de whitelist.
 - Onderaan de kaart staat hoeveel er vandaag is opgezocht per bron, wanneer de lijsten zijn bijgewerkt (**Lijsten nu bijwerken**) en of een bron een fout gaf. Een bron die "te veel" (429) of "sleutel geweigerd" antwoordt, wordt een uur (bij 429 tot morgen) overgeslagen.
 
+**🧭 Netwerk: AdGuard, Suricata en YARA** (vanaf 1.113.0, agent 1.64.0)
+
+Instellen: *Instellingen → IDS → Dreigingsinformatie → 🧭 Netwerk*.
+
+- **DNS-controle via AdGuard Home** (standaard aan zodra AdGuard gekoppeld is, *Instellingen → Koppelingen → AdGuard*): elke minuut leest RzMon de nieuwe regels uit de query-log van al je AdGuard-instanties. Zo zie je **elk apparaat**, ook zonder agent (tv, camera's, IoT):
+  - een domein dat bij **URLhaus** of **ThreatFox** als malware of botnet bekend is (ook subdomeinen): 🔴 critical als AdGuard het doorliet, 🟠 warning als AdGuard het tegenhield (het apparaat probeerde het wel);
+  - een domein dat **AdGuard Safe Browsing** tegenhield (malware, phishing);
+  - een antwoord dat naar een **bekende aanvaller** wijst (blocklists, ThreatFox);
+  - een mogelijke **DNS-tunnel** (40 of meer lange, unieke namen onder één domein) en **verzonnen domeinen** (30 of meer willekeurige namen die niet bestaan): 🟠. CDN's, clouddiensten, omgekeerde DNS en Plex tellen niet mee.
+  - Het incident staat bij de server als het apparaat een van je servers is (dan telt het ook voor de ketens), anders bij RzMon zelf, met de naam van het apparaat uit AdGuard in de titel.
+  - Er gaat niets naar buiten: alles wordt vergeleken met de lijsten op de RzMon-server. De eerste keer legt RzMon alleen vast waar de log staat.
+- **Suricata** (agent 1.64.0): draait [Suricata](https://suricata.io) op een server, dan stuurt de agent de nieuwe alerts uit `/var/log/suricata/eve.json` mee (ander pad: `SURICATA_EVE=…`, uit: `SURICATA=0` in `/etc/default/rzmon-agent`). Ernst 1 wordt 🔴 critical, ernst 2 🟠 warning, ernst 3 alleen een signaal (Afwijkingen, MITRE). Bij ernst 1 van buiten blokkeert RzMon de aanvaller (modus Blokkeren, los uit te zetten). Elk alert krijgt een stap van een aanval (MITRE), zodat het meetelt in de ketens.
+- **YARA** (agent 1.64.0): staat `yara` op een server, dan controleert de agent elk nieuw bestand in de tijdelijke mappen en elk nieuw script in de webmappen met de YARA-regels van RzMon. Die regels stuurt RzMon zelf (versleuteld) naar de agent, en opnieuw als ze veranderen. Ze herkennen PHP- en JSP-webshells, cryptominers, reverse shells, IoT-botnets (Mirai, Gafgyt), Kinsing, LD_PRELOAD-rootkits en scripts die iets binnenhalen en starten (🔴), en ingepakte of sterk versleutelde bestanden (🟠). YARA installeer je via de Agent Manager (*⬇ Installeren via de agent*, optioneel) of zelf (`apt install yara`, op Rocky/Alma uit EPEL).
+
 **Goed om te weten**
 - Werkt op Linux-servers met agent **1.35.0** of nieuwer. Werk de agents bij met de knop in de Agent Manager.
 - **TrueNAS SCALE: alleen detecteren.** De firewall hoort daar bij TrueNAS zelf; de agent blokkeert er niets.

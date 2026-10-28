@@ -1080,6 +1080,10 @@ function init() {
       s.reported ? L('{n} aanvallers gemeld bij AbuseIPDB', { n: s.reported }) : '',
       ...Object.entries(s.errors || {}).map(([k, e]) => `<span class="warn-txt">${esc(prov[k] || k)}: ${esc(e.msg)} (${esc(fmtDateTime(e.at))})</span>`),
     ].filter(Boolean).join(' · ');
+    const dn = s.dns || {};
+    $('#dns-status').innerHTML = !dn.adguard ? `<span class="warn-txt">${L('Nog geen AdGuard gekoppeld (Instellingen → Koppelingen → AdGuard).')}</span>`
+      : [dn.at ? L('Laatst gekeken {t}', { t: esc(fmtDateTime(dn.at)) }) : L('Nog niet gekeken'), L('vandaag {n} DNS-vragen, {h} verdacht', { n: (+dn.n).toLocaleString(LOCALE), h: +dn.hits }),
+        dn.error ? `<span class="warn-txt">${esc(dn.error)}</span>` : ''].filter(Boolean).join(' · ');
   };
   const tiLoad = () => api('ti_status').then(tiShow).catch(() => {});
   tiLoad();
@@ -2198,7 +2202,8 @@ function hostDetail(h, lines = null) {
  * Endpoint-bewaking (1.110.0): ontbreekt er iets op deze server (auditd, inotify-tools), dan een regel onder de naam,
  * alleen voor beheerders. Klik: de Agent Manager, waar je het kunt laten installeren.
  */
-const EDR_COMP = { auditd: ['auditd', () => L('nieuwe processen, kernelmodules en bewaakte paden')], inotify: ['inotify-tools', () => L('nieuwe bestanden in tijdelijke mappen en webmappen')] };
+const EDR_COMP = { auditd: ['auditd', () => L('nieuwe processen, kernelmodules en bewaakte paden')], inotify: ['inotify-tools', () => L('nieuwe bestanden in tijdelijke mappen en webmappen')],
+  yara: ['YARA', () => L('nieuwe bestanden op malware controleren (optioneel)')] };
 function edrNote(h) {
   if (!isAdmin() || h.mode !== 'agent' || !+(h.edr_on ?? 1) || !h.edr_info) return '';
   let i;
@@ -5216,7 +5221,9 @@ async function loadEdrHost(h, poll = false) {
     const a = EDR_AUDIT[i.audit] || ['·', () => esc(i.audit || '?')];
     lines.push([`${a[0]} ${a[1]()}`, i.file === 'ok' ? `✔ ${L('bestanden (inotify)')}` : `✘ ${L('inotify-tools ontbreekt')}`, `✔ ${L('netwerk')}`,
       i.ctr && i.ctr !== 'none' ? `✔ ${L('containers ({rt})', { rt: esc(i.ctr) })}` : `· ${L('geen containers')}`,
-      i.watch === 'on' ? `✔ ${L('realtime-watcher actief')}` : `⚠️ ${+i.systemd ? L('de realtime-watcher draait (nog) niet') : L('geen systemd: alleen bij de gewone runs')}`].join(' · '));
+      i.watch === 'on' ? `✔ ${L('realtime-watcher actief')}` : `⚠️ ${+i.systemd ? L('de realtime-watcher draait (nog) niet') : L('geen systemd: alleen bij de gewone runs')}`,
+      ...(i.yara ? [i.yara === 'ok' ? `✔ YARA${i.ysha ? '' : ' ' + L('(regels volgen)')}` : `○ ${L('geen YARA')}`] : []),
+      ...(i.sur === 'ok' ? [`✔ Suricata`] : i.sur === 'noeve' ? [`⚠️ ${L('Suricata zonder eve.json')}`] : [])].join(' · '));
     if (+i.drop > 0) lines.push(`<span class="warn-txt">${L('{n} gebeurtenissen overgeslagen (te veel tegelijk)', { n: +i.drop })}</span>`);
   }
   const up = d.install && d.install.mode === 'install' ? d.install : null;
@@ -5224,11 +5231,13 @@ async function loadEdrHost(h, poll = false) {
   if (busy) lines.push(`⏳ ${L('Wordt geïnstalleerd: {p}', { p: esc((up.pkgs || []).join(' ')) })}${up.pct ? ` (${+up.pct}%)` : ''}`);
   else if (up && up.state === 'ok' && Date.now() - new Date(up.at.replace(' ', 'T')) < 3600e3) lines.push(`<span class="good">✔ ${L('Geïnstalleerd: {p}', { p: esc((up.pkgs || []).join(' ')) })}</span>`);
   else if (up && up.state === 'error') lines.push(`<span class="bad">✘ ${L('Installeren mislukt: {p}', { p: esc((up.pkgs || []).join(' ')) })}</span>${up.log ? `<pre class="code small">${esc(up.log.slice(-400))}</pre>` : ''}`);
-  if (d.on && d.ids && d.missing.length && !busy) {
+  const comps = [...d.missing, ...(d.optional || [])];
+  if (d.on && d.ids && comps.length && !busy) {
     const rpm = d.fam === 'rhel';
+    const pkg = { auditd: 'auditd', inotify: 'inotify-tools', yara: 'yara' };
     const cmd = (c) => (c === 'auditd' ? (rpm ? 'sudo dnf install audit && sudo systemctl enable --now auditd' : 'sudo apt install auditd')
-      : (rpm ? 'sudo dnf install epel-release && sudo dnf install inotify-tools' : 'sudo apt install inotify-tools'));
-    lines.push(d.missing.map((c) => `<div class="edr-miss"><b>${esc(EDR_COMP[c][0])}</b> <span class="muted small">${EDR_COMP[c][1]()}</span>
+      : (rpm ? `sudo dnf install epel-release && sudo dnf install ${pkg[c]}` : `sudo apt install ${pkg[c]}`));
+    lines.push(comps.map((c) => `<div class="edr-miss"><b>${esc(EDR_COMP[c][0])}</b> <span class="muted small">${EDR_COMP[c][1]()}</span>
       ${d.install_blocked ? `<span class="muted small">· ${L('via de agent kan het hier niet: {why}', { why: esc(d.install_blocked) })}</span> <code>${esc(cmd(c))}</code>`
         : `<button type="button" class="btn small-btn primary" data-edr-install="${c}">⬇ ${L('Installeren via de agent')}</button> <span class="muted small">${L('of zelf:')} <code>${esc(cmd(c))}</code></span>`}</div>`).join(''));
   }
@@ -5435,7 +5444,7 @@ function showIdsTab() {
 
 // ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
 let edrFeed = null, edrRules = null, ruleSrc = '';
-const EDR_KIND_IC = { exec: '⚙️', net: '🌐', file: '📄', audit: '🔐', ctr: '📦' };
+const EDR_KIND_IC = { exec: '⚙️', net: '🌐', file: '📄', audit: '🔐', ctr: '📦', sur: '🦉' };
 const EDR_AUDIT_KEY = { rzmon_id: () => L('accounts/sudo'), rzmon_persist: () => L('cron/systemd/ssh'), rzmon_mod: () => L('kernelmodule') };
 const edrBase = (p) => String(p || '').split('/').pop();
 function edrSummary(e) {
@@ -6124,13 +6133,15 @@ function inspectHtml(list) {
       exec: [[L('Programma'), `<code>${esc(v.exe || v.comm)}</code>`], [L('Opdracht'), `<code class="insp-cmd">${esc(v.cmd || '')}</code>`], [L('Ouder'), esc(v.pc || '?')],
         [L('Gebruiker'), `${esc(v.u || '?')} (uid ${esc(v.uid)}${+v.auid && +v.auid < 4294967295 ? ', ' + L('ingelogd als uid {n}', { n: esc(v.auid) }) : ''})`], ['pid', esc(v.pid)], [L('Map'), esc(v.cwd || '')]],
       net: [[L('Programma'), `<code>${esc(v.exe || v.comm)}</code>`], [v.dir === 'listen' ? L('Luistert op') : L('Naar'), v.dir === 'listen' ? esc(v.lp) : `<code>${esc(v.rip)}:${esc(v.rp)}</code>`], [L('Gebruiker'), esc(v.u || '?')], ['pid', esc(v.pid)]],
-      file: [[L('Bestand'), `<code>${esc(v.path)}</code>`], [L('Grootte'), fmtBytes(+v.size || 0)], ['ELF', +v.elf ? L('ja (programma)') : L('nee')], [L('Verdachte code'), esc(v.susp || '–')], ['SHA-256', `<code class="small">${esc(v.sha || '')}</code>`],
+      file: [[L('Bestand'), `<code>${esc(v.path)}</code>`], [L('Grootte'), fmtBytes(+v.size || 0)], ['ELF', +v.elf ? L('ja (programma)') : L('nee')], [L('Verdachte code'), esc(v.susp || '–')], ...(v.yara ? [['YARA', `<b class="bad">${esc(v.yara)}</b>`]] : []), ['SHA-256', `<code class="small">${esc(v.sha || '')}</code>`],
         ...(x.ti ? [[L('Bekend als'), x.ti.verdict === 'malware' ? `<b class="bad">☠️ ${esc((x.ti.bazaar && x.ti.bazaar.family) || L('malware'))}</b> <a href="https://bazaar.abuse.ch/sample/${esc(v.sha)}/" target="_blank" rel="noopener">MalwareBazaar</a>`
           : x.ti.verdict === 'known_good' ? `<span class="good">✔ ${L('bekend, goed bestand')}</span> <span class="muted small">CIRCL · ${esc((x.ti.circl && (x.ti.circl.name || x.ti.circl.source)) || '')}</span>` : `<span class="muted">${L('niet bekend bij {src}', { src: esc((x.ti.src || []).join(', ') || '–') })}</span>`]] : [])],
       audit: [[L('Pad'), `<code>${esc(v.name)}</code>`], [L('Door'), `<code>${esc(v.exe)}</code> (${esc(v.u || v.uid)})`], [L('Sleutel'), esc(v.key)]],
+      sur: [[L('Melding'), `<b>${esc(v.sig || '')}</b> <span class="muted small">sid ${esc(v.sid)}</span>`], [L('Categorie'), esc(v.cat || '–')],
+        [L('Verkeer'), `<code>${esc(v.src)}:${esc(v.sport)} → ${esc(v.dst)}:${esc(v.dport)}</code> ${esc(v.proto || '')}`], [L('Ernst'), `${esc(v.sev)}${v.act === 'blocked' ? ' · ' + L('Suricata blokkeerde het') : ''}`]],
       ctr: [[L('Container'), `${esc(v.name)} <span class="muted">${esc(v.img || '')}</span>`], [L('Actie'), esc(v.act) + (+v.priv ? ' · --privileged' : '')], [L('Opdracht'), `<code>${esc(v.cmd || '')}</code>`]],
     }[x.kind] || [];
-    html += `<div class="insp-ev"><div class="insp-head">${EDR_KIND_IC[x.kind] || ''} <b>${esc(r.title || x.rule)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : r.src === 'anomaly' ? L('Afwijking') : 'RzMon'}</span>
+    html += `<div class="insp-ev"><div class="insp-head">${EDR_KIND_IC[x.kind] || ''} <b>${esc(r.title || x.rule)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : r.src === 'anomaly' ? L('Afwijking') : r.src === 'suricata' ? 'Suricata' : 'RzMon'}</span>
         ${(r.tags || []).map((t) => `<a class="chip" href="https://attack.mitre.org/techniques/${esc(t.replace('.', '/'))}/" target="_blank" rel="noopener">${esc(t)}</a>`).join('')}
         <span class="muted small">${esc(fmtDateTime(x.at))}</span></div>
       <table class="kv-table small">${rows.map(([k, val]) => `<tr><th>${k}</th><td>${val}</td></tr>`).join('')}

@@ -30,7 +30,15 @@ jobs:
           rc=${PIPESTATUS[0]}
           # Bij een fout de laatste regels ook als annotatie (zichtbaar in het overzicht van de run)
           [ "$rc" = 0 ] || { echo "::error title=Agent op ${{ matrix.image }}::$(tail -n 15 /tmp/agent.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
-      - name: Endpoint-bewaking (auditd- en SWAG-parser)
+      - name: YARA-regels van RzMon compileren (Debian)
+        if: matrix.image == 'debian:12'
+        shell: bash
+        run: |
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq yara >/dev/null
+          printf '<?php eval(base64_decode($_POST["x"])); ?>' >/tmp/ws.php
+          yara -w rules/yara/rzmon.yar /tmp/ws.php | grep -q rz_php_webshell_eval || { echo "::error title=YARA::regels compileren niet of vinden de test-webshell niet"; exit 1; }
+          echo "✔ YARA-regels compileren en vinden de test-webshell"
+      - name: Endpoint-bewaking (auditd-, SWAG- en Suricata-parser)
         shell: bash
         run: |
           set +e +o pipefail

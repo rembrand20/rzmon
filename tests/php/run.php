@@ -420,6 +420,61 @@ ok(count(array_filter($tiLog, static fn($l) => str_contains($l, '/report'))) ===
     && q("SELECT reported_at FROM ti_ip WHERE ip = '203.0.113.60'")->fetchColumn(), 'geblokkeerde aanvallers gemeld bij AbuseIPDB, één keer per IP');
 save_setting('ti_report', '0');
 ThreatIntel::$http = null;
+
+section('Netwerk: YARA, Suricata en DNS via AdGuard (1.113.0)');
+Chain::reset();
+Edr::process($hc, ['ev' => [['k' => 'f', 't' => time(), 'path' => '/tmp/.x/conf.json', 'size' => 300, 'elf' => 0, 'x' => 1, 'sha' => str_repeat('1', 64), 'yara' => 'rz_cryptominer']]]);
+$y = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'edr' AND dkey LIKE 'rz-yara|%'", [$hc['id']])->fetch();
+ok($y && (int) $y['severity'] === 2, 'YARA-treffer (cryptominer) → critical');
+Edr::process($hc, ['ev' => [['k' => 'f', 't' => time(), 'path' => '/tmp/tool', 'size' => 300, 'elf' => 1, 'x' => 1, 'sha' => str_repeat('2', 64), 'yara' => 'rz_info_upx_packed']]]);
+ok((int) q("SELECT severity FROM ids_incidents WHERE host_id = ? AND dkey LIKE 'rz-yara-info|%'", [$hc['id']])->fetchColumn() === 1, 'alleen een aanwijzing (UPX) → warning');
+$r = Edr::process($hc, ['ev' => [], 'info' => ['yara' => 'ok', 'ysha' => '']]);
+ok(base64_decode($r['edr_yara'] ?? '') === Edr::yaraRules() && str_contains(Edr::yaraRules(), 'rule rz_php_webshell_eval'), 'YARA-regels naar de agent als hij ze nog niet heeft');
+ok(!isset(Edr::process($hc, ['ev' => [], 'info' => ['yara' => 'ok', 'ysha' => hash('sha256', Edr::yaraRules())]])['edr_yara']), 'niet opnieuw als de agent de nieuwste regels heeft');
+// Suricata
+Suricata::process($hc, [['2026-10-28T10:00:01+0100', '203.0.113.120', 51234, '10.0.0.3', 22, 'TCP', 2001219, 'ET EXPLOIT Something', 'Attempted Administrator Privilege Gain', 1, 'allowed'],
+    ['2026-10-28T10:00:02+0100', '10.0.0.3', 40000, '198.51.100.140', 443, 'TCP', 2030000, 'ET MALWARE Cobalt Strike Beacon', 'A Network Trojan was detected', 2, 'allowed'],
+    ['2026-10-28T10:00:03+0100', '203.0.113.121', 1, '10.0.0.3', 80, 'TCP', 2100498, 'GPL ATTACK_RESPONSE id check returned root', 'Potentially Bad Traffic', 3, 'allowed']]);
+$s1 = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'suricata' AND ip = '203.0.113.120'", [$hc['id']])->fetch();
+ok($s1 && (int) $s1['severity'] === 2 && str_contains((string) $s1['detail'], '⛔'), 'Suricata ernst 1 van buiten → critical en geblokkeerd');
+$s2 = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'suricata' AND ip = '198.51.100.140'", [$hc['id']])->fetch();
+ok($s2 && (int) $s2['severity'] === 1 && (int) q("SELECT COUNT(*) FROM ids_signals WHERE host_id = ? AND feature = 'suricata' AND FIND_IN_SET('command-and-control', tactics)", [$hc['id']])->fetchColumn() >= 1,
+    'Suricata C2 van een eigen server naar buiten → warning, signaal Op afstand besturen');
+ok(!q("SELECT 1 FROM ids_incidents WHERE type = 'suricata' AND ip = '203.0.113.121'")->fetchColumn(), 'Suricata ernst 3: alleen een signaal');
+// DNS via AdGuard
+$e = static fn(string $client, string $name, string $reason = 'NotFilteredNotFound', string $status = 'NOERROR', array $answer = []) =>
+    ['client' => $client, 'client_info' => ['name' => 'tv-woonkamer'], 'question' => ['name' => $name, 'type' => 'A'], 'reason' => $reason, 'status' => $status, 'answer' => $answer, 'time' => date('c')];
+$before = (int) q("SELECT COUNT(*) FROM ids_incidents WHERE type IN ('dns_bad', 'dns_odd')")->fetchColumn();
+$list = [$e('192.168.1.77', 'cdn.malware.evil.example'), $e('10.0.0.3', 'c2.badguys.example', 'FilteredBlackList'), $e('192.168.1.78', 'login-bank.example', 'FilteredSafeBrowsing'),
+    $e('192.168.1.79', 'ok.example', 'NotFilteredNotFound', 'NOERROR', [['type' => 'A', 'value' => '198.51.100.66']]), $e('192.168.1.80', 'www.nu.nl')];
+for ($i = 0; $i < 45; $i++) {
+    $list[] = $e('192.168.1.81', bin2hex(random_bytes(16)) . '.exfil.example');
+}
+for ($i = 0; $i < 35; $i++) {
+    $list[] = $e('192.168.1.82', 'xq' . substr(str_shuffle('bcdfghjklmnpqrstvwxz0123456789'), 0, 12) . '.com', 'NotFilteredNotFound', 'NXDOMAIN');
+}
+DnsWatch::check($list);
+$dns = q("SELECT title, severity, dkey FROM ids_incidents WHERE type IN ('dns_bad', 'dns_odd') ORDER BY id")->fetchAll();
+$keys = array_column($dns, 'dkey');
+ok(in_array('192.168.1.77|cdn.malware.evil.example', $keys, true) && (int) $dns[array_search('192.168.1.77|cdn.malware.evil.example', $keys)]['severity'] === 2, 'malwaredomein (URLhaus, subdomein) → critical');
+ok((int) $dns[array_search('10.0.0.3|c2.badguys.example', $keys)]['severity'] === 1 && (int) q("SELECT COUNT(*) FROM ids_signals WHERE host_id = ? AND feature = 'dns_bad'", [$hc['id']])->fetchColumn() === 1,
+    'botnetdomein dat AdGuard tegenhield → warning; een eigen server krijgt een signaal');
+ok(in_array('192.168.1.78|login-bank.example', $keys, true) && in_array('192.168.1.79|ok.example', $keys, true) && !in_array('192.168.1.80|www.nu.nl', $keys, true),
+    'AdGuard Safe Browsing en een antwoord naar een botnet-server gemeld; gewoon domein niet');
+ok(in_array('192.168.1.81|tunnel|exfil.example', $keys, true) && in_array('192.168.1.82|dga', $keys, true), 'DNS-tunnel en verzonnen domeinen herkend');
+ok(count($dns) - $before === 6, 'precies 6 meldingen');
+// De cron: de eerste keer alleen vastleggen, daarna alleen de nieuwe regels
+save_setting('adguard_urls', 'http://adguard.test');
+$ag = [['data' => [['time' => date('c', time() - 60)] + $e('192.168.1.90', 'old.malware.evil.example')]], ['data' => [['time' => date('c', time() + 5)] + $e('192.168.1.91', 'new.malware.evil.example'),
+    ['time' => date('c', time() - 60)] + $e('192.168.1.90', 'old.malware.evil.example')]]];
+$call = 0;
+DnsWatch::$fetch = static function () use (&$call, $ag) { return [$ag[min($call++, 1)], null]; };
+DnsWatch::cron();
+DnsWatch::cron();
+ok(!q("SELECT 1 FROM ids_incidents WHERE dkey = '192.168.1.90|old.malware.evil.example'")->fetchColumn() && q("SELECT 1 FROM ids_incidents WHERE dkey = '192.168.1.91|new.malware.evil.example'")->fetchColumn(),
+    'AdGuard-log: alleen nieuwe regels (de eerste keer alleen vastleggen)');
+DnsWatch::$fetch = null;
+save_setting('adguard_urls', '');
 save_setting('ids_mode', 'learn');
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");

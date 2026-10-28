@@ -145,6 +145,20 @@ final class EdrRules
                 'cond' => ['and' => [['ref' => 's'], ['not' => ['ref' => 'lan']]]],
             ],
             [
+                'id' => 'rz-yara', 'kinds' => ['file'], 'sev' => 2, 'act' => [], 'tags' => ['T1105', 'T1505.003'],
+                'title' => 'YARA: bekende malware of webshell',
+                'what' => 'Een nieuw bestand lijkt volgens de YARA-regels van RzMon op malware: een webshell, cryptominer, reverse shell, IoT-botnet, Kinsing of een rootkit. De naam van de regel staat bij het bewijs.',
+                'sel' => ['s' => [[self::c('yara', 're', ['(^|,)(?!rz_info_)[A-Za-z0-9_]+'])]]],
+                'cond' => ['ref' => 's'],
+            ],
+            [
+                'id' => 'rz-yara-info', 'kinds' => ['file'], 'sev' => 1, 'act' => [], 'tags' => ['T1027.002'],
+                'title' => 'YARA: verdacht bestand',
+                'what' => 'Een nieuw bestand is ingepakt of sterk versleuteld (UPX, lange base64). Malware doet dat vaak om niet op te vallen, maar sommige gewone software ook.',
+                'sel' => ['s' => [[self::c('yara', 'exists', [])]]],
+                'cond' => ['ref' => 's'],
+            ],
+            [
                 'id' => 'rz-drop-hidden', 'kinds' => ['file'], 'sev' => 2, 'act' => [], 'tags' => ['T1105', 'T1564.001'],
                 'title' => 'Verborgen programma neergezet',
                 'what' => 'Er staat ineens een programma (ELF) in /dev/shm of in een verborgen map in /tmp (bv. /tmp/.x/). Gewone software doet dat niet; malware wel, om niet op te vallen.',

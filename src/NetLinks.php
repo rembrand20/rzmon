@@ -244,7 +244,7 @@ final class NetLinks
     }
 
     /** @return array{0: mixed, 1: ?string} [antwoord, fout] */
-    private static function ag(string $base, string $path, ?array $post = null): array
+    public static function ag(string $base, string $path, ?array $post = null): array
     {
         $ch = curl_init($base . '/control/' . $path);
         $user = (string) setting('adguard_user', '');

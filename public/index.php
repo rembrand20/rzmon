@@ -740,6 +740,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label class="switch"><input type="checkbox" name="ti_escalate"><span></span> <?= t('Een <b>login</b> vanaf een bekende aanvaller wordt critical (Pushover)') ?></label>
           <label class="switch"><input type="checkbox" name="ti_close_benign"><span></span> <?= t('Een webaanval van een <b>onschuldige scanner</b> (GreyNoise) vanzelf afhandelen') ?></label>
           <label class="switch"><input type="checkbox" name="ti_cve"><span></span> <?= t('Een webaanval op een <b>lek dat de server echt heeft</b> (tabblad Kwetsbaarheden) is critical') ?></label>
+          <h3 class="set-sub"><?= th('🧭 Netwerk: AdGuard, Suricata en YARA') ?></h3>
+          <label class="switch"><input type="checkbox" name="dns_on"><span></span> <?= t('<b>DNS-controle via AdGuard</b> (elk apparaat: domeinen van malware of phishing, DNS-tunnels, verzonnen domeinen)') ?></label>
+          <p class="muted small" id="dns-status" style="margin-top:-.4rem"></p>
+          <label class="switch"><input type="checkbox" name="suricata_on"><span></span> <?= t('<b>Suricata</b> (alerts van de agents gebruiken, als Suricata op een server draait; agent 1.64.0)') ?></label>
+          <label class="switch"><input type="checkbox" name="suricata_block"><span></span> <?= t('<b>Blokkeren</b> bij een ernstig Suricata-alert (ernst 1, aanvaller van buiten, modus Blokkeren)') ?></label>
+          <label class="switch"><input type="checkbox" name="edr_yara"><span></span> <?= t('<b>YARA</b> (regels van RzMon naar de agents sturen: nieuwe bestanden op webshells, miners, botnets en rootkits controleren; YARA moet op de server staan)') ?></label>
           <p class="muted small" id="ti-status"></p>
           <p class="small"><button type="button" class="btn small-btn" id="ti-lists"><?= th('Lijsten nu bijwerken') ?></button></p>
           <p class="muted small"><?= t('Bronnen: AbuseIPDB, GreyNoise Community, Shodan InternetDB, CIRCL hashlookup, abuse.ch (Feodo Tracker, URLhaus, ThreatFox, MalwareBazaar), Tor Project. Opzoeken gaat op de achtergrond (cron), met een cache van een dag en een limiet per dag.') ?></p>

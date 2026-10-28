@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.63.0"
+AGENT_VERSION="1.64.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -327,7 +327,7 @@ edr_net_loop() {
 # Bestanden: nieuwe programma's (ELF) en scripts met de uitvoerbit in /tmp, /var/tmp en /dev/shm; nieuwe scripts met
 # webshell-code in de webmappen (alleen mappen met hooguit 5000 submappen: inotify heeft een grens)
 edr_file() {
-    local p=$1 sz h elf=0 x=0 susp="" sha
+    local p=$1 sz h elf=0 x=0 susp="" sha yr=""
     [ -f "$p" ] && [ ! -L "$p" ] || return 0
     sz=$(stat -c %s "$p" 2>/dev/null) || return 0
     [ "$sz" -gt 0 ] && [ "$sz" -le 20971520 ] || return 0
@@ -343,12 +343,20 @@ edr_file() {
             fi ;;
         *)
             case "$p" in *.php|*.phtml|*.php[3-8]|*.phar|*.jsp|*.jspx|*.asp|*.aspx|*.cgi) ;; *) return 0 ;; esac
-            grep -q -E -i '(eval|assert|system|passthru|shell_exec|proc_open|popen)[[:space:]]*\(.*\$_(POST|GET|REQUEST|COOKIE)|\$_(POST|GET|REQUEST|COOKIE).*(eval|assert|system|passthru|shell_exec)[[:space:]]*\(|eval[[:space:]]*\([[:space:]]*(base64_decode|gzinflate|str_rot13|gzuncompress)' "$p" 2>/dev/null || return 0
+            # Met YARA (agent 1.64.0) elk nieuw script in een webmap; anders alleen als het op webshell-code lijkt
+            yr=$(edr_yara "$p")
+            [ -n "$yr" ] || grep -q -E -i '(eval|assert|system|passthru|shell_exec|proc_open|popen)[[:space:]]*\(.*\$_(POST|GET|REQUEST|COOKIE)|\$_(POST|GET|REQUEST|COOKIE).*(eval|assert|system|passthru|shell_exec)[[:space:]]*\(|eval[[:space:]]*\([[:space:]]*(base64_decode|gzinflate|str_rot13|gzuncompress)' "$p" 2>/dev/null || return 0
             susp=$(grep -o -E -i '(eval|assert|system|passthru|shell_exec|proc_open|popen|base64_decode|gzinflate|str_rot13)' "$p" 2>/dev/null | tr 'A-Z' 'a-z' | sort -u | head -n 4 | tr '\n' ',')
             susp=${susp%,} ;;
     esac
     sha=$(sha256sum "$p" 2>/dev/null | cut -c1-64)
-    edr_emit "{\"k\":\"f\",\"t\":$(date +%s),\"path\":\"$(edr_j "$p")\",\"size\":$sz,\"elf\":$elf,\"x\":$x,\"sha\":\"$sha\"${susp:+,\"susp\":\"$(edr_j "$susp")\"}}"
+    [ -n "$yr" ] || yr=$(edr_yara "$p")
+    edr_emit "{\"k\":\"f\",\"t\":$(date +%s),\"path\":\"$(edr_j "$p")\",\"size\":$sz,\"elf\":$elf,\"x\":$x,\"sha\":\"$sha\"${susp:+,\"susp\":\"$(edr_j "$susp")\"}${yr:+,\"yara\":\"$(edr_j "$yr")\"}}"
+}
+# YARA (agent 1.64.0): de regels komen van RzMon (versleuteld, rzmon.yar); namen van de regels die raak zijn, met komma's
+edr_yara() {
+    [ -s "$edr_dir/rzmon.yar" ] && command -v yara >/dev/null 2>&1 || return 0
+    timeout 10 yara -w "$edr_dir/rzmon.yar" "$1" 2>/dev/null | awk '$1 ~ /^[A-Za-z0-9_]+$/ { print $1 }' | head -n 8 | tr '\n' ',' | sed 's/,$//'
 }
 edr_file_loop() {
     command -v inotifywait >/dev/null 2>&1 || return 0
@@ -392,12 +400,31 @@ edr_ctr_loop() {
     done
 }
 
-# Testen zonder RzMon (tests/agent-edr.sh): rzmon-agent.sh --edr-parse audit|swag < bestand
+# Suricata (agent 1.64.0): alerts uit eve.json (stdin) → [tijd,bron,poort,doel,poort,protocol,sid,"melding","categorie",ernst,"actie"],…
+edr_eve_awk() {
+    awk '
+    function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); gsub(/[\001-\037\177]/, " ", s); return s }
+    function js(l, k,   p, r, q) {   # tekstwaarde van "k":"…" (met \" erin)
+        p = index(l, "\"" k "\":\""); if (!p) return ""
+        r = substr(l, p + length(k) + 4); q = match(r, /([^\\]|^)"/); if (!q) return ""
+        r = substr(r, 1, RSTART + RLENGTH - 2); gsub(/\\"/, "\"", r); gsub(/\\\\/, "\\", r); return r
+    }
+    function jn(l, k,   p, r) { p = index(l, "\"" k "\":"); if (!p) return 0; r = substr(l, p + length(k) + 3); return r + 0 }
+    index($0, "\"event_type\":\"alert\"") {
+        if (n >= 200) next
+        printf "%s[\"%s\",\"%s\",%d,\"%s\",%d,\"%s\",%d,\"%s\",\"%s\",%d,\"%s\"]", (n++ ? "," : ""), esc(substr(js($0, "timestamp"), 1, 32)), esc(js($0, "src_ip")), jn($0, "src_port"),
+            esc(js($0, "dest_ip")), jn($0, "dest_port"), esc(js($0, "proto")), jn($0, "signature_id"), esc(substr(js($0, "signature"), 1, 200)),
+            esc(substr(js($0, "category"), 1, 80)), jn($0, "severity"), esc(js($0, "action"))
+    }'
+}
+
+# Testen zonder RzMon (tests/agent-edr.sh): rzmon-agent.sh --edr-parse audit|swag|eve < bestand
 if [ "${1-}" = "--edr-parse" ]; then
     case "${2-}" in
         audit) edr_audit_awk ;;
         swag) edr_swag_req; echo ;;
-        *) echo "Gebruik: $0 --edr-parse audit|swag < bestand" >&2; exit 2 ;;
+        eve) edr_eve_awk; echo ;;
+        *) echo "Gebruik: $0 --edr-parse audit|swag|eve < bestand" >&2; exit 2 ;;
     esac
     exit 0
 fi
@@ -2585,6 +2612,24 @@ if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
     read -r e_ws _ _ _ e_we <"$edr_dir/watch.state" 2>/dev/null
     [ "$e_ws" = active ] && [ "$e_we" != - ] && e_watch=on
     e_drop=$(cat "$edr_dir/edr.drop" 2>/dev/null); [[ "$e_drop" =~ ^[0-9]+$ ]] || e_drop=0
+    # YARA (agent 1.64.0): geïnstalleerd, en welke regels (RzMon stuurt nieuwe als de hash verschilt)
+    e_yara=missing; command -v yara >/dev/null 2>&1 && e_yara=ok
+    e_ysha=$(sha256sum "$edr_dir/rzmon.yar" 2>/dev/null | cut -c1-64)
+    # Suricata (agent 1.64.0): nieuwe alerts uit eve.json (SURICATA=0 zet het uit; SURICATA_EVE voor een ander pad)
+    e_sur=off; e_alerts=""
+    if [ "${SURICATA-}" != 0 ]; then
+        e_eve="${SURICATA_EVE:-/var/log/suricata/eve.json}"
+        if [ -r "$e_eve" ]; then
+            e_sur=ok
+            e_ino=$(stat -c %i "$e_eve" 2>/dev/null); e_size=$(stat -c %s "$e_eve" 2>/dev/null)
+            read -r e_pino e_pos 2>/dev/null <"$edr_dir/eve.pos"
+            if [ -n "$e_pino" ]; then
+                if [ "$e_pino" != "$e_ino" ] || [ "${e_pos:-0}" -gt "${e_size:-0}" ]; then e_pos=0; fi
+                e_alerts=$(tail -c +$(( ${e_pos:-0} + 1 )) "$e_eve" 2>/dev/null | head -c $(( e_size - ${e_pos:-0} )) | tail -n 50000 | edr_eve_awk)
+            fi
+            echo "$e_ino $e_size" >"$edr_dir/eve.pos.new"
+        elif command -v suricata >/dev/null 2>&1; then e_sur=noeve; fi
+    fi
     # Wachtrij: wat er nog lag (niet aangekomen) plus de nieuwe gebeurtenissen
     e_send="$edr_dir/edr.sending"
     if [ -s "$edr_spool" ]; then
@@ -2594,7 +2639,7 @@ if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
     if [ -s "$e_send" ]; then
         e_ev=$(head -n 500 "$e_send" | grep -E '^\{.*\}$' | tr '\n' ',' | sed 's/,$//')
     fi
-    edr_json="{\"ev\":[$e_ev],\"info\":{\"audit\":\"$e_audit\",\"file\":\"$e_file\",\"ctr\":\"$e_ctr\",\"fam\":\"$e_fam\",\"epel\":$e_epel,\"watch\":\"$e_watch\",\"systemd\":$e_sys,\"drop\":$e_drop,\"queue\":$(wc -l <"$e_send" 2>/dev/null || echo 0)}}"
+    edr_json="{\"ev\":[$e_ev],\"info\":{\"audit\":\"$e_audit\",\"file\":\"$e_file\",\"ctr\":\"$e_ctr\",\"fam\":\"$e_fam\",\"epel\":$e_epel,\"watch\":\"$e_watch\",\"systemd\":$e_sys,\"drop\":$e_drop,\"queue\":$(wc -l <"$e_send" 2>/dev/null || echo 0),\"yara\":\"$e_yara\",\"ysha\":\"$e_ysha\",\"sur\":\"$e_sur\"}${e_alerts:+,\"sur\":[$e_alerts]}}"
 elif [ "$edr_want" = 0 ] && [ "$(id -u)" = 0 ] && [ "$HA_MODE" = 0 ]; then
     # Uit (in RzMon of met EDR=0): regels weg en de wachtrij leeg
     edr_rules off >/dev/null 2>&1
@@ -3601,6 +3646,17 @@ if [ "$rc" -eq 0 ]; then
         tail -n +501 "$edr_dir/edr.sending" >"$edr_dir/edr.rest" 2>/dev/null && mv -f "$edr_dir/edr.rest" "$edr_dir/edr.sending"
         [ -s "$edr_dir/edr.sending" ] || rm -f "$edr_dir/edr.sending"
         rm -f "$edr_dir/edr.drop"
+    fi
+    # Suricata: de positie pas bewaren als het rapport is aangekomen
+    [ -n "$edr_json" ] && [ -f "$edr_dir/eve.pos.new" ] && mv -f "$edr_dir/eve.pos.new" "$edr_dir/eve.pos"
+    # YARA-regels van RzMon (alleen versleuteld): eerst controleren of yara ze kan lezen, dan pas vervangen
+    if [ -n "$seal_n" ] && [ -n "$edr_json" ] && [[ "$resp" =~ \"edr_yara\":\"([A-Za-z0-9+/=]{20,})\" ]]; then
+        printf '%s' "${BASH_REMATCH[1]}" | base64 -d >"$edr_dir/rzmon.yar.new" 2>/dev/null
+        if command -v yara >/dev/null 2>&1 && timeout 20 yara -w "$edr_dir/rzmon.yar.new" /dev/null >/dev/null 2>&1; then
+            chmod 600 "$edr_dir/rzmon.yar.new" && mv -f "$edr_dir/rzmon.yar.new" "$edr_dir/rzmon.yar"
+        else
+            rm -f "$edr_dir/rzmon.yar.new"
+        fi
     fi
     if [ -n "$seal_n" ] && [ "$IDS_BLOCK" != 0 ] && [ "$(id -u)" = 0 ] && [[ "$resp" =~ \"edr_kill\":\[(\[[0-9]+,[0-9]+\],?)+\] ]]; then
         mkdir -p "$t_dir/ids" 2>/dev/null

@@ -67,7 +67,7 @@ final class Edr
     {
         $hid = (int) $host['id'];
         if (is_array($edr['info'] ?? null)) {
-            $info = array_map(static fn($v) => is_scalar($v) ? mb_substr((string) $v, 0, 40) : null, array_slice($edr['info'], 0, 20, true));
+            $info = array_map(static fn($v) => is_scalar($v) ? mb_substr((string) $v, 0, 64) : null, array_slice($edr['info'], 0, 20, true));
             q('UPDATE hosts SET edr_info = ?, edr_at = ? WHERE id = ?', [json_encode($info), now(), $hid]);
         }
         self::$kills = [];
@@ -108,6 +108,13 @@ final class Edr
         }
         if ($evs) {
             Anomaly::flush($host);
+        }
+        // 1.113.0: Suricata-alerts, en de YARA-regels naar de agent als die nog niet de nieuwste heeft
+        if (is_array($edr['sur'] ?? null)) {
+            Suricata::process($host, $edr['sur']);
+        }
+        if (($edr['info']['yara'] ?? '') === 'ok' && setting('edr_yara', '1') === '1' && ($edr['info']['ysha'] ?? '') !== hash('sha256', self::yaraRules())) {
+            return (self::$kills ? ['edr_kill' => array_values(self::$kills)] : []) + ['edr_yara' => base64_encode(self::yaraRules())];
         }
         return self::$kills ? ['edr_kill' => array_values(self::$kills)] : [];
     }
@@ -167,7 +174,8 @@ final class Edr
                     'Initiated' => ($ev['dir'] ?? '') === 'out' ? 'true' : 'false', 'SourcePort' => (string) ($ev['lp'] ?? ''), 'User' => (string) ($ev['u'] ?? '')];
                 break;
             case 'file':
-                $f = ['TargetFilename' => (string) ($ev['path'] ?? ''), 'elf' => (string) ($ev['elf'] ?? '0'), 'x' => (string) ($ev['x'] ?? '0'), 'susp' => (string) ($ev['susp'] ?? '')];
+                $f = ['TargetFilename' => (string) ($ev['path'] ?? ''), 'elf' => (string) ($ev['elf'] ?? '0'), 'x' => (string) ($ev['x'] ?? '0'), 'susp' => (string) ($ev['susp'] ?? ''),
+                    'yara' => (string) ($ev['yara'] ?? '')];
                 break;
             case 'ctr':
                 $f = ['act' => (string) ($ev['act'] ?? ''), 'priv' => (string) ($ev['priv'] ?? '0'), 'name' => (string) ($ev['name'] ?? ''), 'image' => (string) ($ev['img'] ?? ''),
@@ -362,6 +370,7 @@ final class Edr
     public const COMPONENTS = [
         'auditd' => [['audit'], ['auditd'], 'nieuwe processen, kernelmodules en bewaakte paden'],
         'inotify' => [['epel-release', 'inotify-tools'], ['inotify-tools'], 'nieuwe bestanden in tijdelijke mappen en webmappen'],
+        'yara' => [['epel-release', 'yara'], ['yara'], 'nieuwe bestanden op malware controleren (YARA, optioneel)'],
     ];
 
     /** Per server: staat het aan, welke sensoren werken, wat ontbreekt */
@@ -375,7 +384,8 @@ final class Edr
         if (($i['file'] ?? '') === 'missing') {
             $missing[] = 'inotify';
         }
-        return ['on' => (int) ($host['edr_on'] ?? 1) === 1, 'active' => self::onFor($host), 'info' => $i, 'at' => $host['edr_at'] ?? null, 'missing' => $missing,
+        $optional = ($i['yara'] ?? '') === 'missing' ? ['yara'] : [];   // 1.113.0: YARA hoeft niet, maar kan
+        return ['on' => (int) ($host['edr_on'] ?? 1) === 1, 'active' => self::onFor($host), 'info' => $i, 'at' => $host['edr_at'] ?? null, 'missing' => $missing, 'optional' => $optional,
             'install_blocked' => Vulns::upgradeBlocked($host), 'fam' => $i['fam'] ?? ''];
     }
 
@@ -388,10 +398,17 @@ final class Edr
         $i = json_decode((string) ($host['edr_info'] ?? ''), true) ?: [];
         $rpm = ($i['fam'] ?? '') === 'rhel';
         $pkgs = self::COMPONENTS[$comp][$rpm ? 0 : 1];
-        if ($rpm && $comp === 'inotify' && (int) ($i['epel'] ?? 0) === 1) {
-            $pkgs = ['inotify-tools'];
+        if ($rpm && ($comp === 'inotify' || $comp === 'yara') && (int) ($i['epel'] ?? 0) === 1) {
+            $pkgs = [$comp === 'yara' ? 'yara' : 'inotify-tools'];
         }
         return Vulns::requestInstall($host, $pkgs, $by);
+    }
+
+    /** De YARA-regels van RzMon (rules/yara/rzmon.yar) */
+    public static function yaraRules(): string
+    {
+        static $r = null;
+        return $r ??= (string) @file_get_contents(SM_ROOT . '/rules/yara/rzmon.yar');
     }
 
     public static function purge(): void

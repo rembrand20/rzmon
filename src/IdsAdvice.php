@@ -302,6 +302,33 @@ final class IdsAdvice
                 $a['prevent'] = t('Zet /tmp en /dev/shm op noexec en houd alles bijgewerkt.');
                 break;
 
+            case 'suricata':   // 1.113.0: alert van Suricata (via de agent)
+                $a['what'] = t('Suricata, het netwerk-IDS op deze server, zag verkeer dat past bij een bekende aanval of malware (zie de melding en de categorie).');
+                $a['risk'] = (int) $inc['severity'] === 2 ? t('Ernstig volgens Suricata (ernst 1). Kijk vooral of een apparaat in je eigen netwerk de bron is: dan is het misschien besmet.')
+                    : t('Verdacht, maar vaak een scan van buiten. Komt het van binnen, kijk dan naar dat apparaat.');
+                $a['steps'] = [t('Komt het van buiten: blokkeer het IP (gebeurt vanzelf bij ernst 1 in de modus Blokkeren).'), t('Komt het van een eigen apparaat: zoek uit welk apparaat het is en of het besmet is.'),
+                    t('Vals alarm? Klik "Ja, dit was ik", of zet de regel uit in Suricata.')];
+                $a['cmds'] = [[t('De laatste alerts van Suricata'), 'sudo tail -n 50 /var/log/suricata/fast.log']];
+                $a['prevent'] = t('Houd de regels van Suricata bijgewerkt (suricata-update).');
+                break;
+
+            case 'dns_bad':   // 1.113.0: domein van malware of phishing (AdGuard)
+                $a['ask'] = false;
+                $a['what'] = t('Een apparaat in je netwerk vroeg een domein op dat bekendstaat als malware, botnet of phishing.');
+                $a['risk'] = (int) $inc['severity'] === 2 ? t('Ernstig: AdGuard liet het door. Het apparaat kan besmet zijn, of iemand opende een gevaarlijke link.')
+                    : t('AdGuard hield het tegen, maar het apparaat probeerde het wel: kijk of het besmet is.');
+                $a['steps'] = [t('Zoek uit welk apparaat het is (IP-adres en naam staan in de titel).'), t('Scan het apparaat, of zet het tijdelijk van het netwerk.'),
+                    t('Zet in AdGuard het blokkeren van malware en phishing aan (Safe Browsing en een blocklist met malwaredomeinen).')];
+                $a['prevent'] = t('Laat alle apparaten via AdGuard gaan (DNS van de router), en zet IoT-apparaten in een eigen netwerk.');
+                break;
+
+            case 'dns_odd':   // 1.113.0: DNS-tunnel of verzonnen domeinen
+                $a['what'] = t('Een apparaat doet ongewone DNS-vragen: heel veel lange, unieke namen onder één domein (een DNS-tunnel), of veel verzonnen namen die niet bestaan.');
+                $a['risk'] = t('Zo praat malware stiekem met zijn server. Soms doet beveiligings- of cloudsoftware het ook.');
+                $a['steps'] = [t('Kijk in AdGuard (Query log) naar de vragen van dit apparaat.'), t('Herken je het niet: zet het apparaat van het netwerk en scan het.'),
+                    t('Normaal voor deze software? Klik "Ja, dit was ik".')];
+                break;
+
             case 'web_cve':   // 1.112.0: aanval op een lek dat de server volgens de scan echt heeft
                 $a['what'] = t('Iemand probeerde een lek dat deze server volgens de kwetsbaarheden-scan echt heeft. Zo\'n aanval kan dus lukken.');
                 $a['risk'] = t('Ernstig, zeker als een verzoek een gewoon antwoord (2xx) kreeg.');

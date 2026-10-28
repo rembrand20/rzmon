@@ -100,6 +100,10 @@ try {
     if ($msg = ThreatIntel::cron()) {
         echo date('c') . " $msg\n";
     }
+    // 1.113.0: DNS-controle via AdGuard (verdachte domeinen, DNS-tunnel, verzonnen domeinen)
+    if ($msg = DnsWatch::cron()) {
+        echo date('c') . " $msg\n";
+    }
 } catch (Throwable $e) {
     fwrite(STDERR, 'Agents/certificaat: ' . $e->getMessage() . "\n");
 }

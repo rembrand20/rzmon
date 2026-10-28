@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Agenttest endpoint-bewaking (agent 1.63.0, GitHub Actions per Linux-versie): de awk die het auditd-log leest en de
-# awk die verdachte verzoeken uit de SWAG-log haalt, met de awk van de distributie (mawk, gawk, busybox).
+# Agenttest endpoint-bewaking (agent 1.63.0, GitHub Actions per Linux-versie): de awk die het auditd-log leest, de
+# awk die verdachte verzoeken uit de SWAG-log haalt en (1.64.0) de awk die Suricata-alerts leest, met de awk van de
+# distributie (mawk, gawk, busybox).
 # Gebruik: bash tests/agent-edr.sh
 set -u
 cd "$(dirname "$0")/.." || exit 1
@@ -8,7 +9,8 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse audit <tests/data/audit.log >"$work/audit.out" 2>"$work/err" || { echo "✘ audit-parser faalde"; cat "$work/err"; exit 1; }
 CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse swag <tests/data/swag.log >"$work/swag.out" 2>>"$work/err" || { echo "✘ swag-parser faalde"; cat "$work/err"; exit 1; }
-python3 - "$work/audit.out" "$work/swag.out" <<'PY'
+CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse eve <tests/data/eve.json >"$work/eve.out" 2>>"$work/err" || { echo "✘ Suricata-parser faalde"; cat "$work/err"; exit 1; }
+python3 - "$work/audit.out" "$work/swag.out" "$work/eve.out" <<'PY'
 import json, sys
 ev = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
 bad = []
@@ -26,7 +28,11 @@ ips = [r[0] for r in req]
 if ips != ['1.2.3.4', '9.9.9.9', '7.7.7.7']: bad.append('verdachte verzoeken: verwacht 1.2.3.4, 9.9.9.9 en 7.7.7.7, kreeg %s' % ips)
 elif req[1][3] != '/?x=\\x22\\x5C' or not req[1][6].startswith('() {') or req[0][1] != '28/Oct/2026:10:00:00 +0100':
     bad.append('verzoek niet goed: %r' % req[:2])
+eve = json.loads('[' + open(sys.argv[3]).read().strip() + ']')
+if len(eve) != 2 or eve[0][:7] != ['2026-10-28T10:00:01.123456+0100', '203.0.113.5', 51234, '192.168.1.10', 22, 'TCP', 2001219] \
+        or eve[1][7] != 'ET MALWARE Cobalt Strike "Beacon" C2 \\ test' or eve[1][9] != 1 or eve[1][10] != 'blocked':
+    bad.append('Suricata-alerts niet goed gelezen: %r' % eve)
 if bad:
     print('✘ ' + '\n✘ '.join(bad)); sys.exit(1)
-print('✔ auditd: %d gebeurtenissen (proces met hex-argument, bewaakt pad, dubbel en agent overgeslagen) · SWAG: %d verdachte verzoeken' % (len(ev), len(req)))
+print('✔ auditd: %d gebeurtenissen (proces met hex-argument, bewaakt pad, dubbel en agent overgeslagen) · SWAG: %d verdachte verzoeken · Suricata: %d alerts' % (len(ev), len(req), len(eve)))
 PY

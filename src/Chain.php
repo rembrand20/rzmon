@@ -56,7 +56,7 @@ final class Chain
     /** Signaal bij een IDS-incident (nieuw of opgeteld; hetzelfde hooguit eens per 10 minuten) */
     public static function fromIncident(array $host, string $type, string $key, int $sev, string $title, ?string $ip, ?int $incidentId): void
     {
-        if (in_array($type, ['edr', 'anomaly', 'chain', 'harden', 'ti_ip', 'ti_malware'], true)) {
+        if (in_array($type, ['edr', 'anomaly', 'chain', 'harden', 'ti_ip', 'ti_malware', 'suricata', 'dns_bad', 'dns_odd'], true)) {
             return;   // die maken hun eigen signaal, of horen niet bij een aanval
         }
         $score = self::SCORES[$type] ?? ($sev >= 2 ? 60 : 30);

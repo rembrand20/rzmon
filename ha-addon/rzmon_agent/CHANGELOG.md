@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.64.0 – 2026-10-28
+- **YARA** (RzMon 1.113.0): staat `yara` op de server, dan controleert de watcher elk nieuw bestand in `/tmp`, `/var/tmp` en `/dev/shm` en elk nieuw script in de webmappen met de YARA-regels van RzMon (webshells, miners, reverse shells, botnets, rootkits). De regels komen versleuteld van RzMon; de agent vervangt ze alleen als `yara` ze kan lezen. YARA kan ook via RzMon geïnstalleerd worden.
+- **Suricata**: nieuwe alerts uit `/var/log/suricata/eve.json` gaan mee met het rapport (hooguit 200 per keer; de positie wordt pas bewaard als het rapport aankwam). Ander pad: `SURICATA_EVE=…`; uit: `SURICATA=0`.
+
 ## 1.63.0 – 2026-10-28
 - **🛰️ Endpoint-bewaking** (RzMon 1.110.0, per server aan of uit in de Agent Manager): de realtime-watcher kijkt op het moment zelf mee naar nieuwe processen en gevoelige paden (eigen `auditd`-regels, sleutels `rzmon_*`, alleen zolang het aan staat), verbindingen en luisterpoorten, nieuwe bestanden in `/tmp`, `/var/tmp`, `/dev/shm` en de webmappen (met `inotify-tools`: grootte, ELF, SHA-256, verdachte code) en containers (Docker en Podman). Alles gaat via een eigen wachtrij (hooguit 2 MB) met het volgende rapport naar RzMon; die gaat pas leeg als het rapport aankwam. Dubbele gebeurtenissen hooguit één keer per 10 minuten, hooguit 200 per minuut. `EDR=0` zet het op een server uit.
 - **Proces stoppen**: alleen op een versleuteld verzoek van RzMon, in de modus Blokkeren en als root; de agent controleert eerst dat het nog hetzelfde proces is (pid en starttijd) en meldt het resultaat bij het volgende rapport.

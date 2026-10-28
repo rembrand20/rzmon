@@ -1014,4 +1014,4 @@ CREATE TABLE IF NOT EXISTS ti_queue (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('ti_on', '1'), ('ti_greynoise', '1'), ('ti_shodan', '1'), ('ti_circl', '1'), ('ti_tor', '1'), ('ti_tor_block', '0'),
     ('ti_urlhaus', '1'), ('ti_feodo', '1'), ('ti_block', '1'), ('ti_block_score', '80'), ('ti_escalate', '1'), ('ti_close_benign', '1'), ('ti_report', '0'), ('ti_cve', '1');
-
+INSERT IGNORE INTO settings (name, value) VALUES ('dns_on', '1'), ('suricata_on', '1'), ('suricata_block', '1'), ('edr_yara', '1');
