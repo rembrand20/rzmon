@@ -2351,7 +2351,16 @@ function smartBlock(m, c) {
       + (m.mode === 'manual' ? ` · ${L('slim zou zijn: warning vanaf {w}{u}, critical vanaf {c}{u}', { w: n(w), c: n(cr), u })}` : ` · ${L('warning vanaf {w}{u}, critical vanaf {c}{u}', { w: n(w), c: n(cr), u })}`)
       + (guard !== null ? ` · 🛡️ ${L('altijd critical vanaf {g}{u}', { g: n(guard), u })}` : '') + '</p>';
   }
-  const sim = m.sim && ready ? `<p class="small">${m.sim.fixed == null ? '' : L('Afgelopen {d} dagen: met vaste drempels op {f} dag(en) een warning, met slimme drempels op {s}.', { d: m.sim.days, f: m.sim.fixed, s: m.sim.smart })}</p>` : '';
+  let sim = m.sim && ready && m.sim.fixed != null ? `<p class="small">${L('Afgelopen {d} dagen: met vaste drempels op {f} dag(en) een warning, met slimme drempels op {s}.', { d: m.sim.days, f: m.sim.fixed, s: m.sim.smart })}`
+    + (m.sim.need > 1 ? ' ' + L('Geteld zoals een melding: {n} metingen achter elkaar te hoog.', { n: m.sim.need }) : '') + '</p>' : '';
+  // 1.108.1: grillige check (piekt bijna elke dag even) → tip
+  if (m.sim && ready && m.sim.spiky) {
+    const net = ['http', 'tcp'].includes(c.type);
+    sim += `<p class="small smart-tip">💡 ${m.sim.need >= 3
+      ? L('Deze check piekt bijna elke dag even. Met melden na {n} wordt dat geen melding: dat is goed zo.', { n: m.sim.need })
+      : L('Deze check piekt bijna elke dag even, maar dat houdt meestal niet aan. Slimme drempels helpen daar weinig; zet hem op melden na 3 (✎ → 🔔 Meldingen → Melden na … mislukte checks).')
+        + (net ? ' ' + L('Gaat het je om de bereikbaarheid, dan is een ping-check betrouwbaarder dan de responstijd.') : '')}</p>`;
+  }
   const drift = m.drift ? `<p class="small warn-txt">⚠️ ${L('De normaalwaarde stijgt: van {a}{u} naar {b}{u} in twee weken. Zolang dat zo is, schuiven de drempels niet mee omhoog.', { a: n(m.drift[0]), b: n(m.drift[1]), u })}</p>` : '';
   return `<div class="smart-box"><h3 class="ci-h">🧠 ${L('Drempels')}</h3><p class="small">${head}</p>${now}${ready ? smartWeek(m, guard, u) : ''}${sim}${drift}</div>`;
 }
@@ -2375,6 +2384,19 @@ function smartWeek(m, guard, u) {
     <p class="small muted">${L('Grijs: normaal (10e–95e percentiel) per uur van de week. Lijn: warning. Streep: nu.')}</p></div>`;
 }
 
+/** Waarom een check wel of niet in het voorstel zit (1.108.1), in gewone woorden */
+function smartWhy(p) {
+  let why;
+  if (p.fixed == null) why = L('nu zonder drempel: met slim wordt hij bewaakt');
+  else if (p.gain > 0) why = '✔ ' + L('{n} dag(en) minder met een warning', { n: p.gain });
+  else if (p.gain < 0) why = L('slim is strenger: {n} dag(en) meer met een warning', { n: -p.gain });
+  else if (p.smart === 0) why = L('geen verschil: met allebei rustig');
+  else why = L('geen winst: met slim even vaak een warning');
+  if (p.spiky) why += ' · ' + (p.need != null && p.need < 3 ? L('grillig: piekt bijna elke dag even (tip: melden na 3)') : L('grillig: piekt bijna elke dag even'));
+  if (p.need == null) why += ' · ' + L('wordt vannacht opnieuw berekend');
+  return why;
+}
+
 /** Instellingen → Checks → Slimme drempels: handmatige checks waar slim minder warnings had gegeven */
 async function loadSmartProposals() {
   const el = $('#smart-proposals');
@@ -2383,10 +2405,11 @@ async function loadSmartProposals() {
   try { r = await api('smart_proposals'); } catch (ex) { el.innerHTML = `<p class="err-txt small">${esc(ex.message)}</p>`; return; }
   if (!r.list.length) { el.innerHTML = `<p class="muted small">${L('Nog geen voorstellen: RzMon heeft per check minstens 7 dagen meetwaarden nodig, of al je checks die kunnen leren staan al op slim.')}</p>`; return; }
   el.innerHTML = `<div class="table-wrap"><table class="small smart-prop"><thead><tr><th><input type="checkbox" id="smart-all" ${isAdmin() ? '' : 'disabled'}></th><th>${L('Check')}</th><th>${L('Server')}</th>
-      <th title="${esc(L('Dagen met een warning in de laatste weken'))}">${L('Vast')}</th><th>${L('Slim')}</th></tr></thead><tbody>
-    ${r.list.map((p) => `<tr><td><input type="checkbox" data-smart-id="${p.id}" ${p.gain > 0 ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}></td>
+      <th title="${esc(L('Dagen met een warning, met de drempels die nu gelden'))}">${L('Dagen met warning – nu')}</th><th title="${esc(L('Dagen met een warning als de check slimme drempels had gehad'))}">${L('– met slim')}</th><th>${L('Waarom')}</th></tr></thead><tbody>
+    ${r.list.map((p) => `<tr class="${p.gain > 0 ? '' : 'smart-nogain'}"><td><input type="checkbox" data-smart-id="${p.id}" ${p.gain > 0 ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}></td>
       <td><button type="button" class="link-btn" data-smart-open="${p.id}">${esc(p.name)}</button></td><td>${esc(p.host)}</td>
-      <td>${p.fixed == null ? '–' : L('{n} van {d} dagen', { n: p.fixed, d: p.days })}</td><td class="${p.gain > 0 ? 'good-txt' : ''}">${L('{n} van {d} dagen', { n: p.smart, d: p.days })}</td></tr>`).join('')}
+      <td>${p.fixed == null ? '–' : L('{n} van {d} dagen', { n: p.fixed, d: p.days })}</td><td class="${p.gain > 0 ? 'good-txt' : ''}">${L('{n} van {d} dagen', { n: p.smart, d: p.days })}</td>
+      <td class="smart-why">${esc(smartWhy(p))}</td></tr>`).join('')}
     </tbody></table></div>
     <div class="btn-row need-admin" style="margin-top:.6rem"><button type="button" class="btn primary" data-smart-go="guard">🧠🛡️ ${L('Gekozen checks: slim met vangnet')}</button>
       <button type="button" class="btn" data-smart-go="smart">🧠 ${L('Slim')}</button></div>`;

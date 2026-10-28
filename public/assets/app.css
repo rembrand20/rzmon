@@ -1658,6 +1658,10 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .smart-row { display: grid; grid-template-columns: minmax(13rem, 1.4fr) 1fr 1fr; gap: 0 .8rem; }
 @media (max-width: 640px) { .smart-row { grid-template-columns: 1fr; } }
 .smart-prop td, .smart-prop th { padding: .3rem .6rem .3rem 0; text-align: left; }
+.smart-prop tr.smart-nogain td:not(:first-child) { opacity: .55; }
+.smart-prop .smart-why { font-size: .85em; }
+.smart-prop td:nth-child(4), .smart-prop td:nth-child(5) { white-space: nowrap; }
+.smart-tip { background: var(--card-2, rgba(127,127,127,.08)); border-left: 3px solid var(--warn); padding: .4rem .6rem; border-radius: 6px; }
 .smart-prop .link-btn, .smart-box .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; text-align: left; }
 .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); vertical-align: middle; animation: live-pulse 2.4s ease-in-out infinite; }
 .live-dot.off { background: var(--muted); animation: none; }

@@ -255,7 +255,7 @@ final class Smart
         $days = [];
         $all = [];
         $st = db()->prepare('SELECT WEEKDAY(created_at) * 24 + HOUR(created_at), value, DATE(created_at) FROM results
-                             WHERE check_id = ? AND created_at >= NOW() - INTERVAL ' . self::WINDOW_DAYS . ' DAY AND value IS NOT NULL');
+                             WHERE check_id = ? AND created_at >= NOW() - INTERVAL ' . self::WINDOW_DAYS . ' DAY AND value IS NOT NULL ORDER BY created_at, id');
         $st->execute([$id]);
         while ($r = $st->fetch(PDO::FETCH_NUM)) {
             $byHow[(int) $r[0]][] = (float) $r[1];
@@ -370,7 +370,7 @@ final class Smart
         $byDay = [];
         $all = $pts = [];
         $st = db()->prepare('SELECT WEEKDAY(created_at) * 24 + HOUR(created_at), value, DATE(created_at) FROM results
-                             WHERE check_id = ? AND created_at >= NOW() - INTERVAL ' . self::WINDOW_DAYS . ' DAY AND value IS NOT NULL');
+                             WHERE check_id = ? AND created_at >= NOW() - INTERVAL ' . self::WINDOW_DAYS . ' DAY AND value IS NOT NULL ORDER BY created_at, id');
         $st->execute([$id]);
         while ($r = $st->fetch(PDO::FETCH_NUM)) {
             $v = (float) $r[1];
@@ -448,21 +448,36 @@ final class Smart
         return $j ? (json_decode((string) $j, true) ?: null) : null;
     }
 
-    /** Dagen met een warning: met de vaste drempels en met de geleerde (op dezelfde meetwaarden) */
+    /**
+     * Dagen met een warning, met de vaste drempels en met de geleerde, op dezelfde meetwaarden. Net als bij echte meldingen
+     * telt een dag pas als er zoveel metingen achter elkaar te hoog waren als de check vraagt (melden na N, 1.108.1);
+     * Gaat hij op 70% van de dagen minstens één keer over de slimme warning, dan is hij grillig (spiky): daar staat
+     * een tip bij (melden na 3, of een ping voor de bereikbaarheid).
+     */
     private static function simulate(array $check, array $pts, array $m): array
     {
         $fixed = is_numeric($check['warn_threshold']) ? (float) $check['warn_threshold'] : null;
         $guard = self::mode($check) === 'guard' && is_numeric($check['guard_threshold'] ?? null) ? (float) $check['guard_threshold'] : null;
-        $dF = $dS = [];
+        $need = Monitor::failsNeeded($check);
+        $dF = $dS = $dS1 = [];
+        $runF = $runS = 0;
         foreach ($pts as [$h, $v, $d]) {
-            if ($fixed !== null && $v >= $fixed) {
+            $runF = $fixed !== null && $v >= $fixed ? $runF + 1 : 0;
+            $runS = $v >= ($guard !== null ? min($m['w'][$h], $guard) : $m['w'][$h]) ? $runS + 1 : 0;
+            if ($runF >= $need) {
                 $dF[$d] = true;
             }
-            if ($v >= ($guard !== null ? min($m['w'][$h], $guard) : $m['w'][$h])) {
+            if ($runS >= 1) {
+                $dS1[$d] = true;
+            }
+            if ($runS >= $need) {
                 $dS[$d] = true;
             }
         }
-        return ['fixed' => $fixed === null ? null : count($dF), 'smart' => count($dS), 'days' => $m['days']];
+        $days = (int) $m['days'];
+        $s1 = count($dS1);
+        return ['fixed' => $fixed === null ? null : count($dF), 'smart' => count($dS), 'smart1' => $s1, 'need' => $need, 'days' => $days,
+            'spiky' => $days >= self::MIN_DAYS && $s1 >= 0.7 * $days];
     }
 
     /** Mediaan van de laatste 7 dagen tegen die van 14–28 dagen geleden: [oud, nieuw] als het flink steeg */
@@ -585,7 +600,7 @@ final class Smart
             $sim = $m['sim'] ?? [];
             $out[] = ['id' => (int) $r['id'], 'name' => $r['name'], 'host' => $r['host_name'], 'host_id' => (int) $r['host_id'],
                 'fixed' => $sim['fixed'] ?? null, 'smart' => (int) ($sim['smart'] ?? 0), 'days' => (int) $m['days'],
-                'gain' => (int) ($sim['fixed'] ?? 0) - (int) ($sim['smart'] ?? 0)];
+                'gain' => (int) ($sim['fixed'] ?? 0) - (int) ($sim['smart'] ?? 0), 'need' => isset($sim['need']) ? (int) $sim['need'] : null, 'spiky' => !empty($sim['spiky'])];
         }
         usort($out, static fn($a, $b) => [$b['gain'], $a['host'], $a['name']] <=> [$a['gain'], $b['host'], $b['name']]);
         return array_slice($out, 0, $limit);

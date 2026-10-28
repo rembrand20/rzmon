@@ -82,6 +82,25 @@ save_setting('thresh_default', 'guard');
 $r2 = Smart::apply(q('SELECT * FROM checks WHERE id = ?', [$cpu])->fetch() + ['hid' => $ha]);
 ok(q('SELECT thresh_mode FROM checks WHERE id = ?', [$cpu])->fetchColumn() !== 'auto', '"auto" wordt bij de eerste run de standaard');
 
+// 1.108.1: grillige check (camera-webinterface): elke dag één losse piek. Telt zoals een melding (melden na N).
+q("INSERT INTO checks (host_id, type, target, name, warn_threshold, crit_threshold, thresh_mode) VALUES (?, 'http', 'http://cam', 'Camera', 500, 2000, 'manual')", [$ha]);
+$cam = (int) db()->lastInsertId();
+$rows = [];
+for ($t = time() - 14 * 86400; $t < time(); $t += 300) {
+    $spike = (int) date('G', $t) === ((int) date('j', $t) * 7) % 24 && (int) date('i', $t) < 5;   // elke dag op een ander uur
+    $rows[] = sprintf('(%d, 0, %.2f, %s)', $cam, $spike ? 3000 : 90 + mt_rand(0, 300) / 10, db()->quote(date('Y-m-d H:i:s', $t)));
+}
+foreach (array_chunk($rows, 1000) as $ch) {
+    q('INSERT INTO results (check_id, status, value, created_at) VALUES ' . implode(',', $ch));
+}
+$m1 = Smart::learn(q('SELECT * FROM checks WHERE id = ?', [$cam])->fetch());
+ok($m1['sim']['need'] === 1 && $m1['sim']['fixed'] >= 13 && $m1['sim']['spiky'], 'melden na 1: elke dag een warning, en grillig (' . $m1['sim']['fixed'] . '/' . $m1['sim']['smart'] . ')');
+q('UPDATE checks SET notify_fails = 3 WHERE id = ?', [$cam]);
+$m3 = Smart::learn(q('SELECT * FROM checks WHERE id = ?', [$cam])->fetch());
+ok($m3['sim']['need'] === 3 && $m3['sim']['fixed'] === 0 && $m3['sim']['smart'] === 0, 'melden na 3: losse pieken tellen niet als dag met warning');
+$prop = array_values(array_filter(Smart::proposals(), static fn($p) => $p['id'] === $cam))[0] ?? null;
+ok($prop && $prop['gain'] === 0 && $prop['spiky'] && $prop['need'] === 3, 'voorstel: geen winst, grillig');
+
 section('Bundelen');
 q('UPDATE hosts SET parent_id = ? WHERE id IN (?, ?)', [$gw, $ha, $hb]);
 $items = [];

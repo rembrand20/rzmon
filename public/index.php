@@ -755,7 +755,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
           <p class="muted small"><?= t('<b>Slim met vangnet</b>: geleerd, maar vanaf een harde grens altijd CRITICAL (bv. RAM 98%). <b>Rustig</b> geeft minder meldingen, <b>scherp</b> ziet een afwijking eerder. Per check aan te passen (✎). Stijgt de normaalwaarde van een check sluipend (een lek?), dan krijg je een ℹ️-melding en schuiven de drempels niet mee omhoog.') ?></p>
           <h3 class="small" style="margin:1rem 0 .3rem"><?= th('Voorstel voor bestaande checks') ?></h3>
-          <p class="muted small" style="margin-top:0"><?= th('Bestaande checks blijven handmatig tot je ze omzet. RzMon leert ook voor die checks, en laat hier zien waar slimme drempels minder warnings hadden gegeven.') ?></p>
+          <p class="muted small" style="margin-top:0"><?= t('Bestaande checks blijven handmatig tot je ze omzet. RzMon leert ook voor die checks en rekent na: <b>op hoeveel van de afgelopen dagen was er een warning geweest</b>, met de drempels van nu en met slimme drempels. Een dag telt net als een echte melding: pas als er zoveel metingen <b>achter elkaar</b> te hoog waren als de check vraagt (<i>melden na N</i>).') ?></p>
+          <p class="muted small"><?= t('<b>Minder dagen met slim</b> = minder onnodige meldingen: die checks staan al aangevinkt. <b>Grijs</b> = slim levert daar niets op; de reden staat erachter. <b>Grillig</b> = de check piekt bijna elke dag even (bv. de webinterface van een camera); daar helpt <i>melden na 3</i> meer dan slimme drempels.') ?></p>
           <div id="smart-proposals"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
 

@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.108.1 – 2026-10-28
+### Opgelost
+- **Slimme drempels, voorstel voor bestaande checks**: een dag met een warning telt nu net als een echte melding, pas als er zoveel metingen achter elkaar te hoog waren als de check vraagt (*melden na N*). Eerder telde één losse piek al, waardoor bv. een camera "8 van 8 dagen" kreeg. De cijfers worden vannacht opnieuw berekend.
+
+### Nieuw
+- **Duidelijkere uitleg** bij dat voorstel: kolommen *Dagen met warning – nu* en *– met slim*, een kolom **Waarom** in gewone woorden (bv. *✔ 6 dag(en) minder met een warning* of *geen winst*), en grijs voor checks waar slim niets oplevert.
+- **Grillige checks**: piekt een check bijna elke dag even (zoals de webinterface van een camera), dan staat dat erbij, met in de popup van de check een tip: *melden na 3*, of een ping-check voor de bereikbaarheid.
+
 ## 1.108.0 – 2026-10-27
 ### Nieuw
 - **Nieuw logo**: RzMon met een klein oranje **AI** erachter, in de bovenbalk, op het inlogscherm en in `brand/`.

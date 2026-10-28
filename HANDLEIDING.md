@@ -1179,6 +1179,18 @@ Vaste drempels passen niet altijd: een CPU die elke nacht om 3:00 op 100% staat 
 
 **Nieuwe en bestaande checks.** Een nieuwe check krijgt bij zijn eerste run de standaard uit *Instellingen → Checks → Slimme drempels* (standaard *slim met vangnet*; een check die niet kan leren, wordt handmatig). **Bestaande checks blijven handmatig**: een update verandert niets. RzMon leert wel ook voor die checks, en laat op dezelfde pagina zien waar slimme drempels minder warnings hadden gegeven (*Voorstel voor bestaande checks*), met knoppen om ze om te zetten. Dat voorstel staat ook in 📊 Analyse onder *Wat nu aanpakken*. Meerdere checks tegelijk omzetten kan ook bij *Alle checks* (🧠 Slim).
 
+**De tabel *Voorstel voor bestaande checks* lezen** (vanaf 1.108.1):
+
+| Kolom | Betekenis |
+|---|---|
+| **Dagen met warning – nu** | Op hoeveel van de afgelopen dagen er een warning was geweest met de drempels die nu gelden |
+| **– met slim** | Hetzelfde, als de check slimme drempels had gehad (groen = minder) |
+| **Waarom** | In gewone woorden: *✔ 6 dag(en) minder met een warning*, *geen winst*, *geen verschil*, of *slim is strenger* (slim ziet meer afwijkingen) |
+
+Een dag telt **net als een echte melding**: pas als er zoveel metingen achter elkaar te hoog waren als de check vraagt (*melden na N*). Eén losse piek bij een check op *melden na 3* telt dus niet. Checks met winst staan al aangevinkt; de rest is grijs. Staat er **grillig**, dan piekt de check bijna elke dag even (op 70% van de dagen of meer), zoals de webinterface van een IP-camera. Slimme drempels helpen daar weinig; **melden na 3** wel, en voor de bereikbaarheid is een **ping-check** betrouwbaarder dan de responstijd. Die tip staat ook in de popup van de check.
+
+*Voorbeeld:* *Camera Oprit – HTTP-alt (8000)*, *9 van 9 dagen* bij allebei, *geen winst · grillig (tip: melden na 3)*: de camera antwoordt meestal in 100 ms, maar elke dag een keer in 3 seconden. Met *melden na 3* is dat geen melding meer.
+
 ### 7.14 Zelf herstellen 🩹 (vanaf 1.107.0, agent 1.62.0)
 Per check (✎ → *🩹 Zelf herstellen*), alleen op servers met de agent:
 - **herstarten** (bij een service- of containercheck): draait de service of container niet, dan herstart de agent hem zelf, vóór zijn rapport. Lukt dat, dan blijft de check OK en krijg je alleen een ℹ️-melding (*Systeeminfo → Zelf hersteld*); lukt het niet, dan de gewone melding.
