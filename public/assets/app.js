@@ -2249,6 +2249,33 @@ function edrNote(h) {
   return `<button type="button" class="edr-note" data-act="edr-note" data-id="${h.id}" data-keys="${esc(miss.map((m) => m[0]).join(','))}" title="${esc(L('Klik: installeren of niet meer tonen'))}">🛡️ ${esc(L('ontbreekt: {what}', { what: miss.map((m) => m[1]).join(', ') }))} · ${L('installeren?')}</button>`;
 }
 const edrHidden = (id) => ((state && state.edr_note_hide) || {})[id] || [];
+/**
+ * Velden in de hele interface (1.126.0): de titel en de toelichting ernaast (bv. de eenheid "ms") op één regel, in plaats
+ * van de toelichting op een eigen regel tussen titel en veld. Ook voor wat later geladen wordt (vensters, kaarten).
+ */
+function labelLines(root) {
+  $$('label:not(.switch):not(.radio-row):not([data-ll])', root).forEach((l) => {
+    l.dataset.ll = '1';
+    const kids = [...l.childNodes];
+    const ctl = kids.findIndex((n) => n.nodeType === 1 && (n.matches('input, select, textarea, .inline-row, .copy-line') || n.querySelector?.('input, select, textarea')));
+    if (ctl < 1) return;
+    const before = kids.slice(0, ctl);
+    if (!before.some((n) => n.nodeType === 1 && n.matches('.hint, .muted.small, .muted'))) return;
+    if (before.some((n) => n.nodeType === 1 && n.matches('.hint, .muted.small, .muted') && n.textContent.trim().length > 60)) return;   // lang: wordt in de instellingen een ⓘ
+    if (before.some((n) => n.nodeType === 1 && n.matches('.lbl-line, div, p, br'))) return;
+    const line = document.createElement('span');
+    line.className = 'lbl-line';
+    before.forEach((n) => line.append(n));
+    l.prepend(line);
+  });
+}
+(() => {
+  let t = null;
+  const run = () => labelLines(document.body);
+  document.addEventListener('DOMContentLoaded', run);
+  new MutationObserver(() => { clearTimeout(t); t = setTimeout(run, 20); }).observe(document.documentElement, { childList: true, subtree: true });
+})();
+
 /** Klik op de regel: installeren via de Agent Manager, of deze melding voor deze server niet meer tonen */
 function edrNoteDialog(h, keys) {
   modal({

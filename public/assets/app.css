@@ -358,9 +358,9 @@ ol.steps li { margin-bottom: .45rem; }
 /* ---------- Modal ---------- */
 dialog {
   border: 1px solid var(--border); border-radius: 16px; padding: 0; background: var(--card); color: var(--text);
-  width: min(560px, calc(100vw - 2rem)); box-shadow: 0 30px 80px rgba(0,0,0,.5);
+  width: min(680px, calc(100vw - 2rem)); box-shadow: 0 30px 80px rgba(0,0,0,.5);   /* 1.126.0: iets breder (was 560) */
 }
-dialog.wide { width: min(900px, calc(100vw - 2rem)); }
+dialog.wide { width: min(980px, calc(100vw - 2rem)); }
 dialog::backdrop { background: rgba(5,10,20,.55); backdrop-filter: blur(3px); }
 dialog[open] { animation: pop .18s ease-out; }
 @keyframes pop { from { transform: translateY(10px) scale(.98); opacity: 0; } }
@@ -1937,3 +1937,9 @@ button.ic-n { cursor: pointer; } button.ic-n:hover b { text-decoration: underlin
 .cmd-dd > summary { cursor: pointer; color: var(--primary); width: max-content; }
 .cmd-dd pre.code { margin: .25rem 0 .5rem; white-space: pre-wrap; word-break: break-all; }
 .edr-own { display: block; margin: .2rem 0 .6rem; } .edr-own .inline-row { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .25rem; } .edr-own input { flex: 1 1 14rem; min-width: 0; }
+
+/* 1.126.0: toelichting achter de titel van een veld, niet eronder: "Critical vanaf (ms)" */
+label > .lbl-line { display: block; }
+label > .lbl-line > .hint, label > .lbl-line > .muted.small, label > .lbl-line > .muted { margin-left: .3rem; font-weight: 400; }
+.lbl-line .hint.unit:not(:empty)::before, .lbl-line .hint.res-unit:not(:empty)::before { content: '('; }
+.lbl-line .hint.unit:not(:empty)::after, .lbl-line .hint.res-unit:not(:empty)::after { content: ')'; }

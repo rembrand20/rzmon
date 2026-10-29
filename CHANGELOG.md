@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.126.0 – 2026-10-29
+### Nieuw
+- **Vensters iets breder**: gewone vensters 680 px (was 560), brede vensters 980 px (was 900). Op de telefoon blijven ze schermbreed.
+- **Toelichting achter de titel van een veld** in de hele interface: *Critical vanaf (ms)*, *Basismeting (uren) eerst alleen vastleggen wat normaal is*, in plaats van op een eigen regel tussen titel en veld. Eenheden staan tussen haakjes. Lange toelichtingen blijven een ⓘ.
+
 ## 1.125.0 – 2026-10-29
 ### Nieuw
 - **Eigen pakketnamen bij installeren** (**agent 1.66.0 nodig**): in de Agent Manager staat bij een ontbrekend onderdeel van de endpoint-bewaking, onder *Commando*, een veld met de pakketten. Pas ze aan (bv. `audit audispd-plugins`) en klik op **Met deze pakketten installeren**. Het voorbeeld van wat de agent uitvoert loopt mee terwijl je typt. Alleen gewone pakketnamen (hooguit 10). Je bevestigt met je wachtwoord en het komt in het logboek.
