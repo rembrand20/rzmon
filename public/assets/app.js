@@ -2800,7 +2800,10 @@ async function loadStatusPage() {
   if (!el) return;
   let d;
   try { d = await api('status_get'); } catch (ex) { el.innerHTML = `<p class="err-txt small">${esc(ex.message)}</p>`; return; }
-  const url = d.has_base ? d.url : location.origin + location.pathname.replace(/[^/]*$/, '') + d.url.replace(/^\//, '');
+  const local = d.has_base ? d.url : location.origin + location.pathname.replace(/[^/]*$/, '') + d.url.replace(/^\//, '');
+  // 1.128.0: de link met het lokale adres (base_url) of het externe adres (Instellingen → Server en PHP)
+  let link = d.link;
+  const url = () => (link === 'external' && d.url_ext ? d.url_ext : local);
   // Per onderdeel: een naam en checks om aan te vinken (per server), met een samenvatting van wat gekozen is
   const names = (ids) => state.hosts.flatMap((h) => h.checks.filter((c) => ids.includes(+c.id)).map((c) => `${h.name} – ${c.name}`));
   const sum = (ids) => (ids.length ? L('{n} check(s): {list}', { n: ids.length, list: names(ids).slice(0, 3).join(', ') + (ids.length > 3 ? ' …' : '') }) : L('kies checks'));
@@ -2819,10 +2822,14 @@ async function loadStatusPage() {
     <p class="hint" style="margin-top:0">${L('Per onderdeel een naam en de checks die erbij horen (klik om ze aan te vinken). Het ergste van die checks telt; checks in onderhoud tonen "Onderhoud".')}</p>
     <div id="sp-rows">${(d.items.length ? d.items : [{ label: '', checks: [] }]).map(row).join('')}</div>
     <button type="button" class="btn small-btn" id="sp-add">＋ ${L('Onderdeel')}</button>
-    <h3 class="small" style="margin:1rem 0 .3rem">${L('Geheime link')}</h3>
-    <div class="copy-line"><pre class="code" id="sp-url">${esc(url)}</pre><button type="button" class="btn" id="sp-copy">${L('Kopieer')}</button></div>
-    <p class="hint">${d.has_base ? '' : L('Tip: vul bij Instellingen → Systeem het adres van RzMon in (base_url) als RzMon van buiten anders heet. ')}${L('Een nieuwe link maken? Dan werkt de oude meteen niet meer.')}
-      <button type="button" class="btn small-btn" id="sp-new">↻ ${L('Nieuwe link')}</button> <a href="${esc(url)}" target="_blank" rel="noopener" class="btn small-btn">${L('Openen')} ↗</a></p>
+    <div class="sp-link-head"><h3 class="small">${L('Geheime link')}</h3>
+      <div class="seg" id="sp-link" role="tablist" aria-label="${esc(L('Adres in de link'))}">
+        <button type="button" class="seg-btn ${link === 'local' ? 'active' : ''}" data-link="local">🏠 ${L('Lokaal')}</button>
+        <button type="button" class="seg-btn ${link === 'external' ? 'active' : ''}" data-link="external" ${d.url_ext ? '' : 'disabled'}
+          title="${esc(d.url_ext ? L('Link met het externe adres, voor buiten je netwerk') : L('Vul eerst de externe URL in (Instellingen → Server en PHP)'))}">🌐 ${L('Extern')}</button></div></div>
+    <div class="copy-line"><pre class="code" id="sp-url">${esc(url())}</pre><button type="button" class="btn" id="sp-copy">${L('Kopieer')}</button></div>
+    <p class="hint">${d.url_ext ? '' : `${L('Wil je de link ook buiten je netwerk gebruiken? Vul dan de externe URL in.')} <a href="#" data-goto-set="server">${L('Naar Server en PHP')}</a> `}${d.has_base ? '' : L('Tip: vul bij Instellingen → Server en PHP het adres van RzMon in (Basis-URL). ')}${L('Een nieuwe link maken? Dan werkt de oude meteen niet meer.')}
+      <button type="button" class="btn small-btn" id="sp-new">↻ ${L('Nieuwe link')}</button> <a href="${esc(url())}" target="_blank" rel="noopener" class="btn small-btn" id="sp-open">${L('Openen')} ↗</a></p>
     <div class="btn-row" style="margin-top:.8rem"><button type="button" class="btn primary" id="sp-save">${L('Opslaan')}</button></div>`;
   const rows = $('#sp-rows');
   rows.addEventListener('click', (e) => { if (e.target.closest('.sp-del')) e.target.closest('.sp-row').remove(); });
@@ -2832,6 +2839,17 @@ async function loadStatusPage() {
   });
   $('#sp-add').onclick = () => rows.insertAdjacentHTML('beforeend', row({}));
   $('#sp-copy').onclick = () => { navigator.clipboard?.writeText($('#sp-url').textContent); toast(L('Gekopieerd')); };
+  $('#sp-link').onclick = async (e) => {
+    const b = e.target.closest('[data-link]');
+    if (!b || b.disabled || b.dataset.link === link) return;
+    try {
+      await api('status_link', { link: b.dataset.link });
+      link = b.dataset.link;
+      $$('#sp-link .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+      $('#sp-url').textContent = url(); $('#sp-open').href = url();
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('[data-goto-set="server"]', el)?.addEventListener('click', (e) => { e.preventDefault(); showTab('settings/server'); });
   $('#sp-new').onclick = async () => {
     if (!confirm(L('Nieuwe link maken? De oude link werkt dan meteen niet meer.'))) return;
     try { await api('status_token_new', {}); loadStatusPage(); } catch (ex) { toast(ex.message, 'err'); }
@@ -9389,6 +9407,7 @@ async function loadSetupInfo() {
   $('#server-body').innerHTML = `<form id="server-form">
       <div class="row2"><label>${L('Tijdzone')}<select name="timezone">${d.timezones.map((t) => `<option ${t === d.timezone ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
         <label>${L('Basis-URL')} <span class="hint">${L('(voor agent-instructies)')}</span><input name="base_url" type="url" value="${esc(d.base_url || '')}" placeholder="http://rzmon.lan"></label></div>
+      <label>${L('Externe URL')} <span class="hint">${L('(adres van buiten, voor de statuspagina)')}</span><input name="external_url" type="url" value="${esc(d.external_url || '')}" placeholder="https://status.voorbeeld.nl"></label>
       <label>${L('Pad naar ping')}<input name="ping_bin" value="${esc(d.ping_bin || '')}" class="mono"></label>
       <div class="row2"><label>memory_limit <span class="hint">${L('nu')} ${esc(d.php_now.memory_limit)}</span><input name="memory_limit" value="${esc(d.php.memory_limit || '')}" placeholder="${esc(L('bv. 256M'))}"></label>
         <label>max_execution_time <span class="hint">${L('sec')}</span><input name="max_execution_time" value="${esc(d.php.max_execution_time || '')}" placeholder="${esc(L('bv. 120'))}"></label></div>
@@ -9399,7 +9418,7 @@ async function loadSetupInfo() {
     e.preventDefault();
     const f = e.target;
     try {
-      const r = await api('setup_app_save', { timezone: f.timezone.value, base_url: f.base_url.value, ping_bin: f.ping_bin.value,
+      const r = await api('setup_app_save', { timezone: f.timezone.value, base_url: f.base_url.value, external_url: f.external_url.value, ping_bin: f.ping_bin.value,
         memory_limit: f.memory_limit.value, max_execution_time: f.max_execution_time.value, display_errors: f.display_errors.checked });
       if (r.written) toast(L('Opgeslagen')); else configManual(r);
     } catch (ex) { toast(ex.message, 'err'); }

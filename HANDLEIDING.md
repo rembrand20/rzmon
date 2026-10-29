@@ -508,6 +508,7 @@ Open vanaf een computer **op je lokale netwerk** `http://<ip-van-de-server>/`. J
 3. **Applicatie & PHP.**
    - **Tijdzone:** `Europe/Amsterdam`.
    - **Basis-URL:** bijvoorbeeld `http://192.168.1.10`. Die wordt gebruikt in de installatie-instructies voor agents.
+   - **Externe URL** (optioneel, vanaf 1.128.0): het adres van RzMon van buiten, bijvoorbeeld `https://status.voorbeeld.nl`. Wordt gebruikt voor de geheime link van de statuspagina als je daar *Extern* kiest.
    - **Pad naar ping:** meestal `/bin/ping` of `/usr/bin/ping`. Controleer met `command -v ping`.
    - **memory_limit en max_execution_time:** leeg laten, tenzij je een reden hebt.
    - **display_errors:** alleen aanzetten om fouten te zoeken.
@@ -2986,7 +2987,8 @@ Een eenvoudige pagina voor huisgenoten of klanten: *Instellingen → Koppelingen
 - Kies **onderdelen** ("Internet", "NAS", "Plex"…), elk met de checks die erbij horen. Het ergste van die checks telt; checks in onderhoud tonen *Onderhoud*.
 - Per onderdeel een **balk per dag over de laatste 90 dagen** (uit de dagtotalen van Analyse), een eigen **titel** en een **mededeling** ("Zaterdag onderhoud aan de NAS"). De pagina ververst elke minuut, in licht en donker, ook op de telefoon.
 - Er staan **geen IP-adressen, servernamen of foutteksten** op.
-- Te openen via een **geheime link** (`/status.php?k=…`), ook van buiten. Een verkeerde link geeft een gewone 404 (niet herkenbaar als RzMon). Met **↻ Nieuwe link** werkt de oude meteen niet meer. Heet RzMon van buiten anders, vul dan het adres in (`base_url`), dan klopt de link die je kopieert. Zet `/status.php` door in je reverse proxy als je hem van buiten wilt openen.
+- Te openen via een **geheime link** (`/status.php?k=…`), ook van buiten. Een verkeerde link geeft een gewone 404 (niet herkenbaar als RzMon). Met **↻ Nieuwe link** werkt de oude meteen niet meer. Zet `/status.php` door in je reverse proxy als je hem van buiten wilt openen.
+- **Lokaal of extern** (vanaf 1.128.0): naast *Geheime link* staat een schakelaar **🏠 Lokaal | 🌐 Extern**. *Lokaal* maakt de link met de *Basis-URL* (bijv. `http://192.168.2.207`), *Extern* met de **Externe URL** die je invult bij *Instellingen → Database en server → Server en PHP* (bijv. `https://status.voorbeeld.nl`). De sleutel is in beide gevallen dezelfde; alleen het adres ervoor verandert, en RzMon onthoudt je keuze. Zonder externe URL staat *Extern* grijs, met een link naar Server en PHP. Staat *Alleen https* aan, dan stuurt RzMon de statuspagina op het externe adres niet door naar het beheeradres; de rest van RzMon blijft alleen via het beheeradres te openen.
 
 ## 12. Upgraden
 

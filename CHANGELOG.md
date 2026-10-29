@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.128.0 – 2026-10-29
+### Nieuw
+- **Externe URL** bij *Instellingen → Database en server → Server en PHP*: het adres waarop RzMon van buiten bereikbaar is (bijv. `https://status.voorbeeld.nl`). Leeg = niet gebruikt; je bestaande Basis-URL blijft zoals hij is.
+- **Geheime link van de statuspagina: Lokaal of Extern.** Met de schakelaar *🏠 Lokaal | 🌐 Extern* naast *Geheime link* kies je welk adres in de link staat: de Basis-URL (binnen) of de externe URL (buiten). De sleutel blijft dezelfde, dus beide links werken tegelijk. Zonder externe URL staat *Extern* grijs, met een link naar Server en PHP.
+
+### Opgelost
+- Met *Alleen https* aan werd de statuspagina op een ander adres dan het beheeradres doorgestuurd naar het beheeradres. Op de externe URL opent hij nu gewoon; de rest van RzMon blijft alleen via het beheeradres bereikbaar.
+
 ## 1.127.1 – 2026-10-29
 ### Opgelost
 - **Geen melding meer bij een kernel-update**: *Nieuw programma in een tijdelijke map* ging af als `dracut` een nieuwe initramfs bouwde (bijv. `/var/tmp/dracut.CbpkW9/initramfs/usr/bin/ps`). De werkmap van dracut (`/tmp` of `/var/tmp`, `dracut.` + 6 tekens) wordt nu overgeslagen. Een programma in een andere map, of met een naam die er alleen op lijkt, geeft nog steeds een melding, en YARA en de regel voor verborgen mappen kijken ook in de werkmap van dracut.

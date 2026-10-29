@@ -80,7 +80,7 @@ final class Setup
         $db = $cfg['db'];
         $db['has_pass'] = ($db['pass'] ?? '') !== '';
         unset($db['pass']);
-        return ['db' => $db, 'timezone' => $cfg['timezone'], 'base_url' => $cfg['base_url'], 'ping_bin' => $cfg['ping_bin'],
+        return ['db' => $db, 'timezone' => $cfg['timezone'], 'base_url' => $cfg['base_url'], 'external_url' => (string) ($cfg['external_url'] ?? ''), 'ping_bin' => $cfg['ping_bin'],
             'php' => $cfg['php'] + ['memory_limit' => '', 'max_execution_time' => '', 'display_errors' => '0'],
             'php_now' => ['memory_limit' => ini_get('memory_limit'), 'max_execution_time' => ini_get('max_execution_time')],
             'timezones' => timezone_identifiers_list()];
@@ -147,6 +147,10 @@ final class Setup
         if ($base !== '' && !filter_var($base, FILTER_VALIDATE_URL)) {
             throw new InvalidArgumentException(t('Basis-URL is geen geldige URL'));
         }
+        $ext = rtrim(trim((string) ($in['external_url'] ?? '')), '/');
+        if ($ext !== '' && (!filter_var($ext, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $ext))) {
+            throw new InvalidArgumentException(t('Externe URL is geen geldige URL (begint met https:// of http://)'));
+        }
         $mem = trim((string) ($in['memory_limit'] ?? ''));
         if ($mem !== '' && !preg_match('/^(-1|\d+[KMG]?)$/i', $mem)) {
             throw new InvalidArgumentException(t('memory_limit: bv. 256M of -1'));
@@ -159,6 +163,7 @@ final class Setup
             'timezone' => $tz,
             'ping_bin' => $ping ?: '/bin/ping',
             'base_url' => $base,
+            'external_url' => $ext,
             'php' => ['memory_limit' => $mem, 'max_execution_time' => $met, 'display_errors' => !empty($in['display_errors']) ? '1' : '0'],
         ]);
     }

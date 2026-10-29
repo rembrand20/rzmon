@@ -192,6 +192,9 @@ final class Https
             return;   // REST API (eigen sleutel) en agents (versleuteld) mogen via http blijven
         }
         $host = self::host();
+        if ($script === 'status.php' && $host !== '' && $host === self::bareHost((string) parse_url((string) config('external_url', ''), PHP_URL_HOST))) {
+            return;   // 1.128.0: de statuspagina op het externe adres (eigen geheime sleutel) niet naar het beheeradres sturen
+        }
         if ($https) {
             if ($host === $admin) {
                 header('Strict-Transport-Security: max-age=' . self::hstsAge());

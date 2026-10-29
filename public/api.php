@@ -3732,11 +3732,22 @@ switch ($action) {
 
     case 'status_get':   // 1.107.0: statuspagina (instellingen)
         $base = rtrim((string) config('base_url', ''), '/');
+        $ext = rtrim((string) config('external_url', ''), '/');
+        $path = '/status.php?k=' . StatusPage::token();
         out(['on' => setting('status_on', '0') === '1', 'title' => (string) setting('status_title', ''), 'note' => (string) setting('status_note', ''),
-            'items' => StatusPage::items(), 'url' => ($base !== '' ? $base : '') . '/status.php?k=' . StatusPage::token(), 'has_base' => $base !== '']);
+            'items' => StatusPage::items(), 'url' => $base . $path, 'has_base' => $base !== '',
+            'url_ext' => $ext !== '' ? $ext . $path : null, 'link' => setting('status_link', 'local') === 'external' && $ext !== '' ? 'external' : 'local']);
 
     case 'status_save':
         StatusPage::save(input());
+        out(['ok' => true]);
+
+    case 'status_link':   // 1.128.0: lokaal of extern adres in de geheime link
+        $in = input();
+        if (($in['link'] ?? '') === 'external' && trim((string) config('external_url', '')) === '') {
+            out(['error' => t('Vul eerst de externe URL in (Instellingen → Server en PHP)')], 422);
+        }
+        save_setting('status_link', ($in['link'] ?? '') === 'external' ? 'external' : 'local');
         out(['ok' => true]);
 
     case 'status_token_new':

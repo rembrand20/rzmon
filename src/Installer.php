@@ -9,6 +9,7 @@ final class Installer
         'timezone' => 'Europe/Amsterdam',
         'ping_bin' => '/bin/ping',
         'base_url' => '',
+        'external_url' => '',   // 1.128.0: adres van RzMon van buiten (statuspagina)
         'php' => ['memory_limit' => '', 'max_execution_time' => '', 'display_errors' => '0'],
     ];
 

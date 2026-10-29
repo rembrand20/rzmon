@@ -1958,3 +1958,8 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .cf-eye { position: absolute; right: .35rem; top: 50%; transform: translateY(-50%); border: 0; background: none; cursor: pointer; opacity: .55; font-size: 1rem; padding: .3rem; border-radius: 6px; }
 .cf-eye:hover, .cf-eye.on { opacity: 1; }
 .cf-btns { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .2rem; }
+
+/* 1.128.0: geheime link lokaal of extern */
+.sp-link-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; margin: 1rem 0 .4rem; }
+.sp-link-head h3 { margin: 0; }
+#sp-link .seg-btn[disabled] { opacity: .45; cursor: not-allowed; }
