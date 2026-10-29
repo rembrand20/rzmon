@@ -276,7 +276,10 @@ function agent_body(array $host): bool
  */
 function agent_url_report(array $host, array $in, ?string $agentVersion, bool $encrypted): ?array
 {
-    $conn = Https::isHttps() ? (Https::viaProxy() ? 'proxy' : 'https') : 'http';
+    // 1.131.1: "via de proxy" alleen als het verzoek echt is doorgestuurd (met X-Forwarded-…). Draait de proxy op dezelfde
+    // server als de agent (bv. SWAG), dan komt die agent rechtstreeks binnen vanaf het IP van de proxy: dat is gewoon https
+    $proxied = Https::viaProxy() && (!empty($_SERVER['HTTP_X_FORWARDED_FOR']) || !empty($_SERVER['HTTP_X_FORWARDED_PROTO']) || !empty($_SERVER['HTTP_FORWARDED']));
+    $conn = Https::isHttps() ? ($proxied ? 'proxy' : 'https') : 'http';
     $fb = !empty($_SERVER['HTTP_X_AGENT_FALLBACK']);
     $url = AgentCrypto::validUrl((string) ($in['url'] ?? '')) ? (string) $in['url'] : null;
     $urlFb = AgentCrypto::validUrl((string) ($in['url_fallback'] ?? '')) ? (string) $in['url_fallback'] : null;

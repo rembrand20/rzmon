@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.131.1 – 2026-10-29
+### Opgelost
+- **Agents-overzicht loopt live mee**: de kaarten (versie, verbinding, contact) werden maar één keer geladen. Na een update bleef bijvoorbeeld *v1.66.0 ⬆* staan terwijl de Agent Manager al 1.66.1 liet zien. Ze worden nu hooguit elke 30 seconden bijgewerkt.
+- **"https via proxy" alleen als het echt via de proxy gaat**: draait je reverse proxy (bijvoorbeeld SWAG) op dezelfde server als een agent, dan kwam die agent rechtstreeks binnen vanaf het IP van de proxy en noemde RzMon dat "via proxy". Nu telt alleen een verzoek dat de proxy echt heeft doorgestuurd (met `X-Forwarded-…`); anders staat er gewoon *https*.
+
 ## 1.131.0 – 2026-10-29
 ### Nieuw
 - **Geheugen van de database** bij *Instellingen → Overzicht → Status*: past de database niet in het geheugen van MariaDB (standaard maar 128 MB), dan staat er een ⚠️ met de regel voor `/etc/my.cnf.d/rzmon.cnf` (ongeveer 40% van het geheugen van de server). RzMon past de instellingen van MariaDB niet zelf aan.

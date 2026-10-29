@@ -1529,6 +1529,8 @@ async function refresh(live = false, what = null) {
     if (!$('#tab-ids').hidden && stale('ids')) { liveLoaded.ids = Date.now(); loadIds(); }
     if ($('#tab-vulns') && !$('#tab-vulns').hidden) loadVulns();
     if (live && $('#tab-net') && !$('#tab-net').hidden) loadNet();
+    // 1.131.1: het Agents-overzicht (versie, verbinding, contact) loopt live mee, hooguit eens per 30 s
+    if (live && $('#enc-card')?.offsetParent && Date.now() - (liveLoaded.sec || 0) > 30000) { liveLoaded.sec = Date.now(); loadSecurity(); }
     renderTabBadges();
     if ($('#net-badge')) { $('#net-badge').hidden = !state.net_new; $('#net-badge').textContent = state.net_new || ''; }
     $('#ids-badge').hidden = !state.ids_open;
