@@ -304,6 +304,15 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
     - de **onderdelen van een agentrapport** (vanaf 1.129.0: ontvangen, meetwaarden, logins, IDS, weblogs, EDR, ketens, checks, software): waar RzMon de tijd aan besteedt als een agent *geen antwoord binnen 50 seconden* meldt;
     - de **tabellen** met hun grootte en ongebruikte ruimte, met de knop **🧹 Database optimaliseren** (bouwt de grootste tabellen opnieuw op; doe het buiten drukke uren);
     - de schakelaar **Snelheid meten** (standaard aan; per uur één regel per soort verzoek, twee dagen bewaard).
+- **Geheugen van de database** (vanaf 1.131.0, bij *Status*): MariaDB houdt de database in het geheugen (de *buffer pool*, standaard 128 MB). Is de database groter, dan leest bijna elke query over meetwaarden van de schijf en wordt alles traag: agentrapporten, de cron en de grafieken. RzMon geeft dan een ⚠️ met de waarde die past bij jouw server (ongeveer 40% van het geheugen). Zo stel je het in:
+  ```
+  sudo tee /etc/my.cnf.d/rzmon.cnf <<'EOF'
+  [mysqld]
+  innodb_buffer_pool_size = 1408M
+  EOF
+  sudo systemctl restart mariadb
+  ```
+  Gebruik de waarde die RzMon noemt. RzMon past de instellingen van MariaDB nooit zelf aan.
 - *→ **Database en opslag***: de databaseverbinding (testen, opslaan met je wachtwoord, tabellen bijwerken), het databasewachtwoord vernieuwen en hoe lang historie en meldingen bewaard blijven.
 - *→ **Server en PHP***: tijdzone, basis-URL, pad naar ping en PHP-instellingen (`memory_limit`, `max_execution_time`, `display_errors`).
 

@@ -94,21 +94,36 @@ final class Stats
      */
     public static function diskForecast(int $checkId, float $current): ?array
     {
+        $slope = self::diskTrend($checkId);
+        if ($slope === null) {
+            return null;
+        }
+        // Pas vanaf 0,05% per dag spreken we van "groeien"; anders is het ruis
+        $days = $slope > 0.05 && $current < 100 ? (100 - $current) / $slope : null;
+        return ['per_day' => round($slope, 3), 'days_to_full' => $days !== null ? round($days, 1) : null];
+    }
+
+    /**
+     * Groei per dag over 7 dagen (lineaire regressie), of null bij te weinig geschiedenis. 1.131.0: hooguit eens per half
+     * uur opnieuw uit de meetwaarden (ongeveer 10.000 per disk); daartussen de bewaarde waarde. De trend verandert in een
+     * half uur nauwelijks, en zo leest niet elke beoordeling een week aan metingen.
+     */
+    private static function diskTrend(int $checkId): ?float
+    {
+        $c = q('SELECT trend_per_day, trend_at FROM checks WHERE id = ?', [$checkId])->fetch();
+        if ($c && $c['trend_at'] !== null && strtotime((string) $c['trend_at']) > time() - 1800) {
+            return $c['trend_per_day'] !== null ? (float) $c['trend_per_day'] : null;
+        }
         $r = q('SELECT COUNT(*) AS n, SUM(x) AS sx, SUM(value) AS sy, SUM(x * x) AS sxx, SUM(x * value) AS sxy, MIN(x) AS first
                 FROM (SELECT (UNIX_TIMESTAMP(created_at) - UNIX_TIMESTAMP()) / 86400 AS x, value FROM results
                       WHERE check_id = ? AND value IS NOT NULL AND created_at >= NOW() - INTERVAL 7 DAY) t', [$checkId])->fetch();
         $n = (int) $r['n'];
-        if ($n < 10 || (float) $r['first'] > -1) {
-            return null;
-        }
         $den = $n * (float) $r['sxx'] - (float) $r['sx'] ** 2;
-        if (abs($den) < 1e-9) {
-            return null;
+        $slope = $n < 10 || (float) $r['first'] > -1 || abs($den) < 1e-9 ? null : ($n * (float) $r['sxy'] - (float) $r['sx'] * (float) $r['sy']) / $den;
+        if ($c) {
+            q('UPDATE checks SET trend_per_day = ?, trend_at = NOW() WHERE id = ?', [$slope, $checkId]);
         }
-        $slope = ($n * (float) $r['sxy'] - (float) $r['sx'] * (float) $r['sy']) / $den;
-        // Pas vanaf 0,05% per dag spreken we van "groeien"; anders is het ruis
-        $days = $slope > 0.05 && $current < 100 ? (100 - $current) / $slope : null;
-        return ['per_day' => round($slope, 3), 'days_to_full' => $days !== null ? round($days, 1) : null];
+        return $slope;
     }
 
     /** Diskvoorspelling in het checkresultaat verwerken: tekst erbij en eventueel WARNING. */

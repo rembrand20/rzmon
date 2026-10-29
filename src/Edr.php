@@ -86,45 +86,49 @@ final class Edr
             return [];
         }
         $evs = array_slice(array_values(array_filter((array) ($edr['ev'] ?? []), 'is_array')), 0, self::MAX_EVENTS);
-        if ($evs) {
-            Anomaly::start($host);   // het leren (afwijkingen, 1.111.0) begint bij de eerste gebeurtenis
-        }
-        foreach ($evs as $ev) {
-            $kind = self::KINDS[$ev['k'] ?? ''] ?? null;
-            if ($kind === null) {
-                continue;
+        // 1.131.0: alle gebeurtenissen van dit rapport in één transactie (was: twee schrijfacties per gebeurtenis, elk
+        // apart bevestigd; bij honderden gebeurtenissen duurde een rapport zo tientallen seconden)
+        in_tx(static function () use ($host, $hid, $evs): void {
+            if ($evs) {
+                Anomaly::start($host);   // het leren (afwijkingen, 1.111.0) begint bij de eerste gebeurtenis
             }
-            $ev = self::clean($ev);
-            $f = self::fields($kind, $ev);
-            $sig = self::sig($kind, $ev);
-            $at = self::when($ev);
-            if (in_array($ev['own'] ?? '', self::OWN, true)) {
-                self::own($host, (string) $ev['own'], $kind, $ev, $f, $sig, $at);   // RzMon zelf: loggen, nooit ingrijpen
-                continue;
-            }
-            $hit = null;
-            foreach (self::rules() as $r) {
-                if (in_array($kind, (array) $r['kinds'], true) && Sigma::match($r, $f)) {
-                    $hit = self::handle($host, $kind, $ev, $f, $r);
-                    break;   // één incident per gebeurtenis: de eerste (eigen regels gaan voor)
+            foreach ($evs as $ev) {
+                $kind = self::KINDS[$ev['k'] ?? ''] ?? null;
+                if ($kind === null) {
+                    continue;
                 }
+                $ev = self::clean($ev);
+                $f = self::fields($kind, $ev);
+                $sig = self::sig($kind, $ev);
+                $at = self::when($ev);
+                if (in_array($ev['own'] ?? '', self::OWN, true)) {
+                    self::own($host, (string) $ev['own'], $kind, $ev, $f, $sig, $at);   // RzMon zelf: loggen, nooit ingrijpen
+                    continue;
+                }
+                $hit = null;
+                foreach (self::rules() as $r) {
+                    if (in_array($kind, (array) $r['kinds'], true) && Sigma::match($r, $f)) {
+                        $hit = self::handle($host, $kind, $ev, $f, $r);
+                        break;   // één incident per gebeurtenis: de eerste (eigen regels gaan voor)
+                    }
+                }
+                Anomaly::observe($host, $kind, $ev, $sig, $hit !== null, $at);
+                // 1.112.0: dreigingsinformatie: nieuw programma of script opzoeken; verbinding met een bekende botnet-server
+                if ($kind === 'file' && !empty($ev['sha']) && ((int) ($ev['elf'] ?? 0) === 1 || (int) ($ev['x'] ?? 0) === 1 || !empty($ev['susp']))) {
+                    ThreatIntel::queue('h', (string) $ev['sha'], $hid, $hit['inc'] ?? null, (string) ($ev['path'] ?? ''));
+                }
+                if ($kind === 'net' && ($ev['dir'] ?? '') === 'out' && $hit === null) {
+                    self::knownBad($host, $ev);
+                }
+                q('INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    [$hid, $at, $ev['k'], $sig, json_encode($ev, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE),
+                        $hit['rule'] ?? null, $hit['sev'] ?? 0]);
             }
-            Anomaly::observe($host, $kind, $ev, $sig, $hit !== null, $at);
-            // 1.112.0: dreigingsinformatie: nieuw programma of script opzoeken; verbinding met een bekende botnet-server
-            if ($kind === 'file' && !empty($ev['sha']) && ((int) ($ev['elf'] ?? 0) === 1 || (int) ($ev['x'] ?? 0) === 1 || !empty($ev['susp']))) {
-                ThreatIntel::queue('h', (string) $ev['sha'], $hid, $hit['inc'] ?? null, (string) ($ev['path'] ?? ''));
+            if ($evs) {
+                Anomaly::flush($host);
             }
-            if ($kind === 'net' && ($ev['dir'] ?? '') === 'out' && $hit === null) {
-                self::knownBad($host, $ev);
-            }
-            q('INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [$hid, $at, $ev['k'], $sig, json_encode($ev, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE),
-                    $hit['rule'] ?? null, $hit['sev'] ?? 0]);
-        }
-        if ($evs) {
-            Anomaly::flush($host);
-        }
-        self::ownFlush($host);
+            self::ownFlush($host);
+        });
         // 1.113.0: Suricata-alerts, en de YARA-regels naar de agent als die nog niet de nieuwste heeft
         if (is_array($edr['sur'] ?? null)) {
             Suricata::process($host, $edr['sur']);

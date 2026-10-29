@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.131.0 – 2026-10-29
+### Nieuw
+- **Geheugen van de database** bij *Instellingen → Overzicht → Status*: past de database niet in het geheugen van MariaDB (standaard maar 128 MB), dan staat er een ⚠️ met de regel voor `/etc/my.cnf.d/rzmon.cnf` (ongeveer 40% van het geheugen van de server). RzMon past de instellingen van MariaDB niet zelf aan.
+
+### Opgelost
+- **Agentrapporten veel sneller**: de endpoint-bewaking (EDR) schreef elke gebeurtenis twee keer apart weg, en elke keer wachtte de database tot de schijf het bevestigde. Bij honderden gebeurtenissen per rapport duurde een rapport zo gemiddeld 7 seconden en soms meer dan een minuut. Nu gaat alles van één rapport in één keer.
+- **Checks sneller**: wat er na een meting wordt opgeslagen (resultaat, status, afwijking) gaat ook in één keer. De **diskvoorspelling** rekende bij elke beoordeling een week aan metingen door (ongeveer 10.000 per disk); de trend wordt nu hooguit eens per half uur opnieuw berekend. Hoeveel dagen het nog duurt tot de disk vol is, volgt wel elke meting.
+
 ## 1.130.1 – 2026-10-29
 ### Opgelost
 - *✗ Geen antwoord van de update na 10 minuten* bleef in de Agent Manager staan, ook als de agent daarna met de hand was bijgewerkt en al de nieuwste versie draaide. Zodra de agent op de nieuwste versie rapporteert, staat er nu *✔ bijgewerkt naar …*.

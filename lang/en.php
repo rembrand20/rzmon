@@ -5729,4 +5729,7 @@ return [
     '(adres van buiten, voor de statuspagina)' => '(address from outside, for the status page)',
     'Onderdelen van een agentrapport' => 'Parts of an agent report',
     'agents mogen alleen via https: daarom {url}' => 'agents may only connect via https: hence {url}',
+    'Geheugen van de database' => 'Database memory',
+    'MariaDB gebruikt {pool} geheugen voor een database van {db}: veel query\'s lezen dan van de schijf en RzMon wordt traag. Zet in /etc/my.cnf.d/rzmon.cnf onder [mysqld]: innodb_buffer_pool_size = {adv}M en herstart MariaDB.' => 'MariaDB uses {pool} of memory for a database of {db}: many queries then read from disk and RzMon becomes slow. Put in /etc/my.cnf.d/rzmon.cnf under [mysqld]: innodb_buffer_pool_size = {adv}M and restart MariaDB.',
+    '{pool} voor een database van {db}' => '{pool} for a database of {db}',
 ];

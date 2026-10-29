@@ -253,6 +253,9 @@ final class Installer
         ['hosts', 'edr_learn_from', 'DATETIME NULL'],
         ['edr_events', 'own', 'VARCHAR(10) NULL'],
         ['ids_incidents', 'mode', 'CHAR(1) NULL'],
+        // 1.131.0: trend van een disk (procent per dag), hooguit eens per half uur opnieuw berekend
+        ['checks', 'trend_per_day', 'DOUBLE NULL'],
+        ['checks', 'trend_at', 'DATETIME NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

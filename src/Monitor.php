@@ -150,15 +150,19 @@ final class Monitor
         $t0 = microtime(true);
         $row = Smart::apply($row);   // 1.107.0: geleerde drempels van dit uur (slim / slim met vangnet)
         $res = Checks::run($row, $host);
-        q('UPDATE checks SET run_ms = ? WHERE id = ?', [(int) round((microtime(true) - $t0) * 1000), $row['id']]);   // traagste checks (systeemcheck)
-        if ($row['type'] === 'disk') {
-            $res = Stats::applyDiskForecast($row, $res);
-            self::diskJump($row, $res);
-        }
-        Smart::anomaly($row, $res);   // 1.108.0: afwijking bij checks zonder drempels
-        $res = Smart::annotate($row, Checks::reverse($row, $res));
-        self::process($row, $res);
-        return $res;
+        $ms = (int) round((microtime(true) - $t0) * 1000);
+        // 1.131.0: wat er na de meting wordt opgeslagen (resultaat, status, afwijking, voorspelling) in één transactie
+        return in_tx(static function () use ($row, $res, $ms): array {
+            q('UPDATE checks SET run_ms = ? WHERE id = ?', [$ms, $row['id']]);   // traagste checks (systeemcheck)
+            if ($row['type'] === 'disk') {
+                $res = Stats::applyDiskForecast($row, $res);
+                self::diskJump($row, $res);
+            }
+            Smart::anomaly($row, $res);   // 1.108.0: afwijking bij checks zonder drempels
+            $res = Smart::annotate($row, Checks::reverse($row, $res));
+            self::process($row, $res);
+            return $res;
+        });
     }
 
     /**

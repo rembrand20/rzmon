@@ -87,6 +87,29 @@ function q(string $sql, array $params = []): PDOStatement
     return $st;
 }
 
+/**
+ * Veel schrijfacties in één transactie (1.131.0): de database bevestigt dan één keer op schijf in plaats van na elke
+ * regel. Op een VM-schijf scheelt dat seconden per agentrapport. Al in een transactie? Dan gewoon meedoen.
+ */
+function in_tx(callable $fn): mixed
+{
+    $pdo = db();
+    if ($pdo->inTransaction()) {
+        return $fn();
+    }
+    $pdo->beginTransaction();
+    try {
+        $r = $fn();
+        $pdo->commit();
+        return $r;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
 function settings(): array
 {
     if (!isset($GLOBALS['rz_settings'])) {
