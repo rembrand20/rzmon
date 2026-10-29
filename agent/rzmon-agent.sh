@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.66.0"
+AGENT_VERSION="1.66.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -3183,9 +3183,14 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && mkdir -p "$pk_dir" 2>/dev/null && [
     fi
     if [ -s "$pk_list" ]; then
         pk_hash=$(sha1sum "$pk_list" | cut -c1-16)
-        # Alles meesturen als RzMon deze stand nog niet heeft; anders alleen het controlegetal
-        if [ "$(cat "$pk_dir/sent" 2>/dev/null)" != "$pk_hash" ]; then
+        # Alles meesturen als RzMon deze stand nog niet heeft; anders alleen het controlegetal.
+        # Agent 1.66.1: kwam er de vorige keer geen antwoord (bv. RzMon was te traag), dan eerst alleen het controlegetal:
+        # vaak heeft RzMon de lijst toen toch opgeslagen. Anders bleef de agent elke minuut de hele lijst sturen.
+        if [ "$(cat "$pk_dir/sent" 2>/dev/null)" != "$pk_hash" ] && [ "$(cat "$pk_dir/tried" 2>/dev/null)" = "$pk_hash" ]; then
+            pkgs_json="{\"hash\":\"$pk_hash\"}"; rm -f "$pk_dir/tried"
+        elif [ "$(cat "$pk_dir/sent" 2>/dev/null)" != "$pk_hash" ]; then
             pkgs_json="{\"hash\":\"$pk_hash\",\"data\":$(cat "$pk_list")}"
+            printf '%s' "$pk_hash" >"$pk_dir/tried" 2>/dev/null
         else
             pkgs_json="{\"hash\":\"$pk_hash\"}"
         fi
@@ -3455,7 +3460,10 @@ boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${
 parts="processen=$(grep -o '\["' <<<"$proc_list" | wc -l) certificaatbestanden=$(grep -o '"path"' <<<"$cert_found" | wc -l) softwarelijst=$( [ -n "$pkgs_json" ] && echo ja || echo ongewijzigd) heartbeats=${#hb_files[@]} ids=$( [ -n "$ids_json" ] && echo ja || echo nee)"
 payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}}"
 
-curl_opts=(-fsS -m 20 -X POST "${tls[@]}")
+# Agent 1.66.1: 50 seconden wachten op RzMon (was 20): een druk bezette RzMon verwerkt een groot rapport soms trager;
+# na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit
+REPORT_WAIT=50
+curl_opts=(-fsS -m "$REPORT_WAIT" -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
 # wordt curl met een lang argument stil afgebroken en komt er niets aan.
 payload_file=$(mktemp "${TMPDIR:-/tmp}/rzmon-report.XXXXXX") || { echo "Kan geen tijdelijk bestand maken" >&2; exit 1; }
@@ -3533,17 +3541,21 @@ if [ "$TEST" = 1 ]; then
         pass "Certificaten: $n_certs uitgelezen"
         while IFS= read -r line; do
             hint "$line"
-        done < <(sed 's/},{/}\n{/g' <<<"${certs%,}" | sed -E 's/^\{"source":"([^"]*)","cn":"([^"]*)",.*"not_after":([0-9]+|null).*"error":"([^"]*)"\}?,?$/\1|\2|\3|\4/' |
-            while IFS='|' read -r src cn na err; do
+        # Per veld uitlezen (agent 1.66.1): sinds de keten-velden staat "error" niet meer achteraan
+        done < <(sed 's/},{/}\n{/g' <<<"${certs%,}" | while IFS= read -r c; do
+                src=$(sed -n 's/.*"source":"\([^"]*\)".*/\1/p' <<<"$c"); cn=$(sed -n 's/.*"cn":"\([^"]*\)".*/\1/p' <<<"$c")
+                na=$(sed -n 's/.*"not_after":\([0-9][0-9]*\).*/\1/p' <<<"$c"); err=$(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' <<<"$c")
+                vf=$(sed -n 's/.*"verify":"\([^"]*\)".*/\1/p' <<<"$c")
                 if [ -n "$err" ]; then echo "✘ $src: $err"
-                else echo "$src: ${cn:-?}, nog $(( (na - $(date +%s)) / 86400 )) dagen geldig"; fi
+                elif [ -n "$na" ]; then echo "$src: ${cn:-?}, nog $(( (na - $(date +%s)) / 86400 )) dagen geldig${vf:+ ($vf)}"
+                else echo "$src: ${cn:-?}"; fi
             done)
     elif [ -n "$CERTS" ]; then
         hint "Certificaten: geen gevonden voor CERTS=\"$CERTS\""
     fi
 
     # 8. Echt rapport versturen
-    resp=$(curl "${curl_k[@]}" -m 20 -X POST -H "Content-Type: application/json" "${auth[@]}" \
+    resp=$(curl "${curl_k[@]}" -m 50 -X POST -H "Content-Type: application/json" "${auth[@]}" \
         --data-binary "@$send_file" -w '\n%{http_code}' "${MONITOR_URL%/}/api.php?action=agent" 2>&1)
     r_rc=$?
     r_code=${resp##*$'\n'}; r_body=${resp%$'\n'*}
@@ -3619,7 +3631,7 @@ if mkdir -p "$st_dir" 2>/dev/null && [ -w "$st_dir" ]; then
         case "$rc" in
             22) st_err="RzMon weigerde het rapport (HTTP ${h_code:-?}); de reden staat in RzMon (Agent Manager)" ;;
             6) st_err="naam van RzMon niet gevonden (DNS)" ;; 7) st_err="geen verbinding (poort dicht of RzMon uit)" ;;
-            28) st_err="geen antwoord binnen 20 seconden" ;; 35|60) st_err="TLS/certificaat klopt niet" ;; 90) st_err="certificaat past niet bij de vingerafdruk" ;;
+            28) st_err="geen antwoord binnen $REPORT_WAIT seconden (RzMon is te traag; zie RzMon → Instellingen → Overzicht → Gezondheid)" ;; 35|60) st_err="TLS/certificaat klopt niet" ;; 90) st_err="certificaat past niet bij de vingerafdruk" ;;
             1) st_err="antwoord van RzMon niet te vertrouwen (handtekening)" ;; *) st_err="curl $rc${h_code:+, HTTP $h_code}" ;;
         esac
     fi
@@ -3693,7 +3705,7 @@ if [ "$rc" -eq 0 ]; then
     # Softwarelijst: RzMon heeft deze stand nu (of vraagt om alles opnieuw); uitkomst van het bijwerken is doorgegeven
     if [ -n "$pk_hash" ]; then
         if [[ "$resp" =~ \"packages_resend\":[[:space:]]*true ]]; then : >"$pk_dir/resend"; rm -f "$pk_dir/sent"
-        elif [[ "$resp" =~ \"packages_ok\":[[:space:]]*true ]]; then printf '%s' "$pk_hash" >"$pk_dir/sent"; fi
+        elif [[ "$resp" =~ \"packages_ok\":[[:space:]]*true ]]; then printf '%s' "$pk_hash" >"$pk_dir/sent"; rm -f "$pk_dir/tried"; fi
     fi
     [ -n "$pkg_result" ] && rm -f "$pk_dir/upgrade.result"
     # Endpoint-bewaking: de meegestuurde gebeurtenissen zijn binnen; vraagt RzMon om processen meteen te stoppen?

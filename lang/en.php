@@ -5727,4 +5727,5 @@ return [
     'Tip: vul bij Instellingen → Server en PHP het adres van RzMon in (Basis-URL). ' => 'Tip: fill in the address of RzMon under Settings → Server and PHP (Base URL). ',
     'Externe URL' => 'External URL',
     '(adres van buiten, voor de statuspagina)' => '(address from outside, for the status page)',
+    'Onderdelen van een agentrapport' => 'Parts of an agent report',
 ];

@@ -5,6 +5,13 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.66.1 – 2026-10-29
+- **`rzmon-agent-setup --update` werkt weer met een eigen (self-signed) certificaat van RzMon.** Na `--cleanup` stond de vingerafdruk (`PIN`) niet meer in `/etc/default/rzmon-agent` (de agent bewaart hem zelf in `/var/lib/rzmon-agent`), en daarna stopte `--update` met *Certificaatprobleem … Voeg --insecure toe*. Het installatiescript gebruikt nu dezelfde vastgezette vingerafdruk als de agent. Dat was ook de reden dat *bijwerken vanuit RzMon* niet lukte.
+- **Langer wachten op RzMon**: 50 seconden in plaats van 20. Was RzMon trager, dan gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, de bevestiging van de softwarelijst) nooit, terwijl RzMon het rapport wel verwerkte.
+- **Softwarelijst niet meer elke minuut opnieuw**: kwam er geen antwoord, dan stuurt de agent de volgende keer eerst alleen het controlegetal. Vaak heeft RzMon de lijst dan al; zo niet, dan vraagt RzMon hem opnieuw. Voorheen stuurde de agent elke minuut de hele lijst (honderden KB), wat RzMon nog trager maakte.
+- `--test` toont bij certificaten weer de juiste geldigheid (*nog 628 dagen geldig*), in plaats van een negatief getal.
+- Duidelijkere foutmelding als het certificaat niet bij de vingerafdruk past.
+
 ## 1.66.0 – 2026-10-29
 - **Eigen pakketnamen bij installeren** (RzMon 1.125.0): kies je in de Agent Manager zelf de pakketten voor de endpoint-bewaking (bv. `audit audispd-plugins`), dan installeert de agent die met `dnf`/`apt` in plaats van alleen zijn vaste lijst. Alleen gewone pakketnamen (geen opties of paden), hooguit 10, en net als altijd te blokkeren met `COMMANDS=0`.
 

@@ -438,8 +438,21 @@ URL=${URL%/api.php*}
 [[ "$INTERVAL" =~ ^[0-9]+$ ]] && [ "$INTERVAL" -ge 30 ] && [ "$INTERVAL" -le 3600 ] || die "--interval moet tussen 30 en 3600 liggen"
 
 CURL_OPTS=(-fsS --max-time 20)
+# Agent 1.66.1: geen --pin meegegeven? Dan de controle die de agent zelf al gebruikt (RzMon gaf die door, per adres in
+# url.pins, of de vingerafdruk in pin). Sinds --cleanup PIN uit de instellingen haalt, faalde --update anders met
+# "Certificaatprobleem" bij een eigen (self-signed) certificaat van RzMon.
+PIN_SPEC=""
+if [ -z "$PIN" ] && [[ "$URL" == https://* ]]; then
+    PIN_SPEC=$(awk -v u="$URL" '$1 == u { print $2; exit }' "$KDIR/url.pins" 2>/dev/null)
+    if [ -z "$PIN_SPEC" ] && [ -s "$KDIR/pin" ] && [ ! -e "$KDIR/pin.off" ]; then
+        PIN_SPEC="sha256//$(tr -dc 'A-Za-z0-9+/=' <"$KDIR/pin" | head -c 64)"
+    fi
+    [[ "$PIN_SPEC" =~ ^sha256//[A-Za-z0-9+/=]{40,64}(\;sha256//[A-Za-z0-9+/=]{40,64})?$ ]] || PIN_SPEC=""
+fi
 if [ -n "$PIN" ] && [[ "$URL" == https://* ]]; then
     CURL_OPTS+=(-k --pinnedpubkey "sha256//$PIN")   # alleen het certificaat met deze vingerafdruk
+elif [ -n "$PIN_SPEC" ]; then
+    CURL_OPTS+=(-k --pinnedpubkey "$PIN_SPEC")      # het vastgezette certificaat van RzMon (van de agent)
 elif [ "$INSECURE" = 1 ]; then
     CURL_OPTS+=(-k)
 fi
@@ -531,7 +544,8 @@ if [ -n "$SOURCE_FILE" ]; then
 elif ! curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_script${DL_KEY:+&k=$DL_KEY}" -o "$tmp" 2>/tmp/rzmon-agent-dl.err; then
     err=$(cat /tmp/rzmon-agent-dl.err); rm -f /tmp/rzmon-agent-dl.err
     case "$err" in
-        *SSL*|*certificate*) die "Certificaatprobleem met $URL. Gebruikt RzMon een self-signed certificaat? Voeg --insecure toe." ;;
+        *pinned*|*"public key"*) die "Het certificaat van $URL past niet bij de vingerafdruk die de agent kent. Is het certificaat van RzMon vernieuwd? Kopieer dan het installatiecommando opnieuw uit RzMon (met --pin)." ;;
+        *SSL*|*certificate*) die "Certificaatprobleem met $URL. Gebruikt RzMon een eigen (self-signed) certificaat? Kopieer het installatiecommando uit RzMon (met --pin), of voeg --insecure toe." ;;
         *) die "Kan de agent niet downloaden van $URL ($err). Klopt het adres en is RzMon vanaf deze server bereikbaar?" ;;
     esac
 fi

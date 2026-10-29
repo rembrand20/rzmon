@@ -301,6 +301,7 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
     - of de webserver **comprimeert en de bestanden laat bewaren** in de browser. Zo niet, dan staat er een kant-en-klaar stukje voor Apache (`/etc/httpd/conf.d/rzmon-snelheid.conf`) en nginx. Nieuwe installaties met `install-rocky.sh` hebben het al;
     - de **verzoeken van de interface** (aantal, gemiddeld, langste, grootte) en de **rapporten van agents**;
     - de **onderdelen van een cron-ronde** (checks, back-up, dreigingsinformatie, DNS, kwetsbaarheden …): hoe lang elk per ronde duurt;
+    - de **onderdelen van een agentrapport** (vanaf 1.129.0: ontvangen, meetwaarden, logins, IDS, weblogs, EDR, ketens, checks, software): waar RzMon de tijd aan besteedt als een agent *geen antwoord binnen 50 seconden* meldt;
     - de **tabellen** met hun grootte en ongebruikte ruimte, met de knop **🧹 Database optimaliseren** (bouwt de grootste tabellen opnieuw op; doe het buiten drukke uren);
     - de schakelaar **Snelheid meten** (standaard aan; per uur één regel per soort verzoek, twee dagen bewaard).
 - *→ **Database en opslag***: de databaseverbinding (testen, opslaan met je wachtwoord, tabellen bijwerken), het databasewachtwoord vernieuwen en hoe lang historie en meldingen bewaard blijven.
@@ -1474,7 +1475,7 @@ Normaal ziet RzMon een gebeurtenis bij de volgende tik. Met **realtime** weet Rz
 **🧹 Opruimen**
 - **Per agent** (Agent Manager → 🧹 Opruimen): RzMon wist het oude token. De agent installeert zichzelf opnieuw bij zijn volgende rapport: eerst de reservekopie, daarna de nieuwste agent met opgeruimde instellingen.
 - **Alle agents** (*Instellingen → Agents → Standaardinstellingen → 🧹 Alle agents opruimen*, met je wachtwoord): dit doet hetzelfde voor elke agent. Hebben ze allemaal een eigen sleutel, dan wist RzMon ook de oude **algemene sleutel** en zet het **alleen agents met een eigen sleutel** aan.
-- **Op de server:** `sudo rzmon-agent-setup --cleanup` ruimt alleen de instellingen op, met een reservekopie.
+- **Op de server:** `sudo rzmon-agent-setup --cleanup` ruimt alleen de instellingen op, met een reservekopie. De vingerafdruk van het certificaat van RzMon (`PIN`) gaat daarbij uit de instellingen; de agent bewaart hem zelf (in `/var/lib/rzmon-agent`), en vanaf agent 1.66.1 gebruikt ook `rzmon-agent-setup --update` die.
 
 **Alleen agents met een eigen sleutel** (*Beveiligde verbinding*): een agent die zich meldt met alleen een token, wordt geweigerd. Koppelen met een koppelcode blijft altijd kunnen. Dit aanzetten kan alleen als alle agents een eigen sleutel hebben. Zodra een agent een eigen sleutel heeft, wist RzMon zijn token vanzelf.
 

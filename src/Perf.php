@@ -11,6 +11,9 @@ final class Perf
     private static float $lap = 0.0;
     private static ?float $start = null;
     private static int $bytes = 0;
+    /** @var array<string, float> onderdelen van een agentrapport (1.129.0) */
+    private static array $parts = [];
+    private static ?float $partAt = null;
 
     public static function on(): bool
     {
@@ -28,8 +31,25 @@ final class Perf
         register_shutdown_function(static function () use ($kind, $name): void {
             if (self::$start !== null && self::on()) {
                 self::add($kind, $name, (microtime(true) - self::$start) * 1000, self::$bytes);
+                foreach (self::$parts as $part => $ms) {
+                    self::add('r', $part, $ms, 0);
+                }
             }
         });
+    }
+
+    /**
+     * Agentrapport (1.129.0): de tijd sinds het vorige onderdeel op naam van dit onderdeel zetten, zodat je bij
+     * Gezondheid ziet wat RzMon met een rapport zo lang bezighoudt (IDS, endpoint-bewaking, checks …)
+     */
+    public static function part(string $name): void
+    {
+        $now = microtime(true);
+        $from = self::$partAt ?? self::$start;
+        if ($from !== null) {
+            self::$parts[$name] = (self::$parts[$name] ?? 0.0) + ($now - $from) * 1000;
+        }
+        self::$partAt = $now;
     }
 
     /** Grootte van het antwoord (voor de tabel) */
@@ -78,6 +98,7 @@ final class Perf
             'on' => self::on(),
             'api' => $rows('a', 12),
             'agent' => $rows('g', 6),
+            'parts' => $rows('r', 20),
             'cron' => $cron,
             'opcache' => is_array($op) ? ['on' => (bool) ($op['opcache_enabled'] ?? false), 'hit' => round((float) ($op['opcache_statistics']['opcache_hit_rate'] ?? 0), 1),
                 'mem' => (int) ($op['memory_usage']['used_memory'] ?? 0), 'full' => (bool) ($op['cache_full'] ?? false)] : ['on' => false],

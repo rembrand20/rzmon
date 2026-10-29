@@ -574,6 +574,7 @@ if ($action === 'agent') {
         q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'], mb_substr(client_ip(), 0, 45), $reason]);
         out(['error' => "Geweigerd: $reason"], 400);
     }
+    Perf::part('rapport:ontvangen');   // 1.129.0: aanmelden, ontsleutelen en inlezen
     $now = now();
     $st = db()->prepare('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?)
                          ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)');
@@ -740,16 +741,19 @@ if ($action === 'agent') {
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
         }
     }
+    Perf::part('rapport:meetwaarden');
     // Logins, sudo en su: naar de pagina Meldingen
     if (is_array($in['auth'] ?? null)) {
         AuthEvents::store($host, $in['auth']);
     }
+    Perf::part('rapport:logins');
     // IDS: vergelijken met de basismeting, incidenten, brute force blokkeren
     if (is_array($in['ids'] ?? null)) {
         Ids::process($host, $in['ids'], (array) ($in['auth'] ?? []), (array) ($in['ports'] ?? []));
     }
     // Isoleren en gebruikers vergrendelen (agent 1.57.0): de stand bij de agent
     Ids::agentState($host, $in);
+    Perf::part('rapport:ids');
     // Logs van webdiensten (agent 1.58.0): SWAG, Home Assistant, Vaultwarden
     if (is_array($in['weblog'] ?? null)) {
         WebLog::process($host, $in['weblog']);
@@ -758,10 +762,13 @@ if ($action === 'agent') {
             Inspect::requests($host, $in['weblog']['swag']['req']);
         }
     }
+    Perf::part('rapport:weblogs');
     // 1.110.0: endpoint-sensoren (processen, netwerk, bestanden, containers)
     $edrResp = is_array($in['edr'] ?? null) ? Edr::process($host, $in['edr']) : [];
     // 1.111.0: vormen de signalen van deze server (regels, afwijkingen, IDS) samen een keten?
+    Perf::part('rapport:edr');
     Chain::check($host);
+    Perf::part('rapport:ketens');
     // Commando-checks: uitvoer en exitcode (RzMon vergelijkt met het verwachte antwoord)
     foreach ((array) ($in['cmd'] ?? []) as $id => $r) {
         if (ctype_digit((string) $id) && is_array($r)) {
@@ -890,6 +897,7 @@ if ($action === 'agent') {
             $resp['hb_unknown'] = $unknown;
         }
     }
+    Perf::part('rapport:overig');
     // Soort apparaat (1.75.0): de HA-add-on is smart home, een gewone agent een server
     HostKind::setAuto((int) $host['id'], !empty($in['ha']) || ($in['update']['via'] ?? '') === 'ha' ? 'smarthome' : 'server');
     // Agent-checks van deze server meteen beoordelen (niet wachten op de volgende cron-minuut)
@@ -898,6 +906,7 @@ if ($action === 'agent') {
     } catch (Throwable $e) {
         error_log('RzMon: agent-checks direct beoordelen mislukt: ' . $e->getMessage());
     }
+    Perf::part('rapport:checks');
     if ($u = agent_update_instruction($host['id'], $agentVersion, $in)) {
         $resp['update'] = $u;
     }
@@ -907,6 +916,7 @@ if ($action === 'agent') {
     } catch (Throwable $e) {
         error_log('RzMon: softwarelijst verwerken mislukt: ' . $e->getMessage());
     }
+    Perf::part('rapport:software');
     out($resp);
 }
 

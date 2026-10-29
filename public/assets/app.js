@@ -9321,6 +9321,8 @@ function perfReport(p) {
       [L('Gemiddeld'), (r) => slow(r.avg, 1000)], [L('Langste'), (r) => slow(r.max, 3000)], [L('Grootte'), (r) => `${r.kb.toLocaleString(LOCALE)} KB`], [L('Totaal'), (r) => ms(r.total)]])}</details>` : ''}
     ${p.agent.length ? `<details class="small api-docs"><summary>${L('Rapporten van agents')}</summary>${tbl(p.agent, [[L('Verzoek'), (r) => `<code>${esc(r.name)}</code>`], [L('Aantal'), (r) => r.n.toLocaleString(LOCALE)],
       [L('Gemiddeld'), (r) => slow(r.avg, 1000)], [L('Langste'), (r) => slow(r.max, 5000)]])}</details>` : ''}
+    ${(p.parts || []).length ? `<details class="small api-docs" ${p.parts.some((r) => r.max >= 5000) ? 'open' : ''}><summary>${L('Onderdelen van een agentrapport')}</summary>${tbl(p.parts, [[L('Onderdeel'), (r) => `<code>${esc(r.name.replace(/^rapport:/, ''))}</code>`],
+      [L('Gemiddeld'), (r) => slow(r.avg, 1000)], [L('Langste'), (r) => slow(r.max, 5000)], [L('Totaal'), (r) => ms(r.total)], [L('Keren'), (r) => r.n.toLocaleString(LOCALE)]])}</details>` : ''}
     ${p.cron.length ? `<details class="small api-docs" open><summary>${L('Onderdelen van een cron-ronde')}</summary>${tbl(p.cron.filter((r) => r.name !== 'start'), [[L('Onderdeel'), (r) => esc(r.name)],
       [L('Per ronde'), (r) => slow(r.per_run, 10000)], [L('Langste'), (r) => slow(r.max, 30000)], [L('Keren'), (r) => r.n.toLocaleString(LOCALE)]])}</details>` : ''}
     <details class="small api-docs"><summary>${L('Tabellen in de database')}</summary>${tbl(p.tables, [[L('Tabel'), (t) => `<code>${esc(t.name)}</code>`], [L('Grootte'), (t) => fmtBytes(+t.bytes)],

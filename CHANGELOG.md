@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.129.0 – 2026-10-29
+### Nieuw
+- **Nieuwe agent 1.66.1** (zie de [changelog van de agent](agent/CHANGELOG.md)): `rzmon-agent-setup --update` werkt weer met het eigen (self-signed) certificaat van RzMon (ook na `--cleanup`), de agent wacht 50 seconden op RzMon in plaats van 20, en stuurt de softwarelijst niet meer elke minuut opnieuw als er geen antwoord kwam.
+- **Hoe lang een agentrapport duurt, per onderdeel**: bij *Instellingen → Overzicht → Gezondheid → Snelheid* staat nu *Onderdelen van een agentrapport* (ontvangen, meetwaarden, logins, IDS, weblogs, EDR, ketens, checks, software). Duurt een onderdeel ergens langer dan 5 seconden, dan staat het blok open. Zo zie je waarom een agent *geen antwoord binnen … seconden* meldt.
+
 ## 1.128.0 – 2026-10-29
 ### Nieuw
 - **Externe URL** bij *Instellingen → Database en server → Server en PHP*: het adres waarop RzMon van buiten bereikbaar is (bijv. `https://status.voorbeeld.nl`). Leeg = niet gebruikt; je bestaande Basis-URL blijft zoals hij is.
