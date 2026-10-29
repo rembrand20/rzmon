@@ -5366,14 +5366,25 @@ async function loadEdrHost(h, poll = false) {
   const comps = [...d.missing, ...(d.optional || [])];
   if (d.on && d.ids && comps.length && !busy) {
     const rpm = d.fam === 'rhel';
-    const pkg = { auditd: 'auditd', inotify: 'inotify-tools', yara: 'yara' };
-    const cmd = (c) => (c === 'auditd' ? (rpm ? 'sudo dnf install audit && sudo systemctl enable --now auditd' : 'sudo apt install auditd')
-      : (rpm ? `sudo dnf install epel-release && sudo dnf install ${pkg[c]}` : `sudo apt install ${pkg[c]}`));
-    lines.push(comps.map((c) => `<div class="edr-miss"><b>${esc(EDR_COMP[c][0])}</b> <span class="muted small">${EDR_COMP[c][1]()}</span>
-      ${d.install_blocked ? `<span class="muted small">· ${L('via de agent kan het hier niet: {why}', { why: esc(d.install_blocked) })}</span> <code>${esc(cmd(c))}</code>`
-        : `<button type="button" class="btn small-btn primary" data-edr-install="${c}">⬇ ${L('Installeren via de agent')}</button> <span class="muted small">${L('of zelf:')} <code>${esc(cmd(c))}</code></span>`}</div>`).join(''));
+    // 1.124.0: precies wat de agent uitvoert (zelfde pakketten als Edr::install), en de versie om zelf te typen
+    const pkgsOf = (c) => (c === 'auditd' ? [rpm ? 'audit' : 'auditd'] : [...(rpm && !+i.epel ? ['epel-release'] : []), c === 'yara' ? 'yara' : 'inotify-tools']);
+    const agentCmd = (c) => {
+      const p = pkgsOf(c), out = [];
+      if (rpm) { if (p[0] === 'epel-release') out.push('dnf -y install epel-release'); out.push(`dnf -y install ${p.filter((x) => x !== 'epel-release').join(' ')}`); }
+      else out.push('apt-get update', `apt-get install -y --no-install-recommends ${p.join(' ')}`);
+      if (c === 'auditd') out.push('systemctl enable --now auditd');
+      return out;
+    };
+    const ownCmd = (c) => agentCmd(c).map((x) => 'sudo ' + x.replace(/ -y\b/, '').replace(' --no-install-recommends', '')).join(' && ');
+    lines.push(comps.map((c, k) => `<div class="edr-miss"><b>${esc(EDR_COMP[c][0])}</b> <span class="muted small">${EDR_COMP[c][1]()}</span>
+      ${d.install_blocked ? `<span class="muted small">· ${L('via de agent kan het hier niet: {why}', { why: esc(d.install_blocked) })}</span>`
+        : `<button type="button" class="btn small-btn primary" data-edr-install="${c}">⬇ ${L('Installeren via de agent')}</button>`}
+      <details class="cmd-dd small"><summary>${L('Commando')}</summary>
+        ${d.install_blocked ? '' : `<div class="muted">${L('Dit voert de agent uit (als root):')}</div><pre class="code">${esc(agentCmd(c).join('\n'))}</pre>`}
+        <div class="muted">${L('Of zelf op de server:')}</div>${copyBox(`edr-own-${k}`, ownCmd(c))}</details></div>`).join(''));
   }
   withMorph(() => { box.innerHTML = `<div class="small">${lines.join('<br>')}</div>`; });
+  wireCopy(box);
   $$('[data-edr-install]', box).forEach((b) => {
     b.onclick = async () => {
       const c = b.dataset.edrInstall;

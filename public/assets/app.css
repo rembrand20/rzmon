@@ -1931,3 +1931,8 @@ button.ic-n { cursor: pointer; } button.ic-n:hover b { text-decoration: underlin
 .prot-cfg { margin-left: auto; }
 .prot-head { display: flex; align-items: center; gap: .4rem; }
 .prot-cfg-form label, .prot-cfg-form .lock-row { margin-bottom: .7rem; }
+
+/* 1.124.0: commando bij installeren, ingeklapt */
+.cmd-dd { margin: .35rem 0 .2rem; }
+.cmd-dd > summary { cursor: pointer; color: var(--primary); width: max-content; }
+.cmd-dd pre.code { margin: .25rem 0 .5rem; white-space: pre-wrap; word-break: break-all; }

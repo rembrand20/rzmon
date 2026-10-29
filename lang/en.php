@@ -5700,4 +5700,6 @@ return [
     'Installeren…' => 'Install…',
     'Melding over ontbrekende onderdelen verborgen ({what})' => 'Notice about missing components hidden ({what})',
     'Wordt weer getoond' => 'Shown again',
+    'Dit voert de agent uit (als root):' => 'The agent runs this (as root):',
+    'Of zelf op de server:' => 'Or yourself on the server:',
 ];

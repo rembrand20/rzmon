@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.124.0 – 2026-10-29
+### Nieuw
+- **Commando bij installeren** (Agent Manager → *Endpoint-bewaking*): onder elk ontbrekend onderdeel staat een klein uitklapmenu **Commando**. Daarin zie je precies wat de agent uitvoert (als root, bv. `dnf -y install audit` en `systemctl enable --now auditd`) en het commando om het zelf op de server te doen, met een kopieerknop.
+
 ## 1.123.0 – 2026-10-29
 ### Nieuw
 - **De melding *ontbreekt: auditd · installeren?* per server uitzetten**: klik erop en kies **Niet meer tonen** (of **Installeren…**). Dat geldt per server en per onderdeel: mist er later iets anders, dan zie je dat wel. **Weer tonen** staat in de Agent Manager, bij *Functies*.

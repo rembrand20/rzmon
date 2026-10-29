@@ -275,6 +275,8 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
 - De **Agent Manager** is een pagina over bijna het hele scherm, zonder tabbladen en zonder zijwaarts schuiven: bovenaan de status en het contact, daaronder **Functies** (rapporteren, realtime, waakhond, endpoint-bewaking, info, commando-checks) en **Verbinding** (versleuteling, vastzetten, IP-slot, https, adres) naast elkaar, en **Installeren of opnieuw koppelen** ingeklapt (open als er nog nooit een rapport kwam).
 - De keuzelijsten per agent (versleuteling, 📌, 🌐, 🔒) staan alleen nog in de Agent Manager; in de oude tabel stonden ze dubbel.
 
+**Commando bij installeren** (vanaf 1.124.0): in de Agent Manager staat onder elk ontbrekend onderdeel van de endpoint-bewaking een uitklapmenu **Commando** met wat de agent uitvoert (als root) en het commando om het zelf te doen (📋 kopiëren). Installeren via de agent kan alleen als commando's als root zijn toegestaan; anders staat alleen het commando voor jezelf erbij.
+
 **Melding "ontbreekt: auditd" verbergen** (vanaf 1.123.0)
 - Op de serverkaart staat *🛡️ ontbreekt: auditd · installeren?* als de endpoint-bewaking iets mist. Klik erop en kies **Installeren…** (Agent Manager) of **🙈 Niet meer tonen**.
 - *Niet meer tonen* geldt voor die server en voor wat er nu ontbreekt. Mist er later iets anders, dan zie je dat wel.
