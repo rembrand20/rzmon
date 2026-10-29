@@ -395,6 +395,18 @@ vhost_dir_block() {
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set Referrer-Policy "same-origin"
+
+    # Sneller (1.119.0): verkleind versturen, en de bestanden van de interface 30 dagen in de browser bewaren
+    # (ze hebben een versienummer in de URL, dus na een update komt er meteen een nieuwe)
+    <IfModule mod_deflate.c>
+        AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+    </IfModule>
+    <IfModule mod_expires.c>
+        <LocationMatch "/assets/.*\.(js|css|svg|png|woff2)$">
+            ExpiresActive On
+            ExpiresDefault "access plus 30 days"
+        </LocationMatch>
+    </IfModule>
 EOF
 }
 

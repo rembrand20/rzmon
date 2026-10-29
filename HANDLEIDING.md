@@ -254,6 +254,13 @@ Daarna staat alles in de beheerportal (vanaf 1.92.0; `setup.php` stuurt je erhee
   - hoe lang een ronde duurt, en of hij uitloopt boven de minuut;
   - de traagste checks;
   - PHP-fouten van de afgelopen 24 uur.
+  - Vanaf 1.119.0 **🚀 Snelheid** (laatste 24 uur):
+    - of **OPcache** aan staat. Zonder OPcache leest PHP bij elk verzoek alle code opnieuw in; het commando om het aan te zetten staat erbij;
+    - of de webserver **comprimeert en de bestanden laat bewaren** in de browser. Zo niet, dan staat er een kant-en-klaar stukje voor Apache (`/etc/httpd/conf.d/rzmon-snelheid.conf`) en nginx. Nieuwe installaties met `install-rocky.sh` hebben het al;
+    - de **verzoeken van de interface** (aantal, gemiddeld, langste, grootte) en de **rapporten van agents**;
+    - de **onderdelen van een cron-ronde** (checks, back-up, dreigingsinformatie, DNS, kwetsbaarheden …): hoe lang elk per ronde duurt;
+    - de **tabellen** met hun grootte en ongebruikte ruimte, met de knop **🧹 Database optimaliseren** (bouwt de grootste tabellen opnieuw op; doe het buiten drukke uren);
+    - de schakelaar **Snelheid meten** (standaard aan; per uur één regel per soort verzoek, twee dagen bewaard).
 - *→ **Database en opslag***: de databaseverbinding (testen, opslaan met je wachtwoord, tabellen bijwerken), het databasewachtwoord vernieuwen en hoe lang historie en meldingen bewaard blijven.
 - *→ **Server en PHP***: tijdzone, basis-URL, pad naar ping en PHP-instellingen (`memory_limit`, `max_execution_time`, `display_errors`).
 

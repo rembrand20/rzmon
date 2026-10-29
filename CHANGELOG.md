@@ -7,6 +7,25 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.119.0 – 2026-10-29
+### Nieuw
+- **🚀 Snelheid** bij *Instellingen → Systeem → Systeemcheck*. Je ziet:
+  - of OPcache aan staat;
+  - of je webserver comprimeert en de bestanden laat bewaren in de browser (zo niet: een stukje config voor Apache en nginx);
+  - de traagste verzoeken en agent-rapporten, en hoe lang elk onderdeel van een cron-ronde duurt (laatste 24 uur);
+  - de tabellen met hun ongebruikte ruimte.
+- Knop **🧹 Database optimaliseren**.
+- Schakelaar **Snelheid meten** (standaard aan).
+- **Meldingen** laadt standaard de laatste 7 dagen en de **IDS** de laatste 14 (open incidenten altijd allemaal). Ouder laden kan met de knop onderaan; zoeken haalt vanzelf alles op.
+- Nieuwe installaties (`install-rocky.sh`): Apache comprimeert en de browser bewaart de bestanden van de interface 30 dagen.
+
+### Opgelost
+- **RzMon werd steeds trager**, ook bij weinig servers:
+  - Elk verzoek las alle code van RzMon in (1,5 MB). Nu alleen wat nodig is: zonder OPcache ~35 ms → ~1 ms per verzoek.
+  - Live bijwerken haalde elke paar seconden alles opnieuw op zodra de IDS iets nieuws zag, ook de meldingen en de IDS-pagina. Nu wordt alleen herladen wat veranderde.
+  - Een trage pagina hield de sessie vast, zodat alle andere verzoeken van je browser moesten wachten. Leesverzoeken geven de sessie nu meteen vrij.
+  - De beschikbaarheid (7 en 30 dagen) werd elke 2 minuten uit alle metingen berekend. Nu komt die uit de dagtotalen; in de test ging dat van ~420 ms naar ~13 ms. *7 dagen* telt nu per hele dag.
+
 ## 1.118.0 – 2026-10-28
 ### Nieuw
 - **Bolletjes bij incidenten** (*IDS → Incidenten*): een bundel heeft een **blauw bolletje** (*7×*), een incident dat vaker gezien is een **paars bolletje** (*3×*) in plaats van de grijze *(3×)*. Met de muis erover zie je meer: bij een bundel de server, hoeveel open en van hoe laat tot hoe laat; bij een herhaling wanneer het eerst en laatst gezien is.

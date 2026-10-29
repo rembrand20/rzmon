@@ -37,7 +37,9 @@ if ($err = Installer::ensureSchema()) {
 I18n::set(I18n::notifyLang());
 
 $force = in_array('--force', $argv, true);
+Perf::lap('start');   // snelheidsmeter (1.119.0): de duur van elk onderdeel
 $n = Monitor::runDue($force);
+Perf::lap('checks');
 Monitor::pollReceipts();
 save_setting('cron_last_run', now());
 if (setting('mqtt_enabled', '0') === '1') {
@@ -46,6 +48,7 @@ if (setting('mqtt_enabled', '0') === '1') {
     if (!$r['ok']) {
         fwrite(STDERR, "MQTT: {$r['error']}\n");
     }
+    Perf::lap('mqtt');
 }
 // Verlopen blokkades (inlogbeveiliging) opheffen, met een ℹ️-melding
 try {
@@ -59,6 +62,8 @@ if (strtotime((string) setting('purge_at', '')) < time() - 3600) {
     save_setting('purge_at', now());
     Monitor::purge();
     NetScan::purge();
+    Perf::purge();
+    Perf::lap('opruimen');
 }
 echo date('c') . " $n check(s) uitgevoerd\n";
 
@@ -67,9 +72,11 @@ echo date('c') . " $n check(s) uitgevoerd\n";
 if ($lock !== false) {
     flock($lock, LOCK_UN);
 }
+Perf::lap('blokkades');
 if ($msg = Backup::runScheduled()) {
     echo date('c') . " $msg\n";
 }
+Perf::lap('backup');
 // Dagelijks kijken of er een nieuwe versie is; eventueel automatisch bijwerken (Instellingen → RzMon bijwerken)
 if ($msg = Updater::cron()) {
     echo date('c') . " $msg\n";
@@ -93,17 +100,21 @@ try {
     if ($msg = Ids::weeklyCron()) {
         echo date('c') . " $msg\n";
     }
+    Perf::lap('certificaten');
     if ($msg = IpIntel::cron()) {
         echo date('c') . " $msg\n";
     }
+    Perf::lap('blocklists');
     // 1.112.0: dreigingsinformatie (AbuseIPDB, GreyNoise, Shodan, abuse.ch, Tor): lijsten en de wachtrij
     if ($msg = ThreatIntel::cron()) {
         echo date('c') . " $msg\n";
     }
+    Perf::lap('dreigingsinfo');
     // 1.113.0: DNS-controle via AdGuard (verdachte domeinen, DNS-tunnel, verzonnen domeinen)
     if ($msg = DnsWatch::cron()) {
         echo date('c') . " $msg\n";
     }
+    Perf::lap('dns');
 } catch (Throwable $e) {
     fwrite(STDERR, 'Agents/certificaat: ' . $e->getMessage() . "\n");
 }
@@ -115,6 +126,7 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, 'Datalekken: ' . $e->getMessage() . "\n");
 }
+Perf::lap('datalekken');
 // Kwetsbaarheden: dagelijkse scan en servers waarvan de softwarelijst veranderde (Instellingen → 🐞 Kwetsbaarheden)
 try {
     if ($msg = Vulns::cron()) {
@@ -123,6 +135,7 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, 'Kwetsbaarheden: ' . $e->getMessage() . "\n");
 }
+Perf::lap('kwetsbaarheden');
 // Netwerkscan (1.103.0): elk uur een ronde, een paar keer per dag dieper (Instellingen → Beveiliging → Netwerkscan)
 try {
     if ($msg = NetScan::cron()) {
@@ -131,6 +144,7 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, 'Netwerkscan: ' . $e->getMessage() . "\n");
 }
+Perf::lap('netwerkscan');
 // Analyse (1.106.0): dagtotalen elk uur bijwerken, en het maandrapport op de 1e van de maand
 try {
     if ($msg = Analytics::cron()) {
@@ -142,6 +156,7 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, 'Analyse: ' . $e->getMessage() . "\n");
 }
+Perf::lap('analyse');
 // Slimme drempels (1.107.0): elke nacht vanaf 4:00 opnieuw leren, een paar checks per minuut
 try {
     Smart::cron();
@@ -156,6 +171,7 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, 'Slimme voorstellen: ' . $e->getMessage() . "\n");
 }
+Perf::lap('slim');
 // Achtergrondtaken die te lang niet lukken: één melding, en een ✅ als het weer lukt (Instellingen → Systeem → Verbindingen en taken)
 try {
     if ($msg = Tasks::watch()) {
@@ -164,6 +180,7 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, 'Taken: ' . $e->getMessage() . "\n");
 }
+Perf::lap('taken');
 // Gezondheid van RzMon zelf (1.96.0): dagelijks de grootte van de database, en hoe lang deze ronde duurde
 try {
     SelfCheck::daily();

@@ -20,6 +20,7 @@ function out($data, int $code = 200): never
         [$key, $nonce] = $GLOBALS['agent_seal'];
         $json = AgentCrypto::seal((string) $json, $key, $nonce);
     }
+    Perf::bytes(strlen((string) $json));
     echo $json;
     exit;
 }
@@ -117,6 +118,9 @@ function num($v): ?float
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 $GLOBALS['agent_req'] = $action === 'ping' || str_starts_with((string) $action, 'agent');
+if (is_configured()) {
+    Perf::request($GLOBALS['agent_req'] ? 'g' : 'a', (string) $action);   // snelheidsmeter (1.119.0)
+}
 
 // Taal: vóór het inloggen die van dit apparaat of de browser; een agent (geen gebruiker) krijgt de taal van
 // meldingen, want wat hij oplevert (checkberichten, IDS) gaat naar iedereen. Na het inloggen: die van de gebruiker.
@@ -1102,6 +1106,13 @@ if (!has_role($user, $need)) {
 }
 $isAdmin = has_role($user, 'admin');
 I18n::init($user);
+// 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
+// tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
+if ($method === 'GET' && in_array($action, ['state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
+    'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview',
+    'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
+    session_write_close();
+}
 // Wijzigingslogboek (1.97.0): instellingen vóór en na elke wijziging van een beheerder vergelijken
 if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($action, ['prefs_save', 'check_try', 'changelog_undo', 'state'], true)) {
     $settingsBefore = ChangeLog::settingsSnapshot();
@@ -1562,7 +1573,9 @@ switch ($action) {
 
     // Meldingen van de bewaartermijn (Instellingen → Alarmgedrag), nieuwste eerst; de pagina groepeert per dag
     case 'alerts':
-        $days = Monitor::alertDays();
+        // 1.119.0: standaard de laatste 7 dagen; ouder op verzoek (?days)
+        $maxDays = Monitor::alertDays();
+        $days = max(1, min($maxDays, (int) ($_GET['days'] ?? $maxDays)));
         $rows = q('SELECT a.*, c.name AS check_name, h.name AS host_name FROM alerts a
                    LEFT JOIN checks c ON c.id = a.check_id LEFT JOIN hosts h ON h.id = COALESCE(c.host_id, a.host_id)
                    WHERE a.created_at >= CURDATE() - INTERVAL ? DAY AND a.kind NOT IN (\'auth\', \'authfail\')
@@ -1573,7 +1586,7 @@ switch ($action) {
             $a['blocked'] = $a['ip'] !== null && $a['ip'] !== '' && $nets && ip_in_list((string) $a['ip'], $nets);
         }
         unset($a);
-        out(['days' => $days, 'alerts' => $rows, 'today' => date('Y-m-d'), 'truncated' => count($rows) >= 10000]);
+        out(['days' => $days, 'max_days' => $maxDays, 'alerts' => $rows, 'today' => date('Y-m-d'), 'truncated' => count($rows) >= 10000]);
 
     // Popup van een check: gegevens, beschikbaarheid en de laatste 5 statuswijzigingen met hun meldingen
     case 'check_info':
@@ -2875,7 +2888,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'edr_yara', 'ids_modern', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'edr_yara', 'ids_modern', 'perf_on', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -3730,10 +3743,15 @@ switch ($action) {
 
     case 'rev':   // 1.107.0: live bijwerken: een klein kenmerk; verandert het, dan haalt de browser de stand opnieuw op
         // 1.109.0: ook nieuwe meetwaarden (MAX(id) van results is snel: primaire sleutel), zodat waarden live meelopen
-        $r = q("SELECT (SELECT MAX(id) FROM status_changes), (SELECT MAX(id) FROM alerts), (SELECT MAX(id) FROM change_log), (SELECT MAX(id) FROM results), (SELECT MAX(id) FROM edr_events),
+        // 1.119.0: per onderdeel een kenmerk, zodat de browser alleen herlaadt wat veranderde (de IDS meldt bijna elke
+        // minuut nieuwe gebeurtenissen; daarvoor hoeven het dashboard en de meldingen niet opnieuw)
+        $r = q("SELECT (SELECT MAX(id) FROM status_changes), (SELECT MAX(id) FROM change_log), (SELECT MAX(id) FROM results),
                        (SELECT COUNT(*) FROM checks WHERE acked_at IS NOT NULL), (SELECT COUNT(*) FROM checks WHERE maintenance_until > NOW()),
-                       (SELECT COUNT(*) FROM checks WHERE enabled = 1), (SELECT value FROM settings WHERE name = 'cron_last_run')")->fetch(PDO::FETCH_NUM);
-        out(['rev' => substr(md5(implode('|', array_map('strval', $r))), 0, 12)]);
+                       (SELECT COUNT(*) FROM checks WHERE enabled = 1), (SELECT value FROM settings WHERE name = 'cron_last_run'),
+                       (SELECT MAX(id) FROM alerts), (SELECT CONCAT(COUNT(*), '.', SUM(status = 'open'), '.', COALESCE(MAX(id), 0), '.', COALESCE(MAX(last_seen), ''), '.', COALESCE(MAX(handled_at), '')) FROM ids_incidents),
+                       (SELECT CONCAT(COUNT(*), '.', COALESCE(MAX(id), 0)) FROM ids_blocks WHERE removed_at IS NULL), (SELECT MAX(id) FROM edr_events)")->fetch(PDO::FETCH_NUM);
+        $h = static fn(array $x) => substr(md5(implode('|', array_map('strval', $x))), 0, 10);
+        out(['rev' => $h(array_slice($r, 0, 7)), 'parts' => ['a' => (string) $r[7], 'i' => $h([$r[8], $r[9]]), 'e' => (string) $r[10]]]);
 
     case 'smart_proposals':   // 1.107.0: handmatige checks die op slim kunnen (bestaande checks blijven handmatig tot je ze omzet)
         out(['list' => Smart::proposals(), 'default' => (string) setting('thresh_default', 'guard'), 'sens' => (string) setting('smart_sens', 'normal')]);
@@ -4071,7 +4089,16 @@ switch ($action) {
     // ---------- Databasewachtwoord vernieuwen (alleen beheerders) ----------
     case 'setup_info':   // 1.92.0: de setup-pagina in de portal (Instellingen → Systeem)
         out(['checks' => array_map(static fn($c) => ['label' => $c[0], 'ok' => $c[1], 'detail' => $c[2]], Setup::checks(true, null)),
-            'php_env' => Setup::phpInfo(), 'cron' => Setup::cronLine(), 'self' => SelfCheck::report()] + Setup::config());
+            'php_env' => Setup::phpInfo(), 'cron' => Setup::cronLine(), 'self' => SelfCheck::report(), 'perf' => Perf::report()] + Setup::config());
+
+    case 'db_optimize':   // 1.119.0: de grootste tabellen opnieuw opbouwen (beheerders)
+        if ($method !== 'POST') {
+            out(['error' => 'POST'], 405);
+        }
+        session_write_close();
+        $r = Perf::optimize();
+        AgentCommands::audit($user['username'], 'Database geoptimaliseerd', implode(', ', array_column($r, 'name')));
+        out(['ok' => true, 'tables' => $r]);
 
     case 'setup_db_test':
         $in = input();
@@ -4120,7 +4147,9 @@ switch ($action) {
 
     // ---------------------------------------------------------- IDS
     case 'ids':
-        $days = Monitor::alertDays();
+        // 1.119.0: standaard de laatste 14 dagen (plus alles wat nog open staat); ouder op verzoek
+        $maxDays = Monitor::alertDays();
+        $days = max(1, min($maxDays, (int) ($_GET['days'] ?? $maxDays)));
         $hosts = q("SELECT h.id, h.name, h.agent_seen, h.agent_update_via = 'ha' AS ha, h.ids_fim, h.realtime,
                            (SELECT value FROM agent_data ad WHERE ad.host_id = h.id AND ad.metric = 'realtime') AS rt,
                            (SELECT value FROM agent_data ad WHERE ad.host_id = h.id AND ad.metric = 'tools') AS tools, s.fim_count, s.fim_cand, s.baseline_until, s.fw_state, s.fw_error, s.decoy_state, s.last_report
@@ -4144,12 +4173,12 @@ switch ($action) {
         }
         unset($h);
         out([
-            'enabled' => Ids::enabled(), 'mode' => (string) setting('ids_mode', 'learn'), 'today' => date('Y-m-d'), 'days' => $days,
+            'enabled' => Ids::enabled(), 'mode' => (string) setting('ids_mode', 'learn'), 'today' => date('Y-m-d'), 'days' => $days, 'max_days' => $maxDays,
             'modern' => setting('ids_modern', '1') === '1',   // 1.117.0: moderne weergave (anders compact)
             'fim' => Ids::cleanFim(json_decode((string) setting('ids_fim', '[]'), true)),
             'hosts' => $hosts,
             'incidents' => $incs = q('SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
-                              WHERE i.created_at >= CURDATE() - INTERVAL ? DAY ORDER BY i.created_at DESC, i.id DESC LIMIT 5000', [$days - 1])->fetchAll(),
+                              WHERE i.created_at >= CURDATE() - INTERVAL ? DAY OR i.status = \'open\' ORDER BY i.created_at DESC, i.id DESC LIMIT 5000', [$days - 1])->fetchAll(),
             'prot' => Protect::describeAll($incs),   // 1.115.0: per incident de kaart en wat RzMon deed
             'blocks' => Ids::readable($blocks),
             'removed' => Ids::readable(q('SELECT b.*, h.name AS host_name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id

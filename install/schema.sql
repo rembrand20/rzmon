@@ -1018,3 +1018,16 @@ INSERT IGNORE INTO settings (name, value) VALUES ('dns_on', '1'), ('suricata_on'
 
 -- 1.117.0: moderne weergave van de IDS-pagina (uit = compact)
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_modern', '1');
+
+-- 1.119.0: snelheidsmeter (per uur en per verzoek of cron-onderdeel opgeteld; twee dagen bewaard)
+CREATE TABLE IF NOT EXISTS perf_stats (
+    hour     DATETIME         NOT NULL,
+    kind     CHAR(1)          NOT NULL,
+    name     VARCHAR(40)      NOT NULL,
+    n        INT UNSIGNED     NOT NULL DEFAULT 0,
+    total_ms BIGINT UNSIGNED  NOT NULL DEFAULT 0,
+    max_ms   INT UNSIGNED     NOT NULL DEFAULT 0,
+    bytes    BIGINT UNSIGNED  NOT NULL DEFAULT 0,
+    PRIMARY KEY (hour, kind, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('perf_on', '1');

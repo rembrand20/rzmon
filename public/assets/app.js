@@ -175,6 +175,9 @@ let stats = { uptime: {}, sparks: {} };
 // Sorteren op de pagina Meldingen (per apparaat onthouden): { key: 'time'|'status'|'server'|'check'|'message'|'channels', dir: 1|-1 }
 const ALERT_SORTS = { time: L('Tijd'), status: 'Status', server: 'Server', check: 'Check', message: L('Bericht'), channels: L('Kanalen') };
 // IDS: tabblad, en Toegang (gegevens, filters, sorteren, open dagen)
+const liveLoaded = {};   // wanneer meldingen en IDS voor het laatst geladen zijn (live bijwerken, 1.119.0)
+// 1.119.0: hoeveel dagen Meldingen en IDS ophalen; ouder op verzoek (knop onderaan, of zoeken)
+const histDays = { alerts: 7, ids: 14 };
 let idsTab = (() => { try { return localStorage.getItem('rzmon-ids-tab') || 'inc'; } catch (e) { return 'inc'; } })();
 let accData = null, accFilter = 'all', accHost = '', accDayOpen = {};
 let accSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-acc-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
@@ -1418,7 +1421,7 @@ function init() {
   // bevestigd, onderhoud, wijzigingen); verandert het, dan de stand ophalen. Licht voor de server: geen open
   // verbindingen die PHP bezet houden. 1.109.0: alleen wat veranderde wordt bijgewerkt (morph), dus ook met een
   // venster open; dat venster werkt zelf mee (liveModal).
-  let liveRev = null, liveFail = 0, liveFull = Date.now(), liveBusy = false;
+  let liveRev = null, liveParts = {}, liveFail = 0, liveFull = Date.now(), liveBusy = false;
   setInterval(async () => {
     if (document.hidden || liveBusy) return;
     liveBusy = true;
@@ -1426,12 +1429,19 @@ function init() {
       const r = await api('rev');
       liveFail = 0;
       $('#live-dot')?.classList.remove('off');
-      if ((liveRev !== null && r.rev !== liveRev) || Date.now() - liveFull > 60000) {
-        liveFull = Date.now();
-        await refresh(true);
+      // 1.119.0: alleen herladen wat veranderde: meldingen, IDS en de live-feed elk apart
+      const p = r.parts || {}, was = liveParts, first = liveRev === null;
+      const what = { alerts: !first && p.a !== was.a, ids: !first && p.i !== was.i };
+      const full = Date.now() - liveFull > 60000;
+      if ((!first && (r.rev !== liveRev || what.alerts || what.ids)) || full) {
+        if (full) liveFull = Date.now();
+        await refresh(true, what);
         liveModal();
+      } else if (!first && p.e !== was.e && !$('#tab-ids').hidden && idsTab === 'live') {
+        loadEdrFeed();   // alleen nieuwe gebeurtenissen: alleen de feed
       }
       liveRev = r.rev;
+      liveParts = p;
     } catch (e) {
       if (++liveFail >= 3) $('#live-dot')?.classList.add('off');
     } finally {
@@ -1499,7 +1509,7 @@ function liveToasts(prev) {
 }
 
 let statsAt = 0;
-async function refresh(live = false) {
+async function refresh(live = false, what = null) {
   try {
     // Openstaande tab (Dashboard of Meldingen) telt als gezien, maar alleen als je echt kijkt
     const seen = document.hidden ? '' : ['dashboard', 'alerts'].find((t) => !$('#tab-' + t).hidden) || '';
@@ -1511,8 +1521,10 @@ async function refresh(live = false) {
     if (state.role && document.body.dataset.role !== state.role) location.reload();   // rol gewijzigd
     render();
     liveToasts(prev);
-    if (!$('#tab-alerts').hidden) loadAlerts();
-    if (!$('#tab-ids').hidden) loadIds();
+    // Live: de meldingen en de IDS-pagina alleen als daar iets veranderde (anders na hooguit 5 minuten)
+    const stale = (k) => !what || what[k] || Date.now() - (liveLoaded[k] || 0) > 300000;
+    if (!$('#tab-alerts').hidden && stale('alerts')) { liveLoaded.alerts = Date.now(); loadAlerts(); }
+    if (!$('#tab-ids').hidden && stale('ids')) { liveLoaded.ids = Date.now(); loadIds(); }
     if ($('#tab-vulns') && !$('#tab-vulns').hidden) loadVulns();
     if (live && $('#tab-net') && !$('#tab-net').hidden) loadNet();
     renderTabBadges();
@@ -5388,7 +5400,7 @@ function alertStatusText(a) {
 // dichtklapt blijft zo tot je de pagina herlaadt.
 
 async function loadAlerts() {
-  try { alertData = await api('alerts'); } catch (ex) { toast(ex.message, 'err'); return; }
+  try { alertData = await api('alerts', null, { days: histDays.alerts }); } catch (ex) { toast(ex.message, 'err'); return; }
   keepOpen($('#alerts'), renderAlerts);
 }
 
@@ -5443,7 +5455,7 @@ const IDS_FW = {
 };
 
 async function loadIds() {
-  try { [idsData, accData] = await Promise.all([api('ids'), api('ids_access')]); } catch (ex) { toast(ex.message, 'err'); return; }
+  try { [idsData, accData] = await Promise.all([api('ids', null, { days: histDays.ids }), api('ids_access')]); } catch (ex) { toast(ex.message, 'err'); return; }
   keepOpen($('#tab-ids'), () => { renderIds(); renderAccess(); });
   showIdsTab();   // Live en Regels worden daar (opnieuw) geladen
 }
@@ -6095,8 +6107,10 @@ function renderIds() {
   $('#ids-info').textContent = L('{open} open · {n} in de laatste {days} dagen', { open: open.length, n: d.incidents.length, days: d.days });
   $('#it-n-inc').textContent = open.length ? open.length : '';
   const el = $('#ids-incidents');
+  if (q) moreDaysWhenSearching('ids', d);
+  const more = idsFilter === 'all' || q ? moreDays('ids', d) : '';   // open incidenten zijn er altijd allemaal
   if (!list.length) {
-    el.innerHTML = `<p class="muted">${idsFilter === 'open' && !q && !idsCat ? L('Geen open incidenten.') + ' 👌' : L('Niets gevonden.')}</p>`;
+    el.innerHTML = `<p class="muted">${idsFilter === 'open' && !q && !idsCat ? L('Geen open incidenten.') + ' 👌' : L('Niets gevonden.')}</p>` + more;
   } else {
     const byDay = new Map();
     list.forEach((i) => { const day = i.created_at.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(i); });
@@ -6114,7 +6128,7 @@ function renderIds() {
           const key = 'i' + g.items[g.items.length - 1].id;
           return `<div class="bundle${idsBundles.has(key) ? ' open' : ''}" data-bundle="${key}">${idsRow(g.items[0], g.items, g.items)}${g.items.slice(1).map((i) => idsRow(i, null, g.items)).join('')}</div>`;
         }).join('')}</div></details>`;
-    }).join('');
+    }).join('') + more;
     $$('.alert-day', el).forEach((det) => (det.ontoggle = () => { idsDayOpen[det.dataset.day] = det.open; idsToggleLabel(); }));
   }
   idsToggleLabel();
@@ -6780,7 +6794,8 @@ function renderAlerts() {
     && (!q || `${a.title} ${a.message} ${alertCols(a).host}`.toLowerCase().includes(q)) && fxPass('alerts', a));
   fxRender('alerts');
   const narrowed = !!q || !!host || fxActive('alerts');
-  if (!shown.length) { el.innerHTML = `<p class="muted">${d.alerts.length ? L('Geen meldingen met dit filter.') : L('Nog geen meldingen.') + ' 👌'}</p>`; $('#alerts-toggle').hidden = true; return; }
+  if (q) moreDaysWhenSearching('alerts', d);
+  if (!shown.length) { el.innerHTML = `<p class="muted">${d.alerts.length ? L('Geen meldingen met dit filter.') : L('Nog geen meldingen.') + ' 👌'}</p>` + moreDays('alerts', d); $('#alerts-toggle').hidden = true; return; }
   const byDay = new Map();
   shown.forEach((a) => {
     const day = a.created_at.slice(0, 10);
@@ -6796,7 +6811,7 @@ function renderAlerts() {
         <span class="ad-counts">${alertDayCounts(list)}</span>
         <span class="muted small ad-total">${list.length === 1 ? L('1 melding') : L('{n} meldingen', { n: list.length })}</span></summary>
       <div class="ad-body">${isOpen(day) ? alertRows(list, layout, density) : ''}</div>
-    </details>`).join('');
+    </details>`).join('') + moreDays('alerts', d);
   // Pas bij openen opbouwen: snel, ook met duizenden meldingen
   $$('.alert-day', el).forEach((det) => (det.ontoggle = () => {
     alertDayOpen[det.dataset.day] = det.open;
@@ -6806,6 +6821,29 @@ function renderAlerts() {
   $('#alerts-toggle').hidden = byDay.size < 2;
   alertToggleLabel();
 }
+
+/** Onderaan Meldingen en IDS: ouder laden (1.119.0) */
+function moreDays(key, d) {
+  if (!d.max_days || d.days >= d.max_days) return '';
+  return `<div class="more-days"><span class="muted small">${L('De laatste {n} dagen', { n: d.days })}</span>
+    <button type="button" class="btn" data-more-days="${key}">${L('Ouder laden (tot {n} dagen)', { n: d.max_days })}</button></div>`;
+}
+/** Zoeken: dan alles ophalen, ook wat ouder is */
+function moreDaysWhenSearching(key, d) {
+  if (d.max_days && d.days < d.max_days && histDays[key] < d.max_days) loadMoreDays(key, d.max_days);
+}
+function loadMoreDays(key, days) {
+  histDays[key] = days;
+  return key === 'alerts' ? loadAlerts() : loadIds();
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-more-days]');
+  if (!b) return;
+  const d = b.dataset.moreDays === 'alerts' ? alertData : idsData;
+  b.disabled = true;
+  b.textContent = L('Laden…');
+  loadMoreDays(b.dataset.moreDays, d.max_days);
+});
 
 function saveAlertSort() {
   try { localStorage.setItem('rzmon-alert-sort', JSON.stringify(alertSort)); } catch (e) { /* alleen voor deze sessie */ }
@@ -8863,9 +8901,92 @@ async function loadSyscheck() {
     <details class="small api-docs"><summary>${L('PHP-omgeving')}</summary>
       <table class="kv">${Object.entries(d.php_env).map(([k, v]) => `<tr><th>${esc(k)}</th><td class="mono">${esc(v)}</td></tr>`).join('')}</table></details>
     ${selfReport(d.self)}
+    ${perfReport(d.perf)}
     <h3 class="set-sub">⏱️ Cron</h3>
     <p class="muted small">${L('De checks draaien elke minuut via cron. Plaats deze regel op de server (als root):')}</p>${copyBox('cron-line', d.cron)}`;
   wireCopy(box);
+  perfWire(box);
+}
+
+const GZIP_APACHE = `# /etc/httpd/conf.d/rzmon-snelheid.conf  (daarna: systemctl reload httpd)
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+</IfModule>
+<IfModule mod_expires.c>
+  <LocationMatch "/assets/.*\\.(js|css|svg|png|woff2)$">
+    ExpiresActive On
+    ExpiresDefault "access plus 30 days"
+  </LocationMatch>
+</IfModule>`;
+const GZIP_NGINX = `# in het server-blok van RzMon  (daarna: nginx -t && systemctl reload nginx)
+gzip on;
+gzip_types text/css application/javascript application/json image/svg+xml;
+location ~* /assets/.*\\.(js|css|svg|png|woff2)$ { expires 30d; }`;
+
+/** Snelheid (1.119.0): OPcache, compressie, de traagste verzoeken en cron-onderdelen, de grootste tabellen */
+function perfReport(p) {
+  if (!p) return '';
+  const tbl = (rows, cols) => `<div class="table-scroll"><table class="vuln-table small perf-t"><thead><tr>${cols.map((c) => `<th>${c[0]}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  const ms = (n) => (n >= 1000 ? dec(n / 1000) + ' s' : `${(+n).toLocaleString(LOCALE)} ms`);
+  const slow = (n, lim) => (n >= lim ? `<b class="bad">${ms(n)}</b>` : n >= lim / 3 ? `<span class="warn-txt">${ms(n)}</span>` : ms(n));
+  const op = p.opcache || {};
+  return `<h3 class="set-sub">🚀 ${L('Snelheid')} <span class="muted small">${L('(laatste 24 uur)')}</span></h3>
+    <ul class="checklist perf-list">
+      <li class="${op.on ? 'ok' : 'bad'}"><span class="ic">${op.on ? '✓' : '✕'}</span><span><strong>OPcache</strong><br><span class="muted small">${op.on
+        ? L('aan · {h}% uit het geheugen · {m} in gebruik', { h: dec(op.hit), m: fmtBytes(op.mem) }) + (op.full ? ' · <b class="bad">' + L('vol: geef het meer geheugen (opcache.memory_consumption)') + '</b>' : '')
+        : L('uit: PHP leest bij elk verzoek alle code opnieuw in. Zet het aan:')}</span>${op.on ? '' : copyBox('perf-opc', 'dnf install -y php-opcache && systemctl restart php-fpm')}</span></li>
+      <li class="warn" id="perf-gzip"><span class="ic">…</span><span><strong>${L('Compressie en cache van de webserver')}</strong><br><span class="muted small">${L('Controleren…')}</span></span></li>
+    </ul>
+    <label class="switch small"><input type="checkbox" id="perf-on" ${p.on ? 'checked' : ''}><span></span> ${L('Snelheid meten (een regel per verzoek in de database)')}</label>
+    ${p.api.length ? `<details class="small api-docs" open><summary>${L('Verzoeken van de interface')}</summary>${tbl(p.api, [[L('Verzoek'), (r) => `<code>${esc(r.name)}</code>`], [L('Aantal'), (r) => r.n.toLocaleString(LOCALE)],
+      [L('Gemiddeld'), (r) => slow(r.avg, 1000)], [L('Langste'), (r) => slow(r.max, 3000)], [L('Grootte'), (r) => `${r.kb.toLocaleString(LOCALE)} KB`], [L('Totaal'), (r) => ms(r.total)]])}</details>` : ''}
+    ${p.agent.length ? `<details class="small api-docs"><summary>${L('Rapporten van agents')}</summary>${tbl(p.agent, [[L('Verzoek'), (r) => `<code>${esc(r.name)}</code>`], [L('Aantal'), (r) => r.n.toLocaleString(LOCALE)],
+      [L('Gemiddeld'), (r) => slow(r.avg, 1000)], [L('Langste'), (r) => slow(r.max, 5000)]])}</details>` : ''}
+    ${p.cron.length ? `<details class="small api-docs" open><summary>${L('Onderdelen van een cron-ronde')}</summary>${tbl(p.cron.filter((r) => r.name !== 'start'), [[L('Onderdeel'), (r) => esc(r.name)],
+      [L('Per ronde'), (r) => slow(r.per_run, 10000)], [L('Langste'), (r) => slow(r.max, 30000)], [L('Keren'), (r) => r.n.toLocaleString(LOCALE)]])}</details>` : ''}
+    <details class="small api-docs"><summary>${L('Tabellen in de database')}</summary>${tbl(p.tables, [[L('Tabel'), (t) => `<code>${esc(t.name)}</code>`], [L('Grootte'), (t) => fmtBytes(+t.bytes)],
+      [L('Ongebruikt'), (t) => (+t.free > 1048576 ? `<span class="warn-txt">${fmtBytes(+t.free)}</span>` : fmtBytes(+t.free))], [L('Rijen'), (t) => (+t.rows).toLocaleString(LOCALE)]])}
+      <p><button type="button" class="btn" id="perf-optimize">🧹 ${L('Database optimaliseren')}</button>
+      <span class="muted">${L('Bouwt de grootste tabellen opnieuw op: ongebruikte ruimte terug en snellere indexen. Duurt even (tot een paar minuten); doe het buiten drukke uren.')}</span></p>
+      <div id="perf-opt-res"></div></details>`;
+}
+
+/** Knoppen van het snelheidsoverzicht, en de controle op compressie (vanuit de browser: die ziet wat de webserver doet) */
+function perfWire(box) {
+  const on = $('#perf-on', box);
+  if (on) on.onchange = async () => { try { await api('settings_save', { perf_on: on.checked ? '1' : '0' }); toast(on.checked ? L('Aangezet') : L('Uitgezet')); } catch (ex) { toast(ex.message, 'err'); on.checked = !on.checked; } };
+  const opt = $('#perf-optimize', box);
+  if (opt) {
+    opt.onclick = async () => {
+      if (!confirm(L('De database nu optimaliseren? RzMon kan tijdens het optimaliseren even trager reageren.'))) return;
+      opt.disabled = true;
+      opt.textContent = '⏳ ' + L('Bezig…');
+      try {
+        const r = await api('db_optimize', {});
+        const saved = r.tables.reduce((a, t) => a + Math.max(0, t.before - t.after), 0);
+        $('#perf-opt-res').innerHTML = `<p class="good-txt">✔ ${L('{n} tabellen geoptimaliseerd · {s} vrijgekomen', { n: r.tables.length, s: fmtBytes(saved) })}</p>`;
+      } catch (ex) { toast(ex.message, 'err'); }
+      opt.disabled = false;
+      opt.textContent = '🧹 ' + L('Database optimaliseren');
+    };
+  }
+  const li = $('#perf-gzip', box);
+  const src = ($('script[src*="assets/app.js"]') || {}).src;
+  if (!li || !src) return;
+  fetch(src, { method: 'HEAD', cache: 'no-store' }).then((res) => {
+    const enc = res.headers.get('content-encoding') || '';
+    const cache = res.headers.get('cache-control') || res.headers.get('expires') || '';
+    const ok = /gzip|br|deflate|zstd/.test(enc), cached = /max-age=[1-9]|expires|immutable/i.test(cache) || !!res.headers.get('expires');
+    li.className = ok && cached ? 'ok' : 'warn';
+    li.innerHTML = `<span class="ic">${ok && cached ? '✓' : '!'}</span><span><strong>${L('Compressie en cache van de webserver')}</strong><br><span class="muted small">`
+      + (ok ? L('compressie: {e}', { e: esc(enc) }) : L('geen compressie: de interface (800 KB) en de antwoorden gaan onverkleind over het netwerk'))
+      + ' · ' + (cached ? L('bestanden worden bewaard in de browser') : L('de browser vraagt de bestanden steeds opnieuw op')) + '</span>'
+      + (ok && cached ? '' : `<br><span class="small">${L('Zet het aan in je webserver (één keer, als root):')}</span>
+        <details class="small"><summary>Apache (httpd)</summary>${copyBox('perf-ap', GZIP_APACHE)}</details>
+        <details class="small"><summary>nginx</summary>${copyBox('perf-ng', GZIP_NGINX)}</details>`) + '</span>';
+    wireCopy(li);
+  }).catch(() => { li.innerHTML = `<span class="ic">?</span><span><strong>${L('Compressie en cache van de webserver')}</strong><br><span class="muted small">${L('Kon niet gecontroleerd worden.')}</span></span>`; });
 }
 
 /** Gezondheid van RzMon (1.96.0): database, cron, traagste checks, PHP-fouten */

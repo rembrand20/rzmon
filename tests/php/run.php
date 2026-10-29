@@ -547,5 +547,22 @@ Installer::runSchema();
 ok(setting('ids_modern') === '0', 'een update zet de keuze voor de compacte weergave niet terug');
 save_setting('ids_modern', '1');
 
+section('Snelheid (1.119.0)');
+ok(class_exists('SnmpDown') && class_exists('VulnFetchError') && function_exists('t'), 'klassen worden pas geladen als ze nodig zijn, ook de hulpklassen');
+Perf::lap('start');
+Perf::lap('testonderdeel');
+$pr = Perf::report();
+ok(in_array('testonderdeel', array_column($pr['cron'], 'name'), true) && isset($pr['opcache']['on']) && count($pr['tables']) > 5, 'snelheidsmeter: cron-onderdeel, OPcache en tabellen');
+save_setting('perf_on', '0');
+Perf::lap('uit');
+ok(!in_array('uit', array_column(Perf::report()['cron'], 'name'), true), 'snelheidsmeter uit: niets meer vastgelegd');
+save_setting('perf_on', '1');
+$pct = static fn($ok, $n) => (int) $n > 0 ? round((int) $ok / (int) $n * 100, 3) : null;
+save_setting('stats_daily_at', '0');
+Analytics::cron();
+$full = (new ReflectionMethod('Stats', 'uptimeFull'))->invoke(null, $pct);
+$fast = Stats::uptime();
+ok(array_map(static fn($x) => $x['h24'], $full) == array_map(static fn($x) => $x['h24'], $fast), 'beschikbaarheid uit de dagtotalen: 24 uur gelijk aan de volledige berekening');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -11,18 +11,52 @@ final class Stats
      */
     public static function uptime(): array
     {
+        // 1.119.0: 7 en 30 dagen uit de dagtotalen (stats_daily, elk uur bijgewerkt) plus vandaag uit de metingen; zo
+        // hoeft niet elke keer de hele meetgeschiedenis doorzocht te worden. Zonder dagtotalen: zoals vroeger.
+        $fresh = (int) setting('stats_daily_at', '0') > time() - 7200 && q("SELECT 1 FROM stats_daily WHERE metric = 'h_n' LIMIT 1")->fetchColumn();
+        $pct = static fn($ok, $n) => (int) $n > 0 ? round((int) $ok / (int) $n * 100, 3) : null;
+        if (!$fresh) {
+            return self::uptimeFull($pct);
+        }
+        // Vandaag en de laatste 24 uur: per check via de index (check_id, created_at)
+        $live = [];
+        foreach (q("SELECT c.host_id, c.type = 'ping' AS is_ping,
+                SUM(r.created_at >= NOW() - INTERVAL 1 DAY) AS n1, SUM(r.created_at >= NOW() - INTERVAL 1 DAY AND r.status <> 2) AS ok1,
+                SUM(r.created_at >= CURDATE()) AS nt, SUM(r.created_at >= CURDATE() AND r.status <> 2) AS okt
+            FROM checks c JOIN results r ON r.check_id = c.id AND r.created_at >= LEAST(NOW() - INTERVAL 1 DAY, CURDATE())
+            WHERE c.enabled = 1 AND c.type IN ('ping', 'tcp', 'http') AND c.reverse_ok IS NULL
+            GROUP BY c.host_id, is_ping") as $r) {
+            $live[(int) $r['host_id']][(int) $r['is_ping']] = $r;
+        }
+        $days = [];
+        foreach (q("SELECT ref, metric, SUM(CASE WHEN day >= CURDATE() - INTERVAL 6 DAY THEN v ELSE 0 END) AS v7, SUM(v) AS v30 FROM stats_daily
+                    WHERE metric IN ('h_n', 'h_ok') AND day >= CURDATE() - INTERVAL 29 DAY AND day < CURDATE() GROUP BY ref, metric") as $r) {
+            $days[(int) $r['ref']][$r['metric']] = [(float) $r['v7'], (float) $r['v30']];
+        }
+        $out = [];
+        foreach (array_unique(array_merge(array_keys($live), array_keys($days))) as $hid) {
+            $l = $live[$hid][1] ?? $live[$hid][0] ?? ['n1' => 0, 'ok1' => 0, 'nt' => 0, 'okt' => 0];   // ping heeft voorrang
+            $dn = $days[$hid]['h_n'] ?? [0, 0];
+            $dk = $days[$hid]['h_ok'] ?? [0, 0];
+            $out[$hid] = ['h24' => $pct($l['ok1'], $l['n1']), 'd7' => $pct($dk[0] + (int) $l['okt'], $dn[0] + (int) $l['nt']), 'd30' => $pct($dk[1] + (int) $l['okt'], $dn[1] + (int) $l['nt'])];
+        }
+        return $out;
+    }
+
+    /** Zoals vóór 1.119.0: alles uit de metingen (als er nog geen dagtotalen zijn) */
+    private static function uptimeFull(Closure $pct): array
+    {
         $rows = q("SELECT c.host_id, c.type = 'ping' AS is_ping,
                 SUM(r.created_at >= NOW() - INTERVAL 1 DAY) AS n1, SUM(r.created_at >= NOW() - INTERVAL 1 DAY AND r.status <> 2) AS ok1,
                 SUM(r.created_at >= NOW() - INTERVAL 7 DAY) AS n7, SUM(r.created_at >= NOW() - INTERVAL 7 DAY AND r.status <> 2) AS ok7,
                 COUNT(*) AS n30, SUM(r.status <> 2) AS ok30
-            FROM results r JOIN checks c ON c.id = r.check_id
-            WHERE c.enabled = 1 AND c.type IN ('ping', 'tcp', 'http') AND c.reverse_ok IS NULL AND r.created_at >= NOW() - INTERVAL 30 DAY
+            FROM checks c JOIN results r ON r.check_id = c.id AND r.created_at >= NOW() - INTERVAL 30 DAY
+            WHERE c.enabled = 1 AND c.type IN ('ping', 'tcp', 'http') AND c.reverse_ok IS NULL
             GROUP BY c.host_id, is_ping")->fetchAll();
         $by = [];
         foreach ($rows as $r) {
             $by[(int) $r['host_id']][(int) $r['is_ping']] = $r;
         }
-        $pct = static fn($ok, $n) => (int) $n > 0 ? round((int) $ok / (int) $n * 100, 3) : null;
         $out = [];
         foreach ($by as $hid => $kinds) {
             $r = $kinds[1] ?? $kinds[0];   // ping heeft voorrang
@@ -38,9 +72,10 @@ final class Stats
     public static function sparks(): array
     {
         $start = time() - 86400;
-        $rows = q('SELECT check_id, FLOOR((UNIX_TIMESTAMP(created_at) - ?) / 1800) AS b, AVG(value) AS v,
-                          MAX(CASE status WHEN 2 THEN 3 WHEN 1 THEN 2 WHEN 3 THEN 1 ELSE 0 END) AS r
-                   FROM results WHERE created_at >= FROM_UNIXTIME(?) GROUP BY check_id, b', [$start, $start])->fetchAll();
+        // Per check via de index (check_id, created_at), niet door de hele tabel (1.119.0)
+        $rows = q('SELECT r.check_id, FLOOR((UNIX_TIMESTAMP(r.created_at) - ?) / 1800) AS b, AVG(r.value) AS v,
+                          MAX(CASE r.status WHEN 2 THEN 3 WHEN 1 THEN 2 WHEN 3 THEN 1 ELSE 0 END) AS r
+                   FROM checks c JOIN results r ON r.check_id = c.id AND r.created_at >= FROM_UNIXTIME(?) GROUP BY r.check_id, b', [$start, $start])->fetchAll();
         $out = [];
         foreach ($rows as $r) {
             $b = (int) $r['b'];

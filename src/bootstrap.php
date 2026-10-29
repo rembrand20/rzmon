@@ -38,75 +38,16 @@ foreach ((array) config('php', []) as $ini => $val) {
 }
 
 require_once __DIR__ . '/net.php';
-require_once __DIR__ . '/Pushover.php';
-require_once __DIR__ . '/Webhook.php';
-require_once __DIR__ . '/Checks.php';
-require_once __DIR__ . '/Monitor.php';
-require_once __DIR__ . '/Installer.php';
-require_once __DIR__ . '/PortScan.php';
-require_once __DIR__ . '/Totp.php';
-require_once __DIR__ . '/Mailer.php';
-require_once __DIR__ . '/Mqtt.php';
-require_once __DIR__ . '/Stats.php';
-require_once __DIR__ . '/Backup.php';
-require_once __DIR__ . '/PasswordReset.php';
-require_once __DIR__ . '/NotifyRules.php';
-require_once __DIR__ . '/Health.php';
-require_once __DIR__ . '/Updater.php';
-require_once __DIR__ . '/AgentCommands.php';
-require_once __DIR__ . '/AuthEvents.php';
-require_once __DIR__ . '/Ids.php';
-require_once __DIR__ . '/IpIntel.php';
-require_once __DIR__ . '/Whitelist.php';
-require_once __DIR__ . '/SessionStore.php';
-require_once __DIR__ . '/Stealth.php';
-require_once __DIR__ . '/Passkey.php';
-require_once __DIR__ . '/Hardening.php';
-require_once __DIR__ . '/WebLog.php';
-require_once __DIR__ . '/Tasks.php';
-require_once __DIR__ . '/Setup.php';
-require_once __DIR__ . '/Templates.php';
-require_once __DIR__ . '/Discover.php';
-require_once __DIR__ . '/SelfCheck.php';
-require_once __DIR__ . '/Cleanup.php';
-require_once __DIR__ . '/ChangeLog.php';
-require_once __DIR__ . '/Transfer.php';
-require_once __DIR__ . '/AgentAudit.php';
-require_once __DIR__ . '/IdsAdvice.php';
-require_once __DIR__ . '/NetScan.php';
-require_once __DIR__ . '/NetLinks.php';
-require_once __DIR__ . '/Pve.php';
-require_once __DIR__ . '/Analytics.php';
-require_once __DIR__ . '/Smart.php';
-require_once __DIR__ . '/Bundle.php';
-require_once __DIR__ . '/Heal.php';
-require_once __DIR__ . '/StatusPage.php';
-require_once __DIR__ . '/Advice.php';
-require_once __DIR__ . '/Sigma.php';
-require_once __DIR__ . '/EdrRules.php';
-require_once __DIR__ . '/Edr.php';
-require_once __DIR__ . '/Inspect.php';
-require_once __DIR__ . '/Mitre.php';
-require_once __DIR__ . '/Anomaly.php';
-require_once __DIR__ . '/Chain.php';
-require_once __DIR__ . '/ThreatIntel.php';
-require_once __DIR__ . '/Suricata.php';
-require_once __DIR__ . '/DnsWatch.php';
-require_once __DIR__ . '/Protect.php';
-require_once __DIR__ . '/Context.php';
+require_once __DIR__ . '/I18n.php';   // t() en th()
+// Klassen pas inlezen als ze nodig zijn (1.119.0): een verzoek leest zo alleen wat het gebruikt, niet alle 1,5 MB code.
+// Elk bestand in src/ heeft één klasse met dezelfde naam; een paar hulpklassen staan bij hun hoofdklasse.
+spl_autoload_register(static function (string $class): void {
+    $file = ['SnmpDown' => 'SnmpMonitor', 'SnmpConn' => 'SnmpMonitor', 'VulnFetchError' => 'Vulns'][$class] ?? $class;
+    if (preg_match('/^[A-Z][A-Za-z0-9]+$/', $file) && is_file(__DIR__ . "/$file.php")) {
+        require_once __DIR__ . "/$file.php";
+    }
+});
 SelfCheck::register();   // PHP-fouten bijhouden voor de systeemcheck (1.96.0)
-require_once __DIR__ . '/SnmpMonitor.php';
-require_once __DIR__ . '/I18n.php';
-require_once __DIR__ . '/AgentText.php';
-require_once __DIR__ . '/Brand.php';
-require_once __DIR__ . '/HostKind.php';
-require_once __DIR__ . '/Heartbeat.php';
-require_once __DIR__ . '/Vulns.php';
-require_once __DIR__ . '/Security.php';
-require_once __DIR__ . '/AgentCrypto.php';
-require_once __DIR__ . '/Https.php';
-require_once __DIR__ . '/Hibp.php';
-require_once __DIR__ . '/OwnCert.php';
 
 function config(string $key, $default = null)
 {
