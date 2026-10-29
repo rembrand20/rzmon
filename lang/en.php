@@ -5686,4 +5686,9 @@ return [
     'Installeren of opnieuw koppelen' => 'Install or pair again',
     'Alle agents: status, versie, verbinding en wat aandacht nodig heeft.' => 'All agents: status, version, connection and what needs attention.',
     'Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat.' => 'What applies to all agents: updating, rhythm, encryption and certificate.',
+    'Drempels en details' => 'Thresholds and details',
+    '1 punt' => '1 point',
+    '{n} punten' => '{n} points',
+    'alles in orde ({n} punten)' => 'all fine ({n} points)',
+    'Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je bij <a href="#ids/prot" data-goto="ids/prot">IDS → Bescherming</a>. Hier staan de algemene instellingen.' => 'You switch parts on or off, and set the thresholds per part (⚙️), under <a href="#ids/prot" data-goto="ids/prot">IDS → Protection</a>. This page has the general settings.',
 ];

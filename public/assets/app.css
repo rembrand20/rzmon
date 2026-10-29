@@ -1918,3 +1918,16 @@ button.ic-n { cursor: pointer; } button.ic-n:hover b { text-decoration: underlin
 .am-install[open] > summary::before { content: '▾ '; }
 .am-install[open] > summary { margin-bottom: .7rem; }
 #modal.page pre.code { white-space: pre-wrap; word-break: break-all; }
+
+/* 1.122.0: samengevoegde punten op Status */
+.ov-subs { list-style: none; margin: .35rem 0 0 2.6rem; padding: 0; display: grid; gap: .25rem; font-size: .84rem; }
+.ov-subs li { display: block; }
+.ov-subs .ov-ic { transform: scale(.75); }
+.ov-subs li.warn .ov-ic { background: var(--warn); } .ov-subs li.bad .ov-ic { background: var(--crit); } .ov-subs li.info .ov-ic { background: var(--muted); }
+.ov-subs .ov-ic { display: inline-grid; width: 20px; height: 20px; font-size: .7rem; transform: none; vertical-align: -5px; margin-right: .3rem; }
+
+/* 1.122.0: IDS-schakelaars op één plek */
+.prot-hint { margin: 0 0 .9rem; padding: .5rem .75rem; border-radius: 10px; font-size: .85rem; background: color-mix(in srgb, var(--primary) 9%, transparent); border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent); }
+.prot-cfg { margin-left: auto; }
+.prot-head { display: flex; align-items: center; gap: .4rem; }
+.prot-cfg-form label, .prot-cfg-form .lock-row { margin-bottom: .7rem; }

@@ -1197,6 +1197,8 @@ function init() {
     try { await api('settings_save', { [c.dataset.protToggle]: c.checked ? '1' : '0' }); toast(c.checked ? L('Aangezet') : L('Uitgezet')); loadProt(); } catch (ex) { toast(ex.message, 'err'); c.checked = !c.checked; }
   };
   $('#prot-cards').onclick = (e) => {
+    const cfg = e.target.closest('[data-prot-cfg]');
+    if (cfg) return protCfgDialog(cfg.dataset.protCfg);
     const b = e.target.closest('[data-prot-show]');
     if (!b) return;
     idsCard = b.dataset.protShow; idsFilter = 'all'; idsCat = '';
@@ -5745,7 +5747,7 @@ function renderProt() {
         <br><span class="small muted">${L('{on} van {n} onderdelen aan', { on: d.on, n: d.total })}${d.attention ? ` · <span class="warn-txt">${L('{n} aandachtspunt(en)', { n: d.attention })}</span>` : ''}</span></div>`;
     $('#prot-cards').innerHTML = Object.entries(d.groups).map(([g, [icon, name]]) => `<h3 class="set-sub">${icon} ${esc(name)}</h3><div class="prot-grid">
       ${d.cards.filter((c) => c.g === g).map((c) => `<div class="prot-card ${c.toggle && !c.toggle.on ? 'off' : ''}" data-key="${esc(c.id)}" id="prot-${esc(c.id)}">
-        <div class="prot-head"><b>${esc(c.title)}</b>${c.toggle ? `<label class="switch small need-admin" title="${esc(c.toggle.label)}"><input type="checkbox" data-prot-toggle="${esc(c.toggle.key)}" ${c.toggle.on ? 'checked' : ''}><span></span></label>` : ''}</div>
+        <div class="prot-head"><b>${esc(c.title)}</b>${PROT_CFG[c.id] ? `<button type="button" class="icon-btn need-admin prot-cfg" data-prot-cfg="${esc(c.id)}" title="${esc(L('Drempels en details'))}">⚙️</button>` : ''}${c.toggle ? `<label class="switch small need-admin" title="${esc(c.toggle.label)}"><input type="checkbox" data-prot-toggle="${esc(c.toggle.key)}" ${c.toggle.on ? 'checked' : ''}><span></span></label>` : ''}</div>
         <p class="small muted">${esc(c.what)}</p>
         <div class="prot-acts">${c.sev === 2 ? '<span class="sev-chip s2">🔴 critical</span>' : c.sev === 1 ? '<span class="sev-chip s1">🟠 warning</span>' : ''} →
           ${c.acts.map(([icon, text, a]) => `<span class="act-chip t-${a} ${!block && ['block', 'kill', 'isolate', 'preblock'].includes(a) ? 'learn' : ''}" title="${esc(!block && ['block', 'kill', 'isolate', 'preblock'].includes(a) ? L('in de modus Leren alleen melden') : text)}">${icon} ${esc(text)}</span>`).join(' ')}
@@ -7627,7 +7629,7 @@ async function loadSettingsHealth() {
   let items;
   try { items = (await api('settings_health')).items; } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const https = location.protocol === 'https:';
-  items.push({ key: 'https', status: https ? 'ok' : 'warn', title: 'HTTPS', detail: https ? L('de verbinding met RzMon is versleuteld') : L('je opent RzMon via http: wachtwoorden gaan onversleuteld over het netwerk'), section: 'access' });
+  items.push({ key: 'https_client', status: https ? 'ok' : 'warn', title: 'HTTPS', detail: https ? L('de verbinding met RzMon is versleuteld') : L('je opent RzMon via http: wachtwoorden gaan onversleuteld over het netwerk'), section: 'access' });
   const rank = { bad: 0, warn: 1, info: 2, ok: 3 };
   items.sort((a, b) => rank[a.status] - rank[b.status]);
   setHealth = {};
@@ -7636,6 +7638,8 @@ async function loadSettingsHealth() {
     it.section = SET_ALIAS[it.section] || it.section;
     if (rank[it.status] < rank[setHealth[it.section] || 'ok']) setHealth[it.section] = it.status;
   }
+  // 1.122.0: punten die bij elkaar horen als één regel (de losse punten eronder)
+  items = ovGroup(items, rank);
   const counted = items.filter((i) => i.status !== 'info');
   const score = counted.length ? Math.round(counted.reduce((n, i) => n + (i.status === 'ok' ? 1 : i.status === 'warn' ? 0.5 : 0), 0) / counted.length * 100) : 100;
   const todo = items.filter((i) => i.status === 'bad' || i.status === 'warn').length;
@@ -7646,10 +7650,97 @@ async function loadSettingsHealth() {
       <p class="muted small">${L('Klik op een punt om het meteen te regelen. Grijze punten zijn optioneel en tellen niet mee.')}</p></div></div>
     <div class="ov-list">${items.map((i, n) => `<div class="ov-cell"><button type="button" class="ov-item ${i.status}" data-set-go="${esc(i.section)}">
       <span class="ov-ic">${icon[i.status]}</span><span class="ov-txt"><b>${esc(i.title)}</b><small>${esc(i.detail)}</small></span><span class="ov-go">›</span></button>
-      ${i.code || i.act ? `<div class="ov-extra">${i.code ? copyBox(`ov-code-${n}`, i.code) : ''}${i.act ? `<button type="button" class="btn small-btn primary" data-ov-act="${esc(i.act)}">${esc(i.label || L('Regelen'))}</button>` : ''}</div>` : ''}</div>`).join('')}</div>`;
+      ${i.subs ? `<ul class="ov-subs">${i.subs.filter((s) => s.status !== 'ok').map((s) => `<li class="${s.status}"><span class="ov-ic">${icon[s.status]}</span> <b>${esc(s.title)}</b> <span class="muted">${esc(s.detail)}</span></li>`).join('')}</ul>` : ''}
+      ${i.code || i.acts ? `<div class="ov-extra">${i.code ? copyBox(`ov-code-${n}`, i.code) : ''}${(i.acts || []).map((a) => `<button type="button" class="btn small-btn primary" data-ov-act="${esc(a[0])}">${esc(a[1] || L('Regelen'))}</button>`).join('')}</div>` : ''}</div>`).join('')}</div>`;
   wireCopy(box);
   $$('[data-ov-act]', box).forEach((b) => (b.onclick = () => healthAction(b.dataset.ovAct, b)));
   renderSettingsNav();
+}
+
+/**
+ * IDS-schakelaars op één plek (1.122.0): aan/uit staat op de kaarten van IDS → Bescherming. De drempels van een kaart
+ * staan achter ⚙️ (zelfde velden als in de instellingen, uit het instellingenformulier gekopieerd).
+ */
+const PROT_CFG = {
+  bruteforce: ['ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_block_shared'],
+  decoy: ['ids_decoy_users', 'ids_decoy_port'],
+  anomaly: ['edr_learn_days', 'edr_anom_min'],
+  chain: ['edr_chain_min'], chain_act: ['edr_chain_min'],
+  ti_block: ['ti_block_score'], ti_report: ['ti_abuseipdb_key'],
+  web_attack: ['wl_404_n', 'wl_auth_n', 'wl_nohost_n', 'wl_ha_n', 'wl_vw_n', 'wl_minutes'],
+  outbound: ['ids_outbound_country'],
+  blocklists: ['ids_geo', 'ids_geo_allowed'],
+};
+const PROT_KEYS = ['ti_escalate', 'ids_blocklists', 'ti_cve', 'edr_block', 'weblog_block', 'ti_close_benign', 'edr_kill', 'edr_isolate', 'edr_yara', 'ids_persist', 'edr_sigma', 'ids_harden',
+  'ti_block', 'ids_outbound', 'suricata_block', 'dns_on', 'edr_anom', 'edr_chain_act', 'edr_chain', 'ti_report'];
+async function protCfgDialog(id) {
+  const names = PROT_CFG[id] || [];
+  let vals;
+  try { vals = await api('settings'); } catch (ex) { return toast(ex.message, 'err'); }
+  // De velden zoals in de instellingen: hun label (of regel) kopiëren, zonder dubbele
+  const seen = new Set();
+  const parts = [];
+  names.forEach((n) => {
+    const el = $(`#settings-form [name="${n}"]`);
+    const box = el && (el.closest('.lock-row') || el.closest('label'));
+    if (!box || seen.has(box)) return;
+    seen.add(box);
+    const c = box.cloneNode(true);
+    $$('.saved-flag', c).forEach((x) => x.remove());
+    $$('[data-pol]', c).forEach((x) => x.removeAttribute('data-pol'));
+    parts.push(c.outerHTML);
+  });
+  const card = ((protData && protData.cards) || []).find((c) => c.id === id) || {};
+  modal({
+    title: '⚙️ ' + (card.title || L('Drempels')),
+    body: `<div class="prot-cfg-form">${parts.join('')}</div>`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Opslaan'), cls: 'primary', submit: true }],
+    onSubmit: async (d, form) => {
+      const diff = {};
+      names.forEach((n) => {
+        const el = form.querySelector(`[name="${n}"]`);
+        if (!el) return;
+        const v = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value;
+        if (String(vals[n] ?? '') !== v) diff[n] = v;
+      });
+      if (Object.keys(diff).length) {
+        await api('settings_save', diff);
+        if (settingsSaved) Object.assign(settingsSaved, diff);
+        Object.entries(diff).forEach(([n, v]) => { const el = $(`#settings-form [name="${n}"]`); if (el) { if (el.type === 'checkbox') el.checked = v === '1'; else el.value = v; } });
+        toast(L('Opgeslagen'));
+      }
+      loadProt();
+      return undefined;
+    },
+  });
+  names.forEach((n) => {
+    const el = $(`#modal-body [name="${n}"]`);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = vals[n] === '1'; else el.value = vals[n] ?? '';
+  });
+}
+
+/** Groepen op Status (1.122.0): alle punten over agents samen, en alles over https samen */
+const OV_GROUPS = [
+  ['agents_all', () => L('Agents'), 'agents', ['agents', 'enc', 'ownkey', 'agent_https', 'agent_https_only', 'agent_audit', 'agent_ownkey_only', 'agent_ip']],
+  ['https_all', () => L('Beheer via https'), 'outside', ['https', 'https_client', 'cert', 'dns', 'proxy_leg', 'http_login', 'split_dns', 'mfa_ext']],
+];
+function ovGroup(items, rank) {
+  items.forEach((i) => { if (i.act) i.acts = [[i.act, i.label]]; });
+  let out = items;
+  for (const [key, title, section, keys] of OV_GROUPS) {
+    const subs = out.filter((i) => keys.includes(i.key));
+    if (subs.length < 2) continue;
+    const worst = subs.reduce((a, b) => (rank[b.status] < rank[a.status] ? b : a));
+    const bad = subs.filter((s) => s.status === 'bad' || s.status === 'warn');
+    const merged = { key, title: title(), section, status: worst.status, subs,
+      detail: bad.length ? (bad.length === 1 ? L('1 punt') : L('{n} punten', { n: bad.length })) + ': ' + bad.map((s) => s.title).join(', ') : L('alles in orde ({n} punten)', { n: subs.length }),
+      acts: subs.flatMap((s) => (s.status === 'ok' ? [] : s.acts || [])), code: subs.map((s) => (s.status === 'ok' ? '' : s.code || '')).find(Boolean) || '' };
+    const at = out.indexOf(subs[0]);
+    out = out.filter((i) => !keys.includes(i.key));
+    out.splice(Math.min(at, out.length), 0, merged);
+  }
+  return out.sort((a, b) => rank[a.status] - rank[b.status]);
 }
 
 /** Knop bij een punt van "Hoe staat het ervoor?" (1.78.0) */
@@ -7716,6 +7807,25 @@ function polishSettings(root) {
     w.className = 'sw-txt';
     rest.forEach((n) => w.append(n));
     l.append(w);
+  });
+  // IDS: aan/uit van een onderdeel staat op IDS → Bescherming (1.122.0); hier niet nog een keer
+  PROT_KEYS.forEach((k) => {
+    const inp = $(`[data-sk^="ids"] label.switch > input[name="${k}"]`, root);
+    const l = inp && inp.parentElement;
+    if (!l || l.hidden) return;
+    l.hidden = true;
+    const nx = l.nextElementSibling;
+    if (nx && (nx.classList.contains('info-i') || (nx.tagName === 'P' && nx.matches('.muted, .hint')))) nx.hidden = true;
+  });
+  // Een kopje waarvan alles eronder nu op Bescherming staat: ook weg
+  $$('[data-sk^="ids"] h3.set-sub', root).forEach((h) => {
+    let any = false;
+    for (let n = h.nextElementSibling; n && !n.matches('h3.set-sub'); n = n.nextElementSibling) if (!n.hidden) { any = true; break; }
+    h.hidden = !any;
+  });
+  $$('[data-sk^="ids"]:not([data-sk="ids_servers"]) > h2', root).forEach((h) => {
+    if (h.nextElementSibling && h.nextElementSibling.classList.contains('prot-hint')) return;
+    h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je bij <a href="#ids/prot" data-goto="ids/prot">IDS → Bescherming</a>. Hier staan de algemene instellingen.')}</div>`);
   });
   $$('[data-sk] h2:not([data-pol]), [data-sk] h3.set-sub:not([data-pol])', root).forEach((h) => {
     h.dataset.pol = '1';

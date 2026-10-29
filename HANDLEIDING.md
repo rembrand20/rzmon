@@ -275,6 +275,15 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
 - De **Agent Manager** is een pagina over bijna het hele scherm, zonder tabbladen en zonder zijwaarts schuiven: bovenaan de status en het contact, daaronder **Functies** (rapporteren, realtime, waakhond, endpoint-bewaking, info, commando-checks) en **Verbinding** (versleuteling, vastzetten, IP-slot, https, adres) naast elkaar, en **Installeren of opnieuw koppelen** ingeklapt (open als er nog nooit een rapport kwam).
 - De keuzelijsten per agent (versleuteling, 📌, 🌐, 🔒) staan alleen nog in de Agent Manager; in de oude tabel stonden ze dubbel.
 
+**Niets meer dubbel** (vanaf 1.122.0)
+- **Status** voegt samen wat bij elkaar hoort:
+  - alle punten over agents worden één regel **Agents** (bijgewerkt, versleuteling, eigen sleutel, https, verbindingscontrole, nieuw IP-adres);
+  - alles over https wordt één regel **Beheer via https** (beheeradres, certificaat, DNS, inloggen via http, 2FA van buiten).
+
+  Onder zo'n regel staan alleen de punten die aandacht nodig hebben, met hun knoppen (bv. *Alles opruimen*).
+- **IDS: aan/uit op één plek.** Een onderdeel van het IDS zet je aan of uit op de kaarten van *IDS → 🛡️ Bescherming*. De drempels van zo'n onderdeel staan achter **⚙️** op de kaart, bijvoorbeeld het aantal mislukte logins, de blokkeerduur, de honeypot, de leerperiode, de score om te blokkeren en de drempels van de webdiensten.
+- Op de IDS-pagina's bij *Instellingen* staan nog de algemene instellingen (aan/uit van het IDS, de modus, API-sleutels, logbestanden …), met bovenaan een verwijzing naar Bescherming. Een kopje waar niets meer onder staat, verdwijnt.
+
 - *Instellingen → Overzicht → **Gezondheid*** (tot 1.120.0: *Systeem → Systeemcheck*): PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en een kant-en-klare cron-regel. Vanaf 1.96.0 ook de gezondheid van RzMon zelf:
   - de grootte van de database, met de grootste tabellen, de groei per dag en wanneer de disk vol is;
   - hoe lang een ronde duurt, en of hij uitloopt boven de minuut;

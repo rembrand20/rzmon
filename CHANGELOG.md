@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.122.0 – 2026-10-29
+### Nieuw
+- **Niets meer dubbel** (deel 3 van 3):
+  - **Status**: de 5 losse punten over agents zijn één regel **Agents**, en de punten over https één regel **Beheer via https**. Eronder staan alleen wat aandacht nodig heeft en de knoppen (bv. *Alles opruimen*).
+  - **IDS-onderdelen aan of uit alleen nog op *IDS → Bescherming***. De drempels van een onderdeel stel je in met **⚙️** op de kaart, bijvoorbeeld brute force, honeypot, afwijkingen, ketens, blokkeerscore, webdiensten, uitgaand verkeer en landen.
+  - Op de IDS-pagina's bij *Instellingen* staan de algemene instellingen, met een verwijzing naar Bescherming. De dubbele schakelaars en lege kopjes zijn weg. Er verandert niets aan wat aan of uit staat.
+
 ## 1.121.0 – 2026-10-29
 ### Nieuw
 - **Agents in de stijl van het dashboard** (deel 2 van 3), bij *Instellingen → Agents → Overzicht*:
