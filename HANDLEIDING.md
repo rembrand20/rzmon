@@ -2123,7 +2123,7 @@ De agent kijkt nu op het moment zelf mee op de server, en niet pas bij het volge
   - **processen**: elk nieuw programma met opdracht, ouder, gebruiker en map (via `auditd`);
   - **gevoelige paden**: wie aankomt aan `passwd`, `shadow`, `sudoers`, `ld.so.preload`, cron, systemd-units en `/root/.ssh`, en het laden van kernelmodules (`auditd`);
   - **netwerk**: nieuwe uitgaande verbindingen en nieuwe luisterpoorten, met het programma erbij;
-  - **bestanden**: nieuwe bestanden in `/tmp`, `/var/tmp`, `/dev/shm` en de webmappen (via `inotify-tools`): grootte, of het een programma is (ELF), SHA-256 en verdachte code (`eval(base64_decode(`, `system($_GET` …);
+  - **bestanden**: nieuwe bestanden in `/tmp`, `/var/tmp`, `/dev/shm` en de webmappen (via `inotify-tools`): grootte, of het een programma is (ELF), SHA-256 en verdachte code (`eval(base64_decode(`, `system($_GET` …). Programma's in de werkmap van `dracut` (`/var/tmp/dracut.XXXXXX/`, een nieuwe initramfs na een kernel-update) geven geen melding *Nieuw programma in een tijdelijke map*; YARA en de regel voor verborgen mappen kijken daar wel (vanaf 1.127.1);
   - **containers**: starten, `exec` en containers met `--privileged` (Docker en Podman);
   - **webverzoeken** via SWAG (zie *Payload-inspectie* hieronder).
 - **Regels:**

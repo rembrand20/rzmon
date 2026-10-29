@@ -169,8 +169,11 @@ final class EdrRules
                 'id' => 'rz-drop-elf', 'kinds' => ['file'], 'sev' => 1, 'act' => [], 'tags' => ['T1105'],
                 'title' => 'Nieuw programma in een tijdelijke map',
                 'what' => 'Er staat ineens een uitvoerbaar programma (ELF) in /tmp of /var/tmp. Soms een installatieprogramma, maar ook de eerste stap van een inbraak: het gereedschap neerzetten.',
-                'sel' => ['s' => [[self::c('TargetFilename', 'startswith', $tmpDirs), self::c('elf', 'eq', ['1'])]]],
-                'cond' => ['ref' => 's'],
+                // 1.127.1: niet de werkmap van dracut (een nieuwe initramfs na een kernel-update kopieert daar ps, mount …);
+                // alleen de vorm van mktemp (dracut.XXXXXX), en YARA en de regel voor verborgen mappen blijven gelden
+                'sel' => ['s' => [[self::c('TargetFilename', 'startswith', $tmpDirs), self::c('elf', 'eq', ['1'])]],
+                    'dracut' => [[self::c('TargetFilename', 're', ['^/(var/)?tmp/dracut\\.[A-Za-z0-9]{6}/'])]]],
+                'cond' => ['and' => [['ref' => 's'], ['not' => ['ref' => 'dracut']]]],
             ],
             [
                 'id' => 'rz-drop-webshell', 'kinds' => ['file'], 'sev' => 2, 'act' => [], 'tags' => ['T1505.003'],

@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.127.1 – 2026-10-29
+### Opgelost
+- **Geen melding meer bij een kernel-update**: *Nieuw programma in een tijdelijke map* ging af als `dracut` een nieuwe initramfs bouwde (bijv. `/var/tmp/dracut.CbpkW9/initramfs/usr/bin/ps`). De werkmap van dracut (`/tmp` of `/var/tmp`, `dracut.` + 6 tekens) wordt nu overgeslagen. Een programma in een andere map, of met een naam die er alleen op lijkt, geeft nog steeds een melding, en YARA en de regel voor verborgen mappen kijken ook in de werkmap van dracut.
+
 ## 1.127.0 – 2026-10-29
 ### Nieuw
 - **Bevestigen met je wachtwoord in een eigen venster** bij installeren (EDR-onderdelen), een server isoleren en een gebruiker vergrendelen: een strak venster met titel, uitleg, een wachtwoordveld met 👁 om het even te tonen, en *Annuleren* / *Bevestigen*. Gevaarlijke acties hebben een rode knop.

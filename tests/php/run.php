@@ -428,6 +428,13 @@ $y = q("SELECT * FROM ids_incidents WHERE host_id = ? AND type = 'edr' AND dkey 
 ok($y && (int) $y['severity'] === 2, 'YARA-treffer (cryptominer) → critical');
 Edr::process($hc, ['ev' => [['k' => 'f', 't' => time(), 'path' => '/tmp/tool', 'size' => 300, 'elf' => 1, 'x' => 1, 'sha' => str_repeat('2', 64), 'yara' => 'rz_info_upx_packed']]]);
 ok((int) q("SELECT severity FROM ids_incidents WHERE host_id = ? AND dkey LIKE 'rz-yara-info|%'", [$hc['id']])->fetchColumn() === 1, 'alleen een aanwijzing (UPX) → warning');
+// 1.127.1: de werkmap van dracut (nieuwe initramfs na een kernel-update) is geen 'nieuw programma in /tmp'
+$drop = static fn(string $path) => (int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND dkey LIKE 'rz-drop-elf|%' AND detail LIKE ?", [$hc['id'], '%' . $path . '%'])->fetchColumn();
+foreach (['/var/tmp/dracut.CbpkW9/initramfs/usr/bin/ps', '/var/tmp/dracutx/ps', '/var/tmp/x/dracut.CbpkW9/ps'] as $k => $p) {
+    Edr::process($hc, ['ev' => [['k' => 'f', 't' => time(), 'path' => $p, 'size' => 144536, 'elf' => 1, 'x' => 1, 'sha' => str_repeat((string) (3 + $k), 64)]]]);
+}
+ok($drop('/var/tmp/dracut.CbpkW9/') === 0, 'programma in de werkmap van dracut (kernel-update) → geen melding');
+ok($drop('/var/tmp/dracutx/') === 1 && $drop('/var/tmp/x/dracut.CbpkW9/') === 1, 'alleen de echte vorm dracut.XXXXXX direct in /tmp of /var/tmp wordt overgeslagen');
 $r = Edr::process($hc, ['ev' => [], 'info' => ['yara' => 'ok', 'ysha' => '']]);
 ok(base64_decode($r['edr_yara'] ?? '') === Edr::yaraRules() && str_contains(Edr::yaraRules(), 'rule rz_php_webshell_eval'), 'YARA-regels naar de agent als hij ze nog niet heeft');
 ok(!isset(Edr::process($hc, ['ev' => [], 'info' => ['yara' => 'ok', 'ysha' => hash('sha256', Edr::yaraRules())]])['edr_yara']), 'niet opnieuw als de agent de nieuwste regels heeft');
