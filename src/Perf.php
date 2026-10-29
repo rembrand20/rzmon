@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Snelheidsmeter (1.119.0): hoe lang verzoeken aan RzMon (interface, API, agents) en de onderdelen van een cron-ronde
  * duren. Per uur en per naam opgeteld in perf_stats (één regel per verzoek bijwerken; twee dagen bewaard), zodat je bij
- * Instellingen → Systeem → Systeemcheck ziet waar de tijd zit. Uit te zetten met perf_on.
+ * Instellingen → Overzicht → Gezondheid ziet waar de tijd zit. Uit te zetten met perf_on.
  */
 final class Perf
 {

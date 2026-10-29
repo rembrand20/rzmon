@@ -40,7 +40,7 @@ final class Monitor
     private const FAST_TYPES = ['ping', 'tcp', 'http', 'snmp'];
 
     /**
-     * Interval van een check in SQL (1.108.0, slim interval, Instellingen → Checks → Slimme voorstellen): bij een probleem
+     * Interval van een check in SQL (1.108.0, slim interval, Instellingen → Monitoring → Advies): bij een probleem
      * (of een mislukte meting) sneller (smart_fast, standaard 20 s, alleen checks die RzMon zelf doet), na een uur stabiel OK
      * trager (hooguit smart_slow × het interval en nooit trager dan een uur, tenzij het interval zelf al langer is).
      */

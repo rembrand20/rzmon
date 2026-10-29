@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Logins (SSH, console), sudo en su van de agents, op de pagina IDS → Toegang (tabel access_log, kind auth/authfail).
- * Alleen tonen, niet versturen. Aan/uit en uitzonderingen: Instellingen → Beveiliging → IDS: detectie (auth_events, auth_ignore).
+ * Alleen tonen, niet versturen. Aan/uit en uitzonderingen: Instellingen → IDS → Algemeen (auth_events, auth_ignore).
  * Mislukte pogingen komen opgeteld binnen; per server, soort en IP/gebruiker één regel per uur.
  */
 final class AuthEvents

@@ -1847,3 +1847,36 @@ button.ic-n { cursor: pointer; } button.ic-n:hover b { text-decoration: underlin
 
 /* 1.119.0: ouder laden onder Meldingen en IDS */
 .more-days { display: flex; align-items: center; justify-content: center; gap: .8rem; flex-wrap: wrap; margin: .8rem 0; }
+
+/* 1.120.0: beheerportal in een nieuw jasje */
+:root { --info: #FFA51E; }   /* het oranje van "AI" in het logo */
+.set-ic { width: 18px; height: 18px; flex: none; color: var(--muted); }
+.set-nav-head.cur .set-ic { color: var(--primary); }
+.set-nav-head > span:first-child { display: grid; place-items: center; }
+.set-crumb { margin: 0 0 .1rem; text-transform: uppercase; letter-spacing: .04em; font-size: .72rem; }
+.set-title { font-size: 1.55rem; font-weight: 750; letter-spacing: -.01em; margin: 0; }
+.set-lead { color: var(--muted); margin: .2rem 0 1.1rem; font-size: .95rem; }
+.set-lead:empty { display: none; }
+.set-tabs { margin: -.3rem 0 1rem; }
+#tab-settings [data-sk] > h2.set-dup { display: none; }
+#tab-settings .set-toolbar { display: none; }
+/* Kopjes binnen een kaart: klein, rustig, met een lijn */
+#tab-settings .set-sub { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; }
+/* Schakelaars als rijen: tekst links, schakelaar rechts */
+#tab-settings [data-sk] label.switch:not(.small) { flex-direction: row-reverse; justify-content: space-between; gap: 1rem; padding: .6rem 0; margin: 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+#tab-settings [data-sk] label.switch:not(.small) > input + span { flex: none; }
+#tab-settings [data-sk] .mode-switch label.switch, #tab-settings [data-sk] .lock-row label.switch, #tab-settings [data-sk] .row3 label.switch, #tab-settings [data-sk] .row2 label.switch { flex-direction: row; justify-content: flex-start; border-bottom: 0; padding: 0; }
+/* ⓘ-blok: oranje, ingeklapt tot één regel */
+.info-i { margin: .35rem 0 .8rem; border: 1px solid color-mix(in srgb, var(--info) 45%, transparent); background: color-mix(in srgb, var(--info) 8%, transparent); border-radius: 10px; font-size: .85rem; }
+.info-i > summary { list-style: none; display: flex; gap: .55rem; align-items: flex-start; padding: .45rem .7rem; cursor: pointer; }
+.info-i > summary::-webkit-details-marker { display: none; }
+.info-ic { flex: none; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; margin-top: .05rem; border-radius: 50%; background: var(--info); color: #1a1205; font: italic 700 .8rem/1 Georgia, serif; }
+.info-txt { color: var(--text); opacity: .85; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1; -webkit-box-orient: vertical; }
+.info-i[open] .info-txt { display: block; opacity: 1; }
+.info-i:not([open]) > summary::after { content: '›'; margin-left: auto; color: var(--info); font-weight: 700; }
+.tip { color: var(--info); font-weight: 700; }
+.more-btn { display: none !important; }
+.info-more { display: block; margin-top: .45rem; }
+.info-i:not([open]) .info-more { display: none; }
+.tip:not(:hover):not(:focus)::after { display: none; }   /* verborgen uitleg telt anders mee voor de breedte (zijwaarts schuiven op de telefoon) */
+@media (max-width: 600px) { table.smart-prop th:nth-child(3), table.smart-prop td:nth-child(3), table.smart-prop th:nth-child(6), table.smart-prop td:nth-child(6) { display: none; } }

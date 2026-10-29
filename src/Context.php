@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Oorzaak erbij zoeken (1.108.0): bij de eerste melding van een storing kijkt RzMon wat er vlak ervoor (20 minuten) op
  * die server gebeurde, en zet dat in de melding: een agent- of RzMon-update, een herstart, bijgewerkte pakketten,
  * zelf herstellen, of een wijziging in RzMon (wijzigingslogboek). Bijvoorbeeld "🕵️ Kort ervoor: 3 min eerder: Agent
- * bijgewerkt van 1.61.1 naar 1.62.0". Aan/uit: Instellingen → Checks → Slimme voorstellen (context_on).
+ * bijgewerkt van 1.61.1 naar 1.62.0". Aan/uit: Instellingen → Monitoring → Advies (context_on).
  */
 final class Context
 {

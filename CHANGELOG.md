@@ -7,6 +7,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.120.0 – 2026-10-29
+### Nieuw
+- **Beheerportal in een nieuw jasje** (deel 1 van 3): overzichtelijker en zakelijker.
+  - **Nieuwe indeling** in 8 groepen met **lijn-iconen** (zoals de bovenbalk): Overzicht, Monitoring, Meldingen, **IDS** (nu een eigen groep), Beveiliging (met Toegang erin), Agents, Koppelingen en Systeem.
+  - **Samengevoegd** wat bij elkaar hoort:
+    - **Advies** met tabbladen voor *Slimme drempels*, *Voorstellen* en *Opschonen*;
+    - **Wanneer melden** (meldregels, stille uren en alarmgedrag);
+    - **Database en server**;
+    - **Gezondheid** (de systeemcheck en de snelheid, nu onder Overzicht).
+  - **Eén titel per pagina** met één korte zin eronder; de kaarttitel die hetzelfde zei is weg.
+  - **Lange uitleg in een oranje ⓘ-blok** (de kleur van *AI* in het logo), ingeklapt tot één regel; klik voor de hele tekst. Blokken die direct na elkaar staan worden één blok.
+  - **Schakelaars als rijen**: de tekst links, de schakelaar rechts.
+  - **Titels zonder emoji**; kopjes binnen een pagina klein en rustig.
+- Oude links (zoals `#settings/smart` of `#settings/server`) gaan vanzelf naar de nieuwe plek; teksten in RzMon verwijzen naar de nieuwe namen.
+
+### Opgelost
+- Op de telefoon schoven sommige instellingenpagina's zijwaarts (door een verborgen uitlegballon).
+
 ## 1.119.0 – 2026-10-29
 ### Nieuw
 - **🚀 Snelheid** bij *Instellingen → Systeem → Systeemcheck*. Je ziet:

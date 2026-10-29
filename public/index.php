@@ -463,8 +463,10 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </nav>
       <div class="set-main">
       <div class="set-mobile"><select id="set-mselect" aria-label="<?= th('Onderdeel') ?>"></select></div>
-      <h1 class="set-title" id="set-title"></h1>
       <div class="set-crumb muted small"><span id="set-crumb"></span> <span class="autosave-state" id="save-state" aria-live="polite"></span></div>
+      <h1 class="set-title" id="set-title"></h1>
+      <p class="set-lead" id="set-lead"></p>
+      <div class="seg set-tabs" id="set-tabs" role="tablist" hidden></div>
       <div data-sk="overview" class="card set-overview" id="set-overview"></div>
       <div class="set-toolbar">
         <span class="muted small"><?= th('Klik op een onderdeel om het te openen of te sluiten.') ?></span>

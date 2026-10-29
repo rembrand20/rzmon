@@ -426,7 +426,7 @@ final class Heartbeat
             $status = STATUS_WARN;
             $last .= ' · ' . t('veel langer dan normaal ({n})', ['n' => SnmpMonitor::duration((int) (isset($o['max']) ? $o['max'] * 60 : $prev))]);
         }
-        // 1.108.0: geleerd ritme en geleerde waarde (Instellingen → Checks → Slimme voorstellen: hb_learn)
+        // 1.108.0: geleerd ritme en geleerde waarde (Instellingen → Monitoring → Advies: hb_learn)
         if (setting('hb_learn', '1') === '1' && $status === STATUS_OK) {
             if (($late = self::lateByRhythm($s, $now)) !== null) {
                 $status = STATUS_WARN;

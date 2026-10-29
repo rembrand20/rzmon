@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Gezondheid van RzMon zelf (1.96.0), voor Instellingen → Systeem → Systeemcheck: grootte en groei van de database
+ * Gezondheid van RzMon zelf (1.96.0), voor Instellingen → Overzicht → Gezondheid: grootte en groei van de database
  * (met een voorspelling wanneer de disk vol is), hoe lang een cron-ronde duurt, de traagste checks en PHP-fouten.
  * PHP-fouten (waarschuwingen en erger) komen samengevat per soort in app_errors (7 dagen).
  */

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Slimme voorstellen (1.108.0). RzMon kijkt elke nacht naar de geschiedenis en stelt voor; jij past toe of negeert
- * (Instellingen → Checks → Slimme voorstellen). Een genegeerd voorstel komt niet terug (zelfde vingerafdruk).
+ * (Instellingen → Monitoring → Advies). Een genegeerd voorstel komt niet terug (zelfde vingerafdruk).
  * - fails:  "melden na N mislukte checks" per check: veel storingen die binnen een paar minuten vanzelf herstellen →
  *           hoger; storingen die altijd lang duren terwijl N hoog staat → lager (sneller weten);
  * - maint:  een terugkerend patroon (elke zondag 4:00, elke nacht 2:00) → een vast onderhoudsvenster;

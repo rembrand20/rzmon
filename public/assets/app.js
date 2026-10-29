@@ -2666,7 +2666,7 @@ function smartWhy(p) {
   return why;
 }
 
-/** Instellingen → Checks → Slimme drempels: handmatige checks waar slim minder warnings had gegeven */
+/** Instellingen → Monitoring → Advies: handmatige checks waar slim minder warnings had gegeven */
 async function loadSmartProposals() {
   const el = $('#smart-proposals');
   if (!el) return;
@@ -2982,7 +2982,7 @@ function hostForm(h, preset = null) {
       ${snmpHostFields(h.snmp)}
       <details class="notify-own" id="fim-host-wrap" ${h.mode === 'agent' ? '' : 'hidden'}>
         <summary>📁 ${L('Bestanden bewaken (IDS)')}: <span id="fim-host-label">${L('laden…')}</span></summary>
-        <p class="hint" style="margin-top:0">${L('Extra paden voor deze server, bovenop de algemene lijst (<i>Instellingen → Beveiliging → IDS: detectie</i>). Hetzelfde pad hier gaat voor, bv. om de ernst te veranderen.')}</p>
+        <p class="hint" style="margin-top:0">${L('Extra paden voor deze server, bovenop de algemene lijst (<i>Instellingen → IDS → Algemeen</i>). Hetzelfde pad hier gaat voor, bv. om de ernst te veranderen.')}</p>
         <div id="fim-host"></div>
       </details>
       ${(state.templates || []).length ? `<details class="notify-own" ${isNew || hostTpls(h).length ? 'open' : ''}>
@@ -5791,7 +5791,7 @@ function renderAccess() {
   const fails = d.rows.filter((r) => r.kind === 'authfail').length;
   $('#it-n-acc').textContent = d.rows.length ? d.rows.length : '';
   $('#acc-info').textContent = L('{ok} gelukt · {fail} mislukt · laatste {days} dagen', { ok: d.rows.length - fails, fail: fails, days: d.days }) + (d.truncated ? ' ' + L('(alleen de nieuwste 10.000)') : '');
-  const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → Beveiliging → IDS: detectie</a>.') + '</p>';
+  const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → IDS → Algemeen</a>.') + '</p>';
   const q = $('#acc-search').value.trim().toLowerCase();
   const list = d.rows.filter((r) => (accFilter === 'all' || (accFilter === 'fail' ? r.kind === 'authfail' : r.type === accFilter))
     && (!accHost || +r.host_id === +accHost) && (!q || `${r.message} ${r.host_name} ${accWho(r, accDet(r))}`.toLowerCase().includes(q)) && fxPass('acc', r));
@@ -5884,7 +5884,7 @@ function accIgnoreDialog(r) {
     title: '🙈 ' + L('Negeren'),
     body: `<p style="margin-top:0">${L('Wat wil je voortaan niet meer zien in <i>Toegang</i>? Ook de regels die er al staan, verdwijnen.')}</p>
       ${opts.map(([k, v, l], i) => `<label class="switch small"><input type="checkbox" name="ign${i}" value="${esc(v)}" ${opts.length === 1 || k === 'ip' ? 'checked' : ''}><span></span> ${l}</label>`).join('')}
-      <p class="muted small">${L('Een mislukte poging met meerdere gebruikers wordt alleen verborgen als <i>alle</i> gebruikers genegeerd worden, of het IP-adres. De lijst pas je aan onder <i>Instellingen → Beveiliging → IDS: detectie → Negeren</i>. Brute-forcedetectie van het IDS blijft gewoon werken.')}</p>`,
+      <p class="muted small">${L('Een mislukte poging met meerdere gebruikers wordt alleen verborgen als <i>alle</i> gebruikers genegeerd worden, of het IP-adres. De lijst pas je aan onder <i>Instellingen → IDS → Algemeen → Negeren</i>. Brute-forcedetectie van het IDS blijft gewoon werken.')}</p>`,
     buttons: [{ label: '🙈 ' + L('Negeren'), cls: 'primary', submit: true }],
     onSubmit: async (d) => {
       const add = Object.keys(d).filter((k) => k.startsWith('ign')).map((k) => d[k]);
@@ -7392,20 +7392,56 @@ function initMainTabs() {
 
 // ---------------------------------------------------------------- Instellingen: zijbalk met onderdelen
 // Elk onderdeel toont een of meer kaarten (data-sk); de kaarten zelf (en hoe ze opslaan) zijn niet veranderd.
+// 1.120.0: nieuwe indeling, met lijn-iconen (zelfde stijl als de bovenbalk) en per onderdeel één korte zin.
+// [groep, icoon, naam, [[sleutel, titel, kaarten, korte omschrijving, tabbladen?], …]]
+const SET_IC = (d) => `<svg class="tab-ic set-ic" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const SET_NAV = [
-  ['overzicht', '✅', L('Overzicht'), [['overview', L('Hoe staat het ervoor?'), ['overview']], ['conn', L('Verbindingen en taken'), ['conn']]]],
-  ['checks', '🧩', L('Checks'), [['templates', L('Sjablonen'), ['templates']], ['allchecks', L('Alle checks'), ['allchecks']], ['smart', L('Slimme drempels'), ['smart']], ['advice', L('Slimme voorstellen'), ['advice', 'smartmore']], ['cleanup', L('Opschoonadvies'), ['cleanup']]]],
-  ['meldingen', '🔔', L('Meldingen'), [['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'chain']], ['rules', L('Meldregels en stille uren'), ['notify']], ['alarm', L('Alarmgedrag'), ['alarm']], ['sysinfo', L('Systeeminfo'), ['sysinfo']]]],
-  ['beveiliging', '🛡️', L('Beveiliging'), [['ids', L('IDS: detectie'), ['ids']], ['ids_edr', L('IDS: endpoint-bewaking'), ['ids_edr']], ['ids_ti', L('IDS: dreigingsinformatie'), ['ids_ti']], ['ids_attack', L('IDS: aanvallers en verkeer'), ['ids_attack']], ['ids_servers', L('IDS: servers'), ['ids_servers']],
-    ['vulns', L('Kwetsbaarheden'), ['vulns']], ['hibp', L('Datalekken'), ['hibp']], ['netscan', L('Netwerkscan'), ['netscan']]]],
-  ['toegang', '🔐', L('Toegang'), [['access', L('Inloggen'), ['access']], ['outside', L('Van buiten'), ['https', 'outside']], ['users', L('Gebruikers'), ['users']]]],
-  ['agents', '🖥️', L('Agents'), [['agents', L('Agents'), ['agents']], ['enc', L('Beveiligde verbinding'), ['enc']], ['commands', L('Commando-checks'), ['commands']]]],
-  ['koppelingen', '🔗', L('Koppelingen'), [['netlinks', L('UniFi en AdGuard Home'), ['netlinks']], ['mqtt', L('MQTT (Home Assistant)'), ['mqtt']], ['api', L('REST API en API-sleutels'), ['api']], ['statuspage', L('Statuspagina'), ['statuspage']]]],
-  ['systeem', '🛠️', L('Systeem'), [['update', L('RzMon bijwerken'), ['update']], ['backup', L('Back-up'), ['backup']], ['db', L('Database en opslag'), ['dbconn', 'db', 'storage']],
-    ['server', L('Server en PHP'), ['server']], ['syscheck', L('Systeemcheck'), ['syscheck']], ['changelog', L('Wijzigingslogboek'), ['changelog']], ['transfer', L('Exporteren en importeren'), ['transfer']]]],
+  ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Overzicht'), [
+    ['overview', L('Status'), ['overview'], L('Wat er nog aandacht nodig heeft, met een knop om het te regelen.')],
+    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzMon elke minuut uitvoert.')],
+    ['syscheck', L('Gezondheid'), ['syscheck'], L('Systeemcheck, database, snelheid en fouten van RzMon zelf.')]]],
+  ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
+    ['allchecks', L('Alle checks'), ['allchecks'], L('Alle checks van alle servers in één lijst, ook samen bewerken.')],
+    ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
+    ['advice', L('Advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
+      [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]]]],
+  ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen'), [
+    ['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'chain'], L('Waar meldingen heen gaan: Pushover, e-mail en webhooks.')],
+    ['rules', L('Wanneer melden'), ['notify', 'alarm'], L('Meldregels, stille uren en wanneer een probleem een melding wordt.')],
+    ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzMon zelf, zoals updates en certificaten.')]]],
+  ['ids', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS'), [
+    ['ids', L('Algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
+    ['ids_edr', L('Endpoint-bewaking'), ['ids_edr'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.')],
+    ['ids_ti', L('Dreigingsinformatie'), ['ids_ti'], L('Bekende aanvallers en malware opzoeken, en DNS en Suricata.')],
+    ['ids_attack', L('Netwerk en aanvallers'), ['ids_attack'], L('Blocklists, landen, uitgaand verkeer en de logs van webdiensten.')],
+    ['ids_servers', L('Per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')]]],
+  ['beveiliging', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Beveiliging'), [
+    ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
+    ['outside', L('Beheer via https'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk.')],
+    ['users', L('Gebruikers'), ['users'], L('Accounts, rollen en tweestapsverificatie.')],
+    ['vulns', L('Kwetsbaarheden'), ['vulns'], L('Bekende lekken in de software op je servers.')],
+    ['hibp', L('Datalekken'), ['hibp'], L('Staan je e-mailadressen of domein in een datalek?')],
+    ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
+  ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents'), [
+    ['agents', L('Agents'), ['agents'], L('Alle agents, hun versie en verbinding, en bijwerken.')],
+    ['enc', L('Beveiligde verbinding'), ['enc'], L('Versleuteling, sleutels en certificaat voor alle agents.')],
+    ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')]]],
+  ['koppelingen', SET_IC('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'), L('Koppelingen'), [
+    ['netlinks', L('UniFi en AdGuard'), ['netlinks'], L('Apparaten en DNS uit je UniFi-controller en AdGuard Home.')],
+    ['mqtt', L('Home Assistant (MQTT)'), ['mqtt'], L('Sensoren en meldingen in Home Assistant.')],
+    ['api', L('REST API'), ['api'], L('API-sleutels voor andere toepassingen.')],
+    ['statuspage', L('Statuspagina'), ['statuspage'], L('Een openbare pagina met de status, via een geheime link.')]]],
+  ['systeem', SET_IC('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), L('Systeem'), [
+    ['update', L('Bijwerken'), ['update'], L('Nieuwe versies van RzMon, met of zonder automatisch bijwerken.')],
+    ['backup', L('Back-up'), ['backup'], L('Automatische back-ups en terugzetten.')],
+    ['db', L('Database en server'), ['dbconn', 'db', 'storage', 'server'], L('Databaseverbinding, bewaartermijnen, tijdzone en PHP.')],
+    ['changelog', L('Wijzigingslogboek'), ['changelog'], L('Wie wat wijzigde, met terugdraaien.')],
+    ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
-const SET_ALIAS = { https: 'outside', setup: 'syscheck' };
+const SET_ALIAS = { https: 'outside', setup: 'syscheck', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db' };   // 1.120.0: samengevoegde onderdelen
+const SET_TAB_OF = { smart: 'drempels', cleanup: 'opschonen' };   // oude adressen → tabblad op de pagina Advies
+let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
 let setHealthAt = 0;
 let setHealth = {};   // onderdeel → slechtste status uit "Hoe staat het ervoor?" (voor de bolletjes in de zijbalk)
@@ -7416,30 +7452,41 @@ function setFind(id) {
 }
 
 function showSettingsSection(id, focusEl) {
+  if (SET_TAB_OF[id]) setTab[SET_ALIAS[id]] = SET_TAB_OF[id];
+  // Gevonden via zoeken in een kaart op een ander tabblad: dat tabblad kiezen
+  const fk = focusEl && focusEl.closest('[data-sk]') && focusEl.closest('[data-sk]').dataset.sk;
   const f = setFind(SET_ALIAS[id] || id) || setFind('overview');
   setSection = f.sub[0];
   try { localStorage.setItem('rzmon-set-section', setSection); } catch (e) {}
-  const cards = f.sub[2];
+  // 1.120.0: tabbladen binnen een onderdeel (bv. Advies: drempels, voorstellen, opschonen)
+  const tabs = f.sub[4] || null;
+  if (tabs && fk) { const t = tabs.find((x) => x[2].includes(fk)); if (t) setTab[setSection] = t[0]; }
+  const tab = tabs ? (tabs.find((x) => x[0] === setTab[setSection]) || tabs[0]) : null;
+  $('#set-tabs').hidden = !tabs;
+  $('#set-tabs').innerHTML = tabs ? tabs.map(([k, l]) => `<button type="button" class="seg-btn ${k === tab[0] ? 'active' : ''}" data-set-tab="${k}" role="tab">${esc(l)}</button>`).join('') : '';
+  const cards = tab ? tab[2] : f.sub[2];
   $$('#tab-settings [data-sk]').forEach((c) => c.classList.toggle('set-off', !cards.includes(c.dataset.sk)));
   // De knop "Instellingen opslaan" alleen bij onderdelen uit dat formulier
   const inForm = cards.some((k) => { const c = $(`#tab-settings [data-sk="${k}"]`); return c && c.closest('#settings-form'); });
   $('#settings-form').classList.toggle('set-noform', !inForm);
   $('#set-title').textContent = f.sub[1];
-  $('#set-crumb').textContent = `${L('Instellingen')} › ${f.icon} ${f.group} › ${f.sub[1]}`;
+  $('#set-lead').textContent = f.sub[3] || '';
+  $('#set-crumb').textContent = `${L('Instellingen')} › ${f.group}`;
+  // Eén kaart op de pagina: zijn titel is gelijk aan de paginatitel, dus weg (tenzij er knoppen in staan)
+  const shown = $$('#tab-settings [data-sk]').filter((c) => !c.classList.contains('set-off'));
+  $$('#tab-settings [data-sk] > h2').forEach((h) => h.classList.toggle('set-dup', shown.length === 1 && shown[0] === h.parentElement && !h.querySelector('button, input, a')));
   renderSettingsNav();
-  $('#set-mselect').innerHTML = SET_NAV.map(([g, icon, label, subs]) => `<optgroup label="${icon} ${esc(label)}">${subs.map(([k, l]) => `<option value="${k}" ${k === setSection ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('');
+  $('#set-mselect').innerHTML = SET_NAV.map(([g, icon, label, subs]) => `<optgroup label="${esc(label)}">${subs.map(([k, l]) => `<option value="${k}" ${k === setSection ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('');
   history.replaceState(null, '', '#settings/' + setSection);
   if (setSection === 'overview' || !setHealthAt) loadSettingsHealth();
   if (setSection === 'conn') loadConn();
   if (setSection === 'templates') loadTemplates();
   if (setSection === 'allchecks') loadAllChecks();
-  if (setSection === 'smart') loadSmartProposals();
   if (setSection === 'statuspage') loadStatusPage();
-  if (setSection === 'advice') loadAdvice();
-  if (setSection === 'cleanup') loadCleanup();
+  if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'syscheck') loadSyscheck();
-  if (setSection === 'server' || setSection === 'db') loadSetupInfo();
+  if (setSection === 'db') loadSetupInfo();
   if (focusEl) {
     // Gevonden via zoeken: ingeklapte "Geavanceerd" openen, ernaartoe en even laten oplichten
     for (let d = focusEl.closest('details'); d; d = d.parentElement.closest('details')) d.open = true;
@@ -7557,18 +7604,58 @@ async function healthAction(act, b) {
   } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
 }
 
-// ---- Lange uitleg korter: alinea's inklappen tot twee regels, lange toelichting bij een veld als ⓘ
-function initSettingsTips() {
-  $$('#tab-settings [data-sk] p.muted.small:not([id])').forEach((p) => {
-    if (p.textContent.trim().length < 150 || p.closest('#set-overview')) return;
-    p.classList.add('clamp');
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'more-btn';
-    b.textContent = 'ⓘ ' + L('meer uitleg');
-    b.onclick = () => { const open = p.classList.toggle('open'); b.textContent = open ? '▴ ' + L('minder') : 'ⓘ ' + L('meer uitleg'); };
-    p.after(b);
+// ---- Lange uitleg korter (1.120.0): een oranje ⓘ-blok, ingeklapt tot één regel; klik voor de hele tekst.
+// Titels zonder emoji (de zijbalk en de bovenbalk hebben lijn-iconen). Ook voor wat later geladen wordt.
+const EMOJI_LEAD = /^[\s\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{20E3}]+/u;
+function polishSettings(root) {
+  $$('[data-sk] p.muted.small:not([id]):not([data-pol]), [data-sk] p.hint:not([id]):not([data-pol])', root).forEach((p) => {
+    p.dataset.pol = '1';
+    if (p.textContent.trim().length < 120 || p.closest('#set-overview, .ov-item, td, .kv, li')) return;
+    const d = document.createElement('details');
+    d.className = 'info-i';
+    d.dataset.pol = '1';
+    if (p.getAttribute('style')) d.setAttribute('style', p.getAttribute('style'));
+    const s = document.createElement('summary');
+    s.innerHTML = '<span class="info-ic" aria-hidden="true">i</span>';
+    const t = document.createElement('span');
+    t.className = 'info-txt';
+    while (p.firstChild) t.append(p.firstChild);
+    s.append(t);
+    d.append(s);
+    // Staat er al een ⓘ-blok vlak boven? Dan één blok met twee alinea's (niet een rij oranje blokken)
+    const prev = p.previousElementSibling;
+    if (prev && prev.classList.contains('info-i')) {
+      const more = document.createElement('span');
+      more.className = 'info-more';
+      while (t.firstChild) more.append(t.firstChild);
+      prev.querySelector('.info-txt').append(more);
+      p.remove();
+    } else p.replaceWith(d);
   });
+  // Schakelaar met tekst in meerdere stukken (bv. met <b>): één geheel, anders zet de rij-opmaak de stukken door elkaar
+  $$('[data-sk] label.switch:not([data-pol])', root).forEach((l) => {
+    l.dataset.pol = '1';
+    const sl = l.querySelector(':scope > input + span');
+    if (!sl) return;
+    const rest = [];
+    for (let n = sl.nextSibling; n; n = n.nextSibling) rest.push(n);
+    if (rest.filter((n) => n.nodeType === 1 || n.textContent.trim()).length <= 1 && !rest.some((n) => n.nodeType === 3 && n.textContent.trim())) return;
+    const w = document.createElement('span');
+    w.className = 'sw-txt';
+    rest.forEach((n) => w.append(n));
+    l.append(w);
+  });
+  $$('[data-sk] h2:not([data-pol]), [data-sk] h3.set-sub:not([data-pol])', root).forEach((h) => {
+    h.dataset.pol = '1';
+    const n = h.firstChild;
+    if (n && n.nodeType === 3) n.textContent = n.textContent.replace(EMOJI_LEAD, '');
+  });
+}
+function initSettingsTips() {
+  const tab = $('#tab-settings');
+  polishSettings(tab);
+  let t = null;
+  new MutationObserver(() => { clearTimeout(t); t = setTimeout(() => polishSettings(tab), 30); }).observe(tab, { childList: true, subtree: true });
   $$('#tab-settings [data-sk] label > span.hint, #tab-settings [data-sk] label > span.muted.small').forEach((s) => {
     const txt = s.textContent.trim().replace(/^\((.*)\)$/, '$1');
     if (txt.length < 40 || s.querySelector('a')) return;
@@ -7608,6 +7695,12 @@ function initSettingsNav() {
   $('#set-overview').addEventListener('click', (e) => {
     const b = e.target.closest('[data-set-go]');
     if (b) showSettingsSection(b.dataset.setGo);
+  });
+  $('#set-tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-set-tab]');
+    if (!b) return;
+    setTab[setSection] = b.dataset.setTab;
+    showSettingsSection(setSection);
   });
   const search = $('#set-search');
   search.addEventListener('input', renderSettingsNav);
