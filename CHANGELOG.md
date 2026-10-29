@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.131.3 – 2026-10-29
+### Opgelost
+- **Onterecht "versie 1.66.1 (nieuwste undefined)" met ⬆ Bijwerken** bij alle agents in *Nu aandacht nodig*: het Agents-overzicht werd soms opgebouwd voordat de rest van de pagina het nieuwste agentnummer kende, en dan leek elke agent verouderd. Het overzicht krijgt dat nummer nu zelf mee.
+
 ## 1.131.2 – 2026-10-29
 ### Opgelost
 - **Waarom staat er een stip?** De oranje en rode stippen in de zijbalk van de instellingen zeiden alleen *Aandachtspunt*. Ga je er nu met de muis op staan, dan zie je welke punten het zijn (bijvoorbeeld *🟠 Alleen agents met een eigen sleutel: … zet dit aan*). Alles staat ook bij *Overzicht → Status*.

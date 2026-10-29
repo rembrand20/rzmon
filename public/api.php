@@ -2043,6 +2043,7 @@ switch ($action) {
             'blocks' => Security::blocks(),
             'my_ip' => client_ip(),
             'now_ts' => time(),
+            'agent_latest' => AGENT_LATEST,   // 1.131.3: het overzicht kan er al zijn voordat de rest van de pagina geladen is
         ]);
 
     case 'enc_mode':

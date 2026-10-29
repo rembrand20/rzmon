@@ -4385,14 +4385,15 @@ function agentOverview(keyText) {
   if (!hs.length) return `<p class="muted">${L('Nog geen agents. Voeg een server toe met het type <i>Remote met agent</i>.')}</p>`;
   const now = nowS();
   const online = (h) => h.contact && h.contact.seen && now - h.contact.seen <= h.contact.stale;
-  const latest = (h) => h.agent_version && state.agent_latest && verCmp(h.agent_version, state.agent_latest) >= 0;
+  const newest = secInfo.agent_latest || state.agent_latest;   // 1.131.3: uit het overzicht zelf (de rest kan nog laden)
+  const latest = (h) => h.agent_version && (!newest || verCmp(h.agent_version, newest) >= 0);
   const secure = (h) => +h.agent_key_seen === 1 && +h.enc_seen === 1;
   const issues = (h) => {
     const a = secInfo.audit ? secInfo.audit[h.id] : null;
     const out = [];
     if (!h.contact || !h.contact.seen) out.push(L('nog geen rapport'));
     else if (!online(h)) out.push(L('offline sinds {t}', { t: clockText(h.contact.seen) }));
-    if (h.agent_version && !latest(h)) out.push(L('versie {v} (nieuwste {n})', { v: h.agent_version, n: state.agent_latest }));
+    if (h.agent_version && !latest(h)) out.push(L('versie {v} (nieuwste {n})', { v: h.agent_version, n: newest }));
     if (a && a.bad) out.push(...a.issues.filter((x) => !/^Versie/i.test(x)));
     if (h.agent_ip_new) out.push(L('geweigerd vanaf nieuw IP-adres {ip}', { ip: h.agent_ip_new }));
     return out;
@@ -4405,7 +4406,7 @@ function agentOverview(keyText) {
   const badge = (ok, txt, title) => `<span class="ag-b ${ok === true ? 'ok' : ok === false ? 'warn' : ''}" title="${esc(title || '')}">${txt}</span>`;
   return `<div class="kpis ag-kpis">
       ${tile(L('Online'), nOn, nOn === n ? L('allemaal bereikbaar') : L('{n} offline', { n: n - nOn }), nOn < n ? 'bad' : '')}
-      ${tile(L('Nieuwste versie'), nNew, state.agent_latest ? L('agent {v}', { v: esc(state.agent_latest) }) : '', nNew < n ? 'warn' : '')}
+      ${tile(L('Nieuwste versie'), nNew, newest ? L('agent {v}', { v: esc(newest) }) : '', nNew < n ? 'warn' : '')}
       ${tile(L('Eigen sleutel en versleuteld'), nSec, nSec === n ? L('alles versleuteld') : L('{n} nog niet', { n: n - nSec }), nSec < n ? 'warn' : '')}
       ${tile(L('Verbinding in orde'), nOk, nOk === n ? L('geen aandachtspunten') : L('{n} met aandachtspunten', { n: n - nOk }), nOk < n ? 'warn' : '')}
     </div>
