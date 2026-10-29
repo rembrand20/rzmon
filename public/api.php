@@ -165,7 +165,7 @@ if (!is_configured()) {
  * Agent 1.50.0+ met een eigen sleutel stuurt geen token, alleen het kenmerk van zijn sleutel (X-Agent-Key bij een
  * versleuteld bericht, X-Agent-Auth bij een GET); oudere agents het token (X-Agent-Token). Heeft een server een eigen
  * sleutel in gebruik, dan is een token alleen niet meer genoeg (tenzij versleuteling voor die server uit staat).
- * Daarna: komt de agent van een bekend IP-adres (Instellingen → Agents → Beveiligde verbinding)?
+ * Daarna: komt de agent van een bekend IP-adres (Instellingen → Agents → Standaardinstellingen)?
  */
 function agent_host(): array
 {
@@ -197,10 +197,10 @@ function agent_host(): array
     }
     // Alleen via https (1.72.0); via het reserve-adres (X-Agent-Fallback) mag http wel, met een ⚠️ (zie het rapport)
     if ($reason === null && AgentCrypto::httpsOnly($host) && !Https::isHttps() && empty($_SERVER['HTTP_X_AGENT_FALLBACK'])) {
-        $reason = t('via http, maar deze server mag alleen via https verbinden (Instellingen → Agents → Beveiligde verbinding)');
+        $reason = t('via http, maar deze server mag alleen via https verbinden (Instellingen → Agents → Standaardinstellingen)');
     }
     if ($reason === null && !AgentCrypto::ipAllowed($host, $ip)) {
-        $reason = t('nieuw IP-adres {ip} (bekend: {known}); toestaan kan bij Instellingen → Agents → Beveiligde verbinding',
+        $reason = t('nieuw IP-adres {ip} (bekend: {known}); toestaan kan bij Instellingen → Agents → Standaardinstellingen',
             ['ip' => $ip, 'known' => trim((string) $host['agent_ips'])]);
     }
     if ($reason !== null) {

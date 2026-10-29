@@ -2894,11 +2894,12 @@ function initCmdk() {
 }
 
 // ---------------------------------------------------------------- Modal helper
-function modal({ title, body, buttons = [], wide = false, onSubmit }) {
+function modal({ title, body, buttons = [], wide = false, page = false, onSubmit }) {
   const dlg = $('#modal');
   const form = $('#modal-form');
   dlg.dataset.live = '';   // een ander venster: niet meer live bijwerken als check (checkInfo zet het weer)
   dlg.classList.toggle('wide', wide);
+  dlg.classList.toggle('page', page);   // 1.121.0: als pagina (bijna het hele scherm), bv. de Agent Manager
   $('#modal-title').textContent = title;
   $('#modal-body').innerHTML = body;
   const err = $('.form-error', form);
@@ -4303,6 +4304,68 @@ async function loadSecurity() {
   renderSecurity();
 }
 
+/**
+ * Agents-overzicht (1.121.0), zoals het dashboard: tegels, wat aandacht nodig heeft en een kaart per agent. De instellingen
+ * per agent (versleuteling, vastzetten, IP-slot, https) staan in de Agent Manager; die stonden hier dubbel.
+ */
+function agentOverview(keyText) {
+  const hs = secInfo.hosts;
+  if (!hs.length) return `<p class="muted">${L('Nog geen agents. Voeg een server toe met het type <i>Remote met agent</i>.')}</p>`;
+  const now = nowS();
+  const online = (h) => h.contact && h.contact.seen && now - h.contact.seen <= h.contact.stale;
+  const latest = (h) => h.agent_version && state.agent_latest && verCmp(h.agent_version, state.agent_latest) >= 0;
+  const secure = (h) => +h.agent_key_seen === 1 && +h.enc_seen === 1;
+  const issues = (h) => {
+    const a = secInfo.audit ? secInfo.audit[h.id] : null;
+    const out = [];
+    if (!h.contact || !h.contact.seen) out.push(L('nog geen rapport'));
+    else if (!online(h)) out.push(L('offline sinds {t}', { t: clockText(h.contact.seen) }));
+    if (h.agent_version && !latest(h)) out.push(L('versie {v} (nieuwste {n})', { v: h.agent_version, n: state.agent_latest }));
+    if (a && a.bad) out.push(...a.issues.filter((x) => !/^Versie/i.test(x)));
+    if (h.agent_ip_new) out.push(L('geweigerd vanaf nieuw IP-adres {ip}', { ip: h.agent_ip_new }));
+    return out;
+  };
+  const n = hs.length, nOn = hs.filter(online).length, nNew = hs.filter(latest).length, nSec = hs.filter(secure).length;
+  const nOk = hs.filter((h) => !issues(h).length).length;
+  const tile = (lbl, v, sub, cls) => `<div class="kpi ${cls}"><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${v}<small>/${n}</small></div><div class="kpi-sub">${sub}</div></div>`;
+  const att = hs.filter((h) => issues(h).length);
+  const sorted = [...hs].sort((x, y) => issues(y).length - issues(x).length || (agentSort === 'contact' ? (x.contact?.seen || 0) - (y.contact?.seen || 0) : x.name.localeCompare(y.name)));
+  const badge = (ok, txt, title) => `<span class="ag-b ${ok === true ? 'ok' : ok === false ? 'warn' : ''}" title="${esc(title || '')}">${txt}</span>`;
+  return `<div class="kpis ag-kpis">
+      ${tile(L('Online'), nOn, nOn === n ? L('allemaal bereikbaar') : L('{n} offline', { n: n - nOn }), nOn < n ? 'bad' : '')}
+      ${tile(L('Nieuwste versie'), nNew, state.agent_latest ? L('agent {v}', { v: esc(state.agent_latest) }) : '', nNew < n ? 'warn' : '')}
+      ${tile(L('Eigen sleutel en versleuteld'), nSec, nSec === n ? L('alles versleuteld') : L('{n} nog niet', { n: n - nSec }), nSec < n ? 'warn' : '')}
+      ${tile(L('Verbinding in orde'), nOk, nOk === n ? L('geen aandachtspunten') : L('{n} met aandachtspunten', { n: n - nOk }), nOk < n ? 'warn' : '')}
+    </div>
+    ${att.length ? `<div class="sec-h"><h2>⚠️ ${L('Nu aandacht nodig')}</h2><span>${att.length === 1 ? L('1 agent') : L('{n} agents', { n: att.length })}</span></div>
+      <div class="attn ag-attn">${att.map((h) => `<div class="arow"><i class="adot s${online(h) ? 1 : 2}"></i><b class="a-srv">${esc(h.name)}</b>
+        <span class="a-msg">${esc(issues(h).join(' · '))}</span>
+        <span class="a-acts">${h.agent_version && !latest(h) ? `<button type="button" class="btn small-btn" data-ag-update="${h.id}">⬆ ${L('Bijwerken')}</button>` : ''}<button type="button" class="btn small-btn" data-am="${h.id}">${L('Agent Manager')}</button></span></div>`).join('')}
+        ${secInfo.audit && Object.values(secInfo.audit).some((a) => a.bad) ? `<div class="ag-attn-foot"><button type="button" class="btn small-btn" id="ag-cleanup">🧹 ${L('Alles opruimen')}</button> <span class="muted small">${L('oude tokens wissen en agents opnieuw laten installeren met een reservekopie')}</span></div>` : ''}</div>`
+      : `<div class="attn-ok">✔ ${L('Alle agents zijn online, bijgewerkt en veilig verbonden')}</div>`}
+    <div class="sec-h hosts-h ag-h"><h2>${L('Agents')}</h2><span>${n}</span>
+      <button type="button" class="th-sort" id="contact-sort" title="${esc(agentSort === 'contact' ? L('Weer op naam sorteren') : L('Langst geen contact bovenaan'))}">${agentSort === 'contact' ? L('Op contact') : L('Op naam')} ⇅</button></div>
+    <div class="ag-cards">${sorted.map((h) => {
+      const iss = issues(h).length;
+      return `<article class="ag-card ${!online(h) ? 's2' : iss ? 's1' : 's0'}">
+        <div class="ag-head"><i class="adot s${!online(h) ? 2 : iss ? 1 : 0}"></i><strong>${esc(h.name)}</strong>
+          <span class="ag-ver ${latest(h) ? '' : 'warn-txt'}">${h.agent_version ? 'v' + esc(h.agent_version) : '–'}${h.agent_version && !latest(h) ? ' ⬆' : ''}</span></div>
+        <div class="small ag-contact">${contactHtml(h, 'short')}</div>
+        <div class="ag-badges">
+          ${badge(+h.agent_key_seen === 1, +h.agent_key_seen === 1 ? '🔑 ' + L('eigen sleutel') : '🔑 ' + L('token'), L('Sleutel'))}
+          ${badge(+h.enc_seen === 1, +h.enc_seen === 1 ? '🔒 ' + L('versleuteld') : '🔓 ' + L('onversleuteld'))}
+          ${badge(h.agent_conn === 'http' || h.agent_fb_at ? false : h.agent_conn ? true : null, h.agent_conn === 'http' ? 'http' : h.agent_conn === 'proxy' ? L('https via proxy') : h.agent_conn ? 'https' : '–', L('Verbinding'))}
+          ${badge(null, '⏱ ' + esc(fmtInterval(+h.agent_tick || secInfo.agent_tick || 60)), L('Ritme'))}
+          ${+h.realtime ? badge(true, '⚡ realtime') : ''}
+          ${h.agent_ips ? badge(null, '🌐 ' + esc(h.agent_ips), L('Bekend IP-adres')) : ''}
+        </div>
+        <div class="ag-acts"><button type="button" class="btn small-btn primary" data-am="${h.id}">${L('Agent Manager')}</button>
+          <button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗 ${L('Koppelen')}</button>
+          <button type="button" class="btn small-btn" data-url-host="${h.id}" title="${esc(L('Adres van RzMon voor deze agent wijzigen'))}">🌐 ${L('Adres')}</button></div>
+      </article>`;
+    }).join('')}</div>`;
+}
+
 function renderSecurity() {
   const e = secInfo.enc;
   $('#enc-mode').innerHTML = ENC_MODES.map(([k, l]) => `<option value="${k}" ${e.mode === k ? 'selected' : ''}>${l}</option>`).join('');
@@ -4332,18 +4395,7 @@ function renderSecurity() {
     : h.pairing ? `⏳ ${L('koppelcode klaar')}`
     : h.agent_version && verCmp(h.agent_version, c.ownkey_min) < 0 ? `<span class="warn-txt">${L('agent {v} nodig', { v: c.ownkey_min })}</span>`
     : `<span class="warn-txt">${L('nog geen eigen sleutel')}</span>`;
-  $('#enc-hosts').innerHTML = secInfo.hosts.length ? `<div class="table-scroll"><table class="vuln-table enc-table">
-    <thead><tr><th>${L('Server')}</th><th>${L('Agent')}</th><th>${L('Ritme')}</th><th>${L('Realtime')}</th><th>${L('Sleutel')}</th><th>${L('IP-adres')}</th><th>${L('Verbinding')}</th><th>${L('Versleuteld versturen')}</th><th title="${esc(L('Certificaat vastzetten · alleen vanaf het bekende IP-adres · alleen via https'))}">📌 · 🌐 · 🔒</th><th title="${esc(L('Verbindingscontrole: eigen sleutel, versleuteld, https, IP-slot, versie, sleutel vernieuwd, instellingen op de server, script ongewijzigd'))}">🔐</th><th><button type="button" class="th-sort" id="contact-sort" title="${esc(agentSort === 'contact' ? L('Weer op naam sorteren') : L('Langst geen contact bovenaan'))}">${L('Contact')} ${agentSort === 'contact' ? '▲' : '⇅'}</button></th><th></th></tr></thead><tbody>
-    ${(agentSort === 'contact' ? [...secInfo.hosts].sort((a, b) => (a.contact?.seen || 0) - (b.contact?.seen || 0)) : secInfo.hosts).map((h) => `<tr><td>${esc(h.name)}</td><td class="mono small">${esc(h.agent_version || '–')}</td>
-      <td class="small nowrap">${esc(fmtInterval(+h.agent_tick || secInfo.agent_tick || 60))}</td><td class="small">${+h.realtime ? '⚡ ' + L('aan') : `<span class="muted">${L('uit')}</span>`}</td>
-      <td class="small">${keyText(h)}</td>
-      <td class="small mono">${h.agent_ips ? esc(h.agent_ips) : `<span class="muted">${L('nog niet bekend')}</span>`}${h.agent_ips ? ` <button type="button" class="icon-btn" data-ip-reset="${h.id}" title="${esc(L('Vergeten: het volgende IP-adres van deze agent wordt het bekende'))}">↺</button>` : ''}</td>
-      <td class="small">${connText(h)}</td>
-      <td><select data-enc-host="${h.id}">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${k === '' ? `${l} (${ENC_MODES.find((m) => m[0] === e.mode)[1].split(' (')[0].toLowerCase()})` : l}</option>`).join('')}</select></td>
-      <td class="conn-cell">📌 ${connSelect('pin', h, c.pin, true)}<br>🌐 ${connSelect('ip', h, c.ip_lock, true)}<br>🔒 ${connSelect('https', h, c.https_only, true)}</td>
-      <td class="small">${auditBadge(h.id)}</td>
-      <td class="small contact-cell">${contactHtml(h, 'full')}<div class="muted">${encSeenText(h)}</div></td>
-      <td class="nowrap"><button type="button" class="btn small-btn" data-am="${h.id}" title="Agent Manager">⚙️</button> <button type="button" class="btn small-btn" data-url-host="${h.id}" title="${esc(L('Adres van RzMon voor deze agent wijzigen'))}">🌐</button> <button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗</button>${+h.agent_key_seen === 1 ? ` <button type="button" class="btn small-btn" data-key-renew="${h.id}" title="${esc(L('Nieuwe sleutel; de agent krijgt hem bij zijn volgende rapport'))}">🔄</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '';
+  $('#enc-hosts').innerHTML = agentOverview(keyText);
   loadBlocks();
   settingsSummaries();
 }
@@ -4404,6 +4456,13 @@ function initSecurity() {
     }
     const am = e.target.closest('[data-am]');
     if (am) return agentInstructions(findHost(+am.dataset.am));
+    if (e.target.closest('#ag-cleanup')) return agentsCleanupDialog();
+    const agu = e.target.closest('[data-ag-update]');
+    if (agu) {
+      agu.disabled = true;
+      try { await api('agent_update', { id: +agu.dataset.agUpdate }); toast(L('De agent wordt bijgewerkt bij zijn volgende rapport')); refresh(); } catch (ex) { toast(ex.message, 'err'); agu.disabled = false; }
+      return;
+    }
     const urlB = e.target.closest('[data-url-host]');
     if (urlB) return agentUrlDialog(secInfo.hosts.find((x) => +x.id === +urlB.dataset.urlHost));
     const pair = e.target.closest('[data-pair]'), renew = e.target.closest('[data-key-renew]'), reset = e.target.closest('[data-ip-reset]');
@@ -4768,12 +4827,19 @@ function agentInstructions(h, pairNow = false) {
   // De oude manier (token, en eventueel de algemene sleutel), voor agents ouder dan 1.50.0
   const keyArg = state.enc_key && h.enc !== 'off' ? ` --key '${state.enc_key}'` : '';
   const installCmd = `curl -fsSL '${base}/api.php?action=agent_install${dlArg()}' | sudo bash -s -- --url '${base}' --token '${h.agent_token || ''}'${keyArg}`;
+  // 1.121.0: als pagina, alles in één keer zichtbaar: status bovenaan, daaronder Functies en Verbinding naast elkaar,
+  // en Installeren ingeklapt (open als er nog nooit een rapport kwam, of bij opnieuw koppelen)
   modal({
     title: `Agent Manager – ${h.name}`,
     wide: true,
+    page: true,
     body: `
+      <section class="am-sec am-top">
       <div class="agent-live" id="agent-live"><span class="muted">${L('Status ophalen…')}</span></div>
       <div class="cmd-host-row contact-row">📡 ${L('Contact:')} <div>${contactHtml(h, 'full')}</div></div>
+      </section>
+      <div class="am-grid">
+      <section class="am-sec need-admin"><h3 class="am-h">${L('Functies')}</h3>
       <div class="cmd-host-row need-admin">⏱ ${L('Rapporteren elke:')}
         <select id="host-tick"><option value="0">${L('standaard ({t})', { t: tickText(state.agent_tick) })}</option>${[30, 60, 120, 300].map((t) => `<option value="${t}" ${+h.agent_tick === t ? 'selected' : ''}>${tickText(t)}</option>`).join('')}</select>
         <span class="muted small" id="host-tick-info">${h.agent_update_via === 'direct' ? L('via cron/TrueNAS: minimaal elke minuut') : ''}</span></div>
@@ -4790,6 +4856,11 @@ function agentInstructions(h, pairNow = false) {
       <div id="host-edr-info" class="need-admin edr-host"></div>
       <div class="cmd-host-row need-admin">ℹ️ ${L('Info bij agent-updates:')}
         <select id="host-info-agent"><option value="1" ${+(h.info_agent ?? 1) ? 'selected' : ''}>${L('aan (volgt de algemene info-regel)')}</option><option value="0" ${+(h.info_agent ?? 1) ? '' : 'selected'}>${L('uit')}</option></select></div>
+      <div class="cmd-host-row need-admin">🖥️ ${L('Commando-checks op deze server:')}
+        <select id="host-commands"><option value="global">${L('algemene instelling')}</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
+        <span class="muted small" id="host-commands-info"></span></div>
+      </section>
+      <section class="am-sec need-admin"><h3 class="am-h">${L('Verbinding')}</h3>
       <div class="cmd-host-row need-admin">🔐 ${L('Versleuteld versturen:')}
         <select id="host-enc">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <span class="muted small">${encSeenText(h)} · ${+h.agent_key_seen === 1 ? '🔑 ' + L('eigen sleutel') : L('nog geen eigen sleutel: maak hieronder een koppelcode')}</span></div>
@@ -4798,10 +4869,10 @@ function agentInstructions(h, pairNow = false) {
       <div class="cmd-host-row need-admin">🔒 ${L('Alleen via https:')} ${connSelect('https', h, state.conn_https)}</div>
       <div class="cmd-host-row need-admin am-url">🌍 ${L('Adres van RzMon:')} <span class="small">${connText(h)}</span>
         <button type="button" class="btn small-btn" data-am-url>✏️ ${L('Wijzigen')}</button></div>
-      ${h.agent_ip_new ? `<div class="callout need-admin">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents → Beveiligde verbinding.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
-      <div class="cmd-host-row need-admin">🖥️ ${L('Commando-checks op deze server:')}
-        <select id="host-commands"><option value="global">${L('algemene instelling')}</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
-        <span class="muted small" id="host-commands-info"></span></div>
+      ${h.agent_ip_new ? `<div class="callout need-admin">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents → Standaardinstellingen.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
+      </section>
+      </div>
+      <details class="am-sec am-install" ${pairNow || !h.agent_seen ? 'open' : ''}><summary><h3 class="am-h">${L('Installeren of opnieuw koppelen')}</h3></summary>
       <div class="seg" role="tablist">
         <button type="button" class="seg-btn active" data-seg="linux">🐧 ${L('Linux-server')}</button>
         <button type="button" class="seg-btn" data-seg="ha">🏠 Home Assistant OS</button>
@@ -4871,7 +4942,8 @@ echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-ag
 sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'</pre>
       <p class="muted small">${L('<code>CERTS</code>: certificaatbestanden en/of <code>host:poort</code> (ook op internet) waarvan de agent de vervaldatum meldt. Services kies je na de eerste rapportage hier bij "Check toevoegen" uit een lijst van de server; de agent bewaakt ze dan vanzelf.')}</p>
       </details>
-      </div>`,
+      </div>
+      </details>`,
     buttons: [
       ...(isAdmin() ? [{ label: L('＋ Aanbevolen checks'), style: 'margin-right:auto', onClick: () => recommendedChecks(findHost(h.id)) }] : []),
       { label: L('↻ Nieuw token'), onClick: async () => {
@@ -7423,8 +7495,8 @@ const SET_NAV = [
     ['hibp', L('Datalekken'), ['hibp'], L('Staan je e-mailadressen of domein in een datalek?')],
     ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
   ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents'), [
-    ['agents', L('Agents'), ['agents'], L('Alle agents, hun versie en verbinding, en bijwerken.')],
-    ['enc', L('Beveiligde verbinding'), ['enc'], L('Versleuteling, sleutels en certificaat voor alle agents.')],
+    ['agents', L('Overzicht'), ['agents'], L('Alle agents: status, versie, verbinding en wat aandacht nodig heeft.')],
+    ['agentdef', L('Standaardinstellingen'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat.')],
     ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')]]],
   ['koppelingen', SET_IC('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'), L('Koppelingen'), [
     ['netlinks', L('UniFi en AdGuard'), ['netlinks'], L('Apparaten en DNS uit je UniFi-controller en AdGuard Home.')],
@@ -7439,7 +7511,7 @@ const SET_NAV = [
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
-const SET_ALIAS = { https: 'outside', setup: 'syscheck', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db' };   // 1.120.0: samengevoegde onderdelen
+const SET_ALIAS = { enc: 'agentdef', https: 'outside', setup: 'syscheck', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db' };   // 1.120.0: samengevoegde onderdelen
 const SET_TAB_OF = { smart: 'drempels', cleanup: 'opschonen' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();

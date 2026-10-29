@@ -7,6 +7,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.121.0 – 2026-10-29
+### Nieuw
+- **Agents in de stijl van het dashboard** (deel 2 van 3), bij *Instellingen → Agents → Overzicht*:
+  - tegels voor online, nieuwste versie, eigen sleutel en versleuteld, en verbinding in orde;
+  - **⚠️ Nu aandacht nodig**: per agent wat niet goed is, met **Bijwerken**, **Agent Manager** en **Alles opruimen**;
+  - een **kaart per agent** met status, versie, laatste contact en badges (sleutel, versleuteld, https, ritme, realtime, IP-adres).
+- **Agents → Standaardinstellingen**: wat voor alle agents geldt (bijwerken, ritme, offline, certificaatmappen, versleuteling en beveiligde verbinding) op één pagina.
+- **Agent Manager als pagina** over bijna het hele scherm: status bovenaan, **Functies** en **Verbinding** naast elkaar, **Installeren of opnieuw koppelen** ingeklapt. Geen tabbladen en niets dat zijwaarts schuift, ook niet op de telefoon.
+
+### Opgelost
+- De instellingen per agent (versleuteling, certificaat vastzetten, IP-slot, alleen https) stonden zowel in de agenttabel als in de Agent Manager; nu alleen in de Agent Manager.
+- De brede agenttabel (12 kolommen) schoof op kleinere schermen zijwaarts.
+
 ## 1.120.0 – 2026-10-29
 ### Nieuw
 - **Beheerportal in een nieuw jasje** (deel 1 van 3): overzichtelijker en zakelijker.

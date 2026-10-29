@@ -370,7 +370,7 @@ final class Https
         // Het eigen certificaat van RzMon (agents via https op het IP-adres, en de nooddeur): ℹ️ 14 dagen vooraf, ⚠️ als het verlopen is
         $l = $s['local'];
         if ($notify && !empty($l['ok'])) {
-            $how = t('Vernieuwen: Instellingen → Agents → Beveiligde verbinding → 🔐 Certificaat.');
+            $how = t('Vernieuwen: Instellingen → Agents → Standaardinstellingen → 🔐 Certificaat.');
             if ($l['days'] < 0 && !$s['local_warned']) {
                 Monitor::notifySystem('⚠️ ' . t('Eigen certificaat van RzMon verlopen'), t('Het certificaat op poort 443 van RzMon is verlopen op {d}.', ['d' => date('d-m-Y', $l['to'])]) . ' ' . $how, STATUS_WARN, 'problem');
                 $s['local_warned'] = true;

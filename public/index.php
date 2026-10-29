@@ -906,7 +906,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="muted small"><?= t('Bij een nieuwe versie van RzMon kun je de agents vanaf hier bijwerken: per server in het venster <i>Agent Manager</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzMon op, controleert hem en installeert hem zelf; zijn instellingen blijven staan. De eerste installatie gaat met het commando op de server.') ?></p>
           <p class="small" id="agents-status">…</p>
           <button type="button" class="btn" id="agents-update-all" hidden><?= th('⬆ Alle verouderde agents bijwerken') ?></button>
-          <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="agent_auto_update"><span></span> <?= th('Agents automatisch bijwerken') ?></label>
+        </div>
+
+        <div data-sk="agentdef" class="card" id="agentdef-card">
+          <h2><?= th('Standaardinstellingen') ?></h2>
+          <label class="switch"><input type="checkbox" name="agent_auto_update"><span></span> <?= th('Agents automatisch bijwerken') ?></label>
           <label style="margin-top:.9rem"><?= th('⏱ Agents rapporteren standaard elke') ?>
             <select name="agent_tick"><option value="30"><?= th('30 seconden') ?></option><option value="60"><?= th('60 seconden') ?></option><option value="120"><?= th('2 minuten') ?></option><option value="300"><?= th('5 minuten') ?></option></select>
             <span class="muted small"><?= t('Per server anders in te stellen in de <i>Agent Manager</i>. 30 s werkt met de systemd-timer (agent 1.41.0+); via cron of op TrueNAS minimaal elke minuut.') ?></span></label>

@@ -1880,3 +1880,41 @@ button.ic-n { cursor: pointer; } button.ic-n:hover b { text-decoration: underlin
 .info-i:not([open]) .info-more { display: none; }
 .tip:not(:hover):not(:focus)::after { display: none; }   /* verborgen uitleg telt anders mee voor de breedte (zijwaarts schuiven op de telefoon) */
 @media (max-width: 600px) { table.smart-prop th:nth-child(3), table.smart-prop td:nth-child(3), table.smart-prop th:nth-child(6), table.smart-prop td:nth-child(6) { display: none; } }
+
+/* 1.121.0: Agents-overzicht zoals het dashboard */
+.ag-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 1rem; }
+@media (max-width: 900px) { .ag-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ag-attn { margin-bottom: 1rem; }
+.ag-attn .a-msg { white-space: normal; }
+.ag-attn-foot { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; padding: .55rem 1rem; border-top: 1px solid var(--border); }
+#agents-card .attn-ok { margin-bottom: 1rem; }
+.ag-h { align-items: center; } .ag-h .th-sort { margin-left: auto; }
+.ag-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.ag-card { border: 1px solid var(--border); border-left: 4px solid var(--ok); border-radius: var(--radius); padding: .75rem .9rem; display: flex; flex-direction: column; gap: .5rem; background: var(--card); min-width: 0; }
+.ag-card.s1 { border-left-color: var(--warn); } .ag-card.s2 { border-left-color: var(--crit); }
+.ag-head { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.ag-head strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-ver { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+.ag-contact { color: var(--muted); }
+.ag-badges { display: flex; flex-wrap: wrap; gap: .3rem; }
+.ag-b { font-size: .74rem; padding: .1rem .5rem; border-radius: 99px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.ag-b.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.ag-b.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.ag-acts { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: auto; }
+
+/* Agent Manager als pagina: bijna het hele scherm, secties naast elkaar, niets zijwaarts */
+#modal.page { width: min(1240px, calc(100vw - 1.5rem)); max-width: none; max-height: calc(100vh - 1.5rem); }
+#modal.page #modal-body { max-height: calc(100vh - 11.5rem); }
+.am-sec { border: 1px solid var(--border); border-radius: var(--radius); padding: .8rem 1rem; margin-bottom: .9rem; min-width: 0; }
+.am-top { background: var(--card-2); }
+.am-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: .9rem; }
+.am-h { margin: 0 0 .6rem; font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.am-sec .cmd-host-row { flex-wrap: wrap; }
+.am-sec .cmd-host-row select { max-width: 100%; }
+.am-install > summary { cursor: pointer; list-style: none; }
+.am-install > summary::-webkit-details-marker { display: none; }
+.am-install > summary .am-h { display: inline; margin: 0; }
+.am-install > summary::before { content: '▸ '; color: var(--muted); }
+.am-install[open] > summary::before { content: '▾ '; }
+.am-install[open] > summary { margin-bottom: .7rem; }
+#modal.page pre.code { white-space: pre-wrap; word-break: break-all; }

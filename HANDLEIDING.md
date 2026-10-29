@@ -266,6 +266,15 @@ Elke pagina heeft één titel met daaronder één korte zin. Langere uitleg staa
 
 Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieuwe plek.
 
+**Agents** (vanaf 1.121.0)
+- *Agents → **Overzicht*** werkt zoals het dashboard:
+  - **tegels**: online, nieuwste versie, eigen sleutel en versleuteld, verbinding in orde (telkens *x/y*);
+  - **⚠️ Nu aandacht nodig**: per agent alles wat niet goed is (offline, oude versie, de punten van de verbindingscontrole, een geweigerd IP-adres), met **⬆ Bijwerken** en **Agent Manager**, en onderaan **🧹 Alles opruimen**;
+  - een **kaart per agent**: status, versie, laatste contact (live) en badges (sleutel, versleuteld, http/https, ritme, realtime, bekend IP-adres), met *Agent Manager*, *Koppelen* en *Adres*. Sorteren op naam of op contact.
+- *Agents → **Standaardinstellingen***: wat voor alle agents geldt: automatisch bijwerken, het ritme, offline na … minuten, certificaatmappen, de versleuteling, het certificaat en de beveiligde verbinding (vroeger *Beveiligde verbinding*).
+- De **Agent Manager** is een pagina over bijna het hele scherm, zonder tabbladen en zonder zijwaarts schuiven: bovenaan de status en het contact, daaronder **Functies** (rapporteren, realtime, waakhond, endpoint-bewaking, info, commando-checks) en **Verbinding** (versleuteling, vastzetten, IP-slot, https, adres) naast elkaar, en **Installeren of opnieuw koppelen** ingeklapt (open als er nog nooit een rapport kwam).
+- De keuzelijsten per agent (versleuteling, 📌, 🌐, 🔒) staan alleen nog in de Agent Manager; in de oude tabel stonden ze dubbel.
+
 - *Instellingen → Overzicht → **Gezondheid*** (tot 1.120.0: *Systeem → Systeemcheck*): PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en een kant-en-klare cron-regel. Vanaf 1.96.0 ook de gezondheid van RzMon zelf:
   - de grootte van de database, met de grootste tabellen, de groei per dag en wanneer de disk vol is;
   - hoe lang een ronde duurt, en of hij uitloopt boven de minuut;
@@ -1447,7 +1456,7 @@ Normaal ziet RzMon een gebeurtenis bij de volgende tik. Met **realtime** weet Rz
 
 **🧹 Opruimen**
 - **Per agent** (Agent Manager → 🧹 Opruimen): RzMon wist het oude token. De agent installeert zichzelf opnieuw bij zijn volgende rapport: eerst de reservekopie, daarna de nieuwste agent met opgeruimde instellingen.
-- **Alle agents** (*Instellingen → Agents → Beveiligde verbinding → 🧹 Alle agents opruimen*, met je wachtwoord): dit doet hetzelfde voor elke agent. Hebben ze allemaal een eigen sleutel, dan wist RzMon ook de oude **algemene sleutel** en zet het **alleen agents met een eigen sleutel** aan.
+- **Alle agents** (*Instellingen → Agents → Standaardinstellingen → 🧹 Alle agents opruimen*, met je wachtwoord): dit doet hetzelfde voor elke agent. Hebben ze allemaal een eigen sleutel, dan wist RzMon ook de oude **algemene sleutel** en zet het **alleen agents met een eigen sleutel** aan.
 - **Op de server:** `sudo rzmon-agent-setup --cleanup` ruimt alleen de instellingen op, met een reservekopie.
 
 **Alleen agents met een eigen sleutel** (*Beveiligde verbinding*): een agent die zich meldt met alleen een token, wordt geweigerd. Koppelen met een koppelcode blijft altijd kunnen. Dit aanzetten kan alleen als alle agents een eigen sleutel hebben. Zodra een agent een eigen sleutel heeft, wist RzMon zijn token vanzelf.
@@ -2572,7 +2581,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 
 ### 10.1 Versleutelde agents, blokkades en beveiligingsmeldingen (vanaf 1.57.0)
 
-**🔐 Beveiligde verbinding** (vanaf 1.64.0, agent 1.50.0; *Instellingen → 🖥️ Agents → Beveiligde verbinding*, alleen beheerders)
+**🔐 Beveiligde verbinding** (vanaf 1.64.0, agent 1.50.0; *Instellingen → 🖥️ Agents → Standaardinstellingen*, alleen beheerders)
 - **Eigen sleutel per agent.** Elke agent heeft een eigen sleutel (in `/var/lib/rzmon-agent/agent.key`, alleen root; in de HA-add-on in `/data/rzmon-keys`, op TrueNAS in de map van de agent). Daarmee versleutelt en ondertekent hij alles, en antwoordt RzMon ook versleuteld. Hij stuurt **geen token** meer mee, alleen het kenmerk van zijn sleutel; een verzoek met alleen het token wordt dan geweigerd (⚠️). Wordt één server gehackt, dan geldt dat alleen voor die server: maak een nieuwe koppelcode en de oude sleutel vervalt meteen.
 - **Overstap:** een agent die al met de algemene sleutel werkte, krijgt zijn eigen sleutel vanzelf bij zijn volgende rapport (in het versleutelde antwoord). Je hoeft niets te doen; werk alleen de agents bij naar 1.50.0. Een sleutel gaat **nooit leesbaar** over de lijn: een agent zonder sleutel koppel je met een koppelcode.
 - **Koppelcode:** *Agent Manager* → **🔗 Koppelcode maken** (of 🔗 in de tabel). Eenmalig en **15 minuten** geldig. De agent versleutelt zijn eerste bericht met een sleutel uit de code en krijgt zijn eigen sleutel versleuteld terug. Een verlopen of al gebruikte code wordt geweigerd (⚠️). Het venster meldt **✔ Gekoppeld** zodra het gelukt is.
@@ -2639,7 +2648,7 @@ Agents kunnen RzMon via **https** bereiken, bijvoorbeeld via je reverse proxy (S
 2. De proxy stuurt `/api.php` gewoon door naar RzMon (dat doet de standaard-config van SWAG al).
 3. Werk de agents bij naar **1.51.0** (de add-on via de add-on winkel).
 
-**Overstappen vanuit RzMon** (*Instellingen → 🖥️ Agents → Beveiligde verbinding*)
+**Overstappen vanuit RzMon** (*Instellingen → 🖥️ Agents → Standaardinstellingen*)
 - **🌐 Alle agents naar een ander adres…** of per agent **🌐** in de tabel (of *Agent Manager → 🌍 Adres van RzMon → Wijzigen*).
 - Vul het **nieuwe adres** in (bv. `https://rzmon.example.nl`) en eventueel een **reserve-adres**. Leeg = het adres dat de agent nu gebruikt (bv. `http://192.168.1.10`); met *Geen reserve-adres* krijgt hij er geen.
 - De agent krijgt het adres **versleuteld** en **test het eerst**: verbinding, certificaat, en een antwoord dat met zijn eigen sleutel klopt. Pas dan gebruikt hij het. Lukt het niet, dan blijft het oude adres en zie je de reden (✘ …). Na één of twee rapporten staat in de kolom **Verbinding** *✔ Overgestapt naar …*.
@@ -3138,7 +3147,7 @@ Opnieuw `install-rocky.sh` draaien doet beide ook.
 - [ ] Ongebruikte API-sleutels zijn ingetrokken.
 - [ ] *Controle op datalekken* aan (§ 10.3), en een noodaccount op 🏠 *alleen lokaal*.
 - [ ] Inlogbeveiliging aan (*Instellingen → Toegang*), en je lokale netwerken kloppen (vanaf daar kun je altijd nog inloggen).
-- [ ] Agents beveiligen (*Instellingen → Agents → Beveiligde verbinding*: 🔑 eigen sleutel en 🔒 bij alle servers, daarna eventueel *Verplicht*).
+- [ ] Agents beveiligen (*Instellingen → Agents → Standaardinstellingen*: 🔑 eigen sleutel en 🔒 bij alle servers, daarna eventueel *Verplicht*).
 - [ ] De MariaDB-gebruiker `rzmon` mag alleen inloggen vanaf `localhost`.
 - [ ] `display_errors` staat uit.
 
