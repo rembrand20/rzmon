@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.127.0 – 2026-10-29
+### Nieuw
+- **Bevestigen met je wachtwoord in een eigen venster** bij installeren (EDR-onderdelen), een server isoleren en een gebruiker vergrendelen: een strak venster met titel, uitleg, een wachtwoordveld met 👁 om het even te tonen, en *Annuleren* / *Bevestigen*. Gevaarlijke acties hebben een rode knop.
+
+### Opgelost
+- Bij deze bevestigingen stond je wachtwoord **leesbaar** in de pop-up van de browser. Het veld is nu verborgen (puntjes) en de browser kan het als wachtwoord herkennen. Op je LAN zonder account typ je zoals voorheen het woord (bijv. INSTALLEREN).
+
 ## 1.126.0 – 2026-10-29
 ### Nieuw
 - **Vensters iets breder**: gewone vensters 680 px (was 560), brede vensters 980 px (was 900). Op de telefoon blijven ze schermbreed.

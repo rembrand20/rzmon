@@ -5708,4 +5708,13 @@ return [
     'Geen pakketnamen opgegeven' => 'No package names given',
     'Hooguit {n} pakketten tegelijk' => 'At most {n} packages at a time',
     'Ongeldige pakketnaam: {n}' => 'Invalid package name: {n}',
+    '{c} installeren op {name}?' => 'Install {c} on {name}?',
+    'De agent installeert dit als root bij zijn volgende rapport.' => 'The agent installs this as root at its next report.',
+    '{name} isoleren?' => 'Isolate {name}?',
+    'Alleen RzMon, je lokale netwerken en jouw IP-adres kunnen er nog bij; al het andere verkeer stopt. Vervalt vanzelf na de gekozen tijd.' => 'Only RzMon, your local networks and your IP address can still reach it; all other traffic stops. Expires automatically after the chosen time.',
+    '{user} op {name} vergrendelen?' => 'Lock {user} on {name}?',
+    'Het account gaat op slot (geen wachtwoord, geen SSH-sleutel) en al zijn processen worden gestopt.' => 'The account is locked (no password, no SSH key) and all its processes are stopped.',
+    '{name} isoleren (24 uur)?' => 'Isolate {name} (24 hours)?',
+    'Je wachtwoord' => 'Your password',
+    'Wachtwoord tonen' => 'Show password',
 ];

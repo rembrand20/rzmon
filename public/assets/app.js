@@ -5431,8 +5431,8 @@ async function loadEdrHost(h, poll = false) {
       const def = pkgsOf(c).join(' ');
       const ownVal = b.dataset.own ? ($(`[data-edr-own="${c}"]`, box) || {}).value || '' : '';
       const own = ownVal.trim().split(/[\s,]+/).filter(Boolean).join(' ') === def ? '' : ownVal.trim();
-      const lan = !!document.querySelector('.lan-badge');
-      const pw = prompt(L('{c} installeren op {name}? {how}', { c: own ? own : EDR_COMP[c][0], name: h.name, how: lan ? L('Typ INSTALLEREN om te bevestigen.') : L('Bevestig met je wachtwoord.') }));
+      const pw = await askConfirm({ title: L('{c} installeren op {name}?', { c: own ? own : EDR_COMP[c][0], name: h.name }),
+        text: L('De agent installeert dit als root bij zijn volgende rapport.'), word: 'INSTALLEREN', ok: '⬇ ' + L('Installeren') });
       if (pw === null) return;
       try {
         await api('edr_install', { host_id: h.id, comp: c, confirm: pw, ...(own ? { pkgs: own } : {}) });
@@ -6360,7 +6360,8 @@ async function hostSecDialog(hostId) {
     e.preventDefault();
     try {
       if (isoB) {
-        const pw = prompt(L('Isoleren bevestigen met je wachtwoord (op het LAN: typ ISOLEREN)'));
+        const pw = await askConfirm({ title: L('{name} isoleren?', { name: h.name }), danger: true, word: 'ISOLEREN', ok: '🧱 ' + L('Isoleren'),
+          text: L('Alleen RzMon, je lokale netwerken en jouw IP-adres kunnen er nog bij; al het andere verkeer stopt. Vervalt vanzelf na de gekozen tijd.') });
         if (pw === null) return;
         await api('host_isolate', { host_id: hostId, hours: +isoB.dataset.isolate, confirm: pw });
         toast(L('{name} wordt geïsoleerd; de agent past het binnen een minuut toe', { name: h.name }));
@@ -6369,7 +6370,8 @@ async function hostSecDialog(hostId) {
       } else if (ul) {
         const name = $('#ul-name').value.trim();
         if (!name) return;
-        const pw = prompt(L('{user} op {name} vergrendelen? Bevestig met je wachtwoord (op het LAN: typ VERGRENDELEN)', { user: name, name: h.name }));
+        const pw = await askConfirm({ title: L('{user} op {name} vergrendelen?', { user: name, name: h.name }), danger: true, word: 'VERGRENDELEN', ok: '🔒 ' + L('Vergrendelen'),
+          text: L('Het account gaat op slot (geen wachtwoord, geen SSH-sleutel) en al zijn processen worden gestopt.') });
         if (pw === null) return;
         await api('host_userlock', { host_id: hostId, user: name, lock: true, confirm: pw }); toast(L('{user} wordt vergrendeld', { user: name }));
       } else {
@@ -6650,13 +6652,15 @@ async function incidentDialog(id, nav = null) {
       if (b.hasAttribute('data-inc-sec')) { $('#modal').close(); return hostSecDialog(+i.host_id); }
       if (b.hasAttribute('data-inc-am')) { $('#modal').close(); return agentInstructions(findHost(+i.host_id)); }
       if (b.hasAttribute('data-inc-lock')) {
-        const pw = prompt(L('{user} op {name} vergrendelen? Bevestig met je wachtwoord (op het LAN: typ VERGRENDELEN)', { user: a.user, name: i.host_name }));
+        const pw = await askConfirm({ title: L('{user} op {name} vergrendelen?', { user: a.user, name: i.host_name }), danger: true, word: 'VERGRENDELEN', ok: '🔒 ' + L('Vergrendelen'),
+          text: L('Het account gaat op slot (geen wachtwoord, geen SSH-sleutel) en al zijn processen worden gestopt.') });
         if (pw === null) return;
         await api('host_userlock', { host_id: +i.host_id, user: a.user, lock: true, confirm: pw });
         toast(L('{user} wordt vergrendeld', { user: a.user }));
       }
       if (b.hasAttribute('data-inc-iso')) {
-        const pw = prompt(L('Isoleren bevestigen met je wachtwoord (op het LAN: typ ISOLEREN)'));
+        const pw = await askConfirm({ title: L('{name} isoleren (24 uur)?', { name: i.host_name }), danger: true, word: 'ISOLEREN', ok: '🧱 ' + L('Isoleren'),
+          text: L('Alleen RzMon, je lokale netwerken en jouw IP-adres kunnen er nog bij; al het andere verkeer stopt. Vervalt vanzelf na de gekozen tijd.') });
         if (pw === null) return;
         await api('host_isolate', { host_id: +i.host_id, hours: 24, confirm: pw });
         toast(L('{name} wordt geïsoleerd; de agent past het binnen een minuut toe', { name: i.host_name }));
@@ -9536,6 +9540,36 @@ async function loadAgentCommands() {
 }
 
 /** Bevestiging: je wachtwoord, of op het LAN een woord typen (de server accepteert het Nederlandse en het vertaalde woord) */
+/**
+ * Bevestigen met je wachtwoord (1.127.0), in plaats van de prompt van de browser (die het wachtwoord leesbaar liet zien):
+ * een eigen venster bovenop wat er open staat, met een verborgen wachtwoordveld (👁 om het even te tonen). Op het
+ * lokale netwerk zonder account typ je het woord (bv. ISOLEREN). @return het wachtwoord of woord, of null bij annuleren
+ */
+function askConfirm({ title, text = '', word, ok = L('Bevestigen'), danger = false }) {
+  return new Promise((resolve) => {
+    const lan = !!document.querySelector('.lan-badge');
+    let dlg = $('#confirm-dlg');
+    if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'confirm-dlg'; dlg.className = 'confirm-dlg'; document.body.append(dlg); }
+    dlg.innerHTML = `<form method="dialog" class="cf-form">
+      <div class="cf-head"><span class="cf-ic ${danger ? 'danger' : ''}" aria-hidden="true">${danger ? '!' : '🔒'}</span><h3>${esc(title)}</h3></div>
+      ${text ? `<p class="cf-text">${text}</p>` : ''}
+      <label class="cf-label">${lan ? L('Typ <b>{word}</b> om te bevestigen', { word: esc(L(word)) }) : L('Je wachtwoord')}
+        <span class="cf-field"><input name="pw" type="${lan ? 'text' : 'password'}" required autocomplete="${lan ? 'off' : 'current-password'}" spellcheck="false" ${lan ? `placeholder="${esc(L(word))}"` : ''}>
+        ${lan ? '' : `<button type="button" class="cf-eye" title="${esc(L('Wachtwoord tonen'))}" aria-label="${esc(L('Wachtwoord tonen'))}">👁</button>`}</span></label>
+      <div class="cf-btns"><button type="button" class="btn" value="cancel" data-cf-cancel>${L('Annuleren')}</button>
+        <button type="submit" class="btn ${danger ? 'danger' : 'primary'}">${esc(ok)}</button></div></form>`;
+    const inp = $('input', dlg);
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; dlg.close(); resolve(v); };
+    $('.cf-eye', dlg)?.addEventListener('click', (e) => { inp.type = inp.type === 'password' ? 'text' : 'password'; e.currentTarget.classList.toggle('on', inp.type === 'text'); inp.focus(); });
+    $('[data-cf-cancel]', dlg).onclick = () => finish(null);
+    $('form', dlg).onsubmit = (e) => { e.preventDefault(); if (inp.value) finish(inp.value); };
+    dlg.oncancel = (e) => { e.preventDefault(); finish(null); };
+    dlg.showModal();
+    inp.focus();
+  });
+}
+
 function confirmField(word) {
   const lan = !!document.querySelector('.lan-badge');
   return `<label>${lan ? L('Typ <b>{word}</b> om te bevestigen', { word: L(word) }) : L('Bevestig met je eigen wachtwoord')}

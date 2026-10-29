@@ -1943,3 +1943,18 @@ label > .lbl-line { display: block; }
 label > .lbl-line > .hint, label > .lbl-line > .muted.small, label > .lbl-line > .muted { margin-left: .3rem; font-weight: 400; }
 .lbl-line .hint.unit:not(:empty)::before, .lbl-line .hint.res-unit:not(:empty)::before { content: '('; }
 .lbl-line .hint.unit:not(:empty)::after, .lbl-line .hint.res-unit:not(:empty)::after { content: ')'; }
+
+/* 1.127.0: bevestigen met je wachtwoord */
+dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
+.cf-form { padding: 1.3rem 1.4rem 1.1rem; display: flex; flex-direction: column; gap: .8rem; }
+.cf-head { display: flex; align-items: center; gap: .7rem; }
+.cf-head h3 { margin: 0; font-size: 1.08rem; line-height: 1.3; }
+.cf-ic { flex: none; width: 2.2rem; height: 2.2rem; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--primary) 15%, transparent); font-size: 1rem; }
+.cf-ic.danger { background: color-mix(in srgb, var(--crit) 15%, transparent); color: var(--crit); font-weight: 800; }
+.cf-text { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.45; }
+.cf-label { margin: 0; }
+.cf-field { position: relative; display: block; }
+.cf-field input { width: 100%; padding-right: 2.6rem; font-size: 1rem; }
+.cf-eye { position: absolute; right: .35rem; top: 50%; transform: translateY(-50%); border: 0; background: none; cursor: pointer; opacity: .55; font-size: 1rem; padding: .3rem; border-radius: 6px; }
+.cf-eye:hover, .cf-eye.on { opacity: 1; }
+.cf-btns { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .2rem; }
