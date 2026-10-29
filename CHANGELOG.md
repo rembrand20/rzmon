@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.123.0 – 2026-10-29
+### Nieuw
+- **De melding *ontbreekt: auditd · installeren?* per server uitzetten**: klik erop en kies **Niet meer tonen** (of **Installeren…**). Dat geldt per server en per onderdeel: mist er later iets anders, dan zie je dat wel. **Weer tonen** staat in de Agent Manager, bij *Functies*.
+
 ## 1.122.0 – 2026-10-29
 ### Nieuw
 - **Niets meer dubbel** (deel 3 van 3):

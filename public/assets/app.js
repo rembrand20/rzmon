@@ -2241,9 +2241,31 @@ function edrNote(h) {
   if (!isAdmin() || h.mode !== 'agent' || !+(h.edr_on ?? 1) || !h.edr_info) return '';
   let i;
   try { i = JSON.parse(h.edr_info); } catch (e) { return ''; }
-  const miss = [i.audit === 'missing' ? 'auditd' : null, i.audit === 'stopped' ? L('auditd draait niet') : null, i.file === 'missing' ? 'inotify-tools' : null].filter(Boolean);
+  // 1.123.0: per onderdeel te verbergen ("Niet meer tonen"); ontbreekt er later iets anders, dan komt het wel
+  const hidden = edrHidden(h.id);
+  const miss = [i.audit === 'missing' ? ['auditd', 'auditd'] : null, i.audit === 'stopped' ? ['auditd_stopped', L('auditd draait niet')] : null, i.file === 'missing' ? ['inotify', 'inotify-tools'] : null]
+    .filter((m) => m && !hidden.includes(m[0]));
   if (!miss.length) return '';
-  return `<button type="button" class="edr-note" data-act="edr-am" data-id="${h.id}" title="${esc(L('Endpoint-bewaking: klik om het via de agent te installeren'))}">🛡️ ${esc(L('ontbreekt: {what}', { what: miss.join(', ') }))} · ${L('installeren?')}</button>`;
+  return `<button type="button" class="edr-note" data-act="edr-note" data-id="${h.id}" data-keys="${esc(miss.map((m) => m[0]).join(','))}" title="${esc(L('Klik: installeren of niet meer tonen'))}">🛡️ ${esc(L('ontbreekt: {what}', { what: miss.map((m) => m[1]).join(', ') }))} · ${L('installeren?')}</button>`;
+}
+const edrHidden = (id) => ((state && state.edr_note_hide) || {})[id] || [];
+/** Klik op de regel: installeren via de Agent Manager, of deze melding voor deze server niet meer tonen */
+function edrNoteDialog(h, keys) {
+  modal({
+    title: '🛡️ ' + L('Endpoint-bewaking op {name}', { name: h.name }),
+    body: `<p style="margin-top:0">${L('Op deze server ontbreekt iets voor de endpoint-bewaking. Zonder werkt de rest gewoon, maar ziet RzMon minder (bv. geen nieuwe processen zonder auditd).')}</p>
+      <p class="muted small">${L('Niet meer tonen geldt voor deze server en voor wat nu ontbreekt. Weer tonen kan in de Agent Manager, bij Functies.')}</p>`,
+    buttons: [{ label: '🙈 ' + L('Niet meer tonen'), style: 'margin-right:auto', onClick: async () => {
+      try { await edrHideSave(h.id, [...new Set([...edrHidden(h.id), ...keys])]); $('#modal').close(); toast(L('Wordt niet meer getoond voor {name}', { name: h.name })); } catch (ex) { toast(ex.message, 'err'); }
+    } }, { label: L('Sluiten'), onClick: () => $('#modal').close() }, { label: L('Installeren…'), cls: 'primary', onClick: () => agentInstructions(h) }],
+  });
+}
+async function edrHideSave(id, list) {
+  const all = { ...((state && state.edr_note_hide) || {}) };
+  if (list.length) all[id] = list; else delete all[id];
+  await api('settings_save', { edr_note_hide: JSON.stringify(all) });
+  state.edr_note_hide = all;
+  render();
 }
 
 function hostCard(h, small) {
@@ -2460,6 +2482,7 @@ async function onHostsClick(e) {
   const id = b.dataset.id;
   switch (b.dataset.act) {
     case 'edr-am': agentInstructions(findHost(id)); return;
+    case 'edr-note': edrNoteDialog(findHost(id), (b.dataset.keys || '').split(',').filter(Boolean)); return;
     case 'grp': {
       // Groep in- of uitklappen (zonder alles opnieuw op te bouwen)
       const key = `${id}:${b.dataset.g}`;
@@ -4856,6 +4879,8 @@ function agentInstructions(h, pairNow = false) {
         <select id="host-edr"><option value="1" ${+(h.edr_on ?? 1) ? 'selected' : ''}>${L('aan')}</option><option value="0" ${+(h.edr_on ?? 1) ? '' : 'selected'}>${L('uit')}</option></select>
         <span class="muted small">${L('processen, netwerk, bestanden en containers meteen bekeken; RzMon grijpt in bij een aanval')}</span></div>
       <div id="host-edr-info" class="need-admin edr-host"></div>
+      ${edrHidden(h.id).length ? `<div class="cmd-host-row need-admin small muted">🙈 ${L('Melding over ontbrekende onderdelen verborgen ({what})', { what: esc(edrHidden(h.id).join(', ')) })}
+        <button type="button" class="btn small-btn" id="host-edr-unhide">${L('Weer tonen')}</button></div>` : ''}
       <div class="cmd-host-row need-admin">ℹ️ ${L('Info bij agent-updates:')}
         <select id="host-info-agent"><option value="1" ${+(h.info_agent ?? 1) ? 'selected' : ''}>${L('aan (volgt de algemene info-regel)')}</option><option value="0" ${+(h.info_agent ?? 1) ? '' : 'selected'}>${L('uit')}</option></select></div>
       <div class="cmd-host-row need-admin">🖥️ ${L('Commando-checks op deze server:')}
@@ -4962,6 +4987,8 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   };
   $$('.seg-btn', body).forEach((b) => (b.onclick = () => show(b.dataset.seg)));
   pollAgentStatus(h.id);
+  const unhide = $('#host-edr-unhide');
+  if (unhide) unhide.onclick = async () => { try { await edrHideSave(h.id, []); unhide.parentElement.remove(); toast(L('Wordt weer getoond')); } catch (ex) { toast(ex.message, 'err'); } };
   $('#host-edr').onchange = async (e) => {
     try {
       await api('edr_host_set', { host_id: h.id, on: e.target.value === '1' });

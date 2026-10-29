@@ -1031,3 +1031,6 @@ CREATE TABLE IF NOT EXISTS perf_stats (
     PRIMARY KEY (hour, kind, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('perf_on', '1');
+
+-- 1.123.0: per server verborgen meldingen over ontbrekende onderdelen van de endpoint-bewaking ({host_id: [onderdeel, …]})
+INSERT IGNORE INTO settings (name, value) VALUES ('edr_note_hide', '{}');

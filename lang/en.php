@@ -5691,4 +5691,13 @@ return [
     '{n} punten' => '{n} points',
     'alles in orde ({n} punten)' => 'all fine ({n} points)',
     'Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je bij <a href="#ids/prot" data-goto="ids/prot">IDS → Bescherming</a>. Hier staan de algemene instellingen.' => 'You switch parts on or off, and set the thresholds per part (⚙️), under <a href="#ids/prot" data-goto="ids/prot">IDS → Protection</a>. This page has the general settings.',
+    'Klik: installeren of niet meer tonen' => 'Click: install or stop showing',
+    'Endpoint-bewaking op {name}' => 'Endpoint monitoring on {name}',
+    'Op deze server ontbreekt iets voor de endpoint-bewaking. Zonder werkt de rest gewoon, maar ziet RzMon minder (bv. geen nieuwe processen zonder auditd).' => 'Something is missing on this server for endpoint monitoring. Everything else keeps working, but RzMon sees less (e.g. no new processes without auditd).',
+    'Niet meer tonen geldt voor deze server en voor wat nu ontbreekt. Weer tonen kan in de Agent Manager, bij Functies.' => 'Stop showing applies to this server and to what is missing now. You can show it again in the Agent Manager, under Features.',
+    'Niet meer tonen' => 'Stop showing',
+    'Wordt niet meer getoond voor {name}' => 'No longer shown for {name}',
+    'Installeren…' => 'Install…',
+    'Melding over ontbrekende onderdelen verborgen ({what})' => 'Notice about missing components hidden ({what})',
+    'Wordt weer getoond' => 'Shown again',
 ];
