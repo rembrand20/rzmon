@@ -303,16 +303,17 @@ final class AgentCrypto
     {
         $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
         $fwd = !$https && Https::isHttps();   // via een vertrouwde reverse proxy
-        if (!$https && !$fwd) {
-            return '';   // RzMon draait via http: niets vast te zetten
-        }
+        // 1.130.0: via http geopend? Dan kijken of RzMon hier ook https heeft (poort 443, eigen certificaat): agents die
+        // alleen via https mogen, krijgen dan een installatiecommando met https en deze vingerafdruk
+        $local = !$https && !$fwd;
         $name = preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
         $name = trim($name, '[]');
         if ($name === '') {
             return null;
         }
         // Rechtstreeks (zelfde webserver): de eigen poort; via een proxy: poort 443 van dat adres
-        $target = $https ? '127.0.0.1:' . (int) ($_SERVER['SERVER_PORT'] ?? 443) : (filter_var($name, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? "[$name]" : $name) . ':443';
+        $target = $https ? '127.0.0.1:' . (int) ($_SERVER['SERVER_PORT'] ?? 443)
+            : ($local ? '127.0.0.1:443' : (filter_var($name, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? "[$name]" : $name) . ':443');
         $get = static function (bool $verify) use ($target, $name) {
             $ctx = stream_context_create(['ssl' => ['capture_peer_cert' => true, 'verify_peer' => $verify, 'verify_peer_name' => $verify,
                 'peer_name' => $name, 'SNI_enabled' => true, 'allow_self_signed' => !$verify]]);
@@ -328,6 +329,9 @@ final class AgentCrypto
             return '';   // geldig certificaat van een bekende uitgever: gewone controle is genoeg
         }
         $cert = $get(false);
+        if ($cert === false && $local) {
+            return '';   // alleen http: niets vast te zetten
+        }
         if ($cert === false || !($pub = openssl_pkey_get_public($cert))) {
             return null;
         }

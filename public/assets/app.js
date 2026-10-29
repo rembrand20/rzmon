@@ -4891,8 +4891,18 @@ function pairCommand(base, r, extra = '') {
 const pairButton = () => `<div class="pair-box"><button type="button" class="btn primary" data-make-pair>🔗 ${L('Koppelcode maken')}</button>
   <span class="muted small">${L('Eenmalig en 15 minuten geldig. De agent haalt er zijn eigen sleutel mee op; er gaat geen token of sleutel leesbaar over de lijn.')}</span></div>`;
 
+/**
+ * Adres van RzMon in de installatiecommando's (1.130.0): de Basis-URL, maar mogen agents alleen via https (algemeen of
+ * voor deze server) en is die http, dan hetzelfde adres met https. De agent komt dan meteen op https te staan.
+ */
+function agentBase(h) {
+  const base = (state.base_url || location.origin + location.pathname.replace(/\/[^/]*$/, '')).replace(/\/+$/, '');
+  const only = h?.agent_https === 'on' || (h?.agent_https !== 'off' && state.agent_https_only);
+  return only && base.startsWith('http://') ? 'https://' + base.slice(7).replace(/^([^/]+):80(?=\/|$)/, '$1') : base;
+}
+
 function agentInstructions(h, pairNow = false) {
-  const base = state.base_url || location.origin + location.pathname.replace(/\/[^/]*$/, '');
+  const base = agentBase(h);
   const scriptUrl = location.origin + location.pathname.replace(/\/[^/]*$/, '') + '/api.php?action=agent_script';
   // De oude manier (token, en eventueel de algemene sleutel), voor agents ouder dan 1.50.0
   const keyArg = state.enc_key && h.enc !== 'off' ? ` --key '${state.enc_key}'` : '';
@@ -5095,7 +5105,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
       const k = p.dataset.pairPane;
       p.innerHTML = head + (k === 'ha' ? copyLine(ha) : copyLine(pairCommand(base, r, k === 'truenas' ? ' --truenas' : '')))
         + `<p class="muted small">${k === 'ha' ? L('Opslaan en de add-on (her)starten. In het logboek moet <code>Gekoppeld met RzMon</code> staan.')
-          : L('Het commando controleert eerst het installatiescript en de agent (SHA-256)')}${r.pin ? ' · 📌 ' + L('alleen het certificaat van deze RzMon') : ''}</p>`;
+          : L('Het commando controleert eerst het installatiescript en de agent (SHA-256)')}${r.pin && base.startsWith('https') ? ' · 📌 ' + L('alleen het certificaat van deze RzMon') : ''}${base.startsWith('https') && !String(state.base_url || '').startsWith('https') ? ' · 🔒 ' + L('agents mogen alleen via https: daarom {url}', { url: `<code>${esc(base)}</code>` }) : ''}</p>`;
     });
     const until = Date.now() + r.minutes * 60000;
     const tick = async () => {

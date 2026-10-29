@@ -1559,7 +1559,7 @@ switch ($action) {
         }
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'badges' => tab_badges($user, $hosts, (string) ($_GET['seen'] ?? '')), 'last_run' => $lastRun, 'user' => $user['username'],
-             'base_url' => config('base_url', ''), 'lan_session' => is_lan_session(), 'maintenance' => $global,
+             'base_url' => config('base_url', ''), 'agent_https_only' => setting('agent_https_only', '0') === '1', 'lan_session' => is_lan_session(), 'maintenance' => $global,
              'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'edr_note_hide' => json_decode((string) setting('edr_note_hide', '{}'), true) ?: (object) [], 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(), 'health_groups' => Health::groups(),
              'agent_tick' => agent_tick(null), 'now_ts' => time(),
              // Sjablonen (1.94.0): item → naam van het sjabloon, en welke sjablonen per server
@@ -2098,8 +2098,14 @@ switch ($action) {
         $name = $ph['name'];
         $p = AgentCrypto::pairCreate($id);
         AgentCommands::audit($user['username'], 'Koppelcode gemaakt', (string) $name);
+        // 1.130.0: nog geen vingerafdruk bekend (bv. alleen via http gekeken)? Dan nu bepalen: een commando met https moet
+        // het eigen certificaat van RzMon kunnen vastzetten
+        $pin = AgentCrypto::pin(false, false, $ph) ?? '';
+        if ($pin === '' && AgentCrypto::pinOn($ph)) {
+            $pin = AgentCrypto::pin(true, true, $ph) ?? '';
+        }
         out($p + ['setup_sha256' => Stealth::installSha(), 'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
-            'pin' => AgentCrypto::pin(false, false, $ph) ?? '', 'minutes' => AgentCrypto::PAIR_MINUTES]);
+            'pin' => $pin, 'minutes' => AgentCrypto::PAIR_MINUTES]);
 
     // Per server: certificaat vastzetten en vast IP-adres ('' = algemene instelling, on, off).
     // Uitzetten (waar het nu geldt) maakt de verbinding minder veilig: dan om je wachtwoord vragen.

@@ -5728,4 +5728,5 @@ return [
     'Externe URL' => 'External URL',
     '(adres van buiten, voor de statuspagina)' => '(address from outside, for the status page)',
     'Onderdelen van een agentrapport' => 'Parts of an agent report',
+    'agents mogen alleen via https: daarom {url}' => 'agents may only connect via https: hence {url}',
 ];

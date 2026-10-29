@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.130.0 – 2026-10-29
+### Nieuw
+- **Installatiecommando met https als agents alleen via https mogen**: staat *Agents alleen via https* aan (voor alle servers of voor deze server) en begint de Basis-URL met `http://`, dan gebruikt het commando in de Agent Manager (ook TrueNAS en de Home Assistant-add-on) hetzelfde adres met `https://`. De agent komt zo meteen op https te staan; met de hand aanpassen hoeft niet meer. Onder het commando staat waarom (🔒). Staat het voor één server uit, dan blijft het commando voor die server http.
+
+### Opgelost
+- **Vingerafdruk ook als je RzMon via http opent**: RzMon bepaalde de vingerafdruk van zijn eigen certificaat alleen als je browser via https verbonden was. Via http kwam er geen `--pin` in het commando, en een agent op https liep dan vast op het eigen (self-signed) certificaat. RzMon kijkt nu ook zelf op poort 443 en zet de vingerafdruk in het commando.
+
 ## 1.129.0 – 2026-10-29
 ### Nieuw
 - **Nieuwe agent 1.66.1** (zie de [changelog van de agent](agent/CHANGELOG.md)): `rzmon-agent-setup --update` werkt weer met het eigen (self-signed) certificaat van RzMon (ook na `--cleanup`), de agent wacht 50 seconden op RzMon in plaats van 20, en stuurt de softwarelijst niet meer elke minuut opnieuw als er geen antwoord kwam.
