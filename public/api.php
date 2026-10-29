@@ -957,6 +957,12 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
     }
 
     $outdated = $version === null || version_compare($version, AGENT_LATEST, '<');
+    // 1.130.1: staat er nog een mislukte of hangende update (✘/⏳), maar draait de agent inmiddels de nieuwste versie
+    // (bv. met de hand bijgewerkt), dan is die melding achterhaald
+    if ($status === null && !$outdated && $req === null && preg_match('/^(✘|⏳)/u', (string) $h['agent_update_status'])) {
+        $status = '✔ ' . date('d-m H:i') . ' ' . t('bijgewerkt naar {to}', ['to' => $version]);
+        $sent = null;
+    }
     // Automatisch alleen via een versleutelde verbinding (dan kan niemand onderweg de opdracht of het controlegetal
     // vervalsen); onversleuteld alleen als je zelf op de knop drukt
     $wanted = ($req !== null && $sent === null) || ($req === null && $outdated && setting('agent_auto_update', '0') === '1'

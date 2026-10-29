@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.130.1 – 2026-10-29
+### Opgelost
+- *✗ Geen antwoord van de update na 10 minuten* bleef in de Agent Manager staan, ook als de agent daarna met de hand was bijgewerkt en al de nieuwste versie draaide. Zodra de agent op de nieuwste versie rapporteert, staat er nu *✔ bijgewerkt naar …*.
+
 ## 1.130.0 – 2026-10-29
 ### Nieuw
 - **Installatiecommando met https als agents alleen via https mogen**: staat *Agents alleen via https* aan (voor alle servers of voor deze server) en begint de Basis-URL met `http://`, dan gebruikt het commando in de Agent Manager (ook TrueNAS en de Home Assistant-add-on) hetzelfde adres met `https://`. De agent komt zo meteen op https te staan; met de hand aanpassen hoeft niet meer. Onder het commando staat waarom (🔒). Staat het voor één server uit, dan blijft het commando voor die server http.
