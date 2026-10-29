@@ -7634,6 +7634,7 @@ let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
 let setHealthAt = 0;
 let setHealth = {};   // onderdeel → slechtste status uit "Hoe staat het ervoor?" (voor de bolletjes in de zijbalk)
+let setHealthWhy = {};   // 1.131.2: onderdeel → de punten zelf (tekst bij het bolletje)
 
 function setFind(id) {
   for (const [g, icon, label, subs] of SET_NAV) for (const s of subs) if (s[0] === id) return { g, icon, group: label, sub: s };
@@ -7689,7 +7690,8 @@ function showSettingsSection(id, focusEl) {
   refreshClamps();
 }
 
-const dotFor = (st) => (st === 'bad' || st === 'warn' ? `<i class="set-dot ${st}" title="${esc(st === 'bad' ? L('Hier moet iets gebeuren') : L('Aandachtspunt'))}"></i>` : '');
+const dotFor = (st, why = []) => (st === 'bad' || st === 'warn'
+  ? `<i class="set-dot ${st}" title="${esc((why.length ? why : [st === 'bad' ? L('Hier moet iets gebeuren') : L('Aandachtspunt')]).join('\n') + '\n\n' + L('Alles staat bij Overzicht → Status'))}"></i>` : '');
 
 function renderSettingsNav() {
   const q = setSearchNorm($('#set-search').value);
@@ -7706,9 +7708,10 @@ function renderSettingsNav() {
   const f = setFind(setSection);
   $('#set-navlist').innerHTML = SET_NAV.map(([g, icon, label, subs]) => {
     const worst = subs.map(([k]) => setHealth[k]).find((s) => s === 'bad') || subs.map(([k]) => setHealth[k]).find((s) => s === 'warn');
+    const why = subs.flatMap(([k]) => setHealthWhy[k] || []);
     return `<div class="set-nav-group ${g === f.g ? 'open' : ''}">
-      <button type="button" data-set-go="${subs[0][0]}" class="set-nav-head ${g === f.g ? 'cur' : ''}"><span>${icon}</span> ${esc(label)}${subs.length === 1 || g !== f.g ? dotFor(worst) : ''}</button>
-      <div class="set-nav-subs">${subs.length > 1 ? subs.map(([k, l]) => `<button type="button" data-set-go="${k}" class="${k === setSection ? 'active' : ''}">${esc(l)}${dotFor(setHealth[k])}</button>`).join('') : ''}</div></div>`;
+      <button type="button" data-set-go="${subs[0][0]}" class="set-nav-head ${g === f.g ? 'cur' : ''}"><span>${icon}</span> ${esc(label)}${subs.length === 1 || g !== f.g ? dotFor(worst, why) : ''}</button>
+      <div class="set-nav-subs">${subs.length > 1 ? subs.map(([k, l]) => `<button type="button" data-set-go="${k}" class="${k === setSection ? 'active' : ''}">${esc(l)}${dotFor(setHealth[k], setHealthWhy[k])}</button>`).join('') : ''}</div></div>`;
   }).join('');
 }
 
@@ -7748,10 +7751,12 @@ async function loadSettingsHealth() {
   const rank = { bad: 0, warn: 1, info: 2, ok: 3 };
   items.sort((a, b) => rank[a.status] - rank[b.status]);
   setHealth = {};
+  setHealthWhy = {};
   setHealthAt = Date.now();
   for (const it of items) {
     it.section = SET_ALIAS[it.section] || it.section;
     if (rank[it.status] < rank[setHealth[it.section] || 'ok']) setHealth[it.section] = it.status;
+    if (it.status === 'bad' || it.status === 'warn') (setHealthWhy[it.section] ||= []).push(`${it.status === 'bad' ? '🔴' : '🟠'} ${it.title}: ${it.detail || ''}`);
   }
   // 1.122.0: punten die bij elkaar horen als één regel (de losse punten eronder)
   items = ovGroup(items, rank);

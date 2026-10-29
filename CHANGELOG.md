@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.131.2 – 2026-10-29
+### Opgelost
+- **Waarom staat er een stip?** De oranje en rode stippen in de zijbalk van de instellingen zeiden alleen *Aandachtspunt*. Ga je er nu met de muis op staan, dan zie je welke punten het zijn (bijvoorbeeld *🟠 Alleen agents met een eigen sleutel: … zet dit aan*). Alles staat ook bij *Overzicht → Status*.
+
 ## 1.131.1 – 2026-10-29
 ### Opgelost
 - **Agents-overzicht loopt live mee**: de kaarten (versie, verbinding, contact) werden maar één keer geladen. Na een update bleef bijvoorbeeld *v1.66.0 ⬆* staan terwijl de Agent Manager al 1.66.1 liet zien. Ze worden nu hooguit elke 30 seconden bijgewerkt.
