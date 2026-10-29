@@ -557,6 +557,9 @@ save_setting('perf_on', '0');
 Perf::lap('uit');
 ok(!in_array('uit', array_column(Perf::report()['cron'], 'name'), true), 'snelheidsmeter uit: niets meer vastgelegd');
 save_setting('perf_on', '1');
+// 1.125.0: eigen pakketnamen bij installeren
+ok(Edr::parsePkgs('audit, audispd-plugins  audit') === ['audit', 'audispd-plugins'] && is_string(Edr::parsePkgs('-y;rm')) && is_string(Edr::parsePkgs('../x'))
+    && is_string(Edr::parsePkgs(implode(' ', range(1, 11)))) && is_string(Edr::parsePkgs('  ')), 'eigen pakketnamen: alleen gewone namen, hooguit 10');
 $pct = static fn($ok, $n) => (int) $n > 0 ? round((int) $ok / (int) $n * 100, 3) : null;
 save_setting('stats_daily_at', '0');
 Analytics::cron();

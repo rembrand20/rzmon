@@ -3651,10 +3651,12 @@ switch ($action) {
             out(['error' => t('Server niet gevonden')], 404);
         }
         $confirm('INSTALLEREN');
-        $r = Edr::install($h, (string) ($in['comp'] ?? ''), $user['username']);
+        $own = mb_substr((string) ($in['pkgs'] ?? ''), 0, 1000);
+        $r = Edr::install($h, (string) ($in['comp'] ?? ''), $user['username'], $own);
         if ($r !== true) {
             out(['error' => $r], 422);
         }
+        AgentCommands::audit($user['username'], 'Endpoint-bewaking: installeren', $h['name'] . ': ' . ((string) ($in['comp'] ?? '')) . (trim($own) !== '' ? ' (' . trim($own) . ')' : ''));
         out(['ok' => true]);
 
     case 'edr_feed':   // Live: de laatste gebeurtenissen

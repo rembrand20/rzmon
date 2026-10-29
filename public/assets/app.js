@@ -5364,35 +5364,51 @@ async function loadEdrHost(h, poll = false) {
   else if (up && up.state === 'ok' && Date.now() - new Date(up.at.replace(' ', 'T')) < 3600e3) lines.push(`<span class="good">✔ ${L('Geïnstalleerd: {p}', { p: esc((up.pkgs || []).join(' ')) })}</span>`);
   else if (up && up.state === 'error') lines.push(`<span class="bad">✘ ${L('Installeren mislukt: {p}', { p: esc((up.pkgs || []).join(' ')) })}</span>${up.log ? `<pre class="code small">${esc(up.log.slice(-400))}</pre>` : ''}`);
   const comps = [...d.missing, ...(d.optional || [])];
+  const rpm = d.fam === 'rhel';
+  // 1.124.0: precies wat de agent uitvoert (zelfde pakketten als Edr::install), en de versie om zelf te typen
+  const pkgsOf = (c) => (c === 'auditd' ? [rpm ? 'audit' : 'auditd'] : [...(rpm && !+i.epel ? ['epel-release'] : []), c === 'yara' ? 'yara' : 'inotify-tools']);
+  const agentCmd = (c, own = null) => {
+    const p = own || pkgsOf(c), out = [];
+    if (rpm) { if (p[0] === 'epel-release') out.push('dnf -y install epel-release'); out.push(`dnf -y install ${p.filter((x) => x !== 'epel-release').join(' ')}`); }
+    else out.push('apt-get update', `apt-get install -y --no-install-recommends ${p.join(' ')}`);
+    if (c === 'auditd') out.push('systemctl enable --now auditd');
+    return out;
+  };
+  const ownCmd = (c, own = null) => agentCmd(c, own).map((x) => 'sudo ' + x.replace(/ -y\b/, '').replace(' --no-install-recommends', '')).join(' && ');
   if (d.on && d.ids && comps.length && !busy) {
-    const rpm = d.fam === 'rhel';
-    // 1.124.0: precies wat de agent uitvoert (zelfde pakketten als Edr::install), en de versie om zelf te typen
-    const pkgsOf = (c) => (c === 'auditd' ? [rpm ? 'audit' : 'auditd'] : [...(rpm && !+i.epel ? ['epel-release'] : []), c === 'yara' ? 'yara' : 'inotify-tools']);
-    const agentCmd = (c) => {
-      const p = pkgsOf(c), out = [];
-      if (rpm) { if (p[0] === 'epel-release') out.push('dnf -y install epel-release'); out.push(`dnf -y install ${p.filter((x) => x !== 'epel-release').join(' ')}`); }
-      else out.push('apt-get update', `apt-get install -y --no-install-recommends ${p.join(' ')}`);
-      if (c === 'auditd') out.push('systemctl enable --now auditd');
-      return out;
-    };
-    const ownCmd = (c) => agentCmd(c).map((x) => 'sudo ' + x.replace(/ -y\b/, '').replace(' --no-install-recommends', '')).join(' && ');
     lines.push(comps.map((c, k) => `<div class="edr-miss"><b>${esc(EDR_COMP[c][0])}</b> <span class="muted small">${EDR_COMP[c][1]()}</span>
       ${d.install_blocked ? `<span class="muted small">· ${L('via de agent kan het hier niet: {why}', { why: esc(d.install_blocked) })}</span>`
         : `<button type="button" class="btn small-btn primary" data-edr-install="${c}">⬇ ${L('Installeren via de agent')}</button>`}
       <details class="cmd-dd small"><summary>${L('Commando')}</summary>
-        ${d.install_blocked ? '' : `<div class="muted">${L('Dit voert de agent uit (als root):')}</div><pre class="code">${esc(agentCmd(c).join('\n'))}</pre>`}
+        ${d.install_blocked ? '' : `<div class="muted">${L('Dit voert de agent uit (als root):')}</div><pre class="code" data-edr-preview="${c}">${esc(agentCmd(c).join('\n'))}</pre>
+          <label class="small edr-own">${L('Eigen pakketnamen')} <span class="muted">${L('(optioneel; gescheiden door spaties, hooguit 10; agent {v} of nieuwer)', { v: '1.66.0' })}</span>
+            <span class="inline-row"><input class="mono" data-edr-own="${c}" value="${esc(pkgsOf(c).join(' '))}" spellcheck="false" autocomplete="off">
+            <button type="button" class="btn small-btn" data-edr-install="${c}" data-own="1">⬇ ${L('Met deze pakketten installeren')}</button></span></label>`}
         <div class="muted">${L('Of zelf op de server:')}</div>${copyBox(`edr-own-${k}`, ownCmd(c))}</details></div>`).join(''));
   }
   withMorph(() => { box.innerHTML = `<div class="small">${lines.join('<br>')}</div>`; });
   wireCopy(box);
+  // Eigen pakketnamen: het voorbeeld van wat de agent uitvoert loopt mee
+  $$('[data-edr-own]', box).forEach((inp) => {
+    inp.oninput = () => {
+      const names = inp.value.trim().split(/[\s,]+/).filter(Boolean);
+      const pre = $(`[data-edr-preview="${inp.dataset.edrOwn}"]`, box);
+      if (pre) pre.textContent = agentCmd(inp.dataset.edrOwn, names.length ? names : null).join('\n');
+      const mine = inp.closest('.cmd-dd') && $('.copy-line pre', inp.closest('.cmd-dd'));
+      if (mine) mine.textContent = ownCmd(inp.dataset.edrOwn, names.length ? names : null);
+    };
+  });
   $$('[data-edr-install]', box).forEach((b) => {
     b.onclick = async () => {
       const c = b.dataset.edrInstall;
+      const def = pkgsOf(c).join(' ');
+      const ownVal = b.dataset.own ? ($(`[data-edr-own="${c}"]`, box) || {}).value || '' : '';
+      const own = ownVal.trim().split(/[\s,]+/).filter(Boolean).join(' ') === def ? '' : ownVal.trim();
       const lan = !!document.querySelector('.lan-badge');
-      const pw = prompt(L('{c} installeren op {name}? {how}', { c: EDR_COMP[c][0], name: h.name, how: lan ? L('Typ INSTALLEREN om te bevestigen.') : L('Bevestig met je wachtwoord.') }));
+      const pw = prompt(L('{c} installeren op {name}? {how}', { c: own ? own : EDR_COMP[c][0], name: h.name, how: lan ? L('Typ INSTALLEREN om te bevestigen.') : L('Bevestig met je wachtwoord.') }));
       if (pw === null) return;
       try {
-        await api('edr_install', { host_id: h.id, comp: c, confirm: pw });
+        await api('edr_install', { host_id: h.id, comp: c, confirm: pw, ...(own ? { pkgs: own } : {}) });
         toast(L('De agent installeert {c} bij zijn volgende rapport', { c: EDR_COMP[c][0] }));
         loadEdrHost(h, true);
       } catch (ex) { toast(ex.message, 'err'); }

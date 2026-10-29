@@ -468,10 +468,32 @@ final class Edr
     }
 
     /** Ontbrekend onderdeel laten installeren door de agent (pakketbeheerder van de server, met voortgang) */
-    public static function install(array $host, string $comp, string $by): true|string
+    /** Pakketnamen die je zelf opgeeft (1.125.0): gewone namen van dnf/apt, gescheiden door spaties of komma's */
+    public static function parsePkgs(string $text): array|string
+    {
+        $names = array_values(array_unique(array_filter(preg_split('/[\s,]+/', trim($text)) ?: [])));
+        if (!$names) {
+            return t('Geen pakketnamen opgegeven');
+        }
+        if (count($names) > 10) {
+            return t('Hooguit {n} pakketten tegelijk', ['n' => 10]);
+        }
+        foreach ($names as $n) {
+            if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9.+_:~-]{0,99}$/', $n)) {
+                return t('Ongeldige pakketnaam: {n}', ['n' => mb_substr($n, 0, 40)]);
+            }
+        }
+        return $names;
+    }
+
+    public static function install(array $host, string $comp, string $by, string $own = ''): true|string
     {
         if (!isset(self::COMPONENTS[$comp])) {
             return t('Onbekend onderdeel');
+        }
+        if (trim($own) !== '') {
+            $pkgs = self::parsePkgs($own);
+            return is_array($pkgs) ? Vulns::requestInstall($host, $pkgs, $by, true) : $pkgs;
         }
         $i = json_decode((string) ($host['edr_info'] ?? ''), true) ?: [];
         $rpm = ($i['fam'] ?? '') === 'rhel';

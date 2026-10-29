@@ -755,15 +755,17 @@ final class Vulns
      * Onderdelen installeren (1.110.0, endpoint-bewaking: auditd, inotify-tools …): zelfde weg als bijwerken, met
      * mode = install. Alleen pakketnamen die RzMon zelf kiest (Edr::COMPONENTS); de agent (1.63.0) controleert ze ook.
      */
-    public static function requestInstall(array $host, array $pkgs, string $by): true|string
+    public static function requestInstall(array $host, array $pkgs, string $by, bool $own = false): true|string
     {
         if ($why = self::upgradeBlocked($host)) {
             return $why;
         }
-        if (version_compare((string) $host['agent_version'], '1.63.0', '<')) {
-            return t('agent {v} of nieuwer nodig', ['v' => '1.63.0']);
+        // Eigen pakketnamen (1.125.0): de agent installeert dan niet alleen zijn vaste lijst (agent 1.66.0)
+        $need = $own ? '1.66.0' : '1.63.0';
+        if (version_compare((string) $host['agent_version'], $need, '<')) {
+            return t('agent {v} of nieuwer nodig', ['v' => $need]);
         }
-        $req = ['id' => bin2hex(random_bytes(8)), 'pkgs' => array_values($pkgs), 'mode' => 'install', 'by' => $by, 'at' => now(), 'sent' => null];
+        $req = ['id' => bin2hex(random_bytes(8)), 'pkgs' => array_values($pkgs), 'mode' => 'install', 'by' => $by, 'at' => now(), 'sent' => null] + ($own ? ['own' => true] : []);
         q('UPDATE hosts SET vuln_upgrade_req = ?, vuln_upgrade_status = ? WHERE id = ?',
             [json_encode($req), json_encode(['state' => 'queued', 'at' => now(), 'pkgs' => $req['pkgs'], 'mode' => 'install']), $host['id']]);
         return true;
@@ -786,7 +788,7 @@ final class Vulns
         $req['sent'] = now();
         q('UPDATE hosts SET vuln_upgrade_req = ?, vuln_upgrade_status = ? WHERE id = ?',
             [json_encode($req), json_encode(['state' => 'running', 'at' => now(), 'sent' => now(), 'pkgs' => $req['pkgs']]), $hostId]);
-        return ['id' => $req['id'], 'pkgs' => $req['pkgs']] + (($req['mode'] ?? '') === 'install' ? ['mode' => 'install'] : []);
+        return ['id' => $req['id'], 'pkgs' => $req['pkgs']] + (($req['mode'] ?? '') === 'install' ? ['mode' => 'install'] : []) + (!empty($req['own']) ? ['own' => true] : []);
     }
 
     /** Voortgang van de agent tijdens het bijwerken (stap, procent, pakket, laatste uitvoer), of de uitkomst als hij klaar is */

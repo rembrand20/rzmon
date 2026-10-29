@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.65.0"
+AGENT_VERSION="1.66.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -3201,14 +3201,17 @@ fi
 
 pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade" van de meegestuurde pakketnamen, als root
     # Agent 1.63.0: of "install" (mode), alleen voor de onderdelen van de endpoint-bewaking (vaste lijst hieronder)
-    local id names n=() out="$pk_dir/upgrade.result" why="" mode=upgrade
+    # Agent 1.66.0: met "own" (eigen pakketnamen, door de beheerder bevestigd in RzMon) geldt die lijst niet; de namen
+    # zelf moeten wel gewone pakketnamen zijn (geen opties, geen paden), en COMMANDS mag het niet blokkeren
+    local id names n=() out="$pk_dir/upgrade.result" why="" mode=upgrade own=0
     id=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"id":[[:space:]]*"\([0-9a-f]\{8,32\}\)".*/\1/p' <<<"$1")
     names=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"pkgs":[[:space:]]*\[\([^]]*\)\].*/\1/p' <<<"$1" | tr -d '"' | tr ',' ' ')
     [[ "$1" =~ \"pkg_upgrade\":[[:space:]]*\{[^}]*\"mode\":[[:space:]]*\"install\" ]] && mode=install
+    [[ "$1" =~ \"pkg_upgrade\":[[:space:]]*\{[^}]*\"own\":[[:space:]]*true ]] && own=1
     [ -n "$id" ] && [ -d "$pk_dir" ] || return 0
     for p in $names; do
         [[ "$p" =~ ^[A-Za-z0-9][A-Za-z0-9.+_:~-]{0,99}$ ]] || continue
-        if [ "$mode" = install ]; then case "$p" in audit|auditd|inotify-tools|epel-release|yara) ;; *) continue ;; esac; fi
+        if [ "$mode" = install ] && [ "$own" = 0 ]; then case "$p" in audit|auditd|inotify-tools|epel-release|yara) ;; *) continue ;; esac; fi
         n+=("$p")
     done
     case "$COMMANDS" in 0|off|no|nee|nobody) why="geblokkeerd op de server (COMMANDS=$COMMANDS in /etc/default/rzmon-agent)" ;; esac

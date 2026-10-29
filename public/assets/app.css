@@ -1936,3 +1936,4 @@ button.ic-n { cursor: pointer; } button.ic-n:hover b { text-decoration: underlin
 .cmd-dd { margin: .35rem 0 .2rem; }
 .cmd-dd > summary { cursor: pointer; color: var(--primary); width: max-content; }
 .cmd-dd pre.code { margin: .25rem 0 .5rem; white-space: pre-wrap; word-break: break-all; }
+.edr-own { display: block; margin: .2rem 0 .6rem; } .edr-own .inline-row { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .25rem; } .edr-own input { flex: 1 1 14rem; min-width: 0; }

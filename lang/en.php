@@ -5702,4 +5702,10 @@ return [
     'Wordt weer getoond' => 'Shown again',
     'Dit voert de agent uit (als root):' => 'The agent runs this (as root):',
     'Of zelf op de server:' => 'Or yourself on the server:',
+    'Eigen pakketnamen' => 'Own package names',
+    '(optioneel; gescheiden door spaties, hooguit 10; agent {v} of nieuwer)' => '(optional; separated by spaces, at most 10; agent {v} or newer)',
+    'Met deze pakketten installeren' => 'Install with these packages',
+    'Geen pakketnamen opgegeven' => 'No package names given',
+    'Hooguit {n} pakketten tegelijk' => 'At most {n} packages at a time',
+    'Ongeldige pakketnaam: {n}' => 'Invalid package name: {n}',
 ];

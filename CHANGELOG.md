@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.125.0 – 2026-10-29
+### Nieuw
+- **Eigen pakketnamen bij installeren** (**agent 1.66.0 nodig**): in de Agent Manager staat bij een ontbrekend onderdeel van de endpoint-bewaking, onder *Commando*, een veld met de pakketten. Pas ze aan (bv. `audit audispd-plugins`) en klik op **Met deze pakketten installeren**. Het voorbeeld van wat de agent uitvoert loopt mee terwijl je typt. Alleen gewone pakketnamen (hooguit 10). Je bevestigt met je wachtwoord en het komt in het logboek.
+- Nieuwe agent 1.66.0.
+
 ## 1.124.0 – 2026-10-29
 ### Nieuw
 - **Commando bij installeren** (Agent Manager → *Endpoint-bewaking*): onder elk ontbrekend onderdeel staat een klein uitklapmenu **Commando**. Daarin zie je precies wat de agent uitvoert (als root, bv. `dnf -y install audit` en `systemctl enable --now auditd`) en het commando om het zelf op de server te doen, met een kopieerknop.

@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.66.0 – 2026-10-29
+- **Eigen pakketnamen bij installeren** (RzMon 1.125.0): kies je in de Agent Manager zelf de pakketten voor de endpoint-bewaking (bv. `audit audispd-plugins`), dan installeert de agent die met `dnf`/`apt` in plaats van alleen zijn vaste lijst. Alleen gewone pakketnamen (geen opties of paden), hooguit 10, en net als altijd te blokkeren met `COMMANDS=0`.
+
 ## 1.65.0 – 2026-10-28
 - **Eigen processen herkennen** (RzMon 1.114.0): wat de agent start (systemd-groep `rzmon-*.service`, of als root vanuit de agent) en RzMon op zijn eigen server (PHP in de map van RzMon) gaan als "van RzMon" mee, samen met verbindingen met RzMon. RzMon logt dat als toegestaan en grijpt er nooit op in. Eigen processen tellen niet mee voor de grens van 200 per minuut.
 - De agent stopt nooit een proces van zichzelf of van RzMon, ook niet op verzoek.
