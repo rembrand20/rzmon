@@ -639,20 +639,23 @@ ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'edr
 save_setting('ids_mode', 'learn');
 
 // 1.133.0: handmatige back-ups opruimen (0 = alles bewaren); geüploade blijven altijd
+$bkOld = $GLOBALS['sm_config']['backup_dir'] ?? null;
+$GLOBALS['sm_config']['backup_dir'] = sys_get_temp_dir() . '/rzmon-ci-bk-' . getmypid();   // eigen lege map: echte back-ups blijven buiten schot
 @mkdir(Backup::dir(), 0700, true);
-foreach (glob(Backup::dir() . '/rzmon-backup-2099*.zip') ?: [] as $f) { unlink($f); }
 $mkzip = static function (string $name): void { $z = new ZipArchive(); $z->open(Backup::dir() . "/$name", ZipArchive::CREATE); $z->addFromString('info.txt', 'ci'); $z->close(); };
-foreach ([1, 2, 3, 4] as $d) { $mkzip("rzmon-backup-2099010$d-120000-manual.zip"); }
-$mkzip('rzmon-backup-20990101-130000-upload.zip');
+foreach ([1, 2, 3, 4] as $d) { $mkzip("rzmon-backup-2026010$d-120000-manual.zip"); }
+$mkzip('rzmon-backup-20260101-130000-upload.zip');
 save_setting('backup_keep_manual', '0');
 Backup::prune();
-$mine = static fn(string $t) => count(glob(Backup::dir() . "/rzmon-backup-2099*-$t.zip") ?: []);
+$mine = static fn(string $t) => count(glob(Backup::dir() . "/rzmon-backup-2026*-$t.zip") ?: []);
 ok($mine('manual') === 4, 'handmatige back-ups: 0 = alles bewaren');
 save_setting('backup_keep_manual', '2');
 Backup::prune();
-ok($mine('manual') === 2 && is_file(Backup::dir() . '/rzmon-backup-20990104-120000-manual.zip') && !is_file(Backup::dir() . '/rzmon-backup-20990101-120000-manual.zip') && $mine('upload') === 1,
+ok($mine('manual') === 2 && is_file(Backup::dir() . '/rzmon-backup-20260104-120000-manual.zip') && !is_file(Backup::dir() . '/rzmon-backup-20260101-120000-manual.zip') && $mine('upload') === 1,
     'handmatige back-ups: de nieuwste 2 blijven, geüploade blijven staan');
-foreach (glob(Backup::dir() . '/rzmon-backup-2099*.zip') ?: [] as $f) { unlink($f); }
+foreach (glob(Backup::dir() . '/*') ?: [] as $f) { unlink($f); }
+rmdir(Backup::dir());
+$GLOBALS['sm_config']['backup_dir'] = $bkOld;
 save_setting('backup_keep_manual', '0');
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
