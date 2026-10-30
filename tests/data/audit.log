@@ -34,3 +34,21 @@ type=SYSCALL msg=audit(1761660009.000:1010): arch=c000003e syscall=59 success=ye
 type=EXECVE msg=audit(1761660009.000:1010): argc=3 a0="sh" a1="-c" a2="timeout 2 getent hosts 203.0.113.5"
 type=CWD msg=audit(1761660009.000:1010): cwd="/"
 type=EOE msg=audit(1761660009.000:1010): 
+type=SYSCALL msg=audit(1761660010.000:1011): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=1 pid=8001 auid=4294967295 uid=33 euid=33 comm="sh" exe="/usr/bin/dash" key="rzmon_exec"
+type=EXECVE msg=audit(1761660010.000:1011): argc=3 a0="sh" a1="-c" a2=": rzmon:0123456789abcdef01234567; timeout 2 getent hosts 192.0.2.7"
+type=EOE msg=audit(1761660010.000:1011): 
+type=SYSCALL msg=audit(1761660011.000:1012): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=8001 pid=8002 auid=4294967295 uid=33 euid=33 comm="getent" exe="/usr/bin/getent" key="rzmon_exec"
+type=EXECVE msg=audit(1761660011.000:1012): argc=3 a0="getent" a1="hosts" a2="192.0.2.7"
+type=EOE msg=audit(1761660011.000:1012): 
+type=SYSCALL msg=audit(1761660012.000:1013): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=1 pid=8003 auid=4294967295 uid=33 euid=33 comm="sh" exe="/usr/bin/busybox" key="rzmon_exec"
+type=EXECVE msg=audit(1761660012.000:1013): argc=3 a0="/bin/sh" a1="-c" a2="/usr/bin/php /opt/rzmon/cron/run.php"
+type=EOE msg=audit(1761660012.000:1013): 
+type=SYSCALL msg=audit(1761660013.000:1014): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=9999 pid=8004 auid=4294967295 uid=0 euid=0 comm="curl" exe="/usr/bin/curl" key="rzmon_exec"
+type=EXECVE msg=audit(1761660013.000:1014): argc=3 a0="curl" a1="-fsS" a2="https://rzmon.example/api.php"
+type=EOE msg=audit(1761660013.000:1014): 
+type=SYSCALL msg=audit(1761660014.000:1015): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=1 pid=8005 auid=4294967295 uid=33 euid=33 comm="sh" exe="/usr/bin/dash" key="rzmon_exec"
+type=EXECVE msg=audit(1761660014.000:1015): argc=3 a0="sh" a1="-c" a2=": rzmon:ffffffffffffffffffffffff; id"
+type=EOE msg=audit(1761660014.000:1015): 
+type=SYSCALL msg=audit(1761660015.000:1016): arch=c000003e syscall=59 success=yes exit=0 items=2 ppid=1 pid=8006 auid=4294967295 uid=1000 euid=1000 comm="sh" exe="/usr/bin/dash" key="rzmon_exec"
+type=EXECVE msg=audit(1761660015.000:1016): argc=3 a0="sh" a1="-c" a2=": rzmon:0123456789abcdef01234567; id"
+type=EOE msg=audit(1761660015.000:1016): 

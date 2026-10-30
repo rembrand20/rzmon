@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.66.1"
+AGENT_VERSION="1.67.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -145,7 +145,7 @@ edr_emit() {  # edr_emit <json>: in de wachtrij (hooguit 2 MB) en de watcher wak
 
 # auditd-log (stdin) → één JSON-regel per gebeurtenis met een sleutel rzmon_* (stdout)
 edr_audit_awk() {
-    awk -v dropf="$edr_dir/edr.drop" -v rzroot="${EDR_ROOT-}" -v rzuser="${EDR_USER-}" '
+    awk -v dropf="$edr_dir/edr.drop" -v rzroot="${EDR_ROOT-}" -v rzuser="${EDR_USER-}" -v rzmark="${EDR_MARK-}" -v pidf="$edr_dir/own.pids" '
     BEGIN {
         hx = "0123456789ABCDEF"; for (i = 0; i < 16; i++) hv[substr(hx, i + 1, 1)] = i
         while ((getline l < "/etc/passwd") > 0) { n = split(l, pw, ":"); if (n >= 3) un[pw[3]] = pw[1] }
@@ -155,11 +155,29 @@ edr_audit_awk() {
     # Van RzMon zelf (agent 1.65.0): de agent en wat hij start (systemd-groep rzmon-*.service, of als root vanuit
     # rzmon-agent), en RzMon op zijn eigen server (PHP in de RzMon-map, als de gebruiker van RzMon of root). Kinderen
     # erven het. RzMon logt dat als "toegestaan" en grijpt er nooit op in.
+    # Agent 1.67.0: ook een kind van een run van de agent (zijn PID staat in own.pids; de run kan al klaar zijn als de
+    # gebeurtenis binnenkomt, dan is /proc weg), het geheime kenmerk van RzMon in de opdracht (alles wat RzMon start), en de
+    # cron van RzMon (crond → sh -c php …/cron/run.php)
+    function agentpid(p,   l, hit) {
+        hit = 0
+        if (p == 0) return 0
+        while ((getline l < pidf) > 0) if (l == p) hit = 1
+        close(pidf)
+        return hit
+    }
+    function gpid(p,   s, i) {   # ouder van de ouder (uit /proc/<p>/stat, na de naam tussen haakjes)
+        s = rd("/proc/" p "/stat"); i = index(s, ") ")
+        if (!p || !i) return 0
+        split(substr(s, i + 2), sf2, " "); return num(sf2[2])
+    }
     function owner(pc, u, cmd,   cg) {
         if (num(ppid) in own) return own[num(ppid)]
         cg = rd("/proc/" num(ppid) "/cgroup") rd("/proc/" num(pid) "/cgroup")
         if (cg ~ /\/rzmon-[^\/]*\.service/) return "agent"
         if (uid == "0" && (comm ~ /^rzmon-agent/ || pc ~ /^rzmon-agent/)) return "agent"
+        if (uid == "0" && (agentpid(num(ppid)) || agentpid(gpid(num(ppid))))) return "agent"
+        if (rzmark != "" && (uid == "0" || u == rzuser) && index(cmd, "rzmon:" rzmark)) return "rzmon"
+        if (rzroot != "" && (uid == "0" || u == rzuser) && index(cmd, rzroot "/cron/run.php")) return "rzmon"
         if (rzroot != "" && exe ~ /\/php[0-9.]*$|php-fpm/ && (uid == "0" || u == rzuser) && (index(cwd, rzroot) == 1 || index(cmd, rzroot "/cron/") || index(cmd, rzroot "/install/"))) return "rzmon"
         if (rzuser != "" && u == rzuser && pc ~ /^php/ && index(cwd, rzroot) == 1) return "rzmon"
         return ""
@@ -506,7 +524,8 @@ if [ "${1-}" = "--watch" ]; then
         w_sig=$(grep -E $'^(0\t(realtime|fim|edr|edrself)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)
         # Wat van RzMon zelf is (agent 1.65.0): de map en gebruiker van RzMon (alleen op zijn eigen server van belang)
         # en de adressen van RzMon; dat wordt gelogd als "toegestaan", nooit als aanval
-        IFS=$'\t' read -r EDR_ROOT EDR_USER < <(awk -F'\t' '$1 == "0" && $2 == "edrself" { print $3 "\t" $4; exit }' "$w_cache")
+        IFS=$'\t' read -r EDR_ROOT EDR_USER EDR_MARK < <(awk -F'\t' '$1 == "0" && $2 == "edrself" { print $3 "\t" $4 "\t" $5; exit }' "$w_cache")
+        [[ "${EDR_MARK-}" =~ ^[0-9a-f]{16,64}$ ]] || EDR_MARK=""   # agent 1.67.0: geheim kenmerk in de opdrachten van RzMon
         [[ "${EDR_ROOT-}" == /?* ]] || EDR_ROOT=""
         EDR_RZIPS=""
         for u in "$MONITOR_URL" "${MONITOR_URL_FALLBACK-}"; do
@@ -514,7 +533,7 @@ if [ "${1-}" = "--watch" ]; then
             h=${u#*://}; h=${h%%/*}; h=${h%:*}; h=${h#[}; h=${h%]}
             EDR_RZIPS+=" $h $(getent ahosts "$h" 2>/dev/null | awk '{ print $1 }' | sort -u | tr '\n' ' ')"
         done
-        export EDR_ROOT EDR_USER EDR_RZIPS
+        export EDR_ROOT EDR_USER EDR_RZIPS EDR_MARK
         units=$(awk -F'\t' '$2 == "svc" && $3 ~ /^[A-Za-z0-9@._:-]+$/ { gsub(/\./, "\\.", $3); printf "%s%s", (n++ ? "|" : ""), $3 }' "$w_cache")
         pat='(sshd|sshd-session)\[[0-9]+\]: (Accepted|Failed|Invalid user|Connection closed by authenticating)|sudo(\[[0-9]+\])?: |[ :]su(\[[0-9]+\])?: |login\[[0-9]+\]: '
         [ -n "$units" ] && pat+="|systemd\\[1\\]: .*($units)(\\.service)?[: ]"
@@ -1255,6 +1274,8 @@ if [ "$TEST" != 1 ] && command -v flock >/dev/null 2>&1; then
 fi
 touch "$t_dir/last.run" 2>/dev/null
 run_t0=$(now_ms)
+# Agent 1.67.0: PID van deze run, zodat de endpoint-bewaking wat de agent start als "van de agent" herkent (de laatste 8)
+[ "$TEST" != 1 ] && { tail -n 7 "$t_dir/own.pids" 2>/dev/null; echo "$$"; } >"$t_dir/own.pids.tmp" 2>/dev/null && mv -f "$t_dir/own.pids.tmp" "$t_dir/own.pids" 2>/dev/null
 
 # ---------------------------------------------------------------- Disk
 disks=""

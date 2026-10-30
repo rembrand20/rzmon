@@ -1963,3 +1963,21 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .sp-link-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; margin: 1rem 0 .4rem; }
 .sp-link-head h3 { margin: 0; }
 #sp-link .seg-btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* 1.132.0: uitzonderingen IDS/EDR */
+.exc-sets { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .8rem; margin-bottom: .6rem; }
+.exc-set { border: 1px solid var(--border); border-radius: 12px; padding: .8rem .9rem; background: var(--card); display: flex; flex-direction: column; gap: .3rem; }
+.exc-set.on { border-color: color-mix(in srgb, var(--ok, #1a9e5c) 50%, var(--border)); }
+.exc-set-h { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.exc-ic { font-size: 1.2rem; }
+.exc-set p { margin: 0; }
+.exc-items { margin: .2rem 0 .4rem; padding-left: 1rem; list-style: none; }
+.exc-items li { margin: .1rem 0; text-indent: -1rem; }
+.exc-set .btn-row { margin-top: auto; align-items: center; }
+.exc-c { display: inline-block; margin: .1rem .5rem .1rem 0; }
+.exc-c code { font-size: .85em; }
+.exc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .5rem .8rem; margin-bottom: .6rem; }
+.exc-grid textarea { min-height: 2.6rem; font-size: .85rem; }
+.exc-props td:first-child, .exc-list td:first-child { width: 1%; }
+
+.badge.good { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }

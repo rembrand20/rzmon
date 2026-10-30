@@ -184,11 +184,11 @@ final class NetScan
         $ips = self::hostsOf($cidr);
         $out = [];
         if ($fping = self::bin('fping')) {
-            exec(sprintf('%s -a -q -r 0 -t 400 %s 2>/dev/null', escapeshellarg($fping), implode(' ', array_map('escapeshellarg', $ips))), $out);
+            exec(rz_sh(sprintf('%s -a -q -r 0 -t 400 %s 2>/dev/null', escapeshellarg($fping), implode(' ', array_map('escapeshellarg', $ips)))), $out);
         } else {
             $ping = (string) config('ping_bin', '/bin/ping');
             $cmd = sprintf("xargs -P 64 -n 1 sh -c '%s -c 1 -W 1 -n \"$0\" >/dev/null 2>&1 && echo \"$0\"'", str_replace("'", '', $ping));
-            $p = proc_open($cmd, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+            $p = proc_open(rz_sh($cmd), [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
             if (is_resource($p)) {
                 fwrite($pipes[0], implode("\n", $ips) . "\n");
                 fclose($pipes[0]);
@@ -227,7 +227,7 @@ final class NetScan
     private static function ownInterfaces(): array
     {
         $out = [];
-        exec('ip -o -4 addr show 2>/dev/null', $lines);
+        exec(rz_sh('ip -o -4 addr show 2>/dev/null'), $lines);
         foreach ($lines as $l) {
             if (preg_match('#^\d+:\s+(\S+?)(?:@\S+)?\s+inet\s+(\d+\.\d+\.\d+\.\d+)/#', $l, $m) && $m[1] !== 'lo') {
                 $out[$m[2]] = self::normMac((string) @file_get_contents('/sys/class/net/' . basename($m[1]) . '/address'));
@@ -298,7 +298,7 @@ final class NetScan
         if (!$ips) {
             return [];
         }
-        $p = proc_open("xargs -P 16 -n 1 sh -c 'timeout 2 getent hosts \"$0\" 2>/dev/null'", [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+        $p = proc_open(rz_sh("xargs -P 16 -n 1 sh -c 'timeout 2 getent hosts \"$0\" 2>/dev/null'"), [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
         if (!is_resource($p)) {
             return [];
         }
@@ -411,7 +411,7 @@ final class NetScan
     /** Standaardgateway van deze server (je router) */
     private static function gateway(): ?string
     {
-        exec('ip -4 route show default 2>/dev/null', $l);
+        exec(rz_sh('ip -4 route show default 2>/dev/null'), $l);
         return preg_match('/via (\d+\.\d+\.\d+\.\d+)/', implode("\n", $l), $m) ? $m[1] : null;
     }
 
@@ -535,7 +535,7 @@ final class NetScan
         if (!($bin = self::bin('avahi-browse'))) {
             return [];
         }
-        exec('timeout 8 ' . escapeshellarg($bin) . ' -aprt 2>/dev/null', $lines);
+        exec(rz_sh('timeout 8 ' . escapeshellarg($bin) . ' -aprt 2>/dev/null'), $lines);
         return self::parseAvahi($lines);
     }
 

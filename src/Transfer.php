@@ -14,7 +14,7 @@ final class Transfer
     private const SECRET = '/(pass|token|secret|_key$|^enc_key|community|api_key|hibp_key)/i';
     /** Instellingen die RzMon zelf bijhoudt, of die bij deze installatie horen */
     private const SKIP_SETTINGS = '/^(cron_|update_|.*_state$|.*_seen$|.*_at$|.*_day$|ipintel_|hibp_(wait|last|domain_error|rpm)|vuln_(daily|last|kev|cache)|selfcheck_|db_size_hist|task_watch|'
-        . 'mqtt_last|mqtt_discovery|backup_last|backup_retry|backup_fail|templates_seeded|own_cert|proxy_|hsts_|cleanup_ignore|maintenance_|agent_fb|enc_|stealth_|https_|base_url|tests_rev|.*_notified$)/';
+        . 'mqtt_last|mqtt_discovery|backup_last|backup_retry|backup_fail|templates_seeded|own_cert|proxy_|hsts_|cleanup_ignore|maintenance_|agent_fb|enc_|stealth_|https_|base_url|edr_self_mark|tests_rev|.*_notified$)/';
 
     private static function cleanSnmp(?string $json): ?string
     {

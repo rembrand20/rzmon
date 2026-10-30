@@ -132,7 +132,7 @@ final class Vulns
             }
             if ($db === '/var/lib/dpkg/status') {
                 $mgr = 'dpkg';
-                $raw = (string) shell_exec("dpkg-query -W -f='\${db:Status-Abbrev}\\t\${Package}\\t\${Version}\\t\${Architecture}\\t\${source:Package}\\t\${source:Version}\\n' 2>/dev/null");
+                $raw = (string) shell_exec(rz_sh("dpkg-query -W -f='\${db:Status-Abbrev}\\t\${Package}\\t\${Version}\\t\${Architecture}\\t\${source:Package}\\t\${source:Version}\\n' 2>/dev/null"));
                 $rows = [];
                 foreach (explode("\n", $raw) as $l) {
                     $f = explode("\t", $l);
@@ -142,7 +142,7 @@ final class Vulns
                 }
             } else {
                 $mgr = 'rpm';
-                $raw = (string) shell_exec("rpm -qa --qf '%{NAME}\\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\\t%{ARCH}\\t%{SOURCERPM}\\n' 2>/dev/null");
+                $raw = (string) shell_exec(rz_sh("rpm -qa --qf '%{NAME}\\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\\t%{ARCH}\\t%{SOURCERPM}\\n' 2>/dev/null"));
                 $rows = [];
                 foreach (explode("\n", $raw) as $l) {
                     $f = explode("\t", $l);

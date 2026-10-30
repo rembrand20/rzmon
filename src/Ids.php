@@ -792,7 +792,7 @@ final class Ids
             // Handtekening: webserver, programma en de eerste twee woorden van de opdracht (zonder getallen)
             $words = array_slice(preg_split('/\s+/', trim((string) preg_replace('/\d+/', '#', $cmd))) ?: [], 0, 2);
             $key = "$web|$tool|" . implode(' ', $words);
-            if (self::ignored($hid, 'webshell', $key)) {
+            if (Edr::isSelfCmd($cmd) || self::ignored($hid, 'webshell', $key)) {   // 1.132.0: RzMon zelf (kenmerk of eigen cron)
                 continue;
             }
             $kill = self::blocking() && setting('ids_webshell_kill', '0') === '1' && (int) ($w['pid'] ?? 0) > 1;
@@ -1007,6 +1007,12 @@ final class Ids
         $hid = (int) $ctx['host']['id'];
         $key = mb_substr($key, 0, 255);
         if (q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'ignore' AND item = ?", [$hid, mb_substr("$type|$key", 0, 255)])->fetchColumn()) {
+            return false;
+        }
+        // 1.132.0: uitzondering (IDS → Regels → Uitzonderingen): geen incident, wel een groene regel in IDS Live
+        if ($exc = Exceptions::ids($ctx['host'], $type, $key, $title, $detail, $ip)) {
+            Exceptions::logIds($ctx['host'], $exc, $type, $key, $title, $detail);
+            Exceptions::flush();
             return false;
         }
         $prev = q('SELECT id FROM ids_incidents WHERE host_id = ? AND type = ? AND dkey = ? AND created_at >= NOW() - INTERVAL 1 DAY'

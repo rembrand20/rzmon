@@ -1228,6 +1228,7 @@ function init() {
     $$('#rule-src .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
     renderEdrRules();
   };
+  initExceptions();   // 1.132.0
   $('#edr-rules').onchange = async (e) => {
     const c = e.target.closest('[data-rule]');
     if (!c) return;
@@ -5678,10 +5679,10 @@ function edrSummary(e) {
   }
 }
 /** Groene regel: iets van RzMon zelf, toegestaan (1.114.0) */
-const EDR_OWN = { agent: () => L('agent'), rzmon: () => 'RzMon', net: () => L('verkeer met RzMon') };
+const EDR_OWN = { agent: () => L('agent'), rzmon: () => 'RzMon', net: () => L('verkeer met RzMon'), exc: () => L('uitzondering') };
 function edrOwn(e) {
   const v = e.ev || {};
-  const who = (EDR_OWN[e.own] || (() => e.own))();
+  const who = (EDR_OWN[e.own] || (() => e.own))() + (e.own === 'exc' && v._exc ? ': ' + v._exc : '');
   const tag = `<span class="own-tag">✔ ${L('toegestaan')} · ${esc(who)}</span>`;
   if (e.kind === 'own') {
     const n = v.n || {};
@@ -5691,7 +5692,8 @@ function edrOwn(e) {
   if (e.kind === 'sur') return `${tag} Suricata: ${esc(v.sig || '')} <span class="muted">· ${esc(v.src)} → ${esc(v.dst)}:${+v.dport}</span>`;
   if (e.kind === 'dns') return `${tag} ${esc(v.title || '')}`;
   if (e.kind === 'web') return `${tag} ${esc(v.method || '')} <code>${esc(v.uri || '')}</code> <span class="muted">${L('van {ip}', { ip: esc(v.ip) })}</span>`;
-  return `${tag} ${edrSummary(e)}${v._would ? `<br><span class="muted small">${L('zou {r} raken, maar is RzMon zelf', { r: esc(v._would) })}</span>` : ''}`;
+  if (e.kind === 'ids') return `${tag} ${esc(v.title || '')} <span class="muted small">${esc((v.detail || '').slice(0, 160))}</span>`;   // 1.132.0
+  return `${tag} ${edrSummary(e)}${v._would ? `<br><span class="muted small">${e.own === 'exc' ? L('zou {r} raken', { r: esc(v._would) }) : L('zou {r} raken, maar is RzMon zelf', { r: esc(v._would) })}</span>` : ''}`;
 }
 async function loadEdrFeed() {
   const host = $('#edr-host').value, hits = $('#edr-hits').checked, own = $('#edr-own').checked;
@@ -5714,6 +5716,8 @@ async function loadEdrRules() {
   renderEdrRules();
 }
 function renderEdrRules() {
+  $('#rule-q').hidden = ruleSrc === 'exc';
+  if (ruleSrc === 'exc') return loadExceptions();   // 1.132.0
   if (!edrRules) return;
   const q = ($('#rule-q').value || '').trim().toLowerCase();
   const list = edrRules.rules.filter((r) => (!ruleSrc || r.src === ruleSrc) && (!q || (r.title + ' ' + r.what + ' ' + r.tags.join(' ') + ' ' + r.id).toLowerCase().includes(q)));
@@ -5728,6 +5732,180 @@ function renderEdrRules() {
         <td class="nowrap">${r.sev === 2 ? '🔴 Critical' : '🟠 Warning'}</td><td class="small">${act(r.act) || '<span class="muted">–</span>'}</td>
         <td class="small mono">${r.tags.map((t) => `<a href="https://attack.mitre.org/techniques/${esc(t.replace('.', '/'))}/" target="_blank" rel="noopener">${esc(t)}</a>`).join(' ')}</td><td>${r.hits || ''}</td></tr>`).join('')}
       </tbody></table></div>`;
+  });
+}
+
+// ---------------------------------------------------------------- IDS: 🛡️ Uitzonderingen (1.132.0)
+// Wat in een bepaalde situatie normaal is: geen melding, niet ingrijpen, niet meetellen voor afwijkingen; wel een groene
+// regel in Live. Sets met één knop, voorstellen uit je eigen meldingen, eigen uitzonderingen, exporteren en importeren.
+let excData = null, excProps = null;
+const EXC_KEYS = {
+  program: () => L('Programma'), parent: () => L('Ouderproces'), user: () => L('Gebruiker'), cmd: () => L('Opdracht bevat'), path: () => L('Pad'),
+  ip: () => L('IP-adres of netwerk'), port: () => L('Poort'), container: () => L('Container'), text: () => L('Tekst bevat'),
+};
+const EXC_GROUPS = { server: () => L('Servers'), network: () => L('Netwerk'), storage: () => L('Opslag'), power: () => L('Stroom'), camera: () => L("Camera's"), smarthome: () => L('Smart home'), other: () => L('Overig') };
+const excCond = (c) => Object.entries(c || {}).map(([k, v]) => `<span class="exc-c"><span class="muted">${esc((EXC_KEYS[k] || (() => k))())}</span> ${(v || []).map((x) => `<code>${esc(x)}</code>`).join(' ')}</span>`).join(' ');
+const excRule = (r, target) => (!r ? (target === 'ids' ? L('alle IDS-meldingen') : L('alle regels')) : esc(((excData?.rules || []).find((x) => x.id === r) || {}).title || r));
+const excScope = (x) => (x.scope === 'host' ? esc(x.host_name || ('#' + x.scope_val)) : x.scope === 'group' ? esc((EXC_GROUPS[x.scope_val] || (() => x.scope_val))()) : L('alle servers'));
+async function loadExceptions() {
+  const box = $('#edr-rules');
+  if (!excData) box.innerHTML = `<p class="muted">${L('Laden…')}</p>`;
+  try { excData = await api('exc_list'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  renderExceptions();
+  try { excProps = (await api('exc_proposals')).proposals; } catch (ex) { excProps = []; }
+  renderExceptions();
+}
+function renderExceptions() {
+  if (ruleSrc !== 'exc' || !excData) return;
+  const list = excData.list;
+  const sets = excData.sets.map((s) => {
+    const n = s.items.length, would = s.items.reduce((a, i) => a + i.would, 0);
+    return `<div class="exc-set ${s.added ? 'on' : ''}"><div class="exc-set-h"><span class="exc-ic">${esc(s.icon)}</span><b>${esc(s.name)}</b>
+        ${s.added ? `<span class="badge good">✔ ${L('toegevoegd')}</span>` : ''}</div>
+      <p class="small muted">${esc(s.desc)}</p>
+      <ul class="small exc-items">${s.items.map((i) => `<li>${i.added ? '✔' : '·'} ${esc(i.name)}${i.would ? ` <span class="muted">· ${L('zou {n}× raak zijn', { n: i.would.toLocaleString(LOCALE) })}</span>` : ''}</li>`).join('')}</ul>
+      <div class="btn-row">${s.items.every((i) => i.added) ? `<button type="button" class="btn small-btn" data-exc-unset="${esc(s.key)}">${L('Weghalen')}</button>`
+        : `<button type="button" class="btn small-btn primary" data-exc-set="${esc(s.key)}">＋ ${n === 1 ? L('Set toevoegen (1 regel)') : L('Set toevoegen ({n} regels)', { n })}</button>`}
+        ${would ? `<span class="muted small">${L('{n}× in 30 dagen', { n: would.toLocaleString(LOCALE) })}</span>` : ''}</div></div>`;
+  }).join('');
+  const props = excProps === null ? `<p class="muted small">${L('Voorstellen zoeken…')}</p>` : !excProps.length ? `<p class="muted small">✔ ${L('Geen voorstellen: niets van de laatste 30 dagen kwam vaak terug, of het is al uitgezonderd.')}</p>`
+    : `<div class="table-scroll"><table class="vuln-table small exc-props"><thead><tr><th><input type="checkbox" id="exc-all" aria-label="${esc(L('Alles'))}"></th><th>${L('Wat')}</th><th>${L('Geldt voor')}</th><th>${L('Keer')}</th><th>${L('Laatst')}</th></tr></thead><tbody>
+      ${excProps.map((p) => `<tr><td><input type="checkbox" data-exc-prop="${esc(p.id)}" ${p.checked ? 'checked' : ''}></td><td><b>${esc(p.title)}</b><br>${excCond(p.cond)}${p.rule ? ` <span class="muted">· ${excRule(p.rule, p.target)}</span>` : ''}</td>
+        <td>${p.scope === 'host' ? esc(p.host_names[0]) : L('alle servers ({n})', { n: p.host_names.length })}</td><td class="nowrap"><b>${(+p.hits).toLocaleString(LOCALE)}×</b></td><td class="nowrap muted">${esc(ago(p.last))}</td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="btn-row"><button type="button" class="btn primary" id="exc-add">＋ ${L('Geselecteerde toevoegen')}</button>
+        <span class="muted small">${L('Aangevinkt: wat 20× of vaker terugkwam. Wat van RzMon of de agent zelf is, staat hier niet: dat herkent RzMon vanaf 1.132.0 (agent 1.67.0) vanzelf. Wijzigingen aan gevoelige bestanden (wachtwoorden, sudo, SSH-sleutels) worden nooit voorgesteld.')}</span></div>`;
+  const rows = list.length ? `<div class="table-scroll"><table class="vuln-table small exc-list"><thead><tr><th></th><th>${L('Uitzondering')}</th><th>${L('Geldt voor')}</th><th>${L('Voorwaarden')}</th><th>${L('Raak')}</th><th></th></tr></thead><tbody>
+      ${list.map((x) => `<tr class="${+x.enabled && !x.expired ? '' : 'muted'}"><td><label class="switch small"><input type="checkbox" data-exc-on="${x.id}" ${+x.enabled ? 'checked' : ''}><span></span></label></td>
+        <td><b>${esc(x.name)}</b>${x.set_key && x.set_key !== 'found' ? ` <span class="badge">${esc(((excData.sets.find((s) => s.key === x.set_key)) || {}).name || x.set_key)}</span>` : x.set_key === 'found' ? ` <span class="badge">${L('voorstel')}</span>` : ''}
+          <br><span class="muted">${x.target === 'ids' ? 'IDS' : 'EDR'} · ${excRule(x.rule, x.target)}${x.until ? ' · ' + (x.expired ? `<span class="warn-txt">${L('verlopen')}</span>` : L('tot {t}', { t: esc(fmtDateTime(x.until)) })) : ''}${x.reason ? ' · ' + esc(x.reason) : ''}</span></td>
+        <td class="nowrap">${excScope(x)}</td><td>${excCond(x.cond)}</td>
+        <td class="nowrap">${+x.hits ? `<b>${(+x.hits).toLocaleString(LOCALE)}×</b><br><span class="muted">${esc(ago(x.last_hit))}</span>` : '<span class="muted">–</span>'}</td>
+        <td class="nowrap"><button type="button" class="btn small-btn" data-exc-edit="${x.id}" title="${esc(L('Bewerken'))}">✎</button> <button type="button" class="btn small-btn" data-exc-del="${x.id}" title="${esc(L('Weghalen'))}">✕</button></td></tr>`).join('')}
+      </tbody></table></div>` : `<p class="muted small">${L('Nog geen uitzonderingen.')}</p>`;
+  withMorph(() => {
+    $('#edr-rules').innerHTML = `<p class="muted small" style="margin-top:0">${L('Wat hier staat is normaal: geen melding, niet ingrijpen en niet meetellen voor afwijkingen. Je ziet het wel als groene regel ✔ toegestaan in Live. Nooit uit te zonderen: malware (YARA), programma\'s in /dev/shm, lokaas, bekende kwade adressen en ketens.')}</p>
+      <div class="btn-row"><button type="button" class="btn primary" id="exc-new">＋ ${L('Uitzondering')}</button>
+        <button type="button" class="btn" id="exc-export">⇩ ${L('Exporteren')}</button>
+        <label class="btn" for="exc-import">⇧ ${L('Importeren')}</label><input type="file" id="exc-import" accept="application/json,.json" hidden></div>
+      <h3 class="set-sub">${L('Sets')} <span class="muted small">${L('(een hele groep met één knop; daarna per regel aan of uit)')}</span></h3>
+      <div class="exc-sets">${sets}</div>
+      <h3 class="set-sub">${L('Voorstellen uit je meldingen')} <span class="muted small">${L('(laatste 30 dagen)')}</span></h3>${props}
+      <h3 class="set-sub">${L('Jouw uitzonderingen')} <span class="muted small">${list.length}</span></h3>${rows}`;
+  });
+}
+/** Bewerkvenster: naam, IDS of EDR, regel, voor wie, voorwaarden (één per regel), hoe lang en waarom */
+function excDialog(x = null) {
+  const d = excData;
+  const c = x ? x.cond : {};
+  const ruleOpts = (t) => `<option value="">${t === 'ids' ? L('alle IDS-meldingen') : L('alle regels')}</option>` + d.rules.filter((r) => r.target === t).map((r) => `<option value="${esc(r.id)}" ${x && x.rule === r.id ? 'selected' : ''}>${esc(r.title)}</option>`).join('');
+  modal({
+    title: x ? L('Uitzondering bewerken') : L('Nieuwe uitzondering'), wide: true,
+    body: `<div class="row2"><label>${L('Naam')}<input name="name" required maxlength="100" value="${esc(x?.name || '')}" placeholder="${esc(L('bv. Healthchecks op RL02'))}"></label>
+        <label>${L('Soort')}<select name="target" id="exc-target"><option value="edr" ${x?.target !== 'ids' ? 'selected' : ''}>${L('Endpoint-bewaking (processen, bestanden, netwerk)')}</option><option value="ids" ${x?.target === 'ids' ? 'selected' : ''}>${L('IDS (logins, uitgaand verkeer, webshell, bestanden)')}</option></select></label></div>
+      <div class="row2"><label>${L('Regel')}<select name="rule" id="exc-rule">${ruleOpts(x?.target || 'edr')}</select></label>
+        <label>${L('Geldt voor')}<select name="scopex"><option value="all">${L('alle servers')}</option>
+          <optgroup label="${esc(L('Groep'))}">${d.groups.map((g) => `<option value="group:${g}" ${x?.scope === 'group' && x.scope_val === g ? 'selected' : ''}>${esc((EXC_GROUPS[g] || (() => g))())}</option>`).join('')}</optgroup>
+          <optgroup label="${esc(L('Server'))}">${d.hosts.map((h) => `<option value="host:${h.id}" ${x?.scope === 'host' && +x.scope_val === +h.id ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</optgroup></select></label></div>
+      <p class="muted small" style="margin:.2rem 0">${L('Voorwaarden: alles wat je invult moet kloppen; per veld is één van de regels genoeg. Jokers: * (binnen een map) en ** (ook dieper), bv. /var/tmp/dracut.*/**')}</p>
+      <div class="exc-grid">${Object.keys(EXC_KEYS).map((k) => `<label>${esc(EXC_KEYS[k]())}<textarea name="c_${k}" rows="2" spellcheck="false" class="mono">${esc((c[k] || []).join('\n'))}</textarea></label>`).join('')}</div>
+      <div class="row2"><label>${L('Geldig')}<select name="days"><option value="0">${x?.until ? L('zoals nu (tot {t})', { t: fmtDateTime(x.until) }) : L('altijd')}</option><option value="1">${L('1 dag')}</option><option value="7">${L('7 dagen')}</option><option value="30">${L('30 dagen')}</option>${x?.until ? `<option value="-1">${L('altijd')}</option>` : ''}</select></label>
+        <label>${L('Reden')}<input name="reason" maxlength="200" value="${esc(x?.reason || '')}" placeholder="${esc(L('bv. elke 6 uur een nieuw VPN-adres'))}"></label></div>`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Opslaan'), cls: 'primary', submit: true }],
+    onSubmit: async (f) => {
+      const cond = Object.fromEntries(Object.keys(EXC_KEYS).map((k) => [k, (f['c_' + k] || '').split('\n').map((v) => v.trim()).filter(Boolean)]));
+      const [scope, sv] = f.scopex === 'all' ? ['all', null] : f.scopex.split(':');
+      const pw = await askConfirm({ title: L('Uitzondering opslaan?'), text: L('Wat erop past, wordt niet meer gemeld.'), word: 'UITZONDEREN' });
+      if (pw === null) return 'keep';
+      const body = { id: x?.id || 0, name: f.name, target: f.target, rule: f.rule, scope, scope_val: sv, cond, reason: f.reason, confirm: pw };
+      if (+f.days > 0) body.days = +f.days; else if (+f.days === 0 && x?.until) body.until = x.until;
+      await api('exc_save', body);
+      toast(L('Opgeslagen'));
+      loadExceptions();
+      return undefined;
+    },
+  });
+  $('#exc-target').onchange = (e) => { $('#exc-rule').innerHTML = ruleOpts(e.target.value); };
+}
+function initExceptions() {
+  const box = $('#edr-rules');
+  box.addEventListener('click', async (e) => {
+    if (ruleSrc !== 'exc') return;
+    const t = e.target;
+    const confirmPw = (title, text) => askConfirm({ title, text, word: 'UITZONDEREN' });
+    try {
+      if (t.closest('#exc-new')) return excDialog();
+      if (t.closest('[data-exc-edit]')) return excDialog(excData.list.find((x) => +x.id === +t.closest('[data-exc-edit]').dataset.excEdit));
+      if (t.closest('#exc-export')) {
+        const data = await api('exc_export');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+        a.download = 'rzmon-uitzonderingen.json';
+        a.click();
+        return undefined;
+      }
+      if (t.closest('#exc-all')) { $$('[data-exc-prop]', box).forEach((c) => { c.checked = t.checked; }); return undefined; }
+      const setB = t.closest('[data-exc-set]');
+      if (setB) {
+        const s = excData.sets.find((x) => x.key === setB.dataset.excSet);
+        const pw = await confirmPw(L('Set "{name}" toevoegen?', { name: s.name }), L('{n} uitzonderingen in één keer; daarna kun je ze per regel uitzetten.', { n: s.items.length }));
+        if (pw === null) return undefined;
+        const r = await api('exc_set', { key: s.key, confirm: pw });
+        toast(L('{n} uitzondering(en) toegevoegd', { n: r.added }));
+        return loadExceptions();
+      }
+      const unset = t.closest('[data-exc-unset]');
+      if (unset) {
+        if (!confirm(L('De hele set weghalen? Wat erop paste, wordt dan weer gemeld.'))) return undefined;
+        await api('exc_delete', { set: unset.dataset.excUnset });
+        return loadExceptions();
+      }
+      if (t.closest('#exc-add')) {
+        const ids = $$('[data-exc-prop]:checked', box).map((c) => c.dataset.excProp);
+        if (!ids.length) return toast(L('Niets geselecteerd'), 'err');
+        const pw = await confirmPw(L('{n} uitzondering(en) toevoegen?', { n: ids.length }), L('Wat erop past, wordt niet meer gemeld.'));
+        if (pw === null) return undefined;
+        const r = await api('exc_add', { ids, confirm: pw });
+        toast(L('{n} uitzondering(en) toegevoegd', { n: r.added }));
+        return loadExceptions();
+      }
+      const del = t.closest('[data-exc-del]');
+      if (del) {
+        if (!confirm(L('Deze uitzondering weghalen? Wat erop paste, wordt dan weer gemeld.'))) return undefined;
+        await api('exc_delete', { id: +del.dataset.excDel });
+        return loadExceptions();
+      }
+    } catch (ex) { toast(ex.message, 'err'); }
+    return undefined;
+  });
+  box.addEventListener('change', async (e) => {
+    if (ruleSrc !== 'exc') return;
+    const on = e.target.closest('[data-exc-on]');
+    if (on) {
+      try {
+        let pw = '';
+        if (on.checked) {
+          pw = await askConfirm({ title: L('Uitzondering aanzetten?'), text: L('Wat erop past, wordt niet meer gemeld.'), word: 'UITZONDEREN' });
+          if (pw === null) { on.checked = false; return; }
+        }
+        await api('exc_toggle', { id: +on.dataset.excOn, on: on.checked, confirm: pw });
+        loadExceptions();
+      } catch (ex) { toast(ex.message, 'err'); on.checked = !on.checked; }
+      return;
+    }
+    if (e.target.id === 'exc-import' && e.target.files[0]) {
+      const file = e.target.files[0];
+      e.target.value = '';
+      try {
+        const data = JSON.parse(await file.text());
+        const n = (data.exceptions || []).length;
+        const pw = await askConfirm({ title: L('{n} uitzondering(en) importeren?', { n }), text: L('Uit {f}. Servers worden op naam gezocht; wat hier niet bestaat, wordt overgeslagen.', { f: esc(file.name) }), word: 'UITZONDEREN' });
+        if (pw === null) return;
+        const r = await api('exc_import', { data, confirm: pw });
+        toast(L('{n} geïmporteerd', { n: r.added }) + (r.skipped.length ? ' · ' + L('{n} overgeslagen: {why}', { n: r.skipped.length, why: r.skipped.slice(0, 3).join('; ') }) : ''), r.skipped.length ? 'err' : undefined);
+        loadExceptions();
+      } catch (ex) { toast(ex instanceof SyntaxError ? L('Geen geldig JSON-bestand') : ex.message, 'err'); }
+    }
   });
 }
 

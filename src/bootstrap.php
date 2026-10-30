@@ -88,6 +88,17 @@ function q(string $sql, array $params = []): PDOStatement
 }
 
 /**
+ * Opdracht die RzMon zelf start (1.132.0): met het geheime kenmerk van deze RzMon ervoor (": rzmon:<kenmerk>;", doet
+ * niets). Zo herkent de agent op deze server alles wat RzMon start, en wat daaruit voortkomt, als "van RzMon"; een andere
+ * webapp onder dezelfde gebruiker kent het kenmerk niet.
+ */
+function rz_sh(string $cmd): string
+{
+    $m = Edr::selfMark();
+    return $m !== '' ? ": rzmon:$m; $cmd" : $cmd;
+}
+
+/**
  * Veel schrijfacties in één transactie (1.131.0): de database bevestigt dan één keer op schijf in plaats van na elke
  * regel. Op een VM-schijf scheelt dat seconden per agentrapport. Al in een transactie? Dan gewoon meedoen.
  */

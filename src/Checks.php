@@ -131,7 +131,7 @@ final class Checks
     {
         $bin = config('ping_bin', '/bin/ping');
         $cmd = sprintf('%s -c 3 -i 0.3 -W 2 -q %s 2>&1', escapeshellcmd($bin), escapeshellarg($host['address']));
-        exec($cmd, $out);
+        exec(rz_sh($cmd), $out);
         $out = implode("\n", $out);
 
         if (!preg_match('/(\d+(?:\.\d+)?)% packet loss/', $out, $m)) {
@@ -408,7 +408,7 @@ final class Checks
     public static function localProcList(): array
     {
         $by = [];
-        foreach (explode("\n", (string) @shell_exec('ps -eo ppid=,user:32=,comm=,args= 2>/dev/null')) as $line) {
+        foreach (explode("\n", (string) @shell_exec(rz_sh('ps -eo ppid=,user:32=,comm=,args= 2>/dev/null'))) as $line) {
             $f = preg_split('/\s+/', trim($line), 4);
             if (count($f) < 4 || (int) $f[0] === 2 || str_starts_with($f[3], '[')) {
                 continue;
@@ -423,7 +423,7 @@ final class Checks
     /** Proces op de RzMon-server zelf (ps), zelfde uitkomst als de agent */
     private static function localProcess(string $name, array $o): array
     {
-        $out = (string) @shell_exec('ps -eo pid=,ppid=,user:32=,etimes=,pcpu=,rss=,comm=,args= 2>/dev/null');
+        $out = (string) @shell_exec(rz_sh('ps -eo pid=,ppid=,user:32=,etimes=,pcpu=,rss=,comm=,args= 2>/dev/null'));
         $n = 0;
         $cpu = 0.0;
         $rss = 0;
@@ -963,7 +963,7 @@ final class Checks
         if (!preg_match('/^[A-Za-z0-9@._:-]+$/', $name)) {
             return self::result(STATUS_UNKNOWN, null, t('Ongeldige servicenaam'));
         }
-        $state = trim(strtok((string) shell_exec('systemctl is-active ' . escapeshellarg($name) . ' 2>&1'), "\n") ?: 'unknown');
+        $state = trim(strtok((string) shell_exec(rz_sh('systemctl is-active ' . escapeshellarg($name) . ' 2>&1')), "\n") ?: 'unknown');
         return self::serviceResult($name, $state);
     }
 

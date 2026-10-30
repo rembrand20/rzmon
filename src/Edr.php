@@ -17,7 +17,7 @@ final class Edr
 {
     public const KINDS = ['x' => 'exec', 'a' => 'audit', 'n' => 'net', 'f' => 'file', 'c' => 'ctr'];
     /** In Live ook: samenvatting van wat RzMon zelf deed (o) en toegestaan verkeer van RzMon (s = Suricata, d = DNS, w = web) */
-    private const FEED_KINDS = self::KINDS + ['o' => 'own', 's' => 'sur', 'd' => 'dns', 'w' => 'web'];
+    private const FEED_KINDS = self::KINDS + ['o' => 'own', 's' => 'sur', 'd' => 'dns', 'w' => 'web', 'i' => 'ids'];   // i: IDS-uitzondering (1.132.0)
     /** Van RzMon zelf (agent 1.65.0): agent = de agent en wat hij start, rzmon = RzMon op zijn eigen server, net = verkeer met RzMon */
     public const OWN = ['agent', 'rzmon', 'net'];
     /** Per rapport: wat RzMon zelf deed, opgeteld [soort => [aantallen, voorbeelden]] */
@@ -40,7 +40,32 @@ final class Edr
         }
         // 1.114.0: zo herkent de agent RzMon zelf op zijn eigen server (de map, en de gebruiker van de webserver)
         $user = function_exists('posix_geteuid') ? (string) (posix_getpwuid(posix_geteuid())['name'] ?? '') : get_current_user();
-        return [implode("\t", [0, 'edr', 1]), implode("\t", [0, 'edrself', SM_ROOT, preg_replace('/[^A-Za-z0-9._-]/', '', $user)])];
+        return [implode("\t", [0, 'edr', 1]), implode("\t", [0, 'edrself', SM_ROOT, preg_replace('/[^A-Za-z0-9._-]/', '', $user), self::selfMark()])];
+    }
+
+    /** Geheim kenmerk in de opdrachten van RzMon (1.132.0, zie rz_sh); eenmalig gemaakt, nooit geëxporteerd */
+    public static function selfMark(): string
+    {
+        static $m = null;
+        if ($m === null) {
+            try {
+                $m = (string) setting('edr_self_mark', '');
+                if (!preg_match('/^[0-9a-f]{24}$/', $m)) {
+                    $m = bin2hex(random_bytes(12));
+                    save_setting('edr_self_mark', $m);
+                }
+            } catch (Throwable) {
+                $m = '';   // nog geen database (setup)
+            }
+        }
+        return $m;
+    }
+
+    /** Opdracht van RzMon zelf: met het kenmerk, of de cron van deze RzMon (crond → sh -c php …/cron/run.php) */
+    public static function isSelfCmd(string $cmd): bool
+    {
+        $m = self::selfMark();
+        return ($m !== '' && str_contains($cmd, "rzmon:$m")) || str_contains($cmd, SM_ROOT . '/cron/run.php');
     }
 
     /** Alle regels die aan staan: eigen regels en (als dat aan staat) Sigma */
@@ -98,6 +123,12 @@ final class Edr
                     continue;
                 }
                 $ev = self::clean($ev);
+                if ($kind === 'exec' && empty($ev['own']) && self::isSelfCmd((string) ($ev['cmd'] ?? ''))) {
+                    $ev['own'] = 'rzmon';   // 1.132.0: ook als de agent het (nog) niet herkende
+                }
+                if (isset($ev['cmd']) && ($m = self::selfMark()) !== '') {
+                    $ev['cmd'] = str_replace("rzmon:$m", 'rzmon:•', (string) $ev['cmd']);   // het kenmerk niet bewaren of tonen
+                }
                 $f = self::fields($kind, $ev);
                 $sig = self::sig($kind, $ev);
                 $at = self::when($ev);
@@ -105,14 +136,25 @@ final class Edr
                     self::own($host, (string) $ev['own'], $kind, $ev, $f, $sig, $at);   // RzMon zelf: loggen, nooit ingrijpen
                     continue;
                 }
-                $hit = null;
+                $match = null;
                 foreach (self::rules() as $r) {
                     if (in_array($kind, (array) $r['kinds'], true) && Sigma::match($r, $f)) {
-                        $hit = self::handle($host, $kind, $ev, $f, $r);
+                        $match = $r;
                         break;   // één incident per gebeurtenis: de eerste (eigen regels gaan voor)
                     }
                 }
-                Anomaly::observe($host, $kind, $ev, $sig, $hit !== null, $at);
+                // 1.132.0: uitzondering (IDS → Regels → Uitzonderingen)? Dan geen incident, niet ingrijpen en niet meetellen
+                // voor afwijkingen; wel gelogd als groene regel. Dreigingsinformatie hieronder geldt altijd.
+                $exc = Exceptions::edr($host, $kind, $match['id'] ?? null, $ev, $f);
+                $hit = $match && !$exc ? self::handle($host, $kind, $ev, $f, $match) : null;
+                if ($exc) {
+                    $ev['_exc'] = $exc['name'];
+                    if ($match) {
+                        $ev['_would'] = !empty($match['sigma']) ? 'Sigma: ' . $match['title'] : t($match['title']);
+                    }
+                } else {
+                    Anomaly::observe($host, $kind, $ev, $sig, $hit !== null, $at);
+                }
                 // 1.112.0: dreigingsinformatie: nieuw programma of script opzoeken; verbinding met een bekende botnet-server
                 if ($kind === 'file' && !empty($ev['sha']) && ((int) ($ev['elf'] ?? 0) === 1 || (int) ($ev['x'] ?? 0) === 1 || !empty($ev['susp']))) {
                     ThreatIntel::queue('h', (string) $ev['sha'], $hid, $hit['inc'] ?? null, (string) ($ev['path'] ?? ''));
@@ -120,14 +162,15 @@ final class Edr
                 if ($kind === 'net' && ($ev['dir'] ?? '') === 'out' && $hit === null) {
                     self::knownBad($host, $ev);
                 }
-                q('INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                q('INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev, own) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                     [$hid, $at, $ev['k'], $sig, json_encode($ev, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE),
-                        $hit['rule'] ?? null, $hit['sev'] ?? 0]);
+                        $hit['rule'] ?? null, $hit['sev'] ?? 0, $exc ? 'exc' : null]);
             }
             if ($evs) {
                 Anomaly::flush($host);
             }
             self::ownFlush($host);
+            Exceptions::flush();
         });
         // 1.113.0: Suricata-alerts, en de YARA-regels naar de agent als die nog niet de nieuwste heeft
         if (is_array($edr['sur'] ?? null)) {

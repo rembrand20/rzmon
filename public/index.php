@@ -295,12 +295,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="ids-pane" data-pane="live" hidden>
         <div class="dash-bar"><select id="edr-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
           <label class="switch small"><input type="checkbox" id="edr-hits"><span></span> <?= th('Alleen treffers') ?></label>
-          <label class="switch small"><input type="checkbox" id="edr-own" checked><span></span> <?= th('Toegestaan tonen (RzMon zelf)') ?></label>
+          <label class="switch small"><input type="checkbox" id="edr-own" checked><span></span> <?= th('Toegestaan tonen (RzMon zelf en uitzonderingen)') ?></label>
           <span class="muted small" id="edr-info"></span></div>
         <div class="card" id="edr-feed"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="rules" hidden>
-        <div class="dash-bar"><div class="seg" id="rule-src"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzMon</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button></div>
+        <div class="dash-bar"><div class="seg" id="rule-src"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzMon</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button><button type="button" class="seg-btn need-admin" data-rs="exc">🛡️ <?= th('Uitzonderingen') ?></button></div>
           <input id="rule-q" type="search" placeholder="<?= th('Zoeken: naam, techniek (T1059) …') ?>" autocomplete="off"></div>
         <div class="card" id="edr-rules"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>

@@ -1037,3 +1037,27 @@ INSERT IGNORE INTO settings (name, value) VALUES ('edr_note_hide', '{}');
 
 -- 1.128.0: geheime link van de statuspagina met het lokale adres (base_url) of het externe adres (external_url)
 INSERT IGNORE INTO settings (name, value) VALUES ('status_link', 'local');
+
+-- 1.132.0: uitzonderingen voor IDS en endpoint-bewaking (IDS → Regels → Uitzonderingen)
+-- target: edr (gebeurtenis) of ids (incident); rule: EDR-regel of soort incident (NULL = alle); scope: all, group, host;
+-- cond: voorwaarden als JSON {program, parent, user, cmd, path, ip, port, container, text: [waarden]}
+CREATE TABLE IF NOT EXISTS ids_exceptions (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL,
+    target     VARCHAR(3)   NOT NULL DEFAULT 'edr',
+    rule       VARCHAR(80)  NULL,
+    scope      VARCHAR(10)  NOT NULL DEFAULT 'all',
+    scope_val  VARCHAR(30)  NULL,
+    cond       TEXT         NOT NULL,
+    enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+    until      DATETIME     NULL,
+    reason     VARCHAR(200) NOT NULL DEFAULT '',
+    created_by VARCHAR(100) NULL,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    set_key    VARCHAR(20)  NULL,
+    item_key   VARCHAR(40)  NULL,
+    hits       INT UNSIGNED NOT NULL DEFAULT 0,
+    last_hit   DATETIME     NULL,
+    INDEX idx_exc_on (enabled),
+    INDEX idx_exc_set (set_key, item_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

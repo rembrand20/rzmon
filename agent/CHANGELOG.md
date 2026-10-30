@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.67.0 – 2026-10-30
+- **Eigen processen betrouwbaarder herkend** (RzMon 1.132.0): wat RzMon zelf start, heeft een geheim kenmerk in de opdracht; de agent herkent dat, en alles wat eruit voortkomt, als RzMon. Ook de cron van RzMon (`crond → sh -c php …/cron/run.php`) en wat een run van de agent start, ook als die run al klaar is wanneer de gebeurtenis binnenkomt (de laatste 8 PID's staan in `own.pids`). Voorheen gaven het rapport van de agent, zijn hardening-check en het zoeken naar bestanden soms een Sigma-melding, en RzMon op zijn eigen server een webshell-melding.
+
+
 ## 1.66.1 – 2026-10-29
 - **`rzmon-agent-setup --update` werkt weer met een eigen (self-signed) certificaat van RzMon.** Na `--cleanup` stond de vingerafdruk (`PIN`) niet meer in `/etc/default/rzmon-agent` (de agent bewaart hem zelf in `/var/lib/rzmon-agent`), en daarna stopte `--update` met *Certificaatprobleem … Voeg --insecure toe*. Het installatiescript gebruikt nu dezelfde vastgezette vingerafdruk als de agent. Dat was ook de reden dat *bijwerken vanuit RzMon* niet lukte.
 - **Langer wachten op RzMon**: 50 seconden in plaats van 20. Was RzMon trager, dan gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, de bevestiging van de softwarelijst) nooit, terwijl RzMon het rapport wel verwerkte.

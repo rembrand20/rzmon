@@ -7,6 +7,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.132.0 – 2026-10-30
+### Nieuw
+- **Uitzonderingen voor IDS en endpoint-bewaking** (*🛡️ IDS → 🔏 Regels → 🛡️ Uitzonderingen*): wat in een bepaalde situatie normaal is. Geen melding, niet ingrijpen en niet meetellen voor afwijkingen; wel een groene regel *✔ toegestaan · uitzondering: naam* in Live.
+  - Per server, per **groep** (soort apparaat) of overal; voor één regel of alle; met voorwaarden: programma, ouderproces, gebruiker, opdracht, pad (met `*` en `**`), IP-adres of netwerk, poort, container en tekst. Geldig altijd of 1/7/30 dagen, met een reden en een teller (hoe vaak raak, wanneer laatst).
+  - **Sets met één knop**: *Systeemonderhoud* (pakketbeheer, dracut, privé-tijdmappen, run-parts, logrotatie), *Containers*, *Plex* en *Back-up naar de cloud*, met per regel hoe vaak hij de laatste 30 dagen raak zou zijn.
+  - **Voorstellen uit je meldingen**: wat de laatste 30 dagen vaak terugkwam, met het aantal en de servers; aanvinken en in één keer toevoegen.
+  - **Exporteren en importeren** als JSON.
+  - Nooit uit te zonderen: malware (YARA), `/dev/shm`, lokaas, bekende kwade adressen, aanvallen op je webserver en ketens. Aanmaken vraagt je wachtwoord en komt in het logboek.
+- **Nieuwe agent 1.67.0**: herkent RzMon en zichzelf betrouwbaarder (zie hieronder).
+
+### Opgelost
+- **RzMon zag zichzelf als aanvaller**: op de RzMon-server gaven het opzoeken van DNS-namen, de netwerkscan (`xargs … ping`) en de cron een *webshell*-melding (op RL04 tienduizenden keren), en op alle servers gaven het rapport van de agent (`curl`), zijn hardening-check en het zoeken naar bestanden Sigma-meldingen. RzMon zet nu een geheim kenmerk in alles wat het zelf start; RzMon en de agent (1.67.0) herkennen dat, en ook de cron van RzMon en wat een run van de agent start. Het kenmerk wordt nergens bewaard of getoond.
+
 ## 1.131.3 – 2026-10-29
 ### Opgelost
 - **Onterecht "versie 1.66.1 (nieuwste undefined)" met ⬆ Bijwerken** bij alle agents in *Nu aandacht nodig*: het Agents-overzicht werd soms opgebouwd voordat de rest van de pagina het nieuwste agentnummer kende, en dan leek elke agent verouderd. Het overzicht krijgt dat nummer nu zelf mee.

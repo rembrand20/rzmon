@@ -3761,6 +3761,68 @@ switch ($action) {
         }
         out(['rules' => $list, 'sigma_on' => setting('edr_sigma', '1') === '1']);
 
+    // ---------------------------------------------------------- Uitzonderingen IDS/EDR (1.132.0)
+    case 'exc_list':
+        $rules = [];
+        foreach (EdrRules::all() as $r) {
+            $rules[] = ['id' => $r['id'], 'title' => t($r['title']), 'target' => 'edr'];
+        }
+        foreach (Sigma::rules() as $r) {
+            $rules[] = ['id' => $r['id'], 'title' => 'Sigma: ' . $r['title'], 'target' => 'edr'];
+        }
+        foreach (['out_country' => 'Uitgaande verbinding naar een ander land', 'outbound' => 'Uitgaande verbinding', 'webshell' => 'Mogelijke webshell',
+            'rootlogin' => 'Root-login via SSH', 'newip' => 'Login vanaf een nieuw IP-adres', 'fim' => 'Bestand gewijzigd (bewaakte paden)', 'port_new' => 'Nieuwe luisterende poort',
+            'user_new' => 'Nieuwe gebruiker', 'group_add' => 'Gebruiker aan een groep toegevoegd', 'revshell' => 'Reverse shell', 'kev_port' => 'Bekende kwetsbaarheid op een open poort'] as $k => $v) {
+            $rules[] = ['id' => $k, 'title' => t($v), 'target' => 'ids'];
+        }
+        out(Exceptions::overview() + ['rules' => array_values(array_filter($rules, static fn($r) => !in_array($r['id'], Exceptions::NEVER_RULES, true)))]);
+
+    case 'exc_proposals':
+        out(['proposals' => Exceptions::proposals()]);
+
+    case 'exc_export':
+        out(Exceptions::export());
+
+    case 'exc_save':
+    case 'exc_set':
+    case 'exc_add':
+    case 'exc_import':
+        $confirm('UITZONDEREN');   // uitzonderingen maken minder zichtbaar: altijd met je wachtwoord
+        $in = input();
+        try {
+            out(match ($action) {
+                'exc_save' => ['ok' => true, 'id' => Exceptions::save($in, $user['username'])],
+                'exc_set' => ['ok' => true, 'added' => Exceptions::addSet((string) ($in['key'] ?? ''), $user['username'])],
+                'exc_add' => ['ok' => true, 'added' => Exceptions::addProposals((array) ($in['ids'] ?? []), $user['username'])],
+                default => ['ok' => true] + Exceptions::import(is_array($in['data'] ?? null) ? $in['data'] : (json_decode((string) ($in['data'] ?? ''), true) ?: []), $user['username']),
+            });
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'exc_toggle':   // aanzetten met je wachtwoord; uitzetten mag zo (dan wordt er juist meer gemeld)
+        $in = input();
+        $on = !empty($in['on']);
+        if ($on) {
+            $confirm('UITZONDEREN');
+        }
+        $name = (string) q('SELECT name FROM ids_exceptions WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetchColumn();
+        q('UPDATE ids_exceptions SET enabled = ? WHERE id = ?', [$on ? 1 : 0, (int) ($in['id'] ?? 0)]);
+        AgentCommands::audit($user['username'], $on ? 'Uitzondering aan' : 'Uitzondering uit', $name);
+        out(['ok' => true]);
+
+    case 'exc_delete':   // weghalen (ook een hele set): er wordt dan weer gemeld
+        $in = input();
+        if (!empty($in['set'])) {
+            q('DELETE FROM ids_exceptions WHERE set_key = ?', [(string) $in['set']]);
+            AgentCommands::audit($user['username'], 'Uitzonderingen: set weggehaald', (string) $in['set']);
+        } else {
+            $name = (string) q('SELECT name FROM ids_exceptions WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetchColumn();
+            q('DELETE FROM ids_exceptions WHERE id = ?', [(int) ($in['id'] ?? 0)]);
+            AgentCommands::audit($user['username'], 'Uitzondering weggehaald', $name);
+        }
+        out(['ok' => true]);
+
     case 'edr_rule_set':
         $in = input();
         $id = (string) ($in['id'] ?? '');

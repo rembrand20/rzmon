@@ -413,12 +413,12 @@ final class IdsAdvice
         if (!function_exists('shell_exec') || !is_executable('/usr/bin/timeout') && !is_executable('/bin/timeout')) {
             return null;
         }
-        $r = trim((string) @shell_exec('timeout 2 getent hosts ' . escapeshellarg($ip) . ' 2>/dev/null'));
+        $r = trim((string) @shell_exec(rz_sh('timeout 2 getent hosts ' . escapeshellarg($ip) . ' 2>/dev/null')));
         $name = preg_split('/\s+/', $r)[1] ?? '';
         if ($name === '' || !preg_match('/^[A-Za-z0-9._-]{1,253}$/', $name)) {
             return ['name' => null, 'confirmed' => null];
         }
-        $fw = (string) @shell_exec('timeout 2 getent ahosts ' . escapeshellarg($name) . ' 2>/dev/null');
+        $fw = (string) @shell_exec(rz_sh('timeout 2 getent ahosts ' . escapeshellarg($name) . ' 2>/dev/null'));
         $ips = array_unique(array_map(static fn($l) => preg_split('/\s+/', trim($l))[0] ?? '', array_filter(explode("\n", $fw))));
         return ['name' => $name, 'confirmed' => in_array($ip, $ips, true)];
     }

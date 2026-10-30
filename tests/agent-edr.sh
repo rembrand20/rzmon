@@ -7,7 +7,8 @@ set -u
 cd "$(dirname "$0")/.." || exit 1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-CACHE_DIRECTORY="$work" EDR_ROOT=/opt/rzmon EDR_USER=www-data bash agent/rzmon-agent.sh --edr-parse audit <tests/data/audit.log >"$work/audit.out" 2>"$work/err" || { echo "✘ audit-parser faalde"; cat "$work/err"; exit 1; }
+echo 9999 >"$work/own.pids"   # agent 1.67.0: een run van de agent met PID 9999
+CACHE_DIRECTORY="$work" EDR_ROOT=/opt/rzmon EDR_USER=www-data EDR_MARK=0123456789abcdef01234567 bash agent/rzmon-agent.sh --edr-parse audit <tests/data/audit.log >"$work/audit.out" 2>"$work/err" || { echo "✘ audit-parser faalde"; cat "$work/err"; exit 1; }
 CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse swag <tests/data/swag.log >"$work/swag.out" 2>>"$work/err" || { echo "✘ swag-parser faalde"; cat "$work/err"; exit 1; }
 CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse eve <tests/data/eve.json >"$work/eve.out" 2>>"$work/err" || { echo "✘ Suricata-parser faalde"; cat "$work/err"; exit 1; }
 python3 - "$work/audit.out" "$work/swag.out" "$work/eve.out" <<'PY'
@@ -17,9 +18,11 @@ bad = []
 own = [e for e in ev if e['k'] == 'x' and e.get('own')]
 x = [e for e in ev if e['k'] == 'x' and not e.get('own')]
 a = [e for e in ev if e['k'] == 'a']
-if len(x) != 3: bad.append('verwacht 3 gewone processen (webshell, één keer ls, nagemaakte agent), kreeg %d: %s' % (len(x), [e.get('cmd') for e in x]))
-if [(e['cmd'], e['own']) for e in own] != [('bash /usr/local/bin/rzmon-agent.sh', 'agent'), ('ss -tnpH', 'agent'), ('php /opt/rzmon/cron/run.php', 'rzmon'), ('sh -c timeout 2 getent hosts 203.0.113.5', 'rzmon')]:
-    bad.append('eigen processen (agent, kind van de agent, RzMon-cron en zijn kind) niet goed herkend: %r' % [(e.get('cmd'), e.get('own')) for e in own])
+if len(x) != 5: bad.append('verwacht 5 gewone processen (webshell, één keer ls, nagemaakte agent, verkeerd kenmerk, kenmerk van een andere gebruiker), kreeg %d: %s' % (len(x), [e.get('cmd') for e in x]))
+if [(e['cmd'], e['own']) for e in own] != [('bash /usr/local/bin/rzmon-agent.sh', 'agent'), ('ss -tnpH', 'agent'), ('php /opt/rzmon/cron/run.php', 'rzmon'), ('sh -c timeout 2 getent hosts 203.0.113.5', 'rzmon'),
+        ('sh -c : rzmon:0123456789abcdef01234567; timeout 2 getent hosts 192.0.2.7', 'rzmon'), ('getent hosts 192.0.2.7', 'rzmon'),
+        ('/bin/sh -c /usr/bin/php /opt/rzmon/cron/run.php', 'rzmon'), ('curl -fsS https://rzmon.example/api.php', 'agent')]:
+    bad.append('eigen processen (agent, kind van de agent, RzMon-cron en zijn kind, kenmerk van RzMon en zijn kind, cron als webgebruiker, kind van een agent-run) niet goed herkend: %r' % [(e.get('cmd'), e.get('own')) for e in own])
 ws = next((e for e in x if e['pid'] == 4242), None)
 if not ws or ws['argv'] != ['sh', '-c', 'id && cat "/etc/passwd"\\x'] or ws['exe'] != '/usr/bin/dash' or ws['uid'] != 33 or ws['cwd'] != '/var/www/html':
     bad.append('webshell-proces niet goed gelezen: %r' % ws)

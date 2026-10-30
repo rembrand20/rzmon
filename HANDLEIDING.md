@@ -2254,6 +2254,28 @@ Wat RzMon zelf doet of veroorzaakt, houdt het IDS nooit tegen. Het wordt wel gel
   - iets bijzonders (pakketten installeren, een herstelcommando, bijwerken).
   - **Toegestaan tonen** zet de groene regels aan of uit.
 - **Veilig:** een programma dat zich "rzmon-agent" noemt maar van een gewone gebruiker is, telt niet als RzMon. Op de RzMon-server zelf telt PHP van de RzMon-gebruiker in de map van RzMon als RzMon; zet daar dus geen andere websites onder dezelfde gebruiker in die map.
+- **Betrouwbaarder herkend** (vanaf 1.132.0, agent 1.67.0):
+  - alles wat RzMon zelf start (DNS-namen opzoeken, ping, de netwerkscan, pakketlijsten), krijgt een **geheim kenmerk** in de opdracht (`: rzmon:•;`, doet niets). De agent herkent dat, en alles wat eruit voortkomt, als RzMon. Een andere webapp onder dezelfde gebruiker kent het kenmerk niet. In Live staat het kenmerk als `rzmon:•`, het echte kenmerk wordt nergens bewaard of getoond;
+  - de **cron van RzMon** (`crond → sh -c php …/cron/run.php`, als root of de gebruiker van de webserver);
+  - wat een **run van de agent** start, ook als die run al klaar is wanneer de gebeurtenis binnenkomt (de agent onthoudt zijn laatste 8 PID's in `/var/cache/rzmon-agent/own.pids`). Voorheen kwamen het rapport van de agent (`curl`), zijn hardening-check (`grep … sudoers`) en het zoeken naar bestanden (`nice ionice find`) soms als Sigma-melding binnen.
+
+### Uitzonderingen 🛡️ (vanaf 1.132.0)
+
+Wat in een bepaalde situatie **normaal** is, zet je op *🛡️ IDS → 🔏 Regels → 🛡️ Uitzonderingen*. Wat op een uitzondering past: **geen melding**, **niet ingrijpen** (geen proces stoppen, niets blokkeren), en het telt **niet mee** voor afwijkingen en ketens. Je ziet het wel als groene regel *✔ toegestaan · uitzondering: naam* in *Live*.
+
+- **Een uitzondering** heeft:
+  - **Soort**: *endpoint-bewaking* (processen, bestanden, netwerk, containers) of *IDS* (logins, uitgaand verkeer, webshell, bewaakte bestanden);
+  - **Regel**: één regel of soort melding, of alle;
+  - **Geldt voor**: alle servers, een **groep** (soort apparaat: servers, smart home …) of **één server**;
+  - **Voorwaarden** (alles wat je invult moet kloppen; per veld is één van de regels genoeg): *programma*, *ouderproces*, *gebruiker*, *opdracht bevat*, *pad*, *IP-adres of netwerk*, *poort*, *container* en *tekst bevat*. Jokers: `*` binnen een map, `**` ook dieper (`/var/tmp/dracut.*/**`). Een programma zonder `/` vergelijkt alleen de naam (`sed`), met `/` het hele pad;
+  - **Geldig**: altijd, of 1, 7 of 30 dagen; en een **reden**.
+  - Bij elke uitzondering staat **hoe vaak** hij raak was en **wanneer** voor het laatst.
+- **Sets** (één knop voor een hele groep): *🔧 Systeemonderhoud* (pakketbeheer, kernel-updates met dracut, privé-tijdmappen van services, run-parts, logrotatie), *📦 Containers* (images ophalen), *🎬 Plex*, *☁️ Back-up naar de cloud* (rclone, restic, borg, kopia). Bij elke regel van een set zie je hoe vaak hij de laatste 30 dagen raak **zou** zijn. Na het toevoegen zet je regels los uit; **Weghalen** haalt de hele set weg.
+- **Voorstellen uit je meldingen**: wat de laatste 30 dagen vaak terugkwam (per regel, programma en ouder, of pad, adres of container), met **hoe vaak** en **op welke servers**. Wat 20× of vaker terugkwam, staat al aangevinkt; met **＋ Geselecteerde toevoegen** gaan ze in één keer. Niet voorgesteld: wat van RzMon of de agent zelf is, verdachte processen (in `/tmp`, `/dev/shm` of zonder bestand) en wijzigingen aan gevoelige bestanden (wachtwoorden, sudo, SSH-sleutels); die kunnen alleen met de hand.
+- **Nooit uit te zonderen**: malware (YARA), programma's in `/dev/shm` of verborgen mappen, lokaas, bekende kwade adressen (dreigingsinformatie), aanvallen op je webserver en ketens. Een uitzondering zonder voorwaarden ("alles") kan niet.
+- **Veilig**: aanmaken, aanzetten, een set of voorstellen toevoegen en importeren vraagt je **wachtwoord** (op je LAN zonder account: `UITZONDEREN`), en komt in het logboek. Uitzetten en weghalen mag zonder: dan wordt er juist weer gemeld.
+- **⇩ Exporteren / ⇧ Importeren** als JSON, bijvoorbeeld naar een tweede RzMon. Servers staan in het bestand op naam; wat op de andere RzMon niet bestaat, wordt overgeslagen.
+- *Dit is normaal* bij een incident blijft werken zoals altijd (alleen dat ene geval, op die server).
 - Andere monitoring (Home Assistant, Uptime Kuma …) zet je op de whitelist.
 
 **🛡️ Bescherming en Waarom / Trigger / Actie** (vanaf 1.115.0)

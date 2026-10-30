@@ -574,5 +574,69 @@ $full = (new ReflectionMethod('Stats', 'uptimeFull'))->invoke(null, $pct);
 $fast = Stats::uptime();
 ok(array_map(static fn($x) => $x['h24'], $full) == array_map(static fn($x) => $x['h24'], $fast), 'beschikbaarheid uit de dagtotalen: 24 uur gelijk aan de volledige berekening');
 
+
+section('Uitzonderingen en eigen processen (1.132.0)');
+save_setting('ids_enabled', '1');
+save_setting('ids_mode', 'learn');
+Edr::reset();
+Exceptions::reset();
+// Matchen: programma (naam of pad), pad met **, IP-netwerk; zonder voorwaarden nooit raak
+ok(Exceptions::matches(['program' => ['Plex Media Serv*']], ['program' => 'Plex Media Serv']) && Exceptions::matches(['program' => ['/usr/bin/sed'], 'parent' => ['run-parts']], ['program' => '/usr/bin/sed', 'parent' => 'run-parts'])
+    && !Exceptions::matches(['program' => ['sed'], 'parent' => ['run-parts']], ['program' => '/usr/bin/sed', 'parent' => 'bash'])
+    && Exceptions::matches(['path' => ['/var/tmp/dracut.*/**']], ['path' => '/var/tmp/dracut.Ab12Cd/initramfs/usr/bin/ps'])
+    && !Exceptions::matches(['path' => ['/var/tmp/dracut.*/**']], ['path' => '/var/tmp/x/dracut.Ab12Cd/ps'])
+    && Exceptions::matches(['ip' => ['86.85.247.0/24']], ['ip' => '86.85.247.15']) && !Exceptions::matches([], ['program' => 'x']), 'voorwaarden: programma, ouder, pad met **, netwerk; zonder voorwaarden nooit raak');
+$bad = static function (array $in): bool { try { Exceptions::clean($in); return false; } catch (InvalidArgumentException) { return true; } };
+ok($bad(['name' => 'alles']) && $bad(['name' => 'yara', 'rule' => 'rz-yara', 'cond' => ['program' => 'x']]) && $bad(['name' => 'ip', 'cond' => ['ip' => 'geen-ip']])
+    && !$bad(['name' => 'ok', 'cond' => ['program' => "sed\nawk"]]), 'een uitzondering voor alles, voor malware (YARA) of met een fout IP kan niet');
+// EDR: webserver start een shell → incident; met een uitzondering niet meer, wel een groene regel en een teller
+$host = q('SELECT * FROM hosts WHERE id = ?', [$ha])->fetch();
+$hc0 = (int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'edr'", [$ha])->fetchColumn();
+$xid = Exceptions::save(['name' => 'Healthchecks', 'target' => 'edr', 'rule' => 'rz-webshell', 'scope' => 'host', 'scope_val' => $ha,
+    'cond' => ['parent' => ['uwsgi'], 'cmd' => ['manage.py sendreports']]], 'ci');
+$hcx = ['k' => 'x', 't' => time(), 'pid' => 6060, 'st' => 1, 'uid' => 1000, 'u' => 'rehman', 'exe' => '/usr/bin/python3.14', 'comm' => 'python3', 'argv' => ['python3', './manage.py', 'sendreports', '--loop'], 'cmd' => 'python3 ./manage.py sendreports --loop', 'pc' => 'uwsgi'];
+Edr::process($host, ['ev' => [$hcx]]);
+$row = q("SELECT * FROM edr_events WHERE host_id = ? ORDER BY id DESC LIMIT 1", [$ha])->fetch();
+$d = json_decode((string) $row['data'], true);
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'edr'", [$ha])->fetchColumn() === $hc0 && $row['own'] === 'exc' && $d['_exc'] === 'Healthchecks' && str_contains((string) ($d['_would'] ?? ''), 'shell'),
+    'uitzondering raak: geen incident, wel een groene regel met de naam en welke regel het zou raken');
+ok((int) q('SELECT hits FROM ids_exceptions WHERE id = ?', [$xid])->fetchColumn() === 1, 'teller van de uitzondering');
+$hcx['pid'] = 6061; $hcx['cmd'] = 'sh -c id'; $hcx['argv'] = ['sh', '-c', 'id']; $hcx['exe'] = '/usr/bin/dash';
+Edr::process($host, ['ev' => [$hcx]]);
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'edr'", [$ha])->fetchColumn() === $hc0 + 1, 'een andere opdracht van dezelfde webserver blijft gewoon een incident');
+// Nooit: YARA blijft altijd, ook met een uitzondering op het pad
+Exceptions::save(['name' => 'alles in tmp', 'target' => 'edr', 'cond' => ['path' => ['/tmp/**']]], 'ci');
+Edr::process($host, ['ev' => [['k' => 'f', 't' => time(), 'path' => '/tmp/miner', 'size' => 9, 'elf' => 1, 'x' => 1, 'sha' => str_repeat('7', 64), 'yara' => 'rz_cryptominer']]]);
+ok((bool) q("SELECT 1 FROM ids_incidents WHERE host_id = ? AND dkey LIKE 'rz-yara|%' AND detail LIKE '%/tmp/miner%'", [$ha])->fetchColumn(), 'YARA-treffer blijft een incident, ook met een uitzondering op het pad');
+// IDS: root-login vanaf je eigen adres
+Exceptions::save(['name' => 'Thuis', 'target' => 'ids', 'rule' => 'rootlogin', 'cond' => ['ip' => ['86.85.247.15']]], 'ci');
+ok(Exceptions::ids($host, 'rootlogin', '86.85.247.15', 'Root-login', '', '86.85.247.15') !== null && Exceptions::ids($host, 'rootlogin', '203.0.113.9', 'Root-login', '', '203.0.113.9') === null
+    && Exceptions::ids($host, 'decoy_port', 'x', 'Lokaas', '', '86.85.247.15') === null, 'IDS: root-login vanaf thuis uitgezonderd, van elders niet; lokaas nooit');
+// Sets: met één knop, en geen dubbele regels
+$n1 = Exceptions::addSet('plex', 'ci'); $n2 = Exceptions::addSet('plex', 'ci');
+ok($n1 === 1 && $n2 === 0 && Exceptions::ids($host, 'out_country', 'Plex Media Serv|GB', 'Uitgaand', '', '1.2.3.4') !== null, 'set Plex met één knop toegevoegd (en niet dubbel); Plex naar elk land uitgezonderd');
+// Voorstellen uit de meldingen, met één knop toevoegen
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip, hits) VALUES (?, 1, 'out_country', 'rclone|US', 'Uitgaande verbinding naar US: rclone', '', '9.9.9.9', 40), (?, 1, 'out_country', 'rclone|IE', 'Uitgaande verbinding naar IE: rclone', '', '9.9.9.8', 25), (?, 1, 'out_country', 'Plex Media Serv|GB', 'Uitgaande verbinding naar GB: Plex Media Serv', '', '8.8.4.4', 99)", [$ha, $ha, $ha]);
+$pr = array_values(array_filter(Exceptions::proposals(), static fn($p) => ($p['cond']['program'][0] ?? '') === 'rclone'));
+ok(count($pr) === 1 && $pr[0]['hits'] === 65 && $pr[0]['rule'] === 'out_country', 'voorstel: rclone naar US en IE samen, 65×');
+ok(!array_filter(Exceptions::proposals(), static fn($p) => str_starts_with((string) ($p['cond']['program'][0] ?? ''), 'Plex')), 'wat al uitgezonderd is (Plex) staat niet bij de voorstellen');
+ok(Exceptions::addProposals([$pr[0]['id']], 'ci') === 1 && !array_filter(Exceptions::proposals(), static fn($p) => ($p['cond']['program'][0] ?? '') === 'rclone'), 'voorstel met één knop toegevoegd; daarna geen voorstel meer');
+// Exporteren en importeren
+$exp = Exceptions::export();
+$cnt = (int) q('SELECT COUNT(*) FROM ids_exceptions')->fetchColumn();
+q('DELETE FROM ids_exceptions');
+$imp = Exceptions::import($exp, 'ci');
+ok($imp['added'] === $cnt && !$imp['skipped'] && (int) q("SELECT scope_val FROM ids_exceptions WHERE name = 'Healthchecks'")->fetchColumn() === (int) $ha, 'exporteren en importeren (server op naam terug naar zijn id)');
+// Eigen processen: het kenmerk van RzMon in een opdracht
+$mark = Edr::selfMark();
+ok(preg_match('/^[0-9a-f]{24}$/', $mark) === 1 && rz_sh('id') === ": rzmon:$mark; id" && Edr::isSelfCmd(rz_sh('getent hosts 1.2.3.4')) && Edr::isSelfCmd('/bin/sh -c /usr/bin/php ' . SM_ROOT . '/cron/run.php')
+    && !Edr::isSelfCmd(': rzmon:ffffffffffffffffffffffff; id'), 'kenmerk van RzMon: in elke opdracht, en alleen het echte kenmerk telt');
+$c0 = (int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'edr'", [$ha])->fetchColumn();
+Edr::process($host, ['ev' => [['k' => 'x', 't' => time(), 'pid' => 7070, 'st' => 1, 'uid' => 48, 'u' => 'apache', 'exe' => '/usr/bin/bash', 'comm' => 'sh', 'argv' => ['sh', '-c', 'x'], 'cmd' => rz_sh('timeout 2 getent hosts 1.2.3.4'), 'pc' => 'php-fpm']]]);
+$row = q("SELECT * FROM edr_events WHERE host_id = ? ORDER BY id DESC LIMIT 1", [$ha])->fetch();
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'edr'", [$ha])->fetchColumn() === $c0 && $row['own'] === 'rzmon' && !str_contains((string) $row['data'], $mark),
+    'opdracht van RzMon (php-fpm → sh): geen webshell-melding, eigen regel, en het kenmerk wordt niet bewaard');
+save_setting('ids_mode', 'learn');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

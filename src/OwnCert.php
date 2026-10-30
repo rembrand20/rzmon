@@ -39,7 +39,7 @@ final class OwnCert
     public static function serverIps(): array
     {
         $ips = [];
-        $out = (string) @shell_exec('ip -o addr show scope global 2>/dev/null');
+        $out = (string) @shell_exec(rz_sh('ip -o addr show scope global 2>/dev/null'));
         if (preg_match_all('/\sinet6?\s+([0-9a-f.:]+)\//i', $out, $m)) {
             $ips = $m[1];
         }
@@ -123,8 +123,8 @@ final class OwnCert
         $cmd = (string) config('ssl_reload', '');   // alleen voor bijzondere opstellingen (en om te testen)
         if ($cmd === '') {
             foreach (['httpd' => 'apachectl -t', 'apache2' => 'apache2ctl -t', 'nginx' => 'nginx -t'] as $svc => $test) {
-                if (trim((string) @shell_exec('systemctl is-active ' . $svc . ' 2>/dev/null')) === 'active') {
-                    exec("$test 2>&1", $o, $rc);
+                if (trim((string) @shell_exec(rz_sh('systemctl is-active ' . $svc . ' 2>/dev/null'))) === 'active') {
+                    exec(rz_sh("$test 2>&1"), $o, $rc);
                     if ($rc !== 0) {
                         return t('De configuratie van de webserver klopt niet: {e}', ['e' => mb_substr(trim(implode(' ', $o)), 0, 300)]);
                     }
@@ -136,7 +136,7 @@ final class OwnCert
                 return t('Geen draaiende webserver gevonden (httpd, apache2 of nginx); herstart hem zelf');
             }
         }
-        exec("$cmd 2>&1", $o2, $rc2);
+        exec(rz_sh("$cmd 2>&1"), $o2, $rc2);
         return $rc2 === 0 ? null : t('Herladen mislukt: {e}', ['e' => mb_substr(trim(implode(' ', $o2)), 0, 300)]);
     }
 
