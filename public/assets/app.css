@@ -1981,3 +1981,15 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .exc-props td:first-child, .exc-list td:first-child { width: 1%; }
 
 .badge.good { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+
+/* 1.133.0: "Aandacht nodig" bovenaan een onderdeel met een oranje/rood bolletje */
+.set-attn { margin: 0 0 1rem; padding: .7rem .9rem; border: 1px solid var(--warn); border-left-width: 4px; border-radius: 10px; background: var(--card); }
+.set-attn.bad { border-color: var(--crit); }
+.set-attn[hidden] { display: none; }
+.set-attn h3 { margin: 0 0 .4rem; font-size: 1rem; }
+.set-attn ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.set-attn li { display: flex; gap: .5rem; align-items: flex-start; }
+.set-attn li > div { flex: 1; min-width: 0; }
+.set-attn-ic { flex: none; line-height: 1.4; }
+.set-attn-do { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .4rem; }
+.set-attn-do .copy-line { flex: 1 1 100%; }

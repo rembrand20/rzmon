@@ -296,15 +296,22 @@ final class Backup
         return $p !== null && @unlink($p);
     }
 
-    /** Oude automatische en veiligheidsback-ups weg; handmatige en geüploade blijven tot je ze verwijdert. */
-    public static function prune(): void
+    /**
+     * Oude automatische en veiligheidsback-ups weg; handmatige alleen als je een aantal instelde (1.133.0, backup_keep_manual,
+     * 0 = alles bewaren); geüploade blijven tot je ze verwijdert. @return int aantal weggehaald
+     */
+    public static function prune(): int
     {
         $keep = ['auto' => max(1, (int) setting('backup_keep', 7)), 'pre-restore' => self::KEEP_PRE_RESTORE];
+        if (($km = (int) setting('backup_keep_manual', '0')) > 0) {
+            $keep['manual'] = $km;
+        }
         $seen = [];
-        foreach (self::list() as $b) {
+        $n = 0;
+        foreach (self::list() as $b) {   // nieuwste eerst
             $seen[$b['type']] = ($seen[$b['type']] ?? 0) + 1;
-            if (isset($keep[$b['type']]) && $seen[$b['type']] > $keep[$b['type']]) {
-                @unlink(self::dir() . '/' . $b['file']);
+            if (isset($keep[$b['type']]) && $seen[$b['type']] > $keep[$b['type']] && @unlink(self::dir() . '/' . $b['file'])) {
+                $n++;
             }
         }
         // Restjes van afgebroken back-ups en uploads
@@ -313,6 +320,7 @@ final class Backup
                 @unlink($f);
             }
         }
+        return $n;
     }
 
     // ------------------------------------------------------------------ uploaden

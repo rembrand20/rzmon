@@ -2929,7 +2929,7 @@ switch ($action) {
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
-            'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_history', 'backup_pass',
+            'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_keep_manual', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
             'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'edr_yara', 'ids_modern', 'perf_on', 'edr_note_hide', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup'];
@@ -3068,6 +3068,9 @@ switch ($action) {
         if (isset($in['backup_keep']) && ((int) $in['backup_keep'] < 1 || (int) $in['backup_keep'] > 365)) {
             out(['error' => t('Aantal back-ups bewaren: 1 tot 365')], 422);
         }
+        if (isset($in['backup_keep_manual']) && (!preg_match('/^\d+$/', trim((string) $in['backup_keep_manual'])) || (int) $in['backup_keep_manual'] > 365)) {
+            out(['error' => t('Handmatige back-ups bewaren: 0 (alles) tot 365')], 422);
+        }
         if (isset($in['backup_weekday']) && ((int) $in['backup_weekday'] < 1 || (int) $in['backup_weekday'] > 7)) {
             out(['error' => t('Ongeldige dag voor de back-up')], 422);
         }
@@ -3092,7 +3095,9 @@ switch ($action) {
             }
             save_setting($k, $v);
         }
-        out(['ok' => true]);
+        // 1.133.0: minder back-ups bewaren? Dan meteen opruimen
+        $pruned = isset($in['backup_keep']) || isset($in['backup_keep_manual']) ? Backup::prune() : 0;
+        out(['ok' => true] + ($pruned ? ['pruned' => $pruned] : []));
 
     // 🧪 bij een rij van ℹ️ Systeeminfo: een voorbeeld naar de aangevinkte kanalen (wat nu in het formulier staat), ook tijdens stille uren
     case 'sysinfo_test':

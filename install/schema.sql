@@ -1061,3 +1061,6 @@ CREATE TABLE IF NOT EXISTS ids_exceptions (
     INDEX idx_exc_on (enabled),
     INDEX idx_exc_set (set_key, item_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.133.0: zoveel handmatige back-ups bewaren (0 = alles); de oudere worden opgeruimd
+INSERT IGNORE INTO settings (name, value) VALUES ('backup_keep_manual', '0');

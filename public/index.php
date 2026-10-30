@@ -466,6 +466,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="set-crumb muted small"><span id="set-crumb"></span> <span class="autosave-state" id="save-state" aria-live="polite"></span></div>
       <h1 class="set-title" id="set-title"></h1>
       <p class="set-lead" id="set-lead"></p>
+      <div class="set-attn" id="set-attn" hidden></div>
       <div class="seg set-tabs" id="set-tabs" role="tablist" hidden></div>
       <div data-sk="overview" class="card set-overview" id="set-overview"></div>
       <div class="set-toolbar">
@@ -944,6 +945,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             </label>
             <label><?= th('Om') ?><input type="time" name="backup_time"></label>
             <label><?= th('Bewaren') ?> <span class="hint"><?= th('(aantal)') ?></span><input type="number" name="backup_keep" min="1" max="365"></label>
+            <label><?= th('Handmatige bewaren') ?> <span class="hint"><?= th('(aantal, 0 = alles)') ?></span><input type="number" name="backup_keep_manual" min="0" max="365"></label>
           </div>
           <label class="backup-weekday"><?= th('Op') ?>
             <select name="backup_weekday">

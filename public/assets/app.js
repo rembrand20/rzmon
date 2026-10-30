@@ -2063,10 +2063,12 @@ async function autosaveSettings() {
   autosaveEls = new Set();
   if (!Object.keys(diff).length) { setAutosaveState(''); return; }
   try {
-    await api('settings_save', diff);
+    const r = await api('settings_save', diff);
     Object.assign(settingsSaved, diff);
+    if (r && r.pruned) { toast(r.pruned === 1 ? L('1 oude back-up opgeruimd') : L('{n} oude back-ups opgeruimd', { n: r.pruned })); loadBackups(); }
     els.forEach((el) => savedFlag(el, true));
     setAutosaveState('ok');
+    if (setHealthItems[setSection]) loadSettingsHealth();   // 1.133.0: misschien is een punt nu opgelost
   } catch (ex) {
     els.forEach((el) => savedFlag(el, false, ex.message));
     setAutosaveState('err', ex.message);
@@ -7814,6 +7816,7 @@ let setSection = (() => { try { return localStorage.getItem('rzmon-set-section')
 let setHealthAt = 0;
 let setHealth = {};   // onderdeel → slechtste status uit "Hoe staat het ervoor?" (voor de bolletjes in de zijbalk)
 let setHealthWhy = {};   // 1.131.2: onderdeel → de punten zelf (tekst bij het bolletje)
+let setHealthItems = {};   // 1.133.0: onderdeel → de oranje/rode punten (blok "Aandacht nodig" bovenaan de pagina)
 
 function setFind(id) {
   for (const [g, icon, label, subs] of SET_NAV) for (const s of subs) if (s[0] === id) return { g, icon, group: label, sub: s };
@@ -7847,7 +7850,8 @@ function showSettingsSection(id, focusEl) {
   renderSettingsNav();
   $('#set-mselect').innerHTML = SET_NAV.map(([g, icon, label, subs]) => `<optgroup label="${esc(label)}">${subs.map(([k, l]) => `<option value="${k}" ${k === setSection ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('');
   history.replaceState(null, '', '#settings/' + setSection);
-  if (setSection === 'overview' || !setHealthAt) loadSettingsHealth();
+  renderSetAttn();
+  if (setSection === 'overview' || Date.now() - setHealthAt > 60000) loadSettingsHealth();
   if (setSection === 'conn') loadConn();
   if (setSection === 'templates') loadTemplates();
   if (setSection === 'allchecks') loadAllChecks();
@@ -7867,6 +7871,21 @@ function showSettingsSection(id, focusEl) {
     if (ctl) ctl.focus({ preventScroll: true });
   } else window.scrollTo(0, 0);
   refreshClamps();
+}
+
+/** 1.133.0: bovenaan een onderdeel met een 🟠/🔴 bolletje: wat er mis is en (als het kan) de knop om het op te lossen */
+function renderSetAttn() {
+  const box = $('#set-attn');
+  if (!box) return;
+  const items = setSection === 'overview' ? [] : setHealthItems[setSection] || [];
+  box.hidden = !items.length;
+  if (!items.length) { box.innerHTML = ''; return; }
+  box.className = `set-attn ${items.some((i) => i.status === 'bad') ? 'bad' : 'warn'}`;
+  box.innerHTML = `<h3>${items.length === 1 ? L('Aandacht nodig') : L('Aandacht nodig ({n} punten)', { n: items.length })}</h3>
+    <ul>${items.map((i, n) => `<li class="${i.status}"><span class="set-attn-ic">${i.status === 'bad' ? '🔴' : '🟠'}</span><div><b>${esc(i.title)}</b>${i.detail ? ` <span class="muted">${esc(i.detail)}</span>` : ''}
+      ${i.code || i.act ? `<div class="set-attn-do">${i.code ? copyBox(`attn-code-${n}`, i.code) : ''}${i.act ? `<button type="button" class="btn small-btn primary" data-attn-act="${esc(i.act)}">${esc(i.label || L('Regelen'))}</button>` : ''}</div>` : ''}</div></li>`).join('')}</ul>`;
+  wireCopy(box);
+  $$('[data-attn-act]', box).forEach((b) => (b.onclick = () => healthAction(b.dataset.attnAct, b)));
 }
 
 const dotFor = (st, why = []) => (st === 'bad' || st === 'warn'
@@ -7931,12 +7950,17 @@ async function loadSettingsHealth() {
   items.sort((a, b) => rank[a.status] - rank[b.status]);
   setHealth = {};
   setHealthWhy = {};
+  setHealthItems = {};
   setHealthAt = Date.now();
   for (const it of items) {
     it.section = SET_ALIAS[it.section] || it.section;
     if (rank[it.status] < rank[setHealth[it.section] || 'ok']) setHealth[it.section] = it.status;
-    if (it.status === 'bad' || it.status === 'warn') (setHealthWhy[it.section] ||= []).push(`${it.status === 'bad' ? '🔴' : '🟠'} ${it.title}: ${it.detail || ''}`);
+    if (it.status === 'bad' || it.status === 'warn') {
+      (setHealthWhy[it.section] ||= []).push(`${it.status === 'bad' ? '🔴' : '🟠'} ${it.title}: ${it.detail || ''}`);
+      (setHealthItems[it.section] ||= []).push({ ...it });
+    }
   }
+  renderSetAttn();
   // 1.122.0: punten die bij elkaar horen als één regel (de losse punten eronder)
   items = ovGroup(items, rank);
   const counted = items.filter((i) => i.status !== 'info');
@@ -8003,7 +8027,8 @@ async function protCfgDialog(id) {
         if (String(vals[n] ?? '') !== v) diff[n] = v;
       });
       if (Object.keys(diff).length) {
-        await api('settings_save', diff);
+        const r = await api('settings_save', diff);
+        if (r && r.pruned) toast(r.pruned === 1 ? L('1 oude back-up opgeruimd') : L('{n} oude back-ups opgeruimd', { n: r.pruned }));
         if (settingsSaved) Object.assign(settingsSaved, diff);
         Object.entries(diff).forEach(([n, v]) => { const el = $(`#settings-form [name="${n}"]`); if (el) { if (el.type === 'checkbox') el.checked = v === '1'; else el.value = v; } });
         toast(L('Opgeslagen'));

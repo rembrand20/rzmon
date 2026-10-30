@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.133.0 – 2026-10-30
+### Nieuw
+- **Handmatige back-ups opruimen** (*Instellingen → 💾 Back-up → Handmatige bewaren*): zoveel back-ups die je met *Nu back-up maken* maakte blijven staan, de oudere gaan weg. Opruimen gebeurt meteen bij opslaan en na elke nieuwe back-up; je ziet hoeveel er zijn weggehaald. Standaard **0 = alles bewaren**, dus na de update verdwijnt er niets. Geüploade back-ups blijven tot je ze zelf verwijdert.
+- **Aandacht nodig** bovenaan een onderdeel van de instellingen met een 🟠/🔴 bolletje: elk punt met wat er mis is en, waar dat kan, de knop of de opdracht om het op te lossen. Is het opgelost, dan verdwijnt het blok vanzelf.
+
+### Opgelost
+- Lager zetten van *Bewaren* (automatische back-ups) ruimt nu meteen op, niet pas bij de volgende back-up.
+
 ## 1.132.0 – 2026-10-30
 ### Nieuw
 - **Uitzonderingen voor IDS en endpoint-bewaking** (*🛡️ IDS → 🔏 Regels → 🛡️ Uitzonderingen*): wat in een bepaalde situatie normaal is. Geen melding, niet ingrijpen en niet meetellen voor afwijkingen; wel een groene regel *✔ toegestaan · uitzondering: naam* in Live.

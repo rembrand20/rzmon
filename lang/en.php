@@ -5826,4 +5826,10 @@ return [
     'UITZONDEREN' => 'EXCEPT',
     'Aangevinkt: wat 20× of vaker terugkwam. Wat van RzMon of de agent zelf is, staat hier niet: dat herkent RzMon vanaf 1.132.0 (agent 1.67.0) vanzelf. Wijzigingen aan gevoelige bestanden (wachtwoorden, sudo, SSH-sleutels) worden nooit voorgesteld.' => 'Ticked: what came back 20× or more. What comes from RzMon or the agent itself is not listed here: RzMon recognises that by itself from 1.132.0 (agent 1.67.0). Changes to sensitive files (passwords, sudo, SSH keys) are never suggested.',
     'Set toevoegen (1 regel)' => 'Add set (1 rule)',
+    'Handmatige back-ups bewaren: 0 (alles) tot 365' => 'Keep manual backups: 0 (all) to 365',
+    'Handmatige bewaren' => 'Keep manual',
+    '(aantal, 0 = alles)' => '(number, 0 = all)',
+    '1 oude back-up opgeruimd' => '1 old backup removed',
+    '{n} oude back-ups opgeruimd' => '{n} old backups removed',
+    'Aandacht nodig ({n} punten)' => 'Needs attention ({n} points)',
 ];
