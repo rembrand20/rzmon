@@ -14,6 +14,8 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
   await pg.click('#login-form button.primary');
   await pg.waitForSelector('#health .kpi', { state: 'attached', timeout: 60000 });
   console.log('✔ ingelogd, dashboard geladen');
+  await pg.waitForSelector('#home .hm-sum .hm-tile', { timeout: 60000 });   // 1.134.0: het Dashboard is de startpagina
+  console.log('✔ Dashboard (startpagina) geladen');
   for (const tab of await pg.$$eval('.main-tabs .tab', (t) => t.map((x) => x.dataset.tab))) {
     await pg.click(`.main-tabs .tab[data-tab="${tab}"]`);
     await pg.waitForTimeout(1500);

@@ -1114,7 +1114,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
@@ -1127,7 +1127,7 @@ $isAdmin = has_role($user, 'admin');
 I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
-if ($method === 'GET' && in_array($action, ['state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
+if ($method === 'GET' && in_array($action, ['home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
     'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();
@@ -3894,17 +3894,10 @@ switch ($action) {
         if (!preg_match('/^(1d|7d|30d|90d|365d|\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2})$/', $period)) {
             $period = '30d';
         }
-        $cf = sys_get_temp_dir() . '/rzmon-analytics-' . md5(SM_ROOT . '|' . $period . '|' . I18n::lang()) . '.json';
-        if (empty($_GET['fresh']) && is_file($cf) && filemtime($cf) > time() - 300 && ($c = json_decode((string) file_get_contents($cf), true))) {
-            out($c + ['cached' => true]);
-        }
-        if (!q('SELECT 1 FROM stats_daily LIMIT 1')->fetchColumn()) {
-            @set_time_limit(300);
-            Analytics::cron();   // de eerste keer meteen berekenen, niet op cron wachten
-        }
-        $r = Analytics::report($period) + ['report_monthly' => Analytics::reportOn(), 'mail' => setting('email_enabled', '0') === '1' && setting('mail_to', '') !== ''];
-        @file_put_contents($cf, json_encode($r));
-        out($r);
+        out(Analytics::cached($period, !empty($_GET['fresh'])) + ['report_monthly' => Analytics::reportOn(), 'mail' => setting('email_enabled', '0') === '1' && setting('mail_to', '') !== '']);
+
+    case 'home':   // 1.134.0: het Dashboard: alles samen (monitoring, IDS, CVE's, netwerk)
+        out(Home::data(has_role($user, 'user'), (string) ($_GET['period'] ?? '7d'), !empty($_GET['fresh'])));
 
     case 'analytics_report_send':
         $m = (string) (input()['month'] ?? date('Y-m', strtotime('first day of last month')));

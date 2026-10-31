@@ -7,6 +7,11 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.134.0 – 2026-10-31
+### Nieuw
+- **Nieuw Dashboard: zo staat het ervoor** 🧭: de startpagina met alles samen. Een totaalscore; tegels voor Monitoring, Beveiliging (IDS), Kwetsbaarheden en Netwerk; *Nu aandacht nodig* uit alle onderdelen; een netwerkkaart (internet → router en switches → per soort apparaat, elk met zijn status); servers met CPU, RAM en disk; grafieken van beschikbaarheid, IDS-gebeurtenissen en CVE's per ernst; netwerk (apparaten, DNS-blokkades, wifi) en de laatste gebeurtenissen. Over 7, 30 of 90 dagen, in licht en donker, ook op de telefoon.
+- Het vorige dashboard heet nu **Monitoring** (op de telefoon *Checks*); het adres `#dashboard` blijft werken.
+
 ## 1.133.1 – 2026-10-31
 ### Opgelost
 - **Nieuwe agent 1.68.0**: installeren met een koppelcode gaf soms *Rapport mislukt: invalid or expired pairing code* door twee runs tegelijk; zie de changelog van de agent.

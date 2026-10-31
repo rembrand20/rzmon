@@ -95,8 +95,20 @@ RzMon bestaat uit vier onderdelen:
 - **🔧 Onderhoudsmodus:** voor alles, per server of per check. Kies een duur (15 min tot een week) of een eindtijd, met een optionele reden. Checks blijven draaien, maar er gaan geen meldingen uit. Is er na afloop nog iets mis, dan krijg je alsnog een melding.
 - **🔗 Afhankelijkheden:** geef aan dat een server bereikbaar is via een andere, zoals een router, switch, VPN of hypervisor. Valt die uit, dan krijg je **één** melding ("…meldingen van 5 afhankelijke servers worden onderdrukt") in plaats van een stortvloed. Komt hij terug en ligt een server erachter nog plat, dan krijg je die melding alsnog.
 
-### Dashboard (HTML5)
-Het dashboard (vanaf 1.66.0), van boven naar beneden:
+### Dashboard: zo staat het ervoor 🧭 (vanaf 1.134.0)
+Het eerste tabblad, en de pagina waarop RzMon opent: monitoring, beveiliging, kwetsbaarheden en netwerk op één plek. Het vroegere dashboard heet nu **Monitoring** (op de telefoon *Checks*); het oude adres `#dashboard` blijft werken.
+
+- **Totaalscore** (0–100, dezelfde als in 📊 Analyse) met het aantal open punten, en vier tegels: **Monitoring** (checks die OK zijn, warnings, criticals, bereikbaarheid), **Beveiliging (IDS)** (open incidenten, geblokkeerd), **Kwetsbaarheden** (kritieke CVE's, hoeveel er open zijn en met een update op te lossen) en **Netwerk** (apparaten online, nieuw, DNS geblokkeerd). Elke tegel heeft de status (rondje = in orde, vierkant = aandacht, driehoek = storing) en een lijntje over de periode. Klik op een tegel en je staat op die pagina.
+- **Nu aandacht nodig**: de belangrijkste punten uit alle onderdelen (zelfde lijst als *Wat nu aanpakken* in Analyse), met een knop **Openen**.
+- **Netwerk in één oogopslag**: internet → je router, switches en access points → per soort apparaat (servers, opslag, smart home …) elk apparaat met zijn status. Klik op een apparaat en je ziet het in Monitoring. Staat je router er niet bij? Geef hem bij de server de soort *Router* (of *Switch*, *Access point*).
+- **Servers**: per server CPU, RAM en de volste disk nu (uit de checks), de bereikbaarheid van 7 dagen en wat er mis is.
+- **Beschikbaarheid** per dag, **IDS-gebeurtenissen** per dag (geblokkeerd en gemeld) en **kwetsbaarheden** per ernst met de servers met de meeste open.
+- **Netwerk** (apparaten, DNS-blokkades van AdGuard, wifi-clients) en de **laatste gebeurtenissen** van alle soorten door elkaar.
+
+Rechtsboven kies je de periode: **7, 30 of 90 dagen**. De servers en checks lopen live mee; de rest wordt hooguit eens per minuut opnieuw opgehaald. Wie *alleen lezen* is, ziet monitoring, IDS en de netwerkkaart (geen analyse, CVE's of netwerkapparaten).
+
+### Monitoring (HTML5)
+De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar beneden:
 - **Tellers** direct onder de header (● 14 OK · ● 1 Warning · ● 1 Critical · ● 0 Onbekend · ● 2 Onderhoud). Ze **blijven staan** als je scrolt. Klik op een teller en je ziet alleen de checks met die status; nog een keer klikken heft het filter op. Rechts staat wanneer de laatste check was. Op de telefoon staan alleen de cijfers, en schuif je de rij opzij.
 - **Kerncijfers** als tegels (op de telefoon opzij te schuiven):
   - **De toestand met de score** in een ring: **🟢 Alles in orde** (geen open problemen), **🟠 Aandacht nodig** (alleen warnings of onbekend, of problemen die bevestigd zijn of in onderhoud staan) of **🔴 Storing** (een onbevestigde critical of een onbereikbare server). De **score 0–100%** is het gemiddelde over je servers: per probleem gaat er iets af (critical 25, warning 10, onbekend 5; bevestigd de helft); een onbereikbare server telt als 0%; servers die helemaal in onderhoud staan, tellen niet mee. Ook 🌙 *stil tot …*, 🔀 flappende checks en 🔧 onderhoud staan hier. Klik op deze tegel voor alleen de problemen.

@@ -658,5 +658,13 @@ rmdir(Backup::dir());
 $GLOBALS['sm_config']['backup_dir'] = $bkOld;
 save_setting('backup_keep_manual', '0');
 
+// 1.134.0: Dashboard: alles samen; alleen-lezen ziet geen analyse, CVE's of netwerk
+$hm = Home::data(true, '30d');
+ok($hm['full'] && $hm['period'] === '30d' && is_int($hm['score']) && isset($hm['ids']['open'][1], $hm['ids']['open'][2], $hm['avail']['series'], $hm['ids']['series']['blk'])
+    && array_key_exists('vulns', $hm) && array_key_exists('net', $hm) && is_array($hm['events']) && count($hm['events']) <= 8, 'dashboard: score, IDS, beschikbaarheid, CVE en netwerk samen');
+$ro = Home::data(false, 'xx');
+ok(!$ro['full'] && $ro['period'] === '7d' && !isset($ro['todo']) && !isset($ro['vulns']) && !isset($ro['net']) && isset($ro['ids']['open_total'])
+    && !array_filter($ro['events'], static fn($e) => in_array($e['kind'], ['sec', 'info'], true)), 'dashboard alleen-lezen: geen analyse, CVE\'s, netwerk of beveiligingsmeldingen');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

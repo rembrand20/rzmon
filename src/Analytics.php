@@ -189,6 +189,22 @@ final class Analytics
     }
 
     /** @param string $period 1d|7d|30d|90d|365d of "van..tot" (Y-m-d..Y-m-d) */
+    /** report() met een cache van 5 minuten (per periode en taal); Analyse en het Dashboard (1.134.0) delen hem */
+    public static function cached(string $period, bool $fresh = false): array
+    {
+        $cf = sys_get_temp_dir() . '/rzmon-analytics-' . md5(SM_ROOT . '|' . $period . '|' . I18n::lang()) . '.json';
+        if (!$fresh && is_file($cf) && filemtime($cf) > time() - 300 && ($c = json_decode((string) file_get_contents($cf), true))) {
+            return $c + ['cached' => true];
+        }
+        if (!q('SELECT 1 FROM stats_daily LIMIT 1')->fetchColumn()) {
+            @set_time_limit(300);
+            self::cron();   // de eerste keer meteen berekenen, niet op cron wachten
+        }
+        $r = self::report($period);
+        @file_put_contents($cf, json_encode($r));
+        return $r;
+    }
+
     public static function report(string $period): array
     {
         if (preg_match('/^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/', $period, $m) && $m[1] <= $m[2]) {
