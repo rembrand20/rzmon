@@ -7,6 +7,10 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.133.1 – 2026-10-31
+### Opgelost
+- **Nieuwe agent 1.68.0**: installeren met een koppelcode gaf soms *Rapport mislukt: invalid or expired pairing code* door twee runs tegelijk; zie de changelog van de agent.
+
 ## 1.133.0 – 2026-10-30
 ### Nieuw
 - **Handmatige back-ups opruimen** (*Instellingen → 💾 Back-up → Handmatige bewaren*): zoveel back-ups die je met *Nu back-up maken* maakte blijven staan, de oudere gaan weg. Opruimen gebeurt meteen bij opslaan en na elke nieuwe back-up; je ziet hoeveel er zijn weggehaald. Standaard **0 = alles bewaren**, dus na de update verdwijnt er niets. Geüploade back-ups blijven tot je ze zelf verwijdert.

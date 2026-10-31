@@ -5,6 +5,11 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.68.0 – 2026-10-31
+- **Installeren met een koppelcode gaf soms *Rapport mislukt: invalid or expired pairing code*** (terwijl de agent wél gekoppeld was). De timer startte in stap 4 al een run die met de eenmalige code koppelde, terwijl het testrapport van stap 5 dat tegelijk ook deed. Nu gaat de timer pas aan na het testrapport, en koppelt er altijd maar één run tegelijk: een tweede wacht en gebruikt de sleutel die de eerste kreeg.
+- De verbindingstest (`--test`) wacht even op een run die al bezig is; geen `head: cannot open …/cmdstate/…` en `mv: cannot stat …/ids/….tmp` meer.
+- Nieuwe installatie: lege regels en de gebruikte koppelcode gaan na het koppelen meteen uit `/etc/default/rzmon-agent`. RzMon meldt dan geen *overbodig: TOKEN, ENC_KEY, PAIR_CODE …* meer.
+
 ## 1.67.0 – 2026-10-30
 - **Eigen processen betrouwbaarder herkend** (RzMon 1.132.0): wat RzMon zelf start, heeft een geheim kenmerk in de opdracht; de agent herkent dat, en alles wat eruit voortkomt, als RzMon. Ook de cron van RzMon (`crond → sh -c php …/cron/run.php`) en wat een run van de agent start, ook als die run al klaar is wanneer de gebeurtenis binnenkomt (de laatste 8 PID's staan in `own.pids`). Voorheen gaven het rapport van de agent, zijn hardening-check en het zoeken naar bestanden soms een Sigma-melding, en RzMon op zijn eigen server een webshell-melding.
 

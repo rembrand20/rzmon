@@ -644,6 +644,7 @@ if [ "$MODE" = "install" ] && [ -f "$CONF" ]; then
     if [ "$FALLBACK_SET" = 1 ] && ! grep -qx "MONITOR_URL_FALLBACK=\"${FALLBACK%/}\"" "$CONF"; then conf_set MONITOR_URL_FALLBACK "${FALLBACK%/}"; fi
     [ "$conf_changed" = 1 ] || ok "$CONF blijft ongewijzigd"
 elif [ "$MODE" = "install" ]; then
+    NEW_CONF=1
     umask 077
     cat > "$CONF" <<EOF
 # RzMon agent – aangemaakt door install-agent.sh op $(date '+%Y-%m-%d %H:%M')
@@ -755,11 +756,15 @@ ProtectSystem=full
 WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
-    systemctl enable --now rzmon-agent.timer >/dev/null 2>&1
+    # Agent 1.68.0: de timer start pas na het testrapport (stap 5); anders draaien er twee runs tegelijk en koppelt
+    # de timer al met de eenmalige code terwijl het testrapport dat ook probeert
+    systemctl enable rzmon-agent.timer >/dev/null 2>&1
+    systemctl stop rzmon-agent.timer >/dev/null 2>&1 || true
+    START_TIMER=1
     systemctl enable rzmon-watch.service >/dev/null 2>&1 || true
     systemctl restart rzmon-watch.service >/dev/null 2>&1 || true   # nieuwe versie van de agent meteen gebruiken
     rm -f "$CRON"   # oude cron-installatie opruimen
-    ok "systemd-timer actief (start elke 30 s; rapporteert volgens de tik in RzMon). Logboek: journalctl -u rzmon-agent"
+    ok "systemd-timer klaar (gaat aan na het testrapport; start elke 30 s; rapporteert volgens de tik in RzMon). Logboek: journalctl -u rzmon-agent"
     ok "realtime-watcher rzmon-watch klaar (aan/uit per server in RzMon → Agent Manager)"
 else
     sched="* * * * *"   # elke minuut; de agent rapporteert volgens de tik uit RzMon
@@ -787,15 +792,20 @@ rm -f "$tmp.setup"
 
 # ----------------------------------------------------------------- 5. testrapport
 step "5/5 Testrapport naar RzMon"
+start_timer() { [ "${START_TIMER-}" = 1 ] && systemctl start rzmon-agent.timer >/dev/null 2>&1; return 0; }
 # shellcheck disable=SC1090
 if out=$(set -a; . "$CONF"; RZ_FORCE=1 bash "$BIN" 2>&1); then   # ook als de tik nog niet om is
     ok "RzMon antwoordt: $out"
+    # Agent 1.68.0: nieuwe installatie: lege regels en de gebruikte koppelcode meteen weg (anders "overbodig" in RzMon)
+    [ "${NEW_CONF-}" = 1 ] && cleanup_conf
+    start_timer
 else
     warn "Rapport mislukt: $out"
     echo
     # Meteen de volledige diagnose tonen
     # shellcheck disable=SC1090
     (set -a; . "$CONF"; bash "$BIN" --test) || true
+    start_timer   # toch aan: lost het probleem zich op (bv. RzMon even weg), dan rapporteert de agent vanzelf
     die "De agent is geïnstalleerd, maar RzMon accepteert nog geen rapport. Los het bovenstaande op en test met: sudo rzmon-agent-setup --test"
 fi
 

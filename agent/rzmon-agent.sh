@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.67.0"
+AGENT_VERSION="1.68.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -900,8 +900,23 @@ pair_agent() {
     store_pin "$body"
     echo "🔑 Gekoppeld met RzMon (server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$body")): eigen sleutel ontvangen" >&2
 }
-if [ -n "$pair_code" ] && command -v openssl >/dev/null 2>&1 \
-    && [ "$(cat "$k_dir/pair.used" 2>/dev/null)" != "$(printf '%s' "$pair_code" | sha256sum | cut -c1-16)" ]; then
+pair_done() { [ "$(cat "$k_dir/pair.used" 2>/dev/null)" = "$(printf '%s' "$pair_code" | sha256sum | cut -c1-16)" ]; }
+if [ -n "$pair_code" ] && command -v openssl >/dev/null 2>&1 && ! pair_done; then
+    # Agent 1.68.0: één run tegelijk koppelt (de code werkt maar één keer). Bv. de timer die net start en het
+    # testrapport van de installatie: de tweede wacht en gebruikt dan de sleutel die de eerste kreeg.
+    if command -v flock >/dev/null 2>&1; then
+        exec 8>"$k_dir/pair.lock"
+        flock -w 30 8 2>/dev/null || flock 8 2>/dev/null || true
+    fi
+fi
+if [ -n "$pair_code" ] && command -v openssl >/dev/null 2>&1 && pair_done; then
+    # Al gekoppeld (eventueel net door een andere run): de eigen sleutel gebruiken
+    if [ -z "$own_key" ] && [ -r "$own_file" ]; then
+        own_key=$(tr -dc '0-9a-f' <"$own_file" | head -c 64)
+        [ "${#own_key}" = 64 ] || own_key=""
+        if [ -n "$own_key" ] && [ ! -e "$t_dir/enc.off" ]; then enc_key=$own_key; set_auth; set_tls; fi
+    fi
+elif [ -n "$pair_code" ] && command -v openssl >/dev/null 2>&1; then
     prev_key=$enc_key
     if pair_agent; then enc_key=$own_key
     else
@@ -911,6 +926,7 @@ if [ -n "$pair_code" ] && command -v openssl >/dev/null 2>&1 \
     fi
     set_auth; set_tls
 fi
+exec 8>&- 2>/dev/null
 
 # ---------------------------------------------------------------- Verbindingstest (--test)
 pass() { printf '  \e[32m✔\e[0m %s\n' "$*"; }
@@ -1264,7 +1280,11 @@ if [ "$TEST" != 1 ] && [ "${RZ_FORCE-}" != 1 ] && [ -f "$t_dir/last.run" ] && [ 
     exit 0
 fi
 # Nooit twee runs tegelijk (timer en realtime-watcher): even wachten op een run die al bezig is
-if [ "$TEST" != 1 ] && command -v flock >/dev/null 2>&1; then
+# Agent 1.68.0: de test wacht ook even (anders zitten twee runs aan dezelfde tijdelijke bestanden), maar gaat altijd door
+if [ "$TEST" = 1 ] && command -v flock >/dev/null 2>&1; then
+    exec 9>"$t_dir/run.lock"
+    flock -w 25 9 2>/dev/null || true
+elif [ "$TEST" != 1 ] && command -v flock >/dev/null 2>&1; then
     exec 9>"$t_dir/run.lock"
     # BusyBox-flock (Alpine, de Home Assistant-add-on) kent -w niet: dan zonder wachten proberen.
     # Lukt het allebei niet, dan loopt er al een run en slaan we deze keer over.
