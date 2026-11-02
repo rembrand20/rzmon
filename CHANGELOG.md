@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.137.0 – 2026-11-02
+### Nieuw
+- **Nieuwe agent 1.69.0**: sneller en niet meer onterecht "stil" (agent 1.69.0 nodig):
+  - een **hartslag** tijdens een lange run telt als contact (in de Agent Manager: *⏳ bezig sinds …*);
+  - **ingehaalde metingen** uit de wachtrij van de agent komen op hun echte tijd in de grafieken, zonder dubbele punten;
+  - commando-checks draaien op de achtergrond.
+- **Agent Manager**: hoe lang de laatste run duurde en welke onderdelen het traagst waren, en wat de agent op die server kan (podman, docker, zpool, smartctl …).
+- **Docker**: containers van Docker verschijnen naast die van Podman, met dezelfde checks. *Container (Podman)* heet nu *Container (Podman/Docker)*.
+
 ## 1.136.0 – 2026-11-02
 ### Nieuw
 - **Bewaartermijnen in te stellen** (*Instellingen → Systeem → Database en server → Opslag*): elke meting (standaard 30 dagen), daarna **uurgemiddelden** (180 dagen) en **daggegevens** (2 jaar, was vast ruim een jaar). Een meting gaat pas weg als zijn uur is samengevat; lager zetten ruimt meteen op.

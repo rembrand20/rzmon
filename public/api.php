@@ -578,6 +578,10 @@ if ($action === 'agent') {
         out(['error' => "Geweigerd: $reason"], 400);
     }
     Perf::part('rapport:ontvangen');   // 1.129.0: aanmelden, ontsleutelen en inlezen
+    // 1.137.0 (agent 1.69.0): hartslag tijdens een lange run: alleen "ik leef", de gegevens blijven staan
+    if (!empty($in['beat'])) {
+        out(['ok' => true, 'beat' => AgentQueue::beat($host, $in)]);
+    }
     $now = now();
     $st = db()->prepare('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?)
                          ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)');
@@ -832,6 +836,21 @@ if ($action === 'agent') {
         usort($list, static fn($a, $b) => strcmp($a[0], $b[0]));
         $st->execute([$host['id'], 'svclist', json_encode($list), $now]);
     }
+    // 1.137.0 (agent 1.69.0): hoe lang de run duurde (per onderdeel) en wat de agent hier kan, voor de Agent Manager
+    if (isset($in['timing']['total']) && is_numeric($in['timing']['total'])) {
+        $parts = [];
+        foreach (array_slice((array) ($in['timing']['parts'] ?? []), 0, 60, true) as $k => $ms) {
+            if (preg_match('/^[a-z_]{1,30}$/', (string) $k) && is_numeric($ms)) {
+                $parts[$k] = (int) $ms;
+            }
+        }
+        arsort($parts);
+        $st->execute([$host['id'], 'timing', json_encode(['total' => (int) $in['timing']['total'], 'parts' => $parts]), $now]);
+    }
+    if (isset($in['caps']) && is_array($in['caps'])) {
+        $st->execute([$host['id'], 'caps', json_encode(array_values(array_filter(array_slice($in['caps'], 0, 40), static fn($c) => is_string($c) && preg_match('/^[a-z0-9-]{1,20}$/', $c)))), $now]);
+    }
+    $backlogN = is_array($in['backlog'] ?? null) ? AgentQueue::backlog($host, $in['backlog']) : 0;
     // Deels onleesbaar rapport (1.99.2): wat er werd weggelaten en waarom, voor de Agent Manager
     if ($salvaged) {
         $st->execute([$host['id'], 'report_warn', json_encode($salvaged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $now]);
@@ -846,7 +865,7 @@ if ($action === 'agent') {
     Security::agentConnected($host, $encrypted);
     // Contactmomenten (1.99.0): de laatste 21, om het echte ritme te zien
     $beats = array_slice([...array_filter(explode(',', (string) ($host['agent_beats'] ?? ''))), (string) time()], -21);
-    q('UPDATE hosts SET agent_seen = ?, agent_ip = ?, agent_version = ?, enc_seen = ?, agent_beats = ? WHERE id = ?',
+    q('UPDATE hosts SET agent_seen = ?, agent_busy = NULL, agent_ip = ?, agent_version = ?, enc_seen = ?, agent_beats = ? WHERE id = ?',
         [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $encrypted ? 1 : 0, implode(',', $beats), $host['id']]);
     // Andere versie dan vorige keer: bijgewerkt (met de knop, automatisch, via de add-on winkel of met de hand) → info
     if ($agentVersion !== null && $host['agent_version'] !== null && $agentVersion !== $host['agent_version']) {
@@ -856,7 +875,7 @@ if ($action === 'agent') {
     $resp = ['ok' => true, 'host' => $host['name'], 'rzmon_version' => RZMON_VERSION, 'received' => [
         'disks' => count($in['disks'] ?? []), 'services' => count($in['services'] ?? []), 'ports' => count($in['ports'] ?? []),
         'certs' => count((array) ($in['certs'] ?? [])), 'containers' => count((array) ($in['podman']['containers'] ?? [])),
-    ]];
+    ] + ($backlogN ? ['backlog' => $backlogN] : [])];
     $resp['tests_rev'] = agent_tests_rev((int) $host['id'], $encrypted);
     // 1.107.0: herstelcommando's (alleen versleuteld) en, voor de waakhond, hoe lang de checks al niet gedraaid hebben
     if ($encrypted && ($run = Heal::runList((int) $host['id']))) {
@@ -2473,7 +2492,7 @@ switch ($action) {
 
     case 'agent_status':
         $id = (int) ($_GET['id'] ?? 0);
-        $h = q('SELECT agent_seen, agent_ip, agent_version, mode, agent_update_req, agent_update_status, agent_update_via, realtime, watchdog, watchdog_min, enc_seen FROM hosts WHERE id = ?', [$id])->fetch();
+        $h = q('SELECT agent_seen, agent_busy, agent_ip, agent_version, mode, agent_update_req, agent_update_status, agent_update_via, realtime, watchdog, watchdog_min, enc_seen FROM hosts WHERE id = ?', [$id])->fetch();
         if (!$h) {
             out(['error' => t('Server niet gevonden')], 404);
         }
@@ -2488,6 +2507,10 @@ switch ($action) {
              'update' => ['pending' => $h['agent_update_req'] !== null, 'status' => $h['agent_update_status'], 'via' => $h['agent_update_via']],
              'audit' => AgentAudit::items(q('SELECT ' . AgentAudit::HOST_COLS . ' FROM hosts WHERE id = ?', [$id])->fetch() ?: [], AgentAudit::cfg($id)),
              'report_warn' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'report_warn'", [$id])->fetchColumn(), true),
+             // 1.137.0: duur van de laatste run per onderdeel, wat de agent kan, en of hij nu bezig is (hartslag)
+             'timing' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'timing'", [$id])->fetchColumn(), true),
+             'caps' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'caps'", [$id])->fetchColumn(), true) ?: [],
+             'busy' => $h['agent_busy'],
              'realtime' => ['on' => (bool) $h['realtime'], 'status' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'realtime'", [$id])->fetchColumn(), true),
                  'tools' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'tools'", [$id])->fetchColumn(), true)],
              'watchdog' => ['on' => (bool) $h['watchdog'], 'min' => (int) ($h['watchdog_min'] ?: 5), 'enc' => (bool) $h['enc_seen'],

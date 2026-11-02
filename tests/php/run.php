@@ -689,5 +689,26 @@ Retention::purge();
 ok((int) q('SELECT COUNT(*) FROM results_hourly WHERE check_id = ?', [$rc])->fetchColumn() === 1, 'bewaren: uurgemiddelden ouder dan ingesteld weg');
 save_setting('hourly_days', '180');
 
+// 1.137.0: hartslag tijdens een lange run en ingehaalde metingen (wachtrij)
+$qh = q('SELECT * FROM hosts WHERE id = ?', [$ha])->fetch();
+q("UPDATE hosts SET agent_seen = NOW() - INTERVAL 1 HOUR, agent_busy = NULL WHERE id = ?", [$ha]);
+ok(AgentQueue::beat($qh, ['beat' => 1, 'busy_since' => time() - 120]) && strtotime((string) q('SELECT agent_seen FROM hosts WHERE id = ?', [$ha])->fetchColumn()) > time() - 10
+    && q('SELECT agent_busy FROM hosts WHERE id = ?', [$ha])->fetchColumn() !== null, 'hartslag: bezig sinds 2 minuten telt als contact');
+q("UPDATE hosts SET agent_seen = NOW() - INTERVAL 1 HOUR WHERE id = ?", [$ha]);
+ok(!AgentQueue::beat($qh, ['beat' => 1, 'busy_since' => time() - 3600]) && strtotime((string) q('SELECT agent_seen FROM hosts WHERE id = ?', [$ha])->fetchColumn()) < time() - 3000,
+    'hartslag: een run die al een uur loopt (hangt) telt niet');
+q("INSERT INTO checks (host_id, type, target, name, warn_threshold, crit_threshold) VALUES (?, 'cpu', '', 'CPU wachtrij', 80, 95), (?, 'disk', '/data', 'Disk wachtrij', 80, 90)", [$ha, $ha]);
+$qc = (int) q("SELECT id FROM checks WHERE name = 'CPU wachtrij'")->fetchColumn();
+$qd = (int) q("SELECT id FROM checks WHERE name = 'Disk wachtrij'")->fetchColumn();
+$bl = [['t' => time() - 600, 'cpu' => 97.5, 'mem' => ['total' => 100, 'avail' => 50], 'disks' => [['mount' => '/data', 'total' => 100, 'avail' => 15]]],
+    ['t' => time() - 540, 'cpu' => 12, 'mem' => ['total' => 100, 'avail' => 50], 'disks' => [['mount' => '/data', 'total' => 100, 'avail' => 50]]]];
+$n1 = AgentQueue::backlog($qh, $bl);
+$n2 = AgentQueue::backlog($qh, $bl);   // nog een keer hetzelfde: niets dubbel
+$r1 = q('SELECT status, value FROM results WHERE check_id = ? ORDER BY created_at', [$qc])->fetchAll();
+$rd = q('SELECT status, value FROM results WHERE check_id = ? ORDER BY created_at', [$qd])->fetchAll();
+ok($n1 >= 4 && $n2 === 0 && count($r1) === 2 && (int) $r1[0]['status'] === 2 && abs((float) $r1[0]['value'] - 97.5) < 0.01 && (int) $r1[1]['status'] === 0
+    && count($rd) === 2 && abs((float) $rd[0]['value'] - 85) < 0.01 && (int) $rd[0]['status'] === 1,
+    'wachtrij: ingehaalde metingen op hun eigen tijd, met status, en niet dubbel');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

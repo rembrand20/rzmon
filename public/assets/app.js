@@ -36,8 +36,8 @@ const TYPES = {
   disk:    { label: L('Diskruimte'),    target: L('Mount / pad'),   unit: '%',  warn: 80, crit: 90, ph: '/', help: L('Percentage gebruikt. Op agent-servers: mount zoals de agent meldt.') },
   cpu:     { label: L('CPU'),           target: null,            unit: '%',  warn: 85, crit: 95, help: L('CPU-gebruik gemeten over 2 seconden, met load average in het bericht. Tip: zet "alarm na N fouten" op 3+ om korte pieken te negeren.') },
   ram:     { label: L('RAM'),           target: null,            unit: '%',  warn: 85, crit: 95, help: L('Percentage geheugen in gebruik (op basis van MemAvailable, dus cache telt niet mee). Swap staat in het bericht.') },
-  podman:  { label: L('Podman (algemeen)'), target: null, unit: null, help: L('Algehele status van Podman op deze server: draait podman, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.') },
-  container: { label: L('Container (Podman)'), target: L('Container'), unit: null, ph: L('naam, of gebruiker/naam (rootless)'), help: L('Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.') },
+  podman:  { label: L('Containers (algemeen)'), target: null, unit: null, help: L('Algehele status van Podman en/of Docker op deze server: draait het, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.') },
+  container: { label: L('Container (Podman/Docker)'), target: L('Container'), unit: null, ph: L('naam, of gebruiker/naam (rootless)'), help: L('Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.') },
   log:     { label: L('Logbestand (zoeken)'), target: L('Bron'), unit: 'treffers', warn: 5, crit: 20, ph: L('/var/log/secure, journal, journal:sshd of kernel'), help: L('De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.') },
   command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents → Commando-checks).') },
   pve:     { label: L('Proxmox VE'), target: null, unit: null, help: L('Via de agent op een Proxmox-host (agent 1.61.0 of nieuwer, als root): de guests (VM\'s en containers), back-ups, opslag en ZFS. Kies hieronder wat je wilt bewaken.') },
@@ -4307,7 +4307,7 @@ async function podmanOverview(h) {
   const missing = d.containers.filter((c) => !checkOf(c.key));
   const ha = sm.version === 'Home Assistant';
   body.innerHTML = `
-    <p class="scan-summary">${ha ? L('Home Assistant: Core, Supervisor, plugins en add-ons') : `Podman ${esc(sm.version || '?')}`} · ${L('{n} van {m} containers draaien', { n: d.containers.filter((c) => c.state === 'running').length, m: d.containers.length })}
+    <p class="scan-summary">${ha ? L('Home Assistant: Core, Supervisor, plugins en add-ons') : `${/^docker /.test(sm.version || '') ? '' : 'Podman '}${esc(sm.version || '?')}`} · ${L('{n} van {m} containers draaien', { n: d.containers.filter((c) => c.state === 'running').length, m: d.containers.length })}
       ${(sm.pods || []).length ? ' · pods: ' + sm.pods.map((p) => `${esc(p.name)} (${esc(p.status)})`).join(', ') : ''}
       <br><span class="muted small">${ha ? L('Gestopte add-ons met exitcode 0 zijn bewust uitgezet; een add-on met een fout staat als gestopt (exit 1).')
         : `Images ${fmtBytes(sm.images_size)} · containers ${fmtBytes(sm.containers_size)} · volumes ${fmtBytes(sm.volumes_size)}
@@ -4315,8 +4315,8 @@ async function podmanOverview(h) {
       ${(sm.users || []).length > 1 ? ' · ' + L('gebruikers') + ': ' + sm.users.map(esc).join(', ') : ''}</span></p>
     ${sm.error ? `<p class="form-error">${L('Podman-fout: {e}', { e: esc(sm.error) })}</p>` : ''}
     <div class="podman-actions">
-      ${d.checks.some((c) => c.type === 'podman') ? `<span class="muted small">✓ ${L('{x}-check aanwezig', { x: ha ? 'Containers' : 'Podman' })}</span>`
-        : `<button type="button" class="btn need-admin" id="pc-overall">＋ ${L('{x}-check (algehele status)', { x: ha ? 'Containers' : 'Podman' })}</button>`}
+      ${d.checks.some((c) => c.type === 'podman') ? `<span class="muted small">✓ ${L('{x}-check aanwezig', { x: 'Containers' })}</span>`
+        : `<button type="button" class="btn need-admin" id="pc-overall">＋ ${L('{x}-check (algehele status)', { x: 'Containers' })}</button>`}
       ${missing.length ? `<button type="button" class="btn need-admin" id="pc-all" title="${L('Alleen de status; CPU, RAM en disk kun je daarna per container aanvinken')}">＋ ${missing.length === d.containers.length ? L('Alle {n} container(s) bewaken', { n: missing.length }) : L('De overige {n} container(s) bewaken', { n: missing.length })}</button>` : ''}
     </div>
     <div class="table-scroll"><table class="port-table podman-table">
@@ -4334,7 +4334,7 @@ async function podmanOverview(h) {
     if (b.dataset.pc) return checkForm(null, findHost(h.id), { type: 'container', target: b.dataset.pc, name: '', options: '{"res":{}}' });
     if (b.dataset.pcEdit) { const [c] = findCheck(b.dataset.pcEdit); if (c) return checkForm(c, findHost(h.id)); }
     try {
-      if (b.id === 'pc-overall') await add({ type: 'podman', name: 'Podman' });
+      if (b.id === 'pc-overall') await add({ type: 'podman', name: ha ? 'Containers' : 'Podman' });
       else if (b.id === 'pc-all') for (const c of missing) await addContainer(c.key);
       toast(L('Check(s) toegevoegd'));
       await refresh();
@@ -5534,6 +5534,24 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
         ${isAdmin() ? `<div class="btn-row">${fixable ? `<button type="button" class="btn small-btn primary" data-agent-clean>🧹 ${L('Opruimen')}</button>` : ''}
           ${s.audit.some((i) => i.key === 'https' && i.ok === false) ? `<button type="button" class="btn small-btn" data-agent-https>🌐 ${L('Naar https')}</button>` : ''}
           <span class="muted small">${L('Alles over de verbinding, op de server zelf:')} <code>rzmon-agent-setup --status</code></span></div>` : ''}</details>`;
+    }
+    // 1.137.0 (agent 1.69.0): bezig (hartslag), duur van de laatste run per onderdeel, en wat de agent hier kan
+    if (s.mode === 'agent' && s.busy) {
+      html += `<div class="small agent-busy">⏳ ${L('Bezig met een run sinds {t}: de agent meldt elke tik dat hij leeft, het rapport volgt.', { t: fmtUntil(s.busy) })}</div>`;
+    }
+    if (s.mode === 'agent' && s.timing && s.timing.total) {
+      const tot = s.timing.total, top = Object.entries(s.timing.parts || {}).filter(([, ms]) => ms >= 200).slice(0, 5);
+      const secs = (ms) => dec((ms / 1000).toFixed(ms < 10000 ? 1 : 0)) + ' s';
+      const name = (k) => ({ disk: L('Disks'), containers_prep: L('Containers (voorbereiden)'), containers: L('Containers'), cpu: 'CPU', ram: 'RAM', ports: L('Poorten'),
+        services: L('Services'), svc_deep: L('Diepere service-checks'), commands: L('Commando-checks'), logs: L('Logbestanden'), logins: L('Logins'), ids: 'IDS',
+        weblogs: L('Logs van webdiensten'), edr: L('Endpoint-bewaking'), proxmox: 'Proxmox', certs: L('Certificaten'), cert_search: L('Certificaten zoeken'),
+        procs: L('Processen'), software: L('Software'), ha: 'Home Assistant', ha_os: 'Home Assistant OS' })[k] || k;
+      html += `<details class="audit-box agent-timing"${tot > 30000 ? ' open' : ''}><summary class="small">⏱ <b>${L('Laatste run')}</b>: ${secs(tot)}${top.length ? ` · ${L('traagst')}: ${esc(name(top[0][0]))} ${secs(top[0][1])}` : ''}</summary>
+        ${top.length ? `<table class="kv small">${top.map(([k, ms]) => `<tr><th>${esc(name(k))}</th><td><span class="tbar"><i style="width:${Math.max(2, Math.round(ms / tot * 100))}%"></i></span> ${secs(ms)}</td></tr>`).join('')}</table>` : ''}
+        <p class="muted small">${L('Commando-checks draaien op de achtergrond: een trage check houdt het rapport niet meer op. Duurt een run langer dan de tik, dan meldt de agent tussendoor dat hij leeft.')}</p></details>`;
+    }
+    if (s.mode === 'agent' && s.caps && s.caps.length) {
+      html += `<div class="small agent-caps"><span class="muted">${L('Kan op deze server')}:</span> ${s.caps.map((c) => `<span class="chip-s">${esc(c)}</span>`).join(' ')}</div>`;
     }
     if (s.report_warn && s.report_warn.length) {
       html += `<div class="fails"><span class="small warn-txt">⚠️ ${L('Het laatste rapport was deels onleesbaar; dit onderdeel is weggelaten (de rest kwam gewoon binnen):')}</span>

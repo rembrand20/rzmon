@@ -1629,7 +1629,9 @@ Met de check **Proces** kijk je of een programma draait dat geen systemd-service
 - Niet op Home Assistant-agents en niet op servers zonder agent (dan kan RzMon de processen niet zien). Processen staan niet bij *🔎 Wat wordt nog niet bewaakt*: je kiest ze zelf.
 
 
-### 8.6 Podman-containers 📦
+### 8.6 Containers: Podman en Docker 📦
+**Docker** (vanaf RzMon 1.137.0, agent 1.69.0) werkt precies zoals Podman hieronder: dezelfde checks (*Containers (algemeen)* en *Container (Podman/Docker)*), dezelfde lijst in het venster van de server, compose-projecten verschijnen als pods, en *zelf herstellen* herstart een Docker-container net zo. De agent meldt Docker alleen als de Docker-daemon draait; staan Podman en Docker allebei op de server, dan zie je ze naast elkaar (gebruiker *docker* voor de Docker-containers). `DOCKER=0` in `/etc/default/rzmon-agent` zet Docker uit.
+
 Staat **podman** op de server, dan meldt de agent vanzelf alle containers. Er hoeft niets ingesteld te worden. Zonder podman stuurt de agent hier niets over.
 
 **Wat de agent meldt** (elke minuut):
@@ -2423,7 +2425,13 @@ RzMon zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons
 - Een UniFi IPS of een strenge firewall kan de scan van RzMon als poortscan zien. Sta in dat geval het IP-adres van de RzMon-server toe.
 - Andere VLAN's: daar ziet RzMon alleen IP-adressen (geen MAC-adres of fabrikant), omdat ARP niet over een router gaat.
 
-### 8.15 Waakhond 🐕: wie bewaakt RzMon? (vanaf 1.107.0, agent 1.62.0)
+### 8.14b Snel en betrouwbaar rapporteren ⏱ (vanaf 1.137.0, agent 1.69.0)
+Een rapport mag nooit worden opgehouden door één traag onderdeel, en een agent die gewoon bezig is, is niet "stil":
+- **Commando-checks op de achtergrond**: de eerste keer meet de agent meteen; daarna gaat steeds het vorige resultaat mee en meet hij op de achtergrond opnieuw. Het nieuwe resultaat komt met het volgende rapport.
+- **Hartslag**: duurt een run langer dan de tik (een druk systeem, een trage dienst), dan meldt de agent elke tik "ik ben bezig". Dat telt als contact, dus geen *agent stil*; in de Agent Manager staat dan *⏳ bezig sinds …*. Duurt een run langer dan een kwartier, dan telt de hartslag niet meer: dan hangt er iets en komt de melding wel.
+- **Wachtrij**: lukt versturen niet (RzMon herstart, netwerk weg), dan bewaart de agent de metingen van CPU, RAM en disks (hooguit een dag, in `/var/lib/rzmon-agent/keys/queue.jsonl`) en stuurt ze met het volgende rapport mee. RzMon zet ze op hun eigen tijd in de grafieken; de status van nu verandert er niet door, en hetzelfde meetmoment telt maar één keer.
+- **Wat is traag?** In de Agent Manager staat bij elke server *⏱ Laatste run*: hoe lang de run duurde en de traagste onderdelen. Daaronder staat wat de agent op die server kan (podman, docker, zpool, smartctl, nft …).
+
 Valt RzMon zelf uit, dan krijg je van RzMon niets meer, en denk je dat alles goed is. Daarom kan een agent **RzMon bewaken**: zet in de **Agent Manager** van een server *🐕 Waakhond* aan (bij 1 of 2 servers is genoeg; elke waakhond stuurt zijn eigen bericht) en kies na hoeveel minuten (standaard 5).
 - Lukt het rapport aan RzMon zo lang niet, dan stuurt de agent **zelf** een Pushover-bericht (*⚠️ RzMon onbereikbaar*, met de prioriteit van je critical-meldingen), en een herstelbericht als RzMon terug is.
 - **Ligt het aan de server zelf?** Kan de agent ook Pushover niet bereiken, dan lag het aan zijn eigen netwerk: dan geen bericht. Als RzMon terug is, krijg je daar een ℹ️-melding van (*Systeeminfo → Waakhond*): hoe lang het duurde en of het gemeld is.

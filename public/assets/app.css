@@ -2157,3 +2157,11 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .hm-sevlbl { font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-size: .68rem !important; }
 .hm-sevlbl.crit { color: var(--crit) !important; } .hm-sevlbl.warn { color: var(--warn) !important; } .hm-sevlbl.ok { color: var(--muted) !important; }
 .sw.s3, .hm-stack i.s3 { background: var(--ser-3); }
+
+/* Agent Manager (1.137.0): bezig, duur per onderdeel, wat de agent kan */
+.agent-busy { margin: .4rem 0; color: var(--warn); }
+.agent-timing table th { font-weight: 500; text-align: left; padding-right: .8rem; white-space: nowrap; }
+.tbar { display: inline-block; width: 120px; height: 6px; border-radius: 99px; background: var(--border); vertical-align: middle; margin-right: .4rem; overflow: hidden; }
+.tbar i { display: block; height: 100%; background: var(--primary); border-radius: 99px; }
+.agent-caps { margin: .4rem 0; display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.chip-s { display: inline-block; padding: .05rem .45rem; border: 1px solid var(--border); border-radius: 99px; font-family: ui-monospace, Menlo, monospace; font-size: .74rem; }

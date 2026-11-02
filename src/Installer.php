@@ -224,6 +224,7 @@ final class Installer
         ['checks', 'tpl_override', 'TINYINT(1) NOT NULL DEFAULT 0'],   // per server aangepast: gaat niet meer mee met het sjabloon
         ['hosts', 'discover_ignore', 'TEXT NULL'],
         ['checks', 'run_ms', 'INT UNSIGNED NULL'],              // hoe lang de laatste uitvoering duurde (1.96.0)
+        ['hosts', 'agent_busy', 'DATETIME NULL'],              // 1.137.0: agent meldt "bezig" sinds (hartslag tijdens een lange run)
         ['checks', 'proc_start', 'INT UNSIGNED NULL'],           // proces-check: start van het oudste proces (herstart zien, 1.98.0)
         ['hosts', 'certscan_req', 'INT UNSIGNED NOT NULL DEFAULT 0'],   // "🔄 Opnieuw zoeken" naar certificaten (1.98.0)
         ['hosts', 'agent_beats', 'VARCHAR(400) NULL'],           // laatste contactmomenten van de agent (unix-tijden, 1.99.0)

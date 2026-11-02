@@ -5,6 +5,16 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.69.0 – 2026-11-02
+- **Sneller en nooit meer onterecht "stil"** (RzMon 1.137.0):
+  - **Commando-checks op de achtergrond**: is er al een vorig resultaat, dan gaat dat meteen mee en meet de agent opnieuw op de achtergrond. Een trage check houdt het rapport niet meer op (die mochten samen tot 40 seconden duren). De eerste keer meet hij nog direct.
+  - **Hartslag tijdens een lange run**: duurt een run langer dan de tik, dan meldt de agent elke tik "ik ben bezig". RzMon telt dat als contact; zijn gegevens blijven staan tot het rapport komt. Een run die al een kwartier bezig is, telt niet meer.
+  - **Wachtrij**: lukt versturen niet (RzMon of het netwerk even weg), dan bewaart de agent de metingen van CPU, RAM en disks (hooguit een dag) en stuurt ze met het volgende rapport mee. RzMon zet ze op hun echte tijd in de grafieken, zonder dubbele punten.
+  - **Duur per onderdeel**: elk rapport vertelt hoe lang de run duurde en welk onderdeel het traagst was (te zien in de Agent Manager).
+- **Docker**: containers van Docker net als die van Podman: dezelfde checks, compose-projecten als pods, opslag en volumes, en herstarten bij zelf herstellen. Alleen als de Docker-daemon draait; `DOCKER=0` in `/etc/default/rzmon-agent` zet het uit.
+- **Wat de agent kan**: hij meldt welke hulpmiddelen er op de server zijn (podman, docker, zpool, smartctl, nft …), voor de Agent Manager.
+
+
 ## 1.68.0 – 2026-10-31
 - **Installeren met een koppelcode gaf soms *Rapport mislukt: invalid or expired pairing code*** (terwijl de agent wél gekoppeld was). De timer startte in stap 4 al een run die met de eenmalige code koppelde, terwijl het testrapport van stap 5 dat tegelijk ook deed. Nu gaat de timer pas aan na het testrapport, en koppelt er altijd maar één run tegelijk: een tweede wacht en gebruikt de sleutel die de eerste kreeg.
 - De verbindingstest (`--test`) wacht even op een run die al bezig is; geen `head: cannot open …/cmdstate/…` en `mv: cannot stat …/ids/….tmp` meer.

@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.68.0"
+AGENT_VERSION="1.69.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -76,6 +76,8 @@ SERVICE_TEST_DIR="${SERVICE_TEST_DIR:-/etc/rzmon-agent/tests}"
 LOG_DIRS="${LOG_DIRS:-/var/log}"
 # Podman: wordt alleen gemeld als podman op deze server staat. PODMAN=0 zet het uit.
 PODMAN="${PODMAN:-1}"
+# Agent 1.69.0: Docker-containers net als die van Podman (zelfde checks, herstarten, zelf herstellen); DOCKER=0 = niet
+DOCKER="${DOCKER:-1}"
 # Gebruikers met rootless containers: "auto" = zelf zoeken (gebruikers met ~/.local/share/containers),
 # of een lijst namen; "" = alleen de containers van root
 PODMAN_USERS="${PODMAN_USERS-auto}"
@@ -1294,10 +1296,34 @@ elif [ "$TEST" != 1 ] && command -v flock >/dev/null 2>&1; then
 fi
 touch "$t_dir/last.run" 2>/dev/null
 run_t0=$(now_ms)
+# Agent 1.69.0: duurt deze run langer dan de tik (een trage check, een druk systeem), dan elke tik een kleine hartslag
+# "ik ben bezig" naar RzMon. Zo is de agent niet "stil" terwijl hij gewoon werkt; zijn gegevens blijven tot het rapport komt.
+beat_pid=""
+if [ "$TEST" != 1 ] && [ "${RZ_NO_BEAT-}" != 1 ]; then
+    (
+        b_since=$(date +%s)
+        sleep "$tick"
+        while kill -0 "$$" 2>/dev/null; do
+            b_file=$(mktemp "${TMPDIR:-/tmp}/rzmon-beat.XXXXXX") || exit 0
+            printf '{"beat":1,"agent_version":"%s","hostname":"%s","busy_since":%s}' "$AGENT_VERSION" "$(json_escape "$(hostname)")" "$b_since" >"$b_file"
+            b_send=$b_file
+            if [ -n "$enc_key" ] && seal "$b_file" "$b_file.enc"; then b_send="$b_file.enc"; fi
+            curl -fsS -m 10 -X POST "${tls[@]}" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$b_send" \
+                "${MONITOR_URL%/}/api.php?action=agent" >/dev/null 2>&1
+            rm -f "$b_file" "$b_file.enc"
+            sleep "$tick"
+        done
+    ) </dev/null >/dev/null 2>&1 &
+    beat_pid=$!
+fi
+# Agent 1.69.0: hoe lang elk onderdeel duurde (gaat mee naar RzMon: Agent Manager toont wat traag is)
+lap_t=$run_t0; lap_name=""; laps=""
+lap() { local t; t=$(now_ms); [ -n "$lap_name" ] && laps+="\"$lap_name\":$(( t - lap_t )),"; lap_name=$1; lap_t=$t; }
 # Agent 1.67.0: PID van deze run, zodat de endpoint-bewaking wat de agent start als "van de agent" herkent (de laatste 8)
 [ "$TEST" != 1 ] && { tail -n 7 "$t_dir/own.pids" 2>/dev/null; echo "$$"; } >"$t_dir/own.pids.tmp" 2>/dev/null && mv -f "$t_dir/own.pids.tmp" "$t_dir/own.pids" 2>/dev/null
 
 # ---------------------------------------------------------------- Disk
+lap disk
 disks=""
 hostname=$(hostname)
 if [ "$HA_MODE" = 1 ]; then
@@ -1316,6 +1342,7 @@ else
 fi
 
 # ---------------------------------------------------------------- Podman: voorbereiding
+lap containers_prep
 # Contexten: "root" (of de huidige gebruiker) plus gebruikers met rootless containers
 podman_ctx=()
 if [ "$PODMAN" != 0 ] && [ "$HA_MODE" = 0 ] && command -v podman >/dev/null 2>&1; then
@@ -1334,10 +1361,16 @@ if [ "$PODMAN" != 0 ] && [ "$HA_MODE" = 0 ] && command -v podman >/dev/null 2>&1
         fi
     fi
 fi
-pm() {  # pm <context> <podman-argumenten…>: podman als root, of als die gebruiker (rootless)
+# Agent 1.69.0: Docker als extra context "docker" (alleen als de Docker-daemon draait)
+if [ "$DOCKER" != 0 ] && [ "$HA_MODE" = 0 ] && command -v docker >/dev/null 2>&1 && timeout 5 docker info >/dev/null 2>&1; then
+    podman_ctx+=(docker)
+fi
+pm() {  # pm <context> <podman-argumenten…>: podman als root, of als die gebruiker (rootless); context docker = docker
     local ctx=$1 uid
     shift
-    if [ "$ctx" = root ] || [ "$ctx" = "$(id -un)" ]; then
+    if [ "$ctx" = docker ]; then
+        timeout 60 docker "$@"
+    elif [ "$ctx" = root ] || [ "$ctx" = "$(id -un)" ]; then
         timeout 60 podman "$@"
     else
         uid=$(id -u "$ctx")
@@ -1348,17 +1381,32 @@ pm() {  # pm <context> <podman-argumenten…>: podman als root, of als die gebru
 # Ruwe tellers per draaiende container; twee metingen → actueel CPU-gebruik (zoals podman stats).
 # Netwerk via {{.NetIO}} ("27.2MB / 25.1MB"): podman 5 heeft NetInput/NetOutput weggehaald, en een
 # onbekend veld laat podman na de eerste container stoppen (dan kregen alleen die cijfers).
-podman_stats() {
+# Docker meet CPU zelf (in %): die waarde gaat als twee "metingen" (0 en pct·10⁶ op 10⁸) door dezelfde berekening.
+# Geheugen staat bij Docker in MiB/GiB, netwerk en disk in kB/MB: hier alles naar bytes.
+docker_bytes='function db(s,  n, u) { if (!match(s, /^[0-9.]+[a-zA-Z]*/)) return 0; s = substr(s, 1, RLENGTH); n = s + 0; u = s; sub(/^[0-9.]+/, "", u); u = tolower(u)
+    return n * (u == "kib" ? 1024 : u == "mib" ? 1048576 : u == "gib" ? 1073741824 : u == "tib" ? 1099511627776 : u == "kb" ? 1e3 : u == "mb" ? 1e6 : u == "gb" ? 1e9 : u == "tb" ? 1e12 : 1) }'
+podman_stats() {  # podman_stats [a|b]
     local ctx
     for ctx in "${podman_ctx[@]}"; do
+        if [ "$ctx" = docker ]; then
+            if [ "${1:-b}" = a ]; then
+                pm docker ps -q --no-trunc 2>/dev/null | sed 's/^/S|docker|/; s/$/|0|0|0|0|0B \/ 0B|0|0|0/'
+            else
+                pm docker stats --no-stream --no-trunc --format '{{.ID}}|{{.CPUPerc}}|{{.MemUsage}}|{{.NetIO}}|{{.BlockIO}}|{{.PIDs}}' 2>/dev/null |
+                    awk -F'|' "$docker_bytes"'{ c = $2; sub(/%/, "", c); split($3, m, " / "); split($5, b, " / ")
+                        printf "S|docker|%s|%.0f|100000000|%.0f|%.0f|%s|%.0f|%.0f|%s\n", $1, c * 1e6, db(m[1]), db(m[2]), $4, db(b[1]), db(b[2]), $6 }'
+            fi
+            continue
+        fi
         pm "$ctx" stats --no-stream --no-trunc --format '{{.ContainerStats.ContainerID}}|{{.ContainerStats.CPUNano}}|{{.ContainerStats.SystemNano}}|{{.ContainerStats.MemUsage}}|{{.ContainerStats.MemLimit}}|{{.NetIO}}|{{.ContainerStats.BlockInput}}|{{.ContainerStats.BlockOutput}}|{{.ContainerStats.PIDs}}' 2>/dev/null \
             | sed "s/^/S|$ctx|/"
     done
 }
 pod_stats_a=""
-[ ${#podman_ctx[@]} -gt 0 ] && pod_stats_a=$(podman_stats)
+[ ${#podman_ctx[@]} -gt 0 ] && pod_stats_a=$(podman_stats a)
 
 # ---------------------------------------------------------------- CPU
+lap cpu
 # CPU-gebruik over 2 seconden uit /proc/stat (idle = idle + iowait)
 read -r _ u1 n1 s1 i1 w1 q1 sq1 st1 _ < /proc/stat
 sleep 2
@@ -1370,12 +1418,14 @@ read -r l1 l5 l15 _ < /proc/loadavg
 cores=$(grep -c '^cpu[0-9]' /proc/stat)
 
 # ---------------------------------------------------------------- RAM
+lap ram
 # Geheugen uit /proc/meminfo (kB -> bytes)
 mem=$(awk '/^(MemTotal|MemAvailable|SwapTotal|SwapFree):/ { v[$1] = $2 * 1024 }
     END { printf "{\"total\":%.0f,\"avail\":%.0f,\"swap_total\":%.0f,\"swap_free\":%.0f}",
           v["MemTotal:"], v["MemAvailable:"], v["SwapTotal:"], v["SwapFree:"] }' /proc/meminfo)
 
 # ---------------------------------------------------------------- Poorten
+lap ports
 # Luisterende TCP-poorten (procesnamen alleen zichtbaar als root, niet in de HA-add-on)
 ports=""
 if command -v ss >/dev/null 2>&1; then
@@ -1414,6 +1464,7 @@ due_cached() {  # due_cached <bestand> <interval>: 0 = vorige uitkomst is nog ve
 svc_all=$(printf '%s\n' $SERVICES $rz_services | awk 'NF && !seen[$0]++' | tr '\n' ' ')
 
 # ---------------------------------------------------------------- Zelf herstellen (agent 1.62.0)
+lap heal
 # Per check in RzMon aan te zetten (✎ → 🩹 Zelf herstellen). Een service of container die niet draait, herstart de
 # agent hier, vóór het rapport: lukt dat, dan blijft de check in RzMon OK en komt er een ℹ️-melding; lukt het niet, dan
 # gaat de gewone melding uit. Een eigen herstelcommando (HEAL_DIR) start de agent alleen op verzoek van RzMon, in een
@@ -1462,6 +1513,7 @@ if [ "$HA_MODE" = 0 ] && [ "$HEAL" != 0 ] && [ "$TEST" != 1 ] && [ "$(id -u)" = 
 fi
 
 # ---------------------------------------------------------------- Services
+lap services
 services=""
 if [ "$HA_MODE" = 1 ]; then
     core_state=failed
@@ -1530,6 +1582,7 @@ if [ "$HA_MODE" = 1 ] && [ -n "$services" ]; then
 fi
 
 # ---------------------------------------------------------------- Home Assistant: back-up, integraties, systeemstatus
+lap ha
 # Elke 5 minuten opnieuw opgehaald (de lijst met entiteiten kan groot zijn). Alleen lezen.
 ha_json=""
 if [ "$HA_MODE" = 1 ]; then
@@ -1595,6 +1648,7 @@ ha_log_new() {  # ha_log_new <api-pad> <bestand met de laatst geziene regel>
 }
 
 # ---------------------------------------------------------------- Home Assistant: OS en containers
+lap ha_os
 # OS: herstart (boot-tijd), levensduur van de SD-kaart/eMMC, de A/B-bootslots (mislukte OS-update) en USB-apparaten.
 # Containers: Core, Supervisor, plugins en add-ons met CPU en RAM (statistieken van de Supervisor), gemeld zoals
 # Podman-containers, zodat dezelfde checks en weergave werken. Herstarts: overgangen tussen twee rapporten en de
@@ -1673,6 +1727,7 @@ if [ "$HA_MODE" = 1 ]; then
 fi
 
 # ---------------------------------------------------------------- Services: diepere controle
+lap svc_deep
 # Per service: systemd-details, de poorten van zijn processen (getest op deze server), een test
 # die bij de dienst past, fouten in het log van het laatste kwartier en een eventuele eigen test.
 svc_detail=""
@@ -1886,6 +1941,21 @@ if [ "$HA_MODE" = 0 ]; then
 fi
 
 # ---------------------------------------------------------------- Commando-checks
+lap commands
+# Agent 1.69.0: taak los van deze run uitvoeren (systemd-run als de agent als service draait, anders setsid)
+bg_launch() {  # bg_launch <script> <naam>
+    if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
+        systemd-run --quiet --collect --unit="$2-$(date +%s)" /bin/bash "$1" >/dev/null 2>&1
+    else
+        setsid bash "$1" </dev/null >/dev/null 2>&1 &
+    fi
+}
+cmd_state() {  # cmd_state <id> <rc> <ms> <als> <tijd>: uitvoer en exitcode als JSON in <id>.json
+    printf '{"rc":%d,"out":"%s","err":"%s","ms":%d,"as":"%s","at":%d}' "$2" \
+        "$(head -c 4096 "$c_dir/$1.out" 2>/dev/null | json_text)" "$(head -c 500 "$c_dir/$1.err" 2>/dev/null | json_text)" \
+        "$3" "$4" "$5" >"$c_dir/$1.json"
+    rm -f "$c_dir/$1.out" "$c_dir/$1.err"
+}
 # Regels "id <tab> cmd <tab> commando (base64) <tab> time-out <tab> nobody|root <tab> interval" uit RzMon.
 # Uitvoeren in een kale omgeving, met time-out, standaard als nobody; uitvoer en exitcode gaan naar RzMon,
 # dat ze vergelijkt met het verwachte antwoord. Volgens het interval van de check: tussendoor het vorige
@@ -1907,6 +1977,11 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tcmd\t' "$t_c
             nobody) c_runas=nobody ;;
         esac
         c_state="$c_dir/$c_id.json"
+        # Klaar op de achtergrond (agent 1.69.0): dat resultaat wordt nu het laatste
+        if [ -s "$c_dir/$c_id.done" ] && read -r d_rc d_ms d_at <"$c_dir/$c_id.done" && [[ "$d_rc$d_ms$d_at" =~ ^-?[0-9]+$ ]]; then
+            cmd_state "$c_id" "$d_rc" "$d_ms" "$c_runas" "$d_at"
+            rm -f "$c_dir/$c_id.done"
+        fi
         if [ -s "$c_state" ] && [ $(( $(date +%s) - $(stat -c %Y "$c_state") )) -lt $(( c_every - 5 )) ]; then
             cmd_results+="\"$c_id\":$(cat "$c_state"),"
             continue
@@ -1928,20 +2003,35 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tcmd\t' "$t_c
                 continue
             fi
         fi
+        # Agent 1.69.0: is er al een vorig resultaat, dan meet de agent opnieuw op de achtergrond en gaat nu het vorige mee.
+        # Een trage check houdt zo het rapport niet meer op (en de agent is nooit "stil" door een commando).
+        if [ -s "$c_state" ] && [ "$TEST" != 1 ]; then
+            if ! { [ -f "$c_dir/$c_id.lock" ] && [ $(( $(date +%s) - $(stat -c %Y "$c_dir/$c_id.lock") )) -lt $(( c_timeout + 60 )) ]; }; then
+                : >"$c_dir/$c_id.lock"
+                (umask 077; {
+                    printf 'cd / || exit 1\nt0=$(date +%%s%%N)\n'
+                    printf 'env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/ LANG=C.UTF-8 %s timeout -k 2 %d /bin/bash -c %q </dev/null >%q 2>%q\n' \
+                        "$( [ ${#c_run[@]} -gt 0 ] && printf '%q ' "${c_run[@]}")" "$c_timeout" "$c_cmd" "$c_dir/$c_id.out" "$c_dir/$c_id.err"
+                    printf 'rc=$?\nprintf "%%s %%s %%s\\n" "$rc" "$(( ($(date +%%s%%N) - t0) / 1000000 ))" "$(date +%%s)" >%q && mv -f %q %q\nrm -f %q\n' \
+                        "$c_dir/$c_id.done.tmp" "$c_dir/$c_id.done.tmp" "$c_dir/$c_id.done" "$c_dir/$c_id.lock"
+                } >"$c_dir/$c_id.job") || rm -f "$c_dir/$c_id.lock"
+                bg_launch "$c_dir/$c_id.job" "rzmon-cmd-$c_id" || rm -f "$c_dir/$c_id.lock"
+            fi
+            cmd_results+="\"$c_id\":$(cat "$c_state"),"
+            continue
+        fi
         c_t0=$(date +%s%N)
         (cd / && env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/ LANG=C.UTF-8 \
             "${c_run[@]}" timeout -k 2 "$c_timeout" /bin/bash -c "$c_cmd") </dev/null >"$c_dir/$c_id.out" 2>"$c_dir/$c_id.err"
         c_rc=$?
         c_ms=$(( ($(date +%s%N) - c_t0) / 1000000 ))
-        printf '{"rc":%d,"out":"%s","err":"%s","ms":%d,"as":"%s","at":%d}' "$c_rc" \
-            "$(head -c 4096 "$c_dir/$c_id.out" | json_text)" "$(head -c 500 "$c_dir/$c_id.err" | json_text)" \
-            "$c_ms" "$c_runas" "$(date +%s)" >"$c_state"
-        rm -f "$c_dir/$c_id.out" "$c_dir/$c_id.err"
+        cmd_state "$c_id" "$c_rc" "$c_ms" "$c_runas" "$(date +%s)"
         cmd_results+="\"$c_id\":$(cat "$c_state"),"
     done <"$t_cache"
 fi
 
 # ---------------------------------------------------------------- Logbestanden doorzoeken
+lap logs
 # Per zoekopdracht (ingesteld in RzMon): alleen de nieuwe regels sinds de vorige keer lezen,
 # tellen hoeveel er op het patroon passen, en de laatste 5 treffers en de IP-adressen meesturen.
 # Bron: een logbestand (binnen LOG_DIRS), "journal", "journal:<service>" of "kernel".
@@ -2044,6 +2134,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_cache"; then
 fi
 
 # ---------------------------------------------------------------- Logins, sudo en su
+lap logins
 # Als RzMon erom vraagt (regel "0 <tab> auth <tab> 1"): de nieuwe regels van het auth-log sinds de vorige
 # keer (journal, anders /var/log/secure of /var/log/auth.log). Geslaagde logins (SSH, console), sudo en su
 # gaan als losse gebeurtenissen naar RzMon; mislukte pogingen worden per soort/IP/gebruiker opgeteld.
@@ -2158,6 +2249,7 @@ if [ "$HA_MODE" = 0 ] && [ "$AUTH_EVENTS" != 0 ] && [ -r "${t_cache-}" ] && grep
 fi
 
 # ---------------------------------------------------------------- IDS (intrusion detection)
+lap ids
 # Als RzMon erom vraagt (regel "0 <tab> ids <tab> learn|block"): wat RzMon nodig heeft om afwijkingen te zien.
 # Vergelijken gebeurt in RzMon (daar staat de basismeting, buiten bereik van een aanvaller op deze server).
 #  - gevoelige bestanden (SHA-256), gebruikers, kernelmodules, verdachte processen, verdachte verbindingen
@@ -2549,6 +2641,7 @@ if [ -n "$ids_json" ]; then
 fi
 
 # ---------------------------------------------------------------- Logs van webdiensten (agent 1.58.0)
+lap weblogs
 # Regels "0 <tab> weblog <tab> swag|ha|vw <tab> pad, containernaam of auto" (RzMon 1.89.0). Alleen de nieuwe regels sinds
 # de vorige keer; per IP samengevat (aantallen, een paar paden met een foutcode, scanner); RzMon past de scenario's toe.
 # SWAG: de access-log van nginx. Home Assistant: "invalid authentication". Vaultwarden: "Username or password is incorrect".
@@ -2660,6 +2753,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
 fi
 
 # ---------------------------------------------------------------- Endpoint-bewaking: regels, wachtrij en stand (agent 1.63.0)
+lap edr
 # auditd-regels (sleutels rzmon_*) zetten zolang het in RzMon aan staat, en weghalen als het uit gaat. Ze staan alleen
 # in de kernel (auditctl), niet in /etc/audit: na een herstart zet de eerstvolgende run ze terug. De wachtrij van de
 # watcher gaat mee met het rapport (hooguit 500 per keer; wat niet aankomt, blijft voor de volgende keer).
@@ -2741,6 +2835,7 @@ elif [ "$edr_want" = 0 ] && [ "$(id -u)" = 0 ] && [ "$HA_MODE" = 0 ]; then
 fi
 
 # ---------------------------------------------------------------- Isoleren en gebruiker uitzetten (agent 1.57.0)
+lap isolate
 # "0 <tab> isolate <tab> tot (epoch) <tab> toegestane netwerken": alleen nog verkeer met RzMon, je LAN en het IP van de
 # beheerder; al het andere (in, uit en containers) wordt tegengehouden. Eigen tabel "inet rzmon_iso". Vervalt vanzelf
 # op de tijd, ook als RzMon onbereikbaar is (zo sluit je jezelf nooit voorgoed buiten).
@@ -2805,11 +2900,34 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && [ "$(id -u)" = 0 ]; then
 fi
 
 # ---------------------------------------------------------------- Podman: containers, pods en opslag
+lap containers
 # Per context: versie, containers (status, health, herstarts, grootte, volumes), pods en opslag.
 # Volumegroottes (du) worden een uur bewaard: die kunnen groot zijn en veranderen langzaam.
 podman_json=""
+# Agent 1.69.0: Docker in dezelfde regels als Podman (V versie, C containers, P compose-projecten als pods, D opslag, M volumes)
+docker_lines() {
+    local ver ids
+    ver=$(pm docker version --format '{{.Server.Version}}' 2>/dev/null) || { printf 'E|docker|%s\n' "docker gaf geen antwoord"; return; }
+    printf 'V|docker|docker %s\n' "$ver"
+    ids=$(pm docker ps -aq --no-trunc 2>/dev/null)
+    [ -n "$ids" ] || return
+    # shellcheck disable=SC2086
+    declare -A d_ins=()
+    while IFS='|' read -r d_id d_exit d_rest d_start d_vols; do
+        d_ins[$d_id]="$d_exit|$d_rest|$(date -d "$d_start" +%s 2>/dev/null || echo 0)"
+        printf 'M|docker|%s|%s\n' "$d_id" "$d_vols"
+    done < <(pm docker inspect --format '{{.Id}}|{{.State.ExitCode}}|{{.RestartCount}}|{{.State.StartedAt}}|{{range .Mounts}}{{if eq .Type "volume"}}{{.Source}};{{end}}{{end}}' $ids 2>/dev/null)
+    while IFS='|' read -r d_id d_name d_img d_state d_status d_proj d_size; do
+        IFS='|' read -r d_exit d_rest d_start <<<"${d_ins[$d_id]:-0|0|0}"
+        printf 'C|docker|%s|%s|%s|%s|%s|%s|%s|%s|false|%s|%s\n' "$d_id" "$d_name" "$d_img" "$d_state" "$d_status" "$d_exit" "$d_rest" "$d_proj" "$d_start" "$d_size"
+    done < <(pm docker ps -a --size --no-trunc --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Label "com.docker.compose.project"}}|{{.Size}}' 2>/dev/null)
+    pm docker ps -a --format '{{.Label "com.docker.compose.project"}}|{{.State}}' 2>/dev/null | awk -F'|' '$1 != "" { n[$1]++; if ($2 == "running") r[$1]++ }
+        END { for (p in n) printf "P|docker|%s|%s|%d\n", p, (r[p] == n[p] ? "Running" : r[p] ? "Degraded" : "Exited"), n[p] }'
+    pm docker system df --format '{{.Type}}|{{.Size}}|{{.Reclaimable}}|{{.TotalCount}}|{{.Active}}' 2>/dev/null |
+        awk -F'|' "$docker_bytes"'{ printf "D|docker|%s|%.0f|%.0f|%s|%s\n", $1, db($2), db($3), $4, $5 }'
+}
 if [ ${#podman_ctx[@]} -gt 0 ]; then
-    pod_stats_b=$(podman_stats)
+    pod_stats_b=$(podman_stats b)
     vol_cache_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
     mkdir -p "$vol_cache_dir" 2>/dev/null && [ -w "$vol_cache_dir" ] || vol_cache_dir="${TMPDIR:-/tmp}"
     vol_cache="$vol_cache_dir/volumes.cache"
@@ -2818,6 +2936,10 @@ if [ ${#podman_ctx[@]} -gt 0 ]; then
         printf '%s\n' "$pod_stats_a" | sed 's/^S|/A|/'
         printf '%s\n' "$pod_stats_b" | sed 's/^S|/B|/'
         for ctx in "${podman_ctx[@]}"; do
+            if [ "$ctx" = docker ]; then
+                docker_lines
+                continue
+            fi
             if ! ver=$(pm "$ctx" version --format '{{.Client.Version}}' 2>/dev/null); then
                 # Podman zet waarschuwingen vóór de echte fout; die echte fout is wat telt
                 out=$(pm "$ctx" version 2>&1); rc=$?
@@ -2905,6 +3027,7 @@ if [ ${#podman_ctx[@]} -gt 0 ]; then
 fi
 
 # ---------------------------------------------------------------- Proxmox VE (agent 1.61.0)
+lap proxmox
 # Alleen op een Proxmox-host, als root: guests (VM's en containers), opslag, ZFS-pools, de cluster, back-ups per guest en de
 # back-uptaken. pvesh geeft JSON; dat gaat ongewijzigd mee (RzMon leest het), dus jq is niet nodig.
 # Guests en opslag elke 2 minuten, back-ups en taken elk kwartier. PVE=0 in de instellingen zet het uit.
@@ -2972,6 +3095,7 @@ if [ "$HA_MODE" = 0 ] && [ "${PVE:-1}" != 0 ] && command -v pvesh >/dev/null 2>&
 fi
 
 # ---------------------------------------------------------------- Certificaten
+lap certs
 # Per bron: onderwerp (CN), uitgever, vervaldatum (epoch) en of het certificaat vertrouwd wordt.
 # RzMon rekent zelf het aantal dagen uit, dus een uur oude gegevens zijn geen probleem.
 cert_line() {  # bron cn uitgever not_after verify fout [aantal in de keten, eerste vervaldatum in de keten, cn daarvan]
@@ -3079,6 +3203,7 @@ if [ -n "$cert_list" ]; then
 fi
 
 # ---------------------------------------------------------------- Certificaten zoeken (1.59.0)
+lap cert_search
 # Bestanden met een certificaat in de mappen van CERT_DIRS (plus de mappen die je in RzMon opgeeft), om in RzMon
 # uit te kiezen. Eén keer per dag, of meteen als RzMon erom vraagt (regel "0 <tab> certscan <tab> teller").
 # Overgeslagen: de CA-lijsten van het systeem en van programmeertalen (Python, Ruby), testmappen, CA-bundels (meer dan
@@ -3117,6 +3242,7 @@ if [ "$TEST" != 1 ] && command -v openssl >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------- Processen (1.59.0)
+lap procs
 # Proces-checks uit RzMon: "id <tab> proc <tab> name|pattern <tab> naam of patroon (base64) <tab> gebruiker".
 # Per check: aantal, PID's, CPU (%), geheugen (kB) en wanneer het oudste proces startte (om een herstart te zien).
 # Plus een lijst van wat er draait (zonder kernelprocessen), om in RzMon uit te kiezen.
@@ -3155,6 +3281,7 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ]; then
 fi
 
 # ---------------------------------------------------------------- Software (Kwetsbaarheden in RzMon)
+lap software
 # Geïnstalleerde pakketten met de distributie: RzMon zoekt er de bekende kwetsbaarheden (CVE's) bij.
 # De hele lijst één keer per dag, of eerder als de pakketdatabase verandert; anders alleen het controlegetal.
 pkgs_json=""; pk_hash=""; pk_mgr=""
@@ -3358,6 +3485,7 @@ $script"   # versleutelen kan het script dan zelf
 }
 
 # ---------------------------------------------------------------- Bijwerken op afstand
+lap update
 # Kan deze agent zichzelf bijwerken, en hoe? Gestart door systemd (afgeschermd: /usr is alleen-lezen)
 # → via systemd-run als aparte taak; via cron of met de hand → direct.
 upd_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
@@ -3425,6 +3553,7 @@ remote_update() {  # remote_update <antwoord van RzMon>
 }
 
 # ---------------------------------------------------------------- Benodigdheden voor realtime (elk uur)
+lap rt_tools
 # Is inotify-tools er (bestanden in realtime), en op Rocky/Alma/RHEL: staat EPEL erop? RzMon toont het in de Agent Manager.
 tools_json=""
 if [ "$HA_MODE" = 0 ] && [ -n "${INVOCATION_ID-}" ]; then   # alleen met systemd (realtime werkt niet via cron)
@@ -3443,6 +3572,7 @@ if [ "$HA_MODE" = 0 ] && [ -n "${INVOCATION_ID-}" ]; then   # alleen met systemd
 fi
 
 # ---------------------------------------------------------------- Realtime-watcher: status
+lap rt_status
 # state (active/off) <spatie> sinds <spatie> systemlog (ok/-) <spatie> bestanden (ok/missing/-), van de watcher zelf
 rt_json=""
 rt_line=""
@@ -3454,6 +3584,7 @@ if [ -n "$rt_line" ]; then
 fi
 
 # ---------------------------------------------------------------- Heartbeats meesturen (rzmon-hb)
+lap heartbeats
 # Alleen regels in precies de vorm die rzmon-hb schrijft (iedereen mag in de map schrijven); oudste eerst, hooguit 100
 hb_json=""; hb_files=()
 if [ -d "$hb_dir" ]; then
@@ -3476,6 +3607,7 @@ elif [ "$(id -u)" = 0 ] && [ "$HA_MODE" != 1 ]; then
 fi
 
 # ---------------------------------------------------------------- Zelf herstellen en waakhond: meesturen
+lap heal_report
 # Uitkomsten van herstelpogingen (weg na een geslaagd rapport), de herstelcommando's die hier staan, en een periode
 # waarin de waakhond RzMon niet bereikte
 heal_json=""; heal_cmds=""
@@ -3494,12 +3626,26 @@ wd_gap=""
 [ -s "$wd_file.gap" ] && wd_gap=$(grep -E '^\{"down":[0-9]+,"up":[0-9]+,"sent":[01],"self":[01]\}$' "$wd_file.gap" | head -n 1)
 
 # ---------------------------------------------------------------- Versturen
+lap ""
+[ -n "$beat_pid" ] && kill "$beat_pid" 2>/dev/null   # het echte rapport gaat nu; geen hartslag meer nodig
 # Opstarttijd (epoch) voor de check Herstart in RzMon
 read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
 # Wat er naast de vaste onderdelen meegaat, voor --status (1.60.0)
 parts="processen=$(grep -o '\["' <<<"$proc_list" | wc -l) certificaatbestanden=$(grep -o '"path"' <<<"$cert_found" | wc -l) softwarelijst=$( [ -n "$pkgs_json" ] && echo ja || echo ongewijzigd) heartbeats=${#hb_files[@]} ids=$( [ -n "$ids_json" ] && echo ja || echo nee)"
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}}"
+# Agent 1.69.0: wat deze agent hier kan (RzMon toont het in de Agent Manager en kiest er checks bij)
+caps=""
+for c_tool in podman docker zpool smartctl nvme auditctl nft upsc chronyc timedatectl systemctl apt-get dnf apk pveversion; do
+    command -v "$c_tool" >/dev/null 2>&1 && caps+="\"$c_tool\","
+done
+# Wachtrij (store-and-forward): metingen van rapporten die niet aankwamen gaan met dit rapport mee (hooguit 120)
+q_file="$k_dir/queue.jsonl"; q_sent=0; backlog=""
+if [ -s "$q_file" ]; then
+    backlog=$(head -n 120 "$q_file" | grep '^{"t":[0-9]' | paste -sd, -)
+    q_sent=$(head -n 120 "$q_file" | wc -l)
+fi
+run_ms=$(( $(now_ms) - run_t0 ))
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
 # Agent 1.66.1: 50 seconden wachten op RzMon (was 20): een druk bezette RzMon verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit
@@ -3508,7 +3654,7 @@ curl_opts=(-fsS -m "$REPORT_WAIT" -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
 # wordt curl met een lang argument stil afgebroken en komt er niets aan.
 payload_file=$(mktemp "${TMPDIR:-/tmp}/rzmon-report.XXXXXX") || { echo "Kan geen tijdelijk bestand maken" >&2; exit 1; }
-trap 'rm -f "$payload_file" "$payload_file.enc" "$payload_file.u"' EXIT
+trap 'rm -f "$payload_file" "$payload_file.enc" "$payload_file.u"; [ -n "$beat_pid" ] && kill "$beat_pid" 2>/dev/null' EXIT
 printf '%s' "$payload" >"$payload_file"
 # Alleen geldige UTF-8 versturen (1.59.1): een afgeknipt teken (mawk knipt op bytes) maakte het hele rapport onleesbaar
 if command -v iconv >/dev/null 2>&1; then
@@ -3691,6 +3837,15 @@ if mkdir -p "$st_dir" 2>/dev/null && [ -w "$st_dir" ]; then
     if [ "$rc" = 0 ] && [[ "$resp" =~ \"sec\":\[([^]]*)\] ]]; then
         grep -o '"[^"]*"' <<<"${BASH_REMATCH[1]}" | sed 's/^"//; s/"$//; s#\\/#/#g' >"$st_dir/sec" 2>/dev/null
     fi
+fi
+# Agent 1.69.0: wachtrij bijwerken. Gelukt: wat meeging eraf. Mislukt: de metingen van nu erbij (CPU, RAM, disks), zodat
+# de grafieken in RzMon later toch compleet zijn. Hooguit 2880 regels (een dag bij een tik van 30 s), de oudste gaan eruit.
+if [ "$rc" = 0 ] && [ "$q_sent" -gt 0 ]; then
+    tail -n +"$(( q_sent + 1 ))" "$q_file" >"$q_file.tmp" 2>/dev/null && mv -f "$q_file.tmp" "$q_file"
+    [ -s "$q_file" ] || rm -f "$q_file"
+elif [ "$rc" != 0 ] && [ -d "$k_dir" ]; then
+    (umask 077; printf '{"t":%s,"cpu":%s,"mem":%s,"disks":[%s]}\n' "$(date +%s)" "$cpu_pct" "$mem" "${disks%,}" >>"$q_file") 2>/dev/null
+    [ "$(wc -l <"$q_file" 2>/dev/null || echo 0)" -gt 2880 ] && { tail -n 2880 "$q_file" >"$q_file.tmp" && mv -f "$q_file.tmp" "$q_file"; }
 fi
 # Uitvoer (komt in het logboek): zonder sleutels
 sed -E 's/"(agent_key|enc_key)":"[0-9a-f]{64}"/"\1":"…"/g' <<<"$resp"
