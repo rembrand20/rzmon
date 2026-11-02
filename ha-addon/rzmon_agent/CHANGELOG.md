@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.72.0 – 2026-11-02
+- **Waakhond via ntfy** (RzMon 1.140.0): staat ntfy aan in RzMon, dan stuurt de waakhond zijn bericht ook (of alleen) naar ntfy als RzMon onbereikbaar is of de checks stilstaan. De gegevens komen, net als bij Pushover, alleen versleuteld van RzMon.
+
 ## 1.71.0 – 2026-11-02
 - **Ondertekende updates** (RzMon 1.139.0): in de agent staat de publieke sleutel van de ontwikkelaar. Bij bijwerken controleert de agent de handtekening van de nieuwe agent en het installatiescript (gemaakt in GitHub); klopt die niet of ontbreekt hij, dan wordt er niet bijgewerkt. Ook `rzmon-agent-setup` controleert hem. Met OpenSSL ouder dan 3.0 kan het niet; dan geldt alleen het controlegetal (en meldt de agent dat). `UPDATE_UNSIGNED=1` zet het uit (niet aangeraden).
 

@@ -261,11 +261,11 @@ final class Security
                 $mail = $hook = null;
                 $err = [];
                 $base = rtrim((string) config('base_url', ''), '/');
-                if ($c['pushover'] && setting('pushover_enabled', '0') === '1') {
-                    $r = Pushover::send($title, $msg . "\n" . date('d-m-Y H:i:s'), (int) $c['prio'], null, null,
+                if ($c['pushover'] && Push::enabled()) {
+                    $r = Push::send($title, $msg . "\n" . date('d-m-Y H:i:s'), (int) $c['prio'],
                         $base !== '' ? ['url' => "$base/#alerts", 'url_title' => t('Open RzMon')] : []);
                     $sent = $r['ok'];
-                    $r['ok'] || $err[] = 'Pushover: ' . $r['error'];
+                    $r['error'] && $err[] = $r['error'];
                 }
                 if ($c['email'] && setting('email_enabled', '0') === '1') {
                     $r = Mailer::send($title, $msg . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzMon: $base/" : ''));

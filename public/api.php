@@ -1931,11 +1931,11 @@ switch ($action) {
         $add = static function (string $key, string $st, string $title, string $detail, string $section, array $extra = []) use (&$items) {
             $items[] = ['key' => $key, 'status' => $st, 'title' => $title, 'detail' => $detail, 'section' => $section] + $extra;
         };
-        $po = setting('pushover_enabled', '0') === '1' && setting('pushover_user', '') !== '' && setting('pushover_token', '') !== '';
+        $po = Push::names();
         $mail = setting('email_enabled', '0') === '1' && setting('smtp_host', '') !== '' && setting('mail_to', '') !== '';
-        $add('channels', $po || $mail ? 'ok' : 'bad', t('Meldkanaal'), $po || $mail
-            ? implode(' + ', array_filter([$po ? 'Pushover' : '', $mail ? t('e-mail') : '']))
-            : t('Pushover en e-mail staan uit: storingen zie je alleen op het dashboard'), 'channels');
+        $add('channels', $po !== '' || $mail ? 'ok' : 'bad', t('Meldkanaal'), $po !== '' || $mail
+            ? implode(' + ', array_filter([$po, $mail ? t('e-mail') : '']))
+            : t('Pushover, ntfy en e-mail staan uit: storingen zie je alleen op het dashboard'), 'channels');
         $last = Backup::list()[0]['at'] ?? '';
         $age = $last !== '' ? (time() - strtotime($last)) / 86400 : null;
         $auto = setting('backup_freq', 'off') !== 'off';
@@ -2590,7 +2590,7 @@ switch ($action) {
              'realtime' => ['on' => (bool) $h['realtime'], 'status' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'realtime'", [$id])->fetchColumn(), true),
                  'tools' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'tools'", [$id])->fetchColumn(), true)],
              'watchdog' => ['on' => (bool) $h['watchdog'], 'min' => (int) ($h['watchdog_min'] ?: 5), 'enc' => (bool) $h['enc_seen'],
-                 'pushover' => setting('pushover_enabled', '0') === '1' && setting('pushover_user', '') !== '' && setting('pushover_token', '') !== ''],
+                 'pushover' => Push::names() !== '', 'push' => Push::names()],
              'heal_cmds' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'heal_cmds'", [$id])->fetchColumn(), true) ?: []]);
 
     case 'podman':
@@ -2856,6 +2856,7 @@ switch ($action) {
         $title = '🧪 RzMon: ' . t('test van de meldketen');
         $body = t('Als je dit ziet, werkt dit kanaal. Verstuurd op {time}.', ['time' => date('d-m-Y H:i:s')]);
         $res['pushover'] = setting('pushover_enabled', '0') === '1' ? Pushover::send($title, $body, 0) : null;
+        $res['ntfy'] = setting('ntfy_enabled', '0') === '1' ? Ntfy::send($title, $body, 0) : null;
         $res['email'] = setting('email_enabled', '0') === '1' ? Mailer::send($title, $body) : null;
         if (setting('ha_webhook_enabled', '0') === '1') {
             $fake = ['id' => 0, 'hid' => 0, 'host_name' => 'RzMon', 'name' => t('Testmelding'), 'type' => 'ping', 'target' => ''];
@@ -3033,7 +3034,7 @@ switch ($action) {
             $in['sysinfo'] = json_encode(NotifyRules::cleanSysinfo((array) json_decode((string) $in['sysinfo'], true), NotifyRules::sysinfo()));
         }
         $allowed = ['sysinfo', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'cert_dirs', 'retention_days', 'alerts_days', 'hourly_days', 'daily_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden', 'weblog_swag', 'weblog_swag_path', 'weblog_ha', 'weblog_ha_path', 'weblog_vw', 'weblog_vw_path', 'weblog_block', 'wl_paths', 'wl_ua', 'wl_404', 'wl_404_n', 'wl_auth', 'wl_auth_n', 'wl_nohost', 'wl_nohost_n', 'wl_ha_n', 'wl_vw_n', 'wl_minutes',
+            'pushover_sound', 'ntfy_enabled', 'ntfy_server', 'ntfy_topic', 'ntfy_token', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'cert_dirs', 'retention_days', 'alerts_days', 'hourly_days', 'daily_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden', 'weblog_swag', 'weblog_swag_path', 'weblog_ha', 'weblog_ha_path', 'weblog_vw', 'weblog_vw_path', 'weblog_block', 'wl_paths', 'wl_ua', 'wl_404', 'wl_404_n', 'wl_auth', 'wl_auth_n', 'wl_nohost', 'wl_nohost_n', 'wl_ha_n', 'wl_vw_n', 'wl_minutes',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -3275,6 +3276,16 @@ switch ($action) {
             ? (string) setting('pushover_token', '') : (string) $in['pushover_token'];
         $res = Pushover::send('🧪 RzMon test', t('Als je dit leest werkt Pushover! 🎉'), 0,
             trim((string) ($in['pushover_user'] ?? '')) ?: null, $token ?: null);
+        out($res, $res['ok'] ? 200 : 422);
+
+    case 'ntfy_test':
+        // Test met de (nog niet opgeslagen) waarden uit het formulier; een gemaskeerd token = het opgeslagen token
+        $in = input();
+        $tok = (string) ($in['ntfy_token'] ?? '');
+        session_write_close();
+        $res = Ntfy::send('🧪 RzMon test', t('Als je dit leest werkt ntfy! 🎉'), 0, [], [
+            'server' => (string) ($in['ntfy_server'] ?? ''), 'topic' => (string) ($in['ntfy_topic'] ?? ''),
+            'token' => $tok === '••••••••' ? (string) setting('ntfy_token', '') : trim($tok)]);
         out($res, $res['ok'] ? 200 : 422);
 
     case 'access_info':

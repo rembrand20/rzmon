@@ -1072,13 +1072,13 @@ final class Ids
     {
         $sent = null;
         $err = '';
-        if (setting('pushover_enabled', '0') === '1') {
+        if (Push::enabled()) {
             $base = rtrim((string) config('base_url', ''), '/');
             $prio = $status === STATUS_CRIT ? min(1, (int) setting('pushover_priority_crit', 1)) : min(1, (int) setting('pushover_priority_warn', 0));
-            $r = Pushover::send("🛡️ IDS: $title", $detail . "\n" . date('d-m-Y H:i:s'), $prio, null, null,
+            $r = Push::send("🛡️ IDS: $title", $detail . "\n" . date('d-m-Y H:i:s'), $prio,
                 $base !== '' ? ['url' => "$base/#ids", 'url_title' => 'Open IDS'] : []);
             $sent = $r['ok'];
-            $err = $r['ok'] ? '' : ' [' . t('niet verzonden') . ': Pushover: ' . $r['error'] . ']';
+            $err = $r['error'] ? ' [' . t('niet verzonden') . ': ' . $r['error'] . ']' : '';
         }
         q("INSERT INTO alerts (check_id, status, title, message, sent_ok, kind) VALUES (NULL, ?, ?, ?, ?, 'ids')",
             [$status, mb_substr("🛡️ IDS: $title", 0, 250), mb_substr($detail . $err, 0, 1000), $sent ? 1 : 0]);
@@ -1221,9 +1221,9 @@ final class Ids
             $r = Mailer::send($subject, $body);
             $out[] = 'e-mail ' . ($r['ok'] ? 'ok' : $r['error']);
         }
-        if (in_array($via, ['pushover', 'both'], true) && setting('pushover_enabled', '0') === '1') {
-            $r = Pushover::send($subject, $short, -1);
-            $out[] = 'Pushover ' . ($r['ok'] ? 'ok' : $r['error']);
+        if (in_array($via, ['pushover', 'both'], true) && Push::enabled()) {
+            $r = Push::send($subject, $short, -1);
+            $out[] = 'push ' . ($r['ok'] ? 'ok' : $r['error']);
         }
         return 'IDS-weekoverzicht: ' . (implode(', ', $out) ?: 'geen kanaal aan');
     }

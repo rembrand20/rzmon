@@ -511,6 +511,17 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="pushover-test"><?= th('📲 Testbericht sturen') ?></button>
         </div>
 
+        <div data-sk="ntfy" class="card">
+          <h2>ntfy</h2>
+          <p class="muted small"><?= t('Gratis pushmeldingen via <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy.sh</a> of je eigen ntfy-server. Installeer de ntfy-app, abonneer je op het onderwerp hieronder en kies een lange, moeilijk te raden naam (iedereen die hem kent kan meelezen op ntfy.sh). Werkt naast of in plaats van Pushover.') ?></p>
+          <label class="switch"><input type="checkbox" name="ntfy_enabled"><span></span> <?= th('ntfy meldingen aan') ?></label>
+          <label><?= th('Server') ?><input name="ntfy_server" placeholder="https://ntfy.sh" autocomplete="off" spellcheck="false"></label>
+          <label><?= th('Onderwerp (topic)') ?><input name="ntfy_topic" placeholder="rzmon-…" autocomplete="off" spellcheck="false" pattern="[A-Za-z0-9_\-]{1,64}"></label>
+          <label><?= th('Toegangstoken of gebruiker:wachtwoord') ?> <span class="muted small"><?= th('(leeg = zonder inloggen)') ?></span><input name="ntfy_token" autocomplete="off" spellcheck="false"></label>
+          <p class="muted small"><?= th('Prioriteit volgt de instelling bij Pushover (Geavanceerd): normaal = 3, hoog = 4, emergency = 5. Bij een storing zit er een knop ✔ Bevestigen onder het bericht.') ?></p>
+          <button type="button" class="btn" id="ntfy-test"><?= th('📲 Testbericht sturen') ?></button>
+        </div>
+
         <div data-sk="notify" class="card notify-card">
           <h2><?= th('🔔 Meldingen') ?></h2>
           <p class="muted small"><?= t('Per status: <b>nooit</b>, <b>direct</b>, of pas <b>na X minuten</b> onafgebroken in die status. Herstelt het eerder, dan komt er geen melding. Hersteld: pas melden als het X minuten goed blijft. Per check kun je dit aanpassen (✎ → Meldingen).') ?></p>

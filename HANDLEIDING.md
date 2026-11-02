@@ -616,12 +616,28 @@ RzMon is er in het **Nederlands** en het **Engels**. Bovenaan *Instellingen* sta
 | Prioriteit warning | Normaal (0) | |
 | Geluid | (standaard) | Bijvoorbeeld `siren`, `alien`, `pushover` of `none` |
 
+### 6.1b ntfy koppelen 📣 (vanaf 1.140.0)
+[ntfy](https://ntfy.sh) is een gratis alternatief voor Pushover. Je kunt het naast Pushover gebruiken of in plaats ervan.
+1. Installeer de **ntfy**-app (iOS of Android).
+2. Bedenk een **onderwerp** (*topic*): een lange naam die moeilijk te raden is, bijvoorbeeld `rzmon-k7f2q9x`. Op ntfy.sh kan iedereen die de naam kent meelezen. Gebruik alleen letters, cijfers, `-` en `_`.
+3. Abonneer je in de app op dat onderwerp (bij een eigen server: vul ook het adres van je server in).
+4. In RzMon: **Instellingen → Meldingen → Kanalen → ntfy**:
+   - zet *ntfy meldingen aan* aan;
+   - **Server**: `https://ntfy.sh` of het adres van je eigen ntfy-server;
+   - **Onderwerp**: de naam uit stap 2;
+   - **Toegangstoken of gebruiker:wachtwoord**: alleen nodig als je server inloggen vraagt (een token begint met `tk_`);
+   - klik op **📲 Testbericht sturen**.
+
+De prioriteit volgt de instelling bij Pushover (*Geavanceerd*): stil = 2, normaal = 3, hoog = 4, emergency = 5. Bij een storing zit er een knop **✔ Bevestigen** onder het bericht, en tikken op het bericht opent RzMon.
+
+In de meldregels (6.2) en bij *Systeemmeldingen* heet het kanaal **📲 Push**: dat gaat naar Pushover en/of ntfy, wat aan staat. Lukt één van de twee, dan telt de melding als verstuurd; lukt de ander niet, dan staat dat bij de melding. De **🐕 waakhond** stuurt vanaf agent 1.72.0 ook naar ntfy.
+
 ### 6.2 Meldingen 🔔
 In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waarheen** een melding gaat:
 
 | Status | Melden | Herhalen | Kanalen |
 |---|---|---|---|
-| 🟠 Warning | Nooit, Direct, of Na X minuten | Elke Y minuten (0 = nooit) | Pushover / E-mail / Home Assistant |
+| 🟠 Warning | Nooit, Direct, of Na X minuten | Elke Y minuten (0 = nooit) | Push (Pushover/ntfy) / E-mail / Home Assistant |
 | 🔴 Critical | idem | idem | idem |
 | ⚪ Onbekend | idem; plus de schakelaar **Melden bij ONBEKEND** | idem | idem |
 | ✅ Hersteld | Nooit, Direct, of Na X minuten OK | – | idem |
@@ -2452,10 +2468,10 @@ Een rapport mag nooit worden opgehouden door één traag onderdeel, en een agent
 - **Wat is traag?** In de Agent Manager staat bij elke server *⏱ Laatste run*: hoe lang de run duurde en de traagste onderdelen. Daaronder staat wat de agent op die server kan (podman, docker, zpool, smartctl, nft …).
 
 Valt RzMon zelf uit, dan krijg je van RzMon niets meer, en denk je dat alles goed is. Daarom kan een agent **RzMon bewaken**: zet in de **Agent Manager** van een server *🐕 Waakhond* aan (bij 1 of 2 servers is genoeg; elke waakhond stuurt zijn eigen bericht) en kies na hoeveel minuten (standaard 5).
-- Lukt het rapport aan RzMon zo lang niet, dan stuurt de agent **zelf** een Pushover-bericht (*⚠️ RzMon onbereikbaar*, met de prioriteit van je critical-meldingen), en een herstelbericht als RzMon terug is.
-- **Ligt het aan de server zelf?** Kan de agent ook Pushover niet bereiken, dan lag het aan zijn eigen netwerk: dan geen bericht. Als RzMon terug is, krijg je daar een ℹ️-melding van (*Systeeminfo → Waakhond*): hoe lang het duurde en of het gemeld is.
+- Lukt het rapport aan RzMon zo lang niet, dan stuurt de agent **zelf** een pushbericht via Pushover en/of ntfy (*⚠️ RzMon onbereikbaar*, met de prioriteit van je critical-meldingen), en een herstelbericht als RzMon terug is.
+- **Ligt het aan de server zelf?** Kan de agent ook Pushover en ntfy niet bereiken, dan lag het aan zijn eigen netwerk: dan geen bericht. Als RzMon terug is, krijg je daar een ℹ️-melding van (*Systeeminfo → Waakhond*): hoe lang het duurde en of het gemeld is.
 - **RzMon draait, maar de checks staan stil** (de cron loopt niet): RzMon geeft bij elk rapport mee wanneer de checks voor het laatst draaiden; is dat langer geleden dan je ingestelde tijd, dan meldt de waakhond ook dat (*⚠️ RzMon: checks staan stil*), en weer als ze draaien.
-- **Nodig**: Pushover aan (*Meldingen → Kanalen*) en een **versleutelde verbinding** (koppelcode): de Pushover-gegevens gaan naar de agent, en staan daar in de cache die alleen root kan lezen. Met `WATCHDOG=0` in `/etc/default/rzmon-agent` doet die server nooit mee. Een Pushover-compatibele dienst gebruiken? Zet `PUSHOVER_API` (standaard `https://api.pushover.net/1/messages.json`).
+- **Nodig**: Pushover of ntfy aan (*Meldingen → Kanalen*; ntfy vanaf agent 1.72.0) en een **versleutelde verbinding** (koppelcode): de pushgegevens gaan naar de agent, en staan daar in de cache die alleen root kan lezen. Met `WATCHDOG=0` in `/etc/default/rzmon-agent` doet die server nooit mee. Een Pushover-compatibele dienst gebruiken? Zet `PUSHOVER_API` (standaard `https://api.pushover.net/1/messages.json`).
 
 ## 9. Agent op Home Assistant OS
 

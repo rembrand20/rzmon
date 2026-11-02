@@ -54,13 +54,16 @@ final class Heal
                 $out[] = implode("\t", [$c['id'], 'heal', 'ctr', ($m[2] !== '' ? $m[2] : 'root') . '/' . $m[3]]);
             }
         }
-        // 🐕 Waakhond: 0 <tab> watchdog <tab> minuten <tab> Pushover-gebruiker <tab> token <tab> prioriteit (geheimen alleen versleuteld)
+        // 🐕 Waakhond: 0 <tab> watchdog <tab> minuten <tab> Pushover-gebruiker <tab> token <tab> prioriteit <tab> ntfy-server <tab> ntfy-onderwerp
+        // <tab> ntfy-token (1.140.0, agent 1.72.0; oudere agents lezen de ntfy-velden niet). Geheimen alleen versleuteld.
         $h = q('SELECT watchdog, watchdog_min FROM hosts WHERE id = ?', [$hostId])->fetch();
         if ($h && (int) $h['watchdog'] === 1) {
             $po = setting('pushover_enabled', '0') === '1' && setting('pushover_user', '') !== '' && setting('pushover_token', '') !== '';
             $out[] = implode("\t", [0, 'watchdog', max(2, min(120, (int) ($h['watchdog_min'] ?: 5))),
                 $secure && $po ? (string) setting('pushover_user', '') : '-', $secure && $po ? (string) setting('pushover_token', '') : '-',
-                max(-1, min(2, (int) setting('pushover_priority_crit', 1)))]);
+                max(-1, min(2, (int) setting('pushover_priority_crit', 1))),
+                $secure && Ntfy::enabled() ? Ntfy::server() : '-', $secure && Ntfy::enabled() ? trim((string) setting('ntfy_topic', '')) : '-',
+                $secure && Ntfy::enabled() && setting('ntfy_token', '') !== '' ? (string) setting('ntfy_token', '') : '-']);
         }
         return $out;
     }

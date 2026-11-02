@@ -508,13 +508,13 @@ FX.dash = {
 };
 
 const ALERT_KINDS = { notify: () => L('Check'), system: () => L('Systeem'), info: 'Info', sec: () => L('Beveiliging'), ids: 'IDS', ack: () => L('Bevestiging'), maint: () => L('Onderhoud') };
-const ALERT_CH = { pushover: '📲 Pushover', email: () => '📧 ' + L('E-mail'), webhook: '🏠 Home Assistant', none: () => '🔕 ' + L('nergens heen') };
+const ALERT_CH = { pushover: '📲 Push', email: () => '📧 ' + L('E-mail'), webhook: '🏠 Home Assistant', none: () => '🔕 ' + L('nergens heen') };
 /** Naar welke kanalen een melding ging (of zou gaan) */
 function alertChannels(a) {
   if (a.kind === 'auth' || a.kind === 'authfail') return ['none'];
   const why = splitSent(a.message)[1];
   const out = [];
-  if (+a.sent_ok || /Pushover/.test(why)) out.push('pushover');
+  if (+a.sent_ok || /Pushover|ntfy/.test(why)) out.push('pushover');
   if (a.email_ok !== null && a.email_ok !== undefined) out.push('email');
   if (a.webhook_ok !== null && a.webhook_ok !== undefined) out.push('webhook');
   return out.length ? out : ['none'];
@@ -1381,6 +1381,7 @@ function init() {
   $('#backup-list').addEventListener('click', onBackupListClick);
   $('#settings-form').backup_freq.addEventListener('change', backupFormToggle);
   $('#pushover-test').onclick = testPushover;
+  $('#ntfy-test').onclick = (e) => testChannel(e, 'ntfy_test', L('Testbericht verstuurd! Check je telefoon') + ' 📱', 'ntfy');
   $('#webhook-test').onclick = testWebhook;
   $('#email-test').onclick = (e) => testChannel(e, 'email_test', L('Testmail verstuurd 📧'), L('E-mail'));
   $('#mqtt-test').onclick = (e) => testChannel(e, 'mqtt_test', null, 'MQTT');
@@ -1994,6 +1995,7 @@ function settingsSummaries() {
   const sum = {};
   if (isAdmin()) {
     sum.pushover = f.pushover_enabled.checked ? on(`critical: ${opt(f.pushover_priority_crit)} · warning: ${opt(f.pushover_priority_warn)}`) : off;
+    sum.ntfy = f.ntfy_enabled.checked ? on(esc(`${f.ntfy_server.value.replace(/^https?:\/\//, '').replace(/\/$/, '')}/${f.ntfy_topic.value}`)) : off;
     if (notifyGlobal) {
       const n = notifyGlobal.get(), q = quietGlobal ? quietGlobal.get() : null;
       sum.notify = esc([`warning: ${when(n.rules.warn)}`, `critical: ${when(n.rules.crit)}`, n.rules.crit && n.rules.crit.repeat ? L('herhalen elke {n} min', { n: n.rules.crit.repeat }) : '',
@@ -3711,7 +3713,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       const cfg = { rules: { ...parse(g.notify_rules), ...((own && own.rules) || {}) }, channels: { ...parse(g.notify_channels), ...((own && own.channels) || {}) },
         flap: (own && own.flap) || parse(g.notify_flap) };
       ownEditor = notifyEditor($('#notify-own-editor'), cfg,
-        { pushover_enabled: g.pushover_enabled === '1', email_enabled: g.email_enabled === '1', ha_webhook_enabled: g.ha_webhook_enabled === '1' });
+        { push_enabled: g.pushover_enabled === '1' || g.ntfy_enabled === '1', email_enabled: g.email_enabled === '1', ha_webhook_enabled: g.ha_webhook_enabled === '1' });
     }
     ownEditor?.infoOnly(info);
   };
@@ -4981,7 +4983,7 @@ function agentInstructions(h, pairNow = false) {
       <div class="cmd-host-row need-admin">🐕 ${L('Waakhond:')}
         <select id="host-watchdog"><option value="0" ${+h.watchdog ? '' : 'selected'}>${L('uit')}</option><option value="1" ${+h.watchdog ? 'selected' : ''}>${L('aan')}</option></select>
         ${L('melden na')} <input id="host-wd-min" type="number" min="2" max="120" value="${+h.watchdog_min || 5}" style="width:4.5rem"> ${L('min')}
-        <span class="muted small" id="host-wd-info">${L('deze agent stuurt zelf een Pushover-bericht als RzMon onbereikbaar is of de checks stilstaan')}</span></div>
+        <span class="muted small" id="host-wd-info">${L('deze agent stuurt zelf een pushbericht (Pushover of ntfy) als RzMon onbereikbaar is of de checks stilstaan')}</span></div>
       <div class="cmd-host-row need-admin">🛡️ ${L('Endpoint-bewaking:')}
         <select id="host-edr"><option value="1" ${+(h.edr_on ?? 1) ? 'selected' : ''}>${L('aan')}</option><option value="0" ${+(h.edr_on ?? 1) ? '' : 'selected'}>${L('uit')}</option></select>
         <span class="muted small">${L('processen, netwerk, bestanden en containers meteen bekeken; RzMon grijpt in bij een aanval')}</span></div>
@@ -5549,10 +5551,11 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
       // 🐕 Waakhond: werkt alleen met Pushover en een versleutelde verbinding (de gegevens gaan naar de agent)
       const wdi = $('#host-wd-info');
       if (wdi && s.watchdog) {
-        wdi.innerHTML = !s.watchdog.pushover ? `<span class="warn-txt">⚠️ ${L('Zet eerst Pushover aan (Meldingen → Kanalen): de waakhond meldt via Pushover')}</span>`
-          : !s.watchdog.enc ? `<span class="warn-txt">⚠️ ${L('Werkt alleen versleuteld: koppel de agent met een koppelcode (de Pushover-gegevens gaan naar de agent)')}</span>`
-          : s.watchdog.on ? `✔ ${L('actief: na {n} min zonder RzMon een Pushover-bericht, en een bericht als de checks stilstaan', { n: s.watchdog.min })}`
-          : L('deze agent stuurt zelf een Pushover-bericht als RzMon onbereikbaar is of de checks stilstaan');
+        wdi.innerHTML = !s.watchdog.pushover ? `<span class="warn-txt">⚠️ ${L('Zet eerst Pushover of ntfy aan (Meldingen → Kanalen): de waakhond meldt via push')}</span>`
+          : !s.watchdog.enc ? `<span class="warn-txt">⚠️ ${L('Werkt alleen versleuteld: koppel de agent met een koppelcode (de pushgegevens gaan naar de agent)')}</span>`
+          : s.watchdog.on ? `✔ ${L('actief: na {n} min zonder RzMon een pushbericht via {via}, en een bericht als de checks stilstaan', { n: s.watchdog.min, via: s.watchdog.push || 'Pushover' })}`
+            + (/ntfy/.test(s.watchdog.push || '') && verCmp(s.agent_version || '0', '1.72.0') < 0 ? ` <span class="warn-txt">· ${L('ntfy vanaf agent 1.72.0')}</span>` : '')
+          : L('deze agent stuurt zelf een pushbericht (Pushover of ntfy) als RzMon onbereikbaar is of de checks stilstaan');
       }
       const tw = toolsWarning(s.realtime && s.realtime.tools, s.update && s.update.via);
       if (tw) html += `<div class="small tools-warn">${tw}</div>`;
@@ -5628,8 +5631,8 @@ function channelIcons(a) {
   if (a.kind === 'auth' || a.kind === 'authfail') return `<span class="muted" title="${L('Alleen op deze pagina, niet verstuurd')}">–</span>`;
   if (a.kind === 'ack') return tip('Bevestiging', '✔');
   const out = [];
-  if (+a.sent_ok) out.push(tip('Verstuurd via Pushover', '📲'));
-  else if (/Pushover/.test(why)) out.push(bad('Pushover mislukt', '📲'));
+  if (+a.sent_ok) out.push(tip('Verstuurd via push (Pushover/ntfy)', '📲'));
+  else if (/Pushover|ntfy/.test(why)) out.push(bad('Push mislukt', '📲'));
   if (a.email_ok !== null && a.email_ok !== undefined) out.push(+a.email_ok ? tip('Verstuurd per e-mail', '📧') : bad('E-mail mislukt', '📧'));
   if (a.webhook_ok !== null) out.push(+a.webhook_ok ? tip('Verstuurd naar Home Assistant', '🏠') : bad('Webhook mislukt', '🏠'));
   // Nergens heen verstuurd (kanaal of regel staat uit): alleen op deze pagina. Geen ✉️, dat leek op een mislukte e-mail.
@@ -7848,7 +7851,7 @@ const SET_NAV = [
     ['advice', L('Advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
       [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen'), [
-    ['channels', L('Kanalen'), ['pushover', 'email', 'webhook', 'chain'], L('Waar meldingen heen gaan: Pushover, e-mail en webhooks.')],
+    ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail en webhooks.')],
     ['rules', L('Wanneer melden'), ['notify', 'alarm'], L('Meldregels, stille uren en wanneer een probleem een melding wordt.')],
     ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzMon zelf, zoals updates en certificaten.')]]],
   ['ids', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS'), [
@@ -8557,7 +8560,7 @@ async function loadSettings() {
   });
   const parse = (v) => { try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
   notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels), flap: parse(s.notify_flap) },
-    { pushover_enabled: s.pushover_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
+    { push_enabled: s.pushover_enabled === '1' || s.ntfy_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
   quietGlobal = quietEditor($('#quiet-editor'), parse(s.notify_quiet), true);
   sysinfoCfg = parse(s.sysinfo);
   renderSysinfo();
@@ -8605,7 +8608,7 @@ async function updateAllAgents(e) {
 const NOTIFY_ROWS = [
   ['warn', '🟠 Warning'], ['crit', '🔴 Critical'], ['unknown', '⚪ ' + L('Onbekend')], ['recovery', '✅ ' + L('Hersteld')], ['info', 'ℹ️ ' + L('Info (checks)')],
 ];
-const NOTIFY_CHANNELS = [['pushover', 'Pushover', 'pushover_enabled'], ['email', L('E-mail'), 'email_enabled'], ['webhook', 'Home Assistant', 'ha_webhook_enabled']];
+const NOTIFY_CHANNELS = [['pushover', '📲 Push', 'push_enabled'], ['email', L('E-mail'), 'email_enabled'], ['webhook', 'Home Assistant', 'ha_webhook_enabled']];
 
 /** Tabel met per status: melden (nooit / direct / na X min), herhalen en kanalen. Geeft {get()} terug. */
 function notifyEditor(el, cfg, enabled = {}) {
@@ -8632,7 +8635,7 @@ function notifyEditor(el, cfg, enabled = {}) {
         <td class="nt-ch">${k === 'info' ? `<input type="checkbox" data-c="page" ${(ch.info || {}).page !== false ? 'checked' : ''}>` : `<span class="muted small" title="${L('Altijd')}">✓</span>`}</td>
       </tr>`;
     }).join('')}</tbody></table></div>
-    <p class="hint"><span class="nt-rep-hint">${L('Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).')}</span> ${L('Info: gebeurtenissen die geen storing zijn (herstart, vernieuwd certificaat, agent of RzMon bijgewerkt), stil via Pushover; tijdens stille uren niet verstuurd, wel op de pagina Meldingen.')}</p>
+    <p class="hint"><span class="nt-rep-hint">${L('Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).')}</span> ${L('Info: gebeurtenissen die geen storing zijn (herstart, vernieuwd certificaat, agent of RzMon bijgewerkt), stil via push; tijdens stille uren niet verstuurd, wel op de pagina Meldingen.')}</p>
     <div class="flap-box">
       <label class="switch small"><input type="checkbox" data-flap="on" ${fl.on !== false ? 'checked' : ''}><span></span> <b>Anti-flapping</b></label>
       <div class="flap-fields">
@@ -8741,16 +8744,16 @@ const SYSINFO_ROWS = [
     ['watchdog', '🐕 ' + L('Waakhond: RzMon was onbereikbaar of de checks stonden stil')]]],
   ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
 ];
-const SYSINFO_CH = [['pushover', '📲 Pushover', 'pushover_enabled'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
+const SYSINFO_CH = [['pushover', '📲 Push', 'push'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
 let sysinfoCfg = null;
 
 function renderSysinfo() {
   const t = $('#sysinfo');
   if (!t || !sysinfoCfg) return;
   const f = $('#settings-form');
-  const off = (k) => k && f[k] && !f[k].checked;   // kanaal staat helemaal uit
+  const off = (k) => (k === 'push' ? !f.pushover_enabled.checked && !f.ntfy_enabled.checked : k && f[k] && !f[k].checked);   // kanaal staat helemaal uit
   t.innerHTML = `<thead><tr><th>${L('Melding')}</th>${SYSINFO_CH.map(([, l, k]) => `<th class="si-ch">${l}${off(k) ? ` <span class="muted small">(${L('uit')})</span>` : ''}</th>`).join('')}
-    <th>${L('Pushover-geluid')}</th><th></th></tr></thead><tbody>
+    <th>${L('Push-geluid')}</th><th></th></tr></thead><tbody>
     ${SYSINFO_ROWS.map(([group, rows]) => `<tr class="si-group"><td colspan="7">${esc(group)}</td></tr>` + rows.map(([k, label]) => {
       const c = sysinfoCfg[k] || {};
       return `<tr data-si="${k}"><td>${esc(label)}${k === 'sec' ? `<div class="muted small">${L('ook tijdens stille uren')}</div>` : ''}</td>
@@ -8787,8 +8790,8 @@ function initSysinfo() {
     catch (ex) { toast(ex.message, 'err'); }
     b.disabled = false;
   });
-  // Kanaal aan/uit (Pushover, e-mail, webhook): "(uit)" in de kop bijwerken
-  ['pushover_enabled', 'email_enabled', 'ha_webhook_enabled'].forEach((k) => $('#settings-form')[k] && $('#settings-form')[k].addEventListener('change', renderSysinfo));
+  // Kanaal aan/uit (Pushover, ntfy, e-mail, webhook): "(uit)" in de kop bijwerken
+  ['pushover_enabled', 'ntfy_enabled', 'email_enabled', 'ha_webhook_enabled'].forEach((k) => $('#settings-form')[k] && $('#settings-form')[k].addEventListener('change', renderSysinfo));
 }
 
 function settingsData() {
@@ -9511,7 +9514,7 @@ function initSystemTools() {
       $('#chain-out').innerHTML = `<p class="muted">${L('Bezig…')}</p>`;
       try {
         const r = (await api('chain_test', {})).channels;
-        const names = { pushover: '📲 Pushover', email: '📧 ' + L('E-mail'), webhook: '🏠 ' + L('Home Assistant-webhook'), mqtt: '📡 MQTT', page: '📄 ' + L('Meldingenpagina') };
+        const names = { pushover: '📲 Pushover', ntfy: '📣 ntfy', email: '📧 ' + L('E-mail'), webhook: '🏠 ' + L('Home Assistant-webhook'), mqtt: '📡 MQTT', page: '📄 ' + L('Meldingenpagina') };
         $('#chain-out').innerHTML = `<ul class="checklist" style="margin-top:.8rem">${Object.entries(names).map(([k, l]) => {
           const c = r[k];
           return `<li class="${c === null ? 'warn' : c.ok ? 'ok' : 'bad'}"><span class="ic">${c === null ? '–' : c.ok ? '✓' : '✕'}</span><span><strong>${esc(l)}</strong><br>
@@ -9555,7 +9558,7 @@ async function loadConn() {
     ${line('💓', L('Heartbeats'), i.heartbeats.length ? (i.heartbeats.length === 1 ? L('1 check') : L('{n} checks', { n: i.heartbeats.length })) + (hbLast ? ' · ' + L('laatst gemeld {t}', { t: esc(ago(hbLast)) }) : '') : L('geen'),
       L('Wanneer je scripts, cronjobs of apparaten zich melden.'), i.heartbeats.length ? 'dashboard' : '', L('Dashboard'))}
     <h3 class="set-sub">⬆️ ${L('Achtergrondtaken van RzMon')}</h3>
-    <p class="muted small">${L('RzMon draait elke minuut (cron): checks naar je apparaten volgens hun interval, meldingen naar Pushover, e-mail en Home Assistant, en deze taken.')}</p>
+    <p class="muted small">${L('RzMon draait elke minuut (cron): checks naar je apparaten volgens hun interval, meldingen naar Pushover, ntfy, e-mail en Home Assistant, en deze taken.')}</p>
     ${table([L('Taak'), L('Hoe vaak'), L('Laatst gelukt'), L('Volgende'), L('Stand')], d.tasks.map((t) => `<tr${t.status === 'off' ? ' class="muted"' : ''}>
       <td><b>${esc(t.label)}</b>${t.error && t.status !== 'off' ? `<div class="bad small">${esc(t.error)}</div>` : ''}${t.note ? `<div class="muted small">${esc(t.note)}</div>` : ''}</td>
       <td class="small">${esc(t.every)}</td><td>${t.status === 'off' ? '–' : esc(tsAgo(t.last_ok))}</td>

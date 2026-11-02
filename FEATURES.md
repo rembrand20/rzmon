@@ -92,6 +92,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 ## 4. Meldingen
 - **Kanalen:**
   - **Pushover**, met prioriteit en geluid per status, inclusief *Emergency*;
+  - **ntfy** (vanaf 1.140.0): via ntfy.sh of een eigen server, naast of in plaats van Pushover, met een knop ✔ Bevestigen; samen met Pushover het kanaal *📲 Push*;
   - **e-mail**: altijd, of als reserve wanneer Pushover faalt;
   - een **Home Assistant-webhook**.
 - **Per status** (warning, critical, onbekend, hersteld) stel je in:
@@ -115,7 +116,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **🧠 Slimme drempels** (vanaf 1.107.0): RzMon leert per check wat normaal is per uur van de week en zet daar de drempels op (handmatig, slim, of slim met vangnet); elke nacht bijgesteld (hooguit 10%), in het wijzigingslogboek terug te draaien, met een ℹ️ bij een sluipende stijging.
 - **🔗 Bundelen over servers heen** (vanaf 1.107.0): meerdere servers tegelijk mis = één bericht met de waarschijnlijke oorzaak.
 - **🩹 Zelf herstellen** (vanaf 1.107.0, agent 1.62.0): een service of container herstarten, of een eigen herstelcommando van de server; melden pas als het niet helpt.
-- **🐕 Waakhond** (vanaf 1.107.0, agent 1.62.0): een agent meldt via Pushover als RzMon onbereikbaar is of de checks stilstaan.
+- **🐕 Waakhond** (vanaf 1.107.0, agent 1.62.0): een agent meldt via Pushover (of ntfy, vanaf agent 1.72.0) als RzMon onbereikbaar is of de checks stilstaan.
 - **⏫ Escaleren** (vanaf 1.108.0, standaard uit): een storing die niemand bevestigt, na een instelbare tijd nog een keer melden, een stap hoger (warning → critical, critical → nood); niet tijdens de stille uren.
 - **💡 Slimme voorstellen** (vanaf 1.108.0): elke nacht voorstellen voor *melden na N*, vaste onderhoudsvensters en afhankelijkheden, uit de geschiedenis; jij klikt op Toepassen of Negeren.
 - **⏱️ Slim interval** (vanaf 1.108.0, standaard uit): bij een probleem elke 20 seconden checken, als alles een uur goed is trager.

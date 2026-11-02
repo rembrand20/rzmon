@@ -773,5 +773,41 @@ rmdir($sd);
 ok(!$miss['signed'] && $good['valid'] && $bad['signed'] && !$bad['valid'] && $bad['files']['install-agent.sh'] === 'bad' && $bad['files']['rzmon-agent.sh'] === 'ok',
     'ondertekende agent: ontbreekt, klopt, en een gewijzigd installatiescript valt op');
 
+// 1.140.0: ntfy via een nep-server (php -S met een router die het verzoek bewaart; "fout"-token = 401)
+$nd = sys_get_temp_dir() . '/rzmon-ntfy-' . getmypid();
+@mkdir($nd);
+file_put_contents("$nd/r.php", '<?php file_put_contents(__DIR__ . "/req.json", json_encode(["auth" => $_SERVER["HTTP_AUTHORIZATION"] ?? "", "body" => file_get_contents("php://input")]));'
+    . ' if (($_SERVER["HTTP_AUTHORIZATION"] ?? "") === "Bearer fout") { http_response_code(401); echo "{\"error\":\"unauthorized\"}"; exit; } echo "{\"id\":\"x\"}";');
+$port = 18000 + getmypid() % 1000;
+$srv = proc_open([PHP_BINARY, '-S', "127.0.0.1:$port", "$nd/r.php"], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+for ($i = 0; $i < 50 && !@fsockopen('127.0.0.1', $port); $i++) {
+    usleep(100000);
+}
+$nOk = Ntfy::send('🔴 Critical: web', "regel 1\nregel 2", 1, ['url' => 'https://rz.example/ack?x=1', 'url_title' => '✔ Bevestigen'],
+    ['server' => "http://127.0.0.1:$port/", 'topic' => 'rzmon-test_1', 'token' => 'tk_abc']);
+$req = json_decode((string) @file_get_contents("$nd/req.json"), true) ?: [];
+$body = json_decode((string) ($req['body'] ?? ''), true) ?: [];
+$nBad = Ntfy::send('t', 'm', 0, [], ['server' => "http://127.0.0.1:$port", 'topic' => 'rzmon-test', 'token' => 'fout']);
+$nTopic = Ntfy::send('t', 'm', 0, [], ['server' => "http://127.0.0.1:$port", 'topic' => 'geen spaties/', 'token' => '']);
+$nFile = Ntfy::send('t', 'm', 0, [], ['server' => 'file:///etc/passwd', 'topic' => 'x', 'token' => '']);
+save_setting('pushover_enabled', '0');
+save_setting('ntfy_enabled', '1');
+save_setting('ntfy_server', "http://127.0.0.1:$port");
+save_setting('ntfy_topic', 'rzmon-test');
+save_setting('ntfy_token', 'gebruiker:wachtwoord');
+$push = Push::send('Test', 'bericht', 2);
+$req2 = json_decode((string) @file_get_contents("$nd/req.json"), true) ?: [];
+save_setting('ntfy_enabled', '0');
+proc_terminate($srv);
+proc_close($srv);
+array_map('unlink', glob("$nd/*") ?: []);
+rmdir($nd);
+ok($nOk['ok'] && ($body['topic'] ?? '') === 'rzmon-test_1' && ($body['title'] ?? '') === '🔴 Critical: web' && ($body['priority'] ?? 0) === 4
+    && ($body['click'] ?? '') === 'https://rz.example/ack?x=1' && ($body['actions'][0]['label'] ?? '') === '✔ Bevestigen' && ($req['auth'] ?? '') === 'Bearer tk_abc',
+    'ntfy: JSON met titel (emoji), prioriteit hoog = 4, knop Bevestigen en token');
+ok(!$nBad['ok'] && str_contains((string) $nBad['error'], 'unauthorized') && !$nTopic['ok'] && !$nFile['ok'], 'ntfy: fout token, ongeldig onderwerp en geen http(s) worden geweigerd');
+ok($push['ok'] && Push::enabled() === false && ($req2['auth'] ?? '') === 'Basic ' . base64_encode('gebruiker:wachtwoord')
+    && (json_decode((string) ($req2['body'] ?? ''), true)['priority'] ?? 0) === 5, 'Push: alleen ntfy aan werkt (emergency = 5, gebruiker:wachtwoord als Basic)');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

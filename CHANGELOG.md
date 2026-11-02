@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.140.0 – 2026-11-02
+### Nieuw
+- **ntfy** als meldkanaal: gratis pushmeldingen via [ntfy.sh](https://ntfy.sh) of je eigen ntfy-server, naast of in plaats van Pushover (*Instellingen → Meldingen → Kanalen → ntfy*). Met server, onderwerp en eventueel een toegangstoken of gebruiker:wachtwoord, en een testknop. Bij een storing zit er een knop ✔ Bevestigen onder het bericht.
+- In de meldregels heet het kanaal nu **📲 Push**: dat is Pushover en/of ntfy, wat aan staat. Je bestaande keuzes blijven gelden.
+- De **waakhond** meldt ook via ntfy (agent 1.72.0 nodig).
+- **Nieuwe agent 1.72.0**.
+
 ## 1.139.0 – 2026-11-02
 ### Nieuw
 - **Ondertekende agent-updates**: elke nieuwe agent wordt in GitHub ondertekend (workflow *Agent ondertekenen*, met het geheim `AGENT_SIGN_KEY`). Agents vanaf 1.71.0 installeren een update alleen als de handtekening klopt, ook als RzMon zelf zou zijn overgenomen.

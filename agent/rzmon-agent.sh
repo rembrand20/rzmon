@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.71.0"
+AGENT_VERSION="1.72.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -4063,20 +4063,35 @@ fi
 
 # ---------------------------------------------------------------- 🐕 Waakhond (agent 1.62.0)
 # In RzMon per agent aan te zetten (Agent Manager). Lukt het rapport een tijd niet (standaard 5 minuten), dan stuurt de
-# agent zelf een Pushover-bericht, en een herstelbericht als RzMon terug is. Bereikt de agent ook Pushover niet, dan ligt
+# agent zelf een pushbericht (Pushover en/of ntfy), en een herstelbericht als RzMon terug is. Bereikt de agent ook Pushover niet, dan ligt
 # het aan zijn eigen netwerk: dan geen bericht, wel een notitie voor RzMon. Draait RzMon wel, maar staan de checks stil
 # (cron), dan meldt hij dat ook. De Pushover-gegevens komen versleuteld van RzMon (cache, alleen voor root).
 wd_line=$(awk -F'\t' '$1 == "0" && $2 == "watchdog" { print; exit }' "${t_cache:-/dev/null}" 2>/dev/null)
 if [ -n "$wd_line" ] && [ "$WATCHDOG" != 0 ] && [ "$TEST" != 1 ]; then
-    IFS=$'\t' read -r _ _ wd_min wd_user wd_token wd_prio <<<"$wd_line"
+    IFS=$'\t' read -r _ _ wd_min wd_user wd_token wd_prio wd_nsrv wd_ntop wd_ntok _ <<<"$wd_line"
     [[ "$wd_min" =~ ^[0-9]+$ ]] || wd_min=5
     [[ "$wd_prio" =~ ^-?[0-2]$ ]] || wd_prio=1
-    wd_push() {  # wd_push <titel> <bericht> <prioriteit>: 0 = verstuurd
-        [ "$wd_user" != - ] && [ "$wd_token" != - ] && [ -n "$wd_user" ] || return 1
-        local extra=()
-        [ "$3" = 2 ] && extra=(--form-string retry=120 --form-string expire=3600)
-        curl -fsS -m 15 -o /dev/null --form-string "token=$wd_token" --form-string "user=$wd_user" --form-string "title=$1" \
-            --form-string "message=$2" --form-string "priority=$3" "${extra[@]}" "$PUSHOVER_API" 2>/dev/null
+    # ntfy (agent 1.72.0): naast of in plaats van Pushover; JSON naar de server, prioriteit -2..2 wordt 1..5
+    [[ "${wd_nsrv:--}" =~ ^https?://[^[:space:]]+$ ]] || wd_nsrv=-
+    [[ "${wd_ntop:--}" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || wd_nsrv=-
+    wd_push() {  # wd_push <titel> <bericht> <prioriteit>: 0 = verstuurd (via minstens één dienst)
+        local ok=1 extra=() auth=()
+        if [ "$wd_user" != - ] && [ "$wd_token" != - ] && [ -n "$wd_user" ]; then
+            [ "$3" = 2 ] && extra=(--form-string retry=120 --form-string expire=3600)
+            curl -fsS -m 15 -o /dev/null --form-string "token=$wd_token" --form-string "user=$wd_user" --form-string "title=$1" \
+                --form-string "message=$2" --form-string "priority=$3" "${extra[@]}" "$PUSHOVER_API" 2>/dev/null && ok=0
+        fi
+        if [ "$wd_nsrv" != - ]; then
+            if [ -n "$wd_ntok" ] && [ "$wd_ntok" != - ]; then
+                case $wd_ntok in
+                    *:*) auth=(-u "$wd_ntok") ;;
+                    *) auth=(-H "Authorization: Bearer $wd_ntok") ;;
+                esac
+            fi
+            printf '{"topic":"%s","title":"%s","message":"%s","priority":%s}' "$wd_ntop" "$(json_escape "$1" | tr '\n\t\r' '   ')" "$(json_escape "$2" | tr '\n\t\r' '   ')" "$(( $3 + 3 ))" |
+                curl -fsS -m 15 -o /dev/null -H 'Content-Type: application/json' "${auth[@]}" --data-binary @- "${wd_nsrv%/}" 2>/dev/null && ok=0
+        fi
+        return "$ok"
     }
     wd_down=0; wd_sent=0; wd_self=0; wd_cron=0
     # shellcheck disable=SC1090
@@ -4088,7 +4103,7 @@ if [ -n "$wd_line" ] && [ "$WATCHDOG" != 0 ] && [ "$TEST" != 1 ]; then
             if wd_push "⚠️ RzMon onbereikbaar" "RzMon is vanaf $hostname niet bereikbaar sinds $(date -d "@$wd_down" +%H:%M 2>/dev/null || date +%H:%M)${st_err:+ ($st_err)}. Gemeld door de waakhond op $hostname." "$wd_prio"; then
                 wd_sent=1; wd_self=0
             else
-                wd_self=1   # Pushover ook niet bereikbaar (of geen gegevens): eerder het netwerk van deze server
+                wd_self=1   # Pushover/ntfy ook niet bereikbaar (of geen gegevens): eerder het netwerk van deze server
             fi
         fi
     else

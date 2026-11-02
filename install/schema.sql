@@ -226,6 +226,10 @@ ALTER TABLE agent_data MODIFY value TEXT NOT NULL;
 
 INSERT IGNORE INTO settings (name, value) VALUES
     ('pushover_enabled', '0'),
+    ('ntfy_enabled', '0'),
+    ('ntfy_server', 'https://ntfy.sh'),
+    ('ntfy_topic', ''),
+    ('ntfy_token', ''),
     ('pushover_user', ''),
     ('pushover_token', ''),
     ('pushover_priority_crit', '1'),

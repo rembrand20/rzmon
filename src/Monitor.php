@@ -755,12 +755,12 @@ final class Monitor
         $errors = [];
 
         $pushover = null;
-        if (setting('pushover_enabled', '0') === '1' && $channels['pushover']) {
+        if (Push::enabled() && $channels['pushover']) {
             $base = rtrim((string) config('base_url', ''), '/');
-            $r = Pushover::send($title, $body . "\n" . date('d-m-Y H:i:s'), $prio, null, null, $base !== '' ? ['url' => "$base/", 'url_title' => 'Open RzMon'] : []);
+            $r = Push::send($title, $body . "\n" . date('d-m-Y H:i:s'), $prio, $base !== '' ? ['url' => "$base/", 'url_title' => 'Open RzMon'] : []);
             $pushover = $r['ok'];
-            if (!$r['ok']) {
-                $errors[] = 'Pushover: ' . $r['error'];
+            if ($r['error']) {
+                $errors[] = $r['error'];
             }
             if (!empty($r['receipt'])) {
                 foreach ($items as $x) {
@@ -836,12 +836,12 @@ final class Monitor
         $ackUrl = $status !== STATUS_OK ? self::ackUrl($check) : null;
 
         $pushover = null;
-        if (setting('pushover_enabled', '0') === '1' && ($channels === null || $channels['pushover'])) {
-            $r = Pushover::send($title, $message . "\n" . date('d-m-Y H:i:s'), $priority, null, null,
+        if (Push::enabled() && ($channels === null || $channels['pushover'])) {
+            $r = Push::send($title, $message . "\n" . date('d-m-Y H:i:s'), $priority,
                 $ackUrl ? ['url' => $ackUrl, 'url_title' => '✔ Bevestigen'] : []);
             $pushover = $r['ok'];
-            if (!$r['ok']) {
-                $errors[] = 'Pushover: ' . $r['error'];
+            if ($r['error']) {
+                $errors[] = $r['error'];
             }
             if (!empty($r['receipt'])) {
                 // Emergency: later nagaan of hij in de Pushover-app bevestigd is
@@ -896,12 +896,12 @@ final class Monitor
     {
         $errors = [];
         $sent = false;
-        if (setting('pushover_enabled', '0') === '1') {
+        if (Push::enabled()) {
             $prio = $status === STATUS_OK ? 0 : min(1, (int) setting('pushover_priority_crit', 1));   // geen emergency: niets te bevestigen
-            $r = Pushover::send($title, $message . "\n" . date('d-m-Y H:i:s'), $prio);
+            $r = Push::send($title, $message . "\n" . date('d-m-Y H:i:s'), $prio);
             $sent = $r['ok'];
-            if (!$r['ok']) {
-                $errors[] = 'Pushover: ' . $r['error'];
+            if ($r['error']) {
+                $errors[] = $r['error'];
             }
         }
         $email = null;
@@ -1006,11 +1006,11 @@ final class Monitor
         } elseif ($hold !== null) {
             $errors[] = $hold;
         } else {
-            if (setting('pushover_enabled', '0') === '1' && $channels['pushover']) {
-                $r = Pushover::send($title, $message . "\n" . date('d-m-Y H:i:s'), $prio);   // -1 = stil (geen geluid of trilling), 0 = normaal
+            if (Push::enabled() && $channels['pushover']) {
+                $r = Push::send($title, $message . "\n" . date('d-m-Y H:i:s'), $prio);   // -1 = stil (geen geluid of trilling), 0 = normaal
                 $pushover = $r['ok'];
-                if (!$r['ok']) {
-                    $errors[] = 'Pushover: ' . $r['error'];
+                if ($r['error']) {
+                    $errors[] = $r['error'];
                 }
             }
             if (setting('email_enabled', '0') === '1' && $channels['email'] && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
