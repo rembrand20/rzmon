@@ -2597,7 +2597,7 @@ async function checkInfo(id, live = false) {
     ['Interval', fmtInterval(c.interval_sec)],
     ...(unit && (c.warn_threshold !== null || c.crit_threshold !== null) ? [[r.smart && r.smart.mode !== 'manual' ? L('Vaste drempels') : L('Drempels'), `${t.low ? L('onder') + ' ' : ''}${c.warn_threshold ?? '–'} / ${c.crit_threshold ?? '–'} ${esc(L(unit))}`
       + (r.smart && r.smart.mode !== 'manual' ? ` <span class="muted small">(${r.smart.days >= r.smart.min_days ? L('niet in gebruik: slimme drempels') : L('in gebruik tot RzMon genoeg geleerd heeft')})</span>` : '')]] : []),
-    [L('Laatste check'), c.last_checked ? ago(c.last_checked) : L('nog niet')],
+    [L('Laatste check'), c.last_checked ? ago(c.last_checked) + (c.run_ms !== null && c.run_ms !== undefined ? ` · ${L('duurde {n} ms', { n: (+c.run_ms).toLocaleString(LOCALE) })}` : '') : L('nog niet')],
     [L('Beschikbaar'), r.uptime.d1 === null ? `<span class="muted">${L('nog geen metingen')}</span>` : `${L('24 u')} <b>${fmtPct(r.uptime.d1)}</b> · ${L('7 d')} <b>${fmtPct(r.uptime.d7)}</b>`],
   ];
   const tags = [
@@ -4063,7 +4063,7 @@ async function showHistory(c, h) {
     body: `<div class="chart">
       <div class="chart-head">
         <span id="uptime" class="muted"></span>
-        <select id="range"><option value="6">${L('{n} uur', { n: 6 })}</option><option value="24" selected>${L('{n} uur', { n: 24 })}</option><option value="168">${L('{n} dagen', { n: 7 })}</option><option value="720">${L('{n} dagen', { n: 30 })}</option></select>
+        <select id="range"><option value="6">${L('{n} uur', { n: 6 })}</option><option value="24" selected>${L('{n} uur', { n: 24 })}</option><option value="168">${L('{n} dagen', { n: 7 })}</option><option value="720">${L('{n} dagen', { n: 30 })}</option><option value="2160">${L('{n} dagen', { n: 90 })}</option><option value="4320">${L('{n} dagen', { n: 180 })}</option></select>
       </div>
       <div id="chart-svg"><p class="muted">${L('Laden…')}</p></div></div>
       <div id="log-lines"></div>`,
@@ -8482,6 +8482,9 @@ async function loadSettings() {
   $('#mqtt-status').innerHTML = s.mqtt_enabled !== '1' ? ''
     : s.mqtt_last_error ? `<b class="bad">✘ ${esc(s.mqtt_last_error)}</b>`
     : s.mqtt_last_ok ? `<b class="good">✔ ${L('Laatst gepubliceerd {ago}', { ago: ago(s.mqtt_last_ok) })}</b>` : `<span class="muted">${L('Nog niet gepubliceerd')}</span>`;
+  // 1.136.0: grootte en groei van de database bij de bewaartermijnen
+  const g = s.db_growth;
+  $('#storage-growth').textContent = g ? L('Database nu {now}; de laatste {d} dagen gemiddeld {per} per dag erbij.', { now: fmtBytes(g.now), d: g.days, per: fmtBytes(Math.max(0, g.per_day)) }) : '';
   Object.entries(s).forEach(([k, v]) => {
     const el = f.elements[k];
     if (!el) return;

@@ -669,8 +669,12 @@ Bij de update naar 1.25.0 zijn je oude instellingen omgezet, zodat er niets vera
 | Instelling | Standaard | Uitleg |
 |---|---|---|
 | Agent offline na … minuten | 5 | Na zoveel minuten zonder rapport worden de agent-checks CRITICAL. Minstens 3 tikken van die agent (bij een tik van 5 min dus ruim 15 min) |
-| Historie bewaren (dagen) | 30 | Meetwaarden voor de grafieken |
+| Elke meting bewaren (dagen) | 30 | Elke meetwaarde voor de grafieken. Daarna blijft per uur het gemiddelde, minimum, maximum en aantal warnings/criticals over (vanaf 1.136.0; eerder: weg) |
+| Uurgemiddelden bewaren (dagen) | 180 | Vanaf 1.136.0. Grafieken van 90 en 180 dagen komen hieruit |
+| Daggegevens bewaren (dagen) | 730 | Vanaf 1.136.0 (eerder vast ruim een jaar). De dagtotalen voor 📊 Analyse en het Dashboard |
 | Meldingen bewaren (dagen) | 3× de historie (90) | Hoe lang verstuurde meldingen en de statuswijzigingen van checks bewaard worden; de pagina *Meldingen* toont ze per dag. Oudere worden elk uur opgeruimd |
+
+Deze staan bij *Instellingen → Systeem → Database en server → Opslag*. Een meting gaat pas weg als zijn uur samengevat is, dus er gaat nooit iets verloren dat nog niet in de uurgemiddelden staat. Zet je een termijn lager, dan ruimt RzMon meteen op. Onder de velden staat hoe groot de database is en hoeveel er per dag bij komt; groeit hij ongewoon hard (meer dan 30% en 100 MB in een week), dan staat er een oranje punt bij *Status*. In het venster van een check staat ook hoe lang de laatste uitvoering duurde.
 
 ---
 

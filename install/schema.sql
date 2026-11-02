@@ -1064,3 +1064,20 @@ CREATE TABLE IF NOT EXISTS ids_exceptions (
 
 -- 1.133.0: zoveel handmatige back-ups bewaren (0 = alles); de oudere worden opgeruimd
 INSERT IGNORE INTO settings (name, value) VALUES ('backup_keep_manual', '0');
+
+-- 1.136.0: uurgemiddelden per check (na de ruwe historie nog maanden grafieken); ruwe metingen gaan pas weg als hun uur hier staat
+CREATE TABLE IF NOT EXISTS results_hourly (
+    check_id INT UNSIGNED NOT NULL,
+    hour     DATETIME NOT NULL,
+    n        INT UNSIGNED NOT NULL,
+    n_warn   INT UNSIGNED NOT NULL DEFAULT 0,
+    n_crit   INT UNSIGNED NOT NULL DEFAULT 0,
+    v_avg    DOUBLE NULL,
+    v_min    DOUBLE NULL,
+    v_max    DOUBLE NULL,
+    PRIMARY KEY (check_id, hour),
+    INDEX idx_rh_hour (hour),
+    CONSTRAINT fk_rh_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 1.136.0: uurgemiddelden 180 dagen, daggegevens (Analyse) 2 jaar
+INSERT IGNORE INTO settings (name, value) VALUES ('hourly_days', '180'), ('daily_days', '730');

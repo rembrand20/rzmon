@@ -1162,8 +1162,10 @@ final class Monitor
 
     public static function purge(): void
     {
-        $days = max(1, (int) setting('retention_days', 30));
-        q('DELETE FROM results WHERE created_at < NOW() - INTERVAL ? DAY', [$days]);
+        // 1.136.0: eerst uurgemiddelden bijwerken; ruwe metingen gaan pas weg als hun uur samengevat is
+        Retention::rollup();
+        Retention::purge();
+        Retention::track();
         q('DELETE FROM alerts WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
         q('DELETE FROM status_changes WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
         q('DELETE FROM access_log WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);

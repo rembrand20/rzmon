@@ -979,7 +979,10 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
         <div data-sk="storage" class="card" id="storage-card">
           <h2>🗄️ <?= th('Opslag') ?></h2>
-          <label><?= th('Historie bewaren (dagen)') ?><input type="number" name="retention_days" min="1"></label>
+          <label><?= th('Elke meting bewaren (dagen)') ?> <span class="hint"><?= th('(daarna per uur)') ?></span><input type="number" name="retention_days" min="1" max="3650"></label>
+          <label><?= th('Uurgemiddelden bewaren (dagen)') ?> <span class="hint"><?= th('(grafieken tot een half jaar terug)') ?></span><input type="number" name="hourly_days" min="7" max="3650"></label>
+          <label><?= th('Daggegevens bewaren (dagen)') ?> <span class="hint"><?= th('(Analyse en Dashboard)') ?></span><input type="number" name="daily_days" min="30" max="3650"></label>
+          <p class="muted small" id="storage-growth"></p>
           <label><?= th('Meldingen bewaren (dagen)') ?> <span class="muted small"><?= th('(de pagina Meldingen toont ze per dag)') ?></span><input type="number" name="alerts_days" min="1" max="3650"></label>
         </div>
 

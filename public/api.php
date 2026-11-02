@@ -1634,9 +1634,13 @@ switch ($action) {
 
     case 'history':
         $id = (int) ($_GET['check_id'] ?? 0);
-        $hours = min(24 * 30, max(1, (int) ($_GET['hours'] ?? 24)));
-        $rows = q('SELECT UNIX_TIMESTAMP(created_at) AS t, status AS s, value AS v, vals AS x FROM results
-                   WHERE check_id = ? AND created_at >= NOW() - INTERVAL ? HOUR ORDER BY created_at', [$id, $hours])->fetchAll();
+        $hours = min(24 * Retention::hourlyDays(), max(1, (int) ($_GET['hours'] ?? 24)));
+        // 1.136.0: langer dan 30 dagen (of verder terug dan de ruwe historie): uit de uurgemiddelden
+        $rows = $hours > 24 * min(30, Retention::rawDays())
+            ? q('SELECT UNIX_TIMESTAMP(hour) AS t, IF(n_crit > 0, 2, IF(n_warn > 0, 1, 0)) AS s, v_avg AS v, NULL AS x FROM results_hourly
+                 WHERE check_id = ? AND hour >= NOW() - INTERVAL ? HOUR ORDER BY hour', [$id, $hours])->fetchAll()
+            : q('SELECT UNIX_TIMESTAMP(created_at) AS t, status AS s, value AS v, vals AS x FROM results
+                 WHERE check_id = ? AND created_at >= NOW() - INTERVAL ? HOUR ORDER BY created_at', [$id, $hours])->fetchAll();
         // Downsamplen naar max ~300 punten
         $step = max(1, (int) ceil(count($rows) / 300));
         $pts = [];
@@ -2016,6 +2020,11 @@ switch ($action) {
             }
         } catch (Throwable) {
             // geen rechten op information_schema: niets melden
+        }
+        // 1.136.0: groeit de database ongewoon hard? (meer dan 30% en 100 MB in een week)
+        if (($g = Retention::growth()) && $g['unusual']) {
+            $add('db_growth', 'warn', t('Groei van de database'), t('{now}, de laatste {d} dagen {per} per dag erbij. Kijk bij Database en server welke tabel groeit, of bewaar korter.',
+                ['now' => Checks::bytes($g['now']), 'd' => $g['days'], 'per' => Checks::bytes($g['per_day'])]), 'db');
         }
         $tl = array_filter(Tasks::list(), static fn($o) => in_array($o['status'], ['bad', 'warn'], true));
         $bad = array_filter($tl, static fn($o) => $o['status'] === 'bad');
@@ -2914,6 +2923,7 @@ switch ($action) {
         }
         unset($s['ack_secret'], $s['mqtt_topics'], $s['mqtt_hash'], $s['stats_cache'], $s['update_cache']);
         $s['alerts_days'] = (string) Monitor::alertDays();
+        $s['db_growth'] = Retention::growth();   // 1.136.0: grootte van de database en groei per dag (geen formulierveld)
         $s['sysinfo'] = json_encode(NotifyRules::sysinfo());
         out($s);
 
@@ -2924,7 +2934,7 @@ switch ($action) {
             $in['sysinfo'] = json_encode(NotifyRules::cleanSysinfo((array) json_decode((string) $in['sysinfo'], true), NotifyRules::sysinfo()));
         }
         $allowed = ['sysinfo', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
-            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'cert_dirs', 'retention_days', 'alerts_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden', 'weblog_swag', 'weblog_swag_path', 'weblog_ha', 'weblog_ha_path', 'weblog_vw', 'weblog_vw_path', 'weblog_block', 'wl_paths', 'wl_ua', 'wl_404', 'wl_404_n', 'wl_auth', 'wl_auth_n', 'wl_nohost', 'wl_nohost_n', 'wl_ha_n', 'wl_vw_n', 'wl_minutes',
+            'pushover_sound', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'cert_dirs', 'retention_days', 'alerts_days', 'hourly_days', 'daily_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden', 'weblog_swag', 'weblog_swag_path', 'weblog_ha', 'weblog_ha_path', 'weblog_vw', 'weblog_vw_path', 'weblog_block', 'wl_paths', 'wl_ua', 'wl_404', 'wl_404_n', 'wl_auth', 'wl_auth_n', 'wl_nohost', 'wl_nohost_n', 'wl_ha_n', 'wl_vw_n', 'wl_minutes',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
@@ -3018,6 +3028,12 @@ switch ($action) {
                 $in[$k] = $v === '' || preg_match('#^[A-Za-z0-9_./:@-]{1,250}$#', $v) ? ($v ?: 'auto') : 'auto';
             }
         }
+        // 1.136.0: bewaartermijnen: ruwe historie minstens 1 dag, uurgemiddelden 7–3650, daggegevens 30–3650
+        foreach (['retention_days' => [1, 3650], 'hourly_days' => [7, 3650], 'daily_days' => [30, 3650]] as $k => [$lo, $hi]) {
+            if (isset($in[$k])) {
+                $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
+            }
+        }
         if (isset($in['alerts_days'])) {
             $in['alerts_days'] = (string) max(1, min(3650, (int) $in['alerts_days']));
         }
@@ -3097,6 +3113,10 @@ switch ($action) {
         }
         // 1.133.0: minder back-ups bewaren? Dan meteen opruimen
         $pruned = isset($in['backup_keep']) || isset($in['backup_keep_manual']) ? Backup::prune() : 0;
+        if (isset($in['retention_days']) || isset($in['hourly_days']) || isset($in['daily_days'])) {
+            Retention::rollup();   // 1.136.0: korter bewaren? Dan meteen opruimen (wat nog niet per uur samengevat is, blijft)
+            Retention::purge();
+        }
         out(['ok' => true] + ($pruned ? ['pruned' => $pruned] : []));
 
     // 🧪 bij een rij van ℹ️ Systeeminfo: een voorbeeld naar de aangevinkte kanalen (wat nu in het formulier staat), ook tijdens stille uren

@@ -669,5 +669,25 @@ $ro = Home::data(false, 'xx');
 ok(!$ro['full'] && $ro['period'] === '7d' && !isset($ro['todo']) && !isset($ro['vulns']) && !isset($ro['net']) && isset($ro['ids']['open_total'])
     && !array_filter($ro['events'], static fn($e) => in_array($e['kind'], ['sec', 'info'], true)), 'dashboard alleen-lezen: geen analyse, CVE\'s, netwerk of beveiligingsmeldingen');
 
+// 1.136.0: bewaartermijnen: eerst per uur samenvatten, dan pas ruwe metingen weg
+q("INSERT INTO checks (host_id, type, target, name) VALUES (?, 'ping', '127.0.0.1', 'Bewaren')", [$ha]);
+$rc = (int) db()->lastInsertId();
+$h40 = date('Y-m-d H:00:00', time() - 40 * 86400);   // twee metingen in hetzelfde uur, 40 dagen geleden
+q("INSERT INTO results (check_id, status, value, created_at) VALUES (?, 0, 10, ?), (?, 2, 30, ? + INTERVAL 10 MINUTE), (?, 0, 5, NOW() - INTERVAL 2 DAY)", [$rc, $h40, $rc, $h40, $rc]);
+save_setting('hourly_rolled', date('Y-m-d H:00:00', time() - 50 * 86400));
+save_setting('retention_days', '30');
+Retention::purge();
+ok((int) q('SELECT COUNT(*) FROM results WHERE check_id = ?', [$rc])->fetchColumn() === 3, 'bewaren: niets weg zolang het uur nog niet samengevat is');
+for ($i = 0; $i < 10 && Retention::rollup(); $i++) {
+}
+Retention::purge();
+$hr = q('SELECT * FROM results_hourly WHERE check_id = ? ORDER BY hour', [$rc])->fetchAll();
+ok((int) q('SELECT COUNT(*) FROM results WHERE check_id = ?', [$rc])->fetchColumn() === 1 && count($hr) >= 2 && (int) $hr[0]['n'] === 2 && (int) $hr[0]['n_crit'] === 1 && abs((float) $hr[0]['v_avg'] - 20) < 0.01,
+    'bewaren: na 30 dagen alleen het uurgemiddelde (2 metingen, 1 critical, gemiddeld 20)');
+save_setting('hourly_days', '30');
+Retention::purge();
+ok((int) q('SELECT COUNT(*) FROM results_hourly WHERE check_id = ?', [$rc])->fetchColumn() === 1, 'bewaren: uurgemiddelden ouder dan ingesteld weg');
+save_setting('hourly_days', '180');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

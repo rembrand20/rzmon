@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.136.0 – 2026-11-02
+### Nieuw
+- **Bewaartermijnen in te stellen** (*Instellingen → Systeem → Database en server → Opslag*): elke meting (standaard 30 dagen), daarna **uurgemiddelden** (180 dagen) en **daggegevens** (2 jaar, was vast ruim een jaar). Een meting gaat pas weg als zijn uur is samengevat; lager zetten ruimt meteen op.
+- **Grafieken van 90 en 180 dagen** in het venster van een check, uit de uurgemiddelden.
+- **Groei van de database**: hoe groot hij is en hoeveel er per dag bijkomt; bij ongewone groei een oranje punt bij *Status*.
+- In het venster van een check: **hoe lang de laatste uitvoering duurde**.
+
 ## 1.135.0 – 2026-11-02
 ### Nieuw
 - **Zijbalk**: op een breed scherm staat het menu links, met onderaan Instellingen, zoeken en je account. Smaller blijven de tabbladen bovenaan, op de telefoon de balk onderaan.

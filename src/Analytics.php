@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Analyse (1.106.0): trends door de tijd, voor het tabblad 📊 Analyse en het maandrapport per e-mail.
- * - stats_daily: dagtotalen (een jaar bewaard), zodat trends langer gaan dan de bewaartermijn van de metingen.
+ * - stats_daily: dagtotalen (standaard 2 jaar bewaard, instelbaar: Retention), zodat trends langer gaan dan de bewaartermijn van de metingen.
  *   Elk uur wordt vandaag bijgewerkt; de eerste keer worden alle dagen berekend die nog in de metingen staan.
  *   metric/ref: c_n, c_warn, c_crit, c_avg, c_max, c_chg, c_tocrit (per check) · h_n, h_ok (beschikbaarheid per server)
  *   · a_<soort>, a_push, a_mail, a_hook (meldingen) · ids_1, ids_2, auth_fail, auth_ok, blk, blk_auto (beveiliging)
@@ -12,7 +12,6 @@ declare(strict_types=1);
  */
 final class Analytics
 {
-    private const KEEP_DAYS = 400;
 
     // ------------------------------------------------------------------ dagtotalen
 
@@ -27,7 +26,6 @@ final class Analytics
         $from = $first ? (string) (q('SELECT DATE(MIN(created_at)) FROM results')->fetchColumn() ?: date('Y-m-d')) : date('Y-m-d', strtotime('-1 day', $last ?: time()));
         $n = self::rollup($from, date('Y-m-d'));
         self::snapshot(date('Y-m-d'));
-        q('DELETE FROM stats_daily WHERE day < CURDATE() - INTERVAL ' . self::KEEP_DAYS . ' DAY');
         save_setting('stats_daily_at', (string) time());
         if (NetLinks::adguardOn()) {
             self::adguardStats();
