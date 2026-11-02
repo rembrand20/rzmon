@@ -47,7 +47,7 @@ RzMon bestaat uit vier onderdelen:
 |---|---|---|---|
 | **Ping** | Reageert de server? 3 pings | Gemiddelde ms. Pakketverlies = minstens WARNING, 100% verlies = CRITICAL | Alle servers |
 | **TCP poort** | Staat een dienst open, zoals SSH, MariaDB of MQTT? | Verbindingstijd in ms. Dicht = CRITICAL | Alle servers |
-| **HTTP(S)** | Website of API bereikbaar, statuscode < 400 | Responstijd in ms. Statuscode ≥ 400 = CRITICAL. SSL-certificaat < 14 dagen geldig = WARNING, < 3 dagen = CRITICAL | Alle servers |
+| **HTTP(S)** | Website of API bereikbaar, statuscode < 400. Vanaf 1.138.0 ook met methode (GET, POST, HEAD, PUT) en body, een tekst die in het antwoord moet staan, of een JSON-veld met een waarde (bv. `status` = `ok`) | Responstijd in ms. Statuscode ≥ 400 = CRITICAL. SSL-certificaat < 14 dagen geldig = WARNING, < 3 dagen = CRITICAL | Alle servers |
 | **SSL-certificaat** | Hoe lang is het certificaat nog geldig? Werkt op elke TLS-poort, en via de agent ook op certificaatbestanden en `localhost:poort`. Bij een keten telt het certificaat dat het eerst verloopt (§8.5) | Dagen: warning **onder** 21, critical **onder** 7. Verlopen of ongeldig = CRITICAL | Alle servers |
 | **Diskruimte** | Percentage gebruikt per mount, plus een voorspelling wanneer hij vol is | % gebruikt. Vol binnen 7 dagen (instelbaar) = WARNING | Lokaal + agent |
 | **Service** | Is een systemd-service `active`? Op agent-servers ook: luistert hij op zijn poorten, antwoordt hij, herstarts en log-fouten (§8.7) | Niet actief of antwoordt niet = CRITICAL; ≥ 3 herstarts/uur of fouten in het log = WARNING | Lokaal + agent |
@@ -58,10 +58,19 @@ RzMon bestaat uit vier onderdelen:
 | **Home Assistant** | Core, Supervisor, elke add-on en beschikbare updates | Niet actief = CRITICAL, update beschikbaar = WARNING | HA-add-on |
 | **Podman (algemeen)** | Draait podman; gestopte (foutcode), ongezonde of gepauzeerde containers; pods | Probleem = WARNING | Agent met podman |
 | **Logbestand (zoeken)** | Treffers van een zoekpatroon in een logbestand, het systemlog of kernelmeldingen (bv. mislukte logins, hardwarefouten) | Aantal treffers in de laatste 15 min (instelbaar) | Agent |
-| **Container (Podman)** | Eén check per container: altijd de status (incl. healthcheck en herstarts), plus naar keuze CPU, RAM en disk | Gestopt/ongezond = CRITICAL; CPU/RAM in %, disk in MB, elk met eigen drempels | Agent met podman |
+| **Container (Podman/Docker)** | Eén check per container: altijd de status (incl. healthcheck en herstarts), plus naar keuze CPU, RAM en disk | Gestopt/ongezond = CRITICAL; CPU/RAM in %, disk in MB, elk met eigen drempels | Agent met podman |
 | **Heartbeat** | Meldt een script, back-up of cronjob zich op tijd? Via `rzmon-hb` (agent) of een geheime URL; met start, ok, fail, duur en een waarde (§7.8) | Te laat = WARNING, 2× de speling = CRITICAL; fail = CRITICAL; te lang bezig = CRITICAL; waarde met eigen drempels | Alle servers (vanaf 1.77.0) |
+| **DNS** (vanaf 1.138.0) | Geeft een naam antwoord (A, AAAA, MX, TXT, CNAME, NS), eventueel via een eigen DNS-server, met de waarde die je verwacht? | Responstijd in ms. Geen antwoord of andere waarde = CRITICAL | Alle servers (RzMon vraagt zelf) |
+| **Tijd (NTP)** (vanaf 1.138.0) | Loopt de klok goed? Op agent-servers de klok van de server (chrony of systemd-timesyncd); of een NTP-server (bv. je router) die RzMon zelf vraagt | Afwijking in ms. Niet gesynchroniseerd = WARNING | Agent 1.70.0, of een NTP-server |
+| **Schijfgezondheid (SMART)** (vanaf 1.138.0) | Gezondheidstest, temperatuur, slijtage (SSD/NVMe), vervangen en twijfelachtige sectoren, per schijf of alle; schijven in slaapstand worden niet gewekt | Temperatuur in °C. Test mislukt of ≥ 90% versleten = CRITICAL; sectoren of ≥ 80% versleten = WARNING | Agent 1.70.0 met smartmontools |
+| **UPS (NUT)** (vanaf 1.138.0) | Op het net of op de batterij, lading, resterende tijd, belasting | Lading in % (lager is slechter). Op de batterij = WARNING, bijna leeg = CRITICAL | Agent 1.70.0 met NUT (`upsc`) |
+| **MariaDB / MySQL** (vanaf 1.138.0) | Verbinden en inloggen, verbindingen in gebruik, trage query's sinds de vorige keer, hoe lang hij draait | Verbindingstijd in ms. Niet verbonden = CRITICAL; 90% van de verbindingen in gebruik = WARNING | Alle servers (RzMon maakt verbinding) |
 
-**⇄ Omgekeerde status:** bij ping, poort, HTTP, service, container, Podman, commando en Home Assistant kies je zelf welke status een check krijgt als hij slaagt (OK, warning of critical) en als hij mislukt. Zo bewaak je iets dat juist níet mag draaien of bereikbaar mag zijn (§7.2).
+**Veilige adressen (vanaf 1.138.0):** een HTTP-check vraagt alleen `http://` en `https://` op, en nooit link-local adressen zoals `169.254.169.254` (de metadata-dienst van clouds), ook niet na een doorverwijzing. Je LAN, `localhost` en internet blijven gewoon werken.
+
+**MariaDB-check:** maak een eigen gebruiker zonder rechten, bijvoorbeeld `CREATE USER 'rzmon_check'@'%' IDENTIFIED BY '…';` (alleen USAGE is genoeg). Het wachtwoord gaat nooit terug naar de browser; laat je het veld met de puntjes staan, dan blijft het oude wachtwoord. Let op: een export van je instellingen (*Exporteren en importeren*) bevat het wel.
+
+**⇄ Omgekeerde status:** bij ping, poort, HTTP, DNS, MariaDB, service, container, Podman, commando en Home Assistant kies je zelf welke status een check krijgt als hij slaagt (OK, warning of critical) en als hij mislukt. Zo bewaak je iets dat juist níet mag draaien of bereikbaar mag zijn (§7.2).
 
 ### Drie soorten servers
 - **Lokaal**: de RzMon-server zelf. Alles wordt direct uitgelezen.

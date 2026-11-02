@@ -40,6 +40,7 @@ final class Checks
                 'reboot' => self::reboot($check, $host),
                 'heartbeat' => Heartbeat::check($check),
                 'process' => self::process($check, $host),
+                'dns', 'ntp', 'smart', 'ups', 'mysql' => ExtraChecks::run($check, $host),   // 1.138.0
                 default => self::result(STATUS_UNKNOWN, null, t('Onbekend checktype')),
             };
         } catch (Throwable $e) {
@@ -88,7 +89,7 @@ final class Checks
     }
 
     /** Checktypes waarbij "omgekeerd" kan: werkt het wel of niet (geen drempels) */
-    public const REVERSIBLE = ['ping', 'tcp', 'http', 'service', 'container', 'podman', 'command', 'ha'];
+    public const REVERSIBLE = ['ping', 'tcp', 'http', 'service', 'container', 'podman', 'command', 'ha', 'dns', 'mysql'];
 
     /**
      * Omgekeerde status: slaagt de check (OK of WARNING), dan krijgt hij reverse_ok;
@@ -109,12 +110,12 @@ final class Checks
         return $res;
     }
 
-    private static function result(int $status, ?float $value, string $message): array
+    public static function result(int $status, ?float $value, string $message): array
     {
         return ['status' => $status, 'value' => $value, 'message' => $message];
     }
 
-    private static function threshold(float $value, array $check): int
+    public static function threshold(float $value, array $check): int
     {
         $crit = $check['crit_threshold'];
         $warn = $check['warn_threshold'];
@@ -171,25 +172,41 @@ final class Checks
         if ($url === '' || $url[0] === '/') {
             $url = 'http://' . $host['address'] . ($url ?: '/');
         }
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_NOBODY => false,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS => 5,
-            CURLOPT_TIMEOUT => 15,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_USERAGENT => 'RzMon/1.0',
-            CURLOPT_SSL_VERIFYPEER => (int) ($check['verify_ssl'] ?? 1) === 1,
-            CURLOPT_SSL_VERIFYHOST => (int) ($check['verify_ssl'] ?? 1) === 1 ? 2 : 0,
-            CURLOPT_CERTINFO => true,
-        ]);
-        curl_exec($ch);
-        $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        $ms = curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000;
-        $err = curl_error($ch);
-        $certs = curl_getinfo($ch, CURLINFO_CERTINFO);
-        curl_close($ch);
+        // 1.138.0: methode, body en verwachte inhoud (tekst of JSON-veld); alleen veilige adressen, ook na een doorverwijzing
+        $o = json_decode((string) ($check['options'] ?? ''), true) ?: [];
+        $method = in_array($o['method'] ?? 'GET', ['GET', 'POST', 'HEAD', 'PUT'], true) ? ($o['method'] ?? 'GET') : 'GET';
+        $ms = 0.0;
+        for ($hop = 0; $hop <= 5; $hop++) {
+            if ($why = ExtraChecks::urlBlocked($url)) {
+                return self::result(STATUS_UNKNOWN, null, t('Niet opgevraagd') . ": $why");
+            }
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_NOBODY => $method === 'HEAD',
+                CURLOPT_CUSTOMREQUEST => $method,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                CURLOPT_TIMEOUT => 15,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_USERAGENT => 'RzMon/1.0',
+                CURLOPT_SSL_VERIFYPEER => (int) ($check['verify_ssl'] ?? 1) === 1,
+                CURLOPT_SSL_VERIFYHOST => (int) ($check['verify_ssl'] ?? 1) === 1 ? 2 : 0,
+                CURLOPT_CERTINFO => true,
+            ] + (in_array($method, ['POST', 'PUT'], true) ? [CURLOPT_POSTFIELDS => (string) ($o['body'] ?? ''),
+                CURLOPT_HTTPHEADER => ['Content-Type: ' . (preg_match('#^[\w.+-]+/[\w.+-]+$#', (string) ($o['ctype'] ?? '')) ? $o['ctype'] : 'application/json')]] : []));
+            $body = (string) curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            $ms += curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000;
+            $err = curl_error($ch);
+            $certs = curl_getinfo($ch, CURLINFO_CERTINFO);
+            $next = (string) curl_getinfo($ch, CURLINFO_REDIRECT_URL);
+            curl_close($ch);
+            if ($code < 300 || $code >= 400 || $next === '') {
+                break;
+            }
+            $url = $next;
+        }
 
         if ($code === 0) {
             return self::result(STATUS_CRIT, null, t('Geen antwoord') . ': ' . $err);
@@ -197,8 +214,14 @@ final class Checks
         if ($code >= 400) {
             return self::result(STATUS_CRIT, $ms, "HTTP $code");
         }
+        if ($code >= 300) {
+            return self::result(STATUS_WARN, $ms, t('HTTP {c}: te veel doorverwijzingen', ['c' => $code]));
+        }
         $status = self::threshold($ms, $check);
         $msg = sprintf(t('HTTP %d in %.0f ms'), $code, $ms);
+        if ($method !== 'HEAD' && ($bad = ExtraChecks::bodyCheck($body, $o))) {
+            return self::result(STATUS_CRIT, $ms, $msg . ' · ' . $bad);
+        }
 
         // SSL-certificaat: waarschuwen < 14 dagen, kritiek < 3 dagen
         if (!empty($certs[0]['Expire date'])) {
@@ -981,7 +1004,7 @@ final class Checks
             : self::result(STATUS_CRIT, 0, t('{name} is {state}', ['name' => $name, 'state' => $state]));
     }
 
-    private static function agentStale(array $host): ?array
+    public static function agentStale(array $host): ?array
     {
         if ($host['agent_seen'] === null) {
             return self::result(STATUS_UNKNOWN, null, t('Agent heeft nog nooit gerapporteerd'));
@@ -992,7 +1015,7 @@ final class Checks
         return null;
     }
 
-    private static function agentMetric(array $host, string $metric): ?string
+    public static function agentMetric(array $host, string $metric): ?string
     {
         $v = q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [$host['id'], $metric])->fetchColumn();
         return $v === false ? null : (string) $v;

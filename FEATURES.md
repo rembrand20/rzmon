@@ -58,6 +58,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Poortscan**: zoek open TCP-poorten (bekende poorten, 1–1024 of een eigen lijst) en maak er met één klik een check van. Bij agent-servers zie je ook welke poorten lokaal luisteren, met procesnaam.
 
 ## 3. Dashboard
+- **Nieuwe checks** (vanaf 1.138.0, agent 1.70.0): **DNS**, **Tijd (NTP)**, **Schijfgezondheid (SMART/NVMe)**, **UPS (NUT)** en **MariaDB/MySQL**; **HTTP** met methode, body en een verwachte tekst of JSON-waarde, en alleen veilige adressen. Schijven, UPS'en en de klok worden vanzelf voorgesteld bij *💡 Nog niet bewaakt*.
 - **Snellere agents** (vanaf 1.137.0, agent 1.69.0): commando-checks op de achtergrond, een hartslag tijdens een lange run (geen onterechte *agent stil*), een wachtrij die metingen inhaalt na een storing, de duur per onderdeel in de Agent Manager, en **Docker** naast Podman.
 - **Bewaartermijnen** (vanaf 1.136.0): elke meting 30 dagen, daarna uurgemiddelden 180 dagen en daggegevens 2 jaar, alles in te stellen; grafieken tot 180 dagen terug; groei van de database in beeld en een waarschuwing bij ongewone groei.
 - **Zijbalk en thema's** (vanaf 1.135.0): menu links op een breed scherm (met Instellingen), donker thema in marineblauw, en de themakeuze (auto, licht, donker) per gebruiker op elk apparaat. Op het Dashboard tegels voor Hosts, Meldingen, Kritieke CVE en Agents, een grafiek van CPU en RAM over 24 uur, recente incidenten, en *onbekend* in grijs (nooit groen).

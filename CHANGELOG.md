@@ -7,6 +7,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.138.0 – 2026-11-02
+### Nieuw
+- **Nieuwe checks**:
+  - **DNS**: geeft een naam antwoord (A, AAAA, MX, TXT, CNAME, NS), eventueel via een eigen DNS-server, met de waarde die je verwacht.
+  - **Tijd (NTP)**: de klok van een server met de agent, of een NTP-server (bv. je router) die RzMon zelf vraagt; afwijking in ms.
+  - **Schijfgezondheid (SMART)**: gezondheidstest, temperatuur, slijtage van SSD's en NVMe, vervangen en twijfelachtige sectoren.
+  - **UPS (NUT)**: op de batterij, bijna leeg, lading, resterende tijd en belasting.
+  - **MariaDB / MySQL**: verbinden en inloggen, verbindingen in gebruik, trage query's; het wachtwoord gaat nooit naar de browser.
+  - Klok, schijfgezondheid en UPS: agent 1.70.0 nodig.
+- **HTTP-check uitgebreid**: methode (GET, POST, HEAD, PUT) met body, een tekst die in het antwoord moet staan, of een JSON-veld met een waarde (bv. `status` = `ok`).
+- **Nog niet bewaakt** stelt schijven, UPS'en en de klok voor zodra de agent ze meldt.
+- **Nieuwe agent 1.70.0**.
+
+### Veiligheid
+- Een HTTP-check vraagt alleen `http://` en `https://` op, en nooit link-local adressen zoals de metadata-dienst van clouds (`169.254.169.254`), ook niet na een doorverwijzing. Doorverwijzingen worden nu stap voor stap gecontroleerd.
+
 ## 1.137.0 – 2026-11-02
 ### Nieuw
 - **Nieuwe agent 1.69.0**: sneller en niet meer onterecht "stil" (agent 1.69.0 nodig):

@@ -34,7 +34,7 @@ final class Discover
         }
         $ign = self::ignored($host);
         $data = [];
-        foreach (q("SELECT metric, value FROM agent_data WHERE host_id = ? AND (metric LIKE 'disk:%' OR metric LIKE 'container:%' OR metric LIKE 'cert:%' OR metric IN ('svclist', 'ports', 'certfound'))", [$hid]) as $r) {
+        foreach (q("SELECT metric, value FROM agent_data WHERE host_id = ? AND (metric LIKE 'disk:%' OR metric LIKE 'container:%' OR metric LIKE 'cert:%' OR metric LIKE 'smart:%' OR metric LIKE 'ups:%' OR metric IN ('svclist', 'ports', 'certfound', 'time'))", [$hid]) as $r) {
             $data[$r['metric']] = $r['value'];
         }
         $out = [];
@@ -51,6 +51,18 @@ final class Discover
             if ($kind === 'container' && !isset($have["container:$what"])) {
                 $add("container:$what", 'container', '📦 ' . $what, t('Container'), ['type' => 'container', 'target' => $what, 'name' => "📦 $what",
                     'res' => ['cpu' => ['on' => false], 'mem' => ['on' => false], 'disk' => ['on' => false]]]);
+            }
+            // 1.138.0: schijfgezondheid per schijf (niet als er al een check voor alle schijven is), UPS, en de klok
+            if ($kind === 'smart' && !isset($have["smart:$what"]) && !isset($have['smart:']) && empty((json_decode((string) $value, true) ?: [])['error'])) {
+                $m = (json_decode((string) $value, true) ?: [])['model'] ?? '';
+                $add("smart:$what", 'smart', '💽 ' . $what, t('Schijfgezondheid') . ($m !== '' ? " · $m" : ''), ['type' => 'smart', 'target' => $what,
+                    'name' => t('Schijf {d}', ['d' => basename($what)]), 'warn_threshold' => 55, 'crit_threshold' => 65, 'interval_sec' => 1800]);
+            }
+            if ($kind === 'ups' && !isset($have["ups:$what"]) && !isset($have['ups:'])) {
+                $add("ups:$what", 'ups', '🔋 ' . $what, 'UPS', ['type' => 'ups', 'target' => $what, 'name' => "UPS $what", 'warn_threshold' => 50, 'crit_threshold' => 20]);
+            }
+            if ($metric === 'time' && !isset($have['ntp:'])) {
+                $add('ntp', 'ntp', '🕐 ' . t('Klok'), t('Tijd (NTP)'), ['type' => 'ntp', 'target' => '', 'name' => t('Tijd'), 'warn_threshold' => 100, 'crit_threshold' => 1000, 'interval_sec' => 300]);
             }
             if ($kind === 'cert' && !isset($have["ssl:$what"])) {
                 $add("cert:$what", 'cert', '🔒 ' . $what, t('Certificaat'), ['type' => 'ssl', 'target' => $what, 'name' => t('Certificaat {n}', ['n' => basename($what)]),

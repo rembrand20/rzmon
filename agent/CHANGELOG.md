@@ -5,6 +5,12 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.70.0 – 2026-11-02
+- **Klok**: gesynchroniseerd en hoeveel ms hij afwijkt (chrony of systemd-timesyncd), voor de check *Tijd (NTP)* (RzMon 1.138.0).
+- **Schijfgezondheid**: met smartctl (smartmontools) per schijf de gezondheidstest, temperatuur, slijtage (SSD/NVMe) en vervangen of twijfelachtige sectoren; elk half uur, en schijven in slaapstand worden niet wakker gemaakt.
+- **UPS**: via NUT (`upsc`) de status (op het net of op de batterij), lading, resterende tijd en belasting.
+
+
 ## 1.69.0 – 2026-11-02
 - **Sneller en nooit meer onterecht "stil"** (RzMon 1.137.0):
   - **Commando-checks op de achtergrond**: is er al een vorig resultaat, dan gaat dat meteen mee en meet de agent opnieuw op de achtergrond. Een trage check houdt het rapport niet meer op (die mochten samen tot 40 seconden duren). De eerste keer meet hij nog direct.

@@ -851,6 +851,21 @@ if ($action === 'agent') {
         $st->execute([$host['id'], 'caps', json_encode(array_values(array_filter(array_slice($in['caps'], 0, 40), static fn($c) => is_string($c) && preg_match('/^[a-z0-9-]{1,20}$/', $c)))), $now]);
     }
     $backlogN = is_array($in['backlog'] ?? null) ? AgentQueue::backlog($host, $in['backlog']) : 0;
+    // 1.138.0 (agent 1.70.0): klok, schijfgezondheid en UPS; per schijf en per UPS ook een regel om uit te kiezen in het formulier
+    if (is_array($in['time'] ?? null)) {
+        $st->execute([$host['id'], 'time', json_encode(['src' => mb_substr((string) ($in['time']['src'] ?? ''), 0, 20), 'sync' => !empty($in['time']['sync']),
+            'offset_ms' => is_numeric($in['time']['offset_ms'] ?? null) ? (float) $in['time']['offset_ms'] : null]), $now]);
+    }
+    foreach (['smart' => 'dev', 'ups' => 'name'] as $k => $key) {
+        if (!is_array($in[$k] ?? null)) {
+            continue;
+        }
+        $list = array_values(array_filter(array_slice($in[$k], 0, 32), static fn($x) => is_array($x) && preg_match('#^[\w/@.:-]{1,100}$#', (string) ($x[$key] ?? ''))));
+        $st->execute([$host['id'], $k, json_encode($list, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $now]);
+        foreach ($list as $x) {
+            $st->execute([$host['id'], mb_substr("$k:" . $x[$key], 0, 190), json_encode($x, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $now]);
+        }
+    }
     // Deels onleesbaar rapport (1.99.2): wat er werd weggelaten en waarom, voor de Agent Manager
     if ($salvaged) {
         $st->execute([$host['id'], 'report_warn', json_encode($salvaged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $now]);
@@ -1229,7 +1244,8 @@ $confirm = static function (string $word) use ($user): void {
  */
 $checkCols = static function (array $in, bool $dry = false) use ($user): array {   // $dry: alleen proberen (geen logboek)
             $type = $in['type'] ?? '';
-            if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat', 'process', 'pve'], true)) {
+            if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat', 'process', 'pve',
+                'dns', 'ntp', 'smart', 'ups', 'mysql'], true)) {
                 out(['error' => t('Ongeldig type')], 422);
             }
             // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -1344,7 +1360,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
             if ($type === 'snmp' && $metric === 'ups_status') {
                 $warn = $crit = null;   // UPS-status: geen drempels
             }
-            if ($type === 'ssl' || $snmpLow) {
+            if ($type === 'ssl' || $type === 'ups' || $snmpLow) {   // 1.138.0: ook de lading van een UPS
                 // Hier geldt "minder = slechter" (dagen, batterij, toner…)
                 if ($warn !== null && $crit !== null && $warn < $crit) {
                     out(['error' => $type === 'ssl' ? t('Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel')
@@ -1500,13 +1516,42 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 $from = in_array($in['cert_from'] ?? '', ['agent', 'rzmon'], true) ? $in['cert_from'] : '';
                 $options = $from !== '' ? json_encode(['from' => $from]) : null;
             }
+            // 1.138.0: opties van de nieuwe checks; HTTP met methode, body en verwachte inhoud
+            if ($type === 'http') {
+                $method = in_array($in['http_method'] ?? 'GET', ['GET', 'POST', 'HEAD', 'PUT'], true) ? $in['http_method'] : 'GET';
+                $ho = array_filter(['method' => $method !== 'GET' ? $method : null, 'body' => in_array($method, ['POST', 'PUT'], true) ? mb_substr((string) ($in['http_body'] ?? ''), 0, 4000) : null,
+                    'ctype' => in_array($method, ['POST', 'PUT'], true) && preg_match('#^[\w.+-]+/[\w.+-]+$#', (string) ($in['http_ctype'] ?? '')) ? $in['http_ctype'] : null,
+                    'expect' => mb_substr(trim((string) ($in['http_expect'] ?? '')), 0, 200), 'json' => mb_substr(trim((string) ($in['http_json'] ?? '')), 0, 100),
+                    'json_value' => mb_substr(trim((string) ($in['http_json_value'] ?? '')), 0, 200)], static fn($v) => $v !== null && $v !== '');
+                if (isset($ho['json']) && !preg_match('/^\$?\.?[\w-]+(\.[\w-]+)*$/', $ho['json'])) {
+                    out(['error' => t('JSON-veld: namen met punten ertussen, bv. status of data.0.ok')], 422);
+                }
+                $options = $ho ? json_encode($ho, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
+            }
+            if ($type === 'dns') {
+                if (!preg_match('/^[A-Za-z0-9._-]{1,253}$/', $target)) {
+                    out(['error' => t('Vul een naam in, bv. example.com')], 422);
+                }
+                $srv = trim((string) ($in['dns_server'] ?? ''));
+                if ($srv !== '' && !filter_var($srv, FILTER_VALIDATE_IP)) {
+                    out(['error' => t('DNS-server moet een IP-adres zijn')], 422);
+                }
+                $options = json_encode(array_filter(['rtype' => isset(ExtraChecks::DNS_TYPES[$in['dns_type'] ?? '']) ? $in['dns_type'] : 'A', 'server' => $srv,
+                    'expect' => mb_substr(trim((string) ($in['dns_expect'] ?? '')), 0, 200)], static fn($v) => $v !== ''), JSON_UNESCAPED_SLASHES);
+            }
+            if ($type === 'mysql') {
+                $old = (int) ($in['id'] ?? 0) ? json_decode((string) q('SELECT options FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn(), true) ?: [] : [];
+                $pass = (string) ($in['db_pass'] ?? '');
+                $options = json_encode(['user' => mb_substr(trim((string) ($in['db_user'] ?? '')), 0, 80), 'pass' => $pass === ExtraChecks::MASK ? (string) ($old['pass'] ?? '') : mb_substr($pass, 0, 200),
+                    'db' => preg_replace('/[^\w$-]/', '', mb_substr((string) ($in['db_name'] ?? ''), 0, 64))], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
             if ($type === 'pve' && trim((string) ($in['name'] ?? '')) === '') {
                 $g = $metric === 'guest' ? q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [(int) ($in['host_id'] ?? 0), "pveg:$target"])->fetchColumn() : false;
                 $g = $g ? json_decode((string) $g, true) : null;
                 $in['name'] = ['overview' => 'Proxmox', 'guest' => $g ? ($g['kind'] === 'ct' ? '📦 ' : '🖥️ ') . ($g['name'] ?: "VM $target") : "VM $target",
                     'backups' => $target !== '' ? t('Back-up {id}', ['id' => $target]) : t('Proxmox-back-ups'), 'storage' => t('Proxmox-opslag') . ($target !== '' ? " $target" : ''), 'zfs' => 'ZFS'][$metric];
             }
-            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
+            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'dns' => 'DNS', 'ntp' => t('Tijd'), 'smart' => t('Schijfgezondheid'), 'ups' => 'UPS', 'mysql' => 'MariaDB', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
                 'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'heartbeat' => 'Heartbeat', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
                 'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',
                     'disklife' => 'SD-kaart/eMMC', 'osupdate' => 'HA OS-update', 'usb' => 'USB'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
@@ -1558,6 +1603,9 @@ switch ($action) {
             unset($c['host_maintenance_until'], $c['host_maintenance_reason']);
             if (!$isAdmin) {
                 unset($c['hb_token']);   // geheime heartbeat-URL alleen voor beheerders
+            }
+            if ($c['type'] === 'mysql') {
+                $c['options'] = ExtraChecks::maskOptions($c['options']);   // 1.138.0: wachtwoord nooit naar de browser
             }
             $byHost[$c['host_id']][] = $c;
         }
@@ -1648,6 +1696,9 @@ switch ($action) {
             $end = $ch['created_at'];
         }
         unset($ch);
+        if ($c['type'] === 'mysql') {
+            $c['options'] = ExtraChecks::maskOptions($c['options']);
+        }
         out(['check' => $c, 'uptime' => ['d1' => $pct($up['ok1'], $up['n1']), 'd7' => $pct($up['ok7'], $up['n7'])],
              'changes' => $changes, 'now' => now(), 'smart' => Smart::info($c)]);
 

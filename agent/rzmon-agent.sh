@@ -20,7 +20,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.69.0"
+AGENT_VERSION="1.70.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -3625,6 +3625,68 @@ wd_file="$t_dir/watchdog"
 wd_gap=""
 [ -s "$wd_file.gap" ] && wd_gap=$(grep -E '^\{"down":[0-9]+,"up":[0-9]+,"sent":[01],"self":[01]\}$' "$wd_file.gap" | head -n 1)
 
+# ---------------------------------------------------------------- Klok, schijfgezondheid en UPS (agent 1.70.0)
+lap time_smart_ups
+# Klok: gesynchroniseerd en hoeveel ms hij afwijkt (chrony of systemd-timesyncd), voor de check Tijd
+time_json=""
+if [ "$HA_MODE" = 0 ]; then
+    if command -v chronyc >/dev/null 2>&1 && t_out=$(timeout 5 chronyc -n tracking 2>/dev/null) && [ -n "$t_out" ]; then
+        t_off=$(awk -F': *' '/^System time/ { split($2, a, " "); v = a[1] * 1000; if ($2 ~ /slow/) v = -v; printf "%.3f", v }' <<<"$t_out")
+        t_sync=$(awk -F': *' '/^Leap status/ { print ($2 == "Normal") ? "true" : "false" }' <<<"$t_out")
+        time_json="{\"src\":\"chrony\",\"sync\":${t_sync:-false},\"offset_ms\":${t_off:-null}}"
+    elif command -v timedatectl >/dev/null 2>&1 && t_sync=$(timeout 5 timedatectl show -p NTPSynchronized --value 2>/dev/null) && [ -n "$t_sync" ]; then
+        t_off=$(timeout 5 timedatectl timesync-status 2>/dev/null | awk -F': *' '/Offset:/ { v = $2; m = 1; if (v ~ /us/) m = 0.001; else if (v ~ /ms/) m = 1; else if (v ~ /s$/) m = 1000; gsub(/[^0-9.+-]/, "", v); printf "%.3f", v * m; exit }')
+        time_json="{\"src\":\"timesyncd\",\"sync\":$( [ "$t_sync" = yes ] && echo true || echo false),\"offset_ms\":${t_off:-null}}"
+    fi
+fi
+# Schijfgezondheid (smartctl, smartmontools): elk half uur, schijven in slaapstand worden niet wakker gemaakt
+smart_json=""
+if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && [ "$(id -u)" = 0 ] && command -v smartctl >/dev/null 2>&1; then
+    sm_cache="$t_dir/smart.cache"
+    if [ -s "$sm_cache" ] && [ $(( $(date +%s) - $(stat -c %Y "$sm_cache") )) -lt 1800 ]; then
+        smart_json=$(cat "$sm_cache")
+    else
+        smart_json=$(timeout 20 smartctl --scan 2>/dev/null | awk '$1 ~ /^\/dev\// { print $1 " " ($2 == "-d" ? $3 : "auto") }' | head -n 24 | while read -r sm_dev sm_type; do
+            sm_out=$(timeout 20 smartctl -n standby -H -i -A -d "$sm_type" "$sm_dev" 2>/dev/null); sm_rc=$?
+            if grep -qi 'STANDBY\|SLEEP' <<<"$sm_out" && [ $(( sm_rc & 2 )) -ne 0 ]; then
+                printf '{"dev":"%s","standby":true},' "$(json_escape "$sm_dev")"; continue
+            fi
+            awk -v dev="$sm_dev" '
+                function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); return s }
+                /^(Device Model|Model Number|Product):/ { sub(/^[^:]*: */, ""); model = $0 }
+                /overall-health self-assessment test result:|SMART Health Status:/ { passed = ($0 ~ /PASSED|: OK/) ? "true" : "false" }
+                /^Temperature:/ { temp = $2 + 0 }
+                /^Percentage Used:/ { v = $3; gsub(/%/, "", v); wear = v + 0 }
+                /^Media and Data Integrity Errors:/ { gsub(/,/, "", $NF); media = $NF + 0 }
+                $2 == "Reallocated_Sector_Ct" { realloc = $NF + 0 }
+                $2 == "Current_Pending_Sector" { pending = $NF + 0 }
+                ($2 == "Temperature_Celsius" || $2 == "Airflow_Temperature_Cel") && temp == "" { temp = $10 + 0 }
+                ($2 == "Percent_Lifetime_Remain" || $2 == "SSD_Life_Left" || $2 == "Wear_Leveling_Count" || $2 == "Media_Wearout_Indicator") && wear == "" { wear = 100 - ($4 + 0) }
+                END {
+                    if (passed == "" && model == "") { printf "{\"dev\":\"%s\",\"error\":\"niet uit te lezen\"},", esc(dev); exit }
+                    printf "{\"dev\":\"%s\",\"model\":\"%s\",\"passed\":%s,\"temp\":%s,\"wear\":%s,\"realloc\":%s,\"pending\":%s,\"media_err\":%s},",
+                        esc(dev), esc(model), passed == "" ? "null" : passed, temp == "" ? "null" : temp, wear == "" ? "null" : wear,
+                        realloc == "" ? "null" : realloc, pending == "" ? "null" : pending, media == "" ? "null" : media
+                }' <<<"$sm_out"
+        done)
+        smart_json="[${smart_json%,}]"
+        (umask 077; printf '%s' "$smart_json" >"$sm_cache") 2>/dev/null
+    fi
+fi
+# UPS via NUT (upsc): status (OL op het net, OB op de batterij, LB bijna leeg), lading, resterende tijd, belasting
+ups_json=""
+if [ "$HA_MODE" = 0 ] && command -v upsc >/dev/null 2>&1; then
+    for u_name in $(timeout 5 upsc -l 2>/dev/null | head -n 8); do
+        u_out=$(timeout 5 upsc "$u_name@localhost" 2>/dev/null) || continue
+        ups_json+=$(awk -F': ' -v n="$u_name" '
+            $1 == "ups.status" { st = $2 } $1 == "battery.charge" { ch = $2 + 0 } $1 == "battery.runtime" { rt = $2 + 0 }
+            $1 == "ups.load" { ld = $2 + 0 } $1 == "device.model" || $1 == "ups.model" { m = $2; gsub(/"/, "", m) }
+            END { printf "{\"name\":\"%s\",\"status\":\"%s\",\"charge\":%s,\"runtime\":%s,\"load\":%s,\"model\":\"%s\"},", n, st,
+                ch == "" ? "null" : ch, rt == "" ? "null" : rt, ld == "" ? "null" : ld, m }' <<<"$u_out")
+    done
+    [ -n "$ups_json" ] && ups_json="[${ups_json%,}]"
+fi
+
 # ---------------------------------------------------------------- Versturen
 lap ""
 [ -n "$beat_pid" ] && kill "$beat_pid" 2>/dev/null   # het echte rapport gaat nu; geen hartslag meer nodig
@@ -3645,7 +3707,7 @@ if [ -s "$q_file" ]; then
     q_sent=$(head -n 120 "$q_file" | wc -l)
 fi
 run_ms=$(( $(now_ms) - run_t0 ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
 # Agent 1.66.1: 50 seconden wachten op RzMon (was 20): een druk bezette RzMon verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit

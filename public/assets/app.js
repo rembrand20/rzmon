@@ -46,6 +46,12 @@ const TYPES = {
   reboot:  { label: L('Uptime'), target: null, unit: 'uur', help: L('Ziet wanneer de server opnieuw is opgestart (de uptime wordt korter) en stuurt dan een ℹ️ info-melding. De check zelf is altijd OK. Info staat standaard uit: zet hem aan bij Instellingen → 🔔 Meldingen (rij Info), of alleen voor deze check bij 🔔 Meldingen hieronder. Op agent-servers is agent 1.46.0 of nieuwer nodig.') },
   heartbeat: { label: L('Heartbeat'), target: L('Naam (voor rzmon-hb)'), unit: null, ph: 'backup-db', help: L('Een script, cronjob of apparaat meldt zich zelf bij RzMon (rzmon-hb op een server met de agent, of de geheime URL). Komt er binnen het schema plus de speling niets binnen: WARNING, na twee keer de speling CRITICAL. Mislukt (fail) = CRITICAL. Met start en klaar meet RzMon de duur.') },
   process: { label: L('Proces'),        target: L('Naam of patroon'), unit: null, ph: 'nginx', help: L('Draait het proces? Op naam (zoals in ps of top) of op een patroon in de opdrachtregel, eventueel alleen van één gebruiker. Draait het niet: CRITICAL. Daarnaast optioneel het aantal en het CPU- en RAM-gebruik. Is het herstart, dan komt er een ℹ️ info-melding. Op agent-servers kies je hem uit de lijst; agent 1.59.0 of nieuwer nodig.') },
+  // 1.138.0: DNS, tijd, schijfgezondheid, UPS en MariaDB
+  dns:     { label: L('DNS'), target: L('Naam'), unit: 'ms', warn: 200, crit: 1000, ph: 'example.com', help: L('Geeft deze naam antwoord? Kies het soort record en eventueel een eigen DNS-server (bv. je router of AdGuard) en de waarde die je verwacht. Geen antwoord of een andere waarde = CRITICAL; de waarde is de responstijd.') },
+  ntp:     { label: L('Tijd (NTP)'), target: L('NTP-server (optioneel)'), unit: 'ms', warn: 100, crit: 1000, ph: L('leeg = klok van deze server'), help: L('Loopt de klok goed? Op een server met de agent: de klok van die server (chrony of systemd-timesyncd), niet gesynchroniseerd = WARNING. Of vul een NTP-server in (bv. je router): dan vraagt RzMon die zelf. De waarde is de afwijking in ms.') },
+  smart:   { label: L('Schijfgezondheid (SMART)'), target: L('Schijf'), unit: '°C', warn: 55, crit: 65, ph: L('leeg = alle schijven'), help: L('Via de agent en smartctl (smartmontools): de gezondheidstest, de temperatuur (de drempels hierboven), slijtage van SSD\'s en NVMe (80% = WARNING, 90% = CRITICAL) en vervangen of twijfelachtige sectoren (WARNING). Schijven in slaapstand worden niet wakker gemaakt. Agent 1.70.0 of nieuwer.') },
+  ups:     { label: L('UPS (NUT)'), target: L('UPS'), unit: '%', warn: 50, crit: 20, low: true, ph: L('leeg = de eerste'), help: L('Via de agent en NUT (upsc) op de server waar de UPS aan hangt: op de batterij = WARNING, batterij bijna leeg = CRITICAL, en de lading met de drempels hierboven. In het bericht de resterende tijd en de belasting. Agent 1.70.0 of nieuwer.') },
+  mysql:   { label: L('MariaDB / MySQL'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server'), help: L('RzMon maakt verbinding en logt in: lukt dat niet = CRITICAL. Daarnaast hoeveel verbindingen er in gebruik zijn (90% = WARNING), trage query\'s sinds de vorige keer en hoe lang de database draait. Gebruik een eigen gebruiker zonder rechten (alleen USAGE). Het wachtwoord gaat nooit terug naar de browser.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
@@ -158,7 +164,7 @@ const MODES = { local: L('Lokaal (deze server)'), agent: L('Remote met agent'), 
 
 let state = { hosts: [], alerts: [] };
 // Omgekeerde status (zie Checks::REVERSIBLE)
-const REVERSIBLE = ['ping', 'tcp', 'http', 'service', 'container', 'podman', 'command', 'ha'];
+const REVERSIBLE = ['ping', 'tcp', 'http', 'service', 'container', 'podman', 'command', 'ha', 'dns', 'mysql'];
 // 1.107.0: slimme drempels (zoals Smart::SPEC): welke checks kunnen leren, en het standaard vangnet
 const SMART_GUARD = { ping: 1000, tcp: 3000, http: 10000, cpu: null, ram: 98, 'snmp:cpu': null, 'snmp:mem': 98, 'snmp:if': 98, 'snmp:load': null, 'snmp:temp': 85,
   'snmp:ups_load': 98, 'snmp:ups_temp': 45, 'snmp:syno_system': 75, 'snmp:syno_disk': 62, 'snmp:unifi_cu': null, 'snmp:unifi_quality': null };
@@ -3392,11 +3398,12 @@ function hbFields(c, h, o) {
  */
 function checkForm(c, h, preset = {}, tpl = null) {
   const isNew = !c;
-  c = c || { type: 'ping', target: '', name: '', warn_threshold: TYPES.ping.warn, crit_threshold: TYPES.ping.crit, interval_sec: 60, enabled: 1, ...preset };
+  const pt = TYPES[(preset || {}).type] || TYPES.ping;   // 1.138.0: standaarddrempels van het gekozen type, niet die van ping
+  c = c || { type: 'ping', target: '', name: '', warn_threshold: pt.warn ?? null, crit_threshold: pt.crit ?? null, interval_sec: 60, enabled: 1, ...preset };
   const quietOwn = quietOf(c);
   const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
-  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'snmp', 'heartbeat']
-    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command', 'pve'].includes(k))
+  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'dns', 'ntp', 'mysql', 'snmp', 'heartbeat']
+    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command', 'pve', 'smart', 'ups'].includes(k))
       .filter((k) => k !== 'pve' || isPveHost(h) || c?.type === 'pve')
       .filter((k) => k !== 'reboot' || h.mode !== 'remote' || c?.type === 'reboot')
       .filter((k) => k !== 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor') || c?.type === 'ha'))
@@ -3471,6 +3478,33 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <span class="hint" id="snmp-help"></span>
       </label>
       <label id="target-wrap"><span id="target-label"></span><input name="target" value="${esc(c.target)}" list="target-list" class="mono"></label>
+      <div id="http-x-wrap" hidden>
+        <div class="row2">
+          <label>${L('Methode')} <select name="http_method">${['GET', 'POST', 'HEAD', 'PUT'].map((m) => `<option ${(opts.method || 'GET') === m ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+          <label class="http-body-x">${L('Content-Type')} <input name="http_ctype" class="mono" maxlength="100" value="${esc(opts.ctype || '')}" placeholder="application/json"></label>
+        </div>
+        <label class="http-body-x">${L('Body')} <textarea name="http_body" class="mono" rows="2" maxlength="4000" placeholder='{"ping":true}'>${esc(opts.body || '')}</textarea></label>
+        <label>${L('Antwoord moet deze tekst bevatten')} <span class="hint">${L('(optioneel)')}</span><input name="http_expect" maxlength="200" value="${esc(opts.expect || '')}" placeholder="${L('bv. OK')}"></label>
+        <div class="row2">
+          <label>${L('JSON-veld')} <span class="hint">${L('(optioneel, bv. status of data.0.ok)')}</span><input name="http_json" class="mono" maxlength="100" value="${esc(opts.json || '')}"></label>
+          <label>${L('met waarde')} <input name="http_json_value" class="mono" maxlength="200" value="${esc(opts.json_value || '')}" placeholder="ok"></label>
+        </div>
+      </div>
+      <div id="dns-x-wrap" hidden>
+        <div class="row2">
+          <label>${L('Record')} <select name="dns_type">${['A', 'AAAA', 'MX', 'TXT', 'CNAME', 'NS'].map((r) => `<option ${(opts.rtype || 'A') === r ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
+          <label>${L('DNS-server')} <span class="hint">${L('(optioneel, IP)')}</span><input name="dns_server" class="mono" maxlength="45" value="${esc(opts.server || '')}" placeholder="192.168.1.1"></label>
+        </div>
+        <label>${L('Verwachte waarde')} <span class="hint">${L('(optioneel: moet in het antwoord staan)')}</span><input name="dns_expect" class="mono" maxlength="200" value="${esc(opts.expect || '')}" placeholder="203.0.113.10"></label>
+      </div>
+      <div id="db-x-wrap" hidden>
+        <div class="row2">
+          <label>${L('Gebruiker')} <input name="db_user" maxlength="80" autocomplete="off" value="${esc(opts.user || '')}" placeholder="rzmon_check"></label>
+          <label>${L('Wachtwoord')} <input name="db_pass" type="password" maxlength="200" autocomplete="new-password" value="${esc(opts.pass || '')}"></label>
+        </div>
+        <label>${L('Database')} <span class="hint">${L('(optioneel)')}</span><input name="db_name" maxlength="64" value="${esc(opts.db || '')}"></label>
+        <p class="hint">${L('Een gebruiker zonder rechten is genoeg:')} <code>CREATE USER 'rzmon_check'@'%' IDENTIFIED BY '…';</code></p>
+      </div>
       <div id="proc-pick-wrap" hidden>
         <div class="svc-pick-head"><span class="hint" id="proc-pick-info">${L('Processen op deze server ophalen…')}</span></div>
         <div class="svc-pick" id="proc-pick" role="listbox"></div>
@@ -3820,14 +3854,21 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#test-expect-wrap').hidden = tt !== 'url';
     $('[name=test_target]', form).placeholder = tt === 'port' ? L('8080 of localhost:8080') : 'http://localhost:8080/health';
     $('[name=test_target]', form).required = deep && !!tt;
-    $('[name=target]', form).required = !!t.target && !['http', 'ssl'].includes(typeSel.value);
+    $('[name=target]', form).required = !!t.target && !['http', 'ssl', 'ntp', 'smart', 'ups', 'mysql'].includes(typeSel.value);
     $('[name=target]', form).disabled = !t.target;   // niet meesturen als er geen doel is (bv. HA-checks zonder doel)
     const haLogs = ['ha:host', 'ha:core', 'ha:supervisor', ...svcs.filter((x) => x.startsWith('addon:')).map((x) => `ha:${x}`)];
     const usbs = h.metrics.filter((m) => m.startsWith('usb:')).map((m) => m.slice(4));
     const list = isHa && haSel.value === 'usb' ? usbs
       : isPve ? h.metrics.filter((m) => m.startsWith(pveSel.value === 'storage' ? 'pves:' : 'pveg:')).map((m) => m.slice(5))
-      : { disk: disks, service: svcs, ssl: certs, container: containers, log: isHaHost(h) ? haLogs : LOG_SOURCES }[typeSel.value] || [];
+      : { disk: disks, service: svcs, ssl: certs, container: containers, log: isHaHost(h) ? haLogs : LOG_SOURCES,
+        smart: h.metrics.filter((m) => m.startsWith('smart:')).map((m) => m.slice(6)), ups: h.metrics.filter((m) => m.startsWith('ups:')).map((m) => m.slice(4)) }[typeSel.value] || [];
     $('#log-wrap').hidden = typeSel.value !== 'log';
+    // 1.138.0: extra velden voor HTTP, DNS en MariaDB
+    $('#http-x-wrap').hidden = typeSel.value !== 'http';
+    $$('.http-body-x', form).forEach((x) => (x.hidden = !['POST', 'PUT'].includes($('[name=http_method]', form).value)));
+    $('#dns-x-wrap').hidden = typeSel.value !== 'dns';
+    $('#db-x-wrap').hidden = typeSel.value !== 'mysql';
+    $('[name=db_user]', form).required = typeSel.value === 'mysql';
     const isCmd = typeSel.value === 'command';
     $('#cmd-wrap').hidden = !isCmd;
     $('[name=cmd]', form).required = isCmd;
@@ -3991,6 +4032,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     if (typeSel.value === 'ssl') { renderCertPick(); $('#verify-wrap').hidden = $('[name=target]', form).value.trim().startsWith('/'); }
   });
   typeSel.onchange = () => update(true);
+  $('[name=http_method]', form).onchange = () => update(false);
   $('[name=hb_sched]', form).onchange = () => update(false);
   $('[name=thresh_mode]', form).onchange = () => update('smart');
   $('#heal-sel').onchange = () => update('smart');
@@ -9062,7 +9104,8 @@ async function totpSetup(id, username) {
 // ---------------------------------------------------------------- Databasewachtwoord vernieuwen
 let dbInfo = null;
 // ---------------------------------------------------------------- 💡 Nog niet bewaakt (1.95.0)
-const DISCOVER_KIND = { disk: () => '💾 ' + L('Disks'), service: () => '⚙️ ' + L('Services'), container: () => '📦 ' + L('Containers'), cert: () => '🔒 ' + L('Certificaten'), port: () => '🌐 ' + L('Poorten') };
+const DISCOVER_KIND = { disk: () => '💾 ' + L('Disks'), smart: () => '💽 ' + L('Schijfgezondheid'), service: () => '⚙️ ' + L('Services'), container: () => '📦 ' + L('Containers'),
+  cert: () => '🔒 ' + L('Certificaten'), ups: () => '🔋 UPS', ntp: () => '🕐 ' + L('Tijd'), port: () => '🌐 ' + L('Poorten') };
 async function discoverDialog(h) {
   let d;
   try { d = await api('discover', null, { id: h.id }); } catch (ex) { return toast(ex.message, 'err'); }

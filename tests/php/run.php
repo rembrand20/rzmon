@@ -710,5 +710,49 @@ ok($n1 >= 4 && $n2 === 0 && count($r1) === 2 && (int) $r1[0]['status'] === 2 && 
     && count($rd) === 2 && abs((float) $rd[0]['value'] - 85) < 0.01 && (int) $rd[0]['status'] === 1,
     'wachtrij: ingehaalde metingen op hun eigen tijd, met status, en niet dubbel');
 
+// 1.138.0: nieuwe checks (DNS, tijd, schijfgezondheid, UPS, MariaDB) en HTTP met verwachte inhoud en veilige adressen
+ok(ExtraChecks::urlBlocked('http://169.254.169.254/latest/meta-data/') !== null && ExtraChecks::urlBlocked('file:///etc/passwd') !== null
+    && ExtraChecks::urlBlocked('http://127.0.0.1:8080/health') === null && ExtraChecks::urlBlocked('https://192.168.1.10/') === null,
+    'HTTP: metadata-dienst en file:// geweigerd, LAN en localhost toegestaan');
+$jb = '{"status":"ok","data":[{"ok":true}],"n":3}';
+ok(ExtraChecks::bodyCheck($jb, ['json' => 'data.0.ok', 'json_value' => 'true']) === null && ExtraChecks::bodyCheck($jb, ['json' => 'status', 'json_value' => 'OK']) === null
+    && ExtraChecks::bodyCheck($jb, ['json' => 'status', 'json_value' => 'down']) !== null && ExtraChecks::bodyCheck($jb, ['json' => 'x.y']) !== null
+    && ExtraChecks::bodyCheck('niet json', ['json' => 'a']) !== null && ExtraChecks::bodyCheck($jb, ['expect' => '"ok"']) === null && ExtraChecks::bodyCheck($jb, ['expect' => 'kapot']) !== null,
+    'HTTP: verwachte tekst en JSON-veld met waarde');
+q("UPDATE hosts SET mode = 'agent', agent_seen = NOW(), agent_busy = NULL WHERE id = ?", [$ha]);
+$xh = q('SELECT * FROM hosts WHERE id = ?', [$ha])->fetch();
+$put = static function (string $m, $v) use ($ha): void {
+    q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()', [$ha, $m, json_encode($v)]);
+};
+$put('smart', [['dev' => '/dev/nvme0', 'model' => 'SSD', 'passed' => true, 'temp' => 41, 'wear' => 83, 'media_err' => 0],
+    ['dev' => '/dev/sda', 'model' => 'HDD', 'passed' => true, 'temp' => 36, 'realloc' => 8, 'pending' => 2], ['dev' => '/dev/sdb', 'passed' => false, 'temp' => 70]]);
+$ck = static fn(string $type, string $target, $w, $c) => ['id' => 0, 'type' => $type, 'target' => $target, 'warn_threshold' => $w, 'crit_threshold' => $c, 'options' => null];
+$r1 = Checks::run($ck('smart', '/dev/nvme0', 55, 65), $xh);
+$r2 = Checks::run($ck('smart', '/dev/sda', 55, 65), $xh);
+$r3 = Checks::run($ck('smart', '', 55, 65), $xh);
+ok($r1['status'] === STATUS_WARN && str_contains($r1['message'], '83%') && $r2['status'] === STATUS_WARN && str_contains($r2['message'], '8 ')
+    && $r3['status'] === STATUS_CRIT && (float) $r3['value'] === 70.0, 'schijfgezondheid: slijtage en sectoren = warning, test mislukt = critical, hoogste temperatuur');
+$put('ups', [['name' => 'eaton', 'status' => 'OL', 'charge' => 100, 'runtime' => 1800, 'load' => 20]]);
+$u1 = Checks::run($ck('ups', '', 50, 20), $xh);
+$put('ups', [['name' => 'eaton', 'status' => 'OB DISCHRG', 'charge' => 64, 'runtime' => 1260, 'load' => 31]]);
+$u2 = Checks::run($ck('ups', 'eaton', 50, 20), $xh);
+$put('ups', [['name' => 'eaton', 'status' => 'OB LB', 'charge' => 9]]);
+$u3 = Checks::run($ck('ups', 'eaton', 50, 20), $xh);
+ok($u1['status'] === STATUS_OK && $u2['status'] === STATUS_WARN && str_contains($u2['message'], '21 min') && $u3['status'] === STATUS_CRIT, 'UPS: op het net OK, op de batterij warning, bijna leeg critical');
+$put('time', ['src' => 'chrony', 'sync' => true, 'offset_ms' => -4.2]);
+$t1 = Checks::run($ck('ntp', '', 100, 1000), $xh);
+$put('time', ['src' => 'chrony', 'sync' => true, 'offset_ms' => 250]);
+$t2 = Checks::run($ck('ntp', '', 100, 1000), $xh);
+$put('time', ['src' => 'timesyncd', 'sync' => false, 'offset_ms' => null]);
+$t3 = Checks::run($ck('ntp', '', 100, 1000), $xh);
+ok($t1['status'] === STATUS_OK && abs((float) $t1['value'] - 4.2) < 0.01 && $t2['status'] === STATUS_WARN && $t3['status'] === STATUS_WARN, 'tijd: afwijking in ms, niet gesynchroniseerd = warning');
+$dbc = config('db');
+$my = Checks::run(['id' => 0, 'type' => 'mysql', 'target' => ($dbc['host'] ?? '127.0.0.1') . ':' . ($dbc['port'] ?? 3306), 'warn_threshold' => 500, 'crit_threshold' => 2000,
+    'options' => json_encode(['user' => $dbc['user'], 'pass' => $dbc['pass']])], $xh);
+$myBad = Checks::run(['id' => 0, 'type' => 'mysql', 'target' => ($dbc['host'] ?? '127.0.0.1') . ':' . ($dbc['port'] ?? 3306), 'warn_threshold' => 500, 'crit_threshold' => 2000,
+    'options' => json_encode(['user' => $dbc['user'], 'pass' => 'fout-wachtwoord'])], $xh);
+ok($my['status'] === STATUS_OK && str_contains($my['message'], 'verbindingen') && $myBad['status'] === STATUS_CRIT
+    && !str_contains((string) ExtraChecks::maskOptions(json_encode(['user' => 'x', 'pass' => 'geheim'])), 'geheim'), 'MariaDB: inloggen lukt (met verbindingen), fout wachtwoord = critical, wachtwoord nooit naar de browser');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);
