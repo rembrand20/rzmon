@@ -15,7 +15,7 @@ final class Home
     public static function data(bool $full, string $period, bool $fresh = false): array
     {
         $period = in_array($period, self::PERIODS, true) ? $period : '7d';
-        $out = ['period' => $period, 'full' => $full, 'ids' => self::ids(), 'events' => self::events($full)];
+        $out = ['period' => $period, 'full' => $full, 'ids' => self::ids(), 'events' => self::events($full), 'resources' => self::resources(), 'incidents' => self::incidents()];
         if (!$full) {
             return $out;
         }
@@ -32,6 +32,32 @@ final class Home
         $out['vulns'] = Vulns::enabled() ? self::vulns($r['security']['vulns']['series'] ?? []) : null;
         $out['net'] = ($r['network']['on'] ?? false) ? self::net($r['network']) : null;
         return $out;
+    }
+
+    /** 1.135.0: CPU en RAM over alle servers, gemiddeld per uur over de laatste 24 uur (24 waarden, null = geen meting) */
+    private static function resources(): array
+    {
+        $now = intdiv(time(), 3600);
+        $out = ['cpu' => array_fill(0, 24, null), 'ram' => array_fill(0, 24, null), 'hosts' => 0, 'start' => ($now - 23) * 3600];
+        foreach (q("SELECT c.type, FLOOR(UNIX_TIMESTAMP(r.created_at) / 3600) AS b, AVG(r.value) AS v
+                    FROM checks c JOIN results r ON r.check_id = c.id AND r.created_at >= NOW() - INTERVAL 24 HOUR
+                    WHERE c.type IN ('cpu', 'ram') AND c.enabled = 1 AND r.value IS NOT NULL GROUP BY c.type, b") as $row) {
+            $i = (int) $row['b'] - ($now - 23);
+            if ($i >= 0 && $i < 24) {
+                $out[$row['type']][$i] = round((float) $row['v'], 1);
+            }
+        }
+        $out['hosts'] = (int) q("SELECT COUNT(DISTINCT host_id) FROM checks WHERE type IN ('cpu', 'ram') AND enabled = 1")->fetchColumn();
+        return $out;
+    }
+
+    /** 1.135.0: de laatste IDS-incidenten (open eerst), voor het paneel "Recente incidenten" */
+    private static function incidents(): array
+    {
+        $rows = q("SELECT i.id, i.severity, i.title, i.status, i.hits, i.last_seen, h.name AS host FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
+                   WHERE i.last_seen >= NOW() - INTERVAL 14 DAY ORDER BY i.status = 'open' DESC, i.severity DESC, i.last_seen DESC LIMIT 6")->fetchAll();
+        return array_map(static fn($r) => ['id' => (int) $r['id'], 'sev' => (int) $r['severity'], 'title' => (string) $r['title'], 'open' => $r['status'] === 'open',
+            'hits' => (int) $r['hits'], 'host' => (string) $r['host'], 'at' => (string) $r['last_seen']], $rows);
     }
 
     /** Open incidenten (warning/critical) en wat er vandaag en nu geblokkeerd is */

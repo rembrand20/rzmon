@@ -1036,7 +1036,8 @@ function init() {
   document.addEventListener('click', (e) => { if (!e.target.closest('.dash-more')) $$('[data-menu-btn]').forEach((x) => menuOpen(x, false)); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $$('[data-menu-btn]').forEach((x) => menuOpen(x, false)); });
   // De tellerbalk blijft onder de header staan: hoe hoog is de header?
-  const topH = () => document.documentElement.style.setProperty('--top-h', ($('.topbar') ? $('.topbar').offsetHeight : 56) + 'px');
+  // 1.135.0: in de zijbalk (breed scherm) staat er bovenaan niets meer: dan plakken de tellers tegen de bovenrand
+  const topH = () => document.documentElement.style.setProperty('--top-h', ($('.topbar') && getComputedStyle($('.topbar')).position !== 'fixed' ? $('.topbar').offsetHeight : 0) + 'px');
   topH(); window.addEventListener('resize', topH);
   $('#hosts').addEventListener('click', onHostsClick);
   $('#hosts').addEventListener('keydown', (e) => {
@@ -7719,6 +7720,7 @@ function initAccountMenu() {
       const v = th.dataset.themeSet;
       if (v === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
       try { v === 'auto' ? localStorage.removeItem('rzmon-theme') : localStorage.setItem('rzmon-theme', v); } catch (ex) {}
+      if (!prefsLocal) savePref('theme', v);   // 1.135.0: per gebruiker, op elk apparaat
       return markTheme();
     }
     const lg = e.target.closest('[data-lang-set]');
@@ -7741,7 +7743,10 @@ function moveTabIndicator(anim = true) {
   ind.classList.toggle('no-anim', !anim);
   // Instellingen of Mijn account: geen tabblad actief, dan ook geen vlak
   ind.style.opacity = t ? '1' : '0';
-  if (t) { ind.style.width = t.offsetWidth + 'px'; ind.style.transform = `translateX(${t.offsetLeft}px)`; }
+  // 1.135.0: in de zijbalk (breed scherm) staan de tabbladen onder elkaar: dan schuift het vlak omlaag
+  const vert = getComputedStyle($('#main-tabs')).flexDirection === 'column';
+  if (t && vert) { ind.style.width = ''; ind.style.height = t.offsetHeight + 'px'; ind.style.transform = `translateY(${t.offsetTop}px)`; }
+  else if (t) { ind.style.height = ''; ind.style.width = t.offsetWidth + 'px'; ind.style.transform = `translateX(${t.offsetLeft}px)`; }
 }
 
 function initMainTabs() {
@@ -11251,10 +11256,10 @@ const HM_PERIODS = [['7d', () => L('7 dagen')], ['30d', () => L('30 dagen')], ['
 let hmPeriod = (() => { try { return localStorage.getItem('rzmon-hm-period') || '7d'; } catch (e) { return '7d'; } })();
 let hmData = null;
 let hmAt = 0;
-const HM_ST = { ok: () => L('In orde'), warn: () => L('Aandacht'), crit: () => L('Storing') };
+const HM_ST = { ok: () => L('In orde'), warn: () => L('Aandacht'), crit: () => L('Storing'), unk: () => L('Onbekend') };
 // Vorm naast kleur: rondje = in orde, vierkant = aandacht, driehoek = storing (ook zonder kleur te lezen)
 const hmShape = (st, size = 10) => `<svg class="hm-shape ${st}" width="${size}" height="${size}" viewBox="0 0 10 10" role="img" aria-label="${esc(HM_ST[st]())}">${
-  st === 'ok' ? '<circle cx="5" cy="5" r="5"/>' : st === 'warn' ? '<rect width="10" height="10" rx="2"/>' : '<path d="M5 0L10 10H0Z"/>'}</svg>`;
+  st === 'ok' ? '<circle cx="5" cy="5" r="5"/>' : st === 'warn' ? '<rect width="10" height="10" rx="2"/>' : st === 'unk' ? '<circle cx="5" cy="5" r="3.8" fill="none" stroke-width="2.4"/>' : '<path d="M5 0L10 10H0Z"/>'}</svg>`;
 const hmStOf = (s) => (s === 2 ? 'crit' : s === 1 ? 'warn' : 'ok');
 const hmNum = (n) => Number(n || 0).toLocaleString(LOCALE);
 
@@ -11299,26 +11304,28 @@ function renderHome() {
   const prevAvail = d.full && d.avail.prev !== null ? d.avail.now - d.avail.prev : null;
   const circ = 2 * Math.PI * 46;
 
-  // Tegels: per onderdeel één groot getal, de status (vorm + woord) en een lijntje over de periode
+  // Tegels (1.135.0, zoals het ontwerp): Hosts, Meldingen, Kritieke CVE en Agents; elk een groot getal, de status en een lijntje
   const tiles = [];
-  const mSt = live.n[2] ? 'crit' : live.n[1] ? 'warn' : 'ok';
-  tiles.push({ go: 'dashboard', label: L('Monitoring'), st: mSt, big: hmNum(live.n[0]), unit: L('/ {n} checks OK', { n: live.total }),
-    sub: [live.n[1] && L('{n} warning', { n: live.n[1] }), live.n[2] && L('{n} critical', { n: live.n[2] }), d.full && d.avail.now !== null && L('{p} bereikbaar', { p: pct(d.avail.now) })].filter(Boolean).join(' · ') || L('alles in orde'),
-    spark: d.full ? hmSpark(hmVals(d.avail.series), 's1') : '' });
-  const iSt = d.ids.open[2] ? 'crit' : d.ids.open[1] ? 'warn' : 'ok';
-  tiles.push({ go: 'ids', label: L('Beveiliging (IDS)'), st: iSt, big: hmNum(d.ids.open_total), unit: L('open incidenten'),
-    sub: d.full ? L('{n} geblokkeerd in deze periode · {m} blokkades actief', { n: hmNum(d.ids.blk_period), m: d.ids.blk_now }) : L('{m} blokkades actief', { m: d.ids.blk_now }),
-    spark: d.full ? hmSpark(hmVals(d.ids.series.blk), 's2') : '' });
+  const hl = state.health || {};
+  const down = (hl.hosts_total || 0) - (hl.hosts_up || 0);
+  tiles.push({ go: 'dashboard', label: L('Hosts'), st: down ? 'crit' : 'ok', big: hmNum(hl.hosts_up || 0), unit: L('/ {n} online', { n: hl.hosts_total || 0 }),
+    sub: down ? L('{n} onbereikbaar', { n: down }) : L('alles bereikbaar'), spark: d.full ? hmSpark(hmVals(d.avail.series), 's1') : '' });
+  const probs = live.n[1] + live.n[2];
+  tiles.push({ go: 'alerts', label: L('Meldingen'), st: live.n[2] ? 'crit' : live.n[1] ? 'warn' : 'ok', big: hmNum(probs), unit: L('open problemen'),
+    sub: probs ? [live.n[1] && L('{n} aandacht', { n: live.n[1] }), live.n[2] && L('{n} storing', { n: live.n[2] })].filter(Boolean).join(' · ') : L('/ {n} checks OK', { n: live.total }).replace(/^\/ /, ''),
+    spark: d.full ? hmSpark(hmVals(d.ids.series.crit).map((v, i) => v + (hmVals(d.ids.series.warn)[i] || 0)), 's2') : '' });
   if (d.vulns) {
     const v = d.vulns;
-    tiles.push({ go: 'vulns', label: L('Kwetsbaarheden'), st: v.sev[4] ? 'crit' : v.sev[3] ? 'warn' : 'ok', big: hmNum(v.sev[4]), unit: L('kritiek'),
+    tiles.push({ go: 'vulns', label: L('Kritieke CVE'), st: v.sev[4] ? 'crit' : v.sev[3] ? 'warn' : 'ok', big: hmNum(v.sev[4]), unit: v.kev ? L('{n} in KEV', { n: v.kev }) : L('geen in KEV'),
       sub: L('{n} open · {f} met een update', { n: hmNum(v.total), f: hmNum(v.fix) }), spark: hmSpark(hmVals(v.series), 'crit') });
   }
-  if (d.net) {
-    const n = d.net;
-    tiles.push({ go: 'net', label: L('Netwerk'), st: n.risky ? 'warn' : n.new ? 'warn' : 'ok', big: hmNum(n.online), unit: L('apparaten online'),
-      sub: [L('{n} nieuw', { n: n.new }), n.adguard && L('DNS {p}% geblokkeerd', { p: dec((n.adguard.blocked / n.adguard.queries * 100).toFixed(1)) })].filter(Boolean).join(' · '),
-      spark: hmSpark(hmVals(n.series), 's3') });
+  const agents = state.hosts.filter((h) => h.mode === 'agent' && +h.enabled !== 0);
+  if (agents.length) {
+    const now = Date.now() / 1000;
+    const stil = agents.filter((h) => !h.contact || !h.contact.seen || now - h.contact.seen > h.contact.stale).length;
+    const old = agents.filter((h) => h.agent_version && state.agent_latest && verCmp(h.agent_version, state.agent_latest) < 0).length;
+    tiles.push({ go: isAdmin() ? 'settings/agents' : 'dashboard', label: L('Agents'), st: stil ? 'warn' : 'ok', big: `${agents.length - stil}<small>/${agents.length}</small>`, unit: L('rapporteren'),
+      sub: [stil ? L('{n} stil', { n: stil }) : L('allemaal actief'), old && L('{n} op een oudere versie', { n: old })].filter(Boolean).join(' · '), spark: '' });
   }
 
   const html = [];
@@ -11337,6 +11344,9 @@ function renderHome() {
       <span class="hm-tile-val"><b>${t.big}</b> <span>${esc(t.unit)}</span></span>
       <span class="hm-tile-sub">${esc(t.sub)}</span>${t.spark}</button>`).join('')}
   </section>`);
+
+  // 1.135.0: resourcegebruik van 24 uur en de recente incidenten (zoals het ontwerp)
+  html.push(`<div class="hm-row">${hmResChart(d.resources)}${hmIncidents(d)}</div>`);
 
   // Nu aandacht nodig + netwerkkaart
   const icon = { 2: '!', 1: '!', 0: 'i' };
@@ -11364,14 +11374,14 @@ function renderHome() {
 /** Netwerk in één oogopslag: internet → netwerkapparaten → per soort de apparaten met hun status */
 function hmMap() {
   const hosts = state.hosts.filter((h) => +h.enabled !== 0);
-  const st = (h) => { const s = hostStatus(h); return s === 2 ? 'crit' : s === 1 ? 'warn' : 'ok'; };
+  const st = (h) => { const s = hostStatus(h); return s === 2 ? 'crit' : s === 1 ? 'warn' : s === 0 ? 'ok' : 'unk'; };   // geen gegevens is nooit groen
   const chip = (h) => `<button type="button" class="hm-host ${st(h)}" data-hm-go="dashboard?server=${encodeURIComponent(h.name)}" title="${esc(h.name)}">${hmShape(st(h))}<span>${esc(h.name)}</span></button>`;
   const net = hosts.filter((h) => hostGroup(h) === 'network');
   const groups = ['server', 'storage', 'smarthome', 'camera', 'power', 'other'].map((g) => [g, hosts.filter((h) => hostGroup(h) === g)]).filter(([, l]) => l.length);
-  const worst = (l) => l.map(st).find((s) => s === 'crit') || l.map(st).find((s) => s === 'warn') || 'ok';
+  const worst = (l) => ['crit', 'warn', 'unk'].find((x) => l.map(st).includes(x)) || 'ok';
   return `<section class="hm-card hm-map" aria-labelledby="hm-h-map">
     <div class="hm-card-head"><h2 id="hm-h-map">${esc(L('Netwerk in één oogopslag'))}</h2>
-      <span class="hm-legend">${['ok', 'warn', 'crit'].map((s) => `<span>${hmShape(s)} ${esc(HM_ST[s]())}</span>`).join('')}</span></div>
+      <span class="hm-legend">${['ok', 'warn', 'crit', 'unk'].map((s) => `<span>${hmShape(s)} ${esc(HM_ST[s]())}</span>`).join('')}</span></div>
     <div class="hm-tree">
       <div class="hm-inet"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>${esc(L('Internet'))}</div>
       <div class="hm-vline"></div>
@@ -11387,8 +11397,8 @@ function hmMap() {
 function hmServers() {
   const val = (h, t) => { const v = h.checks.filter((c) => c.type === t && +c.enabled && c.last_value !== null).map((c) => +c.last_value); return v.length ? Math.round(Math.max(...v)) : null; };
   const list = state.hosts.filter((h) => +h.enabled !== 0 && ['cpu', 'ram', 'disk'].some((t) => val(h, t) !== null))
-    .map((h) => ({ h, st: hmStOf(Math.min(2, hostStatus(h) === 3 || hostStatus(h) === 4 ? 0 : hostStatus(h))), cpu: val(h, 'cpu'), ram: val(h, 'ram'), disk: val(h, 'disk') }))
-    .sort((a, b) => ({ crit: 0, warn: 1, ok: 2 }[a.st] - { crit: 0, warn: 1, ok: 2 }[b.st]) || a.h.name.localeCompare(b.h.name));
+    .map((h) => { const s = hostStatus(h); return { h, st: s === 2 ? 'crit' : s === 1 ? 'warn' : s === 0 ? 'ok' : 'unk', cpu: val(h, 'cpu'), ram: val(h, 'ram'), disk: val(h, 'disk') }; })
+    .sort((a, b) => ({ crit: 0, warn: 1, unk: 2, ok: 3 }[a.st] - { crit: 0, warn: 1, unk: 2, ok: 3 }[b.st]) || a.h.name.localeCompare(b.h.name));
   if (!list.length) return '';
   const bar = (k, v) => (v === null ? '' : `<div class="hm-bar"><span>${esc(k)}</span><div><i class="${v >= 90 ? 'crit' : v >= 75 ? 'warn' : ''}" style="width:${Math.min(100, v)}%"></i></div><b>${v}%</b></div>`);
   const why = (h) => { const p = h.checks.filter((c) => +c.enabled && !c.maintenance && +c.status >= 1 && +c.status <= 2).sort((a, b) => b.status - a.status)[0]; return p ? p.name : ''; };
@@ -11479,4 +11489,35 @@ function hmTimeline(evs) {
     ${evs.length ? `<ol class="hm-tl">${evs.map((e) => { const s = st(e); return `<li><time>${esc(time(e.at))}</time>${s === 'info'
       ? `<svg class="hm-shape info" width="10" height="10" viewBox="0 0 10 10" role="img" aria-label="${esc(L('Info'))}"><circle cx="5" cy="5" r="4" fill="none" stroke-width="2"/></svg>` : hmShape(s)}
       <span><b>${esc(e.title)}</b>${e.host ? `<small>${esc(e.host)}</small>` : ''}</span></li>`; }).join('')}</ol>` : `<p class="hm-empty">${esc(L('Nog niets gebeurd'))}</p>`}</section>`;
+}
+
+/** 1.135.0: CPU en RAM over alle servers, gemiddeld per uur (24 uur), twee lijnen op één as in procenten */
+function hmResChart(r) {
+  const W = 640, H = 250, x0 = 34, x1 = 630, y0 = 10, y1 = 220;
+  const have = (r.cpu || []).concat(r.ram || []).some((v) => v !== null);
+  const X = (i) => x0 + i * (x1 - x0) / 23, Y = (v) => y1 - v / 100 * (y1 - y0);
+  const path = (vals) => { let p = '', pen = false; vals.forEach((v, i) => { if (v === null) { pen = false; return; } p += `${pen ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`; pen = true; }); return p; };
+  const hour = (i) => new Date((r.start + i * 3600) * 1000).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
+  const last = (vals) => { for (let i = vals.length - 1; i >= 0; i--) if (vals[i] !== null) return vals[i]; return null; };
+  const now = { cpu: last(r.cpu || []), ram: last(r.ram || []) };
+  return `<section class="hm-card hm-res" aria-labelledby="hm-h-res"><div class="hm-card-head"><h2 id="hm-h-res">${esc(L('Resourcegebruik · 24 uur'))}</h2>
+    <span class="hm-legend"><span><i class="sw s1"></i>CPU${now.cpu !== null ? ` <b>${dec(now.cpu.toFixed(0))}%</b>` : ''}</span><span><i class="sw s3"></i>RAM${now.ram !== null ? ` <b>${dec(now.ram.toFixed(0))}%</b>` : ''}</span></span></div>
+    <p class="hm-card-sub">${esc(L('Gemiddeld over {n} servers met een CPU- of RAM-check, per uur', { n: r.hosts }))}</p>
+    ${have ? `<svg viewBox="0 0 ${W} ${H}" class="hm-chart" role="img" aria-label="${esc(L('CPU en RAM per uur over de laatste 24 uur'))}">
+      <g class="ax">${[0, 50, 100].map((v) => `<text x="0" y="${(Y(v) + 4).toFixed(1)}">${v}%</text><path d="M${x0} ${Y(v).toFixed(1)}H${x1}"/>`).join('')}</g>
+      <path class="ln s3" d="${path(r.ram)}"/><path class="ln s1" d="${path(r.cpu)}"/>
+      ${(r.cpu || []).map((v, i) => `<rect class="hit" x="${(X(i) - 12).toFixed(1)}" y="${y0}" width="24" height="${y1 - y0}"><title>${esc(hour(i))} · CPU ${v === null ? '–' : dec(v.toFixed(1)) + '%'} · RAM ${r.ram[i] === null ? '–' : dec(r.ram[i].toFixed(1)) + '%'}</title></rect>`).join('')}
+      <g class="ax lbl">${[0, 6, 12, 18, 23].map((i) => `<text x="${X(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(hour(i))}</text>`).join('')}</g></svg>`
+      : `<p class="hm-empty">${esc(L('Nog geen CPU- of RAM-metingen: voeg die checks toe bij je servers'))}</p>`}</section>`;
+}
+
+/** 1.135.0: recente incidenten (IDS), open eerst, met de ernst als woord en vorm */
+function hmIncidents(d) {
+  const list = d.incidents || [];
+  const sev = (i) => (i.sev >= 2 ? ['crit', L('Kritiek')] : ['warn', L('Hoog')]);
+  return `<section class="hm-card hm-inc" aria-labelledby="hm-h-inc"><div class="hm-card-head"><h2 id="hm-h-inc">${esc(L('Recente incidenten'))}</h2>
+    <button type="button" class="link-btn" data-hm-go="ids">${esc(d.ids.open_total ? L('{n} open', { n: d.ids.open_total }) : L('Naar IDS'))}</button></div>
+    ${list.length ? `<ul>${list.slice(0, 5).map((i) => { const [c, l] = sev(i); return `<li class="${i.open ? '' : 'done'}">${hmShape(i.open ? c : 'ok', 11)}
+      <span><small class="hm-sevlbl ${i.open ? c : 'ok'}">${esc(i.open ? l : L('Afgehandeld'))}</small><b>${esc(i.title)}</b><small>${esc(i.host)} · ${esc(fmtUntil(i.at))}${i.hits > 1 ? ' · ' + esc(L('{n}×', { n: i.hits })) : ''}</small></span></li>`; }).join('')}</ul>`
+      : `<p class="hm-empty">${hmShape('ok', 14)} ${esc(L('Geen incidenten de laatste 14 dagen'))}</p>`}</section>`;
 }

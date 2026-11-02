@@ -1,11 +1,13 @@
 :root {
-  --bg: #0d1117;
-  --bg-2: #161b22;
-  --card: #161b22;
-  --card-2: #1c232d;
-  --border: #2a323d;
-  --text: #e6edf3; --rz-tile: #283150;
-  --muted: #8b96a5;
+  /* 1.135.0: donker als "control center": diep marineblauw, kaarten iets lichter */
+  --bg: #0c1322;
+  --bg-2: #101a2d;
+  --card: #141e33;
+  --card-2: #19253d;
+  --border: #253350;
+  --text: #e6edf6; --rz-tile: #22305a;
+  --muted: #93a1b8;
+  --side: #0a101d;
   --primary: #4f8cff;
   --primary-2: #3a74e0;
   --ok: #2fbf71;
@@ -24,7 +26,8 @@
   --card-2: #f6f8fb;
   --border: #e1e6ee;
   --text: #18202b; --rz-tile: #151B2E;
-  --muted: #667185;
+  --muted: #5f6b7f;
+  --side: #ffffff;
   --primary: #2f6fed;
   --primary-2: #2159cc;
   --ok: #1fa35d;
@@ -37,7 +40,7 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #f3f5f9; --bg-2: #fff; --card: #fff; --card-2: #f6f8fb; --border: #e1e6ee;
-    --text: #18202b; --rz-tile: #151B2E; --muted: #667185; --primary: #2f6fed; --primary-2: #2159cc;
+    --text: #18202b; --rz-tile: #151B2E; --muted: #5f6b7f; --side: #ffffff; --primary: #2f6fed; --primary-2: #2159cc;
     --ok: #1fa35d; --warn: #d98a0b; --crit: #dc3b3b; --maint: #6d5ce0; --shadow: 0 6px 24px rgba(20,30,50,.08);
     color-scheme: light;
   }
@@ -2006,7 +2009,8 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .hm-shape { flex: none; vertical-align: -1px; }
 .hm-st { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .hm-st.ok { color: var(--ok); } .hm-st.warn { color: var(--warn); } .hm-st.crit { color: var(--crit); }
-.hm-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+.hm-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+@media (min-width: 1300px) { .hm-sum { grid-template-columns: 1.35fr repeat(4, minmax(0, 1fr)); } }
 .hm-score { background: var(--rz-tile); color: #fff; border-radius: 16px; padding: 1.2rem; display: flex; gap: 1rem; align-items: center; box-shadow: var(--shadow); }
 .hm-score svg circle { fill: none; stroke-width: 10; }
 .hm-score .bg { stroke: rgba(255,255,255,.14); }
@@ -2104,3 +2108,52 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .hm-tl small { font-size: .76rem; color: var(--muted); }
 @media (max-width: 640px) { .hm-title { font-size: 1.3rem; } .hm-score { padding: 1rem; } .hm-tile-val b { font-size: 1.6rem; } }
 .hm-card .link-btn { background: none; border: 0; padding: .3rem 0; color: var(--primary); cursor: pointer; font: inherit; font-size: .84rem; font-weight: 600; }
+
+/* ---------------------------------------------------------------- Zijbalk (1.135.0)
+   Breed scherm: het menu staat links onder elkaar, met Instellingen erbij; zoeken en je account onderaan.
+   Smaller: de tabbladen bovenaan zoals eerder, op de telefoon de balk onderaan. */
+.main-tabs .tab.side-only { display: none; }
+@media (min-width: 1101px) {
+  body:has(.app-top) { padding-left: 232px; }
+  .topbar.app-top { position: fixed; top: 0; left: 0; bottom: 0; z-index: 30; width: 232px; display: flex; flex-direction: column; align-items: stretch; gap: 1.1rem;
+    padding: 1.1rem .75rem .9rem; background: var(--side); backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: 0; border-right: 1px solid var(--border); overflow-y: auto; }
+  .app-top .brand { padding: 0 .45rem; flex-wrap: wrap; row-gap: .35rem; }
+  .app-top .main-tabs { flex: 1 1 auto; flex-direction: column; align-items: stretch; justify-self: auto; gap: 2px; margin: 0; padding: 0; background: none; border: 0; border-radius: 0; overflow: visible; }
+  .app-top .main-tabs .tab { display: flex; justify-content: flex-start; gap: .75rem; padding: .6rem .75rem; border-radius: 10px; font-weight: 600; }
+  .app-top .main-tabs .tab:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+  .app-top .main-tabs .tab.side-only { display: flex; margin-top: auto; }
+  .app-top .tab-ind { top: 0; bottom: auto; left: 0; right: 0; width: auto; background: color-mix(in srgb, var(--primary) 15%, transparent); box-shadow: inset 3px 0 0 var(--primary); }
+  .app-top .main-tabs .tab.active { color: var(--text); }
+  .app-top .main-tabs .tab-icw:has(.tab-badge:not([hidden])) { margin-right: 0; }
+  .app-top .top-actions { margin: 0; flex-direction: column; align-items: stretch; gap: .5rem; border-top: 1px solid var(--border); padding-top: .8rem; }
+  .app-top .cmdk-btn { width: 100%; justify-content: flex-start; margin: 0; padding: .5rem .75rem; border-radius: 10px; }
+  .app-top .cmdk-kbd { margin-left: auto; }
+  .app-top .main-tabs .tab-icw { position: static; }
+  .app-top .main-tabs .tab-badge { top: 50%; right: .7rem; transform: translateY(-50%); box-shadow: none; }
+  .app-top .acct-btn { width: 100%; border-radius: 12px; }
+  .app-top .acct-btn .acct-caret { margin-left: auto; }
+  .app-top .acct-menu { top: auto; bottom: calc(100% + .4rem); left: 0; right: auto; }
+  /* De tellerbalk van Monitoring loopt van de zijbalk tot de rechterrand (niet eronder) */
+  .dash-counters { margin-left: -1.25rem; margin-right: -1.25rem; }
+}
+
+/* Dashboard 1.135.0: resourcegrafiek, recente incidenten, onbekend (grijs ringetje: geen gegevens is nooit groen) */
+.hm-shape.unk { fill: none; stroke: var(--muted); }
+.hm-st.unk { color: var(--muted); }
+.hm-host.unk { border-style: dashed; } .hm-srv.unk { border-top-color: var(--muted); }
+.hm-row > .hm-res { flex: 1.6 1 520px; }
+.hm-chart .ln.s3 { stroke: var(--ser-3); }
+.hm-chart .hit { fill: transparent; }
+.hm-chart .hit:hover { fill: color-mix(in srgb, var(--text) 6%, transparent); }
+.hm-legend b { color: var(--text); font-variant-numeric: tabular-nums; }
+.hm-tile-val b small { font-size: 1.1rem; color: var(--muted); font-weight: 700; }
+.hm-inc ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .7rem; }
+.hm-inc li { display: grid; grid-template-columns: 12px 1fr; gap: .6rem; align-items: start; }
+.hm-inc li .hm-shape { margin-top: 5px; }
+.hm-inc li span { display: flex; flex-direction: column; min-width: 0; }
+.hm-inc li b { font-size: .88rem; font-weight: 600; overflow-wrap: anywhere; }
+.hm-inc li small { font-size: .76rem; color: var(--muted); }
+.hm-inc li.done b { color: var(--muted); font-weight: 500; }
+.hm-sevlbl { font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-size: .68rem !important; }
+.hm-sevlbl.crit { color: var(--crit) !important; } .hm-sevlbl.warn { color: var(--warn) !important; } .hm-sevlbl.ok { color: var(--muted) !important; }
+.sw.s3, .hm-stack i.s3 { background: var(--ser-3); }

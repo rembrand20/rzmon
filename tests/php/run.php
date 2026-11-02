@@ -86,8 +86,11 @@ ok(q('SELECT thresh_mode FROM checks WHERE id = ?', [$cpu])->fetchColumn() !== '
 q("INSERT INTO checks (host_id, type, target, name, warn_threshold, crit_threshold, thresh_mode) VALUES (?, 'http', 'http://cam', 'Camera', 500, 2000, 'manual')", [$ha]);
 $cam = (int) db()->lastInsertId();
 $rows = [];
-for ($t = time() - 14 * 86400; $t < time(); $t += 300) {
-    $spike = (int) date('G', $t) === ((int) date('j', $t) * 7) % 24 && (int) date('i', $t) < 5;   // elke dag op een ander uur
+$t0 = strtotime('today') - 14 * 86400;
+for ($t = $t0; $t < time(); $t += 300) {
+    // Elke dag één piek, elke dag 7 uur later (dagnummer vanaf het begin, niet de datum: met de datum kwamen rond de maandwissel
+    // twee pieken precies een week na elkaar op hetzelfde uur, dan leert de slimme drempel ze als normaal en faalde deze test)
+    $spike = (int) date('G', $t) === (intdiv($t - $t0, 86400) * 7) % 24 && (int) date('i', $t) < 5;
     $rows[] = sprintf('(%d, 0, %.2f, %s)', $cam, $spike ? 3000 : 90 + mt_rand(0, 300) / 10, db()->quote(date('Y-m-d H:i:s', $t)));
 }
 foreach (array_chunk($rows, 1000) as $ch) {

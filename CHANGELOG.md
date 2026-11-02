@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.135.0 – 2026-11-02
+### Nieuw
+- **Zijbalk**: op een breed scherm staat het menu links, met onderaan Instellingen, zoeken en je account. Smaller blijven de tabbladen bovenaan, op de telefoon de balk onderaan.
+- **Mooiere thema's**: donker is nu diep marineblauw (controlekamer), licht iets meer contrast. Je keuze (auto, licht of donker) wordt **per gebruiker** bewaard en geldt op elk apparaat.
+- **Dashboard**: tegels voor **Hosts**, **Meldingen**, **Kritieke CVE** en **Agents** (hoeveel er rapporteren, stil zijn of oud), een grafiek **resourcegebruik over 24 uur** (CPU en RAM) en **recente incidenten**.
+- **Onbekend is nooit groen**: een server zonder gegevens krijgt op het Dashboard een grijs ringetje.
+
 ## 1.134.0 – 2026-10-31
 ### Nieuw
 - **Nieuw Dashboard: zo staat het ervoor** 🧭: de startpagina met alles samen. Een totaalscore; tegels voor Monitoring, Beveiliging (IDS), Kwetsbaarheden en Netwerk; *Nu aandacht nodig* uit alle onderdelen; een netwerkkaart (internet → router en switches → per soort apparaat, elk met zijn status); servers met CPU, RAM en disk; grafieken van beschikbaarheid, IDS-gebeurtenissen en CVE's per ernst; netwerk (apparaten, DNS-blokkades, wifi) en de laatste gebeurtenissen. Over 7, 30 of 90 dagen, in licht en donker, ook op de telefoon.
