@@ -5592,6 +5592,10 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
         ${top.length ? `<table class="kv small">${top.map(([k, ms]) => `<tr><th>${esc(name(k))}</th><td><span class="tbar"><i style="width:${Math.max(2, Math.round(ms / tot * 100))}%"></i></span> ${secs(ms)}</td></tr>`).join('')}</table>` : ''}
         <p class="muted small">${L('Commando-checks draaien op de achtergrond: een trage check houdt het rapport niet meer op. Duurt een run langer dan de tik, dan meldt de agent tussendoor dat hij leeft.')}</p></details>`;
     }
+    if (s.mode === 'agent' && s.update_sig) {
+      html += `<div class="small">${{ ok: `🔏 ${L('Laatste update: handtekening van de ontwikkelaar gecontroleerd')}`, old_openssl: `⚠️ ${L('Laatste update: handtekening niet te controleren (OpenSSL op de server is ouder dan 3.0; alleen het controlegetal)')}`,
+        off: `⚠️ ${L('Handtekeningen staan uit op deze server (UPDATE_UNSIGNED=1)')}`, bad: `<b class="bad">✘ ${L('Laatste update geweigerd: de handtekening klopte niet')}</b>` }[s.update_sig] || ''}</div>`;
+    }
     if (s.mode === 'agent' && s.caps && s.caps.length) {
       html += `<div class="small agent-caps"><span class="muted">${L('Kan op deze server')}:</span> ${s.caps.map((c) => `<span class="chip-s">${esc(c)}</span>`).join(' ')}</div>`;
     }
@@ -8114,7 +8118,7 @@ async function protCfgDialog(id) {
 
 /** Groepen op Status (1.122.0): alle punten over agents samen, en alles over https samen */
 const OV_GROUPS = [
-  ['agents_all', () => L('Agents'), 'agents', ['agents', 'enc', 'ownkey', 'agent_https', 'agent_https_only', 'agent_audit', 'agent_ownkey_only', 'agent_ip']],
+  ['agents_all', () => L('Agents'), 'agents', ['agents', 'enc', 'ownkey', 'agent_https', 'agent_https_only', 'agent_audit', 'agent_ownkey_only', 'agent_ip', 'agent_sign']],
   ['https_all', () => L('Beheer via https'), 'outside', ['https', 'https_client', 'cert', 'dns', 'proxy_leg', 'http_login', 'split_dns', 'mfa_ext']],
 ];
 function ovGroup(items, rank) {

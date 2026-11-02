@@ -2434,6 +2434,16 @@ RzMon zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons
 - Een UniFi IPS of een strenge firewall kan de scan van RzMon als poortscan zien. Sta in dat geval het IP-adres van de RzMon-server toe.
 - Andere VLAN's: daar ziet RzMon alleen IP-adressen (geen MAC-adres of fabrikant), omdat ARP niet over een router gaat.
 
+### 8.14c Ondertekende updates 🔏 (vanaf 1.139.0, agent 1.71.0)
+Elke nieuwe agent wordt in GitHub **ondertekend** met een geheime sleutel die alleen daar staat (het geheim `AGENT_SIGN_KEY`; de workflow *Agent ondertekenen* zet de handtekeningen `agent/*.sig` erbij). In de agent zelf staat de bijbehorende **publieke sleutel**. Bij bijwerken haalt de agent de nieuwe versie en de handtekeningen bij RzMon op en installeert alleen als ze kloppen. Zo kan ook iemand die RzMon zelf zou overnemen geen eigen code op je servers zetten.
+
+- Je werkt gewoon bij zoals altijd (knop in RzMon). In de Agent Manager staat daarna *🔏 Laatste update: handtekening van de ontwikkelaar gecontroleerd*.
+- Klopt de handtekening niet, dan weigert de agent de update (*✘ Laatste update geweigerd*) en blijft de oude versie werken.
+- Ook het installatiescript (`rzmon-agent-setup`) controleert de handtekening bij installeren en met `--update`.
+- Op een server met OpenSSL ouder dan 3.0 (bv. Debian 11) kan de handtekening niet gecontroleerd worden; dan geldt alleen het controlegetal en staat dat in de Agent Manager.
+- *Instellingen → Status → Agents* laat zien of de agent die RzMon uitlevert ondertekend is.
+- Noodgeval: `UPDATE_UNSIGNED=1` in `/etc/default/rzmon-agent` werkt bij zonder handtekening (niet aangeraden).
+
 ### 8.14b Snel en betrouwbaar rapporteren ⏱ (vanaf 1.137.0, agent 1.69.0)
 Een rapport mag nooit worden opgehouden door één traag onderdeel, en een agent die gewoon bezig is, is niet "stil":
 - **Commando-checks op de achtergrond**: de eerste keer meet de agent meteen; daarna gaat steeds het vorige resultaat mee en meet hij op de achtergrond opnieuw. Het nieuwe resultaat komt met het volgende rapport.

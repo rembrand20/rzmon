@@ -143,6 +143,21 @@ if ($action === 'ping') {
     }
     out(['ok' => true, 'app' => 'RzMon', 'agent_version' => AGENT_LATEST, 'version' => RZMON_VERSION, 'configured' => is_configured(), 'time' => date('c')]);
 }
+// 1.139.0: handtekening (ed25519, base64) van de agent en het installatiescript, gemaakt in GitHub; de agent controleert hem
+if ($action === 'agent_script_sig' || $action === 'agent_install_sig') {
+    if (!Stealth::scriptAllowed()) {
+        Stealth::notFound();
+    }
+    $f = SM_ROOT . '/agent/' . ($action === 'agent_script_sig' ? 'rzmon-agent.sh.sig' : 'install-agent.sh.sig');
+    if (!is_file($f)) {
+        http_response_code(404);
+        exit;
+    }
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo trim((string) file_get_contents($f));
+    exit;
+}
 if ($action === 'agent_script' || $action === 'agent_install') {
     // Van buiten (niet herkenbaar): alleen voor bekende agents of met de downloadsleutel uit de installatiecommando's
     if (!Stealth::scriptAllowed()) {
@@ -846,6 +861,9 @@ if ($action === 'agent') {
         }
         arsort($parts);
         $st->execute([$host['id'], 'timing', json_encode(['total' => (int) $in['timing']['total'], 'parts' => $parts]), $now]);
+    }
+    if (in_array($in['update_sig'] ?? '', ['ok', 'old_openssl', 'off', 'bad'], true)) {
+        $st->execute([$host['id'], 'update_sig', (string) $in['update_sig'], $now]);   // 1.139.0: handtekening bij de laatste update
     }
     if (isset($in['caps']) && is_array($in['caps'])) {
         $st->execute([$host['id'], 'caps', json_encode(array_values(array_filter(array_slice($in['caps'], 0, 40), static fn($c) => is_string($c) && preg_match('/^[a-z0-9-]{1,20}$/', $c)))), $now]);
@@ -2091,6 +2109,12 @@ switch ($action) {
         } catch (Throwable) {
             // geen rechten op information_schema: niets melden
         }
+        // 1.139.0: is de agent die RzMon uitlevert ondertekend door de ontwikkelaar (GitHub)?
+        $sg = AgentSign::status();
+        $add('agent_sign', $sg['valid'] ? 'ok' : ($sg['signed'] ? 'bad' : 'warn'), t('Ondertekende agent'),
+            $sg['valid'] ? t('agent en installatiescript zijn ondertekend; agents controleren dat bij elke update')
+                : ($sg['signed'] ? t('handtekening klopt niet bij {f}: agents weigeren deze update', ['f' => implode(', ', array_keys(array_filter($sg['files'], static fn($x) => $x === 'bad')))])
+                    : t('nog niet ondertekend: de GitHub Action "Agent ondertekenen" heeft nog niet gedraaid, of het geheim AGENT_SIGN_KEY ontbreekt; agents 1.71.0 en nieuwer werken pas bij met een handtekening')), 'agents');
         // 1.136.0: groeit de database ongewoon hard? (meer dan 30% en 100 MB in een week)
         if (($g = Retention::growth()) && $g['unusual']) {
             $add('db_growth', 'warn', t('Groei van de database'), t('{now}, de laatste {d} dagen {per} per dag erbij. Kijk bij Database en server welke tabel groeit, of bewaar korter.',
@@ -2562,6 +2586,7 @@ switch ($action) {
              'timing' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'timing'", [$id])->fetchColumn(), true),
              'caps' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'caps'", [$id])->fetchColumn(), true) ?: [],
              'busy' => $h['agent_busy'],
+             'update_sig' => q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'update_sig'", [$id])->fetchColumn() ?: null,
              'realtime' => ['on' => (bool) $h['realtime'], 'status' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'realtime'", [$id])->fetchColumn(), true),
                  'tools' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'tools'", [$id])->fetchColumn(), true)],
              'watchdog' => ['on' => (bool) $h['watchdog'], 'min' => (int) ($h['watchdog_min'] ?: 5), 'enc' => (bool) $h['enc_seen'],

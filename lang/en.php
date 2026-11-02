@@ -6016,4 +6016,12 @@ return [
     'Verwachte waarde' => 'Expected value',
     '(optioneel: moet in het antwoord staan)' => '(optional: must be in the answer)',
     'Een gebruiker zonder rechten is genoeg:' => 'A user without privileges is enough:',
+    'Ondertekende agent' => 'Signed agent',
+    'agent en installatiescript zijn ondertekend; agents controleren dat bij elke update' => 'agent and install script are signed; agents check this on every update',
+    'handtekening klopt niet bij {f}: agents weigeren deze update' => 'signature does not match for {f}: agents refuse this update',
+    'nog niet ondertekend: de GitHub Action "Agent ondertekenen" heeft nog niet gedraaid, of het geheim AGENT_SIGN_KEY ontbreekt; agents 1.71.0 en nieuwer werken pas bij met een handtekening' => 'not signed yet: the GitHub Action "Agent ondertekenen" has not run yet, or the secret AGENT_SIGN_KEY is missing; agents 1.71.0 and newer only update with a signature',
+    'Laatste update: handtekening van de ontwikkelaar gecontroleerd' => 'Last update: developer signature verified',
+    'Laatste update: handtekening niet te controleren (OpenSSL op de server is ouder dan 3.0; alleen het controlegetal)' => 'Last update: signature could not be checked (OpenSSL on the server is older than 3.0; checksum only)',
+    'Handtekeningen staan uit op deze server (UPDATE_UNSIGNED=1)' => 'Signatures are disabled on this server (UPDATE_UNSIGNED=1)',
+    'Laatste update geweigerd: de handtekening klopte niet' => 'Last update refused: the signature did not match',
 ];

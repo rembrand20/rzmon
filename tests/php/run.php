@@ -754,5 +754,24 @@ $myBad = Checks::run(['id' => 0, 'type' => 'mysql', 'target' => ($dbc['host'] ??
 ok($my['status'] === STATUS_OK && str_contains($my['message'], 'verbindingen') && $myBad['status'] === STATUS_CRIT
     && !str_contains((string) ExtraChecks::maskOptions(json_encode(['user' => 'x', 'pass' => 'geheim'])), 'geheim'), 'MariaDB: inloggen lukt (met verbindingen), fout wachtwoord = critical, wachtwoord nooit naar de browser');
 
+// 1.139.0: ondertekende agent (ed25519): klopt, ontbreekt, of iemand heeft de agent gewijzigd
+$sd = sys_get_temp_dir() . '/rzmon-sign-' . getmypid();
+@mkdir($sd);
+$kp = sodium_crypto_sign_keypair();
+$der = base64_encode("\x30\x2a\x30\x05\x06\x03\x2b\x65\x70\x03\x21\x00" . sodium_crypto_sign_publickey($kp));
+file_put_contents("$sd/rzmon-agent.sh", preg_replace('/^AGENT_SIGN_PUB=".*"$/m', 'AGENT_SIGN_PUB="' . $der . '"', (string) file_get_contents(SM_ROOT . '/agent/rzmon-agent.sh')));
+copy(SM_ROOT . '/agent/install-agent.sh', "$sd/install-agent.sh");
+$miss = AgentSign::status($sd);
+foreach (['rzmon-agent.sh', 'install-agent.sh'] as $f) {
+    file_put_contents("$sd/$f.sig", base64_encode(sodium_crypto_sign_detached((string) file_get_contents("$sd/$f"), sodium_crypto_sign_secretkey($kp))));
+}
+$good = AgentSign::status($sd);
+file_put_contents("$sd/install-agent.sh", "\necho kwaadaardig\n", FILE_APPEND);
+$bad = AgentSign::status($sd);
+array_map('unlink', glob("$sd/*") ?: []);
+rmdir($sd);
+ok(!$miss['signed'] && $good['valid'] && $bad['signed'] && !$bad['valid'] && $bad['files']['install-agent.sh'] === 'bad' && $bad['files']['rzmon-agent.sh'] === 'ok',
+    'ondertekende agent: ontbreekt, klopt, en een gewijzigd installatiescript valt op');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

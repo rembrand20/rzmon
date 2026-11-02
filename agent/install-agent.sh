@@ -534,6 +534,21 @@ ok "curl$(command -v ss >/dev/null 2>&1 && echo ', ss')$(command -v openssl >/de
 command -v openssl >/dev/null 2>&1 || warn "openssl ontbreekt: certificaten worden niet gemeld"
 command -v ss >/dev/null 2>&1 || warn "ss ontbreekt: luisterende poorten worden niet gemeld"
 
+# Ondertekende updates (agent 1.71.0): de publieke sleutel van de ontwikkelaar (ed25519). Bij elke nieuwe agent zet GitHub er
+# een handtekening bij (agent/*.sig, gemaakt met de geheime sleutel die alleen in GitHub staat). Een update wordt alleen
+# geïnstalleerd als die klopt: zo kan zelfs een overgenomen RzMon geen eigen code op de servers zetten.
+AGENT_SIGN_PUB="MCowBQYDK2VwAyEAKayiZIruYIYwZQ97qndO4lmnMjp/EEnVDNBIhZ07sSM="
+sig_check() {  # sig_check <bestand> <handtekening (base64)>: 0 = klopt, 1 = klopt niet, 2 = niet te controleren (OpenSSL ouder dan 3)
+    local d rc
+    command -v openssl >/dev/null 2>&1 && openssl pkeyutl -help 2>&1 | grep -q -- '-rawin' || return 2
+    d=$(mktemp -d "${TMPDIR:-/tmp}/rzmon-sig.XXXXXX") || return 2
+    printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$AGENT_SIGN_PUB" >"$d/pub.pem"
+    if ! base64 -d <"$2" >"$d/sig" 2>/dev/null || [ "$(wc -c <"$d/sig")" != 64 ]; then rm -rf "$d"; return 1; fi
+    openssl pkeyutl -verify -pubin -inkey "$d/pub.pem" -rawin -in "$1" -sigfile "$d/sig" >/dev/null 2>&1; rc=$?
+    rm -rf "$d"
+    [ "$rc" = 0 ] && return 0 || return 1
+}
+
 # ----------------------------------------------------------------- 2. agent ophalen
 step "2/5 Agent ophalen"
 tmp=$(mktemp)
@@ -556,6 +571,22 @@ if [ -n "$AGENT_SHA" ]; then
     [ "$(sha256sum "$tmp" | cut -d' ' -f1)" = "$AGENT_SHA" ] \
         || die "Controlegetal (SHA-256) van de agent klopt niet: onderweg gewijzigd, of RzMon is intussen bijgewerkt. Kopieer het commando opnieuw uit RzMon."
     ok "Controlegetal van de agent klopt"
+fi
+# Handtekening van de ontwikkelaar (1.71.0): klopt hij niet, dan niet installeren. Bij bijwerken vanuit RzMon (--file)
+# heeft de agent dat al gecontroleerd.
+if [ -z "$SOURCE_FILE" ]; then
+    if curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_script_sig${DL_KEY:+&k=$DL_KEY}" -o "$tmp.sig" 2>/dev/null && [ -s "$tmp.sig" ]; then
+        sig_check "$tmp" "$tmp.sig"; s_rc=$?
+        rm -f "$tmp.sig"
+        case "$s_rc" in
+            0) ok "Handtekening van de agent klopt (ondertekend door de ontwikkelaar)" ;;
+            2) info "Handtekening niet te controleren: OpenSSL op deze server is ouder dan 3.0 (het controlegetal is wel gecontroleerd)" ;;
+            *) die "De handtekening van de agent klopt niet: deze versie komt niet van de ontwikkelaar. Niet geïnstalleerd." ;;
+        esac
+    else
+        rm -f "$tmp.sig"
+        warn "Deze agent is (nog) niet ondertekend bij RzMon; alleen het controlegetal is gecontroleerd"
+    fi
 fi
 old_version=$([ -f "$BIN" ] && bash "$BIN" --version 2>/dev/null | awk '{print $2}' || true)
 new_version=$(sed -n 's/^AGENT_VERSION="\([^"]*\)".*/\1/p' "$tmp")

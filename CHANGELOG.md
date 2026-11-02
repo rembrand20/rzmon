@@ -7,6 +7,12 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.139.0 – 2026-11-02
+### Nieuw
+- **Ondertekende agent-updates**: elke nieuwe agent wordt in GitHub ondertekend (workflow *Agent ondertekenen*, met het geheim `AGENT_SIGN_KEY`). Agents vanaf 1.71.0 installeren een update alleen als de handtekening klopt, ook als RzMon zelf zou zijn overgenomen.
+- RzMon levert de handtekeningen uit (`agent_script_sig`, `agent_install_sig`), laat bij *Status → Agents* zien of de agent ondertekend is, en in de Agent Manager of de laatste update gecontroleerd is.
+- **Nieuwe agent 1.71.0**.
+
 ## 1.138.0 – 2026-11-02
 ### Nieuw
 - **Nieuwe checks**:

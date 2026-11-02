@@ -1,0 +1,44 @@
+# Agent ondertekenen (RzMon 1.139.0): bij elke wijziging aan de agent of het installatiescript een handtekening (ed25519)
+# maken met de geheime sleutel AGENT_SIGN_KEY (repository → Settings → Secrets and variables → Actions). De agent
+# installeert een update alleen als die handtekening klopt met de publieke sleutel die in de agent zelf staat.
+name: Agent ondertekenen
+on:
+  push:
+    branches: [main]
+    paths: ['agent/rzmon-agent.sh', 'agent/install-agent.sh']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: sign-agent
+  cancel-in-progress: false
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ondertekenen en controleren
+        env:
+          AGENT_SIGN_KEY: ${{ secrets.AGENT_SIGN_KEY }}
+        run: |
+          set -eu
+          if [ -z "$AGENT_SIGN_KEY" ]; then
+            echo "::error title=Geen sleutel::Het geheim AGENT_SIGN_KEY ontbreekt (Settings → Secrets and variables → Actions)"; exit 1
+          fi
+          work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+          (umask 077; printf '%s\n' "$AGENT_SIGN_KEY" >"$work/key.pem")
+          pub=$(sed -n 's/^AGENT_SIGN_PUB="\([A-Za-z0-9+\/=]*\)"$/\1/p' agent/rzmon-agent.sh)
+          printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$pub" >"$work/pub.pem"
+          for f in agent/rzmon-agent.sh agent/install-agent.sh; do
+            openssl pkeyutl -sign -inkey "$work/key.pem" -rawin -in "$f" -out "$work/sig"
+            openssl pkeyutl -verify -pubin -inkey "$work/pub.pem" -rawin -in "$f" -sigfile "$work/sig" >/dev/null \
+              || { echo "::error title=Sleutels passen niet::De geheime sleutel past niet bij AGENT_SIGN_PUB in de agent"; exit 1; }
+            base64 -w0 "$work/sig" >"$f.sig"
+            echo "✔ $f ondertekend"
+          done
+          git config user.name 'rzmon-ondertekening'
+          git config user.email 'rzmon-ondertekening@users.noreply.github.com'
+          git add agent/rzmon-agent.sh.sig agent/install-agent.sh.sig
+          if git diff --cached --quiet; then echo "Handtekeningen ongewijzigd"; exit 0; fi
+          git commit -m "Agent ondertekend [skip ci]"
+          for i in 1 2 3; do git push && break; git pull --rebase; done
