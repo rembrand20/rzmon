@@ -1158,7 +1158,7 @@ final class Ids
             if (!isset($flows[$k])) {
                 $flows[$k] = ['ip' => $ip, 'cc' => $cc, 'internal' => $internal, 'host_id' => (int) $r['host_id'], 'port' => $r['dport'] !== null ? (int) $r['dport'] : null,
                     'proto' => $r['proto'], 'svc' => $r['service'], 'dir' => $r['dir'], 'hits' => 0, 'sev' => 0, 'n' => 0, 'id' => (int) $r['id'],
-                    'first' => $r['created_at'], 'last' => $r['last_seen'], 'open' => false, 'cats' => [], 'title' => $r['title'],
+                    'first' => $r['created_at'], 'last' => $r['last_seen'], 'open' => false, 'cats' => [], 'types' => [], 'title' => $r['title'],
                     'host' => ['id' => (int) $r['host_id'], 'name' => $r['host'], 'kind' => $r['kind'], 'kind_auto' => $r['kind_auto'], 'mode' => $r['mode'], 'address' => $r['address']]];
             }
             $flows[$k]['hits'] += max(1, (int) $r['hits']);
@@ -1166,6 +1166,7 @@ final class Ids
             $flows[$k]['n']++;
             $flows[$k]['open'] = $flows[$k]['open'] || $r['status'] === 'open';
             $flows[$k]['cats'][$cat] = true;
+            $flows[$k]['types'][(string) $r['type']] = true;   // 1.152.0: voor Attack Flow (waargenomen of afgeleid)
             if ($r['created_at'] < $flows[$k]['first']) {
                 $flows[$k]['first'] = $r['created_at'];
             }
@@ -1179,6 +1180,7 @@ final class Ids
         $countries = [];
         foreach (array_keys($flows) as $k) {
             $flows[$k]['cats'] = array_keys($flows[$k]['cats']);
+            $flows[$k]['types'] = array_keys($flows[$k]['types']);
             $f = $flows[$k];
             $ip = $f['ip'];
             $src[$ip] ??= ['ip' => $ip, 'cc' => $f['cc'], 'internal' => $f['internal'], 'hits' => 0, 'sev' => 0, 'targets' => [], 'in' => false, 'out' => false, 'last' => $f['last']];

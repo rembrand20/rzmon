@@ -1,0 +1,8 @@
+1793700001	sshd	Invalid user bob from 203.0.113.7 port 50211
+1793700001	sshd	Failed password for invalid user bob from 203.0.113.7 port 50211 ssh2
+1793700002	sshd	Failed password for root from 203.0.113.7 port 50212 ssh2
+1793700003	sshd-session	Failed password for admin from 203.0.113.7 port 50213 ssh2
+1793700010	sshd	Accepted publickey for rehman from 192.168.2.5 port 51544 ssh2: ED25519 SHA256:abc
+1793700900	sshd-session	Disconnected from user rehman 192.168.2.5 port 51544
+1793700905	sudo	  rehman : TTY=pts/0 ; PWD=/home/rehman ; USER=root ; COMMAND=/usr/bin/mysql -pGeheim
+garbage line without tabs

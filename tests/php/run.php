@@ -1087,5 +1087,46 @@ $fo2 = Ids::flows(['days' => 1, 'dir' => 'o']);
 ok(!array_filter($fo2['lines'], fn($x) => $x['dir'] !== 'o') && count($fo2['lines']) >= 1, 'aanvalskaart: filter op richting');
 q("DELETE FROM hosts WHERE name IN ('ci-map-a', 'ci-map-b')");
 
+// 1.152.0 (agent 1.74.0): SSH-pogingen en sessies, Attack Flow (waargenomen of afgeleid) en de popup per IP
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-af-a', '10.8.0.1', 'agent'), ('ci-af-b', '10.8.0.2', 'agent')");
+$fa = (int) q("SELECT id FROM hosts WHERE name = 'ci-af-a'")->fetchColumn();
+$fb = (int) q("SELECT id FROM hosts WHERE name = 'ci-af-b'")->fetchColumn();
+$hA = q('SELECT * FROM hosts WHERE id = ?', [$fa])->fetch();
+$t0 = time() - 600;
+$nst = SshEvents::store($hA, ['events' => [
+        ['t' => $t0 + 60, 'k' => 'ssh', 'u' => 'rehman', 'ip' => '10.8.0.9', 'm' => 'publickey', 'p' => 51544],
+        ['t' => $t0 + 960, 'k' => 'ssh_end', 'u' => 'rehman', 'ip' => '10.8.0.9', 'p' => 51544],   // (in de toekomst: wordt nu)
+        ['t' => $t0, 'k' => 'sudo', 'u' => 'x']],
+    'tries' => [['t' => $t0, 'ip' => '198.51.100.23', 'u' => 'root', 'p' => 50001], ['t' => $t0 + 1, 'ip' => '198.51.100.23', 'u' => 'admin', 'p' => 50002],
+        ['t' => $t0 + 2, 'ip' => 'geen-ip', 'u' => 'x']]]);
+$ses = array_values(array_filter(SshEvents::sessions(1), fn($x) => $x['host_id'] === $fa));
+ok($nst === 4 && count($ses) === 1 && $ses[0]['user'] === 'rehman' && $ses[0]['port'] === 51544 && $ses[0]['method'] === 'publickey' && $ses[0]['closed_at'] !== null && $ses[0]['secs'] > 0
+    && (int) q("SELECT COUNT(*) FROM ssh_events WHERE host_id = ? AND ok = 0", [$fa])->fetchColumn() === 2,
+    'SSH: login met bronpoort, einde van de sessie gekoppeld (duur), losse mislukte pogingen; ongeldig IP en sudo overgeslagen');
+// Attack Flow: extern → ci-af-a (SSH, waargenomen, geblokkeerd), daarna ci-af-a (10.8.0.1) → ci-af-b (keten: afgeleid)
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip, cc, hits, created_at, last_seen) VALUES
+   (?, 1, 'bruteforce', '198.51.100.23', 'Brute force op SSH vanaf 198.51.100.23', '', '198.51.100.23', 'RU', 12, NOW() - INTERVAL 30 MINUTE, NOW() - INTERVAL 20 MINUTE),
+   (?, 2, 'chain', 'lateral|10.8.0.1', 'Keten: laterale beweging vanaf ci-af-a', '', '10.8.0.1', NULL, 1, NOW() - INTERVAL 10 MINUTE, NOW() - INTERVAL 10 MINUTE)", [$fa, $fb]);
+q("INSERT INTO ids_blocks (host_id, ip, reason, created_at) VALUES (?, '198.51.100.23', 'ci', NOW() - INTERVAL 25 MINUTE)", [$fa]);
+q("DELETE FROM ids_incidents WHERE type = 'chain' AND host_id = ?", [$fb]);   // ketens tellen niet mee op de kaart (Ids::flows): nu als gewone afgeleide melding
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip, hits, created_at, last_seen) VALUES
+   (?, 2, 'ti_ip', '10.8.0.1', 'Verbinding met een bekende aanvaller: 10.8.0.1', '', '10.8.0.1', 1, NOW() - INTERVAL 10 MINUTE, NOW() - INTERVAL 10 MINUTE)", [$fb]);
+$af = AttackFlow::build(['days' => 1]);
+$lExt = array_values(array_filter($af['lines'], fn($l) => $l['ip'] === '198.51.100.23' && $l['host_id'] === $fa))[0] ?? null;
+$lInt = array_values(array_filter($af['lines'], fn($l) => $l['ip'] === '10.8.0.1'))[0] ?? null;
+$sInt = array_values(array_filter($af['sources'], fn($x) => $x['ip'] === '10.8.0.1'))[0] ?? null;
+$piv = array_values(array_filter($af['pivots'], fn($x) => $x['ip'] === '10.8.0.1'));
+$tries = array_filter($af['events'], fn($e) => $e['ip'] === '198.51.100.23' && $e['k'] === 'try');
+ok($lExt && $lExt['obs'] && $lExt['via'] === 'auth.log' && $lExt['outcome']['k'] === 'blocked' && $lInt && !$lInt['obs'] && $lInt['outcome']['k'] === 'unconfirmed'
+    && $sInt && ($sInt['host']['id'] ?? 0) === $fa && $piv && !$piv[0]['obs'] && count($tries) === 2
+    && array_filter($af['events'], fn($e) => $e['ip'] === '198.51.100.23' && $e['k'] === 'block'),
+    'Attack Flow: SSH-aanval waargenomen (auth.log) en geblokkeerd; eigen server als bron herkend en als afgeleid getoond; losse pogingen en blokkade in de tijdlijn');
+$ie = AttackFlow::ipEvents('198.51.100.23', 1);
+$kinds = array_count_values(array_column($ie['rows'], 'k'));
+ok(($kinds['fail'] ?? 0) === 2 && ($kinds['block'] ?? 0) === 1 && ($kinds['inc'] ?? 0) === 1 && $ie['counts']['fails'] === 2 && count($ie['blocks']) === 1
+    && $ie['blocks'][0]['host'] === 'ci-af-a' && in_array('ci-af-b', $ie['not_blocked_on'], true) && $ie['explain'] !== null && $ie['incidents'][0]['observed'],
+    'popup per IP: elke poging, de blokkade, de melding, waar het geblokkeerd is en waar nog niet, met de uitleg');
+q("DELETE FROM hosts WHERE name IN ('ci-af-a', 'ci-af-b')");
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -42,3 +42,26 @@ if bad:
     print('✘ ' + '\n✘ '.join(bad)); sys.exit(1)
 print('✔ auditd: %d gebeurtenissen (proces met hex-argument, bewaakt pad, dubbel overgeslagen, eigen processen herkend) · SWAG: %d verdachte verzoeken · Suricata: %d alerts' % (len(ev), len(req), len(eve)))
 PY
+rc=$?
+[ "$rc" = 0 ] || exit "$rc"
+# Agent 1.74.0: logins lezen (losse mislukte SSH-pogingen met bronpoort, gelukte login met poort, einde van de sessie)
+CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --auth-parse <tests/data/auth.lines >"$work/auth.out" 2>>"$work/err" || { echo "✘ logins lezen faalde"; cat "$work/err"; exit 1; }
+python3 - "$work/auth.out" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))['auth']
+bad = []
+tries = [(t['ip'], t['u'], t['p']) for t in d['tries']]
+if tries != [('203.0.113.7', 'bob', 50211), ('203.0.113.7', 'root', 50212), ('203.0.113.7', 'admin', 50213)]:
+    bad.append('losse pogingen: %r' % tries)
+f = [x for x in d['fails'] if x['k'] == 'ssh']
+if len(f) != 1 or f[0]['n'] != 3 or f[0]['users'] != ['bob', 'root', 'admin']:
+    bad.append('opgetelde pogingen (bob maar één keer): %r' % d['fails'])
+ev = {e['k']: e for e in d['events']}
+if ev.get('ssh', {}).get('p') != 51544 or ev.get('ssh', {}).get('m') != 'publickey' or ev.get('ssh_end', {}).get('p') != 51544:
+    bad.append('sessie (login met poort en einde): %r' % d['events'])
+if 'Geheim' in json.dumps(d) or ev.get('sudo', {}).get('as') != 'root':
+    bad.append('sudo niet goed of wachtwoord niet gemaskeerd: %r' % ev.get('sudo'))
+if bad:
+    print('✘ ' + '\n✘ '.join(bad)); sys.exit(1)
+print('✔ logins: %d losse SSH-pogingen, sessie met bronpoort en einde, sudo-wachtwoord gemaskeerd' % len(tries))
+PY

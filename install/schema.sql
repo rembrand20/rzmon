@@ -1167,3 +1167,21 @@ CREATE TABLE IF NOT EXISTS agent_gaps (
     INDEX idx_agent_gaps (gap_to),
     CONSTRAINT fk_agent_gaps_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.152.0 (agent 1.74.0): losse SSH-pogingen (ok = 0) en geslaagde sessies (ok = 1, closed_at = einde), 30 dagen bewaard.
+-- Voor de aanvalskaart (Attack Flow, tijdlijn), de popup per IP en IDS → Toegang → SSH. port = bronpoort van de bezoeker.
+CREATE TABLE IF NOT EXISTS ssh_events (
+    id        BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id   INT UNSIGNED NOT NULL,
+    at        DATETIME NOT NULL,
+    ok        TINYINT(1) NOT NULL DEFAULT 0,
+    ip        VARCHAR(45) NOT NULL DEFAULT '',
+    username  VARCHAR(64) NOT NULL DEFAULT '',
+    port      SMALLINT UNSIGNED NULL,
+    method    VARCHAR(30) NULL,
+    closed_at DATETIME NULL,
+    INDEX idx_sshe_host (host_id, at),
+    INDEX idx_sshe_ip (ip, at),
+    INDEX idx_sshe_at (at),
+    CONSTRAINT fk_sshe_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -8,11 +8,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.152.0**: **Attack Flow** in de aanvalskaart (aanvaller → doelwit → dienst → afloop, bewezen en vermoed uit elkaar, af te spelen), een betere popup per IP, en alle **SSH-sessies** met duur.
 - **1.151.0**: de pagina *Gezondheid* is opgedeeld over **Systeem**: *Database en server* (met de tabbladen Database en Server) en de nieuwe pagina **Prestaties en fouten**.
 - **1.150.0**: de **zijbalk klapt in** tot alleen iconen (per gebruiker onthouden), en het accountmenu past weer helemaal.
 - **1.149.0**: nieuwe **🗺️ Aanvalskaart** in IDS: wie valt wat aan, via welke poort, en is het geblokkeerd, als stromen met bewegende lijnen en op een wereldkaart; ook als kaartje op het dashboard.
 - **1.148.0**: rustigere instellingen: geen gele uitlegbalken meer; wat aandacht nodig heeft staat in een **oranje balk** bovenaan, met een bolletje bij de kaart waar het over gaat.
-- **1.147.0**: agents sturen hun rapport **gecomprimeerd** (meestal 50–85% kleiner) en de agent is opgebouwd uit **modules**; twee fouten waardoor een agent soms een run oversloeg of zijn foutmeldingen kwijtraakte, zijn opgelost.
+
+## 1.152.0 – 2026-11-03
+### Nieuw
+- **Attack Flow** (*IDS → Aanvalskaart*, in plaats van *Stromen*): per rij aanvaller → doelwit → dienst → afloop (*Geblokkeerd 07:53*, *Ingelogd*, *Niet geblokkeerd*, *Niet bevestigd*).
+  - **Waargenomen en afgeleid uit elkaar**: een doorgetrokken lijn is verkeer dat echt is gezien, met erbij door wie (auth.log, de log van een webdienst, Suricata, de firewall, de agent). Een stippellijn is een verband dat RzMon uit meldingen afleidt. Zo staat een vermoeden nooit als bewezen verkeer op de kaart. Met *Afgeleide verbanden tonen* uit zie je alleen bewezen verkeer.
+  - **Interne aanvalspaden**: een server van jou die zelf bron wordt, staat links als *interne aanvaller*, met een paarse stippellijn naar de aanval op die server.
+  - **Samenvoegen per IP**, **live** bijwerken (elke 30 seconden) en een **tijdlijn** met *Afspelen* en *Stap*: zie hoe een aanval zich ontwikkelde, tot en met de blokkade.
+  - *Herkomst*, *Laatste aanvallen* en de wereldkaart blijven.
+- **Nieuwe popup per IP**: *In het kort* in gewone taal, labels (ernst, waar geblokkeerd, waargenomen of afgeleid, samengevoegde meldingen) en vier tabbladen: *Overzicht* (pogingen per minuut met de blokkade, waarom dit een aanval is, laatste gebeurtenissen, waar het IP wel en nog niet geblokkeerd is, de meldingen), *Gebeurtenissen* (elke poging, login, bewijs en actie met bronpoort, poort en bron, te filteren), *Tijdlijn van het IP* en *Over het IP-adres*.
+  - Het korte verhaal staat ook bovenaan het venster van **elk IDS-incident** met een IP-adres.
+- **SSH-sessies** (*IDS → Toegang → SSH → ✔ Gelukt (sessies)*): elke geslaagde SSH-login met begin, duur (of *nog bezig*), methode, bronpoort en hoe vaak er eerst mislukt werd. *❌ Mislukt* toont alleen de mislukte SSH-pogingen.
+- **Nieuwe agent 1.74.0** (nodig voor de losse SSH-pogingen en de sessieduur): stuurt elke mislukte SSH-poging (tijd, IP, gebruiker, bronpoort), bij een login de bronpoort, en het einde van een sessie. Oudere agents blijven werken; dan zie je de pogingen opgeteld per rapport.
+- De database krijgt de tabel `ssh_events` (30 dagen bewaard); dat gebeurt vanzelf bij de update.
 
 ## 1.151.2 – 2026-11-03
 ### Opgelost

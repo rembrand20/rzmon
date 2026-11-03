@@ -297,7 +297,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <select id="am-cc" aria-label="<?= th('Land') ?>"><option value=""><?= th('Alle landen') ?></option></select>
           <select id="am-cat" aria-label="<?= th('Soort aanval') ?>"><option value=""><?= th('Alle soorten') ?></option></select>
           <div class="seg" id="am-dir" role="group" aria-label="<?= th('Richting') ?>"><button type="button" class="seg-btn active" data-amdir=""><?= th('Beide') ?></button><button type="button" class="seg-btn" data-amdir="i"><?= th('Inkomend') ?></button><button type="button" class="seg-btn" data-amdir="o"><?= th('Uitgaand') ?></button></div>
-          <div class="seg am-view" id="am-view" role="group" aria-label="<?= th('Weergave') ?>"><button type="button" class="seg-btn active" data-amv="flow"><?= th('Stromen') ?></button><button type="button" class="seg-btn" data-amv="world"><?= th('Wereldkaart') ?></button></div>
+          <div class="seg am-view" id="am-view" role="group" aria-label="<?= th('Weergave') ?>"><button type="button" class="seg-btn active" data-amv="flow">Attack Flow</button><button type="button" class="seg-btn" data-amv="world"><?= th('Wereldkaart') ?></button></div>
         </div>
         <div id="am-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
@@ -355,6 +355,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <button type="button" class="dchip seg-btn" data-ac="sudo">sudo</button>
             <button type="button" class="dchip seg-btn" data-ac="su">su</button>
             <button type="button" class="dchip seg-btn" data-ac="fail"><?= th('❌ Mislukt') ?></button>
+          </div>
+          <div class="dash-chips" id="acc-ssh" role="group" aria-label="<?= th('SSH') ?>" hidden>
+            <button type="button" class="dchip seg-btn on active" data-acs="all"><?= th('Alles') ?></button>
+            <button type="button" class="dchip seg-btn" data-acs="ok"><?= th('✔ Gelukt (sessies)') ?></button>
+            <button type="button" class="dchip seg-btn" data-acs="fail"><?= th('❌ Mislukt') ?></button>
           </div>
           <span class="dash-sp"></span>
           <span class="muted small" id="acc-info"></span>

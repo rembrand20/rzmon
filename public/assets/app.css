@@ -2377,3 +2377,76 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
   .side-mini .dash-counters { margin-left: -1.25rem; }
 }
 @media (min-width: 1101px) and (prefers-reduced-motion: reduce) { .side-toggle svg { transition: none; } }
+
+/* 1.152.0: Attack Flow (aanvaller → doelwit → dienst → afloop), tijdlijn met afspelen, popup per IP */
+.af-opts { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; margin: -.2rem 0 .8rem; }
+.af-livedot { color: var(--ok); font-size: .78rem; font-weight: 700; }
+.af-key { stroke: var(--text); stroke-width: 3; fill: none; } .af-key.inf { stroke-dasharray: 5 4; }
+.af-cols { display: grid; grid-template-columns: 25% 8% 22% 7% 15% 6% 17%; text-transform: uppercase; letter-spacing: .05em; font-size: .72rem; margin-bottom: .4rem; }
+.af-cols span:nth-child(1) { grid-column: 1; } .af-cols span:nth-child(2) { grid-column: 3; } .af-cols span:nth-child(3) { grid-column: 5; } .af-cols span:nth-child(4) { grid-column: 7; }
+.af-wrap { position: relative; }
+.af-svg { position: absolute; inset: 0; overflow: visible; }
+.af-lbls { position: absolute; inset: 0; pointer-events: none; }
+.af-node { position: absolute; box-sizing: border-box; display: flex; align-items: center; gap: .6rem; padding: 0 .7rem; text-align: left; font: inherit; color: var(--text);
+  background: var(--card-2); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; overflow: hidden; transition: opacity .25s; }
+.af-node:hover { border-color: var(--primary); }
+.af-from.s2 { border-color: color-mix(in srgb, var(--crit) 55%, var(--border)); }
+.af-from.s2 .am-badge { background: color-mix(in srgb, var(--crit) 22%, var(--card)); }
+.af-from.int, .af-from.own { border-style: dashed; border-color: color-mix(in srgb, var(--am-out) 60%, var(--border)); }
+.af-from.int .am-tic, .af-from.own .am-tic { background: color-mix(in srgb, var(--am-out) 18%, var(--card)); color: var(--am-out); }
+.af-kind { font-size: .7rem; color: var(--muted); }
+.af-from.int .af-kind { color: var(--am-out); }
+.af-svc { justify-content: center; flex-direction: column; gap: 0; border-radius: 999px; text-align: center; }
+.af-svc .mono { font-size: .74rem; }
+.af-svia { font-size: .66rem; color: var(--muted); white-space: nowrap; }
+.af-svia.inf { color: var(--am-out); }
+.af-out { justify-content: center; font-weight: 700; font-size: .82rem; gap: .35rem; }
+.af-out.o-blocked { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, var(--card)); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
+.af-out.o-login { color: var(--crit); background: color-mix(in srgb, var(--crit) 12%, var(--card)); border-color: color-mix(in srgb, var(--crit) 45%, var(--border)); }
+.af-out.o-open { color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, var(--card)); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
+.af-out.o-unconfirmed, .af-node.inf { border-style: dashed; color: var(--muted); }
+.am-line.inf .am-base { stroke-dasharray: 6 6; stroke-opacity: .8; }
+.af-seg { stroke: var(--border); stroke-width: 2; fill: none; }
+.am-line.crit .af-seg { stroke: color-mix(in srgb, var(--crit) 55%, var(--border)); } .am-line.warn .af-seg { stroke: color-mix(in srgb, var(--warn) 55%, var(--border)); }
+.am-line.out .af-seg { stroke: color-mix(in srgb, var(--am-out) 55%, var(--border)); }
+.am-line.inf .af-seg { stroke-dasharray: 5 5; }
+.af-pivot { fill: none; stroke: var(--am-out); stroke-width: 2; stroke-dasharray: 6 6; }
+.af-via { position: absolute; transform: translateX(-50%); font-size: .68rem; color: var(--muted); white-space: nowrap; background: var(--card); padding: 0 .25rem; border-radius: 4px; }
+.af-via.inf { color: var(--am-out); }
+.af-future { opacity: .12 !important; }
+.af-l.af-future .am-dots { animation: none; }
+/* Tijdlijn */
+.af-tl { margin-top: 1rem; --af-lbl: 170px; }
+.af-tl-btns { margin-left: auto; display: flex; gap: .4rem; }
+.af-tl-body { position: relative; display: flex; flex-direction: column; gap: 2px; padding-bottom: 1.6rem; }
+.af-lane { display: grid; grid-template-columns: var(--af-lbl) minmax(0, 1fr); align-items: center; min-height: 26px; }
+.af-lane-lbl { text-align: left; font-family: var(--mono, monospace); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.af-lane-track { position: relative; height: 20px; border-left: 1px solid var(--border); background: linear-gradient(var(--border), var(--border)) 0 50% / 100% 1px no-repeat; }
+.af-ev { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 7px; height: 7px; border-radius: 50%; background: var(--warn); transition: opacity .2s; }
+.af-ev.crit { background: var(--crit); }
+.af-ev.k-login { width: 10px; height: 10px; border-radius: 1px; transform: translate(-50%, -50%) rotate(45deg); background: var(--crit); }
+.af-ev.k-block { width: 3px; height: 20px; border-radius: 1px; background: var(--ok); }
+.af-ev.k-inc { width: 11px; height: 11px; background: none; border: 2px solid var(--text); box-sizing: border-box; }
+.af-ev.k-inc.inf { border-style: dashed; border-color: var(--am-out); }
+.af-axis { position: absolute; left: var(--af-lbl); right: 0; bottom: 0; height: 1.2rem; font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.af-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.af-axis span:first-child { transform: none; } .af-axis span:last-child { transform: translateX(-100%); }
+.af-head { position: absolute; top: 0; bottom: 1.4rem; width: 2px; background: var(--primary); pointer-events: none; }
+.af-head::after { content: attr(data-t); position: absolute; top: -1.1rem; left: 4px; font-size: .7rem; font-weight: 700; color: var(--primary); white-space: nowrap; }
+/* Popup */
+.af-sum { margin: 0 0 .8rem; padding: .7rem .9rem; background: var(--card-2); border: 1px solid var(--border); border-radius: 12px; line-height: 1.5; }
+.af-ptabs { margin: 0 0 .9rem; }
+.af-2col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; margin: .6rem 0; }
+@media (max-width: 700px) { .af-2col { grid-template-columns: minmax(0, 1fr); } }
+.af-box { background: var(--card-2); border: 1px solid var(--border); border-radius: 12px; padding: .7rem .9rem; display: flex; flex-direction: column; gap: .45rem; min-width: 0; }
+.af-box .explain { margin: 0; }
+.af-bars { display: flex; align-items: flex-end; gap: 2px; height: 66px; }
+.af-bar { flex: 1 1 0; max-width: 16px; min-width: 3px; background: var(--crit); border-radius: 3px 3px 0 0; opacity: .85; }
+.af-bar-blk { flex: none; width: 2px; height: 66px; background: var(--ok); }
+.af-blk { flex-direction: row; flex-wrap: wrap; gap: .6rem 1.6rem; margin-top: .8rem; }
+.af-ev-t td { font-size: .84rem; }
+.af-incs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .35rem; }
+.af-incsum { margin: .2rem 0 1rem; }
+.ssh-sess td { vertical-align: top; }
+@media (max-width: 760px) { .af-cols, .af-wrap { display: none; } .af-tl { --af-lbl: 110px; } }
+@media (prefers-reduced-motion: reduce) { .af-node, .af-ev { transition: none; } }

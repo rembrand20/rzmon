@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.74.0 – 2026-11-03
+- **SSH in detail** (RzMon 1.152.0): elke mislukte SSH-poging gaat los mee (tijd, IP, gebruiker, bronpoort; hooguit 200 per rapport), een geslaagde login met de bronpoort, en het einde van een sessie ("Disconnected from user …"). Daarmee toont RzMon de aanvalskaart, de tijdlijn en de duur van elke SSH-sessie. De opgetelde pogingen gaan ook nog mee, zoals altijd.
+- Achter de schermen: het lezen van de logins staat in een eigen module (`agent/src/17-logins-lezen.sh`), met een testmodus `--auth-parse` voor GitHub Actions.
+
 ## 1.73.1 – 2026-11-03
 - De grens voor comprimeren (standaard 2 kB) is in te stellen met `COMPRESS_MIN` (bytes). Voor de test in GitHub Actions; voor je servers verandert er niets.
 

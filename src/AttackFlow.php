@@ -1,0 +1,216 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Attack Flow (RzMon 1.152.0): aanvaller → doelwit → dienst → afloop, op basis van de aanvalskaart (Ids::flows).
+ *
+ * Belangrijk onderscheid: een lijn is "waargenomen" als iets het verkeer echt zag (auth.log, de log van een webdienst,
+ * Suricata, de firewall/honeypot of de agent die een verbinding zag). "Afgeleid" is een verband dat RzMon uit
+ * meldingen legt (een keten, dreigingsinformatie, of "deze server werd aangevallen en valt nu zelf aan"). Zo wordt een
+ * vermoeden nooit als bewezen verkeer getoond.
+ */
+final class AttackFlow
+{
+    /** Soorten incidenten waarvan het verkeer echt is gezien, en door wie */
+    private const OBSERVED = [
+        'bruteforce' => 'auth.log', 'breakin' => 'auth.log', 'rootlogin' => 'auth.log', 'newip' => 'auth.log', 'ssh_login' => 'auth.log',
+        'decoy_user' => 'auth.log', 'ssh' => 'auth.log', 'web_attack' => 'weblog', 'web_cve' => 'weblog', 'web_payload' => 'weblog',
+        'suricata' => 'Suricata', 'decoy_port' => 'firewall', 'outbound' => 'agent', 'out_bad' => 'agent', 'out_country' => 'agent',
+        'revshell' => 'agent', 'edr' => 'agent',
+    ];
+    /** Daarna is er ingelogd */
+    private const LOGIN = ['breakin', 'ssh_login', 'newip', 'rootlogin'];
+
+    /** @param array{days?: int, host?: int, cc?: string, cat?: string, dir?: string, top?: int} $o */
+    public static function build(array $o): array
+    {
+        $f = Ids::flows($o + ['top' => 12]);
+        $days = (int) $f['days'];
+        $since = date('Y-m-d H:i:s', time() - $days * 86400);
+        // Welk IP hoort bij welke server (een eigen server als bron = interne aanvaller)
+        $hostByIp = [];
+        foreach (q('SELECT id, name, address, agent_ip FROM hosts')->fetchAll() as $h) {
+            foreach ([$h['agent_ip'], $h['address']] as $a) {
+                $a = trim((string) $a);
+                if ($a !== '' && @inet_pton($a) !== false && !in_array($a, ['127.0.0.1', '::1'], true)) {
+                    $hostByIp[$a] ??= ['id' => (int) $h['id'], 'name' => (string) $h['name']];
+                }
+            }
+        }
+        $ips = array_column($f['sources'], 'ip');
+        $in = $ips ? implode(',', array_fill(0, count($ips), '?')) : "''";
+        // Blokkades in of na de periode (ook opgeheven: dan zie je in de tijdlijn wanneer)
+        $blocks = [];
+        foreach ($ips ? q("SELECT ip, host_id, created_at FROM ids_blocks WHERE ip IN ($in) AND (created_at >= ? OR removed_at IS NULL) ORDER BY created_at",
+            array_merge($ips, [$since]))->fetchAll() : [] as $b) {
+            $blocks[$b['ip']][] = $b;
+        }
+        foreach ($f['sources'] as &$s) {
+            $s['host'] = $s['internal'] ? ($hostByIp[$s['ip']] ?? null) : null;
+        }
+        unset($s);
+        $srcBlocked = array_column($f['sources'], 'blocked', 'ip');
+        foreach ($f['lines'] as $i => $l) {
+            $types = $l['types'] ?? [];
+            $via = null;
+            foreach ($types as $t) {
+                if (isset(self::OBSERVED[$t])) {
+                    $via = self::OBSERVED[$t];
+                    break;
+                }
+            }
+            if ($via === null && in_array('ti_ip', $types, true) && str_contains((string) $l['title'], '→')) {
+                $via = 'agent';
+            }
+            $obs = $via !== null;
+            $blockAt = null;
+            foreach ($blocks[$l['ip']] ?? [] as $b) {
+                if ((int) $b['host_id'] === $l['host_id'] || $blockAt === null) {
+                    $blockAt = $b['created_at'];
+                    if ((int) $b['host_id'] === $l['host_id']) {
+                        break;
+                    }
+                }
+            }
+            $outcome = match (true) {
+                (bool) array_intersect($types, self::LOGIN) => ['k' => 'login'],
+                !empty($srcBlocked[$l['ip']]) => ['k' => 'blocked', 'at' => $blockAt],
+                !$obs => ['k' => 'unconfirmed'],
+                default => ['k' => 'open'],
+            };
+            $f['lines'][$i] += ['obs' => $obs, 'via' => $via ?? (in_array('chain', $types, true) ? 'keten' : 'RzMon'), 'outcome' => $outcome];
+        }
+        // Afgeleid: een server die eerst werd aangevallen en daarna zelf (als intern IP) een bron is
+        $pivots = [];
+        foreach ($f['sources'] as $s) {
+            if (empty($s['host'])) {
+                continue;
+            }
+            $first = min(array_map(static fn($l) => $l['first'], array_filter($f['lines'], static fn($l) => $l['ip'] === $s['ip'])) ?: [$s['last']]);
+            $hit = array_filter($f['lines'], static fn($l) => $l['host_id'] === $s['host']['id'] && !$l['internal'] && $l['first'] <= $first);
+            if ($hit) {
+                $prev = min(array_column($hit, 'first'));
+                $pivots[] = ['host_id' => $s['host']['id'], 'ip' => $s['ip'], 'minutes' => (int) round((strtotime($first) - strtotime($prev)) / 60), 'obs' => false];
+            }
+        }
+        // Tijdlijn: losse SSH-pogingen en logins, de opgetelde pogingen van oudere agents, blokkades en meldingen
+        $events = [];
+        if ($ips) {
+            $seen = [];
+            foreach (q("SELECT host_id, ip, at, ok, username FROM ssh_events WHERE ip IN ($in) AND at >= ? ORDER BY at LIMIT 3000", array_merge($ips, [$since]))->fetchAll() as $e) {
+                $events[] = ['at' => $e['at'], 'ip' => $e['ip'], 'host_id' => (int) $e['host_id'], 'k' => (int) $e['ok'] ? 'login' : 'try', 'n' => 1, 'u' => $e['username']];
+                $seen[$e['host_id'] . '|' . $e['ip']] = true;
+            }
+            foreach (q("SELECT host_id, ip, at, n FROM ids_attempts WHERE ip IN ($in) AND at >= ? ORDER BY at LIMIT 2000", array_merge($ips, [$since]))->fetchAll() as $e) {
+                if (!isset($seen[$e['host_id'] . '|' . $e['ip']])) {
+                    $events[] = ['at' => $e['at'], 'ip' => $e['ip'], 'host_id' => (int) $e['host_id'], 'k' => 'try', 'n' => (int) $e['n']];
+                }
+            }
+            foreach ($blocks as $ip => $list) {
+                foreach ($list as $b) {
+                    if ($b['created_at'] >= $since) {
+                        $events[] = ['at' => $b['created_at'], 'ip' => $ip, 'host_id' => (int) $b['host_id'], 'k' => 'block', 'n' => 1];
+                    }
+                }
+            }
+        }
+        foreach ($f['lines'] as $i => $l) {
+            $events[] = ['at' => $l['first'], 'ip' => $l['ip'], 'host_id' => $l['host_id'], 'k' => 'inc', 'n' => 1, 'line' => $i, 'obs' => $l['obs']];
+        }
+        usort($events, static fn($a, $b) => strcmp((string) $a['at'], (string) $b['at']));
+        return $f + ['pivots' => $pivots, 'events' => array_slice($events, -3000), 'since' => $since, 'now' => now()];
+    }
+
+    /**
+     * Alles over één IP-adres voor de popup: elke gebeurtenis (SSH-poging, login, einde sessie, bewijs van Suricata, de
+     * agent of een webdienst, blokkades en meldingen), waar het geblokkeerd is en waar niet, de meldingen en waarom.
+     */
+    public static function ipEvents(string $ip, int $days = 7): array
+    {
+        $days = max(1, min(30, $days));
+        $since = date('Y-m-d H:i:s', time() - $days * 86400);
+        $rows = [];
+        $hostName = array_column(q('SELECT id, name FROM hosts')->fetchAll(), 'name', 'id');
+        $sshHosts = [];
+        foreach (q('SELECT * FROM ssh_events WHERE ip = ? AND at >= ? ORDER BY at DESC LIMIT 1000', [$ip, $since])->fetchAll() as $e) {
+            $h = $hostName[$e['host_id']] ?? '?';
+            $sshHosts[(int) $e['host_id']] = true;
+            if ((int) $e['ok']) {
+                $rows[] = ['at' => $e['at'], 'k' => 'login', 'host' => $h, 'sport' => $e['port'] !== null ? (int) $e['port'] : null, 'dport' => 22, 'proto' => 'TCP',
+                    'what' => t('ingelogd als {u}', ['u' => $e['username']]) . ($e['method'] ? ' (' . $e['method'] . ')' : ''), 'via' => 'auth.log', 'st' => 'login'];
+                if ($e['closed_at'] !== null) {
+                    $rows[] = ['at' => $e['closed_at'], 'k' => 'end', 'host' => $h, 'sport' => $e['port'] !== null ? (int) $e['port'] : null, 'dport' => 22, 'proto' => 'TCP',
+                        'what' => t('sessie van {u} beëindigd', ['u' => $e['username']]), 'via' => 'auth.log', 'st' => 'info'];
+                }
+            } else {
+                $rows[] = ['at' => $e['at'], 'k' => 'fail', 'host' => $h, 'sport' => $e['port'] !== null ? (int) $e['port'] : null, 'dport' => 22, 'proto' => 'TCP',
+                    'what' => t('mislukte login als {u}', ['u' => $e['username']]), 'via' => 'auth.log', 'st' => 'fail'];
+            }
+        }
+        // Oudere agents: alleen opgeteld per rapport
+        foreach (q('SELECT host_id, at, n FROM ids_attempts WHERE ip = ? AND at >= ? ORDER BY at DESC LIMIT 300', [$ip, $since])->fetchAll() as $e) {
+            if (!isset($sshHosts[(int) $e['host_id']])) {
+                $rows[] = ['at' => $e['at'], 'k' => 'fail', 'n' => (int) $e['n'], 'host' => $hostName[$e['host_id']] ?? '?', 'sport' => null, 'dport' => 22, 'proto' => 'TCP',
+                    'what' => t('{n} mislukte SSH-logins', ['n' => (int) $e['n']]), 'via' => 'auth.log', 'st' => 'fail'];
+            }
+        }
+        $incs = q('SELECT i.*, h.name AS host FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.ip = ? AND i.last_seen >= ? ORDER BY i.severity DESC, i.last_seen DESC LIMIT 50',
+            [$ip, $since])->fetchAll();
+        foreach ($incs as $i) {
+            $rows[] = ['at' => $i['created_at'], 'k' => 'inc', 'host' => $i['host'], 'sport' => null, 'dport' => $i['dport'] !== null ? (int) $i['dport'] : null,
+                'proto' => $i['proto'] !== null ? strtoupper((string) $i['proto']) : null, 'what' => $i['title'], 'via' => 'RzMon', 'st' => 'detect', 'id' => (int) $i['id']];
+        }
+        // Bewijs bij de meldingen (Suricata, verbindingen van de agent, webverzoeken)
+        if ($incs) {
+            $ids = array_column($incs, 'id');
+            $byInc = array_column($incs, null, 'id');
+            foreach (q('SELECT * FROM ids_evidence WHERE incident_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') ORDER BY at DESC LIMIT 300', $ids)->fetchAll() as $e) {
+                $d = json_decode((string) $e['data'], true) ?: [];
+                $ev = (array) ($d['ev'] ?? []);
+                $h = $byInc[$e['incident_id']]['host'] ?? '?';
+                $row = match ((string) $e['kind']) {
+                    'sur' => ['sport' => (int) ($ev['sport'] ?? 0) ?: null, 'dport' => (int) ($ev['dport'] ?? 0) ?: null, 'proto' => (string) ($ev['proto'] ?? ''),
+                        'what' => (string) ($ev['sig'] ?? 'Suricata') . (!empty($ev['sid']) ? ' (sid ' . (int) $ev['sid'] . ')' : ''), 'via' => 'Suricata',
+                        'st' => ($ev['act'] ?? '') === 'blocked' ? 'stopped' : 'seen'],
+                    'net' => ['sport' => null, 'dport' => (int) ($ev['rp'] ?? 0) ?: null, 'proto' => 'TCP',
+                        'what' => t('verbinding door {exe}', ['exe' => (string) ($ev['exe'] ?? ($ev['comm'] ?? '?'))]), 'via' => 'agent', 'st' => 'seen'],
+                    'web' => ['sport' => null, 'dport' => 443, 'proto' => 'TCP',
+                        'what' => trim((string) ($ev['method'] ?? '') . ' ' . mb_substr((string) ($ev['uri'] ?? ''), 0, 120)) . (!empty($ev['status']) ? ' → ' . (int) $ev['status'] : ''),
+                        'via' => 'weblog', 'st' => (int) ($ev['status'] ?? 0) >= 200 && (int) ($ev['status'] ?? 0) < 400 ? 'fail' : 'seen'],
+                    default => null,
+                };
+                if ($row) {
+                    $rows[] = $row + ['at' => $e['at'], 'k' => 'ev', 'host' => $h, 'rule' => (string) $e['rule']];
+                }
+            }
+        }
+        $active = [];
+        foreach (q('SELECT b.*, h.name AS host FROM ids_blocks b JOIN hosts h ON h.id = b.host_id WHERE b.ip = ? AND (b.created_at >= ? OR b.removed_at IS NULL) ORDER BY b.created_at DESC LIMIT 50',
+            [$ip, $since])->fetchAll() as $b) {
+            $rows[] = ['at' => $b['created_at'], 'k' => 'block', 'host' => $b['host'], 'sport' => null, 'dport' => null, 'proto' => null,
+                'what' => t('IP geblokkeerd') . ($b['until'] ? ' ' . t('tot {t}', ['t' => $b['until']]) : ' ' . t('(blijvend)')) . ($b['reason'] !== '' ? ' · ' . $b['reason'] : ''), 'via' => 'RzMon', 'st' => 'action'];
+            if ($b['removed_at'] !== null) {
+                $rows[] = ['at' => $b['removed_at'], 'k' => 'unblock', 'host' => $b['host'], 'sport' => null, 'dport' => null, 'proto' => null,
+                    'what' => t('blokkade opgeheven'), 'via' => 'RzMon', 'st' => 'info'];
+            } elseif ($b['until'] === null || $b['until'] > now()) {
+                $active[] = ['host' => $b['host'], 'host_id' => (int) $b['host_id'], 'at' => $b['created_at'], 'until' => $b['until'], 'hits' => (int) $b['hits'], 'reason' => $b['reason']];
+            }
+        }
+        usort($rows, static fn($a, $b) => strcmp((string) $b['at'], (string) $a['at']));
+        $internal = Ids::internalIp($ip);
+        $main = $incs[0] ?? null;
+        $blockedOn = array_column($active, 'host_id');
+        $notOn = $internal ? [] : array_column(q("SELECT name FROM hosts WHERE mode = 'agent' AND enabled = 1" . ($blockedOn ? ' AND id NOT IN (' . implode(',', array_map('intval', $blockedOn)) . ')' : '') . ' ORDER BY name')->fetchAll(), 'name');
+        $fails = count(array_filter($rows, static fn($r) => $r['k'] === 'fail' && !isset($r['n']))) + array_sum(array_map(static fn($r) => $r['n'] ?? 0, array_filter($rows, static fn($r) => $r['k'] === 'fail')));
+        return [
+            'ip' => $ip, 'days' => $days, 'internal' => $internal, 'cc' => $internal ? null : (IpIntel::country($ip) ?? ($main['cc'] ?? null)), 'bad' => $internal ? null : IpIntel::bad($ip),
+            'rows' => array_slice($rows, 0, 500), 'truncated' => count($rows) > 500,
+            'counts' => ['fails' => $fails, 'logins' => count(array_filter($rows, static fn($r) => $r['k'] === 'login')),
+                'stopped' => array_sum(array_column($active, 'hits')), 'incidents' => count($incs)],
+            'blocks' => $active, 'blocked_rz' => !$internal && Security::blockFor($ip) !== null, 'not_blocked_on' => $notOn,
+            'incidents' => array_map(static fn($i) => ['id' => (int) $i['id'], 'title' => $i['title'], 'type' => $i['type'], 'sev' => (int) $i['severity'], 'host' => $i['host'],
+                'created' => $i['created_at'], 'last' => $i['last_seen'], 'hits' => (int) $i['hits'], 'status' => $i['status'], 'observed' => isset(self::OBSERVED[$i['type']])], $incs),
+            'explain' => $main ? Protect::describe($main) : null,
+        ];
+    }
+}
