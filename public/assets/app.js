@@ -8903,7 +8903,7 @@ function markTheme() {
 function initCC() {
   const home = $('#tab-home');
   if (!home) return;
-  const tools = () => { if ($('#hm-tools')) $('#hm-tools').innerHTML = ccTools(); };
+  const tools = () => { if ($('#hm-tools')) $('#hm-tools').innerHTML = ccTools(); if ($('#hm-live')) $('#hm-live').innerHTML = livePill(); };
   home.addEventListener('click', (e) => {
     const t = e.target.closest('[data-dash-set], [data-cc-edit], [data-cc-tv], [data-cc-reset]');
     if (!t || !home.contains(t)) return;
@@ -12771,6 +12771,7 @@ async function loadHome(fresh = false) {
     loadHome();
   }));
   if ($('#hm-tools')) $('#hm-tools').innerHTML = ccTools();
+  if ($('#hm-live')) $('#hm-live').innerHTML = livePill();   // 1.157.3: rechtsboven op de pagina
   const q = { period: cc ? (['30d', '90d'].includes(ccPeriod) ? ccPeriod : '7d') : hmPeriod, ...(fresh ? { fresh: 1 } : {}) };
   if (cc) Object.assign(q, { cc: 1, ccp: ccPeriod, ...(ccSeenAt ? { seen: ccSeenAt } : {}) });
   try { hmData = await api('home', null, q); hmAt = Date.now(); } catch (ex) { $('#home').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
@@ -12943,7 +12944,6 @@ function livePill() {
 function ccTools() {
   const tv = document.body.classList.contains('tv');
   return `<div class="cc-tools">
-    ${livePill()}
     ${dashMode() === 'cc' ? `<button type="button" class="cc-tbtn ${ccEdit ? 'on' : ''}" data-cc-edit aria-pressed="${ccEdit}">✎ ${esc(ccEdit ? L('Klaar') : L('Indeling'))}</button>
       <button type="button" class="cc-tbtn ${tv ? 'on' : ''}" data-cc-tv aria-pressed="${tv}">▣ ${esc(L('TV-modus'))}</button>` : ''}
     <div class="seg cc-dash" role="group" aria-label="${esc(L('Dashboard'))}"><button type="button" class="seg-btn ${dashMode() === 'classic' ? 'active' : ''}" data-dash-set="classic">${esc(L('Klassiek'))}</button>

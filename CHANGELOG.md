@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.154.0**: het **Command center**, een tweede dashboard met alles in één oogopslag (SSH-logins en -blokkades, de toppers, wie er inlogt, de monitoring), zelf in te delen en met een TV-modus.
 - **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
 
+## 1.157.3 – 2026-11-03
+### Opgelost
+- Het live-lampje op het **Dashboard** staat nu rechtsboven op de pagina, op een eigen regel boven de knoppen (op het Command center viel het eerst tussen de knoppen).
+
 ## 1.157.2 – 2026-11-03
 ### Opgelost
 - Het **Dashboard** (Klassiek en Command center) heeft nu hetzelfde live-lampje als Monitoring: *● Live · laatste check … geleden*, grijs als de live-verbinding wegvalt. Het oude label LIVE van het Command center is daarmee vervangen.

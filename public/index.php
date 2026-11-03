@@ -195,6 +195,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <main class="container">
     <section id="tab-home" class="tab-panel" aria-label="<?= th('Dashboard') ?>">
       <div class="hm-head">
+        <div class="hm-live" id="hm-live"></div>
         <div><h1 class="hm-title"><?= th('Zo staat het ervoor') ?></h1><p class="muted small" id="hm-sub"></p></div>
         <div class="hm-right"><div class="seg" id="hm-period" role="group" aria-label="<?= th('Periode') ?>"></div><div id="hm-tools"></div></div>
       </div>
