@@ -270,6 +270,8 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 
 ## 10. De agent (Linux)
 Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt. Het werkt op Rocky/RHEL/AlmaLinux/Fedora, Debian/Ubuntu, Raspberry Pi OS en Proxmox VE.
+- **Gecomprimeerde rapporten** (agent 1.73.0, RzMon 1.147.0): gzip vóór het versleutelen, pas als RzMon het kan, uit te zetten met `COMPRESS=0`; RzMon weigert een zip-bom.
+- **Opgebouwd uit modules** (`agent/src/*.sh`, vanaf agent 1.73.0), samengevoegd tot één bestand met `tools/build-agent.sh`: servers krijgen nog steeds één ondertekend bestand.
 
 **Installeren en beheren**
 - **Installatie met één commando** uit de *Agent Manager*:

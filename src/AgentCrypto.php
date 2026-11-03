@@ -82,6 +82,40 @@ final class AgentCrypto
         return hash_hmac('sha256', $label, (string) hex2bin($key));
     }
 
+    /** Hooguit zo groot uitgepakt (een gecomprimeerd rapport van een agent) */
+    public const UNZIP_MAX = 64 * 1048576;
+
+    /**
+     * 1.147.0: rapport van een agent uitpakken als het gecomprimeerd is (gzip, herkend aan de eerste twee bytes; agent 1.73.0+).
+     * Niet gecomprimeerd: ongewijzigd terug. Kapot of groter dan UNZIP_MAX uitgepakt (een "zip-bom"): null.
+     */
+    public static function unzip(string $s): ?string
+    {
+        if (!str_starts_with($s, "\x1f\x8b")) {
+            return $s;
+        }
+        // In kleine stukken uitpakken en stoppen zodra het te groot wordt (gzdecode() met een maximum stopt daar niet op)
+        $ctx = @inflate_init(ZLIB_ENCODING_GZIP);
+        if ($ctx === false) {
+            return null;
+        }
+        $out = '';
+        foreach (str_split($s, 4096) as $chunk) {
+            $part = @inflate_add($ctx, $chunk, ZLIB_SYNC_FLUSH);
+            if ($part === false) {
+                return null;
+            }
+            $out .= $part;
+            if (strlen($out) > self::UNZIP_MAX) {
+                return null;
+            }
+        }
+        if (inflate_get_status($ctx) !== ZLIB_STREAM_END) {
+            return null;   // afgekapt of kapot: de gzip-stroom is niet netjes geëindigd
+        }
+        return $out;
+    }
+
     public static function isEnvelope(string $raw): bool
     {
         return str_starts_with(ltrim($raw), '{"rzenc":');

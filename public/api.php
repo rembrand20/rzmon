@@ -266,7 +266,7 @@ function agent_body(array $host): bool
         } catch (RuntimeException $e) {
             $refuse($e->getMessage(), ['enc_error' => true]);
         }
-        $GLOBALS['agent_plain'] = $plain;
+        $GLOBALS['agent_plain'] = agent_unzip($plain, $refuse);
         $GLOBALS['agent_seal'] = [$key, $nonce];
         // De agent gebruikt zijn eigen sleutel: vanaf nu is een token alleen niet meer genoeg
         if ($key === ($host['agent_key'] ?? null) && (int) $host['agent_key_seen'] !== 1) {
@@ -280,8 +280,21 @@ function agent_body(array $host): bool
     if (AgentCrypto::hostMode($host) === 'required') {
         $refuse(t('onversleuteld bericht, maar versleuteling is verplicht voor deze server'), ['enc_required' => true]);
     }
-    $GLOBALS['agent_plain'] = $raw;
+    $GLOBALS['agent_plain'] = agent_unzip($raw, $refuse);
     return false;
+}
+
+/**
+ * 1.147.0: gecomprimeerd rapport (agent 1.73.0+, gzip, herkend aan de eerste twee bytes) uitpakken. Hooguit 64 MB
+ * uitgepakt (geen "zip-bom"); kapot of te groot: geweigerd. De agent comprimeert pas als RzMon "gz":1 terugstuurt.
+ */
+function agent_unzip(string $s, callable $refuse): string
+{
+    $out = AgentCrypto::unzip($s);
+    if ($out === null) {
+        $refuse(t('gecomprimeerd rapport is kapot of te groot'));
+    }
+    return (string) $out;
 }
 
 /**
@@ -907,7 +920,7 @@ if ($action === 'agent') {
         $from = (string) $host['agent_version'];
         Monitor::infoHost($host, fn() => t('Agent bijgewerkt van {from} naar {to}', ['from' => $from, 'to' => $agentVersion]));
     }
-    $resp = ['ok' => true, 'host' => $host['name'], 'rzmon_version' => RZMON_VERSION, 'received' => [
+    $resp = ['ok' => true, 'host' => $host['name'], 'rzmon_version' => RZMON_VERSION, 'gz' => 1, 'received' => [
         'disks' => count($in['disks'] ?? []), 'services' => count($in['services'] ?? []), 'ports' => count($in['ports'] ?? []),
         'certs' => count((array) ($in['certs'] ?? [])), 'containers' => count((array) ($in['podman']['containers'] ?? [])),
     ] + ($backlogN ? ['backlog' => $backlogN] : [])];

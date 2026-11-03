@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.147.0**: agents sturen hun rapport **gecomprimeerd** (meestal 50–85% kleiner) en de agent is opgebouwd uit **modules**; twee fouten waardoor een agent soms een run oversloeg of zijn foutmeldingen kwijtraakte, zijn opgelost.
 - **1.146.0**: per server het **aanvalspad** (open poorten, kwetsbaarheden, afhankelijke servers), **doelen** (melding binnen 5 minuten, agents rapporteren) en of zelf herstellen, blokkades en slimme drempels **echt werken**; het rapport begint met één overzichtspagina.
 - **1.145.0**: RzMon is nu open source onder **GPL-3.0**, met een `SECURITY.md` (lekken melden, threat model, de signing-sleutel) en strengere controles in GitHub Actions.
 - **1.144.0**: het dashboard begint met wat je **nu moet doen**, op één **urgentie**; elke server heeft een **risico** van 0–100, en IDS-meldingen die bij elkaar horen worden **één incident** met stappen.
 - **1.143.0**: **Content-Security-Policy** op alle pagina's en wachtwoorden met **Argon2id**, zonder dat inloggen verandert.
-- **1.142.0**: nieuw tabblad **Incidenten** (status, eigenaar, notities) en een **rapport als PDF**.
+
+## 1.147.0 – 2026-11-03
+### Nieuw
+- **Gecomprimeerde rapporten** van agents (agent 1.73.0 nodig): RzMon pakt ze uit (ook versleuteld) en laat agents weten dat het kan. Hooguit 64 MB uitgepakt; een kapot of te groot ("zip-bom") rapport wordt geweigerd.
+- **De agent bestaat nu uit modules** in `agent/src/` (bijvoorbeeld `25-versleuteling.sh`, `90-versturen.sh`), samengevoegd tot één bestand met `tools/build-agent.sh`. Servers krijgen nog steeds één ondertekend bestand. De versiecontrole (ook in GitHub Actions) controleert dat het samengevoegde bestand klopt.
+- **Nieuwe agent 1.73.0**, met twee reparaties: achtergrondprocessen hielden de vergrendeling vast (waardoor een run soms werd overgeslagen), en foutmeldingen van de agent verdwenen sinds 1.68.0 naar het niets.
 
 ## 1.146.0 – 2026-11-03
 ### Nieuw

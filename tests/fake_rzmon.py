@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Nep-RzMon voor de agenttest (tests/agent-json.sh): geeft de agent een minimale instellingenlijst en bewaart zijn
 rapport in <map>/payload.json. Gebruik: fake_rzmon.py <poort> <map>"""
+import gzip
 import json
 import os
 import sys
@@ -34,9 +35,14 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get('Content-Length') or 0)
         body = self.rfile.read(length)
         if self._action() == 'agent':
+            # Agent 1.73.0: gecomprimeerd (gzip) als wij "gz":1 zeiden; dan uitpakken en de grootte bewaren
+            if body[:2] == b'\x1f\x8b':
+                with open(os.path.join(OUT, 'gz.size'), 'w') as f:
+                    f.write('%d %d' % (len(body), len(gzip.decompress(body))))
+                body = gzip.decompress(body)
             with open(os.path.join(OUT, 'payload.json'), 'wb') as f:
                 f.write(body)
-            self._send(json.dumps({'ok': True, 'host': 'ci', 'rzmon_version': '0.0.0'}))
+            self._send(json.dumps({'ok': True, 'host': 'ci', 'rzmon_version': '0.0.0', 'gz': 1}))
         else:
             self._send(json.dumps({'ok': True}))
 

@@ -47,6 +47,8 @@ check "$ADDON/config.yaml" "$(sed -n 's/^version: "\([^"]*\)".*/\1/p' "$ADDON/co
 check "agent/CHANGELOG.md (bovenste versie)" "$(top agent/CHANGELOG.md)" "$agent"
 filled agent/CHANGELOG.md "$agent"
 same agent/rzmon-agent.sh "$ADDON/rzmon-agent.sh"
+# 1.147.0: de agent wordt gebouwd uit agent/src; het gebouwde bestand moet daar precies mee kloppen
+if tools/build-agent.sh --check >/dev/null 2>&1; then echo "  ✔ agent/rzmon-agent.sh gebouwd uit agent/src"; else echo "  ✘ agent/rzmon-agent.sh wijkt af van agent/src (voer tools/build-agent.sh uit)"; fail=1; fi
 same agent/CHANGELOG.md "$ADDON/CHANGELOG.md"
 echo "Vertaling (Engels):"
 if command -v php >/dev/null 2>&1; then php tools/check-i18n.php; else echo "  · php niet gevonden: overgeslagen"; fi

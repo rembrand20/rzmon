@@ -16,7 +16,7 @@ RzMon en de agent hebben **elk een eigen versienummer**. Verhoog alleen het numm
 3. Controleer met `tools/check-version.sh`; dat moet overal ✔ geven. GitHub Actions voert dezelfde controle uit.
 4. Bij een **minor** of **major** van RzMon: werk de **Highlights** bovenaan `CHANGELOG.md` bij (de laatste 5 versies, één zin per versie; de oudste valt eraf).
 
-- `rzmon` werkt `VERSION` bij. `agent` werkt `agent/VERSION`, `AGENT_VERSION` in `agent/rzmon-agent.sh`, de agent-kopie in `ha-addon/rzmon_agent/` en `version` in `ha-addon/rzmon_agent/config.yaml` in één keer bij. Pas die nooit los aan.
+- `rzmon` werkt `VERSION` bij. `agent` werkt `agent/VERSION`, `AGENT_VERSION` in `agent/src/00-kop.sh` (en daarmee de gebouwde agent), de agent-kopie in `ha-addon/rzmon_agent/` en `version` in `ha-addon/rzmon_agent/config.yaml` in één keer bij. Pas die nooit los aan.
 - De HA-add-on heeft het nummer van de agent. RzMon vergelijkt agents met `AGENT_LATEST` (uit `agent/VERSION`), niet met de versie van RzMon.
 - Heeft iets in RzMon een nieuwere agent nodig, zet dat in `CHANGELOG.md` ("agent 1.x.y nodig").
 - Een nieuwe agent krijgt ook een nieuwe **patch-versie van RzMon** (met een regel "Nieuwe agent 1.x.y" in `CHANGELOG.md`). RzMon levert de agent aan de servers en zoekt updates alleen op basis van `VERSION`; zonder RzMon-versie komt de nieuwe agent nooit bij de gebruiker.
@@ -32,6 +32,7 @@ RzMon en de agent hebben **elk een eigen versienummer**. Verhoog alleen het numm
 - Datums en getallen in JavaScript met `LOCALE` (niet `'nl-NL'`), en decimalen met `dec()`.
 
 ## Overige afspraken
+- **De agent wijzig je in `agent/src/*.sh`** (modules, op volgorde van hun nummer), nooit in `agent/rzmon-agent.sh`: dat bestand wordt gebouwd met `tools/build-agent.sh` (ook door `tools/bump-version.sh sync`). `tools/check-version.sh` en CI controleren dat het gebouwde bestand klopt. Shellcheck draait op het gebouwde bestand.
 - `ha-addon/rzmon_agent/rzmon-agent.sh` en `ha-addon/rzmon_agent/CHANGELOG.md` zijn kopieën van `agent/rzmon-agent.sh` en `agent/CHANGELOG.md`. Wijzig altijd het origineel en kopieer daarna met `tools/bump-version.sh sync`.
 - Nieuwe databasekolommen gaan via `Installer::COLUMNS` (`src/Installer.php`), niet met `ADD COLUMN IF NOT EXISTS` (dat werkt niet op MySQL). Nieuwe tabellen gaan in `install/schema.sql` met `CREATE TABLE IF NOT EXISTS`. De database wordt automatisch bijgewerkt zodra `VERSION` (van RzMon) verandert; een wijziging aan de database vraagt dus altijd een nieuwe RzMon-versie.
 - `config.php` bevat wachtwoorden en wordt nooit gecommit (`.gitignore`). `tools/check-secrets.sh` (ook in CI) zoekt naar geheimen in de repo.

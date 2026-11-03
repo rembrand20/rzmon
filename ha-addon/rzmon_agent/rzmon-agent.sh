@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# (Dit bestand wordt gebouwd uit agent/src/*.sh met tools/build-agent.sh: wijzig de modules daar, niet dit bestand.)
 # RzMon agent – rapporteert CPU, RAM, disk usage, luisterende poorten, service-status,
 # vervaldatums van SSL-certificaten (bestanden en host:poort, ook op internet) en, als
 # podman aanwezig is, de status en het verbruik van elke container en pod aan de monitor.
@@ -20,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.72.0"
+AGENT_VERSION="1.73.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -312,7 +313,7 @@ edr_own() {
     [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -gt 0 ] && cg=$(cat "/proc/$1/cgroup" 2>/dev/null)
     if [[ "$cg" =~ /rzmon-[^/]*\.service ]]; then echo agent; return 0; fi
     if [ -n "${EDR_ROOT-}" ] && [[ "$1" =~ ^[0-9]+$ ]] && { [ "$3" = root ] || [ "$3" = "${EDR_USER-}" ]; } && [[ "$2" == php* ]] \
-        && { [[ "$(readlink "/proc/$1/cwd" 2>/dev/null)" == "$EDR_ROOT"* ]] || tr '\0' ' ' <"/proc/$1/cmdline" 2>/dev/null | grep -qF -- "$EDR_ROOT/cron/"; }; then
+        && { [[ "$(readlink "/proc/$1/cwd" 2>/dev/null)" == "$EDR_ROOT"* ]] || tr '\0' ' ' 2>/dev/null <"/proc/$1/cmdline" | grep -qF -- "$EDR_ROOT/cron/"; }; then
         echo rzmon; return 0
     fi
     if [ -n "${4-}" ] && [[ " ${EDR_RZIPS-} " == *" $4 "* ]]; then echo net; fi
@@ -928,7 +929,7 @@ elif [ -n "$pair_code" ] && command -v openssl >/dev/null 2>&1; then
     fi
     set_auth; set_tls
 fi
-exec 8>&- 2>/dev/null
+{ exec 8>&-; } 2>/dev/null   # 1.73.0: alleen dit stil (was: alle foutmeldingen van de rest van de run naar /dev/null)
 
 # ---------------------------------------------------------------- Verbindingstest (--test)
 pass() { printf '  \e[32m✔\e[0m %s\n' "$*"; }
@@ -1313,7 +1314,7 @@ if [ "$TEST" != 1 ] && [ "${RZ_NO_BEAT-}" != 1 ]; then
             rm -f "$b_file" "$b_file.enc"
             sleep "$tick"
         done
-    ) </dev/null >/dev/null 2>&1 &
+    ) 9>&- </dev/null >/dev/null 2>&1 &   # 1.73.0: zonder de run-vergrendeling (fd 9), anders houdt zijn sleep die vast
     beat_pid=$!
 fi
 # Agent 1.69.0: hoe lang elk onderdeel duurde (gaat mee naar RzMon: Agent Manager toont wat traag is)
@@ -1947,7 +1948,7 @@ bg_launch() {  # bg_launch <script> <naam>
     if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
         systemd-run --quiet --collect --unit="$2-$(date +%s)" /bin/bash "$1" >/dev/null 2>&1
     else
-        setsid bash "$1" </dev/null >/dev/null 2>&1 &
+        setsid bash "$1" 9>&- </dev/null >/dev/null 2>&1 &
     fi
 }
 cmd_state() {  # cmd_state <id> <rc> <ms> <als> <tijd>: uitvoer en exitcode als JSON in <id>.json
@@ -2273,7 +2274,7 @@ ids_bg() {  # ids_bg <naam> <max. leeftijd in s> <commando>: op de achtergrond u
     if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
         systemd-run --quiet --collect --unit="rzmon-ids-$name-$(date +%s)" /bin/bash "$out.job" >/dev/null 2>&1 || rm -f "$out.lock"
     else
-        setsid bash "$out.job" </dev/null >/dev/null 2>&1 &
+        setsid bash "$out.job" 9>&- </dev/null >/dev/null 2>&1 &
     fi
 }
 if [ -n "$ids_mode" ]; then
@@ -2336,7 +2337,7 @@ if [ -n "$ids_mode" ]; then
                 case "${exe% (deleted)}" in /usr/*|/opt/*|/lib*|/bin/*|/sbin/*|/snap/*|/var/lib/*) ;; *) flag=1 ;; esac ;;
         esac
         [ "$flag" = 1 ] || continue
-        cmd=$(tr '\0' ' ' <"$p/cmdline" 2>/dev/null | head -c 300 | json_text)
+        cmd=$(tr '\0' ' ' 2>/dev/null <"$p/cmdline" | head -c 300 | json_text)
         procs_json+="{\"pid\":${p#/proc/},\"exe\":\"$(json_escape "$exe")\",\"user\":\"$(stat -c %U "$p" 2>/dev/null)\",\"cmd\":\"$cmd\"},"
         n_procs=$((n_procs + 1)); [ "$n_procs" -ge 20 ] && break
     done
@@ -2797,7 +2798,7 @@ if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
     elif command -v apt-get >/dev/null 2>&1; then e_fam=deb; fi
     e_watch=off; e_sys=1
     [ -d /run/systemd/system ] || e_sys=0
-    read -r e_ws _ _ _ e_we <"$edr_dir/watch.state" 2>/dev/null
+    read -r e_ws _ _ _ e_we 2>/dev/null <"$edr_dir/watch.state"
     [ "$e_ws" = active ] && [ "$e_we" != - ] && e_watch=on
     e_drop=$(cat "$edr_dir/edr.drop" 2>/dev/null); [[ "$e_drop" =~ ^[0-9]+$ ]] || e_drop=0
     # YARA (agent 1.64.0): geïnstalleerd, en welke regels (RzMon stuurt nieuwe als de hash verschilt)
@@ -2827,7 +2828,7 @@ if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
     if [ -s "$e_send" ]; then
         e_ev=$(head -n 500 "$e_send" | grep -E '^\{.*\}$' | tr '\n' ',' | sed 's/,$//')
     fi
-    edr_json="{\"ev\":[$e_ev],\"info\":{\"audit\":\"$e_audit\",\"file\":\"$e_file\",\"ctr\":\"$e_ctr\",\"fam\":\"$e_fam\",\"epel\":$e_epel,\"watch\":\"$e_watch\",\"systemd\":$e_sys,\"drop\":$e_drop,\"queue\":$(wc -l <"$e_send" 2>/dev/null || echo 0),\"yara\":\"$e_yara\",\"ysha\":\"$e_ysha\",\"sur\":\"$e_sur\"}${e_alerts:+,\"sur\":[$e_alerts]}}"
+    edr_json="{\"ev\":[$e_ev],\"info\":{\"audit\":\"$e_audit\",\"file\":\"$e_file\",\"ctr\":\"$e_ctr\",\"fam\":\"$e_fam\",\"epel\":$e_epel,\"watch\":\"$e_watch\",\"systemd\":$e_sys,\"drop\":$e_drop,\"queue\":$(wc -l 2>/dev/null <"$e_send" || echo 0),\"yara\":\"$e_yara\",\"ysha\":\"$e_ysha\",\"sur\":\"$e_sur\"}${e_alerts:+,\"sur\":[$e_alerts]}}"
 elif [ "$edr_want" = 0 ] && [ "$(id -u)" = 0 ] && [ "$HA_MODE" = 0 ]; then
     # Uit (in RzMon of met EDR=0): regels weg en de wachtrij leeg
     edr_rules off >/dev/null 2>&1
@@ -3112,12 +3113,12 @@ chain_info() {
     awk -v d="$tmp" '/-----BEGIN CERTIFICATE-----/ { n++; f = d "/c" n } f { print > f } /-----END CERTIFICATE-----/ { if (f) close(f); f = ""; if (n >= 30) exit }'
     for blk in "$tmp"/c*; do
         [ -f "$blk" ] || continue
-        na=$(openssl x509 -noout -enddate <"$blk" 2>/dev/null | sed -n 's/^notAfter=//p')
+        na=$(openssl x509 -noout -enddate 2>/dev/null <"$blk" | sed -n 's/^notAfter=//p')
         na=$(date -d "$na" +%s 2>/dev/null) || continue
         chain_n=$((chain_n + 1))
         if [ -z "$chain_min" ] || [ "$na" -lt "$chain_min" ]; then
             chain_min=$na
-            chain_cn=$(openssl x509 -noout -subject -nameopt RFC2253 <"$blk" 2>/dev/null | grep -o 'CN=[^,]*' | head -1 | cut -c4-)
+            chain_cn=$(openssl x509 -noout -subject -nameopt RFC2253 2>/dev/null <"$blk" | grep -o 'CN=[^,]*' | head -1 | cut -c4-)
         fi
     done
     rm -rf "$tmp"
@@ -3480,7 +3481,7 @@ $script"   # versleutelen kan het script dan zelf
         systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
             || { printf '%s\terror\t%s\n' "$id" "$(printf 'systemd-run mislukt' | base64 -w0)" >"$out"; rm -f "$pk_dir/upgrade.lock"; }
     else
-        setsid /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode" "$pk_dir" "${n[@]}" </dev/null >/dev/null 2>&1 &
+        setsid /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode" "$pk_dir" "${n[@]}" 9>&- </dev/null >/dev/null 2>&1 &
     fi
 }
 
@@ -3586,7 +3587,7 @@ remote_update() {  # remote_update <antwoord van RzMon>
         systemd-run --quiet --collect --unit="rzmon-agent-update-$(date +%s)" "${args[@]}" >/dev/null 2>&1 \
             || upd_fail "systemd-run mislukt; werk bij met: sudo rzmon-agent-setup --update"
     else
-        setsid "${args[@]}" </dev/null >/dev/null 2>&1 &
+        setsid "${args[@]}" 9>&- </dev/null >/dev/null 2>&1 &
     fi
 }
 
@@ -3754,7 +3755,7 @@ curl_opts=(-fsS -m "$REPORT_WAIT" -X POST "${tls[@]}")
 # Rapport via een tijdelijk bestand versturen, niet als argument: op sommige systemen (TrueNAS SCALE)
 # wordt curl met een lang argument stil afgebroken en komt er niets aan.
 payload_file=$(mktemp "${TMPDIR:-/tmp}/rzmon-report.XXXXXX") || { echo "Kan geen tijdelijk bestand maken" >&2; exit 1; }
-trap 'rm -f "$payload_file" "$payload_file.enc" "$payload_file.u"; [ -n "$beat_pid" ] && kill "$beat_pid" 2>/dev/null' EXIT
+trap 'rm -f "$payload_file" "$payload_file.enc" "$payload_file.u" "$payload_file.z"; [ -n "$beat_pid" ] && kill "$beat_pid" 2>/dev/null' EXIT
 printf '%s' "$payload" >"$payload_file"
 # Alleen geldige UTF-8 versturen (1.59.1): een afgeknipt teken (mawk knipt op bytes) maakte het hele rapport onleesbaar
 if command -v iconv >/dev/null 2>&1; then
@@ -3762,9 +3763,18 @@ if command -v iconv >/dev/null 2>&1; then
     [ -s "$payload_file.u" ] && mv -f "$payload_file.u" "$payload_file"
     rm -f "$payload_file.u"
 fi
-send_file=$payload_file; seal_n=""
+# Agent 1.73.0: comprimeren (gzip) als RzMon dat kan (dat zei hij in zijn vorige antwoord: "gz":1, RzMon 1.147.0+) en
+# het rapport groter is dan 2 kB. Vóór het versleutelen: versleutelde gegevens zijn niet meer te comprimeren, en zo valt
+# de gecomprimeerde inhoud ook onder de handtekening. RzMon herkent het aan de eerste bytes. Uitzetten: COMPRESS=0.
+body_file=$payload_file; gz_sent=0
+if [ -e "$t_dir/gz.ok" ] && [ "${COMPRESS:-1}" != 0 ] && command -v gzip >/dev/null 2>&1 && [ "$(wc -c <"$payload_file")" -gt 2048 ]; then
+    if gzip -c -6 <"$payload_file" >"$payload_file.z" 2>/dev/null && [ -s "$payload_file.z" ]; then
+        body_file="$payload_file.z"; gz_sent=1
+    fi
+fi
+send_file=$body_file; seal_n=""
 if [ -n "$enc_key" ]; then
-    if seal "$payload_file" "$payload_file.enc"; then send_file="$payload_file.enc"
+    if seal "$body_file" "$payload_file.enc"; then send_file="$payload_file.enc"
     else echo "Versleutelen mislukt (openssl); rapport gaat onversleuteld" >&2; seal_n=""; fi
 fi
 # Antwoord van RzMon: versleuteld (dan eerst controleren) of gewoon. Klopt de handtekening niet: niets mee doen.
@@ -3888,7 +3898,7 @@ fi
 # reserve-adres (agent 1.51.0), opnieuw versleuteld met een nieuwe nonce. RzMon ziet dat (X-Agent-Fallback) en meldt ⚠️.
 if [ -n "$MONITOR_URL_FALLBACK" ] && { [[ " 6 7 28 35 52 56 60 " == *" $rc "* ]] || { [ "$rc" = 22 ] && [[ " 502 503 504 " == *" $h_code "* ]]; }; }; then
     echo "RzMon niet bereikbaar via $MONITOR_URL (curl $rc${h_code:+, HTTP $h_code}); via het reserve-adres $MONITOR_URL_FALLBACK" >&2
-    if [ -n "$seal_n" ]; then seal "$payload_file" "$payload_file.enc" || seal_n=""; fi
+    if [ -n "$seal_n" ]; then seal "$body_file" "$payload_file.enc" || seal_n=""; fi
     spec_tls "$MONITOR_URL_FALLBACK" "$(url_spec "$MONITOR_URL_FALLBACK")"
     fb_opts=(-fsS -m 20 -X POST "${s_tls[@]}"); fb_used=1
     resp=$(curl "${fb_opts[@]}" -H "X-Agent-Fallback: 1" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$send_file" \
@@ -3910,6 +3920,13 @@ elif [ "$rc" = 0 ]; then
     rm -f "$t_dir/enc.fail"
 fi
 if [ "$rc" = 0 ]; then resp=$(open_resp "$resp") || rc=1; fi
+# Kan RzMon gecomprimeerde rapporten lezen? Dan zegt hij "gz":1. Geweigerd terwijl het gecomprimeerd ging: de volgende
+# keer weer gewoon, tot RzMon het opnieuw zegt. Zo werkt een oudere RzMon altijd.
+if [ "$rc" = 0 ] && [[ "$resp" =~ \"gz\":[[:space:]]*1 ]]; then
+    touch "$t_dir/gz.ok" 2>/dev/null
+elif [ "$rc" = 0 ] || { [ "$gz_sent" = 1 ] && [ "$rc" = 22 ]; }; then
+    rm -f "$t_dir/gz.ok" 2>/dev/null
+fi
 # Dit contact bijhouden voor --status (1.60.0): laatste rapport, de laatste 30 contacten, fouten, controle van RzMon
 if mkdir -p "$st_dir" 2>/dev/null && [ -w "$st_dir" ]; then
     st_now=$(date +%s); st_ms=$(( $(now_ms) - run_t0 )); st_sms=$(( $(now_ms) - s_t0 ))
@@ -3923,15 +3940,15 @@ if mkdir -p "$st_dir" 2>/dev/null && [ -w "$st_dir" ]; then
         esac
     fi
     st_rcv=$(sed -n 's/.*"received":{\([^}]*\)}.*/\1/p' <<<"$resp" | head -c 300)
-    (umask 077; printf 'time=%s\nrc=%s\nhttp=%s\nms=%s\nsend_ms=%s\nbytes=%s\nsent=%s\nenc=%s\nvia=%s\nerror=%s\nreceived=%s\nparts=%s\n' \
+    (umask 077; printf 'time=%s\nrc=%s\nhttp=%s\nms=%s\nsend_ms=%s\nbytes=%s\nsent=%s\nenc=%s\nvia=%s\nerror=%s\nreceived=%s\nparts=%s\ngz=%s\n' \
         "$st_now" "$rc" "${h_code:-}" "$st_ms" "$st_sms" "$(wc -c <"$payload_file")" "$(wc -c <"$send_file")" "$( [ -n "$seal_n" ] && echo 1 || echo 0)" \
-        "$( [ "$fb_used" = 1 ] && echo fallback || echo primary)" "$st_err" "$st_rcv" "$parts" >"$st_dir/last") 2>/dev/null
+        "$( [ "$fb_used" = 1 ] && echo fallback || echo primary)" "$st_err" "$st_rcv" "$parts" "$gz_sent" >"$st_dir/last") 2>/dev/null
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$st_now" "$rc" "${h_code:-}" "$st_ms" "$(wc -c <"$send_file")" "$( [ -n "$seal_n" ] && echo 1 || echo 0)" \
         "$( [ "$fb_used" = 1 ] && echo fallback || echo primary)" >>"$st_dir/history" 2>/dev/null
-    [ "$(wc -l <"$st_dir/history" 2>/dev/null)" -gt 30 ] && { tail -n 30 "$st_dir/history" >"$st_dir/history.tmp" && mv -f "$st_dir/history.tmp" "$st_dir/history"; }
+    [ "$(wc -l 2>/dev/null <"$st_dir/history")" -gt 30 ] && { tail -n 30 "$st_dir/history" >"$st_dir/history.tmp" && mv -f "$st_dir/history.tmp" "$st_dir/history"; }
     if [ -n "$st_err" ]; then
         printf '%s\t%s\n' "$st_now" "$st_err" >>"$st_dir/errors" 2>/dev/null
-        [ "$(wc -l <"$st_dir/errors" 2>/dev/null)" -gt 20 ] && { tail -n 20 "$st_dir/errors" >"$st_dir/errors.tmp" && mv -f "$st_dir/errors.tmp" "$st_dir/errors"; }
+        [ "$(wc -l 2>/dev/null <"$st_dir/errors")" -gt 20 ] && { tail -n 20 "$st_dir/errors" >"$st_dir/errors.tmp" && mv -f "$st_dir/errors.tmp" "$st_dir/errors"; }
     fi
     # De beveiligingscontrole van RzMon (regels tekst, RzMon 1.100.0+)
     if [ "$rc" = 0 ] && [[ "$resp" =~ \"sec\":\[([^]]*)\] ]]; then
@@ -3945,7 +3962,7 @@ if [ "$rc" = 0 ] && [ "$q_sent" -gt 0 ]; then
     [ -s "$q_file" ] || rm -f "$q_file"
 elif [ "$rc" != 0 ] && [ -d "$k_dir" ]; then
     (umask 077; printf '{"t":%s,"cpu":%s,"mem":%s,"disks":[%s]}\n' "$(date +%s)" "$cpu_pct" "$mem" "${disks%,}" >>"$q_file") 2>/dev/null
-    [ "$(wc -l <"$q_file" 2>/dev/null || echo 0)" -gt 2880 ] && { tail -n 2880 "$q_file" >"$q_file.tmp" && mv -f "$q_file.tmp" "$q_file"; }
+    [ "$(wc -l 2>/dev/null <"$q_file" || echo 0)" -gt 2880 ] && { tail -n 2880 "$q_file" >"$q_file.tmp" && mv -f "$q_file.tmp" "$q_file"; }
 fi
 # Uitvoer (komt in het logboek): zonder sleutels
 sed -E 's/"(agent_key|enc_key)":"[0-9a-f]{64}"/"\1":"…"/g' <<<"$resp"

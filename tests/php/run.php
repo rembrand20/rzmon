@@ -1035,5 +1035,24 @@ q('DELETE FROM vuln_findings WHERE host_id = ?', [$hq]);
 q('DELETE FROM vuln_inventory WHERE host_id = ?', [$hq]);
 q("DELETE FROM hosts WHERE name IN ('ci-q', 'ci-q-kind')");
 
+// 1.147.0: gecomprimeerde rapporten (agent 1.73.0): uitpakken, ook versleuteld, en een zip-bom of kapotte gzip weigeren
+$json = json_encode(['agent_version' => '1.73.0', 'cpu' => ['pct' => 5], 'pad' => str_repeat('abc', 2000)]);
+$gz = gzencode($json, 6);
+// Zip-bom stapsgewijs maken (niet 64 MB tegelijk in het geheugen)
+$bz = deflate_init(ZLIB_ENCODING_GZIP, ['level' => 9]);
+$bomb = '';
+$mb = str_repeat("\0", 1048576);
+for ($i = 0; $i < 65; $i++) {
+    $bomb .= deflate_add($bz, $mb, ZLIB_NO_FLUSH);
+}
+$bomb .= deflate_add($bz, '', ZLIB_FINISH);
+unset($mb);
+ok(AgentCrypto::unzip($json) === $json && AgentCrypto::unzip($gz) === $json && strlen($gz) < strlen($json) / 4
+    && AgentCrypto::unzip("\x1f\x8b" . 'kapot') === null && AgentCrypto::unzip($bomb) === null,
+    'compressie: gewoon blijft gewoon, gzip wordt uitgepakt, kapot of groter dan 64 MB geweigerd (zip-bom ' . round(strlen($bomb) / 1024) . ' kB)');
+$kZ = bin2hex(random_bytes(32));
+[$pz] = AgentCrypto::open($envelope($kZ, $gz), [$kZ]);
+ok(AgentCrypto::unzip($pz) === $json, 'compressie: versleuteld bericht met gecomprimeerde inhoud (zoals agent 1.73.0 het stuurt) komt goed aan');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

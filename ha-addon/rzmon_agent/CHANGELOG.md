@@ -5,6 +5,12 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.73.0 – 2026-11-03
+- **Gecomprimeerde rapporten** (RzMon 1.147.0): een rapport groter dan 2 kB gaat met gzip, vóór het versleutelen; meestal 50–85% kleiner. Alleen als RzMon laat weten dat hij het kan; weigert hij het, dan gaat het volgende weer gewoon. Uitzetten: `COMPRESS=0`.
+- **Opgelost**: processen op de achtergrond (de hartslag, commando's, pakketupdates, zelf bijwerken) hielden de vergrendeling van de agent vast. De volgende run wachtte dan en sloeg zichzelf soms stil over; bij een lange pakketupdate zonder systemd (bv. de Home Assistant-add-on) kon de agent zo minuten "stil" lijken.
+- **Opgelost**: sinds 1.68.0 verdwenen alle foutmeldingen van de agent (na het koppelen) naar het niets, ook in het logboek. Ze zijn weer te zien; een paar onschuldige meldingen over bestanden die nog niet bestaan, zijn nu stil.
+- Achter de schermen: de agent bestaat nu uit modules (`agent/src`), samengevoegd tot hetzelfde ene bestand. Voor je servers verandert er niets.
+
 ## 1.72.0 – 2026-11-02
 - **Waakhond via ntfy** (RzMon 1.140.0): staat ntfy aan in RzMon, dan stuurt de waakhond zijn bericht ook (of alleen) naar ntfy als RzMon onbereikbaar is of de checks stilstaan. De gegevens komen, net als bij Pushover, alleen versleuteld van RzMon.
 

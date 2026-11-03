@@ -9,13 +9,15 @@
 # agent: werkt agent/VERSION, AGENT_VERSION in agent/rzmon-agent.sh en de add-on-versie bij
 #        (HA ziet alleen zo een update), kopieert de agent naar de add-on en zet een lege sectie
 #        bovenaan agent/CHANGELOG.md.
-# Vul daarna de changelog in en voer "sync" uit (de add-on krijgt een kopie van agent/CHANGELOG.md).
+# Vul daarna de changelog in en voer "sync" uit: die bouwt de agent uit agent/src (tools/build-agent.sh) en geeft de
+# add-on een kopie van de agent en van agent/CHANGELOG.md.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ADDON=ha-addon/rzmon_agent
 
 sync() {
+    tools/build-agent.sh >/dev/null   # agent/src → agent/rzmon-agent.sh (1.147.0)
     cp agent/rzmon-agent.sh "$ADDON/rzmon-agent.sh"
     cp agent/CHANGELOG.md "$ADDON/CHANGELOG.md"
 }
@@ -53,7 +55,7 @@ esac
 
 printf '%s\n' "$new" >"$file"
 if [ "$what" = agent ]; then
-    sed -i "s/^AGENT_VERSION=\"[^\"]*\"/AGENT_VERSION=\"$new\"/" agent/rzmon-agent.sh
+    sed -i "s/^AGENT_VERSION=\"[^\"]*\"/AGENT_VERSION=\"$new\"/" agent/src/00-kop.sh   # de bron; sync bouwt de agent
     sed -i "s/^version: \"[^\"]*\"/version: \"$new\"/" "$ADDON/config.yaml"
 fi
 changelog_section "$log" "$new"

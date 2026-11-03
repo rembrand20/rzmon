@@ -6201,4 +6201,5 @@ return [
     'Alleen bekend voor servers met een agent.' => 'Only known for servers with an agent.',
     'Een schatting: RzMon kent je firewall niet. Een poort die op alle adressen luistert, kan van buiten toch dicht zijn.' => 'An estimate: RzMon does not know your firewall. A port listening on all addresses may still be closed from outside.',
     'Aanvalspad' => 'Attack path',
+    'gecomprimeerd rapport is kapot of te groot' => 'compressed report is broken or too large',
 ];
