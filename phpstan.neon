@@ -1,7 +1,12 @@
-# PHPStan (1.143.0): statische controle van de PHP-code in GitHub Actions (niveau 0: echte fouten, zoals
-# onbekende functies, klassen en variabelen). Lokaal: php phpstan.phar analyse --memory-limit=1G
+# PHPStan: statische controle van de PHP-code in GitHub Actions (workflow Beveiliging). Niveau 4 sinds 1.145.0.
+# Wat er al was staat in phpstan-baseline.neon: alleen NIEUWE meldingen maken CI rood. Iets uit de baseline opgelost?
+# Maak hem opnieuw met de workflow "PHPStan-baseline maken" (anders meldt PHPStan dat een regel niet meer nodig is).
+# Lokaal: php phpstan.phar analyse --memory-limit=1G
+includes:
+    - phpstan-baseline.neon
+
 parameters:
-    level: 0
+    level: 4
     paths:
         - src
         - public

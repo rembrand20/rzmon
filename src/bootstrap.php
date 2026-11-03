@@ -218,7 +218,7 @@ function now(): string
  * Wachtwoorden (1.143.0): Argon2id als PHP dat kan, anders bcrypt. Bestaande (bcrypt-)wachtwoorden blijven werken;
  * bij de eerstvolgende geslaagde login zet RzMon ze ongemerkt om (password_needs_rehash).
  */
-function password_algo(): string|int|null
+function password_algo(): string
 {
     return defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT;
 }

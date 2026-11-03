@@ -936,5 +936,60 @@ ok($us === array_values(array_reverse(array_values(array_sort_copy($us)))) && en
     'Nu doen: incidenten en aandachtspunten samen, op urgentie');
 q('DELETE FROM hosts WHERE id IN (?, ?)', [$hr, $hr + 1]);
 
+// 1.145.0: AgentCrypto (de versleutelde verbinding met de agents), zoals de agent zijn berichten maakt
+$envelope = static function (string $key, string $plain, ?int $t = null, ?string $n = null): string {
+    $sub = static fn(string $label) => hash_hmac('sha256', $label, (string) hex2bin($key));
+    $t ??= time();
+    $n ??= bin2hex(random_bytes(16));
+    $iv = random_bytes(16);
+    $d = base64_encode((string) openssl_encrypt($plain, 'aes-256-cbc', (string) hex2bin($sub('enc')), OPENSSL_RAW_DATA, $iv));
+    $ivh = bin2hex($iv);
+    $m = hash_hmac('sha256', "rzenc1|$t|$n|$ivh|$d", (string) hex2bin($sub('mac')));
+    return json_encode(['rzenc' => 1, 't' => $t, 'n' => $n, 'iv' => $ivh, 'd' => $d, 'm' => $m]);
+};
+$fails0 = static function (callable $fn, string $want): bool {
+    try {
+        $fn();
+        return false;
+    } catch (RuntimeException $e) {
+        return str_contains($e->getMessage(), $want);
+    }
+};
+$kA = bin2hex(random_bytes(32));
+$kB = bin2hex(random_bytes(32));
+$env = $envelope($kA, '{"cpu":12}');
+[$plain, $used, $nonce] = AgentCrypto::open($env, [$kA]);
+ok($plain === '{"cpu":12}' && $used === $kA && AgentCrypto::isEnvelope($env), 'versleuteling: bericht van de agent klopt en wordt uitgepakt');
+ok($fails0(fn() => AgentCrypto::open($env, [$kA]), 'al eens binnen'), 'versleuteling: hetzelfde bericht nog eens (replay) wordt geweigerd');
+$bad = json_decode($envelope($kA, 'x'), true);
+$bad['d'] = base64_encode('ander-inhoud-zelfde-lengte');
+ok($fails0(fn() => AgentCrypto::open(json_encode($bad), [$kA]), 'handtekening'), 'versleuteling: gewijzigde inhoud valt op (handtekening)');
+ok($fails0(fn() => AgentCrypto::open($envelope($kA, 'x'), [$kB]), 'handtekening'), 'versleuteling: verkeerde sleutel wordt geweigerd');
+ok($fails0(fn() => AgentCrypto::open($envelope($kA, 'x', time() - 600), [$kA]), 'te oud') && $fails0(fn() => AgentCrypto::open($envelope($kA, 'x', time() + 600), [$kA]), 'toekomst'),
+    'versleuteling: te oud of uit de toekomst (> 5 min) wordt geweigerd');
+ok($fails0(fn() => AgentCrypto::open('{"rzenc":1,"t":1}', [$kA]), 'onvolledig'), 'versleuteling: onvolledig bericht wordt geweigerd');
+// Nieuwe sleutel: de oude blijft nog even geldig (beide in de lijst), de nieuwe werkt meteen
+[$p2, $u2] = AgentCrypto::open($envelope($kA, 'oud'), [$kB, $kA]);
+ok($p2 === 'oud' && $u2 === $kA, 'versleuteling: na een nieuwe sleutel werkt de vorige nog (overgangstijd)');
+// Antwoord van RzMon: de agent kan het controleren en uitpakken, en het hoort bij zijn verzoek (nonce)
+$resp = json_decode(AgentCrypto::seal('{"ok":true}', $kA, $nonce), true);
+$subA = static fn(string $label) => hash_hmac('sha256', $label, (string) hex2bin($kA));
+$macOk = hash_equals(hash_hmac('sha256', "rzenc1r|{$resp['t']}|{$resp['rn']}|{$resp['iv']}|{$resp['d']}", (string) hex2bin($subA('mac'))), $resp['m']);
+$dec = openssl_decrypt((string) base64_decode($resp['d']), 'aes-256-cbc', (string) hex2bin($subA('enc')), OPENSSL_RAW_DATA, (string) hex2bin($resp['iv']));
+ok($macOk && $dec === '{"ok":true}' && $resp['rn'] === $nonce, 'versleuteling: antwoord van RzMon is gebonden aan het verzoek en voor de agent te controleren');
+// Ondertekende GET (zonder inhoud): kenmerk:tijd:nonce:HMAC
+$gn = bin2hex(random_bytes(16));
+$gt = time();
+$hdr = AgentCrypto::keyId($kA) . ":$gt:$gn:" . hash_hmac('sha256', "rzget1|agent_script|$gt|$gn", (string) hex2bin($subA('mac')));
+[$gk] = AgentCrypto::verifyGet($hdr, [$kA], 'agent_script');
+ok($gk === $kA && $fails0(fn() => AgentCrypto::verifyGet($hdr, [$kA], 'agent_script'), 'al eens binnen'), 'ondertekende GET: klopt, en tweemaal dezelfde wordt geweigerd');
+$gn2 = bin2hex(random_bytes(16));
+$hdr2 = AgentCrypto::keyId($kA) . ":$gt:$gn2:" . hash_hmac('sha256', "rzget1|agent_script|$gt|$gn2", (string) hex2bin($subA('mac')));
+ok($fails0(fn() => AgentCrypto::verifyGet($hdr2, [$kA], 'agent_install'), 'handtekening'), 'ondertekende GET: geldt alleen voor de actie waarvoor hij gemaakt is');
+// Koppelcode: hoofdletters en streepjes maken niet uit (zoals de agent hem berekent)
+$pc = AgentCrypto::pairCreate($ha);
+ok(AgentCrypto::pairKey(strtolower($pc['code'])) === AgentCrypto::pairKey(str_replace('-', '', $pc['code'])) && strlen($pc['code']) === 24
+    && !preg_match('/[01OI]/', str_replace('-', '', $pc['code'])), 'koppelcode: 20 tekens zonder 0/O/1/I, hoofdletters en streepjes maken niet uit');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

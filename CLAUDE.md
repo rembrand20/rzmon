@@ -14,6 +14,7 @@ RzMon en de agent hebben **elk een eigen versienummer**. Verhoog alleen het numm
    - RzMon: bovenaan `CHANGELOG.md` (`### Nieuw` / `### Opgelost`);
    - agent: bovenaan `agent/CHANGELOG.md`, daarna `tools/bump-version.sh sync` (kopieert de agent en zijn changelog naar de add-on).
 3. Controleer met `tools/check-version.sh`; dat moet overal ✔ geven. GitHub Actions voert dezelfde controle uit.
+4. Bij een **minor** of **major** van RzMon: werk de **Highlights** bovenaan `CHANGELOG.md` bij (de laatste 5 versies, één zin per versie; de oudste valt eraf).
 
 - `rzmon` werkt `VERSION` bij. `agent` werkt `agent/VERSION`, `AGENT_VERSION` in `agent/rzmon-agent.sh`, de agent-kopie in `ha-addon/rzmon_agent/` en `version` in `ha-addon/rzmon_agent/config.yaml` in één keer bij. Pas die nooit los aan.
 - De HA-add-on heeft het nummer van de agent. RzMon vergelijkt agents met `AGENT_LATEST` (uit `agent/VERSION`), niet met de versie van RzMon.
@@ -33,7 +34,10 @@ RzMon en de agent hebben **elk een eigen versienummer**. Verhoog alleen het numm
 ## Overige afspraken
 - `ha-addon/rzmon_agent/rzmon-agent.sh` en `ha-addon/rzmon_agent/CHANGELOG.md` zijn kopieën van `agent/rzmon-agent.sh` en `agent/CHANGELOG.md`. Wijzig altijd het origineel en kopieer daarna met `tools/bump-version.sh sync`.
 - Nieuwe databasekolommen gaan via `Installer::COLUMNS` (`src/Installer.php`), niet met `ADD COLUMN IF NOT EXISTS` (dat werkt niet op MySQL). Nieuwe tabellen gaan in `install/schema.sql` met `CREATE TABLE IF NOT EXISTS`. De database wordt automatisch bijgewerkt zodra `VERSION` (van RzMon) verandert; een wijziging aan de database vraagt dus altijd een nieuwe RzMon-versie.
-- `config.php` bevat wachtwoorden en wordt nooit gecommit (`.gitignore`).
+- `config.php` bevat wachtwoorden en wordt nooit gecommit (`.gitignore`). `tools/check-secrets.sh` (ook in CI) zoekt naar geheimen in de repo.
+- Geen inline scripts of `onclick=` e.d.: de Content-Security-Policy blokkeert ze. Een eigen inline `<script>` krijgt `nonce="<?= csp_nonce() ?>"`.
+- PHPStan draait in CI op niveau 4 met `phpstan-baseline.neon`. Los je iets uit de baseline op, maak hem dan opnieuw met de workflow *PHPStan-baseline maken* (het log bevat de nieuwe baseline).
+- Licentie: GPL-3.0 (`LICENSE`).
 - Controleer voor een commit:
   - `php -l` op de PHP-bestanden;
   - `node --check public/assets/*.js`;

@@ -7,6 +7,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## ✨ Highlights (de laatste 5 versies)
+- **1.145.0**: RzMon is nu open source onder **GPL-3.0**, met een `SECURITY.md` (lekken melden, threat model, de signing-sleutel) en strengere controles in GitHub Actions.
+- **1.144.0**: het dashboard begint met wat je **nu moet doen**, op één **urgentie**; elke server heeft een **risico** van 0–100, en IDS-meldingen die bij elkaar horen worden **één incident** met stappen.
+- **1.143.0**: **Content-Security-Policy** op alle pagina's en wachtwoorden met **Argon2id**, zonder dat inloggen verandert.
+- **1.142.0**: nieuw tabblad **Incidenten** (status, eigenaar, notities) en een **rapport als PDF**.
+- **1.141.0**: **risicoscore per kwetsbaarheid**, accepteren tot een datum, controle na bijwerken en een **SBOM**-export.
+
+## 1.145.0 – 2026-11-03
+### Nieuw
+- **Licentie: GPL-3.0** (`LICENSE`). Je mag RzMon gebruiken, aanpassen en verspreiden; wie een aangepaste versie verspreidt, moet de broncode daarvan ook vrijgeven.
+- **`SECURITY.md`**: hoe je een lek privé meldt, welke versies reparaties krijgen, een threat model op één pagina, en de publieke signing-sleutel met vingerafdruk en hoe je een agent zelf controleert.
+- **Highlights** bovenaan deze changelog: de laatste vijf versies in één zin per versie.
+- **Strengere controle in GitHub Actions**: PHPStan op niveau 4 (wat er al was in `phpstan-baseline.neon`, alleen nieuwe meldingen maken CI rood) en tests voor de versleutelde verbinding met de agents (replay, gewijzigde inhoud, verkeerde sleutel, te oud, sleutelwissel, ondertekende GET, koppelcode).
+
 ## 1.144.0 – 2026-11-03
 ### Nieuw
 - **Dashboard opnieuw ingedeeld**: bovenaan één zin hoe het ervoor staat, dan **Nu doen** (open incidenten en aandachtspunten samen, op urgentie), dan de **servers die aandacht vragen**, en daarna de rest compact.

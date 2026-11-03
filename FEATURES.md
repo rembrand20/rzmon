@@ -333,3 +333,8 @@ Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt
   - *＋ Aanbevolen checks* voor Home Assistant.
 - **Alleen lezen**, met de Supervisor-rol `manager` (statistieken, logs, hardware). Commando-checks zijn in de add-on niet actief.
 - **Bijwerken** via de add-on winkel. De add-on heeft hetzelfde versienummer als de agent (los van RzMon), dus er is alleen een update als de agent veranderd is.
+
+## Licentie en beveiliging
+- **Open source onder GPL-3.0** (vanaf 1.145.0, zie `LICENSE`).
+- **`SECURITY.md`**: lekken privé melden, threat model, de publieke signing-sleutel van de agent met vingerafdruk.
+- **Controles in GitHub Actions**: tests (PHP, agent op zes Linux-versies, browser), PHPStan niveau 4, geheimencontrole, CSP-controle en versiecontrole.

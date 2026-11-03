@@ -14,6 +14,8 @@ Lichtgewicht server-monitoring in PHP 8 + MariaDB met een moderne HTML5-interfac
 curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/install-rocky.sh -o install-rocky.sh && sudo bash install-rocky.sh
 ```
 
+🔐 **Beveiliging, lekken melden en de signing-sleutel: [SECURITY.md](SECURITY.md)** · 📜 **Licentie: [GPL-3.0](LICENSE)**
+
 **Checks**
 
 | Type | Wat | Drempel |
