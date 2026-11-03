@@ -1,0 +1,41 @@
+name: PHPStan-baseline maken
+
+# Handmatig (1.145.0): maakt per niveau een baseline van de meldingen die er nu al zijn, als downloadbaar bestand.
+# Zo kan het niveau omhoog terwijl alleen NIEUWE fouten CI rood maken. Gebruik: Actions → PHPStan-baseline maken → Run.
+on:
+  workflow_dispatch:
+    inputs:
+      levels:
+        description: 'Niveaus (spaties ertussen)'
+        default: '2 3 4'
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: sodium, curl, pdo_mysql, mbstring
+          tools: none
+          coverage: none
+      - name: Baselines maken
+        env:
+          LEVELS: ${{ inputs.levels }}
+        run: |
+          curl -fsSL -o /tmp/phpstan.phar https://github.com/phpstan/phpstan/releases/download/2.1.17/phpstan.phar
+          mkdir -p out
+          for l in $LEVELS; do
+            case $l in [0-9]) ;; *) echo "ongeldig niveau: $l"; exit 1 ;; esac
+            php /tmp/phpstan.phar analyse --no-progress --memory-limit=1G --level="$l" --generate-baseline="out/baseline-$l.neon" --allow-empty-baseline || true
+            n=$(grep -c 'message:' "out/baseline-$l.neon" 2>/dev/null || echo 0)
+            echo "Niveau $l: $n soorten meldingen" | tee -a out/summary.txt
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phpstan-baselines
+          path: out/
