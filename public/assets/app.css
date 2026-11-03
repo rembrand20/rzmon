@@ -2215,3 +2215,10 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 
 /* 1.144.0: de score staat in de statuszin; de tegels krijgen de hele rij */
 .hm-sum.hm-sum-tiles { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important; }
+
+/* 1.146.0: aanvalspad en Analyse-doelen */
+.exp-path { display: flex; flex-wrap: wrap; align-items: stretch; gap: .5rem; margin: .6rem 0 1rem; }
+.exp-path > i { align-self: center; font-style: normal; color: var(--muted); }
+.exp-col { display: flex; flex-direction: column; gap: .15rem; padding: .5rem .7rem; border-radius: 8px; background: color-mix(in srgb, var(--muted) 10%, transparent); min-width: 140px; }
+.hm-srv-risk[data-hm-risk] { cursor: pointer; } .hm-srv-risk[data-hm-risk]:hover .risk-pill { outline: 2px solid currentColor; }
+.an-big { font-size: 1.8rem; font-weight: 800; margin: .1rem 0; }

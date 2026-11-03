@@ -1146,3 +1146,24 @@ CREATE TABLE IF NOT EXISTS incident_refs (
     INDEX idx_incr_inc (incident_id),
     CONSTRAINT fk_incr_inc FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.146.0: uitkomsten van zelf herstellen (om te zien hoe vaak het lukt) en stiltes van agents (SLO)
+CREATE TABLE IF NOT EXISTS heal_log (
+    id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id  INT UNSIGNED NOT NULL,
+    check_id INT UNSIGNED NOT NULL,
+    ok       TINYINT(1) NOT NULL,
+    msg      VARCHAR(200) NOT NULL DEFAULT '',
+    at       DATETIME NOT NULL,
+    INDEX idx_heal_log (at),
+    CONSTRAINT fk_heal_log_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS agent_gaps (
+    id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id  INT UNSIGNED NOT NULL,
+    gap_from DATETIME NOT NULL,
+    gap_to   DATETIME NOT NULL,
+    INDEX idx_agent_gaps (gap_to),
+    CONSTRAINT fk_agent_gaps_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

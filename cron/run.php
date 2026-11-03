@@ -64,6 +64,7 @@ if (strtotime((string) setting('purge_at', '')) < time() - 3600) {
     NetScan::purge();
     Perf::purge();
     Incidents::purge();
+    Quality::purge();
     Perf::lap('opruimen');
 }
 echo date('c') . " $n check(s) uitgevoerd\n";

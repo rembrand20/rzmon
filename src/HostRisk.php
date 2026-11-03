@@ -96,6 +96,70 @@ final class HostRisk
         return $cache;
     }
 
+    /**
+     * Aanvalspad en impact van één server (1.144.0-risico, uitgewerkt in 1.146.0): op welke poorten hij luistert (niet alleen
+     * op localhost), welk programma/pakket daar zit en de ergste kwetsbaarheid daarin, wat er open staat aan incidenten,
+     * en welke servers ervan afhangen (blast radius: valt hij om of wordt hij overgenomen, dan raakt dat ook die servers).
+     * Een schatting: RzMon kent je firewall niet; een poort op 0.0.0.0 kan van buiten dicht zijn.
+     */
+    public static function exposure(int $hostId): ?array
+    {
+        $h = q('SELECT id, name, address, mode FROM hosts WHERE id = ?', [$hostId])->fetch();
+        if (!$h) {
+            return null;
+        }
+        $ports = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'ports'", [$hostId])->fetchColumn(), true) ?: [];
+        $inv = q('SELECT mgr, exposed, packages FROM vuln_inventory WHERE host_id = ?', [$hostId])->fetch() ?: [];
+        // poort → pakket (uit de softwarelijst: welk pakket luistert waar)
+        $pkgOf = [];
+        foreach ((array) json_decode((string) ($inv['exposed'] ?? ''), true) as $e) {
+            if (isset($e[0], $e[1])) {
+                $pkgOf[(int) $e[1]] = (string) $e[0];
+            }
+        }
+        $srcOf = [];
+        foreach ((array) json_decode((string) ($inv['packages'] ?? ''), true) as $p) {
+            if (isset($p[0], $p[3])) {
+                $srcOf[(string) $p[0]] = (string) $p[3];
+            }
+        }
+        // De ergste open kwetsbaarheid per pakket (bron- en binaire naam)
+        $worst = [];
+        if (Vulns::enabled()) {
+            foreach (q('SELECT f.package, f.source, f.cve, f.fixed_version, COALESCE(c.severity, 0) AS sev, c.cvss, c.kev, c.epss FROM vuln_findings f LEFT JOIN vuln_cve c ON c.cve = f.cve WHERE f.host_id = ?', [$hostId]) as $v) {
+                if (Vulns::ignored((string) $v['cve'], (string) $v['package'], $hostId)) {
+                    continue;
+                }
+                $r = Vulns::risk((int) $v['sev'], $v['cvss'] !== null ? (float) $v['cvss'] : null, (bool) $v['kev'], $v['epss'] !== null ? (float) $v['epss'] : null, true);
+                foreach (array_merge([(string) $v['package']], array_map('trim', explode(',', (string) $v['source']))) as $name) {
+                    if ($name !== '' && $r > ($worst[$name]['risk'] ?? -1)) {
+                        $worst[$name] = ['cve' => $v['cve'], 'risk' => $r, 'kev' => (bool) $v['kev'], 'fixed' => $v['fixed_version']];
+                    }
+                }
+            }
+        }
+        $local = static fn(string $a) => preg_match('/^(127\.|::1$|\[::1\]|localhost)/', $a) === 1;
+        $out = [];
+        $seen = [];
+        foreach ($ports as $p) {
+            $port = (int) ($p['port'] ?? 0);
+            $addr = (string) ($p['addr'] ?? '');
+            if ($port <= 0 || $local($addr) || isset($seen[$port])) {
+                continue;
+            }
+            $seen[$port] = true;
+            $pkg = $pkgOf[$port] ?? null;
+            $w = $pkg !== null ? ($worst[$pkg] ?? $worst[$srcOf[$pkg] ?? ''] ?? null) : null;
+            $out[] = ['port' => $port, 'addr' => $addr, 'proc' => (string) ($p['proc'] ?? ''), 'pkg' => $pkg, 'vuln' => $w];
+        }
+        usort($out, static fn($a, $b) => (($b['vuln']['risk'] ?? 0) <=> ($a['vuln']['risk'] ?? 0)) ?: ($a['port'] <=> $b['port']));
+        $deps = Urgency::dependentNames($hostId, 30);
+        $inc = q("SELECT id, title, severity FROM incidents WHERE host_id = ? AND status <> 'resolved' ORDER BY severity DESC, opened_at DESC LIMIT 5", [$hostId])->fetchAll();
+        return ['host' => ['id' => (int) $h['id'], 'name' => $h['name'], 'address' => $h['address'], 'mode' => $h['mode']],
+            'risk' => self::of($hostId), 'ports' => array_slice($out, 0, 40), 'dependents' => $deps,
+            'incidents' => array_map(static fn($i) => ['id' => (int) $i['id'], 'title' => $i['title'], 'severity' => (int) $i['severity']], $inc)];
+    }
+
     public static function level(int $score): string
     {
         return $score >= 70 ? 'high' : ($score >= 40 ? 'medium' : 'low');

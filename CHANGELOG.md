@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.146.0**: per server het **aanvalspad** (open poorten, kwetsbaarheden, afhankelijke servers), **doelen** (melding binnen 5 minuten, agents rapporteren) en of zelf herstellen, blokkades en slimme drempels **echt werken**; het rapport begint met één overzichtspagina.
 - **1.145.0**: RzMon is nu open source onder **GPL-3.0**, met een `SECURITY.md` (lekken melden, threat model, de signing-sleutel) en strengere controles in GitHub Actions.
 - **1.144.0**: het dashboard begint met wat je **nu moet doen**, op één **urgentie**; elke server heeft een **risico** van 0–100, en IDS-meldingen die bij elkaar horen worden **één incident** met stappen.
 - **1.143.0**: **Content-Security-Policy** op alle pagina's en wachtwoorden met **Argon2id**, zonder dat inloggen verandert.
 - **1.142.0**: nieuw tabblad **Incidenten** (status, eigenaar, notities) en een **rapport als PDF**.
-- **1.141.0**: **risicoscore per kwetsbaarheid**, accepteren tot een datum, controle na bijwerken en een **SBOM**-export.
+
+## 1.146.0 – 2026-11-03
+### Nieuw
+- **Aanvalspad en impact** per server: klik op het risicogetal op het dashboard (of *🎯 Aanvalspad* in een incident) voor de open poorten met pakket en ergste kwetsbaarheid, de open incidenten en de servers die ervan afhangen.
+- **Doelen en "na de actie"** op Analyse: melding binnen 5 minuten na een storing (doel 95%), agents rapporteren (doel 99,5%), hoe vaak zelf herstellen lukt, hoeveel automatische blokkades vroegtijdig zijn opgeheven, en slimme drempels die méér warnings gaven.
+- **Rapport als PDF**: de eerste pagina is nu *In één oogopslag*: score, tijd tot melding (MTTD) en tot opgelost (MTTR), de doelen met ✔/✘ en de 5 grootste risico's.
+- Nieuwe luisterpoorten als afwijking bestonden al (IDS → Afwijkingen, *Luistert op een nieuwe poort*); daar is niets aan veranderd.
 
 ## 1.145.0 – 2026-11-03
 ### Nieuw

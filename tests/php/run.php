@@ -991,5 +991,49 @@ $pc = AgentCrypto::pairCreate($ha);
 ok(AgentCrypto::pairKey(strtolower($pc['code'])) === AgentCrypto::pairKey(str_replace('-', '', $pc['code'])) && strlen($pc['code']) === 24
     && !preg_match('/[01OI]/', str_replace('-', '', $pc['code'])), 'koppelcode: 20 tekens zonder 0/O/1/I, hoofdletters en streepjes maken niet uit');
 
+// 1.146.0: SLO's, "na de actie" en het aanvalspad
+q("INSERT INTO hosts (name, address, mode, agent_seen) VALUES ('ci-q', '10.0.0.88', 'agent', NOW() - INTERVAL 20 MINUTE)");
+$hq = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, type, name, status) VALUES (?, 'ping', 'q-ping', 0)", [$hq]);
+$cq = (int) db()->lastInsertId();
+// Twee storingen: melding na 2 minuten en na 12 minuten
+q("INSERT INTO status_changes (check_id, from_status, to_status, created_at) VALUES (?, 0, 2, NOW() - INTERVAL 60 MINUTE), (?, 0, 2, NOW() - INTERVAL 30 MINUTE)", [$cq, $cq]);
+q("INSERT INTO alerts (check_id, status, title, message, kind, created_at) VALUES (?, 2, 'x', 'x', 'notify', NOW() - INTERVAL 58 MINUTE), (?, 2, 'x', 'x', 'notify', NOW() - INTERVAL 18 MINUTE)", [$cq, $cq]);
+$hostRow = q('SELECT * FROM hosts WHERE id = ?', [$hq])->fetch();
+Quality::recordAgentGap($hostRow, time());   // 20 minuten stil: een gat
+$slo = Quality::slo(date('Y-m-d'), date('Y-m-d'));
+$mine = array_values(array_filter($slo['agents']['hosts'], fn($x) => $x['host'] === 'ci-q'))[0] ?? null;
+ok($slo['notify']['n'] >= 2 && $slo['notify']['within'] >= 1 && $slo['notify']['within'] < $slo['notify']['n'] && $mine && $mine['secs'] >= 1100,
+    'SLO: tijd tot melding (binnen/buiten 5 min) en een stille agent geteld');
+// Na de actie: herstel 1 van 2 gelukt; blokkade vroegtijdig opgeheven; slimme drempels met meer warnings
+Quality::recordHeal($hq, $cq, true, 'ok');
+Quality::recordHeal($hq, $cq, false, 'mislukt');
+q("INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by, until, removed_at, removed_by) VALUES (?, '198.51.100.77', 'test', 1, 'automatisch', NOW() + INTERVAL 1 DAY, NOW(), 'admin')", [$hq]);
+q("INSERT INTO change_log (at, kind, ref_id, action, label) VALUES (NOW() - INTERVAL 10 DAY, 'check', ?, 'smart', 'x')", [$cq]);
+q("INSERT INTO status_changes (check_id, from_status, to_status, created_at) VALUES (?, 0, 1, NOW() - INTERVAL 5 DAY), (?, 0, 1, NOW() - INTERVAL 4 DAY), (?, 0, 1, NOW() - INTERVAL 3 DAY), (?, 0, 1, NOW() - INTERVAL 2 DAY)", [$cq, $cq, $cq, $cq]);
+$lp = Quality::loops(30);
+$hc0 = array_values(array_filter($lp['heal']['checks'], fn($x) => $x['id'] === $cq))[0] ?? null;
+ok($hc0 && $hc0['n'] === 2 && $hc0['ok'] === 1 && $lp['blocks']['early'] >= 1 && (bool) array_filter($lp['smart'], fn($x) => $x['id'] === $cq),
+    'na de actie: herstel 1/2 gelukt, blokkade vroegtijdig opgeheven, slimme drempels met meer ruis');
+// Aanvalspad: poort 22 op alle adressen (openssh, kwetsbaar), 5432 alleen localhost, een afhankelijke server
+q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'ports', ?, NOW())", [$hq, json_encode([['port' => 22, 'addr' => '0.0.0.0', 'proc' => 'sshd'], ['port' => 5432, 'addr' => '127.0.0.1', 'proc' => 'postgres']])]);
+q("INSERT INTO vuln_inventory (host_id, mgr, os_id, os_version, os_name, ecosystem, hash, packages, exposed, updated_at) VALUES (?, 'dpkg', 'debian', '12', 'Debian', 'Debian:12', 'q', ?, ?, NOW())",
+    [$hq, json_encode([['openssh-server', '1:9.2p1-2', 'amd64', 'openssh', '1:9.2p1-2']]), json_encode([['openssh-server', 22, 'tcp']])]);
+q("INSERT IGNORE INTO vuln_cve (cve, severity, cvss, kev) VALUES ('CVE-2099-0222', 4, 9.0, 1)");
+q("INSERT INTO vuln_findings (host_id, package, version, source, vuln_id, cve, fixed_version, first_seen) VALUES (?, 'openssh', '1:9.2p1-2', 'openssh-server', 'DSA-Q', 'CVE-2099-0222', '1:9.2p1-3', NOW())", [$hq]);
+q("INSERT INTO hosts (name, address, mode, parent_id) VALUES ('ci-q-kind', '10.0.0.89', 'remote', ?)", [$hq]);
+$wasVuln = setting('vuln_enabled', '0');
+save_setting('vuln_enabled', '1');
+$ex = HostRisk::exposure($hq);
+save_setting('vuln_enabled', $wasVuln);
+$p22 = array_values(array_filter($ex['ports'], fn($x) => $x['port'] === 22))[0] ?? null;
+ok(count($ex['ports']) === 1 && $p22 && $p22['pkg'] === 'openssh-server' && ($p22['vuln']['cve'] ?? '') === 'CVE-2099-0222' && $p22['vuln']['kev'] && $ex['dependents'] === ['ci-q-kind'],
+    'aanvalspad: alleen poorten buiten localhost, met pakket, ergste CVE en de afhankelijke server');
+$rep = Report::html('7d');
+ok(str_contains($rep, 'In één oogopslag') && str_contains($rep, 'Tijd tot melding (MTTD)') && str_contains($rep, 'grootste risico'), 'rapport: one-pager met MTTD/MTTR, SLO\'s en de grootste risico\'s');
+q('DELETE FROM vuln_findings WHERE host_id = ?', [$hq]);
+q('DELETE FROM vuln_inventory WHERE host_id = ?', [$hq]);
+q("DELETE FROM hosts WHERE name IN ('ci-q', 'ci-q-kind')");
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

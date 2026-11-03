@@ -131,6 +131,7 @@ final class Heal
                 }
             }
             $name = (string) $c['name'];
+            Quality::recordHeal((int) $host['id'], (int) $c['id'], $ok, $msg);   // 1.146.0: hoe vaak lukt het?
             Monitor::sysInfo('heal', (int) $host['id'], (string) $host['name'], ($ok ? '🩹 ' : '⚠️ ') . "{$host['name']} – $name",
                 fn() => ($ok ? t('Zelf hersteld') : t('Zelf herstellen mislukt')) . ": $msg");
         }

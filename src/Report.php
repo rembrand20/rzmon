@@ -34,6 +34,8 @@ final class Report
         if ($r['since'] && $r['since'] > $r['from']) {
             $h[] = '<p class="note">' . $e(t('Gegevens vanaf {d}: over de dagen ervoor weet RzMon nog niets.', ['d' => $date((string) $r['since'])])) . '</p>';
         }
+        // 1.146.0: één pagina voor wie alleen de hoofdzaken wil (daarna een nieuwe pagina)
+        $h[] = self::onePager($r, $inc, $e, $pct, $dur);
         // Samenvatting
         $h[] = '<h2>' . $e(t('Samenvatting')) . '</h2><div class="tiles">'
             . $tile($e(t('Score')), (int) $k['score'] . '<small>/100</small>')
@@ -96,6 +98,43 @@ final class Report
             . self::css() . '</style></head><body><main>' . implode("\n", $h) . '<footer>' . $e(t('Bewaren als PDF: Afdrukken (Ctrl+P) → Opslaan als PDF.')) . '</footer></main></body></html>';
     }
 
+    /** In één oogopslag: top 5 risico's, tijd tot melding (MTTD) en tot opgelost (MTTR), actief misbruikte lekken en de SLO's */
+    private static function onePager(array $r, array $inc, callable $e, callable $pct, callable $dur): string
+    {
+        $slo = $r['quality']['slo'] ?? Quality::slo($r['from'], $r['to']);
+        $risk = HostRisk::all();
+        $names = q('SELECT id, name FROM hosts')->fetchAll(PDO::FETCH_KEY_PAIR);
+        uasort($risk, static fn($a, $b) => $b['score'] <=> $a['score']);
+        $top = array_slice(array_filter($risk, static fn($x) => $x['score'] > 0), 0, 5, true);
+        $kev = Vulns::enabled() ? (int) q("SELECT COUNT(DISTINCT f.host_id, f.cve) FROM vuln_findings f JOIN vuln_cve c ON c.cve = f.cve AND c.kev = 1
+            WHERE NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.package IS NULL OR i.package = f.package) AND (i.host_id IS NULL OR i.host_id = f.host_id)
+            AND (i.until IS NULL OR i.until >= CURDATE()))")->fetchColumn() : null;
+        $n = $slo['notify'];
+        $a = $slo['agents'];
+        $ok = static fn(bool $good) => $good ? '<span class="good">✔</span>' : '<span class="bad">✘</span>';
+        $mttr = $r['kpi']['mttr'][0] ?? null;
+        $out = '<section class="onepager"><h2>' . $e(t('In één oogopslag')) . '</h2><div class="tiles">'
+            . '<div class="tile"><div class="lbl">' . $e(t('Score')) . '</div><div class="val">' . (int) $r['kpi']['score'] . '<small>/100</small></div></div>'
+            . '<div class="tile"><div class="lbl">' . $e(t('Tijd tot melding (MTTD)')) . '</div><div class="val">' . $e($dur($n['p50'])) . '</div><div class="sub">'
+                . $e(t('mediaan; 90% binnen {t}', ['t' => $dur($n['p90'])])) . '</div></div>'
+            . '<div class="tile"><div class="lbl">' . $e(t('Tijd tot opgelost (MTTR)')) . '</div><div class="val">' . $e($dur($mttr !== null ? (int) $mttr : null)) . '</div><div class="sub">'
+                . $e(t('{n} incidenten, {o} nog open', ['n' => $inc['total'], 'o' => $inc['open']])) . '</div></div>'
+            . '</div>';
+        $out .= '<h3>' . $e(t('Doelen (SLO)')) . '</h3><ul class="slo">'
+            . '<li>' . ($n['pct'] === null ? '–' : $ok($n['pct'] >= 95)) . ' ' . $e(t('Melding binnen {m} minuten na een storing: {p} van {n} storingen (doel 95%)', [
+                'm' => $n['target_min'], 'p' => $n['pct'] === null ? '–' : $pct((float) $n['pct'], 1), 'n' => $n['n']])) . '</li>'
+            . '<li>' . ($a['coverage'] === null ? '–' : $ok($a['coverage'] >= 99.5)) . ' ' . $e(t('Agents rapporteren: {p} van de tijd (doel 99,5%); {g} keer stil, samen {t}', [
+                'p' => $a['coverage'] === null ? '–' : $pct((float) $a['coverage'], 2), 'g' => $a['gaps'], 't' => $dur($a['silent_s'] ?: null)])) . '</li>'
+            . ($kev !== null ? '<li>' . $ok($kev === 0) . ' ' . $e(t('Actief misbruikte kwetsbaarheden (KEV) open: {n} (doel 0)', ['n' => $kev])) . '</li>' : '')
+            . '</ul>';
+        $out .= '<h3>' . $e(t('De 5 grootste risico\'s')) . '</h3>' . ($top
+            ? '<table><thead><tr><th>' . $e(t('Server')) . '</th><th class="num">' . $e(t('Risico')) . '</th><th>' . $e(t('Waarom')) . '</th></tr></thead><tbody>'
+                . implode('', array_map(static fn($hid, $x) => '<tr><td>' . $e($names[$hid] ?? '?') . '</td><td class="num ' . ($x['score'] >= 70 ? 'bad' : ($x['score'] >= 40 ? 'warn' : '')) . '">'
+                    . $x['score'] . '</td><td>' . $e(implode(' · ', array_map(static fn($f) => $f[1], array_slice($x['factors'], 0, 3)))) . '</td></tr>', array_keys($top), $top)) . '</tbody></table>'
+            : '<p>✔ ' . $e(t('Geen servers met een risico.')) . '</p>');
+        return $out . '</section>';
+    }
+
     private static function css(): string
     {
         return <<<'CSS'
@@ -117,8 +156,11 @@ th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: v
 .bad { color: var(--bad); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; } .good { color: var(--good); }
 .todo { padding-left: 18px; } .todo li { margin: 3px 0; } .todo li.s2::marker { color: var(--bad); } .todo li.s1::marker { color: var(--warn); }
 footer { margin-top: 28px; font-size: 12px; color: var(--muted); text-align: center; }
+.onepager { border-bottom: 3px solid var(--ink); padding-bottom: 12px; margin-bottom: 18px; } h3 { font-size: 14px; margin: 16px 0 6px; }
+.slo { list-style: none; padding: 0; } .slo li { margin: 4px 0; }
 @media (max-width: 640px) { main { margin: 0; padding: 16px; border-radius: 0; } .tiles { grid-template-columns: repeat(2, 1fr); } }
-@media print { body { background: #fff; } main { margin: 0; max-width: none; box-shadow: none; padding: 0; } footer { display: none; } @page { margin: 15mm; } }
+@media print { body { background: #fff; } main { margin: 0; max-width: none; box-shadow: none; padding: 0; } footer { display: none; } @page { margin: 15mm; }
+  .onepager { break-after: page; border-bottom: 0; } }
 CSS;
     }
 }

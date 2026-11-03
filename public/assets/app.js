@@ -10506,7 +10506,39 @@ function renderAnalytics() {
     ${anBox(L('Snel weer goed (ruis)'), no.quick.length ? anHbars(no.quick.map((x) => ({ html: `<button type="button" class="link-btn" data-an-go="check:${x.id}">${esc(x.name)}</button> <span class="muted small">${esc(x.host)}</span>`, v: x.n })), { fmt: (v) => `${v}× ${L('binnen 5 min')}` })
       + `<p class="muted small">${L('Zet bij zulke checks "melden na N fouten" op 3: dan krijg je alleen nog een melding als het echt mis is.')}</p>` : `<p class="good-txt small">✔ ${L('Geen checks die steeds binnen 5 minuten herstelden.')}</p>`)}
   </div>`);
-  $('#an-body').innerHTML = kpis + todo + rel + cap + sec + net + bk + noise;
+  // 🎯 Doelen (SLO) en "na de actie" (1.146.0)
+  const qu = d.quality || null;
+  let qual = '';
+  if (qu) {
+    const s = qu.slo, lp = qu.loops;
+    const pctTxt = (v, n = 1) => (v === null || v === undefined ? '–' : dec((+v).toFixed(n)) + '%');
+    const okCls = (good) => (good ? 'good-txt' : 'crit-txt');
+    qual = anSec('🎯', L('Doelen en "na de actie"'), `<div class="an-grid">
+      ${anBox(L('Melding binnen {m} minuten', { m: s.notify.target_min }), s.notify.n
+        ? `<p class="an-big ${okCls(s.notify.pct >= 95)}">${pctTxt(s.notify.pct)}</p><p class="small">${L('{w} van {n} storingen (doel 95%) · mediaan {a} · 90% binnen {b}', { w: s.notify.within, n: s.notify.n, a: anDur(s.notify.p50), b: anDur(s.notify.p90) })}</p>`
+        : `<p class="muted small">${L('Nog geen storingen met een melding in deze periode.')}</p>`,
+        L('Van de overgang naar critical tot de eerste melding. Je meldregels tellen mee: met "melden na 10 minuten" haal je 5 minuten nooit.'))}
+      ${anBox(L('Agents rapporteren'), s.agents.agents
+        ? `<p class="an-big ${okCls(s.agents.coverage >= 99.5)}">${pctTxt(s.agents.coverage, 2)}</p><p class="small">${L('{g} keer stil, samen {t} (doel 99,5%)', { g: s.agents.gaps, t: s.agents.silent_s ? anDur(s.agents.silent_s) : '0 min' })}</p>`
+          + (s.agents.hosts.length ? anHbars(s.agents.hosts.map((x) => ({ label: x.host, v: x.secs / 60 })), { fmt: (v) => anDur(v * 60) }) : '')
+        : `<p class="muted small">${L('Geen servers met een agent.')}</p>`, L('Vanaf 1.146.0 bijgehouden: elke keer dat een agent langer stil was dan de grens voor "agent stil".'))}
+      ${anBox(L('Zelf herstellen'), lp.heal.n
+        ? `<p class="an-big ${okCls(lp.heal.pct >= 80)}">${pctTxt(lp.heal.pct)}</p><p class="small">${L('{ok} van {n} keer gelukt (laatste {d} dagen)', { ok: lp.heal.ok, n: lp.heal.n, d: lp.days })}</p>`
+          + anHbars(lp.heal.checks.map((x) => ({ html: `<button type="button" class="link-btn" data-an-go="check:${x.id}">${esc(x.name)}</button> <span class="muted small">${esc(x.host)}</span>`, v: x.n, x })),
+            { fmt: (v, r) => L('{ok}/{n} gelukt', { ok: r.x.ok, n: v }), cls: (r) => (r.x.ok < r.x.n ? 'warn' : 'ok') })
+        : `<p class="muted small">${L('Nog geen herstelacties (of nog niet bijgehouden: vanaf 1.146.0).')}</p>`)}
+      ${anBox(L('Automatische blokkades'), lp.blocks.n
+        ? `<p class="an-big ${okCls(lp.blocks.pct <= 5)}">${pctTxt(lp.blocks.pct)}</p><p class="small">${L('{e} van {n} vroegtijdig opgeheven (waarschijnlijk onterecht)', { e: lp.blocks.early, n: lp.blocks.n })}</p>`
+          + (lp.blocks.list.length ? `<ul class="small">${lp.blocks.list.map((b) => `<li><code>${esc(b.ip)}</code> · ${esc(b.host)} · ${esc(b.reason)} <span class="muted">(${esc(b.removed_by || '?')})</span></li>`).join('')}</ul>` : '')
+        : `<p class="muted small">${L('Geen automatische blokkades in deze periode.')}</p>`, L('Vroegtijdig opgeheven door iemand of via de whitelist. Komt een IP vaak terug in deze lijst, zet hem dan op de whitelist of pas de regel aan.'))}
+      ${anBox(L('Slimme drempels met méér ruis'), lp.smart.length
+        ? anHbars(lp.smart.map((x) => ({ html: `<button type="button" class="link-btn" data-an-go="check:${x.id}">${esc(x.name)}</button> <span class="muted small">${esc(x.host)}</span>`, v: x.after, x })),
+            { fmt: (v, r) => L('{a} → {b} warnings ({d} dagen)', { a: r.x.before, b: v, d: r.x.days }), cls: () => 'warn' })
+          + `<p class="muted small">${L('Na het aanzetten van slimme drempels méér warnings dan ervoor: zet de gevoeligheid lager of de check terug op vaste drempels.')}</p>`
+        : `<p class="good-txt small">✔ ${L('Geen checks die met slimme drempels meer ruis gaven.')}</p>`)}
+    </div>`);
+  }
+  $('#an-body').innerHTML = kpis + todo + qual + rel + cap + sec + net + bk + noise;
 }
 
 // ---------------------------------------------------------------- Netwerk (1.103.0)
@@ -11475,12 +11507,43 @@ function renderHome() {
   }
   html.push(`<div class="hm-row">${d.net ? hmNetCard(d.net) : ''}${hmTimeline(d.events)}</div>`);
   $('#home').innerHTML = html.join('');
+  $$('[data-hm-risk]', $('#home')).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); exposureDialog(+b.dataset.hmRisk); }));
   $$('[data-hm-go]', $('#home')).forEach((b) => (b.onclick = () => {
     const go = b.dataset.hmGo;
     if (go.startsWith('check:')) checkInfo(go.slice(6));
     else if (go.startsWith('incident:')) { showTab('incidents'); incidentDialog(+go.slice(9)); }
     else showTab(go);
   }));
+}
+
+/** 1.146.0: aanvalspad en impact van één server: van buiten → open poorten (met pakket en ergste kwetsbaarheid) → server → wie ervan afhangt */
+async function exposureDialog(hostId) {
+  let x;
+  try { x = await api('host_exposure', null, { id: hostId }); } catch (ex) { return toast(ex.message, 'err'); }
+  const ports = x.ports || [];
+  const vulnPorts = ports.filter((p) => p.vuln);
+  modal({
+    title: `🎯 ${L('Aanvalspad en impact')}: ${x.host.name}`, wide: true,
+    body: `<div style="padding:1rem 1.2rem">
+      <p class="small">${urgPill(x.risk.score, x.risk.reasons, true)} <b>${L('Risico {u}', { u: x.risk.score })}</b>${x.risk.reasons.length ? ': ' + esc(x.risk.reasons.join(' · ')) : ''}</p>
+      <div class="exp-path">
+        <div class="exp-col"><b>🌐 ${L('Van buiten / netwerk')}</b></div><i aria-hidden="true">→</i>
+        <div class="exp-col"><b>${L('{n} open poort(en)', { n: ports.length })}</b>${vulnPorts.length ? `<span class="crit-txt small">${L('{n} met een kwetsbaarheid', { n: vulnPorts.length })}</span>` : ''}</div><i aria-hidden="true">→</i>
+        <div class="exp-col"><b>🖥️ ${esc(x.host.name)}</b>${x.incidents.length ? `<span class="warn-txt small">${L('{n} open incident(en)', { n: x.incidents.length })}</span>` : ''}</div><i aria-hidden="true">→</i>
+        <div class="exp-col"><b>${L('{n} afhankelijke server(s)', { n: x.dependents.length })}</b><span class="muted small">${esc(x.dependents.slice(0, 6).join(', ')) || L('geen')}</span></div>
+      </div>
+      <h3>${L('Open poorten')}</h3>
+      ${ports.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Poort')}</th><th>${L('Programma')}</th><th>${L('Pakket')}</th><th>${L('Ergste kwetsbaarheid')}</th></tr></thead><tbody>
+        ${ports.map((p) => `<tr><td class="mono">${p.port}<span class="muted small"> ${esc(p.addr)}</span></td><td>${esc(p.proc || '–')}</td><td>${esc(p.pkg || '–')}</td>
+          <td>${p.vuln ? `${urgPill(p.vuln.risk, [], true)} <button type="button" class="linkbtn" data-exp-cve="${esc(p.vuln.cve)}">${esc(p.vuln.cve)}</button>${p.vuln.kev ? ' ⚠️' : ''}${p.vuln.fixed ? ` <span class="muted small">→ ${esc(p.vuln.fixed)}</span>` : ''}` : '<span class="muted">–</span>'}</td></tr>`).join('')}
+      </tbody></table></div>` : `<p class="muted small">${x.host.mode === 'agent' ? L('Geen poorten buiten localhost (of de agent stuurde ze nog niet).') : L('Alleen bekend voor servers met een agent.')}</p>`}
+      ${x.incidents.length ? `<h3>${L('Open incidenten')}</h3><ul>${x.incidents.map((i) => `<li><button type="button" class="linkbtn" data-exp-inc="${i.id}">${esc(i.title)}</button></li>`).join('')}</ul>` : ''}
+      <p class="muted small">${L('Een schatting: RzMon kent je firewall niet. Een poort die op alle adressen luistert, kan van buiten toch dicht zijn.')}</p>
+    </div>`,
+    buttons: [{ label: L('Sluiten'), cls: 'primary', onClick: () => $('#modal').close() }],
+  });
+  $$('[data-exp-cve]', $('#modal')).forEach((b) => (b.onclick = () => { $('#modal').close(); vulnDetail(b.dataset.expCve); }));
+  $$('[data-exp-inc]', $('#modal')).forEach((b) => (b.onclick = () => { $('#modal').close(); showTab('incidents'); incidentDialog(+b.dataset.expInc); }));
 }
 
 /** 1.144.0: urgentie 0–100 als pil (zelfde kleuren als het risico) */
@@ -11562,7 +11625,7 @@ function hmServers(all, title, d, compact = false) {
       return `<button type="button" class="hm-srv ${st}" data-hm-go="dashboard?server=${encodeURIComponent(h.name)}">
         <span class="hm-srv-top"><b>${esc(h.name)}</b><span class="hm-st ${st}">${hmShape(st)} ${esc(st === 'ok' ? HM_ST.ok() : why(h) || HM_ST[st]())}</span></span>
         <span class="hm-srv-sub">${esc(kindLabel(hostKind(h)))}${up && up.d7 !== null ? ' · ' + esc(L('{p} bereikbaar (7 d)', { p: pct(up.d7) })) : ''}</span>
-        ${rk && rk.score ? `<span class="hm-srv-risk">${urgPill(rk.score, rk.reasons, true)} <span class="small">${esc(L('risico'))}: ${esc(rk.reasons.join(' · '))}</span></span>` : ''}
+        ${rk && rk.score ? `<span class="hm-srv-risk" data-hm-risk="${h.id}" title="${esc(L('Aanvalspad en impact'))}">${urgPill(rk.score, rk.reasons, true)} <span class="small">${esc(L('risico'))}: ${esc(rk.reasons.join(' · '))}</span></span>` : ''}
         ${bar('CPU', cpu)}${bar('RAM', ram)}${bar(L('Disk'), disk)}</button>`;
     }).join('')}</div></section>`;
 }
@@ -11753,6 +11816,7 @@ async function incidentDialog(id) {
     </div>`,
     buttons: [
       { label: go[1] + ' →', style: 'margin-right:auto', onClick: () => { $('#modal').close(); showTab(go[0]); } },
+      ...(i.host_id ? [{ label: '🎯 ' + L('Aanvalspad'), onClick: () => exposureDialog(+i.host_id) }] : []),
       { label: L('Sluiten'), onClick: () => $('#modal').close() },
       { label: '✔ ' + L('Opslaan'), cls: 'primary need-user', submit: true },
     ],

@@ -180,6 +180,8 @@ Bij de eerste keer na de update worden checks die nu al critical zijn meteen inc
 Liever twee incidenten dan iets wegstoppen: zonder hetzelfde IP en zonder keten blijven ze apart. In het venster van het incident staan de **stappen** op volgorde, de **urgentie** met de redenen, en het **pad**: bijvoorbeeld *Internet (203.0.113.5) → poort 22/tcp → NAS → 3 afhankelijke servers*. Bij een actief misbruikte kwetsbaarheid staat in de reden op welke poort het pakket luistert. Sluit je een samengevoegd incident, dan zijn alle stappen ook in IDS afgehandeld. De lijst staat op urgentie.
 
 ### Rapport als PDF 📄 (vanaf 1.142.0)
+**Eerste pagina: In één oogopslag** (vanaf 1.146.0): de score, de **tijd tot melding (MTTD)** en **tot opgelost (MTTR)**, de doelen (melding binnen 5 minuten, agents rapporteren, geen open actief misbruikte kwetsbaarheden) met ✔ of ✘, en de **5 grootste risico's** (servers met hun risico en waarom). Daarna begint het volledige rapport op een nieuwe pagina.
+
 Op **📊 Analyse** staat de knop **📄 Rapport (PDF)**. Die opent een nette, afdrukbare pagina over de gekozen periode, met meteen het afdrukvenster. Kies daar **Opslaan als PDF**. In het rapport:
 - de **samenvatting**: score, beschikbaarheid (met ▲/▼ ten opzichte van de vorige periode), storingen, hersteltijd, meldingen en IDS critical;
 - de **incidenten** uit die periode, met status, eigenaar en duur;
@@ -188,6 +190,28 @@ Op **📊 Analyse** staat de knop **📄 Rapport (PDF)**. Die opent een nette, a
 - **wat nu aanpakken**.
 
 Opent er niets, sta dan pop-ups toe voor RzMon. Het rapport is een losse pagina zonder scripts, en ziet er op papier hetzelfde uit als op het scherm.
+
+### Aanvalspad en impact 🎯 (vanaf 1.146.0)
+Klik op het **risicogetal** van een server op het dashboard (of op **🎯 Aanvalspad** in een incident). Je ziet:
+- het pad: **van buiten / netwerk → open poorten → de server → afhankelijke servers**;
+- de **open poorten** die niet alleen op localhost luisteren, met het programma, het pakket en de **ergste kwetsbaarheid** daarin (met de versie die hem oplost);
+- de **open incidenten** van die server;
+- de servers die ervan **afhangen** (via *Afhankelijk van*): valt deze server om of wordt hij overgenomen, dan raakt dat ook die servers (*blast radius*).
+
+Het is een schatting: RzMon kent je firewall niet. Een poort die op alle adressen luistert, kan van buiten toch dicht zijn.
+
+### Doelen en "na de actie" 🎯 (vanaf 1.146.0)
+Op **📊 Analyse**, direct na *Wat nu aanpakken*:
+
+| Blok | Wat | Doel |
+|---|---|---|
+| **Melding binnen 5 minuten** | van de overgang naar critical tot de eerste melding (mediaan en 90%) | 95% |
+| **Agents rapporteren** | het deel van de tijd dat alle agents rapporteerden; elke stilte langer dan de grens voor *agent stil* telt, ook een die nu nog loopt | 99,5% |
+| **Zelf herstellen** | hoe vaak een herstelactie lukte, per check (laatste 30 dagen) | 80% |
+| **Automatische blokkades** | hoeveel er **vroegtijdig opgeheven** zijn (door iemand of via de whitelist): waarschijnlijk onterecht | hooguit 5% |
+| **Slimme drempels met méér ruis** | checks die na het aanzetten van slimme drempels méér warnings gaven dan in dezelfde tijd ervoor | geen |
+
+Je meldregels tellen mee: met *melden na 10 minuten* haal je 5 minuten nooit (dat is dan je eigen keuze). Zelf herstellen en stiltes van agents worden bijgehouden vanaf 1.146.0; daarvoor is er nog niets.
 
 ### Analyse 📊 (vanaf 1.106.0)
 Het tabblad **📊 Analyse** laat zien hoe het over langere tijd gaat, en wat je het best als eerste aanpakt. Alleen **beheerders en gebruikers** zien het; een account met de rol *alleen lezen* niet.

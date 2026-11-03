@@ -896,6 +896,8 @@ if ($action === 'agent') {
     $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
     // ℹ️ als de agent (opnieuw) verbindt: de eerste keer, na stil te zijn geweest, of vanaf een ander IP
     Security::agentConnected($host, $encrypted);
+    // 1.146.0: was de agent langer stil dan de grens? Dan het gat bewaren (SLO "agents stil")
+    Quality::recordAgentGap($host, time());
     // Contactmomenten (1.99.0): de laatste 21, om het echte ritme te zien
     $beats = array_slice([...array_filter(explode(',', (string) ($host['agent_beats'] ?? ''))), (string) time()], -21);
     q('UPDATE hosts SET agent_seen = ?, agent_busy = NULL, agent_ip = ?, agent_version = ?, enc_seen = ?, agent_beats = ? WHERE id = ?',
@@ -1170,7 +1172,7 @@ $need = match ($action) {
     'home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report' => 'user',
+    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -4024,6 +4026,11 @@ switch ($action) {
             out(['error' => $e->getMessage()], 422);
         }
         out(['ok' => true, 'n' => $n]);
+
+    case 'host_exposure':
+        // 1.146.0: aanvalspad en impact van één server (poorten, kwetsbaarheden, afhankelijke servers)
+        $ex = HostRisk::exposure((int) ($_GET['id'] ?? 0));
+        $ex ? out($ex) : out(['error' => t('Server niet gevonden')], 404);
 
     case 'incidents':
         // 1.142.0: één lijst met incidenten (open, in behandeling en de laatste 30 dagen opgelost)

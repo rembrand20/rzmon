@@ -242,6 +242,8 @@ final class Analytics
         $out['backups'] = self::backups($hosts);
         $out['noise'] = self::noise($from, $to);
         $out['todo'] = self::todo($out);
+        // 1.146.0: SLO's van deze periode en "na de actie" (laatste 30 dagen)
+        $out['quality'] = ['slo' => Quality::slo($from, $to), 'loops' => Quality::loops(30)];
         $out['kpi']['score'] = self::score($out['todo']);
         return $out;
     }
