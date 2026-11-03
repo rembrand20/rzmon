@@ -15,8 +15,8 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
 
 ## 1.157.1 – 2026-11-03
-### Nieuw
-- 
+### Opgelost
+- Interne opruiming van de snelheidstest (de codecontrole in GitHub keurde hem af); de werking is gelijk.
 
 ## 1.157.0 – 2026-11-03
 ### Nieuw
