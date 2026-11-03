@@ -1116,7 +1116,7 @@ final class Ids
      * 1.149.0: de aanvalskaart. Wie (IP, land) valt wat aan (server), via welke poort of dienst, en is het geblokkeerd.
      * Per lijn (bron, doelwit, poort, richting) de pogingen opgeteld; de 10 grootste bronnen apart, de rest als "overig".
      * Landen voor de wereldkaart altijd allemaal. Alleen wat al bekend is: geen nieuwe opvragingen naar buiten.
-     * @param array{days?: int, host?: int, cc?: string, cat?: string, dir?: string, top?: int} $o
+     * @param array{days?: int, mins?: int, host?: int, cc?: string, cat?: string, dir?: string, top?: int} $o
      */
     public static function flows(array $o = []): array
     {

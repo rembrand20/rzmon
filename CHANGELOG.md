@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.150.0**: de **zijbalk klapt in** tot alleen iconen (per gebruiker onthouden), en het accountmenu past weer helemaal.
 - **1.149.0**: nieuwe **🗺️ Aanvalskaart** in IDS: wie valt wat aan, via welke poort, en is het geblokkeerd, als stromen met bewegende lijnen en op een wereldkaart; ook als kaartje op het dashboard.
 
+## 1.153.1 – 2026-11-03
+### Opgelost
+- Achter de schermen: de codecontrole (PHPStan) kende de nieuwe periodes van 15 minuten en een uur nog niet. Voor jou verandert er niets.
+
 ## 1.153.0 – 2026-11-03
 ### Nieuw
 - **Live Attack Flow** (*IDS → Aanvalskaart*, vervangt de Attack Flow van 1.152.0): weer in de stijl van *Stromen*, maar met beweging. Links de aanvallers, rechts je servers, met vloeiende lijnen ertussen en op elke lijn de dienst, de poort en het aantal pogingen.
