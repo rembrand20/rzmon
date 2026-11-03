@@ -1036,6 +1036,8 @@ INSERT IGNORE INTO settings (name, value) VALUES ('dns_on', '1'), ('suricata_on'
 
 -- 1.117.0: moderne weergave van de IDS-pagina (uit = compact)
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_modern', '1');
+-- 1.153.0: beweging in de live Attack Flow (0 = stil, 1 = rustig, 2 = vol)
+INSERT IGNORE INTO settings (name, value) VALUES ('af_motion', '2');
 
 -- 1.119.0: snelheidsmeter (per uur en per verzoek of cron-onderdeel opgeteld; twee dagen bewaard)
 CREATE TABLE IF NOT EXISTS perf_stats (

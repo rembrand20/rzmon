@@ -292,7 +292,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <!-- 1.149.0: aanvalskaart -->
       <div class="ids-pane" data-pane="map" hidden>
         <div class="dash-bar am-bar">
-          <div class="seg" id="am-days"><button type="button" class="seg-btn active" data-amd="1"><?= th('24 uur') ?></button><button type="button" class="seg-btn" data-amd="7"><?= th('7 dagen') ?></button><button type="button" class="seg-btn" data-amd="30"><?= th('30 dagen') ?></button></div>
+          <div class="seg" id="am-win" role="group" aria-label="<?= th('Periode') ?>"><button type="button" class="seg-btn active" data-amw="15m"><?= th('Nu (15 min)') ?></button><button type="button" class="seg-btn" data-amw="1h"><?= th('1 uur') ?></button><button type="button" class="seg-btn" data-amw="24h"><?= th('24 uur') ?></button><button type="button" class="seg-btn" data-amw="7d"><?= th('7 dagen') ?></button><button type="button" class="seg-btn" data-amw="30d"><?= th('30 dagen') ?></button></div>
           <select id="am-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
           <select id="am-cc" aria-label="<?= th('Land') ?>"><option value=""><?= th('Alle landen') ?></option></select>
           <select id="am-cat" aria-label="<?= th('Soort aanval') ?>"><option value=""><?= th('Alle soorten') ?></option></select>
@@ -720,6 +720,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
           <label class="switch"><input type="checkbox" name="ids_modern"><span></span> <span><?= t('<b>Moderne weergave</b> van de pagina IDS (score, Nu aandacht nodig, serverkaarten, grafiek)') ?></span></label>
           <p class="muted small" style="margin-top:-.4rem"><?= th('Uit: de compacte weergave van vóór 1.117.0, met de modus als tegel en de servers als regels.') ?></p>
+          <label class="af-motion-set"><span><?= t('<b>Beweging in de live Attack Flow</b> (IDS → Aanvalskaart)') ?></span>
+            <input type="range" name="af_motion" min="0" max="2" step="1" list="af-motion-steps">
+            <span class="af-motion-lbls small muted" aria-hidden="true"><span><?= th('Stil') ?></span><span><?= th('Rustig') ?></span><span><?= th('Vol') ?></span></span></label>
+          <datalist id="af-motion-steps"><option value="0"></option><option value="1"></option><option value="2"></option></datalist>
+          <p class="muted small" style="margin-top:-.2rem"><?= th('Vol: bewegende deeltjes, flitsende schilden en een lopende band. Rustig: alles trager, zonder flitsen. Stil: geen beweging (handig voor een scherm dat de hele dag aanstaat). Staat "minder beweging" aan op je apparaat, dan is het altijd stil.') ?></p>
           <div class="row2">
             <label><?= th('Basismeting (uren)') ?> <span class="muted small"><?= th('eerst alleen vastleggen wat normaal is') ?></span><input type="number" name="ids_baseline_hours" min="0" max="720"></label>
             <label><?= th('Brute force bij … mislukte SSH-logins') ?><input type="number" name="ids_fail_count" min="2" max="1000"></label>

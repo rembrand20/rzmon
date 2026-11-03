@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
 - **1.152.0**: **Attack Flow** in de aanvalskaart (aanvaller → doelwit → dienst → afloop, bewezen en vermoed uit elkaar, af te spelen), een betere popup per IP, en alle **SSH-sessies** met duur.
 - **1.151.0**: de pagina *Gezondheid* is opgedeeld over **Systeem**: *Database en server* (met de tabbladen Database en Server) en de nieuwe pagina **Prestaties en fouten**.
 - **1.150.0**: de **zijbalk klapt in** tot alleen iconen (per gebruiker onthouden), en het accountmenu past weer helemaal.
 - **1.149.0**: nieuwe **🗺️ Aanvalskaart** in IDS: wie valt wat aan, via welke poort, en is het geblokkeerd, als stromen met bewegende lijnen en op een wereldkaart; ook als kaartje op het dashboard.
-- **1.148.0**: rustigere instellingen: geen gele uitlegbalken meer; wat aandacht nodig heeft staat in een **oranje balk** bovenaan, met een bolletje bij de kaart waar het over gaat.
+
+## 1.153.0 – 2026-11-03
+### Nieuw
+- **Live Attack Flow** (*IDS → Aanvalskaart*, vervangt de Attack Flow van 1.152.0): weer in de stijl van *Stromen*, maar met beweging. Links de aanvallers, rechts je servers, met vloeiende lijnen ertussen en op elke lijn de dienst, de poort en het aantal pogingen.
+  - **Deeltjes** lopen over de lijnen zolang er wordt aangevallen; hoe sneller, hoe meer pogingen per minuut. Een **groen schild** laat zien waar het IDS het verkeer tegenhoudt, een **rode ring** om een server dat hij op dit moment geraakt wordt, en een nieuwe aanval tekent zich in.
+  - Bovenaan: de **grootste aanvaller nu** (pogingen per minuut, dienst, gebruikersnamen, en wat het IDS deed: waar geblokkeerd, hoeveel tegengehouden en waar nog niet, met *Overal blokkeren*), **Nu bezig** en de **IDS-acties van het laatste uur**.
+  - Onderaan: **Live gebeurtenissen** als lopende band (stil met de muis erop) en de **Top 10 aanvallen** in een eenvoudige tabel met trend en IDS-status.
+  - Nieuwe periodes **Nu (15 min)** en **1 uur**. De kaart wordt bijgewerkt elke 10 seconden (nu, 1 uur), 20 seconden (24 uur) of minuut (7 of 30 dagen), en alleen als hij in beeld is.
+  - De **tijdlijn** met *Afspelen* staat nu in een eigen venster (knop *🕒 Tijdlijn*).
+- **Instelling voor de beweging** (*Instellingen → IDS → Algemeen*): een schuif *Stil · Rustig · Vol*. *Rustig* is trager en zonder flitsen, *Stil* zonder beweging (voor een scherm dat de hele dag aanstaat). *Minder beweging* op je apparaat geeft altijd *Stil*.
 
 ## 1.152.0 – 2026-11-03
 ### Nieuw

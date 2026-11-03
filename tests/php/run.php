@@ -1121,6 +1121,14 @@ ok($lExt && $lExt['obs'] && $lExt['via'] === 'auth.log' && $lExt['outcome']['k']
     && $sInt && ($sInt['host']['id'] ?? 0) === $fa && $piv && !$piv[0]['obs'] && count($tries) === 2
     && array_filter($af['events'], fn($e) => $e['ip'] === '198.51.100.23' && $e['k'] === 'block'),
     'Attack Flow: SSH-aanval waargenomen (auth.log) en geblokkeerd; eigen server als bron herkend en als afgeleid getoond; losse pogingen en blokkade in de tijdlijn');
+// 1.153.0: live: grootste aanvaller nu (pogingen van de laatste 15 minuten), wat het IDS deed, acties van het laatste uur, top 10
+$lv = AttackFlow::build(['days' => 1, 'mins' => 60, 'host' => $fa])['live'];
+$lv15 = AttackFlow::build(['days' => 1, 'mins' => 15, 'host' => $fa]);
+ok(($lv['top']['ip'] ?? '') === '198.51.100.23' && $lv['top']['now'] && $lv['top']['per_min'] > 0 && count($lv['top']['spark']) === 15
+    && in_array('ci-af-a', array_column($lv['top']['blocks'], 'host'), true) && $lv['busy']['active'] >= 1 && $lv['actions']['blocks'] >= 1
+    && in_array('198.51.100.23', array_column($lv['top10'], 'ip'), true) && !in_array($fa, $lv['hit'], true)
+    && !array_filter($lv15['lines'], fn($l) => $l['ip'] === '198.51.100.23') && $lv15['mins'] === 15 && in_array($lv['motion'], [0, 1, 2], true),
+    'live: grootste aanvaller nu met pogingen per minuut en waar geblokkeerd, IDS-acties, top 10; geblokkeerd = server niet "nu geraakt"; venster van 15 minuten');
 $ie = AttackFlow::ipEvents('198.51.100.23', 1);
 $kinds = array_count_values(array_column($ie['rows'], 'k'));
 ok(($kinds['fail'] ?? 0) === 2 && ($kinds['block'] ?? 0) === 1 && ($kinds['inc'] ?? 0) === 1 && $ie['counts']['fails'] === 2 && count($ie['blocks']) === 1

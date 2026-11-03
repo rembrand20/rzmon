@@ -21,12 +21,12 @@ final class AttackFlow
     /** Daarna is er ingelogd */
     private const LOGIN = ['breakin', 'ssh_login', 'newip', 'rootlogin'];
 
-    /** @param array{days?: int, host?: int, cc?: string, cat?: string, dir?: string, top?: int} $o */
+    /** @param array{days?: int, mins?: int, host?: int, cc?: string, cat?: string, dir?: string, top?: int} $o */
     public static function build(array $o): array
     {
         $f = Ids::flows($o + ['top' => 12]);
         $days = (int) $f['days'];
-        $since = date('Y-m-d H:i:s', time() - $days * 86400);
+        $since = date('Y-m-d H:i:s', time() - ($f['mins'] ? $f['mins'] * 60 : $days * 86400));
         // Welk IP hoort bij welke server (een eigen server als bron = interne aanvaller)
         $hostByIp = [];
         foreach (q('SELECT id, name, address, agent_ip FROM hosts')->fetchAll() as $h) {
@@ -118,7 +118,164 @@ final class AttackFlow
             $events[] = ['at' => $l['first'], 'ip' => $l['ip'], 'host_id' => $l['host_id'], 'k' => 'inc', 'n' => 1, 'line' => $i, 'obs' => $l['obs']];
         }
         usort($events, static fn($a, $b) => strcmp((string) $a['at'], (string) $b['at']));
-        return $f + ['pivots' => $pivots, 'events' => array_slice($events, -3000), 'since' => $since, 'now' => now()];
+        $r = $f + ['pivots' => $pivots, 'events' => array_slice($events, -3000), 'since' => $since, 'now' => now()];
+        $r['live'] = self::live($r, (int) ($o['host'] ?? 0));
+        return $r;
+    }
+
+    /**
+     * 1.153.0: de live weergave: wie valt nu het hardst aan (laatste 15 minuten) en wat deed het IDS, hoeveel aanvallers
+     * zijn bezig, de IDS-acties van het laatste uur, de nieuwste gebeurtenissen (ticker) en de top 10 van de periode.
+     * Per lijn het tempo (pogingen per minuut) en of hij nieuw is, per server of hij op dit moment geraakt wordt.
+     */
+    private static function live(array $r, int $hostId): array
+    {
+        $now = time();
+        $ts = static fn($s) => (int) strtotime((string) $s);
+        $q15 = $now - 900;
+        // Pogingen per IP en per lijn in de laatste 15 minuten, per minuut (voor het lijntje)
+        $perIp = [];
+        $perLine = [];
+        $spark = [];
+        $bars = array_fill(0, 8, 0);
+        $hitNow = [];
+        $seenTry = [];
+        $isBlocked = array_column($r['sources'], 'blocked', 'ip');
+        foreach ($r['events'] as $e) {
+            $t = $ts($e['at']);
+            if ($e['k'] === 'try' || $e['k'] === 'login') {
+                $seenTry[$e['ip']] = true;
+            }
+            if ($t < $q15 || $e['k'] === 'block') {
+                continue;
+            }
+            $n = max(1, (int) $e['n']);
+            if ($e['k'] === 'try' || $e['k'] === 'login') {
+                $perIp[$e['ip']] = ($perIp[$e['ip']] ?? 0) + $n;
+                $perLine[$e['ip'] . '|' . $e['host_id']] = ($perLine[$e['ip'] . '|' . $e['host_id']] ?? 0) + $n;
+                $m = min(14, intdiv($t - $q15, 60));
+                $spark[$e['ip']] ??= array_fill(0, 15, 0);
+                $spark[$e['ip']][$m] += $n;
+                $bars[min(7, intdiv($t - $q15, 113))] += $n;
+            }
+            if ($t >= $now - 120 && empty($isBlocked[$e['ip']])) {   // een geblokkeerde aanvaller raakt de server niet meer
+                $hitNow[$e['host_id']] = true;
+            }
+        }
+        // Meldingen zonder losse pogingen (web, Suricata, honeypot): het tempo schatten uit het aantal en de duur
+        $lines = [];
+        foreach ($r['lines'] as $i => $l) {
+            $k = $l['ip'] . '|' . $l['host_id'];
+            $last = $ts($l['last']);
+            $first = $ts($l['first']);
+            if (!isset($seenTry[$l['ip']]) && $last >= $q15) {
+                $est = max(1, (int) round($l['hits'] * 900 / max(900, $last - $first)));
+                $perLine[$k] = ($perLine[$k] ?? 0) + $est;
+                $perIp[$l['ip']] = ($perIp[$l['ip']] ?? 0) + $est;
+                $bars[7] += $est;
+            }
+            if ($last >= $now - 120 && $l['outcome']['k'] !== 'blocked') {
+                $hitNow[$l['host_id']] = true;
+            }
+            $lines[$i] = ['rate' => round(($perLine[$k] ?? 0) / 15, 1), 'fresh' => $first >= $now - 300, 'recent' => $last >= $q15];
+        }
+        $names = array_column($r['targets'], 'name', 'id');
+        $src = array_column($r['sources'], null, 'ip');
+        // Grootste aanvaller nu (anders: de grootste van de periode)
+        arsort($perIp);
+        $topIp = array_key_first($perIp);
+        if ($topIp === null && $r['sources']) {
+            $by = $r['sources'];
+            usort($by, static fn($a, $b) => $b['hits'] <=> $a['hits']);
+            $topIp = $by[0]['ip'];
+        }
+        $top = null;
+        if ($topIp !== null && isset($src[$topIp])) {
+            $s = $src[$topIp];
+            $mine = array_values(array_filter($r['lines'], static fn($l) => $l['ip'] === $topIp));
+            usort($mine, static fn($a, $b) => $b['hits'] <=> $a['hits']);
+            $blk = q("SELECT b.host_id, h.name, MIN(b.created_at) AS at, SUM(b.hits) AS hits FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
+                       WHERE b.ip = ? AND b.removed_at IS NULL AND (b.until IS NULL OR b.until > NOW()) GROUP BY b.host_id, h.name ORDER BY at", [$topIp])->fetchAll();
+            $on = array_map('intval', array_column($blk, 'host_id'));
+            $notOn = [];
+            foreach ($mine as $l) {
+                if (!in_array($l['host_id'], $on, true) && $l['dir'] !== 'o') {
+                    $notOn[$l['host_id']] = $names[$l['host_id']] ?? '?';
+                }
+            }
+            $users = array_column(q("SELECT username, COUNT(*) AS n FROM ssh_events WHERE ip = ? AND ok = 0 AND at >= ? AND username <> '' GROUP BY username ORDER BY n DESC LIMIT 3",
+                [$topIp, $r['since']])->fetchAll(), 'username');
+            $top = ['ip' => $topIp, 'cc' => $s['cc'], 'internal' => $s['internal'], 'sev' => $s['sev'], 'hits' => $s['hits'], 'now' => (bool) $perIp,
+                'per_min' => round(($perIp[$topIp] ?? 0) / 15, 1), 'spark' => $spark[$topIp] ?? array_fill(0, 15, 0), 'users' => $users,
+                'line' => $mine ? ['svc' => $mine[0]['svc'], 'port' => $mine[0]['port'], 'proto' => $mine[0]['proto'], 'host' => $names[$mine[0]['host_id']] ?? '?',
+                    'cats' => $mine[0]['cats'], 'outcome' => $mine[0]['outcome'], 'dir' => $mine[0]['dir']] : null,
+                'ntargets' => count(array_unique(array_column($mine, 'host_id'))),
+                'blocks' => array_map(static fn($b) => ['host' => $b['name'], 'at' => $b['at'], 'hits' => (int) $b['hits']], $blk),
+                'not_on' => array_values($notOn), 'blocked_rz' => $s['blocked_rz']];
+        }
+        // IDS-acties van het laatste uur
+        $hf = $hostId ? ' AND b.host_id = ' . $hostId : '';
+        $kf = $hostId ? ' AND k.host_id = ' . $hostId : '';
+        $lastBlock = q("SELECT b.ip, b.created_at AS at, h.name AS host, b.auto FROM ids_blocks b JOIN hosts h ON h.id = b.host_id WHERE 1=1$hf ORDER BY b.created_at DESC LIMIT 1")->fetch() ?: null;
+        $lastKill = q("SELECT k.created_at AS at, h.name AS host, k.dkey FROM ids_kills k JOIN hosts h ON h.id = k.host_id WHERE 1=1$kf ORDER BY k.created_at DESC LIMIT 1")->fetch() ?: null;
+        $last = null;
+        if ($lastBlock && (!$lastKill || $lastBlock['at'] >= $lastKill['at'])) {
+            $last = ['k' => 'block', 'at' => $lastBlock['at'], 'host' => $lastBlock['host'], 'ip' => $lastBlock['ip']];
+        } elseif ($lastKill) {
+            $last = ['k' => 'kill', 'at' => $lastKill['at'], 'host' => $lastKill['host'], 'what' => (string) $lastKill['dkey']];
+        }
+        $actions = [
+            'blocks' => (int) q("SELECT COUNT(*) FROM ids_blocks b WHERE b.created_at >= NOW() - INTERVAL 1 HOUR$hf")->fetchColumn(),
+            'kills' => (int) q("SELECT COUNT(*) FROM ids_kills k WHERE k.created_at >= NOW() - INTERVAL 1 HOUR$kf")->fetchColumn(),
+            'open' => (int) q("SELECT COUNT(*) FROM ids_incidents i WHERE i.status = 'open' AND i.last_seen >= NOW() - INTERVAL 1 HOUR" . ($hostId ? ' AND i.host_id = ' . $hostId : ''))->fetchColumn(),
+            'last' => $last,
+        ];
+        // Ticker: de nieuwste gebeurtenissen (hooguit een dag terug)
+        $tick = [];
+        $sh = $hostId ? ' AND e.host_id = ' . $hostId : '';
+        foreach (q("SELECT e.at, e.ok, e.ip, e.username AS u, e.port, e.method, h.name AS host FROM ssh_events e JOIN hosts h ON h.id = e.host_id
+                    WHERE e.at >= NOW() - INTERVAL 1 DAY$sh ORDER BY e.at DESC LIMIT 30")->fetchAll() as $e) {
+            $tick[] = ['at' => $e['at'], 'k' => (int) $e['ok'] ? 'login' : 'try', 'ip' => $e['ip'], 'host' => $e['host'], 'u' => $e['u'], 'method' => $e['method'],
+                'blocked' => !empty($src[$e['ip']]['blocked'])];
+        }
+        foreach (q("SELECT b.created_at AS at, b.ip, h.name AS host, b.reason FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
+                    WHERE b.created_at >= NOW() - INTERVAL 1 DAY$hf ORDER BY b.created_at DESC LIMIT 15")->fetchAll() as $b) {
+            $tick[] = ['at' => $b['at'], 'k' => 'block', 'ip' => $b['ip'], 'host' => $b['host'], 'what' => $b['reason']];
+        }
+        foreach (q("SELECT i.id, i.created_at AS at, i.ip, i.title, i.severity, i.dir, i.dport, h.name AS host FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
+                    WHERE i.created_at >= NOW() - INTERVAL 1 DAY AND i.type NOT IN ('chain', 'anomaly')" . ($hostId ? ' AND i.host_id = ' . $hostId : '') . '
+                    ORDER BY i.created_at DESC LIMIT 15')->fetchAll() as $i) {
+            $tick[] = ['at' => $i['at'], 'k' => $i['dir'] === 'o' ? 'out' : 'inc', 'ip' => (string) $i['ip'], 'host' => $i['host'], 'what' => $i['title'], 'sev' => (int) $i['severity'],
+                'port' => $i['dport'] !== null ? (int) $i['dport'] : null, 'id' => (int) $i['id']];
+        }
+        usort($tick, static fn($a, $b) => strcmp((string) $b['at'], (string) $a['at']));
+        // Top 10 van de periode, met een trendlijntje (12 stukjes van de periode)
+        $t0 = $ts($r['since']);
+        $span = max(60, $now - $t0);
+        $trend = [];
+        foreach ($r['events'] as $e) {
+            if ($e['k'] === 'block') {
+                continue;
+            }
+            $trend[$e['ip']] ??= array_fill(0, 12, 0);
+            $trend[$e['ip']][max(0, min(11, intdiv(($ts($e['at']) - $t0) * 12, $span)))] += max(1, (int) $e['n']);
+        }
+        $by = $r['sources'];
+        usort($by, static fn($a, $b) => $b['hits'] <=> $a['hits']);
+        $top10 = [];
+        foreach (array_slice($by, 0, 10) as $s) {
+            $mine = array_values(array_filter($r['lines'], static fn($l) => $l['ip'] === $s['ip']));
+            usort($mine, static fn($a, $b) => $b['hits'] <=> $a['hits']);
+            $tg = array_values(array_unique(array_map(static fn($l) => $names[$l['host_id']] ?? '?', $mine)));
+            $ks = array_column(array_column($mine, 'outcome'), 'k');
+            $top10[] = ['ip' => $s['ip'], 'cc' => $s['cc'], 'internal' => $s['internal'], 'sev' => $s['sev'], 'hits' => $s['hits'], 'targets' => $tg,
+                'svc' => $mine ? $mine[0]['svc'] : null, 'port' => $mine ? $mine[0]['port'] : null, 'dir' => $mine ? $mine[0]['dir'] : 'i',
+                'trend' => $trend[$s['ip']] ?? array_fill(0, 12, 0), 'up' => ($perIp[$s['ip']] ?? 0) > 0,
+                'state' => in_array('login', $ks, true) ? 'login' : ($s['blocked'] ? 'blocked' : (in_array('open', $ks, true) ? 'open' : 'unconfirmed'))];
+        }
+        return ['at' => now(), 'top' => $top, 'busy' => ['active' => count($perIp), 'per_min' => round(array_sum($perIp) / 15, 1), 'bars' => $bars],
+            'actions' => $actions, 'lines' => $lines, 'hit' => array_map('intval', array_keys($hitNow)), 'tick' => array_slice($tick, 0, 40), 'top10' => $top10,
+            'motion' => max(0, min(2, (int) setting('af_motion', '2')))];
     }
 
     /**

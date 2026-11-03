@@ -1121,11 +1121,14 @@ final class Ids
     public static function flows(array $o = []): array
     {
         $days = in_array((int) ($o['days'] ?? 1), [1, 7, 30], true) ? (int) $o['days'] : 1;
+        // 1.153.0: ook een kort venster (15 minuten of een uur) voor de live Attack Flow
+        $mins = in_array((int) ($o['mins'] ?? 0), [15, 60], true) ? (int) $o['mins'] : 0;
+        $win = $mins ? "$mins MINUTE" : "$days DAY";
         $top = max(3, min(20, (int) ($o['top'] ?? 10)));
         $rows = q("SELECT i.id, i.host_id, h.name AS host, h.kind, h.kind_auto, h.mode, h.address, i.severity, i.type, i.dkey, i.title, i.detail, i.ip, i.cc, i.hits, i.status,
                           i.created_at, i.last_seen, i.dport, i.proto, i.service, i.dir
                      FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
-                    WHERE i.ip IS NOT NULL AND i.ip <> '' AND i.type NOT IN ('chain', 'anomaly') AND i.last_seen >= NOW() - INTERVAL $days DAY
+                    WHERE i.ip IS NOT NULL AND i.ip <> '' AND i.type NOT IN ('chain', 'anomaly') AND i.last_seen >= NOW() - INTERVAL $win
                     ORDER BY i.last_seen DESC LIMIT 3000")->fetchAll();
         $hostList = [];
         $ccList = [];
@@ -1262,6 +1265,7 @@ final class Ids
         sort($cs);
         return [
             'days' => $days,
+            'mins' => $mins,
             'home' => IpIntel::allowedCountries()[0] ?? 'NL',   // waar je eigen netwerk op de wereldkaart staat
             'kpi' => [
                 'attacks' => array_sum(array_column($flows, 'hits')), 'lines' => count($flows), 'crit' => count(array_filter($flows, static fn($f) => $f['sev'] >= 2)),
