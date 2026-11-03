@@ -1054,5 +1054,38 @@ $kZ = bin2hex(random_bytes(32));
 [$pz] = AgentCrypto::open($envelope($kZ, $gz), [$kZ]);
 ok(AgentCrypto::unzip($pz) === $json, 'compressie: versleuteld bericht met gecomprimeerde inhoud (zoals agent 1.73.0 het stuurt) komt goed aan');
 
+// 1.149.0: aanvalskaart: poort, dienst en richting afleiden, en de stromen per bron, doelwit en poort
+$fo = fn(...$a) => Ids::flowOf(...$a);
+$ssh = $fo('bruteforce', '1.2.3.4', 'Brute force op SSH vanaf 1.2.3.4', '', '1.2.3.4');
+$dec = $fo('decoy_port', '1.2.3.4', 'Honeypot-poort 2323 benaderd vanaf 1.2.3.4', '', '1.2.3.4');
+$sin = $fo('suricata', '1|5.6.7.8', 'Suricata: ET SCAN', '5.6.7.8:51000 → 192.168.1.10:3389 TCP · scan', '5.6.7.8');
+$sout = $fo('suricata', '2|5.6.7.8', 'Suricata: ET C2', '192.168.1.10:40000 → 5.6.7.8:4444 TCP · c2', '5.6.7.8');
+$ob = $fo('out_bad', 'xmrig|9.9.9.9', 'Uitgaande verbinding naar een bekende aanvaller: xmrig → 9.9.9.9', 'Poort 3333, lijst: x', '9.9.9.9');
+$web = $fo('web_attack', 'ha|1.2.3.4', 'HA: 6 mislukte logins', '', '1.2.3.4');
+ok($ssh === ['port' => 22, 'proto' => 'tcp', 'svc' => 'SSH', 'dir' => 'i'] && $dec['port'] === 2323 && $dec['svc'] === 'Honeypot'
+    && $sin['dir'] === 'i' && $sin['port'] === 3389 && $sin['svc'] === 'RDP' && $sout['dir'] === 'o' && $sout['port'] === 4444
+    && $ob['dir'] === 'o' && $ob['port'] === 3333 && $web['svc'] === 'Home Assistant' && $web['dir'] === 'i',
+    'aanvalskaart: poort, dienst en richting uit SSH, honeypot, Suricata (in en uit), uitgaand en weblogs');
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-map-a', '10.9.0.1', 'agent'), ('ci-map-b', '10.9.0.2', 'agent')");
+$ma = (int) q("SELECT id FROM hosts WHERE name = 'ci-map-a'")->fetchColumn();
+$mb = (int) q("SELECT id FROM hosts WHERE name = 'ci-map-b'")->fetchColumn();
+// Oude incidenten zonder poort (dir NULL): worden bij het lezen afgeleid
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip, cc, hits) VALUES
+   (?, 1, 'bruteforce', '203.0.113.7', 'Brute force op SSH vanaf 203.0.113.7', '', '203.0.113.7', 'RU', 40),
+   (?, 1, 'bruteforce', '203.0.113.7', 'Brute force op SSH vanaf 203.0.113.7', '', '203.0.113.7', 'RU', 8),
+   (?, 2, 'out_bad', 'xmrig|198.51.100.9', 'Uitgaande verbinding naar een bekende aanvaller: xmrig → 198.51.100.9', 'Poort 4444, lijst: x', '198.51.100.9', 'BR', 12),
+   (?, 1, 'chain', 'k', 'Keten', '', '203.0.113.7', 'RU', 1)", [$ma, $mb, $mb, $ma]);
+q("INSERT INTO ids_blocks (host_id, ip, reason) VALUES (?, '203.0.113.7', 'ci')", [$ma]);
+$fl = Ids::flows(['days' => 1]);
+$ru = array_values(array_filter($fl['sources'], fn($x) => $x['ip'] === '203.0.113.7'))[0] ?? null;
+$out = array_values(array_filter($fl['lines'], fn($x) => $x['ip'] === '198.51.100.9'))[0] ?? null;
+$ruc = array_values(array_filter($fl['countries'], fn($x) => $x['cc'] === 'RU'))[0] ?? null;
+ok($ru && $ru['hits'] === 48 && $ru['ntargets'] === 2 && $ru['blocked'] && $ru['blocked_on'] === ['ci-map-a'] && $out && $out['dir'] === 'o' && $out['port'] === 4444
+    && $out['sev'] === 2 && $ruc && $ruc['hits'] === 48 && $fl['kpi']['multi'] >= 1,
+    'aanvalskaart: pogingen per bron opgeteld, 2 doelwitten, blokkade per server, uitgaand apart, ketens tellen niet dubbel');
+$fo2 = Ids::flows(['days' => 1, 'dir' => 'o']);
+ok(!array_filter($fo2['lines'], fn($x) => $x['dir'] !== 'o') && count($fo2['lines']) >= 1, 'aanvalskaart: filter op richting');
+q("DELETE FROM hosts WHERE name IN ('ci-map-a', 'ci-map-b')");
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

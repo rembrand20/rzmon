@@ -257,6 +257,11 @@ final class Installer
         ['hosts', 'edr_learn_from', 'DATETIME NULL'],
         ['edr_events', 'own', 'VARCHAR(10) NULL'],
         ['ids_incidents', 'mode', 'CHAR(1) NULL'],
+        // 1.149.0: aanvalskaart: poort, protocol, dienst en richting (i = inkomend, o = uitgaand); NULL = afgeleid bij het lezen
+        ['ids_incidents', 'dport', 'SMALLINT UNSIGNED NULL'],
+        ['ids_incidents', 'proto', 'VARCHAR(8) NULL'],
+        ['ids_incidents', 'service', 'VARCHAR(30) NULL'],
+        ['ids_incidents', 'dir', 'CHAR(1) NULL'],
         // 1.131.0: trend van een disk (procent per dag), hooguit eens per half uur opnieuw berekend
         ['checks', 'trend_per_day', 'DOUBLE NULL'],
         ['checks', 'trend_at', 'DATETIME NULL'],

@@ -2332,6 +2332,19 @@ Bovenop de regels leert RzMon per server wat normaal is, en kijkt hij of losse m
   - Een keten wordt een IDS-incident met **alle stappen in volgorde** (klik op een stap voor dat incident). Ingrijpen gebeurt één keer, als de keten nieuw is; *Ingrijpen bij een keten* zet je los uit.
   - *Ja, dit was ik* bij een keten: die soort keten wordt voor die server niet meer gemeld.
 - **🧭 MITRE** (*🛡️ IDS → 🧭 MITRE*): alle meldingen van de laatste 7, 30 of 90 dagen in de matrix van [MITRE ATT&CK](https://attack.mitre.org) (versie 20): per stap van een aanval (Binnenkomen, Uitvoeren, Blijven, Rechten verhogen …) de technieken die gezien zijn, hoe vaak en hoe ernstig. Klik op een techniek voor de meldingen. **Ook wat de regels kunnen zien** toont ook de technieken die de regels herkennen maar die nog niet voorkwamen (de dekking).
+
+**🗺️ Aanvalskaart** (vanaf 1.149.0, *🛡️ IDS → 🗺️ Aanvalskaart*)
+
+In één oogopslag: waar komt een aanval vandaan, welke server of welk apparaat wordt aangevallen, via welke dienst of poort, en is het IP-adres geblokkeerd.
+- **Bovenaan** vier tegels: het aantal aanvallen (pogingen), de bronnen (uit hoeveel landen, hoeveel in je eigen netwerk), de doelwitten (en of een bron meerdere servers aanvalt) en hoeveel bronnen al **geblokkeerd** zijn.
+- **Filters**: periode (24 uur, 7 of 30 dagen), server, land, soort aanval (SSH, webdiensten, honeypot, Suricata, uitgaand) en richting (*Beide*, *Inkomend*, *Uitgaand*).
+- **Stromen**: links de **bronnen** (land, IP-adres, reputatie; een groen stopteken = geblokkeerd, *open* = nog niet), rechts de **doelwitten** met het icoon van het soort apparaat, en daartussen de lijnen met de **dienst en poort** (bijvoorbeeld *SSH · TCP 22 · 48×*). Rood is kritiek, oranje een waarschuwing; hoe dikker de lijn, hoe meer pogingen. De **bolletjes bewegen in de richting van het verkeer**. **Paarse** lijnen lopen de andere kant op: een apparaat van jou dat zelf naar een verdacht adres belt (bijvoorbeeld malware die naar huis belt). De 10 grootste bronnen staan apart, de rest samen als *andere bronnen*.
+- **Wereldkaart**: de landen gekleurd naar het aantal pogingen, met bogen van het land van herkomst naar je eigen netwerk (het eerste land bij *Toegestane landen*, standaard Nederland). Het land is waar het IP-adres geregistreerd staat, niet de exacte plek. Klik op een land om alleen de aanvallen daarvandaan te zien. De kaart (Natural Earth, publiek domein) zit in RzMon zelf; er gaat niets naar een kaartdienst.
+- **Klik op een bron of lijn** voor de popup: per doelwit bron → dienst → doelwit, de soort aanval, richting, pogingen, periode, blokkade en reputatie, wat er over het IP-adres bekend is en de tijdlijn. Met **Overal blokkeren** (beheerders) en **Naar incident**. Klik op een **doelwit** om alleen die server te zien.
+- **Onder de kaart**: *Herkomst* per land en de *laatste aanvallen*.
+- Op het **dashboard** staat een klein kaartje *Aanvallen (24 uur)* met de wereldkaart en een link naar de aanvalskaart.
+- Poort en dienst komen uit wat RzMon al weet: SSH-aanvallen (22), webdiensten via SWAG, Home Assistant en Vaultwarden (443), de honeypot-poort, Suricata (bron- en doelpoort) en uitgaande verbindingen. Bij nieuwe incidenten worden ze opgeslagen; bij oudere worden ze afgeleid. Waar dat niet kan, staat *dienst onbekend*.
+- Op een telefoon staan de lijnen als lijst.
 - **Instellen:** *Instellingen → IDS → Endpoint-bewaking → 🧬 Afwijkingen en ketens*: afwijkingen aan/uit, de leerperiode, de score voor een incident, ketens aan/uit, het venster en of RzMon bij een keten ingrijpt.
 
 **🌐 Dreigingsinformatie** (vanaf 1.112.0)

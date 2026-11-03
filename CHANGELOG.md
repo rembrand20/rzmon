@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.149.0**: nieuwe **🗺️ Aanvalskaart** in IDS: wie valt wat aan, via welke poort, en is het geblokkeerd, als stromen met bewegende lijnen en op een wereldkaart; ook als kaartje op het dashboard.
 - **1.148.0**: rustigere instellingen: geen gele uitlegbalken meer; wat aandacht nodig heeft staat in een **oranje balk** bovenaan, met een bolletje bij de kaart waar het over gaat.
 - **1.147.0**: agents sturen hun rapport **gecomprimeerd** (meestal 50–85% kleiner) en de agent is opgebouwd uit **modules**; twee fouten waardoor een agent soms een run oversloeg of zijn foutmeldingen kwijtraakte, zijn opgelost.
 - **1.146.0**: per server het **aanvalspad** (open poorten, kwetsbaarheden, afhankelijke servers), **doelen** (melding binnen 5 minuten, agents rapporteren) en of zelf herstellen, blokkades en slimme drempels **echt werken**; het rapport begint met één overzichtspagina.
 - **1.145.0**: RzMon is nu open source onder **GPL-3.0**, met een `SECURITY.md` (lekken melden, threat model, de signing-sleutel) en strengere controles in GitHub Actions.
-- **1.144.0**: het dashboard begint met wat je **nu moet doen**, op één **urgentie**; elke server heeft een **risico** van 0–100, en IDS-meldingen die bij elkaar horen worden **één incident** met stappen.
+
+## 1.149.0 – 2026-11-03
+### Nieuw
+- **🗺️ Aanvalskaart** (*IDS → Aanvalskaart*): in één oogopslag waar een aanval vandaan komt, welke server of welk apparaat wordt aangevallen, via welke dienst of poort, en of het IP-adres geblokkeerd is.
+  - **Stromen**: bronnen links, doelwitten rechts (met een icoon per soort apparaat), en lijnen met dienst en poort ertussen. Rood is kritiek, oranje een waarschuwing, en de dikte staat voor het aantal pogingen. De bolletjes bewegen in de richting van het verkeer; uitgaand verkeer (een apparaat van jou dat naar buiten belt) is paars en loopt de andere kant op.
+  - **Wereldkaart**: landen gekleurd naar het aantal pogingen, met bogen naar je eigen netwerk. De kaart zit in RzMon zelf (Natural Earth, publiek domein); er gaat niets naar een kaartdienst.
+  - **Filters** op periode, server, land, soort aanval en richting, en tegels met aanvallen, bronnen, doelwitten en hoeveel er geblokkeerd zijn.
+  - **Popup** bij een klik op een bron of lijn: bron → dienst → doelwit, de feiten, wat er over het IP bekend is en de tijdlijn, met *Overal blokkeren* en *Naar incident*.
+- **Dashboard**: een kaartje *Aanvallen (24 uur)* met de wereldkaart en een link naar de aanvalskaart.
+- Incidenten krijgen een **poort, protocol, dienst en richting** (in of uit). Bij oudere incidenten leidt RzMon ze af uit wat er al in staat. De database wordt vanzelf bijgewerkt.
 
 ## 1.148.0 – 2026-11-03
 ### Nieuw

@@ -1472,7 +1472,7 @@ function showTab(name) {
   if (/^(ids|vulns)\//.test(name)) {
     const [tab, s] = name.split('/');
     name = tab;
-    if (tab === 'ids' && ['inc', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre'].includes(s)) idsTab = s;
+    if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre'].includes(s)) idsTab = s;
     if (tab === 'vulns' && ['cve', 'leak'].includes(s)) vulnTab = s;
   }
   if (qs) {
@@ -5722,7 +5722,7 @@ async function loadIds() {
 }
 
 function showIdsTab() {
-  if (!['inc', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre'].includes(idsTab)) idsTab = 'inc';
+  if (!['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre'].includes(idsTab)) idsTab = 'inc';
   $$('#ids-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab));
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
   const nAnom = ((idsData && idsData.incidents) || []).filter((i) => (i.type === 'chain' || i.type === 'anomaly') && i.status === 'open').length;
@@ -5733,6 +5733,7 @@ function showIdsTab() {
   if (idsTab === 'anom') loadAnom();
   if (idsTab === 'mitre') loadMitre();
   if (idsTab === 'prot') loadProt();
+  if (idsTab === 'map') { initAttackMap(); loadAttackMap(); }   // 1.149.0
 }
 
 // ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
@@ -6668,15 +6669,11 @@ async function hostSecDialog(hostId) {
 
 // ---------------------------------------------------------------- Tijdlijn per IP (1.88.0)
 const TL_SRC = { ids: '🛡️', block: '⛔', unblock: '🔓', login: '🔑', fail: '❌', alert: '🔔' };
-async function ipTimeline(ip) {
-  let d;
-  try { d = await api('ip_timeline', null, { ip }); } catch (ex) { toast(ex.message, 'err'); return; }
+/** 1.149.0: de samenvatting en de tijdlijn van een IP als HTML (ook in de popup van de aanvalskaart) */
+function ipTlHtml(d) {
   const day = (s) => s.slice(0, 10);
   let last = '';
-  modal({
-    title: `🔎 ${ip}`,
-    wide: true,
-    body: `<p style="margin-top:0" class="small">${ccTag(d.cc) ? ccTag(d.cc) + ' · ' : ''}${[d.internal ? '🏠 ' + L('je eigen netwerk') : '',
+  return `<p style="margin-top:0" class="small">${ccTag(d.cc) ? ccTag(d.cc) + ' · ' : ''}${[d.internal ? '🏠 ' + L('je eigen netwerk') : '',
         d.bad ? '☠️ ' + L('bekende aanvaller ({list})', { list: esc(d.bad) }) : '',
         d.whitelist ? '✅ ' + L('op de whitelist') + (d.whitelist.until ? ` (${L('tot {t}', { t: esc(fmtDateTime(d.whitelist.until)) })})` : '') : '',
         d.blocked_rz ? '⛔ ' + L('geblokkeerd in RzMon') : '', d.blocked_ids.length ? '⛔ ' + L('geblokkeerd op {list}', { list: esc(d.blocked_ids.join(', ')) }) : '',
@@ -6685,7 +6682,15 @@ async function ipTimeline(ip) {
         const head = day(x.at) !== last ? `<div class="tl-day">${esc(new Date(x.at.replace(' ', 'T')).toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</div>` : '';
         last = day(x.at);
         return `${head}<div class="tl-row ${x.sev === 2 ? 'crit' : ''}"><span class="tl-t">${esc(x.at.slice(11, 16))}</span><span>${TL_SRC[x.src] || '•'}</span><span class="tl-x">${esc(x.text)}${x.host ? ` <span class="muted small">· ${esc(x.host)}</span>` : ''}</span></div>`;
-      }).join('')}</div>` : ''}
+      }).join('')}</div>` : ''}`;
+}
+async function ipTimeline(ip) {
+  let d;
+  try { d = await api('ip_timeline', null, { ip }); } catch (ex) { toast(ex.message, 'err'); return; }
+  modal({
+    title: `🔎 ${ip}`,
+    wide: true,
+    body: `${ipTlHtml(d)}
       <div class="btn-row need-admin">${!d.whitelist && !d.internal ? `<button type="button" class="btn" data-tl-wl>✅ ${L('Op de whitelist')}</button>` : ''}
         <a href="#ids/blk" class="btn" data-tl-go>⛔ ${L('Blokkades en whitelist')}</a></div>`,
     buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
@@ -6707,6 +6712,355 @@ document.addEventListener('mouseover', (e) => {
   const c = e.target.closest && e.target.closest('code');
   if (c && !c.dataset.ipc && IP_RE.test(c.textContent.trim())) { c.dataset.ipc = '1'; c.classList.add('ip-link'); c.title = L('Tijdlijn van dit IP-adres'); }
 });
+
+// ---------------------------------------------------------------- IDS: 🗺️ Aanvalskaart (1.149.0)
+// Wie (IP, land) valt wat aan (server), via welke dienst of poort, en is het tegengehouden. Twee weergaven: stromen
+// (bron → dienst → doelwit, met bewegende bolletjes in de richting van het verkeer) en een wereldkaart. Uitgaand
+// verkeer (een apparaat van jou dat naar buiten belt) is paars en loopt de andere kant op.
+const AM_CAT = { ssh: () => 'SSH', web: () => L('Webdiensten'), decoy: () => L('Honeypot'), net: () => 'Suricata', out: () => L('Uitgaand'), other: () => L('Overig') };
+const AM_IC = {
+  server: '<rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+  network: '<rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 16.5h.01M11 16.5h.01M12 13V8M8.5 6.5a5 5 0 0 1 7 0M6 4a8.5 8.5 0 0 1 12 0"/>',
+  storage: '<ellipse cx="12" cy="5.5" rx="8" ry="2.5"/><path d="M4 5.5v13c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-13M4 12c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5"/>',
+  camera: '<path d="M3 7h12l3 3v4l-3 3H3z"/><circle cx="9" cy="12" r="2.5"/><path d="M18 10l3-2v8l-3-2"/>',
+  smarthome: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>',
+  power: '<rect x="3" y="7" width="16" height="10" rx="2"/><path d="M21 10v4M8 12h6"/>',
+  other: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 10h16"/>',
+  home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
+  stop: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
+};
+const amSvg = (k, cls = 'am-ic') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${AM_IC[k] || AM_IC.other}</svg>`;
+const amKindIc = (h) => {
+  const sh = (state && state.hosts || []).find((x) => +x.id === +h.id);
+  const k = hostKind(sh || h) || (sh && isHa(sh) ? 'smarthome' : 'server');
+  return KIND_GROUP[k] || 'other';
+};
+const amN = (n) => (+n || 0).toLocaleString(LOCALE);
+function amCcName(cc) {
+  if (cc === 'LAN') return L('Eigen netwerk');
+  if (!cc || cc === '??') return L('Onbekend land');
+  try { return new Intl.DisplayNames([LOCALE], { type: 'region' }).of(cc) || cc; } catch (e) { return cc; }
+}
+let amData = null, amWorld = null;
+const amOpt = { days: 1, host: '', cc: '', cat: '', dir: '', view: (() => { try { return localStorage.getItem('rzmon-am-view') || 'flow'; } catch (e) { return 'flow'; } })() };
+
+async function amLoadWorld() {
+  if (amWorld) return amWorld;
+  const v = ((document.querySelector('script[src*="app.js"]') || {}).src || '').split('v=')[1] || '';
+  const r = await fetch(`assets/world.json?v=${encodeURIComponent(v)}`, { credentials: 'same-origin' });
+  if (!r.ok) throw new Error(L('Wereldkaart niet gevonden'));
+  amWorld = await r.json();
+  return amWorld;
+}
+
+async function loadAttackMap() {
+  const box = $('#am-body');
+  if (!box) return;
+  if (!amData) box.innerHTML = `<p class="muted">${L('Laden…')}</p>`;
+  const q = { days: amOpt.days };
+  ['host', 'cc', 'cat', 'dir'].forEach((k) => { if (amOpt[k]) q[k] = amOpt[k]; });
+  try {
+    const [d] = await Promise.all([api('ids_flows', null, q), amOpt.view === 'world' ? amLoadWorld() : null]);
+    amData = d;
+  } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  amFilters();
+  renderAttackMap();
+}
+
+function amFilters() {
+  const f = amData.filters;
+  const sel = (id, list, first, cur) => {
+    const el = $(id);
+    if (!el) return;
+    el.innerHTML = `<option value="">${esc(first)}</option>` + list.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(cur) ? 'selected' : ''}>${esc(l)}</option>`).join('');
+  };
+  sel('#am-host', f.hosts.map((h) => [h.id, h.name]), L('Alle servers'), amOpt.host);
+  sel('#am-cc', f.ccs.map((c) => [c, amCcName(c)]).sort((a, b) => a[1].localeCompare(b[1])), L('Alle landen'), amOpt.cc);
+  sel('#am-cat', Object.entries(AM_CAT).map(([k, fn]) => [k, fn()]), L('Alle soorten'), amOpt.cat);
+  $$('#am-days .seg-btn').forEach((b) => b.classList.toggle('active', +b.dataset.amd === amOpt.days));
+  $$('#am-dir .seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.amdir === amOpt.dir));
+  $$('#am-view .seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.amv === amOpt.view));
+}
+
+function initAttackMap() {
+  const pane = $('#tab-ids [data-pane="map"]');
+  if (!pane || pane.dataset.init) return;
+  pane.dataset.init = '1';
+  $$('#am-days .seg-btn').forEach((b) => (b.onclick = () => { amOpt.days = +b.dataset.amd; loadAttackMap(); }));
+  $$('#am-dir .seg-btn').forEach((b) => (b.onclick = () => { amOpt.dir = b.dataset.amdir; loadAttackMap(); }));
+  $$('#am-view .seg-btn').forEach((b) => (b.onclick = () => {
+    amOpt.view = b.dataset.amv;
+    try { localStorage.setItem('rzmon-am-view', amOpt.view); } catch (e) { /* alleen voor nu */ }
+    loadAttackMap();
+  }));
+  ['host', 'cc', 'cat'].forEach((k) => ($(`#am-${k}`).onchange = (e) => { amOpt[k] = e.target.value; loadAttackMap(); }));
+  // Klikken: een bron of lijn → details; een doelwit → filter op die server; een land → filter op dat land
+  $('#am-body').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-am-ip], [data-am-line], [data-am-host], [data-am-cc], [data-am-inc], [data-am-clear]');
+    if (!t) return;
+    e.preventDefault();
+    if (t.dataset.amClear !== undefined) { Object.assign(amOpt, { host: '', cc: '', cat: '', dir: '' }); loadAttackMap(); }
+    else if (t.dataset.amInc) incidentDialog(+t.dataset.amInc);
+    else if (t.dataset.amIp) amDetail(t.dataset.amIp);
+    else if (t.dataset.amLine !== undefined) { const l = amData.lines[+t.dataset.amLine]; if (l) amDetail(l.ip); }
+    else if (t.dataset.amHost) { amOpt.host = amOpt.host === t.dataset.amHost ? '' : t.dataset.amHost; loadAttackMap(); }
+    else if (t.dataset.amCc) { amOpt.cc = t.dataset.amCc; amOpt.view = 'flow'; loadAttackMap(); }
+  });
+  let rt = null;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (idsTab === 'map' && amOpt.view === 'flow') amDrawFlows(); }, 120); });
+}
+
+function renderAttackMap() {
+  const d = amData, box = $('#am-body');
+  if (!d || !box) return;
+  const k = d.kpi;
+  const filtered = amOpt.host || amOpt.cc || amOpt.cat || amOpt.dir;
+  const kpi = (lbl, val, sub, cls = '') => `<div class="kpi ${cls}"><div class="kpi-lbl">${esc(lbl)}</div><div class="kpi-val">${val}</div><div class="kpi-sub">${esc(sub)}</div></div>`;
+  const open = k.shown - k.blocked;
+  const html = [`<div class="am-kpis">
+    ${kpi(L('Aanvallen'), amN(k.attacks), [L('{n} aanvalslijnen', { n: k.lines }), k.crit ? L('{n} kritiek', { n: k.crit }) : ''].filter(Boolean).join(' · '), k.crit ? 'bad' : '')}
+    ${kpi(L('Bronnen'), amN(k.sources), [L('uit {n} landen', { n: k.countries }), k.internal ? L('{n} in je eigen netwerk', { n: k.internal }) : '', k.out ? L('{n} uitgaand', { n: k.out }) : ''].filter(Boolean).join(' · '))}
+    ${kpi(L('Doelwitten'), amN(k.targets), k.multi ? L('{n} bron(nen) vallen meerdere servers aan', { n: k.multi }) : L('elke bron valt één server aan'))}
+    ${kpi(L('Geblokkeerd'), `${amN(k.blocked)}<small> / ${amN(k.shown)}</small>`, open ? L('{n} bron(nen) nog niet tegengehouden', { n: open }) : L('alle getoonde bronnen tegengehouden'), open ? 'bad' : '')}
+  </div>`];
+  if (!d.lines.length) {
+    html.push(`<div class="card am-empty">${amSvg('stop', 'am-ic big')}<div><b>${L('Geen aanvallen in deze periode')}</b>
+      <p class="muted small">${filtered ? L('Met deze filters is er niets te zien.') + ` <a href="#" data-am-clear>${L('Filters wissen')}</a>` : L('Er zijn geen incidenten met een IP-adres; zodra iemand je servers aanvalt, zie je het hier.')}</p></div></div>`);
+    box.innerHTML = html.join('');
+    return;
+  }
+  const legend = `<div class="am-legend small">
+    <span><i class="am-sw crit"></i>${L('Kritiek')}</span><span><i class="am-sw warn"></i>${L('Waarschuwing')}</span>
+    <span><i class="am-sw out"></i>${L('Uitgaand (van jouw apparaat naar buiten)')}</span>
+    <span>${amSvg('stop', 'am-ic sm ok')}${L('Geblokkeerd')}</span><span class="muted">${L('Dikte = aantal pogingen · bolletjes = richting')}</span></div>`;
+  html.push(`<section class="card am-card"><div class="am-head"><h2>${amOpt.view === 'world' ? L('Herkomst op de wereldkaart') : L('Aanvalsverkeer')}</h2>${legend}</div>
+    ${amOpt.view === 'world' ? amWorldHtml(d, false) : amFlowHtml(d)}
+    <p class="muted small am-note">${amOpt.view === 'world'
+      ? L('De lijnen lopen van het land van herkomst naar je eigen netwerk ({cc}); het land is waar het IP-adres geregistreerd staat, niet de exacte plek. Klik op een land voor de aanvallen daarvandaan.', { cc: amCcName(d.home) })
+      : L('De lijnen tonen wie wie aanvalt, niet de route van het verkeer over internet. Paarse lijnen lopen de andere kant op: een apparaat in je netwerk dat zelf contact zoekt met een verdacht adres. Klik op een bron of lijn voor alle details, op een doelwit om alleen die server te zien.')}</p>
+  </section>`);
+  html.push(`<div class="am-row">${amCountries(d)}${amRecent(d)}</div>`);
+  box.innerHTML = html.join('');
+  if (amOpt.view === 'flow') amDrawFlows();
+}
+
+/** Stromen: drie kolommen; de lijnen in het midden worden na het tekenen op de echte breedte gezet (amDrawFlows) */
+const AM_GEO = { rowS: 62, rowT: 70, gap: 10 };
+function amFlowHtml(d) {
+  const S = d.sources, T = d.targets, g = AM_GEO;
+  const hS = S.length * (g.rowS + g.gap) - g.gap, hT = T.length * (g.rowT + g.gap) - g.gap;
+  const H = Math.max(hS, hT, 120);
+  const topS = (H - hS) / 2, topT = (H - hT) / 2;
+  const src = S.map((s, i) => {
+    const sub = [s.internal ? L('Eigen netwerk') : amCcName(s.cc), s.bad ? L('bekende aanvaller') : s.rep && s.rep.score ? L('reputatie {n}', { n: s.rep.score }) : '',
+      s.ntargets > 1 ? L('{n} doelwitten', { n: s.ntargets }) : '', s.out && !s.in ? L('bestemming') : ''].filter(Boolean).join(' · ');
+    return `<button type="button" class="am-src s${s.sev} ${s.out && !s.in ? 'out' : ''}" data-am-ip="${esc(s.ip)}" style="top:${topS + i * (g.rowS + g.gap)}px;height:${g.rowS}px"
+      title="${esc(L('{n} pogingen · klik voor details', { n: amN(s.hits) }))}">
+      <span class="am-badge">${s.internal ? amSvg('home') : esc(s.cc === '??' ? '?' : s.cc)}</span>
+      <span class="am-txt"><span class="mono">${esc(s.ip)}</span><span class="am-sub">${esc(sub)}</span></span>
+      ${s.blocked ? `<span class="am-state ok" title="${esc(L('Geblokkeerd'))}">${amSvg('stop', 'am-ic sm')}</span>` : `<span class="am-state open">${L('open')}</span>`}</button>`;
+  }).join('');
+  const tgt = T.map((t, i) => `<button type="button" class="am-tgt s${t.sev} ${t.out ? 'out' : ''} ${String(t.id) === String(amOpt.host) ? 'sel' : ''}" data-am-host="${t.id}"
+      style="top:${topT + i * (g.rowT + g.gap)}px;height:${g.rowT}px" title="${esc(L('Alleen deze server tonen'))}">
+      <span class="am-tic">${amSvg(amKindIc(t))}</span>
+      <span class="am-txt"><b>${esc(t.name)}</b><span class="am-sub mono">${esc(t.address || '')}</span></span>
+      ${t.nsources > 1 ? `<span class="am-tag">${L('{n} bronnen', { n: t.nsources })}</span>` : t.out ? `<span class="am-tag out">${L('belt naar buiten')}</span>` : ''}</button>`).join('');
+  // Voor de telefoon (en schermlezers): dezelfde lijnen als lijst
+  const list = `<ul class="am-list">${d.lines.map((l, n) => {
+    const tn = (T.find((t) => t.id === l.host_id) || {}).name || '?';
+    return `<li><button type="button" class="linkbtn" data-am-line="${n}"><span class="am-dot ${l.dir === 'o' ? 'out' : l.sev >= 2 ? 'crit' : 'warn'}"></span>
+      ${l.dir === 'o' ? `${esc(tn)} → <span class="mono">${esc(l.ip)}</span>` : `<span class="mono">${esc(l.ip)}</span> → ${esc(tn)}`}
+      <span class="muted">${esc(amSvc(l))} · ${amN(l.hits)}×${l.blocked ? ' · ' + L('geblokkeerd') : ''}</span></button></li>`;
+  }).join('')}</ul>`;
+  return `<div class="am-cols small muted"><span>${L('Bron')}</span><span>${L('Dienst en poort')}</span><span>${L('Doelwit in je netwerk')}</span></div>
+    <div class="am-flow" style="height:${H}px" data-tops="${topS},${topT}">
+      <div class="am-colS">${src}</div>
+      <div class="am-mid"><svg class="am-svg" aria-hidden="true"></svg><div class="am-lbls"></div></div>
+      <div class="am-colT">${tgt}</div>
+    </div>${d.rest.n ? `<p class="muted small am-rest">${L('+ {n} andere bronnen met samen {h} pogingen (kies een land of server om ze te zien)', { n: d.rest.n, h: amN(d.rest.hits) })}</p>` : ''}${list}`;
+}
+const amSvc = (l) => [l.svc || L('dienst onbekend'), l.port ? (l.proto ? l.proto.toUpperCase() + ' ' : '') + l.port : ''].filter(Boolean).join(' · ');
+
+function amDrawFlows() {
+  const flow = $('#am-body .am-flow');
+  if (!flow || !amData) return;
+  const mid = $('.am-mid', flow);
+  const W = mid.clientWidth, H = flow.clientHeight;
+  if (!W) return;
+  const [topS, topT] = flow.dataset.tops.split(',').map(Number);
+  const g = AM_GEO;
+  const iS = new Map(amData.sources.map((s, i) => [s.ip, i]));
+  const iT = new Map(amData.targets.map((t, i) => [t.id, i]));
+  const maxH = Math.max(1, ...amData.lines.map((l) => l.hits));
+  const c = W / 2;
+  const pt = (t, x0, y0, x1, y1) => { const u = 1 - t; return [u * u * u * x0 + 3 * u * u * t * c + 3 * u * t * t * c + t * t * t * x1, u * u * u * y0 + 3 * u * u * t * y0 + 3 * u * t * t * y1 + t * t * t * y1]; };
+  const svg = [], lbl = [], used = [];
+  amData.lines.forEach((l, n) => {
+    const si = iS.get(l.ip), ti = iT.get(l.host_id);
+    if (si === undefined || ti === undefined) return;
+    const ys = topS + si * (g.rowS + g.gap) + g.rowS / 2, yt = topT + ti * (g.rowT + g.gap) + g.rowT / 2;
+    const out = l.dir === 'o';
+    const [x0, y0, x1, y1] = out ? [W, yt, 0, ys] : [0, ys, W, yt];
+    const dpath = `M${x0} ${y0} C${c} ${y0} ${c} ${y1} ${x1} ${y1}`;
+    const w = (1.5 + 4.5 * Math.sqrt(l.hits / maxH)).toFixed(1);
+    const cls = out ? 'out' : l.sev >= 2 ? 'crit' : 'warn';
+    svg.push(`<g class="am-line ${cls} ${l.blocked ? 'blk' : ''}" data-am-line="${n}"><path class="am-base" d="${dpath}" stroke-width="${w}"/>
+      <path class="am-dots" d="${dpath}" stroke-width="${w}"/><path class="am-hit" d="${dpath}"/></g>`);
+    if (l.blocked) {
+      const [bx, by] = pt(0.9, x0, y0, x1, y1);
+      svg.push(`<g class="am-stop" transform="translate(${bx.toFixed(1)} ${by.toFixed(1)})"><circle r="7"/><path d="M-4.6 -4.6L4.6 4.6"/></g>`);
+    }
+    if (n < 16) {   // labels voor de grootste lijnen, zonder over elkaar
+      for (const t of [0.5, 0.36, 0.64, 0.26, 0.74]) {
+        const [x, y] = pt(t, x0, y0, x1, y1);
+        if (used.some(([ux, uy]) => Math.abs(ux - x) < 130 && Math.abs(uy - y) < 24)) continue;
+        used.push([x, y]);
+        lbl.push(`<button type="button" class="am-lbl ${cls}" data-am-line="${n}" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px">${out ? '↩ ' : ''}${esc(amSvc(l))} · ${amN(l.hits)}×</button>`);
+        break;
+      }
+    }
+  });
+  const el = $('.am-svg', mid);
+  el.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  el.setAttribute('width', W);
+  el.setAttribute('height', H);
+  el.innerHTML = svg.join('');
+  $('.am-lbls', mid).innerHTML = lbl.join('');
+}
+
+/** Wereldkaart: landen gekleurd naar het aantal pogingen (één kleur, licht → donker), bogen naar je eigen netwerk */
+function amWorldHtml(d, mini) {
+  const w = amWorld;
+  if (!w) return `<p class="muted">${L('Laden…')}</p>`;
+  const by = new Map(d.countries.map((c) => [c.cc, c]));
+  const max = Math.max(1, ...d.countries.filter((c) => c.cc !== 'LAN' && c.cc !== '??').map((c) => c.hits));
+  const home = w.c[d.home] ? d.home : 'NL';
+  const [hx, hy] = w.c[home] || [w.w / 2, w.h / 3];
+  const paths = Object.entries(w.p).map(([cc, p]) => {
+    const c = by.get(cc);
+    const lv = c && c.hits ? 1 + Math.min(4, Math.floor(4 * Math.sqrt(c.hits / max))) : 0;
+    return `<path d="${p}" class="am-cty l${lv} ${cc === home ? 'home' : ''}" ${c ? `data-am-cc="${cc}"` : ''}><title>${esc(amCcName(cc))}${c ? ': ' + L('{n} pogingen', { n: amN(c.hits) }) : ''}</title></path>`;
+  }).join('');
+  const arcs = [], dots = [];
+  d.countries.forEach((c) => {
+    const p = w.c[c.cc];
+    if (!p || c.cc === home) return;
+    const [x, y] = p;
+    const dist = Math.hypot(hx - x, hy - y);
+    const mx = (x + hx) / 2, my = (y + hy) / 2 - Math.min(140, dist * 0.35);
+    const sw = (1 + 3.5 * Math.sqrt(c.hits / max)).toFixed(1);
+    if (c.in) arcs.push(`<g class="am-line ${c.sev >= 2 ? 'crit' : 'warn'}" data-am-cc="${c.cc}"><path class="am-base" d="M${x} ${y} Q${mx} ${my} ${hx} ${hy}" stroke-width="${sw}"/><path class="am-dots" d="M${x} ${y} Q${mx} ${my} ${hx} ${hy}" stroke-width="${sw}"/></g>`);
+    if (c.out) arcs.push(`<g class="am-line out" data-am-cc="${c.cc}"><path class="am-base" d="M${hx} ${hy} Q${mx} ${my + 18} ${x} ${y}" stroke-width="${sw}"/><path class="am-dots" d="M${hx} ${hy} Q${mx} ${my + 18} ${x} ${y}" stroke-width="${sw}"/></g>`);
+    dots.push(`<circle class="am-pin ${c.out && !c.in ? 'out' : c.sev >= 2 ? 'crit' : 'warn'}" cx="${x}" cy="${y}" r="${(2.5 + 5 * Math.sqrt(c.hits / max)).toFixed(1)}" data-am-cc="${c.cc}"><title>${esc(amCcName(c.cc))}: ${esc(L('{n} pogingen', { n: amN(c.hits) }))}</title></circle>`);
+  });
+  const lan = by.get('LAN');
+  return `<div class="am-world ${mini ? 'mini' : ''}"><svg viewBox="0 0 ${w.w} ${w.h}" role="img" aria-label="${esc(L('Wereldkaart met de herkomst van aanvallen'))}">
+      <g class="am-land">${paths}</g>${arcs.join('')}${dots.join('')}
+      <g class="am-home" transform="translate(${hx} ${hy})"><circle r="9" class="am-home-ring"/><circle r="4.5"/></g></svg>
+    ${!mini && lan ? `<button type="button" class="am-lan" data-am-cc="LAN">${amSvg('home', 'am-ic sm')} ${L('Eigen netwerk: {n} pogingen', { n: amN(lan.hits) })}</button>` : ''}
+    ${mini ? '' : `<p class="am-src-note muted">${esc(w.src)}</p>`}</div>`;
+}
+
+function amCountries(d) {
+  const list = d.countries.slice(0, 8);
+  const max = Math.max(1, ...list.map((c) => c.hits));
+  return `<section class="card am-side"><h3>${L('Herkomst')}</h3><div class="am-bars">${list.map((c) => `<button type="button" class="am-barrow" data-am-cc="${esc(c.cc)}">
+      <span class="am-bcc">${esc(c.cc === '??' ? '?' : c.cc)}</span><span class="am-bname">${esc(amCcName(c.cc))}</span>
+      <span class="am-bar"><i class="${c.out && !c.in ? 'out' : c.sev >= 2 ? 'crit' : 'warn'}" style="width:${Math.max(3, Math.round(100 * c.hits / max))}%"></i></span><span class="am-bn">${amN(c.hits)}</span></button>`).join('')}</div>
+    ${d.countries.length > 8 ? `<p class="muted small">${L('+ {n} andere landen', { n: d.countries.length - 8 })}</p>` : ''}</section>`;
+}
+
+function amRecent(d) {
+  return `<section class="card am-side am-recent"><h3>${L('Laatste aanvallen')}</h3><div class="table-scroll"><table class="am-table"><thead><tr>
+      <th>${L('Tijd')}</th><th>${L('Bron')}</th><th>${L('Doelwit')}</th><th>${L('Dienst')}</th><th>${L('Wat')}</th></tr></thead><tbody>
+    ${d.recent.map((r) => `<tr class="s${r.sev}"><td class="mono">${esc(r.at.slice(11, 16))}</td>
+      <td><button type="button" class="linkbtn mono" data-am-ip="${esc(r.ip)}">${esc(r.cc === 'LAN' ? '' : r.cc + ' ')}${esc(r.ip)}</button></td>
+      <td>${r.dir === 'o' ? `<span class="am-dot out"></span>${L('uitgaand')} · ` : ''}${esc(r.host)}</td><td>${esc(amSvc(r))}</td>
+      <td><button type="button" class="linkbtn" data-am-inc="${r.id}">${esc(r.title)}</button></td></tr>`).join('')}</tbody></table></div></section>`;
+}
+
+/** Popup bij een bron: per lijn bron → dienst → doelwit, de feiten, wat er over het IP bekend is en de tijdlijn */
+async function amDetail(ip) {
+  const d = amData;
+  const s = d.sources.find((x) => x.ip === ip) || { ip, cc: '', internal: false, blocked: false, blocked_on: [], hits: 0, sev: 0 };
+  const lines = d.lines.filter((l) => l.ip === ip);
+  let tl = null;
+  try { tl = await api('ip_timeline', null, { ip }); } catch (e) { /* tijdlijn is extra */ }
+  const sev = Math.max(0, ...lines.map((l) => l.sev));
+  const first = lines.reduce((a, l) => (!a || l.first < a ? l.first : a), ''), last = lines.reduce((a, l) => (l.last > a ? l.last : a), '');
+  const cats = [...new Set(lines.flatMap((l) => l.cats))].map((c) => (AM_CAT[c] || (() => c))());
+  const bands = lines.map((l) => {
+    const t = d.targets.find((x) => x.id === l.host_id) || { name: '?', address: '' };
+    const cls = l.dir === 'o' ? 'out' : l.sev >= 2 ? 'crit' : 'warn';
+    const srcSide = `<div class="am-bside"><span class="am-badge s${l.sev}">${s.internal ? amSvg('home') : esc(s.cc && s.cc !== '??' ? s.cc : '?')}</span>
+      <span><span class="muted small">${L('Bron')}</span><br><span class="mono">${esc(ip)}</span><br><span class="small muted">${esc(amCcName(s.cc))}</span></span></div>`;
+    const tgtSide = `<div class="am-bside r"><span><span class="muted small">${L('Doelwit')}</span><br><b>${esc(t.name)}</b><br><span class="small muted mono">${esc(t.address || '')}</span></span>
+      <span class="am-tic">${amSvg(amKindIc(t))}</span></div>`;
+    const path = l.dir === 'o' ? 'M140 10 H4' : 'M4 10 H140';
+    return `<div class="am-band"><div class="am-bflow">${srcSide}
+        <div class="am-bmid"><svg viewBox="0 0 144 20" aria-hidden="true"><g class="am-line ${cls}"><path class="am-base" d="${path}" stroke-width="4"/><path class="am-dots" d="${path}" stroke-width="4"/></g></svg>
+          <span class="small">${l.dir === 'o' ? L('uitgaand') + ' · ' : ''}${esc(amSvc(l))}</span></div>${tgtSide}</div>
+      <div class="am-bfoot small muted">${L('{n} pogingen', { n: amN(l.hits) })} · ${L('eerst {t}', { t: esc(fmtDateTime(l.first)) })} · ${L('laatst {t}', { t: esc(fmtDateTime(l.last)) })}
+        · <button type="button" class="linkbtn" data-am-inc="${l.id}">${L('Naar incident')}</button></div></div>`;
+  }).join('');
+  const blk = s.blocked ? [s.blocked_on.length ? L('op {list}', { list: s.blocked_on.join(', ') }) : '', s.blocked_rz ? L('in RzMon') : ''].filter(Boolean).join(' · ') : '';
+  const facts = [[L('Soort'), esc(cats.join(', ') || '–')], [L('Richting'), lines.some((l) => l.dir === 'o') ? (lines.some((l) => l.dir === 'i') ? L('inkomend en uitgaand') : L('uitgaand: een apparaat van jou belt naar buiten')) : L('inkomend')],
+    [L('Pogingen'), amN(lines.reduce((a, l) => a + l.hits, 0))], [L('Periode'), first ? `${esc(fmtDateTime(first))} – ${esc(fmtDateTime(last))}` : '–'],
+    [L('Blokkade'), s.blocked ? `<span class="good">${amSvg('stop', 'am-ic sm')} ${esc(L('geblokkeerd'))}${blk ? ' · ' + esc(blk) : ''}</span>` : `<span class="warn-txt">${L('niet geblokkeerd')}</span>`],
+    [L('Reputatie'), s.bad ? `<span class="bad">☠️ ${esc(L('bekende aanvaller ({list})', { list: s.bad }))}</span>` : s.rep ? `${esc((TI_VERDICT[s.rep.verdict] || (() => s.rep.verdict || '–'))())} · ${s.rep.score}` : '–']];
+  modal({
+    title: lines[0] ? lines[0].title : ip, wide: true,
+    body: `<div class="am-pop">
+      <p class="am-pills"><span class="am-pill s${sev}">${sev >= 2 ? L('Kritiek') : L('Waarschuwing')}</span>
+        <span class="am-pill ${s.blocked ? 'ok' : 'open'}">${s.blocked ? L('Geblokkeerd') : L('Niet geblokkeerd')}</span>${s.internal ? `<span class="am-pill">${L('Eigen netwerk')}</span>` : ''}</p>
+      ${bands}
+      <dl class="am-facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>
+      <h3>${L('Over dit IP-adres')}</h3><div class="am-ipinfo"></div>
+      <h3>${L('Tijdlijn van dit IP')}</h3>${tl ? ipTlHtml(tl) : `<p class="muted small">${L('Geen tijdlijn beschikbaar.')}</p>`}</div>`,
+    buttons: [
+      ...(isAdmin() && !s.internal && !s.blocked_rz ? [{ label: '⛔ ' + L('Overal blokkeren'), cls: 'primary', onClick: () => { $('#modal').close(); blockDialog(ip); } }] : []),
+      ...(lines[0] ? [{ label: L('Naar incident'), onClick: () => { $('#modal').close(); incidentDialog(lines[0].id); } }] : []),
+      { label: L('Sluiten'), onClick: () => $('#modal').close() },
+    ],
+  });
+  $('#modal-form').onclick = (e) => {
+    const b = e.target.closest('[data-am-inc]');
+    if (b) { e.preventDefault(); $('#modal').close(); incidentDialog(+b.dataset.amInc); }
+  };
+  const box = $('#modal .am-ipinfo');
+  if (box) fillIpInfo(box, ip);
+}
+
+/** Dashboard: klein kaartje met de aanvallen van de laatste 24 uur (de gegevens hooguit een minuut oud) */
+let hmAtk = null, hmAtkAt = 0, hmAtkBusy = false;
+function hmAttacks() {
+  if (!hmAtkBusy && (!hmAtk || Date.now() - hmAtkAt > 60000)) hmAtkLoad();
+  return `<section class="hm-card hm-atk" id="hm-atk" aria-labelledby="hm-h-atk">${hmAtkInner()}</section>`;
+}
+async function hmAtkLoad() {
+  hmAtkBusy = true;
+  try {
+    const [d] = await Promise.all([api('ids_flows', null, { days: 1, top: 5 }), amLoadWorld()]);
+    hmAtk = d;
+    hmAtkAt = Date.now();
+    const el = $('#hm-atk');
+    if (el) { el.innerHTML = hmAtkInner(); hmAtkWire(el); }
+  } catch (e) { /* het kaartje is extra */ } finally { hmAtkBusy = false; }
+}
+function hmAtkWire(el) {
+  $$('[data-hm-go]', el).forEach((b) => (b.onclick = () => showTab(b.dataset.hmGo)));
+  $$('[data-am-cc]', el).forEach((b) => b.addEventListener('click', () => { amOpt.cc = b.dataset.amCc; amOpt.view = 'flow'; showTab('ids/map'); }));
+}
+function hmAtkInner() {
+  const head = `<div class="hm-card-head"><h2 id="hm-h-atk">${esc(L('Aanvallen (24 uur)'))}</h2><button type="button" class="link-btn" data-hm-go="ids/map">${esc(L('Naar de aanvalskaart'))} →</button></div>`;
+  if (!hmAtk) return head + `<p class="muted small">${L('Laden…')}</p>`;
+  const k = hmAtk.kpi;
+  if (!k.attacks) return head + `<p class="hm-card-sub">${L('Geen aanvallen in de laatste 24 uur.')}</p>`;
+  const open = k.shown - k.blocked;
+  return head + `<p class="hm-card-sub"><b>${amN(k.attacks)}</b> ${L('pogingen')} · <b>${amN(k.sources)}</b> ${L('bronnen uit {n} landen', { n: k.countries })} ·
+      ${open ? `<span class="warn-txt">${L('{n} niet geblokkeerd', { n: open })}</span>` : `<span class="good">${L('alles geblokkeerd')}</span>`}</p>
+    ${amWorld ? amWorldHtml(hmAtk, true) : ''}`;
+}
 
 // ---------------------------------------------------------------- Incidentvenster met advies (1.101.0)
 /** Commando's om te kopiëren, met een uitleg erboven */
@@ -11519,7 +11873,7 @@ function renderHome() {
   html.push(`<div class="hm-row">${hmResChart(d.resources)}${hmIncidents(d)}</div>`);
 
   // Netwerkkaart en de servers zonder problemen, compact
-  html.push(`<div class="hm-row hm-row-1">${hmMap()}</div>`);
+  html.push(`<div class="hm-row">${hmMap()}${hmAttacks()}</div>`);   // 1.149.0: met de aanvallen van vandaag
   html.push(hmServers(hmAllHosts().filter((x) => !probHosts.some((p) => p.h.id === x.h.id)), L('Overige servers'), d, true));
 
   // Grafieken
@@ -11528,6 +11882,7 @@ function renderHome() {
   }
   html.push(`<div class="hm-row">${d.net ? hmNetCard(d.net) : ''}${hmTimeline(d.events)}</div>`);
   $('#home').innerHTML = html.join('');
+  if ($('#hm-atk')) hmAtkWire($('#hm-atk'));
   $$('[data-hm-risk]', $('#home')).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); exposureDialog(+b.dataset.hmRisk); }));
   $$('[data-hm-go]', $('#home')).forEach((b) => (b.onclick = () => {
     const go = b.dataset.hmGo;

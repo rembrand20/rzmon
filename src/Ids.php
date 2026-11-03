@@ -1029,8 +1029,10 @@ final class Ids
         if ($ip !== null && $ip !== '' && ($bad = IpIntel::bad($ip))) {
             $detail .= ' · ☠️ ' . t('bekende aanvaller ({list})', ['list' => $bad]);
         }
-        q('INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip, cc, mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [$hid, $sev, $type, $key, mb_substr($title, 0, 250), mb_substr($detail, 0, 1000), $ip !== null && $ip !== '' ? mb_substr($ip, 0, 45) : null, $cc, self::blocking() ? 'b' : 'l']);
+        $fl = self::flowOf($type, $key, $title, $detail, $ip);   // 1.149.0: voor de aanvalskaart
+        q('INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip, cc, mode, dport, proto, service, dir) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [$hid, $sev, $type, $key, mb_substr($title, 0, 250), mb_substr($detail, 0, 1000), $ip !== null && $ip !== '' ? mb_substr($ip, 0, 45) : null, $cc, self::blocking() ? 'b' : 'l',
+             $fl['port'], $fl['proto'], $fl['svc'] !== null ? mb_substr($fl['svc'], 0, 30) : null, $fl['dir']]);
         $newId = (int) db()->lastInsertId();
         Chain::fromIncident($ctx['host'], $type, $key, $sev, $title, $ip, $newId);
         if ($ip !== null && $ip !== '' && !in_array($type, ['ti_ip', 'chain'], true)) {
@@ -1041,6 +1043,240 @@ final class Ids
             self::notify($ctx['host']['name'] . ': ' . $title, Protect::pushText($newId) ?? $detail);
         }
         return true;
+    }
+
+    /** 1.149.0: bekende poorten → naam van de dienst (aanvalskaart) */
+    public const PORT_NAMES = [21 => 'FTP', 22 => 'SSH', 23 => 'Telnet', 25 => 'SMTP', 53 => 'DNS', 80 => 'HTTP', 110 => 'POP3', 143 => 'IMAP', 443 => 'HTTPS',
+        445 => 'SMB', 465 => 'SMTPS', 587 => 'SMTP', 993 => 'IMAPS', 1433 => 'MSSQL', 1883 => 'MQTT', 2323 => 'Telnet', 3306 => 'MySQL', 3389 => 'RDP',
+        4444 => 'Metasploit', 5432 => 'PostgreSQL', 5900 => 'VNC', 6379 => 'Redis', 6667 => 'IRC', 8006 => 'Proxmox', 8080 => 'HTTP', 8123 => 'Home Assistant', 8443 => 'HTTPS', 8883 => 'MQTT'];
+    /** Soorten die over SSH gaan */
+    private const SSH_TYPES = ['bruteforce', 'breakin', 'rootlogin', 'newip', 'ssh_login', 'decoy_user', 'ssh'];
+
+    /**
+     * 1.149.0: poort, protocol, dienst en richting van een incident, voor de aanvalskaart. Uit de soort en de tekst (die
+     * staan er al in), zodat het ook voor oude incidenten werkt. dir: i = van buiten naar je server, o = je apparaat naar buiten.
+     * @return array{port: ?int, proto: ?string, svc: ?string, dir: string}
+     */
+    public static function flowOf(string $type, string $key, string $title, string $detail, ?string $ip): array
+    {
+        $port = null;
+        $proto = null;
+        $svc = null;
+        $dir = 'i';
+        $num = static fn(string $s): ?int => preg_match('/\b(?:poort|port|porta|puerto)\s+(\d{1,5})\b/iu', $s, $m) ? (int) $m[1] : null;
+        $tail = static fn(string $s): ?int => preg_match('/:(\d{1,5})(?:\D*)$/', $s, $m) ? (int) $m[1] : null;
+        if (in_array($type, self::SSH_TYPES, true)) {
+            [$port, $proto, $svc] = [22, 'tcp', 'SSH'];
+        } elseif ($type === 'decoy_port') {
+            $port = preg_match('/(\d{2,5})/', $title, $m) ? (int) $m[1] : null;
+            [$proto, $svc] = ['tcp', 'Honeypot'];
+        } elseif ($type === 'web_attack') {
+            $src = explode('|', $key)[0];
+            [$port, $proto] = [443, 'tcp'];
+            $svc = ['swag' => 'HTTPS', 'ha' => 'Home Assistant', 'vw' => 'Vaultwarden', 'vaultwarden' => 'Vaultwarden'][$src] ?? ucfirst($src);
+        } elseif (in_array($type, ['web_cve', 'web_payload'], true)) {
+            [$port, $proto, $svc] = [443, 'tcp', 'HTTPS'];
+        } elseif ($type === 'suricata') {
+            // "src:sport → dst:dport proto · …"; de kant van buiten is $ip: is dat de bron, dan is het inkomend
+            if (preg_match('/^(\S+):(\d+) → (\S+):(\d+) ([A-Za-z0-9-]*)/u', $detail, $m)) {
+                $dir = $ip !== null && $ip !== '' && $ip === $m[3] ? 'o' : 'i';
+                $port = (int) $m[4];
+                $proto = $m[5] !== '' ? strtolower($m[5]) : null;
+            }
+        } elseif ($type === 'revshell') {
+            [$dir, $port, $proto, $svc] = ['o', $tail($title), 'tcp', 'Shell'];
+        } elseif ($type === 'outbound') {
+            [$dir, $port, $proto] = ['o', $tail($key), 'tcp'];
+        } elseif (in_array($type, ['out_bad', 'out_country'], true)) {
+            [$dir, $port, $proto] = ['o', $num($detail), 'tcp'];
+        } elseif (in_array($type, ['ti_ip', 'edr'], true) && str_contains($title, '→')) {
+            [$dir, $port] = ['o', $tail($title)];
+        }
+        if ($port !== null && ($port < 1 || $port > 65535)) {
+            $port = null;
+        }
+        $svc ??= $port !== null ? (self::PORT_NAMES[$port] ?? null) : null;
+        return ['port' => $port, 'proto' => $proto, 'svc' => $svc, 'dir' => $dir];
+    }
+
+    /** Categorie voor het filter op de aanvalskaart */
+    public static function flowCat(string $type, string $dir): string
+    {
+        return match (true) {
+            $dir === 'o' => 'out',
+            in_array($type, self::SSH_TYPES, true) => 'ssh',
+            in_array($type, ['web_attack', 'web_cve', 'web_payload'], true) => 'web',
+            in_array($type, ['decoy_port', 'decoy_user'], true) => 'decoy',
+            $type === 'suricata' => 'net',
+            default => 'other',
+        };
+    }
+
+    /**
+     * 1.149.0: de aanvalskaart. Wie (IP, land) valt wat aan (server), via welke poort of dienst, en is het geblokkeerd.
+     * Per lijn (bron, doelwit, poort, richting) de pogingen opgeteld; de 10 grootste bronnen apart, de rest als "overig".
+     * Landen voor de wereldkaart altijd allemaal. Alleen wat al bekend is: geen nieuwe opvragingen naar buiten.
+     * @param array{days?: int, host?: int, cc?: string, cat?: string, dir?: string, top?: int} $o
+     */
+    public static function flows(array $o = []): array
+    {
+        $days = in_array((int) ($o['days'] ?? 1), [1, 7, 30], true) ? (int) $o['days'] : 1;
+        $top = max(3, min(20, (int) ($o['top'] ?? 10)));
+        $rows = q("SELECT i.id, i.host_id, h.name AS host, h.kind, h.kind_auto, h.mode, h.address, i.severity, i.type, i.dkey, i.title, i.detail, i.ip, i.cc, i.hits, i.status,
+                          i.created_at, i.last_seen, i.dport, i.proto, i.service, i.dir
+                     FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
+                    WHERE i.ip IS NOT NULL AND i.ip <> '' AND i.type NOT IN ('chain', 'anomaly') AND i.last_seen >= NOW() - INTERVAL $days DAY
+                    ORDER BY i.last_seen DESC LIMIT 3000")->fetchAll();
+        $hostList = [];
+        $ccList = [];
+        $flows = [];
+        $recent = [];
+        foreach ($rows as $r) {
+            if ($r['dir'] === null) {
+                $f = self::flowOf((string) $r['type'], (string) $r['dkey'], (string) $r['title'], (string) $r['detail'], (string) $r['ip']);
+                [$r['dport'], $r['proto'], $r['service'], $r['dir']] = [$f['port'], $f['proto'], $f['svc'], $f['dir']];
+            }
+            $ip = (string) $r['ip'];
+            $internal = self::internalIp($ip);
+            $cc = $internal ? 'LAN' : (string) ($r['cc'] ?: '??');
+            $cat = self::flowCat((string) $r['type'], (string) $r['dir']);
+            $hostList[(int) $r['host_id']] = $r['host'];
+            $ccList[$cc] = true;
+            if (!empty($o['host']) && (int) $r['host_id'] !== (int) $o['host']) {
+                continue;
+            }
+            if (!empty($o['cc']) && $cc !== $o['cc']) {
+                continue;
+            }
+            if (!empty($o['cat']) && $cat !== $o['cat']) {
+                continue;
+            }
+            if (!empty($o['dir']) && $r['dir'] !== $o['dir']) {
+                continue;
+            }
+            $k = $ip . '|' . $r['host_id'] . '|' . ($r['dport'] ?? '') . '|' . $r['dir'];
+            $f = &$flows[$k];
+            $f ??= ['ip' => $ip, 'cc' => $cc, 'internal' => $internal, 'host_id' => (int) $r['host_id'], 'port' => $r['dport'] !== null ? (int) $r['dport'] : null,
+                'proto' => $r['proto'], 'svc' => $r['service'], 'dir' => $r['dir'], 'hits' => 0, 'sev' => 0, 'n' => 0, 'id' => (int) $r['id'],
+                'first' => $r['created_at'], 'last' => $r['last_seen'], 'open' => false, 'cats' => [], 'title' => $r['title'],
+                'host' => ['id' => (int) $r['host_id'], 'name' => $r['host'], 'kind' => $r['kind'], 'kind_auto' => $r['kind_auto'], 'mode' => $r['mode'], 'address' => $r['address']]];
+            $f['hits'] += max(1, (int) $r['hits']);
+            $f['sev'] = max($f['sev'], (int) $r['severity']);
+            $f['n']++;
+            $f['open'] = $f['open'] || $r['status'] === 'open';
+            $f['cats'][$cat] = true;
+            if ($r['created_at'] < $f['first']) {
+                $f['first'] = $r['created_at'];
+            }
+            unset($f);
+            if (count($recent) < 8) {
+                $recent[] = ['id' => (int) $r['id'], 'at' => $r['last_seen'], 'ip' => $ip, 'cc' => $cc, 'host' => $r['host'], 'port' => $r['dport'] !== null ? (int) $r['dport'] : null,
+                    'svc' => $r['service'], 'dir' => $r['dir'], 'title' => $r['title'], 'sev' => (int) $r['severity'], 'status' => $r['status']];
+            }
+        }
+        // Per bron (IP) en per land
+        $src = [];
+        $countries = [];
+        foreach ($flows as &$f) {
+            $f['cats'] = array_keys($f['cats']);
+            $s = &$src[$f['ip']];
+            $s ??= ['ip' => $f['ip'], 'cc' => $f['cc'], 'internal' => $f['internal'], 'hits' => 0, 'sev' => 0, 'targets' => [], 'in' => false, 'out' => false, 'last' => $f['last']];
+            $s['hits'] += $f['hits'];
+            $s['sev'] = max($s['sev'], $f['sev']);
+            $s['targets'][$f['host_id']] = true;
+            $s[$f['dir'] === 'o' ? 'out' : 'in'] = true;
+            $s['last'] = max($s['last'], $f['last']);
+            unset($s);
+            $c = &$countries[$f['cc']];
+            $c ??= ['cc' => $f['cc'], 'hits' => 0, 'sev' => 0, 'ips' => [], 'in' => 0, 'out' => 0];
+            $c['hits'] += $f['hits'];
+            $c['sev'] = max($c['sev'], $f['sev']);
+            $c['ips'][$f['ip']] = true;
+            $c[$f['dir'] === 'o' ? 'out' : 'in'] += $f['hits'];
+            unset($c);
+        }
+        unset($f);
+        usort($src, static fn($a, $b) => [$b['sev'], $b['hits']] <=> [$a['sev'], $a['hits']]);
+        $shown = array_slice($src, 0, $top);
+        $rest = array_slice($src, $top);
+        $ips = array_column($shown, 'ip');
+        // Geblokkeerd (IDS op een server, of in RzMon zelf) en reputatie (alleen uit de cache)
+        $blocked = [];
+        $rep = [];
+        if ($ips) {
+            $in = implode(',', array_fill(0, count($ips), '?'));
+            foreach (q("SELECT b.ip, h.name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
+                         WHERE b.ip IN ($in) AND b.removed_at IS NULL AND (b.until IS NULL OR b.until > NOW())", $ips)->fetchAll() as $b) {
+                $blocked[$b['ip']][] = $b['name'];
+            }
+            foreach (q("SELECT ip, score, verdict FROM ti_ip WHERE ip IN ($in)", $ips)->fetchAll() as $t) {
+                $rep[$t['ip']] = ['score' => (int) $t['score'], 'verdict' => (string) $t['verdict']];
+            }
+        }
+        foreach ($shown as &$s) {
+            $on = array_values(array_unique($blocked[$s['ip']] ?? []));
+            $rz = !$s['internal'] && Security::blockFor($s['ip']) !== null;
+            $s += ['blocked' => $on || $rz, 'blocked_on' => $on, 'blocked_rz' => $rz, 'rep' => $rep[$s['ip']] ?? null, 'bad' => $s['internal'] ? null : IpIntel::bad($s['ip'])];
+            $s['ntargets'] = count($s['targets']);
+            unset($s['targets']);
+        }
+        unset($s);
+        $isBlocked = array_column($shown, 'blocked', 'ip');
+        $lines = [];
+        $targets = [];
+        foreach ($flows as $f) {
+            if (!isset($isBlocked[$f['ip']])) {
+                continue;
+            }
+            $f['blocked'] = $isBlocked[$f['ip']];
+            $t = &$targets[$f['host_id']];
+            $t ??= $f['host'] + ['hits' => 0, 'sev' => 0, 'sources' => [], 'out' => false];
+            $t['hits'] += $f['hits'];
+            $t['sev'] = max($t['sev'], $f['sev']);
+            $t['sources'][$f['ip']] = true;
+            $t['out'] = $t['out'] || $f['dir'] === 'o';
+            unset($t, $f['host']);
+            $lines[] = $f;
+        }
+        foreach ($targets as &$t) {
+            $t['nsources'] = count($t['sources']);
+            unset($t['sources']);
+        }
+        unset($t);
+        usort($lines, static fn($a, $b) => $b['hits'] <=> $a['hits']);
+        $targets = array_values($targets);
+        usort($targets, static fn($a, $b) => [$b['sev'], $b['hits']] <=> [$a['sev'], $a['hits']]);
+        foreach ($countries as &$c) {
+            $c['ips'] = count($c['ips']);
+        }
+        unset($c);
+        usort($countries, static fn($a, $b) => $b['hits'] <=> $a['hits']);
+        $allTargets = [];
+        foreach ($flows as $f) {
+            $allTargets[$f['host_id']] = true;
+        }
+        $nBlocked = count(array_filter($shown, static fn($s) => $s['blocked']));
+        asort($hostList);
+        $cs = array_keys($ccList);
+        sort($cs);
+        return [
+            'days' => $days,
+            'home' => IpIntel::allowedCountries()[0] ?? 'NL',   // waar je eigen netwerk op de wereldkaart staat
+            'kpi' => [
+                'attacks' => array_sum(array_column($flows, 'hits')), 'lines' => count($flows), 'crit' => count(array_filter($flows, static fn($f) => $f['sev'] >= 2)),
+                'sources' => count($src), 'countries' => count(array_filter(array_column($countries, 'cc'), static fn($c) => $c !== 'LAN' && $c !== '??')),
+                'internal' => count(array_filter($src, static fn($s) => $s['internal'])), 'targets' => count($allTargets),
+                'multi' => count(array_filter($shown, static fn($s) => $s['ntargets'] > 1)), 'blocked' => $nBlocked, 'shown' => count($shown),
+                'out' => count(array_filter($src, static fn($s) => $s['out'])),
+            ],
+            'sources' => $shown,
+            'rest' => ['n' => count($rest), 'hits' => array_sum(array_column($rest, 'hits'))],
+            'targets' => $targets,
+            'lines' => $lines,
+            'countries' => $countries,
+            'recent' => $recent,
+            'filters' => ['hosts' => array_map(static fn($id, $n) => ['id' => $id, 'name' => $n], array_keys($hostList), $hostList), 'ccs' => $cs],
+        ];
     }
 
     /**

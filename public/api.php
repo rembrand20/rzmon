@@ -1182,7 +1182,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure' => 'user',
@@ -1195,7 +1195,7 @@ $isAdmin = has_role($user, 'admin');
 I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
-if ($method === 'GET' && in_array($action, ['home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
+if ($method === 'GET' && in_array($action, ['home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
     'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview', 'incidents', 'incident_info', 'report',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();
@@ -4736,6 +4736,11 @@ switch ($action) {
 
     case 'weblog_status':
         out(WebLog::status());
+
+    case 'ids_flows':   // 1.149.0: aanvalskaart
+        out(Ids::flows(['days' => (int) ($_GET['days'] ?? 1), 'host' => (int) ($_GET['host'] ?? 0), 'cc' => strtoupper(mb_substr((string) ($_GET['cc'] ?? ''), 0, 3)),
+            'cat' => preg_replace('/[^a-z]/', '', (string) ($_GET['cat'] ?? '')), 'dir' => in_array($_GET['dir'] ?? '', ['i', 'o'], true) ? $_GET['dir'] : '',
+            'top' => (int) ($_GET['top'] ?? 10)]));
 
     case 'ip_timeline':
         $ip = trim((string) ($_GET['ip'] ?? ''));
