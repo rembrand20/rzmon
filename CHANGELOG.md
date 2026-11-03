@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.144.0**: het dashboard begint met wat je **nu moet doen**, op één **urgentie**; elke server heeft een **risico** van 0–100, en IDS-meldingen die bij elkaar horen worden **één incident** met stappen.
 - **1.143.0**: **Content-Security-Policy** op alle pagina's en wachtwoorden met **Argon2id**, zonder dat inloggen verandert.
 
+## 1.147.1 – 2026-11-03
+### Opgelost
+- De agenttest in GitHub Actions controleert de compressie nu ook op kale systemen, waar een rapport kleiner is dan 2 kB.
+- **Nieuwe agent 1.73.1** (alleen een instelling voor die test).
+
 ## 1.147.0 – 2026-11-03
 ### Nieuw
 - **Gecomprimeerde rapporten** van agents (agent 1.73.0 nodig): RzMon pakt ze uit (ook versleuteld) en laat agents weten dat het kan. Hooguit 64 MB uitgepakt; een kapot of te groot ("zip-bom") rapport wordt geweigerd.

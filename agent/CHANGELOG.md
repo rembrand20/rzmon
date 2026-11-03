@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.73.1 – 2026-11-03
+- De grens voor comprimeren (standaard 2 kB) is in te stellen met `COMPRESS_MIN` (bytes). Voor de test in GitHub Actions; voor je servers verandert er niets.
+
 ## 1.73.0 – 2026-11-03
 - **Gecomprimeerde rapporten** (RzMon 1.147.0): een rapport groter dan 2 kB gaat met gzip, vóór het versleutelen; meestal 50–85% kleiner. Alleen als RzMon laat weten dat hij het kan; weigert hij het, dan gaat het volgende weer gewoon. Uitzetten: `COMPRESS=0`.
 - **Opgelost**: processen op de achtergrond (de hartslag, commando's, pakketupdates, zelf bijwerken) hielden de vergrendeling van de agent vast. De volgende run wachtte dan en sloeg zichzelf soms stil over; bij een lange pakketupdate zonder systemd (bv. de Home Assistant-add-on) kon de agent zo minuten "stil" lijken.

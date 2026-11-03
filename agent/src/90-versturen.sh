@@ -37,9 +37,10 @@ if command -v iconv >/dev/null 2>&1; then
 fi
 # Agent 1.73.0: comprimeren (gzip) als RzMon dat kan (dat zei hij in zijn vorige antwoord: "gz":1, RzMon 1.147.0+) en
 # het rapport groter is dan 2 kB. Vóór het versleutelen: versleutelde gegevens zijn niet meer te comprimeren, en zo valt
-# de gecomprimeerde inhoud ook onder de handtekening. RzMon herkent het aan de eerste bytes. Uitzetten: COMPRESS=0.
+# de gecomprimeerde inhoud ook onder de handtekening. RzMon herkent het aan de eerste bytes. Uitzetten: COMPRESS=0;
+# de grens (bytes) is COMPRESS_MIN (de test zet hem laag, want in een kale container is een rapport klein).
 body_file=$payload_file; gz_sent=0
-if [ -e "$t_dir/gz.ok" ] && [ "${COMPRESS:-1}" != 0 ] && command -v gzip >/dev/null 2>&1 && [ "$(wc -c <"$payload_file")" -gt 2048 ]; then
+if [ -e "$t_dir/gz.ok" ] && [ "${COMPRESS:-1}" != 0 ] && command -v gzip >/dev/null 2>&1 && [ "$(wc -c <"$payload_file")" -gt "${COMPRESS_MIN:-2048}" ]; then
     if gzip -c -6 <"$payload_file" >"$payload_file.z" 2>/dev/null && [ -s "$payload_file.z" ]; then
         body_file="$payload_file.z"; gz_sent=1
     fi

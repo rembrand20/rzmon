@@ -50,7 +50,7 @@ rc=$?
 if command -v gzip >/dev/null 2>&1; then
     rm -f "$work/payload.json" "$work/gz.size"
     MONITOR_URL="http://127.0.0.1:$port" TOKEN=ci-test RZ_FORCE=1 CACHE_DIRECTORY="$work/cache" AGENT_DIR="$work/agent" \
-        HEAL_DIR="$work/heal.d" IDS_BLOCK=0 PODMAN=0 timeout 300 bash agent/rzmon-agent.sh >"$work/out" 2>&1
+        HEAL_DIR="$work/heal.d" IDS_BLOCK=0 PODMAN=0 COMPRESS_MIN=100 timeout 300 bash agent/rzmon-agent.sh >"$work/out" 2>&1
     if [ ! -s "$work/gz.size" ] || ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$work/payload.json" 2>/dev/null; then
         echo "✘ tweede rapport niet gecomprimeerd of geen geldige JSON"; tail -n 20 "$work/out"; exit 1
     fi
