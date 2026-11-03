@@ -9674,7 +9674,7 @@ const SYSINFO_ROWS = [
   [L('Inloggen'), [['login_ok', '🔑 ' + L('Ingelogd')], ['login_fail', '❌ ' + L('Mislukte login')], ['server_login', '🖥️ ' + L('Login op een server, van binnen (SSH of console)')]]],
   [L('Blokkades'), [['account_lock', '🔒 ' + L('Account geblokkeerd')], ['account_unlock', '🔓 ' + L('Account gedeblokkeerd')],
     ['ip_block', '⛔ ' + L('IP geblokkeerd')], ['ip_unblock', '✅ ' + L('Blokkade opgeheven')]]],
-  [L('Kwetsbaarheden'), [['vuln_new', '🐞 ' + L('Nieuwe kwetsbaarheden')], ['vuln_upgrade', '📦 ' + L('Pakketten bijgewerkt of mislukt')]]],
+  [L('Kwetsbaarheden'), [['vuln_new', '🐞 ' + L('Nieuwe kwetsbaarheden')], ['vuln_upgrade', '📦 ' + L('Pakketten bijgewerkt of mislukt')], ['advice_crit', '🚨 ' + L('Kritiek advies (wereldwijd bekende kwetsbaarheid)')]]],
   [L('Beveiliging'), [['cert', '🔐 ' + L('Certificaat verloopt binnenkort')], ['breach', '🔓 ' + L('Datalek (zonder wachtwoorden of eerste controle)')],
     ['local_only', '🏠 ' + L('Inlogpoging van buiten op een lokaal account')], ['sec', '⚠️ ' + L('Niet-geautoriseerde verbinding')]]],
   [L('Onzichtbaar van buiten'), [['device_request', '⏳ ' + L('Geweigerd apparaat van buiten (wachtend)')], ['device_trust', '📱 ' + L('Apparaat toegestaan of ingetrokken')], ['passkey', '🔑 ' + L('Passkey aangemaakt of verwijderd')],
@@ -11260,10 +11260,207 @@ let anPeriod = (() => { try { return localStorage.getItem('rzmon-an-period') || 
 let anData = null;
 const AN_PERIODS = [['1d', () => L('24 uur')], ['7d', () => L('7 dagen')], ['30d', () => L('30 dagen')], ['90d', () => L('90 dagen')], ['365d', () => L('1 jaar')]];
 
+// ---------------------------------------------------------------- 1.155.0: Analyse en advies
+// Slimme analyses (Insights): elk advies combineert gegevens uit agent, CVE-scan, IDS, netwerkscan en checks, met het
+// bewijs, de stappen en (voor beheerders) een knop om het meteen te regelen. Daaronder de analyses in tabbladen.
+let iaData = null, iaAn = null, iaFilter = 'open';
+let iaTab = (() => { try { return localStorage.getItem('rzmon-an-tab') || 'attacks'; } catch (e) { return 'attacks'; } })();
+const iaOpen = new Set();
+const IA_DOM = { access: ['🔑', () => L('Toegang en SSH')], exposure: ['🌐', () => L('Blootstelling van buiten')], vulns: ['🐞', () => L('Kwetsbaarheden en updates')],
+  detect: ['🛡️', () => L('Detectie en reactie')], network: ['📡', () => L('Netwerk en apparaten')], recovery: ['💾', () => L('Herstel en monitoring')] };
+const IA_SEV = [['t-mu', () => L('LAAG')], ['t-wa', () => L('MIDDEL')], ['t-cr', () => L('HOOG')]];
+const IA_EFF = { click: () => L('1 KLIK'), 5: () => L('5 MIN'), 10: () => L('10 MIN'), 15: () => L('15 MIN'), 30: () => L('30 MIN'), 60: () => L('1 UUR+') };
+const IA_ST = { done: () => L('Gemeld als gedaan'), later: () => L('Later'), na: () => L('Niet van toepassing') };
+const iaScoreCls = (s) => (s >= 85 ? 'ok' : s >= 65 ? 'warn' : 'crit');
+
+async function iaLoad() {
+  const days = { '1d': 7, '7d': 7, '30d': 30, '90d': 90, '365d': 90 }[anPeriod] || 30;
+  try { [iaData, iaAn] = await Promise.all([api('insights'), api('insight_analyses', null, { days })]); } catch (ex) { iaData = { error: ex.message }; }
+}
+
+/** De lijst die nu getoond wordt (filter bovenaan) */
+function iaShown() {
+  const all = iaData.advices || [];
+  const vis = (a) => !a.status || a.status === 'done';
+  if (iaFilter === 'open') return all.filter(vis);
+  if (iaFilter === 'new') return all.filter((a) => vis(a) && a.new);
+  if (iaFilter === 'quick') return all.filter((a) => vis(a) && (a.effort === 'click' || +a.effort <= 5));
+  if (iaFilter === 'hidden') return all.filter((a) => a.status === 'later' || a.status === 'na');
+  return all.filter((a) => vis(a) && a.dom === iaFilter);
+}
+
+function iaTop() {
+  const d = iaData, s = d.score, cls = iaScoreCls(s);
+  const open = (d.advices || []).filter((a) => !a.status || a.status === 'done');
+  const quick = open.filter((a) => a.effort === 'click' || +a.effort <= 5).slice(0, 5);
+  const after = Math.min(100, s + quick.reduce((t, a) => t + a.gain, 0));
+  const r = 54, C = 2 * Math.PI * r;
+  const hist = (d.history || []).map((h) => h.total);
+  const domBars = Object.keys(IA_DOM).map((k) => {
+    const v = d.domains[k] ?? 100, n = open.filter((a) => a.dom === k).length, worst = open.find((a) => a.dom === k);
+    return `<button type="button" class="ia-dom ${iaFilter === k ? 'on' : ''}" data-ia-filter="${k}"><span class="ia-dom-h"><b>${IA_DOM[k][0]} ${esc(IA_DOM[k][1]())}</b>
+      <span><b class="ia-v ${iaScoreCls(v)}">${v}</b>${n ? ` <span class="muted small">· ${esc(L('{n} adviezen', { n }))}</span>` : ''}</span></span>
+      <span class="ia-meter"><i class="${iaScoreCls(v)}" style="width:${v}%"></i></span><span class="muted small ia-dom-s">${esc(worst ? worst.title : L('Niets te doen'))}</span></button>`;
+  }).join('');
+  return `<div class="ia-top">
+    <div class="cc-card cc-score ia-score ${cls}"><svg width="132" height="132" viewBox="0 0 132 132" aria-hidden="true"><circle cx="66" cy="66" r="${r}" class="cc-ring-bg"/>
+        <circle cx="66" cy="66" r="${r}" class="cc-ring" stroke-dasharray="${(C * s / 100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 66 66)"/>
+        <text x="66" y="72" text-anchor="middle" class="cc-ring-n">${s}</text><text x="66" y="92" text-anchor="middle" class="cc-ring-s">${esc(L('veiligheid'))}</text></svg>
+      <div class="ia-score-t"><span class="cc-hl ${cls}">${esc(cls === 'ok' ? L('Goed beveiligd') : cls === 'warn' ? L('Redelijk · kan beter') : L('Kwetsbaar · nu aanpakken'))}</span>
+        <div>${esc(L('{n} open adviezen', { n: open.length }))}${open.filter((a) => a.sev === 2).length ? ` · <b class="crit-txt">${esc(L('{n} hoog risico', { n: open.filter((a) => a.sev === 2).length }))}</b>` : ''}</div>
+        ${quick.length && after > s ? `<div class="small">${L('Met de {n} snelste adviezen ga je naar <b>≈ {s}</b>.', { n: quick.length, s: after })}</div>` : ''}
+        ${hist.length > 1 ? `${afSpark(hist.slice(-60), 190, 34, '')}<span class="muted small">${esc(L('verloop van de score'))} · ${hist.length >= 2 ? (hist[hist.length - 1] - hist[0] >= 0 ? '↑ ' : '↓ ') + Math.abs(hist[hist.length - 1] - hist[0]) + ' ' + esc(L('punten')) : ''}</span>`
+          : `<span class="muted small">${esc(L('Het verloop verschijnt na een paar dagen (elke nacht bewaard)'))}</span>`}</div></div>
+    <div class="cc-card ia-doms"><div class="cc-h"><span class="cc-hl">${esc(L('Score per onderdeel'))}</span><span class="muted small">${esc(L('klik voor de adviezen van dat onderdeel'))}</span></div>
+      <div class="ia-domgrid">${domBars}</div></div></div>`;
+}
+
+function iaCard(a) {
+  const open = iaOpen.has(a.key);
+  const admin = iaData.admin;
+  const acts = (a.acts || []).map((x, i) => {
+    const lbl = { upgrade: '⬆ ' + (x.label ? L('Bijwerken op {h}', { h: x.label }) : L('Bijwerken via de agent')), cve: '🐞 ' + x.cve, ip: '🔎 ' + L('Alles over {ip}', { ip: x.ip }),
+      block: '⛔ ' + L('Blokkeren'), ids_block: '⛔ ' + L('Nu op Blokkeren zetten'), ids_on: L('IDS aanzetten'), set: '✔ ' + L('Nu aanzetten'), go: (x.label || L('Bekijken')) + ' →' }[x.k] || x.k;
+    return `<button type="button" class="btn small-btn ${i === 0 && ['upgrade', 'ids_block', 'set', 'block', 'ids_on'].includes(x.k) ? 'primary' : ''}" data-ia-act="${i}">${esc(lbl)}</button>`;
+  }).join('');
+  const cmds = (a.cmds || []).map(([l, c]) => `<div class="ia-cmd"><span class="small muted">${esc(l)}</span><pre>${esc(c)}</pre><button type="button" class="linkbtn small" data-ia-copy>${esc(L('Kopiëren'))}</button></div>`).join('');
+  const st = a.status ? `<span class="cc-tag ${a.status === 'done' ? 'ok' : ''}">${esc(IA_ST[a.status]())}</span>` : '';
+  const stBtns = a.status === 'later' || a.status === 'na' ? `<button type="button" class="btn small-btn" data-ia-st="open">${esc(L('Weer tonen'))}</button>`
+    : `<button type="button" class="btn small-btn" data-ia-st="done">✔ ${esc(L('Ik heb het gedaan'))}</button><button type="button" class="btn small-btn" data-ia-st="later">${esc(L('Later (7 dagen)'))}</button>
+       <button type="button" class="btn small-btn" data-ia-st="na">${esc(L('Niet van toepassing'))}</button>`;
+  return `<article class="ia s${a.sev} ${open ? 'open' : ''}" data-ia="${esc(a.key)}">
+    <button type="button" class="ia-head" data-ia-toggle aria-expanded="${open}"><i class="ia-bar s${a.sev}"></i>
+      <span class="ia-ttl"><b>${a.new ? `<span class="cc-tag warn">${esc(L('NIEUW'))}</span> ` : ''}${esc(a.title)}</b>
+        <small class="muted">${IA_DOM[a.dom][0]} ${esc(IA_DOM[a.dom][1]())}${a.host ? ' · ' + esc(a.host) : ''}${a.crit ? ' · 🚨 ' + esc(L('wereldwijd bekend, gemeld')) : ''}</small></span>
+      <span class="ia-tags"><span class="tag-s ${IA_SEV[a.sev][0]}">${esc(IA_SEV[a.sev][1]())}</span><span class="tag-s t-cy">${esc((IA_EFF[a.effort] || IA_EFF[30])())}</span><span class="tag-s t-ok">+${a.gain}</span>${st}</span>
+      <span class="ia-chev" aria-hidden="true">▾</span></button>
+    ${open ? `<div class="ia-body">
+      <div class="ia-why"><h4>${esc(L('Waarom (uit je gegevens)'))}</h4><ul>${a.why.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
+      <div class="ia-do"><h4>${esc(L('Wat te doen'))}</h4><p>${esc(a.do)}</p>${cmds}${a.note ? `<p class="small warn-txt">⚠ ${esc(a.note)}</p>` : ''}${a.check ? `<p class="small muted">${esc(L('Controleren'))}: <code>${esc(a.check)}</code></p>` : ''}</div>
+      <div class="ia-acts">${acts}<span class="ia-sp"></span>${a.status === 'done' ? `<span class="small warn-txt">${esc(L('RzMon ziet het nog; het verdwijnt vanzelf zodra het echt is opgelost.'))}</span>` : ''}${stBtns}</div>
+      ${!admin && (a.acts || []).length < 1 ? '' : ''}</div>` : ''}</article>`;
+}
+
+function iaList() {
+  const all = iaData.advices || [];
+  const vis = all.filter((a) => !a.status || a.status === 'done');
+  const chips = [['open', L('Alle'), vis.length], ['new', L('Nieuw'), vis.filter((a) => a.new).length], ['quick', L('Snelle winst'), vis.filter((a) => a.effort === 'click' || +a.effort <= 5).length],
+    ...Object.keys(IA_DOM).map((k) => [k, IA_DOM[k][0], vis.filter((a) => a.dom === k).length]), ['hidden', L('Verborgen'), all.filter((a) => a.status === 'later' || a.status === 'na').length]];
+  const list = iaShown();
+  if (!iaOpen.size && !iaList.done) { list.filter((a) => a.sev === 2).slice(0, 2).forEach((a) => iaOpen.add(a.key)); iaList.done = true; }
+  const res = iaData.resolved || [];
+  return `<section class="ia-sec"><div class="ia-sec-h"><div><h2>${esc(L('Adviezen'))}</h2><span class="muted small">${esc(L('belangrijkste eerst: risico, en winst per minuut werk · elk advies met het bewijs uit je eigen gegevens'))}</span></div>
+      <div class="dash-chips ia-chips">${chips.map(([k, l, n]) => `<button type="button" class="dchip ${iaFilter === k ? 'on' : ''}" data-ia-filter="${k}" title="${esc(IA_DOM[k] ? IA_DOM[k][1]() : l)}">${esc(l)} <b>${n}</b></button>`).join('')}</div></div>
+    ${list.length ? `<div class="ia-list">${list.map(iaCard).join('')}</div>` : `<p class="good-txt">✔ ${esc(iaFilter === 'open' ? L('Geen adviezen. Netjes!') : L('Niets in deze selectie.'))}</p>`}
+    ${res.length ? `<details class="ia-res"><summary>${esc(L('Opgelost in de laatste 30 dagen ({n})', { n: res.length }))}</summary><ul>${res.map((r) => `<li><span class="good-txt">✔</span> ${esc(r.title)}
+      <span class="muted small">· ${esc(fmtDateTime(r.at))} · +${r.gain}</span></li>`).join('')}</ul></details>` : ''}</section>`;
+}
+
+/** Analyses: aanvallen (wanneer, gebruikersnamen, werken de blokkades) en het aanvalsoppervlak per server */
+function iaAttacks(sec) {
+  const a = iaAn;
+  if (!a) return sec;
+  const max = Math.max(1, ...a.heat.flat());
+  const days = [L('ma'), L('di'), L('wo'), L('do'), L('vr'), L('za'), L('zo')];
+  const heat = `<div class="ia-heat" role="img" aria-label="${esc(L('Aanvallen per weekdag en uur'))}"><span></span>${Array.from({ length: 24 }, (_, h) => `<span class="ia-hh">${h % 3 ? '' : h}</span>`).join('')}
+    ${a.heat.map((row, d) => `<span class="ia-hd">${esc(days[d])}</span>${row.map((v, h) => `<i style="opacity:${v ? (0.12 + 0.88 * v / max).toFixed(2) : 0.05}" title="${esc(`${days[d]} ${h}:00 · ${v}`)}"></i>`).join('')}`).join('')}</div>`;
+  let peak = [0, 0, 0];
+  a.heat.forEach((row, d) => row.forEach((v, h) => { if (v > peak[2]) peak = [d, h, v]; }));
+  const users = a.users.length ? a.users.map((u) => `<div class="ia-u"><span class="mono">${esc(u.u)}</span><span class="ia-meter"><i class="${u.exists ? 'crit' : 'warn'}" style="width:${Math.min(100, u.pct * 2)}%"></i></span>
+      <span class="small">${esc(dec(u.pct))}%</span><span class="tag-s ${u.exists ? 't-cr' : 't-mu'}">${esc(u.exists ? L('BESTAAT') : L('NIET'))}</span></div>`).join('')
+    : `<p class="muted small">${esc(L('Nog geen losse SSH-pogingen (agent 1.74.0 en nieuwer).'))}</p>`;
+  const exist = a.users.filter((u) => u.exists).reduce((t, u) => t + u.pct, 0);
+  const b = a.blocks;
+  const ports = a.ports.length ? anHbars(a.ports.map((p) => ({ label: `${p.svc || L('poort')} ${p.port}`, v: p.n }))) : `<p class="muted small">${esc(L('Geen aanvallen in deze periode.'))}</p>`;
+  return anSec('⚔️', L('Aanvallen'), `<div class="an-grid">
+    ${anBox(L('Wanneer wordt er aangevallen'), heat + (peak[2] ? `<p class="small muted">${esc(L('Het drukst op {d} rond {h}:00 ({n} pogingen in dat uur).', { d: days[peak[0]], h: peak[1], n: peak[2] }))}</p>` : ''), '', true)}
+    ${anBox(L('Welke gebruikersnamen proberen ze'), users + (a.users.length ? `<p class="small muted">${esc(L('{p}% van de pogingen richt zich op accounts die bij jou bestaan.', { p: dec(exist.toFixed(0)) }))}</p>` : ''))}
+    ${anBox(L('Werken de blokkades?'), `<div class="an-stats"><div><b class="${b.drop !== null && b.drop >= 80 ? 'good-txt' : 'warn-txt'}">${b.drop === null ? '–' : (b.drop > 0 ? '−' : '') + Math.abs(b.drop) + '%'}</b><span>${esc(L('pogingen in het uur na een blokkade'))}</span></div>
+      <div><b>${b.ttb === null ? '–' : esc(anDur(b.ttb))}</b><span>${esc(L('van eerste poging tot blokkade (gem.)'))}</span></div><div><b class="${b.repeat ? 'warn-txt' : ''}">${b.repeat}</b><span>${esc(L('kwamen terug na hun blokkade'))}</span></div></div>`,
+      L('Vergelijkt de losse SSH-pogingen in het uur voor en na elke blokkade.'))}
+    ${anBox(L('Poorten onder vuur'), ports)}
+  </div>`) + sec;
+}
+
+function iaSurface() {
+  const s = (iaAn && iaAn.surface) || [];
+  if (!s.length) return anSec('🎯', L('Aanvalsoppervlak per server'), `<p class="muted">${esc(L('Nog geen servers met een agent die open poorten meldt.'))}</p>`);
+  return anSec('🎯', L('Aanvalsoppervlak per server'), `<p class="muted small">${esc(L('Per server de open poorten, de ergste kwetsbaarheid daarop, de aanvallen van buiten, de hardening-score en het risico.'))}</p><div class="table-wrap"><table class="small ia-surf"><thead><tr><th>${esc(L('Server'))}</th><th>${esc(L('Open poorten'))}</th><th>${esc(L('Ergste kwetsbaarheid'))}</th><th class="num">${esc(L('Aanvallen'))}</th><th class="num">${esc(L('Hardening'))}</th><th class="num">${esc(L('Risico'))}</th><th>${esc(L('Adviezen'))}</th></tr></thead><tbody>
+    ${s.map((h) => { const n = (iaData.advices || []).filter((x) => x.host_id === h.id && !x.status).length;
+      return `<tr><td><b>${esc(h.name)}</b></td><td class="mono">${h.ports.map((p) => `<span title="${esc(p.proc || '')}">${p.port}${p.out ? ' <span class="crit-txt">●</span>' : ''}</span>`).join(' ') || '–'}</td>
+      <td>${h.worst ? `<button type="button" class="linkbtn" data-ia-cve="${esc(h.worst.cve)}">${esc(h.worst.cve)}</button> ${urgPill(h.worst.risk, [], true)}${h.worst.kev ? ' ⚠️' : ''}` : '<span class="muted">–</span>'}</td>
+      <td class="num">${amN(h.attacks)}</td><td class="num">${h.hardening === null ? '–' : h.hardening}</td><td class="num">${urgPill(h.risk, [], true)}</td>
+      <td>${n ? `<button type="button" class="linkbtn" data-ia-host="${h.id}">${esc(L('{n} adviezen', { n }))}</button>` : `<span class="good-txt small">${esc(L('in orde'))}</span>`}</td></tr>`; }).join('')}
+  </tbody></table></div><p class="muted small"><span class="crit-txt">●</span> = ${esc(L('in deze periode van buiten aangevallen, dus bereikbaar vanaf internet'))}</p>`);
+}
+
+/** De hele pagina: score, adviezen, en de analyses als tabbladen (de bestaande onderdelen van Analyse blijven) */
+function iaRender(p) {
+  if (!iaData || iaData.error) return `${iaData && iaData.error ? `<p class="form-error">${esc(iaData.error)}</p>` : ''}${p.kpis}${p.qual}${p.rel}${p.cap}${p.sec}${p.net}${p.bk}${p.noise}`;
+  const tabs = [['attacks', '⚔️ ' + L('Aanvallen'), iaAttacks(p.sec)], ['surface', '🎯 ' + L('Blootstelling'), iaSurface()], ['rel', '🟢 ' + L('Betrouwbaarheid'), p.kpis + p.rel],
+    ['cap', '📈 ' + L('Capaciteit'), p.cap], ['net', '🌐 ' + L('Netwerk'), p.net], ['bk', '💾 ' + L('Back-ups'), p.bk], ['noise', '🔔 ' + L('Meldingen en ruis'), p.noise + p.qual]];
+  if (!tabs.some((t) => t[0] === iaTab)) iaTab = 'attacks';
+  return `${iaTop()}${iaList()}
+    <section class="ia-sec"><div class="ia-sec-h"><div><h2>${esc(L('Analyses'))}</h2><span class="muted small">${esc(L('de patronen achter de adviezen'))}</span></div>
+      <div class="seg ia-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" class="seg-btn ${k === iaTab ? 'active' : ''}" role="tab" aria-selected="${k === iaTab}" data-ia-tab="${k}">${esc(l)}</button>`).join('')}</div></div>
+      <div class="ia-pane">${tabs.find((t) => t[0] === iaTab)[2]}</div></section>`;
+}
+
+/** Klikken in het advies-deel (één keer gekoppeld aan #an-body) */
+function iaClick(e) {
+  const t = e.target.closest('[data-ia-filter], [data-ia-toggle], [data-ia-st], [data-ia-act], [data-ia-copy], [data-ia-tab], [data-ia-cve], [data-ia-host]');
+  if (!t) return false;
+  e.preventDefault();
+  const card = t.closest('[data-ia]'), key = card && card.dataset.ia, adv = key && (iaData.advices || []).find((a) => a.key === key);
+  if (t.dataset.iaFilter) { iaFilter = iaFilter === t.dataset.iaFilter && t.dataset.iaFilter !== 'open' ? 'open' : t.dataset.iaFilter; renderAnalytics(); return true; }
+  if (t.dataset.iaTab) { iaTab = t.dataset.iaTab; try { localStorage.setItem('rzmon-an-tab', iaTab); } catch (ex) { /* alleen nu */ } renderAnalytics(); return true; }
+  if (t.dataset.iaCve) { vulnDetail(t.dataset.iaCve); return true; }
+  if (t.dataset.iaHost) { iaFilter = 'open'; const h = (iaData.advices || []).find((a) => a.host_id === +t.dataset.iaHost); if (h) iaOpen.add(h.key); renderAnalytics(); $('.ia-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return true; }
+  if (t.dataset.iaToggle !== undefined && key) { iaOpen.has(key) ? iaOpen.delete(key) : iaOpen.add(key); renderAnalytics(); return true; }
+  if (t.dataset.iaCopy !== undefined) { const pre = t.parentElement.querySelector('pre'); navigator.clipboard?.writeText(pre.textContent).then(() => toast(L('Gekopieerd')), () => {}); return true; }
+  if (t.dataset.iaSt && key) {
+    api('insight_set', { key, status: t.dataset.iaSt }).then(async () => {
+      toast({ done: L('Gemarkeerd als gedaan; RzMon controleert het zelf'), later: L('7 dagen verborgen'), na: L('Verborgen: niet van toepassing'), open: L('Weer zichtbaar') }[t.dataset.iaSt]);
+      await iaLoad(); renderAnalytics();
+    }).catch((ex) => toast(ex.message, 'err'));
+    return true;
+  }
+  if (t.dataset.iaAct !== undefined && adv) iaAction(adv, adv.acts[+t.dataset.iaAct]);
+  return true;
+}
+
+/** Een knop van een advies: altijd met bevestiging als er iets verandert */
+function iaAction(a, x) {
+  if (!x) return;
+  const done = async (msg) => { toast(msg); await iaLoad(); renderAnalytics(); };
+  if (x.k === 'go') { if (x.go.startsWith('check:')) checkInfo(x.go.slice(6)); else showTab(x.go); return; }
+  if (x.k === 'cve') return vulnDetail(x.cve);
+  if (x.k === 'ip') return amDetail(x.ip);
+  if (x.k === 'block') return blockDialog(x.ip);
+  if (x.k === 'upgrade') return vulnUpgrade({ id: x.host_id, name: x.label || a.host || '?' }, x.pkgs);
+  if (x.k === 'ids_block' || x.k === 'ids_on') {
+    return modal({
+      title: '⛔ ' + (x.k === 'ids_on' ? L('IDS aanzetten') : L('IDS: blokkeren aanzetten')),
+      body: `<div style="padding:1rem 1.2rem"><p style="margin-top:0">${L('RzMon gaat dan echt IP-adressen blokkeren op je servers (eigen nftables-tabel van de agent), bij brute force en als jij op ⛔ klikt. Je LAN, RzMon zelf en de lijst <i>Nooit blokkeren</i> worden nooit automatisch geblokkeerd; op TrueNAS wordt alleen gedetecteerd.')}</p>
+        ${x.k === 'ids_block' ? confirmField('BLOKKEREN') : ''}</div>`,
+      buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: x.k === 'ids_on' ? L('IDS aanzetten') : L('Blokkeren aanzetten'), cls: 'primary', submit: true }],
+      onSubmit: async (d) => { await api('ids_set', x.k === 'ids_on' ? { enabled: true } : { mode: 'block', confirm: d.confirm }); await done(L('Gedaan')); },
+    });
+  }
+  if (x.k === 'set') {
+    return modal({
+      title: a.title, body: `<div style="padding:1rem 1.2rem"><p style="margin-top:0">${esc(a.do)}</p><p class="muted small">${esc(L('Dit verandert een instelling van RzMon en komt in het wijzigingslogboek, waar je het kunt terugdraaien.'))}</p></div>`,
+      buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Nu aanzetten'), cls: 'primary', submit: true }],
+      onSubmit: async () => { await api('settings_save', { [x.name]: x.value }); await done(L('Instelling aangepast')); },
+    });
+  }
+}
+
 function initAnalytics() {
   $('#an-period').onclick = (e) => { const b = e.target.closest('[data-anp]'); if (b) { anPeriod = b.dataset.anp; try { localStorage.setItem('rzmon-an-period', anPeriod); } catch (ex) { /* alleen nu */ } loadAnalytics(); } };
   $('#an-go').onclick = () => { const f = $('#an-from').value, t = $('#an-to').value; if (f && t && f <= t) { anPeriod = `${f}..${t}`; loadAnalytics(); } };
   $('#an-body').onclick = (e) => {
+    if (iaClick(e)) return;   // 1.155.0: adviezen en tabbladen
     const g = e.target.closest('[data-an-go]');
     if (!g) return;
     const go = g.dataset.anGo;
@@ -11282,7 +11479,7 @@ function initAnalytics() {
 async function loadAnalytics(fresh = false) {
   $('#an-period').innerHTML = AN_PERIODS.map(([k, l]) => `<button type="button" class="dchip ${anPeriod === k ? 'on' : ''}" data-anp="${k}">${l()}</button>`).join('');
   $('#an-info').textContent = '⏳';
-  try { anData = await api('analytics', null, { period: anPeriod, ...(fresh ? { fresh: 1 } : {}) }); } catch (ex) { $('#an-body').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  try { [anData] = await Promise.all([api('analytics', null, { period: anPeriod, ...(fresh ? { fresh: 1 } : {}) }), iaLoad()]); } catch (ex) { $('#an-body').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   renderAnalytics();
 }
 
@@ -11501,7 +11698,8 @@ function renderAnalytics() {
         : `<p class="good-txt small">✔ ${L('Geen checks die met slimme drempels meer ruis gaven.')}</p>`)}
     </div>`);
   }
-  $('#an-body').innerHTML = kpis + todo + qual + rel + cap + sec + net + bk + noise;
+  void todo;   // 1.155.0: "Wat nu aanpakken" is vervangen door de adviezen
+  $('#an-body').innerHTML = iaRender({ kpis, qual, rel, cap, sec, net, bk, noise });
 }
 
 // ---------------------------------------------------------------- Netwerk (1.103.0)

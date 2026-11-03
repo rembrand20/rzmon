@@ -230,12 +230,54 @@ Op **📊 Analyse**, direct na *Wat nu aanpakken*:
 
 Je meldregels tellen mee: met *melden na 10 minuten* haal je 5 minuten nooit (dat is dan je eigen keuze). Zelf herstellen en stiltes van agents worden bijgehouden vanaf 1.146.0; daarvoor is er nog niets.
 
+### Analyse en advies 📊 (vanaf 1.155.0)
+Vanaf 1.155.0 draait de pagina **Analyse** om advies: wat kun je veranderen om je netwerk veiliger te maken, en waarom. RzMon combineert daarvoor de gegevens van de agents, de CVE-scan, het IDS, de netwerkscan, de checks en je instellingen. Een advies verschijnt alleen als er bewijs voor is in je eigen gegevens.
+
+**Bovenaan** de **veiligheidsscore** (0–100) met het verloop (elke nacht bewaard) en een score per onderdeel: 🔑 *Toegang en SSH*, 🌐 *Blootstelling van buiten*, 🐞 *Kwetsbaarheden en updates*, 🛡️ *Detectie en reactie*, 📡 *Netwerk en apparaten* en 💾 *Herstel en monitoring*. Elk onderdeel begint op 100; een open advies kost 18 (hoog), 8 (middel) of 2 (laag) punten. De totaalscore is het gemiddelde. Klik op een onderdeel voor zijn adviezen.
+
+**Adviezen**, de belangrijkste eerst (risico, en daarna winst per minuut werk). Elk advies heeft:
+- **risico** (hoog, middel, laag), **moeite** (*1 klik*, 5 minuten …) en **winst** in punten;
+- **Waarom (uit je gegevens)**: het bewijs, bijvoorbeeld *"sshd luistert op poort 22 · geïnstalleerd openssh-server 1:9.6p1-3ubuntu13, opgelost in …13.3 · CVE-2024-6387 (CVSS 8,1, kans op misbruik 94%) · poort 22 is 617 keer van buiten aangevallen · 3 servers hangen af van deze server"*;
+- **Wat te doen**, met de commando's voor die server (apt, dnf of apk) en een knop **Kopiëren**;
+- voor beheerders een knop om het meteen te regelen: **bijwerken via de agent**, **blokkeren**, het **IDS op Blokkeren**, **gedeelde blokkades aan** of een **langere blokkade bij herhaling**. Altijd met een bevestiging; een instelling komt in het wijzigingslogboek;
+- **Ik heb het gedaan**, **Later (7 dagen)** of **Niet van toepassing** (telt dan niet meer mee in de score). Dit geldt voor iedereen; RzMon onthoudt wie het aangaf. *Gedaan* blijft zichtbaar tot RzMon zelf ziet dat het is opgelost; dan staat het onder **Opgelost in de laatste 30 dagen**. Komt het later terug, dan is het weer open.
+
+**Wat RzMon zelf herkent** (elke 15 minuten opnieuw berekend):
+
+| Analyse | Combineert |
+|---|---|
+| **Kwetsbare dienst** | open poort (agent) → programma → pakket en versie → CVE en opgelost-in → aanvallen van buiten → afhankelijke servers |
+| **Belangrijke kwetsbaarheid** (ook *Nieuw*) | CVE's die actief misbruikt worden (CISA KEV), kritiek met kans op misbruik, of net op de KEV-lijst gekomen; over al je servers samen |
+| **Updates lopen achter / herstart nodig** | updates die al meer dan 2 weken klaarstaan, nieuwe kernel nog niet in gebruik, diensten met oude bestanden |
+| **Besturingssysteem zonder ondersteuning** | Debian, Ubuntu, Rocky, Alma, RHEL, CentOS, Alpine en Fedora met hun einddatum (ook 120 dagen vooraf) |
+| **Hardening** | SSH met wachtwoorden of root, lege wachtwoorden, firewall, automatische updates, open databases, Docker-socket …, met het bewijs uit de aanvallen (mislukte pogingen, pogingen op root, of iedereen al een sleutel gebruikt) |
+| **Van buiten bereikbaar** | SSH, RDP, SMB, databases, Proxmox … die van buiten worden aangevallen, met landen en aandeel |
+| **Verdachte login** | een SSH-login uit een land buiten je toegestane landen, met een wachtwoord, of vlak na een brute-force-aanval uit hetzelfde netwerk |
+| **IDS** | IDS uit of op Leren, gedeelde blokkades uit terwijl aanvallers meerdere servers proberen, aanvallers die terugkomen na hun blokkade |
+| **Nieuwe open poort** | een poort op een server of netwerkapparaat die er de afgelopen dagen bij kwam (de eerste twee dagen leert RzMon wat er al open staat) |
+| **Apparaat belt naar buiten** | verbindingen naar bekende aanvallers; bij een camera of slim apparaat het advies voor een apart netwerk (VLAN) |
+| **Netwerkapparaten** | riskante poorten (telnet, SMB …) en nog niet beoordeelde apparaten |
+| **Verouderde software zonder agent** | wat een dienst bij de netwerkscan over zichzelf vertelt (bijvoorbeeld `SSH-2.0-OpenSSH_7.4` of `Server: Boa/0.94`), vergeleken met veilige versies |
+| **Niet bewaakt** | webdiensten die worden aangevallen zonder SSL-check, servers zonder diskcheck |
+| **Agents en RzMon** | stille of oude agents, beheerders zonder tweestapsverificatie |
+| **Herstel** | disks die vollopen, guests zonder back-up, mislukte heartbeats, geen back-up van RzMon, checks met vals alarm |
+| **Trend** | flink meer aanvallen dan de week ervoor |
+
+**Melding**: een advies over een kwetsbaarheid die **wereldwijd bekend en kritiek** is, krijg je ook via je kanalen (Pushover, e-mail …). Dat geldt voor een CVE die actief misbruikt wordt (CISA KEV), of een CVE met CVSS 9 of hoger en een kans op misbruik (EPSS) van 50% of meer, alleen als er een update is en als die een server van jou raakt. Je krijgt de melding één keer per advies. Aan of uit bij *Meldingen → Systeemmeldingen → Kritiek advies*.
+
+**Analyses**, als tabbladen onder de adviezen:
+- **⚔️ Aanvallen**: wanneer er wordt aangevallen (per weekdag en uur), welke gebruikersnamen ze proberen en of die bij jou bestaan, of de blokkades werken (pogingen in het uur voor en na een blokkade, tijd tot de blokkade, terugkomers), de poorten onder vuur, en de cijfers van vroeger (mislukte logins, IDS en blokkades per dag, landen, IP's, logins, kwetsbaarheden, hardening).
+- **🎯 Blootstelling**: per server de open poorten (● = van buiten aangevallen), de ergste kwetsbaarheid, de aanvallen, de hardening-score, het risico en het aantal adviezen.
+- **🟢 Betrouwbaarheid**, **📈 Capaciteit**, **🌐 Netwerk**, **💾 Back-ups** en **🔔 Meldingen en ruis**: zoals hieronder beschreven.
+
+De **netwerkscan** leest vanaf 1.155.0 ook de eerste regel die SSH, FTP, SMTP en POP3/IMAP over zichzelf sturen (alleen lezen, nooit inloggen), voor de analyse van apparaten zonder agent.
+
 ### Analyse 📊 (vanaf 1.106.0)
 Het tabblad **📊 Analyse** laat zien hoe het over langere tijd gaat, en wat je het best als eerste aanpakt. Alleen **beheerders en gebruikers** zien het; een account met de rol *alleen lezen* niet.
 
 - **Periode** bovenaan: *24 uur, 7 dagen, 30 dagen, 90 dagen, 365 dagen* of eigen datums (*Van* / *Tot en met* → **Toon**). De keuze wordt per apparaat onthouden. Elk cijfer wordt vergeleken met de **periode ervoor van dezelfde lengte** (▲/▼); is er van die periode nog niets bekend, dan staat er *geen vorige periode*.
 - **Kerncijfers**: beschikbaarheid, storingen (een check die naar critical ging), gemiddelde hersteltijd, meldingen, IDS-incidenten (critical) en een **score** (100 min de punten voor wat er in *Wat nu aanpakken* staat: veel voor rood, minder voor oranje).
-- **🎯 Wat nu aanpakken**: een lijst met concrete punten, de belangrijkste eerst. Bijvoorbeeld een disk die binnen 30 dagen vol is (of al 90%), een Proxmox-guest zonder (recente) back-up of in geen enkele back-uptaak, een check die steeds wisselt, een server onder 99% bereikbaar, een apparaat met een riskante poort open, nieuwe apparaten die je nog niet beoordeeld hebt, kwetsbaarheden waarvoor een update is, een lage hardening-score, open IDS-incidenten, een heartbeat die te laat is, en een oude back-up van RzMon zelf. Klik op een punt en RzMon springt naar de plek waar je het oplost.
+- **🎯 Wat nu aanpakken** (tot 1.155.0; nu de adviezen hierboven): een lijst met concrete punten, de belangrijkste eerst. Bijvoorbeeld een disk die binnen 30 dagen vol is (of al 90%), een Proxmox-guest zonder (recente) back-up of in geen enkele back-uptaak, een check die steeds wisselt, een server onder 99% bereikbaar, een apparaat met een riskante poort open, nieuwe apparaten die je nog niet beoordeeld hebt, kwetsbaarheden waarvoor een update is, een lage hardening-score, open IDS-incidenten, een heartbeat die te laat is, en een oude back-up van RzMon zelf. Klik op een punt en RzMon springt naar de plek waar je het oplost.
 - **Betrouwbaarheid**: beschikbaarheid per dag en per server (de slechtste bovenaan, met hoeveel minuten onbereikbaar), **wanneer het misgaat** (storingen per weekdag en uur: een donker vakje dat steeds terugkomt wijst op iets geplands), de lastigste checks, responstijden en herstarts.
 - **Capaciteit**: wanneer disks vol zijn, CPU en RAM per server (gemiddeld en piek), de grootste Proxmox-guests en de groei van het aantal servers en checks.
 - **Beveiliging**: mislukte logins, IDS-incidenten en blokkades per dag, waar aanvallen vandaan komen, de meest actieve IP's en meest aangevallen servers, logins op je servers (van buiten, 's nachts), kwetsbaarheden en de hardening-score per server.

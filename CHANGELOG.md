@@ -8,11 +8,31 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.155.0**: **Analyse en advies**: slimme analyses die je gegevens combineren tot concreet advies met bewijs (zoals een verouderde dienst met een actief misbruikte CVE op een poort die van buiten wordt aangevallen), een veiligheidsscore per onderdeel en een melding bij kritieke, wereldwijd bekende lekken.
 - **1.154.0**: het **Command center**, een tweede dashboard met alles in één oogopslag (SSH-logins en -blokkades, de toppers, wie er inlogt, de monitoring), zelf in te delen en met een TV-modus.
 - **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
 - **1.152.0**: **Attack Flow** in de aanvalskaart (aanvaller → doelwit → dienst → afloop, bewezen en vermoed uit elkaar, af te spelen), een betere popup per IP, en alle **SSH-sessies** met duur.
-- **1.151.0**: de pagina *Gezondheid* is opgedeeld over **Systeem**: *Database en server* (met de tabbladen Database en Server) en de nieuwe pagina **Prestaties en fouten**.
 - **1.149.0**: nieuwe **🗺️ Aanvalskaart** in IDS: wie valt wat aan, via welke poort, en is het geblokkeerd, als stromen met bewegende lijnen en op een wereldkaart; ook als kaartje op het dashboard.
+
+## 1.155.0 – 2026-11-03
+### Nieuw
+- **Analyse en advies** (*📊 Analyse*): de pagina draait nu om advies om je netwerk veiliger te maken. RzMon combineert de gegevens van agents, CVE-scan, IDS, netwerkscan, checks en instellingen tot adviezen, steeds met het bewijs uit je eigen gegevens.
+  - **Slimme analyses**, onder andere:
+    - een **kwetsbare dienst** (open poort → programma → pakket en versie → CVE met opgelost-in → aanvallen van buiten → afhankelijke servers);
+    - een **belangrijke of nieuwe CVE** (actief misbruikt, kritiek met kans op misbruik);
+    - **updates die achterlopen** of een herstart nodig hebben, en **besturingssystemen zonder ondersteuning**;
+    - **hardening** met het bewijs uit de aanvallen, en **diensten die van buiten bereikbaar** zijn;
+    - **verdachte logins** (ander land, wachtwoord, vlak na brute force);
+    - het **IDS** (leren, gedeelde blokkades, terugkomende aanvallers);
+    - **nieuwe open poorten**, **apparaten die naar buiten bellen**, **riskante poorten** en **verouderde software op apparaten zonder agent**;
+    - **niet bewaakte diensten**, **agents**, **beheerders zonder tweestapsverificatie**, **herstel** (back-ups, disks, ruis) en een **trend** van de aanvallen.
+  - **Veiligheidsscore** per onderdeel (toegang, blootstelling, kwetsbaarheden, detectie, netwerk, herstel), met het verloop (elke nacht bewaard).
+  - Elk advies met **risico, moeite en winst**, de **commando's** voor die server, en voor beheerders een **knop om het te regelen** (bijwerken via de agent, blokkeren, IDS op blokkeren, gedeelde blokkades, blokkeerduur), altijd met bevestiging.
+  - **Status**: *Ik heb het gedaan*, *Later (7 dagen)* of *Niet van toepassing*. RzMon ziet zelf wanneer iets is opgelost (*Opgelost in de laatste 30 dagen*).
+  - **Analyses** als tabbladen: **Aanvallen** (wanneer, welke gebruikersnamen en of ze bestaan, werken de blokkades, poorten onder vuur), **Blootstelling** (aanvalsoppervlak per server), en de bestaande onderdelen betrouwbaarheid, capaciteit, netwerk, back-ups en ruis.
+- **Melding bij een kritiek advies** (*Meldingen → Systeemmeldingen → Kritiek advies*): alleen voor een kwetsbaarheid die actief misbruikt wordt (CISA KEV), of met CVSS ≥ 9 en een kans op misbruik van 50% of meer, met een update, op een server van jou. Eén keer per advies.
+- De **netwerkscan** leest de eerste regel die SSH, FTP en mail over zichzelf sturen (alleen lezen), zodat RzMon ook bij apparaten zonder agent verouderde software ziet.
+- De database krijgt de tabellen `insight_state`, `insight_score` en `insight_seen`; dat gebeurt vanzelf bij de update.
 
 ## 1.154.0 – 2026-11-03
 ### Nieuw

@@ -1145,6 +1145,37 @@ ok($cc['sec']['ssh_login']['n'] >= 1 && $cc['sec']['ssh_login']['new_ips'] >= 1 
     && $cc['mon']['fails']['n'] >= 5 && in_array($cck, array_column($cc['mon']['most_failed'], 'id'), true) && in_array($cck, array_column($cc['mon']['fired'], 'id'), true)
     && $cc['seen']['logins'] >= 1 && $cc['seen']['crit'] >= 1 && CommandCenter::data('nonsense')['period'] === 'today',
     'Command center: SSH-logins met nieuw IP, mislukte pogingen, sudo, top-blokkade, checks uitgevoerd en fout, meldingen per check, sinds je laatste bezoek');
+// 1.155.0: Analyse en advies: open poort → pakket → CVE (KEV) → advies met melding; banner van een apparaat zonder agent; status en "opgelost"
+q("UPDATE hosts SET mode = 'agent' WHERE id = ?", [$fa]);
+q("INSERT INTO vuln_inventory (host_id, mgr, os_id, os_version, os_name, ecosystem, hash, packages, exposed, updated_at) VALUES (?, 'dpkg', 'debian', '10', 'Debian 10', 'Debian:10', 'x', '[]', '[[\"openssh-server\",22,\"tcp\"]]', NOW())
+   ON DUPLICATE KEY UPDATE exposed = VALUES(exposed), os_id = VALUES(os_id), os_version = VALUES(os_version)", [$fa]);
+q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'ports', '[{\"port\":22,\"addr\":\"0.0.0.0\",\"proc\":\"sshd\"}]', NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value)", [$fa]);
+q("INSERT INTO vuln_findings (host_id, package, version, source, vuln_id, cve, fixed_version, first_seen, notified) VALUES (?, 'openssh-server', '1:9.2p1-2', 'openssh', 'DEBIAN-CVE-2099-0001', 'CVE-2099-0001', '1:9.2p1-2+deb12u3', NOW(), 1)", [$fa]);
+q("INSERT INTO vuln_cve (cve, severity, cvss, epss, kev, kev_added) VALUES ('CVE-2099-0001', 4, 9.8, 0.9, 1, CURDATE()) ON DUPLICATE KEY UPDATE kev = 1");
+save_setting('net_scan', '1');
+$vulnWas = (string) setting('vuln_enabled', '0');
+save_setting('vuln_enabled', '1');
+q("INSERT INTO net_devices (mac, ip, kind, status, ports, info, first_seen, last_seen) VALUES ('aa:bb:cc:00:11:22', '192.0.2.77', 'camera', 'known', '[22,80]',
+   '{\"banners\":{\"22\":\"SSH-2.0-OpenSSH_7.4\"},\"http\":{\"port\":80,\"server\":\"Boa/0.94.14rc21\"}}', NOW(), NOW())");
+$ins = Insights::compute();
+$byKey = array_column($ins, null, 'key');
+$vs = $byKey["vuln_service|$fa|openssh-server"] ?? null;
+$bn = array_values(array_filter($ins, fn($x) => str_starts_with($x['key'], 'banner|aa:bb:cc:00:11:22')));
+ok($vs && $vs['sev'] === 2 && $vs['crit'] && str_contains(implode(' ', $vs['why']), '1:9.2p1-2+deb12u3') && str_contains(implode(' ', $vs['why']), 'poort 22')
+    && !isset($byKey['vuln_important|CVE-2099-0001']) && isset($byKey["eol|$fa"]) && count($bn) === 2,
+    'analyse: kwetsbare dienst (poort → pakket → CVE met KEV, opgelost-in), niet nog eens als losse CVE; Debian 10 zonder ondersteuning; verouderde OpenSSH en Boa op een apparaat zonder agent');
+$ins1 = Insights::page();
+Insights::setStatus("eol|$fa", 'na', 'ci');
+$ins2 = Insights::page();
+q("DELETE FROM vuln_findings WHERE cve = 'CVE-2099-0001'");
+save_setting('insight_at', '0');
+Insights::cron();
+$res = (string) q('SELECT resolved_at FROM insight_state WHERE k = ?', ["vuln_service|$fa|openssh-server"])->fetchColumn();
+$notified = (string) q('SELECT notified_at FROM insight_state WHERE k = ?', ["vuln_service|$fa|openssh-server"])->fetchColumn();
+ok($ins2['domains']['vulns'] > $ins1['domains']['vulns'] && $res !== '' && $ins1['score'] >= 0 && !Insights::setStatus('x', 'kapot', 'ci') && $notified === '',
+    'analyse: "niet van toepassing" telt niet in de score; na de update is het advies opgelost; onbekende status geweigerd');
+save_setting('net_scan', '0');
+save_setting('vuln_enabled', $vulnWas);
 $ie = AttackFlow::ipEvents('198.51.100.23', 1);
 $kinds = array_count_values(array_column($ie['rows'], 'k'));
 ok(($kinds['fail'] ?? 0) === 2 && ($kinds['block'] ?? 0) === 1 && ($kinds['inc'] ?? 0) === 1 && $ie['counts']['fails'] === 2 && count($ie['blocks']) === 1

@@ -377,6 +377,7 @@ final class NetScan
             }
         }
         $http = self::httpTitles($ports);
+        $banners = self::banners($ports);   // 1.155.0: wat een dienst over zichzelf vertelt (versie), voor de analyse
         $gw = self::gateway();
         foreach ($rows as $r) {
             $ip = $r['ip'];
@@ -392,6 +393,11 @@ final class NetScan
             }
             if (isset($http[$ip])) {
                 $info['http'] = $http[$ip];
+            }
+            if (isset($banners[$ip])) {
+                $info['banners'] = $banners[$ip];
+            } else {
+                unset($info['banners']);
             }
             $info['gateway'] = $ip === $gw;
             $p = $ports[$ip] ?? [];
@@ -561,6 +567,34 @@ final class NetScan
     }
 
     /** Titel van de webpagina (http/https, 2 s, alles tegelijk) */
+    /**
+     * 1.155.0: de eerste regel die SSH, FTP, SMTP en POP3/IMAP uit zichzelf sturen (bijvoorbeeld "SSH-2.0-OpenSSH_7.4").
+     * Alleen lezen, nooit inloggen; hooguit 1,5 seconde per poort. @return array<string, array<int, string>>
+     */
+    private static function banners(array $ports): array
+    {
+        $out = [];
+        foreach ($ports as $ip => $p) {
+            foreach ([22, 2222, 21, 25, 587, 110, 143] as $port) {
+                if (!in_array($port, $p, true)) {
+                    continue;
+                }
+                $fp = @fsockopen((str_contains((string) $ip, ':') ? "[$ip]" : (string) $ip), $port, $errno, $err, 1.5);
+                if (!$fp) {
+                    continue;
+                }
+                stream_set_timeout($fp, 1, 500000);
+                $line = (string) fgets($fp, 256);
+                fclose($fp);
+                $line = trim((string) preg_replace('/[^\x20-\x7e]/', '', $line));
+                if ($line !== '') {
+                    $out[$ip][$port] = mb_substr($line, 0, 120);
+                }
+            }
+        }
+        return $out;
+    }
+
     private static function httpTitles(array $ports): array
     {
         $mh = curl_multi_init();

@@ -149,6 +149,14 @@ try {
 Perf::lap('netwerkscan');
 // Analyse (1.106.0): dagtotalen elk uur bijwerken, en het maandrapport op de 1e van de maand
 try {
+    // 1.155.0: slimme analyses (elke 15 minuten), kritieke CVE's melden, de score per dag
+    try {
+        if ($msg = Insights::cron()) {
+            echo date('c') . " $msg\n";
+        }
+    } catch (Throwable $e) {
+        fwrite(STDERR, 'Analyse en advies: ' . $e->getMessage() . "\n");
+    }
     if ($msg = Analytics::cron()) {
         echo date('c') . " $msg\n";
     }

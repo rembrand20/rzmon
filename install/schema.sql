@@ -1187,3 +1187,31 @@ CREATE TABLE IF NOT EXISTS ssh_events (
     INDEX idx_sshe_at (at),
     CONSTRAINT fk_sshe_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.155.0: Analyse en advies. Per advies (vaste sleutel): wanneer het verscheen, de status die iemand gaf, wanneer het
+-- vanzelf verdween (opgelost) en of de kritieke melding al is verstuurd. Plus de score per dag en wanneer een poort
+-- voor het eerst open stond (om nieuwe poorten te herkennen).
+CREATE TABLE IF NOT EXISTS insight_state (
+    k           VARCHAR(190) NOT NULL PRIMARY KEY,
+    title       VARCHAR(250) NULL,
+    sev         TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    dom         VARCHAR(12) NOT NULL DEFAULT '',
+    status      VARCHAR(8) NULL,
+    status_by   VARCHAR(100) NULL,
+    status_at   DATETIME NULL,
+    later_until DATETIME NULL,
+    first_seen  DATETIME NOT NULL,
+    last_seen   DATETIME NOT NULL,
+    resolved_at DATETIME NULL,
+    notified_at DATETIME NULL,
+    INDEX idx_insight_resolved (resolved_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS insight_score (
+    day     DATE NOT NULL PRIMARY KEY,
+    total   TINYINT UNSIGNED NOT NULL,
+    domains VARCHAR(300) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS insight_seen (
+    k          VARCHAR(190) NOT NULL PRIMARY KEY,
+    first_seen DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

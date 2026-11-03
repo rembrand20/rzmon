@@ -1183,10 +1183,10 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure' => 'user',
+    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1196,7 +1196,7 @@ $isAdmin = has_role($user, 'admin');
 I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
-if ($method === 'GET' && in_array($action, ['home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
+if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
     'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview', 'incidents', 'incident_info', 'report',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();
@@ -4086,6 +4086,24 @@ switch ($action) {
             $period = '30d';
         }
         out(Analytics::cached($period, !empty($_GET['fresh'])) + ['report_monthly' => Analytics::reportOn(), 'mail' => setting('email_enabled', '0') === '1' && setting('mail_to', '') !== '']);
+
+    case 'insights':   // 1.155.0: Analyse en advies
+        $r = Insights::page();
+        if (!$isAdmin) {
+            foreach ($r['advices'] as &$a) {
+                $a['acts'] = array_values(array_filter($a['acts'], static fn($x) => in_array($x['k'], ['go', 'cve', 'ip'], true)));
+            }
+            unset($a);
+        }
+        out($r + ['admin' => $isAdmin]);
+
+    case 'insight_analyses':
+        out(Insights::analyses((int) ($_GET['days'] ?? 30)));
+
+    case 'insight_set':
+        $in = input();
+        Insights::setStatus((string) ($in['key'] ?? ''), (string) ($in['status'] ?? ''), (string) $user['username'])
+            ? out(['ok' => true]) : out(['error' => t('Ongeldig advies of status')], 422);
 
     case 'home':   // 1.134.0: het Dashboard: alles samen (monitoring, IDS, CVE's, netwerk)
         $hd = Home::data(has_role($user, 'user'), (string) ($_GET['period'] ?? '7d'), !empty($_GET['fresh']));
