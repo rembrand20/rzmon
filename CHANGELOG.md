@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.154.0**: het **Command center**, een tweede dashboard met alles in één oogopslag (SSH-logins en -blokkades, de toppers, wie er inlogt, de monitoring), zelf in te delen en met een TV-modus.
 - **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
 
+## 1.157.1 – 2026-11-03
+### Nieuw
+- 
+
 ## 1.157.0 – 2026-11-03
 ### Nieuw
 - **Check Internet** (*Instellingen → Monitoring → Internet*, met één klik toe te voegen): je internetlijn, gemeten vanaf de server van RzMon.

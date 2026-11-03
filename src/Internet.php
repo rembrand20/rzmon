@@ -377,10 +377,10 @@ final class Internet
         return $h;
     }
 
-    /** @return array{0: ?float, 1: ?string} pingtijd naar de testserver (beste van 3, eerste antwoord) en de locatie (uit cf-ray) */
+    /** @return array{0: float, 1: ?string} pingtijd naar de testserver (beste van 3, eerste antwoord) en de locatie (uit cf-ray) */
     private static function latency(string $base): array
     {
-        $best = null;
+        $best = INF;
         $colo = null;
         for ($i = 0; $i < 3; $i++) {
             $h = self::curl($base . '/__down?bytes=0');
@@ -399,10 +399,10 @@ final class Internet
             }
             // Eerste antwoord min het opzetten van de verbinding: zo goed als de pingtijd
             $ms = (curl_getinfo($h, CURLINFO_STARTTRANSFER_TIME) - curl_getinfo($h, CURLINFO_APPCONNECT_TIME) ?: curl_getinfo($h, CURLINFO_STARTTRANSFER_TIME)) * 1000;
-            $best = $best === null ? $ms : min($best, $ms);
+            $best = min($best, $ms);
             curl_close($h);
         }
-        return [$best !== null ? round($best, 1) : null, $colo];
+        return [round($best, 1), $colo];
     }
 
     /** @return array{0: float, 1: int} Mbit/s en het aantal bytes */
@@ -410,26 +410,25 @@ final class Internet
     {
         $cap = self::capBytes();
         $block = random_bytes(65536);
-        $total = 0;
+        $st = (object) ['total' => 0, 'stop' => false];   // gedeeld met de callbacks van curl
         $t0 = microtime(true);
         $mark = null;   // [tijd, bytes] na de opwarmtijd
-        $stop = false;
         $mh = curl_multi_init();
-        $add = static function () use ($mh, $base, $dir, $block, &$total, &$stop) {
+        $add = static function () use ($mh, $base, $dir, $block, $st) {
             $sent = 0;
             $done = 0;
             if ($dir === 'down') {
                 $h = self::curl($base . '/__down?bytes=' . self::CHUNK);
-                curl_setopt($h, CURLOPT_WRITEFUNCTION, static function ($h, string $d) use (&$total, &$stop): int {
-                    $total += strlen($d);
-                    return $stop ? 0 : strlen($d);
+                curl_setopt($h, CURLOPT_WRITEFUNCTION, static function ($h, string $d) use ($st): int {
+                    $st->total += strlen($d);
+                    return $st->stop ? 0 : strlen($d);
                 });
             } else {
                 $h = self::curl($base . '/__up');
                 curl_setopt_array($h, [CURLOPT_UPLOAD => true, CURLOPT_CUSTOMREQUEST => 'POST', CURLOPT_INFILESIZE => self::CHUNK,
                     CURLOPT_HTTPHEADER => ['Content-Type: application/octet-stream', 'Expect:'], CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_READFUNCTION => static function ($h, $fd, int $len) use ($block, &$sent, &$stop): string {
-                        if ($stop) {
+                    CURLOPT_READFUNCTION => static function ($h, $fd, int $len) use ($block, &$sent, $st): string {
+                        if ($st->stop) {
                             return '';
                         }
                         $n = min($len, strlen($block), self::CHUNK - $sent);
@@ -437,10 +436,10 @@ final class Internet
                         return $n > 0 ? substr($block, 0, $n) : '';
                     },
                     // Tellen wat echt verstuurd is (niet wat in de buffer staat)
-                    CURLOPT_NOPROGRESS => false, CURLOPT_XFERINFOFUNCTION => static function ($h, $dt, $dn, $ut, int $un) use (&$total, &$stop, &$done): int {
-                        $total += max(0, $un - $done);   // $done: wat deze verbinding al had verstuurd
+                    CURLOPT_NOPROGRESS => false, CURLOPT_XFERINFOFUNCTION => static function ($h, $dt, $dn, $ut, int $un) use ($st, &$done): int {
+                        $st->total += max(0, $un - $done);   // $done: wat deze verbinding al had verstuurd
                         $done = max($done, $un);
-                        return $stop ? 1 : 0;
+                        return $st->stop ? 1 : 0;
                     }]);
             }
             curl_multi_add_handle($mh, $h);
@@ -454,41 +453,41 @@ final class Internet
             while ($info = curl_multi_info_read($mh)) {
                 $h = $info['handle'];
                 $code = (int) curl_getinfo($h, CURLINFO_HTTP_CODE);
-                if ($info['result'] !== CURLE_OK && !$stop) {
+                if ($info['result'] !== CURLE_OK && !$st->stop) {
                     $errors[] = curl_error($h) ?: 'curl ' . $info['result'];
                 } elseif ($code >= 400) {
                     $errors[] = 'HTTP ' . $code;
                 }
                 curl_multi_remove_handle($mh, $h);
                 curl_close($h);
-                if (!$stop && count($errors) < 3) {
+                if (!$st->stop && count($errors) < 3) {
                     $add();
                 }
             }
             $el = microtime(true) - $t0;
             if ($mark === null && $el >= self::WARMUP) {
-                $mark = [$el, $total];
+                $mark = [$el, $st->total];
             }
-            if ($el >= self::MAX_SECONDS || $total >= $cap) {
-                $stop = true;
+            if ($el >= self::MAX_SECONDS || $st->total >= $cap) {
+                $st->stop = true;
             }
-            if (count($errors) >= 3 && $total === 0) {
+            if (count($errors) >= 3 && $st->total === 0) {
                 break;
             }
             if ($running) {
                 curl_multi_select($mh, 0.1);
             }
-        } while (!$stop || $running);
+        } while (!$st->stop || $running);
         $el = microtime(true) - $t0;
         curl_multi_close($mh);
-        if ($total === 0) {
+        if ($st->total === 0) {
             throw new RuntimeException(($dir === 'down' ? t('download') : t('upload')) . ': ' . ($errors[0] ?? t('geen gegevens')));
         }
         // Na de opwarmtijd meten; was het meeste toen al binnen (heel snelle lijn of kleine test), dan alles
-        $mbit = $mark !== null && $el - $mark[0] >= 1.0 && $mark[1] < $total * 0.7
-            ? ($total - $mark[1]) * 8 / ($el - $mark[0]) / 1e6
-            : $total * 8 / max(0.001, $el) / 1e6;
-        return [round($mbit, 1), $total];
+        $mbit = $mark !== null && $el - $mark[0] >= 1.0 && $mark[1] < $st->total * 0.7
+            ? ($st->total - $mark[1]) * 8 / ($el - $mark[0]) / 1e6
+            : $st->total * 8 / max(0.001, $el) / 1e6;
+        return [round($mbit, 1), $st->total];
     }
 
     /** Snelheidstesten van de laatste dagen (voor de grafiek), oudste eerst */
