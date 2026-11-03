@@ -312,7 +312,7 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
   - De lay-out geldt ook voor **Meldingen**: in L1nes een tabel met één regel per melding (tijd, status, server, check, bericht en kanalen; **Small:** het bericht ingekort, klik erop voor het hele bericht; **Large:** het hele bericht). In **Blox Small** één regel per melding (op de telefoon twee); **Large:** zoals altijd. De instellingen hebben sinds 1.60.0 een eigen, vaste opmaak (zie hieronder).
 
 ### Accountmenu, Mijn account en Instellingen (vanaf 1.60.0)
-**Zijbalk** (vanaf 1.135.0): op een breed scherm staat het menu links onder elkaar (Dashboard, Monitoring, Meldingen, IDS, Kwetsbaarheden, Analyse, Netwerk), met onderaan **Instellingen** (beheerders), zoeken (Ctrl+K) en je account. Op een smaller scherm staan de tabbladen bovenaan, op de telefoon in de balk onderaan.
+**Zijbalk** (vanaf 1.135.0): op een breed scherm staat het menu links onder elkaar (Dashboard, Monitoring, Meldingen, IDS, Kwetsbaarheden, Analyse, Netwerk), met onderaan **Instellingen** (beheerders), zoeken (Ctrl+K) en je account. Op een smaller scherm staan de tabbladen bovenaan, op de telefoon in de balk onderaan. Met **« Inklappen** onderaan (vanaf 1.150.0) wordt de zijbalk smal: alleen de iconen, met de tellers erbij en de naam als je een icoon aanwijst; **» Uitklappen** maakt hem weer breed. RzMon onthoudt dat per gebruiker (op elk apparaat). Het accountmenu (je naam onderaan) zweeft boven de pagina en past altijd helemaal.
 
 **Thema** (accountmenu → 🌓): *auto* (volgt je apparaat), *licht* of *donker*. Vanaf 1.135.0 wordt je keuze **per gebruiker** bewaard, dus op elk apparaat waarop je inlogt hetzelfde. Het donkere thema is diep marineblauw, als een controlekamer.
 

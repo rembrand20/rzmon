@@ -2352,3 +2352,28 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .am-facts { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: .35rem .8rem; margin: .8rem 0 0; font-size: .9rem; }
 .am-facts dt { color: var(--muted); } .am-facts dd { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .am-dots { animation: none; stroke-dasharray: none; stroke-opacity: .9; } }
+
+/* 1.150.0: zijbalk inklappen tot iconen; het accountmenu zweeft boven de zijbalk */
+.side-toggle { display: none; }
+.acct-menu.floating { position: fixed; top: auto; right: auto; z-index: 60; }
+@media (min-width: 1101px) {
+  .app-top .side-toggle { display: flex; align-items: center; gap: .6rem; width: 100%; padding: .45rem .75rem; border-radius: 10px; background: none; border: 0;
+    color: var(--muted); font: inherit; font-size: .84rem; cursor: pointer; }
+  .app-top .side-toggle:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+  .side-toggle svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+  body.side-mini:has(.app-top) { padding-left: 76px; }
+  .side-mini .topbar.app-top { width: 76px; padding: 1rem .55rem .8rem; overflow-x: hidden; }
+  .side-mini .app-top .brand { justify-content: center; padding: 0; }
+  .side-mini .app-top .brand .rz-word, .side-mini .app-top .brand .version { display: none; }
+  .side-mini .app-top .main-tabs .tab { justify-content: center; padding: .6rem 0; }
+  .side-mini .app-top .main-tabs .tab-lbl { display: none; }
+  .side-mini .app-top .main-tabs .tab-icw { position: relative; }
+  .side-mini .app-top .main-tabs .tab-badge { top: -7px; right: -11px; transform: none; font-size: .62rem; min-width: 1.05rem; padding: 0 .25rem; }
+  .side-mini .app-top .side-toggle { justify-content: center; padding: .45rem 0; }
+  .side-mini .app-top .side-toggle-lbl, .side-mini .app-top .cmdk-kbd, .side-mini .app-top .acct-name, .side-mini .app-top .acct-caret { display: none; }
+  .side-mini .side-toggle svg { transform: scaleX(-1); }
+  .side-mini .app-top .cmdk-btn { justify-content: center; padding: .5rem 0; }
+  .side-mini .app-top .acct-btn { justify-content: center; padding: .25rem 0; }
+  .side-mini .dash-counters { margin-left: -1.25rem; }
+}
+@media (min-width: 1101px) and (prefers-reduced-motion: reduce) { .side-toggle svg { transition: none; } }

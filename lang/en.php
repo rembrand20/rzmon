@@ -6282,4 +6282,7 @@ return [
     'alles geblokkeerd' => 'all blocked',
     'nog geen algemene sleutel, en niet alle agents hebben een eigen sleutel' => 'no shared key yet, and not all agents have their own key',
     'alle agents versleuteld met hun eigen sleutel' => 'all agents encrypted with their own key',
+    'Zijbalk inklappen tot iconen' => 'Collapse the sidebar to icons',
+    'Zijbalk uitklappen' => 'Expand the sidebar',
+    'Uitklappen' => 'Expand',
 ];

@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.150.0**: de **zijbalk klapt in** tot alleen iconen (per gebruiker onthouden), en het accountmenu past weer helemaal.
 - **1.149.0**: nieuwe **🗺️ Aanvalskaart** in IDS: wie valt wat aan, via welke poort, en is het geblokkeerd, als stromen met bewegende lijnen en op een wereldkaart; ook als kaartje op het dashboard.
 - **1.148.0**: rustigere instellingen: geen gele uitlegbalken meer; wat aandacht nodig heeft staat in een **oranje balk** bovenaan, met een bolletje bij de kaart waar het over gaat.
 - **1.147.0**: agents sturen hun rapport **gecomprimeerd** (meestal 50–85% kleiner) en de agent is opgebouwd uit **modules**; twee fouten waardoor een agent soms een run oversloeg of zijn foutmeldingen kwijtraakte, zijn opgelost.
 - **1.146.0**: per server het **aanvalspad** (open poorten, kwetsbaarheden, afhankelijke servers), **doelen** (melding binnen 5 minuten, agents rapporteren) en of zelf herstellen, blokkades en slimme drempels **echt werken**; het rapport begint met één overzichtspagina.
-- **1.145.0**: RzMon is nu open source onder **GPL-3.0**, met een `SECURITY.md` (lekken melden, threat model, de signing-sleutel) en strengere controles in GitHub Actions.
+
+## 1.150.0 – 2026-11-03
+### Nieuw
+- **Zijbalk inklappen**: onderaan de zijbalk staat **« Inklappen**. Daarna zie je alleen de iconen (met de tellers, zoals bij IDS en Incidenten); wijs een icoon aan voor de naam. **» Uitklappen** maakt hem weer breed. RzMon onthoudt je keuze per gebruiker, op elk apparaat. Op een tablet en telefoon verandert er niets.
+### Opgelost
+- **Accountmenu** (je naam onderaan de zijbalk): het menu was breder dan de zijbalk en werd afgekapt, met een schuifbalk eronder; *Thema* en *Taal* vielen half weg. Het menu zweeft nu boven de pagina en past altijd helemaal, ook met de zijbalk ingeklapt.
 
 ## 1.149.3 – 2026-11-03
 ### Opgelost

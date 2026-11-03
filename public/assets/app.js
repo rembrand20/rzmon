@@ -981,6 +981,7 @@ function init() {
   showTab(location.hash.slice(1) || 'home');   // 1.134.0: het Dashboard is de startpagina
 
   initAccountMenu();
+  initSideToggle();
   initSettingsNav();
   initCmdk();
   if ($('#advice-run')) $('#advice-run').onclick = async (e) => {
@@ -8140,8 +8141,20 @@ function isAdmin() { return document.body.dataset.role === 'admin'; }
 function initAccountMenu() {
   const btn = $('#acct-btn'), menu = $('#acct-menu');
   if (!btn) return;
-  const open = (on) => { menu.hidden = !on; btn.setAttribute('aria-expanded', on); };
+  const open = (on) => {
+    menu.hidden = !on;
+    btn.setAttribute('aria-expanded', on);
+    // 1.150.0: in de zijbalk zweeft het menu erboven (anders werd het afgekapt door de smalle, scrollende zijbalk)
+    const side = window.matchMedia('(min-width: 1101px)').matches;
+    menu.classList.toggle('floating', on && side);
+    if (on && side) {
+      const r = btn.getBoundingClientRect();
+      menu.style.left = `${Math.max(8, r.left)}px`;
+      menu.style.bottom = `${Math.max(8, window.innerHeight - r.top + 6)}px`;
+    } else { menu.style.left = ''; menu.style.bottom = ''; }
+  };
   btn.onclick = (e) => { e.stopPropagation(); open(menu.hidden); };
+  window.addEventListener('resize', () => { if (!menu.hidden) open(false); });
   document.addEventListener('click', (e) => { if (!menu.hidden && !e.target.closest('#acct')) open(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { open(false); btn.focus(); } });
   menu.addEventListener('click', async (e) => {
@@ -8161,6 +8174,28 @@ function initAccountMenu() {
     }
   });
   markTheme();
+}
+// ---------------------------------------------------------------- Zijbalk inklappen tot iconen (1.150.0), per gebruiker onthouden
+function initSideToggle() {
+  const b = $('#side-toggle');
+  if (!b) return;
+  const set = (mini, save) => {
+    document.body.classList.toggle('side-mini', mini);
+    b.setAttribute('aria-expanded', String(!mini));
+    b.title = mini ? L('Zijbalk uitklappen') : L('Zijbalk inklappen tot iconen');
+    $('.side-toggle-lbl', b).textContent = mini ? L('Uitklappen') : L('Inklappen');
+    // Ingeklapt: de naam bij het aanwijzen (en voor schermlezers)
+    $$('#main-tabs .tab').forEach((t) => {
+      const lbl = ($('.tab-lbl', t) || {}).textContent || '';
+      if (mini) { t.title = lbl.trim(); t.setAttribute('aria-label', lbl.trim()); } else { t.removeAttribute('title'); t.removeAttribute('aria-label'); }
+    });
+    const a = $('#acct-btn');
+    if (a) a.classList.toggle('mini', mini);
+    if (save) savePref('side', mini ? 'mini' : 'full');
+    requestAnimationFrame(() => moveTabIndicator(false));
+  };
+  set(PREFS.side === 'mini' || document.body.classList.contains('side-mini'), false);
+  b.onclick = () => set(!document.body.classList.contains('side-mini'), true);
 }
 function markTheme() {
   const cur = document.documentElement.dataset.theme || 'auto';
