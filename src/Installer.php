@@ -365,7 +365,7 @@ final class Installer
         }
         // Nieuw account: datalek-controle standaard aan (bestaande accounts houden hun instelling)
         q('INSERT INTO users (username, password_hash, role, hibp) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), pw_pwned_at = NULL, pw_must_change = 0', [
-            $username, password_hash($password, PASSWORD_DEFAULT), in_array($role, array_keys(ROLES), true) ? $role : 'admin',
+            $username, hash_password($password), in_array($role, array_keys(ROLES), true) ? $role : 'admin',
         ]);
     }
 

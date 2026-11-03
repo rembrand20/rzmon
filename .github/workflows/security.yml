@@ -1,0 +1,39 @@
+name: Beveiliging
+
+# 1.143.0: statische controle van de PHP-code (PHPStan), geen geheimen in de repo, en geen inline scripts zonder nonce
+# (die zou de Content-Security-Policy blokkeren).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: PHPStan, geheimen en CSP
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: sodium, curl, pdo_mysql, mbstring
+          tools: none
+          coverage: none
+      - name: Geen geheimen in de repo
+        run: bash tools/check-secrets.sh
+      - name: Geen inline scripts of event-handlers zonder nonce (CSP)
+        shell: bash
+        run: |
+          bad=0
+          # <script> zonder src en zonder nonce in de PHP-pagina's
+          if grep -nE '<script(>| [^>]*>)' public/*.php | grep -v 'src=' | grep -v 'nonce='; then bad=1; fi
+          # onclick=, onload= … in HTML of in de HTML die app.js en setup.js maken
+          if grep -nE '\son(click|change|input|submit|load|error|key[a-z]+|mouse[a-z]+|focus|blur)=["'"'"']' public/*.php public/assets/app.js public/assets/setup.js; then bad=1; fi
+          [ "$bad" = 0 ] && echo "✔ geen inline scripts zonder nonce" || { echo "::error title=CSP::inline script of event-handler gevonden (zie hierboven)"; exit 1; }
+      - name: PHPStan (niveau 0)
+        run: |
+          curl -fsSL -o /tmp/phpstan.phar https://github.com/phpstan/phpstan/releases/download/2.1.17/phpstan.phar
+          php /tmp/phpstan.phar analyse --no-progress --memory-limit=1G

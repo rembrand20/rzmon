@@ -7,6 +7,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.143.0 – 2026-11-03
+### Nieuw
+- **Beveiligingsheaders**: elke pagina krijgt een Content-Security-Policy (alleen de eigen scripts van RzMon, met een nonce), *nosniff*, een zuinige Referrer-Policy en geen toegang tot camera, microfoon of locatie. Insluiten in Home Assistant blijft werken; beperken kan met `frame_ancestors` in `config.php`, uitzetten (noodknop) met `'csp' => false`.
+- **Wachtwoorden met Argon2id**. Bestaande wachtwoorden blijven werken en worden bij je volgende login ongemerkt omgezet; je hoeft niets te doen.
+- **GitHub Actions**: nieuwe workflow *Beveiliging* met PHPStan, een controle op geheimen in de repo (`tools/check-secrets.sh`) en een controle op inline scripts zonder nonce.
+
+### Opgelost
+- Eén knop in het venster *Beveiliging van een server* (negeren) gebruikte een inline script; nu gewoon via de pagina zelf.
+
 ## 1.142.0 – 2026-11-03
 ### Nieuw
 - **Incidenten**: een nieuw tabblad met één lijst uit monitoring (een check die minstens 5 minuten critical is), IDS (critical) en kwetsbaarheden (actief misbruikt). Per incident een status (open, in behandeling, opgelost), een eigenaar, notities en een tijdlijn. Herstelt de bron, dan gaat het incident vanzelf naar opgelost.

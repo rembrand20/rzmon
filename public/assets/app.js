@@ -6609,7 +6609,7 @@ async function hostSecDialog(hostId) {
       ${d.items.length ? `<p class="muted small" style="margin-top:-.3rem">${L('Klik op een punt voor uitleg, hoe je het controleert en hoe je het dichtzet.')}</p>
         <div class="hard-list">${d.items.map((i, n) => { const hp = i.help || {}; return `<details class="hard-item ${i.ignored ? 'muted' : ''}" ${i.ok === false && !i.ignored ? 'open' : ''}>
         <summary>${ic(i)} <b>${esc(i.title)}</b>${i.value ? ` <code>${esc(i.value)}</code>` : ''}
-          <label class="small need-admin hard-ign" onclick="event.stopPropagation()"><input type="checkbox" data-hard-ign="${esc(i.item)}" ${i.ignored ? 'checked' : ''}> ${L('negeren')}</label></summary>
+          <label class="small need-admin hard-ign"><input type="checkbox" data-hard-ign="${esc(i.item)}" ${i.ignored ? 'checked' : ''}> ${L('negeren')}</label></summary>
         <div class="hard-help">${hp.what ? `<p><b>${L('Wat is het?')}</b> ${esc(i.ok === true ? hp.why : hp.what + ' ' + hp.why)}</p>` : ''}
           ${hp.check ? `<div class="adv-cmd"><span class="small muted">${L('Controleren')}</span>${copyBox(`hard-chk-${n}`, hp.check)}</div>` : ''}
           ${i.ok !== true ? `<p><b>${L('Oplossen')}</b> ${esc(hp.fix || i.advice)}</p>${cmdList(hp.cmds || [], `hard-fix-${n}`)}` : `<p class="good small">✔ ${L('In orde; niets te doen.')}</p>`}
@@ -6632,6 +6632,7 @@ async function hostSecDialog(hostId) {
   });
   const body = $('#modal-form');
   wireCopy(body);
+  $$('.hard-ign', body).forEach((l) => l.addEventListener('click', (e) => e.stopPropagation()));   // 1.143.0: was een inline onclick (CSP)
   body.onchange = async (e) => {
     const c = e.target.closest('[data-hard-ign]');
     if (!c) return;

@@ -292,7 +292,10 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 - **Agent-servers:** daar zie je ook welke poorten luisteren, met procesnaam. Dat werkt ook voor poorten achter een firewall.
 
 ### Toegang en beveiliging
-- **Login:** inloggen met gebruikersnaam en wachtwoord (bcrypt). Pogingen worden afgeremd tegen brute force.
+- **Login:** inloggen met gebruikersnaam en wachtwoord. Pogingen worden afgeremd tegen brute force. Wachtwoorden worden opgeslagen met **Argon2id** (vanaf 1.143.0; bcrypt als PHP geen Argon2id heeft). Oude (bcrypt-)wachtwoorden blijven gewoon werken: bij je eerstvolgende login zet RzMon ze **ongemerkt** om. Je hoeft niets te doen.
+- **Beveiligingsheaders** (vanaf 1.143.0): elke pagina krijgt een **Content-Security-Policy**. Alleen de eigen scripts van RzMon mogen draaien (de paar ingebouwde scripts met een sleutel die per keer verschilt), geen plug-ins, en formulieren gaan alleen naar RzMon. Zo kan een ingeslopen stukje HTML (bv. in een checkbericht) geen script uitvoeren. Daarnaast *nosniff*, een zuinige *Referrer-Policy*, en geen toegang tot camera, microfoon of locatie.
+  - **Insluiten in Home Assistant** (paneel of webpagina-kaart) blijft werken. Wil je dat alleen jouw eigen sites RzMon mogen insluiten, zet dan in `config.php`: `'frame_ancestors' => "'self' https://ha.voorbeeld.nl",` (alleen `'self'` = nergens anders).
+  - **Noodknop:** werkt er na een update iets niet meer en vermoed je de CSP, zet dan in `config.php`: `'csp' => false,` en meld het. Inloggen zelf hangt er niet van af.
 - **Meerdere gebruikers**, elk met of zonder **tweestapsverificatie** (TOTP, met elke authenticator-app). Beheer en resetten via de instellingenpagina.
 - **Geen login op je lokale netwerk** (optioneel). Van buitenaf blijft de login nodig. Ga je met je telefoon van wifi naar 4G, dan word je automatisch uitgelogd.
 - **Reverse proxy:** ondersteuning voor Nginx Proxy Manager, Traefik en Cloudflare Tunnel, waarbij het echte bezoekers-IP alleen wordt vertrouwd van proxy's die je zelf instelt.

@@ -873,5 +873,18 @@ ok(str_contains($rep, '<h2>Incidenten</h2>') && str_contains($rep, 'inc-ping') &
     'rapport: losse HTML met samenvatting en incidenten, zonder scripts');
 q("DELETE FROM checks WHERE name IN ('inc-ping', 'inc-kort')");
 
+// 1.143.0: een oud (bcrypt-)wachtwoord werkt nog, en wordt bij het inloggen ongemerkt Argon2id; daarna werkt het ook
+require_once SM_ROOT . '/src/auth.php';
+$_SERVER['REMOTE_ADDR'] = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+q("DELETE FROM users WHERE username = 'ci-rehash'");
+q("INSERT INTO users (username, password_hash, role) VALUES ('ci-rehash', ?, 'user')", [password_hash('Oud-wachtwoord-1', PASSWORD_BCRYPT)]);
+$l1 = @login('ci-rehash', 'Oud-wachtwoord-1');
+$h1 = (string) q("SELECT password_hash FROM users WHERE username = 'ci-rehash'")->fetchColumn();
+$l2 = @login('ci-rehash', 'Oud-wachtwoord-1');
+$l3 = @login('ci-rehash', 'fout');
+ok($l1 === 'ok' && $l2 === 'ok' && $l3 === false && (!defined('PASSWORD_ARGON2ID') || str_starts_with($h1, '$argon2id$')) && password_verify('Oud-wachtwoord-1', hash_password('Oud-wachtwoord-1')),
+    'wachtwoord: oud bcrypt werkt, wordt bij inloggen Argon2id en werkt daarna nog; fout wachtwoord niet');
+q("DELETE FROM users WHERE username = 'ci-rehash'");
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

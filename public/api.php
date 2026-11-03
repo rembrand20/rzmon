@@ -1152,6 +1152,7 @@ $user = current_user();
 // Het CSRF-token van deze sessie gaat met elk antwoord mee (1.84.2). Is de sessie intussen vernieuwd (bv. na een
 // tijd stil opnieuw ingelogd via "onthoud mij", met een nieuw token), dan neemt de pagina het nieuwe over.
 header('X-CSRF-Token: ' . csrf_token());
+security_headers(false);   // 1.143.0: nosniff e.d. (geen HTML, dus geen CSP)
 if (!$user) {
     out(['error' => t('Niet ingelogd')], 401);
 }
@@ -2663,13 +2664,17 @@ switch ($action) {
         $until = $minutes > 0 ? date('Y-m-d H:i:s', time() + $minutes * 60) : null;
         $reason = mb_substr(trim((string) ($in['reason'] ?? '')), 0, 200) ?: null;
         $id = (int) ($in['id'] ?? 0);
-        match ($scope) {
-            'all' => [save_setting('maintenance_until', (string) $until), save_setting('maintenance_reason', (string) $reason)],
-            'host' => q('UPDATE hosts SET maintenance_until = ?, maintenance_reason = ? WHERE id = ?', [$until, $reason, $id]),
+        if ($scope === 'all') {
+            save_setting('maintenance_until', (string) $until);
+            save_setting('maintenance_reason', (string) $reason);
+        } elseif ($scope === 'host') {
+            q('UPDATE hosts SET maintenance_until = ?, maintenance_reason = ? WHERE id = ?', [$until, $reason, $id]);
+        } elseif ($scope === 'check') {
             // Handmatig ingesteld of beëindigd: niet (meer) automatisch
-            'check' => q('UPDATE checks SET maintenance_until = ?, maintenance_reason = ?, maintenance_auto = 0 WHERE id = ?', [$until, $reason, $id]),
-            default => out(['error' => t('Onbekend bereik')], 422),
-        };
+            q('UPDATE checks SET maintenance_until = ?, maintenance_reason = ?, maintenance_auto = 0 WHERE id = ?', [$until, $reason, $id]);
+        } else {
+            out(['error' => t('Onbekend bereik')], 422);
+        }
         out(['ok' => true, 'until' => $until]);
 
     case 'check_save':
@@ -3696,7 +3701,7 @@ switch ($action) {
             out(['error' => t('Dit wachtwoord staat ook in datalekken ({n}×). Kies een ander, bv. een zin van een paar woorden.', ['n' => I18n::lang() === 'en' ? number_format($n) : number_format($n, 0, ',', '.')])], 422);
         }
         q('UPDATE users SET password_hash = ?, pw_changed_at = ?, pw_must_change = 0, pw_pwned = ?, pw_pwned_at = ? WHERE id = ?',
-            [password_hash($new, PASSWORD_DEFAULT), now(), $n === null ? null : 0, $n === null ? null : now(), $user['id']]);
+            [hash_password($new), now(), $n === null ? null : 0, $n === null ? null : now(), $user['id']]);
         $_SESSION['auth_at'] = time();
         session_logout('user', (int) $user['id']);   // andere sessies en onthouden apparaten; deze blijft
         out(['ok' => true]);
@@ -4180,7 +4185,7 @@ switch ($action) {
         if (strlen((string) ($in['password'] ?? '')) < 8) {
             out(['error' => t('Wachtwoord moet minimaal 8 tekens zijn')], 422);
         }
-        q('UPDATE users SET password_hash = ?, pw_changed_at = ?, pw_must_change = 0 WHERE id = ?', [password_hash((string) $in['password'], PASSWORD_DEFAULT), now(), (int) ($in['id'] ?? 0)]);
+        q('UPDATE users SET password_hash = ?, pw_changed_at = ?, pw_must_change = 0 WHERE id = ?', [hash_password((string) $in['password']), now(), (int) ($in['id'] ?? 0)]);
         if ((int) ($in['id'] ?? 0) === $user['id']) {
             $_SESSION['auth_at'] = time();   // eigen account: deze sessie blijft
         }
@@ -4920,7 +4925,7 @@ switch ($action) {
             out(['error' => t('Nieuw wachtwoord moet minimaal 8 tekens zijn')], 422);
         }
         // Andere sessies van dit account worden uitgelogd (pw_changed_at); deze blijft
-        q('UPDATE users SET password_hash = ?, pw_changed_at = ?, pw_must_change = 0 WHERE id = ?', [password_hash((string) $in['new'], PASSWORD_DEFAULT), now(), $user['id']]);
+        q('UPDATE users SET password_hash = ?, pw_changed_at = ?, pw_must_change = 0 WHERE id = ?', [hash_password((string) $in['new']), now(), $user['id']]);
         $_SESSION['auth_at'] = time();
         // Eigen wachtwoord gewijzigd: alle andere sessies en onthouden apparaten weg (dit apparaat blijft)
         session_logout('user', (int) $user['id']);

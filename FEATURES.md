@@ -262,6 +262,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - **SBOM-export** per server (CycloneDX 1.5 met purl en kwetsbaarheden);
   - **risico accepteren** met een verplichte reden en een einddatum (daarna telt hij weer mee); ℹ️ info bij een nieuwe critical of actief misbruikte CVE; REST API (`/vulnerabilities`) en MQTT-sensoren;
   - ondersteund: Debian, Ubuntu, Rocky Linux, AlmaLinux (en RHEL/CentOS), Alpine.
+- **Webbeveiliging** (vanaf 1.143.0): Content-Security-Policy met nonce, nosniff, Referrer- en Permissions-Policy; wachtwoorden met Argon2id (bestaande ongemerkt omgezet bij inloggen); in GitHub Actions PHPStan, een geheimencontrole en een CSP-controle.
 - **Hulpdienst als root** voert alleen vaste taken uit. Hij weigert als de RzMon-map niet veilig is (ontgrendeld, of bestanden die niet van root zijn).
 
 ## 10. De agent (Linux)

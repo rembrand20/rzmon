@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../src/bootstrap.php';
 require __DIR__ . '/../src/auth.php';
+security_headers();   // 1.143.0
 
 if (is_configured()) {
     try {
@@ -118,7 +119,7 @@ $v = filemtime(__DIR__ . '/assets/setup.js') . filemtime(__DIR__ . '/assets/app.
   <title>RzMon Setup</title>
   <?= Brand::head() ?>
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
-  <script>try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script nonce="<?= csp_nonce() ?>">try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
 <body>
   <header class="topbar">
@@ -223,7 +224,7 @@ $v = filemtime(__DIR__ . '/assets/setup.js') . filemtime(__DIR__ . '/assets/app.
     </form>
   </dialog>
   <div id="toasts"></div>
-  <script>window.I18N = <?= I18n::lang() === 'en' ? json_encode(I18n::dict(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) : '{}' ?>;</script>
+  <script nonce="<?= csp_nonce() ?>">window.I18N = <?= I18n::lang() === 'en' ? json_encode(I18n::dict(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) : '{}' ?>;</script>
   <script src="assets/setup.js?v=<?= $v ?>"></script>
 </body>
 </html>

@@ -147,6 +147,14 @@ function login(string $username, string $password, bool $remember = false): stri
         usleep(500000); // brute force afremmen
         return false;
     }
+    // 1.143.0: wachtwoord klopt; nog met een oudere methode opgeslagen (bcrypt)? Dan ongemerkt omzetten naar Argon2id.
+    // Mislukt dat om wat voor reden ook, dan gewoon doorgaan: inloggen gaat altijd voor.
+    if (password_needs_rehash($u['password_hash'], password_algo())) {
+        try {
+            q('UPDATE users SET password_hash = ? WHERE id = ?', [hash_password($password), $u['id']]);
+        } catch (Throwable) {
+        }
+    }
     // Van buiten op een toegestaan apparaat van iemand anders (1.86.0): dat apparaat geldt alleen voor zijn eigen gebruiker
     if (!Stealth::userAllowed((int) $u['id'])) {
         Security::loginFailed($username, 'apparaat niet toegestaan voor dit account', true);

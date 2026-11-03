@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../src/bootstrap.php';
 require __DIR__ . '/../src/auth.php';
+security_headers();   // 1.143.0: CSP met nonce, nosniff …
 
 // Niet ingesteld of database onbereikbaar → naar de setup
 if (!is_configured()) {
@@ -60,7 +61,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <title>RzMon</title>
   <?= Brand::head() ?>
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
-  <?php if ($userTheme === null): ?><script>try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script><?php endif; ?>
+  <?php if ($userTheme === null): ?><script nonce="<?= csp_nonce() ?>">try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script><?php endif; ?>
 </head>
 <body data-role="<?= htmlspecialchars($role) ?>"<?php if ($user && !$mustChange && !$resetToken): ?> data-prefs="<?= htmlspecialchars($prefsJson ?? 'local') ?>"<?php endif; ?>>
 <?php if ($resetToken): ?>
@@ -1369,7 +1370,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 <?php if ($user): ?>
   <script src="assets/vendor/qrcode.js?v=1.4.4"></script>
 <?php endif; ?>
-  <script>window.LANG = <?= json_encode(I18n::lang()) ?>; window.I18N = <?= I18n::lang() === 'en' ? json_encode(I18n::dict(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) : '{}' ?>;</script>
+  <script nonce="<?= csp_nonce() ?>">window.LANG = <?= json_encode(I18n::lang()) ?>; window.I18N = <?= I18n::lang() === 'en' ? json_encode(I18n::dict(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) : '{}' ?>;</script>
 <div class="cmdk" id="cmdk" hidden>
   <div class="cmdk-box" role="dialog" aria-modal="true" aria-label="<?= th('Zoeken en doen') ?>">
     <input id="cmdk-in" type="search" autocomplete="off" spellcheck="false" placeholder="<?= th('Server, check, IP-adres of instelling… (bv. "rl02 disk onderhoud")') ?>">

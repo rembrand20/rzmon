@@ -214,6 +214,60 @@ function now(): string
     return date('Y-m-d H:i:s');
 }
 
+/**
+ * Wachtwoorden (1.143.0): Argon2id als PHP dat kan, anders bcrypt. Bestaande (bcrypt-)wachtwoorden blijven werken;
+ * bij de eerstvolgende geslaagde login zet RzMon ze ongemerkt om (password_needs_rehash).
+ */
+function password_algo(): string|int|null
+{
+    return defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT;
+}
+
+function hash_password(string $password): string
+{
+    return password_hash($password, password_algo());
+}
+
+/** Eén willekeurige nonce per verzoek, voor de paar eigen inline scripts (CSP) */
+function csp_nonce(): string
+{
+    static $n = null;
+    return $n ??= rtrim(strtr(base64_encode(random_bytes(18)), '+/', '-_'), '=');
+}
+
+/**
+ * Beveiligingsheaders (1.143.0) voor de HTML-pagina's (en met $html = false voor de API):
+ * - Content-Security-Policy: alleen scripts van RzMon zelf (en de inline scripts met de nonce van dit verzoek), geen plug-ins,
+ *   formulieren en <base> alleen naar RzMon. Stijlen mogen inline (veel kleine style="…"). Noodknop: 'csp' => false in config.php.
+ * - Insluiten in een frame (bv. een Home Assistant-paneel) blijft standaard mogelijk; beperken met
+ *   'frame_ancestors' => "'self' https://ha.voorbeeld.nl" in config.php.
+ * - nosniff, een zuinige Referrer-Policy en geen camera/microfoon/locatie.
+ */
+function security_headers(bool $html = true): void
+{
+    if (headers_sent()) {
+        return;
+    }
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()');
+    $fa = trim((string) config('frame_ancestors', ''));
+    if ($fa !== '' && !preg_match('/[;\r\n]/', $fa)) {
+        header("Content-Security-Policy: frame-ancestors $fa", false);
+        if ($fa === "'self'") {
+            header('X-Frame-Options: SAMEORIGIN');
+        }
+    }
+    if (!$html) {
+        return;
+    }
+    if (config('csp', true) !== false) {
+        header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-" . csp_nonce() . "'; style-src 'self' 'unsafe-inline'; "
+            . "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self' blob:; "
+            . "object-src 'none'; base-uri 'self'; form-action 'self'", false);
+    }
+}
+
 // Geblokkeerde IP-adressen en netwerken (Instellingen → ⛔ Blokkades): heel RzMon geeft 403. Niet voor cron of de terminal.
 // Daarna: beheer alleen via https (doorsturen naar het beheeradres, HSTS), zie src/Https.php.
 if (PHP_SAPI !== 'cli' && is_configured()) {

@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../src/bootstrap.php';
+security_headers();   // 1.143.0 (de Referrer-Policy hieronder is strenger)
 
 header('Cache-Control: no-store');
 header('X-Robots-Tag: noindex, nofollow');
