@@ -1460,7 +1460,7 @@ function init() {
     try {
       const r = await api('rev');
       liveFail = 0;
-      $('#live-dot')?.classList.remove('off');
+      $$('.live-dot').forEach((d) => d.classList.remove('off'));
       // 1.119.0: alleen herladen wat veranderde: meldingen, IDS en de live-feed elk apart
       const p = r.parts || {}, was = liveParts, first = liveRev === null;
       const what = { alerts: !first && p.a !== was.a, ids: !first && p.i !== was.i };
@@ -1475,7 +1475,7 @@ function init() {
       liveRev = r.rev;
       liveParts = p;
     } catch (e) {
-      if (++liveFail >= 3) $('#live-dot')?.classList.add('off');
+      if (++liveFail >= 3) $$('.live-dot').forEach((d) => d.classList.add('off'));
     } finally {
       liveBusy = false;
     }
@@ -12935,11 +12935,15 @@ const ccCard = (key, inner, cls = '') => `<section class="cc-card ${cls}" aria-l
 const ccHead = (title, right = '') => `<div class="cc-h"><span class="cc-hl">${esc(title)}</span>${right}</div>`;
 const ccGo = (go, label) => `<button type="button" class="cc-link" data-hm-go="${esc(go)}">${esc(label)} →</button>`;
 
+/** 1.157.2: live-lampje zoals op Monitoring: ● Live · laatste check … (lampje grijs als de live-verbinding wegvalt) */
+function livePill() {
+  return `<span class="live-pill" title="${esc(L('Live: wijzigingen komen binnen een paar seconden binnen'))}"><span class="live-dot${document.querySelector('#live-dot.off') ? ' off' : ''}"></span> <b>${L('Live')}</b>${state.last_run ? ' · ' + esc(L('laatste check')) + ' ' + agoSpan(state.last_run) : ''}</span>`;
+}
 /** Kop van het dashboard: begroeting, sinds je laatste bezoek, periode, live, indeling, TV-modus en de keuze van het dashboard */
 function ccTools() {
   const tv = document.body.classList.contains('tv');
   return `<div class="cc-tools">
-    ${dashMode() === 'cc' ? `<span class="cc-live" title="${esc(L('Werkt zichzelf bij'))}"><i class="af-blink"></i>LIVE</span>` : ''}
+    ${livePill()}
     ${dashMode() === 'cc' ? `<button type="button" class="cc-tbtn ${ccEdit ? 'on' : ''}" data-cc-edit aria-pressed="${ccEdit}">✎ ${esc(ccEdit ? L('Klaar') : L('Indeling'))}</button>
       <button type="button" class="cc-tbtn ${tv ? 'on' : ''}" data-cc-tv aria-pressed="${tv}">▣ ${esc(L('TV-modus'))}</button>` : ''}
     <div class="seg cc-dash" role="group" aria-label="${esc(L('Dashboard'))}"><button type="button" class="seg-btn ${dashMode() === 'classic' ? 'active' : ''}" data-dash-set="classic">${esc(L('Klassiek'))}</button>

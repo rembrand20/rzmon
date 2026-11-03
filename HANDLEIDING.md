@@ -182,7 +182,7 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - De lay-out kies je nu ook **op de pagina zelf** (▦ Blox · ☰ L1nes · ▪ Compact naast het sorteren), of bij *Mijn account → Weergave*.
 - **⚠️ Nu aandacht nodig is gebundeld op oorzaak**: is een server onbereikbaar of is zijn agent stil, dan staan al zijn problemen in **één regel** (*"WebServer01 · agent stil · 10 checks"*); klik op *▸ 10 checks* om ze te zien. Hetzelfde bij 4 of meer problemen op één server. Elke regel heeft het **balkje van 24 uur**.
 - **Kerncijfers met een lijntje en een trend**: *Checks OK* met het aantal problemen over 24 uur en ▲/▼ ten opzichte van 24 uur geleden, *Open problemen* met hetzelfde lijntje, *Beschikbaar 24 u* vergeleken met 7 dagen.
-- **● Live** rechtsboven: het lampje knippert bij elke nieuwe meting, met wanneer de laatste check was. Getallen lopen naar de nieuwe waarde en een statuswissel licht even op.
+- **● Live** rechtsboven: het lampje knippert bij elke nieuwe meting, met wanneer de laatste check was. Vanaf 1.157.2 staat hetzelfde lampje ook bovenaan het **Dashboard** (Klassiek en Command center); het wordt grijs als de live-verbinding wegvalt. Getallen lopen naar de nieuwe waarde en een statuswissel licht even op.
 - **Rode gloed**: een server met een onbevestigde critical pulseert zacht.
 - Beide zet je uit bij **Mijn account → Weergave** (*Rode gloed bij critical* en *Live animaties*, per account). Staat je systeem op *minder beweging*, dan beweegt er niets.
 
