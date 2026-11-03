@@ -1876,18 +1876,10 @@ button.ic-n { cursor: pointer; } button.ic-n:hover b { text-decoration: underlin
 #tab-settings [data-sk] label.switch:not(.small) { flex-direction: row-reverse; justify-content: space-between; gap: 1rem; padding: .6rem 0; margin: 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
 #tab-settings [data-sk] label.switch:not(.small) > input + span { flex: none; }
 #tab-settings [data-sk] .mode-switch label.switch, #tab-settings [data-sk] .lock-row label.switch, #tab-settings [data-sk] .row3 label.switch, #tab-settings [data-sk] .row2 label.switch { flex-direction: row; justify-content: flex-start; border-bottom: 0; padding: 0; }
-/* ⓘ-blok: oranje, ingeklapt tot één regel */
-.info-i { margin: .35rem 0 .8rem; border: 1px solid color-mix(in srgb, var(--info) 45%, transparent); background: color-mix(in srgb, var(--info) 8%, transparent); border-radius: 10px; font-size: .85rem; }
-.info-i > summary { list-style: none; display: flex; gap: .55rem; align-items: flex-start; padding: .45rem .7rem; cursor: pointer; }
-.info-i > summary::-webkit-details-marker { display: none; }
-.info-ic { flex: none; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; margin-top: .05rem; border-radius: 50%; background: var(--info); color: #1a1205; font: italic 700 .8rem/1 Georgia, serif; }
-.info-txt { color: var(--text); opacity: .85; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1; -webkit-box-orient: vertical; }
-.info-i[open] .info-txt { display: block; opacity: 1; }
-.info-i:not([open]) > summary::after { content: '›'; margin-left: auto; color: var(--info); font-weight: 700; }
+/* 1.148.0: lange uitleg als gewone tekst op de kaart (geen oranje ⓘ-blok meer) */
+#tab-settings p.set-expl { margin: .3rem 0 .9rem; line-height: 1.5; }
 .tip { color: var(--info); font-weight: 700; }
 .more-btn { display: none !important; }
-.info-more { display: block; margin-top: .45rem; }
-.info-i:not([open]) .info-more { display: none; }
 .tip:not(:hover):not(:focus)::after { display: none; }   /* verborgen uitleg telt anders mee voor de breedte (zijwaarts schuiven op de telefoon) */
 @media (max-width: 600px) { table.smart-prop th:nth-child(3), table.smart-prop td:nth-child(3), table.smart-prop th:nth-child(6), table.smart-prop td:nth-child(6) { display: none; } }
 
@@ -1993,8 +1985,12 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .badge.good { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
 
 /* 1.133.0: "Aandacht nodig" bovenaan een onderdeel met een oranje/rood bolletje */
-.set-attn { margin: 0 0 1rem; padding: .7rem .9rem; border: 1px solid var(--warn); border-left-width: 4px; border-radius: 10px; background: var(--card); }
-.set-attn.bad { border-color: var(--crit); }
+/* 1.148.0: een echte oranje (of rode) balk */
+.set-attn { margin: 0 0 1rem; padding: .7rem .9rem; border: 1px solid color-mix(in srgb, var(--warn) 55%, transparent); border-left: 4px solid var(--warn); border-radius: 10px; background: color-mix(in srgb, var(--warn) 12%, var(--card)); }
+.set-attn.bad { border-color: color-mix(in srgb, var(--crit) 55%, transparent); border-left-color: var(--crit); background: color-mix(in srgb, var(--crit) 10%, var(--card)); }
+.set-attn-txt { color: var(--text); opacity: .8; }
+.set-attn a { color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 2px; }
+.set-hdot { margin-left: .5rem; vertical-align: middle; width: 9px; height: 9px; }
 .set-attn[hidden] { display: none; }
 .set-attn h3 { margin: 0 0 .4rem; font-size: 1rem; }
 .set-attn ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }

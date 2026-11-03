@@ -7955,14 +7955,54 @@ function renderSetAttn() {
   const box = $('#set-attn');
   if (!box) return;
   const items = setSection === 'overview' ? [] : setHealthItems[setSection] || [];
+  renderCardDots(items);
   box.hidden = !items.length;
   if (!items.length) { box.innerHTML = ''; return; }
   box.className = `set-attn ${items.some((i) => i.status === 'bad') ? 'bad' : 'warn'}`;
   box.innerHTML = `<h3>${items.length === 1 ? L('Aandacht nodig') : L('Aandacht nodig ({n} punten)', { n: items.length })}</h3>
-    <ul>${items.map((i, n) => `<li class="${i.status}"><span class="set-attn-ic">${i.status === 'bad' ? '🔴' : '🟠'}</span><div><b>${esc(i.title)}</b>${i.detail ? ` <span class="muted">${esc(i.detail)}</span>` : ''}
+    <ul>${items.map((i, n) => `<li class="${i.status}"><span class="set-attn-ic">${i.status === 'bad' ? '🔴' : '🟠'}</span><div><b>${cardOf(i) ? `<a href="#" data-attn-go="${n}">${esc(i.title)}</a>` : esc(i.title)}</b>${i.detail ? ` <span class="set-attn-txt">${esc(i.detail)}</span>` : ''}
       ${i.code || i.act ? `<div class="set-attn-do">${i.code ? copyBox(`attn-code-${n}`, i.code) : ''}${i.act ? `<button type="button" class="btn small-btn primary" data-attn-act="${esc(i.act)}">${esc(i.label || L('Regelen'))}</button>` : ''}</div>` : ''}</div></li>`).join('')}</ul>`;
   wireCopy(box);
   $$('[data-attn-act]', box).forEach((b) => (b.onclick = () => healthAction(b.dataset.attnAct, b)));
+  // Klik op een punt: naar de kaart waar het over gaat, die even oplicht
+  $$('[data-attn-go]', box).forEach((a) => (a.onclick = (e) => {
+    e.preventDefault();
+    const c = cardOf(items[+a.dataset.attnGo]);
+    if (!c) return;
+    c.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    c.classList.remove('set-hit');
+    void c.offsetWidth;
+    c.classList.add('set-hit');
+  }));
+}
+
+/** 1.148.0: de kaart waar een punt over gaat (de kaart met dezelfde sleutel, anders de eerste kaart van het onderdeel) */
+function cardOf(it) {
+  const f = setFind(setSection);
+  if (!f) return null;
+  const keys = f.sub[2];
+  const k = keys.includes(it.card) ? it.card : keys[0];
+  const c = $(`#tab-settings [data-sk="${k}"]`);
+  return c && !c.hidden && c.offsetParent ? c : null;
+}
+
+/** 1.148.0: een 🟠/🔴 bolletje bij de titel van elke kaart met een aandachtspunt */
+function renderCardDots(items) {
+  $$('#tab-settings .set-hdot').forEach((d) => d.remove());
+  const per = new Map();
+  items.forEach((it) => {
+    const c = cardOf(it);
+    if (!c) return;
+    const p = per.get(c) || { st: 'warn', why: [] };
+    if (it.status === 'bad') p.st = 'bad';
+    p.why.push(`${it.status === 'bad' ? '🔴' : '🟠'} ${it.title}: ${it.detail || ''}`);
+    per.set(c, p);
+  });
+  per.forEach((p, c) => {
+    const h = [...c.querySelectorAll('h2, h3')].find((x) => !x.classList.contains('set-dup') && !x.hidden && x.offsetParent);
+    if (!h) return;
+    h.insertAdjacentHTML('beforeend', dotFor(p.st, p.why).replace('class="set-dot', 'class="set-dot set-hdot'));
+  });
 }
 
 const dotFor = (st, why = []) => (st === 'bad' || st === 'warn'
@@ -8030,6 +8070,7 @@ async function loadSettingsHealth() {
   setHealthItems = {};
   setHealthAt = Date.now();
   for (const it of items) {
+    it.card = it.section;   // 1.148.0: de oude sleutel is vaak precies de kaart (bv. enc, https)
     it.section = SET_ALIAS[it.section] || it.section;
     if (rank[it.status] < rank[setHealth[it.section] || 'ok']) setHealth[it.section] = it.status;
     if (it.status === 'bad' || it.status === 'warn') {
@@ -8168,33 +8209,13 @@ async function healthAction(act, b) {
   } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
 }
 
-// ---- Lange uitleg korter (1.120.0): een oranje ⓘ-blok, ingeklapt tot één regel; klik voor de hele tekst.
+// ---- Lange uitleg (1.148.0): gewone grijze tekst op de kaart, niet meer in een ingeklapt oranje ⓘ-blok (1.120.0).
 // Titels zonder emoji (de zijbalk en de bovenbalk hebben lijn-iconen). Ook voor wat later geladen wordt.
 const EMOJI_LEAD = /^[\s\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{20E3}]+/u;
 function polishSettings(root) {
   $$('[data-sk] p.muted.small:not([id]):not([data-pol]), [data-sk] p.hint:not([id]):not([data-pol])', root).forEach((p) => {
     p.dataset.pol = '1';
-    if (p.textContent.trim().length < 120 || p.closest('#set-overview, .ov-item, td, .kv, li')) return;
-    const d = document.createElement('details');
-    d.className = 'info-i';
-    d.dataset.pol = '1';
-    if (p.getAttribute('style')) d.setAttribute('style', p.getAttribute('style'));
-    const s = document.createElement('summary');
-    s.innerHTML = '<span class="info-ic" aria-hidden="true">i</span>';
-    const t = document.createElement('span');
-    t.className = 'info-txt';
-    while (p.firstChild) t.append(p.firstChild);
-    s.append(t);
-    d.append(s);
-    // Staat er al een ⓘ-blok vlak boven? Dan één blok met twee alinea's (niet een rij oranje blokken)
-    const prev = p.previousElementSibling;
-    if (prev && prev.classList.contains('info-i')) {
-      const more = document.createElement('span');
-      more.className = 'info-more';
-      while (t.firstChild) more.append(t.firstChild);
-      prev.querySelector('.info-txt').append(more);
-      p.remove();
-    } else p.replaceWith(d);
+    if (p.textContent.trim().length >= 120 && !p.closest('#set-overview, .ov-item, td, .kv, li')) p.classList.add('set-expl');
   });
   // Schakelaar met tekst in meerdere stukken (bv. met <b>): één geheel, anders zet de rij-opmaak de stukken door elkaar
   $$('[data-sk] label.switch:not([data-pol])', root).forEach((l) => {
@@ -8216,7 +8237,7 @@ function polishSettings(root) {
     if (!l || l.hidden) return;
     l.hidden = true;
     const nx = l.nextElementSibling;
-    if (nx && (nx.classList.contains('info-i') || (nx.tagName === 'P' && nx.matches('.muted, .hint')))) nx.hidden = true;
+    if (nx && nx.tagName === 'P' && nx.matches('.muted, .hint')) nx.hidden = true;
   });
   // Een kopje waarvan alles eronder nu op Bescherming staat: ook weg
   $$('[data-sk^="ids"] h3.set-sub', root).forEach((h) => {
