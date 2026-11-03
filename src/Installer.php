@@ -243,6 +243,7 @@ final class Installer
         ['checks', 'thresh_mode', "VARCHAR(8) NOT NULL DEFAULT 'manual'"],
         ['checks', 'guard_threshold', 'DOUBLE NULL'],     // vangnet: vanaf hier altijd CRITICAL
         ['checks', 'smart_sens', 'VARCHAR(6) NULL'],      // gevoeligheid; NULL = de standaard
+        ['check_smart', 'auto_at', 'DATETIME NULL'],   // 1.156.0: wanneer RzMon deze check zelf naar slim omzette (één keer)
         ['checks', 'heal', 'VARCHAR(80) NULL'],           // zelf herstellen: restart, of cmd:<naam> uit heal.d op de server
         ['checks', 'heal_state', 'VARCHAR(40) NULL'],     // herstelcommando: req:/sent:/done:<unix-tijd>
         ['hosts', 'watchdog', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 🐕 deze agent bewaakt RzMon

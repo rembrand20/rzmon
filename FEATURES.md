@@ -120,7 +120,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **Herstelmelding** zodra het weer goed gaat. Een **nieuwe melding bij escalatie** (warning → critical).
 - **Automatisch onderhoud** na herhaalde meldingen voor dezelfde storing, tot hij is opgelost.
 - **Testknoppen** per kanaal.
-- **🧠 Slimme drempels** (vanaf 1.107.0): RzMon leert per check wat normaal is per uur van de week en zet daar de drempels op (handmatig, slim, of slim met vangnet); elke nacht bijgesteld (hooguit 10%), in het wijzigingslogboek terug te draaien, met een ℹ️ bij een sluipende stijging.
+- **🧠 Slimme drempels** (vanaf 1.107.0): RzMon leert per check wat normaal is per uur van de week en zet daar de drempels op (handmatig, slim, of slim met vangnet); elke nacht bijgesteld (hooguit 10%), in het wijzigingslogboek terug te draaien, met een ℹ️ bij een sluipende stijging. Vanaf 1.156.0 ook voor containers (CPU of RAM), DNS, NTP en MySQL, en zet RzMon een handmatige check na 7 dagen zelf op slim met vangnet als dat duidelijk minder warnings geeft (met ℹ️-melding en terug te draaien); *melden na N* stelt hij ook zelf in.
 - **🔗 Bundelen over servers heen** (vanaf 1.107.0): meerdere servers tegelijk mis = één bericht met de waarschijnlijke oorzaak.
 - **🩹 Zelf herstellen** (vanaf 1.107.0, agent 1.62.0): een service of container herstarten, of een eigen herstelcommando van de server; melden pas als het niet helpt.
 - **🐕 Waakhond** (vanaf 1.107.0, agent 1.62.0): een agent meldt via Pushover (of ntfy, vanaf agent 1.72.0) als RzMon onbereikbaar is of de checks stilstaan.

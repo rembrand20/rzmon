@@ -1423,7 +1423,7 @@ Vaste drempels passen niet altijd: een CPU die elke nacht om 3:00 op 100% staat 
 | 🧠 **Slim** | RzMon leert wat normaal is en zet de drempels zelf. |
 | 🧠🛡️ **Slim met vangnet** | Slim, maar vanaf het vangnet (*Altijd critical vanaf*, bv. RAM 98%) altijd CRITICAL. |
 
-- **Werkt bij** ping, TCP, HTTP, CPU, RAM en SNMP (CPU, geheugen, interface, load, temperatuur, UPS-belasting en -temperatuur, Synology-temperaturen, UniFi-kanaalbezetting en -kwaliteit). **Disks** houden vaste drempels met de voorspelling: een disk heeft geen "normaal per uur", en leren zou een vollopende disk gewoon volgen.
+- **Werkt bij** ping, TCP, HTTP, CPU, RAM, SNMP (CPU, geheugen, interface, load, temperatuur, UPS-belasting en -temperatuur, Synology-temperaturen, UniFi-kanaalbezetting en -kwaliteit) en vanaf 1.156.0 ook **containers** (een check op alleen CPU of alleen RAM; de gecombineerde containercheck niet), **DNS** (antwoordtijd), **NTP** (afwijking van de klok) en **MySQL/MariaDB** (verbindingstijd). **Disks** houden vaste drempels met de voorspelling: een disk heeft geen "normaal per uur", en leren zou een vollopende disk gewoon volgen.
 - **Leren**: uit de meetwaarden van de laatste 28 dagen (de bewaartermijn van meetwaarden telt mee), robuust (mediaan en percentielen, zodat één uitschieter niets verpest). Tot er **7 dagen** gegevens zijn, gelden de vaste drempels (*🧠 leert nog 3/7 dagen*).
 - **Altijd bijgesteld**: elke nacht vanaf 4:00 rekent RzMon alles opnieuw door, en een drempel verschuift **hooguit 10% per nacht**. Een merkbare aanpassing staat in het **wijzigingslogboek** (*🧠 Slimme drempels bijgesteld*) en is daar **terug te draaien**.
 - **Ondergrenzen**: een warning komt nooit onder een zinnige grens (CPU en RAM 50%, ping 20 ms, HTTP 300 ms…): een server die normaal op 3% CPU draait, krijgt geen warning bij 15%.
@@ -1434,6 +1434,8 @@ Vaste drempels passen niet altijd: een CPU die elke nacht om 3:00 op 100% staat 
 **In de popup van een check** (klik op een check) staat de modus, wat er nu normaal is en welke drempels nu gelden, een **weekgrafiekje** (grijs = normaal per uur, lijn = warning, streep = nu), en hoeveel dagen er de afgelopen weken een warning was met de vaste en met de slimme drempels. In de grafiek (📈) zie je de normale band en de geleerde warning.
 
 **Nieuwe en bestaande checks.** Een nieuwe check krijgt bij zijn eerste run de standaard uit *Instellingen → Monitoring → Advies* (standaard *slim met vangnet*; een check die niet kan leren, wordt handmatig). **Bestaande checks blijven handmatig**: een update verandert niets. RzMon leert wel ook voor die checks, en laat op dezelfde pagina zien waar slimme drempels minder warnings hadden gegeven (*Voorstel voor bestaande checks*), met knoppen om ze om te zetten. Dat voorstel staat ook in 📊 Analyse onder *Wat nu aanpakken*. Meerdere checks tegelijk omzetten kan ook bij *Alle checks* (🧠 Slim).
+
+**Zelf omzetten** (vanaf 1.156.0, standaard aan): na 7 dagen leren zet RzMon een **handmatige** check zelf op **slim met vangnet**, als slimme drempels in die tijd **minstens 2 dagen minder** met een warning hadden gegeven. Het vangnet blijft je eigen *Altijd critical vanaf* (of de standaard voor dat soort check). Je krijgt een ℹ️-melding (*Meldingen → Systeemmeldingen → Drempels zelf aangepast*), bijvoorbeeld *"🧠 CPU: van vaste drempels (warning 80%) naar slim met vangnet. In de laatste 28 dagen gaf de vaste drempel op 26 dagen een warning, slim op 2."* Het staat in het **wijzigingslogboek**; zet je het daar terug, dan blijft die check **voorgoed handmatig** (RzMon zet elke check maar één keer om). Uitzetten kan met de schakelaar *Zelf omzetten* bij *Instellingen → Monitoring → Advies*.
 
 **De tabel *Voorstel voor bestaande checks* lezen** (vanaf 1.108.1):
 
@@ -1465,7 +1467,7 @@ Na het volgende rapport staat *herstelcommando vpn-herstart* in de keuzelijst.
 Naast de slimme drempels (§ 7.13) kijkt RzMon nog op meer plekken naar wat normaal is. Alles staat bij *Instellingen → Monitoring → Advies* en is apart **aan en uit** te zetten.
 
 #### Slimme voorstellen
-Elke nacht (vanaf 4:30) bekijkt RzMon de geschiedenis en doet **voorstellen**. Er verandert niets tot jij op **Toepassen** klikt; **Negeren** = dat voorstel komt nooit meer terug. Met 🔄 bepaal je ze meteen opnieuw. Toegepaste voorstellen staan in het **wijzigingslogboek** (met *💡 voorstel*) en zijn daar terug te draaien. Open voorstellen staan ook in 📊 Analyse onder *Wat nu aanpakken*.
+Elke nacht (vanaf 4:30) bekijkt RzMon de geschiedenis en doet **voorstellen**. Er verandert niets tot jij op **Toepassen** klikt (behalve *melden na N*, zie hieronder); **Negeren** = dat voorstel komt nooit meer terug. Met 🔄 bepaal je ze meteen opnieuw. Toegepaste voorstellen staan in het **wijzigingslogboek** (met *💡 voorstel*) en zijn daar terug te draaien. Open voorstellen staan ook in 📊 Analyse onder *Wat nu aanpakken*.
 
 | Voorstel | Wanneer |
 |---|---|
@@ -1473,6 +1475,8 @@ Elke nacht (vanaf 4:30) bekijkt RzMon de geschiedenis en doet **voorstellen**. E
 | 🔔 **Meteen melden** | Een check staat op *melden na 3 of meer*, maar de storingen duren eigenlijk altijd lang (80% langer dan 15 minuten): dan wacht je voor niets. |
 | 🗓️ **Vast onderhoudsvenster** | Iets gaat steeds op hetzelfde moment kort mis (hooguit 90 minuten) en herstelt vanzelf: minstens 3 weken op dezelfde weekdag en tijd, of minstens 5 van de laatste 14 dagen op dezelfde tijd. Bijvoorbeeld de back-up om 2:00 of de herstart op zondag. Gaan er op één server 2 of meer checks tegelijk mis, dan geldt het venster voor de hele server. |
 | 🔗 **Afhankelijkheid** | Volgens UniFi hangt een server aan een switch of access point dat zelf in RzMon staat, of een server valt (bij ping, anders TCP/HTTP) minstens 80% van de keren tegelijk uit met een andere, meestal een router, switch, access point of firewall. |
+
+**Melden na N zelf instellen** (vanaf 1.156.0, standaard aan): een voorstel voor *melden na N* voert RzMon meteen zelf uit. Je krijgt een ℹ️-melding (*Meldingen → Systeemmeldingen → Melden na N zelf aangepast*) met de reden, bijvoorbeeld *"🔔 SSH: melden na 3 mislukte checks (was 1), want 6 van de 6 storingen in 30 dagen waren binnen 5 minuten weer voorbij"*, en een regel in het **wijzigingslogboek** om terug te gaan naar de vorige waarde. Een teruggezet voorstel komt niet terug. Onderhoudsvensters en afhankelijkheden blijven voorstellen. Uitzetten kan met de schakelaar boven de voorstellen.
 
 #### Vaste onderhoudsvensters
 Onder de voorstellen staat de lijst met **vaste onderhoudsvensters**: elke dag of op één weekdag, een begintijd en een duur, voor een **server** of **één check**, met een reden. Je kunt ze daar ook zelf toevoegen (*＋ Venster toevoegen*) en weghalen. Tijdens zo'n venster gaan er geen meldingen uit, net als bij gewoon onderhoud (§ 5); de checks draaien door. Een venster over middernacht (23:30, 60 min) werkt ook.

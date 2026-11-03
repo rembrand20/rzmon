@@ -54,6 +54,12 @@ final class Smart
         'snmp:syno_disk' => ['add', 42, 52, 6, 6, 62],
         'snmp:unifi_cu' => ['add', 40, 70, 15, 15, null],
         'snmp:unifi_quality' => ['add', 10, 20, 5, 10, null],
+        // 1.156.0: containers (één meting), DNS, NTP (afwijking van de klok) en MySQL/MariaDB (verbindingstijd)
+        'container:cpu' => ['add', 50, 80, 15, 15, null],
+        'container:mem' => ['add', 60, 85, 10, 10, 98],
+        'dns' => ['mul', 100, 500, 2.0, 3.0, 3000],
+        'ntp' => ['mul', 50, 200, 2.0, 3.0, 1000],
+        'mysql' => ['mul', 100, 500, 2.0, 3.0, 5000],
     ];
 
     /** Gevoeligheid: factor op de stappen en op de spreiding (rustig = ruimer) */
@@ -65,7 +71,7 @@ final class Smart
     public static function key(array $check): ?string
     {
         $type = (string) ($check['type'] ?? '');
-        $k = $type === 'snmp' ? 'snmp:' . ($check['metric'] ?? '') : $type;
+        $k = $type === 'snmp' || $type === 'container' ? $type . ':' . ($check['metric'] ?? '') : $type;
         if (!isset(self::SPEC[$k]) || ($check['reverse_ok'] ?? null) !== null) {
             return null;   // omgekeerde checks gaan over werkt het wel/niet, niet over een waarde
         }
@@ -88,7 +94,7 @@ final class Smart
     {
         $k = (string) self::key($check);
         return match (true) {
-            in_array($k, ['ping', 'tcp', 'http'], true) => 'ms',
+            in_array($k, ['ping', 'tcp', 'http', 'dns', 'ntp', 'mysql'], true) => 'ms',
             in_array($k, ['snmp:temp', 'snmp:ups_temp', 'snmp:syno_system', 'snmp:syno_disk'], true) => '°C',
             $k === 'snmp:load' => '',
             default => '%',
@@ -207,7 +213,7 @@ final class Smart
         $t0 = microtime(true);
         $today = date('Y-m-d');
         $rows = q("SELECT c.*, s.model, s.learned_at FROM checks c LEFT JOIN check_smart s ON s.check_id = c.id
-                   WHERE c.enabled = 1 AND c.type IN ('ping','tcp','http','cpu','ram','snmp','process','log','command') AND c.thresh_mode <> 'auto'
+                   WHERE c.enabled = 1 AND c.type IN ('ping','tcp','http','cpu','ram','snmp','process','log','command','container','dns','ntp','mysql') AND c.thresh_mode <> 'auto'
                    AND (s.learned_at IS NULL OR s.learned_at < ?) ORDER BY s.learned_at IS NOT NULL, s.learned_at, c.id LIMIT 200", [$today . ' 00:00:00'])->fetchAll();
         foreach ($rows as $r) {
             if (microtime(true) - $t0 > $budgetSec) {
@@ -439,7 +445,40 @@ final class Smart
         if ($m['drift'] && $mode !== 'manual') {
             self::driftInfo($check, $m['drift']);
         }
+        if ($mode === 'manual' && $days >= self::MIN_DAYS) {
+            self::autoSwitch($check, $m);
+        }
         return $m;
+    }
+
+    /**
+     * 1.156.0: een handmatige check zelf omzetten naar "slim met vangnet", als slim aantoonbaar minder dagen met een
+     * warning had gegeven (minstens 2 dagen minder). Eén keer per check: zet je hem terug (wijzigingslogboek), dan blijft
+     * hij handmatig. Met een ℹ️-melding (Systeemmeldingen → Drempels zelf aangepast).
+     */
+    private static function autoSwitch(array $check, array $m): void
+    {
+        $sim = $m['sim'] ?? [];
+        if (setting('smart_auto', '1') !== '1' || ($sim['fixed'] ?? null) === null || (int) $sim['fixed'] - (int) ($sim['smart'] ?? 0) < 2) {
+            return;
+        }
+        $id = (int) $check['id'];
+        if (q('SELECT auto_at FROM check_smart WHERE check_id = ?', [$id])->fetchColumn()) {
+            return;
+        }
+        $before = ChangeLog::checkRow($id);
+        if (!$before || $before['thresh_mode'] !== 'manual') {
+            return;
+        }
+        $guard = is_numeric($before['guard_threshold'] ?? null) ? (float) $before['guard_threshold'] : self::guardDefault($check);
+        q("UPDATE checks SET thresh_mode = 'guard', guard_threshold = ? WHERE id = ? AND thresh_mode = 'manual'", [$guard, $id]);
+        q('UPDATE check_smart SET auto_at = ? WHERE check_id = ?', [now(), $id]);
+        $host = (string) $before['_host'];
+        ChangeLog::record('check', $id, 'update', '🧠 ' . t('Zelf omgezet naar slim met vangnet: {c} op {h}', ['c' => $check['name'], 'h' => $host]), $before, ChangeLog::checkRow($id));
+        $u = self::unit($check);
+        Monitor::sysInfo('smart_auto', (int) $check['host_id'], $host, 'ℹ️ INFO: ' . $host, static fn() => t(
+            '🧠 {c}: van vaste drempels (warning {w}{u}) naar slim met vangnet. In de laatste {d} dagen gaf de vaste drempel op {f} dagen een warning, slim op {s}. Terugzetten kan in het wijzigingslogboek.',
+            ['c' => $check['name'], 'w' => self::fmt($before['warn_threshold']), 'u' => $u, 'd' => (int) $m['days'], 'f' => (int) $sim['fixed'], 's' => (int) ($sim['smart'] ?? 0)]));
     }
 
     private static function storedModel(int $id): ?array

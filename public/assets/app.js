@@ -2781,6 +2781,12 @@ async function loadAdvice() {
   if (!el) return;
   let r;
   try { r = await api('advice_list'); } catch (ex) { el.innerHTML = `<p class="err-txt small">${esc(ex.message)}</p>`; return; }
+  // 1.156.0: melden na N zelf instellen (staat buiten het instellingenformulier: meteen opslaan)
+  const au = $('#alert-auto');
+  if (au) {
+    au.checked = !!r.auto;
+    au.onchange = async () => { try { await api('settings_save', { alert_auto: au.checked ? '1' : '0' }); toast(au.checked ? L('Aangezet') : L('Uitgezet')); } catch (ex) { toast(ex.message, 'err'); au.checked = !au.checked; } };
+  }
   el.innerHTML = r.list.length ? `<div class="adv-list">${r.list.map((a) => `<div class="adv-item">
       <span class="adv-ic" title="${esc(ADVICE_KIND[a.kind][1])}">${ADVICE_KIND[a.kind][0]}</span>
       <div class="adv-txt"><b>${esc(a.label)}</b><span class="small">${esc(a.text)}</span></div>
@@ -9681,7 +9687,7 @@ const SYSINFO_ROWS = [
     ['stealth_door', '🚪 ' + L('Noodlink aangevraagd of gebruikt')]]],
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
   [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')]]],
-  [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
+  [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
     ['watchdog', '🐕 ' + L('Waakhond: RzMon was onbereikbaar of de checks stonden stil')]]],
   ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
 ];

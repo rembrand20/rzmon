@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.156.0**: **slimme drempels** leren nu ook voor containers, DNS, NTP en MySQL, en RzMon zet een handmatige check zelf op *slim met vangnet* en stelt *melden na N* zelf in als dat minder ruis geeft, altijd met een melding en terug te draaien.
 - **1.155.0**: **Analyse en advies**: slimme analyses die je gegevens combineren tot concreet advies met bewijs (zoals een verouderde dienst met een actief misbruikte CVE op een poort die van buiten wordt aangevallen), een veiligheidsscore per onderdeel en een melding bij kritieke, wereldwijd bekende lekken.
 - **1.154.0**: het **Command center**, een tweede dashboard met alles in één oogopslag (SSH-logins en -blokkades, de toppers, wie er inlogt, de monitoring), zelf in te delen en met een TV-modus.
 - **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
 - **1.152.0**: **Attack Flow** in de aanvalskaart (aanvaller → doelwit → dienst → afloop, bewezen en vermoed uit elkaar, af te spelen), een betere popup per IP, en alle **SSH-sessies** met duur.
-- **1.149.0**: nieuwe **🗺️ Aanvalskaart** in IDS: wie valt wat aan, via welke poort, en is het geblokkeerd, als stromen met bewegende lijnen en op een wereldkaart; ook als kaartje op het dashboard.
+
+## 1.156.0 – 2026-11-03
+### Nieuw
+- **Slimme drempels** leren nu ook bij **containers** (een check op alleen CPU of alleen RAM), **DNS** (antwoordtijd), **NTP** (afwijking van de klok) en **MySQL/MariaDB** (verbindingstijd).
+- **Zelf omzetten naar slim met vangnet** (standaard aan, *Instellingen → Monitoring → Advies*): na 7 dagen leren zet RzMon een handmatige check zelf op *slim met vangnet* als dat minstens 2 dagen minder warnings had gegeven. Eén keer per check, met een ℹ️-melding (*Systeemmeldingen → Drempels zelf aangepast*) en een regel in het wijzigingslogboek. Zet je het terug, dan blijft de check handmatig.
+- **Melden na N zelf instellen** (standaard aan): een voorstel voor *melden na N* voert RzMon meteen uit, met de reden in een ℹ️-melding (*Systeemmeldingen → Melden na N zelf aangepast*) en een regel in het wijzigingslogboek om terug te gaan naar de vorige waarde.
+- De database krijgt de kolom `check_smart.auto_at`; dat gebeurt vanzelf bij de update. Bestaande instellingen veranderen niet.
 
 ## 1.155.1 – 2026-11-03
 ### Opgelost

@@ -108,6 +108,9 @@ final class Advice
                 $n += self::propose($kind, $ref, $fp, $data);
             }
         }
+        if (setting('alert_auto', '1') === '1') {
+            self::autoFails();
+        }
         // Wat niet meer klopt (de check is weg, of het voorstel is achterhaald) opruimen
         q("DELETE FROM advice WHERE state = 'open' AND created_at < NOW() - INTERVAL 14 DAY");
         return $n;
@@ -415,6 +418,32 @@ final class Advice
         }
         q('UPDATE advice SET state = ?, decided_at = ? WHERE id = ?', [$apply ? 'applied' : 'dismissed', now(), $id]);
         return $msg;
+    }
+
+    /**
+     * 1.156.0: "melden na N" zelf toepassen: elk open voorstel van die soort wordt meteen uitgevoerd, met een regel in het
+     * wijzigingslogboek (terugzetten kan) en een ℹ️-melding. Een teruggezet voorstel komt niet terug (het is toegepast).
+     */
+    private static function autoFails(): void
+    {
+        foreach (q("SELECT * FROM advice WHERE kind = 'fails' AND state = 'open'")->fetchAll() as $a) {
+            $d = json_decode((string) $a['data'], true) ?: [];
+            $before = ChangeLog::checkRow((int) $a['ref_id']);
+            if (!$before) {
+                continue;
+            }
+            $n = max(1, min(100, (int) ($d['n'] ?? 1)));
+            q('UPDATE checks SET notify_fails = ? WHERE id = ?', [$n, $a['ref_id']]);
+            q("UPDATE advice SET state = 'applied', decided_at = ? WHERE id = ?", [now(), $a['id']]);
+            ChangeLog::record('check', (int) $a['ref_id'], 'update', '🔔 ' . t('Zelf ingesteld: melden na {n} ({h} · {c})', ['n' => $n, 'h' => $before['_host'], 'c' => $before['name']]),
+                $before, ChangeLog::checkRow((int) $a['ref_id']));
+            $why = $n > (int) ($d['cur'] ?? 1)
+                ? t('{s} van de {e} storingen in 30 dagen waren binnen 5 minuten weer voorbij', ['s' => (int) ($d['short'] ?? 0), 'e' => (int) ($d['episodes'] ?? 0)])
+                : t('de storingen duurden bijna altijd lang: je wilt het eerder weten');
+            Monitor::sysInfo('alert_auto', (int) $before['host_id'], (string) $before['_host'], 'ℹ️ INFO: ' . $before['_host'], static fn() => t(
+                '🔔 {c}: melden na {n} mislukte checks (was {o}), want {w}. Terugzetten kan in het wijzigingslogboek.',
+                ['c' => $before['name'], 'n' => $n, 'o' => (int) ($d['cur'] ?? 1), 'w' => $why]));
+        }
     }
 
     public static function openCount(): int

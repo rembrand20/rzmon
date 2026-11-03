@@ -893,6 +893,8 @@ CREATE TABLE IF NOT EXISTS check_smart (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('thresh_default', 'guard');
 INSERT IGNORE INTO settings (name, value) VALUES ('smart_sens', 'normal');
+-- 1.156.0: drempels en melden na N zelf aanpassen (met wijzigingslogboek en ℹ️-melding)
+INSERT IGNORE INTO settings (name, value) VALUES ('smart_auto', '1'), ('alert_auto', '1');
 INSERT IGNORE INTO settings (name, value) VALUES ('notify_bundle_hosts', '1');
 
 -- 1.108.0: slimme voorstellen (melden na N, vaste onderhoudsvensters, afhankelijkheden); jij past ze toe of negeert ze

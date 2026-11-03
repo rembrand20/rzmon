@@ -75,6 +75,19 @@ ok($m['w'][$mon3] > 100, 'de back-up om 3:00 is normaal: warning boven 100% (' .
 ok($m['w'][$mon14] >= 50 && $m['w'][$mon14] < 85, 'overdag een warning tussen 50 en 85% (' . round($m['w'][$mon14]) . ')');
 ok(($m['sim']['fixed'] ?? 0) > ($m['sim']['smart'] ?? 99), 'slim geeft minder dagen met een warning dan vast (' . $m['sim']['fixed'] . ' → ' . $m['sim']['smart'] . ')');
 ok($m['drift'] !== null, 'de sluipende stijging wordt gezien');
+// 1.156.0: zelf omzetten naar slim met vangnet (minstens 2 dagen minder warnings), één keer, terug te zetten
+ok(($m['sim']['fixed'] - $m['sim']['smart']) >= 2 && q('SELECT thresh_mode FROM checks WHERE id = ?', [$cpu])->fetchColumn() === 'guard', 'handmatig → zelf omgezet naar slim met vangnet');
+ok((string) q('SELECT auto_at FROM check_smart WHERE check_id = ?', [$cpu])->fetchColumn() !== '', 'het omzetten is onthouden (auto_at)');
+$cl = q("SELECT * FROM change_log WHERE kind = 'check' AND ref_id = ? ORDER BY id DESC LIMIT 1", [$cpu])->fetch();
+ok($cl && str_contains($cl['label'], 'slim met vangnet'), 'regel in het wijzigingslogboek');
+ok((int) q("SELECT COUNT(*) FROM alerts WHERE kind = 'info' AND message LIKE '%naar slim met vangnet%'")->fetchColumn() >= 1, 'ℹ️-melding op de meldingenpagina');
+ChangeLog::undo((int) $cl['id']);
+ok(q('SELECT thresh_mode FROM checks WHERE id = ?', [$cpu])->fetchColumn() === 'manual', 'terugzetten: weer handmatig');
+Smart::learn(q('SELECT * FROM checks WHERE id = ?', [$cpu])->fetch());
+ok(q('SELECT thresh_mode FROM checks WHERE id = ?', [$cpu])->fetchColumn() === 'manual', 'na terugzetten niet opnieuw omgezet');
+ok(Smart::eligible(['type' => 'container', 'metric' => 'cpu']) && !Smart::eligible(['type' => 'container', 'metric' => '']), 'containers: losse CPU-check wel, gecombineerde niet');
+ok(Smart::eligible(['type' => 'dns']) && Smart::eligible(['type' => 'ntp']) && Smart::eligible(['type' => 'mysql']), 'DNS, NTP en MySQL leren mee');
+save_setting('smart_auto', '0');
 $row = q('SELECT c.*, h.mode FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.id = ?', [$cpu])->fetch();
 $row['thresh_mode'] = 'guard';
 $row['guard_threshold'] = 90;
@@ -166,6 +179,7 @@ for ($i = 1; $i <= 4; $i++) {
     $t = date('Y-m-d H:i:s', strtotime("-$i days 14:00"));
     q('INSERT INTO status_changes (check_id, from_status, to_status, message, created_at) VALUES (?, 0, 2, ?, ?), (?, 0, 2, ?, ?)', [$gwPing, 'x', $t, $bPing, 'x', $t]);
 }
+save_setting('alert_auto', '0');
 $nAdv = Advice::cron(true);
 $adv = Advice::list();
 $kinds = array_count_values(array_column($adv, 'kind'));
@@ -183,6 +197,19 @@ $in = strtotime(date('Y-m-d') . ' 02:10:00');
 ok(Advice::windowFor($ssh, $hb, $in) !== null && Advice::windowFor($ssh, $hb, $in + 3 * 3600) === null, 'venster geldt om 2:10, niet om 5:10');
 Advice::cron(true);
 ok(Advice::openCount() === 0, 'toegepaste voorstellen komen niet terug');
+// 1.156.0: melden na N zelf instellen
+q("UPDATE advice SET state = 'open' WHERE kind = 'fails'");
+q('UPDATE checks SET notify_fails = 1 WHERE id = ?', [$ssh]);
+save_setting('alert_auto', '1');
+Advice::cron(true);
+ok((int) q('SELECT notify_fails FROM checks WHERE id = ?', [$ssh])->fetchColumn() >= 2 && Advice::openCount() === 0, 'melden na N zelf toegepast');
+$cl = q("SELECT * FROM change_log WHERE kind = 'check' AND ref_id = ? ORDER BY id DESC LIMIT 1", [$ssh])->fetch();
+ok($cl && str_contains($cl['label'], 'melden na'), 'regel in het wijzigingslogboek');
+ChangeLog::undo((int) $cl['id']);
+ok((int) q('SELECT notify_fails FROM checks WHERE id = ?', [$ssh])->fetchColumn() === 1, 'terugzetten: weer de vorige waarde');
+save_setting('alert_auto', '0');
+q("DELETE FROM change_log WHERE kind = 'check' AND ref_id = ?", [$ssh]);   // niet meetellen bij "oorzaak erbij" hieronder
+q("DELETE FROM alerts WHERE kind = 'info' AND message LIKE '%melden na%'");
 
 section('Escaleren, oorzaak, afwijkingen, disk, heartbeat, interval');
 $esc = new ReflectionMethod('Monitor', 'escalation');
