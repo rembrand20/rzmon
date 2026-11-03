@@ -410,7 +410,7 @@ final class Internet
     {
         $cap = self::capBytes();
         $block = random_bytes(65536);
-        $st = (object) ['total' => 0, 'stop' => false];   // gedeeld met de callbacks van curl
+        $st = new InternetTransfer();   // gedeeld met de callbacks van curl
         $t0 = microtime(true);
         $mark = null;   // [tijd, bytes] na de opwarmtijd
         $mh = curl_multi_init();
@@ -544,4 +544,11 @@ final class Internet
         }
         return $hid;
     }
+}
+
+/** Toestand van één richting van de snelheidstest, gedeeld met de callbacks van curl */
+final class InternetTransfer
+{
+    public int $total = 0;
+    public bool $stop = false;
 }
