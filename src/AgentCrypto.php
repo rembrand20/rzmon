@@ -94,6 +94,9 @@ final class AgentCrypto
         if (!str_starts_with($s, "\x1f\x8b")) {
             return $s;
         }
+        if (!self::canUnzip()) {
+            return null;
+        }
         // In kleine stukken uitpakken en stoppen zodra het te groot wordt (gzdecode() met een maximum stopt daar niet op)
         $ctx = @inflate_init(ZLIB_ENCODING_GZIP);
         if ($ctx === false) {
@@ -114,6 +117,12 @@ final class AgentCrypto
             return null;   // afgekapt of kapot: de gzip-stroom is niet netjes geëindigd
         }
         return $out;
+    }
+
+    /** Kan PHP gecomprimeerde rapporten uitpakken (zlib)? Anders zegt RzMon de agents niet dat ze mogen comprimeren */
+    public static function canUnzip(): bool
+    {
+        return function_exists('inflate_init');
     }
 
     public static function isEnvelope(string $raw): bool

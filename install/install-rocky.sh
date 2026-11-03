@@ -228,7 +228,8 @@ ok "httpd, PHP-FPM, MariaDB en hulpprogramma's geïnstalleerd"
 
 # Handig maar niet noodzakelijk: niet afbreken als een pakket ontbreekt
 # (php-snmp: apparaten uitlezen via SNMP; net-snmp-utils: snmpwalk om zelf OID's op te zoeken)
-for pkg in php-intl php-xml php-gd php-snmp net-snmp-utils; do
+# (php-sodium, 1.147.2: om de handtekening van de agent te controleren; zit op Rocky/RHEL niet standaard in PHP)
+for pkg in php-intl php-xml php-gd php-snmp php-sodium net-snmp-utils; do
     dnf -y install "$pkg" >/dev/null 2>&1 && info "extra: $pkg" || warn "Optioneel pakket $pkg niet beschikbaar (geen probleem)"
 done
 

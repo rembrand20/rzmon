@@ -920,7 +920,7 @@ if ($action === 'agent') {
         $from = (string) $host['agent_version'];
         Monitor::infoHost($host, fn() => t('Agent bijgewerkt van {from} naar {to}', ['from' => $from, 'to' => $agentVersion]));
     }
-    $resp = ['ok' => true, 'host' => $host['name'], 'rzmon_version' => RZMON_VERSION, 'gz' => 1, 'received' => [
+    $resp = ['ok' => true, 'host' => $host['name'], 'rzmon_version' => RZMON_VERSION, 'gz' => AgentCrypto::canUnzip() ? 1 : 0, 'received' => [
         'disks' => count($in['disks'] ?? []), 'services' => count($in['services'] ?? []), 'ports' => count($in['ports'] ?? []),
         'certs' => count((array) ($in['certs'] ?? [])), 'containers' => count((array) ($in['podman']['containers'] ?? [])),
     ] + ($backlogN ? ['backlog' => $backlogN] : [])];
@@ -2127,10 +2127,11 @@ switch ($action) {
         }
         // 1.139.0: is de agent die RzMon uitlevert ondertekend door de ontwikkelaar (GitHub)?
         $sg = AgentSign::status();
-        $add('agent_sign', $sg['valid'] ? 'ok' : ($sg['signed'] ? 'bad' : 'warn'), t('Ondertekende agent'),
-            $sg['valid'] ? t('agent en installatiescript zijn ondertekend; agents controleren dat bij elke update')
+        $add('agent_sign', $sg['valid'] ? 'ok' : ($sg['nosodium'] ? 'warn' : ($sg['signed'] ? 'bad' : 'warn')), t('Ondertekende agent'),
+            $sg['nosodium'] ? t('RzMon kan de handtekening niet controleren: de PHP-extensie sodium ontbreekt (Rocky: sudo dnf install php-sodium, daarna sudo systemctl restart php-fpm). De agents controleren hem zelf wel.')
+            : ($sg['valid'] ? t('agent en installatiescript zijn ondertekend; agents controleren dat bij elke update')
                 : ($sg['signed'] ? t('handtekening klopt niet bij {f}: agents weigeren deze update', ['f' => implode(', ', array_keys(array_filter($sg['files'], static fn($x) => $x === 'bad')))])
-                    : t('nog niet ondertekend: de GitHub Action "Agent ondertekenen" heeft nog niet gedraaid, of het geheim AGENT_SIGN_KEY ontbreekt; agents 1.71.0 en nieuwer werken pas bij met een handtekening')), 'agents');
+                    : t('nog niet ondertekend: de GitHub Action "Agent ondertekenen" heeft nog niet gedraaid, of het geheim AGENT_SIGN_KEY ontbreekt; agents 1.71.0 en nieuwer werken pas bij met een handtekening'))), 'agents');
         // 1.136.0: groeit de database ongewoon hard? (meer dan 30% en 100 MB in een week)
         if (($g = Retention::growth()) && $g['unusual']) {
             $add('db_growth', 'warn', t('Groei van de database'), t('{now}, de laatste {d} dagen {per} per dag erbij. Kijk bij Database en server welke tabel groeit, of bewaar korter.',

@@ -14,6 +14,12 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.144.0**: het dashboard begint met wat je **nu moet doen**, op één **urgentie**; elke server heeft een **risico** van 0–100, en IDS-meldingen die bij elkaar horen worden **één incident** met stappen.
 - **1.143.0**: **Content-Security-Policy** op alle pagina's en wachtwoorden met **Argon2id**, zonder dat inloggen verandert.
 
+## 1.147.2 – 2026-11-03
+### Opgelost
+- **Instellingen → Overzicht → Status** gaf "Invalid response from server" als de PHP-extensie **sodium** ontbreekt (standaard op Rocky Linux). RzMon kon de handtekening van de agent dan niet controleren en liep vast. Nu toont Status een waarschuwing met de oplossing; de agents controleren de handtekening zelf gewoon.
+- `install-rocky.sh` installeert `php-sodium` voortaan mee, ook bij een update. Met de hand: `sudo dnf -y install php-sodium && sudo systemctl restart php-fpm`.
+- De installatiecontrole toont nu ook of de extensies **sodium** en **zlib** er zijn. Zonder zlib vraagt RzMon de agents niet meer om gecomprimeerde rapporten.
+
 ## 1.147.1 – 2026-11-03
 ### Opgelost
 - De agenttest in GitHub Actions controleert de compressie nu ook op kale systemen, waar een rapport kleiner is dan 2 kB.

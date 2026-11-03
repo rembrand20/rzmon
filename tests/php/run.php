@@ -776,7 +776,7 @@ file_put_contents("$sd/install-agent.sh", "\necho kwaadaardig\n", FILE_APPEND);
 $bad = AgentSign::status($sd);
 array_map('unlink', glob("$sd/*") ?: []);
 rmdir($sd);
-ok(!$miss['signed'] && $good['valid'] && $bad['signed'] && !$bad['valid'] && $bad['files']['install-agent.sh'] === 'bad' && $bad['files']['rzmon-agent.sh'] === 'ok',
+ok(!$miss['signed'] && $good['valid'] && $bad['signed'] && !$bad['valid'] && $bad['files']['install-agent.sh'] === 'bad' && $bad['files']['rzmon-agent.sh'] === 'ok' && $good['nosodium'] === false,
     'ondertekende agent: ontbreekt, klopt, en een gewijzigd installatiescript valt op');
 
 // 1.140.0: ntfy via een nep-server (php -S met een router die het verzoek bewaart; "fout"-token = 401)

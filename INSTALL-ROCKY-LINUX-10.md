@@ -137,6 +137,7 @@ sudo dnf -y install \
 | `php-mbstring` | Tekstfuncties |
 | `php-process` | `posix`-functies (gebruikt door de systeemcheck) |
 | `php-zip` | Back-ups als (versleutelde) zip |
+| `php-sodium` (aanbevolen) | De handtekening van de agent controleren (*Status → Ondertekende agent*). `install-rocky.sh` installeert hem mee (ook bij een update); met de hand: `sudo dnf -y install php-sodium && sudo systemctl restart php-fpm` |
 | `php-snmp` (optioneel) | Apparaten uitlezen via SNMP (switches, NAS, UPS, printers…). `install-rocky.sh` installeert hem mee; met de hand: `sudo dnf -y install php-snmp net-snmp-utils && sudo systemctl restart php-fpm` |
 | `mariadb-server` | Database |
 | `iputils`, `iproute` | `ping` en `ss` |

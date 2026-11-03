@@ -35,6 +35,10 @@ final class Setup
             [t('Extensie {ext}', ['ext' => 'pdo_mysql']), extension_loaded('pdo_mysql'), extension_loaded('pdo_mysql') ? t('Geladen') : 'apt install php-mysql'],
             [t('Extensie {ext}', ['ext' => 'curl']), extension_loaded('curl'), extension_loaded('curl') ? t('Geladen') : 'apt install php-curl (' . t('nodig voor HTTP-checks en Pushover') . ')'],
             [t('Extensie {ext}', ['ext' => 'mbstring']), extension_loaded('mbstring'), extension_loaded('mbstring') ? t('Geladen') : 'apt install php-mbstring'],
+            // 1.147.2: niet verplicht, wel nodig voor de controle van de ondertekende agent en voor gecomprimeerde rapporten
+            [t('Extensie {ext}', ['ext' => 'sodium']), extension_loaded('sodium') ?: null, extension_loaded('sodium') ? t('Geladen')
+                : 'dnf install php-sodium / apt install php-sodium (' . t('om de handtekening van de agent te controleren') . ')'],
+            [t('Extensie {ext}', ['ext' => 'zlib']), extension_loaded('zlib') ?: null, extension_loaded('zlib') ? t('Geladen') : t('nodig voor gecomprimeerde rapporten van agents')],
             [t('exec() / shell_exec() toegestaan'), self::fnEnabled('exec') && self::fnEnabled('shell_exec'),
                 self::fnEnabled('exec') && self::fnEnabled('shell_exec') ? t('Toegestaan') : t('Nodig voor ping en services; verwijder uit disable_functions')],
             [t('Ping beschikbaar'), is_executable($pingBin) ?: null, $pingBin . (is_executable($pingBin) ? '' : ' ' . t('niet gevonden') . ' — apt install iputils-ping')],

@@ -8,12 +8,22 @@ declare(strict_types=1);
  */
 final class AgentSign
 {
-    /** @return array{signed: bool, valid: bool, files: array<string, string>} per bestand: ok, missing of bad */
+    /** Kan PHP de handtekening controleren? Daarvoor is de extensie sodium nodig (Rocky/RHEL: pakket php-sodium) */
+    public static function available(): bool
+    {
+        return function_exists('sodium_crypto_sign_verify_detached');
+    }
+
+    /**
+     * @return array{signed: bool, valid: bool, files: array<string, string>, nosodium: bool} per bestand: ok, missing, bad
+     * of unknown (1.147.2: zonder sodium kan RzMon het niet controleren; dat gaf eerder een fatale fout op Status)
+     */
     public static function status(?string $dir = null): array
     {
         $dir ??= SM_ROOT . '/agent';
         $files = [];
         $pub = self::publicKey($dir);
+        $can = self::available();
         foreach (['rzmon-agent.sh', 'install-agent.sh'] as $f) {
             $path = "$dir/$f";
             $sig = @file_get_contents("$path.sig");
@@ -21,12 +31,16 @@ final class AgentSign
                 $files[$f] = 'missing';
                 continue;
             }
+            if (!$can) {
+                $files[$f] = 'unknown';
+                continue;
+            }
             $raw = base64_decode(trim($sig), true);
-            $files[$f] = $pub !== null && $raw !== false && strlen($raw) === SODIUM_CRYPTO_SIGN_BYTES
+            $files[$f] = $pub !== null && $raw !== false && strlen($raw) === 64
                 && sodium_crypto_sign_verify_detached($raw, (string) file_get_contents($path), $pub) ? 'ok' : 'bad';
         }
         $signed = !in_array('missing', $files, true);
-        return ['signed' => $signed, 'valid' => $signed && !in_array('bad', $files, true), 'files' => $files];
+        return ['signed' => $signed, 'valid' => $signed && $can && !in_array('bad', $files, true), 'files' => $files, 'nosodium' => !$can];
     }
 
     /** De ruwe ed25519-sleutel (32 bytes) uit AGENT_SIGN_PUB in de agent (DER: 12 bytes kop + 32 bytes sleutel) */
