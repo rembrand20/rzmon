@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.146.0**: per server het **aanvalspad** (open poorten, kwetsbaarheden, afhankelijke servers), **doelen** (melding binnen 5 minuten, agents rapporteren) en of zelf herstellen, blokkades en slimme drempels **echt werken**; het rapport begint met één overzichtspagina.
 - **1.145.0**: RzMon is nu open source onder **GPL-3.0**, met een `SECURITY.md` (lekken melden, threat model, de signing-sleutel) en strengere controles in GitHub Actions.
 
+## 1.149.1 – 2026-11-03
+### Opgelost
+- Achter de schermen: de code van de aanvalskaart is herschreven zodat de automatische codecontrole (PHPStan) hem goed leest. Voor jou verandert er niets.
+
 ## 1.149.0 – 2026-11-03
 ### Nieuw
 - **🗺️ Aanvalskaart** (*IDS → Aanvalskaart*): in één oogopslag waar een aanval vandaan komt, welke server of welk apparaat wordt aangevallen, via welke dienst of poort, en of het IP-adres geblokkeerd is.

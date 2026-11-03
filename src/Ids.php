@@ -1155,20 +1155,20 @@ final class Ids
                 continue;
             }
             $k = $ip . '|' . $r['host_id'] . '|' . ($r['dport'] ?? '') . '|' . $r['dir'];
-            $f = &$flows[$k];
-            $f ??= ['ip' => $ip, 'cc' => $cc, 'internal' => $internal, 'host_id' => (int) $r['host_id'], 'port' => $r['dport'] !== null ? (int) $r['dport'] : null,
-                'proto' => $r['proto'], 'svc' => $r['service'], 'dir' => $r['dir'], 'hits' => 0, 'sev' => 0, 'n' => 0, 'id' => (int) $r['id'],
-                'first' => $r['created_at'], 'last' => $r['last_seen'], 'open' => false, 'cats' => [], 'title' => $r['title'],
-                'host' => ['id' => (int) $r['host_id'], 'name' => $r['host'], 'kind' => $r['kind'], 'kind_auto' => $r['kind_auto'], 'mode' => $r['mode'], 'address' => $r['address']]];
-            $f['hits'] += max(1, (int) $r['hits']);
-            $f['sev'] = max($f['sev'], (int) $r['severity']);
-            $f['n']++;
-            $f['open'] = $f['open'] || $r['status'] === 'open';
-            $f['cats'][$cat] = true;
-            if ($r['created_at'] < $f['first']) {
-                $f['first'] = $r['created_at'];
+            if (!isset($flows[$k])) {
+                $flows[$k] = ['ip' => $ip, 'cc' => $cc, 'internal' => $internal, 'host_id' => (int) $r['host_id'], 'port' => $r['dport'] !== null ? (int) $r['dport'] : null,
+                    'proto' => $r['proto'], 'svc' => $r['service'], 'dir' => $r['dir'], 'hits' => 0, 'sev' => 0, 'n' => 0, 'id' => (int) $r['id'],
+                    'first' => $r['created_at'], 'last' => $r['last_seen'], 'open' => false, 'cats' => [], 'title' => $r['title'],
+                    'host' => ['id' => (int) $r['host_id'], 'name' => $r['host'], 'kind' => $r['kind'], 'kind_auto' => $r['kind_auto'], 'mode' => $r['mode'], 'address' => $r['address']]];
             }
-            unset($f);
+            $flows[$k]['hits'] += max(1, (int) $r['hits']);
+            $flows[$k]['sev'] = max($flows[$k]['sev'], (int) $r['severity']);
+            $flows[$k]['n']++;
+            $flows[$k]['open'] = $flows[$k]['open'] || $r['status'] === 'open';
+            $flows[$k]['cats'][$cat] = true;
+            if ($r['created_at'] < $flows[$k]['first']) {
+                $flows[$k]['first'] = $r['created_at'];
+            }
             if (count($recent) < 8) {
                 $recent[] = ['id' => (int) $r['id'], 'at' => $r['last_seen'], 'ip' => $ip, 'cc' => $cc, 'host' => $r['host'], 'port' => $r['dport'] !== null ? (int) $r['dport'] : null,
                     'svc' => $r['service'], 'dir' => $r['dir'], 'title' => $r['title'], 'sev' => (int) $r['severity'], 'status' => $r['status']];
@@ -1177,25 +1177,24 @@ final class Ids
         // Per bron (IP) en per land
         $src = [];
         $countries = [];
-        foreach ($flows as &$f) {
-            $f['cats'] = array_keys($f['cats']);
-            $s = &$src[$f['ip']];
-            $s ??= ['ip' => $f['ip'], 'cc' => $f['cc'], 'internal' => $f['internal'], 'hits' => 0, 'sev' => 0, 'targets' => [], 'in' => false, 'out' => false, 'last' => $f['last']];
-            $s['hits'] += $f['hits'];
-            $s['sev'] = max($s['sev'], $f['sev']);
-            $s['targets'][$f['host_id']] = true;
-            $s[$f['dir'] === 'o' ? 'out' : 'in'] = true;
-            $s['last'] = max($s['last'], $f['last']);
-            unset($s);
-            $c = &$countries[$f['cc']];
-            $c ??= ['cc' => $f['cc'], 'hits' => 0, 'sev' => 0, 'ips' => [], 'in' => 0, 'out' => 0];
-            $c['hits'] += $f['hits'];
-            $c['sev'] = max($c['sev'], $f['sev']);
-            $c['ips'][$f['ip']] = true;
-            $c[$f['dir'] === 'o' ? 'out' : 'in'] += $f['hits'];
-            unset($c);
+        foreach (array_keys($flows) as $k) {
+            $flows[$k]['cats'] = array_keys($flows[$k]['cats']);
+            $f = $flows[$k];
+            $ip = $f['ip'];
+            $src[$ip] ??= ['ip' => $ip, 'cc' => $f['cc'], 'internal' => $f['internal'], 'hits' => 0, 'sev' => 0, 'targets' => [], 'in' => false, 'out' => false, 'last' => $f['last']];
+            $src[$ip]['hits'] += $f['hits'];
+            $src[$ip]['sev'] = max($src[$ip]['sev'], $f['sev']);
+            $src[$ip]['targets'][$f['host_id']] = true;
+            $src[$ip][$f['dir'] === 'o' ? 'out' : 'in'] = true;
+            $src[$ip]['last'] = max($src[$ip]['last'], $f['last']);
+            $cc = $f['cc'];
+            $countries[$cc] ??= ['cc' => $cc, 'hits' => 0, 'sev' => 0, 'ips' => [], 'in' => 0, 'out' => 0];
+            $countries[$cc]['hits'] += $f['hits'];
+            $countries[$cc]['sev'] = max($countries[$cc]['sev'], $f['sev']);
+            $countries[$cc]['ips'][$ip] = true;
+            $countries[$cc][$f['dir'] === 'o' ? 'out' : 'in'] += $f['hits'];
         }
-        unset($f);
+        $src = array_values($src);
         usort($src, static fn($a, $b) => [$b['sev'], $b['hits']] <=> [$a['sev'], $a['hits']]);
         $shown = array_slice($src, 0, $top);
         $rest = array_slice($src, $top);
@@ -1213,14 +1212,15 @@ final class Ids
                 $rep[$t['ip']] = ['score' => (int) $t['score'], 'verdict' => (string) $t['verdict']];
             }
         }
-        foreach ($shown as &$s) {
+        foreach (array_keys($shown) as $i) {
+            $s = $shown[$i];
             $on = array_values(array_unique($blocked[$s['ip']] ?? []));
             $rz = !$s['internal'] && Security::blockFor($s['ip']) !== null;
             $s += ['blocked' => $on || $rz, 'blocked_on' => $on, 'blocked_rz' => $rz, 'rep' => $rep[$s['ip']] ?? null, 'bad' => $s['internal'] ? null : IpIntel::bad($s['ip'])];
             $s['ntargets'] = count($s['targets']);
             unset($s['targets']);
+            $shown[$i] = $s;
         }
-        unset($s);
         $isBlocked = array_column($shown, 'blocked', 'ip');
         $lines = [];
         $targets = [];
@@ -1229,27 +1229,26 @@ final class Ids
                 continue;
             }
             $f['blocked'] = $isBlocked[$f['ip']];
-            $t = &$targets[$f['host_id']];
-            $t ??= $f['host'] + ['hits' => 0, 'sev' => 0, 'sources' => [], 'out' => false];
-            $t['hits'] += $f['hits'];
-            $t['sev'] = max($t['sev'], $f['sev']);
-            $t['sources'][$f['ip']] = true;
-            $t['out'] = $t['out'] || $f['dir'] === 'o';
-            unset($t, $f['host']);
+            $hid = $f['host_id'];
+            $targets[$hid] ??= $f['host'] + ['hits' => 0, 'sev' => 0, 'sources' => [], 'out' => false];
+            $targets[$hid]['hits'] += $f['hits'];
+            $targets[$hid]['sev'] = max($targets[$hid]['sev'], $f['sev']);
+            $targets[$hid]['sources'][$f['ip']] = true;
+            $targets[$hid]['out'] = $targets[$hid]['out'] || $f['dir'] === 'o';
+            unset($f['host']);
             $lines[] = $f;
         }
-        foreach ($targets as &$t) {
-            $t['nsources'] = count($t['sources']);
-            unset($t['sources']);
+        foreach (array_keys($targets) as $hid) {
+            $targets[$hid]['nsources'] = count($targets[$hid]['sources']);
+            unset($targets[$hid]['sources']);
         }
-        unset($t);
         usort($lines, static fn($a, $b) => $b['hits'] <=> $a['hits']);
         $targets = array_values($targets);
         usort($targets, static fn($a, $b) => [$b['sev'], $b['hits']] <=> [$a['sev'], $a['hits']]);
-        foreach ($countries as &$c) {
-            $c['ips'] = count($c['ips']);
+        foreach (array_keys($countries) as $cc) {
+            $countries[$cc]['ips'] = count($countries[$cc]['ips']);
         }
-        unset($c);
+        $countries = array_values($countries);
         usort($countries, static fn($a, $b) => $b['hits'] <=> $a['hits']);
         $allTargets = [];
         foreach ($flows as $f) {
