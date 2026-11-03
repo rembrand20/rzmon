@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.151.0**: de pagina *Gezondheid* is opgedeeld over **Systeem**: *Database en server* (met de tabbladen Database en Server) en de nieuwe pagina **Prestaties en fouten**.
 - **1.150.0**: de **zijbalk klapt in** tot alleen iconen (per gebruiker onthouden), en het accountmenu past weer helemaal.
 - **1.149.0**: nieuwe **🗺️ Aanvalskaart** in IDS: wie valt wat aan, via welke poort, en is het geblokkeerd, als stromen met bewegende lijnen en op een wereldkaart; ook als kaartje op het dashboard.
 - **1.148.0**: rustigere instellingen: geen gele uitlegbalken meer; wat aandacht nodig heeft staat in een **oranje balk** bovenaan, met een bolletje bij de kaart waar het over gaat.
 - **1.147.0**: agents sturen hun rapport **gecomprimeerd** (meestal 50–85% kleiner) en de agent is opgebouwd uit **modules**; twee fouten waardoor een agent soms een run oversloeg of zijn foutmeldingen kwijtraakte, zijn opgelost.
-- **1.146.0**: per server het **aanvalspad** (open poorten, kwetsbaarheden, afhankelijke servers), **doelen** (melding binnen 5 minuten, agents rapporteren) en of zelf herstellen, blokkades en slimme drempels **echt werken**; het rapport begint met één overzichtspagina.
+
+## 1.151.0 – 2026-11-03
+### Nieuw
+- **Gezondheid opgedeeld over Systeem**: alles wat op *Overzicht → Gezondheid* stond, staat nu waar het hoort.
+  - *Systeem → Database en server* heeft twee tabbladen. **Database**: opslag en bewaartermijnen, de databaseverbinding, het databasewachtwoord en het nieuwe blok **Gebruik van de database** (grootte, groei, wanneer de disk vol is, de tabellen en *Database optimaliseren*). **Server**: *Server en PHP*, de **systeemcheck** (PHP, extensies, rechten, PHP-omgeving) en de **cron-regel**.
+  - Nieuwe pagina **Systeem → Prestaties en fouten**: snelheid (OPcache, compressie, de traagste verzoeken, agentrapporten en cron-onderdelen), de duur van een cron-ronde, de traagste checks en de **PHP-fouten** van de laatste 24 uur.
+  - *Gezondheid* is weg uit *Overzicht*; een oude link of bladwijzer brengt je vanzelf naar *Database en server → Server*.
+- Een aandachtspunt over de database (geheugen of groei) krijgt zijn bolletje nu bij *Gebruik van de database*.
 
 ## 1.150.0 – 2026-11-03
 ### Nieuw

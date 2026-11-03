@@ -6285,4 +6285,9 @@ return [
     'Zijbalk inklappen tot iconen' => 'Collapse the sidebar to icons',
     'Zijbalk uitklappen' => 'Expand the sidebar',
     'Uitklappen' => 'Expand',
+    'Gebruik van de database' => 'Database usage',
+    'Prestaties' => 'Performance',
+    'Databaseverbinding, bewaartermijnen, tijdzone, PHP en de systeemcheck.' => 'Database connection, retention, time zone, PHP and the system check.',
+    'Prestaties en fouten' => 'Performance and errors',
+    'Hoe snel RzMon is, hoe lang een cron-ronde duurt, de traagste checks en PHP-fouten.' => 'How fast RzMon is, how long a cron run takes, the slowest checks and PHP errors.',
 ];

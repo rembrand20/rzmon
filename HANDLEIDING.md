@@ -364,14 +364,14 @@ Elke pagina heeft één titel met daaronder één korte zin. Langere uitleg staa
 
 | Groep | Onderdelen | Was |
 |---|---|---|
-| Overzicht | Status · Achtergrondtaken · Gezondheid | *Hoe staat het ervoor?*, *Verbindingen en taken*, *Systeem → Systeemcheck* |
+| Overzicht | Status · Achtergrondtaken | *Hoe staat het ervoor?*, *Verbindingen en taken* (*Gezondheid* is in 1.151.0 verdeeld over *Systeem*) |
 | Monitoring | Alle checks · Sjablonen · Advies (tabbladen: Slimme drempels, Voorstellen, Opschonen) | *Checks* met drie losse adviespagina's |
 | Meldingen | Kanalen · Wanneer melden · Systeemmeldingen | *Meldregels en stille uren* en *Alarmgedrag* samen |
 | IDS | Algemeen · Endpoint-bewaking · Dreigingsinformatie · Netwerk en aanvallers · Per server | *Beveiliging → IDS: …* |
 | Beveiliging | Inloggen · Beheer via https · Gebruikers · Kwetsbaarheden · Datalekken · Netwerkscan | *Toegang* is hierin opgegaan |
 | Agents | Agents · Beveiligde verbinding · Commando-checks | |
 | Koppelingen | UniFi en AdGuard · Home Assistant (MQTT) · REST API · Statuspagina | |
-| Systeem | Bijwerken · Back-up · Database en server · Wijzigingslogboek · Exporteren en importeren | *Server en PHP* zit nu bij *Database en server* |
+| Systeem | Bijwerken · Back-up · Database en server (tabbladen *Database* en *Server*) · Prestaties en fouten · Wijzigingslogboek · Exporteren en importeren | *Server en PHP*, de systeemcheck en cron staan bij *Database en server → Server*; het gebruik van de database bij *Database en server → Database* |
 
 Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieuwe plek.
 
@@ -400,7 +400,8 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
 - **IDS: aan/uit op één plek.** Een onderdeel van het IDS zet je aan of uit op de kaarten van *IDS → 🛡️ Bescherming*. De drempels van zo'n onderdeel staan achter **⚙️** op de kaart, bijvoorbeeld het aantal mislukte logins, de blokkeerduur, de honeypot, de leerperiode, de score om te blokkeren en de drempels van de webdiensten.
 - Op de IDS-pagina's bij *Instellingen* staan nog de algemene instellingen (aan/uit van het IDS, de modus, API-sleutels, logbestanden …), met bovenaan een verwijzing naar Bescherming. Een kopje waar niets meer onder staat, verdwijnt.
 
-- *Instellingen → Overzicht → **Gezondheid*** (tot 1.120.0: *Systeem → Systeemcheck*): PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en een kant-en-klare cron-regel. Vanaf 1.96.0 ook de gezondheid van RzMon zelf:
+- Vanaf 1.151.0 staat wat eerst op *Overzicht → Gezondheid* stond op twee plekken onder **Systeem**: *Database en server → **Server*** (systeemcheck: PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en de cron-regel), *Database en server → **Database*** (grootte, groei en wanneer de disk vol is, de tabellen en *Database optimaliseren*) en de nieuwe pagina ***Prestaties en fouten*** (snelheid, duur van een cron-ronde, traagste checks en PHP-fouten). Een oude link naar Gezondheid brengt je vanzelf naar *Server*.
+- Eerder: *Instellingen → Overzicht → **Gezondheid*** (tot 1.120.0: *Systeem → Systeemcheck*): PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en een kant-en-klare cron-regel. Vanaf 1.96.0 ook de gezondheid van RzMon zelf:
   - de grootte van de database, met de grootste tabellen, de groei per dag en wanneer de disk vol is;
   - hoe lang een ronde duurt, en of hij uitloopt boven de minuut;
   - de traagste checks;

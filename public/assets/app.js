@@ -8243,8 +8243,7 @@ const SET_IC = (d) => `<svg class="tab-ic set-ic" viewBox="0 0 24 24" aria-hidde
 const SET_NAV = [
   ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Overzicht'), [
     ['overview', L('Status'), ['overview'], L('Wat er nog aandacht nodig heeft, met een knop om het te regelen.')],
-    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzMon elke minuut uitvoert.')],
-    ['syscheck', L('Gezondheid'), ['syscheck'], L('Systeemcheck, database, snelheid en fouten van RzMon zelf.')]]],
+    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzMon elke minuut uitvoert.')]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
     ['allchecks', L('Alle checks'), ['allchecks'], L('Alle checks van alle servers in één lijst, ook samen bewerken.')],
     ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
@@ -8279,13 +8278,15 @@ const SET_NAV = [
   ['systeem', SET_IC('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), L('Systeem'), [
     ['update', L('Bijwerken'), ['update'], L('Nieuwe versies van RzMon, met of zonder automatisch bijwerken.')],
     ['backup', L('Back-up'), ['backup'], L('Automatische back-ups en terugzetten.')],
-    ['db', L('Database en server'), ['dbconn', 'db', 'storage', 'server'], L('Databaseverbinding, bewaartermijnen, tijdzone en PHP.')],
+    ['db', L('Database en server'), ['dbconn', 'db', 'storage', 'dbuse', 'server', 'syscheck', 'cron'], L('Databaseverbinding, bewaartermijnen, tijdzone, PHP en de systeemcheck.'),
+      [['database', L('Database'), ['dbconn', 'db', 'storage', 'dbuse']], ['server', L('Server'), ['server', 'syscheck', 'cron']]]],
+    ['perf', L('Prestaties en fouten'), ['perf', 'errors'], L('Hoe snel RzMon is, hoe lang een cron-ronde duurt, de traagste checks en PHP-fouten.')],
     ['changelog', L('Wijzigingslogboek'), ['changelog'], L('Wie wat wijzigde, met terugdraaien.')],
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
-const SET_ALIAS = { enc: 'agentdef', https: 'outside', setup: 'syscheck', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db' };   // 1.120.0: samengevoegde onderdelen
-const SET_TAB_OF = { smart: 'drempels', cleanup: 'opschonen' };   // oude adressen → tabblad op de pagina Advies
+const SET_ALIAS = { enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db' };   // 1.120.0: samengevoegde onderdelen
+const SET_TAB_OF = { smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
 let setHealthAt = 0;
@@ -8333,7 +8334,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'statuspage') loadStatusPage();
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
-  if (setSection === 'syscheck') loadSyscheck();
+  if (setSection === 'db' || setSection === 'perf') loadSyscheck();   // 1.151.0: systeemcheck, cron, database, prestaties
   if (setSection === 'db') loadSetupInfo();
   if (focusEl) {
     // Gevonden via zoeken: ingeklapte "Geavanceerd" openen, ernaartoe en even laten oplichten
@@ -8468,7 +8469,7 @@ async function loadSettingsHealth() {
   setHealthItems = {};
   setHealthAt = Date.now();
   for (const it of items) {
-    it.card = it.section;   // 1.148.0: de oude sleutel is vaak precies de kaart (bv. enc, https)
+    it.card = { db_pool: 'dbuse', db_growth: 'dbuse' }[it.key] || it.section;   // 1.148.0: de oude sleutel is vaak precies de kaart (bv. enc, https)
     it.section = SET_ALIAS[it.section] || it.section;
     if (rank[it.status] < rank[setHealth[it.section] || 'ok']) setHealth[it.section] = it.status;
     if (it.status === 'bad' || it.status === 'warn') {
@@ -9988,23 +9989,25 @@ async function loadConn() {
 
 // ---------------------------------------------------------------- 🛠️ Systeem: wat eerst op de setup-pagina stond (1.92.0)
 let setupInfo = null;
+// 1.151.0: wat eerst op Gezondheid stond, staat nu op Systeem → Database en server (systeemcheck, cron, gebruik van de
+// database) en Systeem → Prestaties en fouten. Eén keer ophalen en vullen wat er op de pagina staat.
 async function loadSyscheck() {
-  const box = $('#syscheck-body');
-  if (!box) return;
-  $('#syscheck-reload').onclick = loadSyscheck;
+  const boxes = ['syscheck', 'cron', 'dbuse', 'perf', 'errors'].map((k) => $(`#${k}-body`)).filter(Boolean);
+  if (!boxes.length) return;
+  ['#syscheck-reload', '#perf-reload'].forEach((id) => { if ($(id)) $(id).onclick = loadSyscheck; });
   let d;
-  try { d = await api('setup_info'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  try { d = await api('setup_info'); } catch (ex) { boxes.forEach((x) => (x.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`)); return; }
   setupInfo = d;
-  box.innerHTML = `<ul class="checklist">${d.checks.map((c) => `<li class="${c.ok === true ? 'ok' : c.ok === null ? 'warn' : 'bad'}">
+  const fill = (id, html) => { const x = $(`#${id}-body`); if (x) { x.innerHTML = html; wireCopy(x); } };
+  fill('syscheck', `<ul class="checklist">${d.checks.map((c) => `<li class="${c.ok === true ? 'ok' : c.ok === null ? 'warn' : 'bad'}">
       <span class="ic">${c.ok === true ? '✓' : c.ok === null ? '!' : '✕'}</span><span><strong>${esc(c.label)}</strong><br><span class="muted small">${esc(c.detail)}</span></span></li>`).join('')}</ul>
     <details class="small api-docs"><summary>${L('PHP-omgeving')}</summary>
-      <table class="kv">${Object.entries(d.php_env).map(([k, v]) => `<tr><th>${esc(k)}</th><td class="mono">${esc(v)}</td></tr>`).join('')}</table></details>
-    ${selfReport(d.self)}
-    ${perfReport(d.perf)}
-    <h3 class="set-sub">⏱️ Cron</h3>
-    <p class="muted small">${L('De checks draaien elke minuut via cron. Plaats deze regel op de server (als root):')}</p>${copyBox('cron-line', d.cron)}`;
-  wireCopy(box);
-  perfWire(box);
+      <table class="kv">${Object.entries(d.php_env).map(([k, v]) => `<tr><th>${esc(k)}</th><td class="mono">${esc(v)}</td></tr>`).join('')}</table></details>`);
+  fill('cron', `<p class="muted small">${L('De checks draaien elke minuut via cron. Plaats deze regel op de server (als root):')}</p>${copyBox('cron-line', d.cron)}`);
+  fill('dbuse', (d.self ? selfDb(d.self) : '') + perfTables(d.perf));
+  fill('perf', perfReport(d.perf) + selfCron(d.self));
+  fill('errors', selfErrors(d.self));
+  perfWire($('#tab-settings'));
 }
 
 const GZIP_APACHE = `# /etc/httpd/conf.d/rzmon-snelheid.conf  (daarna: systemctl reload httpd)
@@ -10045,8 +10048,15 @@ function perfReport(p) {
     ${(p.parts || []).length ? `<details class="small api-docs" ${p.parts.some((r) => r.max >= 5000) ? 'open' : ''}><summary>${L('Onderdelen van een agentrapport')}</summary>${tbl(p.parts, [[L('Onderdeel'), (r) => `<code>${esc(r.name.replace(/^rapport:/, ''))}</code>`],
       [L('Gemiddeld'), (r) => slow(r.avg, 1000)], [L('Langste'), (r) => slow(r.max, 5000)], [L('Totaal'), (r) => ms(r.total)], [L('Keren'), (r) => r.n.toLocaleString(LOCALE)]])}</details>` : ''}
     ${p.cron.length ? `<details class="small api-docs" open><summary>${L('Onderdelen van een cron-ronde')}</summary>${tbl(p.cron.filter((r) => r.name !== 'start'), [[L('Onderdeel'), (r) => esc(r.name)],
-      [L('Per ronde'), (r) => slow(r.per_run, 10000)], [L('Langste'), (r) => slow(r.max, 30000)], [L('Keren'), (r) => r.n.toLocaleString(LOCALE)]])}</details>` : ''}
-    <details class="small api-docs"><summary>${L('Tabellen in de database')}</summary>${tbl(p.tables, [[L('Tabel'), (t) => `<code>${esc(t.name)}</code>`], [L('Grootte'), (t) => fmtBytes(+t.bytes)],
+      [L('Per ronde'), (r) => slow(r.per_run, 10000)], [L('Langste'), (r) => slow(r.max, 30000)], [L('Keren'), (r) => r.n.toLocaleString(LOCALE)]])}</details>` : ''}`;
+}
+
+/** 1.151.0: de tabellen in de database, met optimaliseren (Systeem → Database en server) */
+function perfTables(p) {
+  if (!p) return '';
+  const tbl = (rows, cols) => `<div class="table-scroll"><table class="vuln-table small perf-t"><thead><tr>${cols.map((c) => `<th>${c[0]}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `<details class="small api-docs"><summary>${L('Tabellen in de database')}</summary>${tbl(p.tables, [[L('Tabel'), (t) => `<code>${esc(t.name)}</code>`], [L('Grootte'), (t) => fmtBytes(+t.bytes)],
       [L('Ongebruikt'), (t) => (+t.free > 1048576 ? `<span class="warn-txt">${fmtBytes(+t.free)}</span>` : fmtBytes(+t.free))], [L('Rijen'), (t) => (+t.rows).toLocaleString(LOCALE)]])}
       <p><button type="button" class="btn" id="perf-optimize">🧹 ${L('Database optimaliseren')}</button>
       <span class="muted">${L('Bouwt de grootste tabellen opnieuw op: ongebruikte ruimte terug en snellere indexen. Duurt even (tot een paar minuten); doe het buiten drukke uren.')}</span></p>
@@ -10091,24 +10101,31 @@ function perfWire(box) {
 }
 
 /** Gezondheid van RzMon (1.96.0): database, cron, traagste checks, PHP-fouten */
-function selfReport(r) {
+/** 1.151.0: grootte en groei van de database (Systeem → Database en server) */
+function selfDb(r) {
   if (!r) return '';
   const db = r.db, c = r.cron;
   const dbLine = `${L('Database: {s}', { s: fmtBytes(db.size) })}${db.growth_day != null ? ' · ' + L('groeit {g} per dag', { g: fmtBytes(db.growth_day) }) : ` · <span class="muted">${L('groei: na een paar dagen bekend')}</span>`}`
     + (db.free != null ? ' · ' + L('vrij op de disk: {f}', { f: fmtBytes(db.free) }) : '')
     + (db.full_days != null ? ` · <b class="${db.full_days < 30 ? 'bad' : db.full_days < 90 ? 'warn-txt' : ''}">${L('vol over ~{n} dagen', { n: db.full_days })}</b>` : '');
-  return `<h3 class="set-sub">🗄️ ${L('Database')}</h3><p class="small">${dbLine}</p>
-    <details class="small api-docs"><summary>${L('Grootste tabellen')}</summary><table class="kv">${db.tables.map((t) => `<tr><th class="mono">${esc(t.name)}</th><td>${fmtBytes(+t.bytes)} · ${L('{n} rijen', { n: (+t.rows).toLocaleString(LOCALE) })}</td></tr>`).join('')}</table>
-      <p class="muted">${L('Meethistorie en meldingen bewaren stel je in bij Database en opslag.')}</p></details>
-    <h3 class="set-sub">⏱️ ${L('Duur van een ronde')}</h3>
+  return `<p class="small">${dbLine}</p>`;
+}
+/** 1.151.0: duur van een cron-ronde en de traagste checks (Systeem → Prestaties en fouten) */
+function selfCron(r) {
+  if (!r) return '';
+  const c = r.cron;
+  return `<h3 class="set-sub">⏱️ ${L('Duur van een ronde')}</h3>
     <p class="small">${c ? L('Laatste {l} s · gemiddeld {a} s · langste {m} s (laatste {n} rondes)', { l: dec(c.last), a: dec(c.avg), m: dec(c.max), n: c.n })
       + (c.over ? ` · <b class="bad">${L('{n} keer bijna een minuut of langer', { n: c.over })}</b>` : '')
       + (c.overlap_at ? `<br><span class="warn-txt">${L('Laatst uitgelopen (vorige ronde nog bezig): {t}', { t: esc(fmtDateTime(c.overlap_at)) })}</span>` : '') : `<span class="muted">${L('Nog niet gemeten.')}</span>`}</p>
     <h3 class="set-sub">🐢 ${L('Traagste checks')}</h3>
     ${r.slow.length ? `<table class="kv small">${r.slow.map((s) => `<tr><th>${esc(s.host)} · ${esc(s.name)}</th><td>${(+s.run_ms).toLocaleString(LOCALE)} ms</td></tr>`).join('')}</table>
-      <p class="muted small">${L('Een trage check (time-out) houdt de rest van de ronde op. Kijk of het doel bereikbaar is, of geef hem een langer interval.')}</p>` : `<p class="small good-txt">✔ ${L('Geen trage checks (alles onder 0,1 seconde).')}</p>`}
-    <h3 class="set-sub">⚠️ ${L('PHP-fouten (24 uur)')}</h3>
-    ${r.errors.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Fout')}</th><th>${L('Waar')}</th><th>${L('Aantal')}</th><th>${L('Laatst')}</th></tr></thead><tbody>
+      <p class="muted small">${L('Een trage check (time-out) houdt de rest van de ronde op. Kijk of het doel bereikbaar is, of geef hem een langer interval.')}</p>` : `<p class="small good-txt">✔ ${L('Geen trage checks (alles onder 0,1 seconde).')}</p>`}`;
+}
+/** 1.151.0: PHP-fouten van de laatste 24 uur */
+function selfErrors(r) {
+  if (!r) return '';
+  return `${r.errors.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Fout')}</th><th>${L('Waar')}</th><th>${L('Aantal')}</th><th>${L('Laatst')}</th></tr></thead><tbody>
       ${r.errors.map((e) => `<tr><td><b class="${e.level === 'warning' ? 'warn-txt' : 'bad'}">${esc(e.level)}</b> ${esc(e.message)}</td><td class="mono">${esc(e.file)}:${e.line}<br><span class="muted">${esc(e.url)}</span></td>
         <td>${e.count}</td><td class="nowrap">${esc(ago(e.last_at))}</td></tr>`).join('')}</tbody></table></div>` : `<p class="small good-txt">✔ ${L('Geen fouten.')}</p>`}`;
 }

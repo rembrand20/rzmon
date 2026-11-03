@@ -1310,6 +1310,23 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <h2>🩺 <?= th('Systeemcheck') ?> <button type="button" class="btn small-btn" id="syscheck-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
         <div id="syscheck-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
+      <!-- 1.151.0: eerst op de pagina Gezondheid -->
+      <div data-sk="cron" class="card need-admin" id="cron-card">
+        <h2>⏱️ Cron</h2>
+        <div id="cron-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+      <div data-sk="dbuse" class="card need-admin" id="dbuse-card">
+        <h2>📊 <?= th('Gebruik van de database') ?></h2>
+        <div id="dbuse-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+      <div data-sk="perf" class="card need-admin" id="perf-card">
+        <h2>🚀 <?= th('Prestaties') ?> <button type="button" class="btn small-btn" id="perf-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
+        <div id="perf-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+      <div data-sk="errors" class="card need-admin" id="errors-card">
+        <h2>⚠️ <?= th('PHP-fouten (24 uur)') ?></h2>
+        <div id="errors-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
 
       <div data-sk="db" class="card need-admin" id="db-card">
         <h2>🔑 <?= th('Databasewachtwoord') ?></h2>
