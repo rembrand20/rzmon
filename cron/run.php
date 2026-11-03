@@ -63,6 +63,7 @@ if (strtotime((string) setting('purge_at', '')) < time() - 3600) {
     Monitor::purge();
     NetScan::purge();
     Perf::purge();
+    Incidents::purge();
     Perf::lap('opruimen');
 }
 echo date('c') . " $n check(s) uitgevoerd\n";
@@ -157,6 +158,13 @@ try {
     fwrite(STDERR, 'Analyse: ' . $e->getMessage() . "\n");
 }
 Perf::lap('analyse');
+// Incidenten (1.142.0): één lijst uit monitoring, IDS en kwetsbaarheden bijwerken
+try {
+    Incidents::sync();
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Incidenten: ' . $e->getMessage() . "\n");
+}
+Perf::lap('incidenten');
 // Slimme drempels (1.107.0): elke nacht vanaf 4:00 opnieuw leren, een paar checks per minuut
 try {
     Smart::cron();

@@ -134,6 +134,34 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **Servers met problemen** (of in onderhoud, of nog zonder checks) als kaart: een icoon voor de soort apparaat (zie hieronder), de status ("1 kritiek · 1 waarschuwing"), de checks met een probleem en **mini-grafiekjes van CPU, RAM en de volste disk over 24 uur** (zonder die checks: de eerste check met een meetwaarde, bv. ping).
 - **✔ Alles in orde**: servers waar alles OK is, compact onder elkaar: één regel met naam, aantal checks, de mini-grafiekjes en de beschikbaarheid over 24 uur. Klik erop voor alle checks.
 
+### Incidenten ⚠ (vanaf 1.142.0)
+Het tabblad **⚠ Incidenten** zet in **één lijst** wat er echt mis is, uit alle onderdelen, zodat je het kunt afhandelen. Beheerders en gebruikers zien het; *alleen lezen* niet.
+
+| Bron | Wanneer een incident |
+|---|---|
+| 📈 Monitoring | een check is **minstens 5 minuten critical** (korte pieken niet; niet tijdens onderhoud). Eén incident per storing. |
+| 🛡️ IDS | een **critical** IDS-incident |
+| 🐞 Kwetsbaarheden | een **actief misbruikte** kwetsbaarheid (CISA KEV) op een server, die niet geaccepteerd is |
+
+- **Status**: *open* → *in behandeling* → *opgelost*. Kies je een **eigenaar**, dan staat het meteen op *in behandeling*.
+- **Vanzelf opgelost**: is de check weer OK, is het IDS-incident afgehandeld, of is de kwetsbaarheid weg (bijgewerkt of geaccepteerd), dan gaat het incident vanzelf naar *opgelost*, met een regel in de tijdlijn.
+- **Zelf sluiten** kan ook. Een IDS-incident dat je hier sluit, is dan ook in IDS afgehandeld.
+- **Tijdlijn en notities**: klik op een incident voor de details, de status, de eigenaar en een **notitie** (wat je gedaan of gevonden hebt). Elke wijziging komt in de tijdlijn, met wie en wanneer. Met **Naar Monitoring / IDS / Kwetsbaarheden** ga je naar de bron.
+- **Bovenaan**: hoeveel er open en in behandeling zijn, hoeveel er de laatste 30 dagen zijn opgelost en hoe lang dat gemiddeld duurde. Met de chips *Nog bezig, Open, In behandeling, Opgelost, Alles* en het zoekveld filter je.
+- Opgeloste incidenten blijven ruim een jaar bewaard.
+
+Bij de eerste keer na de update worden checks die nu al critical zijn meteen incidenten.
+
+### Rapport als PDF 📄 (vanaf 1.142.0)
+Op **📊 Analyse** staat de knop **📄 Rapport (PDF)**. Die opent een nette, afdrukbare pagina over de gekozen periode, met meteen het afdrukvenster. Kies daar **Opslaan als PDF**. In het rapport:
+- de **samenvatting**: score, beschikbaarheid (met ▲/▼ ten opzichte van de vorige periode), storingen, hersteltijd, meldingen en IDS critical;
+- de **incidenten** uit die periode, met status, eigenaar en duur;
+- de **beschikbaarheid per server** en de **lastigste checks**;
+- **beveiliging** (IDS en blokkades) en de **kwetsbaarheden** per server van nu;
+- **wat nu aanpakken**.
+
+Opent er niets, sta dan pop-ups toe voor RzMon. Het rapport is een losse pagina zonder scripts, en ziet er op papier hetzelfde uit als op het scherm.
+
 ### Analyse 📊 (vanaf 1.106.0)
 Het tabblad **📊 Analyse** laat zien hoe het over langere tijd gaat, en wat je het best als eerste aanpakt. Alleen **beheerders en gebruikers** zien het; een account met de rol *alleen lezen* niet.
 

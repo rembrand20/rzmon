@@ -7,6 +7,14 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.142.0 – 2026-11-03
+### Nieuw
+- **Incidenten**: een nieuw tabblad met één lijst uit monitoring (een check die minstens 5 minuten critical is), IDS (critical) en kwetsbaarheden (actief misbruikt). Per incident een status (open, in behandeling, opgelost), een eigenaar, notities en een tijdlijn. Herstelt de bron, dan gaat het incident vanzelf naar opgelost.
+- **Rapport als PDF**: op *Analyse* opent **📄 Rapport (PDF)** een afdrukbaar rapport over de gekozen periode; bewaar het met *Opslaan als PDF*.
+
+### Opgelost
+- Een test liep rond 04:00 UTC vast op een dubbele rij (alleen de testsuite).
+
 ## 1.141.0 – 2026-11-03
 ### Nieuw
 - **Kwetsbaarheden: risicoscore** van 0 tot 100 per pakket: CVSS, actief misbruikt (KEV), kans op misbruik (EPSS) en of het pakket op het netwerk luistert. De lijst staat op risico, met een filter *🔥 Hoog risico* (70 of meer).

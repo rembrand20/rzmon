@@ -1169,7 +1169,7 @@ $need = match ($action) {
     'home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom' => 'user',
+    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1180,7 +1180,7 @@ I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
 if ($method === 'GET' && in_array($action, ['home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
-    'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview',
+    'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview', 'incidents', 'incident_info', 'report',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();
 }
@@ -4019,6 +4019,29 @@ switch ($action) {
             out(['error' => $e->getMessage()], 422);
         }
         out(['ok' => true, 'n' => $n]);
+
+    case 'incidents':
+        // 1.142.0: één lijst met incidenten (open, in behandeling en de laatste 30 dagen opgelost)
+        out(Incidents::list((int) ($_GET['days'] ?? 30)));
+
+    case 'incident_info':
+        $inc = Incidents::info((int) ($_GET['id'] ?? 0));
+        $inc ? out($inc) : out(['error' => t('Incident niet gevonden')], 404);
+
+    case 'incident_set':
+        $in = input();
+        $err = Incidents::update((int) ($in['id'] ?? 0), $user['username'],
+            isset($in['status']) ? (string) $in['status'] : null, isset($in['owner']) ? trim((string) $in['owner']) : null,
+            isset($in['note']) ? mb_substr((string) $in['note'], 0, 2000) : null);
+        $err ? out(['error' => $err], 422) : out(['ok' => true]);
+
+    case 'report':
+        // 1.142.0: afdrukbaar rapport (als PDF te bewaren), losse HTML zonder scripts
+        $p = (string) ($_GET['period'] ?? '30d');
+        header('Content-Type: text/html; charset=utf-8');
+        header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+        echo Report::html($p);
+        exit;
 
     case 'analytics':
         $period = (string) ($_GET['period'] ?? '30d');

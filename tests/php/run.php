@@ -348,7 +348,7 @@ ok(($t1190['n'] ?? 0) >= 2 && count($ov['tactics']) >= 14, 'MITRE-overzicht: T11
 ok(count(Chain::signals(30, null, null, 'T1190')) >= 2, 'MITRE: signalen bij een techniek');
 // Ongewoon tijdstip: actief op een uur waarop dat nooit gebeurde
 for ($d = 1; $d <= 8; $d++) {
-    q("INSERT INTO edr_hourly (host_id, hr, kind, n) VALUES (?, ?, 'i', 5)", [$hd['id'], date('Y-m-d', strtotime("-$d day")) . ' ' . sprintf('%02d', (int) date('G') === 10 ? 11 : 10) . ':00:00']);
+    q("INSERT INTO edr_hourly (host_id, hr, kind, n) VALUES (?, ?, 'i', 5) ON DUPLICATE KEY UPDATE n = 5", [$hd['id'], date('Y-m-d', strtotime("-$d day")) . ' ' . sprintf('%02d', (int) date('G') === 10 ? 11 : 10) . ':00:00']);
 }
 Edr::process($hd, ['ev' => [['k' => 'x', 't' => time(), 'pid' => 500, 'st' => 6, 'uid' => 1000, 'auid' => '1000', 'u' => 'bob', 'exe' => '/usr/bin/ls', 'comm' => 'ls', 'argv' => ['ls'], 'cmd' => 'ls', 'pc' => 'bash']]]);
 ok((int) q("SELECT COUNT(*) FROM ids_signals WHERE host_id = ? AND feature = 'hour'", [$hd['id']])->fetchColumn() === 1, 'ongewoon tijdstip: actief op een uur zonder geschiedenis');
@@ -843,6 +843,35 @@ q('DELETE FROM vuln_findings WHERE host_id = ?', [$ha]);
 q('DELETE FROM vuln_inventory WHERE host_id = ?', [$ha]);
 q("DELETE FROM vuln_ignore WHERE cve LIKE 'CVE-2099-%'");
 q('UPDATE hosts SET vuln_upgrade_status = NULL WHERE id = ?', [$ha]);
+
+// 1.142.0: incidenten uit monitoring en IDS, status/eigenaar/notities, vanzelf opgelost; en het rapport
+q("INSERT INTO checks (host_id, type, name, status, problem_since, last_message) VALUES (?, 'ping', 'inc-ping', 2, NOW() - INTERVAL 10 MINUTE, 'onbereikbaar')", [$ha]);
+$icid = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, type, name, status, problem_since) VALUES (?, 'ping', 'inc-kort', 2, NOW() - INTERVAL 1 MINUTE)", [$ha]);
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, status) VALUES (?, 2, 'test', 'inc-1', 'Brute force', 'open')", [$ha]);
+$idsId = (int) db()->lastInsertId();
+$n1 = Incidents::sync();
+$n2 = Incidents::sync();
+$ci = q("SELECT * FROM incidents WHERE source = 'check' AND ref_id = ?", [$icid])->fetch();
+$ii = q("SELECT * FROM incidents WHERE source = 'ids' AND ref_id = ?", [$idsId])->fetch();
+ok($n1 >= 2 && $n2 === 0 && $ci && $ii && !q("SELECT 1 FROM incidents i JOIN checks c ON c.id = i.ref_id WHERE c.name = 'inc-kort'")->fetchColumn(),
+    'incidenten: critical check (≥ 5 min) en IDS-incident, één keer; korte storing niet');
+$adm = (string) q('SELECT username FROM users ORDER BY id LIMIT 1')->fetchColumn();
+$e1 = Incidents::update((int) $ci['id'], $adm, null, $adm, 'router herstart');
+$after = q('SELECT status, owner FROM incidents WHERE id = ?', [$ci['id']])->fetch();
+$e2 = Incidents::update((int) $ci['id'], $adm, 'bestaat-niet', null, null);
+ok($e1 === null && $after['status'] === 'ack' && $after['owner'] === $adm && $e2 !== null
+    && (int) q("SELECT COUNT(*) FROM incident_notes WHERE incident_id = ? AND kind = 'note'", [$ci['id']])->fetchColumn() === 1, 'eigenaar kiezen zet hem in behandeling; notitie bewaard; onbekende status geweigerd');
+q('UPDATE checks SET status = 0, problem_since = NULL WHERE id = ?', [$icid]);
+Incidents::update((int) $ii['id'], $adm, 'resolved', null, null);
+Incidents::sync();
+ok(q('SELECT status FROM incidents WHERE id = ?', [$ci['id']])->fetchColumn() === 'resolved' && q('SELECT status FROM ids_incidents WHERE id = ?', [$idsId])->fetchColumn() === 'done'
+    && str_contains((string) q("SELECT text FROM incident_notes WHERE incident_id = ? ORDER BY id DESC LIMIT 1", [$ci['id']])->fetchColumn(), 'OK'),
+    'check weer OK: vanzelf opgelost (met notitie); IDS-incident zelf gesloten: ook in IDS afgehandeld');
+$rep = Report::html('7d');
+ok(str_contains($rep, '<h2>Incidenten</h2>') && str_contains($rep, 'inc-ping') && str_contains($rep, 'Beschikbaarheid') && !str_contains($rep, '<script'),
+    'rapport: losse HTML met samenvatting en incidenten, zonder scripts');
+q("DELETE FROM checks WHERE name IN ('inc-ping', 'inc-kort')");
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

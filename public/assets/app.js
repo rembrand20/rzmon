@@ -1495,6 +1495,7 @@ function showTab(name) {
   if (name === 'net') loadNet();
   if (name === 'home') loadHome();
   if (name === 'analytics') loadAnalytics();
+  if (name === 'incidents') loadIncidents();
   if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
 }
 
@@ -11620,3 +11621,107 @@ function hmIncidents(d) {
       <span><small class="hm-sevlbl ${i.open ? c : 'ok'}">${esc(i.open ? l : L('Afgehandeld'))}</small><b>${esc(i.title)}</b><small>${esc(i.host)} · ${esc(fmtUntil(i.at))}${i.hits > 1 ? ' · ' + esc(L('{n}×', { n: i.hits })) : ''}</small></span></li>`; }).join('')}</ul>`
       : `<p class="hm-empty">${hmShape('ok', 14)} ${esc(L('Geen incidenten de laatste 14 dagen'))}</p>`}</section>`;
 }
+
+// ---------------------------------------------------------------- ⚠ Incidenten (1.142.0)
+// Eén lijst uit monitoring (critical ≥ 5 min), IDS (critical) en kwetsbaarheden (actief misbruikt), met status, eigenaar en tijdlijn
+let incData = null;
+let incFilter = 'active';
+const INC_ST = { open: () => L('open'), ack: () => L('in behandeling'), resolved: () => L('opgelost') };
+const INC_SRC = { check: ['📈', () => L('Monitoring')], ids: ['🛡️', () => 'IDS'], vuln: ['🐞', () => L('Kwetsbaarheden')] };
+
+async function loadIncidents() {
+  if (!$('#inc-list')) return;
+  try { incData = await api('incidents'); } catch (ex) { $('#inc-list').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  renderIncidents();
+}
+
+function incVisible() {
+  const q = ($('#inc-search').value || '').trim().toLowerCase();
+  return incData.incidents.filter((i) => (incFilter === 'all' || (incFilter === 'active' ? i.status !== 'resolved' : i.status === incFilter))
+    && (!q || [i.title, i.host || '', i.owner || '', i.detail].join(' ').toLowerCase().includes(q)));
+}
+
+function renderIncidents() {
+  if (!incData) return;
+  const c = incData.counts;
+  $('#inc-badge').hidden = !c.open;
+  $('#inc-badge').textContent = c.open || '';
+  $('#inc-kpis').innerHTML = `
+    <div class="kpi ${c.open ? 'bad' : ''}"><div class="kpi-lbl">${L('Open')}</div><div class="kpi-val">${c.open}</div><div class="kpi-sub">${L('nog niemand mee bezig')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('In behandeling')}</div><div class="kpi-val">${c.ack}</div><div class="kpi-sub">${L('met een eigenaar')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Opgelost (30 dagen)')}</div><div class="kpi-val ${c.resolved ? 'good-txt' : ''}">${c.resolved}</div><div class="kpi-sub">${L('vanzelf of door iemand')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Gemiddeld opgelost na')}</div><div class="kpi-val kpi-val-txt">${c.mttr !== null ? fmtDur(c.mttr) : '–'}</div><div class="kpi-sub">${L('laatste 30 dagen')}</div></div>`;
+  const n = (f) => incData.incidents.filter((i) => (f === 'all' ? true : f === 'active' ? i.status !== 'resolved' : i.status === f)).length;
+  $('#inc-filter').innerHTML = [['active', L('Nog bezig')], ['open', L('Open')], ['ack', L('In behandeling')], ['resolved', L('Opgelost')], ['all', L('Alles')]]
+    .map(([k, l]) => `<button type="button" class="dchip ${incFilter === k ? 'on' : ''}" data-incf="${k}">${l} <b>${n(k)}</b></button>`).join('');
+  const list = incVisible();
+  $('#inc-list').innerHTML = list.length ? `<div class="card inc-card"><table class="inc-table"><thead><tr><th></th><th>${L('Incident')}</th><th>${L('Status')}</th><th>${L('Eigenaar')}</th><th>${L('Geopend')}</th><th class="num">${L('Duur')}</th></tr></thead><tbody>
+    ${list.map((i) => {
+      const [ic, src] = INC_SRC[i.source] || ['•', () => i.source];
+      const end = i.resolved_at ? new Date(i.resolved_at.replace(' ', 'T')) : new Date();
+      const dur = Math.max(0, (end - new Date(i.opened_at.replace(' ', 'T'))) / 1000);
+      return `<tr class="inc-row inc-${i.status}" data-inc="${i.id}" tabindex="0">
+        <td title="${esc(src())}">${ic}</td>
+        <td><b>${esc(i.title)}</b>${i.detail ? `<div class="muted small">${esc(i.detail.length > 120 ? i.detail.slice(0, 120) + '…' : i.detail)}</div>` : ''}</td>
+        <td><span class="inc-st inc-st-${i.status}">${INC_ST[i.status]()}</span>${i.notes ? ` <span class="muted small" title="${esc(L('notities'))}">💬 ${i.notes}</span>` : ''}</td>
+        <td>${i.owner ? esc(i.owner) : '<span class="muted">–</span>'}</td>
+        <td class="small">${agoSpan(i.opened_at)}</td>
+        <td class="num small">${fmtDur(dur)}</td></tr>`;
+    }).join('')}</tbody></table></div>`
+    : `<div class="card"><p class="muted" style="margin:0">${incFilter === 'active' && !$('#inc-search').value ? '✔ ' + L('Geen open incidenten.') : L('Niets gevonden.')}</p></div>`;
+}
+
+async function incidentDialog(id) {
+  let i;
+  try { i = await api('incident_info', null, { id }); } catch (ex) { return toast(ex.message, 'err'); }
+  const [ic, src] = INC_SRC[i.source] || ['•', () => i.source];
+  const users = (incData && incData.users) || [];
+  const KIND = { system: '⚙️', status: '🔁', owner: '👤', note: '💬' };
+  const go = i.source === 'check' ? ['dashboard', L('Naar Monitoring')] : i.source === 'ids' ? ['ids', L('Naar IDS')] : ['vulns', L('Naar Kwetsbaarheden')];
+  const { form } = modal({
+    title: `${ic} ${i.title}`, wide: true,
+    body: `<div style="padding:1rem 1.2rem">
+      <p class="muted small">${esc(src())}${i.host ? ' · ' + esc(i.host) : ''} · ${L('geopend {t}', { t: esc(fmtDateTime(i.opened_at)) })}${i.resolved_at ? ' · ' + L('opgelost {t}', { t: esc(fmtDateTime(i.resolved_at)) }) : ''}</p>
+      ${i.detail ? `<p>${esc(i.detail)}</p>` : ''}
+      <div class="row2">
+        <label>${L('Status')}<select name="status" class="need-user">${Object.keys(INC_ST).map((k) => `<option value="${k}" ${i.status === k ? 'selected' : ''}>${INC_ST[k]()}</option>`).join('')}</select></label>
+        <label>${L('Eigenaar')}<select name="owner" class="need-user"><option value="">–</option>${users.map((u) => `<option ${i.owner === u ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
+      </div>
+      <label>${L('Notitie')} <span class="hint">${L('(wat je gedaan of gevonden hebt)')}</span><textarea name="note" rows="3" maxlength="2000"></textarea></label>
+      <h3>${L('Tijdlijn')}</h3>
+      <ul class="inc-timeline">${i.notes.slice().reverse().map((n) => `<li class="k-${esc(n.kind)}"><span class="ic">${KIND[n.kind] || '•'}</span>
+        <div><div>${esc(n.text).replace(/\n/g, '<br>')}</div><div class="muted small">${esc(n.by_user)} · ${esc(fmtDateTime(n.created_at))}</div></div></li>`).join('')}</ul>
+    </div>`,
+    buttons: [
+      { label: go[1] + ' →', style: 'margin-right:auto', onClick: () => { $('#modal').close(); showTab(go[0]); } },
+      { label: L('Sluiten'), onClick: () => $('#modal').close() },
+      { label: '✔ ' + L('Opslaan'), cls: 'primary need-user', submit: true },
+    ],
+    onSubmit: async (v) => {
+      await api('incident_set', { id: i.id, status: v.status, owner: v.owner, note: v.note });
+      toast(L('Opgeslagen'));
+      loadIncidents();
+    },
+  });
+  return form;
+}
+
+(function incWire() {
+  if (!$('#inc-list')) return;
+  $('#inc-filter').addEventListener('click', (e) => { const b = e.target.closest('[data-incf]'); if (b) { incFilter = b.dataset.incf; renderIncidents(); } });
+  $('#inc-search').addEventListener('input', () => renderIncidents());
+  const open = (e) => { const r = e.target.closest('[data-inc]'); if (r) incidentDialog(+r.dataset.inc); };
+  $('#inc-list').addEventListener('click', open);
+  $('#inc-list').addEventListener('keydown', (e) => { if (e.key === 'Enter') open(e); });
+})();
+
+// 📄 Rapport (PDF): afdrukbare pagina in een nieuw venster, meteen het afdrukvenster (daar: Opslaan als PDF)
+(function anPdfWire() {
+  const b = $('#an-pdf');
+  if (!b) return;
+  b.onclick = () => {
+    const w = window.open('api.php?' + new URLSearchParams({ action: 'report', period: anPeriod }), '_blank');
+    if (!w) return toast(L('Sta pop-ups toe voor RzMon om het rapport te openen'), 'err');
+    w.addEventListener('load', () => setTimeout(() => { try { w.print(); } catch (e) { /* zelf afdrukken */ } }, 300));
+  };
+})();

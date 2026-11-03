@@ -1099,3 +1099,34 @@ CREATE TABLE IF NOT EXISTS results_hourly (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 -- 1.136.0: uurgemiddelden 180 dagen, daggegevens (Analyse) 2 jaar
 INSERT IGNORE INTO settings (name, value) VALUES ('hourly_days', '180'), ('daily_days', '730');
+
+-- 1.142.0: incidenten (één lijst uit monitoring, IDS en kwetsbaarheden) met status, eigenaar en tijdlijn
+CREATE TABLE IF NOT EXISTS incidents (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    source      VARCHAR(10) NOT NULL,
+    ref_key     VARCHAR(120) NOT NULL,
+    ref_id      BIGINT UNSIGNED NULL,
+    host_id     INT UNSIGNED NULL,
+    severity    TINYINT UNSIGNED NOT NULL DEFAULT 2,
+    title       VARCHAR(250) NOT NULL,
+    detail      VARCHAR(1000) NOT NULL DEFAULT '',
+    status      VARCHAR(10) NOT NULL DEFAULT 'open',
+    owner       VARCHAR(64) NULL,
+    opened_at   DATETIME NOT NULL,
+    resolved_at DATETIME NULL,
+    updated_at  DATETIME NOT NULL,
+    UNIQUE KEY uq_inc_ref (ref_key),
+    INDEX idx_inc_status (status, opened_at),
+    CONSTRAINT fk_inc_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS incident_notes (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    incident_id BIGINT UNSIGNED NOT NULL,
+    by_user     VARCHAR(100) NOT NULL,
+    kind        VARCHAR(10) NOT NULL DEFAULT 'note',
+    text        VARCHAR(2000) NOT NULL,
+    created_at  DATETIME NOT NULL,
+    INDEX idx_incn (incident_id),
+    CONSTRAINT fk_incn_inc FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
