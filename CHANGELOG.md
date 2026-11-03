@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.154.0**: het **Command center**, een tweede dashboard met alles in één oogopslag (SSH-logins en -blokkades, de toppers, wie er inlogt, de monitoring), zelf in te delen en met een TV-modus.
 - **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
 - **1.152.0**: **Attack Flow** in de aanvalskaart (aanvaller → doelwit → dienst → afloop, bewezen en vermoed uit elkaar, af te spelen), een betere popup per IP, en alle **SSH-sessies** met duur.
 - **1.151.0**: de pagina *Gezondheid* is opgedeeld over **Systeem**: *Database en server* (met de tabbladen Database en Server) en de nieuwe pagina **Prestaties en fouten**.
-- **1.150.0**: de **zijbalk klapt in** tot alleen iconen (per gebruiker onthouden), en het accountmenu past weer helemaal.
 - **1.149.0**: nieuwe **🗺️ Aanvalskaart** in IDS: wie valt wat aan, via welke poort, en is het geblokkeerd, als stromen met bewegende lijnen en op een wereldkaart; ook als kaartje op het dashboard.
+
+## 1.154.0 – 2026-11-03
+### Nieuw
+- **Command center**: een tweede dashboard naast het klassieke. Kies het rechtsboven op het dashboard (*Klassiek · Command center*) of in het accountmenu; de keuze geldt voor jouw account.
+  - **Beveiliging in één oogopslag**: SSH-logins (met nieuwe IP-adressen), mislukte SSH-logins, SSH- en IDS-blokkades, hoeveel er is tegengehouden, sudo en su, webaanvallen en verdacht uitgaand verkeer, met het verschil met gisteren of de periode ervoor. Elk getal opent de lijst.
+  - **De toppers**: top SSH-blokkade, top IDS-blokkade, de grootste aanvaller, de meest aangevallen server en het top land, met *Overal blokkeren* of *Blokkeren* waar dat nog kan.
+  - **Monitoring**: actieve checks, hoe vaak ze liepen en fout gingen, het percentage gelukt en de meldingen, met een grafiek, de check die het vaakst liep, de vijf die het vaakst fout gingen en de vijf met de meeste meldingen.
+  - Verder: **sinds je laatste bezoek**, **Nu doen**, een kleine **Live Attack Flow**, **wie er inlogt** (SSH, console, sudo, su), de servers met ringen voor CPU, RAM en disk, en de grafieken van het klassieke dashboard. Nieuwe periode *Vandaag*.
+  - **Zelf in te delen**: kaarten verslepen of verbergen (*✎ Indeling*), per account bewaard.
+  - **TV-modus** (*▣ TV-modus*): schermvullend zonder menu, grotere letters; uit met de knop rechtsonder of Esc. Per apparaat onthouden.
+- De **Live Attack Flow** en het Command center **kleuren mee met je thema**: in het lichte thema licht met diepere kleuren, in het donkere thema donker met neon.
 
 ## 1.153.1 – 2026-11-03
 ### Opgelost

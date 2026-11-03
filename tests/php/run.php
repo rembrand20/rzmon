@@ -1129,6 +1129,22 @@ ok(($lv['top']['ip'] ?? '') === '198.51.100.23' && $lv['top']['now'] && $lv['top
     && in_array('198.51.100.23', array_column($lv['top10'], 'ip'), true) && !in_array($fa, $lv['hit'], true)
     && !array_filter($lv15['lines'], fn($l) => $l['ip'] === '198.51.100.23') && $lv15['mins'] === 15 && in_array($lv['motion'], [0, 1, 2], true),
     'live: grootste aanvaller nu met pogingen per minuut en waar geblokkeerd, IDS-acties, top 10; geblokkeerd = server niet "nu geraakt"; venster van 15 minuten');
+// 1.154.0: Command center: SSH-logins (nieuw IP), mislukte pogingen, sudo, de toppers en de monitoring (uitgevoerd, fout, meldingen)
+q("INSERT INTO access_log (host_id, kind, type, title, message, detail, created_at) VALUES
+   (?, 'auth', 'ssh', 'x', 'x', '{\"type\":\"ssh\",\"user\":\"ci-cc\",\"ip\":\"203.0.113.77\",\"m\":\"publickey\"}', NOW() - INTERVAL 1 MINUTE),
+   (?, 'authfail', 'ssh', 'x', 'x', '{\"type\":\"ssh\",\"users\":[\"root\"],\"ip\":\"198.51.100.23\",\"n\":7}', NOW() - INTERVAL 1 MINUTE),
+   (?, 'auth', 'sudo', 'x', 'x', '{\"type\":\"sudo\",\"user\":\"ci-cc\",\"as\":\"root\",\"cmd\":\"-i\"}', NOW() - INTERVAL 1 MINUTE)", [$fa, $fa, $fa]);
+$cck = (int) q('SELECT id FROM checks ORDER BY id LIMIT 1')->fetchColumn();
+q("INSERT INTO results_hourly (check_id, hour, n, n_warn, n_crit) VALUES (?, DATE_FORMAT(NOW() - INTERVAL 1 HOUR, '%Y-%m-%d %H:00:00'), 60, 5, 2)
+   ON DUPLICATE KEY UPDATE n = n + 60, n_warn = n_warn + 5, n_crit = n_crit + 2", [$cck]);
+q("INSERT INTO alerts (check_id, status, title, message, sent_ok, created_at) VALUES (?, 2, 'ci', 'ci', 1, NOW() - INTERVAL 1 MINUTE)", [$cck]);
+$cc = CommandCenter::data('7d', date('Y-m-d H:i:s', time() - 3600));
+$lg = array_values(array_filter($cc['logins'], fn($x) => $x['user'] === 'ci-cc' && $x['type'] === 'ssh'));
+ok($cc['sec']['ssh_login']['n'] >= 1 && $cc['sec']['ssh_login']['new_ips'] >= 1 && $cc['sec']['ssh_fail']['n'] >= 7 && $cc['sec']['sudo']['n'] >= 1
+    && $lg && $lg[0]['new'] && $lg[0]['ip'] === '203.0.113.77' && ($cc['top']['ssh_block']['ip'] ?? '') !== '' && $cc['mon']['runs']['n'] >= 60
+    && $cc['mon']['fails']['n'] >= 5 && in_array($cck, array_column($cc['mon']['most_failed'], 'id'), true) && in_array($cck, array_column($cc['mon']['fired'], 'id'), true)
+    && $cc['seen']['logins'] >= 1 && $cc['seen']['crit'] >= 1 && CommandCenter::data('nonsense')['period'] === 'today',
+    'Command center: SSH-logins met nieuw IP, mislukte pogingen, sudo, top-blokkade, checks uitgevoerd en fout, meldingen per check, sinds je laatste bezoek');
 $ie = AttackFlow::ipEvents('198.51.100.23', 1);
 $kinds = array_count_values(array_column($ie['rows'], 'k'));
 ok(($kinds['fail'] ?? 0) === 2 && ($kinds['block'] ?? 0) === 1 && ($kinds['inc'] ?? 0) === 1 && $ie['counts']['fails'] === 2 && count($ie['blocks']) === 1

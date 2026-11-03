@@ -183,6 +183,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <?php if (!$hasAccount): ?><a role="menuitem" class="acct-item" href="index.php?login=1">🔑 <?= th('Inloggen met je account') ?></a><?php endif; ?>
           <div class="acct-sep"></div>
           <div class="acct-row">🌓 <?= th('Thema') ?> <span class="seg" id="theme-seg"><button type="button" data-theme-set="auto">auto</button><button type="button" data-theme-set="light"><?= th('licht') ?></button><button type="button" data-theme-set="dark"><?= th('donker') ?></button></span></div>
+          <div class="acct-row">📊 <?= th('Dashboard') ?> <span class="seg" id="dash-seg"><button type="button" data-dash-set="classic"><?= th('klassiek') ?></button><button type="button" data-dash-set="cc"><?= th('Command center') ?></button></span></div>
           <div class="acct-row">🌐 <?= th('Taal') ?> <span class="seg" id="lang-seg"><button type="button" data-lang-set="nl" class="<?= I18n::lang() === 'nl' ? 'active' : '' ?>">NL</button><button type="button" data-lang-set="en" class="<?= I18n::lang() === 'en' ? 'active' : '' ?>">EN</button></span></div>
           <?php if ($hasAccount): ?><div class="acct-sep"></div><button type="button" role="menuitem" id="logout" class="danger-txt">⏻ <?= th('Uitloggen') ?></button><?php endif; ?>
         </div>
@@ -190,11 +191,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     </div>
   </header>
 
+  <button type="button" class="cc-tvexit" id="cc-tvexit" hidden><?= th('✕ TV-modus uit') ?></button>
   <main class="container">
     <section id="tab-home" class="tab-panel" aria-label="<?= th('Dashboard') ?>">
       <div class="hm-head">
         <div><h1 class="hm-title"><?= th('Zo staat het ervoor') ?></h1><p class="muted small" id="hm-sub"></p></div>
-        <div class="seg" id="hm-period" role="group" aria-label="<?= th('Periode') ?>"></div>
+        <div class="hm-right"><div class="seg" id="hm-period" role="group" aria-label="<?= th('Periode') ?>"></div><div id="hm-tools"></div></div>
       </div>
       <div id="home"><p class="muted"><?= th('Laden…') ?></p></div>
     </section>

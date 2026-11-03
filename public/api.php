@@ -3687,7 +3687,7 @@ switch ($action) {
         }
         $in = input();
         $key = (string) ($in['key'] ?? '');
-        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side'], true)) {
+        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen'], true)) {
             out(['error' => t('Onbekende voorkeur')], 422);
         }
         $prefs = json_decode((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn(), true) ?: [];
@@ -3695,6 +3695,11 @@ switch ($action) {
             'open_mode' => $in['value'] === 'smart' ? 'smart' : 'closed',
             'theme' => in_array($in['value'] ?? '', ['light', 'dark'], true) ? $in['value'] : 'auto',   // 1.135.0: thema per gebruiker
             'side' => ($in['value'] ?? '') === 'mini' ? 'mini' : 'full',   // 1.150.0: zijbalk ingeklapt (alleen iconen)
+            'dash' => ($in['value'] ?? '') === 'cc' ? 'cc' : 'classic',   // 1.154.0: welk dashboard (klassiek of Command center)
+            'dash_seen' => date('Y-m-d H:i:s'),   // 1.154.0: laatste bezoek aan het dashboard ("sinds je laatste bezoek")
+            // 1.154.0: indeling van het Command center: volgorde en verborgen kaarten (alleen bekende namen)
+            'dash_layout' => ['order' => array_values(array_unique(array_filter(array_map(static fn($k) => preg_replace('/[^a-z_]/', '', (string) $k), (array) ($in['value']['order'] ?? []))))),
+                'hide' => array_values(array_unique(array_filter(array_map(static fn($k) => preg_replace('/[^a-z_]/', '', (string) $k), (array) ($in['value']['hide'] ?? [])))))],
             'dash_filter', 'alert_filter' => preg_match('/^[a-z:]{1,20}$/', (string) $in['value']) ? (string) $in['value'] : 'all',   // keuze bovenaan het dashboard (1.75.0) en de meldingen (1.84.0)
             // Open blokken op Kwetsbaarheden (servers) en Datalekken (e-mailadressen), 1.93.0
             'vuln_open' => ['h' => array_slice(array_values(array_unique(array_map('intval', (array) ($in['value']['h'] ?? [])))), -500),
@@ -4083,7 +4088,11 @@ switch ($action) {
         out(Analytics::cached($period, !empty($_GET['fresh'])) + ['report_monthly' => Analytics::reportOn(), 'mail' => setting('email_enabled', '0') === '1' && setting('mail_to', '') !== '']);
 
     case 'home':   // 1.134.0: het Dashboard: alles samen (monitoring, IDS, CVE's, netwerk)
-        out(Home::data(has_role($user, 'user'), (string) ($_GET['period'] ?? '7d'), !empty($_GET['fresh'])));
+        $hd = Home::data(has_role($user, 'user'), (string) ($_GET['period'] ?? '7d'), !empty($_GET['fresh']));
+        if (!empty($_GET['cc'])) {   // 1.154.0: het Command center (tweede dashboard)
+            $hd['cc'] = CommandCenter::data((string) ($_GET['ccp'] ?? 'today'), mb_substr((string) ($_GET['seen'] ?? ''), 0, 30));
+        }
+        out($hd);
 
     case 'analytics_report_send':
         $m = (string) (input()['month'] ?? date('Y-m', strtotime('first day of last month')));

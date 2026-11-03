@@ -982,6 +982,7 @@ function init() {
 
   initAccountMenu();
   initSideToggle();
+  initCC();   // 1.154.0
   initSettingsNav();
   initCmdk();
   if ($('#advice-run')) $('#advice-run').onclick = async (e) => {
@@ -8652,6 +8653,8 @@ function initAccountMenu() {
   menu.addEventListener('click', async (e) => {
     const go = e.target.closest('[data-acct]');
     if (go) { open(false); return showTab(go.dataset.acct === 'settings' ? 'settings/overview' : go.dataset.acct); }
+    const ds = e.target.closest('[data-dash-set]');   // 1.154.0: welk dashboard
+    if (ds) { open(false); showTab('home'); return ccSetDash(ds.dataset.dashSet); }
     const th = e.target.closest('[data-theme-set]');
     if (th) {
       const v = th.dataset.themeSet;
@@ -8692,6 +8695,30 @@ function initSideToggle() {
 function markTheme() {
   const cur = document.documentElement.dataset.theme || 'auto';
   $$('[data-theme-set]').forEach((b) => b.classList.toggle('active', b.dataset.themeSet === cur));
+  markDash();
+}
+// 1.154.0: knoppen in de kop van het dashboard (keuze, indeling, TV-modus) en de TV-modus bij het laden
+function initCC() {
+  const home = $('#tab-home');
+  if (!home) return;
+  const tools = () => { if ($('#hm-tools')) $('#hm-tools').innerHTML = ccTools(); };
+  home.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-dash-set], [data-cc-edit], [data-cc-tv], [data-cc-reset]');
+    if (!t || !home.contains(t)) return;
+    if (t.dataset.dashSet) return ccSetDash(t.dataset.dashSet);
+    if (t.dataset.ccTv !== undefined) { ccTv(!document.body.classList.contains('tv')); return tools(); }
+    if (t.dataset.ccReset !== undefined) savePref('dash_layout', { order: [], hide: [] });
+    else ccEdit = !ccEdit;
+    tools();
+    renderCC();
+  });
+  $('#cc-tvexit').onclick = () => { ccTv(false); tools(); };
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('tv') && !$('#modal').open) { ccTv(false); tools(); } });
+  let fs = false;
+  document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) fs = true; else if (fs) { fs = false; if (document.body.classList.contains('tv')) { ccTv(false); tools(); } } });
+  try { if (localStorage.getItem('rzmon-tv') === '1' && dashMode() === 'cc') ccTv(true); } catch (e) { /* alleen voor nu */ }
+  // Live aanvallen in het Command center: elke 20 seconden opnieuw (alleen als het dashboard in beeld is)
+  setInterval(() => { if (!document.hidden && dashMode() === 'cc' && !$('#tab-home').hidden && $('#cc-atk')) ccAtkLoad(); }, 20000);
 }
 
 // ---------------------------------------------------------------- Tabbladen bovenaan: een vlak dat naar het actieve tabblad schuift
@@ -12333,10 +12360,19 @@ const hmStOf = (s) => (s === 2 ? 'crit' : s === 1 ? 'warn' : 'ok');
 const hmNum = (n) => Number(n || 0).toLocaleString(LOCALE);
 
 async function loadHome(fresh = false) {
-  $('#hm-period').innerHTML = HM_PERIODS.map(([k, l]) => `<button type="button" class="seg-btn ${k === hmPeriod ? 'active' : ''}" data-hmp="${k}">${esc(l())}</button>`).join('');
-  $$('[data-hmp]').forEach((b) => (b.onclick = () => { hmPeriod = b.dataset.hmp; try { localStorage.setItem('rzmon-hm-period', hmPeriod); } catch (e) {} loadHome(); }));
-  try { hmData = await api('home', null, { period: hmPeriod, ...(fresh ? { fresh: 1 } : {}) }); hmAt = Date.now(); } catch (ex) { $('#home').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  $('#hm-period').hidden = !hmData.full;
+  const cc = dashMode() === 'cc';   // 1.154.0: het Command center heeft ook "Vandaag"
+  const per = cc ? CC_PERIODS : HM_PERIODS, cur = cc ? ccPeriod : hmPeriod;
+  $('#hm-period').innerHTML = per.map(([k, l]) => `<button type="button" class="seg-btn ${k === cur ? 'active' : ''}" data-hmp="${k}">${esc(l())}</button>`).join('');
+  $$('[data-hmp]').forEach((b) => (b.onclick = () => {
+    if (dashMode() === 'cc') { ccPeriod = b.dataset.hmp; try { localStorage.setItem('rzmon-cc-period', ccPeriod); } catch (e) {} }
+    else { hmPeriod = b.dataset.hmp; try { localStorage.setItem('rzmon-hm-period', hmPeriod); } catch (e) {} }
+    loadHome();
+  }));
+  if ($('#hm-tools')) $('#hm-tools').innerHTML = ccTools();
+  const q = { period: cc ? (['30d', '90d'].includes(ccPeriod) ? ccPeriod : '7d') : hmPeriod, ...(fresh ? { fresh: 1 } : {}) };
+  if (cc) Object.assign(q, { cc: 1, ccp: ccPeriod, ...(ccSeenAt ? { seen: ccSeenAt } : {}) });
+  try { hmData = await api('home', null, q); hmAt = Date.now(); } catch (ex) { $('#home').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  $('#hm-period').hidden = !hmData.full && !cc;
   renderHome();
 }
 
@@ -12362,6 +12398,8 @@ function hmLive() {
 
 function renderHome() {
   if (!hmData || !state || !state.hosts) return;
+  if (dashMode() === 'cc') return hmData.cc ? renderCC() : loadHome();   // 1.154.0
+  $('.hm-title').textContent = L('Zo staat het ervoor');
   const d = hmData, live = hmLive();
   $('#hm-sub').textContent = L('Monitoring, beveiliging, kwetsbaarheden en netwerk op één plek') + ' · '
     + L('bijgewerkt {t}', { t: new Date(hmAt).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }) });
@@ -12451,6 +12489,358 @@ function renderHome() {
     else if (go.startsWith('incident:')) { showTab('incidents'); caseDialog(+go.slice(9)); }
     else showTab(go);
   }));
+}
+
+// ---------------------------------------------------------------- 1.154.0: tweede dashboard "Command center"
+// Per gebruiker te kiezen (accountmenu of de knop bovenaan), in te delen (kaarten verbergen en verslepen) en met een
+// TV-modus voor een scherm aan de muur. Volgt het thema (licht of donker), net als de Live Attack Flow.
+const dashMode = () => (PREFS.dash === 'cc' ? 'cc' : 'classic');
+const CC_PERIODS = [['today', () => L('Vandaag')], ['7d', () => L('7 dagen')], ['30d', () => L('30 dagen')], ['90d', () => L('90 dagen')]];
+let ccPeriod = (() => { try { const p = localStorage.getItem('rzmon-cc-period'); return CC_PERIODS.some(([k]) => k === p) ? p : 'today'; } catch (e) { return 'today'; } })();
+const ccSeenAt = PREFS.dash_seen || '';   // het vorige bezoek (bij het laden van de pagina), voor "sinds je laatste bezoek"
+let ccSeenSaved = false, ccEdit = false, ccAtk = null, ccAtkAt = 0, ccDrag = null;
+const ccNowStr = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
+
+/** De kaarten: sleutel, breedte (van 12), titel en of hij er is (alleen-lezen ziet geen analyse, CVE's of netwerk) */
+const CC_W = [
+  ['overview', 12, () => L('Overzicht')], ['security', 12, () => L('Beveiliging in één oogopslag')], ['toppers', 12, () => L('De toppers')],
+  ['now', 4, () => L('Nu doen')], ['attacks', 4, () => L('Live aanvallen')], ['logins', 4, () => L('Wie logt er in')],
+  ['monitoring', 12, () => L('Monitoring')], ['servers', 12, () => L('Servers')],
+  ['idschart', 4, () => L('IDS-gebeurtenissen')], ['avail', 4, () => L('Beschikbaarheid')], ['net', 4, () => L('Netwerk')],
+  ['resources', 6, () => L('Resourcegebruik · 24 uur')], ['vulns', 6, () => L('Kwetsbaarheden (CVE)')], ['timeline', 12, () => L('Laatste gebeurtenissen')],
+];
+function ccLayout() {
+  const l = PREFS.dash_layout || {}, keys = CC_W.map((w) => w[0]);
+  const order = (l.order || []).filter((k) => keys.includes(k));
+  keys.forEach((k) => { if (!order.includes(k)) order.splice(keys.indexOf(k), 0, k); });   // nieuwe kaarten op hun standaardplek
+  return { order, hide: (l.hide || []).filter((k) => keys.includes(k)) };
+}
+const ccSaveLayout = (lay) => savePref('dash_layout', lay);
+
+/** Verschil met de vorige periode: "↑ 38%" (rood als meer slecht is, groen als meer goed is) */
+function ccDelta(n, prev, moreIsBad = true) {
+  if (!prev && !n) return '';
+  if (!prev) return `<span class="cc-d ${moreIsBad ? 'up-bad' : 'up-good'}">${esc(L('nieuw'))}</span>`;
+  const p = Math.round((n - prev) / prev * 100);
+  if (!p) return `<span class="cc-d">= </span>`;
+  const bad = (p > 0) === moreIsBad;
+  return `<span class="cc-d ${bad ? 'up-bad' : 'up-good'}">${p > 0 ? '↑' : '↓'} ${Math.abs(p)}%</span>`;
+}
+const ccPrevLbl = () => (ccPeriod === 'today' ? L('t.o.v. gisteren') : L('t.o.v. de periode ervoor'));
+const ccTime = (at) => { const t = new Date(String(at).replace(' ', 'T')); return t.toDateString() === new Date().toDateString()
+  ? t.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }) : t.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }) + ' ' + t.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }); };
+const ccCard = (key, inner, cls = '') => `<section class="cc-card ${cls}" aria-label="${esc((CC_W.find((w) => w[0] === key) || [0, 0, () => key])[2]())}">${inner}</section>`;
+const ccHead = (title, right = '') => `<div class="cc-h"><span class="cc-hl">${esc(title)}</span>${right}</div>`;
+const ccGo = (go, label) => `<button type="button" class="cc-link" data-hm-go="${esc(go)}">${esc(label)} →</button>`;
+
+/** Kop van het dashboard: begroeting, sinds je laatste bezoek, periode, live, indeling, TV-modus en de keuze van het dashboard */
+function ccTools() {
+  const tv = document.body.classList.contains('tv');
+  return `<div class="cc-tools">
+    ${dashMode() === 'cc' ? `<span class="cc-live" title="${esc(L('Werkt zichzelf bij'))}"><i class="af-blink"></i>LIVE</span>` : ''}
+    ${dashMode() === 'cc' ? `<button type="button" class="cc-tbtn ${ccEdit ? 'on' : ''}" data-cc-edit aria-pressed="${ccEdit}">✎ ${esc(ccEdit ? L('Klaar') : L('Indeling'))}</button>
+      <button type="button" class="cc-tbtn ${tv ? 'on' : ''}" data-cc-tv aria-pressed="${tv}">▣ ${esc(L('TV-modus'))}</button>` : ''}
+    <div class="seg cc-dash" role="group" aria-label="${esc(L('Dashboard'))}"><button type="button" class="seg-btn ${dashMode() === 'classic' ? 'active' : ''}" data-dash-set="classic">${esc(L('Klassiek'))}</button>
+      <button type="button" class="seg-btn ${dashMode() === 'cc' ? 'active' : ''}" data-dash-set="cc">${esc(L('Command center'))}</button></div></div>`;
+}
+function ccSetDash(v) {
+  if (v === dashMode()) return;
+  savePref('dash', v);
+  if (v !== 'cc') ccTv(false);
+  ccEdit = false;
+  markDash();
+  hmData = null;
+  $('#home').innerHTML = `<p class="muted">${esc(L('Laden…'))}</p>`;
+  loadHome();
+}
+const markDash = () => $$('[data-dash-set]').forEach((b) => b.classList.toggle('active', b.dataset.dashSet === dashMode()));
+/** TV-modus: schermvullend, zonder menu en kopbalk, grotere letters. Per apparaat onthouden; Esc of de knop zet hem uit. */
+function ccTv(on) {
+  document.body.classList.toggle('tv', on);
+  try { on ? localStorage.setItem('rzmon-tv', '1') : localStorage.removeItem('rzmon-tv'); } catch (e) { /* alleen voor nu */ }
+  if (on && document.documentElement.requestFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+  if (!on && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  if ($('#cc-tvexit')) $('#cc-tvexit').hidden = !on;
+}
+
+function renderCC() {
+  const d = hmData, c = d.cc;
+  if (!c) return;
+  const name = ($('.acct-name') || {}).textContent || '';
+  const hr = new Date().getHours();
+  const hi = hr < 6 ? L('Goedenacht') : hr < 12 ? L('Goedemorgen') : hr < 18 ? L('Goedemiddag') : L('Goedenavond');
+  $('.hm-title').textContent = 'Command center';
+  const s = c.seen;
+  const seenTxt = s ? (s.crit || s.alerts || s.blocks || s.logins
+    ? L('Sinds je laatste bezoek ({t})', { t: ccTime(s.at) }) + ': ' + [s.crit ? L('{n} nieuwe kritieke meldingen', { n: s.crit }) : '', s.alerts ? L('{n} meldingen', { n: s.alerts }) : '',
+      s.blocks ? L('{n} blokkades', { n: s.blocks }) : '', s.logins ? L('{n} SSH-logins', { n: s.logins }) : ''].filter(Boolean).join(' · ')
+    : L('Niets nieuws sinds je laatste bezoek ({t})', { t: ccTime(s.at) })) : '';
+  $('#hm-sub').innerHTML = `<b>${esc(hi)}${name && !/lokaal|local/i.test(name) ? ', ' + esc(name.trim()) : ''}</b>${seenTxt ? ' · ' + (s && s.crit ? `<span class="crit-txt">${esc(seenTxt)}</span>` : esc(seenTxt)) : ''}
+    · <span class="muted">${esc(L('bijgewerkt {t}', { t: new Date(hmAt).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }))}</span>`;
+  if (!ccSeenSaved && !prefsLocal) { ccSeenSaved = true; setTimeout(() => savePref('dash_seen', ccNowStr()), 4000); }
+  if (!ccSeenSaved && prefsLocal) { ccSeenSaved = true; savePref('dash_seen', ccNowStr()); }
+  const lay = ccLayout(), m = afMotion({ live: { motion: c.motion ?? 2 } });
+  const R = { overview: ccOverview, security: ccSecurity, toppers: ccToppers, now: ccNow, attacks: ccAttacks, logins: ccLogins, monitoring: ccMonitoring, servers: ccServers,
+    idschart: () => (d.full ? hmIdsChart(d) : ''), avail: () => (d.full ? hmAvailChart(d) : ''), net: () => (d.net ? hmNetCard(d.net) : ''), resources: () => hmResChart(d.resources),
+    vulns: () => (d.vulns ? hmVulnCard(d.vulns) : ''), timeline: () => hmTimeline(d.events) };
+  const html = [];
+  lay.order.forEach((k) => {
+    const w = CC_W.find((x) => x[0] === k), hidden = lay.hide.includes(k);
+    if (hidden && !ccEdit) return;
+    let inner = '';
+    try { inner = R[k](d, c); } catch (ex) { inner = `<p class="form-error">${esc(ex.message)}</p>`; }
+    if (!inner) return;
+    html.push(`<div class="cc-w s${w[1]} ${hidden ? 'cc-hidden' : ''}" data-ccw="${k}" ${ccEdit ? 'draggable="true"' : ''}>
+      ${ccEdit ? `<div class="cc-edit"><span class="cc-grip" aria-hidden="true">⠿</span><b>${esc(w[2]())}</b>
+        <button type="button" data-cc-move="-1" aria-label="${esc(L('Omhoog'))}">↑</button><button type="button" data-cc-move="1" aria-label="${esc(L('Omlaag'))}">↓</button>
+        <button type="button" data-cc-hide>${hidden ? '👁 ' + esc(L('Tonen')) : '⦸ ' + esc(L('Verbergen'))}</button></div>` : ''}${inner}</div>`);
+  });
+  $('#home').innerHTML = `<div class="cc m${m} ${ccEdit ? 'editing' : ''}">
+    ${ccEdit ? `<div class="cc-editbar">${esc(L('Sleep de kaarten of gebruik ↑ ↓ om de volgorde te kiezen; verberg wat je niet nodig hebt. Dit geldt voor jouw account.'))}
+      <button type="button" class="btn small-btn" data-cc-reset>${esc(L('Standaardindeling'))}</button><button type="button" class="btn small-btn primary" data-cc-edit>${esc(L('Klaar'))}</button></div>` : ''}
+    <div class="cc-grid">${html.join('')}</div></div>`;
+  ccWire();
+  if (lay.order.includes('attacks') && !lay.hide.includes('attacks')) ccAtkLoad();
+}
+
+function ccWire() {
+  const box = $('#home');
+  $$('[data-hm-go]', box).forEach((b) => (b.onclick = (e) => {
+    e.stopPropagation();
+    const go = b.dataset.hmGo;
+    if (go.startsWith('check:')) checkInfo(go.slice(6));
+    else if (go.startsWith('incident:')) { showTab('incidents'); caseDialog(+go.slice(9)); }
+    else if (go.startsWith('ip:')) amDetail(go.slice(3));
+    else if (go.startsWith('block:')) blockDialog(go.slice(6));
+    else showTab(go);
+  }));
+  $$('[data-hm-risk]', box).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); exposureDialog(+b.dataset.hmRisk); }));
+  if (!box.dataset.ccWired) {   // de knopen en lijnen in "Live aanvallen" (die kaart wordt los bijgewerkt)
+    box.dataset.ccWired = '1';
+    box.addEventListener('click', (e) => { const t = e.target.closest('[data-cc-ip]'); if (t && dashMode() === 'cc') amDetail(t.getAttribute('data-cc-ip')); });
+  }
+  if (!ccEdit) return;
+  const lay = ccLayout();
+  const save = () => { ccSaveLayout(lay); renderCC(); };
+  $$('.cc-w', box).forEach((w) => {
+    const k = w.dataset.ccw;
+    $$('[data-cc-move]', w).forEach((b) => (b.onclick = () => { const i = lay.order.indexOf(k), j = i + +b.dataset.ccMove; if (j < 0 || j >= lay.order.length) return; lay.order.splice(i, 1); lay.order.splice(j, 0, k); save(); }));
+    $('[data-cc-hide]', w).onclick = () => { lay.hide = lay.hide.includes(k) ? lay.hide.filter((x) => x !== k) : [...lay.hide, k]; save(); };
+    w.addEventListener('dragstart', (e) => { ccDrag = k; w.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', k); } catch (ex) { /* oude browsers */ } });
+    w.addEventListener('dragend', () => { ccDrag = null; w.classList.remove('dragging'); $$('.cc-w.over', box).forEach((x) => x.classList.remove('over')); });
+    w.addEventListener('dragover', (e) => { if (ccDrag && ccDrag !== k) { e.preventDefault(); w.classList.add('over'); } });
+    w.addEventListener('dragleave', () => w.classList.remove('over'));
+    w.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (!ccDrag || ccDrag === k) return;
+      lay.order.splice(lay.order.indexOf(ccDrag), 1);
+      lay.order.splice(lay.order.indexOf(k), 0, ccDrag);
+      save();
+    });
+  });
+}
+
+/** Score en de vijf domeinen */
+function ccOverview(d, c) {
+  const live = hmLive(), hl = state.health || {};
+  const score = d.full ? d.score : (hl.score ?? 100), cls = score >= 90 ? 'ok' : score >= 60 ? 'warn' : 'crit';
+  const down = (hl.hosts_total || 0) - (hl.hosts_up || 0);
+  const agents = state.hosts.filter((h) => h.mode === 'agent' && +h.enabled !== 0);
+  const nowS = Date.now() / 1000;
+  const stil = agents.filter((h) => !h.contact || !h.contact.seen || nowS - h.contact.seen > h.contact.stale).length;
+  const old = agents.filter((h) => h.agent_version && state.agent_latest && verCmp(h.agent_version, state.agent_latest) < 0).length;
+  const probs = live.n[1] + live.n[2];
+  const atk = c.sec.ssh_fail.n + c.sec.web.n;
+  const tiles = [
+    ['dashboard', L('Monitoring'), `${hmNum(hl.hosts_up || 0)}<small>/${hmNum(hl.hosts_total || 0)}</small>`, down ? L('{n} onbereikbaar', { n: down }) : L('alles bereikbaar'), down ? 'crit' : 'ok', d.full ? hmSpark(hmVals(d.avail.series), 's1') : ''],
+    ['alerts', L('Meldingen'), hmNum(probs), probs ? [live.n[2] && L('{n} storing', { n: live.n[2] }), live.n[1] && L('{n} aandacht', { n: live.n[1] })].filter(Boolean).join(' · ') : L('{n} checks OK', { n: live.total }), live.n[2] ? 'crit' : live.n[1] ? 'warn' : 'ok', ''],
+    ['ids/inc', L('IDS'), hmNum(c.sec.ids_inc.n), [L('nieuwe incidenten'), c.sec.ids_inc.crit ? L('{n} kritiek', { n: c.sec.ids_inc.crit }) : '', atk ? L('{n} pogingen', { n: hmNum(atk) }) : ''].filter(Boolean).join(' · '), c.sec.ids_inc.crit ? 'crit' : c.sec.ids_inc.n ? 'warn' : 'ok', d.full ? hmSpark(hmVals(d.ids.series.blk), 's2') : ''],
+  ];
+  if (d.vulns) tiles.push(['vulns', L('Kwetsbaarheden'), hmNum(d.vulns.sev[4]), L('kritiek') + ' · ' + (d.vulns.kev ? L('{n} in KEV', { n: d.vulns.kev }) : L('geen in KEV')) + ' · ' + L('{n} hoog', { n: d.vulns.sev[3] || 0 }), d.vulns.sev[4] ? 'crit' : d.vulns.sev[3] ? 'warn' : 'ok', hmSpark(hmVals(d.vulns.series), 'crit')]);
+  if (agents.length) tiles.push([isAdmin() ? 'settings/agents' : 'dashboard', L('Agents'), `${agents.length - stil}<small>/${agents.length}</small>`, [stil ? L('{n} stil', { n: stil }) : L('allemaal actief'), old ? L('{n} op een oudere versie', { n: old }) : ''].filter(Boolean).join(' · '), stil ? 'warn' : 'ok', '']);
+  const r = 50, C = 2 * Math.PI * r, f = Math.max(0, Math.min(100, score)) / 100;
+  const why = d.full && d.now && d.now[0] ? d.now[0].text : '';
+  return `<div class="cc-ov">
+    <div class="cc-card cc-score ${cls}"><svg width="124" height="124" viewBox="0 0 124 124" aria-hidden="true"><circle cx="62" cy="62" r="${r}" class="cc-ring-bg"/>
+        <circle cx="62" cy="62" r="${r}" class="cc-ring" stroke-dasharray="${(C * f).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 62 62)"/><circle cx="62" cy="62" r="38" class="cc-ring-spin"/>
+        <text x="62" y="68" text-anchor="middle" class="cc-ring-n">${score}</text><text x="62" y="86" text-anchor="middle" class="cc-ring-s">${esc(L('van 100'))}</text></svg>
+      <div><span class="cc-hl ${cls}">${esc(cls === 'ok' ? L('Alles in orde') : cls === 'warn' ? L('Aandacht nodig') : L('Actie nodig'))}</span>
+        <div class="cc-score-t">${esc(live.n[2] ? L('{n} checks in storing', { n: live.n[2] }) : L('{n} checks OK', { n: live.total }))}${c.sec.ids_inc.crit ? ' · ' + esc(L('{n} kritiek', { n: c.sec.ids_inc.crit })) : ''}</div>
+        ${why ? `<div class="cc-mu small">${esc(L('Eerst: {x}', { x: why }))}</div>` : ''}</div></div>
+    ${tiles.map(([go, l, big, sub, st, sp]) => `<button type="button" class="cc-card cc-tile ${st}" data-hm-go="${esc(go)}"><span class="cc-hl">${esc(l)}</span><b class="cc-big">${big}</b>
+      <span class="cc-mu small">${esc(sub)}</span>${sp}<span class="cc-st ${st}">${hmShape(st === 'crit' ? 'crit' : st, 8)} ${esc(HM_ST[st === 'crit' ? 'crit' : st]())}</span></button>`).join('')}</div>`;
+}
+
+/** Acht getallen over de beveiliging, elk klikbaar */
+function ccSecurity(d, c) {
+  const s = c.sec;
+  const n = (go, lbl, val, sub, cls, delta) => `<button type="button" class="cc-num ${cls}" data-hm-go="${esc(go)}"><span class="cc-mu small">${esc(lbl)}</span><b>${hmNum(val)}</b>
+    <span class="small">${delta}${sub ? ` <span class="cc-mu">${esc(sub)}</span>` : ''}</span></button>`;
+  return ccCard('security', `${ccHead(L('Beveiliging in één oogopslag') + ' · ' + CC_PERIODS.find(([k]) => k === ccPeriod)[1](), `<span class="cc-mu small">${esc(ccPrevLbl())} · ${esc(L('klik op een getal voor de lijst'))}</span>`)}
+    <div class="cc-nums">
+      ${n('ids/acc?type=ssh&result=ok', L('SSH-logins'), s.ssh_login.n, [L('{n} gebruikers', { n: s.ssh_login.users }), s.ssh_login.new_ips ? L('{n} nieuw IP', { n: s.ssh_login.new_ips }) : ''].filter(Boolean).join(' · '), s.ssh_login.new_ips ? 'warn' : 'ok', ccDelta(s.ssh_login.n, s.ssh_login.prev, false))}
+      ${n('ids/acc?type=ssh&result=fail', L('Mislukte SSH-logins'), s.ssh_fail.n, L('{n} IP-adressen', { n: s.ssh_fail.ips }), s.ssh_fail.n ? 'crit' : '', ccDelta(s.ssh_fail.n, s.ssh_fail.prev))}
+      ${n('ids/blk', L('SSH-blokkades'), s.ssh_blk.n, L('{n} nog actief', { n: s.ssh_blk.active }), '', ccDelta(s.ssh_blk.n, s.ssh_blk.prev, false))}
+      ${n('ids/blk', L('IDS-blokkades'), s.ids_blk.n, L('{n} actief op {h} servers', { n: s.ids_blk.active, h: s.ids_blk.hosts }), '', ccDelta(s.ids_blk.n, s.ids_blk.prev, false))}
+      ${n('ids/blk', L('Tegengehouden'), s.stopped, L('pogingen door blokkades'), 'cy', '')}
+      ${n('ids/acc?type=sudo', L('sudo en su'), s.sudo.n, [L('{n} gebruikers', { n: s.sudo.users }), s.sudo.fail ? L('{n} mislukt', { n: s.sudo.fail }) : L('niets mislukt')].join(' · '), s.sudo.fail ? 'warn' : '', ccDelta(s.sudo.n, s.sudo.prev))}
+      ${n('ids/map', L('Webaanvallen'), s.web.n, L('{n} IP-adressen', { n: s.web.ips }), s.web.n ? 'warn' : '', ccDelta(s.web.n, s.web.prev))}
+      ${n('ids/map', L('Verdacht uitgaand'), s.out.n, s.out.last ? s.out.last.slice(0, 40) : L('niets gezien'), s.out.n ? 'out' : '', ccDelta(s.out.n, s.out.prev))}
+    </div>`);
+}
+
+/** De toppers: grootste SSH- en IDS-blokkade, grootste aanvaller, meest aangevallen server en land */
+function ccToppers(d, c) {
+  const t = c.top;
+  const ip = (x) => `<button type="button" class="cc-ip" data-hm-go="ip:${esc(x.ip)}">${afCcBadge(x.cc, x.cc === 'LAN')}<span class="mono">${esc(x.ip)}</span></button>`;
+  const blk = (x, title) => (x ? `<div class="cc-card cc-top crit">${ccHead(title)}${ip(x)}
+      <span class="cc-mu small">${esc(L('{n} pogingen tegengehouden', { n: hmNum(x.hits) }))}${x.users.length ? ' · ' + esc(x.users.join(', ')) : x.reason ? ' · ' + esc(x.reason) : ''}</span>
+      <span class="small"><span class="cc-ok">⛔ ${esc(L('geblokkeerd op {list} sinds {t}', { list: x.on.join(', '), t: ccTime(x.at) }))}</span>${x.not_on.length ? ` · <span class="cc-wa">${esc(L('nog niet op {list}', { list: x.not_on.join(', ') }))}</span>` : ''}</span>
+      ${x.not_on.length && isAdmin() ? `<button type="button" class="cc-link" data-hm-go="block:${esc(x.ip)}">${esc(L('Overal blokkeren'))} →</button>` : ''}</div>`
+    : `<div class="cc-card cc-top">${ccHead(title)}<span class="cc-mu small">${esc(L('Geen actieve blokkade'))}</span></div>`);
+  const a = t.attacker, h = t.host, cs = t.countries || [];
+  return `<div class="cc-tops">
+    ${blk(t.ssh_block, L('Top SSH-blokkade'))}${blk(t.ids_block, L('Top IDS-blokkade'))}
+    ${a ? `<div class="cc-card cc-top ${a.blocked ? '' : 'warn'}">${ccHead(L('Grootste aanvaller'))}${ip(a)}<span class="cc-mu small">${esc(a.title)}</span>
+      <span class="small">${a.blocked ? `<span class="cc-ok">⛔ ${esc(L('geblokkeerd'))}</span>` : `<span class="cc-wa">● ${esc(L('nog niet geblokkeerd'))}</span>`} · ${esc(L('{n} pogingen', { n: hmNum(a.hits) }))}${a.hosts > 1 ? ' · ' + esc(L('{n} servers', { n: a.hosts })) : ''}</span>
+      ${!a.blocked && isAdmin() && a.cc !== 'LAN' ? `<button type="button" class="cc-link" data-hm-go="block:${esc(a.ip)}">${esc(L('Blokkeren'))} →</button>` : ''}</div>`
+      : `<div class="cc-card cc-top">${ccHead(L('Grootste aanvaller'))}<span class="cc-mu small">${esc(L('Geen aanvallen in deze periode.'))}</span></div>`}
+    ${h ? `<button type="button" class="cc-card cc-top" data-hm-go="ids/map">${ccHead(L('Meest aangevallen'))}<b class="cc-name">${esc(h.name)}</b>
+      <span class="cc-mu small">${esc(L('{n} pogingen · {i} bronnen', { n: hmNum(h.hits), i: h.ips }))}${h.svc.length ? ' · ' + esc(h.svc.slice(0, 3).join(', ')) : ''}</span>
+      <span class="small">${h.blocks ? `<span class="cc-ok">${esc(L('{n} blokkades actief', { n: h.blocks }))}</span>` : `<span class="cc-wa">${esc(L('geen blokkades'))}</span>`}</span></button>`
+      : `<div class="cc-card cc-top">${ccHead(L('Meest aangevallen'))}<span class="cc-mu small">–</span></div>`}
+    <div class="cc-card cc-top">${ccHead(L('Top land'))}${cs.length ? `<b class="cc-name">${afCcBadge(cs[0].cc, cs[0].cc === 'LAN')} ${esc(amCcName(cs[0].cc))}</b>
+      <span class="cc-mu small">${esc(L('{p}% van alle pogingen · {n} IP-adressen', { p: cs[0].pct, n: cs[0].ips }))}</span>
+      <span class="cc-chips">${cs.slice(1).map((x) => `<span class="cc-chip">${esc(x.cc === 'LAN' ? L('eigen netwerk') : x.cc)} ${x.pct}%</span>`).join('')}</span>` : `<span class="cc-mu small">–</span>`}</div>
+  </div>`;
+}
+
+/** Nu doen: dezelfde lijst als op het klassieke dashboard, compacter */
+function ccNow(d) {
+  const live = hmLive();
+  const list = d.full && d.now ? d.now : live.checks.filter((c) => +c.status === 2 || +c.status === 1).sort((a, b) => b.status - a.status)
+    .map((c) => ({ kind: 'todo', sev: +c.status === 2 ? 2 : 1, text: `${c.name} – ${(state.hosts.find((h) => +h.id === +c.host_id) || {}).name || ''}`, urgency: +c.status === 2 ? 50 : 25, why: [], go: 'check:' + c.id }));
+  const shown = list.slice(0, 6);
+  return ccCard('now', `${ccHead(L('Nu doen'), `<span class="cc-mu small">${esc(L('{n} open', { n: list.length }))}</span>`)}
+    ${shown.length ? `<ul class="cc-list">${shown.map((t) => `<li><button type="button" class="cc-row" data-hm-go="${esc(t.go)}"><i class="cc-bar ${t.urgency >= 60 ? 'crit' : t.urgency >= 30 ? 'warn' : 'cy'}"></i>
+      <span><b>${t.kind === 'inc' ? '⚠ ' : t.icon ? esc(t.icon) + ' ' : ''}${esc(t.text)}</b><small class="cc-mu">${esc((t.why || []).slice(1, 3).join(' · '))}${t.owner ? ' · 👤 ' + esc(t.owner) : ''}</small></span>${urgPill(t.urgency, t.why)}</button></li>`).join('')}</ul>`
+      : `<p class="cc-mu">${esc(L('Niets te doen. Mooi zo.'))}</p>`}
+    ${d.full ? ccGo('analytics', L('Alles bekijken')) : ''}`);
+}
+
+/** Wie logt er in: SSH, console, sudo en su */
+function ccLogins(d, c) {
+  const ic = { ssh: '🔑', console: '🖥️', sudo: '⚡', su: '⇄' };
+  const meth = { publickey: L('sleutel'), password: L('wachtwoord'), 'keyboard-interactive/pam': L('wachtwoord') };
+  return ccCard('logins', `${ccHead(L('Wie logt er in'), ccGo('ids/acc', L('Toegang')))}
+    ${c.logins.length ? `<ul class="cc-list">${c.logins.map((x) => `<li class="cc-lg"><span class="mono cc-mu">${esc(ccTime(x.at).slice(-5))}</span>
+      <span><b>${esc(x.user)}</b> ${x.type === 'ssh' || x.type === 'console' ? '→' : ''} ${esc(x.type === 'sudo' || x.type === 'su' ? L('{t} op {host}', { t: x.type + (x.as && x.as !== 'root' ? ' ' + x.as : '') + (x.cmd ? ' ' + x.cmd : ''), host: x.host }) : x.host)}
+        <small class="cc-mu">${[x.type === 'ssh' ? 'SSH' : x.type === 'console' ? L('console') : '', meth[x.m] || x.m, x.ip, x.cc && x.cc !== 'LAN' ? x.cc : ''].filter(Boolean).map(esc).join(' · ')}</small></span>
+      <span class="cc-tag ${x.new ? 'warn' : x.type === 'sudo' || x.type === 'su' ? '' : 'ok'}">${x.new ? esc(L('nieuw IP')) : ic[x.type] || ''}</span></li>`).join('')}</ul>`
+      : `<p class="cc-mu">${esc(L('Nog niemand ingelogd in deze periode.'))}</p>`}`);
+}
+
+/** Live aanvallen: een kleine Attack Flow van de laatste 15 minuten (eigen gegevens, hooguit eens per 20 seconden) */
+async function ccAtkLoad() {
+  if (Date.now() - ccAtkAt < 20000 && ccAtk) return ccAtkPaint();
+  ccAtkAt = Date.now();
+  try { ccAtk = await api('ids_attack_flow', null, { days: 1, mins: 15, top: 6 }); } catch (ex) { ccAtk = { error: ex.message }; }
+  ccAtkPaint();
+}
+function ccAttacks() {
+  return ccCard('attacks', `${ccHead(L('Live aanvallen · laatste 15 min'), ccGo('ids/map', 'Attack Flow'))}<div id="cc-atk">${ccAtk ? ccAtkSvg(ccAtk) : `<p class="cc-mu">${esc(L('Laden…'))}</p>`}</div>`, 'cc-atkcard');
+}
+function ccAtkPaint() { const el = $('#cc-atk'); if (el && ccAtk) el.innerHTML = ccAtkSvg(ccAtk); }
+function ccAtkSvg(a) {
+  if (a.error) return `<p class="form-error">${esc(a.error)}</p>`;
+  const lv = a.live || {}, lines = (a.lines || []).slice(0, 6);
+  if (!lines.length) return `<div class="cc-calm">${amSvg('shield', 'am-ic big cc-okc')}<span>${esc(L('Rustig: geen aanvallen in de laatste 15 minuten.'))}</span></div>`;
+  const srcs = [...new Set(lines.map((l) => l.ip))].slice(0, 5), tgts = [...new Set(lines.map((l) => l.host_id))].slice(0, 4);
+  const W = 340, rowS = 40, H = Math.max(srcs.length, tgts.length) * rowS + 8;
+  const ys = (i, n) => (H - n * rowS) / 2 + i * rowS + rowS / 2;
+  const names = Object.fromEntries((a.targets || []).map((t) => [t.id, t.name]));
+  const now = performance.now() / 1000, hit = new Set(lv.hit || []);
+  const parts = [`<defs><filter id="ccGlow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`];
+  lines.forEach((l, idx) => {
+    const si = srcs.indexOf(l.ip), ti = tgts.indexOf(l.host_id);
+    if (si < 0 || ti < 0) return;
+    const y1 = ys(si, srcs.length), y2 = ys(ti, tgts.length), x1 = 118, x2 = 232, xs = 212, mid = (x1 + x2) / 2;
+    const cls = l.dir === 'o' ? 'out' : l.sev >= 2 ? 'crit' : 'warn';
+    const blocked = (l.outcome || {}).k === 'blocked' && l.dir !== 'o';
+    const curve = `M${x1} ${y1.toFixed(1)} C${mid} ${y1.toFixed(1)} ${mid} ${y2.toFixed(1)} ${xs} ${y2.toFixed(1)}`;
+    const ll = (lv.lines || [])[a.lines.indexOf(l)] || {};
+    const rate = +ll.rate || 0, dur = rate >= 6 ? 0.5 : rate >= 2 ? 0.85 : rate > 0 ? 1.4 : 2.6;
+    parts.push(`<g class="af-l ${cls}"><path class="af-base" d="${curve} H${x2}" stroke-width="6"/>${l.obs && ll.recent
+      ? `<path class="af-p" d="${l.dir === 'o' ? `M${x2} ${y2.toFixed(1)} H${xs} C${mid} ${y2.toFixed(1)} ${mid} ${y1.toFixed(1)} ${x1} ${y1.toFixed(1)}` : blocked ? curve : curve + ' H' + x2}" stroke-width="4" style="animation-duration:${dur}s;animation-delay:-${(now % dur).toFixed(2)}s"/>`
+      : `<path class="af-core${l.obs ? '' : ' inf'}" d="${curve} H${x2}" stroke-width="2"/>`}
+      ${blocked ? `<g class="af-shield" transform="translate(${xs + 12} ${y2.toFixed(1)})"><circle class="af-bu" r="6"/><circle class="af-sh" r="8"/><path d="M-3 -3 l6 6 M3 -3 l-6 6"/></g>` : ''}
+      <path class="am-hit" d="${curve} H${x2}" data-cc-ip="${esc(l.ip)}"><title>${esc(`${l.ip} → ${names[l.host_id] || '?'} · ${amSvc(l)} · ${amN(l.hits)}×`)}</title></path></g>`);
+    void idx;
+  });
+  srcs.forEach((ip, i) => {
+    const s = (a.sources || []).find((x) => x.ip === ip) || { ip, cc: '??' }, y = ys(i, srcs.length);
+    parts.push(`<g class="cc-fn" data-cc-ip="${esc(ip)}"><rect x="1" y="${(y - 15).toFixed(1)}" width="117" height="30" rx="8"/><text x="8" y="${(y + 3.5).toFixed(1)}" class="cc-fn-cc">${esc(s.internal ? 'LAN' : s.cc)}</text>
+      <text x="32" y="${(y + 3.5).toFixed(1)}" class="cc-fn-ip">${esc(ip)}</text></g>`);
+  });
+  tgts.forEach((id, i) => {
+    const y = ys(i, tgts.length);
+    parts.push(`<g class="cc-fn r ${hit.has(+id) ? 'hit' : ''}"><rect x="232" y="${(y - 15).toFixed(1)}" width="107" height="30" rx="8"/><text x="240" y="${(y + 3.5).toFixed(1)}" class="cc-fn-h">${esc((names[id] || '?').slice(0, 14))}</text></g>`);
+  });
+  const b = lv.busy || {};
+  return `<svg class="cc-atk-svg" viewBox="0 0 ${W} ${H}" aria-hidden="true">${parts.join('')}</svg>
+    <div class="cc-mu small cc-atk-sum"><span><b>${hmNum(b.active || 0)}</b> ${esc(L('aanvallers actief'))}</span><span><b>${esc(dec(b.per_min || 0))}</b> ${esc(L('pogingen/min'))}</span>
+      ${(lv.hit || []).length ? `<span class="cc-cr">${esc(L('{n} server(s) nu geraakt', { n: lv.hit.length }))}</span>` : ''}</div>`;
+}
+
+/** Monitoring: hoeveel checks, hoe vaak ze liepen, wat het vaakst fout ging en de meeste meldingen gaf */
+function ccMonitoring(d, c) {
+  const m = c.mon;
+  const series = m.series || [], mx = Math.max(1, ...series.map((x) => x.n)), mf = Math.max(1, ...series.map((x) => x.f));
+  const W = 460, H = 120, bw = series.length ? Math.max(2, W / series.length - 3) : 0;
+  const chart = series.length > 1 ? `<svg class="cc-mchart" viewBox="0 0 ${W} ${H + 16}" preserveAspectRatio="none" role="img" aria-label="${esc(L('Checks per {p}: uitgevoerd en fout', { p: ccPeriod === 'today' ? L('uur') : L('dag') }))}">
+      ${series.map((x, i) => `<rect class="cc-mb" x="${(i * W / series.length).toFixed(1)}" y="${(H - x.n / mx * (H - 10)).toFixed(1)}" width="${bw.toFixed(1)}" height="${(x.n / mx * (H - 10)).toFixed(1)}" rx="2"><title>${esc(x.k)}: ${esc(L('{n} uitgevoerd, {f} fout', { n: hmNum(x.n), f: hmNum(x.f) }))}</title></rect>`).join('')}
+      <path class="cc-mf" d="${series.map((x, i) => `${i ? 'L' : 'M'}${(i * W / series.length + bw / 2).toFixed(1)} ${(H - x.f / mf * (H - 14) - 2).toFixed(1)}`).join('')}"/>
+      <text x="0" y="${H + 13}" class="cc-axt">${esc(series[0].k.slice(ccPeriod === 'today' ? 11 : 5))}</text><text x="${W}" y="${H + 13}" text-anchor="end" class="cc-axt">${esc(series[series.length - 1].k.slice(ccPeriod === 'today' ? 11 : 5))}</text></svg>
+      <div class="cc-mu small cc-leg"><span><i class="sw cc-sw-n"></i>${esc(L('uitgevoerd'))}</span><span><i class="sw cc-sw-f"></i>${esc(L('fout (warning of critical)'))}</span></div>`
+    : `<p class="cc-mu small">${esc(L('Nog geen uurtotalen in deze periode; die komen elk uur bij.'))}</p>`;
+  const row = (x, val, sub, cls) => `<li><button type="button" class="cc-row" data-hm-go="check:${x.id}"><span><b>${esc(x.name)}</b><small class="cc-mu">${esc(x.host)}${sub ? ' · ' + esc(sub) : ''}</small></span>
+    <span class="cc-val ${cls}">${val}</span></button></li>`;
+  const mr = m.most_run;
+  return ccCard('monitoring', `${ccHead(L('Monitoring') + ' · ' + CC_PERIODS.find(([k]) => k === ccPeriod)[1](), `<span class="cc-mu small">${esc(ccPrevLbl())}</span>`)}
+    <div class="cc-mon">
+      <div class="cc-nums cc-nums-5">
+        <button type="button" class="cc-num" data-hm-go="settings/allchecks"><span class="cc-mu small">${esc(L('Actieve checks'))}</span><b>${hmNum(m.active)}</b>
+          <span class="small cc-mu">${esc(m.types.slice(0, 3).map((t) => `${t.n} ${t.type}`).join(' · '))}</span></button>
+        <div class="cc-num"><span class="cc-mu small">${esc(L('Uitgevoerd'))}</span><b>${hmNum(m.runs.n)}</b><span class="small">${ccDelta(m.runs.n, m.runs.prev, false)} <span class="cc-mu">${esc(L('{n} checks liepen', { n: m.checks_ran }))}</span></span></div>
+        <div class="cc-num ${m.fails.n ? 'warn' : 'ok'}"><span class="cc-mu small">${esc(L('Fout gegaan'))}</span><b>${hmNum(m.fails.n)}</b><span class="small">${ccDelta(m.fails.n, m.fails.prev)} <span class="cc-mu">${esc(L('warning of critical'))}</span></span></div>
+        <div class="cc-num ${m.ok_pct !== null && m.ok_pct < 95 ? 'warn' : 'ok'}"><span class="cc-mu small">${esc(L('Gelukt'))}</span><b>${m.ok_pct === null ? '–' : esc(dec(m.ok_pct)) + '<small>%</small>'}</b><span class="small cc-mu">${esc(L('van alle uitvoeringen'))}</span></div>
+        <button type="button" class="cc-num ${m.alerts.n ? 'warn' : ''}" data-hm-go="alerts"><span class="cc-mu small">${esc(L('Meldingen verstuurd'))}</span><b>${hmNum(m.alerts.n)}</b><span class="small">${ccDelta(m.alerts.n, m.alerts.prev)} <span class="cc-mu">${esc(L('naar je kanalen'))}</span></span></button>
+      </div>
+      <div class="cc-mgrid">
+        <div>${chart}${mr ? `<p class="small cc-mu" style="margin:.4rem 0 0">${esc(L('Vaakst uitgevoerd'))}: <button type="button" class="cc-link" data-hm-go="check:${mr.id}">${esc(mr.name)} · ${esc(mr.host)}</button> (${esc(L('{n}×', { n: hmNum(mr.n) }))})</p>` : ''}</div>
+        <div><span class="cc-sub">${esc(L('Vaakst fout gegaan'))}</span>${m.most_failed.length ? `<ul class="cc-list">${m.most_failed.map((x) => row(x, `${hmNum(x.fail)}<small>×</small>`, L('{p}% van {n} keer', { p: dec(x.pct), n: hmNum(x.n) }) + (x.crit ? ' · ' + L('{n} critical', { n: hmNum(x.crit) }) : ''), x.crit ? 'crit' : 'warn')).join('')}</ul>` : `<p class="cc-mu small">${esc(L('Niets fout gegaan.'))}</p>`}</div>
+        <div><span class="cc-sub">${esc(L('Meeste meldingen'))}</span>${m.fired.length ? `<ul class="cc-list">${m.fired.map((x) => row(x, `${hmNum(x.n)}<small>×</small>`, (x.crit ? L('{n} critical', { n: x.crit }) + ' · ' : '') + L('laatste {t}', { t: ccTime(x.last) }), x.crit ? 'crit' : 'warn')).join('')}</ul>` : `<p class="cc-mu small">${esc(L('Geen meldingen verstuurd.'))}</p>`}</div>
+      </div></div>`);
+}
+
+/** Servers als tegels met drie ringen (CPU, RAM, de volste disk); de rand gloeit in de kleur van de status */
+function ccServers(d) {
+  const risk = (d && d.risk) || {}, rank = { crit: 0, warn: 1, unk: 2, ok: 3 };
+  const all = hmAllHosts().sort((a, b) => rank[a.st] - rank[b.st] || a.h.name.localeCompare(b.h.name));
+  if (!all.length) return '';
+  const ring = (v, lbl, x) => {
+    const r = 17, C = 2 * Math.PI * r, f = v === null ? 0 : Math.min(100, v) / 100, cls = v === null ? 'na' : v >= 90 ? 'crit' : v >= 75 ? 'warn' : 'ok';
+    return `<g transform="translate(${x} 24)"><circle r="${r}" class="cc-ring-bg"/>${v === null ? '' : `<circle r="${r}" class="cc-sring ${cls}" stroke-dasharray="${(C * f).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90)"/>`}
+      <text y="4" text-anchor="middle" class="cc-sring-n">${v === null ? '–' : v}</text><text y="54" text-anchor="middle" class="cc-sring-l">${esc(lbl)}</text></g>`;
+  };
+  const why = (h) => { const p = h.checks.filter((c) => +c.enabled && !c.maintenance && +c.status >= 1 && +c.status <= 2).sort((a, b) => b.status - a.status); return p.length ? (p.length > 1 ? L('{n} problemen', { n: p.length }) : p[0].name) : ''; };
+  return ccCard('servers', `${ccHead(L('Servers'), `<span class="cc-mu small">${esc(L('ringen = CPU · RAM · disk · de rand = status · klik voor de server'))}</span>`)}
+    <div class="cc-srv">${all.map(({ h, st, cpu, ram, disk }) => `<button type="button" class="cc-s ${st}" data-hm-go="dashboard?server=${encodeURIComponent(h.name)}">
+      <span class="cc-s-top"><b>${esc(h.name)}</b>${risk[h.id] && risk[h.id].score >= 40 ? urgPill(risk[h.id].score, risk[h.id].reasons, true) : ''}</span>
+      <span class="cc-mu small">${esc(kindLabel(hostKind(h)))} · ${esc(st === 'ok' ? HM_ST.ok() : why(h) || HM_ST[st]())}</span>
+      ${cpu === null && ram === null && disk === null ? `<span class="cc-mu small cc-s-none">${esc(L('geen CPU-, RAM- of diskcheck'))}</span>`
+        : `<svg viewBox="0 0 156 64" class="cc-s-rings" aria-label="${esc(`CPU ${cpu ?? '–'}% · RAM ${ram ?? '–'}% · ${L('Disk')} ${disk ?? '–'}%`)}" role="img">${ring(cpu, 'CPU', 26)}${ring(ram, 'RAM', 78)}${ring(disk, L('Disk'), 130)}</svg>`}
+    </button>`).join('')}</div>`);
 }
 
 /** 1.146.0: aanvalspad en impact van één server: van buiten → open poorten (met pakket en ergste kwetsbaarheid) → server → wie ervan afhangt */

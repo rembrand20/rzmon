@@ -1050,7 +1050,7 @@ final class Ids
         445 => 'SMB', 465 => 'SMTPS', 587 => 'SMTP', 993 => 'IMAPS', 1433 => 'MSSQL', 1883 => 'MQTT', 2323 => 'Telnet', 3306 => 'MySQL', 3389 => 'RDP',
         4444 => 'Metasploit', 5432 => 'PostgreSQL', 5900 => 'VNC', 6379 => 'Redis', 6667 => 'IRC', 8006 => 'Proxmox', 8080 => 'HTTP', 8123 => 'Home Assistant', 8443 => 'HTTPS', 8883 => 'MQTT'];
     /** Soorten die over SSH gaan */
-    private const SSH_TYPES = ['bruteforce', 'breakin', 'rootlogin', 'newip', 'ssh_login', 'decoy_user', 'ssh'];
+    public const SSH_TYPES = ['bruteforce', 'breakin', 'rootlogin', 'newip', 'ssh_login', 'decoy_user', 'ssh'];
 
     /**
      * 1.149.0: poort, protocol, dienst en richting van een incident, voor de aanvalskaart. Uit de soort en de tekst (die
