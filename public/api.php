@@ -1280,7 +1280,7 @@ $confirm = static function (string $word) use ($user): void {
 $checkCols = static function (array $in, bool $dry = false) use ($user): array {   // $dry: alleen proberen (geen logboek)
             $type = $in['type'] ?? '';
             if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat', 'process', 'pve',
-                'dns', 'ntp', 'smart', 'ups', 'mysql'], true)) {
+                'dns', 'ntp', 'smart', 'ups', 'mysql', 'internet'], true)) {
                 out(['error' => t('Ongeldig type')], 422);
             }
             // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -1308,6 +1308,14 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 }
             }
             $target = trim((string) ($in['target'] ?? ''));
+            // Internet (1.157.0): ping, responstijd, download of upload; altijd vanaf de server van RzMon
+            if ($type === 'internet') {
+                $metric = (string) ($in['metric'] ?? '');
+                if (!in_array($metric, Internet::METRICS, true)) {
+                    out(['error' => t('Kies wat je van internet wilt bewaken')], 422);
+                }
+                $target = '';
+            }
             // Proxmox VE (1.105.0): wat, en voor een guest de VMID
             if ($type === 'pve') {
                 $metric = (string) ($in['metric'] ?? 'overview');
@@ -3067,7 +3075,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_keep_manual', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'edr_yara', 'ids_modern', 'af_motion', 'smart_auto', 'alert_auto', 'perf_on', 'edr_note_hide', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'edr_yara', 'ids_modern', 'af_motion', 'smart_auto', 'alert_auto', 'inet_down', 'inet_up', 'inet_warn_pct', 'inet_crit_pct', 'inet_times', 'inet_speed_mb', 'perf_on', 'edr_note_hide', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup'];
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -3087,10 +3095,14 @@ switch ($action) {
             $in['notify_channels'] = json_encode(array_replace(NotifyRules::defaults()['channels'],
                 NotifyRules::cleanChannels((array) (is_string($in['notify_channels']) ? json_decode($in['notify_channels'], true) : $in['notify_channels']))));
         }
-        foreach (['esc_warn_min' => [0, 1440], 'esc_crit_min' => [0, 1440], 'esc_crit_prio' => [-1, 2], 'smart_fast' => [10, 300], 'smart_slow' => [1, 10], 'disk_jump_pct' => [1, 50], 'edr_learn_days' => [1, 90], 'edr_anom_min' => [1, 100], 'edr_chain_min' => [5, 1440], 'ti_block_score' => [10, 100]] as $k => [$lo, $hi]) {
+        foreach (['esc_warn_min' => [0, 1440], 'esc_crit_min' => [0, 1440], 'esc_crit_prio' => [-1, 2], 'smart_fast' => [10, 300], 'smart_slow' => [1, 10], 'disk_jump_pct' => [1, 50], 'edr_learn_days' => [1, 90], 'edr_anom_min' => [1, 100], 'edr_chain_min' => [5, 1440], 'ti_block_score' => [10, 100],
+            'inet_down' => [1, 100000], 'inet_up' => [1, 100000], 'inet_warn_pct' => [1, 100], 'inet_crit_pct' => [1, 100], 'inet_speed_mb' => [10, 2000]] as $k => [$lo, $hi]) {
             if (isset($in[$k])) {
                 $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
             }
+        }
+        if (isset($in['inet_times'])) {
+            $in['inet_times'] = Internet::cleanTimes((string) $in['inet_times']);   // 1.157.0: tijden van de snelheidstest
         }
         if (isset($in['thresh_default']) && !in_array($in['thresh_default'], Smart::MODES, true)) {
             $in['thresh_default'] = 'guard';
@@ -3687,7 +3699,7 @@ switch ($action) {
         }
         $in = input();
         $key = (string) ($in['key'] ?? '');
-        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen'], true)) {
+        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen', 'mon_glow', 'mon_anim'], true)) {
             out(['error' => t('Onbekende voorkeur')], 422);
         }
         $prefs = json_decode((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn(), true) ?: [];
@@ -3695,7 +3707,8 @@ switch ($action) {
             'open_mode' => $in['value'] === 'smart' ? 'smart' : 'closed',
             'theme' => in_array($in['value'] ?? '', ['light', 'dark'], true) ? $in['value'] : 'auto',   // 1.135.0: thema per gebruiker
             'side' => ($in['value'] ?? '') === 'mini' ? 'mini' : 'full',   // 1.150.0: zijbalk ingeklapt (alleen iconen)
-            'dash' => ($in['value'] ?? '') === 'cc' ? 'cc' : 'classic',   // 1.154.0: welk dashboard (klassiek of Command center)
+            'dash' => ($in['value'] ?? '') === 'cc' ? 'cc' : 'classic',
+            'mon_glow', 'mon_anim' => ($in['value'] ?? '') === 'off' ? 'off' : 'on',   // 1.157.0: rode gloed en live-animaties op Monitoring   // 1.154.0: welk dashboard (klassiek of Command center)
             'dash_seen' => date('Y-m-d H:i:s'),   // 1.154.0: laatste bezoek aan het dashboard ("sinds je laatste bezoek")
             // 1.154.0: indeling van het Command center: volgorde en verborgen kaarten (alleen bekende namen)
             'dash_layout' => ['order' => array_values(array_unique(array_filter(array_map(static fn($k) => preg_replace('/[^a-z_]/', '', (string) $k), (array) ($in['value']['order'] ?? []))))),
@@ -3821,6 +3834,21 @@ switch ($action) {
         } catch (InvalidArgumentException $e) {
             out(['error' => $e->getMessage()], 422);
         }
+
+    case 'inet_state':   // 1.157.0: Instellingen → Monitoring → Internet
+        out(Internet::state());
+
+    case 'inet_install':   // het apparaat "Internet" met de vier checks
+        $hid = Internet::install();
+        out(['ok' => true, 'host_id' => $hid, 'message' => t('Internet-check toegevoegd')]);
+
+    case 'inet_speed_now':   // nu een snelheidstest (duurt tot ~25 seconden)
+        session_write_close();
+        $r = Internet::speedtest();
+        if ($r['err'] !== null) {
+            out(['error' => t('Snelheidstest mislukt: {e}', ['e' => $r['err']])], 422);
+        }
+        out(['ok' => true, 'result' => $r, 'message' => t('↓ {d} / ↑ {u} Mbit/s', ['d' => (string) round((float) $r['down']), 'u' => (string) round((float) $r['up'])])]);
 
     case 'advice_run':   // nu opnieuw bepalen (anders elke nacht)
         out(['ok' => true, 'n' => Advice::cron(true)]);

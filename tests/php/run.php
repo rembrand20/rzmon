@@ -1210,5 +1210,56 @@ ok(($kinds['fail'] ?? 0) === 2 && ($kinds['block'] ?? 0) === 1 && ($kinds['inc']
     'popup per IP: elke poging, de blokkade, de melding, waar het geblokkeerd is en waar nog niet, met de uitleg');
 q("DELETE FROM hosts WHERE name IN ('ci-af-a', 'ci-af-b')");
 
+section('Internet (1.157.0)');
+$ck = ['warn_threshold' => 50, 'crit_threshold' => 150];
+$pr = Internet::parsePing("64 bytes from 1.1.1.1: icmp_seq=1 ttl=57 time=4.10 ms\n64 bytes from 1.1.1.1: icmp_seq=2 ttl=57 time=5.10 ms\n5 packets transmitted, 2 received, 60% packet loss");
+ok(abs($pr['avg'] - 4.6) < .01 && abs($pr['jitter'] - 1.0) < .01 && $pr['loss'] == 60.0 && $pr['sent'] === 5, 'ping lezen: gemiddelde, jitter en verlies');
+$good = ['times' => [4, 5], 'avg' => 4.5, 'loss' => 0.0, 'jitter' => 1.0, 'sent' => 5];
+$dead = ['times' => [], 'avg' => null, 'loss' => 100.0, 'jitter' => 0.0, 'sent' => 5];
+$r1 = Internet::pingResult($ck, ['1.1.1.1' => $good, '8.8.8.8' => $good, '192.168.1.1' => ['avg' => .4] + $good], '192.168.1.1');
+$r2 = Internet::pingResult($ck, ['1.1.1.1' => $dead, '8.8.8.8' => $dead, '192.168.1.1' => ['avg' => .4] + $good], '192.168.1.1');
+$r3 = Internet::pingResult($ck, ['1.1.1.1' => $dead, '8.8.8.8' => $dead, '192.168.1.1' => $dead], '192.168.1.1');
+$r4 = Internet::pingResult($ck, ['1.1.1.1' => $good, '8.8.8.8' => $dead], null);
+ok($r1['status'] === STATUS_OK && $r1['value'] == 4.5 && str_contains($r1['message'], 'router'), 'internet ping: OK met de router erbij');
+ok($r2['status'] === STATUS_CRIT && str_contains($r2['message'], 'antwoordt wel') && $r3['status'] === STATUS_CRIT && str_contains($r3['message'], 'eigen netwerk'),
+    'geen internet: router wel of niet bereikbaar maakt verschil in de melding');
+ok($r4['status'] === STATUS_WARN, 'één van de twee adressen weg = warning');
+$rr = Internet::respResult(['warn_threshold' => 500, 'crit_threshold' => 2000], ['https://www.google.com/generate_204' => ['dns' => 10, 'conn' => 20, 'tls' => 40, 'ttfb' => 60],
+    'https://www.cloudflare.com/cdn-cgi/trace' => ['error' => 'timeout']]);
+ok($rr['status'] === STATUS_WARN && $rr['value'] == 60.0 && str_contains($rr['message'], 'google.com'), 'responstijd: één site weg = warning, gemiddelde van de rest');
+ok(Internet::times('9:30, 03:30 25:00 13.30 9:30') === ['03:30', '09:30', '13:30'] && Internet::cleanTimes('x') === Internet::TIMES, 'tijden van de snelheidstest netjes gemaakt');
+ok(Smart::eligible(['type' => 'internet', 'metric' => 'ping']) && !Smart::eligible(['type' => 'internet', 'metric' => 'down']), 'internet: ping leert mee, snelheid niet');
+// Eén klik: apparaat met vier checks; nog een keer = niets dubbel
+$ih = Internet::install();
+Internet::install();
+ok((int) q("SELECT COUNT(*) FROM checks WHERE host_id = ? AND type = 'internet'", [$ih])->fetchColumn() === 4, 'Internet toevoegen: één apparaat met vier checks');
+$down = q("SELECT * FROM checks WHERE host_id = ? AND metric = 'down'", [$ih])->fetch();
+ok(Internet::run($down)['status'] === STATUS_UNKNOWN && Internet::due(), 'nog geen snelheidstest: onbekend, en meteen aan de beurt');
+// Snelheidstest tegen een nep-testserver
+$port = 18000 + random_int(0, 999);
+$srv = proc_open(['env', 'PHP_CLI_SERVER_WORKERS=4', PHP_BINARY, '-S', "127.0.0.1:$port", __DIR__ . '/fake-speed.php'], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pp);
+for ($i = 0; $i < 50 && !@fsockopen('127.0.0.1', $port); $i++) {
+    usleep(100000);
+}
+save_setting('inet_speed_url', "http://127.0.0.1:$port");
+save_setting('inet_speed_mb', '20');
+$sp = Internet::speedtest();
+ok($sp['err'] === null && $sp['down'] > 1 && $sp['up'] > 1 && $sp['colo'] === 'AMS' && $sp['mb_down'] >= 20, 'snelheidstest: download, upload, locatie (' . json_encode($sp) . ')');
+save_setting('inet_down', '100000');
+save_setting('inet_warn_pct', '70');
+save_setting('inet_crit_pct', '40');
+$rd = Internet::run($down);
+ok($rd['value'] == $sp['down'] && str_contains($rd['message'], 'van 100000') && ($rd['status'] === STATUS_CRIT || $sp['down'] >= 40000), 'download vergeleken met het abonnement');
+ok(!Internet::due(), 'na de test: niet meteen nog een');
+save_setting('inet_speed_url', 'http://127.0.0.1:1');
+$bad = Internet::speedtest();
+ok($bad['err'] !== null && Internet::run($down)['status'] === STATUS_UNKNOWN, 'testserver weg: test mislukt, check onbekend met de reden');
+proc_terminate($srv);
+proc_close($srv);
+q('DELETE FROM hosts WHERE id = ?', [$ih]);
+q('DELETE FROM inet_speed');
+save_setting('inet_speed_url', 'https://speed.cloudflare.com');
+save_setting('inet_down', '1000');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

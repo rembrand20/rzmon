@@ -8,11 +8,30 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.157.0**: **Monitoring live**: per server de 3 belangrijkste checks met lijntjes en 24 uur, problemen gebundeld op oorzaak, een Compact-weergave en een zachte rode gloed; plus een nieuwe check **Internet** (ping, responstijd en snelheidstest van je lijn).
 - **1.156.0**: **slimme drempels** leren nu ook voor containers, DNS, NTP en MySQL, en RzMon zet een handmatige check zelf op *slim met vangnet* en stelt *melden na N* zelf in als dat minder ruis geeft, altijd met een melding en terug te draaien.
 - **1.155.0**: **Analyse en advies**: slimme analyses die je gegevens combineren tot concreet advies met bewijs (zoals een verouderde dienst met een actief misbruikte CVE op een poort die van buiten wordt aangevallen), een veiligheidsscore per onderdeel en een melding bij kritieke, wereldwijd bekende lekken.
 - **1.154.0**: het **Command center**, een tweede dashboard met alles in één oogopslag (SSH-logins en -blokkades, de toppers, wie er inlogt, de monitoring), zelf in te delen en met een TV-modus.
 - **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
-- **1.152.0**: **Attack Flow** in de aanvalskaart (aanvaller → doelwit → dienst → afloop, bewezen en vermoed uit elkaar, af te spelen), een betere popup per IP, en alle **SSH-sessies** met duur.
+
+## 1.157.0 – 2026-11-03
+### Nieuw
+- **Check Internet** (*Instellingen → Monitoring → Internet*, met één klik toe te voegen): je internetlijn, gemeten vanaf de server van RzMon.
+  - **Ping** naar 1.1.1.1 en 8.8.8.8 met jitter en verlies, plus je **router**: de melding zegt of het probleem binnen of buiten zit.
+  - **Responstijd** van google.com en cloudflare.com (DNS, verbinden, TLS, eerste antwoord).
+  - **Download en upload** uit een **snelheidstest** via speed.cloudflare.com, op vaste tijden (standaard 4× per dag: 03:30, 09:30, 13:30, 17:30), vergeleken met je **abonnement** (standaard 1000/1000 Mbit/s; warning onder 70%, critical onder 40%). Alles in te stellen, met een lijn van 30 dagen en **⚡ Nu testen**. Een test kost hooguit ongeveer 500 MB.
+  - Ping en responstijd leren mee met de slimme drempels. De snelheidstest staat bij *Achtergrondtaken*.
+- **Monitoring live**:
+  - per server de **3 belangrijkste checks** (eerst wat stuk is, dan CPU, RAM, disk, internet, responstijd …) met waarde, **lijntje van 24 uur** en balkje, op de kaarten (Blox Large) en in de rijen (L1nes);
+  - een **balkje met de status per uur** over 24 uur, per server en in *Nu aandacht nodig*;
+  - **Nu aandacht nodig gebundeld op oorzaak**: een onbereikbare server of een stille agent (of 4+ problemen op één server) is één regel, uit te klappen;
+  - **kerncijfers met lijntje en trend** (▲/▼ ten opzichte van 24 uur geleden, beschikbaarheid ten opzichte van 7 dagen);
+  - een derde lay-out **▪ Compact**: een blokje per check, voor veel checks of een TV-scherm. De lay-out kies je nu ook op de pagina zelf;
+  - **● Live** met de laatste check, en een zachte **rode gloed** bij een onbevestigde critical. Gloed en animaties zet je uit bij *Mijn account → Weergave*.
+- De database krijgt de tabel `inet_speed` en het checktype `internet`; dat gebeurt vanzelf bij de update.
+
+### Opgelost
+- Het checkformulier bood bij containers (CPU of RAM), DNS, NTP en MySQL nog geen slimme drempels aan, terwijl RzMon ze sinds 1.156.0 wel leert.
 
 ## 1.156.0 – 2026-11-03
 ### Nieuw

@@ -52,6 +52,8 @@ const TYPES = {
   smart:   { label: L('Schijfgezondheid (SMART)'), target: L('Schijf'), unit: '°C', warn: 55, crit: 65, ph: L('leeg = alle schijven'), help: L('Via de agent en smartctl (smartmontools): de gezondheidstest, de temperatuur (de drempels hierboven), slijtage van SSD\'s en NVMe (80% = WARNING, 90% = CRITICAL) en vervangen of twijfelachtige sectoren (WARNING). Schijven in slaapstand worden niet wakker gemaakt. Agent 1.70.0 of nieuwer.') },
   ups:     { label: L('UPS (NUT)'), target: L('UPS'), unit: '%', warn: 50, crit: 20, low: true, ph: L('leeg = de eerste'), help: L('Via de agent en NUT (upsc) op de server waar de UPS aan hangt: op de batterij = WARNING, batterij bijna leeg = CRITICAL, en de lading met de drempels hierboven. In het bericht de resterende tijd en de belasting. Agent 1.70.0 of nieuwer.') },
   mysql:   { label: L('MariaDB / MySQL'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server'), help: L('RzMon maakt verbinding en logt in: lukt dat niet = CRITICAL. Daarnaast hoeveel verbindingen er in gebruik zijn (90% = WARNING), trage query\'s sinds de vorige keer en hoe lang de database draait. Gebruik een eigen gebruiker zonder rechten (alleen USAGE). Het wachtwoord gaat nooit terug naar de browser.') },
+  // 1.157.0: de internetlijn, vanaf de server van RzMon
+  internet: { label: L('Internet'), target: null, unit: 'ms', warn: 50, crit: 150, help: L('Bewaakt je internetlijn vanaf de server van RzMon. Kies wat: ping, responstijd, download of upload. De snelheidstest draait op vaste tijden; abonnement, drempels en tijden staan bij Instellingen → Monitoring → Internet.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
@@ -141,6 +143,13 @@ const HA_METRICS = {
   osupdate:     { label: L('OS-update mislukt (A/B-terugval)'), unit: null, help: L('CRITICAL als een OS-update niet wilde opstarten en Home Assistant OS is teruggevallen op de vorige versie.') },
   usb:          { label: L('USB-apparaat aanwezig'), unit: null, target: L('USB-apparaat'), ph: L('kies uit de lijst'), help: L('CRITICAL als het apparaat (Zigbee- of Z-Wave-stick, Bluetooth) niet meer gezien wordt door Home Assistant OS.') },
 };
+/** Internet (1.157.0): wat een internet-check meet */
+const INET_METRICS = {
+  ping: { label: L('Ping (pingtijd, jitter, verlies)'), unit: 'ms', warn: 50, crit: 150, help: L('Pingt 1.1.1.1 en 8.8.8.8 (5 keer) en je router. De waarde is de beste pingtijd. Verlies van 20% of meer, of één adres weg = WARNING; geen van beide = CRITICAL, met in de melding of je router nog antwoordt (dan zit het probleem buiten).') },
+  resp: { label: L('Responstijd (DNS, verbinden, eerste antwoord)'), unit: 'ms', warn: 500, crit: 2000, help: L('Hoe snel google.com en cloudflare.com antwoorden, met een nieuwe verbinding: DNS, verbinden, TLS en het eerste antwoord. Eén site weg = WARNING, allebei = CRITICAL.') },
+  down: { label: L('Download (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internet).') },
+  up: { label: L('Upload (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internet).') },
+};
 /** Proxmox VE (1.105.0): wat een pve-check bewaakt */
 const PVE_METRICS = {
   overview: { label: L('Overzicht van de node'), unit: null, help: L('CRITICAL als een guest die automatisch moet starten uit staat, een opslag niet beschikbaar is, een ZFS-pool niet gezond is of de cluster geen quorum heeft; WARNING bij een gepauzeerde of vergrendelde guest of een mislukte back-uptaak.') },
@@ -157,6 +166,7 @@ function typeOf(c) {
   if (c.type === 'snmp') return snmpType(c);
   if (c.type === 'ha') return { ...TYPES.ha, ...(HA_METRICS[c.metric] || {}), label: 'Home Assistant' };
   if (c.type === 'pve') return { ...TYPES.pve, ...(PVE_METRICS[c.metric] || PVE_METRICS.overview), label: 'Proxmox' };
+  if (c.type === 'internet') return { ...TYPES.internet, ...(INET_METRICS[c.metric] || INET_METRICS.ping), label: L('Internet') };
   return c.type === 'container' && c.metric ? { ...TYPES.container, ...METRICS[c.metric], label: TYPES.container.label } : TYPES[c.type];
 }
 
@@ -167,8 +177,9 @@ let state = { hosts: [], alerts: [] };
 const REVERSIBLE = ['ping', 'tcp', 'http', 'service', 'container', 'podman', 'command', 'ha', 'dns', 'mysql'];
 // 1.107.0: slimme drempels (zoals Smart::SPEC): welke checks kunnen leren, en het standaard vangnet
 const SMART_GUARD = { ping: 1000, tcp: 3000, http: 10000, cpu: null, ram: 98, 'snmp:cpu': null, 'snmp:mem': 98, 'snmp:if': 98, 'snmp:load': null, 'snmp:temp': 85,
-  'snmp:ups_load': 98, 'snmp:ups_temp': 45, 'snmp:syno_system': 75, 'snmp:syno_disk': 62, 'snmp:unifi_cu': null, 'snmp:unifi_quality': null };
-const smartKey = (type, metric) => (type === 'snmp' ? `snmp:${metric}` : type);
+  'snmp:ups_load': 98, 'snmp:ups_temp': 45, 'snmp:syno_system': 75, 'snmp:syno_disk': 62, 'snmp:unifi_cu': null, 'snmp:unifi_quality': null,
+  'container:cpu': null, 'container:mem': 98, dns: 3000, ntp: 1000, mysql: 5000, 'internet:ping': 500, 'internet:resp': 5000 };
+const smartKey = (type, metric) => (['snmp', 'container', 'internet'].includes(type) ? `${type}:${metric || ''}` : type);
 const smartEligible = (type, metric) => smartKey(type, metric) in SMART_GUARD;
 const smartGuard = (type, metric) => SMART_GUARD[smartKey(type, metric)];
 const SMART_MODES = { manual: '✋ ' + L('Handmatig'), smart: '🧠 ' + L('Slim'), guard: '🧠🛡️ ' + L('Slim met vangnet') };
@@ -691,7 +702,7 @@ function liveText(node, text) {
   const host = node.parentElement && node.parentElement.closest('[data-flash], .kpi-val');
   const re = /-?\d+(?:[.,]\d+)?/;
   const mo = host && (node.nodeValue || '').match(re), mn = host && text.match(re);
-  if (!host) { node.nodeValue = text; return; }
+  if (!host || document.body.classList.contains('no-anim')) { node.nodeValue = text; return; }
   host.classList.remove('live-flash'); void host.offsetWidth; host.classList.add('live-flash');
   const from = mo ? parseFloat(mo[0].replace(',', '.')) : NaN, to = mn ? parseFloat(mn[0].replace(',', '.')) : NaN;
   if (isNaN(from) || isNaN(to) || from === to || matchMedia('(prefers-reduced-motion: reduce)').matches) { node.nodeValue = text; return; }
@@ -1022,6 +1033,8 @@ function init() {
   $('#dash-attn').addEventListener('click', (e) => {
     const host = e.target.closest('[data-host]');
     if (host) return jumpToHost(host.dataset.host);
+    const ab = e.target.closest('[data-attn-bundle]');
+    if (ab) { const id = +ab.dataset.attnBundle; if (attnBundles.has(id)) attnBundles.delete(id); else attnBundles.add(id); renderAttention(); return; }
     if (e.target.closest('[data-attn-more]')) { attnOpen = !attnOpen; return renderAttention(); }
     if (e.target.closest('[data-attn-acked]')) { statusFilter = null; return setDashFilter('problems'); }
     onHostsClick(e);
@@ -1396,6 +1409,9 @@ function init() {
   $('#user-form').addEventListener('submit', createUser);
   $('#db-rotate').onclick = dbRotateDialog;
   $$('[data-view-layout]').forEach((b) => (b.onclick = () => setViewPref('layout', b.dataset.viewLayout)));
+  // 1.157.0: rode gloed en live-animaties (per account)
+  $$('[data-mon-pref]').forEach((c) => (c.onchange = () => { savePref(c.dataset.monPref === 'glow' ? 'mon_glow' : 'mon_anim', c.checked ? 'on' : 'off'); applyMonPrefs(); }));
+  applyMonPrefs();
   // Bij openen: alles dicht of slim openen (voor je account, 1.71.0)
   $$('[data-view-open]').forEach((b) => (b.onclick = () => {
     savePref('open_mode', b.dataset.viewOpen);
@@ -1653,16 +1669,17 @@ function dur(dt) {
 // Keuze bovenaan (Alle, Problemen, of een soort apparaat): per gebruiker (1.75.0), daarvoor per browser
 let dashFilter = PREFS.dash_filter || (() => { try { return localStorage.getItem('rzmon-dash-filter') || 'all'; } catch (e) { return 'all'; } })();
 let dashSort = (() => { try { return localStorage.getItem('rzmon-dash-sort') || 'status'; } catch (e) { return 'status'; } })();
-let attnOpen = false;   // "Nu aandacht nodig": alles tonen (anders 6, op de telefoon 3)
+let attnOpen = false;
+const attnBundles = new Set();   // 1.157.0: opengeklapte bundels in "Nu aandacht nodig"   // "Nu aandacht nodig": alles tonen (anders 6, op de telefoon 3)
 const isHa = (h) => h.checks.some((c) => c.type === 'ha') || h.metrics.includes('service:homeassistant');
 // Soort apparaat (1.75.0; zie HostKind.php): zelf gekozen, anders herkend (agent, SNMP), anders op het type
 const KIND_INFO = {
   server: ['🖥️', () => L('Server')], router: ['🌐', () => L('Router')], switch: ['🔀', () => L('Switch')], ap: ['📶', () => L('Access point')],
   firewall: ['🧱', () => L('Firewall')], nas: ['🗄️', () => 'NAS'], ups: ['🔋', () => 'UPS'], camera: ['📷', () => L('Camera')], smarthome: ['🏠', () => L('Smart home')],
-  printer: ['🖨️', () => L('Printer')], other: ['📦', () => L('Overig')],
+  printer: ['🖨️', () => L('Printer')], other: ['📦', () => L('Overig')], internet: ['🌍', () => L('Internet')],
 };
 const KIND_GROUP = { server: 'server', router: 'network', switch: 'network', ap: 'network', firewall: 'network', nas: 'storage', ups: 'power',
-  camera: 'camera', smarthome: 'smarthome', printer: 'other', other: 'other' };
+  camera: 'camera', smarthome: 'smarthome', printer: 'other', other: 'other', internet: 'network' };
 const GROUP_INFO = {
   server: ['🖥️', () => L('Servers')], network: ['🌐', () => L('Netwerk')], storage: ['🗄️', () => L('Opslag')], power: ['🔋', () => L('Stroom')],
   camera: ['📷', () => L('Camera\'s')], smarthome: ['🏠', () => L('Smart home')], other: ['📦', () => L('Overig')],
@@ -1710,6 +1727,12 @@ function renderHealth() {
   const nProb = hl.counts.critical + hl.counts.warning + hl.counts.unknown;
   const u = Object.entries(stats.uptime).filter(([id]) => inGroup(id)).map(([, x]) => x.h24).filter((v) => v !== null && v !== undefined);
   const avail = u.length ? u.reduce((a, b) => a + b, 0) / u.length : null;
+  const u7 = Object.entries(stats.uptime).filter(([id]) => inGroup(id)).map(([, x]) => x.d7).filter((v) => v !== null && v !== undefined);
+  const avail7 = u7.length ? u7.reduce((a, b) => a + b, 0) / u7.length : null;
+  // 1.157.0: aantal checks met een probleem per half uur (24 uur), voor het lijntje en de trend
+  const probSeries = sparkSeries(inGroup, (st) => (st !== null ? (st !== 0 ? 1 : 0) : null), 'sum');
+  const probVals = probSeries.filter((v) => v !== null);
+  const probNow = probVals.length ? probVals[probVals.length - 1] : null, probThen = probVals.length ? probVals[0] : null;
   const o = hl.oldest_problem;
   const extra = [hl.quiet_until ? `🌙 ${L('stil tot {t}', { t: esc(fmtUntil(hl.quiet_until)) })}` : '',
     hl.flapping ? `🔀 ${hl.flapping} ${L('flapt')}` : '', hl.counts.maintenance ? `🔧 ${hl.counts.maintenance} ${L('in onderhoud')}` : ''].filter(Boolean).join(' · ');
@@ -1723,15 +1746,15 @@ function renderHealth() {
     <div class="kpi ${hl.down.length ? 'bad' : ''}" title="${L('Servers die reageren (ping, of de agent rapporteert)')}">
       <div class="kpi-lbl">${!g || g === 'server' ? L('Servers bereikbaar') : L('Apparaten bereikbaar')}</div><div class="kpi-val">${hl.hosts_up}<small>/${hl.hosts_total}</small></div>
       <div class="kpi-sub">${downs ? `${L('onbereikbaar')}: ${downs}` : L('allemaal bereikbaar')}</div></div>
-    <div class="kpi" title="${L('Actieve checks met status OK (checks in onderhoud tellen niet mee)')}">
-      <div class="kpi-lbl">${L('Checks OK')}</div><div class="kpi-val">${hl.checks_ok}<small>/${hl.checks_total}</small></div>
-      <div class="kpi-sub">${hl.checks_total ? pct(hl.checks_ok / hl.checks_total * 100) : '–'}</div></div>
+    <div class="kpi" title="${L('Actieve checks met status OK (checks in onderhoud tellen niet mee); het lijntje: het aantal checks met een probleem, 24 uur')}">
+      <div class="kpi-lbl">${L('Checks OK')}</div><div class="kpi-val">${hl.checks_ok}<small>/${hl.checks_total}</small> ${kpiTrend(probThen, probNow)}</div>
+      <div class="kpi-sub">${hl.checks_total ? pct(hl.checks_ok / hl.checks_total * 100) : '–'}</div>${kpiSpark(probSeries, 'var(--primary)', true)}</div>
     <div class="kpi ${hl.open_problems ? 'bad' : ''}" title="${L('Problemen die nog niet bevestigd zijn')}">
       <div class="kpi-lbl">${L('Open problemen')}</div><div class="kpi-val">${hl.open_problems}</div>
-      <div class="kpi-sub">${o ? `${L('langst')}: ${hostLink(o.host_id, o.host + ' – ' + o.check)} (${dur(o.since)})` : L('niets open')}</div></div>
-    <div class="kpi" title="${L('Gemiddelde bereikbaarheid van alle servers over de afgelopen 24 uur; het lijntje: het deel van de checks dat OK was')}">
-      <div class="kpi-lbl">${L('Beschikbaar 24 u')}</div><div class="kpi-val">${avail === null ? '–' : pct(avail).replace('%', '<small>%</small>')}</div>
-      ${healthSpark(inGroup)}</div>`;
+      <div class="kpi-sub">${o ? `${L('langst')}: ${hostLink(o.host_id, o.host + ' – ' + o.check)} (${dur(o.since)})` : L('niets open')}</div>${kpiSpark(probSeries, 'var(--crit)')}</div>
+    <div class="kpi" title="${L('Gemiddelde bereikbaarheid van alle servers over de afgelopen 24 uur, vergeleken met 7 dagen; het lijntje: het deel van de checks dat OK was')}">
+      <div class="kpi-lbl">${L('Beschikbaar 24 u')}</div><div class="kpi-val">${avail === null ? '–' : pct(avail).replace('%', '<small>%</small>')} ${avail !== null && avail7 !== null ? kpiTrend(avail, avail7, false, true) : ''}</div>
+      ${avail7 !== null ? `<div class="kpi-sub">${L('7 dagen: {p}', { p: pct(avail7) })}</div>` : ''}${healthSpark(inGroup)}</div>`;
   renderAttention();
 }
 
@@ -1774,16 +1797,51 @@ function renderAttention() {
       <button type="button" class="link-btn" data-attn-acked>${L('bekijken')}</button></div>` : '';
     return;
   }
-  box.innerHTML = `<div class="sec-h"><h2>⚠️ ${L('Nu aandacht nodig')}</h2><span>${open.length === 1 ? L('1 probleem') : L('{n} problemen', { n: open.length })} · ${L('critical eerst')}${acked ? ' · ' + L('{n} bevestigd', { n: acked }) : ''}</span></div>
-    <div class="attn ${attnOpen ? 'all' : ''}">${open.map(([h, c]) => `<div class="arow" data-cid="${c.id}">
+  // 1.157.0: gebundeld op oorzaak. Een server die onbereikbaar is (of waarvan de agent stil is) wordt één regel
+  // met al zijn checks, net als een server met 4 of meer problemen; de rest per check.
+  const hl = (g && state.health_groups && state.health_groups[g]) || state.health || {};
+  const down = new Map((hl.down || []).map((d) => [+d.id, d]));
+  const byHost = new Map();
+  open.forEach(([h, c]) => { if (!byHost.has(h.id)) byHost.set(h.id, [h, []]); byHost.get(h.id)[1].push(c); });
+  const items = [];
+  byHost.forEach(([h, list]) => {
+    if ((down.has(+h.id) && list.length >= 2) || list.length >= 4) items.push({ h, list, bundle: true });
+    else list.forEach((c) => items.push({ h, list: [c], bundle: false }));
+  });
+  const worst = (it) => Math.max(...it.list.map((c) => STATUS_RANK[+c.status]));
+  const since = (it) => it.list.map((c) => String(c.problem_since || '')).filter(Boolean).sort()[0] || '';
+  items.sort((a, b) => worst(b) - worst(a) || since(a).localeCompare(since(b)));
+  const why = { agent: L('agent stil'), parent: L('achter een uitgevallen server') };
+  const row = ([h, c], sub = false) => `<div class="arow${sub ? ' sub' : ''}" data-cid="${c.id}">
       <i class="adot s${c.status}"></i>
       <button type="button" class="a-srv hl-link" data-host="${h.id}">${esc(h.name)}</button>
       <span class="a-chk">${esc(c.name)}</span>
       <span class="a-msg">${esc(c.last_message || '')}</span>
+      ${checkTimeline(c)}
       <span class="a-since">${c.problem_since ? dur(c.problem_since) : ''}</span>
       <span class="a-acts"><button class="btn small-btn ack-btn need-user" data-act="ack" data-id="${c.id}" title="${L('Storing bevestigen: geen meldingen meer')}">✔ ${L('Bevestig')}</button><button class="btn small-btn need-user" data-act="maint-check" data-id="${c.id}" title="${L('Onderhoud')}">🔧</button></span>
-    </div>`).join('')}
-    ${open.length > 3 ? `<button type="button" class="attn-more ${open.length > 6 ? '' : 'mob-only'}" data-attn-more>${attnOpen ? '▴ ' + L('Minder tonen') : '▾ ' + L('Alle {n} tonen', { n: open.length })}</button>` : ''}</div>`;
+    </div>`;
+  const bundleRow = (it) => {
+    const st = it.list.reduce((m, c) => (STATUS_RANK[+c.status] > STATUS_RANK[m] ? +c.status : m), 0);
+    const d = down.get(+it.h.id);
+    const cause = d ? (why[d.reason] || L('onbereikbaar')) : L('{n} problemen op deze server', { n: it.list.length });
+    const isOpen = attnBundles.has(+it.h.id);
+    const s0 = since(it);
+    return `<div class="arow bundle${isOpen ? ' open' : ''}" data-bundle="h${it.h.id}">
+      <i class="adot s${st}"></i>
+      <button type="button" class="a-srv hl-link" data-host="${it.h.id}">${esc(it.h.name)}</button>
+      <span class="a-chk"><button type="button" class="link-btn" data-attn-bundle="${it.h.id}" aria-expanded="${isOpen}">${isOpen ? '▾' : '▸'} ${L('{n} checks', { n: it.list.length })}</button></span>
+      <span class="a-msg"><b>${esc(cause)}</b> · ${esc(it.list.map((c) => c.name).slice(0, 5).join(', '))}${it.list.length > 5 ? ' …' : ''}</span>
+      ${hostTimeline(it.h)}
+      <span class="a-since">${s0 ? dur(s0) : ''}</span>
+      <span class="a-acts"></span>
+    </div>${isOpen ? it.list.map((c) => row([it.h, c], true)).join('') : ''}`;
+  };
+  const nCause = items.length;
+  box.innerHTML = `<div class="sec-h"><h2>⚠️ ${L('Nu aandacht nodig')}</h2><span>${nCause === open.length ? (open.length === 1 ? L('1 probleem') : L('{n} problemen', { n: open.length }))
+      : L('{c} oorzaken · {n} checks', { c: nCause, n: open.length })} · ${L('critical eerst')}${acked ? ' · ' + L('{n} bevestigd', { n: acked }) : ''}</span><span class="a-24 muted small">${L('24 uur')} →</span></div>
+    <div class="attn ${attnOpen ? 'all' : ''}">${items.map((it) => (it.bundle ? bundleRow(it) : row([it.h, it.list[0]]))).join('')}
+    ${items.length > 3 ? `<button type="button" class="attn-more ${items.length > 6 ? '' : 'mob-only'}" data-attn-more>${attnOpen ? '▴ ' + L('Minder tonen') : '▾ ' + L('Alle {n} tonen', { n: items.length })}</button>` : ''}</div>`;
 }
 
 /** Naar een server springen en hem openklappen (vanuit de kerncijfers of de aandachtlijst). */
@@ -1814,7 +1872,7 @@ function renderNow() {
       ${L('Checks draaien door, maar er gaan geen meldingen uit.')}</span>
       <button class="btn need-user" data-maint-end="all">${L('Beëindigen')}</button>`;
   }
-  $('#last-run').innerHTML = state.last_run ? esc(L('Laatste check')) + ' ' + agoSpan(state.last_run) : '';
+  $('#last-run').innerHTML = `<b>${L('Live')}</b>` + (state.last_run ? ' · ' + esc(L('laatste check')) + ' ' + agoSpan(state.last_run) : '');
   let open = 0;
   if (state.badges) open = state.badges.dashboard + state.badges.alerts;   // nieuwe problemen + nieuwe meldingen
   else state.hosts.forEach((h) => +h.enabled && h.checks.forEach((c) => +c.enabled && !c.maintenance && +c.status === 2 && !c.acked_at && open++));
@@ -1865,6 +1923,7 @@ function renderNow() {
   const okHost = (h) => +h.enabled && hostStatus(h) === 0 && !h.maintenance && !h.autoOpen;
   const head = (title, n) => `<div class="sec-h hosts-h"><h2>${title}</h2><span>${n}</span></div>`;
   const lines = layout === 'l1nes';
+  if (layout === 'compact') { el.className = 'dash-hosts'; el.innerHTML = compactView(hosts); return; }
   const list = (arr) => (lines ? (density === 'large' ? lineHeader() : '') + arr.map((h) => hostLine(h, density === 'large')).join('')
     : arr.map((h) => hostCard(h, density === 'small')).join(''));
   const cls = `hosts layout-${layout} density-${density}`;
@@ -1872,7 +1931,7 @@ function renderNow() {
     const bad = arr.filter((h) => !okHost(h)), good = arr.filter(okHost);
     return (bad.length ? (good.length ? head(grouped ? L('Met problemen') : L('Servers met problemen'), bad.length) : '') + `<div class="${cls}">${list(bad)}</div>` : '')
       + (good.length ? head('✔ ' + L('Alles in orde'), good.length === 1 ? L('1 apparaat') : L('{n} apparaten', { n: good.length }))
-        + (lines ? `<div class="${cls}">${list(good)}</div>` : `<div class="ok-list density-${density}">${good.map(okRow).join('')}</div>`) : '');
+        + (lines || density === 'large' ? `<div class="${cls}">${list(good)}</div>` : `<div class="ok-list density-${density}">${good.map(okRow).join('')}</div>`) : '');
   };
   // Bij Alle (of Problemen, Onderhoud): een blok per soort apparaat; met één soort gekozen alleen die
   const groups = Object.keys(GROUP_INFO).filter((g) => hosts.some((h) => hostGroup(h) === g));
@@ -1921,6 +1980,129 @@ function hostSparks(h, mini = false) {
   }).join('');
 }
 
+// ---------------------------------------------------------------- Monitoring live (1.157.0)
+/** Rode gloed en live-animaties (Mijn account → Weergave, per account; standaard aan) */
+const monGlow = () => PREFS.mon_glow !== 'off';
+const monAnim = () => PREFS.mon_anim !== 'off';
+function applyMonPrefs() {
+  document.body.classList.toggle('no-glow', !monGlow());
+  document.body.classList.toggle('no-anim', !monAnim());
+  $$('[data-mon-pref]').forEach((c) => { c.checked = c.dataset.monPref === 'glow' ? monGlow() : monAnim(); });
+}
+/** Een server met een critical check die nog niet bevestigd is */
+const glowHost = (h) => +h.enabled && h.checks.some((c) => +c.enabled && !c.maintenance && +c.status === 2 && !c.acked_at);
+
+/** Volgorde voor "de 3 belangrijkste checks": eerst wat stuk is, dan checks met een meetwaarde, in deze volgorde */
+const KEY_RANK = ['internet:down', 'internet:up', 'internet:ping', 'cpu', 'ram', 'disk', 'internet:resp', 'ping', 'http', 'tcp', 'dns', 'mysql', 'ntp',
+  'container', 'snmp', 'pve', 'ha', 'ups', 'smart', 'process', 'service', 'ssl', 'heartbeat', 'log', 'command', 'reboot'];
+const keyKind = (c) => (c.type === 'internet' ? 'internet:' + (c.metric || '') : c.type);
+function keyChecks(h, n = 3) {
+  const on = h.checks.filter((c) => +c.enabled && !c.maintenance);
+  const rank = (c) => { const i = KEY_RANK.indexOf(keyKind(c)); return i < 0 ? 99 : i; };
+  const hasVal = (c) => c.last_value !== null && c.last_value !== undefined && typeOf(c).unit;
+  const out = on.filter((c) => +c.status !== 0 && !c.acked_at)
+    .sort((a, b) => STATUS_RANK[+b.status] - STATUS_RANK[+a.status] || rank(a) - rank(b)).slice(0, n);
+  // Met een meetwaarde: één per soort (de volste disk, de drukste CPU), daarna de rest
+  const seen = new Set(out.map(keyKind));
+  const vals = on.filter((c) => !out.includes(c) && hasVal(c)).sort((a, b) => rank(a) - rank(b) || (typeOf(a).unit === '%' ? b.last_value - a.last_value : 0));
+  vals.forEach((c) => { if (out.length < n && !seen.has(keyKind(c))) { out.push(c); seen.add(keyKind(c)); } });
+  vals.forEach((c) => { if (out.length < n && !out.includes(c)) out.push(c); });
+  on.filter((c) => !out.includes(c)).sort((a, b) => rank(a) - rank(b)).forEach((c) => { if (out.length < n) out.push(c); });
+  return out;
+}
+/** Waarde van een check: [getal, eenheid], of een woord als er geen getal is */
+function keyValue(c) {
+  const t = typeOf(c);
+  if (c.last_value === null || c.last_value === undefined || !t.unit) return [+c.status === 0 ? 'OK' : STATUS[+c.status] === 'CRITICAL' ? '✕' : +c.status === 1 ? '!' : '?', ''];
+  const v = +c.last_value;
+  const n = t.unit === '%' || t.unit === 'Mbit/s' || Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+  return [dec(n.toLocaleString(LOCALE)), t.unit === '%' ? '%' : ' ' + L(t.unit)];
+}
+const keyText = (c) => { const [v, u] = keyValue(c); return `<span class="s${c.status}">${esc(c.name)} <b>${v}${esc(u)}</b></span>`; };
+/** Lijntje van 24 uur met een vlakje eronder, in de kleur van de status */
+function keySpark(c, H = 22) {
+  const data = stats.sparks[c.id];
+  const pts = (data || []).map((d, i) => [i, d && d[0] !== null && d[0] !== undefined ? +d[0] : null]).filter(([, v]) => v !== null);
+  if (pts.length < 2) return `<svg class="km-svg" viewBox="0 0 100 ${H}" preserveAspectRatio="none" aria-hidden="true"></svg>`;
+  const vs = pts.map(([, v]) => v);
+  const pctU = typeOf(c).unit === '%';
+  const lo = pctU ? 0 : Math.min(...vs), hi = pctU ? 100 : Math.max(...vs);
+  const y = (v) => (H - 2 - ((v - lo) / Math.max(hi - lo, pctU ? 1 : Math.abs(hi) * .05 || 1)) * (H - 4)).toFixed(1);
+  const x = (i) => (i / 47 * 100).toFixed(1);
+  const d = pts.map(([i, v], k) => `${k ? 'L' : 'M'}${x(i)},${y(v)}`).join('');
+  const [lx, ly] = [x(pts[pts.length - 1][0]), y(pts[pts.length - 1][1])];
+  return `<svg class="km-svg" viewBox="0 0 100 ${H}" preserveAspectRatio="none" aria-hidden="true"><path class="km-fill" d="${d}L${lx},${H}L${x(pts[0][0])},${H}Z"/><path class="km-line" d="${d}"/><circle class="km-dot" cx="${lx}" cy="${ly}" r="1.6"/></svg>`;
+}
+/** Eén van de 3 belangrijkste checks: naam, waarde, lijntje (en een balkje bij procenten). Klik = popup van de check. */
+function keyBox(c, compact = false) {
+  const [v, u] = keyValue(c);
+  const t = typeOf(c);
+  const st = c.maintenance ? 4 : +c.status;
+  const bar = t.unit === '%' && c.last_value !== null && !compact ? `<span class="km-bar"><i style="width:${Math.min(100, Math.max(0, +c.last_value))}%"></i></span>` : '';
+  const msg = (c.last_message || '').replace(/\s+/g, ' ');
+  return `<span class="km s${st}" data-cid="${c.id}" title="${esc(c.name)}: ${esc(msg)}">
+    <span class="km-top"><span class="km-n"><i class="km-sd"></i>${esc(c.name)}</span><b class="km-v" data-flash>${v}<small>${esc(u)}</small></b></span>
+    <span class="km-mid">${keySpark(c, compact ? 18 : 24)}${compact ? '' : `<span class="km-msg">${esc(msg.slice(0, 70))}</span>`}</span>${bar}</span>`;
+}
+/** Status per uur over 24 uur (uit de minigrafieken): het ergste van die checks */
+function timelineOf(ids) {
+  const out = [];
+  for (let i = 0; i < 24; i++) {
+    let w = null;
+    ids.forEach((id) => {
+      const r = stats.sparks[id];
+      if (!r) return;
+      [r[i * 2], r[i * 2 + 1]].forEach((d) => { if (d && d[1] !== null && d[1] !== undefined) { const s = +d[1]; if (w === null || STATUS_RANK[s] > STATUS_RANK[w]) w = s; } });
+    });
+    out.push(w);
+  }
+  return `<span class="tl24" aria-hidden="true">${out.map((s) => `<i class="${s === null ? 'n' : 's' + s}"></i>`).join('')}</span>`;
+}
+const hostTimeline = (h) => timelineOf(h.checks.filter((c) => +c.enabled).map((c) => c.id));
+const checkTimeline = (c) => timelineOf([c.id]);
+/** Reeks van 48 halve uren uit de minigrafieken: per half uur f(status) opgeteld of gemiddeld */
+function sparkSeries(inGroup, f, how = 'avg') {
+  const hostOf = {};
+  state.hosts.forEach((h) => h.checks.forEach((c) => { hostOf[c.id] = h.id; }));
+  const rows = Object.entries(stats.sparks || {}).filter(([cid]) => inGroup(hostOf[cid])).map(([, r]) => r);
+  const out = [];
+  for (let i = 0; i < 48; i++) {
+    let sum = 0, n = 0;
+    rows.forEach((r) => { const d = r[i]; const v = d ? f(d[1] === null || d[1] === undefined ? null : +d[1]) : null; if (v !== null) { sum += v; n++; } });
+    out.push(n ? (how === 'sum' ? sum : sum / n) : null);
+  }
+  return out;
+}
+function kpiSpark(series, col, invert = false) {
+  const vals = series.filter((v) => v !== null);
+  if (vals.length < 2) return '';
+  const hi = Math.max(...vals, 1);
+  let d = '';
+  series.forEach((v, i) => { if (v !== null) d += `${d ? 'L' : 'M'}${(i / 47 * 100).toFixed(1)},${(24 - (v / hi) * 20).toFixed(1)}`; });
+  return `<svg class="kpi-spark${invert ? ' inv' : ''}" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><path d="${d}L100,26L0,26Z" fill="${col}" opacity=".12"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+/** ▲/▼ met het verschil; lowerBetter: minder is beter (problemen), pctPts: verschil in procentpunten */
+function kpiTrend(now, then, lowerBetter = false, pctPts = false) {
+  if (now === null || then === null || now === undefined || then === undefined) return '';
+  const d = Math.round((now - then) * 10) / 10;
+  if (Math.abs(d) < (pctPts ? 0.1 : 1)) return `<span class="kpi-tr eq" title="${L('gelijk aan 24 uur geleden')}">=</span>`;
+  const good = lowerBetter ? d < 0 : d > 0;
+  const txt = pctPts ? dec(String(Math.abs(d))) : String(Math.abs(Math.round(d)));
+  return `<span class="kpi-tr ${good ? 'up' : 'down'}" title="${pctPts ? L('vergeleken met 7 dagen') : L('vergeleken met 24 uur geleden')}">${d > 0 ? '▲' : '▼'} ${txt}</span>`;
+}
+/** Compact: één blokje per check, per server een regel (veel checks of een TV-scherm). Klik = popup van de check. */
+function compactView(hosts) {
+  const rank = (c) => (c.maintenance ? 0 : STATUS_RANK[+c.status]);
+  return `<div class="hm-list">${hosts.map((h) => {
+    const cs = (h.shown && h.shown.length ? h.shown : h.checks).filter((c) => +c.enabled).sort((a, b) => rank(b) - rank(a) || a.name.localeCompare(b.name, LANG));
+    return `<div class="hm-row s${hostStatus(h)}${glowHost(h) ? ' glow' : ''}" data-host="${h.id}">
+      <span class="hm-name"><span aria-hidden="true">${hostIcon(h)}</span> <b>${esc(h.name)}</b></span>
+      <span class="hm-cells">${cs.map((c) => { const [v, u] = keyValue(c); return `<i class="hm-c s${c.maintenance ? 4 : c.status}" data-cid="${c.id}" title="${esc(c.name)}: ${v}${esc(u)} · ${esc((c.last_message || '').slice(0, 120))}"></i>`; }).join('')}</span>
+      ${hostTimeline(h)}
+    </div>`;
+  }).join('')}</div>`;
+}
+
 /** Kleine lijn van een check over 24 uur (zonder statusstrook) */
 function miniSpark(c, H) {
   const data = stats.sparks[c.id];
@@ -1939,7 +2121,8 @@ function miniSpark(c, H) {
 function viewPrefs() {
   let layout = 'blox', density = 'large';
   try {
-    layout = localStorage.getItem('rzmon-layout') === 'l1nes' ? 'l1nes' : 'blox';
+    const lay = localStorage.getItem('rzmon-layout');
+    layout = lay === 'l1nes' || lay === 'compact' ? lay : 'blox';   // 1.157.0: Compact (heatmap)
     density = layout === 'l1nes'
       ? (localStorage.getItem('rzmon-density') === 'large' ? 'large' : 'small')
       : (localStorage.getItem('rzmon-blox-density') === 'small' ? 'small' : 'large');
@@ -2336,8 +2519,10 @@ function hostCard(h, small) {
     ${p.isOpen ? hostDetail(h) : ''}
   </article>`;
   }
+  const keys = keyChecks(h);
+  const restProb = h.checks.filter((c) => +c.enabled && +c.status !== 0 && !keys.includes(c)).length;
   return `
-  <article class="${p.cls} tile">
+  <article class="${p.cls} tile${glowHost(h) ? ' glow' : ''}">
     <div class="host-head" data-act="toggle" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${p.isOpen}"
          title="${p.isOpen ? L('Inklappen') : L('Klik voor alle checks')}">
       <span class="host-ic" aria-hidden="true">${hostIcon(h)}</span>
@@ -2351,9 +2536,11 @@ function hostCard(h, small) {
     </div>
     <div class="host-sum" data-act="toggle" data-id="${h.id}">
       <div class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</div>
-      ${p.chips(4) ? `<div class="chips">${p.chips(4)}</div>` : ''}
-      ${hostSparks(h) ? `<div class="host-sparks">${hostSparks(h)}</div>` : ''}
-      <div class="muted small sum-foot">${p.lastChecked ? L('Laatste check') + ' ' + agoSpan(p.lastChecked) : ''}${h.mode === 'agent' ? ` · ${h.agent_seen ? contactHtml(h, 'short') : 'agent ' + L('nog niet gezien')}${agentVer(h)}` : ''}${uptimeLine(h, true)}</div>
+    </div>
+    ${keys.length ? `<div class="key3">${keys.map(keyBox).join('')}</div>` : ''}
+    <div class="tile-foot" data-act="toggle" data-id="${h.id}">
+      <span class="muted small">${restProb ? `<b class="bad">${L('+{n} met een probleem', { n: restProb })}</b> · ` : ''}${p.lastChecked ? L('Laatste check') + ' ' + agoSpan(p.lastChecked) : ''}${h.mode === 'agent' ? ` · ${h.agent_seen ? contactHtml(h, 'short') : 'agent ' + L('nog niet gezien')}${agentVer(h)}` : ''}</span>
+      ${hostTimeline(h)}
     </div>
     ${p.isOpen ? hostDetail(h) : ''}
   </article>`;
@@ -2371,19 +2558,18 @@ function meterCell(h, type) {
 
 function hostLine(h, large) {
   const p = hostParts(h);
+  const keys = keyChecks(h);
   const u = stats.uptime[h.id];
   const agent = h.mode === 'agent' ? `${h.agent_seen ? contactHtml(h, 'short') : 'agent ' + L('nog niet gezien')}${agentVer(h)}` : '';
   const cells = large
     ? `<span class="lc-status"><span class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</span>${p.chips(5) ? `<span class="chips">${p.chips(5)}</span>` : ''}</span>
-       <span class="lc-m">${meterCell(h, 'cpu')}</span>
-       <span class="lc-m">${meterCell(h, 'ram')}</span>
-       <span class="lc-m">${meterCell(h, 'disk')}</span>
-       <span class="lc-up" title="${L('Bereikbaar afgelopen 7 dagen')}">${u ? pct(u.d7) : '<span class="muted">–</span>'}</span>
+       ${[0, 1, 2].map((i) => `<span class="lc-k">${keys[i] ? keyBox(keys[i], true) : ''}</span>`).join('')}
+       <span class="lc-up" title="${L('Status per uur (24 uur) en bereikbaar afgelopen 24 uur')}">${hostTimeline(h)}<span class="muted small">${u && u.h24 !== null ? pct(u.h24) : ''}</span></span>
        <span class="lc-last muted small">${p.lastChecked ? agoSpan(p.lastChecked) : ''}${agent ? `<br>${agent}` : ''}</span>`
-    : `<span class="lc-status"><span class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</span></span>
-       <span class="counts">${p.counts}</span>`;
+    : `<span class="lc-status"><span class="sum-line key-txt">${keys.length ? keys.map(keyText).join(' · ') : esc(p.sum.text)}</span></span>
+       <span class="counts">${hostTimeline(h)}</span>`;
   return `
-  <article class="${p.cls} line ${large ? 'large' : 'small'}">
+  <article class="${p.cls} line ${large ? 'large' : 'small'}${glowHost(h) ? ' glow' : ''}">
     <div class="line-row" data-act="toggle" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${p.isOpen}"
          title="${p.isOpen ? L('Inklappen') : L('Klik voor alle checks')}">
       <span class="dot"></span>
@@ -2399,7 +2585,7 @@ function hostLine(h, large) {
 /** Koppen boven de kolommen van L1nes Large. */
 function lineHeader() {
   return `<div class="line-head" aria-hidden="true"><span></span><span>Server</span><span>Status</span>
-    <span class="lc-m">CPU</span><span class="lc-m">RAM</span><span class="lc-m">Disk</span><span class="lc-up">${L('Bereikbaar')}</span><span class="lc-last">${L('Laatste check')}</span><span></span></div>`;
+    <span class="lc-k">${L('Belangrijkste checks')}</span><span class="lc-k"></span><span class="lc-k"></span><span class="lc-up">${L('Status 24 u')}</span><span class="lc-last">${L('Laatste check')}</span><span></span></div>`;
 }
 
 /** Wat een check-tegel (Blox) en een check-rij (L1nes) allebei tonen. */
@@ -3416,7 +3602,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   c = c || { type: 'ping', target: '', name: '', warn_threshold: pt.warn ?? null, crit_threshold: pt.crit ?? null, interval_sec: 60, enabled: 1, ...preset };
   const quietOwn = quietOf(c);
   const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
-  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'dns', 'ntp', 'mysql', 'snmp', 'heartbeat']
+  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'dns', 'ntp', 'mysql', 'snmp', 'heartbeat', 'internet']
     : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command', 'pve', 'smart', 'ups'].includes(k))
       .filter((k) => k !== 'pve' || isPveHost(h) || c?.type === 'pve')
       .filter((k) => k !== 'reboot' || h.mode !== 'remote' || c?.type === 'reboot')
@@ -3534,6 +3720,10 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <label id="pve-per-wrap" hidden>${L('Afwijkend per guest')} <span class="hint">${L('(bv. <code>101=7/14 105=uit</code>: warning/critical in dagen, of niet bewaken)')}</span>
           <input name="pve_per" value="${esc(opts.per || '')}" placeholder="101=7/14 105=uit"></label>
       </div>
+      <label id="inet-wrap" hidden>${L('Meten')}
+        <select name="metric">${Object.entries(INET_METRICS).map(([k, m]) => `<option value="${k}" ${(c.type === 'internet' ? c.metric || 'ping' : 'ping') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+        <span class="hint" id="inet-help"></span>
+      </label>
       <label id="ha-wrap" hidden>${L('Bewaken')}
         <select name="metric">${Object.entries(HA_METRICS).map(([k, m]) => `<option value="${k}" ${(c.metric || 'backup') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
         <span class="hint" id="ha-help"></span>
@@ -3759,17 +3949,20 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const typeSel = $('[name=type]', form);
   const haSel = $('#ha-wrap [name=metric]', form);
   const pveSel = $('#pve-wrap [name=metric]', form);
+  const inetSel = $('#inet-wrap [name=metric]', form);
   $('[name=reverse_ok]', form).onchange = () => update(false);
   const snmpSel = $('#snmp-metric');
   const update = (setDefaults) => {
     const isContainer = typeSel.value === 'container';
     const isHa = typeSel.value === 'ha';
     const isPve = typeSel.value === 'pve';
+    const isInet = typeSel.value === 'internet';
     const isSnmp = typeSel.value === 'snmp';
     const oidMode = $('[name=oid_mode]', form).value;
     const isHb = typeSel.value === 'heartbeat';
     const t = isHa ? { ...TYPES.ha, ...HA_METRICS[haSel.value] }
       : isPve ? { ...TYPES.pve, ...PVE_METRICS[pveSel.value] }
+      : isInet ? { ...TYPES.internet, ...INET_METRICS[inetSel.value] }
       : isSnmp ? snmpType({ metric: snmpSel.value, options: JSON.stringify({ mode: oidMode, unit: $('[name=oid_unit]', form).value, low: $('[name=oid_low]', form).checked }) })
         : isHb ? { ...TYPES.heartbeat, unit: $('[name=hb_unit]', form).value.trim() || null }
           : TYPES[typeSel.value];
@@ -3783,6 +3976,9 @@ function checkForm(c, h, preset = {}, tpl = null) {
     haSel.disabled = !isHa;   // niet meesturen bij andere types
     $('#pve-wrap').hidden = !isPve;
     pveSel.disabled = !isPve;
+    $('#inet-wrap').hidden = !isInet;
+    inetSel.disabled = !isInet;
+    $('#inet-help').textContent = isInet ? INET_METRICS[inetSel.value].help : '';
     $('#pve-per-wrap').hidden = !isPve || pveSel.value !== 'backups';
     $('[name=pve_per]', form).disabled = !isPve || pveSel.value !== 'backups';
     $('#pve-help').textContent = isPve ? PVE_METRICS[pveSel.value].help : '';
@@ -3820,9 +4016,9 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#target-label').textContent = t.target || '';
     $('[name=target]', form).placeholder = t.ph || '';
     $$('.unit', form).forEach((u) => (u.textContent = t.unit ? L(t.unit) : ''));
-    $$('#thr-wrap label', form).slice(0, 2).forEach((l) => (l.hidden = !t.unit));
+    $$('#thr-wrap label', form).slice(0, 2).forEach((l) => (l.hidden = !t.unit || !!t.nothresh));
     // Slimme drempels: alleen bij checks die kunnen leren (niet in een sjabloon, niet omgekeerd)
-    const smartOk = !tpl && smartEligible(typeSel.value, isSnmp ? snmpSel.value : null) && !(+$('[name=reverse_ok]', form).value > 0);
+    const smartOk = !tpl && smartEligible(typeSel.value, isSnmp ? snmpSel.value : isInet ? inetSel.value : typeSel.value === 'container' ? ($('[name=metric]:not(:disabled)', form) || {}).value : null) && !(+$('[name=reverse_ok]', form).value > 0);
     $('#smart-wrap').hidden = !smartOk;
     $$('#smart-wrap select, #smart-wrap input', form).forEach((el) => { el.disabled = !smartOk; });
     const sm = smartOk ? $('[name=thresh_mode]', form).value : 'manual';
@@ -8772,6 +8968,7 @@ const SET_NAV = [
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
     ['allchecks', L('Alle checks'), ['allchecks'], L('Alle checks van alle servers in één lijst, ook samen bewerken.')],
     ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
+    ['internet', L('Internet'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
     ['advice', L('Advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
       [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen'), [
@@ -8857,6 +9054,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'templates') loadTemplates();
   if (setSection === 'allchecks') loadAllChecks();
   if (setSection === 'statuspage') loadStatusPage();
+  if (setSection === 'internet') loadInet();
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'db' || setSection === 'perf') loadSyscheck();   // 1.151.0: systeemcheck, cron, database, prestaties
@@ -13381,3 +13579,50 @@ async function caseDialog(id) {
     w.addEventListener('load', () => setTimeout(() => { try { w.print(); } catch (e) { /* zelf afdrukken */ } }, 300));
   };
 })();
+
+// ---------------------------------------------------------------- Internet (1.157.0): Instellingen → Monitoring → Internet
+async function loadInet() {
+  const box = $('#inet-state');
+  if (!box) return;
+  let r;
+  try { r = await api('inet_state'); } catch (ex) { box.innerHTML = `<p class="err-txt small">${esc(ex.message)}</p>`; return; }
+  const fmtT = (t) => new Date(t * 1000).toLocaleString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const plan = { down: +($('[name=inet_down]').value || 1000), up: +($('[name=inet_up]').value || 1000) };
+  const last = r.last;
+  const val = (d) => (last && last[d] !== null ? `<b>${Math.round(last[d]).toLocaleString(LOCALE)}</b> <span class="muted">Mbit/s · ${Math.round(last[d] / plan[d] * 100)}%</span>` : '–');
+  // Verloop van 30 dagen: download en upload als lijntjes, in procent van het abonnement
+  const hist = r.history.filter((x) => x.down !== null);
+  let chart = `<p class="muted small">${L('Het verloop verschijnt na een paar snelheidstesten.')}</p>`;
+  if (hist.length >= 2) {
+    const W = 600, H = 90, t0 = hist[0].at, t1 = hist[hist.length - 1].at || t0 + 1;
+    const x = (t) => ((t - t0) / Math.max(1, t1 - t0)) * W;
+    const y = (v, d) => H - Math.min(1.1, v / plan[d]) / 1.1 * (H - 6) - 3;
+    const line = (d) => hist.map((p, i) => `${i ? 'L' : 'M'}${x(p.at).toFixed(1)},${y(p[d] || 0, d).toFixed(1)}`).join('');
+    chart = `<svg class="inet-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(L('Snelheid, 30 dagen'))}">
+      <line x1="0" x2="${W}" y1="${y(plan.down, 'down')}" y2="${y(plan.down, 'down')}" class="inet-plan"/>
+      <path d="${line('down')}" class="inet-down"/><path d="${line('up')}" class="inet-up"/></svg>
+      <div class="muted small"><span class="inet-key d"></span> ${L('download')} <span class="inet-key u"></span> ${L('upload')} · ${L('stippellijn = je abonnement')} · ${L('{n} testen in 30 dagen', { n: hist.length })}</div>`;
+  }
+  box.innerHTML = `
+    ${r.host ? '' : `<div class="callout"><p>${L('Er is nog geen Internet-check. Met één klik komt er een apparaat <b>Internet</b> bij met vier checks: ping, responstijd, download en upload.')}</p>
+      <button type="button" class="btn primary" id="inet-install">🌍 ${L('Internet-check toevoegen')}</button></div>`}
+    <div class="inet-grid">
+      <div><span class="muted small">${L('Download')}</span><div class="inet-v">↓ ${val('down')}</div></div>
+      <div><span class="muted small">${L('Upload')}</span><div class="inet-v">↑ ${val('up')}</div></div>
+      <div><span class="muted small">${L('Ping naar de testserver')}</span><div class="inet-v">${last && last.lat !== null ? `<b>${dec(String(Math.round(last.lat * 10) / 10))}</b> <span class="muted">ms${last.colo ? ' · ' + esc(last.colo) : ''}</span>` : '–'}</div></div>
+      <div><span class="muted small">${L('Laatste test')}</span><div>${last ? esc(fmtT(last.at)) + (last.err ? ` <span class="err-txt small">✘ ${esc(last.err)}</span>` : ` <span class="muted small">(${L('{n} MB', { n: Math.round(last.mb) })})</span>`) : L('nog niet')}</div>
+        <span class="muted small">${r.next ? L('Volgende: {t}', { t: esc(fmtT(r.next)) }) : ''}</span></div>
+    </div>
+    ${chart}
+    <p class="muted small">${r.gateway ? L('Je router (standaardgateway van deze server): {ip}', { ip: esc(r.gateway) }) : L('Geen standaardgateway gevonden op deze server.')}</p>
+    ${r.host ? `<p><button type="button" class="btn" id="inet-now" ${r.running ? 'disabled' : ''}>⚡ ${r.running ? L('Test loopt…') : L('Nu testen')}</button>
+      <span class="muted small">${L('Duurt tot een halve minuut en trekt je lijn even vol.')}</span></p>` : ''}`;
+  const ins = $('#inet-install');
+  if (ins) ins.onclick = async () => { ins.disabled = true; try { const x = await api('inet_install', {}); toast(x.message); refresh(); loadInet(); } catch (ex) { toast(ex.message, 'err'); ins.disabled = false; } };
+  const now = $('#inet-now');
+  if (now) now.onclick = async () => {
+    now.disabled = true; now.textContent = '⏳ ' + L('Test loopt…');
+    try { const x = await api('inet_speed_now', {}); toast(x.message); } catch (ex) { toast(ex.message, 'err'); }
+    loadInet(); refresh();
+  };
+}

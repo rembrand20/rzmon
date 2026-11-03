@@ -218,6 +218,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <input type="search" id="filter" placeholder="<?= th('🔍 Zoek server of check…') ?>">
         <div class="dash-chips" id="dash-chips" role="group" aria-label="<?= th('Filter') ?>"></div>
         <span class="dash-sp"></span>
+        <div class="seg dash-view" role="group" aria-label="<?= th('Lay-out') ?>">
+          <button type="button" class="seg-btn" data-view-layout="blox" title="<?= th('Een tegel per server') ?>">▦ Blox</button>
+          <button type="button" class="seg-btn" data-view-layout="l1nes" title="<?= th('Servers onder elkaar, als een tabel') ?>">☰ L1nes</button>
+          <button type="button" class="seg-btn" data-view-layout="compact" title="<?= th('Eén blokje per check') ?>">▪ Compact</button>
+        </div>
         <select id="dash-sort" aria-label="<?= th('Sorteren') ?>">
           <option value="status"><?= th('Ergste eerst') ?></option>
           <option value="name"><?= th('Op naam') ?></option>
@@ -914,6 +919,27 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="muted small"><?= t('Een nieuw apparaat geeft een ℹ️-melding <i>Nieuw apparaat op je netwerk</i> (standaard alleen op de meldingenpagina; kanalen bij <i>Meldingen → Systeeminfo</i>). De eerste scan is de basismeting: die geeft geen meldingen. Met <code>fping</code> en <code>avahi-browse</code> (pakket <code>avahi-tools</code> of <code>avahi-utils</code>) op de RzMon-server gaat het sneller en herkent RzMon meer, maar nodig zijn ze niet. De fabrikant komt uit de lijst van Wireshark (maandelijks bijgewerkt, uitgaand HTTPS naar <code>www.wireshark.org</code>).') ?></p>
         </div>
 
+        <div data-sk="internet" class="card" id="internet-card">
+          <h2>🌍 <?= th('Internet') ?></h2>
+          <p class="muted small"><?= t('Bewaakt je internetlijn vanaf de server van RzMon: <b>ping</b> (1.1.1.1, 8.8.8.8 en je router, elke minuut), <b>responstijd</b> (google.com en cloudflare.com, elke 5 minuten) en de <b>snelheid</b> (download en upload via speed.cloudflare.com, op de tijden hieronder).') ?></p>
+          <div id="inet-state"><p class="muted"><?= th('Laden…') ?></p></div>
+          <h3 class="small" style="margin:1rem 0 .3rem"><?= th('Abonnement en drempels') ?></h3>
+          <div class="row2">
+            <label><?= th('Download (Mbit/s)') ?><input type="number" name="inet_down" min="1" max="100000" step="1"></label>
+            <label><?= th('Upload (Mbit/s)') ?><input type="number" name="inet_up" min="1" max="100000" step="1"></label>
+          </div>
+          <div class="row2">
+            <label><?= th('Warning onder (% van je abonnement)') ?><input type="number" name="inet_warn_pct" min="1" max="100" step="1"></label>
+            <label><?= th('Critical onder (% van je abonnement)') ?><input type="number" name="inet_crit_pct" min="1" max="100" step="1"></label>
+          </div>
+          <h3 class="small" style="margin:1rem 0 .3rem"><?= th('Snelheidstest') ?></h3>
+          <div class="row2">
+            <label><?= th('Tijden') ?> <span class="hint"><?= th("(UU:MM, gescheiden door komma's)") ?></span><input name="inet_times" placeholder="03:30,09:30,13:30,17:30"></label>
+            <label><?= th('Hooguit per richting (MB)') ?><input type="number" name="inet_speed_mb" min="10" max="2000" step="10"></label>
+          </div>
+          <p class="muted small"><?= t('Elke test trekt je lijn een paar seconden vol; plan hem dus niet op de avond. Een test stopt na 10 seconden of na het aantal MB hierboven per richting (bij 1 Gbit/s ongeveer 2× 250 MB). Ping en responstijd leren mee met de slimme drempels; de snelheid vergelijkt RzMon met je abonnement.') ?></p>
+        </div>
+
         <div data-sk="smart" class="card" id="smart-card">
           <h2>🧠 <?= th('Slimme drempels') ?></h2>
           <p class="muted small"><?= t('RzMon leert per check wat normaal is, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en zet daar de drempels op. Na 7 dagen gegevens; daarna stelt hij ze elke nacht bij, hooguit 10% per nacht. Elke aanpassing staat in het <i>Wijzigingslogboek</i> en is terug te draaien. Werkt bij ping, TCP, HTTP, CPU, RAM, SNMP (CPU, geheugen, interface, load, temperatuur, UPS, UniFi), containers (CPU of RAM als losse check), DNS, NTP en MySQL; disks houden vaste drempels met de voorspelling.') ?></p>
@@ -1387,6 +1413,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div class="seg" role="group" aria-label="<?= th('Lay-out') ?>">
             <button type="button" class="seg-btn" data-view-layout="blox" title="<?= th('Een tegel per server') ?>">▦ Blox</button>
             <button type="button" class="seg-btn" data-view-layout="l1nes" title="<?= th('Servers onder elkaar, als een tabel') ?>">☰ L1nes</button>
+            <button type="button" class="seg-btn" data-view-layout="compact" title="<?= th('Eén blokje per check: veel checks tegelijk, of voor een TV-scherm') ?>">▪ Compact</button>
           </div>
         </div>
         <div class="view-row">
@@ -1396,6 +1423,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <button type="button" class="seg-btn" data-view-density="large" title="<?= th('Meer informatie: CPU, RAM, disk, bereikbaarheid') ?>">Large</button>
           </div>
         </div>
+        <label class="switch"><input type="checkbox" data-mon-pref="glow"><span></span> <span><?= t('<b>Rode gloed bij critical</b>: een server met een critical check pulseert zacht') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
+        <label class="switch"><input type="checkbox" data-mon-pref="anim"><span></span> <span><?= t('<b>Live animaties</b>: getallen lopen naar de nieuwe waarde en een statuswissel licht even op') ?> <span class="hint"><?= th('(voor je account; staat je systeem op "minder beweging", dan altijd uit)') ?></span></span></label>
       </div>
 
       </div>

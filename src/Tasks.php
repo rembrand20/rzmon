@@ -53,6 +53,13 @@ final class Tasks
             'every' => t('dagelijks om {t}', ['t' => $setting('vuln_time', '03:30')]), 'last_ok' => $ts($setting('vuln_last_scan', '')),
             'next' => $at((string) $setting('vuln_time', '03:30')), 'stale' => 3 * self::DAY, 'alert' => true];
 
+        // 1.157.0: snelheidstest van de internetlijn (Instellingen → Monitoring → Internet)
+        $sp = q('SELECT MAX(at) FROM inet_speed WHERE err IS NULL')->fetchColumn();
+        $spl = q('SELECT at, err FROM inet_speed ORDER BY id DESC LIMIT 1')->fetch() ?: [];
+        $out[] = ['key' => 'speedtest', 'label' => t('Snelheidstest internet (speed.cloudflare.com)'), 'on' => Internet::wanted(),
+            'every' => t('om {t}', ['t' => implode(', ', Internet::times())]), 'last_ok' => $ts($sp ?: null), 'last_try' => $ts($spl['at'] ?? null),
+            'error' => (string) ($spl['err'] ?? ''), 'next' => Internet::nextSlot(time()), 'stale' => 2 * self::DAY, 'alert' => true];
+
         $out[] = ['key' => 'https', 'label' => t('Certificaat van het beheeradres'), 'on' => Https::on(), 'every' => t('dagelijks'),
             'last_ok' => $ts($setting('https_check_at', '')), 'stale' => 3 * self::DAY, 'alert' => true];
 

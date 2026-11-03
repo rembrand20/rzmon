@@ -10,7 +10,7 @@ final class HostKind
 {
     /** Soort => groep op het dashboard */
     public const KINDS = ['server' => 'server', 'router' => 'network', 'switch' => 'network', 'ap' => 'network', 'firewall' => 'network',
-        'nas' => 'storage', 'ups' => 'power', 'camera' => 'camera', 'smarthome' => 'smarthome', 'printer' => 'other', 'other' => 'other'];
+        'nas' => 'storage', 'ups' => 'power', 'camera' => 'camera', 'smarthome' => 'smarthome', 'printer' => 'other', 'other' => 'other', 'internet' => 'network'];   // 1.157.0: internetlijn
     public const GROUPS = ['server', 'network', 'storage', 'power', 'camera', 'smarthome', 'other'];
     /** Naam die op een camera wijst (1.76.0): voorstel als er verder niets bekend is */
     public const CAMERA_NAME = '/\b(ip)?cam(era)?s?[-_ ]?\d*\b|cctv|deurbel|doorbell/i';

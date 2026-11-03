@@ -65,6 +65,7 @@ if (strtotime((string) setting('purge_at', '')) < time() - 3600) {
     Perf::purge();
     Incidents::purge();
     Quality::purge();
+    Internet::purge();
     Perf::lap('opruimen');
 }
 echo date('c') . " $n check(s) uitgevoerd\n";
@@ -79,6 +80,15 @@ if ($msg = Backup::runScheduled()) {
     echo date('c') . " $msg\n";
 }
 Perf::lap('backup');
+// Internet (1.157.0): de snelheidstest op de ingestelde tijden (standaard 4× per dag)
+try {
+    if ($msg = Internet::cron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Snelheidstest: ' . $e->getMessage() . "\n");
+}
+Perf::lap('internet');
 // Dagelijks kijken of er een nieuwe versie is; eventueel automatisch bijwerken (Instellingen → RzMon bijwerken)
 if ($msg = Updater::cron()) {
     echo date('c') . " $msg\n";

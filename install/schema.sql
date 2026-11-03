@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS hosts (
 CREATE TABLE IF NOT EXISTS checks (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     host_id         INT UNSIGNED NOT NULL,
-    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql') NOT NULL,
+    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql','internet') NOT NULL,
     target          VARCHAR(255) NOT NULL DEFAULT '',
     name            VARCHAR(100) NOT NULL,
     warn_threshold  DOUBLE NULL,
@@ -221,7 +221,7 @@ INSERT IGNORE INTO settings (name, value) VALUES ('notify_fails', '1');
 INSERT IGNORE INTO settings (name, value) VALUES ('notify_lang', 'nl');
 
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
-ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql') NOT NULL;
+ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql','internet') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;
 
 INSERT IGNORE INTO settings (name, value) VALUES
@@ -1217,3 +1217,19 @@ CREATE TABLE IF NOT EXISTS insight_seen (
     k          VARCHAR(190) NOT NULL PRIMARY KEY,
     first_seen DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.157.0: snelheidstesten van de internetlijn (Instellingen → Monitoring → Internet)
+CREATE TABLE IF NOT EXISTS inet_speed (
+    id      INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    at      DATETIME NOT NULL,
+    down    DOUBLE NULL,                 -- Mbit/s
+    up      DOUBLE NULL,
+    lat     DOUBLE NULL,                 -- ms naar de testserver
+    mb_down DOUBLE NULL,
+    mb_up   DOUBLE NULL,
+    colo    VARCHAR(8) NULL,             -- locatie van de testserver (AMS …)
+    err     VARCHAR(255) NULL,
+    INDEX idx_inet_speed_at (at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('inet_down', '1000'), ('inet_up', '1000'), ('inet_warn_pct', '70'), ('inet_crit_pct', '40'),
+    ('inet_times', '03:30,09:30,13:30,17:30'), ('inet_speed_mb', '250');

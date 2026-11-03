@@ -65,6 +65,7 @@ RzMon bestaat uit vier onderdelen:
 | **Schijfgezondheid (SMART)** (vanaf 1.138.0) | Gezondheidstest, temperatuur, slijtage (SSD/NVMe), vervangen en twijfelachtige sectoren, per schijf of alle; schijven in slaapstand worden niet gewekt | Temperatuur in °C. Test mislukt of ≥ 90% versleten = CRITICAL; sectoren of ≥ 80% versleten = WARNING | Agent 1.70.0 met smartmontools |
 | **UPS (NUT)** (vanaf 1.138.0) | Op het net of op de batterij, lading, resterende tijd, belasting | Lading in % (lager is slechter). Op de batterij = WARNING, bijna leeg = CRITICAL | Agent 1.70.0 met NUT (`upsc`) |
 | **MariaDB / MySQL** (vanaf 1.138.0) | Verbinden en inloggen, verbindingen in gebruik, trage query's sinds de vorige keer, hoe lang hij draait | Verbindingstijd in ms. Niet verbonden = CRITICAL; 90% van de verbindingen in gebruik = WARNING | Alle servers (RzMon maakt verbinding) |
+| **Internet** (vanaf 1.157.0) | Je internetlijn, gemeten vanaf de server van RzMon: **ping** (1.1.1.1, 8.8.8.8 en je router), **responstijd** (google.com en cloudflare.com), **download** en **upload** (snelheidstest) | Ping en responstijd in ms; snelheid in Mbit/s, vergeleken met je abonnement. Zie § 7.16 | Alle servers (RzMon meet zelf) |
 
 **Veilige adressen (vanaf 1.138.0):** een HTTP-check vraagt alleen `http://` en `https://` op, en nooit link-local adressen zoals `169.254.169.254` (de metadata-dienst van clouds), ook niet na een doorverwijzing. Je LAN, `localhost` en internet blijven gewoon werken.
 
@@ -171,6 +172,19 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **Werkbalk**: zoeken (zoek je op een checknaam, dan klapt de server vanzelf open), **filterchips** met aantallen (*Alle · Problemen · Onderhoud · 🖥️ Servers · 🌐 Netwerk · 🗄️ Opslag · 🔋 Stroom · 📷 Camera's · 🏠 Smart home · 📦 Overig*; alleen soorten die je hebt, met een rood bolletje als er een open probleem is), **sorteren** (*Ergste eerst* of *Op naam*), het menu **⋯** met *🔧 Onderhoud* (alle meldingen pauzeren), *↻ Alles nu checken* en *⊞ Alles openen*, en **＋ Server**. De keuze wordt per gebruiker onthouden (vanaf 1.75.0), de sortering per apparaat.
 - **Servers met problemen** (of in onderhoud, of nog zonder checks) als kaart: een icoon voor de soort apparaat (zie hieronder), de status ("1 kritiek · 1 waarschuwing"), de checks met een probleem en **mini-grafiekjes van CPU, RAM en de volste disk over 24 uur** (zonder die checks: de eerste check met een meetwaarde, bv. ping).
 - **✔ Alles in orde**: servers waar alles OK is, compact onder elkaar: één regel met naam, aantal checks, de mini-grafiekjes en de beschikbaarheid over 24 uur. Klik erop voor alle checks.
+
+**Live tegels (vanaf 1.157.0).** De pagina laat nu meteen zien hoe het gaat, zonder dat je hoeft te klikken:
+- **De 3 belangrijkste checks** staan op elke kaart (Blox Large) en in elke rij (L1nes), met de **waarde**, een **lijntje van 24 uur** in de kleur van de status en, bij procenten, een balkje. RzMon kiest ze zelf: **eerst wat stuk is**, dan checks met een meetwaarde in deze volgorde: internet (download, upload, ping), CPU, RAM, de volste disk, responstijd, ping, HTTP, poort, DNS, MariaDB … Zo krijgt ook een router, NAS of Home Assistant zonder CPU-check zijn eigen belangrijkste checks. Klik op een check voor de popup.
+- **24 uur als balkje**: per server (onderaan de kaart, of in de kolom *Status 24 u*) een blokje per uur: groen, oranje of rood. Zo zie je meteen of iets net stuk is of al de hele dag.
+- **Blox Large** toont nu ook de servers waar alles OK is als kaart; **Blox Small** houdt de compacte lijst.
+- **L1nes Large** heeft de kolommen *Belangrijkste checks* (drie) en *Status 24 u* in plaats van CPU, RAM en disk; **L1nes Small** zet de drie checks als tekst in de rij, met wat stuk is in rood of oranje.
+- **▪ Compact** (derde lay-out, naast Blox en L1nes): per server één regel met **een blokje per check** in de kleur van de status. Handig bij veel checks of op een TV-scherm. Wijs een blokje aan voor de naam, waarde en het bericht; klik voor de popup.
+- De lay-out kies je nu ook **op de pagina zelf** (▦ Blox · ☰ L1nes · ▪ Compact naast het sorteren), of bij *Mijn account → Weergave*.
+- **⚠️ Nu aandacht nodig is gebundeld op oorzaak**: is een server onbereikbaar of is zijn agent stil, dan staan al zijn problemen in **één regel** (*"WebServer01 · agent stil · 10 checks"*); klik op *▸ 10 checks* om ze te zien. Hetzelfde bij 4 of meer problemen op één server. Elke regel heeft het **balkje van 24 uur**.
+- **Kerncijfers met een lijntje en een trend**: *Checks OK* met het aantal problemen over 24 uur en ▲/▼ ten opzichte van 24 uur geleden, *Open problemen* met hetzelfde lijntje, *Beschikbaar 24 u* vergeleken met 7 dagen.
+- **● Live** rechtsboven: het lampje knippert bij elke nieuwe meting, met wanneer de laatste check was. Getallen lopen naar de nieuwe waarde en een statuswissel licht even op.
+- **Rode gloed**: een server met een onbevestigde critical pulseert zacht.
+- Beide zet je uit bij **Mijn account → Weergave** (*Rode gloed bij critical* en *Live animaties*, per account). Staat je systeem op *minder beweging*, dan beweegt er niets.
 
 ### Incidenten ⚠ (vanaf 1.142.0)
 Het tabblad **⚠ Incidenten** zet in **één lijst** wat er echt mis is, uit alle onderdelen, zodat je het kunt afhandelen. Beheerders en gebruikers zien het; *alleen lezen* niet.
@@ -376,7 +390,7 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 **Thema** (accountmenu → 🌓): *auto* (volgt je apparaat), *licht* of *donker*. Vanaf 1.135.0 wordt je keuze **per gebruiker** bewaard, dus op elk apparaat waarop je inlogt hetzelfde. Het donkere thema is diep marineblauw, als een controlekamer.
 
 - **Rechtsboven** staat je naam met een menu: **👤 Mijn account**, **⚙️ Instellingen** (alleen beheerders), het **thema** (auto, licht of donker), de **taal** (NL of EN) en **⏻ Uitloggen**. Ben je zonder wachtwoord binnen via het lokale netwerk, dan staat er **🏠 Lokaal netwerk** met **Inloggen met je account**; *Mijn account* is er dan niet.
-- **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave op dit apparaat** (Blox of L1nes, Small of Large).
+- **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave op dit apparaat** (Blox, L1nes of Compact, Small of Large), en voor je account de **rode gloed bij critical** en de **live animaties** (vanaf 1.157.0, allebei standaard aan).
 - **Instellingen** (alleen beheerders): links een **zijbalk** met de groepen (vanaf 1.92.0):
   - **✅ Overzicht**: Hoe staat het ervoor? · Verbindingen en taken;
   - **🧩 Checks**: Sjablonen · Alle checks · Opschoonadvies (vanaf 1.94.0);
@@ -1501,7 +1515,26 @@ Een heartbeat-check (§ 7.8) onthoudt wanneer hij de laatste 30 keer binnenkwam 
 - **Te laat volgens zijn ritme**: komt een dagelijkse back-up altijd rond 2:10 binnen, en is er om 3:00 nog niets, dan krijg je al een warning (*"vandaag nog niet binnen: meestal rond 02:12"*), ook als de ingestelde periode nog niet om is.
 - **Vreemde waarde**: stuur je een waarde mee (bv. de grootte van de back-up), en is die minder dan de helft of meer dan 3× zo groot als normaal, dan een warning: *"veel minder dan normaal (1,2 GB, meestal 14 GB)"*.
 
-## 8. Agent op Linux-servers
+### 7.16 Internet 🌍 (vanaf 1.157.0)
+Bewaakt **je internetlijn**, gemeten vanaf de server van RzMon. Bij *Instellingen → Monitoring → Internet* zet je hem met **🌍 Internet-check toevoegen** in één klik aan: er komt een apparaat **Internet** bij met vier checks.
+
+| Check | Wat | Hoe vaak | Status |
+|---|---|---|---|
+| **Ping** | pingtijd, **jitter** en **pakketverlies** naar 1.1.1.1 en 8.8.8.8 (5 keer elk), en je **router** (de standaardgateway van de server) | elke minuut | de beste pingtijd; standaard warning vanaf 50 ms, critical vanaf 150 ms. 20% verlies of meer, of één adres weg = WARNING. Geen van beide = CRITICAL, en de melding zegt of je **router nog antwoordt**: *"Geen internet: je router (192.168.1.1) antwoordt wel, 1.1.1.1 en 8.8.8.8 niet"* (het probleem zit buiten) of *"…en je router antwoordt ook niet"* (het zit in je eigen netwerk) |
+| **Responstijd** | google.com en cloudflare.com, elke keer met een nieuwe verbinding: DNS, verbinden, TLS en het eerste antwoord | elke 5 minuten | het gemiddelde eerste antwoord; warning 500 ms, critical 2000 ms. Eén site weg = WARNING, allebei = CRITICAL |
+| **Download** / **Upload** | de **snelheid** uit de laatste snelheidstest, in Mbit/s | elke 5 minuten (de test zelf op de ingestelde tijden) | in procent van je **abonnement**: standaard warning onder 70%, critical onder 40% |
+
+Ping en responstijd **leren mee met de slimme drempels** (§ 7.13): 's avonds is je lijn drukker dan 's nachts. De snelheid vergelijkt RzMon met je abonnement.
+
+**De snelheidstest** gebruikt **speed.cloudflare.com** (dezelfde methode als hun website, geen extra programma nodig): eerst de pingtijd naar de testserver, dan download en upload, elk met 4 verbindingen tegelijk. Een richting stopt na 10 seconden, of eerder na het ingestelde aantal MB (standaard 250 MB; bij 1 Gbit/s duurt dat ongeveer 2 seconden). Een test kost dus hooguit ongeveer **500 MB**, bij 4 tests per dag zo'n **2 GB per dag**. De eerste halve seconde telt niet mee (dan komt TCP op gang). De uitslag zegt ook via welke locatie het ging, bijvoorbeeld *via AMS*.
+
+**Instellingen** (*Instellingen → Monitoring → Internet*):
+- **Abonnement**: download en upload in Mbit/s (standaard 1000/1000), en de drempels in procent;
+- **Tijden** van de snelheidstest, bijvoorbeeld `03:30,09:30,13:30,17:30` (de standaard: 4× per dag, niet in de avond, omdat de test je lijn een paar seconden vol trekt);
+- **Hooguit per richting (MB)**.
+
+Op die pagina zie je de laatste test (download, upload, ping, wanneer, hoeveel MB), wanneer de volgende is, een **lijn van 30 dagen** (download en upload, met je abonnement als stippellijn) en je router. Met **⚡ Nu testen** doe je meteen een test. De test staat ook bij *Achtergrondtaken*; lukt hij 2 dagen niet, dan krijg je daar een melding van.
+
 
 Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-servers: Rocky, RHEL, AlmaLinux, Fedora, Debian, Ubuntu, Raspberry Pi OS en Proxmox VE.
 

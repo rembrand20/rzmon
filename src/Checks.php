@@ -41,6 +41,7 @@ final class Checks
                 'heartbeat' => Heartbeat::check($check),
                 'process' => self::process($check, $host),
                 'dns', 'ntp', 'smart', 'ups', 'mysql' => ExtraChecks::run($check, $host),   // 1.138.0
+                'internet' => Internet::run($check),   // 1.157.0: vanaf de server van RzMon
                 default => self::result(STATUS_UNKNOWN, null, t('Onbekend checktype')),
             };
         } catch (Throwable $e) {

@@ -60,6 +60,9 @@ final class Smart
         'dns' => ['mul', 100, 500, 2.0, 3.0, 3000],
         'ntp' => ['mul', 50, 200, 2.0, 3.0, 1000],
         'mysql' => ['mul', 100, 500, 2.0, 3.0, 5000],
+        // 1.157.0: internet (ping naar 1.1.1.1/8.8.8.8 en de responstijd van bekende sites)
+        'internet:ping' => ['mul', 20, 80, 2.0, 3.0, 500],
+        'internet:resp' => ['mul', 300, 1000, 2.0, 2.5, 5000],
     ];
 
     /** Gevoeligheid: factor op de stappen en op de spreiding (rustig = ruimer) */
@@ -71,7 +74,7 @@ final class Smart
     public static function key(array $check): ?string
     {
         $type = (string) ($check['type'] ?? '');
-        $k = $type === 'snmp' || $type === 'container' ? $type . ':' . ($check['metric'] ?? '') : $type;
+        $k = in_array($type, ['snmp', 'container', 'internet'], true) ? $type . ':' . ($check['metric'] ?? '') : $type;
         if (!isset(self::SPEC[$k]) || ($check['reverse_ok'] ?? null) !== null) {
             return null;   // omgekeerde checks gaan over werkt het wel/niet, niet over een waarde
         }
@@ -94,7 +97,7 @@ final class Smart
     {
         $k = (string) self::key($check);
         return match (true) {
-            in_array($k, ['ping', 'tcp', 'http', 'dns', 'ntp', 'mysql'], true) => 'ms',
+            in_array($k, ['ping', 'tcp', 'http', 'dns', 'ntp', 'mysql', 'internet:ping', 'internet:resp'], true) => 'ms',
             in_array($k, ['snmp:temp', 'snmp:ups_temp', 'snmp:syno_system', 'snmp:syno_disk'], true) => '°C',
             $k === 'snmp:load' => '',
             default => '%',
@@ -213,7 +216,7 @@ final class Smart
         $t0 = microtime(true);
         $today = date('Y-m-d');
         $rows = q("SELECT c.*, s.model, s.learned_at FROM checks c LEFT JOIN check_smart s ON s.check_id = c.id
-                   WHERE c.enabled = 1 AND c.type IN ('ping','tcp','http','cpu','ram','snmp','process','log','command','container','dns','ntp','mysql') AND c.thresh_mode <> 'auto'
+                   WHERE c.enabled = 1 AND c.type IN ('ping','tcp','http','cpu','ram','snmp','process','log','command','container','dns','ntp','mysql','internet') AND c.thresh_mode <> 'auto'
                    AND (s.learned_at IS NULL OR s.learned_at < ?) ORDER BY s.learned_at IS NOT NULL, s.learned_at, c.id LIMIT 200", [$today . ' 00:00:00'])->fetchAll();
         foreach ($rows as $r) {
             if (microtime(true) - $t0 > $budgetSec) {
