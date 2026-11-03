@@ -707,7 +707,7 @@ final class Insights
             save_setting('insight_seen_init', (string) time());
         }
         $out = [];
-        $mark = static function (string $k): ?int {
+        $mark = static function (string $k): int {
             q('INSERT IGNORE INTO insight_seen (k, first_seen) VALUES (?, NOW())', [$k]);
             return (int) strtotime((string) q('SELECT first_seen FROM insight_seen WHERE k = ?', [$k])->fetchColumn());
         };

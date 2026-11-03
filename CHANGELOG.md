@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.152.0**: **Attack Flow** in de aanvalskaart (aanvaller → doelwit → dienst → afloop, bewezen en vermoed uit elkaar, af te spelen), een betere popup per IP, en alle **SSH-sessies** met duur.
 - **1.149.0**: nieuwe **🗺️ Aanvalskaart** in IDS: wie valt wat aan, via welke poort, en is het geblokkeerd, als stromen met bewegende lijnen en op een wereldkaart; ook als kaartje op het dashboard.
 
+## 1.155.1 – 2026-11-03
+### Opgelost
+- Achter de schermen: een kleine opmerking van de codecontrole (PHPStan) bij de nieuwe analyses. Voor jou verandert er niets.
+
 ## 1.155.0 – 2026-11-03
 ### Nieuw
 - **Analyse en advies** (*📊 Analyse*): de pagina draait nu om advies om je netwerk veiliger te maken. RzMon combineert de gegevens van agents, CVE-scan, IDS, netwerkscan, checks en instellingen tot adviezen, steeds met het bewijs uit je eigen gegevens.
