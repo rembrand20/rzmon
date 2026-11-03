@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.146.0**: per server het **aanvalspad** (open poorten, kwetsbaarheden, afhankelijke servers), **doelen** (melding binnen 5 minuten, agents rapporteren) en of zelf herstellen, blokkades en slimme drempels **echt werken**; het rapport begint met één overzichtspagina.
 - **1.145.0**: RzMon is nu open source onder **GPL-3.0**, met een `SECURITY.md` (lekken melden, threat model, de signing-sleutel) en strengere controles in GitHub Actions.
 
+## 1.149.2 – 2026-11-03
+### Opgelost
+- **Aanvalskaart**: de filterbalk (periode, server, land, soort, richting en de schakelaar **Stromen | Wereldkaart**) was samengedrukt tot een dun streepje, omdat hij dezelfde naam had als de balkjes bij *Herkomst*. Hij staat er weer gewoon.
+- **Aanvalskaart**: was het tabblad *Aanvalskaart* al gekozen toen je de pagina opende, dan bleven de lijnen tussen bron en doelwit leeg. Ze worden nu getekend zodra de kaart zichtbaar is (en opnieuw als het venster smaller of breder wordt).
+
 ## 1.149.1 – 2026-11-03
 ### Opgelost
 - Achter de schermen: de code van de aanvalskaart is herschreven zodat de automatische codecontrole (PHPStan) hem goed leest. Voor jou verandert er niets.

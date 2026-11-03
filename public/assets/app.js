@@ -6741,7 +6741,7 @@ function amCcName(cc) {
   if (!cc || cc === '??') return L('Onbekend land');
   try { return new Intl.DisplayNames([LOCALE], { type: 'region' }).of(cc) || cc; } catch (e) { return cc; }
 }
-let amData = null, amWorld = null;
+let amData = null, amWorld = null, amRO = null;
 const amOpt = { days: 1, host: '', cc: '', cat: '', dir: '', view: (() => { try { return localStorage.getItem('rzmon-am-view') || 'flow'; } catch (e) { return 'flow'; } })() };
 
 async function amLoadWorld() {
@@ -6841,7 +6841,16 @@ function renderAttackMap() {
   </section>`);
   html.push(`<div class="am-row">${amCountries(d)}${amRecent(d)}</div>`);
   box.innerHTML = html.join('');
-  if (amOpt.view === 'flow') amDrawFlows();
+  if (amOpt.view === 'flow') {
+    amDrawFlows();
+    // 1.149.2: was het paneel nog verborgen (breedte 0), dan tekenen zodra het zichtbaar wordt of van breedte verandert
+    const mid = $('#am-body .am-mid');
+    if (mid && window.ResizeObserver) {
+      amRO = amRO || new ResizeObserver(() => amDrawFlows());
+      amRO.disconnect();
+      amRO.observe(mid);
+    }
+  }
 }
 
 /** Stromen: drie kolommen; de lijnen in het midden worden na het tekenen op de echte breedte gezet (amDrawFlows) */
@@ -6966,7 +6975,7 @@ function amCountries(d) {
   const max = Math.max(1, ...list.map((c) => c.hits));
   return `<section class="card am-side"><h3>${L('Herkomst')}</h3><div class="am-bars">${list.map((c) => `<button type="button" class="am-barrow" data-am-cc="${esc(c.cc)}">
       <span class="am-bcc">${esc(c.cc === '??' ? '?' : c.cc)}</span><span class="am-bname">${esc(amCcName(c.cc))}</span>
-      <span class="am-bar"><i class="${c.out && !c.in ? 'out' : c.sev >= 2 ? 'crit' : 'warn'}" style="width:${Math.max(3, Math.round(100 * c.hits / max))}%"></i></span><span class="am-bn">${amN(c.hits)}</span></button>`).join('')}</div>
+      <span class="am-meter"><i class="${c.out && !c.in ? 'out' : c.sev >= 2 ? 'crit' : 'warn'}" style="width:${Math.max(3, Math.round(100 * c.hits / max))}%"></i></span><span class="am-bn">${amN(c.hits)}</span></button>`).join('')}</div>
     ${d.countries.length > 8 ? `<p class="muted small">${L('+ {n} andere landen', { n: d.countries.length - 8 })}</p>` : ''}</section>`;
 }
 

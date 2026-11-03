@@ -2301,9 +2301,9 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .am-barrow:hover { background: var(--card-2); }
 .am-bcc { font-weight: 800; font-size: .78rem; color: var(--muted); }
 .am-bname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.am-bar { height: 10px; background: color-mix(in srgb, var(--muted) 12%, transparent); border-radius: 0 4px 4px 0; overflow: hidden; }
-.am-bar i { display: block; height: 100%; border-radius: 0 4px 4px 0; }
-.am-bar i.crit { background: var(--crit); } .am-bar i.warn { background: var(--warn); } .am-bar i.out { background: var(--am-out); }
+.am-meter { height: 10px; background: color-mix(in srgb, var(--muted) 12%, transparent); border-radius: 0 4px 4px 0; overflow: hidden; }
+.am-meter i { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.am-meter i.crit { background: var(--crit); } .am-meter i.warn { background: var(--warn); } .am-meter i.out { background: var(--am-out); }
 .am-bn { text-align: right; font-variant-numeric: tabular-nums; }
 .am-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
 .am-table th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: .35rem .5rem; }
