@@ -11403,7 +11403,6 @@ function renderHome() {
   const open = todo.filter((t) => t.sev >= 1).length;
   const scoreCls = score >= 90 ? 'good' : score >= 60 ? 'warn' : 'bad';
   const prevAvail = d.full && d.avail.prev !== null ? d.avail.now - d.avail.prev : null;
-  const circ = 2 * Math.PI * 46;
 
   // Tegels (1.135.0, zoals het ontwerp): Hosts, Meldingen, Kritieke CVE en Agents; elk een groot getal, de status en een lijntje
   const tiles = [];
@@ -11430,16 +11429,33 @@ function renderHome() {
   }
 
   const html = [];
-  html.push(`<section class="hm-sum" aria-label="${esc(L('Samenvatting'))}">
-    <div class="hm-score ${scoreCls}">
-      <svg width="112" height="112" viewBox="0 0 112 112" role="img" aria-label="${esc(L('Totaalscore {p} procent', { p: score }))}">
-        <circle cx="56" cy="56" r="46" class="bg"/><circle cx="56" cy="56" r="46" class="fg" stroke-dasharray="${(circ * score / 100).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 56 56)"/>
-        <text x="56" y="63" text-anchor="middle">${score}</text></svg>
-      <div><div class="hm-score-lbl">${esc(L('Totaalscore'))}</div>
-        <div class="hm-score-big">${open ? esc(open === 1 ? L('1 punt open') : L('{n} punten open', { n: open })) : esc(L('Alles in orde'))}</div>
-        ${prevAvail !== null && Math.abs(prevAvail) >= 0.01 ? `<div class="hm-score-sub">${esc(L('Bereikbaarheid {d} t.o.v. de vorige periode', { d: (prevAvail > 0 ? '↑ ' : '↓ ') + dec(Math.abs(prevAvail).toFixed(2)) + '%' }))}</div>` : ''}
-      </div>
-    </div>
+  // 1.144.0: eerst één zin hoe het ervoor staat, dan wat je nu moet doen (incidenten en aandachtspunten op urgentie)
+  const now = d.full && d.now ? d.now : todo.map((t) => ({ kind: 'todo', sev: t.sev, text: t.text, urgency: t.sev === 2 ? 50 : t.sev === 1 ? 25 : 5, why: [], go: t.go }));
+  const nowOpen = now.filter((t) => t.sev >= 1);
+  const urgentN = now.filter((t) => t.urgency >= 60).length;
+  const incN = now.filter((t) => t.kind === 'inc').length;
+  const probHosts = hmProblemHosts(d);
+  if ($('#inc-badge') && d.full && d.now) {   // teller op het tabblad Incidenten: open incidenten (nog zonder eigenaar)
+    const nOpen = d.now.filter((t) => t.kind === 'inc' && t.status === 'open').length;
+    $('#inc-badge').hidden = !nOpen;
+    $('#inc-badge').textContent = nOpen || '';
+  }
+  const enabledHosts = state.hosts.filter((h) => +h.enabled !== 0).length;
+  const sentence = !nowOpen.length && !probHosts.length
+    ? L('Alles in orde: {h} servers en {c} checks zonder problemen.', { h: enabledHosts, c: live.total })
+    : [nowOpen.length ? (nowOpen.length === 1 ? L('1 ding om nu te doen') : L('{n} dingen om nu te doen', { n: nowOpen.length })) + (urgentN ? ' (' + L('{n} dringend', { n: urgentN }) + ')' : '') : '',
+      incN ? (incN === 1 ? L('1 open incident') : L('{n} open incidenten', { n: incN })) : '',
+      probHosts.length ? (probHosts.length === 1 ? L('1 server vraagt aandacht') : L('{n} servers vragen aandacht', { n: probHosts.length })) : ''].filter(Boolean).join(' · ') + '.';
+  html.push(`<section class="hm-status ${scoreCls}" aria-label="${esc(L('Zo staat het ervoor'))}">
+    <span class="hm-status-score" title="${esc(L('Totaalscore'))}">${score}</span>
+    <div><div class="hm-status-txt">${esc(sentence)}</div>
+      ${prevAvail !== null && Math.abs(prevAvail) >= 0.01 ? `<div class="hm-score-sub">${esc(L('Bereikbaarheid {d} t.o.v. de vorige periode', { d: (prevAvail > 0 ? '↑ ' : '↓ ') + dec(Math.abs(prevAvail).toFixed(2)) + '%' }))}</div>` : ''}</div>
+  </section>`);
+  html.push(hmNow(now, d.full));
+  if (probHosts.length) html.push(hmServers(probHosts, L('Servers die aandacht vragen'), d));
+
+  // De rest, compacter
+  html.push(`<section class="hm-sum hm-sum-tiles" aria-label="${esc(L('Samenvatting'))}">
     ${tiles.map((t) => `<button type="button" class="hm-tile" data-hm-go="${t.go}">
       <span class="hm-tile-top"><span class="hm-tile-lbl">${esc(t.label)}</span><span class="hm-st ${t.st}">${hmShape(t.st)} ${esc(HM_ST[t.st]())}</span></span>
       <span class="hm-tile-val"><b>${t.big}</b> <span>${esc(t.unit)}</span></span>
@@ -11449,19 +11465,9 @@ function renderHome() {
   // 1.135.0: resourcegebruik van 24 uur en de recente incidenten (zoals het ontwerp)
   html.push(`<div class="hm-row">${hmResChart(d.resources)}${hmIncidents(d)}</div>`);
 
-  // Nu aandacht nodig + netwerkkaart
-  const icon = { 2: '!', 1: '!', 0: 'i' };
-  html.push(`<div class="hm-row">
-    <section class="hm-card hm-attn" aria-labelledby="hm-h-attn">
-      <div class="hm-card-head"><h2 id="hm-h-attn">${esc(L('Nu aandacht nodig'))}</h2>${d.full ? `<button type="button" class="link-btn" data-hm-go="analytics">${esc(L('Alles bekijken'))}</button>` : ''}</div>
-      ${todo.length ? `<ul>${todo.slice(0, 6).map((t) => `<li><span class="hm-sev s${t.sev}" aria-label="${esc(t.sev === 2 ? L('Dringend') : t.sev === 1 ? L('Aandacht') : L('Tip'))}">${icon[t.sev]}</span>
-        <span class="hm-attn-txt">${esc(t.text)}</span><button type="button" class="btn small-btn" data-hm-go="${esc(t.go)}">${esc(L('Openen'))}</button></li>`).join('')}</ul>`
-        : `<p class="hm-empty">${hmShape('ok', 14)} ${esc(L('Niets dat nu aandacht nodig heeft'))}</p>`}
-    </section>
-    ${hmMap()}
-  </div>`);
-
-  html.push(hmServers());
+  // Netwerkkaart en de servers zonder problemen, compact
+  html.push(`<div class="hm-row hm-row-1">${hmMap()}</div>`);
+  html.push(hmServers(hmAllHosts().filter((x) => !probHosts.some((p) => p.h.id === x.h.id)), L('Overige servers'), d, true));
 
   // Grafieken
   if (d.full) {
@@ -11469,7 +11475,48 @@ function renderHome() {
   }
   html.push(`<div class="hm-row">${d.net ? hmNetCard(d.net) : ''}${hmTimeline(d.events)}</div>`);
   $('#home').innerHTML = html.join('');
-  $$('[data-hm-go]', $('#home')).forEach((b) => (b.onclick = () => { const go = b.dataset.hmGo; if (go.startsWith('check:')) checkInfo(go.slice(6)); else showTab(go); }));
+  $$('[data-hm-go]', $('#home')).forEach((b) => (b.onclick = () => {
+    const go = b.dataset.hmGo;
+    if (go.startsWith('check:')) checkInfo(go.slice(6));
+    else if (go.startsWith('incident:')) { showTab('incidents'); incidentDialog(+go.slice(9)); }
+    else showTab(go);
+  }));
+}
+
+/** 1.144.0: urgentie 0–100 als pil (zelfde kleuren als het risico) */
+function urgPill(u, why, risk = false) {
+  const lvl = u >= 70 ? 'high' : u >= 40 ? 'mid' : 'low';
+  return `<span class="risk-pill risk-${lvl}" title="${esc((risk ? L('Risico {u} van 100', { u }) : L('Urgentie {u} van 100', { u })) + (why && why.length ? ': ' + why.join(', ') : ''))}">${u}</span>`;
+}
+
+/** 1.144.0: "Nu doen": open incidenten en aandachtspunten samen, op urgentie */
+function hmNow(list, full) {
+  const shown = list.slice(0, 8);
+  return `<section class="hm-card hm-now" aria-labelledby="hm-h-now">
+    <div class="hm-card-head"><h2 id="hm-h-now">${esc(L('Nu doen'))}</h2>
+      <span>${$('#tab-incidents') ? `<button type="button" class="link-btn" data-hm-go="incidents">${esc(L('Incidenten'))}</button>` : ''}${full ? ` · <button type="button" class="link-btn" data-hm-go="analytics">${esc(L('Alles bekijken'))}</button>` : ''}</span></div>
+    ${shown.length ? `<ul>${shown.map((t) => `<li>${urgPill(t.urgency, t.why)}
+      <span class="hm-attn-txt">${t.kind === 'inc' ? '⚠ ' : t.icon ? esc(t.icon) + ' ' : ''}${esc(t.text)}
+        <small>${esc((t.why || []).slice(1).join(' · '))}${t.kind === 'inc' ? ` <span class="inc-st inc-st-${t.status}">${esc(INC_ST[t.status]())}</span>${t.owner ? ' 👤 ' + esc(t.owner) : ''}${t.parts > 1 ? ' · ' + esc(L('{n} stappen', { n: t.parts })) : ''}` : ''}</small></span>
+      <button type="button" class="btn small-btn" data-hm-go="${esc(t.go)}">${esc(L('Openen'))}</button></li>`).join('')}</ul>
+      ${list.length > shown.length ? `<p class="muted small">${esc(L('en nog {n}', { n: list.length - shown.length }))}</p>` : ''}`
+      : `<p class="hm-empty">${hmShape('ok', 14)} ${esc(L('Niets dat nu aandacht nodig heeft'))}</p>`}
+  </section>`;
+}
+
+/** Servers met hun CPU, RAM, disk, status en (1.144.0) risico */
+function hmAllHosts() {
+  const val = (h, t) => { const v = h.checks.filter((c) => c.type === t && +c.enabled && c.last_value !== null).map((c) => +c.last_value); return v.length ? Math.round(Math.max(...v)) : null; };
+  return state.hosts.filter((h) => +h.enabled !== 0)
+    .map((h) => { const s = hostStatus(h); return { h, st: s === 2 ? 'crit' : s === 1 ? 'warn' : s === 0 ? 'ok' : 'unk', cpu: val(h, 'cpu'), ram: val(h, 'ram'), disk: val(h, 'disk') }; });
+}
+
+/** Probleemservers: niet OK, of een risico van 40 of meer; ergste eerst */
+function hmProblemHosts(d) {
+  const risk = (d && d.risk) || {};
+  const rank = { crit: 0, warn: 1, unk: 2, ok: 3 };
+  return hmAllHosts().filter((x) => x.st === 'crit' || x.st === 'warn' || ((risk[x.h.id] || {}).score || 0) >= 40)
+    .sort((a, b) => rank[a.st] - rank[b.st] || ((risk[b.h.id] || {}).score || 0) - ((risk[a.h.id] || {}).score || 0) || a.h.name.localeCompare(b.h.name));
 }
 
 /** Netwerk in één oogopslag: internet → netwerkapparaten → per soort de apparaten met hun status */
@@ -11494,22 +11541,28 @@ function hmMap() {
     </div></section>`;
 }
 
-/** Servers: CPU, RAM en de volste disk nu, uit de checks van die server */
-function hmServers() {
-  const val = (h, t) => { const v = h.checks.filter((c) => c.type === t && +c.enabled && c.last_value !== null).map((c) => +c.last_value); return v.length ? Math.round(Math.max(...v)) : null; };
-  const list = state.hosts.filter((h) => +h.enabled !== 0 && ['cpu', 'ram', 'disk'].some((t) => val(h, t) !== null))
-    .map((h) => { const s = hostStatus(h); return { h, st: s === 2 ? 'crit' : s === 1 ? 'warn' : s === 0 ? 'ok' : 'unk', cpu: val(h, 'cpu'), ram: val(h, 'ram'), disk: val(h, 'disk') }; })
-    .sort((a, b) => ({ crit: 0, warn: 1, unk: 2, ok: 3 }[a.st] - { crit: 0, warn: 1, unk: 2, ok: 3 }[b.st]) || a.h.name.localeCompare(b.h.name));
+/** Servers: CPU, RAM en de volste disk nu, uit de checks van die server; met (1.144.0) het risico en, compact, zonder balken */
+function hmServers(all, title, d, compact = false) {
+  const risk = (d && d.risk) || {};
+  const list = compact ? all.filter((x) => x.cpu !== null || x.ram !== null || x.disk !== null).sort((a, b) => a.h.name.localeCompare(b.h.name)) : all;
   if (!list.length) return '';
+  if (compact) {
+    return `<section class="hm-card" aria-labelledby="hm-h-srv2"><div class="hm-card-head"><h2 id="hm-h-srv2">${esc(title)}</h2><span class="muted small">${esc(L('{n} servers', { n: list.length }))}</span></div>
+      <div class="hm-srv-compact">${list.map(({ h, st, cpu, ram, disk }) => `<button type="button" class="hm-srv-mini ${st}" data-hm-go="dashboard?server=${encodeURIComponent(h.name)}">
+        ${hmShape(st, 10)} <b>${esc(h.name)}</b><span class="muted small">${[cpu !== null ? 'CPU ' + cpu + '%' : '', ram !== null ? 'RAM ' + ram + '%' : '', disk !== null ? L('Disk') + ' ' + disk + '%' : ''].filter(Boolean).join(' · ')}</span>
+        ${risk[h.id] && risk[h.id].score ? urgPill(risk[h.id].score, risk[h.id].reasons, true) : ''}</button>`).join('')}</div></section>`;
+  }
   const bar = (k, v) => (v === null ? '' : `<div class="hm-bar"><span>${esc(k)}</span><div><i class="${v >= 90 ? 'crit' : v >= 75 ? 'warn' : ''}" style="width:${Math.min(100, v)}%"></i></div><b>${v}%</b></div>`);
   const why = (h) => { const p = h.checks.filter((c) => +c.enabled && !c.maintenance && +c.status >= 1 && +c.status <= 2).sort((a, b) => b.status - a.status)[0]; return p ? p.name : ''; };
   return `<section class="hm-card" aria-labelledby="hm-h-srv">
-    <div class="hm-card-head"><h2 id="hm-h-srv">${esc(L('Servers'))}</h2><span class="muted small">${esc(L('{n} servers · CPU, RAM en disk nu', { n: list.length }))}</span></div>
+    <div class="hm-card-head"><h2 id="hm-h-srv">${esc(title)}</h2><span class="muted small">${esc(L('{n} servers · CPU, RAM en disk nu', { n: list.length }))}</span></div>
     <div class="hm-srv-grid">${list.map(({ h, st, cpu, ram, disk }) => {
       const up = stats.uptime[h.id];
+      const rk = risk[h.id];
       return `<button type="button" class="hm-srv ${st}" data-hm-go="dashboard?server=${encodeURIComponent(h.name)}">
         <span class="hm-srv-top"><b>${esc(h.name)}</b><span class="hm-st ${st}">${hmShape(st)} ${esc(st === 'ok' ? HM_ST.ok() : why(h) || HM_ST[st]())}</span></span>
         <span class="hm-srv-sub">${esc(kindLabel(hostKind(h)))}${up && up.d7 !== null ? ' · ' + esc(L('{p} bereikbaar (7 d)', { p: pct(up.d7) })) : ''}</span>
+        ${rk && rk.score ? `<span class="hm-srv-risk">${urgPill(rk.score, rk.reasons, true)} <span class="small">${esc(L('risico'))}: ${esc(rk.reasons.join(' · '))}</span></span>` : ''}
         ${bar('CPU', cpu)}${bar('RAM', ram)}${bar(L('Disk'), disk)}</button>`;
     }).join('')}</div></section>`;
 }
@@ -11656,14 +11709,15 @@ function renderIncidents() {
   $('#inc-filter').innerHTML = [['active', L('Nog bezig')], ['open', L('Open')], ['ack', L('In behandeling')], ['resolved', L('Opgelost')], ['all', L('Alles')]]
     .map(([k, l]) => `<button type="button" class="dchip ${incFilter === k ? 'on' : ''}" data-incf="${k}">${l} <b>${n(k)}</b></button>`).join('');
   const list = incVisible();
-  $('#inc-list').innerHTML = list.length ? `<div class="card inc-card"><table class="inc-table"><thead><tr><th></th><th>${L('Incident')}</th><th>${L('Status')}</th><th>${L('Eigenaar')}</th><th>${L('Geopend')}</th><th class="num">${L('Duur')}</th></tr></thead><tbody>
+  $('#inc-list').innerHTML = list.length ? `<div class="card inc-card"><table class="inc-table"><thead><tr><th title="${esc(L('Urgentie: ernst, duur, bereikbaar, afhankelijke servers en beveiliging'))}">${L('Urgentie')}</th><th></th><th>${L('Incident')}</th><th>${L('Status')}</th><th>${L('Eigenaar')}</th><th>${L('Geopend')}</th><th class="num">${L('Duur')}</th></tr></thead><tbody>
     ${list.map((i) => {
       const [ic, src] = INC_SRC[i.source] || ['•', () => i.source];
       const end = i.resolved_at ? new Date(i.resolved_at.replace(' ', 'T')) : new Date();
       const dur = Math.max(0, (end - new Date(i.opened_at.replace(' ', 'T'))) / 1000);
       return `<tr class="inc-row inc-${i.status}" data-inc="${i.id}" tabindex="0">
+        <td>${i.status === 'resolved' ? '<span class="muted small">–</span>' : urgPill(i.urgency, i.why)}</td>
         <td title="${esc(src())}">${ic}</td>
-        <td><b>${esc(i.title)}</b>${i.detail ? `<div class="muted small">${esc(i.detail.length > 120 ? i.detail.slice(0, 120) + '…' : i.detail)}</div>` : ''}</td>
+        <td><b>${esc(i.title)}</b>${i.parts > 1 ? ` <span class="muted small">· ${esc(L('{n} stappen', { n: i.parts }))}</span>` : ''}${i.detail ? `<div class="muted small">${esc(i.detail.length > 120 ? i.detail.slice(0, 120) + '…' : i.detail)}</div>` : ''}</td>
         <td><span class="inc-st inc-st-${i.status}">${INC_ST[i.status]()}</span>${i.notes ? ` <span class="muted small" title="${esc(L('notities'))}">💬 ${i.notes}</span>` : ''}</td>
         <td>${i.owner ? esc(i.owner) : '<span class="muted">–</span>'}</td>
         <td class="small">${agoSpan(i.opened_at)}</td>
@@ -11684,6 +11738,10 @@ async function incidentDialog(id) {
     body: `<div style="padding:1rem 1.2rem">
       <p class="muted small">${esc(src())}${i.host ? ' · ' + esc(i.host) : ''} · ${L('geopend {t}', { t: esc(fmtDateTime(i.opened_at)) })}${i.resolved_at ? ' · ' + L('opgelost {t}', { t: esc(fmtDateTime(i.resolved_at)) }) : ''}</p>
       ${i.detail ? `<p>${esc(i.detail)}</p>` : ''}
+      ${i.status !== 'resolved' ? `<p class="small">${urgPill(i.urgency, i.why)} <b>${L('Urgentie {u}', { u: i.urgency })}</b>: ${esc(i.why.join(' · '))}</p>` : ''}
+      ${i.path && i.path.length ? `<div class="inc-path" aria-label="${esc(L('Pad'))}">${i.path.map((p) => `<span>${esc(p)}</span>`).join('<i aria-hidden="true">→</i>')}</div>` : ''}
+      ${i.steps && i.steps.length ? `<h3>${L('Stappen')}</h3><ol class="inc-steps">${i.steps.map((s) => `<li class="${s.severity >= 2 ? 'crit' : 'warn'}"><b>${esc(s.title)}</b>
+        <span class="muted small">${esc(fmtDateTime(s.at))}${s.ip ? ' · ' + esc(s.ip) : ''}</span></li>`).join('')}</ol>` : ''}
       <div class="row2">
         <label>${L('Status')}<select name="status" class="need-user">${Object.keys(INC_ST).map((k) => `<option value="${k}" ${i.status === k ? 'selected' : ''}>${INC_ST[k]()}</option>`).join('')}</select></label>
         <label>${L('Eigenaar')}<select name="owner" class="need-user"><option value="">–</option>${users.map((u) => `<option ${i.owner === u ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></label>

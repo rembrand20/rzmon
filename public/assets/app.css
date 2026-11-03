@@ -2189,3 +2189,29 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .inc-timeline li:last-child { border-bottom: 0; } .inc-timeline .ic { flex: none; width: 1.4rem; text-align: center; }
 .inc-timeline li.k-note > div > div:first-child { font-weight: 500; }
 @media (max-width: 720px) { .inc-table th:nth-child(5), .inc-table td:nth-child(5) { display: none; } }
+
+/* 1.144.0: dashboard: statuszin, Nu doen, risico; incidenten: pad en stappen */
+.hm-status { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.2rem; margin-bottom: 1rem; border-radius: 14px; background: var(--card, #fff);
+  border: 1px solid color-mix(in srgb, var(--muted) 22%, transparent); }
+.hm-status-score { flex: none; display: grid; place-items: center; width: 3.2rem; height: 3.2rem; border-radius: 50%; font-weight: 800; font-size: 1.15rem;
+  border: 4px solid var(--ok); color: var(--ok); }
+.hm-status.warn .hm-status-score { border-color: var(--warn); color: var(--warn); } .hm-status.bad .hm-status-score { border-color: var(--crit); color: var(--crit); }
+.hm-status-txt { font-size: 1.15rem; font-weight: 650; }
+.hm-now ul { list-style: none; margin: 0; padding: 0; }
+.hm-now li { display: flex; align-items: center; gap: .7rem; padding: .55rem 0; border-top: 1px solid color-mix(in srgb, var(--muted) 16%, transparent); }
+.hm-now li:first-child { border-top: 0; } .hm-now .hm-attn-txt { flex: 1; min-width: 0; } .hm-now .hm-attn-txt small { display: block; color: var(--muted); }
+.hm-now { margin-bottom: 1rem; }
+.hm-row-1 { grid-template-columns: 1fr !important; }
+.hm-srv-risk { display: flex; align-items: center; gap: .4rem; margin: .2rem 0 .35rem; color: var(--muted); text-align: left; }
+.hm-srv-compact { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: .5rem; }
+.hm-srv-mini { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; padding: .5rem .7rem; border-radius: 10px; text-align: left; cursor: pointer;
+  background: transparent; border: 1px solid color-mix(in srgb, var(--muted) 20%, transparent); color: inherit; font: inherit; }
+.hm-srv-mini:hover { background: color-mix(in srgb, var(--muted) 8%, transparent); } .hm-srv-mini .risk-pill { margin-left: auto; }
+.inc-path { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: .4rem 0 .8rem; font-size: .85rem; }
+.inc-path span { padding: .2rem .55rem; border-radius: 6px; background: color-mix(in srgb, var(--muted) 12%, transparent); }
+.inc-path i { font-style: normal; color: var(--muted); }
+.inc-steps { margin: 0 0 .8rem; padding-left: 1.2rem; } .inc-steps li { margin: .3rem 0; } .inc-steps li span { display: block; }
+.inc-steps li.crit::marker { color: var(--crit); } .inc-steps li.warn::marker { color: var(--warn); }
+
+/* 1.144.0: de score staat in de statuszin; de tegels krijgen de hele rij */
+.hm-sum.hm-sum-tiles { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important; }

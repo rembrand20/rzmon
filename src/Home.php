@@ -19,6 +19,8 @@ final class Home
         if (!$full) {
             return $out;
         }
+        // 1.144.0: risico per server (zelfde score als REST API en MQTT)
+        $out['risk'] = array_map(static fn($r) => ['score' => $r['score'], 'level' => $r['level'], 'reasons' => array_map(static fn($x) => $x[1], array_slice($r['factors'], 0, 3))], HostRisk::all());
         $r = Analytics::cached($period, $fresh);
         $out += [
             'from' => $r['from'], 'to' => $r['to'], 'since' => $r['since'],
@@ -26,12 +28,40 @@ final class Home
             'avail' => ['now' => $r['kpi']['avail'][0], 'prev' => $r['kpi']['avail'][1], 'series' => $r['avail_series']],
             'incidents' => ['now' => $r['kpi']['incidents'][0], 'prev' => $r['kpi']['incidents'][1]],
             'todo' => $r['todo'],
+            'now' => self::now($r['todo']),
         ];
         $out['ids'] += ['series' => ['blk' => $r['security']['series']['blk'], 'warn' => $r['security']['series']['ids_warn'], 'crit' => $r['security']['series']['ids']],
             'blk_period' => $r['security']['blk_total']];
         $out['vulns'] = Vulns::enabled() ? self::vulns($r['security']['vulns']['series'] ?? []) : null;
         $out['net'] = ($r['network']['on'] ?? false) ? self::net($r['network']) : null;
         return $out;
+    }
+
+    /**
+     * 1.144.0: "Nu doen": de open incidenten en de aandachtspunten uit Analyse in één lijst, op dezelfde urgentie (Urgency).
+     * Een aandachtspunt over open IDS-incidenten valt weg als die al als incident in de lijst staan.
+     */
+    public static function now(array $todo): array
+    {
+        $items = [];
+        $hasIds = false;
+        foreach (Incidents::list(1)['incidents'] as $i) {
+            if ($i['status'] === 'resolved') {
+                continue;
+            }
+            $hasIds = $hasIds || $i['source'] === 'ids';
+            $items[] = ['kind' => 'inc', 'id' => $i['id'], 'sev' => min(2, $i['severity']), 'text' => $i['title'], 'urgency' => $i['urgency'], 'why' => $i['why'],
+                'status' => $i['status'], 'owner' => $i['owner'], 'parts' => $i['parts'], 'go' => 'incident:' . $i['id']];
+        }
+        foreach ($todo as $t) {
+            if ($hasIds && $t['icon'] === '🛡️') {
+                continue;
+            }
+            $u = Urgency::score((int) $t['sev'], 0, false, 0, in_array($t['icon'], ['🛡️', '🐞'], true));
+            $items[] = ['kind' => 'todo', 'sev' => (int) $t['sev'], 'icon' => $t['icon'], 'text' => $t['text'], 'urgency' => $u['score'], 'why' => $u['why'], 'go' => $t['go']];
+        }
+        usort($items, static fn($a, $b) => $b['urgency'] <=> $a['urgency']);
+        return array_slice($items, 0, 30);
     }
 
     /** 1.135.0: CPU en RAM over alle servers, gemiddeld per uur over de laatste 24 uur (24 waarden, null = geen meting) */

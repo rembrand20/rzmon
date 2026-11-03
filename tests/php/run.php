@@ -30,6 +30,12 @@ function section(string $s): void
     echo "\n$s\n";
 }
 
+function array_sort_copy(array $a): array
+{
+    sort($a);
+    return $a;
+}
+
 section('Database en update');
 Installer::runSchema();
 save_setting('thresh_default', 'manual');
@@ -851,9 +857,12 @@ q("INSERT INTO checks (host_id, type, name, status, problem_since) VALUES (?, 'p
 q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, status) VALUES (?, 2, 'test', 'inc-1', 'Brute force', 'open')", [$ha]);
 $idsId = (int) db()->lastInsertId();
 $n1 = Incidents::sync();
-$n2 = Incidents::sync();
+$c1 = (int) q('SELECT COUNT(*) FROM incidents')->fetchColumn();
+Incidents::sync();
+$n2 = (int) q('SELECT COUNT(*) FROM incidents')->fetchColumn() - $c1;   // geen nieuwe incidenten (samenvoegen mag wel)
 $ci = q("SELECT * FROM incidents WHERE source = 'check' AND ref_id = ?", [$icid])->fetch();
-$ii = q("SELECT * FROM incidents WHERE source = 'ids' AND ref_id = ?", [$idsId])->fetch();
+// 1.144.0: een IDS-melding kan ook een stap van een ander (samengevoegd) incident zijn
+$ii = q("SELECT * FROM incidents WHERE source = 'ids' AND (ref_id = ? OR id = (SELECT incident_id FROM incident_refs WHERE ref_id = ? LIMIT 1))", [$idsId, $idsId])->fetch();
 ok($n1 >= 2 && $n2 === 0 && $ci && $ii && !q("SELECT 1 FROM incidents i JOIN checks c ON c.id = i.ref_id WHERE c.name = 'inc-kort'")->fetchColumn(),
     'incidenten: critical check (≥ 5 min) en IDS-incident, één keer; korte storing niet');
 $adm = (string) q('SELECT username FROM users ORDER BY id LIMIT 1')->fetchColumn();
@@ -866,7 +875,7 @@ q('UPDATE checks SET status = 0, problem_since = NULL WHERE id = ?', [$icid]);
 Incidents::update((int) $ii['id'], $adm, 'resolved', null, null);
 Incidents::sync();
 ok(q('SELECT status FROM incidents WHERE id = ?', [$ci['id']])->fetchColumn() === 'resolved' && q('SELECT status FROM ids_incidents WHERE id = ?', [$idsId])->fetchColumn() === 'done'
-    && str_contains((string) q("SELECT text FROM incident_notes WHERE incident_id = ? ORDER BY id DESC LIMIT 1", [$ci['id']])->fetchColumn(), 'OK'),
+    && str_contains((string) q("SELECT text FROM incident_notes WHERE incident_id = ? AND kind = 'status' ORDER BY id DESC LIMIT 1", [$ci['id']])->fetchColumn(), 'OK'),
     'check weer OK: vanzelf opgelost (met notitie); IDS-incident zelf gesloten: ook in IDS afgehandeld');
 $rep = Report::html('7d');
 ok(str_contains($rep, '<h2>Incidenten</h2>') && str_contains($rep, 'inc-ping') && str_contains($rep, 'Beschikbaarheid') && !str_contains($rep, '<script'),
@@ -885,6 +894,47 @@ $l3 = @login('ci-rehash', 'fout');
 ok($l1 === 'ok' && $l2 === 'ok' && $l3 === false && (!defined('PASSWORD_ARGON2ID') || str_starts_with($h1, '$argon2id$')) && password_verify('Oud-wachtwoord-1', hash_password('Oud-wachtwoord-1')),
     'wachtwoord: oud bcrypt werkt, wordt bij inloggen Argon2id en werkt daarna nog; fout wachtwoord niet');
 q("DELETE FROM users WHERE username = 'ci-rehash'");
+
+// 1.144.0: urgentie, risico per server en samengevoegde IDS-incidenten
+$u1 = Urgency::score(2, 120, true, 2, true);
+$u2 = Urgency::score(2, 5, false, 0, false);
+$u3 = Urgency::score(1, 0, false, 0, false);
+ok($u1['score'] > $u2['score'] && $u2['score'] > $u3['score'] && $u1['score'] <= 100 && in_array('bereikbaar van buiten', $u1['why'], true),
+    'urgentie: critical + lang + bereikbaar + afhankelijk + beveiliging boven een korte critical, boven een warning (' . $u1['score'] . '/' . $u2['score'] . '/' . $u3['score'] . ')');
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-risk', '10.0.0.77', 'agent')");
+$hr = (int) db()->lastInsertId();
+q("INSERT INTO hosts (name, address, mode, parent_id) VALUES ('ci-risk-kind', '10.0.0.78', 'remote', ?)", [$hr]);
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, ip, status, created_at) VALUES (?, 1, 'bruteforce', 'bf1', 'Brute force SSH', '203.0.113.50', 'open', NOW() - INTERVAL 30 MINUTE)", [$hr]);
+Incidents::sync();   // alleen een warning: nog geen incident
+$noneYet = !q('SELECT 1 FROM incidents WHERE host_id = ?', [$hr])->fetchColumn();
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, ip, status, created_at) VALUES (?, 2, 'ssh_login', 'lg1', 'SSH-login van buiten', '203.0.113.50', 'open', NOW() - INTERVAL 20 MINUTE)", [$hr]);
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, ip, status, created_at) VALUES (?, 2, 'edr', 'p1', 'Verdacht proces /tmp/x', NULL, 'open', NOW() - INTERVAL 10 MINUTE)", [$hr]);
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, ip, status, created_at) VALUES (?, 2, 'chain', 'c1', 'Keten: Binnengekomen en uitgevoerd', '203.0.113.50', 'open', NOW() - INTERVAL 5 MINUTE)", [$hr]);
+Incidents::sync();
+Incidents::sync();   // de brute force (eerder, warning) komt er nu als stap bij
+$incs = q("SELECT * FROM incidents WHERE host_id = ? AND source = 'ids'", [$hr])->fetchAll();
+$grp = array_values(array_filter($incs, fn($i) => (int) q('SELECT COUNT(*) FROM incident_refs WHERE incident_id = ?', [$i['id']])->fetchColumn() >= 2))[0] ?? null;
+ok($noneYet && $grp && str_starts_with((string) $grp['title'], '⛓ ci-risk:') && str_contains((string) $grp['title'], 'Brute force') && count($incs) === 1,
+    'samenvoegen: brute force + login (zelfde IP) + verdacht proces + keten worden één incident (' . count($incs) . ')');
+// Ander IP op een andere server: niet samengevoegd
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, ip, status, created_at) VALUES (?, 2, 'ssh_login', 'lg9', 'SSH-login van buiten', '198.51.100.9', 'open', NOW())", [$hb]);
+Incidents::sync();
+ok((bool) q("SELECT 1 FROM incidents WHERE host_id = ? AND ref_key = (SELECT CONCAT('ids:', id) FROM ids_incidents WHERE dkey = 'lg9')", [$hb])->fetchColumn(), 'ander IP op een andere server: eigen incident');
+$info = Incidents::info((int) $grp['id']);
+ok(count($info['steps']) >= 3 && $info['exposed'] && in_array('Internet (203.0.113.50)', $info['path'], true) && str_contains(implode(' ', $info['path']), 'ci-risk-kind'),
+    'incident: stappen op volgorde, pad Internet → server → afhankelijke server');
+$risk = HostRisk::all(true)[$hr] ?? null;   // vóór het sluiten: het incident is nog open
+// Zelf sluiten: alle stappen ook in IDS afgehandeld
+Incidents::update((int) $grp['id'], 'ci', 'resolved', null, null);
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND dkey IN ('bf1', 'lg1', 'c1') AND status = 'open'", [$hr])->fetchColumn() === 0, 'samengevoegd incident sluiten: alle stappen in IDS afgehandeld');
+ok($risk !== null && $risk['score'] >= 15 && in_array($risk['level'], ['low', 'medium', 'high'], true)
+    && (bool) array_filter($risk['factors'], fn($f) => str_contains($f[1], 'open incident')) && (bool) array_filter($risk['factors'], fn($f) => $f[1] === 'agent stil'),
+    'risico per server: open incident en stille agent tellen mee (' . ($risk['score'] ?? '-') . ')');
+$nowList = Home::now([['sev' => 0, 'icon' => '💡', 'text' => 'tip', 'go' => 'x'], ['sev' => 2, 'icon' => '💽', 'text' => 'disk vol', 'go' => 'dashboard']]);
+$us = array_column($nowList, 'urgency');
+ok($us === array_values(array_reverse(array_values(array_sort_copy($us)))) && end($nowList)['text'] === 'tip' && (bool) array_filter($nowList, fn($x) => $x['kind'] === 'inc'),
+    'Nu doen: incidenten en aandachtspunten samen, op urgentie');
+q('DELETE FROM hosts WHERE id IN (?, ?)', [$hr, $hr + 1]);
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

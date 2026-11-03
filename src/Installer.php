@@ -96,7 +96,9 @@ final class Installer
         ['checks', 'acked_by', 'VARCHAR(64) NULL'],
         ['checks', 'ack_comment', 'VARCHAR(200) NULL'],
         ['checks', 'pushover_receipt', 'VARCHAR(40) NULL'],
-        ['vuln_ignore', 'until', 'DATE NULL'],   // 1.141.0: geaccepteerd tot (daarna telt de kwetsbaarheid weer mee)
+        ['vuln_ignore', 'until', 'DATE NULL'],
+        ['incidents', 'ip', 'VARCHAR(45) NULL'],     // 1.144.0: om IDS-meldingen samen te voegen
+        ['incidents', 'kind', 'VARCHAR(30) NULL'],   // 1.141.0: geaccepteerd tot (daarna telt de kwetsbaarheid weer mee)
         ['hosts', 'agent_ip', 'VARCHAR(45) NULL'],
         ['hosts', 'agent_version', 'VARCHAR(20) NULL'],
         ['users', 'totp_secret', 'VARCHAR(64) NULL'],

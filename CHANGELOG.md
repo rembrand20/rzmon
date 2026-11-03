@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.144.0 – 2026-11-03
+### Nieuw
+- **Dashboard opnieuw ingedeeld**: bovenaan één zin hoe het ervoor staat, dan **Nu doen** (open incidenten en aandachtspunten samen, op urgentie), dan de **servers die aandacht vragen**, en daarna de rest compact.
+- **Eén urgentie** (0–100) voor Incidenten en Nu doen: ernst, hoe lang al, bereikbaar van buiten, servers die ervan afhangen en beveiliging, met de redenen erbij.
+- **Risico per server** (0–100): open incidenten, bereikbare kwetsbaarheden, hardening, agent (stil of onversleuteld) en afwijkingen. Op het dashboard, in de REST API (`risk` bij `/hosts`) en als MQTT-sensor *Risico*.
+- **Incidenten samenvoegen**: IDS-meldingen op dezelfde server met hetzelfde IP (binnen 6 uur), of een aanvalsketen, worden één incident met stappen, bijvoorbeeld brute force → login → proces. In het incident ook het **pad** (internet → poort → server → afhankelijke servers) en, bij een actief misbruikte kwetsbaarheid, op welke poort het pakket luistert.
+
 ## 1.143.0 – 2026-11-03
 ### Nieuw
 - **Beveiligingsheaders**: elke pagina krijgt een Content-Security-Policy (alleen de eigen scripts van RzMon, met een nonce), *nosniff*, een zuinige Referrer-Policy en geen toegang tot camera, microfoon of locatie. Insluiten in Home Assistant blijft werken; beperken kan met `frame_ancestors` in `config.php`, uitzetten (noodknop) met `'csp' => false`.

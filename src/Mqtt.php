@@ -275,6 +275,7 @@ final class Mqtt
                 'ok' => $n[0], 'warning' => $n[1], 'critical' => $n[2], 'unknown' => $n[3], 'maintenance' => $n[4],
                 'address' => $h['address'],
                 'agent_seen' => $iso($h['agent_seen']),
+                'risk' => ($rk = HostRisk::of((int) $hid))['score'], 'risk_level' => $rk['level'], 'risk_reasons' => implode('; ', $rk['reasons']),   // 1.144.0
             ];
             $entity('binary_sensor', "host_{$hid}_problem", $device, [
                 'name' => t('Probleem'), 'state_topic' => $topic, 'value_template' => '{{ value_json.problem }}',
@@ -283,6 +284,10 @@ final class Mqtt
             $entity('sensor', "host_{$hid}_status", $device, [
                 'name' => 'Status', 'state_topic' => $topic, 'value_template' => '{{ value_json.status }}',
                 'device_class' => 'enum', 'options' => self::STATES, 'icon' => 'mdi:server',
+            ]);
+            $entity('sensor', "host_{$hid}_risk", $device, [
+                'name' => t('Risico'), 'state_topic' => $topic, 'value_template' => '{{ value_json.risk }}', 'unit_of_measurement' => '/100',
+                'state_class' => 'measurement', 'icon' => 'mdi:shield-alert-outline',
             ]);
         }
 

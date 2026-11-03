@@ -189,6 +189,7 @@ function loadHosts(?int $id = null): array
                 ?? ($h['maintenance_until'] && strtotime($h['maintenance_until']) > time() ? ['until' => $h['maintenance_until']] : null)) !== null,
             'maintenance_until' => $m ? iso($m['until']) : null,
             'uptime' => $uptime[(int) $h['id']] ?? null,   // % bereikbaar: h24, d7, d30
+            'risk' => HostRisk::of((int) $h['id']),          // 1.144.0: risico 0–100 (score, level, reasons)
             'checks' => $hc,
         ];
     }

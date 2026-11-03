@@ -107,6 +107,27 @@ RzMon bestaat uit vier onderdelen:
 ### Dashboard: zo staat het ervoor 🧭 (vanaf 1.134.0)
 Het eerste tabblad, en de pagina waarop RzMon opent: monitoring, beveiliging, kwetsbaarheden en netwerk op één plek. Het vroegere dashboard heet nu **Monitoring** (op de telefoon *Checks*); het oude adres `#dashboard` blijft werken.
 
+**Indeling vanaf 1.144.0** (van boven naar beneden):
+1. **Statuszin** met de totaalscore: bijvoorbeeld *"3 dingen om nu te doen (1 dringend) · 2 open incidenten · 1 server vraagt aandacht."*, of *"Alles in orde: 12 servers en 140 checks zonder problemen."*
+2. **Nu doen**: de open **incidenten** en de aandachtspunten uit Analyse in één lijst, op **urgentie** (zie hieronder). Per regel de reden (bv. *al 3 uur · bereikbaar van buiten*), de status en de eigenaar van een incident. **Openen** opent het incident of de juiste pagina.
+3. **Servers die aandacht vragen**: servers met een probleem, of met een **risico** van 40 of meer, met CPU, RAM, disk en de redenen van het risico.
+4. Daarna compact: de tegels, resourcegebruik, recente IDS-incidenten, de netwerkkaart, de overige servers (één regel per server), grafieken en de laatste gebeurtenissen.
+
+**Urgentie (0–100)** is overal dezelfde (Nu doen en Incidenten): ernst (critical 50, warning 25, tip 5) + hoe lang al (tot 15) + bereikbaar van buiten (+10) + servers die ervan afhangen (+3 per server, tot 10) + beveiliging (IDS of een actief misbruikte kwetsbaarheid, +15). Wijs het getal aan voor de uitleg.
+
+**Risico per server (0–100)**, ook overal hetzelfde (dashboard, REST API `GET /v1.php/hosts` → `risk`, MQTT-sensor *Risico* per server):
+
+| Onderdeel | Punten |
+|---|---|
+| Open incidenten | 15 per critical, 5 per warning (tot 35) |
+| Kwetsbaarheden | de hoogste CVE-risicoscore × 0,3 als het pakket op het netwerk luistert, anders × 0,15 (tot 30) |
+| Hardening | (100 − hardening-score) × 0,15 (tot 15) |
+| Agent | stil 10, onversleuteld 5 |
+| Afwijkingen (IDS, 7 dagen) | 2 per afwijking (tot 10) |
+
+Vanaf 70 is het rood (hoog), vanaf 40 oranje.
+
+
 - **Totaalscore** (0–100, dezelfde als in 📊 Analyse) met het aantal open punten, en vier tegels (vanaf 1.135.0): **Hosts** (hoeveel er bereikbaar zijn), **Meldingen** (open problemen: aandacht en storing), **Kritieke CVE** (met hoeveel daarvan in KEV, actief misbruikt) en **Agents** (hoeveel er rapporteren, hoeveel er stil zijn of een oudere versie hebben). Elke tegel heeft de status (rondje = in orde, vierkant = aandacht, driehoek = storing, grijs ringetje = onbekend) en een lijntje over de periode. Klik op een tegel en je staat op die pagina.
 - **Resourcegebruik · 24 uur**: CPU en RAM, gemiddeld over alle servers met een CPU- of RAM-check, per uur; wijs een uur aan voor de waarden. Ernaast **Recente incidenten**: de laatste IDS-incidenten van 14 dagen, open eerst, met de ernst (*Kritiek*, *Hoog*) en hoe vaak het gebeurde.
 - **Onbekend is nooit groen**: een server zonder gegevens (of helemaal in onderhoud) krijgt een grijs ringetje, op de netwerkkaart met een gestippelde rand.
@@ -151,6 +172,12 @@ Het tabblad **⚠ Incidenten** zet in **één lijst** wat er echt mis is, uit al
 - Opgeloste incidenten blijven ruim een jaar bewaard.
 
 Bij de eerste keer na de update worden checks die nu al critical zijn meteen incidenten.
+
+**Samengevoegd (vanaf 1.144.0)**: IDS-meldingen op dezelfde server die bij elkaar horen, worden **één incident** met stappen, bijvoorbeeld *"⛓ NAS: Brute force SSH → SSH-login van buiten → Verdacht proces"*:
+- hetzelfde IP-adres binnen 6 uur (ook een warning, zoals een brute force, komt er dan als stap bij);
+- of een **aanvalsketen** (IDS → Ketens): die neemt alle open IDS-incidenten van die server uit dezelfde periode op, met hun notities en eigenaar.
+
+Liever twee incidenten dan iets wegstoppen: zonder hetzelfde IP en zonder keten blijven ze apart. In het venster van het incident staan de **stappen** op volgorde, de **urgentie** met de redenen, en het **pad**: bijvoorbeeld *Internet (203.0.113.5) → poort 22/tcp → NAS → 3 afhankelijke servers*. Bij een actief misbruikte kwetsbaarheid staat in de reden op welke poort het pakket luistert. Sluit je een samengevoegd incident, dan zijn alle stappen ook in IDS afgehandeld. De lijst staat op urgentie.
 
 ### Rapport als PDF 📄 (vanaf 1.142.0)
 Op **📊 Analyse** staat de knop **📄 Rapport (PDF)**. Die opent een nette, afdrukbare pagina over de gekozen periode, met meteen het afdrukvenster. Kies daar **Opslaan als PDF**. In het rapport:

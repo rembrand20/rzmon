@@ -1130,3 +1130,19 @@ CREATE TABLE IF NOT EXISTS incident_notes (
     INDEX idx_incn (incident_id),
     CONSTRAINT fk_incn_inc FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.144.0: samengevoegde IDS-meldingen (stappen) van een incident
+CREATE TABLE IF NOT EXISTS incident_refs (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    incident_id BIGINT UNSIGNED NOT NULL,
+    ref_key     VARCHAR(120) NOT NULL,
+    ref_id      BIGINT UNSIGNED NULL,
+    kind        VARCHAR(30) NOT NULL DEFAULT '',
+    severity    TINYINT UNSIGNED NOT NULL DEFAULT 1,
+    title       VARCHAR(250) NOT NULL,
+    ip          VARCHAR(45) NULL,
+    at          DATETIME NOT NULL,
+    UNIQUE KEY uq_incr_key (ref_key),
+    INDEX idx_incr_inc (incident_id),
+    CONSTRAINT fk_incr_inc FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
