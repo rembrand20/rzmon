@@ -398,14 +398,20 @@ vhost_dir_block() {
     Header always set Referrer-Policy "same-origin"
 
     # Sneller (1.119.0): verkleind versturen, en de bestanden van de interface 30 dagen in de browser bewaren
-    # (ze hebben een versienummer in de URL, dus na een update komt er meteen een nieuwe)
+    # (ze hebben een versienummer in de URL, dus na een update komt er meteen een nieuwe).
+    # 1.152.0: ook text/javascript (zo noemt Rocky 10 .js-bestanden; daardoor werd app.js niet verkleind) en de wereldkaart (.json)
     <IfModule mod_deflate.c>
-        AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+        AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json image/svg+xml
     </IfModule>
     <IfModule mod_expires.c>
-        <LocationMatch "/assets/.*\.(js|css|svg|png|woff2)$">
+        <LocationMatch "/assets/.*\.(js|css|svg|png|woff2|json)$">
             ExpiresActive On
             ExpiresDefault "access plus 30 days"
+        </LocationMatch>
+    </IfModule>
+    <IfModule mod_headers.c>
+        <LocationMatch "/assets/.*\.(js|css|svg|png|woff2|json)$">
+            Header set Cache-Control "public, max-age=2592000, immutable"
         </LocationMatch>
     </IfModule>
 EOF

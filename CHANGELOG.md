@@ -14,6 +14,13 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.148.0**: rustigere instellingen: geen gele uitlegbalken meer; wat aandacht nodig heeft staat in een **oranje balk** bovenaan, met een bolletje bij de kaart waar het over gaat.
 - **1.147.0**: agents sturen hun rapport **gecomprimeerd** (meestal 50–85% kleiner) en de agent is opgebouwd uit **modules**; twee fouten waardoor een agent soms een run oversloeg of zijn foutmeldingen kwijtraakte, zijn opgelost.
 
+## 1.151.1 – 2026-11-03
+### Opgelost
+- **Compressie en cache van de webserver**: het grootste bestand van de interface, `app.js` (bijna 1 MB), werd niet verkleind verstuurd. Rocky Linux 10 noemt JavaScript `text/javascript`, en de Apache-instellingen van RzMon noemden alleen `application/javascript`. Nu gaat het met gzip: van 943 kB naar 280 kB, zo'n 70% minder.
+  - `install-rocky.sh` zet dit voortaan in `/etc/httpd/conf.d/rzmon.conf`; dat gebeurt vanzelf bij de update. Ook de wereldkaart (`.json`) wordt verkleind, en alle bestanden van de interface krijgen `Cache-Control: immutable` (de browser vraagt ze pas na een update van RzMon opnieuw op).
+  - De kant-en-klare stukjes voor Apache en nginx op *Systeem → Prestaties en fouten* zijn bijgewerkt.
+  - De controle op die pagina kijkt nu eerst naar wat de browser echt binnenkreeg. Achter een proxy (bv. SWAG) gaf de oude controle soms ten onrechte "geen compressie".
+
 ## 1.151.0 – 2026-11-03
 ### Nieuw
 - **Gezondheid opgedeeld over Systeem**: alles wat op *Overzicht → Gezondheid* stond, staat nu waar het hoort.

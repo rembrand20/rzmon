@@ -408,7 +408,7 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
   - PHP-fouten van de afgelopen 24 uur.
   - Vanaf 1.119.0 **🚀 Snelheid** (laatste 24 uur):
     - of **OPcache** aan staat. Zonder OPcache leest PHP bij elk verzoek alle code opnieuw in; het commando om het aan te zetten staat erbij;
-    - of de webserver **comprimeert en de bestanden laat bewaren** in de browser. Zo niet, dan staat er een kant-en-klaar stukje voor Apache (`/etc/httpd/conf.d/rzmon-snelheid.conf`) en nginx. Nieuwe installaties met `install-rocky.sh` hebben het al;
+    - of de webserver **comprimeert en de bestanden laat bewaren** in de browser. Zo niet, dan staat er een kant-en-klaar stukje voor Apache (`/etc/httpd/conf.d/rzmon-snelheid.conf`) en nginx. Installaties met `install-rocky.sh` hebben het al, en krijgen het bij elke update opnieuw (vanaf 1.152.0 ook voor `app.js`: Rocky 10 noemt dat `text/javascript`, en dat ontbrak). De controle kijkt naar wat de browser echt binnenkreeg, dus ook achter een reverse proxy zoals SWAG;
     - de **verzoeken van de interface** (aantal, gemiddeld, langste, grootte) en de **rapporten van agents**;
     - de **onderdelen van een cron-ronde** (checks, back-up, dreigingsinformatie, DNS, kwetsbaarheden …): hoe lang elk per ronde duurt;
     - de **onderdelen van een agentrapport** (vanaf 1.129.0: ontvangen, meetwaarden, logins, IDS, weblogs, EDR, ketens, checks, software): waar RzMon de tijd aan besteedt als een agent *geen antwoord binnen 50 seconden* meldt;

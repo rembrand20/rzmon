@@ -10012,18 +10012,23 @@ async function loadSyscheck() {
 
 const GZIP_APACHE = `# /etc/httpd/conf.d/rzmon-snelheid.conf  (daarna: systemctl reload httpd)
 <IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json image/svg+xml
 </IfModule>
 <IfModule mod_expires.c>
-  <LocationMatch "/assets/.*\\.(js|css|svg|png|woff2)$">
+  <LocationMatch "/assets/.*\\.(js|css|svg|png|woff2|json)$">
     ExpiresActive On
     ExpiresDefault "access plus 30 days"
+  </LocationMatch>
+</IfModule>
+<IfModule mod_headers.c>
+  <LocationMatch "/assets/.*\\.(js|css|svg|png|woff2|json)$">
+    Header set Cache-Control "public, max-age=2592000, immutable"
   </LocationMatch>
 </IfModule>`;
 const GZIP_NGINX = `# in het server-blok van RzMon  (daarna: nginx -t && systemctl reload nginx)
 gzip on;
-gzip_types text/css application/javascript application/json image/svg+xml;
-location ~* /assets/.*\\.(js|css|svg|png|woff2)$ { expires 30d; }`;
+gzip_types text/plain text/css text/javascript application/javascript application/json image/svg+xml;
+location ~* /assets/.*\\.(js|css|svg|png|woff2|json)$ { expires 30d; add_header Cache-Control "public, immutable"; }`;
 
 /** Snelheid (1.119.0): OPcache, compressie, de traagste verzoeken en cron-onderdelen, de grootste tabellen */
 function perfReport(p) {
@@ -10085,10 +10090,13 @@ function perfWire(box) {
   const li = $('#perf-gzip', box);
   const src = ($('script[src*="assets/app.js"]') || {}).src;
   if (!li || !src) return;
+  // 1.152.0: wat de browser bij het laden echt binnenkreeg (verkleind of niet); een HEAD-verzoek laat dat niet altijd zien
+  const pe = (performance.getEntriesByName ? performance.getEntriesByName(src) : [])[0];
+  const shrunk = pe && pe.decodedBodySize > 0 && pe.encodedBodySize > 0 && pe.encodedBodySize < pe.decodedBodySize * 0.9;
   fetch(src, { method: 'HEAD', cache: 'no-store' }).then((res) => {
-    const enc = res.headers.get('content-encoding') || '';
+    const enc = res.headers.get('content-encoding') || (shrunk ? 'gzip' : '');
     const cache = res.headers.get('cache-control') || res.headers.get('expires') || '';
-    const ok = /gzip|br|deflate|zstd/.test(enc), cached = /max-age=[1-9]|expires|immutable/i.test(cache) || !!res.headers.get('expires');
+    const ok = shrunk || /gzip|br|deflate|zstd/.test(enc), cached = /max-age=[1-9]|expires|immutable/i.test(cache) || !!res.headers.get('expires');
     li.className = ok && cached ? 'ok' : 'warn';
     li.innerHTML = `<span class="ic">${ok && cached ? '✓' : '!'}</span><span><strong>${L('Compressie en cache van de webserver')}</strong><br><span class="muted small">`
       + (ok ? L('compressie: {e}', { e: esc(enc) }) : L('geen compressie: de interface (800 KB) en de antwoorden gaan onverkleind over het netwerk'))
