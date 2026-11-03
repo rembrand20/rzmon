@@ -809,5 +809,40 @@ ok(!$nBad['ok'] && str_contains((string) $nBad['error'], 'unauthorized') && !$nT
 ok($push['ok'] && Push::enabled() === false && ($req2['auth'] ?? '') === 'Basic ' . base64_encode('gebruiker:wachtwoord')
     && (json_decode((string) ($req2['body'] ?? ''), true)['priority'] ?? 0) === 5, 'Push: alleen ntfy aan werkt (emergency = 5, gebruiker:wachtwoord als Basic)');
 
+// 1.141.0: risicoscore, accepteren tot een datum, controle na bijwerken, SBOM
+ok(Vulns::risk(4, 10.0, true, 1.0, true) === 100 && Vulns::risk(2, 5.3, false, null, false) === 27 && Vulns::risk(3, null, false, 0.01, false) > Vulns::risk(3, null, false, null, false)
+    && Vulns::risk(3, 7.5, false, null, true) - Vulns::risk(3, 7.5, false, null, false) === 10, 'risicoscore: ernst, KEV, EPSS en bereikbaar tellen mee (0–100)');
+q("INSERT INTO vuln_inventory (host_id, mgr, os_id, os_version, os_name, ecosystem, hash, packages, exposed, updated_at) VALUES (?, 'dpkg', 'debian', '12', 'Debian 12', 'Debian:12', 'abc', ?, ?, ?)",
+    [$ha, json_encode([['libssl3', '3.0.11-1', 'amd64', 'openssl', '3.0.11-1'], ['openssh-server', '1:9.2p1-2', 'amd64', 'openssh', '1:9.2p1-2']]), json_encode([['openssh', 22, 'tcp']]), now()]);
+q("INSERT INTO vuln_cve (cve, severity, cvss, kev, epss) VALUES ('CVE-2099-0001', 4, 9.8, 1, 0.5), ('CVE-2099-0002', 2, 5.0, 0, NULL), ('CVE-2099-0003', 3, 7.5, 0, 0.02)");
+q("INSERT INTO vuln_findings (host_id, package, version, source, vuln_id, cve, fixed_version, first_seen) VALUES
+   (?, 'openssl', '3.0.11-1', 'libssl3', 'DSA-1', 'CVE-2099-0001', '3.0.13-1', NOW()), (?, 'openssh', '1:9.2p1-2', 'openssh-server', 'DSA-2', 'CVE-2099-0002', NULL, NOW()),
+   (?, 'openssh', '1:9.2p1-2', 'openssh-server', 'DSA-3', 'CVE-2099-0003', NULL, NOW())", [$ha, $ha, $ha]);
+q("INSERT INTO vuln_ignore (cve, host_id, reason, until, created_by, created_at) VALUES ('CVE-2099-0002', ?, 'test', CURDATE() - INTERVAL 1 DAY, 'ci', NOW()),
+   ('CVE-2099-0003', ?, 'test', CURDATE() + INTERVAL 30 DAY, 'ci', NOW())", [$ha, $ha]);
+$vo = Vulns::overview();
+$byCve = array_column(array_filter($vo['findings'], fn($f) => $f['host_id'] === $ha), null, 'cve');
+ok(!$byCve['CVE-2099-0002']['ignored'] && $byCve['CVE-2099-0003']['ignored'] && $byCve['CVE-2099-0001']['risk'] === 85 && $byCve['CVE-2099-0003']['risk'] > Vulns::risk(3, 7.5, false, 0.02, false),
+    'verlopen acceptatie telt weer mee, een lopende niet; openssh luistert op het netwerk (hoger risico)');
+$sb = Vulns::sbom($ha);
+$purls = array_column($sb['components'] ?? [], 'purl');
+$v1 = array_values(array_filter($sb['vulnerabilities'] ?? [], fn($v) => $v['id'] === 'CVE-2099-0001'))[0] ?? [];
+ok(($sb['bomFormat'] ?? '') === 'CycloneDX' && in_array('pkg:deb/debian/libssl3@3.0.11-1?arch=amd64&distro=debian-12&upstream=openssl', $purls, true)
+    && ($v1['affects'][0]['ref'] ?? '') === 'pkg:deb/debian/libssl3@3.0.11-1?arch=amd64&distro=debian-12&upstream=openssl' && ($v1['ratings'][0]['severity'] ?? '') === 'critical'
+    && in_array(['name' => 'cisa:kev', 'value' => 'true'], $v1['properties'] ?? [], true), 'SBOM: CycloneDX met purl per pakket en de kwetsbaarheden eraan gekoppeld');
+// Bijwerken via de agent gelukt; daarna een nieuwe softwarelijst en een scan zonder de openssl-CVE
+$upAt = date('Y-m-d H:i:s', time() - 120);
+q('UPDATE hosts SET vuln_upgrade_status = ? WHERE id = ?', [json_encode(['state' => 'ok', 'at' => $upAt, 'pkgs' => ['libssl3', 'openssh-server']]), $ha]);
+q("INSERT INTO vuln_resolved (host_id, package, version, cve, severity, first_seen, resolved_at) VALUES (?, 'openssl', '3.0.11-1', 'CVE-2099-0001', 4, NOW(), NOW())", [$ha]);
+q("DELETE FROM vuln_findings WHERE host_id = ? AND cve = 'CVE-2099-0001'", [$ha]);
+q("UPDATE vuln_findings SET fixed_version = '1:9.2p1-3' WHERE host_id = ? AND cve = 'CVE-2099-0003'", [$ha]);
+$ver = Vulns::verifyUpgrade($ha);
+ok(($ver['fixed'] ?? null) === 1 && ($ver['still'] ?? []) === ['openssh' => 1] && Vulns::verifyUpgrade($ha) === null
+    && (Vulns::overview()['resolved'] ?? 0) >= 1, 'na bijwerken gecontroleerd: 1 opgelost, openssh nog open (met oplossing); maar één keer');
+q('DELETE FROM vuln_findings WHERE host_id = ?', [$ha]);
+q('DELETE FROM vuln_inventory WHERE host_id = ?', [$ha]);
+q("DELETE FROM vuln_ignore WHERE cve LIKE 'CVE-2099-%'");
+q('UPDATE hosts SET vuln_upgrade_status = NULL WHERE id = ?', [$ha]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

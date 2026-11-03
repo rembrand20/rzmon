@@ -1169,7 +1169,7 @@ $need = match ($action) {
     'home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status' => 'user',
+    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -4461,10 +4461,32 @@ switch ($action) {
         }
         $pkg = trim((string) ($in['package'] ?? '')) ?: null;
         $hid = (int) ($in['host_id'] ?? 0) ?: null;
-        q('INSERT INTO vuln_ignore (cve, package, host_id, reason, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-            [$cve, $pkg !== null ? mb_substr($pkg, 0, 150) : null, $hid, mb_substr(trim((string) ($in['reason'] ?? '')), 0, 300), $user['username'], now()]);
-        AgentCommands::audit($user['username'], 'Kwetsbaarheid: risico geaccepteerd', $cve . ($pkg ? " · $pkg" : '') . ($hid ? " · server $hid" : ' · alle servers'));
+        $reason = mb_substr(trim((string) ($in['reason'] ?? '')), 0, 300);
+        if ($reason === '') {
+            out(['error' => t('Vul een reden in: waarom is dit risico acceptabel?')], 422);
+        }
+        // 1.141.0: tot een datum (daarna telt hij weer mee), of voor altijd
+        $until = trim((string) ($in['until'] ?? ''));
+        if ($until !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $until) || !strtotime($until) || $until < date('Y-m-d'))) {
+            out(['error' => t('Kies een datum vanaf vandaag, of laat hem leeg (voor altijd)')], 422);
+        }
+        q('INSERT INTO vuln_ignore (cve, package, host_id, reason, until, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$cve, $pkg !== null ? mb_substr($pkg, 0, 150) : null, $hid, $reason, $until ?: null, $user['username'], now()]);
+        AgentCommands::audit($user['username'], 'Kwetsbaarheid: risico geaccepteerd', $cve . ($pkg ? " · $pkg" : '') . ($hid ? " · server $hid" : ' · alle servers')
+            . ($until ? " · tot $until" : ''));
         out(['ok' => true]);
+
+    case 'vuln_sbom':
+        // 1.141.0: softwarelijst + kwetsbaarheden van één server als CycloneDX (JSON-bestand)
+        $sb = Vulns::sbom((int) ($_GET['host_id'] ?? 0));
+        if (!$sb) {
+            out(['error' => t('Geen softwarelijst voor deze server')], 404);
+        }
+        $fn = preg_replace('/[^A-Za-z0-9._-]+/', '-', (string) $sb['metadata']['component']['name']) ?: 'server';
+        header('Content-Type: application/vnd.cyclonedx+json');
+        header('Content-Disposition: attachment; filename="sbom-' . $fn . '-' . date('Y-m-d') . '.cdx.json"');
+        echo json_encode($sb, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        exit;
 
     case 'vuln_unignore':
         $in = input();

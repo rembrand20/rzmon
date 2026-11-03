@@ -700,7 +700,7 @@ final class Ids
             return;
         }
         $rows = q("SELECT f.package, f.cve, f.fixed_version FROM vuln_findings f JOIN vuln_cve c ON c.cve = f.cve WHERE f.host_id = ? AND c.kev = 1
-                   AND NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.package IS NULL OR i.package = f.package) AND (i.host_id IS NULL OR i.host_id = f.host_id))",
+                   AND NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.package IS NULL OR i.package = f.package) AND (i.host_id IS NULL OR i.host_id = f.host_id) AND (i.until IS NULL OR i.until >= CURDATE()))",
             [$hid])->fetchAll();
         $per = [];
         foreach ($rows as $r) {

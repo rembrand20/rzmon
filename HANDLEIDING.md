@@ -2394,7 +2394,22 @@ Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) h
 - Dat kan alleen als **commando's als root** aan staan voor die server (*Instellingen → 🖥️ Commando-checks*, of per server in de Agent Manager) en de agent als root draait. Op de server zelf blokkeer je het altijd met `COMMANDS=0` of `COMMANDS=nobody` in `/etc/default/rzmon-agent`. Kan het niet, dan krijg je het commando om zelf uit te voeren.
 - Er wordt nooit iets herstart. De pakketnamen worden aan beide kanten gecontroleerd; vrije commando's zijn niet mogelijk.
 
-**Risico accepteren**: in het venster van een CVE, voor alle servers of voor één pakket op één server, met een reden. Een geaccepteerde kwetsbaarheid telt niet meer mee en geeft geen melding; je ziet hem terug onder *Geaccepteerd*.
+**Risico accepteren**: in het venster van een CVE, voor alle servers of voor één pakket op één server. Een **reden is verplicht**, en je kiest **hoe lang**: 30, 90 (standaard), 180 dagen, 1 jaar of voor altijd (vanaf 1.141.0). Een geaccepteerde kwetsbaarheid telt niet meer mee en geeft geen melding; je ziet hem terug onder *Geaccepteerd*. Is de tijd om, dan telt hij **vanzelf weer mee**, zodat je er opnieuw naar kijkt. In het venster van de CVE staat wie hem accepteerde, waarom en tot wanneer, met een knop **Opheffen**.
+
+**Risicoscore** (vanaf 1.141.0): elk pakket heeft een score van 0 tot 100, en de lijst staat op risico (hoogste bovenaan). De ernst alleen zegt weinig; de score telt ook mee of hij misbruikt wordt en of hij bereikbaar is:
+
+| Onderdeel | Punten |
+|---|---|
+| CVSS-score (of de ernst als die ontbreekt) | tot 50 (CVSS × 5) |
+| Actief misbruikt (CISA KEV) | +25 |
+| Kans op misbruik (EPSS) | tot 15 |
+| Het pakket luistert op het netwerk (🌐) | +10 |
+
+Vanaf **70** is het rood: **🔥 Hoog risico** (ook als filter), vanaf 40 oranje. Een critical CVE in een pakket dat niet op het netwerk luistert en niet misbruikt wordt, kan dus lager staan dan een high die bereikbaar is en actief misbruikt wordt.
+
+**Gecontroleerd na bijwerken** (vanaf 1.141.0): na *⬆ Bijwerken via de agent* kijkt de eerste scan met de nieuwe softwarelijst wat er **echt** opgelost is. Bij de server staat dan bijvoorbeeld *🔎 gecontroleerd: 4 kwetsbaarheden opgelost*, of *nog open in openssh* als een bijgewerkt pakket nog een CVE heeft die een nieuwere versie oplost. Wat bij een scan verdwijnt (ook als je zelf bijwerkt) telt mee in **Opgelost (30 dagen)** bovenaan en *✔ 3 opgelost in 30 dagen* bij de server; RzMon bewaart dat een half jaar.
+
+**SBOM** (vanaf 1.141.0): met **⤓ SBOM** bij een server download je de softwarelijst met de bekende kwetsbaarheden als **CycloneDX 1.5** (JSON). Elk pakket staat erin als *purl* (bv. `pkg:deb/debian/libssl3@3.0.11-1?arch=amd64&distro=debian-12&upstream=openssl`), met per kwetsbaarheid de ernst, CVSS, KEV, EPSS en de versie die het oplost. Dat bestand lezen andere scanners en **Dependency-Track**.
 
 **Meldingen**: bij een **nieuwe critical of actief misbruikte** kwetsbaarheid komt er één ℹ️ info-melding per server (*"ℹ️ INFO: WebServer01 – 2 nieuwe kwetsbaarheden: CVE-… (openssh, critical, actief misbruikt) · …"*). Die volgt de rij **Info** bij *🔔 Meldingen* (standaard uit).
 

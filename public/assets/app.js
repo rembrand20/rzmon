@@ -10960,6 +10960,7 @@ function vulnVisible() {
     if (vulnFilter === 'exposed' && !exposed[f.host_id][f.package]) return false;
     if (vulnFilter === 'fix' && !f.fixed) return false;
     if (vulnFilter === 'kev' && !f.kev) return false;
+    if (vulnFilter === 'risk' && f.risk < 70) return false;
     return !q || f.package.toLowerCase().includes(q) || f.cve.toLowerCase().includes(q) || f.vuln_id.toLowerCase().includes(q)
       || (f.binaries || '').toLowerCase().includes(q) || hostName[f.host_id].includes(q) || (f.summary || '').toLowerCase().includes(q);
   });
@@ -10968,7 +10969,13 @@ function vulnVisible() {
 function vulnChip(f) {
   const [icon] = VULN_SEV[f.severity] || VULN_SEV[0];
   return `<button type="button" class="cve-chip sev${f.severity}${f.kev ? ' kev' : ''}" data-cve="${esc(f.cve)}"
-    title="${esc((f.summary || f.vuln_id) + (f.cvss ? ` · CVSS ${f.cvss}` : '') + (f.kev ? ' · ' + L('actief misbruikt') : ''))}">${icon} ${esc(f.cve)}${f.kev ? ' ⚠️' : ''}</button>`;
+    title="${esc((f.summary || f.vuln_id) + ` · ${L('risico')} ${f.risk}` + (f.cvss ? ` · CVSS ${f.cvss}` : '') + (f.kev ? ' · ' + L('actief misbruikt') : ''))}">${icon} ${esc(f.cve)}${f.kev ? ' ⚠️' : ''}</button>`;
+}
+
+/** 1.141.0: risicoscore 0–100 als pil (hoog ≥ 70, midden ≥ 40) */
+function riskPill(r) {
+  const lvl = r >= 70 ? 'high' : r >= 40 ? 'mid' : 'low';
+  return `<span class="risk-pill risk-${lvl}" title="${esc(L('Risico {r} van 100: ernst (CVSS), actief misbruikt, kans op misbruik (EPSS) en of het pakket op het netwerk luistert', { r }))}">${r}</span>`;
 }
 
 function renderVulns() {
@@ -11013,12 +11020,12 @@ function renderVulns() {
       <div class="kpi-sub">${fixPk.size ? L('bij te werken met ⬆') : L('niets bij te werken')}</div></div>
     <div class="kpi ${kev ? 'bad' : ''}"><div class="kpi-lbl">${L('Actief misbruikt')}</div><div class="kpi-val">${kev}</div>
       <div class="kpi-sub">${kevF ? esc(kevF.cve + ' · ' + kevF.package) : L('geen (CISA KEV)')}</div></div>
-    <div class="kpi"><div class="kpi-lbl">${L('Volgende scan')}</div><div class="kpi-val kpi-val-txt">${esc(d.scan_time)}</div>
-      <div class="kpi-sub">${L('over {t}', { t: left >= 60 ? `${Math.floor(left / 60)} ${L('u')} ${left % 60} min` : `${left} min` })}</div></div>`;
+    <div class="kpi"><div class="kpi-lbl">${L('Opgelost (30 dagen)')}</div><div class="kpi-val ${d.resolved ? 'good-txt' : ''}">${d.resolved || 0}</div>
+      <div class="kpi-sub">${L('volgende scan om {t} (over {l})', { t: esc(d.scan_time), l: left >= 60 ? `${Math.floor(left / 60)} ${L('u')} ${left % 60} min` : `${left} min` })}</div></div>`;
   // Chips met aantallen
   const cntF = (k) => new Set(d.findings.filter((f) => (k === 'ignored' ? f.ignored : !f.ignored)
-    && (k !== 'exposed' || (d.hosts.find((h) => +h.id === +f.host_id)?.exposed || {})[f.package]) && (k !== 'fix' || f.fixed) && (k !== 'kev' || f.kev)).map((f) => f.host_id + '|' + f.cve)).size;
-  $('#vuln-filter').innerHTML = [['all', L('Alles')], ['exposed', '🌐 ' + L('Bereikbaar')], ['fix', L('Met oplossing')], ['kev', '⚠️ ' + L('Actief misbruikt')], ['ignored', L('Geaccepteerd')]]
+    && (k !== 'exposed' || (d.hosts.find((h) => +h.id === +f.host_id)?.exposed || {})[f.package]) && (k !== 'fix' || f.fixed) && (k !== 'kev' || f.kev) && (k !== 'risk' || f.risk >= 70)).map((f) => f.host_id + '|' + f.cve)).size;
+  $('#vuln-filter').innerHTML = [['all', L('Alles')], ['risk', '🔥 ' + L('Hoog risico')], ['exposed', '🌐 ' + L('Bereikbaar')], ['fix', L('Met oplossing')], ['kev', '⚠️ ' + L('Actief misbruikt')], ['ignored', L('Geaccepteerd')]]
     .map(([k, l]) => `<button type="button" class="dchip ${vulnFilter === k ? 'on' : ''}" data-vf="${k}">${l} <b>${cntF(k)}</b></button>`).join('');
   $('#vuln-badge').hidden = !(n[4] + kev);
   $('#vuln-badge').textContent = n[4] + kev || '';
@@ -11040,10 +11047,11 @@ function vulnHostCard(h, fs) {
   // Per pakket: alle CVE's, ernstigste eerst; pakketten met de ergste en bereikbare bovenaan
   const pk = {};
   fs.forEach((f) => (pk[f.package] ||= { name: f.package, version: f.version, fixed: f.fixed, binaries: f.binaries, list: [] }).list.push(f));
-  const rank = (p) => Math.max(...p.list.map((f) => f.severity * 2 + (f.kev ? 10 : 0))) + (h.exposed[p.name] ? 1 : 0);
+  const rank = (p) => Math.max(...p.list.map((f) => f.risk || 0));   // 1.141.0: hoogste risicoscore bovenaan
   const pkgs = Object.values(pk).sort((a, b) => rank(b) - rank(a) || a.name.localeCompare(b.name));
   pkgs.forEach((p) => {
-    p.list.sort((a, b) => (b.kev - a.kev) || (b.severity - a.severity) || (b.cvss || 0) - (a.cvss || 0));
+    p.risk = rank(p);
+    p.list.sort((a, b) => (b.risk - a.risk) || (b.kev - a.kev) || (b.severity - a.severity));
     p.fixed = p.list.map((f) => f.fixed).filter(Boolean).sort().pop() || null;
   });
   const cnt = [4, 3, 2, 1, 0].map((s) => [s, new Set(fs.filter((f) => f.severity === s).map((f) => f.cve)).size]).filter(([, c]) => c);
@@ -11056,6 +11064,9 @@ function vulnHostCard(h, fs) {
     ? `<a href="#" data-vact="progress" data-host="${h.id}" title="${L('Voortgang tonen')}">⏳ ${up.state === 'queued' ? L('Bijwerken gevraagd; de agent pakt het op bij zijn volgende rapport')
       : L('Bezig met bijwerken') + (up.pct ? ` ${up.pct}%` : '')}</a>`
     : up.state === 'ok' ? `<span class="good-txt">✔ ${L('Bijgewerkt {t}', { t: ago(up.at) })}: ${esc((up.pkgs || []).join(' '))}</span>`
+      + (!up.verified ? ` · <span class="muted">${L('controle volgt na de volgende scan')}</span>`
+        : ` · <span class="${Object.keys(up.verified.still || {}).length ? 'warn-txt' : 'good-txt'}">🔎 ${L('gecontroleerd: {n} kwetsbaarheden opgelost', { n: up.verified.fixed })}${Object.keys(up.verified.still || {}).length
+          ? ', ' + L('nog open in {p}', { p: esc(Object.keys(up.verified.still).join(', ')) }) : ''}</span>`)
     : `<span class="bad">✘ ${L('Bijwerken mislukt {t}', { t: ago(up.at) })}</span>`;
   const notes = [
     h.error && !sharedErr ? `<span class="warn-txt">⚠️ ${esc(h.error)}</span>` : '',   // ook in de kop; hier volledig
@@ -11063,6 +11074,7 @@ function vulnHostCard(h, fs) {
     h.reboot ? `<span class="warn-txt" title="${esc(L('Draait: {a} · geïnstalleerd: {b}', { a: h.kernel, b: h.reboot }))}">↻ ${L('Herstart nodig voor de nieuwe kernel')}</span>` : '',
     h.restart && h.restart.length ? `<span class="warn-txt" title="${esc(h.restart.join(', '))}">↻ ${L('{n} service(s) draaien nog met oude bestanden', { n: h.restart.length })}</span>` : '',
     upTxt,
+    h.resolved ? `<span class="good-txt" title="${esc(L('Verdwenen bij een nieuwe scan (bijgewerkt of het advies is aangepast); laatste {t}', { t: fmtDateTime(h.resolved.last) }))}">✔ ${L('{n} opgelost in 30 dagen', { n: h.resolved.n })}</span>` : '',
   ].filter(Boolean).join(' · ');
   const fixable = pkgs.filter((p) => p.fixed).map((p) => p.name);
   const total = cnt.reduce((a, [, c]) => a + c, 0);
@@ -11076,11 +11088,13 @@ function vulnHostCard(h, fs) {
     ${notes ? `<p class="small vh-notes">${notes}${up && up.log ? ` <details class="small"><summary>${L('Uitvoer')}</summary><pre class="code">${esc(up.log)}</pre></details>` : ''}</p>` : ''}
     <div class="vh-actions">
       ${fixable.length ? `<button type="button" class="btn need-admin" data-vact="upgrade-all" data-host="${h.id}">⬆ ${L('Alle beveiligingsupdates installeren ({n})', { n: fixable.length })}</button>` : ''}
-      ${h.packages ? `<button type="button" class="btn" data-vact="software" data-host="${h.id}">📦 ${L('Alle software')}</button>` : ''}
+      ${h.packages ? `<button type="button" class="btn" data-vact="software" data-host="${h.id}">📦 ${L('Alle software')}</button>
+        <a class="btn" href="api.php?${new URLSearchParams({ action: 'vuln_sbom', host_id: h.id })}" title="${esc(L('Softwarelijst met kwetsbaarheden als CycloneDX-bestand (SBOM), voor andere scanners of Dependency-Track'))}">⤓ SBOM</a>` : ''}
     </div>
     ${pkgs.length ? `<div class="table-scroll"><table class="vuln-table">
-      <thead><tr><th>${L('Pakket')}</th><th>${L('Geïnstalleerd')}</th><th>${L('Opgelost in')}</th><th>CVE's</th><th></th></tr></thead>
+      <thead><tr><th>${L('Risico')}</th><th>${L('Pakket')}</th><th>${L('Geïnstalleerd')}</th><th>${L('Opgelost in')}</th><th>CVE's</th><th></th></tr></thead>
       <tbody>${pkgs.map((p) => `<tr>
+        <td>${riskPill(p.risk)}</td>
         <td><b>${esc(p.name)}</b>${h.exposed[p.name] ? ` <span class="exp-tag" title="${esc(L('Luistert op het netwerk: {p}', { p: h.exposed[p.name].join(', ') }))}">🌐 ${esc(h.exposed[p.name].join(', '))}</span>` : ''}
           ${p.binaries && p.binaries !== p.name ? `<div class="muted small" title="${esc(p.binaries)}">${esc(p.binaries.length > 60 ? p.binaries.slice(0, 60) + '…' : p.binaries)}</div>` : ''}</td>
         <td class="mono small">${esc(p.version)}</td>
@@ -11132,6 +11146,10 @@ async function vulnDetail(cve) {
     [L('Ernst'), `${icon} <b>${esc(word)}</b>${d.cvss !== null ? ` · CVSS <b>${dec(d.cvss)}</b>` : ''}${d.vector ? `<div class="muted small">${esc(cvssWords(d.vector))}</div><div class="mono small muted">${esc(d.vector)}</div>` : ''}`],
     [L('Actief misbruikt'), d.kev ? `<b class="bad">⚠️ ${L('ja')}</b>${d.kev_added ? ' · ' + L('op de lijst van CISA sinds {t}', { t: esc(d.kev_added) }) : ''}` : L('niet bekend')],
     [L('Kans op misbruik'), d.epss !== null ? L('{p} in de komende 30 dagen (EPSS)', { p: dec((d.epss * 100).toFixed(d.epss < 0.01 ? 2 : 1)) + '%' }) : '–'],
+    ...(d.accepted.length ? [[L('Geaccepteerd'), d.accepted.map((a) => `<div class="vd-acc">${a.expired ? `<span class="warn-txt">${L('verlopen')}</span>` : '✔'}
+      ${esc(a.host ? `${a.host}${a.package ? ' · ' + a.package : ''}` : L('alle servers'))} · ${a.until ? (a.expired ? L('was tot {d}', { d: esc(a.until) }) : L('tot {d}', { d: esc(a.until) })) : L('voor altijd')}
+      <div class="muted small">${esc(a.reason || '–')} · ${esc(a.by)}, ${esc(fmtDateTime(a.at))}</div>
+      <button type="button" class="btn small-btn need-user" data-vd-unign="${a.id}">${L('Opheffen')}</button></div>`).join('')]] : []),
     [L('Gepubliceerd'), d.published ? esc(fmtDateTime(d.published.slice(0, 19).replace('T', ' '))) : '–'],
     ...(d.aliases.length ? [[L('Ook bekend als'), d.aliases.map(esc).join(', ')]] : []),
   ];
@@ -11160,6 +11178,10 @@ async function vulnDetail(cve) {
     ],
   });
   wireCopy(form);
+  $$('[data-vd-unign]', form).forEach((b) => (b.onclick = async () => {
+    try { await api('vuln_unignore', { id: +b.dataset.vdUnign }); toast(L('Telt weer mee')); $('#modal').close(); loadVulns(); vulnDetail(cve); }
+    catch (ex) { toast(ex.message, 'err'); }
+  }));
   $$('[data-vd-up]', form).forEach((b) => (b.onclick = () => {
     const x = d.hosts[+b.dataset.vdUp];
     vulnUpgrade(vulnData.hosts.find((h) => h.id === x.host_id) || { id: x.host_id, name: x.host }, [x.package]);
@@ -11175,12 +11197,18 @@ function vulnIgnore(d) {
         <option value="all">${L('Alle servers')}</option>
         ${d.hosts.map((x, i) => `<option value="${i}">${esc(x.host)} · ${esc(x.package)}</option>`).join('')}
       </select></label>
-      <label>${L('Reden')} <span class="hint">${L('(bv. niet bereikbaar van buitenaf)')}</span><input name="reason" maxlength="300"></label>
+      <label>${L('Reden')} <span class="hint">${L('(bv. niet bereikbaar van buitenaf)')}</span><input name="reason" maxlength="300" required></label>
+      <label>${L('Hoe lang')}<select name="until">
+        <option value="30">${L('30 dagen')}</option><option value="90" selected>${L('90 dagen')}</option><option value="180">${L('180 dagen')}</option>
+        <option value="365">${L('1 jaar')}</option><option value="">${L('voor altijd')}</option>
+      </select></label>
+      <p class="hint">${L('Daarna telt hij weer mee, zodat je er opnieuw naar kijkt. Is er dan nog niets veranderd, accepteer hem dan opnieuw.')}</p>
     </div>`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '✔ ' + L('Accepteren'), cls: 'primary', submit: true }],
     onSubmit: async (v) => {
       const x = v.scope === 'all' ? null : d.hosts[+v.scope];
-      await api('vuln_ignore', { cve: d.cve, reason: v.reason, host_id: x ? x.host_id : null, package: x ? x.package : null });
+      const until = v.until ? new Date(Date.now() + +v.until * 86400000).toISOString().slice(0, 10) : '';
+      await api('vuln_ignore', { cve: d.cve, reason: v.reason, until, host_id: x ? x.host_id : null, package: x ? x.package : null });
       toast(L('Geaccepteerd'));
       loadVulns();
     },

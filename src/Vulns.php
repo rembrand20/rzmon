@@ -269,8 +269,11 @@ final class Vulns
             }
         }
         $old = [];
-        foreach (q('SELECT id, package, vuln_id FROM vuln_findings WHERE host_id = ?', [$hostId]) as $f) {
+        $oldRow = [];
+        foreach (q('SELECT f.id, f.package, f.version, f.vuln_id, f.cve, f.first_seen, COALESCE(c.severity, 0) AS severity
+                    FROM vuln_findings f LEFT JOIN vuln_cve c ON c.cve = f.cve WHERE f.host_id = ?', [$hostId]) as $f) {
             $old[$f['package'] . "\t" . $f['vuln_id']] = (int) $f['id'];
+            $oldRow[(int) $f['id']] = $f;
         }
         $keep = [];
         $ins = db()->prepare('INSERT INTO vuln_findings (host_id, package, version, source, vuln_id, cve, fixed_version, first_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -287,11 +290,130 @@ final class Vulns
             }
         }
         $gone = array_diff_key($old, $keep);
+        // 1.141.0: wat verdwenen is, is opgelost (nieuwe versie geïnstalleerd, of het advies is aangepast): bewaren voor "opgelost"
+        $res = db()->prepare('INSERT INTO vuln_resolved (host_id, package, version, cve, severity, first_seen, resolved_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $goneCve = [];
+        foreach ($gone as $id) {
+            $f = $oldRow[$id];
+            if (!isset($goneCve[$f['package'] . "\t" . $f['cve']])) {
+                $res->execute([$hostId, $f['package'], $f['version'], $f['cve'], (int) $f['severity'], $f['first_seen'], now()]);
+                $goneCve[$f['package'] . "\t" . $f['cve']] = true;
+            }
+        }
         foreach (array_chunk(array_values($gone), 500) as $chunk) {
             q('DELETE FROM vuln_findings WHERE id IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')', $chunk);
         }
+        q('DELETE FROM vuln_resolved WHERE resolved_at < NOW() - INTERVAL 180 DAY');
+        self::verifyUpgrade($hostId);
         $done(null);
         return null;
+    }
+
+    /**
+     * Na bijwerken via de agent (1.141.0): de eerste scan met de nieuwe softwarelijst controleert wat er echt opgelost is.
+     * In de status van het bijwerken komt: zoveel opgelost, en welke van de bijgewerkte pakketten nog kwetsbaar zijn.
+     */
+    public static function verifyUpgrade(int $hostId): ?array
+    {
+        $st = json_decode((string) q('SELECT vuln_upgrade_status FROM hosts WHERE id = ?', [$hostId])->fetchColumn(), true);
+        if (!is_array($st) || ($st['state'] ?? '') !== 'ok' || isset($st['verified']) || strtotime((string) ($st['at'] ?? '')) < time() - 7 * 86400) {
+            return null;
+        }
+        // De softwarelijst moet van na het bijwerken zijn, anders is dit nog de oude
+        $inv = (string) q('SELECT updated_at FROM vuln_inventory WHERE host_id = ?', [$hostId])->fetchColumn();
+        if ($inv === '' || $inv < (string) $st['at']) {
+            return null;
+        }
+        $fixed = (int) q('SELECT COUNT(DISTINCT cve) FROM vuln_resolved WHERE host_id = ? AND resolved_at >= ?', [$hostId, $st['at']])->fetchColumn();
+        $pkgs = array_values(array_filter((array) ($st['pkgs'] ?? []), 'is_string'));
+        $still = [];
+        if ($pkgs) {
+            $mgr = (string) q('SELECT mgr FROM vuln_inventory WHERE host_id = ?', [$hostId])->fetchColumn();
+            foreach (q('SELECT package, source, cve, fixed_version FROM vuln_findings WHERE host_id = ?', [$hostId]) as $f) {
+                $bins = array_map('trim', explode(',', (string) $f['source']));
+                if ((in_array($f['package'], $pkgs, true) || array_intersect($bins, $pkgs)) && $f['fixed_version'] !== null) {
+                    $still[$f['package']][$f['cve']] = true;
+                }
+            }
+        }
+        $st['verified'] = ['at' => now(), 'fixed' => $fixed, 'still' => array_map(fn($c) => count($c), $still)];
+        q('UPDATE hosts SET vuln_upgrade_status = ? WHERE id = ?', [json_encode($st, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), $hostId]);
+        return $st['verified'];
+    }
+
+    /**
+     * SBOM (1.141.0): de softwarelijst van een server als CycloneDX 1.5 (JSON), met de bekende kwetsbaarheden erbij.
+     * Pakketten als purl (pkg:deb/debian/openssl@3.0.11-1?arch=amd64), zoals scanners en Dependency-Track ze lezen.
+     */
+    public static function sbom(int $hostId): ?array
+    {
+        $h = q('SELECT h.name, i.mgr, i.os_id, i.os_version, i.os_name, i.packages, i.updated_at FROM hosts h JOIN vuln_inventory i ON i.host_id = h.id WHERE h.id = ?', [$hostId])->fetch();
+        if (!$h) {
+            return null;
+        }
+        $type = $h['mgr'] === 'rpm' ? 'rpm' : 'deb';
+        $ns = rawurlencode($h['os_id'] !== '' ? $h['os_id'] : ($type === 'rpm' ? 'redhat' : 'debian'));
+        $comps = [];
+        $ref = [];
+        foreach ((array) json_decode((string) $h['packages'], true) as [$name, $ver, $arch, $src, $srcVer]) {
+            $q = array_filter(['arch' => $arch, 'distro' => $h['os_id'] !== '' ? $h['os_id'] . '-' . $h['os_version'] : '', 'upstream' => $src !== $name ? $src : '']);
+            $purl = "pkg:$type/$ns/" . rawurlencode((string) $name) . '@' . rawurlencode((string) $ver) . ($q ? '?' . http_build_query($q, '', '&', PHP_QUERY_RFC3986) : '');
+            $comps[] = ['type' => 'library', 'bom-ref' => $purl, 'name' => (string) $name, 'version' => (string) $ver, 'purl' => $purl];
+            $ref[$name] = $purl;
+            if ($type === 'deb') {
+                $ref["src\t$src"][] = $purl;
+            }
+        }
+        $vulns = [];
+        foreach (q('SELECT f.package, f.source, f.vuln_id, f.cve, f.fixed_version, c.severity, c.cvss, c.`vector`, c.epss, c.kev
+                    FROM vuln_findings f LEFT JOIN vuln_cve c ON c.cve = f.cve WHERE f.host_id = ? ORDER BY f.cve', [$hostId]) as $f) {
+            $affects = [];
+            foreach (array_map('trim', explode(',', (string) $f['source'])) as $b) {
+                if (isset($ref[$b]) && is_string($ref[$b])) {
+                    $affects[] = ['ref' => $ref[$b]];
+                }
+            }
+            if (!$affects && isset($ref[$f['package']]) && is_string($ref[$f['package']])) {
+                $affects[] = ['ref' => $ref[$f['package']]];
+            }
+            $id = (string) $f['cve'];
+            $v = $vulns[$id] ?? ['bom-ref' => 'vuln-' . $id, 'id' => $id,
+                'source' => str_starts_with($id, 'CVE-') ? ['name' => 'NVD', 'url' => 'https://nvd.nist.gov/vuln/detail/' . $id] : ['name' => 'OSV', 'url' => 'https://osv.dev/vulnerability/' . rawurlencode($id)],
+                'ratings' => [], 'affects' => []];
+            if (!$v['ratings'] && $f['severity'] !== null) {
+                $v['ratings'][] = array_filter(['score' => $f['cvss'] !== null ? (float) $f['cvss'] : null, 'severity' => [0 => 'unknown', 1 => 'low', 2 => 'medium', 3 => 'high', 4 => 'critical'][(int) $f['severity']] ?? 'unknown',
+                    'method' => $f['vector'] && str_starts_with((string) $f['vector'], 'CVSS:3') ? 'CVSSv31' : null, 'vector' => $f['vector'] ?: null], fn($x) => $x !== null);
+            }
+            $v['affects'] = array_values(array_unique(array_merge($v['affects'], $affects), SORT_REGULAR));
+            if ($f['fixed_version']) {
+                $v['recommendation'] = t('Bijwerken naar {v} of nieuwer', ['v' => $f['fixed_version']]);
+            }
+            if ((int) $f['kev'] === 1 || $f['epss'] !== null) {
+                $v['properties'] = array_values(array_filter([(int) $f['kev'] === 1 ? ['name' => 'cisa:kev', 'value' => 'true'] : null,
+                    $f['epss'] !== null ? ['name' => 'first:epss', 'value' => (string) (float) $f['epss']] : null]));
+            }
+            $vulns[$id] = $v;
+        }
+        return [
+            'bomFormat' => 'CycloneDX', 'specVersion' => '1.5', 'serialNumber' => 'urn:uuid:' . self::uuid(), 'version' => 1,
+            'metadata' => [
+                'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+                'tools' => ['components' => [['type' => 'application', 'name' => 'RzMon', 'version' => RZMON_VERSION]]],
+                'component' => ['type' => 'operating-system', 'bom-ref' => 'host', 'name' => (string) $h['name'], 'version' => (string) $h['os_version'],
+                    'description' => (string) $h['os_name']],
+                'properties' => [['name' => 'rzmon:inventory_at', 'value' => (string) $h['updated_at']]],
+            ],
+            'components' => $comps,
+            'vulnerabilities' => array_values($vulns),
+        ];
+    }
+
+    private static function uuid(): string
+    {
+        $b = random_bytes(16);
+        $b[6] = chr((ord($b[6]) & 0x0f) | 0x40);
+        $b[8] = chr((ord($b[8]) & 0x3f) | 0x80);
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($b), 4));
     }
 
     /** Gegevens van kwetsbaarheden ophalen die nog niet (of in een oudere versie) in de cache staan */
@@ -707,16 +829,39 @@ final class Vulns
 
     // ------------------------------------------------------------------ negeren
 
+    /** Actieve acceptaties (cache per verzoek; overview() laadt hem opnieuw) */
+    private static ?array $ignoreList = null;
+
     public static function ignored(string $cve, string $package, int $hostId): bool
     {
-        static $list = null;
-        $list ??= q('SELECT cve, package, host_id FROM vuln_ignore')->fetchAll();
-        foreach ($list as $i) {
+        self::$ignoreList ??= q('SELECT cve, package, host_id FROM vuln_ignore WHERE until IS NULL OR until >= CURDATE()')->fetchAll();   // 1.141.0: verlopen telt niet
+        foreach (self::$ignoreList as $i) {
             if ($i['cve'] === $cve && ($i['package'] === null || $i['package'] === $package) && ($i['host_id'] === null || (int) $i['host_id'] === $hostId)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Risicoscore 0–100 (1.141.0): hoe dringend is dit, op deze server? Ernst alleen zegt weinig; daarom samen met:
+     * - CVSS (of de ernst als die ontbreekt): tot 50 punten;
+     * - actief misbruikt (CISA KEV): +25;
+     * - kans op misbruik (EPSS): tot 15 punten (wortel, zodat 1% al iets telt en 50% bijna alles);
+     * - het pakket luistert op het netwerk: +10.
+     * Zonder oplossing gaat er niets af: het risico is er, je kunt alleen minder doen.
+     */
+    public static function risk(int $severity, ?float $cvss, bool $kev, ?float $epss, bool $exposed): int
+    {
+        $base = $cvss !== null ? $cvss : [0 => 3.0, 1 => 2.5, 2 => 5.5, 3 => 7.5, 4 => 9.5][$severity] ?? 3.0;
+        $r = $base * 5 + ($kev ? 25 : 0) + ($epss !== null ? 15 * sqrt(max(0.0, min(1.0, $epss))) : 0) + ($exposed ? 10 : 0);
+        return (int) max(0, min(100, round($r)));
+    }
+
+    /** Woord bij een risicoscore */
+    public static function riskLevel(int $r): string
+    {
+        return $r >= 70 ? 'high' : ($r >= 40 ? 'medium' : 'low');
     }
 
     // ------------------------------------------------------------------ bijwerken via de agent
@@ -849,6 +994,7 @@ final class Vulns
     /** Alles voor de pagina Kwetsbaarheden: per server de softwarelijst-gegevens en de bevindingen */
     public static function overview(): array
     {
+        self::$ignoreList = null;
         $ex = self::excluded();
         $hosts = [];
         $rows = q('SELECT h.id, h.name, h.mode, h.agent_version, h.agent_update_via, h.commands, h.vuln_upgrade_status, i.mgr, i.os_name, i.ecosystem, i.packages, i.exposed,
@@ -880,6 +1026,17 @@ final class Vulns
             ];
         }
         $ids = array_column($hosts, 'id');
+        $expOf = array_combine($ids, array_column($hosts, 'exposed')) ?: [];
+        // 1.141.0: opgelost in de laatste 30 dagen, per server
+        $resolved = [];
+        foreach (q('SELECT host_id, COUNT(DISTINCT cve) AS n, SUM(severity >= 3) AS hi, MAX(resolved_at) AS last FROM vuln_resolved
+                    WHERE resolved_at >= NOW() - INTERVAL 30 DAY GROUP BY host_id') as $r) {
+            $resolved[(int) $r['host_id']] = ['n' => (int) $r['n'], 'high' => (int) $r['hi'], 'last' => $r['last']];
+        }
+        foreach ($hosts as &$hh) {
+            $hh['resolved'] = $resolved[$hh['id']] ?? null;
+        }
+        unset($hh);
         $findings = [];
         if ($ids) {
             $in = implode(',', array_fill(0, count($ids), '?'));
@@ -894,12 +1051,15 @@ final class Vulns
                     'severity' => (int) $f['severity'], 'cvss' => $f['cvss'] !== null ? (float) $f['cvss'] : null, 'kev' => (bool) $f['kev'],
                     'epss' => $f['epss'] !== null ? (float) $f['epss'] : null, 'summary' => $rec['summary'] ?? '',
                     'ignored' => self::ignored($f['cve'], $f['package'], (int) $f['host_id']),
+                    'risk' => self::risk((int) $f['severity'], $f['cvss'] !== null ? (float) $f['cvss'] : null, (bool) $f['kev'], $f['epss'] !== null ? (float) $f['epss'] : null,
+                        isset($expOf[(int) $f['host_id']][$f['package']])),
                 ];
             }
         }
         return ['enabled' => true, 'hosts' => $hosts, 'findings' => $findings, 'min_severity' => (int) setting('vuln_min_severity', '0'),
             'last_scan' => setting('vuln_last_scan', null), 'scan_time' => setting('vuln_time', '03:30'),
-            'ignore' => q('SELECT i.*, h.name AS host_name FROM vuln_ignore i LEFT JOIN hosts h ON h.id = i.host_id ORDER BY i.created_at DESC')->fetchAll()];
+            'ignore' => q('SELECT i.*, h.name AS host_name, (i.until IS NOT NULL AND i.until < CURDATE()) AS expired FROM vuln_ignore i LEFT JOIN hosts h ON h.id = i.host_id ORDER BY i.created_at DESC')->fetchAll(),
+            'resolved' => (int) q('SELECT COUNT(DISTINCT host_id, cve) FROM vuln_resolved WHERE resolved_at >= NOW() - INTERVAL 30 DAY')->fetchColumn()];
     }
 
     /**
@@ -966,6 +1126,11 @@ final class Vulns
             'summary' => $first['summary'] ?? '', 'details' => $first['details'] ?? '', 'published' => $first['published'] ?? '',
             'aliases' => array_values(array_unique(array_merge(...array_map(fn($r) => (array) ($r['aliases'] ?? []), array_values($recs ?: [[]]))))),
             'hosts' => $hosts, 'links' => array_values(array_unique($links, SORT_REGULAR)),
+            // 1.141.0: wie heeft dit risico geaccepteerd, waarom en tot wanneer
+            'accepted' => array_map(static fn($r) => ['id' => (int) $r['id'], 'host' => $r['host_name'], 'package' => $r['package'], 'reason' => (string) $r['reason'],
+                'until' => $r['until'], 'expired' => (bool) $r['expired'], 'by' => (string) $r['created_by'], 'at' => (string) $r['created_at']],
+                q('SELECT i.*, h.name AS host_name, (i.until IS NOT NULL AND i.until < CURDATE()) AS expired FROM vuln_ignore i LEFT JOIN hosts h ON h.id = i.host_id
+                   WHERE i.cve = ? ORDER BY i.created_at DESC', [$cve])->fetchAll()),
         ];
     }
 

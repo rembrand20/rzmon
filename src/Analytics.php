@@ -120,7 +120,7 @@ final class Analytics
         if (Vulns::enabled()) {
             $v = q("SELECT COUNT(DISTINCT f.host_id, f.cve) AS n, COUNT(DISTINCT CASE WHEN c.kev = 1 THEN CONCAT(f.host_id, f.cve) END) AS k
                     FROM vuln_findings f LEFT JOIN vuln_cve c ON c.cve = f.cve
-                    WHERE NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.host_id IS NULL OR i.host_id = f.host_id))")->fetch();
+                    WHERE NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.host_id IS NULL OR i.host_id = f.host_id) AND (i.until IS NULL OR i.until >= CURDATE()))")->fetch();
             self::put($day, 'vuln_open', 0, (float) $v['n']);
             self::put($day, 'vuln_kev', 0, (float) $v['k']);
         }
@@ -384,7 +384,7 @@ final class Analytics
         if (Vulns::enabled()) {
             $sev = q("SELECT COALESCE(c.severity, 0) AS s, COUNT(DISTINCT f.host_id, f.cve) AS n, COUNT(DISTINCT CASE WHEN f.fixed_version IS NOT NULL THEN CONCAT(f.host_id, f.cve) END) AS fix
                       FROM vuln_findings f LEFT JOIN vuln_cve c ON c.cve = f.cve
-                      WHERE NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.host_id IS NULL OR i.host_id = f.host_id)) GROUP BY s")->fetchAll();
+                      WHERE NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.host_id IS NULL OR i.host_id = f.host_id) AND (i.until IS NULL OR i.until >= CURDATE())) GROUP BY s")->fetchAll();
             $vulns = ['by_sev' => $sev, 'series' => self::series($from, $to, 'vuln_open'), 'kev' => self::series($from, $to, 'vuln_kev')];
         }
         $hard = [];

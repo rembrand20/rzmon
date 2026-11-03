@@ -75,7 +75,7 @@ final class Home
     /** Open kwetsbaarheden per ernst (uniek per server en CVE, zonder genegeerde), met een oplossing, in KEV en de servers met de meeste */
     private static function vulns(array $series): array
     {
-        $open = "NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.host_id IS NULL OR i.host_id = f.host_id))";
+        $open = "NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.host_id IS NULL OR i.host_id = f.host_id) AND (i.until IS NULL OR i.until >= CURDATE()))";
         $sev = [4 => 0, 3 => 0, 2 => 0, 1 => 0, 0 => 0];
         $fix = 0;
         foreach (q("SELECT COALESCE(c.severity, 0) AS s, COUNT(DISTINCT f.host_id, f.cve) AS n,

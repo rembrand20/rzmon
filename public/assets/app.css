@@ -1339,6 +1339,13 @@ details.adv[open] { padding-bottom: .6rem; }
 #tab-vulns .vuln-host > summary .host-ic { grid-area: ic; }
 #tab-vulns .vh-name { grid-area: nm; min-width: 0; } #tab-vulns .vh-name b { display: block; } #tab-vulns .vh-name .small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #tab-vulns .vh-counts { grid-area: ct; display: flex; gap: .3rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+a.btn { text-decoration: none; }
+/* 1.141.0: risicoscore per pakket */
+.risk-pill { display: inline-grid; place-items: center; min-width: 2.2rem; height: 1.5rem; padding: 0 .4rem; border-radius: 6px; font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.risk-pill.risk-high { background: color-mix(in srgb, var(--crit) 16%, transparent); color: var(--crit); }
+.risk-pill.risk-mid { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.risk-pill.risk-low { background: color-mix(in srgb, var(--muted, #888) 14%, transparent); color: var(--muted, #888); }
+.vd-acc { padding: .35rem 0; border-bottom: 1px solid var(--line, rgba(127,127,127,.2)); } .vd-acc:last-child { border-bottom: 0; } .vd-acc .btn { margin-top: .25rem; }
 .vpill { min-width: 1.5rem; height: 1.5rem; padding: 0 .45rem; border-radius: 99px; font-size: .76rem; font-weight: 700; display: grid; place-items: center; }
 .vpill.sev4 { background: color-mix(in srgb, var(--crit) 16%, transparent); color: var(--crit); } .vpill.sev3 { background: color-mix(in srgb, #f97316 18%, transparent); color: #f97316; }
 .vpill.sev2 { background: color-mix(in srgb, #eab308 20%, transparent); color: #b8900a; } .vpill.sev1 { background: color-mix(in srgb, #3b82f6 16%, transparent); color: #3b82f6; }

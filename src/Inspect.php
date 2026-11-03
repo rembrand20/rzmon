@@ -133,7 +133,7 @@ final class Inspect
         }
         foreach (array_unique(array_filter(array_map(static fn($q) => $q['cve'][0] ?? '', $reqs))) as $cve) {
             $f = q('SELECT package, version, fixed_version FROM vuln_findings f WHERE host_id = ? AND cve = ?
-                    AND NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.host_id IS NULL OR i.host_id = f.host_id)) LIMIT 1', [$host['id'], $cve])->fetch();
+                    AND NOT EXISTS (SELECT 1 FROM vuln_ignore i WHERE i.cve = f.cve AND (i.host_id IS NULL OR i.host_id = f.host_id) AND (i.until IS NULL OR i.until >= CURDATE())) LIMIT 1', [$host['id'], $cve])->fetch();
             if (!$f) {
                 continue;
             }

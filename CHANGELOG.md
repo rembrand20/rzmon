@@ -7,6 +7,13 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
+## 1.141.0 – 2026-11-03
+### Nieuw
+- **Kwetsbaarheden: risicoscore** van 0 tot 100 per pakket: CVSS, actief misbruikt (KEV), kans op misbruik (EPSS) en of het pakket op het netwerk luistert. De lijst staat op risico, met een filter *🔥 Hoog risico* (70 of meer).
+- **Risico accepteren tot een datum**: 30, 90, 180 dagen, 1 jaar of voor altijd, met een verplichte reden. Daarna telt de kwetsbaarheid vanzelf weer mee. In het venster van de CVE zie je wie hem accepteerde en tot wanneer, met **Opheffen**. Bestaande acceptaties blijven voor altijd gelden.
+- **Gecontroleerd na bijwerken**: na bijwerken via de agent laat de volgende scan zien hoeveel kwetsbaarheden echt opgelost zijn, en welke bijgewerkte pakketten nog iets open hebben. Bovenaan staat *Opgelost (30 dagen)*.
+- **SBOM-export** per server (*⤓ SBOM*): de softwarelijst met kwetsbaarheden als CycloneDX 1.5, voor andere scanners of Dependency-Track.
+
 ## 1.140.0 – 2026-11-02
 ### Nieuw
 - **ntfy** als meldkanaal: gratis pushmeldingen via [ntfy.sh](https://ntfy.sh) of je eigen ntfy-server, naast of in plaats van Pushover (*Instellingen → Meldingen → Kanalen → ntfy*). Met server, onderwerp en eventueel een toegangstoken of gebruiker:wachtwoord, en een testknop. Bij een storing zit er een knop ✔ Bevestigen onder het bericht.

@@ -452,6 +452,20 @@ CREATE TABLE IF NOT EXISTS vuln_ignore (
     INDEX idx_vi_cve (cve)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 1.141.0: opgeloste kwetsbaarheden (verdwenen bij een nieuwe scan), om te laten zien wat een update echt opgelost heeft
+CREATE TABLE IF NOT EXISTS vuln_resolved (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id     INT UNSIGNED NOT NULL,
+    package     VARCHAR(150) NOT NULL,
+    version     VARCHAR(120) NOT NULL,
+    cve         VARCHAR(40) NOT NULL,
+    severity    TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    first_seen  DATETIME NOT NULL,
+    resolved_at DATETIME NOT NULL,
+    INDEX idx_vr_host (host_id, resolved_at),
+    CONSTRAINT fk_vr_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 INSERT IGNORE INTO settings (name, value) VALUES ('vuln_enabled', '0'), ('vuln_time', '03:30'), ('vuln_min_severity', '0'), ('vuln_exclude', '');
 
 -- Beveiliging (1.57.0): geblokkeerde IP-adressen en netwerken (heel RzMon), mislukte pogingen om te tellen,
