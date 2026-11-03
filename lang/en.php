@@ -6280,4 +6280,6 @@ return [
     'bronnen uit {n} landen' => 'sources from {n} countries',
     '{n} niet geblokkeerd' => '{n} not blocked',
     'alles geblokkeerd' => 'all blocked',
+    'nog geen algemene sleutel, en niet alle agents hebben een eigen sleutel' => 'no shared key yet, and not all agents have their own key',
+    'alle agents versleuteld met hun eigen sleutel' => 'all agents encrypted with their own key',
 ];

@@ -1980,11 +1980,15 @@ switch ($action) {
                 ? t('{n} van {t} op een oudere versie: {names}', ['n' => count($old), 't' => count($agents), 'names' => implode(', ', array_slice($old, 0, 5)) . (count($old) > 5 ? ' …' : '')])
                 : t('alle {t} op {v}', ['t' => count($agents), 'v' => AGENT_LATEST]), 'agents');
             $plain = array_column(array_filter($agents, static fn($h) => (int) $h['enc_seen'] !== 1), 'name');
-            $off = AgentCrypto::key() === '' || AgentCrypto::globalMode() === 'off';
+            // 1.149.3: zonder algemene sleutel is het alleen een probleem als er nog agents zonder eigen sleutel zijn. Na
+            // "Alle agents opruimen" wist RzMon die sleutel juist bewust (alle agents hebben dan hun eigen sleutel).
+            $ownAll = !array_filter($agents, static fn($h) => (int) $h['agent_key_seen'] !== 1);
+            $modeOff = AgentCrypto::globalMode() === 'off';
+            $off = $modeOff || (AgentCrypto::key() === '' && !$ownAll);
             $add('enc', $off ? 'warn' : ($plain ? 'warn' : 'ok'), t('Versleuteling van de agents'), $off
-                ? t('staat uit of er is nog geen sleutel') : ($plain
+                ? ($modeOff ? t('staat uit') : t('nog geen algemene sleutel, en niet alle agents hebben een eigen sleutel')) : ($plain
                     ? t('{n} onversleuteld: {names}', ['n' => count($plain), 'names' => implode(', ', array_slice($plain, 0, 5)) . (count($plain) > 5 ? ' …' : '')])
-                    : t('alle agents versleuteld')), 'enc');
+                    : ($ownAll ? t('alle agents versleuteld met hun eigen sleutel') : t('alle agents versleuteld'))), 'enc');
             $nokey = array_column(array_filter($agents, static fn($h) => (int) $h['agent_key_seen'] !== 1), 'name');
             $add('ownkey', $nokey ? 'warn' : 'ok', t('Eigen sleutel per agent'), $nokey
                 ? t('{n} nog zonder eigen sleutel: {names} (agent {v} nodig; anders opnieuw koppelen)', ['n' => count($nokey), 'v' => AgentCrypto::OWNKEY_MIN,

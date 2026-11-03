@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.146.0**: per server het **aanvalspad** (open poorten, kwetsbaarheden, afhankelijke servers), **doelen** (melding binnen 5 minuten, agents rapporteren) en of zelf herstellen, blokkades en slimme drempels **echt werken**; het rapport begint met één overzichtspagina.
 - **1.145.0**: RzMon is nu open source onder **GPL-3.0**, met een `SECURITY.md` (lekken melden, threat model, de signing-sleutel) en strengere controles in GitHub Actions.
 
+## 1.149.3 – 2026-11-03
+### Opgelost
+- **Status → Versleuteling van de agents** gaf ten onrechte "staat uit of er is nog geen sleutel" na *Alle agents opruimen*. Dat wist de oude algemene sleutel juist bewust, omdat alle agents dan hun eigen sleutel hebben. Nu is het groen (*alle agents versleuteld met hun eigen sleutel*); alleen als er nog agents zonder eigen sleutel zijn, krijg je een waarschuwing.
+
 ## 1.149.2 – 2026-11-03
 ### Opgelost
 - **Aanvalskaart**: de filterbalk (periode, server, land, soort, richting en de schakelaar **Stromen | Wereldkaart**) was samengedrukt tot een dun streepje, omdat hij dezelfde naam had als de balkjes bij *Herkomst*. Hij staat er weer gewoon.
