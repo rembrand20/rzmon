@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.148.0**: rustigere instellingen: geen gele uitlegbalken meer; wat aandacht nodig heeft staat in een **oranje balk** bovenaan, met een bolletje bij de kaart waar het over gaat.
 - **1.147.0**: agents sturen hun rapport **gecomprimeerd** (meestal 50–85% kleiner) en de agent is opgebouwd uit **modules**; twee fouten waardoor een agent soms een run oversloeg of zijn foutmeldingen kwijtraakte, zijn opgelost.
 
+## 1.151.2 – 2026-11-03
+### Opgelost
+- **IDS-incident openen** gaf rechtsonder "Incident niet gevonden". Er waren twee vensters met dezelfde naam in de code: dat van een IDS-incident en dat van een zaak op het tabblad *Incidenten* (1.142.0). Het laatste overschreef het eerste, dus een klik op een IDS-incident zocht in de verkeerde lijst. Nu heeft elk zijn eigen venster. Dit gold ook voor *Naar incident* in de aanvalskaart en de stappen in het venster *Waarom / Trigger / Actie*.
+- De versiecontrole (ook in GitHub Actions) controleert voortaan dat er geen twee functies met dezelfde naam in de interface staan.
+
 ## 1.151.1 – 2026-11-03
 ### Opgelost
 - **Compressie en cache van de webserver**: het grootste bestand van de interface, `app.js` (bijna 1 MB), werd niet verkleind verstuurd. Rocky Linux 10 noemt JavaScript `text/javascript`, en de Apache-instellingen van RzMon noemden alleen `application/javascript`. Nu gaat het met gzip: van 943 kB naar 280 kB, zo'n 70% minder.

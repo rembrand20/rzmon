@@ -11956,7 +11956,7 @@ function renderHome() {
   $$('[data-hm-go]', $('#home')).forEach((b) => (b.onclick = () => {
     const go = b.dataset.hmGo;
     if (go.startsWith('check:')) checkInfo(go.slice(6));
-    else if (go.startsWith('incident:')) { showTab('incidents'); incidentDialog(+go.slice(9)); }
+    else if (go.startsWith('incident:')) { showTab('incidents'); caseDialog(+go.slice(9)); }
     else showTab(go);
   }));
 }
@@ -11988,7 +11988,7 @@ async function exposureDialog(hostId) {
     buttons: [{ label: L('Sluiten'), cls: 'primary', onClick: () => $('#modal').close() }],
   });
   $$('[data-exp-cve]', $('#modal')).forEach((b) => (b.onclick = () => { $('#modal').close(); vulnDetail(b.dataset.expCve); }));
-  $$('[data-exp-inc]', $('#modal')).forEach((b) => (b.onclick = () => { $('#modal').close(); showTab('incidents'); incidentDialog(+b.dataset.expInc); }));
+  $$('[data-exp-inc]', $('#modal')).forEach((b) => (b.onclick = () => { $('#modal').close(); showTab('incidents'); caseDialog(+b.dataset.expInc); }));
 }
 
 /** 1.144.0: urgentie 0–100 als pil (zelfde kleuren als het risico) */
@@ -12234,7 +12234,9 @@ function renderIncidents() {
     : `<div class="card"><p class="muted" style="margin:0">${incFilter === 'active' && !$('#inc-search').value ? '✔ ' + L('Geen open incidenten.') : L('Niets gevonden.')}</p></div>`;
 }
 
-async function incidentDialog(id) {
+/** 1.152.1: een zaak op het tabblad Incidenten (tabel incidents). Heette eerst ook incidentDialog en overschreef zo
+ * het venster van een IDS-incident: dat gaf "Incident niet gevonden". */
+async function caseDialog(id) {
   let i;
   try { i = await api('incident_info', null, { id }); } catch (ex) { return toast(ex.message, 'err'); }
   const [ic, src] = INC_SRC[i.source] || ['•', () => i.source];
@@ -12278,7 +12280,7 @@ async function incidentDialog(id) {
   if (!$('#inc-list')) return;
   $('#inc-filter').addEventListener('click', (e) => { const b = e.target.closest('[data-incf]'); if (b) { incFilter = b.dataset.incf; renderIncidents(); } });
   $('#inc-search').addEventListener('input', () => renderIncidents());
-  const open = (e) => { const r = e.target.closest('[data-inc]'); if (r) incidentDialog(+r.dataset.inc); };
+  const open = (e) => { const r = e.target.closest('[data-inc]'); if (r) caseDialog(+r.dataset.inc); };
   $('#inc-list').addEventListener('click', open);
   $('#inc-list').addEventListener('keydown', (e) => { if (e.key === 'Enter') open(e); });
 })();
