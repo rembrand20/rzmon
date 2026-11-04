@@ -1202,7 +1202,7 @@ function init() {
     modal({
       title: '⛔ ' + L('IDS: blokkeren aanzetten'),
       body: `<p style="margin-top:0">${L('RzMon gaat dan echt IP-adressen blokkeren op je servers (eigen nftables-tabel van de agent), bij brute force en als jij op ⛔ klikt. Je LAN, RzMon zelf en de lijst <i>Nooit blokkeren</i> worden nooit automatisch geblokkeerd; op TrueNAS wordt alleen gedetecteerd.')}</p>
-        <p class="muted small">${L('Op een server zelf zet je blokkeren altijd uit met <code>IDS_BLOCK=0</code> in de instellingen van de agent. Doe het eerste gebruik bij voorkeur terwijl je ook via de console kunt inloggen. Deze wijziging komt in het logboek.')}</p>
+        ${xpHtml(L('Blokkeren kun je op een server zelf altijd uitzetten.'), L('Op een server zelf zet je blokkeren altijd uit met <code>IDS_BLOCK=0</code> in de instellingen van de agent. <b>Tip:</b> zet het de eerste keer aan terwijl je ook via de console kunt inloggen, voor het geval je jezelf buitensluit. Deze wijziging komt in het logboek.'))}
         ${confirmField('BLOKKEREN')}`,
       buttons: [{ label: L('Blokkeren aanzetten'), cls: 'primary', submit: true }],
       onSubmit: async (d) => {
@@ -3335,7 +3335,7 @@ async function loadStatusPage() {
     <label>${L('Titel')}<input id="sp-title" maxlength="80" value="${esc(d.title)}" placeholder="${esc(L('Status'))}"></label>
     <label>${L('Mededeling')} <span class="hint">${L('(optioneel, bv. "Zaterdag 9:00–10:00 onderhoud aan de NAS")')}</span><textarea id="sp-note" rows="2" maxlength="500">${esc(d.note)}</textarea></label>
     <h3 class="small" style="margin:1rem 0 .3rem">${L('Onderdelen')}</h3>
-    <p class="hint" style="margin-top:0">${L('Per onderdeel een naam en de checks die erbij horen (klik om ze aan te vinken). Het ergste van die checks telt; checks in onderhoud tonen "Onderhoud".')}</p>
+    ${xpHtml(L('Per onderdeel een naam en de checks die erbij horen.'), L('Geef elk onderdeel een naam en klik de checks aan die erbij horen. <b>Status:</b> de slechtste van die checks telt; een check in onderhoud toont <i>Onderhoud</i>.'))}
     <div id="sp-rows">${(d.items.length ? d.items : [{ label: '', checks: [] }]).map(row).join('')}</div>
     <button type="button" class="btn small-btn" id="sp-add">＋ ${L('Onderdeel')}</button>
     <div class="sp-link-head"><h3 class="small">${L('Geheime link')}</h3>
@@ -3569,12 +3569,12 @@ function hostForm(h, preset = null) {
       ${snmpHostFields(h.snmp)}
       <details class="notify-own" id="fim-host-wrap" ${h.mode === 'agent' ? '' : 'hidden'}>
         <summary>📁 ${L('Bestanden bewaken (IDS)')}: <span id="fim-host-label">${L('laden…')}</span></summary>
-        <p class="hint" style="margin-top:0">${L('Extra paden voor deze server, bovenop de algemene lijst (<i>Instellingen → IDS → Algemeen</i>). Hetzelfde pad hier gaat voor, bv. om de ernst te veranderen.')}</p>
+        ${xpHtml(L('Extra bestanden om te bewaken, alleen op deze server.'), L('Deze paden komen bovenop de algemene lijst (<i>Instellingen → IDS → Algemeen</i>). Staat hetzelfde pad in allebei, dan geldt dit pad, bijvoorbeeld om de ernst te veranderen.'))}
         <div id="fim-host"></div>
       </details>
       ${(state.templates || []).length ? `<details class="notify-own" ${isNew || hostTpls(h).length ? 'open' : ''}>
         <summary>📋 ${L('Sjablonen')}: <span>${hostTpls(h).length ? esc(hostTpls(h).map((id) => (state.templates.find((t) => +t.id === id) || {}).name).join(', ')) : L('geen')}</span></summary>
-        <p class="hint" style="margin-top:0">${L('De checks uit een sjabloon komen vanzelf op deze server, en veranderen mee als je het sjabloon aanpast. Uitvinken koppelt los; de checks blijven dan gewoon staan.')}</p>
+        ${xpHtml(L('Sjablonen zetten vaste checks op deze server.'), L('De checks uit een sjabloon komen vanzelf op deze server en veranderen mee als je het sjabloon aanpast. <b>Uitvinken</b> koppelt het sjabloon los; de checks blijven dan gewoon staan.'))}
         ${state.templates.map((t) => `<label class="switch"><input type="checkbox" data-tpl="${t.id}" ${hostTpls(h).includes(+t.id) ? 'checked' : ''}><span></span> ${esc(t.name)}</label>`).join('')}
       </details>` : ''}
       <label class="switch"><input type="checkbox" name="enabled" ${+h.enabled ? 'checked' : ''}><span></span> ${L('Actief')}</label>
@@ -3644,7 +3644,7 @@ function snmpHostFields(s) {
         </div>
       </div>
       <div class="snmp-test-row"><button type="button" class="btn" id="snmp-test">🔍 ${L('Test SNMP')}</button><span class="small" id="snmp-test-out"></span></div>
-      <p class="hint" style="margin:0">${L('RzMon leest het apparaat zelf uit (UDP-poort 161): zet SNMP aan op het apparaat en geef het IP-adres van RzMon toegang. Daarna kies je bij de server via <b>📡 SNMP-checks</b> wat je wilt bewaken. De community en wachtwoorden worden niet teruggestuurd naar de browser.')}</p>
+      ${xpHtml(L('RzMon leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzMon vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het IP-adres van RzMon toegang. Daarna kies je bij de server via <b>📡 SNMP-checks</b> wat je wilt bewaken. <b>Goed om te weten:</b> de community en wachtwoorden gaan nooit terug naar de browser.'))}
     </div>
   </details>`;
 }
@@ -3806,7 +3806,7 @@ function maintenanceDialog(scope, id, label, current) {
   modal({
     title: `🔧 ${L('Onderhoud')} – ${label}`,
     body: `
-      <p class="muted small" style="margin-top:0">${L('Checks blijven draaien en je ziet de status gewoon, maar er gaan <b>geen meldingen</b> uit (Pushover en webhook). Is er na afloop nog iets mis, dan krijg je alsnog een melding.')}</p>
+      ${xpHtml(L('Tijdens onderhoud lopen de checks door, maar gaan er geen meldingen uit.'), L('De checks blijven draaien en je ziet de status gewoon, maar er gaan <b>geen meldingen</b> uit (Pushover, ntfy, e-mail en webhook). Is er na afloop nog iets mis, dan krijg je alsnog een melding.'))}
       ${current ? `<p class="maint-now">${L('Nu actief: {m}', { m: esc(maintLabel(current)) })}</p>` : ''}
       <div class="presets">${presets.map(([m, l]) => `<button type="button" class="btn" data-min="${m}">${l}</button>`).join('')}</div>
       <label>${L('Of tot een vast tijdstip')}<input type="datetime-local" name="until"></label>
@@ -3938,7 +3938,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const { form } = modal({
     title: tpl ? `📋 ${tpl.name}: ${isNew ? L('check toevoegen') : c.name}` : isNew ? L('Check toevoegen – {name}', { name: h.name }) : L('Check bewerken – {name}', { name: c.name }),
     body: `
-      ${tpl ? `<p class="hint" style="margin-top:0">${L('Gebruik <code>{adres}</code> en <code>{naam}</code> in het doel of de naam: die worden per server ingevuld (bv. <code>https://{adres}/</code>). Opslaan werkt alle gekoppelde servers bij, behalve checks die daar zelf zijn aangepast.')}</p>` : ''}
+      ${tpl ? `${xpHtml(L('Met {adres} en {naam} vult RzMon per server het juiste adres en de naam in.'), L('Gebruik <code>{adres}</code> en <code>{naam}</code> in het doel of de naam: die worden per server ingevuld (bijvoorbeeld <code>https://{adres}/</code>). <b>Opslaan</b> werkt alle gekoppelde servers bij, behalve checks die daar zelf zijn aangepast.'))}` : ''}
       ${!tpl && c.template_item_id ? `<div class="callout small">📋 ${L('Uit het sjabloon <b>{t}</b>.', { t: esc((state.tpl_items || {})[c.template_item_id] || '?') })}
         ${+c.tpl_override ? `${L('Op deze server aangepast: wijzigingen aan het sjabloon gaan hier niet meer mee.')} <button type="button" class="btn small-btn" id="tpl-reset">↩ ${L('Terug naar het sjabloon')}</button>`
           : L('Pas je hem hier aan, dan gaat hij niet meer mee met het sjabloon (terugzetten kan altijd).')}</div>` : ''}
@@ -3963,7 +3963,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
           </label>
           <label>${L('Time-out')} <span class="hint">${L('seconden (1–60)')}</span><input name="cmd_timeout" type="number" min="1" max="60" value="${cmdCfg.timeout || 10}"></label>
         </div>
-        <p class="hint">${L('Spaties en regeleindes aan begin en eind tellen niet mee. Regex zonder scheidingstekens, bv. <code>^ok\\b</code> of <code>temp=[0-5][0-9]</code>. Het commando draait als <code>nobody</code>, of als root als dat voor deze server is toegestaan, in <code>bash</code>, zonder invoer.')}</p>
+        ${xpHtml(L('Hoe RzMon de uitvoer vergelijkt en hoe het commando draait.'), L('<b>Vergelijken:</b> spaties en regeleindes aan het begin en eind tellen niet mee. Een regex schrijf je zonder scheidingstekens, bijvoorbeeld <code>^ok\\b</code> of <code>temp=[0-5][0-9]</code>. <b>Uitvoeren:</b> het commando draait in <code>bash</code>, zonder invoer, als <code>nobody</code>, of als root als dat voor deze server is toegestaan.'))}
       </div>
       <div id="hb-wrap" hidden>${hbFields(c, h, opts)}</div>
       <div id="log-wrap" hidden>
@@ -4101,7 +4101,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <span class="hint" id="rev-hint" style="grid-column:1/-1"></span>
       </div>
       <label class="switch"><input type="checkbox" name="info_only" ${+c.info_only ? 'checked' : ''}><span></span> ℹ️ <b>${L('Alleen info-meldingen')}</b></label>
-      <p class="hint" style="margin-top:-.4rem">${L('Deze check telt nooit als storing: bij een statuswissel komt er een ℹ️ info-melding in plaats van warning, critical of hersteld. Welke kanalen dat zijn, staat bij de rij ℹ️ Info (Instellingen → 🔔 Meldingen, of eigen meldregels hieronder); standaard staat info uit.')}</p>
+      ${xpHtml(L('Een info-check is nooit een storing; hij geeft alleen een ℹ️ info-melding.'), L('Bij een statuswissel komt er een ℹ️ info-melding in plaats van warning, critical of hersteld, en de check telt nooit als storing. <b>Waarheen:</b> dat staat bij de rij ℹ️ <i>Info</i> (Instellingen → Meldingen, of de eigen meldregels hieronder). Standaard staat info uit.'))}
       <details class="notify-own" ${c.notify || c.notify_fails ? 'open' : ''}>
         <summary>🔔 ${L('Meldingen')}: <span id="notify-mode-label">${c.notify ? L('eigen regels') : L('standaard (algemene instellingen)')}</span><span class="muted" id="notify-fails-label">${c.notify_fails ? ' · ' + L('na {n}× mislukt', { n: +c.notify_fails }) : ''}</span></summary>
         <label>${L('Melden na … mislukte checks achter elkaar')} <span class="hint">${L('(leeg = standaard, nu {n})', { n: state.notify_fails || 1 })}</span>
@@ -4720,7 +4720,7 @@ function portScan(h) {
     title: L('Poortscan – {name}', { name: h.name }),
     wide: true,
     body: `
-      <p class="muted small" style="margin-top:0">${L('Scant vanaf de RzMon-server welke TCP-poorten op <code>{address}</code> open staan. Open poorten kun je direct als TCP-check toevoegen, zodat je een melding krijgt als de dienst wegvalt.', { address: esc(h.address) })}</p>
+      ${xpHtml(L('Zoekt welke poorten op deze server open staan.'), L('RzMon scant vanaf zijn eigen server welke TCP-poorten op <code>{address}</code> open staan. Een open poort voeg je met één klik toe als TCP-check, zodat je een melding krijgt als de dienst wegvalt.', { address: esc(h.address) }))}
       <div class="scan-form">
         <label>${L('Bereik')}
           <select id="scan-preset">
@@ -4875,7 +4875,7 @@ async function podmanOverview(h) {
     <div class="table-scroll"><table class="port-table podman-table">
       <thead><tr><th>Container</th><th>Status</th><th>CPU</th><th>RAM</th><th>Disk</th><th>${L('Bewaken')}</th></tr></thead>
       <tbody>${rows || `<tr><td colspan="6" class="muted">${L('Geen containers.')}</td></tr>`}</tbody></table></div>
-    <p class="muted small">${L('CPU zoals <code>podman stats</code>: 100% = één core. Disk = schrijflaag van de container + zijn volumes. Containers van gewone gebruikers (rootless) staan als <code>gebruiker/naam</code>.')}</p>`;
+    ${xpHtml(L('Hoe CPU en disk van containers worden geteld.'), L('<b>CPU:</b> zoals <code>podman stats</code>; 100% is één core. <b>Disk:</b> de schrijflaag van de container plus zijn volumes. <b>Rootless:</b> containers van gewone gebruikers staan als <code>gebruiker/naam</code>.'))}`;
 
   const add = async (payload) => api('check_save', { host_id: h.id, interval_sec: 60, enabled: true, ...payload });
   const addContainer = (key) => add({ type: 'container', target: key, name: '', res: {} });
@@ -5534,7 +5534,7 @@ function agentInstructions(h, pairNow = false) {
             <div data-pair-pane="proxmox">${pairButton()}</div></li>
           <li>${L('Daarna: <b>＋ Aanbevolen checks</b> (overzicht, back-ups, opslag, ZFS en guests naar keuze), en <b>🖥️ Proxmox</b> bij deze server voor het overzicht.')}</li>
         </ol>
-        <p class="muted small">${L('Meerdere losse nodes? Zet ze in het overzicht (🖥️ Proxmox) in dezelfde <i>cluster</i>; dan zie je ze samen. Uitzetten op een node: <code>PVE=0</code> in <code>/etc/default/rzmon-agent</code>. Controleren: <code>sudo rzmon-agent-setup --status</code> toont de regel <i>Proxmox VE</i>.')}</p>
+        ${xpHtml(L('Losse Proxmox-nodes samen zien, uitzetten of controleren.'), L('<b>Meerdere nodes:</b> zet ze in het overzicht (🖥️ Proxmox) in dezelfde <i>cluster</i>; dan zie je ze samen. <b>Uitzetten op een node:</b> <code>PVE=0</code> in <code>/etc/default/rzmon-agent</code>. <b>Controleren:</b> <code>sudo rzmon-agent-setup --status</code> toont de regel <i>Proxmox VE</i>.'))}
       </div>
       <div data-pane="truenas" hidden>
         <p>${L('Op TrueNAS SCALE horen <code>/usr</code> en <code>/etc</code> bij TrueNAS zelf. De agent komt daarom op je <b>pool</b> (<code>/mnt/&lt;pool&gt;/rzmon-agent</code>), en draait via een <b>cronjob van TrueNAS</b> die ook na een TrueNAS-update blijft staan.')}</p>
@@ -5543,8 +5543,8 @@ function agentInstructions(h, pairNow = false) {
           <li>${L('Maak een koppelcode en voer het commando uit:')}
             <div data-pair-pane="truenas">${pairButton()}</div></li>
         </ol>
-        <p class="muted small">${L('De eerste pool wordt gekozen (niet <code>boot-pool</code>); een andere kies je met <code>--pool naam</code>. Het script zet de agent en de instellingen op de pool, maakt de cronjob <i>RzMon agent</i> aan (elke minuut, uitvoer verborgen) en stuurt een testrapport. Had je de agent al met de hand geïnstalleerd? Dan worden je instellingen en cronjob overgenomen.')}</p>
-        <p class="muted small">${L('Daarna: bijwerken met de knop hierboven · testen: <code>bash /mnt/&lt;pool&gt;/rzmon-agent/rzmon-agent-setup --test</code> · verwijderen: <code>… --uninstall</code>. Tip: een <b>Commando</b>-check met <code>zpool status -x</code> en verwacht antwoord <code>all pools are healthy</code> bewaakt je pools.')}</p>
+        ${xpHtml(L('Wat het installatiescript op TrueNAS doet.'), L('<b>Pool:</b> de eerste pool wordt gekozen (niet <code>boot-pool</code>); een andere kies je met <code>--pool naam</code>. <b>Wat het doet:</b> het script zet de agent en de instellingen op de pool, maakt de cronjob <i>RzMon agent</i> aan (elke minuut, uitvoer verborgen) en stuurt een testrapport. <b>Al met de hand geïnstalleerd?</b> Dan worden je instellingen en cronjob overgenomen.'))}
+        ${xpHtml(L('Bijwerken, testen en verwijderen op TrueNAS, en een tip voor je pools.'), L('<b>Bijwerken:</b> met de knop hierboven. <b>Testen:</b> <code>bash /mnt/&lt;pool&gt;/rzmon-agent/rzmon-agent-setup --test</code>. <b>Verwijderen:</b> <code>… --uninstall</code>. <b>Tip:</b> een <b>Commando</b>-check met <code>zpool status -x</code> en het verwachte antwoord <code>all pools are healthy</code> bewaakt je pools.'))}
       </div>
       <div data-pane="ha" hidden>
         <p>${L('Op Home Assistant OS / Supervised draait de agent als <b>add-on</b>. Hij meldt CPU, RAM, de data-partitie, Core, Supervisor, plugins en add-ons (ook als containers met CPU/RAM), updates, back-ups, onverwachte herstarts, de SD-kaart, USB-sticks en logs. Daarna: <b>＋ Aanbevolen checks</b>.')}</p>
@@ -5564,12 +5564,12 @@ function agentInstructions(h, pairNow = false) {
       <div data-pane="linux">
       <p>${L('Voer dit één commando uit op <b>{name}</b> (Rocky/RHEL/Alma, Debian/Ubuntu, Raspberry Pi OS, Proxmox). Het installeert de agent, stelt de services voor die er draaien, zet een systemd-timer aan en stuurt een testrapport.', { name: esc(h.name) })}</p>
       <div data-pair-pane="linux">${pairButton()}</div>
-      <p class="muted small">${L('Daarna: klik hier op <b>＋</b> en voeg checks toe (CPU, RAM, diskruimte, services). Bijwerken gaat daarna met de knop hierboven (of <code>sudo rzmon-agent-setup --update</code>) · verwijderen: <code>sudo rzmon-agent-setup --uninstall</code>.')}</p>
-      <p class="muted small">🩺 ${L('<b>Komt er niets binnen?</b> Voer op de server <code>sudo rzmon-agent-setup --test</code> uit. Die controleert stap voor stap planning, netwerk, adres, token en een proefrapport, en zegt wat er mis is.')}</p>
+      ${xpHtml(L('Daarna: checks toevoegen, bijwerken of verwijderen.'), L('<b>Checks:</b> klik hier op <b>＋</b> en voeg checks toe (CPU, RAM, diskruimte, services). <b>Bijwerken:</b> met de knop hierboven, of <code>sudo rzmon-agent-setup --update</code>. <b>Verwijderen:</b> <code>sudo rzmon-agent-setup --uninstall</code>.'))}
+      ${xpHtml(L('Komt er niets binnen? Er is een test die zegt wat er mis is.'), L('Voer op de server <code>sudo rzmon-agent-setup --test</code> uit. Die controleert stap voor stap de planning, het netwerk, het adres, het token en een proefrapport, en zegt wat er mis is.'))}
       <p class="muted small">⚠️ ${L('De server moet RzMon kunnen bereiken op <code>{url}</code>. Klopt dat adres niet, pas dan de <i>Basis-URL</i> aan in Setup.', { url: esc(base) })}</p>
       <details class="small api-docs">
         <summary>${L('Oude manier: met het token (agent ouder dan 1.50.0)')}</summary>
-      <p class="muted small">${L('Zonder koppelcode: de agent stuurt dan zijn token mee. Een agent van 1.50.0 of nieuwer krijgt bij zijn eerste versleutelde rapport alsnog een eigen sleutel.')}</p>
+      ${xpHtml(L('Zonder koppelcode werkt het ook, met het token.'), L('Zonder koppelcode stuurt de agent zijn token mee. Een agent van 1.50.0 of nieuwer krijgt bij zijn eerste versleutelde rapport alsnog een eigen sleutel.'))}
       <div class="copy-line"><pre class="code" id="agent-oneliner">${esc(installCmd)}</pre>
         <button type="button" class="btn" id="copy-oneliner">${L('Kopieer')}</button></div>
       </details>
@@ -5587,7 +5587,7 @@ sudo chmod 600 /etc/default/rzmon-agent
 echo '* * * * * root set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh &gt;/dev/null 2&gt;&amp;1' | sudo tee /etc/cron.d/rzmon-agent
 # Testen:
 sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'</pre>
-      <p class="muted small">${L('<code>CERTS</code>: certificaatbestanden en/of <code>host:poort</code> (ook op internet) waarvan de agent de vervaldatum meldt. Services kies je na de eerste rapportage hier bij "Check toevoegen" uit een lijst van de server; de agent bewaakt ze dan vanzelf.')}</p>
+      ${xpHtml(L('Certificaten en services die de agent zelf bewaakt.'), L('<b>CERTS:</b> certificaatbestanden en/of <code>host:poort</code> (ook op internet) waarvan de agent de vervaldatum meldt. <b>Services:</b> die kies je na het eerste rapport hier bij <i>Check toevoegen</i> uit een lijst van de server; de agent bewaakt ze dan vanzelf.'))}
       </details>
       </div>
       </details>`,
@@ -5862,7 +5862,7 @@ function haRecommended(h) {
     body: `<p style="margin-top:0">${L('Herkend als <b>Home Assistant</b>. Vink aan wat je wilt bewaken; je kunt elke check later nog aanpassen.')}</p>
       <div class="rec-list">${items.map((x) => `<label class="rec-row ${x.exists ? 'muted' : ''}"><input type="checkbox" name="rec_${esc(x.key)}" ${x.exists ? 'disabled' : 'checked'}>
         <span><b>${esc(x.label)}</b>${x.exists ? ' · ' + L('al aanwezig') : ''}</span></label>`).join('')}</div>
-      <p class="muted small">${L('Containers, USB-apparaten en logs vragen add-on 1.42.0 of nieuwer met de rol <i>manager</i>. Nog niet op een echte Home Assistant getest: laat weten als iets niet goed uitkomt.')}</p>`,
+      ${xpHtml(L('Containers, USB en logs vragen een nieuwere add-on.'), L('Containers, USB-apparaten en logs vragen add-on 1.42.0 of nieuwer met de rol <i>manager</i>. <b>Goed om te weten:</b> dit is nog niet op een echte Home Assistant getest; laat het weten als iets niet goed uitkomt.'))}`,
     buttons: [{ label: L('Toevoegen'), cls: 'primary', submit: true }],
     onSubmit: async (d) => {
       const chosen = items.filter((x) => !x.exists && d['rec_' + x.key]);
@@ -6106,7 +6106,7 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
         procs: L('Processen'), software: L('Software'), ha: 'Home Assistant', ha_os: 'Home Assistant OS' })[k] || k;
       html += `<details class="audit-box agent-timing"${tot > 30000 ? ' open' : ''}><summary class="small">⏱ <b>${L('Laatste run')}</b>: ${secs(tot)}${top.length ? ` · ${L('traagst')}: ${esc(name(top[0][0]))} ${secs(top[0][1])}` : ''}</summary>
         ${top.length ? `<table class="kv small">${top.map(([k, ms]) => `<tr><th>${esc(name(k))}</th><td><span class="tbar"><i style="width:${Math.max(2, Math.round(ms / tot * 100))}%"></i></span> ${secs(ms)}</td></tr>`).join('')}</table>` : ''}
-        <p class="muted small">${L('Commando-checks draaien op de achtergrond: een trage check houdt het rapport niet meer op. Duurt een run langer dan de tik, dan meldt de agent tussendoor dat hij leeft.')}</p></details>`;
+        ${xpHtml(L('Een trage commando-check houdt het rapport niet op.'), L('Commando-checks draaien op de achtergrond, dus een trage check houdt het rapport niet op. Duurt een run langer dan de tik, dan meldt de agent tussendoor dat hij nog leeft.'))}</details>`;
     }
     if (s.mode === 'agent' && s.update_sig) {
       html += `<div class="small">${{ ok: `🔏 ${L('Laatste update: handtekening van de ontwikkelaar gecontroleerd')}`, old_openssl: `⚠️ ${L('Laatste update: handtekening niet te controleren (OpenSSL op de server is ouder dan 3.0; alleen het controlegetal)')}`,
@@ -6316,8 +6316,8 @@ function renderEdrRules() {
   const act = (a) => a.map((x) => ({ kill: '⛔ ' + L('stopt het proces'), block: '🚫 ' + L('blokkeert het IP'), isolate: '🧱 ' + L('isoleert de server') }[x] || x)).join(' · ');
   const on = edrRules.rules.filter((r) => r.on).length;
   withMorph(() => {
-    ruleBox().innerHTML = `<p class="muted small" style="margin-top:0">${L('{on} van {n} regels aan. Eigen regels van RzMon (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). Een regel uitzetten geldt voor alle servers; "Dit is normaal" bij een incident geldt voor één server.', { on, n: edrRules.rules.length })}
-      ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → IDS → Endpoint-bewaking).')}</span>`}</p>
+    ruleBox().innerHTML = `<p class="small" style="margin-top:0"><b>${L('{on} van {n} regels aan.', { on, n: edrRules.rules.length })}</b>
+      ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → IDS → Endpoint-bewaking).')}</span>`}</p>${xpHtml(L('Over de regels: van RzMon zelf en van SigmaHQ.'), L('<b>Bronnen:</b> de eigen regels van RzMon (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). <b>Uitzetten:</b> een regel uitzetten geldt voor alle servers; <i>Dit is normaal</i> bij een incident geldt voor één server.'))}
       <div class="table-scroll"><table class="vuln-table rule-table"><thead><tr><th></th><th>${L('Regel')}</th><th>${L('Ernst')}</th><th>${L('Doet zelf')}</th><th>MITRE</th><th title="${esc(L('Treffers in de laatste 3 dagen'))}">${L('Treffers')}</th></tr></thead><tbody>
       ${list.map((r) => `<tr class="${r.on ? '' : 'muted'}" data-key="${esc(r.id)}"><td><label class="switch small need-admin"><input type="checkbox" data-rule="${esc(r.id)}" ${r.on ? 'checked' : ''}><span></span></label></td>
         <td><b>${esc(r.title)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : 'RzMon'}</span><br><span class="small muted">${esc((r.what || '').slice(0, 260))}${r.src === 'sigma' ? ` · ${esc(r.author || '')} · <a href="${esc(r.url)}" target="_blank" rel="noopener">${L('bron')}</a>` : ''}</span></td>
@@ -6376,7 +6376,7 @@ function renderExceptions() {
         <td class="nowrap"><button type="button" class="btn small-btn" data-exc-edit="${x.id}" title="${esc(L('Bewerken'))}">✎</button> <button type="button" class="btn small-btn" data-exc-del="${x.id}" title="${esc(L('Weghalen'))}">✕</button></td></tr>`).join('')}
       </tbody></table></div>` : `<p class="muted small">${L('Nog geen uitzonderingen.')}</p>`;
   withMorph(() => {
-    $('#edr-rules-set').innerHTML = `<p class="muted small" style="margin-top:0">${L('Wat hier staat is normaal: geen melding, niet ingrijpen en niet meetellen voor afwijkingen. Je ziet het wel als groene regel ✔ toegestaan in Live. Nooit uit te zonderen: malware (YARA), programma\'s in /dev/shm, lokaas, bekende kwade adressen en ketens.')}</p>
+    $('#edr-rules-set').innerHTML = `${xpHtml(L('Wat hier staat is normaal: geen melding en RzMon grijpt niet in.'), L('<b>Wat het doet:</b> wat op een uitzondering past, geeft geen melding, RzMon grijpt niet in en het telt niet mee voor afwijkingen. In <i>Live</i> zie je het wel als groene regel <i>✔ toegestaan</i>. <b>Nooit uit te zonderen:</b> malware (YARA), programma\'s in /dev/shm, lokaas, bekende kwade adressen en ketens.'))}
       <div class="btn-row"><button type="button" class="btn primary" id="exc-new">＋ ${L('Uitzondering')}</button>
         <button type="button" class="btn" id="exc-export">⇩ ${L('Exporteren')}</button>
         <label class="btn" for="exc-import">⇧ ${L('Importeren')}</label><input type="file" id="exc-import" accept="application/json,.json" hidden></div>
@@ -6399,7 +6399,7 @@ function excDialog(x = null) {
         <label>${L('Geldt voor')}<select name="scopex"><option value="all">${L('alle servers')}</option>
           <optgroup label="${esc(L('Groep'))}">${d.groups.map((g) => `<option value="group:${g}" ${x?.scope === 'group' && x.scope_val === g ? 'selected' : ''}>${esc((EXC_GROUPS[g] || (() => g))())}</option>`).join('')}</optgroup>
           <optgroup label="${esc(L('Server'))}">${d.hosts.map((h) => `<option value="host:${h.id}" ${x?.scope === 'host' && +x.scope_val === +h.id ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</optgroup></select></label></div>
-      <p class="muted small" style="margin:.2rem 0">${L('Voorwaarden: alles wat je invult moet kloppen; per veld is één van de regels genoeg. Jokers: * (binnen een map) en ** (ook dieper), bv. /var/tmp/dracut.*/**')}</p>
+      ${xpHtml(L('Alles wat je invult moet kloppen; jokers mogen.'), L('<b>Voorwaarden:</b> alles wat je invult moet kloppen; per veld is één van de regels genoeg. <b>Jokers:</b> <code>*</code> (binnen een map) en <code>**</code> (ook dieper), bijvoorbeeld <code>/var/tmp/dracut.*/**</code>.'))}
       <div class="exc-grid">${Object.keys(EXC_KEYS).map((k) => `<label>${esc(EXC_KEYS[k]())}<textarea name="c_${k}" rows="2" spellcheck="false" class="mono">${esc((c[k] || []).join('\n'))}</textarea></label>`).join('')}</div>
       <div class="row2"><label>${L('Geldig')}<select name="days"><option value="0">${x?.until ? L('zoals nu (tot {t})', { t: fmtDateTime(x.until) }) : L('altijd')}</option><option value="1">${L('1 dag')}</option><option value="7">${L('7 dagen')}</option><option value="30">${L('30 dagen')}</option>${x?.until ? `<option value="-1">${L('altijd')}</option>` : ''}</select></label>
         <label>${L('Reden')}<input name="reason" maxlength="200" value="${esc(x?.reason || '')}" placeholder="${esc(L('bv. elke 6 uur een nieuw VPN-adres'))}"></label></div>`,
@@ -6532,7 +6532,7 @@ async function loadAnom() {
   $('#anom-info').textContent = !d.on ? L('Endpoint-bewaking staat uit (Instellingen → IDS → Endpoint-bewaking)') : !d.anom ? L('Afwijkingen staan uit (Instellingen → IDS → Endpoint-bewaking)') : '';
   withMorph(() => {
     $('#anom-learn').innerHTML = `<h3 class="set-sub" style="margin-top:0">🎓 ${L('Wat is normaal? (leren per server)')}</h3>
-      <p class="muted small">${L('Elke server leert {d} dagen wat normaal is: welke programma\'s, gebruikers, verbindingen en poorten. Daarna meldt RzMon wat die server nog nooit deed. Na een grote wijziging (nieuwe software) kun je hem opnieuw laten leren.', { d: d.learn_days })}</p>
+      ${xpHtml(L('Elke server leert eerst {d} dagen wat normaal is.'), L('Elke server leert {d} dagen wat normaal is: welke programma\'s, gebruikers, verbindingen en poorten. Daarna meldt RzMon wat die server nog nooit deed. <b>Na een grote wijziging</b> (nieuwe software) kun je hem opnieuw laten leren.', { d: d.learn_days }))}
       ${d.hosts.length ? `<div class="table-scroll"><table class="vuln-table learn-table"><thead><tr><th>Server</th><th>${L('Leren')}</th><th>${L('Geleerd')}</th><th>${L('Afwijkingen (7 dagen)')}</th><th class="need-admin"></th></tr></thead><tbody>
       ${d.hosts.map((h) => `<tr data-key="lh${h.id}"><td><b>${esc(h.name)}</b>${h.on ? '' : ` <span class="muted small">(${L('uit')})</span>`}</td>
         <td>${h.learning ? `<span class="cl-meter"><span class="bar"><i style="width:${h.pct}%"></i></span> <span class="small">${L('dag {n} van {d}', { n: Math.max(1, h.day), d: h.days })}</span></span>`
@@ -6570,8 +6570,7 @@ function renderMitre() {
   const cover = $('#mitre-cover').checked;
   const total = d.tactics.reduce((s, t) => s + t.n, 0);
   withMorph(() => {
-    $('#mitre-matrix').innerHTML = `<p class="muted small" style="margin-top:0">${L('Alles wat RzMon de laatste {d} dagen zag (regels, afwijkingen en IDS-meldingen), gerangschikt naar de stappen van een aanval volgens MITRE ATT&CK. Klik op een techniek voor de meldingen.', { d: d.days })}
-      ${total ? '' : ' <b>' + L('Niets gezien 👌') + '</b>'}</p>
+    $('#mitre-matrix').innerHTML = `${xpHtml(L('Alles wat RzMon de laatste {d} dagen zag, per stap van een aanval.', { d: d.days }) + (total ? '' : ' <b>' + L('Niets gezien 👌') + '</b>'), L('Alle treffers van de laatste {d} dagen (regels, afwijkingen en IDS-meldingen), gerangschikt naar de stappen van een aanval volgens <b>MITRE ATT&CK</b>, een bekende indeling van aanvalstechnieken. Klik op een techniek voor de meldingen.', { d: d.days }))}
       <div class="mitre-scroll"><div class="mitre-grid">${d.tactics.map((t) => {
         const techs = t.techs.filter((x) => x.n > 0 || (cover && x.nrules > 0));
         return `<div class="mt-col ${t.n ? 'hit' : ''}" data-key="${esc(t.slug)}"><div class="mt-head" title="${esc(t.name + ' (' + t.id + ')')}"><b>${esc(t.nl)}</b><span class="muted small">${esc(t.name)}</span>${t.n ? `<span class="mt-n">${t.n}</span>` : ''}</div>
@@ -6871,7 +6870,7 @@ function accIgnoreDialog(r) {
     title: '🙈 ' + L('Negeren'),
     body: `<p style="margin-top:0">${L('Wat wil je voortaan niet meer zien in <i>Toegang</i>? Ook de regels die er al staan, verdwijnen.')}</p>
       ${opts.map(([k, v, l], i) => `<label class="switch small"><input type="checkbox" name="ign${i}" value="${esc(v)}" ${opts.length === 1 || k === 'ip' ? 'checked' : ''}><span></span> ${l}</label>`).join('')}
-      <p class="muted small">${L('Een mislukte poging met meerdere gebruikers wordt alleen verborgen als <i>alle</i> gebruikers genegeerd worden, of het IP-adres. De lijst pas je aan onder <i>Instellingen → IDS → Algemeen → Negeren</i>. Brute-forcedetectie van het IDS blijft gewoon werken.')}</p>`,
+      ${xpHtml(L('Negeren verbergt alleen; brute-forcedetectie blijft werken.'), L('Een mislukte poging met meerdere gebruikers wordt alleen verborgen als <i>alle</i> gebruikers genegeerd worden, of het IP-adres. De lijst pas je aan bij <i>Instellingen → IDS → Algemeen → Negeren</i>. De brute-forcedetectie van het IDS blijft gewoon werken.'))}`,
     buttons: [{ label: '🙈 ' + L('Negeren'), cls: 'primary', submit: true }],
     onSubmit: async (d) => {
       const add = Object.keys(d).filter((k) => k.startsWith('ign')).map((k) => d[k]);
@@ -7166,13 +7165,13 @@ async function hostSecDialog(hostId) {
         : `<p class="muted small">${L('Nog geen gegevens: agent 1.57.0 nodig; hij stuurt ze elk uur.')}</p>`}
       <div class="need-admin">
       <h3 class="set-sub">🧱 ${L('Isoleren')}</h3>
-      <p class="muted small" style="margin-top:-.2rem">${L('Bij een hack: alleen RzMon, je lokale netwerken en jouw IP-adres ({ip}) kunnen er nog bij; al het andere verkeer (in, uit en containers) stopt. Vervalt vanzelf na de gekozen tijd, ook als RzMon onbereikbaar is.', { ip: `<code>${esc(d.my_ip)}</code>` })}</p>
+      ${xpHtml(L('Sluit de server af van alles behalve RzMon, je eigen netwerk en jou.'), L('<b>Bij een hack:</b> alleen RzMon, je lokale netwerken en jouw IP-adres ({ip}) kunnen er nog bij; al het andere verkeer (in, uit en containers) stopt. <b>Goed om te weten:</b> het vervalt vanzelf na de gekozen tijd, ook als RzMon onbereikbaar is.', { ip: `<code>${esc(d.my_ip)}</code>` }))}
       ${iso ? `<p><b class="danger-txt">🧱 ${L('Geïsoleerd tot {t}', { t: esc(fmtDateTime(d.iso.isolate_until)) })}</b> · ${L('door {by}', { by: esc(d.iso.isolate_by || '?') })} · <span class="muted">${esc(d.iso.isolate_state || '')}</span>
           <button type="button" class="btn" data-unisolate>🔓 ${L('Opheffen')}</button></p>`
         : `<div class="btn-row">${[1, 4, 24, 72].map((n) => `<button type="button" class="btn danger" data-isolate="${n}">🧱 ${n < 24 ? L('{n} uur', { n }) : n === 24 ? L('1 dag') : L('3 dagen')}</button>`).join('')}</div>
           ${d.iso && d.iso.isolate_state && d.iso.isolate_state !== 'off' ? `<p class="muted small">${L('Laatste stand')}: ${esc(d.iso.isolate_state)}</p>` : ''}`}
       <h3 class="set-sub">🔒 ${L('Gebruiker vergrendelen')}</h3>
-      <p class="muted small" style="margin-top:-.2rem">${L('Het account op deze server op slot (geen wachtwoord, geen SSH-sleutel) en al zijn processen gestopt. Bv. als een gebruiker is overgenomen. Root kan niet.')}</p>
+      ${xpHtml(L('Zet het account op slot en stopt al zijn processen.'), L('Het account op deze server gaat op slot (geen wachtwoord, geen SSH-sleutel) en al zijn processen worden gestopt, bijvoorbeeld als een gebruiker is overgenomen. Root kan niet.'))}
       <div class="inline-row"><input id="ul-name" placeholder="${esc(L('gebruikersnaam'))}" class="mono" autocomplete="off"> <button type="button" class="btn danger" data-ulock>🔒 ${L('Vergrendelen')}</button></div>
       ${locks.length ? `<ul class="small">${locks.map((u) => `<li><code>${esc(u.username)}</code> · ${L('door {by}', { by: esc(u.created_by || '?') })} · ${u.done_at ? esc(u.result || '') : L('wacht op de agent')}
         <button type="button" class="linkbtn" data-uunlock="${esc(u.username)}">${L('vrijgeven')}</button></li>`).join('')}</ul>` : ''}
@@ -7437,7 +7436,7 @@ function renderAttackMap() {
     <span>${amSvg('stop', 'am-ic sm ok')}${L('Geblokkeerd')}</span><span class="muted">${L('Dikte = aantal pogingen · bolletjes = richting')}</span></div>`;
   html.push(`<section class="card am-card"><div class="am-head"><h2>${L('Herkomst op de wereldkaart')}</h2>${legend}</div>
     ${amWorldHtml(d, false)}
-    <p class="muted small am-note">${L('De lijnen lopen van het land van herkomst naar je eigen netwerk ({cc}); het land is waar het IP-adres geregistreerd staat, niet de exacte plek. Klik op een land voor de aanvallen daarvandaan.', { cc: amCcName(d.home) })}</p>
+    ${xpHtml(L('De lijnen lopen van het land van herkomst naar je eigen netwerk.'), L('De lijnen lopen van het land van herkomst naar je eigen netwerk ({cc}). Het land is waar het IP-adres geregistreerd staat, niet de exacte plek. Klik op een land voor de aanvallen daarvandaan.', { cc: amCcName(d.home) }))}
   </section>`);
   html.push(`<div class="am-row">${amCountries(d)}${amRecent(d)}</div>`);
   box.innerHTML = html.join('');
@@ -9795,7 +9794,7 @@ async function loadAccount() {
     if (!confirm(L('Tweestapsverificatie uitzetten? Inloggen kan daarna weer met alleen je wachtwoord.'))) return;
     try { await api('totp_reset', { id: me.id }); toast(L('2FA staat uit')); loadAccount(); } catch (ex) { toast(ex.message, 'err'); }
   };
-  $('#acct-devices-body').innerHTML = `<p class="muted small" style="margin-top:0">${L('Waar je nu bent ingelogd. Een onthouden apparaat (📌) blijft ingelogd zonder wachtwoord en 2FA; na 30 dagen niet gebruiken, of als je je wachtwoord wijzigt, wordt het vergeten.')}</p>
+  $('#acct-devices-body').innerHTML = `${xpHtml(L('Waar je nu bent ingelogd, en welke apparaten RzMon onthoudt.'), L('Hier zie je waar je nu bent ingelogd. <b>Onthouden apparaat (📌):</b> blijft ingelogd zonder wachtwoord en 2FA. Het wordt vergeten na 30 dagen niet gebruiken, of als je je wachtwoord wijzigt.'))}
     ${sessionRows(devices, false)}
     ${devices.some((d) => !d.current) ? `<button type="button" class="btn danger" id="acct-forget-all" style="margin-top:.6rem">${L('Alle andere apparaten uitloggen')}</button>` : ''}`;
   $('#acct-devices-body').onclick = async (e) => {
@@ -9893,7 +9892,7 @@ async function loadAccountOutside() {
         : a.passkeys_enabled ? `<span class="muted small">${L('Passkeys werken alleen via https met een domeinnaam (bv. {rp}), niet via een IP-adres.', { rp: '<code>' + esc(a.rp_id) + '</code>' })}</span>` : ''}
     </div>
     ${accessTables(a.devices, a.passkeys, false, a.current)}
-    ${a.door && door ? `<p class="muted small">🚪 ${L('Sleutel kwijt (browser gewist, nieuwe telefoon) terwijl je onderweg bent? Open dan {url}: je krijgt een 404, maar er gaat een <b>noodlink</b> naar je e-mailadres (en Pushover voor een beheerder). Die werkt één keer, 15 minuten. Bewaar dit adres.', { url: `<code class="sel-all">${esc(door)}</code>` })}</p>` : ''}`;
+    ${a.door && door ? `${xpHtml(L('Sleutel kwijt terwijl je onderweg bent? Bewaar dit adres.'), L('Ben je je sleutel kwijt (browser gewist, nieuwe telefoon) terwijl je onderweg bent? Open dan {url}: je krijgt een 404, maar er gaat een <b>noodlink</b> naar je e-mailadres (en Pushover voor een beheerder). Die werkt één keer en 15 minuten.', { url: `<code class="sel-all">${esc(door)}</code>` }))}` : ''}`;
   if ($('#acct-trust')) $('#acct-trust').onclick = () => modal({
     title: '📱 ' + L('Dit apparaat toestaan van buiten'),
     body: `<p style="margin-top:0">${L('Dit apparaat krijgt een eigen sleutel (een cookie, 1 jaar). Daarmee opent RzMon ook van buiten je netwerk, alleen voor jouw account. Wis je de gegevens van je browser, dan moet je het opnieuw doen.')}</p>
@@ -9911,15 +9910,15 @@ async function loadStealth() {
   if (!box) return;
   let s;
   try { s = await api('stealth_info'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  const sw = (k, on, label, hint) => `<label class="switch"><input type="checkbox" data-stealth="${k}" ${on ? 'checked' : ''}><span></span> <span>${label}</span></label>${hint ? `<p class="muted small" style="margin:-.3rem 0 .6rem 2.6rem">${hint}</p>` : ''}`;
-  box.innerHTML = sw('hide', s.hide, L('<b>Niet herkenbaar</b> van buiten'), L('Geen naam of versie, het agent-script alleen voor bekende agents of met de downloadsleutel, en geweigerd of onbekend krijgt een 404. Waarom iets geweigerd is, zie je in Meldingen.'))
+  const sw = (k, on, label, hint) => `<label class="switch"><input type="checkbox" data-stealth="${k}" ${on ? 'checked' : ''}><span></span> <span>${label}</span></label>${!hint ? '' : String(hint).startsWith('<div class="xp') ? `<div style="margin:-.3rem 0 .6rem 2.6rem">${hint}</div>` : `<p class="muted small" style="margin:-.3rem 0 .6rem 2.6rem">${hint}</p>`}`;   // 1.163.0: lange uitleg als Meer info
+  box.innerHTML = sw('hide', s.hide, L('<b>Niet herkenbaar</b> van buiten'), xpHtml(L('Van buiten geeft RzMon niets prijs.'), L('Geen naam of versie. Het agent-script krijgen alleen bekende agents of wie de downloadsleutel heeft; wie geweigerd wordt of onbekend is, krijgt een 404. Waarom iets geweigerd is, zie je bij Meldingen.')))
     + sw('ui', s.ui, L('Webinterface van buiten alleen op <b>toegestane apparaten</b>'), L('Zonder toegestaan apparaat ook geen inlogscherm. Elk apparaat hoort bij één gebruiker. Zet eerst je eigen apparaten op de lijst (Mijn account).')
       + (s.ui && !s.devices_all.length ? ` <b class="warn-txt">${L('Er staat nog geen apparaat op de lijst: van buiten kan nu niemand in RzMon.')}</b>` : ''))
     + sw('countries', s.countries, L('Alleen vanuit je <b>normale landen</b> ({list})', { list: esc(s.allowed_countries.join(', ') || '–') }),
       (s.geo_data ? L('In te stellen bij <a href="#settings/ids_attack" data-goto="settings/ids_attack">IDS: aanvallers en verkeer</a>. Zonder landgegevens geldt dit niet.') : `<span class="warn-txt">${L('Er zijn nog geen landgegevens (<a href="#settings/ids_attack" data-goto="settings/ids_attack">IDS: aanvallers en verkeer</a>); tot dan geldt dit niet.')}</span>`))
-    + sw('door', s.door, L('<b>Noodlink</b> als je sleutel kwijt is'), L('Via een vast adres (zie Mijn account) gaat een link naar je e-mail (en Pushover voor een beheerder), één keer te gebruiken, 15 minuten. Je krijgt altijd een melding als iemand hem aanvraagt.'))
+    + sw('door', s.door, L('<b>Noodlink</b> als je sleutel kwijt is'), xpHtml(L('Een link naar je e-mail als je sleutel kwijt is.'), L('Via een vast adres (zie Mijn account) gaat een link naar je e-mail (en Pushover voor een beheerder). Die werkt één keer en 15 minuten. Je krijgt altijd een melding als iemand hem aanvraagt.')))
     + sw('passkeys', s.passkeys, L('<b>Passkeys</b> (inloggen met Face ID, vingerafdruk of beveiligingssleutel)'), L('In plaats van wachtwoord en 2FA; die blijven de reserve. Alleen via https met een domeinnaam.'))
-    + sw('requests', s.requests_on, L('<b>Geweigerde apparaten</b> bijhouden, om ze hier toe te staan'), L('Een browser uit je normale landen die van buiten een 404 krijgt, komt onder <i>Wachtende apparaten</i>. Hij krijgt dezelfde 404, plus een wachtende sleutel in een cookie; sta je hem toe, dan krijgt hij bij zijn volgende bezoek het inlogscherm. Scanners en bots tellen niet mee.'));
+    + sw('requests', s.requests_on, L('<b>Geweigerde apparaten</b> bijhouden, om ze hier toe te staan'), xpHtml(L('Apparaten die van buiten geweigerd worden, kun je hier toestaan.'), L('Een browser uit je normale landen die van buiten een 404 krijgt, komt onder <i>Wachtende apparaten</i>. Hij krijgt dezelfde 404, plus een wachtende sleutel in een cookie. Sta je hem toe, dan krijgt hij bij zijn volgende bezoek het inlogscherm. Scanners en bots tellen niet mee.')));
   renderDeviceRequests(s);
   box.onchange = async (e) => {
     const c = e.target.closest('[data-stealth]');
@@ -10110,7 +10109,7 @@ function notifyEditor(el, cfg, enabled = {}) {
           window: `<input type="number" data-flap="window" min="1" max="1440" value="${fl.window ?? 30}">`,
           stable: `<input type="number" data-flap="stable" min="1" max="1440" value="${fl.stable ?? 15}">` })}
       </div>
-      <p class="hint">${L('Flapt een check, dan krijg je één melding "staat te flappen", daarna per status (warning, critical, onbekend, hersteld) hooguit één melding, en een melding als hij weer stabiel is.')} ${L('Ook hier geldt "melden na … mislukte checks achter elkaar": zolang dat aantal niet gehaald wordt, flapt hij stil.')}</p>
+      ${xpHtml(L('Een check die steeds wisselt, geeft niet steeds een melding.'), L('Flapt een check, dan krijg je één melding <i>staat te flappen</i>, daarna per status (warning, critical, onbekend, hersteld) hooguit één melding, en een melding als hij weer stabiel is. <b>Goed om te weten:</b> ook hier geldt <i>melden na … mislukte checks achter elkaar</i>: zolang dat aantal niet gehaald wordt, flapt hij stil.'))}
     </div>`;
   const sync = () => { $('.flap-fields', el).classList.toggle('off', !$('[data-flap=on]', el).checked); $$('tr[data-k]', el).forEach((tr) => {
     const mode = $('[data-f=mode]', tr).value;
@@ -10167,7 +10166,7 @@ function quietEditor(el, cfg, withSwitch) {
   el.innerHTML = `${withSwitch ? `<label class="switch small"><input type="checkbox" data-q="on" ${cfg.on ? 'checked' : ''}><span></span> <b>${L('Stille uren aan')}</b></label>` : ''}
     <div class="quiet-fields"><div class="quiet-list">${wins.map(row).join('')}</div>
       <button type="button" class="btn small-btn" data-q="add">＋ ${L('Venster')}</button>
-      <p class="hint">${L('Over middernacht mag (23:00 tot 07:00 hoort bij de dag waarop het begint). Van gelijk aan tot = 24 uur. Meerdere vensters, bv. door de week 23:00–07:00 en in het weekend 00:00–10:00.')}</p></div>`;
+      ${xpHtml(L('Een venster mag over middernacht lopen; meerdere vensters kan ook.'), L('<b>Over middernacht:</b> 23:00 tot 07:00 hoort bij de dag waarop het begint. Van gelijk aan tot = 24 uur. <b>Meerdere vensters</b> kan ook, bijvoorbeeld door de week 23:00–07:00 en in het weekend 00:00–10:00.'))}</div>`;
   const sync = () => {
     if (withSwitch) $('.quiet-fields', el).classList.toggle('off', !$('[data-q=on]', el).checked);
     $$('[data-q=del]', el).forEach((b) => (b.disabled = $$('.quiet-row', el).length < 2));
@@ -10526,7 +10525,7 @@ async function devicesDialog(u) {
   modal({
     title: `📱 ${L('Ingelogde apparaten')} – ${u.username}`,
     wide: true,
-    body: `<p class="muted small" style="margin-top:0">${L('Waar {user} nu is ingelogd. Een onthouden apparaat (📌) blijft ingelogd zonder wachtwoord en 2FA; het wordt vanzelf vergeten na 30 dagen niet gebruiken, en bij een wachtwoordwijziging.', { user: esc(u.username) })}</p>
+    body: `${xpHtml(L('Waar {user} nu is ingelogd.'), L('Hier zie je waar {user} nu is ingelogd. <b>Onthouden apparaat (📌):</b> blijft ingelogd zonder wachtwoord en 2FA. Het wordt vanzelf vergeten na 30 dagen niet gebruiken, en bij een wachtwoordwijziging.', { user: esc(u.username) }))}
       <div id="device-list">${sessionRows(list, false)}</div>`,
     buttons: [
       ...(list.some((d) => !d.current) ? [{ label: L('Alles uitloggen'), cls: 'danger', style: 'margin-right:auto', onClick: async () => {
@@ -10824,7 +10823,7 @@ async function acBulk(kind) {
   if (kind === 'smart') return modal({ title: L('Drempels voor {n} checks', { n: ids.length }),
     body: `<label>${L('Drempels')}<select name="mode"><option value="">${L('ongewijzigd')}</option>${Object.entries(SMART_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
       <label>${L('Gevoeligheid')}<select name="sens"><option value="-">${L('ongewijzigd')}</option><option value="">${L('standaard')}</option>${Object.entries(SMART_SENS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
-      <p class="hint">${L('Alleen voor checks die kunnen leren (ping, TCP, HTTP, CPU, RAM, SNMP); de andere blijven zoals ze zijn. Bij slim met vangnet krijgt een check zonder vangnet het standaard vangnet.')}</p>`,
+      ${xpHtml(L('Alleen checks die kunnen leren worden slim; de rest blijft zoals hij is.'), L('Dit geldt alleen voor checks die kunnen leren (ping, TCP, HTTP, CPU, RAM, SNMP); de andere blijven zoals ze zijn. Bij <i>slim met vangnet</i> krijgt een check zonder vangnet het standaard vangnet.'))}`,
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
     onSubmit: (d) => set({ ...(d.mode ? { thresh_mode: d.mode } : {}), ...(d.sens !== '-' ? { smart_sens: d.sens || null } : {}) }) });
   if (kind === 'notify') return modal({ title: L('Melden voor {n} checks', { n: ids.length }),
@@ -10839,7 +10838,7 @@ async function acBulk(kind) {
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
     onSubmit: (d) => api('checks_bulk', { ids, action: 'maintenance', minutes: +d.minutes, reason: d.reason }).then(done) });
   if (kind === 'copy') return modal({ title: L('{n} checks kopiëren naar…', { n: ids.length }),
-    body: `<p class="hint" style="margin-top:0">${L('Elke gekozen server krijgt een kopie (los, niet uit een sjabloon). Staat het adres van de oorspronkelijke server in het doel, dan wordt dat het adres van de nieuwe server.')}</p>
+    body: `${xpHtml(L('Elke gekozen server krijgt een eigen kopie van de check.'), L('Elke gekozen server krijgt een losse kopie (niet uit een sjabloon). Staat het adres van de oorspronkelijke server in het doel, dan wordt dat het adres van de nieuwe server.'))}
       ${acData.hosts.map((h) => `<label class="switch"><input type="checkbox" data-copy-to="${h.id}"><span></span> ${esc(h.name)}</label>`).join('')}`,
     buttons: [{ label: L('Kopiëren'), cls: 'primary', submit: true }],
     onSubmit: async () => {
@@ -11024,7 +11023,7 @@ async function loadConn() {
     ${line('💓', L('Heartbeats'), i.heartbeats.length ? (i.heartbeats.length === 1 ? L('1 check') : L('{n} checks', { n: i.heartbeats.length })) + (hbLast ? ' · ' + L('laatst gemeld {t}', { t: esc(ago(hbLast)) }) : '') : L('geen'),
       L('Wanneer je scripts, cronjobs of apparaten zich melden.'), i.heartbeats.length ? 'dashboard' : '', L('Dashboard'))}
     <h3 class="set-sub">⬆️ ${L('Achtergrondtaken van RzMon')}</h3>
-    <p class="muted small">${L('RzMon draait elke minuut (cron): checks naar je apparaten volgens hun interval, meldingen naar Pushover, ntfy, e-mail en Home Assistant, en deze taken.')}</p>
+    ${xpHtml(L('Wat RzMon elke minuut op de achtergrond doet.'), L('RzMon draait elke minuut (cron): de checks naar je apparaten volgens hun interval, de meldingen naar Pushover, ntfy, e-mail en Home Assistant, en de taken hieronder.'))}
     ${table([L('Taak'), L('Hoe vaak'), L('Laatst gelukt'), L('Volgende'), L('Stand')], d.tasks.map((t) => `<tr${t.status === 'off' ? ' class="muted"' : ''}>
       <td><b>${esc(t.label)}</b>${t.error && t.status !== 'off' ? `<div class="bad small">${esc(t.error)}</div>` : ''}${t.note ? `<div class="muted small">${esc(t.note)}</div>` : ''}</td>
       <td class="small">${esc(t.every)}</td><td>${t.status === 'off' ? '–' : esc(tsAgo(t.last_ok))}</td>
@@ -11326,7 +11325,7 @@ async function setAgentCommands(hostId, mode, current, label, then) {
     body: `<p style="margin-top:0">${L('Hiermee mag RzMon commando\'s laten uitvoeren op {label}, <b>{mode}</b>.', { label: esc(label), mode: esc(CMD_MODES[target]) })}
         ${(hostId ? L('Iedereen die in RzMon beheerder is, kan dan commando\'s op deze server draaien{extra}.', { extra: target === 'root' ? L(', <b>met volledige rechten</b>') : '' })
           : L('Iedereen die in RzMon beheerder is, kan dan commando\'s op je agents draaien{extra}.', { extra: target === 'root' ? L(', <b>met volledige rechten</b>') : '' }))}</p>
-      <p class="muted small">${L('Op een server zelf kun je het altijd blokkeren met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent. Deze wijziging komt in het logboek.')}</p>
+      ${xpHtml(L('Op een server zelf kun je commando\'s altijd blokkeren.'), L('Op een server zelf blokkeer je het altijd met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent. Deze wijziging komt in het logboek.'))}
       ${confirmField('TOESTAAN')}`,
     buttons: [{ label: L('Toestaan'), cls: 'primary', submit: true }],
     onSubmit: async (d) => {
@@ -12425,7 +12424,7 @@ function netBlockDialog(x) {
       ${opt('rzmon', true, true, '🛡️ ' + L('<b>RzMon en je servers</b>: geen toegang tot RzMon, en geblokkeerd op je servers met agent'), '')}
       <div class="row2"><label>${L('Hoe lang')}<select name="days"><option value="1">${L('1 dag')}</option><option value="7">${L('7 dagen')}</option><option value="0">${L('Tot ik het weer toelaat')}</option></select></label>
         <label>${L('Reden')} <span class="hint">${L('(optioneel)')}</span><input name="reason" maxlength="200"></label></div>
-      <p class="muted small">${L('Een bedraad apparaat haal je niet van het netwerk via UniFi-wifi; daarvoor zet je de poort op de switch uit. Een apparaat met een eigen DNS-server of een vast IP-adres komt langs AdGuard.')}</p>
+      ${xpHtml(L('Weren werkt niet voor elk apparaat.'), L('<b>Bedraad:</b> een bedraad apparaat haal je niet van het netwerk via UniFi-wifi; daarvoor zet je de poort op de switch uit. <b>Eigen DNS of vast IP:</b> zo\'n apparaat komt langs AdGuard.'))}
       ${confirmField('WEREN')}`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '⛔ ' + L('Weren'), cls: 'danger', submit: true }],
     onSubmit: async (d) => {
@@ -12889,7 +12888,7 @@ async function vulnDetail(cve) {
       ${d.details ? `<details class="vd-details" ${d.details.length < 600 ? 'open' : ''}><summary>${L('Omschrijving')}</summary><p class="small" style="white-space:pre-wrap">${esc(d.details)}</p></details>` : ''}
       <table class="kv">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
       <h3>${L('Zo los je het op')}</h3>
-      <p class="muted small">${L('Installeer de nieuwe versie uit de eigen pakketbron van de distributie (zoals hieronder); een download bij de maker is daarvoor niet nodig. Bij de kernel of een bibliotheek is daarna een herstart van de server of van de services nodig.')}</p>
+      ${xpHtml(L('Installeer de oplossing uit de pakketbron van je distributie.'), L('Installeer de nieuwe versie uit de eigen pakketbron van de distributie (zoals hieronder); een download bij de maker is niet nodig. <b>Goed om te weten:</b> bij de kernel of een bibliotheek is daarna een herstart van de server of van de services nodig.'))}
       ${hostRows}
       <h3>${L('Meer informatie en adviezen')}</h3>
       <ul class="vd-links">${d.links.map((l) => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a> <span class="muted small">${esc(l.url.replace(/^https?:\/\//, '').slice(0, 70))}</span></li>`).join('')}</ul>
@@ -12944,7 +12943,7 @@ function vulnUpgrade(h, pkgs) {
     title: all ? L('Alle beveiligingsupdates installeren op {name}', { name: h.name }) : L('Bijwerken op {name}', { name: h.name }),
     body: `<div style="padding:1rem 1.2rem">
       <p>${all ? L('De agent installeert de nieuwe versie van alle pakketten waarvoor een oplossing is.') : L('De agent installeert de nieuwe versie van: {p}', { p: `<b>${esc(pkgs.join(' '))}</b>` })}</p>
-      <p class="muted small">${L('Dit gebeurt bij het volgende rapport van de agent, met de pakketbeheerder van de server (dnf of apt), en komt in het logboek. Er wordt niets herstart; is dat nodig, dan zie je ↻ bij de server.')}</p>
+      ${xpHtml(L('Bijwerken gebeurt bij het volgende rapport van de agent.'), L('Dit gebeurt bij het volgende rapport van de agent, met de pakketbeheerder van de server (dnf of apt), en komt in het logboek. Er wordt niets herstart; is dat nodig, dan zie je ↻ bij de server.'))}
       ${h.upgrade_blocked ? `<p class="warn-txt">${L('Bijwerken via de agent kan hier niet: {why}.', { why: esc(h.upgrade_blocked) })}</p>` : confirmField('BIJWERKEN')}
       <div id="vu-cmd"></div>
     </div>`,

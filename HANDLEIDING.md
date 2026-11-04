@@ -465,7 +465,7 @@ Bij de **installatie** (en als de database niet bereikbaar is) is er de **setup-
 Daarna staat alles in de beheerportal (vanaf 1.92.0; `setup.php` stuurt je erheen), alleen voor **beheerders**:
 **Nieuwe indeling van de instellingen** (vanaf 1.120.0)
 
-Elke pagina heeft één titel met daaronder één korte zin. **Uitleg** staat vanaf 1.161.0 als **één regel** met rechts **Meer info** (Engels: *More info*): klik erop en de volledige uitleg klapt open, met *Wat het is*, *Wat het doet* en *Goed om te weten*. De uitleg staat altijd dicht tot je hem zelf opent, en is weer dicht zodra je naar een andere pagina gaat. (Van 1.148.0 tot 1.160.0 stond de uitleg als gewone grijze tekst op de kaart; eerder in een ingeklapt oranje ⓘ-blok.)
+Elke pagina heeft één titel met daaronder één korte zin. **Uitleg** staat vanaf 1.161.0 (instellingen en Mijn account) en 1.163.0 (alle pagina's en vensters) als **één regel** met rechts **Meer info** (Engels: *More info*): klik erop en de volledige uitleg klapt open, met *Wat het is*, *Wat het doet* en *Goed om te weten*. De uitleg staat altijd dicht tot je hem zelf opent, en is weer dicht zodra je naar een andere pagina gaat. (Van 1.148.0 tot 1.160.0 stond de uitleg als gewone grijze tekst op de kaart; eerder in een ingeklapt oranje ⓘ-blok.)
 
 **Wat voor je account geldt** (vanaf 1.162.0): bij *Mijn account → Weergave* staan alle keuzes voor hoe RzMon er voor jou uitziet. Ze gelden op al je apparaten:
 - lay-out, *Bij openen*, rode gloed en live animaties;
