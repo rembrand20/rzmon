@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.166.0**: op de IDS-pagina **wat het IDS deed (24 u)**, de **meest actieve aanvallers** en een duidelijkere grafiek.
 - **1.165.0**: de **IDS-pagina** toont de servers als tabel (L1nes) of met *Wat nu aandacht vraagt*, kaarten en chips (Blox en CC), met modus en hardening duidelijk erbij.
 - **1.164.0**: in CC zijn de servers op Monitoring compacte blokken die met een animatie openklappen tot een **tabel met de checks eronder**.
 - **1.163.0**: **Meer info** nu op alle pagina's en in alle vensters, met herschreven uitleg.
 - **1.162.0**: persoonlijke keuzes (IDS-weergave, beweging, grootte, sortering, periode) gelden **per account**, en regels, uitzonderingen en de whitelist beheer je bij de **instellingen**.
-- **1.161.0**: alle uitleg in de Instellingen en bij Mijn account herschreven, als **één regel met Meer info** die openklapt.
+
+## 1.166.0 – 2026-11-04
+### Nieuw
+- **IDS-pagina: wat het IDS deed** (in alle lay-outs, onder *Aanvallen per dag*):
+  - drie getallen: **geblokkeerd in de laatste 24 uur**, **open waarschuwingen** en **critical**;
+  - **meest actieve aanvallers (24 uur)**: per IP-adres de pogingen en treffers, met land, bekende aanvaller (☠️) en de server die het vaakst werd aangevallen; je eigen netwerk telt niet mee; klik op een adres voor de tijdlijn.
+- **Grafiek Aanvallen per dag duidelijker**: een as met getallen, en de grote groep *Overig* opgesplitst in *Bekende kwade adressen en malware* en *Afwijkingen en ketens*; Suricata, EDR en webaanvallen met een CVE vallen nu in hun eigen groep.
 
 ## 1.165.0 – 2026-11-04
 ### Nieuw

@@ -7186,4 +7186,13 @@ return [
     'Niets dat nu aandacht vraagt.' => 'Nothing needs attention right now.',
     'per dag, 7 dagen' => 'per day, 7 days',
     'geen rapport' => 'no report',
+    'Inloggen en lokaas' => 'Logins and bait',
+    'Netwerk en poorten' => 'Network and ports',
+    'Bekende kwade adressen en malware' => 'Known bad addresses and malware',
+    'geblokkeerd (24 u)' => 'blocked (24 h)',
+    'open waarschuwingen' => 'open warnings',
+    'Meest actieve aanvallers (24 u)' => 'Most active attackers (24 h)',
+    '+{n} andere' => '+{n} other',
+    'Geen aanvallen van buiten in de laatste 24 uur.' => 'No attacks from outside in the last 24 hours.',
+    'Pogingen en treffers per IP-adres; klik op een adres voor de tijdlijn.' => 'Attempts and hits per IP address; click an address for the timeline.',
 ];

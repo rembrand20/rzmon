@@ -7063,19 +7063,39 @@ function idsHostCard(h, d = idsData) {
 }
 
 /** Aanvallen per dag (1.117.0): 14 dagen, gestapeld per soort; uitklapbaar en standaard dicht */
-const IDS_CHART = [['login', () => L('Logins'), ['logins', 'decoy']], ['web', () => L('Web'), ['web', 'weblog']], ['net', () => L('Netwerk'), ['ports', 'net']],
-  ['host', () => L('Processen en bestanden'), ['procs', 'files']], ['other', () => L('Overig'), null]];
+// 1.166.0: Overig opgesplitst: bekende kwade adressen en malware, en afwijkingen en aanvalsketens apart
+const IDS_CHART = [['login', () => L('Inloggen en lokaas'), ['logins', 'decoy']], ['web', () => L('Webaanvallen'), ['web', 'weblog', 'web_payload', 'web_cve']],
+  ['net', () => L('Netwerk en poorten'), ['ports', 'net', 'suricata']], ['host', () => L('Processen en bestanden'), ['procs', 'files', 'edr']],
+  ['ti', () => L('Bekende kwade adressen en malware'), ['ti_ip', 'ti_malware']], ['anom', () => L('Afwijkingen en ketens'), ['anomaly', 'chain']], ['other', () => L('Overig'), null]];
+/** 1.166.0: wat het IDS de laatste 24 uur deed, en de meest actieve aanvallers (klik op het IP voor de tijdlijn) */
+function idsDid(d) {
+  if (!d) return '';
+  const open = d.incidents.filter((i) => i.status === 'open'), crit = open.filter((i) => +i.severity === 2).length;
+  const top = d.top24 || [], mx = Math.max(1, ...top.map((t) => +t.n));
+  const kv = (n, l, cls) => `<div><b class="${n ? cls : ''}">${(+n).toLocaleString(LOCALE)}</b><span>${esc(l)}</span></div>`;
+  return `<div class="card ids-did">${kv(d.blocked24 || 0, L('geblokkeerd (24 u)'), 'danger-txt')}${kv(open.length - crit, L('open waarschuwingen'), 'warn-txt')}${kv(crit, L('critical'), 'danger-txt')}</div>
+    <div class="card ids-top"><div class="ids-top-h">${L('Meest actieve aanvallers (24 u)')}</div>
+      ${top.length ? top.map((t) => `<div class="ids-top-i"><span><code>${esc(t.ip)}</code>${t.cc ? ` · ${esc(t.cc)}` : ''}${t.bad ? ` · <span class="danger-txt">☠️ ${esc(t.bad)}</span>` : ''} <span class="muted">→ ${esc(t.host)}${+t.hosts > 1 ? ' ' + esc(L('+{n} andere', { n: t.hosts - 1 })) : ''}</span>
+        <span class="ids-top-b"><i style="width:${(t.n / mx * 100).toFixed(0)}%"></i></span></span><b>${(+t.n).toLocaleString(LOCALE)}</b></div>`).join('')
+        : `<p class="muted small" style="margin:.2rem 0 0">${L('Geen aanvallen van buiten in de laatste 24 uur.')}</p>`}
+      <p class="muted small" style="margin:.4rem 0 0">${L('Pogingen en treffers per IP-adres; klik op een adres voor de tijdlijn.')}</p></div>`;
+}
 function renderIdsChart() {
   const box = $('#ids-chart');
   let isOpen = isCC();   // 1.159.0: in CC staat de grafiek altijd open
   try { isOpen = isOpen || localStorage.getItem('rzmon-ids-chart') === '1'; } catch (e) { /* standaard dicht */ }
   const days = idsPerDay(null, 14);
-  const grp = (i) => { const c = idsCatOf(i); return (IDS_CHART.find((g) => g[2] && g[2].includes(c)) || IDS_CHART[4])[0]; };
+  const grp = (i) => { const c = idsCatOf(i); return (IDS_CHART.find((g) => g[2] && (g[2].includes(c) || g[2].includes(i.type))) || IDS_CHART[IDS_CHART.length - 1])[0]; };
   const rows = days.map(([day, xs]) => [day, IDS_CHART.map(([k]) => xs.filter((i) => grp(i) === k).length)]);
   const total = rows.reduce((a, [, v]) => a + v.reduce((x, y) => x + y, 0), 0);
   const sums = IDS_CHART.map((g, k) => rows.reduce((a, [, v]) => a + v[k], 0));
   const max = Math.max(1, ...rows.map(([, v]) => v.reduce((x, y) => x + y, 0)));
   const W = 700, H = 120, bw = W / 14;
+  // 1.166.0: een as met ronde getallen
+  const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000].find((x) => max / x <= 4) || Math.ceil(max / 4);
+  const ticks = []; for (let v = 0; v <= max + step * .01; v += step) ticks.push(v);
+  const grid = ticks.map((v) => `<line x1="0" x2="${W}" y1="${(H - v / max * (H - 8)).toFixed(1)}" y2="${(H - v / max * (H - 8)).toFixed(1)}" class="ch-grid"/>`).join('');
+  const yl = ticks.map((v) => `<span style="bottom:${(v / max * (H - 8) / H * 100).toFixed(1)}%">${v.toLocaleString(LOCALE)}</span>`).join('');
   const bars = rows.map(([day, v], k) => {
     let y = H;
     const segs = v.map((n, s) => {
@@ -7090,8 +7110,8 @@ function renderIdsChart() {
   const lbl = rows.map(([day], k) => (k % 2 === 1 || k === 13 ? `<span style="left:${((k + .5) / 14 * 100).toFixed(2)}%">${esc(new Date(day + 'T12:00:00').toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }))}</span>` : '')).join('');
   box.innerHTML = `<details class="card ids-chart" ${isOpen ? 'open' : ''}><summary><b>📊 ${L('Aanvallen per dag')}</b> <span class="muted small">${L('14 dagen · {n} incidenten', { n: total })}</span></summary>
     <div class="ch-legend small">${IDS_CHART.map(([, l], k) => sums[k] ? `<span><i class="ser-${k + 1}"></i>${esc(l())} <b>${sums[k]}</b></span>` : '').join('')}</div>
-    <svg class="ch-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(L('Aanvallen per dag'))}"><line x1="0" y1="${H - .5}" x2="${W}" y2="${H - .5}" class="ch-base"/>${bars}</svg>
-    <div class="ch-x small muted">${lbl}</div></details>`;
+    <div class="ch-plot"><div class="ch-y small muted" aria-hidden="true">${yl}</div>    <svg class="ch-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(L('Aanvallen per dag'))}">${grid}<line x1="0" y1="${H - .5}" x2="${W}" y2="${H - .5}" class="ch-base"/>${bars}</svg></div>
+    <div class="ch-x small muted">${lbl}</div></details>${idsDid(idsData)}`;
   $('details', box).ontoggle = (e) => { try { localStorage.setItem('rzmon-ids-chart', e.target.open ? '1' : '0'); } catch (ex) { /* alleen voor nu */ } };
 }
 

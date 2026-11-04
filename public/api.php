@@ -1212,6 +1212,41 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($action, ['pr
     });
 }
 /** 1.162.0: weergave-keuzes per account (eerst alleen in de browser): grootte per soort scherm, sortering en periode */
+/**
+ * 1.166.0: de meest actieve aanvallers van de laatste 24 uur: pogingen (SSH) plus treffers in incidenten, per IP-adres,
+ * met het land, of het een bekende aanvaller is en de server die het vaakst werd aangevallen. Nooit je eigen netwerk.
+ * @param array<int, array<string, mixed>> $hosts
+ * @return list<array<string, mixed>>
+ */
+function ids_top_attackers(array $hosts, int $limit = 5): array
+{
+    $names = [];
+    foreach ($hosts as $h) {
+        $names[(int) $h['id']] = (string) $h['name'];
+    }
+    $per = [];
+    $rows = array_merge(
+        q('SELECT ip, host_id, SUM(n) AS n FROM ids_attempts WHERE at >= NOW() - INTERVAL 1 DAY GROUP BY ip, host_id')->fetchAll(),
+        q("SELECT ip, host_id, SUM(hits) AS n FROM ids_incidents WHERE ip IS NOT NULL AND ip <> '' AND last_seen >= NOW() - INTERVAL 1 DAY GROUP BY ip, host_id")->fetchAll()
+    );
+    foreach ($rows as $r) {
+        $ip = (string) $r['ip'];
+        if ($ip === '' || Ids::internalIp($ip)) {
+            continue;
+        }
+        $per[$ip]['n'] = ($per[$ip]['n'] ?? 0) + (int) $r['n'];
+        $per[$ip]['h'][(int) $r['host_id']] = ($per[$ip]['h'][(int) $r['host_id']] ?? 0) + (int) $r['n'];
+    }
+    uasort($per, static fn($a, $b) => $b['n'] <=> $a['n']);
+    $out = [];
+    foreach (array_slice($per, 0, $limit, true) as $ip => $p) {
+        arsort($p['h']);
+        $hid = (int) array_key_first($p['h']);
+        $out[] = ['ip' => (string) $ip, 'n' => $p['n'], 'cc' => IpIntel::country((string) $ip), 'bad' => IpIntel::bad((string) $ip),
+            'host' => $names[$hid] ?? ('#' . $hid), 'hosts' => count($p['h'])];
+    }
+    return $out;
+}
 function clean_ui_prefs(array $in): array
 {
     $size = '/^(small|large)$/';
@@ -4586,6 +4621,9 @@ switch ($action) {
             'removed' => Ids::readable(q('SELECT b.*, h.name AS host_name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
                             WHERE b.removed_at IS NOT NULL OR (b.until IS NOT NULL AND b.until <= NOW()) ORDER BY COALESCE(b.removed_at, b.until) DESC LIMIT 30')->fetchAll()),
             'my_ip' => client_ip(),
+            // 1.166.0: wat het IDS de laatste 24 uur deed
+            'blocked24' => (int) q('SELECT COUNT(*) FROM ids_blocks WHERE created_at >= NOW() - INTERVAL 1 DAY')->fetchColumn(),
+            'top24' => ids_top_attackers($hosts),
         ]);
 
     // Toegang: logins, sudo en su (zonder wat inmiddels op de lijst Negeren staat)

@@ -1814,9 +1814,9 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .ev-pager { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; margin: .3rem 0; } .ev-pager .pg-n { min-width: 1.8rem; height: 1.8rem; }
 
 /* 1.117.0: IDS-pagina in de stijl van het dashboard */
-:root { --ser-1: #3987e5; --ser-2: #d95926; --ser-3: #199e70; --ser-4: #c98500; --ser-5: #d55181; }
-:root[data-theme="light"] { --ser-1: #2a78d6; --ser-2: #eb6834; --ser-3: #1baf7a; --ser-4: #eda100; --ser-5: #e87ba4; }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --ser-1: #2a78d6; --ser-2: #eb6834; --ser-3: #1baf7a; --ser-4: #eda100; --ser-5: #e87ba4; } }
+:root { --ser-1: #3987e5; --ser-2: #d95926; --ser-3: #199e70; --ser-4: #c98500; --ser-5: #d55181; --ser-6: #9b6bdf; --ser-7: #7d8799; }
+:root[data-theme="light"] { --ser-1: #2a78d6; --ser-2: #eb6834; --ser-3: #1baf7a; --ser-4: #eda100; --ser-5: #e87ba4; --ser-6: #8a5bd6; --ser-7: #8b93a3; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --ser-1: #2a78d6; --ser-2: #eb6834; --ser-3: #1baf7a; --ser-4: #eda100; --ser-5: #e87ba4; --ser-6: #8a5bd6; --ser-7: #8b93a3; } }
 .mode-pill { display: inline-block; padding: .2rem .65rem; border-radius: 99px; font-weight: 600; font-size: .8rem; text-decoration: none; border: 1px solid var(--border); margin-right: .5rem; }
 .mode-pill.block { color: var(--crit); background: color-mix(in srgb, var(--crit) 10%, transparent); border-color: color-mix(in srgb, var(--crit) 35%, transparent); }
 .mode-pill.learn { color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); }
@@ -3133,3 +3133,21 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 .ids-q.na .dot { background: var(--muted); }
 .ids-q[open] { flex-basis: 100%; }
 .ids-q-d { padding: 0 .75rem .6rem; line-height: 1.7; }
+/* 1.166.0: grafiek met as; wat het IDS deed (24 u); meest actieve aanvallers */
+.ser-6 { fill: var(--ser-6); background: var(--ser-6); } .ser-7 { fill: var(--ser-7); background: var(--ser-7); }
+.ch-plot { position: relative; padding-left: 2.2rem; }
+.ch-plot + .ch-x { margin-left: 2.2rem; }
+.ch-y { position: absolute; left: 0; top: 0; bottom: 0; width: 2rem; }
+.ch-y span { position: absolute; right: .3rem; transform: translateY(50%); font-size: .68rem; font-variant-numeric: tabular-nums; }
+.ch-grid { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ids-did { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; padding: .8rem 1rem; margin: 0 0 1rem; }
+.ids-did b { display: block; font: 800 1.5rem var(--mono, ui-monospace, monospace); font-variant-numeric: tabular-nums; }
+.ids-did span { font-size: .78rem; color: var(--muted); }
+.ids-top { padding: .8rem 1rem; margin: 0 0 1rem; }
+.ids-top-h { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--primary); margin-bottom: .3rem; }
+.ids-top-i { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .6rem; align-items: start; padding: .45rem 0; border-bottom: 1px dashed var(--border); font-size: .86rem; }
+.ids-top-i:last-of-type { border-bottom: 0; }
+.ids-top-i code { cursor: pointer; }
+.ids-top-i > b { font-family: var(--mono, ui-monospace, monospace); }
+.ids-top-b { display: block; height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; margin-top: .3rem; }
+.ids-top-b i { display: block; height: 100%; background: var(--crit); }
