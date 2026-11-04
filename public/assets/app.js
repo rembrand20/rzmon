@@ -7046,22 +7046,19 @@ function idsPerDay(hostId, n) {
 }
 
 /** Kaart van een server met open incidenten (1.117.0): aantallen, hardening, blokkades en een staafje per dag (7 dagen) */
-function idsHostCard(h) {
+function idsHostCard(h, d = idsData) {
   const n = h.open[1] + h.open[2];
-  const hs = h.hard && h.hard.score !== null ? +h.hard.score : null;
-  const days = idsPerDay(h.id, 7);
-  const max = Math.max(1, ...days.map((x) => x[1].length));
-  const bars = days.map(([day, xs, c], k) => `<rect class="${c ? 'c' : xs.length ? 'w' : 'z'}" x="${k * 14 + 1}" y="${xs.length ? 26 - Math.max(3, xs.length / max * 24) : 24}" width="11" height="${xs.length ? Math.max(3, xs.length / max * 24) : 2}" rx="2"><title>${esc(dayLabel(day, idsData.today))}: ${xs.length}</title></rect>`).join('');
+  // 1.165.0: modus erbij, een label onder elk getal en het woord Hardening
   return `<article class="ids-card ${h.open[2] ? 's2' : 's1'}">
     <div class="ic-head"><span class="ok-ic">🖥️</span><span class="ok-nm"><strong>${esc(h.name)}</strong><small>${h.last_report ? L('IDS-rapport {ago}', { ago: ago(h.last_report) }) : L('nog geen IDS-rapport (agent 1.35.0+)')}</small></span>
-      <button type="button" class="hard-chip ${hs === null ? '' : hs >= 85 ? 'good' : hs >= 60 ? 'warn' : 'bad'}" data-hostsec="${h.id}" title="${esc(L('Hardening, isoleren en gebruikers'))}">🛡️ ${hs === null ? '–' : hs}</button></div>
+      ${idsSecChip(h)}</div>
+    <div class="ic-mode">${idsModeChip(h, d)}</div>
     <div class="ic-nums">
       <button type="button" class="ic-n" data-ihost="${h.id}" title="${esc(L('Toon de open incidenten van deze server'))}"><b class="${h.open[2] ? 'danger-txt' : 'warn-txt'}">${n}</b><small>${L('open')}</small></button>
       <span class="ic-n"><b>${h.open[2]}</b><small>critical</small></span>
       <span class="ic-n"><b>${h.blocks || 0}</b><small>${L('geblokkeerd')}</small></span>
-      <svg class="ic-spark" viewBox="0 0 98 26" role="img" aria-label="${esc(L('Incidenten per dag, 7 dagen'))}">${bars}</svg>
+      <span class="ic-wk">${idsWeekSvg(h)}<small>${L('per dag, 7 dagen')}</small></span>
     </div>
-    ${h.iso ? `<div class="small"><span class="iso-chip">🧱 ${h.iso.isolate_until ? L('geïsoleerd tot {t}', { t: esc(fmtUntil(h.iso.isolate_until)) }) : esc(h.iso.isolate_state)}</span></div>` : ''}
   </article>`;
 }
 
@@ -7096,6 +7093,88 @@ function renderIdsChart() {
     <svg class="ch-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(L('Aanvallen per dag'))}"><line x1="0" y1="${H - .5}" x2="${W}" y2="${H - .5}" class="ch-base"/>${bars}</svg>
     <div class="ch-x small muted">${lbl}</div></details>`;
   $('details', box).ontoggle = (e) => { try { localStorage.setItem('rzmon-ids-chart', e.target.open ? '1' : '0'); } catch (ex) { /* alleen voor nu */ } };
+}
+
+/** 1.165.0: wat het IDS op een server bewaakt (basismeting, firewall, lokaas, bestanden, realtime) */
+function idsStLine(h, fw = true) {
+  return [!h.baseline_until ? '' : h.learning ? L('📏 basismeting tot {t}', { t: esc(fmtUntil(h.baseline_until)) }) : '✔ ' + L('bewaakt'),
+      fw && h.fw_state ? (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : '',
+      !fw && h.fw_state === 'error' ? IDS_FW.error(h) : '',
+      h.decoy_state ? `<span class="warn-txt">🍯 ${esc(h.decoy_state)}</span>` : '',
+      h.fim_count != null ? '📁 ' + L(+h.fim_count === 1 ? '{n} bestand bewaakt' : '{n} bestanden bewaakt', { n: (+h.fim_count).toLocaleString(LOCALE) }) : '',
+      +h.realtime ? ((x) => (x && x.state === 'active' ? '<span class="good">⚡ realtime</span>' : `<span class="warn-txt">⚡ ${L('niet actief')}</span>`))(JSON.parse(h.rt || 'null')) : '',
+      +h.realtime ? ((t) => (t && !t.inotify ? `<span class="warn-txt">${t.family === 'rhel' && !t.epel ? L('EPEL ontbreekt') : L('inotify-tools ontbreekt')}</span>` : ''))(JSON.parse(h.tools || 'null')) : ''].filter(Boolean).join(' · ');
+}
+/** 1.165.0: hardening-knop (met het woord Hardening) en een eventuele isolatie */
+function idsSecChip(h) {
+  const hs = h.hard && h.hard.score !== null ? h.hard.score : null;
+  return `<button type="button" class="hard-chip ${hs === null ? '' : hs >= 85 ? 'good' : hs >= 60 ? 'warn' : 'bad'}" data-hostsec="${h.id}" title="${esc(L('Hardening, isoleren en gebruikers'))}">🛡️ ${L('Hardening')} ${hs === null ? '–' : hs}${h.hard && h.hard.bad ? ` <small>· ${L('{n} punt(en)', { n: h.hard.bad })}</small>` : ''}</button>`
+      + (h.iso ? ` <span class="iso-chip" title="${esc(h.iso.isolate_state || '')}">🧱 ${h.iso.isolate_until ? L('geïsoleerd tot {t}', { t: esc(fmtUntil(h.iso.isolate_until)) }) : esc(h.iso.isolate_state)}</span>` : '');
+}
+/** 1.165.0: modus van het IDS op deze server, als chip */
+function idsModeChip(h, d) {
+  if (h.ha) return `<span class="ids-mode-chip na">${esc(L('geen IDS'))}</span>`;
+  if (!d.enabled) return `<span class="ids-mode-chip na">${esc(L('IDS uit'))}</span>`;
+  if (!h.last_report) return `<span class="ids-mode-chip na">${esc(L('geen rapport'))}</span>`;
+  if (h.learning) return `<span class="ids-mode-chip learn" title="${esc(L('Eerst vastleggen wat normaal is'))}">📏 ${esc(L('basismeting'))}</span>`;
+  if (d.mode !== 'block') return `<span class="ids-mode-chip learn">🎓 ${esc(L('Leren'))}</span>`;
+  const m = { active: ['block', '⛔ ' + L('Blokkeren')], off: ['detect', '👁 ' + L('Alleen melden')], unsupported: ['detect', '👁 ' + L('Alleen detecteren')],
+    disabled: ['detect', '👁 ' + L('Blokkeren uit')], error: ['err', '✘ ' + L('Firewall-fout')] }[h.fw_state] || ['block', '⛔ ' + L('Blokkeren')];
+  return `<span class="ids-mode-chip ${m[0]}">${esc(m[1])}</span>`;
+}
+/** 1.165.0: incidenten per dag (7 dagen) als staafjes */
+function idsWeekSvg(h) {
+  const days = idsPerDay(h.id, 7);
+  const max = Math.max(1, ...days.map((x) => x[1].length));
+  const bars = days.map(([day, xs, c], k) => `<rect class="${c ? 'c' : xs.length ? 'w' : 'z'}" x="${k * 14 + 1}" y="${xs.length ? 26 - Math.max(3, xs.length / max * 24) : 24}" width="11" height="${xs.length ? Math.max(3, xs.length / max * 24) : 2}" rx="2"><title>${esc(day)}: ${xs.length}</title></rect>`).join('');
+  return `<svg class="ic-spark" viewBox="0 0 98 26" role="img" aria-label="${esc(L('Incidenten per dag, 7 dagen'))}">${bars}</svg>`;
+}
+const idsRebase = (h) => (h.baseline_until ? ` <button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="${L('Alles wat er nu is als normaal vastleggen')}">↺ ${L('basismeting opnieuw')}</button>` : '');
+/** 1.165.0 L1nes (A): alle servers in één tabel, overal dezelfde kolommen */
+function idsHostTable(d) {
+  const order = (h) => (h.ha ? 3 : h.open[2] ? 0 : h.open[1] || h.iso ? 1 : 2);
+  const hosts = [...d.hosts].sort((x, y) => order(x) - order(y) || (y.open[1] + y.open[2]) - (x.open[1] + x.open[2]) || String(x.name).localeCompare(String(y.name)));
+  const num = (v, cls) => `<b class="ids-tn ${v ? cls : 'z'}">${v}</b>`;
+  const rows = hosts.map((h) => {
+    const n = h.open[1] + h.open[2], cls = h.ha ? 'na' : h.open[2] ? 's2' : n || h.iso ? 's1' : 's0';
+    if (h.ha) return `<tr class="ids-tr na"><td><strong>${esc(h.name)}</strong><br><span class="muted small">${esc(L('Home Assistant-add-on: draait in een container en ziet het systeem zelf niet'))}</span></td><td>${idsModeChip(h, d)}</td><td colspan="6" class="muted small">–</td></tr>`;
+    return `<tr class="ids-tr ${cls}">
+      <td><strong>${esc(h.name)}</strong><br><span class="muted small">${h.last_report ? esc(L('IDS-rapport {ago}', { ago: ago(h.last_report) })) : d.enabled ? esc(L('nog geen IDS-rapport (agent 1.35.0+)')) : ''}</span></td>
+      <td>${idsModeChip(h, d)}</td>
+      <td>${n ? `<button type="button" class="ic-n" data-ihost="${h.id}" title="${esc(L('Toon de open incidenten van deze server'))}">${num(n, h.open[2] ? 'c' : 'w')}</button>` : num(0, 'w')}</td>
+      <td>${num(h.open[2], 'c')}</td><td>${num(+h.blocks || 0, 'c')}</td>
+      <td>${idsWeekSvg(h)}</td><td>${idsSecChip(h)}</td>
+      <td class="small ids-st">${idsStLine(h, false)}${idsRebase(h)}</td></tr>`;
+  }).join('');
+  return `<div class="table-scroll"><table class="ids-tbl"><thead><tr><th>${L('Server')}</th><th>${L('Modus')}</th><th>${L('Open')}</th><th>Critical</th><th>${L('Geblokkeerd')}</th><th>${L('Incidenten 7 dagen')}</th><th>${L('Hardening')}</th><th>${L('Bewaakt')}</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="muted small ids-tbl-key">${L('<b>Hardening</b>: hoe goed de server is dichtgezet (0–100); klik voor wat er beter kan. Klik op het aantal open voor de incidenten.')}</p>`;
+}
+/** 1.165.0 CC en Blox (B): wat nu aandacht vraagt, in gewone zinnen, met een knop */
+function idsTodo(d) {
+  const items = [];
+  const cat = (i) => { const c = IDS_CATS.find((x) => x[2].includes(i.type)); return c ? c[1]().replace(EMOJI_LEAD, '') : L('overig'); };
+  d.hosts.filter((h) => !h.ha && h.open[1] + h.open[2] > 0).sort((x, y) => y.open[2] - x.open[2] || (y.open[1] + y.open[2]) - (x.open[1] + x.open[2])).forEach((h) => {
+    const open = d.incidents.filter((i) => +i.host_id === +h.id && i.status === 'open');
+    const by = {};
+    open.forEach((i) => { const k = cat(i); by[k] = (by[k] || 0) + 1; });
+    const top = Object.entries(by).sort((x, y) => y[1] - x[1])[0];
+    const n = h.open[1] + h.open[2];
+    const txt = (n === 1 ? L('1 open incident') : L('{n} open incidenten', { n })) + (h.open[2] ? ' · ' + L('{n} critical', { n: h.open[2] }) : '')
+      + (top ? ' · ' + L('meest: {c}', { c: top[0].toLowerCase() }) : '') + (+h.blocks ? ' · ' + L('{n} geblokkeerd', { n: h.blocks }) : '');
+    items.push([h.open[2] ? 's2' : 's1', h.name, txt, `<button type="button" class="btn small-btn" data-ihost="${h.id}">${L('Bekijk')} →</button>`]);
+  });
+  d.hosts.filter((h) => !h.ha && h.hard && h.hard.score !== null && +h.hard.score < 60).forEach((h) => {
+    items.push(['s1', h.name, L('Hardening {s}/100', { s: h.hard.score }) + (h.hard.bad ? ' · ' + L('{n} punt(en) om dicht te zetten', { n: h.hard.bad }) : ''), `<button type="button" class="btn small-btn" data-hostsec="${h.id}">${L('Dichtzetten')} →</button>`]);
+  });
+  if (d.enabled) d.hosts.filter((h) => !h.ha && !h.last_report).forEach((h) => items.push(['s3', h.name, L('nog geen IDS-rapport (agent 1.35.0+)'), '']));
+  return `<div class="ids-todo card"><div class="ids-todo-h">${L('Wat nu aandacht vraagt')}</div>${items.length ? items.map(([c, n, t, btn]) => `<div class="ids-todo-i ${c}"><span class="dot"></span><span><b>${esc(n)}</b> · <span class="muted">${esc(t)}</span></span>${btn}</div>`).join('')
+    : `<p class="muted small" style="margin:.2rem 0 0">✔ ${L('Niets dat nu aandacht vraagt.')}</p>`}</div>`;
+}
+/** 1.165.0 CC en Blox (B): rustige servers als chips; klik voor de details */
+function idsQuietChip(h, d) {
+  const hs = h.hard && h.hard.score !== null ? h.hard.score : null;
+  return `<details class="ids-q ${h.ha ? 'na' : ''}"><summary><span class="dot"></span><b>${esc(h.name)}</b> ${idsModeChip(h, d)}${hs !== null ? ` <span class="muted small">${L('Hardening')} ${hs}</span>` : ''}</summary>
+    <div class="ids-q-d small">${h.ha ? esc(L('Home Assistant-add-on: draait in een container en ziet het systeem zelf niet')) : `${idsSecChip(h)} ${idsStLine(h, false)}${idsRebase(h)}<br><span class="muted">${h.last_report ? esc(L('IDS-rapport {ago}', { ago: ago(h.last_report) })) : ''}</span>`}</div></details>`;
 }
 
 function renderIds() {
@@ -7141,17 +7220,11 @@ function renderIds() {
   // Servers: compacte regels (modern: met open incidenten als kaart, de rest compact eronder)
   const hostRow = (h) => {
     if (h.ha) return `<div class="srv-row"><span class="ok-ic">🏠</span><span class="ok-nm"><strong>${esc(h.name)}</strong><small>${L('niet beschikbaar in de Home Assistant-add-on: die draait in een container en ziet het systeem zelf niet')}</small></span><span class="srv-st"></span><span class="srv-n muted small">–</span></div>`;
-    const st = [!h.baseline_until ? '' : h.learning ? L('📏 basismeting tot {t}', { t: esc(fmtUntil(h.baseline_until)) }) : '✔ ' + L('bewaakt'),
-      h.fw_state ? (IDS_FW[h.fw_state] || (() => esc(h.fw_state)))(h) : '',
-      h.decoy_state ? `<span class="warn-txt">🍯 ${esc(h.decoy_state)}</span>` : '',
-      h.fim_count != null ? '📁 ' + L(+h.fim_count === 1 ? '{n} bestand bewaakt' : '{n} bestanden bewaakt', { n: (+h.fim_count).toLocaleString(LOCALE) }) : '',
-      +h.realtime ? ((x) => (x && x.state === 'active' ? '<span class="good">⚡ realtime</span>' : `<span class="warn-txt">⚡ ${L('niet actief')}</span>`))(JSON.parse(h.rt || 'null')) : '',
-      +h.realtime ? ((t) => (t && !t.inotify ? `<span class="warn-txt">${t.family === 'rhel' && !t.epel ? L('EPEL ontbreekt') : L('inotify-tools ontbreekt')}</span>` : ''))(JSON.parse(h.tools || 'null')) : ''].filter(Boolean).join(' · ');
+    const st = idsStLine(h);
     const n = h.open[1] + h.open[2];
     // Hardening-score en isolatie (1.88.0): klik voor details, isoleren en gebruikers
     const hs = h.hard && h.hard.score !== null ? h.hard.score : null;
-    const sec = `<button type="button" class="hard-chip ${hs === null ? '' : hs >= 85 ? 'good' : hs >= 60 ? 'warn' : 'bad'}" data-hostsec="${h.id}" title="${esc(L('Hardening, isoleren en gebruikers'))}">🛡️ ${hs === null ? '–' : hs}${h.hard && h.hard.bad ? ` <small>· ${L('{n} punt(en)', { n: h.hard.bad })}</small>` : ''}</button>`
-      + (h.iso ? ` <span class="iso-chip" title="${esc(h.iso.isolate_state || '')}">🧱 ${h.iso.isolate_until ? L('geïsoleerd tot {t}', { t: esc(fmtUntil(h.iso.isolate_until)) }) : esc(h.iso.isolate_state)}</span>` : '');
+    const sec = idsSecChip(h);
     return `<div class="srv-row"><span class="ok-ic">🖥️</span>
       <span class="ok-nm"><strong>${esc(h.name)}</strong><small>${h.last_report ? L('IDS-rapport {ago}', { ago: ago(h.last_report) }) : d.enabled ? L('nog geen IDS-rapport (agent 1.35.0+)') : ''}</small></span>
       <span class="srv-st small">${sec} ${st}${h.baseline_until ? ` <button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="${L('Alles wat er nu is als normaal vastleggen')}">↺ ${L('basismeting opnieuw')}</button>` : ''}</span>
@@ -7160,9 +7233,14 @@ function renderIds() {
   const busy = (h) => !h.ha && (h.open[1] + h.open[2] > 0 || !!h.iso);
   const cards = modern ? d.hosts.filter(busy) : [];
   const rows = d.hosts.filter((h) => !cards.includes(h));
+  const lay = layoutPref();   // 1.165.0
   $('#ids-hosts').className = modern ? 'ids-hosts-m' : 'srv-list';
   $('#ids-hosts').innerHTML = !d.hosts.length ? '<p class="muted">' + L('Nog geen servers met agent.') + '</p>'
     : !modern ? rows.map(hostRow).join('')
+    : lay === 'l1nes' ? `<div class="sec-h hosts-h"><h2>🖥️ ${L('Servers')}</h2><span>${d.hosts.length === 1 ? L('1 server') : L('{n} servers', { n: d.hosts.length })}</span></div>${idsHostTable(d)}`
+    : lay === 'blox' || lay === 'cc' ? idsTodo(d)
+      + (cards.length ? `<div class="sec-h hosts-h"><h2>🖥️ ${L('Servers met open incidenten')}</h2><span>${cards.length}</span></div><div class="ids-cards">${cards.map((h) => idsHostCard(h, d)).join('')}</div>` : '')
+      + (rows.length ? `<div class="sec-h hosts-h"><h2>✔ ${L('Rustig')}</h2><span>${rows.length === 1 ? L('1 server') : L('{n} servers', { n: rows.length })}</span></div><div class="ids-quiet">${rows.map((h) => idsQuietChip(h, d)).join('')}</div>` : '')
     : (cards.length ? `<div class="sec-h hosts-h"><h2>🖥️ ${L('Servers met open incidenten')}</h2><span>${cards.length}</span></div><div class="ids-cards">${cards.map(idsHostCard).join('')}</div>` : '')
       + (rows.length ? `<div class="sec-h hosts-h"><h2>✔ ${L('Rustig')}</h2><span>${rows.length === 1 ? L('1 server') : L('{n} servers', { n: rows.length })}</span></div><div class="srv-list">${rows.map(hostRow).join('')}</div>` : '');
 

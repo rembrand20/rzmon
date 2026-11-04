@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.165.0**: de **IDS-pagina** toont de servers als tabel (L1nes) of met *Wat nu aandacht vraagt*, kaarten en chips (Blox en CC), met modus en hardening duidelijk erbij.
 - **1.164.0**: in CC zijn de servers op Monitoring compacte blokken die met een animatie openklappen tot een **tabel met de checks eronder**.
 - **1.163.0**: **Meer info** nu op alle pagina's en in alle vensters, met herschreven uitleg.
 - **1.162.0**: persoonlijke keuzes (IDS-weergave, beweging, grootte, sortering, periode) gelden **per account**, en regels, uitzonderingen en de whitelist beheer je bij de **instellingen**.
 - **1.161.0**: alle uitleg in de Instellingen en bij Mijn account herschreven, als **één regel met Meer info** die openklapt.
-- **1.158.0**: de **lay-out CC**: alle pagina's in de stijl van het Command center (licht en donker), met kaarten die je zelf versleept, smaller of breder maakt en verbergt; per account.
+
+## 1.165.0 – 2026-11-04
+### Nieuw
+- **IDS-pagina duidelijker**, per lay-out:
+  - **L1nes**: alle servers in één tabel met vaste kolommen (modus, open, critical, geblokkeerd, incidenten 7 dagen, hardening, bewaakt).
+  - **Blox en CC**: bovenaan *Wat nu aandacht vraagt* in gewone zinnen met een knop (Bekijk, Dichtzetten); servers met open incidenten als kaart met een label onder elk getal; rustige servers als chips die je openklikt voor de details.
+  - Compact blijft zoals het was.
+- Overal staat bij de score nu **Hardening**, en de **modus** per server (Blokkeren, Leren, Alleen melden, basismeting, geen rapport) als chip. Wat al in de modus staat, wordt in *Bewaakt* niet nog eens herhaald.
 
 ## 1.164.0 – 2026-11-04
 ### Nieuw

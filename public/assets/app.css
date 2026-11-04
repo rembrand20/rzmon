@@ -3100,3 +3100,36 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 .hb-tf { min-width: 0; }
 .hb-tf > :last-child { flex: 0 1 130px; min-width: 60px; overflow: hidden; }
 .hb-tf > .muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* 1.165.0: IDS-pagina. L1nes: één tabel. CC en Blox: aandacht eerst, kaarten met labels, rustige servers als chips */
+.ids-mode-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .5rem; border-radius: 999px; font-size: .74rem; font-weight: 650; border: 1px solid var(--border); white-space: nowrap; }
+.ids-mode-chip.block { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 40%, var(--border)); }
+.ids-mode-chip.learn { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
+.ids-mode-chip.detect { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
+.ids-mode-chip.err { color: var(--crit); } .ids-mode-chip.na { color: var(--muted); }
+.ic-mode { margin-top: -.25rem; }
+.ic-wk { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: .1rem; }
+.ic-wk small { font-size: .66rem; color: var(--muted); }
+.ids-tbl { width: 100%; border-collapse: separate; border-spacing: 0 6px; font-variant-numeric: tabular-nums; }
+.ids-tbl th { text-align: left; font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 0 .7rem .1rem; white-space: nowrap; }
+.ids-tr { --st: var(--ok); background: var(--card); }
+.ids-tr.s1 { --st: var(--warn); } .ids-tr.s2 { --st: var(--crit); } .ids-tr.na { --st: var(--muted); opacity: .8; }
+.ids-tr td { padding: .55rem .7rem; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
+.ids-tr td:first-child { border-left: 3px solid var(--st); border-radius: 10px 0 0 10px; }
+.ids-tr td:last-child { border-right: 1px solid var(--border); border-radius: 0 10px 10px 0; }
+.ids-tr td.ids-st { white-space: normal; min-width: 170px; }
+.ids-tn { font-family: var(--mono, ui-monospace, monospace); font-size: 1.05rem; } .ids-tn.w { color: var(--warn); } .ids-tn.c { color: var(--crit); } .ids-tn.z { color: var(--muted); font-weight: 500; }
+.ids-tbl .ic-n { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; }
+.ids-tbl-key { margin: .2rem 0 1rem; }
+.ids-todo { padding: .8rem 1rem; display: grid; gap: .45rem; margin-bottom: 1rem; }
+.ids-todo-h { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--primary); }
+.ids-todo-i { --st: var(--warn); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .7rem; align-items: center; padding: .5rem .7rem; border-radius: 10px; background: var(--card-2); border: 1px solid var(--border); }
+.ids-todo-i.s2 { --st: var(--crit); } .ids-todo-i.s3 { --st: var(--muted); }
+.ids-todo-i .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--st); box-shadow: 0 0 8px var(--st); }
+.ids-quiet { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-start; margin-bottom: 1rem; }
+.ids-q { background: var(--card); border: 1px solid var(--border); border-radius: 12px; max-width: 100%; }
+.ids-q summary { display: flex; align-items: center; gap: .5rem; padding: .45rem .75rem; cursor: pointer; list-style: none; flex-wrap: wrap; }
+.ids-q summary::-webkit-details-marker { display: none; }
+.ids-q .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.ids-q.na .dot { background: var(--muted); }
+.ids-q[open] { flex-basis: 100%; }
+.ids-q-d { padding: 0 .75rem .6rem; line-height: 1.7; }

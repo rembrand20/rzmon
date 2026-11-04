@@ -2199,6 +2199,12 @@ De agent let op tekenen van een inbraak en RzMon vergelijkt dat met wat normaal 
 - **SSH-sessies** (vanaf 1.152.0, agent 1.74.0): kies bij *Toegang* de chip **SSH** en dan **✔ Gelukt (sessies)**. Je ziet elke geslaagde SSH-login met begin, server, gebruiker, vanaf welk IP en welke bronpoort (met land of *eigen netwerk*), de methode (sleutel of wachtwoord), de **duur** (of *nog bezig*) en hoe vaak er eerst vanaf dat IP mislukt werd ingelogd. *❌ Mislukt* toont alleen de mislukte SSH-pogingen. Zoeken en de serverkeuze werken ook hier. De losse pogingen en sessies worden 30 dagen bewaard.
 
 **Moderne weergave** (vanaf 1.117.0, standaard aan): het bovenste deel staat boven alle tabbladen van de IDS-pagina.
+
+**De servers op de IDS-pagina** (vanaf 1.165.0) hangen af van je lay-out:
+- **L1nes**: alle servers in **één tabel** met vaste kolommen: server (met het laatste rapport), modus, open, critical, geblokkeerd, incidenten per dag (7 dagen), hardening en wat er bewaakt wordt. Klik op het aantal open voor de incidenten van die server, of op *Hardening* voor wat er beter kan.
+- **Blox en CC**: bovenaan **Wat nu aandacht vraagt**, in gewone zinnen met een knop (bv. *WebServer01 · 39 open incidenten · meest: poorten · 1 geblokkeerd → Bekijk*, of *Proxmox · Hardening 52/100 · 4 punten om dicht te zetten → Dichtzetten*). Daaronder de servers met open incidenten als kaart, met een label onder elk getal en de modus erbij. Rustige servers zijn kleine chips; klik erop voor de details (bewaakte bestanden, realtime, basismeting opnieuw).
+- **Compact**: zoals het was.
+- Overal staat bij de score nu **Hardening**: hoe goed de server is dichtgezet (0–100). De **modus** per server (Blokkeren, Leren, Alleen melden, basismeting, geen rapport) staat als chip.
 - In de **tellerbalk** staat rechts de modus als pil (*⛔ Blokkeren* of *🎓 Leren*); klik erop voor de instellingen.
 - De eerste tegel is een **score-tegel met ring**: de gemiddelde **hardening-score** van je servers, met de toestand uit de open incidenten: 🔴 *Actie nodig* (open critical of een aanvalsketen), 🟠 *Aandacht* (alleen warnings) of 🟢 *Rustig*. Klik erop voor de open incidenten.
 - **⚠️ Nu aandacht nodig**: de open critical-incidenten en aanvalsketens, nieuwste eerst, met **✔ Afhandelen** en **⛔** (IP blokkeren). Maximaal 5 (op de telefoon 3); de rest met *Alle … tonen*. Is er niets, dan staat er één regel: *✔ Niets dringends 👌*.
