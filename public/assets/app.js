@@ -3304,7 +3304,7 @@ function ccHostCard(h) {
       <td class="hb-sp">${keySpark(c, 24)}</td>
       <td class="hb-msg">${esc(msg.slice(0, 160)) || '<span class="muted">–</span>'}</td>
       <td class="hb-tl">${checkTimeline(c)}</td>
-      <td class="hb-act">${+c.enabled && s !== 0 && s !== 4 && !c.acked_at ? `<button type="button" class="btn small-btn need-user" data-act="ack" data-id="${c.id}">✔ ${L('Bevestig')}</button>` : ''}<button type="button" class="icon-btn need-admin" data-act="edit-check" data-id="${c.id}" title="${esc(L('Bewerken'))}" aria-label="${esc(L('Bewerken'))}">✎</button></td>
+      <td class="hb-act">${+c.enabled && s !== 0 && s !== 4 ? aiBtn('check', c.id) : ''}${+c.enabled && s !== 0 && s !== 4 && !c.acked_at ? `<button type="button" class="btn small-btn need-user" data-act="ack" data-id="${c.id}">✔ ${L('Bevestig')}</button>` : ''}<button type="button" class="icon-btn need-admin" data-act="edit-check" data-id="${c.id}" title="${esc(L('Bewerken'))}" aria-label="${esc(L('Bewerken'))}">✎</button></td>
     </tr>`;
   }).join('');
   return `<article class="hb s${st}${open ? ' open' : ''}${glowHost(h) && !ackedOnly(h) ? ' glow' : ''}${+h.enabled ? '' : ' disabled'}${ackedOnly(h) ? ' acked-only' : ''}" data-hid="${h.id}">
@@ -3313,7 +3313,7 @@ function ccHostCard(h) {
         <div class="hb-tn"><strong>${name}</strong><span class="muted mono hb-sub">${sub}</span>${p.via}${p.maint}${edrNote(h)}</div>
         <span class="counts">${p.counts}</span></div>
       <div class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</div>
-      <div class="hb-tf"><span class="muted small">${p.lastChecked ? L('Laatste check') + ' ' + last : ''}</span>${hostTimeline(h)}</div>
+      <div class="hb-tf"><span class="muted small">${p.lastChecked ? L('Laatste check') + ' ' + last : ''}</span>${h.checks.some(isProblem) ? aiBtn('bundle', h.id) : ''}${hostTimeline(h)}</div>
     </div>
     <div class="hb-ov">
       <div class="table-scroll"><table class="hb-stbl"><thead><tr><th>${L('Server')}</th><th>${L('Adres')}</th><th>${L('Soort')}</th><th>${L('Status')}</th><th>${L('Checks')}</th><th>${L('Beschikbaar 24 u')}</th><th>${L('Laatste 24 uur')}</th><th>${L('Laatste check')}</th><th></th></tr></thead>
@@ -7483,7 +7483,7 @@ function renderIdsAttention(open) {
     <div class="attn ids-attn-l ${idsAttnOpen ? 'all' : ''}">${list.map((i) => `<div class="arow">
       <i class="adot s2"></i>
       <span class="a-srv">${esc(i.host_name)}</span>
-      <button type="button" class="a-chk linklike" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${i.type === 'chain' ? '🔗 ' : ''}${esc(i.title)}</button>
+      <button type="button" class="a-chk linklike" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${i.type === 'chain' ? '🔗 ' : ''}${esc(i.title)}</button>${aiBtn('ids', i.id)}
       <span class="a-msg">${esc(i.detail || '')}</span>
       <span class="a-since">${dur(i.created_at)}</span>
       <span class="a-acts need-admin"><button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">✔ ${L('Afhandelen')}</button>${i.ip ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}" title="${esc(L('Blokkeer IP'))}">⛔</button>` : ''}</span>
@@ -8984,7 +8984,7 @@ function idsRow(i, group = null, nav = null) {
   const many = group && !done ? group.filter((x) => x.status === 'open').map((x) => x.id).join(',') : '';
   return `<div class="irow s${sev} ${done ? 'ids-done' : ''}">
     <i class="adot s${sev}"></i>
-    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" ${nav && nav.length > 1 ? `data-inc-list="${nav.map((x) => x.id).join(',')}"` : ''} title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${actChips(((idsData && idsData.prot) || {})[i.id])}${+i.hits > 1 ? ` <span class="rep hits" tabindex="0" title="${esc(L('Dit incident is {n}× gezien · eerst {a} · laatst {b}', { n: i.hits, a: fmtDateTime(i.created_at), b: fmtDateTime(i.last_seen || i.created_at) }))}">${i.hits}×</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort op {host} ({o} open) · van {a} tot {b} · klik om ze te tonen; klik op de titel om ze één voor één te bekijken', { n: group.length, host: i.host_name, o: group.filter((x) => x.status === 'open').length, a: group[group.length - 1].created_at.slice(11, 16), b: group[0].created_at.slice(11, 16) }))}">${group.length}×</button>` : ''}
+    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" ${nav && nav.length > 1 ? `data-inc-list="${nav.map((x) => x.id).join(',')}"` : ''} title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${done ? '' : aiBtn('ids', i.id)}${actChips(((idsData && idsData.prot) || {})[i.id])}${+i.hits > 1 ? ` <span class="rep hits" tabindex="0" title="${esc(L('Dit incident is {n}× gezien · eerst {a} · laatst {b}', { n: i.hits, a: fmtDateTime(i.created_at), b: fmtDateTime(i.last_seen || i.created_at) }))}">${i.hits}×</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort op {host} ({o} open) · van {a} tot {b} · klik om ze te tonen; klik op de titel om ze één voor één te bekijken', { n: group.length, host: i.host_name, o: group.filter((x) => x.status === 'open').length, a: group[group.length - 1].created_at.slice(11, 16), b: group[0].created_at.slice(11, 16) }))}">${group.length}×</button>` : ''}
       <small>${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>${ccTag(i.cc)}` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</small></span>
     <span class="m-sv">${esc(i.host_name)}</span>
     <span class="m-t" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))}</span>
@@ -14576,7 +14576,7 @@ function renderIncidents() {
       return `<tr class="inc-row inc-${i.status}" data-inc="${i.id}" tabindex="0">
         <td>${i.status === 'resolved' ? '<span class="muted small">–</span>' : urgPill(i.urgency, i.why)}</td>
         <td title="${esc(src())}">${ic}</td>
-        <td><b>${esc(i.title)}</b>${i.parts > 1 ? ` <span class="muted small">· ${esc(L('{n} stappen', { n: i.parts }))}</span>` : ''}${i.detail ? `<div class="muted small">${esc(i.detail.length > 120 ? i.detail.slice(0, 120) + '…' : i.detail)}</div>` : ''}</td>
+        <td><b>${esc(i.title)}</b>${i.status !== 'resolved' ? ' ' + aiBtn('incident', i.id) : ''}${i.parts > 1 ? ` <span class="muted small">· ${esc(L('{n} stappen', { n: i.parts }))}</span>` : ''}${i.detail ? `<div class="muted small">${esc(i.detail.length > 120 ? i.detail.slice(0, 120) + '…' : i.detail)}</div>` : ''}</td>
         <td><span class="inc-st inc-st-${i.status}">${INC_ST[i.status]()}</span>${i.notes ? ` <span class="muted small" title="${esc(L('notities'))}">💬 ${i.notes}</span>` : ''}</td>
         <td>${i.owner ? esc(i.owner) : '<span class="muted">–</span>'}</td>
         <td class="small">${agoSpan(i.opened_at)}</td>

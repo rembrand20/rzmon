@@ -258,7 +258,12 @@ Een AI legt een storing of incident uit en stelt een oplossing voor. Je zet het 
   - **Claude**, **ChatGPT**, **Gemini** of **Grok**: in de cloud, met een API-sleutel.
   - Met **⟳ Modellen ophalen** haal je de modellen op die je kunt kiezen; met **🧪 Testen** probeer je de verbinding.
   - API-sleutels gaan nooit naar de browser.
-- **Waar:** 🤖 staat bij een check met een probleem (in de regel en in het checkvenster), bij een gebundelde storing in *Nu aandacht nodig*, bij een incident en bij een IDS-incident.
+- **Waar:** 🤖 staat:
+  - bij een check met een probleem (in de regel en in het checkvenster; in CC ook in de tegel van een server met problemen);
+  - bij een gebundelde storing in *Nu aandacht nodig*;
+  - bij elk open incident op de pagina's **IDS** en **Incidenten**, en in hun vensters.
+
+  Zie je geen knoppen? Dan staat *AI-advies aan* uit, of is er nu geen probleem.
   - Het antwoord heeft vier kopjes: *wat is er aan de hand*, *de oorzaak*, *de oplossing in stappen* (commando's om te kopiëren) en *controleren*.
   - Met **🔄 Opnieuw vragen** vraag je een nieuw advies.
   - Beheerders en gebruikers mogen een advies vragen; alleen-lezen-accounts lezen een advies dat er al is.
