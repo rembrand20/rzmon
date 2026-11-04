@@ -1302,5 +1302,36 @@ $av = Availability::report(7)['hosts'][$avH] ?? null;
 ok($av !== null && $av['n'] === 2 && $av['open'] && count($av['series']) === 7, '7 dagen: een storing die nog bezig is telt mee, 7 dagblokjes');
 q('DELETE FROM hosts WHERE id = ?', [$avH]);
 
+section('Domein, MQTT en VPN (1.170.0)');
+ok(NetChecks::domainName('https://www.Example.NL/pad') === 'example.nl' && NetChecks::domainName('mijn.domein.nl.') === 'mijn.domein.nl'
+    && NetChecks::domainName('geen domein') === null && NetChecks::domainName('a.b') === null, 'domeinnaam uit een URL, met www en punt erachter; onzin geweigerd');
+$rd = NetChecks::rdapParse(['status' => ['active', 'client transfer prohibited'], 'events' => [['eventAction' => 'registration', 'eventDate' => '2010-01-01T00:00:00Z'],
+    ['eventAction' => 'expiration', 'eventDate' => gmdate('Y-m-d\TH:i:s\Z', time() + 20 * 86400 + 3600)]],
+    'entities' => [['roles' => ['registrar'], 'vcardArray' => ['vcard', [['version', [], 'text', '4.0'], ['fn', [], 'text', 'Voorbeeld Registrar BV']]]]]]);
+$dc = ['warn_threshold' => 30, 'crit_threshold' => 14];
+$r = NetChecks::domainResult($dc, $rd + ['name' => 'example.nl']);
+ok($r['status'] === STATUS_WARN && $r['value'] === 20.0 && str_contains($r['message'], 'Voorbeeld Registrar BV'), 'RDAP: verloopt over 20 dagen = WARNING (drempel 30), met de registrar');
+$r = NetChecks::domainResult($dc, ['exp' => null, 'status' => ['active'], 'registrar' => '', 'name' => 'sidn.nl']);
+ok($r['status'] === STATUS_OK && $r['value'] === null, 'zonder verloopdatum (zoals .nl): OK zolang de status actief is');
+$r = NetChecks::domainResult($dc, ['exp' => time() + 300 * 86400, 'status' => ['pending delete'], 'registrar' => '', 'name' => 'x.com']);
+ok($r['status'] === STATUS_CRIT, 'status pending delete = CRITICAL, ook als de verloopdatum ver weg is');
+ok(NetChecks::domainResult($dc, ['missing' => true, 'name' => 'weg.com'])['status'] === STATUS_CRIT, 'domein niet gevonden bij de registry = CRITICAL');
+ok(NetChecks::gluetunResult('running', ['public_ip' => '185.65.134.1', 'country' => 'Netherlands'], '84.1.2.3', '')['status'] === STATUS_OK
+    && NetChecks::gluetunResult('running', ['public_ip' => '84.1.2.3'], '84.1.2.3', '')['status'] === STATUS_CRIT
+    && NetChecks::gluetunResult('stopped', [], null, '')['status'] === STATUS_CRIT
+    && NetChecks::gluetunResult('running', ['public_ip' => '185.65.134.1', 'country' => 'Netherlands'], null, 'Belgium')['status'] === STATUS_WARN,
+    'Gluetun: draait = OK, eigen IP = lek (CRITICAL), gestopt = CRITICAL, ander land = WARNING');
+$wc = ['target' => '', 'warn_threshold' => 300, 'crit_threshold' => 900];
+$peers = [['id' => 'wg0:AbCd', 'iface' => 'wg0', 'peer' => 'AbCd', 'hs' => 70, 'rx' => 1000, 'tx' => 2000], ['id' => 'wg0:XyZ', 'iface' => 'wg0', 'peer' => 'XyZ', 'hs' => 1200]];
+$r = NetChecks::wgResult($wc, $peers);
+ok($r['status'] === STATUS_CRIT && $r['value'] === 1200.0, 'WireGuard: de oudste handshake telt (20 min = CRITICAL)');
+ok(NetChecks::wgResult(['target' => 'wg0:AbCd'] + $wc, $peers)['status'] === STATUS_OK, 'WireGuard: één peer gekozen, handshake 70 s geleden = OK');
+ok(NetChecks::wgResult($wc, [['id' => 'wg1:Q', 'iface' => 'wg1', 'peer' => 'Q', 'hs' => -1]])['status'] === STATUS_CRIT, 'WireGuard: nog nooit een handshake = CRITICAL');
+ok(NetChecks::wgResult(['target' => 'wg9'] + $wc, $peers)['status'] === STATUS_UNKNOWN, 'WireGuard: onbekende interface = onbekend');
+$mq = NetChecks::run(['id' => 0, 'type' => 'mqtt', 'target' => '127.0.0.1:1', 'options' => '{}', 'warn_threshold' => 500, 'crit_threshold' => 2000, 'metric' => null],
+    ['id' => 0, 'address' => '127.0.0.1', 'mode' => 'remote']);
+ok($mq['status'] === STATUS_CRIT && str_contains($mq['message'], '127.0.0.1:1'), 'MQTT: broker niet bereikbaar = CRITICAL met het adres');
+ok(ExtraChecks::maskOptions('{"user":"rz","pass":"geheim"}') === '{"user":"rz","pass":"' . ExtraChecks::MASK . '"}', 'MQTT- en Gluetun-wachtwoord gaan gemaskeerd naar de browser');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

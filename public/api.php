@@ -888,7 +888,7 @@ if ($action === 'agent') {
         $st->execute([$host['id'], 'time', json_encode(['src' => mb_substr((string) ($in['time']['src'] ?? ''), 0, 20), 'sync' => !empty($in['time']['sync']),
             'offset_ms' => is_numeric($in['time']['offset_ms'] ?? null) ? (float) $in['time']['offset_ms'] : null]), $now]);
     }
-    foreach (['smart' => 'dev', 'ups' => 'name'] as $k => $key) {
+    foreach (['smart' => 'dev', 'ups' => 'name', 'wg' => 'id'] as $k => $key) {   // 1.170.0 (agent 1.75.0): WireGuard-peers
         if (!is_array($in[$k] ?? null)) {
             continue;
         }
@@ -1357,7 +1357,7 @@ $confirm = static function (string $word) use ($user): void {
 $checkCols = static function (array $in, bool $dry = false) use ($user): array {   // $dry: alleen proberen (geen logboek)
             $type = $in['type'] ?? '';
             if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat', 'process', 'pve',
-                'dns', 'ntp', 'smart', 'ups', 'mysql', 'internet'], true)) {
+                'dns', 'ntp', 'smart', 'ups', 'mysql', 'internet', 'domain', 'mqtt', 'vpn'], true)) {
                 out(['error' => t('Ongeldig type')], 422);
             }
             // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -1385,6 +1385,29 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 }
             }
             $target = trim((string) ($in['target'] ?? ''));
+            // 1.170.0: VPN via Gluetun (control server) of WireGuard (agent)
+            if ($type === 'vpn') {
+                $metric = (string) ($in['metric'] ?? '');
+                if (!in_array($metric, NetChecks::VPN_METRICS, true)) {
+                    out(['error' => t('Kies Gluetun of WireGuard')], 422);
+                }
+                if ($metric === 'gluetun' && $target !== '' && ExtraChecks::urlBlocked($target) !== null) {
+                    out(['error' => t('Vul het adres van de control server in, bv. http://192.168.1.20:8000')], 422);
+                }
+                if ($metric === 'wg' && $target !== '' && !preg_match('/^[\w.-]{1,30}(:[A-Za-z0-9]{1,12})?$/', $target)) {
+                    out(['error' => t('Kies een peer uit de lijst, of laat leeg voor alle peers')], 422);
+                }
+            }
+            if ($type === 'domain') {
+                $dn = NetChecks::domainName($target);
+                if ($dn === null) {
+                    out(['error' => t('Vul een domeinnaam in, bv. example.nl')], 422);
+                }
+                $target = $dn;
+            }
+            if ($type === 'mqtt' && $target !== '' && !preg_match('/^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(:\d{1,5})?$/', $target)) {
+                out(['error' => t('Ongeldig adres')], 422);
+            }
             // Internet (1.157.0): ping, responstijd, download of upload; altijd vanaf de server van RzMon
             if ($type === 'internet') {
                 $metric = (string) ($in['metric'] ?? '');
@@ -1480,7 +1503,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
             if ($type === 'snmp' && $metric === 'ups_status') {
                 $warn = $crit = null;   // UPS-status: geen drempels
             }
-            if ($type === 'ssl' || $type === 'ups' || $snmpLow) {   // 1.138.0: ook de lading van een UPS
+            if ($type === 'ssl' || $type === 'ups' || $type === 'domain' || $snmpLow) {   // 1.138.0: ook de lading van een UPS; 1.170.0: dagen tot een domein verloopt
                 // Hier geldt "minder = slechter" (dagen, batterij, toner…)
                 if ($warn !== null && $crit !== null && $warn < $crit) {
                     out(['error' => $type === 'ssl' ? t('Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel')
@@ -1659,6 +1682,24 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 $options = json_encode(array_filter(['rtype' => isset(ExtraChecks::DNS_TYPES[$in['dns_type'] ?? '']) ? $in['dns_type'] : 'A', 'server' => $srv,
                     'expect' => mb_substr(trim((string) ($in['dns_expect'] ?? '')), 0, 200)], static fn($v) => $v !== ''), JSON_UNESCAPED_SLASHES);
             }
+            // 1.170.0: MQTT (gebruiker, wachtwoord, TLS, rondgang, topic) en VPN (API-sleutel van Gluetun, land); geheimen blijven bij ••••
+            if (in_array($type, ['mqtt', 'vpn'], true)) {
+                $old = (int) ($in['id'] ?? 0) ? json_decode((string) q('SELECT options FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn(), true) ?: [] : [];
+                $pass = (string) ($in[$type === 'vpn' ? 'vpn_key' : 'net_pass'] ?? '');
+                $pass = $pass === ExtraChecks::MASK ? (string) ($old['pass'] ?? '') : mb_substr($pass, 0, 200);
+                $no = $type === 'mqtt'
+                    ? ['user' => mb_substr(trim((string) ($in['net_user'] ?? '')), 0, 80), 'pass' => $pass, 'tls' => !empty($in['mqtt_tls']) ? 1 : 0, 'rt' => !empty($in['mqtt_rt']) ? 1 : 0,
+                        'topic' => mb_substr(trim((string) ($in['mqtt_topic'] ?? '')), 0, 200), 'expect' => mb_substr(trim((string) ($in['mqtt_expect'] ?? '')), 0, 100)]
+                    : ($metric === 'gluetun' ? ['pass' => $pass, 'country' => mb_substr(trim((string) ($in['vpn_country'] ?? '')), 0, 60)] : []);
+                if ($type === 'mqtt' && preg_match('/[\x00-\x1f]/', $no['topic'])) {
+                    out(['error' => t('Ongeldig topic')], 422);
+                }
+                $options = $no ? json_encode($no, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
+            }
+            if ($type === 'domain') {
+                $old = (int) ($in['id'] ?? 0) ? json_decode((string) q('SELECT options FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn(), true) ?: [] : [];
+                $options = isset($old['_rdap']) && ($old['_rdap']['name'] ?? '') === $target ? json_encode(['_rdap' => $old['_rdap']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
+            }
             if ($type === 'mysql') {
                 $old = (int) ($in['id'] ?? 0) ? json_decode((string) q('SELECT options FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn(), true) ?: [] : [];
                 $pass = (string) ($in['db_pass'] ?? '');
@@ -1671,7 +1712,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 $in['name'] = ['overview' => 'Proxmox', 'guest' => $g ? ($g['kind'] === 'ct' ? '📦 ' : '🖥️ ') . ($g['name'] ?: "VM $target") : "VM $target",
                     'backups' => $target !== '' ? t('Back-up {id}', ['id' => $target]) : t('Proxmox-back-ups'), 'storage' => t('Proxmox-opslag') . ($target !== '' ? " $target" : ''), 'zfs' => 'ZFS'][$metric];
             }
-            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'dns' => 'DNS', 'ntp' => t('Tijd'), 'smart' => t('Schijfgezondheid'), 'ups' => 'UPS', 'mysql' => 'MariaDB', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
+            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'dns' => 'DNS', 'ntp' => t('Tijd'), 'smart' => t('Schijfgezondheid'), 'ups' => 'UPS', 'mysql' => 'MariaDB', 'domain' => t('Domein'), 'mqtt' => 'MQTT', 'vpn' => $metric === 'wg' ? 'WireGuard' : 'Gluetun', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
                 'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'heartbeat' => 'Heartbeat', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
                 'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',
                     'disklife' => 'SD-kaart/eMMC', 'osupdate' => 'HA OS-update', 'usb' => 'USB'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
@@ -1724,8 +1765,8 @@ switch ($action) {
             if (!$isAdmin) {
                 unset($c['hb_token']);   // geheime heartbeat-URL alleen voor beheerders
             }
-            if ($c['type'] === 'mysql') {
-                $c['options'] = ExtraChecks::maskOptions($c['options']);   // 1.138.0: wachtwoord nooit naar de browser
+            if (in_array($c['type'], ['mysql', 'mqtt', 'vpn'], true)) {
+                $c['options'] = ExtraChecks::maskOptions($c['options']);   // 1.138.0: wachtwoord nooit naar de browser (1.170.0: ook MQTT en Gluetun)
             }
             $byHost[$c['host_id']][] = $c;
         }
@@ -1816,7 +1857,7 @@ switch ($action) {
             $end = $ch['created_at'];
         }
         unset($ch);
-        if ($c['type'] === 'mysql') {
+        if (in_array($c['type'], ['mysql', 'mqtt', 'vpn'], true)) {
             $c['options'] = ExtraChecks::maskOptions($c['options']);
         }
         out(['check' => $c, 'uptime' => ['d1' => $pct($up['ok1'], $up['n1']), 'd7' => $pct($up['ok7'], $up['n7'])],
@@ -3078,9 +3119,9 @@ switch ($action) {
             }
             $w = num($v['warn_threshold'] ?? null);
             $c = num($v['crit_threshold'] ?? null);
-            $low = str_starts_with($types[0], 'ssl|');
+            $low = str_starts_with($types[0], 'ssl|') || str_starts_with($types[0], 'domain|') || str_starts_with($types[0], 'ups|');
             if ($w !== null && $c !== null && ($low ? $w < $c : $w > $c)) {
-                out(['error' => $low ? t('Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel') : t('Warning-drempel moet lager zijn dan critical-drempel')], 422);
+                out(['error' => $low ? (str_starts_with($types[0], 'ssl|') ? t('Bij een certificaat moet de warning-drempel (dagen) hoger zijn dan de critical-drempel') : t('Hier is lager slechter: de warning-drempel moet hoger zijn dan de critical-drempel')) : t('Warning-drempel moet lager zijn dan critical-drempel')], 422);
             }
             $set['warn_threshold'] = $w;
             $set['crit_threshold'] = $c;

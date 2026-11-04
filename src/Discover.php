@@ -34,7 +34,7 @@ final class Discover
         }
         $ign = self::ignored($host);
         $data = [];
-        foreach (q("SELECT metric, value FROM agent_data WHERE host_id = ? AND (metric LIKE 'disk:%' OR metric LIKE 'container:%' OR metric LIKE 'cert:%' OR metric LIKE 'smart:%' OR metric LIKE 'ups:%' OR metric IN ('svclist', 'ports', 'certfound', 'time'))", [$hid]) as $r) {
+        foreach (q("SELECT metric, value FROM agent_data WHERE host_id = ? AND (metric LIKE 'disk:%' OR metric LIKE 'container:%' OR metric LIKE 'cert:%' OR metric LIKE 'smart:%' OR metric LIKE 'ups:%' OR metric LIKE 'wg:%' OR metric IN ('svclist', 'ports', 'certfound', 'time'))", [$hid]) as $r) {
             $data[$r['metric']] = $r['value'];
         }
         $out = [];
@@ -60,6 +60,12 @@ final class Discover
             }
             if ($kind === 'ups' && !isset($have["ups:$what"]) && !isset($have['ups:'])) {
                 $add("ups:$what", 'ups', '🔋 ' . $what, 'UPS', ['type' => 'ups', 'target' => $what, 'name' => "UPS $what", 'warn_threshold' => 50, 'crit_threshold' => 20]);
+            }
+            // 1.170.0 (agent 1.75.0): één VPN-check per WireGuard-interface (de oudste handshake van de peers telt)
+            if ($kind === 'wg' && ($iface = explode(':', $what)[0]) !== '' && !isset($have["vpn:$iface"]) && !isset($have['vpn:'])) {
+                $have["vpn:$iface"] = true;
+                $add("wg:$iface", 'vpn', '🔐 ' . $iface, 'WireGuard', ['type' => 'vpn', 'metric' => 'wg', 'target' => $iface, 'name' => "WireGuard $iface",
+                    'warn_threshold' => 300, 'crit_threshold' => 900]);
             }
             if ($metric === 'time' && !isset($have['ntp:'])) {
                 $add('ntp', 'ntp', '🕐 ' . t('Klok'), t('Tijd (NTP)'), ['type' => 'ntp', 'target' => '', 'name' => t('Tijd'), 'warn_threshold' => 100, 'crit_threshold' => 1000, 'interval_sec' => 300]);

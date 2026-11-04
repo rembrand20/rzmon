@@ -74,6 +74,10 @@ const TYPES = {
   smart:   { label: L('Schijfgezondheid (SMART)'), target: L('Schijf'), unit: '°C', warn: 55, crit: 65, ph: L('leeg = alle schijven'), help: L('Via de agent en smartctl (smartmontools): de gezondheidstest, de temperatuur (de drempels hierboven), slijtage van SSD\'s en NVMe (80% = WARNING, 90% = CRITICAL) en vervangen of twijfelachtige sectoren (WARNING). Schijven in slaapstand worden niet wakker gemaakt. Agent 1.70.0 of nieuwer.') },
   ups:     { label: L('UPS (NUT)'), target: L('UPS'), unit: '%', warn: 50, crit: 20, low: true, ph: L('leeg = de eerste'), help: L('Via de agent en NUT (upsc) op de server waar de UPS aan hangt: op de batterij = WARNING, batterij bijna leeg = CRITICAL, en de lading met de drempels hierboven. In het bericht de resterende tijd en de belasting. Agent 1.70.0 of nieuwer.') },
   mysql:   { label: L('MariaDB / MySQL'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server'), help: L('RzMon maakt verbinding en logt in: lukt dat niet = CRITICAL. Daarnaast hoeveel verbindingen er in gebruik zijn (90% = WARNING), trage query\'s sinds de vorige keer en hoe lang de database draait. Gebruik een eigen gebruiker zonder rechten (alleen USAGE). Het wachtwoord gaat nooit terug naar de browser.') },
+  // 1.170.0: domein, MQTT-broker en VPN
+  domain:  { label: L('Domein (verloopdatum)'), target: L('Domein'), unit: 'dagen', warn: 30, crit: 14, low: true, ph: 'example.nl', help: L('Wanneer verloopt je domein? RzMon vraagt het hooguit twee keer per dag op bij de registry (RDAP, de opvolger van WHOIS). Sommige registries, zoals die van .nl, publiceren geen verloopdatum: dan controleert RzMon of het domein nog geregistreerd en actief is (status als opheffing of quarantaine = CRITICAL).') },
+  mqtt:    { label: L('MQTT-broker'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server (poort 1883, met TLS 8883)'), help: L('RzMon logt in bij de broker (bv. Mosquitto), stuurt een testbericht en ontvangt het zelf weer: de waarde is die rondgang in ms. Lukt inloggen niet, of komt het bericht niet terug, dan CRITICAL. Daarnaast kun je een topic bekijken, bv. zigbee2mqtt/bridge/state met "online".') },
+  vpn:     { label: L('VPN (Gluetun of WireGuard)'), target: null, unit: null, help: L('Werkt je VPN? Kies hieronder Gluetun of WireGuard.') },
   // 1.157.0: de internetlijn, vanaf de server van RzMon
   internet: { label: L('Internet'), target: null, unit: 'ms', warn: 50, crit: 150, help: L('Bewaakt je internetlijn vanaf de server van RzMon. Kies wat: ping, responstijd, download of upload. De snelheidstest draait op vaste tijden; abonnement, drempels en tijden staan bij Instellingen → Monitoring → Internet.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
@@ -165,6 +169,11 @@ const HA_METRICS = {
   osupdate:     { label: L('OS-update mislukt (A/B-terugval)'), unit: null, help: L('CRITICAL als een OS-update niet wilde opstarten en Home Assistant OS is teruggevallen op de vorige versie.') },
   usb:          { label: L('USB-apparaat aanwezig'), unit: null, target: L('USB-apparaat'), ph: L('kies uit de lijst'), help: L('CRITICAL als het apparaat (Zigbee- of Z-Wave-stick, Bluetooth) niet meer gezien wordt door Home Assistant OS.') },
 };
+/** VPN (1.170.0): Gluetun via zijn control server, of WireGuard via de agent */
+const VPN_METRICS = {
+  gluetun: { label: L('Gluetun (control server)'), target: L('Control server'), unit: null, ph: L('leeg = http://<adres van de server>:8000'), help: L('RzMon vraagt de control server van Gluetun of de VPN draait en via welk publiek IP het verkeer gaat. Is dat je eigen IP (van de internetlijn van RzMon), dan lekt de VPN: CRITICAL. Staat de control server achter een API-sleutel, vul die hieronder in.') },
+  wg: { label: L('WireGuard (via de agent)'), target: L('Peer'), unit: 's', warn: 300, crit: 900, ph: L('leeg = alle peers, of bv. wg0'), help: L('Hoe lang geleden de laatste handshake was (de oudste peer telt). Met verkeer of PersistentKeepalive is dat elke 2 minuten; een tunnel zonder verkeer en zonder keepalive maakt geen handshakes. Agent 1.75.0 als root nodig.') },
+};
 /** Internet (1.157.0): wat een internet-check meet */
 const INET_METRICS = {
   ping: { label: L('Ping (pingtijd, jitter, verlies)'), unit: 'ms', warn: 50, crit: 150, help: L('Pingt 1.1.1.1 en 8.8.8.8 (5 keer) en je router. De waarde is de beste pingtijd. Verlies van 20% of meer, of één adres weg = WARNING; geen van beide = CRITICAL, met in de melding of je router nog antwoordt (dan zit het probleem buiten).') },
@@ -189,6 +198,7 @@ function typeOf(c) {
   if (c.type === 'ha') return { ...TYPES.ha, ...(HA_METRICS[c.metric] || {}), label: 'Home Assistant' };
   if (c.type === 'pve') return { ...TYPES.pve, ...(PVE_METRICS[c.metric] || PVE_METRICS.overview), label: 'Proxmox' };
   if (c.type === 'internet') return { ...TYPES.internet, ...(INET_METRICS[c.metric] || INET_METRICS.ping), label: L('Internet') };
+  if (c.type === 'vpn') return { ...TYPES.vpn, ...(VPN_METRICS[c.metric] || VPN_METRICS.gluetun), label: 'VPN' };   // 1.170.0
   return c.type === 'container' && c.metric ? { ...TYPES.container, ...METRICS[c.metric], label: TYPES.container.label } : TYPES[c.type];
 }
 
@@ -4212,7 +4222,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   c = c || { type: 'ping', target: '', name: '', warn_threshold: pt.warn ?? null, crit_threshold: pt.crit ?? null, interval_sec: 60, enabled: 1, ...preset };
   const quietOwn = quietOf(c);
   const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
-  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'dns', 'ntp', 'mysql', 'snmp', 'heartbeat', 'internet']
+  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'dns', 'ntp', 'mysql', 'domain', 'mqtt', 'vpn', 'snmp', 'heartbeat', 'internet']
     : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command', 'pve', 'smart', 'ups'].includes(k))
       .filter((k) => k !== 'pve' || isPveHost(h) || c?.type === 'pve')
       .filter((k) => k !== 'reboot' || h.mode !== 'remote' || c?.type === 'reboot')
@@ -4254,6 +4264,10 @@ function checkForm(c, h, preset = {}, tpl = null) {
       <label>${L('Type')}
         <select name="type">${allowed.map((k) => `<option value="${k}" ${c.type === k ? 'selected' : ''}>${TYPES[k].label}</option>`).join('')}</select>
         <span class="hint" id="type-help"></span>
+      </label>
+      <label id="vpn-wrap" hidden>${L('Welke VPN')}
+        <select name="metric">${Object.entries(VPN_METRICS).filter(([k]) => k !== 'wg' || h.mode === 'agent' || c.metric === 'wg').map(([k, m]) => `<option value="${k}" ${(c.type === 'vpn' ? c.metric || 'gluetun' : 'gluetun') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+        <span class="hint" id="vpn-help"></span>
       </label>
       <div id="cmd-wrap" hidden>
         <p class="hint" id="cmd-mode-info"></p>
@@ -4314,6 +4328,24 @@ function checkForm(c, h, preset = {}, tpl = null) {
         </div>
         <label>${L('Database')} <span class="hint">${L('(optioneel)')}</span><input name="db_name" maxlength="64" value="${esc(opts.db || '')}"></label>
         <p class="hint">${L('Een gebruiker zonder rechten is genoeg:')} <code>CREATE USER 'rzmon_check'@'%' IDENTIFIED BY '…';</code></p>
+      </div>
+      <div id="glu-x-wrap" hidden>
+        <div class="row2">
+          <label>${L('API-sleutel')} <span class="hint">${L('(optioneel)')}</span><input name="vpn_key" type="password" maxlength="200" autocomplete="new-password" value="${esc(c.type === 'vpn' ? opts.pass || '' : '')}"></label>
+          <label>${L('Verwacht land')} <span class="hint">${L('(optioneel)')}</span><input name="vpn_country" maxlength="60" value="${esc(opts.country || '')}" placeholder="${L('bv. Netherlands')}"></label>
+        </div>
+      </div>
+      <div id="mqtt-x-wrap" hidden>
+        <div class="row2">
+          <label>${L('Gebruiker')} <span class="hint">${L('(optioneel)')}</span><input name="net_user" maxlength="80" autocomplete="off" value="${esc(c.type === 'mqtt' ? opts.user || '' : '')}"></label>
+          <label>${L('Wachtwoord')} <input name="net_pass" type="password" maxlength="200" autocomplete="new-password" value="${esc(c.type === 'mqtt' ? opts.pass || '' : '')}"></label>
+        </div>
+        <label class="chk"><input type="checkbox" name="mqtt_tls" ${opts.tls ? 'checked' : ''}> ${L('TLS (versleuteld, poort 8883; het certificaat moet kloppen)')}</label>
+        <label class="chk"><input type="checkbox" name="mqtt_rt" ${c.type !== 'mqtt' || opts.rt === undefined || opts.rt ? 'checked' : ''}> ${L('Testbericht sturen en terug ontvangen (topic rzmon/check/…)')}</label>
+        <div class="row2">
+          <label>${L('Topic bekijken')} <span class="hint">${L('(optioneel)')}</span><input name="mqtt_topic" class="mono" maxlength="200" value="${esc(opts.topic || '')}" placeholder="zigbee2mqtt/bridge/state"></label>
+          <label>${L('moet bevatten')} <span class="hint">${L('(optioneel)')}</span><input name="mqtt_expect" class="mono" maxlength="100" value="${esc(opts.expect || '')}" placeholder="online"></label>
+        </div>
       </div>
       <div id="proc-pick-wrap" hidden>
         <div class="svc-pick-head"><span class="hint" id="proc-pick-info">${L('Processen op deze server ophalen…')}</span></div>
@@ -4560,6 +4592,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const haSel = $('#ha-wrap [name=metric]', form);
   const pveSel = $('#pve-wrap [name=metric]', form);
   const inetSel = $('#inet-wrap [name=metric]', form);
+  const vpnSel = $('#vpn-wrap [name=metric]', form);   // 1.170.0
   $('[name=reverse_ok]', form).onchange = () => update(false);
   const snmpSel = $('#snmp-metric');
   const update = (setDefaults) => {
@@ -4567,12 +4600,14 @@ function checkForm(c, h, preset = {}, tpl = null) {
     const isHa = typeSel.value === 'ha';
     const isPve = typeSel.value === 'pve';
     const isInet = typeSel.value === 'internet';
+    const isVpn = typeSel.value === 'vpn';
     const isSnmp = typeSel.value === 'snmp';
     const oidMode = $('[name=oid_mode]', form).value;
     const isHb = typeSel.value === 'heartbeat';
     const t = isHa ? { ...TYPES.ha, ...HA_METRICS[haSel.value] }
       : isPve ? { ...TYPES.pve, ...PVE_METRICS[pveSel.value] }
       : isInet ? { ...TYPES.internet, ...INET_METRICS[inetSel.value] }
+      : isVpn ? { ...TYPES.vpn, ...VPN_METRICS[vpnSel.value] }
       : isSnmp ? snmpType({ metric: snmpSel.value, options: JSON.stringify({ mode: oidMode, unit: $('[name=oid_unit]', form).value, low: $('[name=oid_low]', form).checked }) })
         : isHb ? { ...TYPES.heartbeat, unit: $('[name=hb_unit]', form).value.trim() || null }
           : TYPES[typeSel.value];
@@ -4589,6 +4624,11 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#inet-wrap').hidden = !isInet;
     inetSel.disabled = !isInet;
     $('#inet-help').textContent = isInet ? INET_METRICS[inetSel.value].help : '';
+    $('#vpn-wrap').hidden = !isVpn;
+    vpnSel.disabled = !isVpn;
+    $('#vpn-help').textContent = isVpn ? VPN_METRICS[vpnSel.value].help : '';
+    $('#glu-x-wrap').hidden = !(isVpn && vpnSel.value === 'gluetun');
+    $('#mqtt-x-wrap').hidden = typeSel.value !== 'mqtt';
     $('#pve-per-wrap').hidden = !isPve || pveSel.value !== 'backups';
     $('[name=pve_per]', form).disabled = !isPve || pveSel.value !== 'backups';
     $('#pve-help').textContent = isPve ? PVE_METRICS[pveSel.value].help : '';
@@ -4674,14 +4714,15 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#test-expect-wrap').hidden = tt !== 'url';
     $('[name=test_target]', form).placeholder = tt === 'port' ? L('8080 of localhost:8080') : 'http://localhost:8080/health';
     $('[name=test_target]', form).required = deep && !!tt;
-    $('[name=target]', form).required = !!t.target && !['http', 'ssl', 'ntp', 'smart', 'ups', 'mysql'].includes(typeSel.value);
+    $('[name=target]', form).required = !!t.target && !['http', 'ssl', 'ntp', 'smart', 'ups', 'mysql', 'mqtt', 'vpn'].includes(typeSel.value);
     $('[name=target]', form).disabled = !t.target;   // niet meesturen als er geen doel is (bv. HA-checks zonder doel)
     const haLogs = ['ha:host', 'ha:core', 'ha:supervisor', ...svcs.filter((x) => x.startsWith('addon:')).map((x) => `ha:${x}`)];
     const usbs = h.metrics.filter((m) => m.startsWith('usb:')).map((m) => m.slice(4));
     const list = isHa && haSel.value === 'usb' ? usbs
       : isPve ? h.metrics.filter((m) => m.startsWith(pveSel.value === 'storage' ? 'pves:' : 'pveg:')).map((m) => m.slice(5))
       : { disk: disks, service: svcs, ssl: certs, container: containers, log: isHaHost(h) ? haLogs : LOG_SOURCES,
-        smart: h.metrics.filter((m) => m.startsWith('smart:')).map((m) => m.slice(6)), ups: h.metrics.filter((m) => m.startsWith('ups:')).map((m) => m.slice(4)) }[typeSel.value] || [];
+        smart: h.metrics.filter((m) => m.startsWith('smart:')).map((m) => m.slice(6)), ups: h.metrics.filter((m) => m.startsWith('ups:')).map((m) => m.slice(4)),
+        vpn: vpnSel.value === 'wg' ? h.metrics.filter((m) => m.startsWith('wg:')).map((m) => m.slice(3)) : [] }[typeSel.value] || [];
     $('#log-wrap').hidden = typeSel.value !== 'log';
     // 1.138.0: extra velden voor HTTP, DNS en MariaDB
     $('#http-x-wrap').hidden = typeSel.value !== 'http';
@@ -4880,6 +4921,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   }));
   haSel.onchange = () => update('metric');
   pveSel.onchange = () => update('metric');
+  vpnSel.onchange = () => update('metric');   // 1.170.0
   snmpSel.onchange = () => update('metric');
   $('[name=oid_mode]', form).onchange = () => update(false);
   $('[name=oid_low]', form).onchange = () => update(false);
@@ -11063,7 +11105,7 @@ async function totpSetup(id, username) {
 let dbInfo = null;
 // ---------------------------------------------------------------- 💡 Nog niet bewaakt (1.95.0)
 const DISCOVER_KIND = { disk: () => '💾 ' + L('Disks'), smart: () => '💽 ' + L('Schijfgezondheid'), service: () => '⚙️ ' + L('Services'), container: () => '📦 ' + L('Containers'),
-  cert: () => '🔒 ' + L('Certificaten'), ups: () => '🔋 UPS', ntp: () => '🕐 ' + L('Tijd'), port: () => '🌐 ' + L('Poorten') };
+  cert: () => '🔒 ' + L('Certificaten'), ups: () => '🔋 UPS', vpn: () => '🔐 VPN', ntp: () => '🕐 ' + L('Tijd'), port: () => '🌐 ' + L('Poorten') };
 async function discoverDialog(h) {
   let d;
   try { d = await api('discover', null, { id: h.id }); } catch (ex) { return toast(ex.message, 'err'); }

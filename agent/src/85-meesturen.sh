@@ -132,4 +132,19 @@ if [ "$HA_MODE" = 0 ] && command -v upsc >/dev/null 2>&1; then
     done
     [ -n "$ups_json" ] && ups_json="[${ups_json%,}]"
 fi
+# WireGuard (agent 1.75.0): per peer de laatste handshake (seconden geleden, -1 = nog nooit), verkeer en endpoint.
+# Alleen als root (wg show heeft root nodig) en alleen tunnels die deze server zelf heeft (niet die in een container).
+wg_json=""
+if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && command -v wg >/dev/null 2>&1; then
+    wg_json=$(timeout 5 wg show all dump 2>/dev/null | awk -F'\t' -v now="$(date +%s)" '
+        NF >= 9 && $1 ~ /^[A-Za-z0-9_.-]+$/ {
+            k = $2; gsub(/[^A-Za-z0-9]/, "", k); k = substr(k, 1, 8)
+            ep = ($4 == "(none)") ? "" : $4; gsub(/[^0-9A-Za-z.:\[\]-]/, "", ep)
+            hs = ($6 ~ /^[0-9]+$/ && $6 > 0) ? now - $6 : -1
+            printf "{\"id\":\"%s:%s\",\"iface\":\"%s\",\"peer\":\"%s\",\"endpoint\":\"%s\",\"hs\":%.0f,\"rx\":%s,\"tx\":%s},", $1, k, $1, k, ep, hs,
+                ($7 ~ /^[0-9]+$/ ? $7 : 0), ($8 ~ /^[0-9]+$/ ? $8 : 0)
+            if (++n >= 64) exit
+        }')
+    wg_json="[${wg_json%,}]"
+fi
 

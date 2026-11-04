@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.75.0 – 2026-11-04
+- **WireGuard** (RzMon 1.170.0): draait de agent als root en staat `wg` op de server, dan stuurt hij per peer de laatste handshake, het verkeer en het endpoint mee (hooguit 64 peers; de sleutel alleen als korte, ingekorte naam). Daarmee bewaakt de nieuwe VPN-check in RzMon of je tunnels nog leven. Niet in de Home Assistant-add-on.
+
 ## 1.74.0 – 2026-11-03
 - **SSH in detail** (RzMon 1.152.0): elke mislukte SSH-poging gaat los mee (tijd, IP, gebruiker, bronpoort; hooguit 200 per rapport), een geslaagde login met de bronpoort, en het einde van een sessie ("Disconnected from user …"). Daarmee toont RzMon de aanvalskaart, de tijdlijn en de duur van elke SSH-sessie. De opgetelde pogingen gaan ook nog mee, zoals altijd.
 - Achter de schermen: het lezen van de logins staat in een eigen module (`agent/src/17-logins-lezen.sh`), met een testmodus `--auth-parse` voor GitHub Actions.

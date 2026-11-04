@@ -8,11 +8,27 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.170.0**: nieuwe checks **Domein** (verloopdatum), **MQTT-broker** (rondgang en topic) en **VPN** (Gluetun met lekcontrole, WireGuard-handshakes).
 - **1.169.0**: **Monitoring → 📶 Beschikbaarheid**: per soort apparaat of eigen groep wat er online is, het percentage, storingen en het doel (SLA).
 - **1.168.0**: Monitoring met een eigen groep **✔ Bevestigd**, en **config.php opslaan via de hulpdienst** terwijl de map vergrendeld blijft.
 - **1.167.0**: de **zijbalk** sleep je zelf breder of smaller, en in Instellingen en Mijn account wordt hij het menu van die pagina, met **← Terug naar RzMon**.
 - **1.166.0**: op de IDS-pagina **wat het IDS deed (24 u)**, de **meest actieve aanvallers** en een duidelijkere grafiek.
-- **1.165.0**: de **IDS-pagina** toont de servers als tabel (L1nes) of met *Wat nu aandacht vraagt*, kaarten en chips (Blox en CC), met modus en hardening duidelijk erbij.
+
+## 1.170.0 – 2026-11-04
+### Nieuw
+- **Check Domein (verloopdatum)**: wanneer je domein verloopt, via RDAP (de opvolger van WHOIS), met registrar en status. Standaard warning bij 30 en critical bij 14 dagen.
+  - Registries zonder verloopdatum (zoals .nl): RzMon let erop dat het domein geregistreerd en actief blijft.
+  - Niet gevonden of *pending delete*, *redemption* of *quarantaine* = CRITICAL.
+  - Hooguit twee keer per dag opgevraagd; lukt dat even niet, dan blijven de laatste gegevens staan.
+- **Check MQTT-broker**: RzMon logt in (gebruiker, wachtwoord, TLS), stuurt een testbericht en ontvangt het zelf weer (de rondgang in ms). Daarnaast kun je een topic bekijken, bijvoorbeeld `zigbee2mqtt/bridge/state` moet `online` bevatten.
+- **Check VPN**:
+  - **Gluetun**: via de control server (eventueel met API-sleutel): draait de VPN, welk publiek IP, land en provider. Gaat het verkeer via je eigen IP, dan is dat een **lek** = CRITICAL.
+  - **WireGuard**: via de agent, de laatste handshake per peer (de oudste telt), met verkeer en endpoint. WireGuard-interfaces worden voorgesteld bij *💡 Nog niet bewaakt*.
+- Wachtwoorden en API-sleutels van deze checks gaan nooit naar de browser (••••).
+- **Agent 1.75.0 nodig** voor WireGuard. Nieuwe agent 1.75.0.
+
+### Opgelost
+- Drempels van meerdere UPS-checks tegelijk aanpassen: "lager is slechter" werd niet herkend.
 
 ## 1.169.0 – 2026-11-04
 ### Nieuw
