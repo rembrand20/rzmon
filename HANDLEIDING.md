@@ -169,13 +169,15 @@ Er zijn vier lay-outs, **per account** (je ziet dezelfde op elk apparaat):
 
 In **CC** krijgen alle pagina's (ook de instellingen) de futuristische stijl van het Command center: glazen panelen met een dunne gloeiende rand, cyaan accenten, een fijn raster op de achtergrond. In licht én donker, het volgt je thema. Alle informatie blijft precies hetzelfde; alleen de vorm verandert.
 
-**Kaarten indelen** (vanaf 1.158.0 op Monitoring en Meldingen, vanaf 1.159.0 ook op IDS, Incidenten, Kwetsbaarheden, Netwerk en Analyse): rechtsboven staan **● Live**, **✎ Indeling** en **▣ TV-modus**. Met *Indeling*:
+**Kaarten indelen** (vanaf 1.158.0 op Monitoring en Meldingen, vanaf 1.159.0 ook op IDS, Incidenten, Kwetsbaarheden, Netwerk en Analyse, vanaf 1.160.0 ook in de Instellingen, bij Mijn account en in de Agent Manager): rechtsboven staan **● Live**, **✎ Indeling** en **▣ TV-modus**. Met *Indeling*:
 - **sleep** een kaart aan ⋮⋮ naar een andere plek;
 - kies de **breedte**: ¼, ⅓, ½, ¾ of de hele breedte;
 - **👁 verberg** wat je niet nodig hebt (in de indeling zie je het nog doorschijnend, zodat je het terug kunt zetten);
 - **↺ Standaard** zet alles terug.
 
 Dit wordt per pagina onthouden, voor jouw account. Op een smal scherm (telefoon) staan de kaarten onder elkaar, in jouw volgorde.
+
+In de **Instellingen** heeft elk onderdeel (bv. *Meldingen → Kanalen* of *IDS → Algemeen*) een eigen indeling; de zijbalk blijft vast staan. Zo zet je bijvoorbeeld Pushover en ntfy naast elkaar en e-mail erboven. Opslaan van de instellingen werkt zoals altijd. In de **Agent Manager** kun je *Functies* en *Verbinding* naast of onder elkaar zetten; die indeling geldt voor alle servers.
 
 **Extra kaarten in CC** (vanaf 1.159.0), naast alles wat er al stond:
 - **IDS**: *Aanvallen per dag* staat altijd open (in de andere lay-outs blijft het een regel die je uitklapt). De tabbladen (Incidenten, Aanvalskaart …) zijn samen één kaart.

@@ -1998,22 +1998,28 @@ const layoutSeg = (cls = '') => `<div class="seg ${cls}" role="group" aria-label
   .map(([k, t]) => `<button type="button" class="seg-btn ${layoutPref() === k ? 'active' : ''}" data-view-layout="${k}">${t}</button>`).join('')}</div>`;
 let pgEdit = null;   // pagina waarvan de indeling open staat
 const PG_W = { 3: '¼', 4: '⅓', 6: '½', 9: '¾', 12: '1' };
+/** Sleutel voor de opslag: de instellingen per onderdeel (bv. set_ids) */
+const pgKey = (page) => (page === 'set' ? 'set_' + String(setSection || 'overview').replace(/[^a-z0-9_]/g, '') : page);
+/** Sleutel van een kaart: data-pk (eigen kaart), data-sk (kaart van de instellingen) of het id */
+const pgCardKey = (c) => (c.dataset.pk || c.dataset.sk || (c.id ? c.id.replace(/[^a-z0-9_]/gi, '_').toLowerCase() : ''));
 function pgLay(page) {
-  const l = (PREFS.pages || {})[page] || {};
+  const l = (PREFS.pages || {})[pgKey(page)] || {};
   return { order: Array.isArray(l.order) ? l.order : [], hide: Array.isArray(l.hide) ? l.hide : [], w: l.w && typeof l.w === 'object' ? l.w : {} };
 }
-function pgSave(page, lay) { savePref('pages', { ...(PREFS.pages || {}), [page]: lay }); }
+function pgSave(page, lay) { savePref('pages', { ...(PREFS.pages || {}), [pgKey(page)]: lay }); }
 /** Volgorde, breedte en verbergen toepassen (met CSS order: de kaarten zelf blijven staan, dus live bijwerken gaat gewoon door) */
 function pgApply(page) {
-  const grid = document.querySelector(`[data-pgrid="${page}"]`);
-  if (!grid) return;
+  document.querySelectorAll(`[data-pgrid="${page}"]`).forEach((grid) => pgApplyGrid(grid, page));
+}
+function pgApplyGrid(grid, page) {
   const lay = pgLay(page), cc = isCC(), edit = cc && pgEdit === page;
-  const cards = [...grid.children].filter((c) => c.dataset.pk);
-  const keys = cards.map((c) => c.dataset.pk);
+  const cards = [...grid.children].filter((c) => pgCardKey(c) && !c.classList.contains('pg-tools'));
+  const keys = cards.map(pgCardKey);
   const order = [...lay.order.filter((k) => keys.includes(k)), ...keys.filter((k) => !lay.order.includes(k))];
   grid.classList.toggle('pg-editing', edit);
   cards.forEach((c) => {
-    const k = c.dataset.pk;
+    const k = pgCardKey(c);
+    c.classList.toggle('pgk', cc);
     const w = +(lay.w[k] || c.dataset.pw || 12);
     c.style.order = cc ? String(order.indexOf(k)) : '';
     c.style.setProperty('--pw', String(w));
@@ -2022,7 +2028,8 @@ function pgApply(page) {
     let bar = c.querySelector(':scope > .pg-bar');
     if (!edit) { if (bar) bar.remove(); return; }
     if (!bar) { bar = document.createElement('div'); bar.className = 'pg-bar'; c.prepend(bar); }
-    bar.innerHTML = `<span class="pg-grip" aria-hidden="true">⋮⋮</span><b>${esc(c.dataset.pt || k)}</b>
+    const title = c.dataset.pt || ($(':scope > h2, :scope > h3, :scope > summary, :scope > .card-head h2', c) || {}).textContent || k;
+    bar.innerHTML = `<span class="pg-grip" aria-hidden="true">⋮⋮</span><b>${esc(String(title).trim().slice(0, 60))}</b>
       ${Object.entries(PG_W).map(([x, t]) => `<button type="button" class="pg-w ${+x === w ? 'on' : ''}" data-pgw="${x}" title="${esc(L('Breedte'))}">${t}</button>`).join('')}
       <button type="button" class="pg-eye ${lay.hide.includes(k) ? 'off' : ''}" data-pghide title="${esc(lay.hide.includes(k) ? L('Tonen') : L('Verbergen'))}">${lay.hide.includes(k) ? '🚫' : '👁'}</button>`;
   });
@@ -2033,13 +2040,14 @@ function pgTools(page) {
   if (!el) return;
   if (!isCC()) { el.innerHTML = ''; return; }
   const ed = pgEdit === page, tv = document.body.classList.contains('tv');
-  el.innerHTML = `${page !== 'mon' ? livePill() : ''}
+  const dlg = page === 'am';   // de Agent Manager is een venster: geen Live en geen TV-modus
+  el.innerHTML = `${page !== 'mon' && !dlg ? livePill() : ''}
     <button type="button" class="cc-tbtn ${ed ? 'on' : ''}" data-pgedit="${page}" aria-pressed="${ed}">✎ ${esc(ed ? L('Klaar') : L('Indeling'))}</button>
-    <button type="button" class="cc-tbtn ${tv ? 'on' : ''}" data-pgtv aria-pressed="${tv}">▣ ${esc(L('TV-modus'))}</button>
+    ${dlg ? '' : `<button type="button" class="cc-tbtn ${tv ? 'on' : ''}" data-pgtv aria-pressed="${tv}">▣ ${esc(L('TV-modus'))}</button>`}
     ${ed ? `<div class="cc-editbar pg-editbar">${esc(L('Sleep een kaart aan ⋮⋮, kies de breedte en verberg wat je niet nodig hebt. Dit geldt voor jouw account.'))}
       <button type="button" class="btn small-btn" data-pgreset="${page}">↺ ${esc(L('Standaard'))}</button></div>` : ''}`;
 }
-const PG_PAGES = ['mon', 'alerts', 'ids', 'inc', 'vuln', 'net', 'an'];   // 1.159.0: ook IDS, Incidenten, Kwetsbaarheden, Netwerk en Analyse
+const PG_PAGES = ['mon', 'alerts', 'ids', 'inc', 'vuln', 'net', 'an', 'set', 'acct', 'am'];   // 1.159.0: IDS t/m Analyse; 1.160.0: instellingen (per onderdeel), Mijn account en Agent Manager
 function applyLayout() {
   document.body.classList.toggle('lay-cc', isCC());
   PG_PAGES.forEach((p) => { pgApply(p); pgTools(p); });
@@ -2052,36 +2060,37 @@ function initPageGrid() {
     if (t.dataset.pgtv !== undefined) { ccTv(!document.body.classList.contains('tv')); PG_PAGES.forEach(pgTools); return; }
     if (t.dataset.pgedit) { pgEdit = pgEdit === t.dataset.pgedit ? null : t.dataset.pgedit; pgApply(t.dataset.pgedit); pgTools(t.dataset.pgedit); return; }
     if (t.dataset.pgreset) { pgSave(t.dataset.pgreset, { order: [], hide: [], w: {} }); pgApply(t.dataset.pgreset); return; }
-    const card = t.closest('[data-pk]'), grid = card && card.closest('[data-pgrid]');
+    const card = t.closest('.pgk'), grid = card && card.parentElement && card.parentElement.closest('[data-pgrid]');
     if (!grid) return;
-    const page = grid.dataset.pgrid, k = card.dataset.pk, lay = pgLay(page);
+    const page = grid.dataset.pgrid, k = pgCardKey(card), lay = pgLay(page);
     if (t.dataset.pgw) lay.w = { ...lay.w, [k]: +t.dataset.pgw };
     else lay.hide = lay.hide.includes(k) ? lay.hide.filter((x) => x !== k) : [...lay.hide, k];
     pgSave(page, lay);
     pgApply(page);
   });
   document.addEventListener('dragstart', (e) => {
-    const c = e.target.closest && e.target.closest('.pg-editing > [data-pk]');
+    const c = e.target.closest && e.target.closest('.pg-editing > .pgk');
     if (!c) return;
     drag = c;
     c.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('text/plain', c.dataset.pk); } catch (ex) { /* oude browsers */ }
+    try { e.dataTransfer.setData('text/plain', pgCardKey(c)); } catch (ex) { /* oude browsers */ }
   });
   document.addEventListener('dragend', () => { if (drag) drag.classList.remove('dragging'); drag = null; $$('.pg-editing > .over').forEach((x) => x.classList.remove('over')); });
   document.addEventListener('dragover', (e) => {
-    const c = drag && e.target.closest && e.target.closest('.pg-editing > [data-pk]');
+    const c = drag && e.target.closest && e.target.closest('.pg-editing > .pgk');
     if (c && c !== drag && c.parentElement === drag.parentElement) { e.preventDefault(); $$('.pg-editing > .over').forEach((x) => x !== c && x.classList.remove('over')); c.classList.add('over'); }
   });
   document.addEventListener('drop', (e) => {
-    const c = drag && e.target.closest && e.target.closest('.pg-editing > [data-pk]');
+    const c = drag && e.target.closest && e.target.closest('.pg-editing > .pgk');
     if (!c || c === drag || c.parentElement !== drag.parentElement) return;
     e.preventDefault();
     const grid = c.parentElement, page = grid.dataset.pgrid, lay = pgLay(page);
-    const keys = [...grid.children].filter((x) => x.dataset.pk).sort((a, b) => (+a.style.order || 0) - (+b.style.order || 0)).map((x) => x.dataset.pk);
-    keys.splice(keys.indexOf(drag.dataset.pk), 1);
-    keys.splice(keys.indexOf(c.dataset.pk), 0, drag.dataset.pk);
-    lay.order = keys;
+    const here = [...grid.children].filter((x) => x.classList.contains('pgk')).sort((a, b) => (+a.style.order || 0) - (+b.style.order || 0)).map(pgCardKey);
+    here.splice(here.indexOf(pgCardKey(drag)), 1);
+    here.splice(here.indexOf(pgCardKey(c)), 0, pgCardKey(drag));
+    // de volgorde van de andere rasters van deze pagina (instellingen: binnen en buiten het formulier) blijft staan
+    lay.order = [...here, ...lay.order.filter((k) => !here.includes(k))];
     pgSave(page, lay);
     pgApply(page);
   });
@@ -5412,8 +5421,9 @@ function agentInstructions(h, pairNow = false) {
       <div class="agent-live" id="agent-live"><span class="muted">${L('Status ophalen…')}</span></div>
       <div class="cmd-host-row contact-row">📡 ${L('Contact:')} <div>${contactHtml(h, 'full')}</div></div>
       </section>
-      <div class="am-grid">
-      <section class="am-sec need-admin"><h3 class="am-h">${L('Functies')}</h3>
+      <div class="pg-tools" data-pgtools="am"></div>
+      <div class="am-grid" data-pgrid="am">
+      <section class="am-sec need-admin" data-pk="func" data-pw="6"><h3 class="am-h">${L('Functies')}</h3>
       <div class="cmd-host-row need-admin">⏱ ${L('Rapporteren elke:')}
         <select id="host-tick"><option value="0">${L('standaard ({t})', { t: tickText(state.agent_tick) })}</option>${[30, 60, 120, 300].map((t) => `<option value="${t}" ${+h.agent_tick === t ? 'selected' : ''}>${tickText(t)}</option>`).join('')}</select>
         <span class="muted small" id="host-tick-info">${h.agent_update_via === 'direct' ? L('via cron/TrueNAS: minimaal elke minuut') : ''}</span></div>
@@ -5436,7 +5446,7 @@ function agentInstructions(h, pairNow = false) {
         <select id="host-commands"><option value="global">${L('algemene instelling')}</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
         <span class="muted small" id="host-commands-info"></span></div>
       </section>
-      <section class="am-sec need-admin"><h3 class="am-h">${L('Verbinding')}</h3>
+      <section class="am-sec need-admin" data-pk="conn" data-pw="6"><h3 class="am-h">${L('Verbinding')}</h3>
       <div class="cmd-host-row need-admin">🔐 ${L('Versleuteld versturen:')}
         <select id="host-enc">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <span class="muted small">${encSeenText(h)} · ${+h.agent_key_seen === 1 ? '🔑 ' + L('eigen sleutel') : L('nog geen eigen sleutel: maak hieronder een koppelcode')}</span></div>
@@ -5530,6 +5540,8 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
     ],
   });
   const body = $('#modal-body');
+  if (pgEdit === 'am') pgEdit = null;
+  pgApply('am'); pgTools('am');   // 1.160.0: Functies en Verbinding als kaarten (lay-out CC)
   const show = (seg) => {
     $$('.seg-btn', body).forEach((b) => b.classList.toggle('active', b.dataset.seg === seg));
     $$('[data-pane]', body).forEach((p) => (p.hidden = p.dataset.pane !== seg));
@@ -9269,6 +9281,9 @@ function showSettingsSection(id, focusEl) {
   $('#set-tabs').innerHTML = tabs ? tabs.map(([k, l]) => `<button type="button" class="seg-btn ${k === tab[0] ? 'active' : ''}" data-set-tab="${k}" role="tab">${esc(l)}</button>`).join('') : '';
   const cards = tab ? tab[2] : f.sub[2];
   $$('#tab-settings [data-sk]').forEach((c) => c.classList.toggle('set-off', !cards.includes(c.dataset.sk)));
+  if (pgEdit === 'set') pgEdit = null;
+  pgApply('set');   // 1.160.0: indeling van dit onderdeel (lay-out CC)
+  pgTools('set');
   // De knop "Instellingen opslaan" alleen bij onderdelen uit dat formulier
   const inForm = cards.some((k) => { const c = $(`#tab-settings [data-sk="${k}"]`); return c && c.closest('#settings-form'); });
   $('#settings-form').classList.toggle('set-noform', !inForm);
@@ -13186,13 +13201,6 @@ function ccTools() {
 function ccSetDash(v) {
   if (v === dashMode()) return;
   return setLayout(v === 'cc' ? 'cc' : 'blox');   // 1.158.0: het dashboard volgt de lay-out
-  savePref('dash', v);
-  if (v !== 'cc') ccTv(false);
-  ccEdit = false;
-  markDash();
-  hmData = null;
-  $('#home').innerHTML = `<p class="muted">${esc(L('Laden…'))}</p>`;
-  loadHome();
 }
 const markDash = () => $$('[data-dash-set]').forEach((b) => b.classList.toggle('active', b.dataset.dashSet === dashMode()));
 /** TV-modus: schermvullend, zonder menu en kopbalk, grotere letters. Per apparaat onthouden; Esc of de knop zet hem uit. */

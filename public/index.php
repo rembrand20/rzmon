@@ -575,12 +575,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <p class="set-lead" id="set-lead"></p>
       <div class="set-attn" id="set-attn" hidden></div>
       <div class="seg set-tabs" id="set-tabs" role="tablist" hidden></div>
+      <div class="pg-tools" data-pgtools="set"></div>
       <div data-sk="overview" class="card set-overview" id="set-overview"></div>
       <div class="set-toolbar">
         <span class="muted small"><?= th('Klik op een onderdeel om het te openen of te sluiten.') ?></span>
         <button type="button" class="btn" id="set-toggle-all"><?= th('⊞ Alles openen') ?></button>
       </div>
-      <form id="settings-form" class="settings-grid need-admin">
+      <form id="settings-form" class="settings-grid need-admin" data-pgrid="set">
         <div data-sk="pushover" class="card">
           <h2>Pushover</h2>
           <p class="muted small"><?= t('Maak een applicatie aan op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> voor het API-token. Je user key staat op je Pushover dashboard.') ?></p>
@@ -1123,7 +1124,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       </form>
 
-      <div class="settings-grid" style="margin-top:1.25rem">
+      <div class="settings-grid" style="margin-top:1.25rem" data-pgrid="set">
       <form data-sk="access" class="card need-admin" id="access-form">
         <h2><?= th('Toegang') ?></h2>
         <div class="ip-status" id="ip-status">…</div>
@@ -1437,7 +1438,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
 <?php if (!is_lan_session()): ?>
     <section id="tab-account" class="tab-panel" hidden>
-      <div class="acct-page">
+      <div class="acct-page" data-pgrid="acct">
+      <div class="pg-tools" data-pgtools="acct"></div>
       <h1 class="set-title">👤 <?= th('Mijn account') ?></h1>
       <div class="set-crumb muted small"><?= htmlspecialchars((string) $user['username']) ?> · <?= th(ROLE_LABELS[$role] ?? $role) ?></div>
       <div class="card" id="acct-data"><h2><?= th('Gegevens') ?></h2><div id="acct-data-body"><p class="muted"><?= th('Laden…') ?></p></div></div>
@@ -1451,7 +1453,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="card" id="acct-outside"><h2>🕶️ <?= th('Van buiten en passkeys') ?></h2><div id="acct-outside-body"></div></div>
       <div class="card" id="acct-devices"><h2>📱 <?= th('Ingelogde apparaten') ?></h2><div id="acct-devices-body"></div></div>
       <div class="card" id="acct-logins"><h2>🕘 <?= th('Mijn laatste logins') ?></h2><div id="acct-logins-body"></div></div>
-      <div class="card view-card">
+      <div class="card view-card" data-pk="view">
         <h2>🖥️ <?= th('Weergave') ?></h2>
         <p class="muted small"><?= t('Hoe de pagina\'s eruitzien, direct toegepast. <i>Bij openen</i> en de <i>lay-out</i> gelden voor je account; de grootte voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc). <b>◈ CC</b>: alle pagina\'s in de stijl van het Command center, met kaarten die je kunt verslepen (✎ Indeling).') ?></p>
         <div class="view-row">

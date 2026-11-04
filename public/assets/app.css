@@ -3004,3 +3004,17 @@ body.lay-cc dialog .modal-inner { background: linear-gradient(160deg, var(--fx-b
 .pg-dl b { font-variant-numeric: tabular-nums; margin-left: .2rem; }
 .pg-hgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 1.5rem; }
 body.lay-cc #ids-chart[hidden] { display: none; }
+/* 1.160.0: instellingen en Mijn account in CC: dezelfde kaarten, in een raster van 12 */
+body.lay-cc #tab-settings [data-pgrid="set"], body.lay-cc [data-pgrid="acct"], body.lay-cc [data-pgrid="am"] { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-items: start; }
+body.lay-cc [data-pgrid] > .pgk { grid-column: span var(--pw, 12); min-width: 0; }
+body.lay-cc [data-pgrid] > :not(.pgk) { grid-column: 1 / -1; order: -1; }
+body.lay-cc [data-pgrid] > .pgk.pg-hidden { display: none; }
+body.lay-cc #tab-settings .set-off { display: none !important; }
+.pg-editing > .pgk { outline: 1.5px dashed color-mix(in srgb, var(--fx-cy) 60%, transparent); outline-offset: 3px; border-radius: 16px; cursor: grab; }
+.pg-editing > .pgk.pg-hidden { display: block; opacity: .45; }
+.pg-editing > .pgk > :not(.pg-bar) { pointer-events: none; }
+.pg-editing > .pgk.over { outline: 2px solid var(--fx-cy); box-shadow: 0 0 0 4px color-mix(in srgb, var(--fx-cy) 18%, transparent); }
+.pg-editing > .pgk.dragging { opacity: .6; }
+@media (max-width: 900px) { body.lay-cc [data-pgrid] > .pgk { grid-column: span 12; } }
+.pg-tools[data-pgtools="am"]:empty { display: none; }
+.pg-tools[data-pgtools="am"] { margin: 0 0 .5rem; }

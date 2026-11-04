@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.160.0**: in de lay-out CC zijn nu ook de **Instellingen** (per onderdeel), **Mijn account** en de **Agent Manager** kaarten die je versleept en smaller of breder maakt; daarmee zit elke pagina in CC.
 - **1.158.0**: de **lay-out CC**: alle pagina's in de stijl van het Command center (licht en donker), met kaarten die je zelf versleept, smaller of breder maakt en verbergt; per account.
 - **1.157.0**: **Monitoring live**: per server de 3 belangrijkste checks met lijntjes en 24 uur, problemen gebundeld op oorzaak, een Compact-weergave en een zachte rode gloed; plus een nieuwe check **Internet** (ping, responstijd en snelheidstest van je lijn).
 - **1.156.0**: **slimme drempels** leren nu ook voor containers, DNS, NTP en MySQL, en RzMon zet een handmatige check zelf op *slim met vangnet* en stelt *melden na N* zelf in als dat minder ruis geeft, altijd met een melding en terug te draaien.
 - **1.155.0**: **Analyse en advies**: slimme analyses die je gegevens combineren tot concreet advies met bewijs (zoals een verouderde dienst met een actief misbruikte CVE op een poort die van buiten wordt aangevallen), een veiligheidsscore per onderdeel en een melding bij kritieke, wereldwijd bekende lekken.
-- **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
+
+## 1.160.0 – 2026-11-04
+### Nieuw
+- **Lay-out CC, ronde 3**: ook de **Instellingen**, **Mijn account** en de **Agent Manager** bestaan in CC uit kaarten die je versleept, smaller of breder maakt en verbergt (✎ Indeling).
+  - In de Instellingen heeft **elk onderdeel een eigen indeling** (bv. Pushover en ntfy naast elkaar bij *Kanalen*); de zijbalk blijft staan en opslaan werkt zoals altijd.
+  - In de Agent Manager zet je *Functies* en *Verbinding* naast of onder elkaar (geldt voor alle servers).
+  - Alle instellingen en knoppen blijven waar ze waren; alleen de lay-out verandert.
 
 ## 1.159.0 – 2026-11-04
 ### Nieuw
