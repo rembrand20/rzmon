@@ -44,7 +44,9 @@ final class Heal
     public static function testLines(int $hostId, bool $secure): array
     {
         $out = [];
-        foreach (q("SELECT id, type, target, heal, maintenance_until FROM checks WHERE host_id = ? AND enabled = 1 AND heal = 'restart'", [$hostId]) as $c) {
+        // 1.171.0: ook een herstart die je vanuit een AI-advies liet uitvoeren (een kwartier geldig; de agent herstart alleen als hij echt stil ligt)
+        foreach (q("SELECT id, type, target, heal, maintenance_until FROM checks WHERE host_id = ? AND enabled = 1
+                    AND (heal = 'restart' OR (ai_exec = 'restart' AND ai_exec_at > NOW() - INTERVAL 15 MINUTE))", [$hostId]) as $c) {
             if ($c['maintenance_until'] && strtotime((string) $c['maintenance_until']) > time()) {
                 continue;   // in onderhoud: niet zelf herstellen (misschien staat hij expres uit)
             }
@@ -93,6 +95,14 @@ final class Heal
     public static function runList(int $hostId): array
     {
         $out = [];
+        // 1.171.0: een herstelscript dat je vanuit een AI-advies liet uitvoeren (eenmalig)
+        foreach (q("SELECT id, ai_exec FROM checks WHERE host_id = ? AND ai_exec LIKE 'cmd:%' AND ai_exec_at > NOW() - INTERVAL 15 MINUTE", [$hostId]) as $c) {
+            $name = substr((string) $c['ai_exec'], 4);
+            if (preg_match(self::NAME_RE, $name)) {
+                $out[] = [(int) $c['id'], $name];
+            }
+            q('UPDATE checks SET ai_exec = NULL WHERE id = ?', [$c['id']]);
+        }
         foreach (q("SELECT id, heal, heal_state FROM checks WHERE host_id = ? AND heal LIKE 'cmd:%' AND heal_state LIKE 'req:%'", [$hostId]) as $c) {
             $name = substr((string) $c['heal'], 4);
             if (preg_match(self::NAME_RE, $name)) {

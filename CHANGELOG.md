@@ -8,11 +8,26 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.171.0**: **🤖 AI-advies** bij storingen en incidenten (Claude, ChatGPT, Gemini, Grok of Ollama), met diep zoeken via de agent en desgewenst uitvoeren na bevestiging.
 - **1.170.0**: nieuwe checks **Domein** (verloopdatum), **MQTT-broker** (rondgang en topic) en **VPN** (Gluetun met lekcontrole, WireGuard-handshakes).
 - **1.169.0**: **Monitoring → 📶 Beschikbaarheid**: per soort apparaat of eigen groep wat er online is, het percentage, storingen en het doel (SLA).
 - **1.168.0**: Monitoring met een eigen groep **✔ Bevestigd**, en **config.php opslaan via de hulpdienst** terwijl de map vergrendeld blijft.
 - **1.167.0**: de **zijbalk** sleep je zelf breder of smaller, en in Instellingen en Mijn account wordt hij het menu van die pagina, met **← Terug naar RzMon**.
-- **1.166.0**: op de IDS-pagina **wat het IDS deed (24 u)**, de **meest actieve aanvallers** en een duidelijkere grafiek.
+
+## 1.171.0 – 2026-11-04
+### Nieuw
+- **🤖 AI-advies** (Instellingen → Koppelingen → AI-advies): uitleg en een oplossing bij een storing.
+  - **Aanbieders**: Claude, ChatGPT, Gemini, Grok of Ollama (lokaal of een eigen server). Met ⟳ *Modellen ophalen* en 🧪 *Testen*; API-sleutels gaan nooit naar de browser.
+  - **Knoppen** 🤖 bij checks met een probleem (in de regel en het checkvenster), gebundelde storingen in *Nu aandacht nodig*, incidenten en IDS-incidenten.
+  - Het venster toont het advies in vier delen (wat, oorzaak, oplossing in stappen met commando's om te kopiëren, controleren), met 🔄 *Opnieuw vragen*.
+  - **Context**: check, server, statuswissels, metingen, andere problemen op de server, wijzigingen en pogingen van zelf herstellen. Wachtwoorden en tokens gaan er altijd uit.
+  - **Op verzoek of automatisch**: automatisch is één advies per storing zodra die CRITICAL wordt (per server bij 3 of meer problemen), in een eigen proces zodat de checks niet wachten.
+  - **Cloud**: een daglimiet (standaard 50) en maskeren van servernamen, IP- en e-mailadressen (in het antwoord weer de echte namen).
+  - **Diep zoeken** (eigen schakelaar, met je wachtwoord): bij een CRITICAL voert de agent een vaste lijst commando's uit die alleen lezen; zonder agent kijkt RzMon zelf (DNS, poorten, HTTP).
+  - **📝 Alleen tekst ↔ ▶ Uitvoeren** (standaard alleen tekst; aanzetten met je wachtwoord): een advies mag een bestaande herstelactie voorstellen, die een beheerder uitvoert na bevestiging, via zelf herstellen, in het logboek.
+  - **Staat AI uit**, dan is er nergens iets van te zien en gaat er niets de deur uit.
+  - Beheerders en gebruikers mogen vragen; alleen-lezen-accounts lezen een advies dat er al is.
+- **Agent 1.76.0 nodig** voor diep zoeken. Nieuwe agent 1.76.0.
 
 ## 1.170.0 – 2026-11-04
 ### Nieuw

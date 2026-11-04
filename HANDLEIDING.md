@@ -250,6 +250,40 @@ Bovenaan **Monitoring** staan twee tabbladen: **📋 Checks** (de pagina zoals j
   - Een *storing* is de tijd dat de server onbereikbaar was: al die checks tegelijk CRITICAL.
   - Het percentage van een groep is het gemiddelde van de apparaten.
 
+### AI-advies 🤖 (vanaf 1.171.0)
+Een AI legt een storing of incident uit en stelt een oplossing voor. Je zet het aan bij **Instellingen → Koppelingen → AI-advies**.
+- **Staat het uit**, dan zie je nergens iets van AI en gaat er niets de deur uit. De server weigert dan ook elke vraag.
+- **Aanbieder:**
+  - **Ollama**: lokaal of op een eigen server; je vult het adres in. Gratis, en je gegevens blijven thuis.
+  - **Claude**, **ChatGPT**, **Gemini** of **Grok**: in de cloud, met een API-sleutel.
+  - Met **⟳ Modellen ophalen** haal je de modellen op die je kunt kiezen; met **🧪 Testen** probeer je de verbinding.
+  - API-sleutels gaan nooit naar de browser.
+- **Waar:** 🤖 staat bij een check met een probleem (in de regel en in het checkvenster), bij een gebundelde storing in *Nu aandacht nodig*, bij een incident en bij een IDS-incident.
+  - Het antwoord heeft vier kopjes: *wat is er aan de hand*, *de oorzaak*, *de oplossing in stappen* (commando's om te kopiëren) en *controleren*.
+  - Met **🔄 Opnieuw vragen** vraag je een nieuw advies.
+  - Beheerders en gebruikers mogen een advies vragen; alleen-lezen-accounts lezen een advies dat er al is.
+- **Wat er meegaat:** de check en de server, de statuswissels en metingen, andere problemen op de server, wijzigingen in RzMon (7 dagen) en pogingen van zelf herstellen. Wachtwoorden en tokens gaan er altijd uit.
+- **Op verzoek of automatisch:** automatisch is één advies per storing zodra die CRITICAL wordt. Heeft een server 3 of meer problemen, dan één advies voor die server.
+- **Cloud:**
+  - Met een **daglimiet** (standaard 50 vragen) houd je de kosten in de hand.
+  - Met **maskeren** gaan servernamen, IP- en e-mailadressen als labels naar de cloud (`server-1`, `ip-1`). In het antwoord staan weer de echte namen.
+- **Diep zoeken via de agent** (aparte schakelaar; aanzetten vraagt je wachtwoord):
+  - Bij een CRITICAL op een server met de agent (1.76.0 of nieuwer) voert de agent een **vaste lijst commando's uit die alleen lezen**:
+    - service: `systemctl status` en de laatste regels van `journalctl -u`;
+    - container: status en logs;
+    - disk: `df` en wat de ruimte opeet;
+    - CPU/RAM: zwaarste processen en OOM-meldingen;
+    - poort: wie er luistert;
+    - altijd: de laatste fouten in het journal en dmesg.
+  - Dat duurt meestal 1–2 minuten.
+  - Zonder agent kijkt RzMon zelf: DNS, poorten en HTTP.
+  - De AI kiest nooit commando's. `COMMANDS=0` op een server blokkeert het daar altijd.
+- **📝 Alleen tekst ↔ ▶ Uitvoeren** (standaard *alleen tekst*; aanzetten vraagt je wachtwoord):
+  - Een advies mag een **bestaande** herstelactie voorstellen: herstarten, of een herstelscript uit `/etc/rzmon-agent/heal.d`.
+  - Een beheerder voert die uit met ▶ en een bevestiging. Het gaat via zelf herstellen bij de volgende ronde van de agent, en komt in het logboek.
+  - Een service wordt alleen herstart als hij echt stil ligt.
+- **Ollama op een andere machine:** laat het daar luisteren op het netwerk (`OLLAMA_HOST=0.0.0.0`) en zet poort 11434 in de firewall **alleen open voor de server van RzMon**. Ollama heeft zelf geen wachtwoord.
+
 ### Incidenten ⚠ (vanaf 1.142.0)
 Het tabblad **⚠ Incidenten** zet in **één lijst** wat er echt mis is, uit alle onderdelen, zodat je het kunt afhandelen. Beheerders en gebruikers zien het; *alleen lezen* niet.
 

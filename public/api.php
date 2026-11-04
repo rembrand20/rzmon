@@ -495,6 +495,7 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     }
     // 1.107.0: zelf herstellen (services en containers) en de waakhond
     array_push($out, ...Heal::testLines($hostId, $secure));
+    array_push($out, ...Ai::diagLines($hostId));   // 1.171.0: diagnose voor AI-advies (agent 1.76.0)
     return $out ? implode("\n", $out) . "\n" : '';
 }
 
@@ -898,6 +899,9 @@ if ($action === 'agent') {
             $st->execute([$host['id'], mb_substr("$k:" . $x[$key], 0, 190), json_encode($x, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $now]);
         }
     }
+    if (isset($in['diag'])) {
+        Ai::fromAgent($host, $in['diag']);   // 1.171.0: uitkomst van een diagnose voor AI-advies
+    }
     // Deels onleesbaar rapport (1.99.2): wat er werd weggelaten en waarom, voor de Agent Manager
     if ($salvaged) {
         $st->execute([$host['id'], 'report_warn', json_encode($salvaged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), $now]);
@@ -1183,10 +1187,10 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'home', 'state', 'availability', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'home', 'state', 'availability', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set' => 'user',
+    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1196,7 +1200,7 @@ $isAdmin = has_role($user, 'admin');
 I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
-if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'home', 'state', 'availability', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
+if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'home', 'state', 'availability', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
     'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview', 'incidents', 'incident_info', 'report',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();
@@ -1797,7 +1801,7 @@ switch ($action) {
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'badges' => tab_badges($user, $hosts, (string) ($_GET['seen'] ?? '')), 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'agent_https_only' => setting('agent_https_only', '0') === '1', 'lan_session' => is_lan_session(), 'maintenance' => $global,
-             'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'edr_note_hide' => json_decode((string) setting('edr_note_hide', '{}'), true) ?: (object) [], 'role' => $user['role'], 'user_id' => $user['id'], 'health' => Health::current(), 'health_groups' => Health::groups(),
+             'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'edr_note_hide' => json_decode((string) setting('edr_note_hide', '{}'), true) ?: (object) [], 'role' => $user['role'], 'user_id' => $user['id'], 'ai' => Ai::stateInfo($user), 'health' => Health::current(), 'health_groups' => Health::groups(),
              'agent_tick' => agent_tick(null), 'now_ts' => time(),
              // Sjablonen (1.94.0): item → naam van het sjabloon, en welke sjablonen per server
              'templates' => q('SELECT id, name FROM check_templates ORDER BY name')->fetchAll(),
@@ -1920,6 +1924,72 @@ switch ($action) {
             }, $pts);
         }
         out(['points' => $pts, 'uptime' => $up, 'forecast' => $forecast, 'log_lines' => $logLines, 'series' => $series, 'band' => $band]);
+
+    // 1.171.0: AI-advies. Instellingen (beheerders): modellen ophalen, testen, diagnose en uitvoeren aan/uit (met wachtwoord)
+    case 'ai_models':
+    case 'ai_test':
+        $in = input();
+        session_write_close();
+        $cfg = Ai::cfg($in);
+        try {
+            if ($action === 'ai_models') {
+                out(['models' => Ai::models($cfg)]);
+            }
+            $r = Ai::chat(['max_tokens' => 200, 'timeout' => min(120, $cfg['timeout'])] + $cfg, t('Antwoord in één korte zin.'), t('Zeg dat de verbinding met RzMon werkt.'));
+            out(['ok' => true, 'text' => mb_substr($r['text'], 0, 300), 'ms' => $r['ms']]);
+        } catch (RuntimeException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'ai_info':
+        out(['on' => Ai::on(), 'used' => Ai::usedToday(), 'diag' => setting('ai_diag', '0') === '1', 'exec' => setting('ai_exec', '0') === '1',
+            'providers' => array_map(static fn($p) => ['label' => $p['label'], 'cloud' => $p['cloud']], Ai::PROVIDERS),
+            'recent' => array_map([Ai::class, 'public'], q('SELECT * FROM ai_advice ORDER BY id DESC LIMIT 8')->fetchAll())]);
+
+    case 'ai_guard_set':
+        $in = input();
+        $key = ($in['key'] ?? '') === 'exec' ? 'ai_exec' : 'ai_diag';
+        $on = !empty($in['on']);
+        if ($on && setting($key, '0') !== '1') {
+            $confirm('TOESTAAN');   // ruimer: je wachtwoord (of thuis het woord)
+        }
+        save_setting($key, $on ? '1' : '0');
+        AgentCommands::audit($user['username'], $key === 'ai_exec' ? 'AI: uitvoeren' : 'AI: diagnose', $on ? 'aan' : 'uit');
+        if (!$on && $key === 'ai_diag') {
+            q('UPDATE hosts SET ai_diag = NULL WHERE ai_diag IS NOT NULL');
+        }
+        out(['ok' => true, 'on' => $on]);
+
+    // Advies opvragen (iedereen met leesrechten), vragen en afmaken (gebruikers), uitvoeren (beheerders)
+    case 'ai_get':
+    case 'ai_ask':
+    case 'ai_run':
+    case 'ai_exec':
+        if (!Ai::on()) {
+            out(['error' => t('AI-advies staat uit')], 404);
+        }
+        $in = $action === 'ai_get' ? $_GET : input();
+        try {
+            if ($action === 'ai_exec') {
+                out(['ok' => true, 'message' => Ai::exec((int) ($in['id'] ?? 0), (string) ($in['action'] ?? ''), $user['username'])]);
+            }
+            if ($action === 'ai_get') {
+                $kind = (string) ($in['kind'] ?? '');
+                $r = !empty($in['id']) ? (q('SELECT * FROM ai_advice WHERE id = ?', [(int) $in['id']])->fetch() ?: null) : Ai::latest($kind, (int) ($in['ref'] ?? 0));
+                out(['advice' => $r ? Ai::public($r) : null]);
+            }
+            $r = $action === 'ai_ask' ? Ai::ask((string) ($in['kind'] ?? ''), (int) ($in['ref'] ?? 0), $user['username'], !empty($in['force']))
+                : (q('SELECT * FROM ai_advice WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetch() ?: throw new RuntimeException(t('Niet gevonden')));
+            if (in_array($r['status'], ['pending', 'diag'], true)) {
+                // Het model kan even nadenken: de sessie vrijgeven en doorgaan, ook als de browser niet wacht
+                session_write_close();
+                ignore_user_abort(true);
+                $r = Ai::work((int) $r['id']);
+            }
+            out(['advice' => Ai::public($r)]);
+        } catch (RuntimeException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
 
     case 'availability':
         // 1.169.0: Monitoring → Beschikbaarheid: per server het percentage, per uur/dag, en de storingen in de periode
@@ -3203,7 +3273,26 @@ switch ($action) {
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_keep_manual', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
             'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'edr_yara', 'ids_modern', 'af_motion', 'smart_auto', 'alert_auto', 'inet_down', 'inet_up', 'inet_warn_pct', 'inet_crit_pct', 'inet_times', 'inet_speed_mb', 'perf_on', 'edr_note_hide', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
-            'update_auto', 'update_time', 'update_backup'];
+            'update_auto', 'update_time', 'update_backup',
+            'ai_on', 'ai_provider', 'ai_auto', 'ai_daily', 'ai_mask', 'ai_timeout', 'ai_max_tokens', 'ai_ollama_url', 'ai_ollama_key',
+            'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model'];   // 1.171.0
+        // 1.171.0: AI-advies: een bekende aanbieder, een geldig adres voor Ollama, getallen binnen de grenzen
+        if (isset($in['ai_provider']) && !isset(Ai::PROVIDERS[(string) $in['ai_provider']])) {
+            out(['error' => t('Onbekende aanbieder')], 422);
+        }
+        if (isset($in['ai_ollama_url']) && (trim((string) $in['ai_ollama_url']) === '' || ExtraChecks::urlBlocked(trim((string) $in['ai_ollama_url'])) !== null)) {
+            out(['error' => t('Vul het adres van Ollama in, bv. http://127.0.0.1:11434')], 422);
+        }
+        foreach (['ai_daily' => [0, 10000], 'ai_timeout' => [10, 600], 'ai_max_tokens' => [200, 8000]] as $k => [$lo, $hi]) {
+            if (isset($in[$k])) {
+                $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
+            }
+        }
+        foreach (['claude', 'openai', 'gemini', 'grok', 'ollama'] as $p) {
+            if (isset($in["ai_{$p}_model"]) && !preg_match('/^[A-Za-z0-9._:\/-]{0,80}$/', trim((string) $in["ai_{$p}_model"]))) {
+                out(['error' => t('Ongeldige modelnaam')], 422);
+            }
+        }
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
         }

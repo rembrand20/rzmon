@@ -3237,3 +3237,27 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 .av-foot { margin-top: .9rem; }
 @media (max-width: 900px) { .av-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .av-cols { grid-template-columns: 1fr; } .av-tools .av-target { margin-left: 0; } }
 @media (max-width: 600px) { .av-hide-s { display: none; } .av-groups { grid-template-columns: 1fr; } }
+/* 1.171.0: AI-advies */
+.ai-btn.has { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 55%, transparent); }
+.icon-btn.ai-btn { filter: saturate(.8); }
+.ai-box { padding: .2rem .1rem; }
+.ai-answer h4 { margin: 1rem 0 .35rem; font-size: 1rem; }
+.ai-answer h4:first-child { margin-top: .2rem; }
+.ai-answer p { margin: .3rem 0; line-height: 1.5; }
+.ai-answer .ai-li { margin: .2rem 0 .2rem .4rem; line-height: 1.5; }
+.ai-answer code { background: var(--card-2); border: 1px solid var(--border); border-radius: 5px; padding: 0 .3rem; font-size: .88em; }
+.ai-code { position: relative; margin: .45rem 0; }
+.ai-code pre { background: #0f172a; color: #e2e8f0; border-radius: 9px; padding: .7rem .9rem; overflow-x: auto; font-size: .85rem; margin: 0; }
+.ai-code pre code { background: none; border: 0; padding: 0; color: inherit; }
+.ai-copy { position: absolute; top: .35rem; right: .35rem; background: rgba(255,255,255,.12); color: #e2e8f0; border: 0; border-radius: 6px; padding: .15rem .45rem; cursor: pointer; }
+.ai-wait { display: flex; align-items: center; gap: .5rem; }
+.ai-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--primary); display: inline-block; animation: ai-spin .8s linear infinite; }
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+.ai-exec { background: var(--card-2); border: 1px solid var(--border); border-radius: 10px; padding: .6rem .8rem; margin: .8rem 0; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.ai-meta { margin-top: .8rem; }
+.ai-note { margin-top: .3rem; }
+#ai-body.ai-off { opacity: .55; }
+.ai-recent { list-style: none; padding: 0; margin: 0; font-size: .86rem; }
+.ai-recent li { padding: .3rem 0; border-top: 1px solid var(--border); }
+.ai-st { display: inline-block; width: 1.2em; text-align: center; }
+.ai-st.error { color: var(--crit); } .ai-st.done { color: var(--ok); }

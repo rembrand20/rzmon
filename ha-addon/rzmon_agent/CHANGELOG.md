@@ -5,6 +5,14 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.76.0 – 2026-11-04
+- **Diagnose voor AI-advies** (RzMon 1.171.0): vraagt RzMon erom bij een storing, dan voert de agent eenmalig een **vaste lijst commando's uit die alleen lezen**, en stuurt de uitvoer mee.
+  - Per soort: `systemctl status` en `journalctl -u` voor een service, status en logs voor een container, `df` en `du` voor een disk, de zwaarste processen en OOM-meldingen bij CPU en RAM, en wie er op een poort luistert.
+  - Altijd: uptime en de laatste fouten in het journal en dmesg.
+  - RzMon stuurt alleen de soort en het doel (naam, mount of poort), nooit een commando; de agent controleert het doel opnieuw.
+  - Hooguit 20 seconden en 6 kB per onderdeel.
+  - Staat in RzMon apart aan; `COMMANDS=0` blokkeert het altijd. Niet in de Home Assistant-add-on.
+
 ## 1.75.0 – 2026-11-04
 - **WireGuard** (RzMon 1.170.0): draait de agent als root en staat `wg` op de server, dan stuurt hij per peer de laatste handshake, het verkeer en het endpoint mee (hooguit 64 peers; de sleutel alleen als korte, ingekorte naam). Daarmee bewaakt de nieuwe VPN-check in RzMon of je tunnels nog leven. Niet in de Home Assistant-add-on.
 

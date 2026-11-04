@@ -153,6 +153,14 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **REST-sensoren** via de API (§11).
 - **Add-on** voor Home Assistant OS, zie hoofdstuk 12.
 
+- **🤖 AI-advies** (vanaf 1.171.0): uitleg en een oplossing bij storingen, gebundelde storingen, incidenten en IDS-incidenten, van **Claude, ChatGPT, Gemini, Grok** of **Ollama** (lokaal of een eigen server).
+  - Op verzoek of automatisch (één advies per storing bij CRITICAL).
+  - Daglimiet, en maskeren van namen en adressen voor de cloud.
+  - Geheimen gaan er altijd uit.
+  - **Diep zoeken** via de agent: vaste commando's die alleen lezen.
+  - Optioneel **uitvoeren** van een bestaande herstelactie na bevestiging.
+  - Staat het uit, dan is er nergens iets van te zien.
+
 ## 7. REST API
 - JSON, met API-sleutels die je in de webinterface beheert.
 - **Rechten per sleutel:** 📖 status lezen, 🛡️ IDS lezen, 🐞 kwetsbaarheden lezen, ⛔ IDS blokkeren (met bevestiging) en ✔ checks bedienen; daarnaast optioneel **alleen vanaf** bepaalde IP's of netwerken, en een **geldigheid** van 6, 12 of 24 maanden (verlengen met ✎).

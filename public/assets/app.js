@@ -1894,7 +1894,7 @@ function renderAttention() {
       <span class="a-msg">${esc(c.last_message || '')}</span>
       ${checkTimeline(c)}
       <span class="a-since">${c.problem_since ? dur(c.problem_since) : ''}</span>
-      <span class="a-acts"><button class="btn small-btn ack-btn need-user" data-act="ack" data-id="${c.id}" title="${L('Storing bevestigen: geen meldingen meer')}">✔ ${L('Bevestig')}</button><button class="btn small-btn need-user" data-act="maint-check" data-id="${c.id}" title="${L('Onderhoud')}">🔧</button></span>
+      <span class="a-acts">${aiBtn('check', c.id)}<button class="btn small-btn ack-btn need-user" data-act="ack" data-id="${c.id}" title="${L('Storing bevestigen: geen meldingen meer')}">✔ ${L('Bevestig')}</button><button class="btn small-btn need-user" data-act="maint-check" data-id="${c.id}" title="${L('Onderhoud')}">🔧</button></span>
     </div>`;
   const bundleRow = (it) => {
     const st = it.list.reduce((m, c) => (STATUS_RANK[+c.status] > STATUS_RANK[m] ? +c.status : m), 0);
@@ -1909,7 +1909,7 @@ function renderAttention() {
       <span class="a-msg"><b>${esc(cause)}</b> · ${esc(it.list.map((c) => c.name).slice(0, 5).join(', '))}${it.list.length > 5 ? ' …' : ''}</span>
       ${hostTimeline(it.h)}
       <span class="a-since">${s0 ? dur(s0) : ''}</span>
-      <span class="a-acts"></span>
+      <span class="a-acts">${aiBtn('bundle', it.h.id)}</span>
     </div>${isOpen ? it.list.map((c) => row([it.h, c], true)).join('') : ''}`;
   };
   const nCause = items.length;
@@ -2144,6 +2144,200 @@ function initAvail() {
     if (h) { setMonSub('checks'); jumpToHost(h.dataset.avhost); }
   });
   $('#avail').addEventListener('change', (e) => { if (e.target.id === 'av-target') { uiSet('av_target', 'rzmon-av-target', e.target.value); renderAvail(); } });
+}
+
+// ============ 1.171.0: AI-advies (staat AI uit, dan is state.ai null en is er nergens iets van te zien) ============
+const aiOn = () => !!(state && state.ai);
+const aiHas = (kind, ref) => aiOn() && !!(state.ai.have || {})[`${kind}:${ref}`];
+/** Knop voor AI-advies: alleen als AI aan staat, en voor wie mag vragen (of als er al een advies is om te lezen) */
+function aiBtn(kind, ref, big = false) {
+  if (!aiOn()) return '';
+  const has = aiHas(kind, ref);
+  if (!state.ai.ask && !has) return '';
+  return big
+    ? `<button type="button" class="btn small-btn ai-btn${has ? ' has' : ''}" data-ai-kind="${kind}" data-ai-ref="${ref}">🤖 ${has ? L('AI-advies') : L('Vraag AI-advies')}</button>`
+    : `<button type="button" class="icon-btn ai-btn${has ? ' has' : ''}" data-ai-kind="${kind}" data-ai-ref="${ref}" title="${esc(has ? L('AI-advies bekijken') : L('AI-advies vragen'))}">🤖</button>`;
+}
+
+/** Eenvoudige, veilige opmaak van het antwoord: kopjes, lijsten, vet, code en codeblokken met een kopieerknop */
+function aiMd(src) {
+  return String(src || '').split(/```[A-Za-z0-9_+-]*[ \t]*\n?/).map((part, i) => {
+    if (i % 2) return `<div class="ai-code"><pre><code>${esc(part.replace(/\n$/, ''))}</code></pre><button type="button" class="ai-copy" data-ai-copy title="${esc(L('Kopiëren'))}">⧉</button></div>`;
+    return esc(part).split('\n').map((line) => {
+      const l = line.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])\*([^*\s][^*]*)\*(?=[\s.,;:)!?]|$)/g, '$1<i>$2</i>');
+      if (/^\s*#{1,4}\s/.test(line)) return `<h4>${l.replace(/^\s*#{1,4}\s*/, '')}</h4>`;
+      if (/^\s*\d+[.)]\s+/.test(line)) return `<div class="ai-li num">${l.trim()}</div>`;
+      if (/^\s*[-*•]\s+/.test(line)) return `<div class="ai-li">• ${l.replace(/^\s*[-*•]\s+/, '')}</div>`;
+      return l.trim() ? `<p>${l}</p>` : '';
+    }).join('');
+  }).join('');
+}
+
+const AI_ACT = (a) => (a === 'restart' ? L('Herstarten') : L('Herstelscript {n}', { n: a.slice(4) }));
+let aiCur = null;
+function aiTitle(kind, ref) {
+  if (kind === 'check') { const [c, h] = findCheck(ref); return c ? `${h ? h.name + ' – ' : ''}${c.name}` : '#' + ref; }
+  if (kind === 'bundle') { const h = findHost(ref); return h ? h.name : '#' + ref; }
+  return (kind === 'ids' ? L('IDS-incident') : L('Incident')) + ' #' + ref;
+}
+async function aiOpen(kind, ref) {
+  aiCur = { kind, ref, ran: false };
+  const cur = aiCur;
+  modal({ title: '🤖 ' + L('AI-advies') + ' – ' + aiTitle(kind, ref), wide: true, body: `<div class="ai-box" id="ai-box"><p class="muted">${L('laden…')}</p></div>`,
+    buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }] });
+  let r;
+  try { r = await api('ai_get', null, { kind, ref }); } catch (ex) { r = { error: ex.message }; }
+  if (cur === aiCur) aiShow(r.advice || null, r.error);
+}
+async function aiAsk(force) {
+  const cur = aiCur;
+  aiShow({ status: 'pending', provider_label: '', model: '' });
+  try {
+    const r = await api('ai_ask', { kind: cur.kind, ref: cur.ref, force: force ? 1 : 0 });
+    if (cur === aiCur) aiShow(r.advice);
+  } catch (ex) {
+    if (cur !== aiCur) return;
+    // Een te lange vraag kan een time-out van de webserver geven terwijl RzMon doorgaat: blijven kijken
+    if (/504|502|time|Ongeldig antwoord/i.test(ex.message)) aiPoll(cur, null); else aiShow(null, ex.message);
+  }
+}
+function aiPoll(cur, id) {
+  setTimeout(async () => {
+    if (cur !== aiCur || !$('#modal').open || !$('#ai-box')) return;
+    try {
+      const r = await api('ai_get', null, id ? { id } : { kind: cur.kind, ref: cur.ref });
+      if (cur === aiCur) aiShow(r.advice);
+    } catch (ex) { aiPoll(cur, id); }
+  }, 3000);
+}
+function aiShow(a, err = '') {
+  const box = $('#ai-box');
+  if (!box || !aiCur) return;
+  const cur = aiCur;
+  const canAsk = state.ai && state.ai.ask;
+  const busy = a && ['pending', 'diag', 'running'].includes(a.status);
+  const meta = a && a.id ? [a.provider_label + (a.model ? ' · ' + a.model : ''), a.created_at ? whenText(a.created_at) : '', a.auto ? L('automatisch') : (a.created_by || ''),
+    a.ms ? (a.ms / 1000).toLocaleString(LOCALE, { maximumFractionDigits: 1 }) + ' s' : '', a.has_diag ? '🔎 ' + L('met diagnose') : ''].filter(Boolean).join(' · ') : '';
+  let html = '';
+  if (err) html += `<p class="form-error">${esc(err)}</p>`;
+  if (!a && !err) html += `<p>${L('Er is nog geen advies.')}</p>`;
+  if (a && a.status === 'diag') html += `<p class="ai-wait"><span class="ai-spin"></span> 🔎 ${L('De agent verzamelt gegevens over de storing (meestal 1–2 minuten)…')}</p>`;
+  if (a && (a.status === 'pending' || a.status === 'running')) html += `<p class="ai-wait"><span class="ai-spin"></span> 🤖 ${esc(a.provider_label || L('De AI'))} ${L('denkt na…')}</p>`;
+  if (a && a.status === 'error') html += `<p class="form-error">✘ ${esc(a.error || L('Onbekende fout'))}</p>`;
+  if (a && a.status === 'done') {
+    html += `<div class="ai-answer">${aiMd(a.answer)}</div>`;
+    if ((a.actions || []).length && state.ai.exec) {
+      html += `<div class="ai-exec"><b>🩹 ${L('Voorgestelde herstelactie')}</b> ${a.actions.map((x) => `<button type="button" class="btn small-btn" data-ai-exec="${esc(x)}">▶ ${esc(AI_ACT(x))}</button>`).join(' ')}
+        <span class="muted small">${L('Gaat via zelf herstellen bij de volgende ronde van de agent; een service wordt alleen herstart als hij echt stil ligt.')}</span></div>`;
+    } else if ((a.actions || []).length) {
+      html += `<p class="muted small">🩹 ${L('Voorgestelde herstelactie')}: ${esc(a.actions.map(AI_ACT).join(', '))} (${L('uitvoeren staat uit: alleen tekst')})</p>`;
+    }
+  }
+  if (meta) html += `<p class="muted small ai-meta">${esc(meta)}</p>`;
+  html += `<div class="btn-row">${canAsk && !busy ? `<button type="button" class="btn ${a ? '' : 'primary'}" data-ai-ask="${a ? 1 : 0}">${a ? '🔄 ' + L('Opnieuw vragen') : '🤖 ' + L('Vraag advies')}</button>` : ''}</div>
+    <p class="muted small ai-note">⚠️ ${L('AI kan fouten maken. Lees een commando goed voordat je het uitvoert.')}</p>`;
+  box.innerHTML = html;
+  if (a && a.status === 'done' && a.id) {
+    state.ai.have = { ...(state.ai.have || {}), [`${cur.kind}:${cur.ref}`]: a.id };
+    render();
+  }
+  if (busy) {
+    if (a.status === 'pending' && a.has_diag && !cur.ran && a.id) {
+      cur.ran = true;   // de diagnose is binnen: nu het model vragen
+      api('ai_run', { id: a.id }).then((r) => { if (cur === aiCur) aiShow(r.advice); }).catch(() => aiPoll(cur, a.id));
+    }
+    aiPoll(cur, a.id || null);
+  }
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-ai-kind]');
+  if (b) { e.preventDefault(); e.stopPropagation(); aiOpen(b.dataset.aiKind, +b.dataset.aiRef); return; }
+  const ask = e.target.closest('[data-ai-ask]');
+  if (ask && $('#ai-box') && $('#ai-box').contains(ask)) { e.preventDefault(); aiAsk(ask.dataset.aiAsk === '1'); return; }
+  const cp = e.target.closest('[data-ai-copy]');
+  if (cp) {
+    e.preventDefault();
+    try { await navigator.clipboard.writeText(cp.previousElementSibling.textContent); toast(L('Gekopieerd')); } catch (ex) { getSelection().selectAllChildren(cp.previousElementSibling); }
+    return;
+  }
+  const ex = e.target.closest('[data-ai-exec]');
+  if (ex && aiCur) {
+    e.preventDefault();
+    const cur = aiCur;
+    const r0 = await api('ai_get', null, { kind: cur.kind, ref: cur.ref }).catch(() => null);
+    const id = r0 && r0.advice && r0.advice.id;
+    if (!id || !window.confirm(L('{a} uitvoeren op de server? Dit komt in het logboek.', { a: AI_ACT(ex.dataset.aiExec) }))) return;
+    try { const r = await api('ai_exec', { id, action: ex.dataset.aiExec }); toast(r.message); } catch (err) { toast(err.message, 'err'); }
+  }
+}, true);
+
+// ---- Instellingen → Koppelingen → AI-advies
+function aiFormVals() {
+  const f = $('#settings-form');
+  const out = {};
+  [...f.elements].forEach((el) => { if (el.name && el.name.startsWith('ai_')) out[el.name] = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value; });
+  return out;
+}
+function aiProvUi() {
+  const f = $('#settings-form');
+  const p = f.elements.ai_provider ? f.elements.ai_provider.value : 'ollama';
+  $$('#ai-card [data-prov]').forEach((el) => { el.hidden = el.dataset.prov !== p; });
+  const on = f.elements.ai_on && f.elements.ai_on.checked;
+  $('#ai-body').classList.toggle('ai-off', !on);
+  const cloud = p !== 'ollama';
+  $('#ai-mask-wrap').hidden = !cloud;
+  $('#ai-daily-wrap').hidden = !cloud;
+}
+async function loadAiSettings() {
+  aiProvUi();
+  let r;
+  try { r = await api('ai_info'); } catch (ex) { $('#ai-usage').textContent = ex.message; return; }
+  $('#ai-diag').checked = r.diag;
+  $('#ai-exec').checked = r.exec;
+  $('#ai-usage').innerHTML = r.on ? L('Vandaag {n} vragen naar een cloudmodel.', { n: r.used }) : '';
+  $('#ai-recent').innerHTML = r.recent.length ? `<ul class="ai-recent">${r.recent.map((a) => `<li><span class="ai-st ${a.status}">${esc({ done: '✔', error: '✘', diag: '🔎', pending: '…', running: '…' }[a.status] || a.status)}</span>
+      ${esc(whenText(a.created_at))} · ${esc(a.kind)} #${a.ref_id} · ${esc(a.provider_label)}${a.model ? ' · ' + esc(a.model) : ''}${a.auto ? ' · ' + L('automatisch') : ''}${a.error ? ` · <span class="bad">${esc(a.error)}</span>` : ''}</li>`).join('')}</ul>` : `<p class="muted small">${L('Nog geen adviezen gevraagd.')}</p>`;
+}
+function initAiSettings() {
+  const card = $('#ai-card');
+  if (!card) return;
+  card.addEventListener('change', (e) => { if (['ai_provider', 'ai_on'].includes(e.target.name)) aiProvUi(); });
+  $('#ai-models').onclick = async (e) => {
+    const b = e.currentTarget, p = $('#settings-form').elements.ai_provider.value;
+    b.disabled = true;
+    try {
+      const r = await api('ai_models', aiFormVals());
+      $(`#ai-ml-${p}`).innerHTML = r.models.map((m) => `<option value="${esc(m)}">`).join('');
+      const inp = $('#settings-form').elements[`ai_${p}_model`];
+      if (inp && !inp.value && r.models.length) { inp.value = r.models[0]; markSettingsDirty(true, inp); }
+      toast(L('{n} modellen gevonden; kies er een in het veld Model', { n: r.models.length }));
+      inp && inp.focus();
+    } catch (ex) { toast(ex.message, 'err'); }
+    b.disabled = false;
+  };
+  $('#ai-test').onclick = async (e) => {
+    const b = e.currentTarget, out = $('#ai-test-res');
+    b.disabled = true;
+    out.innerHTML = `<span class="ai-spin"></span> ${L('Even geduld…')}`;
+    try { const r = await api('ai_test', aiFormVals()); out.innerHTML = `<b class="good">✔ ${L('Werkt')}</b> (${(r.ms / 1000).toLocaleString(LOCALE, { maximumFractionDigits: 1 })} s): ${esc(r.text)}`; }
+    catch (ex) { out.innerHTML = `<b class="bad">✘ ${esc(ex.message)}</b>`; }
+    b.disabled = false;
+  };
+  const guard = (id, key, label) => {
+    $(id).onchange = (e) => {
+      const el = e.currentTarget, on = el.checked;
+      el.checked = !on;
+      const go = async (confirm) => { await api('ai_guard_set', { key, on: on ? 1 : 0, confirm }); el.checked = on; toast(on ? L('Aangezet') : L('Uitgezet')); };
+      if (!on) { go('').catch((ex) => toast(ex.message, 'err')); return; }
+      modal({ title: '🤖 ' + label, body: `<p style="margin-top:0">${key === 'diag'
+        ? L('Bij een CRITICAL op een server met de agent voert de agent een vaste lijst commando\'s uit die alleen lezen (status, logs, schijf, processen, poorten). De uitvoer gaat naar de AI, zonder wachtwoorden. Op een server met COMMANDS=0 gebeurt het nooit.')
+        : L('Een advies mag dan een bestaande herstelactie voorstellen (herstarten of een herstelscript uit heal.d). Die gaat pas na jouw klik en bevestiging, via zelf herstellen, en komt in het logboek. Alleen voor beheerders.')}</p>${confirmField('TOESTAAN')}`,
+        buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Aanzetten'), cls: 'primary', submit: true }],
+        onSubmit: (d) => go(d.confirm) });
+    };
+  };
+  guard('#ai-diag', 'diag', L('Diep zoeken via de agent'));
+  guard('#ai-exec', 'exec', L('Uitvoeren vanuit een advies'));
 }
 
 function render() { withMorph(renderNow); }
@@ -2804,6 +2998,7 @@ async function autosaveSettings() {
     if (r && r.pruned) { toast(r.pruned === 1 ? L('1 oude back-up opgeruimd') : L('{n} oude back-ups opgeruimd', { n: r.pruned })); loadBackups(); }
     els.forEach((el) => savedFlag(el, true));
     setAutosaveState('ok');
+    if ('ai_on' in diff) { refresh(); if (setSection === 'ai') loadAiSettings(); }   // 1.171.0: AI aan of uit: knoppen tonen of weghalen
     if (setHealthItems[setSection]) loadSettingsHealth();   // 1.133.0: misschien is een punt nu opgelost
   } catch (ex) {
     els.forEach((el) => savedFlag(el, false, ex.message));
@@ -3227,6 +3422,7 @@ function checkBits(c) {
       : q && q.mode === 'own' ? ` <span class="quiet-tag" title="${L('Eigen stille uren')}: ${esc(quietText(q.windows))}">🌙</span>` : ''))(quietOf(c))
     + (c.flapping_since ? ` <span class="flap-tag" title="${L('Wisselt steeds van status sinds {t}: per status hooguit één melding tot hij stabiel is', { t: esc(fmtUntil(c.flapping_since)) })}">🔀 ${L('flapt')}</span>` : '');
   const actions = `
+      ${problem ? aiBtn('check', c.id) : ''}
       ${problem && !c.acked_at ? `<button class="icon-btn ack-btn need-user" title="${L('Storing bevestigen: geen meldingen meer')}" data-act="ack" data-id="${c.id}">✔</button>` : ''}
       <button class="icon-btn need-user" title="${L('Onderhoud')}" data-act="maint-check" data-id="${c.id}">🔧</button>
       <button class="icon-btn need-user" title="${L('Nu checken')}" data-act="run" data-id="${c.id}">↻</button>
@@ -3441,6 +3637,7 @@ async function checkInfo(id, live = false) {
   const since = c.status_since ? ` ${L('sinds {t}', { t: esc(whenText(c.status_since)) })} (${durText((now - toTime(c.status_since)) / 1000)})` : '';
   const close = () => $('#modal').close();
   const btns = [
+    ...(aiOn() && (problem || aiHas('check', c.id)) && (state.ai.ask || aiHas('check', c.id)) ? [{ label: '🤖 ' + L('AI-advies'), onClick: () => aiOpen('check', c.id) }] : []),
     ...(problem && !c.acked_at ? [{ label: '✔ ' + L('Bevestigen'), cls: 'need-user', onClick: () => ackDialog('check', c.id, `${c.host_name} – ${c.name}`, c.last_message) }] : []),
     { label: '🔧 ' + L('Onderhoud'), cls: 'need-user', onClick: () => maintenanceDialog('check', c.id, `${c.host_name} – ${c.name}`, sc && sc.maintenance && sc.maintenance.scope === 'check' ? sc.maintenance : null) },
     { label: '↻ ' + L('Nu checken'), cls: 'need-user', onClick: async (btn) => {
@@ -8694,6 +8891,7 @@ async function incidentDialog(id, nav = null) {
       ${a.steps.length || a.cmds.length ? `<h3 class="set-sub">🛠️ ${L('Wat te doen')}</h3>${a.steps.length ? `<ul>${a.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${cmdList(a.cmds, 'inc-c')}` : ''}
       ${a.prevent ? `<h3 class="set-sub">🛡️ ${L('Voorkomen')}</h3><p>${esc(a.prevent)}</p>` : ''}
       ${a.ip ? `<h3 class="set-sub">🌐 ${L('IP-adres')} <code>${esc(a.ip)}</code></h3><div id="inc-ip"></div>` : ''}
+      ${aiOn() ? `<div class="btn-row">${aiBtn('ids', +id, true)}</div>` : ''}
       <div class="btn-row need-admin inc-actions">
         ${open ? `<button type="button" class="btn" data-inc-act="handle">✔ ${L('Afhandelen')}</button>
           <button type="button" class="btn" data-inc-act="normal" title="${esc(L('Afhandelen en dit voortaan niet meer melden'))}">🚫 ${L('Dit is normaal')}</button>`
@@ -9837,6 +10035,7 @@ const SET_NAV = [
   ['koppelingen', SET_IC('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'), L('Koppelingen'), [
     ['netlinks', L('UniFi en AdGuard'), ['netlinks'], L('Apparaten en DNS uit je UniFi-controller en AdGuard Home.')],
     ['mqtt', L('Home Assistant (MQTT)'), ['mqtt'], L('Sensoren en meldingen in Home Assistant.')],
+    ['ai', L('AI-advies'), ['ai'], L('Advies van Claude, ChatGPT, Gemini, Grok of Ollama bij storingen.')],
     ['api', L('REST API'), ['api'], L('API-sleutels voor andere toepassingen.')],
     ['statuspage', L('Statuspagina'), ['statuspage'], L('Een openbare pagina met de status, via een geheime link.')]]],
   ['systeem', SET_IC('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), L('Systeem'), [
@@ -9901,6 +10100,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'allchecks') loadAllChecks();
   if (setSection === 'statuspage') loadStatusPage();
   if (setSection === 'internet') loadInet();
+  if (setSection === 'ai') loadAiSettings();   // 1.171.0
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0
@@ -10526,6 +10726,7 @@ async function loadWeblogStatus() {
 
 async function loadSettings() {
   settingsLoaded = true;
+  initAiSettings();
   loadUsers();
   if (!isAdmin()) return;   // de rest van de instellingen is alleen voor beheerders
   loadApiKeys();
@@ -14398,6 +14599,7 @@ async function caseDialog(id) {
     body: `<div style="padding:1rem 1.2rem">
       <p class="muted small">${esc(src())}${i.host ? ' · ' + esc(i.host) : ''} · ${L('geopend {t}', { t: esc(fmtDateTime(i.opened_at)) })}${i.resolved_at ? ' · ' + L('opgelost {t}', { t: esc(fmtDateTime(i.resolved_at)) }) : ''}</p>
       ${i.detail ? `<p>${esc(i.detail)}</p>` : ''}
+      ${aiOn() ? `<div class="btn-row">${aiBtn('incident', +id, true)}</div>` : ''}
       ${i.status !== 'resolved' ? `<p class="small">${urgPill(i.urgency, i.why)} <b>${L('Urgentie {u}', { u: i.urgency })}</b>: ${esc(i.why.join(' · '))}</p>` : ''}
       ${i.path && i.path.length ? `<div class="inc-path" aria-label="${esc(L('Pad'))}">${i.path.map((p) => `<span>${esc(p)}</span>`).join('<i aria-hidden="true">→</i>')}</div>` : ''}
       ${i.steps && i.steps.length ? `<h3>${L('Stappen')}</h3><ol class="inc-steps">${i.steps.map((s) => `<li class="${s.severity >= 2 ? 'crit' : 'warn'}"><b>${esc(s.title)}</b>

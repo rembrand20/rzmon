@@ -1235,3 +1235,31 @@ CREATE TABLE IF NOT EXISTS inet_speed (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('inet_down', '1000'), ('inet_up', '1000'), ('inet_warn_pct', '70'), ('inet_crit_pct', '40'),
     ('inet_times', '03:30,09:30,13:30,17:30'), ('inet_speed_mb', '250');
+
+-- 1.171.0: AI-advies (Claude, ChatGPT, Gemini, Grok, Ollama) bij checks, bundels, incidenten en IDS-incidenten
+CREATE TABLE IF NOT EXISTS ai_advice (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    kind       VARCHAR(10)  NOT NULL,                    -- check | bundle (server) | incident | ids
+    ref_id     BIGINT UNSIGNED NOT NULL,
+    host_id    INT UNSIGNED NULL,
+    status     VARCHAR(10)  NOT NULL DEFAULT 'pending',  -- pending | diag (wacht op de agent) | running | done | error
+    provider   VARCHAR(12)  NOT NULL DEFAULT '',
+    model      VARCHAR(80)  NOT NULL DEFAULT '',
+    auto       TINYINT(1)   NOT NULL DEFAULT 0,
+    answer     MEDIUMTEXT   NULL,
+    actions    VARCHAR(500) NULL,                        -- voorgestelde bestaande herstelactie (JSON)
+    diag       MEDIUMTEXT   NULL,
+    error      VARCHAR(500) NULL,
+    tok_in     INT UNSIGNED NULL,
+    tok_out    INT UNSIGNED NULL,
+    ms         INT UNSIGNED NULL,
+    created_by VARCHAR(64)  NULL,
+    created_at DATETIME     NOT NULL,
+    started_at DATETIME     NULL,
+    done_at    DATETIME     NULL,
+    INDEX idx_ai_ref (kind, ref_id, id),
+    INDEX idx_ai_status (status),
+    INDEX idx_ai_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('ai_on', '0'), ('ai_provider', 'ollama'), ('ai_auto', '0'), ('ai_daily', '50'), ('ai_mask', '1'),
+    ('ai_diag', '0'), ('ai_exec', '0'), ('ai_timeout', '120'), ('ai_max_tokens', '1500'), ('ai_ollama_url', 'http://127.0.0.1:11434');

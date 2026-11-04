@@ -1333,5 +1333,32 @@ $mq = NetChecks::run(['id' => 0, 'type' => 'mqtt', 'target' => '127.0.0.1:1', 'o
 ok($mq['status'] === STATUS_CRIT && str_contains($mq['message'], '127.0.0.1:1'), 'MQTT: broker niet bereikbaar = CRITICAL met het adres');
 ok(ExtraChecks::maskOptions('{"user":"rz","pass":"geheim"}') === '{"user":"rz","pass":"' . ExtraChecks::MASK . '"}', 'MQTT- en Gluetun-wachtwoord gaan gemaskeerd naar de browser');
 
+section('AI-advies (1.171.0)');
+[$m, $map] = Ai::mask("web01.thuis.lan (192.168.1.10) meldt: web01 down, mail beheer@voorbeeld.nl, fe80::1 en 2001:db8::5", ['web01.thuis.lan', 'web01']);
+ok(!str_contains($m, 'web01') && !str_contains($m, '192.168.1.10') && !str_contains($m, 'beheer@') && !str_contains($m, '2001:db8::5') && str_contains($m, 'server-1'),
+    'maskeren: servernamen, IPv4, IPv6 en e-mail worden labels (' . $m . ')');
+ok(Ai::unmask('Herstart de dienst op server-2 en kijk naar ip-1.', $map) === 'Herstart de dienst op web01 en kijk naar 192.168.1.10.', 'labels in het antwoord worden weer de echte namen');
+$sc = Ai::scrub("password=geheim123 token: abc\nAuthorization: Bearer eyJhbGciOiJIUzI1NiJ9.x\n-----BEGIN " . "PRIVATE KEY-----\nMIIE\n-----END " . "PRIVATE KEY-----\napi_key=\"sk-abcdefghijklmnopqrst\"");
+ok(!preg_match('/geheim123|abc\b|eyJhbG|MIIE|sk-abcdef/', $sc), 'geheimen gaan eruit: wachtwoord, token, Bearer, privésleutel, API-sleutel');
+[$txt, $act] = Ai::parseAction("### Oplossing\nHerstart.\nACTIE: restart", ['restart']);
+[, $act2] = Ai::parseAction("Doe iets.\nACTIE: cmd:rm-all", ['restart']);
+ok($act === 'restart' && !str_contains($txt, 'ACTIE') && $act2 === null, 'een voorgestelde actie telt alleen als hij in de lijst staat; de regel verdwijnt uit de tekst');
+save_setting('ai_on', '0');
+$off = false;
+try { Ai::ask('check', 1, 'test'); } catch (RuntimeException $e) { $off = true; }
+ok($off && Ai::stateInfo(['role' => 'admin']) === null && Ai::diagLines(1) === [], 'AI uit: niets vragen, niets in de status voor de browser, geen diagnose naar de agent');
+save_setting('ai_on', '1');
+save_setting('ai_provider', 'ollama');
+save_setting('ai_ollama_model', 'test');
+q("INSERT INTO hosts (name, address, mode) VALUES ('ai-host', '192.0.2.50', 'remote')");
+$aiH = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, type, name, target, status, last_message, problem_since) VALUES (?, 'tcp', 'SSH', '22', 2, 'Poort 22 onbereikbaar', NOW())", [$aiH]);
+$aiC = (int) db()->lastInsertId();
+$ctx = Ai::context('check', $aiC);
+ok(str_contains($ctx['text'], 'ai-host') && str_contains($ctx['text'], 'Poort 22 onbereikbaar') && ($ctx['diag']['via'] ?? '') === 'rzmon' && $ctx['actions'] === [],
+    'context van een check: server, melding, netwerkdiagnose door RzMon (geen agent), geen herstelacties');
+q('DELETE FROM hosts WHERE id = ?', [$aiH]);
+save_setting('ai_on', '0');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

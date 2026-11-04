@@ -41,6 +41,12 @@ Perf::lap('start');   // snelheidsmeter (1.119.0): de duur van elk onderdeel
 $n = Monitor::runDue($force);
 Perf::lap('checks');
 Monitor::pollReceipts();
+// 1.171.0: AI-advies: automatisch vragen bij nieuwe storingen; wat klaarstaat gaat naar cron/ai.php (eigen proces)
+try {
+    Ai::cron();
+} catch (Throwable $e) {
+    fwrite(STDERR, 'AI: ' . $e->getMessage() . "\n");
+}
 save_setting('cron_last_run', now());
 if (setting('mqtt_enabled', '0') === '1') {
     $r = Mqtt::publishAll();

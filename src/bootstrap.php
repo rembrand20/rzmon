@@ -14,7 +14,8 @@ const ROLE_LABELS = ['admin' => 'Beheerder', 'user' => 'Gebruiker', 'readonly' =
 // "Onthoud mij": na zoveel dagen niet gebruikt wordt een apparaat vergeten (elk gebruik telt opnieuw)
 const REMEMBER_DAYS = 30;
 // Instellingen die nooit naar de browser gaan (alleen "ingevuld of niet")
-const SECRET_SETTINGS = ['pushover_token', 'ntfy_token', 'smtp_pass', 'mqtt_pass', 'backup_pass', 'enc_key', 'enc_key_old', 'hibp_key', 'unifi_pass', 'unifi_key', 'adguard_pass', 'ti_abuseipdb_key', 'ti_greynoise_key', 'ti_abusech_key'];
+const SECRET_SETTINGS = ['pushover_token', 'ntfy_token', 'smtp_pass', 'mqtt_pass', 'backup_pass', 'enc_key', 'enc_key_old', 'hibp_key', 'unifi_pass', 'unifi_key', 'adguard_pass', 'ti_abuseipdb_key', 'ti_greynoise_key', 'ti_abusech_key',
+    'ai_claude_key', 'ai_openai_key', 'ai_gemini_key', 'ai_grok_key', 'ai_ollama_key'];   // 1.171.0: AI-advies
 
 // RZMON_CONFIG: een ander configbestand (tests op een aparte database)
 define('SM_CONFIG_FILE', getenv('RZMON_CONFIG') ?: SM_ROOT . '/config.php');

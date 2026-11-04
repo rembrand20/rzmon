@@ -775,6 +775,70 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="mqtt-test"><?= t('📡 Verbinding testen &amp; publiceren') ?></button>
         </div>
 
+
+        <div data-sk="ai" class="card" id="ai-card">
+          <h2>🤖 <?= th('AI-advies') ?></h2>
+          <?= xp(t('Een AI legt een storing of incident uit en stelt een oplossing voor.'), t('<b>Wat het doet:</b> bij een check, een gebundelde storing, een incident of een IDS-melding vraag je met 🤖 om advies. RzMon stuurt mee wat het weet (de check, de server, statuswissels, andere problemen, wijzigingen, herstelpogingen en eventueel een diagnose) en toont het antwoord: wat er aan de hand is, de oorzaak, de oplossing in stappen en hoe je controleert of het werkt.<br><b>Aanbieders:</b> Claude, ChatGPT, Gemini en Grok (in de cloud, met een API-sleutel) of <b>Ollama</b> (lokaal of op een eigen server, gratis, je gegevens blijven thuis).<br><b>Staat het uit,</b> dan zie je nergens iets van AI en gaat er niets de deur uit.')) ?>
+          <label class="switch"><input type="checkbox" name="ai_on"><span></span> <?= t('<b>AI-advies aan</b>') ?></label>
+          <div id="ai-body">
+            <label><?= th('Aanbieder') ?>
+              <select name="ai_provider">
+                <option value="ollama"><?= th('Ollama (lokaal of eigen server)') ?></option>
+                <option value="claude">Claude (Anthropic)</option>
+                <option value="openai">ChatGPT (OpenAI)</option>
+                <option value="gemini">Gemini (Google)</option>
+                <option value="grok">Grok (xAI)</option>
+              </select>
+            </label>
+            <div class="row2" data-prov="ollama" hidden>
+              <label><?= th('Adres van Ollama') ?><input name="ai_ollama_url" spellcheck="false" placeholder="http://127.0.0.1:11434"></label>
+              <label><?= th('Model') ?><input name="ai_ollama_model" list="ai-ml-ollama" spellcheck="false" placeholder="llama3.1:8b"><datalist id="ai-ml-ollama"></datalist></label>
+            </div>
+            <p class="muted small" data-prov="ollama" hidden><?= t('Ollama op een andere machine? Laat het daar luisteren op het netwerk (<code>OLLAMA_HOST=0.0.0.0</code>) en zet de poort 11434 in de firewall alleen open voor de server van RzMon: Ollama heeft zelf geen wachtwoord.') ?></p>
+            <div class="row2" data-prov="claude" hidden>
+              <label><?= th('API-sleutel') ?><input name="ai_claude_key" type="password" autocomplete="new-password" spellcheck="false"></label>
+              <label><?= th('Model') ?><input name="ai_claude_model" list="ai-ml-claude" spellcheck="false" placeholder="claude-sonnet-5-5"><datalist id="ai-ml-claude"></datalist></label>
+            </div>
+            <div class="row2" data-prov="openai" hidden>
+              <label><?= th('API-sleutel') ?><input name="ai_openai_key" type="password" autocomplete="new-password" spellcheck="false"></label>
+              <label><?= th('Model') ?><input name="ai_openai_model" list="ai-ml-openai" spellcheck="false" placeholder="<?= th('klik op ⟳ Modellen ophalen') ?>"><datalist id="ai-ml-openai"></datalist></label>
+            </div>
+            <div class="row2" data-prov="gemini" hidden>
+              <label><?= th('API-sleutel') ?><input name="ai_gemini_key" type="password" autocomplete="new-password" spellcheck="false"></label>
+              <label><?= th('Model') ?><input name="ai_gemini_model" list="ai-ml-gemini" spellcheck="false" placeholder="<?= th('klik op ⟳ Modellen ophalen') ?>"><datalist id="ai-ml-gemini"></datalist></label>
+            </div>
+            <div class="row2" data-prov="grok" hidden>
+              <label><?= th('API-sleutel') ?><input name="ai_grok_key" type="password" autocomplete="new-password" spellcheck="false"></label>
+              <label><?= th('Model') ?><input name="ai_grok_model" list="ai-ml-grok" spellcheck="false" placeholder="<?= th('klik op ⟳ Modellen ophalen') ?>"><datalist id="ai-ml-grok"></datalist></label>
+            </div>
+            <div class="btn-row"><button type="button" class="btn" id="ai-models">⟳ <?= th('Modellen ophalen') ?></button>
+              <button type="button" class="btn" id="ai-test">🧪 <?= th('Testen') ?></button></div>
+            <p class="small" id="ai-test-res"></p>
+            <h3 class="set-sub"><?= th('Wanneer') ?></h3>
+            <div class="mode-switch"><span><?= th('🖐️ Op verzoek') ?></span>
+              <label class="switch"><input type="checkbox" name="ai_auto"><span></span></label>
+              <span><?= th('⚡ Automatisch') ?></span></div>
+            <p class="muted small"><?= th('Automatisch: één advies per storing zodra die CRITICAL wordt (bij 3 of meer problemen op een server één advies voor die server). Op verzoek: alleen als je op 🤖 klikt.') ?></p>
+            <div class="row3">
+              <label id="ai-daily-wrap"><?= th('Daglimiet (vragen per dag)') ?><input type="number" name="ai_daily" min="0" max="10000" title="<?= th('0 = geen limiet') ?>"></label>
+              <label><?= th('Time-out (seconden)') ?><input type="number" name="ai_timeout" min="10" max="600"></label>
+              <label><?= th('Langste antwoord (tokens)') ?><input type="number" name="ai_max_tokens" min="200" max="8000"></label>
+            </div>
+            <label class="switch" id="ai-mask-wrap"><input type="checkbox" name="ai_mask"><span></span> <?= t('<b>Maskeren</b>: servernamen, IP- en e-mailadressen als labels naar de cloud (server-1, ip-1); in het antwoord weer de echte namen') ?></label>
+            <h3 class="set-sub"><?= th('Diep zoeken en uitvoeren') ?></h3>
+            <div data-nodirty>
+              <label class="switch"><input type="checkbox" id="ai-diag"><span></span> <?= t('<b>Diep zoeken via de agent</b> bij een CRITICAL (vaste commando\'s die alleen lezen: status, logs, schijf, processen, poorten)') ?></label>
+              <div class="mode-switch"><span><?= th('📝 Alleen tekst') ?></span>
+                <label class="switch"><input type="checkbox" id="ai-exec"><span></span></label>
+                <span><?= th('▶ Uitvoeren') ?></span></div>
+              <p class="muted small"><?= th('Uitvoeren: een advies mag een bestaande herstelactie voorstellen (herstarten of een herstelscript uit heal.d); die gaat pas na jouw klik en bevestiging. Aanzetten vraagt je wachtwoord; de AI bedenkt nooit zelf commando\'s die worden uitgevoerd.') ?></p>
+            </div>
+            <p class="small" id="ai-usage"></p>
+            <h3 class="set-sub"><?= th('Laatste adviezen') ?></h3>
+            <div id="ai-recent"></div>
+          </div>
+        </div>
+
         <div data-sk="ids" class="card" id="ids-card">
           <h2>🛡️ <?= th('IDS: detectie') ?></h2>
           <?= xp(t('Inbraakdetectie op je servers via de agents.'), t('<b>Wat het is:</b> het IDS (intrusion detection system) let via de agents op tekenen van een inbraak: gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen en verbindingen, brute force en een inlog na brute force. <b>Waar je het ziet:</b> op de pagina <i>🛡️ IDS</i>. Critical gaat ook via Pushover, ook tijdens de stille uren. <b>Leren of blokkeren:</b> in <i>🎓 Leren</i> meldt het IDS alleen; in <i>⛔ Blokkeren</i> grijpt het ook in.')) ?>

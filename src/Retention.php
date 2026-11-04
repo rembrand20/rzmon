@@ -68,6 +68,9 @@ final class Retention
         }
         q('DELETE FROM results_hourly WHERE hour < NOW() - INTERVAL ? DAY', [self::hourlyDays()]);
         q('DELETE FROM stats_daily WHERE day < CURDATE() - INTERVAL ? DAY', [self::dailyDays()]);
+        // 1.171.0: AI-adviezen 90 dagen, en herstelacties uit een advies die niet meer gelden
+        q('DELETE FROM ai_advice WHERE created_at < NOW() - INTERVAL 90 DAY');
+        q('UPDATE checks SET ai_exec = NULL, ai_exec_at = NULL WHERE ai_exec IS NOT NULL AND ai_exec_at < NOW() - INTERVAL 1 HOUR');
     }
 
     /** Eén keer per dag de grootte van de database onthouden (30 dagen) */

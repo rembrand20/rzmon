@@ -268,6 +268,10 @@ final class Installer
         ['checks', 'trend_at', 'DATETIME NULL'],
         // 1.169.0: eigen groep van een server (bv. Thuis, Kantoor), voor Monitoring → Beschikbaarheid; NULL = geen
         ['hosts', 'grp', 'VARCHAR(60) NULL'],
+        // 1.171.0: AI-advies: openstaande diagnose voor de agent (id <tab> soort <tab> doel), en een herstelactie uit een advies
+        ['hosts', 'ai_diag', 'VARCHAR(255) NULL'],
+        ['checks', 'ai_exec', 'VARCHAR(80) NULL'],
+        ['checks', 'ai_exec_at', 'DATETIME NULL'],
     ];
 
     private static function migrate(PDO $pdo): void
