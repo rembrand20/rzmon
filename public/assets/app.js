@@ -1108,8 +1108,18 @@ function init() {
   $('#hosts').addEventListener('keydown', (e) => {
     const head = e.target.closest('.host-head[data-act=toggle], .line-row[data-act=toggle], .ok-row[data-act=toggle]');
     if (head && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleHost(head.dataset.id); }
+    const t = e.target.closest('.hb-tile[data-act=cc-open]');
+    if (t && e.target === t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); ccToggle(t.dataset.id, !ccOpen.has(+t.dataset.id)); }
+    const ck = e.target.closest('tr.hb-ck[data-cid]');
+    if (ck && e.target === ck && e.key === 'Enter') checkInfo(ck.dataset.cid);
   });
   $('#toggle-all').onclick = () => {
+    if (isCC()) {   // 1.164.0: in CC alle blokken open of dicht
+      const allCc = state.hosts.every((h) => ccOpen.has(+h.id));
+      ccOpen.clear();
+      if (!allCc) state.hosts.forEach((h) => ccOpen.add(+h.id));
+      return render();
+    }
     const all = state.hosts.every((h) => openHosts.has(+h.id));
     openHosts.clear();
     if (!all) state.hosts.forEach((h) => openHosts.add(+h.id));
@@ -1535,7 +1545,8 @@ function init() {
 }
 
 function showTab(name) {
-  xpClose();   // 1.161.0: van pagina wisselen = alle uitleg weer dicht
+  xpClose();
+  if (!/^dashboard\b/.test(String(name))) ccOpen.clear();   // 1.164.0: CC-servers weer dicht   // 1.161.0: van pagina wisselen = alle uitleg weer dicht
   let sub = null;
   // Filters in het adres (1.71.0): #alerts?server=NAS,Pi&status=crit, #ids/acc?result=fail, #vulns/leak?status=open
   const qi = name.indexOf('?');
@@ -1976,14 +1987,15 @@ function renderNow() {
   const head = (title, n) => `<div class="sec-h hosts-h"><h2>${title}</h2><span>${n}</span></div>`;
   const lines = layout === 'l1nes';
   if (layout === 'compact') { el.className = 'dash-hosts'; el.innerHTML = compactView(hosts); return; }
-  const list = (arr) => (lines ? (density === 'large' ? lineHeader() : '') + arr.map((h) => hostLine(h, density === 'large')).join('')
+  const cc = isCC();   // 1.164.0: in CC compacte blokken die openklappen tot een tabel
+  const list = (arr) => (cc ? arr.map(ccHostCard).join('') : lines ? (density === 'large' ? lineHeader() : '') + arr.map((h) => hostLine(h, density === 'large')).join('')
     : arr.map((h) => hostCard(h, density === 'small')).join(''));
-  const cls = `hosts layout-${layout} density-${density}`;
+  const cls = cc ? 'hosts hb-grid' : `hosts layout-${layout} density-${density}`;
   const block = (arr, grouped) => {
     const bad = arr.filter((h) => !okHost(h)), good = arr.filter(okHost);
     return (bad.length ? (good.length ? head(grouped ? L('Met problemen') : L('Servers met problemen'), bad.length) : '') + `<div class="${cls}">${list(bad)}</div>` : '')
       + (good.length ? head('✔ ' + L('Alles in orde'), good.length === 1 ? L('1 apparaat') : L('{n} apparaten', { n: good.length }))
-        + (lines || density === 'large' ? `<div class="${cls}">${list(good)}</div>` : `<div class="ok-list density-${density}">${good.map(okRow).join('')}</div>`) : '');
+        + (cc || lines || density === 'large' ? `<div class="${cls}">${list(good)}</div>` : `<div class="ok-list density-${density}">${good.map(okRow).join('')}</div>`) : '');
   };
   // Bij Alle (of Problemen, Onderhoud): een blok per soort apparaat; met één soort gekozen alleen die
   const groups = Object.keys(GROUP_INFO).filter((g) => hosts.some((h) => hostGroup(h) === g));
@@ -1995,7 +2007,7 @@ function renderNow() {
       <span>${arr.length === 1 ? L('1 apparaat') : L('{n} apparaten', { n: arr.length })}${nBad ? ` · <b class="bad">${L('{n} met problemen', { n: nBad })}</b>` : ''}</span></div>
       ${block(arr, true)}</section>`;
   }).join('');
-  $('#toggle-all').textContent = state.hosts.length && state.hosts.every((h) => openHosts.has(+h.id)) ? '⊟ ' + L('Alles sluiten') : '⊞ ' + L('Alles openen');
+  $('#toggle-all').textContent = state.hosts.length && state.hosts.every((h) => (isCC() ? ccOpen : openHosts).has(+h.id)) ? '⊟ ' + L('Alles sluiten') : '⊞ ' + L('Alles openen');
 }
 
 /** Compacte regel voor een server waar alles OK is (Blox); klik = uitklappen met alle checks */
@@ -2712,13 +2724,12 @@ function groupHead(h, k, title, list, tag) {
     <span class="grp-sum"><span class="muted small">${list.length}</span>${sum}</span></${tag}>`;
 }
 
-function hostDetail(h, lines = null) {
+/** Knoppen van een server (bevestigen, onderhoud, check toevoegen …); ook in de open servertabel van CC (1.164.0) */
+function detailBar(h) {
   const agentInfo = h.mode === 'agent'
     ? `<span class="muted small">${contactHtml(h, 'short')}</span>
        <button class="btn need-admin" data-act="agent" data-id="${h.id}">Agent Manager</button>` : '';
-  return `
-    <div class="host-detail">
-      <div class="detail-bar">
+  return `<div class="detail-bar">
         ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="btn ack-btn need-user" data-act="ack-host" data-id="${h.id}">✔ ${L('Alles bevestigen')}</button>` : ''}
         <button class="btn need-user" data-act="maint-host" data-id="${h.id}">🔧 ${L('Onderhoud')}</button>
         <button class="btn need-admin" data-act="add-check" data-id="${h.id}">＋ Check</button>
@@ -2730,7 +2741,12 @@ function hostDetail(h, lines = null) {
         ${isPveHost(h) ? `<button class="btn" data-act="pve" data-id="${h.id}">🖥️ Proxmox</button>` : ''}
         <button class="btn need-admin" data-act="edit-host" data-id="${h.id}">✎ ${L('Bewerken')}</button>
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
-      </div>
+      </div>`;
+}
+function hostDetail(h, lines = null) {
+  return `
+    <div class="host-detail">
+      ${detailBar(h)}
       ${uptimeLine(h, false)}
       ${lines ? checkLines(h, lines === 'large') : checkTiles(h)}
     </div>`;
@@ -2845,6 +2861,77 @@ function hostCard(h, small) {
     </div>
     ${p.isOpen ? hostDetail(h) : ''}
   </article>`;
+}
+
+/* 1.164.0: Monitoring in CC. Elke server is een compact blok; klik = het blok groeit naar de volle breedte en wordt
+   een tabelrij, met daaronder de checks (iets ingesprongen, rechts gelijk). Meerdere tegelijk open; je opent en sluit
+   ze zelf. Niet onthouden: weg van Monitoring (of herladen) en alles is weer dicht. */
+const ccOpen = new Set();
+const ccWord = (c) => (!+c.enabled ? L('uit') : c.maintenance ? L('Onderhoud') : [L('OK'), L('Warning'), L('Critical'), L('Onbekend')][+c.status] || '?');
+function ccHostCard(h) {
+  const p = hostParts(h), st = h.maintenance ? 4 : p.st, u = stats.uptime[h.id], open = ccOpen.has(+h.id);
+  const sub = `${esc(h.address)} · ${isHa(h) ? 'Home Assistant' : esc(h.mode)}${h.mode === 'agent' && h.agent_version ? ' ' + esc(h.agent_version) + (+h.agent_key_seen === 1 ? ' 🔑' : '') : ''}`;
+  const last = p.lastChecked ? agoSpan(p.lastChecked) : '–';
+  const up = u && u.h24 !== null ? pct(u.h24) : '–';
+  const name = `${esc(h.name)}${+h.enabled ? '' : ` <span class="badge">${L('uit')}</span>`}`;
+  const rank = (c) => (+c.enabled ? STATUS_RANK[c.maintenance ? 4 : +c.status] : -9);
+  const rows = [...h.checks].sort((a, b) => rank(b) - rank(a) || String(a.name).localeCompare(String(b.name))).map((c, i) => {
+    const s = c.maintenance ? 4 : +c.status, [v, un] = keyValue(c), msg = (c.last_message || '').replace(/\s+/g, ' ');
+    return `<tr class="hb-ck s${s}${+c.enabled ? '' : ' off'}" data-cid="${c.id}" style="--i:${Math.min(i, 14)}" title="${esc(L('Klik voor de details van deze check'))}">
+      <td><span class="hb-st"><i></i>${esc(ccWord(c))}</span></td>
+      <td class="hb-cn">${esc(c.name)}${c.acked_at ? ` <span class="hb-ack" title="${esc(L('Bevestigd'))}">✔</span>` : ''}</td>
+      <td><b class="hb-v" data-flash>${v}<small>${esc(un)}</small></b></td>
+      <td class="hb-sp">${keySpark(c, 24)}</td>
+      <td class="hb-msg">${esc(msg.slice(0, 160)) || '<span class="muted">–</span>'}</td>
+      <td class="hb-tl">${checkTimeline(c)}</td>
+      <td class="hb-act">${+c.enabled && s !== 0 && s !== 4 && !c.acked_at ? `<button type="button" class="btn small-btn need-user" data-act="ack" data-id="${c.id}">✔ ${L('Bevestig')}</button>` : ''}<button type="button" class="icon-btn need-admin" data-act="edit-check" data-id="${c.id}" title="${esc(L('Bewerken'))}" aria-label="${esc(L('Bewerken'))}">✎</button></td>
+    </tr>`;
+  }).join('');
+  return `<article class="hb s${st}${open ? ' open' : ''}${glowHost(h) ? ' glow' : ''}${+h.enabled ? '' : ' disabled'}" data-hid="${h.id}">
+    <div class="hb-tile" data-act="cc-open" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${open}" title="${esc(L('Klik: open als tabel met alle checks'))}">
+      <div class="hb-th"><span class="host-ic" aria-hidden="true">${hostIcon(h)}</span>
+        <div class="hb-tn"><strong>${name}</strong><span class="muted mono hb-sub">${sub}</span>${p.via}${p.maint}${edrNote(h)}</div>
+        <span class="counts">${p.counts}</span></div>
+      <div class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</div>
+      <div class="hb-tf"><span class="muted small">${p.lastChecked ? L('Laatste check') + ' ' + last : ''}</span>${hostTimeline(h)}</div>
+    </div>
+    <div class="hb-ov">
+      <div class="table-scroll"><table class="hb-stbl"><thead><tr><th>${L('Server')}</th><th>${L('Adres')}</th><th>${L('Soort')}</th><th>${L('Status')}</th><th>${L('Checks')}</th><th>${L('Beschikbaar 24 u')}</th><th>${L('Laatste 24 uur')}</th><th>${L('Laatste check')}</th><th></th></tr></thead>
+        <tbody><tr>
+          <td><span class="hb-th"><span class="host-ic" aria-hidden="true">${hostIcon(h)}</span><strong>${name}</strong></span>${p.via}${p.maint}</td>
+          <td class="muted mono">${esc(h.address)}</td><td>${isHa(h) ? 'Home Assistant' : esc(h.mode)}${h.mode === 'agent' && h.agent_version ? ' ' + esc(h.agent_version) : ''}</td>
+          <td><span class="hb-st"><i></i>${esc(p.sum.text)}</span></td><td><span class="counts">${p.counts}</span></td>
+          <td class="hb-v">${up}</td><td>${hostTimeline(h)}</td><td class="muted">${last}</td>
+          <td class="hb-x"><button type="button" class="icon-btn" data-act="cc-close" data-id="${h.id}" title="${esc(L('Sluiten'))}" aria-label="${esc(L('Sluiten'))}">✕</button></td>
+        </tr></tbody></table></div>
+      <div class="hb-bar">${detailBar(h)}</div>
+      <div class="hb-checks"><div class="table-scroll"><table class="hb-ctbl"><thead><tr><th>${L('Status')}</th><th>${L('Check')}</th><th>${L('Waarde')}</th><th>${L('Verloop')}</th><th>${L('Melding')}</th><th>${L('24 uur')}</th><th></th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="7" class="muted">${L('Nog geen checks.')}</td></tr>`}</tbody></table></div></div>
+    </div>
+  </article>`;
+}
+/** Openen of sluiten, met een vloeiende overgang: elk blok schuift naar zijn nieuwe plek, het geopende groeit */
+function ccToggle(id, on) {
+  const el = document.querySelector(`.hb[data-hid="${+id}"]`);
+  if (on) ccOpen.add(+id); else ccOpen.delete(+id);
+  if (!el) return render();
+  const grid = el.parentElement, els = [...grid.querySelectorAll(':scope > .hb')];
+  const first = new Map(els.map((e) => [e, e.getBoundingClientRect()]));
+  el.classList.toggle('open', on);
+  const t = el.querySelector('.hb-tile');
+  if (t) t.setAttribute('aria-expanded', String(on));
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || !el.animate) return;
+  els.forEach((e) => {
+    const a = first.get(e), b = e.getBoundingClientRect();
+    if (Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1 && Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1) return;
+    const tr = `translate(${a.left - b.left}px, ${a.top - b.top}px)`, opt = { duration: 420, easing: 'cubic-bezier(.2, .8, .2, 1)' };
+    if (Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1) { e.animate([{ transform: tr }, { transform: 'none' }], opt); return; }
+    // groeien of krimpen zonder de tekst uit te rekken
+    const r = Math.max(0, b.width - a.width), d = Math.max(0, b.height - a.height);
+    e.animate([{ transform: tr, clipPath: `inset(0 ${r}px ${d}px 0 round 16px)` }, { transform: 'none', clipPath: 'inset(0 0 0 0 round 16px)' }], opt);
+  });
+  if (on) setTimeout(() => el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' }), 430);
 }
 
 // L1nes: een balk over de volle breedte per server, als een tabel (Small of Large)
@@ -3044,6 +3131,8 @@ async function onHostsClick(e) {
     case 'podman': return podmanOverview(findHost(id));
     case 'pve': return pveOverview(findHost(id));
     case 'toggle': return toggleHost(id);
+    case 'cc-open': return ccToggle(id, !ccOpen.has(+id));
+    case 'cc-close': return ccToggle(id, false);
     case 'ack': { const [c, h] = findCheck(id); return ackDialog('check', id, `${h.name} – ${c.name}`, c.last_message); }
     case 'ack-host': { const h = findHost(id); const n = h.checks.filter((c) => +c.enabled && +c.status !== 0 && !c.acked_at).length; return ackDialog('host', id, h.name, L('{n} onbevestigde storing(en)', { n })); }
     case 'unack':

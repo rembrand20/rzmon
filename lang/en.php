@@ -7159,4 +7159,10 @@ return [
     'Een browser uit je normale landen die van buiten een 404 krijgt, komt onder <i>Wachtende apparaten</i>. Hij krijgt dezelfde 404, plus een wachtende sleutel in een cookie. Sta je hem toe, dan krijgt hij bij zijn volgende bezoek het inlogscherm. Scanners en bots tellen niet mee.' => 'A browser from your normal countries that gets a 404 from outside appears under <i>Waiting devices</i>. It gets the same 404, plus a waiting key in a cookie. If you allow it, it gets the login screen on its next visit. Scanners and bots do not count.',
     'Een IP-adres of netwerk blokkeren, voor heel RzMon.' => 'Block an IP address or network, for all of RzMon.',
     'Alles wat nu geblokkeerd is, met deblokkeren.' => 'Everything that is blocked right now, with unblocking.',
+    'Klik voor de details van deze check' => 'Click for the details of this check',
+    'Klik: open als tabel met alle checks' => 'Click: open as a table with all checks',
+    'Laatste 24 uur' => 'Last 24 hours',
+    'Verloop' => 'Trend',
+    'Nog geen checks.' => 'No checks yet.',
+    'OK' => 'OK',
 ];

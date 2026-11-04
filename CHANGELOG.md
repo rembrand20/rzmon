@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.164.0**: in CC zijn de servers op Monitoring compacte blokken die met een animatie openklappen tot een **tabel met de checks eronder**.
 - **1.163.0**: **Meer info** nu op alle pagina's en in alle vensters, met herschreven uitleg.
 - **1.162.0**: persoonlijke keuzes (IDS-weergave, beweging, grootte, sortering, periode) gelden **per account**, en regels, uitzonderingen en de whitelist beheer je bij de **instellingen**.
 - **1.161.0**: alle uitleg in de Instellingen en bij Mijn account herschreven, als **één regel met Meer info** die openklapt.
-- **1.160.0**: in de lay-out CC zijn nu ook de **Instellingen** (per onderdeel), **Mijn account** en de **Agent Manager** kaarten die je versleept en smaller of breder maakt; daarmee zit elke pagina in CC.
 - **1.158.0**: de **lay-out CC**: alle pagina's in de stijl van het Command center (licht en donker), met kaarten die je zelf versleept, smaller of breder maakt en verbergt; per account.
+
+## 1.164.0 – 2026-11-04
+### Nieuw
+- **Servers op Monitoring in de lay-out CC**: elke server is nu een compact blok (naam, adres, soort, tellers, samenvatting, laatste 24 uur), zonder de losse checktegels.
+  - **Klik op een blok** en het groeit met een vloeiende animatie naar de volle breedte: de server wordt een tabelrij, met daaronder de knoppen van de server en alle checks als lijst, iets ingesprongen en rechts gelijk met de server.
+  - Per check: status, waarde, verloop, melding, 24 uur, ✔ Bevestig en ✎; klik op een check voor het checkvenster.
+  - Je opent en sluit elke server zelf; meerdere tegelijk open kan. Niet onthouden: na een andere pagina of herladen is alles weer dicht.
+  - Alleen in CC; Blox, L1nes en Compact blijven zoals ze waren.
 
 ## 1.163.1 – 2026-11-04
 ### Opgelost
