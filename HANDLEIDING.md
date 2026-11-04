@@ -221,6 +221,31 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **Rode gloed**: een server met een onbevestigde critical pulseert zacht.
 - Beide zet je uit bij **Mijn account → Weergave** (*Rode gloed bij critical* en *Live animaties*, per account). Staat je systeem op *minder beweging*, dan beweegt er niets.
 
+### Beschikbaarheid per groep 📶 (vanaf 1.169.0)
+Bovenaan **Monitoring** staan twee tabbladen: **📋 Checks** (de pagina zoals je hem kent) en **📶 Beschikbaarheid**.
+- **Indelen** per *🗂️ Soort apparaat* (Servers, Netwerk, Opslag, Stroom, Camera's, Smart home, Overig) of per *🏷️ Eigen groep*.
+  - Een eigen groep geef je een server bij **✎ Server bewerken → Groep** (vrije tekst, bv. *Thuis*, *Kantoor*, *Klant A*; bestaande groepen worden voorgesteld). Servers zonder groep staan onder *Zonder groep*.
+- **Periode**: 24 uur, 7, 30 of 90 dagen. **🎯 Doel** (SLA): 95 % tot 99,99 %, standaard 99,9 %. Je keuzes worden voor je account onthouden.
+- **Kerncijfers**: *Online nu* (bijvoorbeeld 4/6), *Beschikbaar* over de periode, het aantal *Storingen*, de opgetelde *Downtime* en bij hoeveel groepen het *Doel gehaald* is.
+- **Per groep een kaart** met:
+  - het percentage;
+  - hoeveel er nu online is, met een bolletje per apparaat;
+  - of het doel gehaald is en hoeveel tijd je nog "over" hebt (of hoeveel te veel);
+  - een lijntje met het verloop per uur of dag;
+  - storingen, downtime en de langste storing.
+- **▸ per server** klapt de kaart open tot een tabel. Per server staan erin:
+  - hoe hij er nu voor staat (*online*, *offline*, *agent stil*, *onderhoud*);
+  - het percentage over de periode, 24 uur, 7 en 30 dagen;
+  - een blokje per uur of dag (groen = doel gehaald, oranje = net niet, rood = eronder);
+  - het aantal storingen en de downtime.
+
+  Klik op een server en je springt naar zijn checks.
+- **📉 Minst betrouwbaar** toont de 5 apparaten met het laagste percentage. **⏱️ Laatste storingen** toont begin, einde en duur, met *nog bezig* als hij nog niet voorbij is.
+- **Hoe het geteld wordt**:
+  - *Beschikbaar* is het deel van de metingen van ping (zonder ping: TCP en HTTP) dat niet CRITICAL was. Dat is hetzelfde als *Beschikbaar 24 u* elders.
+  - Een *storing* is de tijd dat de server onbereikbaar was: al die checks tegelijk CRITICAL.
+  - Het percentage van een groep is het gemiddelde van de apparaten.
+
 ### Incidenten ⚠ (vanaf 1.142.0)
 Het tabblad **⚠ Incidenten** zet in **één lijst** wat er echt mis is, uit alle onderdelen, zodat je het kunt afhandelen. Beheerders en gebruikers zien het; *alleen lezen* niet.
 

@@ -1283,5 +1283,24 @@ unlink($tmpCfg);
 ok($okc['db']['port'] === 3306 && $okc['db']['pass'] === "a'b\"c\\d" && ($back['db']['pass'] ?? null) === "a'b\"c\\d",
     'geldige waarden blijven, een wachtwoord met aanhalingstekens komt ongeschonden in config.php');
 
+section('Beschikbaarheid per groep (1.169.0)');
+ok(Availability::allDown([[0, 10, false], [5, 20, true]], 2) === [[5, 10, false]], 'een storing telt pas als alle bereikbaarheidschecks tegelijk CRITICAL zijn');
+ok(Availability::allDown([[0, 10, false], [5, 20, true]], 1) === [[0, 20, true]], 'met één check per keer: overlappende stukken worden één storing die nog bezig is');
+q("INSERT INTO hosts (name, address, mode, grp) VALUES ('av-test', '192.0.2.9', 'remote', 'Thuis')");
+$avH = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, type, name, status) VALUES (?, 'ping', 'Ping', 0)", [$avH]);
+$avC = (int) db()->lastInsertId();
+for ($i = 1; $i <= 10; $i++) {
+    q('INSERT INTO results (check_id, status, created_at) VALUES (?, ?, NOW() - INTERVAL ? MINUTE)', [$avC, $i <= 2 ? 2 : 0, $i * 60 + 30]);
+}
+q('INSERT INTO status_changes (check_id, from_status, to_status, created_at) VALUES (?, 0, 2, NOW() - INTERVAL 3 HOUR), (?, 2, 0, NOW() - INTERVAL 2 HOUR)', [$avC, $avC]);
+$av = Availability::report(1)['hosts'][$avH] ?? null;
+ok($av !== null && abs($av['pct'] - 80.0) < 0.01 && $av['n'] === 1 && abs($av['down_s'] - 3600) <= 2 && !$av['open'] && count($av['series']) === 24,
+    '24 uur: 80% beschikbaar, één storing van een uur, 24 uurblokjes (' . json_encode($av ? [$av['pct'], $av['n'], $av['down_s']] : null) . ')');
+q('INSERT INTO status_changes (check_id, from_status, to_status, created_at) VALUES (?, 0, 2, NOW() - INTERVAL 10 MINUTE)', [$avC]);
+$av = Availability::report(7)['hosts'][$avH] ?? null;
+ok($av !== null && $av['n'] === 2 && $av['open'] && count($av['series']) === 7, '7 dagen: een storing die nog bezig is telt mee, 7 dagblokjes');
+q('DELETE FROM hosts WHERE id = ?', [$avH]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

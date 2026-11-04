@@ -221,6 +221,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <span class="dash-last muted small"><span class="live-dot" id="live-dot" title="<?= th('Live: wijzigingen komen binnen een paar seconden binnen') ?>"></span> <span id="last-run"></span></span>
         </div>
       </div>
+      <!-- 1.169.0: Checks (zoals altijd) of Beschikbaarheid per groep -->
+      <div class="subtabs mon-tabs" role="tablist" aria-label="<?= th('Monitoring') ?>" id="mon-tabs">
+        <button type="button" class="seg-btn active" data-msub="checks" role="tab" aria-selected="true">📋 <?= th('Checks') ?></button>
+        <button type="button" class="seg-btn" data-msub="avail" role="tab" aria-selected="false">📶 <?= th('Beschikbaarheid') ?></button>
+      </div>
       <div class="pg-tools" data-pgtools="mon"></div>
       <div class="pgrid" data-pgrid="mon">
       <div class="pcard" data-pk="kpis" data-pw="12" data-pt="<?= th('Kerncijfers') ?>"><div class="kpis" id="health"></div></div>
@@ -245,6 +250,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div></div>
       <div class="pcard" data-pk="hosts" data-pw="12" data-pt="<?= th('Servers') ?>"><div id="hosts" class="hosts"></div></div>
       </div>
+      <div id="avail" class="avail" aria-live="polite"></div>
     </section>
 
     <section id="tab-alerts" class="tab-panel" hidden>

@@ -1183,7 +1183,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'home', 'state', 'availability', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set' => 'user',
@@ -1196,7 +1196,7 @@ $isAdmin = has_role($user, 'admin');
 I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
-if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'home', 'state', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
+if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'home', 'state', 'availability', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
     'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview', 'incidents', 'incident_info', 'report',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();
@@ -1253,7 +1253,8 @@ function clean_ui_prefs(array $in): array
     $sort = '/^[a-z_]{0,20}:-?1$/';
     $per = '/^[a-z0-9]{1,10}$/';
     $re = ['dens_blox_d' => $size, 'dens_blox_m' => $size, 'dens_l1_d' => $size, 'dens_l1_m' => $size, 'dash_sort' => '/^[a-z_]{1,20}$/',
-        'alert_sort' => $sort, 'acc_sort' => $sort, 'hm_period' => $per, 'cc_period' => $per, 'an_period' => $per];
+        'alert_sort' => $sort, 'acc_sort' => $sort, 'hm_period' => $per, 'cc_period' => $per, 'an_period' => $per,
+        'av_group' => '/^(kind|own)$/', 'av_period' => '/^(1|7|30|90)$/', 'av_target' => '/^(99|99\.5|99\.9|99\.95|99\.99|98|95)$/'];   // 1.169.0
     $out = [];
     foreach ($re as $k => $r) {
         if (isset($in[$k]) && is_string($in[$k]) && preg_match($r, $in[$k])) {
@@ -1710,7 +1711,7 @@ switch ($action) {
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen, watchdog, watchdog_min,
                     agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at, agent_url_pin, agent_url_fb_pin,
-                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, agent_beats, edr_on, edr_info FROM hosts ORDER BY name')->fetchAll();
+                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, grp, agent_beats, edr_on, edr_info FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
         $global = Monitor::globalMaintenance();
@@ -1879,6 +1880,10 @@ switch ($action) {
         }
         out(['points' => $pts, 'uptime' => $up, 'forecast' => $forecast, 'log_lines' => $logLines, 'series' => $series, 'band' => $band]);
 
+    case 'availability':
+        // 1.169.0: Monitoring → Beschikbaarheid: per server het percentage, per uur/dag, en de storingen in de periode
+        out(Availability::report((int) ($_GET['days'] ?? 7)));
+
     case 'stats':
         // Beschikbaarheid per server en minigrafieken per check; 2 minuten bewaard
         $cache = json_decode((string) setting('stats_cache', ''), true);
@@ -1953,6 +1958,11 @@ switch ($action) {
         if (array_key_exists('kind', $in)) {
             $kind = (string) $in['kind'];
             q('UPDATE hosts SET kind = ? WHERE id = ?', [isset(HostKind::KINDS[$kind]) ? $kind : null, $id]);
+        }
+        // 1.169.0: eigen groep (vrije tekst, leeg = geen)
+        if (array_key_exists('grp', $in)) {
+            $grp = mb_substr(trim(preg_replace('/[\x00-\x1f\x7f]+/u', ' ', (string) $in['grp']) ?? ''), 0, 60);
+            q('UPDATE hosts SET grp = ? WHERE id = ?', [$grp === '' ? null : $grp, $id]);
         }
         if (array_key_exists('kind_auto', $in) && isset(HostKind::KINDS[(string) $in['kind_auto']])) {
             HostKind::setAuto($id, (string) $in['kind_auto']);   // herkend bij 🔍 Test SNMP in het formulier

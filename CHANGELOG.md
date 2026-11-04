@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.169.0**: **Monitoring → 📶 Beschikbaarheid**: per soort apparaat of eigen groep wat er online is, het percentage, storingen en het doel (SLA).
 - **1.168.0**: Monitoring met een eigen groep **✔ Bevestigd**, en **config.php opslaan via de hulpdienst** terwijl de map vergrendeld blijft.
 - **1.167.0**: de **zijbalk** sleep je zelf breder of smaller, en in Instellingen en Mijn account wordt hij het menu van die pagina, met **← Terug naar RzMon**.
 - **1.166.0**: op de IDS-pagina **wat het IDS deed (24 u)**, de **meest actieve aanvallers** en een duidelijkere grafiek.
 - **1.165.0**: de **IDS-pagina** toont de servers als tabel (L1nes) of met *Wat nu aandacht vraagt*, kaarten en chips (Blox en CC), met modus en hardening duidelijk erbij.
-- **1.164.0**: in CC zijn de servers op Monitoring compacte blokken die met een animatie openklappen tot een **tabel met de checks eronder**.
+
+## 1.169.0 – 2026-11-04
+### Nieuw
+- **Monitoring → 📶 Beschikbaarheid**: een tweede tabblad naast *📋 Checks*, ingedeeld per **soort apparaat** of per **eigen groep**.
+  - Per groep: wat er **nu online** is, het **percentage** over 24 uur, 7, 30 of 90 dagen, een lijntje met het verloop, **storingen**, downtime en de langste storing.
+  - **🎯 Doel (SLA)** van 95 % tot 99,99 %: per groep ✔ gehaald met hoeveel tijd er nog over is, of ✘ met hoeveel te veel.
+  - **▸ per server**: een tabel met de toestand nu, de percentages over 24 uur, 7 en 30 dagen, een blokje per uur of dag, storingen en downtime. Klik op een server en je springt naar zijn checks.
+  - **📉 Minst betrouwbaar** (top 5) en **⏱️ Laatste storingen** (begin, einde, duur, *nog bezig*).
+- **Eigen groep per server**: nieuw veld *Groep* bij ✎ Server bewerken (bv. *Thuis*, *Kantoor*, *Klant A*), met de bestaande groepen als voorstel.
 
 ## 1.168.1 – 2026-11-04
 ### Opgelost

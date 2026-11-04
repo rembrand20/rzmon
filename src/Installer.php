@@ -266,6 +266,8 @@ final class Installer
         // 1.131.0: trend van een disk (procent per dag), hooguit eens per half uur opnieuw berekend
         ['checks', 'trend_per_day', 'DOUBLE NULL'],
         ['checks', 'trend_at', 'DATETIME NULL'],
+        // 1.169.0: eigen groep van een server (bv. Thuis, Kantoor), voor Monitoring → Beschikbaarheid; NULL = geen
+        ['hosts', 'grp', 'VARCHAR(60) NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

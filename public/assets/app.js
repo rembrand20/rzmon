@@ -1069,6 +1069,7 @@ function init() {
     render();
     if (statusFilter !== null) $('#hosts').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
+  initAvail();   // 1.169.0
   $('#health').addEventListener('click', (e) => {
     const b = e.target.closest('[data-host]');
     if (b) return jumpToHost(b.dataset.host);
@@ -1926,9 +1927,219 @@ function jumpToHost(id) {
 }
 
 /** Dashboard tekenen; live: alleen wat veranderde (morph) */
+// ============ 1.169.0: Monitoring → Beschikbaarheid (per soort apparaat of eigen groep) ============
+let monSub = 'checks';
+let avData = null, avAt = 0, avKey = '', avBusy = false;
+const avOpenGroups = new Set();
+const AV_PERIODS = [['1', () => L('24 u')], ['7', () => L('7 dagen')], ['30', () => L('30 dagen')], ['90', () => L('90 dagen')]];
+const AV_TARGETS = ['95', '98', '99', '99.5', '99.9', '99.95', '99.99'];
+const avGroupBy = () => uiGet('av_group', 'rzmon-av-group', 'kind');
+const avPeriod = () => uiGet('av_period', 'rzmon-av-period', '7');
+const avTarget = () => +uiGet('av_target', 'rzmon-av-target', '99.9');
+const avPct = (v) => (v === null || v === undefined ? '–' : dec(v >= 99.9995 ? '100' : v.toFixed(v >= 99.9 ? 3 : v >= 99 ? 2 : 1)) + '%');
+const avMean = (a) => { const v = a.filter((x) => x !== null && x !== undefined); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+
+function setMonSub(s) {
+  monSub = s === 'avail' ? 'avail' : 'checks';
+  $('#tab-dashboard').classList.toggle('mon-av', monSub === 'avail');
+  $$('#mon-tabs [data-msub]').forEach((b) => { const on = b.dataset.msub === monSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+  if (monSub === 'avail') avLoad();
+}
+
+async function avLoad(force = false) {
+  const key = avPeriod();
+  if (!force && avData && avKey === key && Date.now() - avAt < 60000) return renderAvail();
+  if (avBusy) return;
+  avBusy = true;
+  if (!avData || avKey !== key) $('#avail').innerHTML = `<p class="muted">${L('laden…')}</p>`;
+  try {
+    avData = await api('availability', null, { days: key });
+    avKey = key; avAt = Date.now();
+  } catch (ex) {
+    $('#avail').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`;
+    return;
+  } finally { avBusy = false; }
+  renderAvail();
+}
+
+/** Hoe een server er nu voor staat: up, down, maint (onderhoud), none (geen checks) */
+function avNow(h) {
+  if (h.maintenance) return 'maint';
+  if (!h.checks.some((c) => +c.enabled)) return 'none';
+  return ((state.health && state.health.down) || []).some((d) => +d.id === +h.id) ? 'down' : 'up';
+}
+/** "offline", of waarom: agent stil, achter een uitgevallen server */
+function avNowText(h, now) {
+  if (now !== 'down') return AV_NOW[now][1]();
+  const d = ((state.health && state.health.down) || []).find((x) => +x.id === +h.id);
+  return d && d.reason === 'agent' ? L('agent stil') : d && d.reason === 'parent' ? L('achter uitgevallen server') : AV_NOW.down[1]();
+}
+const AV_NOW = { up: ['up', () => L('online')], down: ['down', () => L('offline')], maint: ['maint', () => L('onderhoud')], none: ['none', () => L('geen checks')] };
+
+/** De servers ingedeeld: per soort apparaat (zoals de filterknoppen) of per eigen groep */
+function avGroups() {
+  const own = avGroupBy() === 'own';
+  const map = new Map();
+  state.hosts.filter((h) => +h.enabled).forEach((h) => {
+    const k = own ? (h.grp || '').trim() : hostGroup(h);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(h);
+  });
+  const order = Object.keys(GROUP_INFO);
+  return [...map.entries()].map(([k, hosts]) => ({
+    key: (own ? 'o:' : 'k:') + k, hosts: hosts.sort((a, b) => a.name.localeCompare(b.name, LANG, { numeric: true, sensitivity: 'base' })),
+    icon: own ? (k ? '🏷️' : '▫️') : GROUP_INFO[k][0], name: own ? (k || L('Zonder groep')) : GROUP_INFO[k][1](),
+    sort: own ? (k ? '0' + k.toLowerCase() : '1') : String(order.indexOf(k)).padStart(2, '0'),
+  })).sort((a, b) => a.sort.localeCompare(b.sort, LANG));
+}
+
+/** Cijfers van een groep over de periode */
+function avStats(g) {
+  const D = avData.hosts || {};
+  const rows = g.hosts.map((h) => ({ h, now: avNow(h), d: D[h.id] || null }));
+  const measured = rows.filter((r) => r.now !== 'none' && r.now !== 'maint');
+  const pctv = avMean(rows.map((r) => (r.d ? r.d.pct : null)));
+  const len = avKey === '1' ? 24 : +avKey;
+  const series = Array.from({ length: len }, (_, i) => avMean(rows.map((r) => (r.d && r.d.series ? r.d.series[i] : null))));
+  const n = rows.reduce((s, r) => s + (r.d ? r.d.n : 0), 0);
+  const down = rows.reduce((s, r) => s + (r.d ? r.d.down_s : 0), 0);
+  const longest = rows.reduce((m, r) => Math.max(m, r.d ? r.d.longest_s : 0), 0);
+  return { rows, measured, up: measured.filter((r) => r.now === 'up').length, maint: rows.filter((r) => r.now === 'maint').length, pct: pctv, series, n, down, longest };
+}
+
+/** SLA: haalt het percentage het doel, en hoeveel tijd is er nog "over" (of te veel) */
+function avSla(p, target, span) {
+  if (p === null) return { cls: 'none', text: L('nog geen metingen') };
+  const budget = (1 - target / 100) * span, used = (1 - p / 100) * span, left = budget - used;
+  return left >= 0
+    ? { cls: 'ok', text: `✔ ${L('doel gehaald')} · ${L('nog {t} over', { t: durText(left) })}` }
+    : { cls: 'bad', text: `✘ ${L('onder het doel')} · ${L('{t} te veel', { t: durText(-left) })}` };
+}
+const avCls = (p, target) => (p === null ? 'none' : p >= target ? 'ok' : p >= Math.min(99, target - 0.5) ? 'warn' : 'bad');
+
+function avBucketLabel(i) {
+  const from = avData.from * 1000;
+  if (avKey === '1') { const d = new Date(from + i * 3600000); return d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }); }
+  return new Date(from + i * 86400000).toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+/** Blokje per uur of dag, in de kleur van de beschikbaarheid */
+function avCells(series, target) {
+  return `<span class="av-cells" aria-hidden="true">${series.map((v, i) => `<i class="${avCls(v, target)}" title="${esc(avBucketLabel(i) + ': ' + (v === null ? L('geen metingen') : avPct(v)))}"></i>`).join('')}</span>`;
+}
+const avWhen = (ts) => { const d = new Date(ts * 1000); const today = new Date().toDateString() === d.toDateString();
+  return (today ? '' : d.toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }); };
+
+function renderAvail() {
+  if (!avData) return;
+  withMorph(renderAvailNow);
+}
+function renderAvailNow() {
+  const target = avTarget(), span = avData.span, own = avGroupBy() === 'own';
+  const groups = avGroups().map((g) => ({ ...g, st: avStats(g) }));
+  const all = groups.flatMap((g) => g.st.rows);
+  const measured = all.filter((r) => r.now !== 'none' && r.now !== 'maint');
+  const upN = measured.filter((r) => r.now === 'up').length;
+  const pAll = avMean(all.map((r) => (r.d ? r.d.pct : null)));
+  const nOut = all.reduce((s, r) => s + (r.d ? r.d.n : 0), 0), downAll = all.reduce((s, r) => s + (r.d ? r.d.down_s : 0), 0);
+  const withPct = groups.filter((g) => g.st.pct !== null), okG = withPct.filter((g) => g.st.pct >= target).length;
+  const perLbl = (AV_PERIODS.find((p) => p[0] === avKey) || AV_PERIODS[1])[1]();
+  const groupOf = new Map(groups.flatMap((g) => g.hosts.map((h) => [+h.id, g])));
+  const noOwn = own && !state.hosts.some((h) => (h.grp || '').trim());
+
+  const tools = `<div class="av-tools">
+      <span class="seg" role="group" aria-label="${L('Indelen')}">${[['kind', '🗂️ ' + L('Soort apparaat')], ['own', '🏷️ ' + L('Eigen groep')]].map(([k, l]) => `<button type="button" class="seg-btn ${avGroupBy() === k ? 'active' : ''}" data-av-group="${k}">${esc(l)}</button>`).join('')}</span>
+      <span class="seg" role="group" aria-label="${L('Periode')}">${AV_PERIODS.map(([k, l]) => `<button type="button" class="seg-btn ${avKey === k ? 'active' : ''}" data-av-period="${k}">${esc(l())}</button>`).join('')}</span>
+      <label class="av-target" title="${L('Het doel (SLA): hoeveel procent van de tijd een groep minstens bereikbaar moet zijn')}">🎯 ${L('Doel')}
+        <select id="av-target">${AV_TARGETS.map((t) => `<option value="${t}" ${+t === target ? 'selected' : ''}>${dec(t)}%</option>`).join('')}</select></label>
+    </div>`;
+  const kpis = `<div class="kpis av-kpis">
+      <div class="kpi ${measured.length - upN ? 'bad' : ''}"><div class="kpi-lbl">${L('Online nu')}</div><div class="kpi-val">${upN}<small>/${measured.length}</small></div>
+        <div class="kpi-sub">${measured.length - upN ? L('{n} offline', { n: measured.length - upN }) : L('alles online')}${all.some((r) => r.now === 'maint') ? ' · ' + L('{n} in onderhoud', { n: all.filter((r) => r.now === 'maint').length }) : ''}</div></div>
+      <div class="kpi ${pAll !== null && pAll < target ? 'bad' : ''}"><div class="kpi-lbl">${L('Beschikbaar')} · ${esc(perLbl)}</div><div class="kpi-val">${avPct(pAll).replace('%', '<small>%</small>')}</div>
+        <div class="kpi-sub">${L('gemiddelde van alle apparaten')}</div></div>
+      <div class="kpi ${nOut ? 'warn' : ''}"><div class="kpi-lbl">${L('Storingen')}</div><div class="kpi-val">${nOut}</div><div class="kpi-sub">${esc(perLbl)}</div></div>
+      <div class="kpi"><div class="kpi-lbl">${L('Downtime')}</div><div class="kpi-val">${downAll ? esc(durText(downAll)) : '0'}</div><div class="kpi-sub">${L('opgeteld over alle apparaten')}</div></div>
+      <div class="kpi ${withPct.length && okG < withPct.length ? 'bad' : ''}"><div class="kpi-lbl">${L('Doel gehaald')} (${dec(String(target))}%)</div><div class="kpi-val">${okG}<small>/${withPct.length}</small></div>
+        <div class="kpi-sub">${L('groepen')}</div></div>
+    </div>`;
+  const hint = noOwn ? `<p class="av-hint">ℹ️ ${L('Nog geen eigen groepen. Geef een server een groep bij ✎ Server bewerken → Groep (bv. Thuis, Kantoor, Klant A).')}</p>` : '';
+
+  const card = (g) => {
+    const s = g.st, open = avOpenGroups.has(g.key), sla = avSla(s.pct, target, span);
+    const dots = s.rows.map((r) => `<i class="av-dot ${r.now}" title="${esc(r.h.name + ': ' + avNowText(r.h, r.now))}"></i>`).join('');
+    const vals = s.series.filter((v) => v !== null);
+    const rows = s.rows.map((r) => {
+      const u = stats.uptime[r.h.id] || {};
+      return `<tr class="${r.now}">
+        <td><button type="button" class="hl-link" data-avhost="${r.h.id}">${esc(hostIcon(r.h))} ${esc(r.h.name)}</button></td>
+        <td><span class="av-now ${r.now}">${esc(avNowText(r.h, r.now))}</span></td>
+        <td class="num"><b>${avPct(r.d ? r.d.pct : null)}</b></td>
+        <td class="num av-hide-s">${avPct(u.h24)}</td><td class="num av-hide-s">${avPct(u.d7)}</td><td class="num av-hide-s">${avPct(u.d30)}</td>
+        <td class="av-hide-s">${r.d ? avCells(r.d.series, target) : ''}</td>
+        <td class="num">${r.d && r.d.n ? r.d.n + (r.d.open ? ' <span class="av-busy" title="' + esc(L('nog bezig')) + '">●</span>' : '') : '0'}</td>
+        <td class="num">${r.d && r.d.down_s ? esc(durText(r.d.down_s)) : '–'}</td></tr>`;
+    }).join('');
+    return `<article class="av-g ${avCls(s.pct, target)}${s.measured.length - s.up ? ' has-down' : ''}${open ? ' open' : ''}" data-avg="${esc(g.key)}">
+      <button type="button" class="av-g-head" data-av-toggle="${esc(g.key)}" aria-expanded="${open}">
+        <span class="av-g-name">${g.icon} ${esc(g.name)} <small class="muted">${g.hosts.length}</small></span>
+        <span class="av-g-pct">${avPct(s.pct)}</span>
+      </button>
+      <div class="av-g-on"><span><b>${s.up}</b>/${s.measured.length} ${L('online')}</span>${s.maint ? ` · ${L('{n} in onderhoud', { n: s.maint })}` : ''} <span class="av-dots">${dots}</span></div>
+      <div class="av-sla ${sla.cls}">${esc(sla.text)}</div>
+      ${vals.length > 1 ? hmSpark(vals, 'av-spark ' + avCls(s.pct, target)) : '<div class="hm-spark-empty"></div>'}
+      <div class="av-g-foot">${L('Storingen')} <b>${s.n}</b> · ${L('downtime')} <b>${s.down ? esc(durText(s.down)) : '0'}</b>${s.longest ? ` · ${L('langste')} <b>${esc(durText(s.longest))}</b>` : ''}
+        <button type="button" class="av-more" data-av-toggle="${esc(g.key)}">${open ? '▾ ' + L('verbergen') : '▸ ' + L('per server')}</button></div>
+      ${open ? `<div class="av-tbl-wrap"><table class="av-tbl"><thead><tr><th>${L('Server')}</th><th>${L('Nu')}</th><th class="num">${esc(perLbl)}</th>
+        <th class="num av-hide-s">${L('24 u')}</th><th class="num av-hide-s">${L('7 d')}</th><th class="num av-hide-s">${L('30 d')}</th>
+        <th class="av-hide-s">${avKey === '1' ? L('per uur') : L('per dag')}</th><th class="num">${L('Storingen')}</th><th class="num">${L('Downtime')}</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+    </article>`;
+  };
+
+  // Minst betrouwbaar: laagste percentage, dan de meeste storingen
+  const worst = all.filter((r) => r.d && (r.d.n || (r.d.pct !== null && r.d.pct < 100)))
+    .sort((a, b) => (a.d.pct ?? 101) - (b.d.pct ?? 101) || b.d.n - a.d.n).slice(0, 5);
+  const worstHtml = worst.length ? `<ol class="av-list">${worst.map((r) => `<li>
+      <button type="button" class="hl-link" data-avhost="${r.h.id}">${esc(hostIcon(r.h))} ${esc(r.h.name)}</button>
+      <span class="muted small">${esc(groupOf.get(+r.h.id) ? groupOf.get(+r.h.id).name : '')}</span>
+      <span class="av-l-r"><b class="av-c-${avCls(r.d.pct, target)}">${avPct(r.d.pct)}</b> <span class="muted small">${L('{n} storingen', { n: r.d.n })}${r.d.down_s ? ' · ' + esc(durText(r.d.down_s)) : ''}</span></span>
+      <span class="av-meter"><i class="${avCls(r.d.pct, target)}" style="width:${Math.max(2, Math.min(100, r.d.pct ?? 0))}%"></i></span></li>`).join('')}</ol>`
+    : `<p class="muted">✔ ${L('Alles was de hele periode bereikbaar.')}</p>`;
+  const byId = new Map(state.hosts.map((h) => [+h.id, h]));
+  const outs = (avData.outages || []).filter((o) => byId.has(+o.host_id) && +byId.get(+o.host_id).enabled).slice(0, 12);
+  const outHtml = outs.length ? `<ul class="av-list av-outs">${outs.map((o) => { const h = byId.get(+o.host_id); return `<li class="${o.end === null ? 'busy' : ''}">
+      <button type="button" class="hl-link" data-avhost="${h.id}">${esc(hostIcon(h))} ${esc(h.name)}</button>
+      <span class="muted small">${o.from_start ? L('al vóór de periode') : esc(avWhen(o.start))}${o.end ? ' → ' + esc(avWhen(o.end)) : ''}</span>
+      <span class="av-l-r">${o.end === null ? `<span class="av-now down">${L('nog bezig')}</span> ` : ''}<b>${esc(durText(o.dur))}</b></span></li>`; }).join('')}</ul>`
+    : `<p class="muted">✔ ${L('Geen storingen in deze periode.')}</p>`;
+
+  $('#avail').innerHTML = tools + hint + kpis
+    + `<div class="av-groups">${groups.map(card).join('') || `<p class="muted">${L('Nog geen servers.')}</p>`}</div>`
+    + `<div class="av-cols">
+        <section class="card av-box"><h3>📉 ${L('Minst betrouwbaar')} <span class="muted small">${esc(perLbl)}</span></h3>${worstHtml}</section>
+        <section class="card av-box"><h3>⏱️ ${L('Laatste storingen')} <span class="muted small">${esc(perLbl)}</span></h3>${outHtml}</section>
+      </div>`
+    + `<p class="muted small av-foot">${esc(L('Beschikbaar = het deel van de metingen van ping (of zonder ping: TCP en HTTP) dat niet CRITICAL was. Een storing = de tijd dat de server onbereikbaar was: al die checks tegelijk CRITICAL. Het groepspercentage is het gemiddelde van de apparaten.'))}</p>`;
+}
+
+function initAvail() {
+  $('#mon-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-msub]'); if (b) setMonSub(b.dataset.msub); });
+  $('#avail').addEventListener('click', (e) => {
+    const g = e.target.closest('[data-av-group]');
+    if (g) { uiSet('av_group', 'rzmon-av-group', g.dataset.avGroup); avOpenGroups.clear(); return renderAvail(); }
+    const p = e.target.closest('[data-av-period]');
+    if (p) { uiSet('av_period', 'rzmon-av-period', p.dataset.avPeriod); return avLoad(true); }
+    const t = e.target.closest('[data-av-toggle]');
+    if (t) { const k = t.dataset.avToggle; if (avOpenGroups.has(k)) avOpenGroups.delete(k); else avOpenGroups.add(k); return renderAvail(); }
+    const h = e.target.closest('[data-avhost]');
+    if (h) { setMonSub('checks'); jumpToHost(h.dataset.avhost); }
+  });
+  $('#avail').addEventListener('change', (e) => { if (e.target.id === 'av-target') { uiSet('av_target', 'rzmon-av-target', e.target.value); renderAvail(); } });
+}
+
 function render() { withMorph(renderNow); }
 function renderNow() {
   renderHealth();
+  if (monSub === 'avail') avLoad();   // 1.169.0
   const banner = $('#maint-banner');
   banner.hidden = !state.maintenance;
   if (state.maintenance) {
@@ -3651,6 +3862,11 @@ function hostForm(h, preset = null) {
         </select>
         <input type="hidden" name="kind_auto" value="">
         <span class="hint">${L('Voor het dashboard (Servers, Netwerk, Opslag …). Vanzelf = herkend via de agent of SNMP.')}</span>
+      </label>
+      <label>${L('Groep')} <span class="hint">${L('(optioneel)')}</span>
+        <input name="grp" value="${esc(h.grp || '')}" list="grp-list" maxlength="60" placeholder="${L('bv. Thuis, Kantoor, Klant A')}">
+        <datalist id="grp-list">${[...new Set(state.hosts.map((x) => (x.grp || '').trim()).filter(Boolean))].sort().map((g) => `<option value="${esc(g)}">`).join('')}</datalist>
+        <span class="hint">${L('Je eigen indeling, voor Monitoring → Beschikbaarheid. Leeg = geen groep.')}</span>
       </label>
       <label>${L('Afhankelijk van')} <span class="hint">${L('(optioneel)')}</span>
         <select name="parent_id">
