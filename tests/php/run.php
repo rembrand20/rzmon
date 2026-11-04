@@ -1261,5 +1261,11 @@ q('DELETE FROM inet_speed');
 save_setting('inet_speed_url', 'https://speed.cloudflare.com');
 save_setting('inet_down', '1000');
 
+section('Grote instellingen (1.157.4)');
+$big = json_encode(array_map(static fn($i) => "homeassistant/sensor/rzmon_check_$i/config", range(1, 4000)));
+save_setting('mqtt_topics', $big);
+ok(strlen($big) > 65535 && q("SELECT value FROM settings WHERE name = 'mqtt_topics'")->fetchColumn() === $big, 'een lijst MQTT-topics groter dan 64 KB wordt bewaard (' . round(strlen($big) / 1024) . ' KB)');
+save_setting('mqtt_topics', '[]');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

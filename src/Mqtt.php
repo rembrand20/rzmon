@@ -175,8 +175,11 @@ final class Mqtt
             save_setting('mqtt_last_error', '');
             $hosts = count(array_filter(array_keys($states), fn($t) => str_contains($t, '/host/')));
             return ['ok' => true, 'error' => null, 'entities' => count($discovery), 'hosts' => $hosts];
-        } catch (RuntimeException $e) {
-            save_setting('mqtt_last_error', mb_substr($e->getMessage(), 0, 250));
+        } catch (Throwable $e) {   // 1.157.4: ook een databasefout (was alleen RuntimeException)
+            try {
+                save_setting('mqtt_last_error', mb_substr($e->getMessage(), 0, 250));
+            } catch (Throwable) {
+            }
             return ['ok' => false, 'error' => $e->getMessage(), 'entities' => 0, 'hosts' => 0];
         }
     }

@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS settings (
     name  VARCHAR(64) PRIMARY KEY,
-    value TEXT NULL
+    value MEDIUMTEXT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- mode: local  = de monitor-server zelf (disk/service lokaal uitlezen)
@@ -223,6 +223,8 @@ INSERT IGNORE INTO settings (name, value) VALUES ('notify_lang', 'nl');
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
 ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql','internet') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;
+-- 1.157.4: de lijst met MQTT-topics werd bij veel checks groter dan 64 KB (TEXT)
+ALTER TABLE settings MODIFY value MEDIUMTEXT NULL;
 
 INSERT IGNORE INTO settings (name, value) VALUES
     ('pushover_enabled', '0'),

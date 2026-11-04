@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.154.0**: het **Command center**, een tweede dashboard met alles in één oogopslag (SSH-logins en -blokkades, de toppers, wie er inlogt, de monitoring), zelf in te delen en met een TV-modus.
 - **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
 
+## 1.157.4 – 2026-11-04
+### Opgelost
+- **MQTT** gaf *"SQLSTATE[22001]: Data too long for column 'value'"*: met veel servers en checks werd de lijst met MQTT-topics groter dan 64 KB en paste hij niet meer in de instellingen. Daardoor werd ook elke minuut alle discovery opnieuw naar Home Assistant gestuurd. Instellingen mogen nu tot 16 MB zijn (de database wordt vanzelf bijgewerkt bij de update; bestaande instellingen blijven gelijk), en een databasefout bij MQTT staat voortaan netjes als fout bij *Achtergrondtaken*.
+
 ## 1.157.3 – 2026-11-03
 ### Opgelost
 - Het live-lampje op het **Dashboard** staat nu rechtsboven op de pagina, op een eigen regel boven de knoppen (op het Command center viel het eerst tussen de knoppen).
