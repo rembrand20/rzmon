@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.165.0**: de **IDS-pagina** toont de servers als tabel (L1nes) of met *Wat nu aandacht vraagt*, kaarten en chips (Blox en CC), met modus en hardening duidelijk erbij.
 - **1.164.0**: in CC zijn de servers op Monitoring compacte blokken die met een animatie openklappen tot een **tabel met de checks eronder**.
 
+## 1.168.1 – 2026-11-04
+### Opgelost
+- **Lay-outkeuze op één plek**: Blox, L1nes, Compact en CC kies je alleen nog in het **accountmenu** (je naam onderaan de zijbalk) en bij *Mijn account → Weergave*. De knoppen in de werkbalk van Monitoring en van het Command center zijn weg.
+
 ## 1.168.0 – 2026-11-04
 ### Nieuw
 - **Monitoring: drie groepen**: *Met open problemen* (hetzelfde als *Nu aandacht nodig*), **✔ Bevestigd** (alle problemen al bevestigd: niets te doen) en *Alles in orde*. In elke lay-out.

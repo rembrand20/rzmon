@@ -229,12 +229,6 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <input type="search" id="filter" placeholder="<?= th('🔍 Zoek server of check…') ?>">
         <div class="dash-chips" id="dash-chips" role="group" aria-label="<?= th('Filter') ?>"></div>
         <span class="dash-sp"></span>
-        <div class="seg dash-view" role="group" aria-label="<?= th('Lay-out') ?>">
-          <button type="button" class="seg-btn" data-view-layout="blox" title="<?= th('Een tegel per server') ?>">▦ Blox</button>
-          <button type="button" class="seg-btn" data-view-layout="l1nes" title="<?= th('Servers onder elkaar, als een tabel') ?>">☰ L1nes</button>
-          <button type="button" class="seg-btn" data-view-layout="compact" title="<?= th('Eén blokje per check') ?>">▪ Compact</button>
-          <button type="button" class="seg-btn" data-view-layout="cc" title="<?= th('Alles in de stijl van het Command center, met versleepbare kaarten') ?>">◈ CC</button>
-        </div>
         <select id="dash-sort" aria-label="<?= th('Sorteren') ?>">
           <option value="status"><?= th('Ergste eerst') ?></option>
           <option value="name"><?= th('Op naam') ?></option>

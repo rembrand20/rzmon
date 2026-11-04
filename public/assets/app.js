@@ -2059,8 +2059,6 @@ function layoutPref() {
   return PREFS.dash === 'cc' ? 'cc' : 'blox';   // wie het Command center al gebruikte, krijgt CC
 }
 const isCC = () => layoutPref() === 'cc';
-const layoutSeg = (cls = '') => `<div class="seg ${cls}" role="group" aria-label="${esc(L('Lay-out'))}">${[['blox', '▦ Blox'], ['l1nes', '☰ L1nes'], ['compact', '▪ Compact'], ['cc', '◈ CC']]
-  .map(([k, t]) => `<button type="button" class="seg-btn ${layoutPref() === k ? 'active' : ''}" data-view-layout="${k}">${t}</button>`).join('')}</div>`;
 let pgEdit = null;   // pagina waarvan de indeling open staat
 const PG_W = { 3: '¼', 4: '⅓', 6: '½', 9: '¾', 12: '1' };
 /** Sleutel voor de opslag: de instellingen per onderdeel (bv. set_ids) */
@@ -13558,8 +13556,7 @@ function ccTools() {
   const tv = document.body.classList.contains('tv');
   return `<div class="cc-tools">
     ${dashMode() === 'cc' ? `<button type="button" class="cc-tbtn ${ccEdit ? 'on' : ''}" data-cc-edit aria-pressed="${ccEdit}">✎ ${esc(ccEdit ? L('Klaar') : L('Indeling'))}</button>
-      <button type="button" class="cc-tbtn ${tv ? 'on' : ''}" data-cc-tv aria-pressed="${tv}">▣ ${esc(L('TV-modus'))}</button>` : ''}
-    ${layoutSeg('cc-dash')}</div>`;
+      <button type="button" class="cc-tbtn ${tv ? 'on' : ''}" data-cc-tv aria-pressed="${tv}">▣ ${esc(L('TV-modus'))}</button>` : ''}</div>`;   // 1.168.1: de lay-out kies je alleen nog in het accountmenu en bij Mijn account
 }
 function ccSetDash(v) {
   if (v === dashMode()) return;

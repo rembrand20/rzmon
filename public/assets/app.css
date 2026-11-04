@@ -2908,7 +2908,6 @@ body.tv #hm-period, body.tv .cc-dash, body.tv [data-cc-edit] { display: none; }
 .hm-c.s1 { background: var(--warn); } .hm-c.s2 { background: var(--crit); } .hm-c.s3 { background: var(--unknown); } .hm-c.s4 { background: var(--maint); }
 .hm-c:hover { outline: 2px solid var(--text); outline-offset: 1px; }
 @media (max-width: 640px) { .hm-row { grid-template-columns: 1fr; } .hm-row .tl24 { display: none; } }
-.dash-view .seg-btn { padding: .3rem .6rem; font-size: .8rem; }
 /* Rode gloed bij critical (uit te zetten in Mijn account → Weergave) */
 @media (prefers-reduced-motion: no-preference) {
   body:not(.no-glow) .host.glow, body:not(.no-glow) .hm-row.glow { animation: mon-glow 2.4s ease-in-out infinite; }
