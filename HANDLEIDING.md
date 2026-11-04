@@ -167,7 +167,7 @@ Er zijn vier lay-outs, **per account** (je ziet dezelfde op elk apparaat):
 | ▪ **Compact** | Klassiek | een blokje per check | zoals altijd |
 | ◈ **CC** | Command center | tegels in CC-stijl | **alles in de stijl van het Command center** |
 
-In **CC** krijgen alle pagina's (ook de instellingen) de futuristische stijl van het Command center: glazen panelen met een dunne gloeiende rand, cyaan accenten, een fijn raster op de achtergrond. In licht én donker, het volgt je thema. Alle informatie blijft precies hetzelfde; alleen de vorm verandert.
+In **CC** krijgen alle pagina's (ook de instellingen) de futuristische stijl van het Command center: glazen panelen met een dunne gloeiende rand, cyaan accenten en een zachte gloed op de achtergrond (vanaf 1.163.1 zonder raster). In licht én donker, het volgt je thema. Alle informatie blijft precies hetzelfde; alleen de vorm verandert.
 
 **Kaarten indelen** (vanaf 1.158.0 op Monitoring en Meldingen, vanaf 1.159.0 ook op IDS, Incidenten, Kwetsbaarheden, Netwerk en Analyse, vanaf 1.160.0 ook in de Instellingen, bij Mijn account en in de Agent Manager): rechtsboven staan **● Live**, **✎ Indeling** en **▣ TV-modus**. Met *Indeling*:
 - **sleep** een kaart aan ⋮⋮ naar een andere plek;
