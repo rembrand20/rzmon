@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.161.0**: alle uitleg in de Instellingen en bij Mijn account herschreven, als **één regel met Meer info** die openklapt.
 - **1.160.0**: in de lay-out CC zijn nu ook de **Instellingen** (per onderdeel), **Mijn account** en de **Agent Manager** kaarten die je versleept en smaller of breder maakt; daarmee zit elke pagina in CC.
 - **1.158.0**: de **lay-out CC**: alle pagina's in de stijl van het Command center (licht en donker), met kaarten die je zelf versleept, smaller of breder maakt en verbergt; per account.
 - **1.157.0**: **Monitoring live**: per server de 3 belangrijkste checks met lijntjes en 24 uur, problemen gebundeld op oorzaak, een Compact-weergave en een zachte rode gloed; plus een nieuwe check **Internet** (ping, responstijd en snelheidstest van je lijn).
 - **1.156.0**: **slimme drempels** leren nu ook voor containers, DNS, NTP en MySQL, en RzMon zet een handmatige check zelf op *slim met vangnet* en stelt *melden na N* zelf in als dat minder ruis geeft, altijd met een melding en terug te draaien.
-- **1.155.0**: **Analyse en advies**: slimme analyses die je gegevens combineren tot concreet advies met bewijs (zoals een verouderde dienst met een actief misbruikte CVE op een poort die van buiten wordt aangevallen), een veiligheidsscore per onderdeel en een melding bij kritieke, wereldwijd bekende lekken.
+
+## 1.161.0 – 2026-11-04
+### Nieuw
+- **Uitleg als één regel met Meer info** (*More info* in het Engels): in de Instellingen en bij Mijn account staat elke uitleg nu als één korte regel. Klik op **Meer info** en de volledige uitleg klapt open, met waar het kan *Wat het is*, *Wat het doet* en *Goed om te weten* op een eigen regel.
+  - Altijd dicht tot je hem zelf opent; ga je naar een andere pagina of een ander onderdeel, dan is alles weer dicht.
+- **Alle uitleg herschreven** (bijna 90 teksten, Nederlands en Engels): duidelijker, in gewone woorden, met vaktermen uitgelegd en verouderde verwijzingen bijgewerkt.
+- De pagina's en vensters (Dashboard, Monitoring, IDS, Agent Manager …) volgen in de volgende versie.
 
 ## 1.160.0 – 2026-11-04
 ### Nieuw

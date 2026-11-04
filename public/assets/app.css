@@ -3018,3 +3018,17 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 @media (max-width: 900px) { body.lay-cc [data-pgrid] > .pgk { grid-column: span 12; } }
 .pg-tools[data-pgtools="am"]:empty { display: none; }
 .pg-tools[data-pgtools="am"] { margin: 0 0 .5rem; }
+/* 1.161.0: uitleg als één regel met "Meer info" */
+.xp { margin: .2rem 0 .85rem; }
+.xp-s { margin: 0; display: flex; align-items: baseline; gap: .6rem; color: var(--muted); font-size: .86rem; line-height: 1.45; }
+.xp-s > span { flex: 1 1 auto; min-width: 0; }
+.xp-btn { flex: none; border: 0; background: none; padding: .1rem 0; color: var(--primary); font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.xp-btn::after { content: ""; display: inline-block; width: .4em; height: .4em; margin-left: .4em; border: solid currentColor; border-width: 0 2px 2px 0; transform: translateY(-.15em) rotate(45deg); transition: transform .15s; }
+.xp.open .xp-btn::after { transform: translateY(.05em) rotate(-135deg); }
+.xp-btn:hover, .xp-btn:focus-visible { text-decoration: underline; }
+.xp-d { margin-top: .45rem; padding: .65rem .85rem; border-left: 3px solid var(--primary); border-radius: 0 10px 10px 0; background: color-mix(in srgb, var(--primary) 7%, transparent); color: var(--text); font-size: .86rem; line-height: 1.6; }
+.xp-d code { font-size: .8rem; }
+.xp-d p { margin: 0 0 .35rem; }
+.xp-d p:last-child { margin: 0; }
+.xp-d b { font-weight: 650; }
+@media (max-width: 600px) { .xp-s { flex-wrap: wrap; row-gap: .1rem; } }

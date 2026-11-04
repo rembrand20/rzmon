@@ -27,6 +27,28 @@ function L(s, vars) {
   return r;
 }
 const STATUS = ['OK', 'WARNING', 'CRITICAL', L('ONBEKEND')];
+/* 1.161.0: uitleg als één regel met "Meer info"; de volledige tekst klapt open. Altijd dicht tot je hem opent,
+   en weer dicht zodra je van pagina wisselt (xpClose in showTab en showSettingsSection). */
+const xpHtml = (short, more, cls = '') => `<div class="xp${cls ? ' ' + cls : ''}"><p class="xp-s"><span>${short}</span> <button type="button" class="xp-btn" aria-expanded="false">${esc(L('Meer info'))}</button></p><div class="xp-d" hidden><p>${String(more).split(/\s+(?=<b>[^<]{2,40}:<\/b>)/).join('</p><p>')}</p></div></div>`;
+function xpClose(root = document) {
+  root.querySelectorAll('.xp.open').forEach((x) => {
+    x.classList.remove('open');
+    const d = x.querySelector('.xp-d'), b = x.querySelector('.xp-btn');
+    if (d) d.hidden = true;
+    if (b) b.setAttribute('aria-expanded', 'false');
+  });
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('.xp-btn');
+  if (!b) return;
+  e.preventDefault();
+  const x = b.closest('.xp'), d = x && x.querySelector('.xp-d');
+  if (!d) return;
+  const open = !x.classList.contains('open');
+  x.classList.toggle('open', open);
+  d.hidden = !open;
+  b.setAttribute('aria-expanded', String(open));
+});
 
 const TYPES = {
   ping:    { label: L('Ping'),          target: null,            unit: 'ms', warn: 100, crit: 500, help: L('Gemiddelde responstijd van 3 pings. Geen antwoord = CRITICAL.') },
@@ -1486,6 +1508,7 @@ function init() {
 }
 
 function showTab(name) {
+  xpClose();   // 1.161.0: van pagina wisselen = alle uitleg weer dicht
   let sub = null;
   // Filters in het adres (1.71.0): #alerts?server=NAS,Pi&status=crit, #ids/acc?result=fail, #vulns/leak?status=open
   const qi = name.indexOf('?');
@@ -9267,6 +9290,7 @@ function setFind(id) {
 }
 
 function showSettingsSection(id, focusEl) {
+  xpClose();
   if (SET_TAB_OF[id]) setTab[SET_ALIAS[id]] = SET_TAB_OF[id];
   // Gevonden via zoeken in een kaart op een ander tabblad: dat tabblad kiezen
   const fk = focusEl && focusEl.closest('[data-sk]') && focusEl.closest('[data-sk]').dataset.sk;
@@ -9607,7 +9631,7 @@ function polishSettings(root) {
     if (!l || l.hidden) return;
     l.hidden = true;
     const nx = l.nextElementSibling;
-    if (nx && nx.tagName === 'P' && nx.matches('.muted, .hint')) nx.hidden = true;
+    if (nx && ((nx.tagName === 'P' && nx.matches('.muted, .hint')) || nx.classList.contains('xp'))) nx.hidden = true;
   });
   // Een kopje waarvan alles eronder nu op Bescherming staat: ook weg
   $$('[data-sk^="ids"] h3.set-sub', root).forEach((h) => {

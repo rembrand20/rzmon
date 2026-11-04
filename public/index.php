@@ -584,7 +584,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <form id="settings-form" class="settings-grid need-admin" data-pgrid="set">
         <div data-sk="pushover" class="card">
           <h2>Pushover</h2>
-          <p class="muted small"><?= t('Maak een applicatie aan op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> voor het API-token. Je user key staat op je Pushover dashboard.') ?></p>
+          <?= xp(t('Pushmeldingen op je telefoon via de Pushover-app.'), t('<b>Wat het is:</b> Pushover is een app voor iPhone, Android en de computer die berichten van RzMon meteen op je scherm zet, met een eigen geluid per prioriteit en noodmeldingen die blijven herhalen tot je reageert. <b>Instellen:</b> maak op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> een applicatie aan; dat geeft het <i>API-token</i>. Je <i>user key</i> staat op je Pushover-dashboard. <b>Goed om te weten:</b> na een gratis proefperiode betaal je Pushover één keer per platform.')) ?>
           <label class="switch"><input type="checkbox" name="pushover_enabled"><span></span> <?= th('Pushover meldingen aan') ?></label>
           <label>User key<input name="pushover_user" autocomplete="off" spellcheck="false"></label>
           <label>API token<input name="pushover_token" autocomplete="off" spellcheck="false"></label>
@@ -610,21 +610,21 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
         <div data-sk="ntfy" class="card">
           <h2>ntfy</h2>
-          <p class="muted small"><?= t('Gratis pushmeldingen via <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy.sh</a> of je eigen ntfy-server. Installeer de ntfy-app, abonneer je op het onderwerp hieronder en kies een lange, moeilijk te raden naam (iedereen die hem kent kan meelezen op ntfy.sh). Werkt naast of in plaats van Pushover.') ?></p>
+          <?= xp(t('Gratis pushmeldingen via de ntfy-app, naast of in plaats van Pushover.'), t('<b>Wat het is:</b> ntfy is een gratis app en dienst voor pushberichten. Je gebruikt <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy.sh</a> of je eigen ntfy-server. <b>Instellen:</b> installeer de ntfy-app, abonneer je op het onderwerp (topic) dat je hieronder invult en sla op. <b>Goed om te weten:</b> op ntfy.sh kan iedereen die de naam van het onderwerp kent meelezen. Kies dus een lange, moeilijk te raden naam, of gebruik een eigen server met een toegangstoken.')) ?>
           <label class="switch"><input type="checkbox" name="ntfy_enabled"><span></span> <?= th('ntfy meldingen aan') ?></label>
           <label><?= th('Server') ?><input name="ntfy_server" placeholder="https://ntfy.sh" autocomplete="off" spellcheck="false"></label>
           <label><?= th('Onderwerp (topic)') ?><input name="ntfy_topic" placeholder="rzmon-…" autocomplete="off" spellcheck="false" pattern="[A-Za-z0-9_\-]{1,64}"></label>
           <label><?= th('Toegangstoken of gebruiker:wachtwoord') ?> <span class="muted small"><?= th('(leeg = zonder inloggen)') ?></span><input name="ntfy_token" autocomplete="off" spellcheck="false"></label>
-          <p class="muted small"><?= th('Prioriteit volgt de instelling bij Pushover (Geavanceerd): normaal = 3, hoog = 4, emergency = 5. Bij een storing zit er een knop ✔ Bevestigen onder het bericht.') ?></p>
+          <?= xp(t('De prioriteit volgt Pushover; een storing bevestig je vanuit het bericht.'), t('ntfy krijgt dezelfde prioriteit als je bij Pushover (Geavanceerd) instelt: normaal = 3, hoog = 4, noodmelding = 5. Onder een storingsbericht staat een knop <b>✔ Bevestigen</b>: daarmee bevestig je de storing zonder RzMon te openen.')) ?>
           <button type="button" class="btn" id="ntfy-test"><?= th('📲 Testbericht sturen') ?></button>
         </div>
 
         <div data-sk="notify" class="card notify-card">
           <h2><?= th('🔔 Meldingen') ?></h2>
-          <p class="muted small"><?= t('Per status: <b>nooit</b>, <b>direct</b>, of pas <b>na X minuten</b> onafgebroken in die status. Herstelt het eerder, dan komt er geen melding. Hersteld: pas melden als het X minuten goed blijft. Per check kun je dit aanpassen (✎ → Meldingen).') ?></p>
+          <?= xp(t('Per status kies je: nooit melden, direct, of pas als het een tijdje zo blijft.'), t('<b>Wat het doet:</b> voor elke status (warning, critical, onbekend, hersteld) bepaal je wanneer er een melding uitgaat: <b>nooit</b>, <b>direct</b>, of pas <b>na X minuten</b> onafgebroken in die status. Herstelt het eerder, dan krijg je niets. Bij <i>Hersteld</i> betekent X: pas melden als het X minuten goed blijft. <b>Goed om te weten:</b> per check kun je dit anders instellen (✎ → Meldingen).')) ?>
           <label><?= th('Melden na … mislukte checks achter elkaar') ?> <span class="muted small"><?= th('(1 = bij de eerste; per check aan te passen)') ?></span>
             <input type="number" name="notify_fails" min="1" max="100" style="max-width:8rem"></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Telt per status: wordt een warning critical, dan begint de telling opnieuw. Onbekend telt ook. Het aantal én de regel hieronder moeten allebei kloppen; wil je alleen het aantal, zet de regel dan op <i>direct</i>. Herstel wordt gemeld zoals hieronder ingesteld.') ?></p>
+          <?= xp(t('Hoe het aantal mislukte checks en de regels hieronder samenwerken.'), t('De telling loopt per status: wordt een warning een critical, dan begint de telling opnieuw. <i>Onbekend</i> telt ook mee. Er gaat pas een melding uit als het aantal <b>én</b> de regel hieronder allebei kloppen. Wil je alleen op het aantal letten, zet de regel dan op <i>direct</i>. Herstel wordt gemeld zoals hieronder ingesteld.')) ?>
           <label class="switch"><input type="checkbox" name="notify_unknown"><span></span> <?= th('Melden bij ONBEKEND') ?></label>
           <label><?= th('Taal van meldingen en checkberichten') ?> <span class="muted small">(<?= th('Pushover, e-mail, Home Assistant en de berichten van checks; voor iedereen hetzelfde') ?>)</span>
             <select name="notify_lang" style="max-width:12rem"><option value="nl">Nederlands</option><option value="en">English</option></select></label>
@@ -632,14 +632,14 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <input type="hidden" name="notify_rules"><input type="hidden" name="notify_channels"><input type="hidden" name="notify_flap"><input type="hidden" name="notify_quiet">
           <div class="quiet-box">
             <h3><?= th('🌙 Stille uren') ?></h3>
-            <p class="muted small"><?= t('In deze periodes gaan er geen meldingen uit (Pushover, e-mail en Home Assistant). Checks draaien gewoon door en het dashboard blijft alles tonen. Is er na afloop nog iets mis, dan krijg je <b>één bericht</b> met alle open problemen. Wat in de tussentijd vanzelf herstelde, wordt niet gemeld. Per check aan te passen (✎ → Stille uren).') ?></p>
+            <?= xp(t('Tijden zonder meldingen naar buiten; de checks lopen gewoon door.'), t('<b>Wat het doet:</b> in deze periodes stuurt RzMon niets via Pushover, ntfy, e-mail of Home Assistant. De checks draaien door en het dashboard en de meldingenpagina tonen alles. <b>Na afloop:</b> is er nog iets mis, dan krijg je <b>één bericht</b> met alle open problemen. Wat tussendoor vanzelf herstelde, wordt niet gemeld. <b>Goed om te weten:</b> per check kun je dit aanpassen (✎ → Stille uren).')) ?>
             <div id="quiet-editor"></div>
           </div>
           <div class="row2">
             <label><?= th('Meldingen per server bundelen binnen … seconden') ?> <span class="muted small"><?= th('(0 = niet bundelen)') ?></span><input type="number" name="notify_group_seconds" min="0" max="3600"></label>
             <label class="switch" style="align-self:end"><input type="checkbox" name="notify_recovery_acked"><span></span> <?= th('Ook herstel melden na een bevestigde storing') ?></label>
           </div>
-          <p class="muted small" style="margin-top:-.3rem"><?= th('Bundelen: gaan op één server binnen deze tijd meerdere checks mis (of herstellen ze), dan komt er één bericht met alles erin. De eerste melding wacht daardoor hooguit zo lang. Home Assistant krijgt wel een bericht per check, voor je automatiseringen.') ?></p>
+          <?= xp(t('Meerdere storingen op één server tegelijk? Dan krijg je één bericht.'), t('Gaan op één server binnen deze tijd meerdere checks mis (of herstellen ze), dan stuurt RzMon één bericht met alles erin, in plaats van een rij losse berichten. De eerste melding wacht daardoor hooguit zo lang. <b>Goed om te weten:</b> Home Assistant krijgt wel een bericht per check, zodat je automatiseringen blijven werken. 0 = niet bundelen.')) ?>
           <h3 class="small" style="margin:1rem 0 .3rem">⏫ <?= th('Escaleren') ?></h3>
           <label class="switch"><input type="checkbox" name="esc_on"><span></span> <?= t('<b>Escaleren</b>: een storing die niemand bevestigt, na een tijd nog een keer melden, een stap hoger') ?></label>
           <div class="row3">
@@ -648,14 +648,14 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Critical wordt') ?><select name="esc_crit_prio"><option value="1"><?= th('hoge prioriteit') ?></option><option value="2"><?= th('nood (herhaalt tot je bevestigt)') ?></option></select></label>
           </div>
           <label class="switch"><input type="checkbox" name="esc_quiet"><span></span> <?= th('Niet escaleren tijdens de stille uren') ?></label>
-          <p class="muted small" style="margin-top:-.3rem"><?= th('Een warning gaat dan als critical (de prioriteit van je critical-meldingen), een critical krijgt de prioriteit hierboven. Eén keer per storing; bevestigen stopt het.') ?></p>
+          <?= xp(t('Een storing die niemand bevestigt, wordt na een tijd nog eens gemeld, een stap hoger.'), t('Is een storing na de ingestelde tijd nog niet bevestigd, dan meldt RzMon hem opnieuw met een hogere prioriteit: een warning gaat dan als critical (met de prioriteit van je critical-meldingen), een critical krijgt de prioriteit die je hierboven kiest. Dat gebeurt één keer per storing. <b>Bevestigen</b> stopt het escaleren.')) ?>
           <label class="switch"><input type="checkbox" name="notify_bundle_hosts"><span></span> <?= t('🔗 <b>Ook over servers heen bundelen</b>, met de waarschijnlijke oorzaak') ?></label>
-          <p class="muted small" style="margin-top:-.3rem"><?= th('Gaan er binnen het bundelvenster meerdere servers mis, dan komt er één bericht, bv. "🔴 CRITICAL: 5 servers tegelijk · waarschijnlijk: ze hangen allemaal aan Switch-zolder (UniFi)". RzMon kijkt naar je afhankelijkheden, naar UniFi (welk access point of welke switch), naar agents die allemaal tegelijk stil zijn en naar je Proxmox-clusters.') ?></p>
+          <?= xp(t('Vallen meerdere servers tegelijk uit, dan krijg je één bericht met de waarschijnlijke oorzaak.'), t('Gaan er binnen het bundelvenster meerdere servers mis, dan komt er één bericht, bijvoorbeeld <i>"🔴 CRITICAL: 5 servers tegelijk · waarschijnlijk: ze hangen allemaal aan Switch-zolder (UniFi)"</i>. <b>Hoe RzMon de oorzaak zoekt:</b> via je afhankelijkheden, via UniFi (welk access point of welke switch), via agents die allemaal tegelijk stil zijn en via je Proxmox-clusters.')) ?>
         </div>
 
         <div data-sk="sysinfo" class="card" id="sysinfo-card">
           <h2>ℹ️ <?= th('Systeeminfo') ?></h2>
-          <p class="muted small"><?= t('Meldingen van RzMon zelf (geen checks): per melding waar hij heen gaat. Tijdens <b>stille uren</b> gaat er niets naar buiten, maar komt hij wel op de meldingenpagina. Pushover: <i>stil</i> (zonder geluid) of <i>normaal</i>. Met 🧪 stuur je een voorbeeld naar de aangevinkte kanalen. Infomeldingen van checks stel je in bij de rij <i>Info (checks)</i> hierboven, of per check.') ?></p>
+          <?= xp(t('Meldingen over RzMon zelf (updates, certificaten, agents): per soort kies je waarheen.'), t('<b>Wat het is:</b> dit zijn meldingen die niet van een check komen, maar van RzMon zelf. Per soort kies je naar welke kanalen hij gaat. Bij Pushover kies je <i>stil</i> (zonder geluid) of <i>normaal</i>. Met 🧪 stuur je een voorbeeld naar de aangevinkte kanalen. <b>Goed om te weten:</b> tijdens de <b>stille uren</b> gaat er niets naar buiten, maar de melding staat wel op de meldingenpagina. Info-meldingen van checks stel je in bij de rij <i>Info (checks)</i>, of per check.')) ?>
           <div class="table-scroll"><table class="sysinfo-table" id="sysinfo"></table></div>
           <input type="hidden" name="sysinfo">
         </div>
@@ -672,7 +672,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
         <div data-sk="webhook" class="card">
           <h2><?= th('Home Assistant-webhook') ?></h2>
-          <p class="muted small"><?= t('Stuurt elke melding ook als JSON naar Home Assistant, zodat je er een automatisering op kunt starten: een lamp die rood kleurt, een TTS-melding, of een notificatie via de HA-app. Maak in HA een automatisering met trigger <b>Webhook</b> en plak de URL hieronder, bv. <code>http://homeassistant.local:8123/api/webhook/rzmon-…</code>') ?></p>
+          <?= xp(t('Elke melding ook naar Home Assistant, om er een automatisering mee te starten.'), t('<b>Wat het doet:</b> RzMon stuurt elke melding als JSON naar een webhook in Home Assistant. Daarmee start je een automatisering: een lamp die rood kleurt, een gesproken melding (TTS) of een bericht via de HA-app. <b>Instellen:</b> maak in Home Assistant een automatisering met als trigger <b>Webhook</b> en plak de URL hieronder, bijvoorbeeld <code>http://homeassistant.local:8123/api/webhook/rzmon-…</code>')) ?>
           <label class="switch"><input type="checkbox" name="ha_webhook_enabled"><span></span> <?= th('Webhook aan') ?></label>
           <label><?= th('Webhook-URL') ?><input name="ha_webhook_url" type="url" spellcheck="false" placeholder="http://homeassistant.local:8123/api/webhook/rzmon-geheim-id"></label>
           <p class="muted small"><?= t('Welke meldingen naar Home Assistant gaan, stel je in bij <b>🔔 Meldingen</b> (kolom Home Assistant).') ?></p>
@@ -682,7 +682,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
         <div data-sk="email" class="card">
           <h2>E-mail</h2>
-          <p class="muted small"><?= t('Meldingen ook per e-mail, of alleen als reserve wanneer Pushover niet werkt. Bij Gmail, Outlook en iCloud heb je een <b>app-wachtwoord</b> nodig (niet je gewone wachtwoord).') ?></p>
+          <?= xp(t('Meldingen per e-mail, altijd of alleen als reserve wanneer Pushover niet werkt.'), t('<b>Wat het doet:</b> RzMon stuurt meldingen ook als e-mail, via een mailserver (SMTP) die je hieronder invult. Kies <i>altijd</i> of <i>alleen als Pushover niet werkt</i>. <b>Goed om te weten:</b> bij Gmail, Outlook en iCloud heb je een <b>app-wachtwoord</b> nodig, niet je gewone wachtwoord. Met <i>Testmail sturen</i> controleer je meteen of het werkt.')) ?>
           <label class="switch"><input type="checkbox" name="email_enabled"><span></span> <?= th('E-mailmeldingen aan') ?></label>
           <label><?= th('Versturen') ?>
             <select name="email_mode">
@@ -717,7 +717,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
         <div data-sk="netlinks" class="card" id="netlinks-card">
           <h2>📡 <?= th('UniFi en AdGuard Home') ?></h2>
-          <p class="muted small"><?= t('Voor de <b>netwerkscan</b> (tabblad Netwerk): namen, wifi-netwerk en access point uit UniFi, namen en de domeinen per apparaat uit AdGuard Home, en een apparaat <b>weren</b> (van het wifi en/of geen DNS meer). Wachtwoorden en de API-sleutel gaan nooit terug naar de browser.') ?></p>
+          <?= xp(t('Namen en extra gegevens uit UniFi en AdGuard Home voor de netwerkscan.'), t('<b>Wat het doet:</b> de netwerkscan (tabblad Netwerk) haalt uit UniFi de namen, het wifi-netwerk en het access point van je apparaten, en uit AdGuard Home de namen en de domeinen die elk apparaat opzoekt. Je kunt een apparaat ook <b>weren</b>: van het wifi en/of geen DNS meer. <b>Goed om te weten:</b> wachtwoorden en de API-sleutel gaan nooit terug naar de browser.')) ?>
           <h3 class="set-sub">UniFi</h3>
           <div class="row2">
             <label><?= th('Adres van de controller') ?> <span class="hint"><?= th('(bv. https://192.168.2.1 of https://unifi:8443)') ?></span><input name="unifi_url" class="mono" placeholder="https://192.168.2.1"></label>
@@ -729,7 +729,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
           <label><?= th('of alleen een API-sleutel') ?> <span class="hint"><?= th('(Network 9 of nieuwer: alleen lezen, weren kan dan niet)') ?></span><input name="unifi_key" type="password" autocomplete="new-password" class="mono"></label>
           <label class="switch"><input type="checkbox" name="unifi_verify_ssl"><span></span> <?= th('Certificaat controleren') ?> <span class="hint"><?= th('(uit bij het eigen certificaat van UniFi)') ?></span></label>
-          <p class="muted small"><?= t('Maak in UniFi een <b>lokaal account</b> voor RzMon (<i>Admins &amp; Users → Add admin → Restrict to local access only</i>, rol met beheerrechten voor Network, zonder 2FA). Met alleen een API-sleutel (<i>Settings → Control Plane → Integrations</i>) kan RzMon lezen maar niet weren.') ?></p>
+          <?= xp(t('Gebruik een lokaal UniFi-account; met alleen een API-sleutel kan RzMon niet weren.'), t('<b>Instellen:</b> maak in UniFi een <b>lokaal account</b> voor RzMon (<i>Admins &amp; Users → Add admin → Restrict to local access only</i>), met beheerrechten voor Network en zonder 2FA. <b>Alleen een API-sleutel</b> (<i>Settings → Control Plane → Integrations</i>) kan ook: dan kan RzMon lezen, maar geen apparaten weren.')) ?>
           <h3 class="set-sub">AdGuard Home</h3>
           <label><?= th('Adressen') ?> <span class="hint"><?= th('(één per regel; gesynchroniseerde instanties allemaal invullen)') ?></span>
             <textarea name="adguard_urls" rows="2" class="mono" placeholder="http://192.168.2.203:3000&#10;http://192.168.2.204:3000"></textarea></label>
@@ -744,7 +744,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
         <div data-sk="mqtt" class="card">
           <h2><?= th('MQTT (Home Assistant)') ?></h2>
-          <p class="muted small"><?= t('RzMon meldt zich via <b>MQTT discovery</b> bij Home Assistant: elke server wordt een apparaat met sensoren voor de status en meetwaarden van zijn checks. Je hebt een MQTT-broker nodig, bv. de <i>Mosquitto broker</i>-add-on, en de MQTT-integratie in HA. Gebruik bij Mosquitto een HA-gebruiker (of een aparte gebruiker) als login.') ?></p>
+          <?= xp(t('Elke server als apparaat met sensoren in Home Assistant, via MQTT.'), t('<b>Wat het doet:</b> RzMon meldt zich via <b>MQTT discovery</b> bij Home Assistant. Elke server wordt een apparaat, met sensoren voor de status en de meetwaarden van zijn checks. Zo gebruik je ze in dashboards en automatiseringen. <b>Nodig:</b> een MQTT-broker (bijvoorbeeld de add-on <i>Mosquitto broker</i>) en de MQTT-integratie in Home Assistant. Log bij Mosquitto in met een HA-gebruiker of een aparte gebruiker.')) ?>
           <label class="switch"><input type="checkbox" name="mqtt_enabled"><span></span> <?= th('MQTT aan') ?></label>
           <div class="row3 smtp-row">
             <label><?= th('MQTT-server') ?><input name="mqtt_host" spellcheck="false" placeholder="homeassistant.local"></label>
@@ -771,7 +771,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
         <div data-sk="ids" class="card" id="ids-card">
           <h2>🛡️ <?= th('IDS: detectie') ?></h2>
-          <p class="muted small"><?= t('Intrusion detection via de agents: gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen en verbindingen, brute force en inbraak na brute force. Resultaten op de pagina <i>🛡️ IDS</i>; critical ook via Pushover (ook tijdens stille uren).') ?></p>
+          <?= xp(t('Inbraakdetectie op je servers via de agents.'), t('<b>Wat het is:</b> het IDS (intrusion detection system) let via de agents op tekenen van een inbraak: gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen en verbindingen, brute force en een inlog na brute force. <b>Waar je het ziet:</b> op de pagina <i>🛡️ IDS</i>. Critical gaat ook via Pushover, ook tijdens de stille uren. <b>Leren of blokkeren:</b> in <i>🎓 Leren</i> meldt het IDS alleen; in <i>⛔ Blokkeren</i> grijpt het ook in.')) ?>
           <div data-nodirty>
             <label class="switch"><input type="checkbox" id="ids-enabled"><span></span> <?= t('<b>IDS aan</b>') ?></label>
             <div class="mode-switch"><span id="ids-l-learn"><?= th('🎓 Leren') ?></span>
@@ -780,12 +780,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <p class="muted small" id="ids-mode-info"></p>
           </div>
           <label class="switch"><input type="checkbox" name="ids_modern"><span></span> <span><?= t('<b>Moderne weergave</b> van de pagina IDS (score, Nu aandacht nodig, serverkaarten, grafiek)') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= th('Uit: de compacte weergave van vóór 1.117.0, met de modus als tegel en de servers als regels.') ?></p>
+          <?= xp(t('Uit: de oudere, compacte weergave van de IDS-pagina.'), t('Aan: de IDS-pagina met een score, <i>Nu aandacht nodig</i>, serverkaarten en een grafiek. Uit: de compacte weergave van vóór 1.117.0, met de modus als tegel en de servers als regels.')) ?>
           <label class="af-motion-set"><span><?= t('<b>Beweging in de live Attack Flow</b> (IDS → Aanvalskaart)') ?></span>
             <input type="range" name="af_motion" min="0" max="2" step="1" list="af-motion-steps">
             <span class="af-motion-lbls small muted" aria-hidden="true"><span><?= th('Stil') ?></span><span><?= th('Rustig') ?></span><span><?= th('Vol') ?></span></span></label>
           <datalist id="af-motion-steps"><option value="0"></option><option value="1"></option><option value="2"></option></datalist>
-          <p class="muted small" style="margin-top:-.2rem"><?= th('Vol: bewegende deeltjes, flitsende schilden en een lopende band. Rustig: alles trager, zonder flitsen. Stil: geen beweging (handig voor een scherm dat de hele dag aanstaat). Staat "minder beweging" aan op je apparaat, dan is het altijd stil.') ?></p>
+          <?= xp(t('Hoeveel er beweegt in de live Attack Flow: stil, rustig of vol.'), t('<b>Vol:</b> bewegende deeltjes, flitsende schilden en een lopende band. <b>Rustig:</b> alles trager, zonder flitsen. <b>Stil:</b> geen beweging, handig voor een scherm dat de hele dag aanstaat. <b>Goed om te weten:</b> staat <i>minder beweging</i> aan op je apparaat, dan is het altijd stil.')) ?>
           <div class="row2">
             <label><?= th('Basismeting (uren)') ?> <span class="muted small"><?= th('eerst alleen vastleggen wat normaal is') ?></span><input type="number" name="ids_baseline_hours" min="0" max="720"></label>
             <label><?= th('Brute force bij … mislukte SSH-logins') ?><input type="number" name="ids_fail_count" min="2" max="1000"></label>
@@ -797,22 +797,22 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
           <p class="small"><b><?= th('Nooit blokkeren') ?></b>: <?= t('je LAN en RzMon zelf worden nooit automatisch geblokkeerd. Andere IP-adressen en netwerken zet je op de <a href="#ids/blk" data-goto="ids/blk">✅ whitelist</a>; die geldt voor RzMon én het IDS op al je servers.') ?></p>
           <label class="switch"><input type="checkbox" name="ids_block_shared"><span></span> <?= th('Automatische blokkades op alle servers') ?></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= th('Een aanvaller die op één server automatisch geblokkeerd wordt (brute force, honeypot), wordt meteen op al je servers met de IDS op blokkeren geblokkeerd. Met de hand blokkeren geldt alleen voor de server die je kiest.') ?></p>
+          <?= xp(t('Wordt een aanvaller op één server geblokkeerd, dan meteen op al je servers.'), t('Een aanvaller die op één server automatisch geblokkeerd wordt (brute force, honeypot), wordt meteen ook geblokkeerd op al je andere servers met het IDS op <i>Blokkeren</i>. <b>Goed om te weten:</b> met de hand blokkeren geldt alleen voor de server die je kiest.')) ?>
           <h3 class="set-sub"><?= th('🍯 Honeypot') ?></h3>
-          <p class="muted small" style="margin-top:-.2rem"><?= th('Alleen aanvallers gebruiken deze namen en deze poort. Eén poging is genoeg: van buiten meteen blokkeren (in de modus blokkeren), vanaf je eigen netwerk een critical-melding (waarschijnlijk een besmet apparaat). Namen die op een server echt bestaan, worden daar overgeslagen.') ?></p>
+          <?= xp(t('Lokaas: inlognamen en een poort die alleen aanvallers proberen.'), t('<b>Wat het is:</b> een honeypot is lokaas. Deze gebruikersnamen en deze poort gebruikt niemand behalve een aanvaller, dus één poging is genoeg. <b>Wat het doet:</b> komt de poging van buiten, dan blokkeert het IDS meteen (in de modus <i>Blokkeren</i>). Komt hij uit je eigen netwerk, dan krijg je een critical-melding: waarschijnlijk is daar een apparaat besmet. <b>Goed om te weten:</b> namen die op een server echt bestaan, worden daar overgeslagen.')) ?>
           <label><?= th('Honeypot-gebruikers') ?> <span class="muted small"><?= th('(gescheiden door spaties; vul gerust aan)') ?></span>
             <textarea name="ids_decoy_users" rows="2" class="mono"></textarea></label>
           <label><?= th('Honeypot-poort') ?> <span class="muted small"><?= th('(TCP; leeg = uit. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel)') ?></span>
             <input type="number" name="ids_decoy_port" min="1" max="65535" placeholder="2323"></label>
           <h3 class="set-sub"><?= th('📁 Bestanden bewaken') ?></h3>
-          <p class="muted small" style="margin-top:-.2rem"><?= t('De agent houdt van deze paden de SHA-256-hash, grootte, rechten en eigenaar bij en meldt nieuwe, gewijzigde en verwijderde bestanden (nooit de inhoud). Mappen worden helemaal doorzocht; met jokertekens kies je bestanden, bv. <code>/var/www/**/*.php</code>. Geldt voor alle servers; per server voeg je er paden aan toe via <i>✎ Bewerken</i>. Maximaal 20 paden en 10.000 bestanden per server.') ?></p>
+          <?= xp(t('Meldt nieuwe, gewijzigde en verwijderde bestanden in deze mappen.'), t('<b>Wat het doet:</b> de agent onthoudt van elk bestand in deze paden de vingerafdruk (SHA-256), grootte, rechten en eigenaar, en meldt nieuwe, gewijzigde en verwijderde bestanden. De inhoud gaat nooit naar RzMon. <b>Paden:</b> een map wordt helemaal doorzocht; met jokertekens kies je bestanden, bijvoorbeeld <code>/var/www/**/*.php</code>. Dit geldt voor alle servers; per server voeg je paden toe via <i>✎ Bewerken</i>. <b>Grenzen:</b> hooguit 20 paden en 10.000 bestanden per server.')) ?>
           <div id="fim-editor"></div>
           <input type="hidden" name="ids_fim">
           <label><?= th('Uitsluiten') ?> <span class="muted small"><?= t('(namen als <code>*.log</code>, mappen als <code>cache/</code>, of paden; gescheiden door spaties)') ?></span>
             <input name="ids_fim_exclude" class="mono" placeholder="*.log *.tmp cache/"></label>
           <h3 class="set-sub"><?= th('🔑 Toegang') ?></h3>
           <label class="switch"><input type="checkbox" name="auth_events"><span></span> <?= t('Toegang bijhouden: logins, <code>sudo</code> en <code>su</code>') ?></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Via de agent: inloggen via SSH en de console, <code>sudo</code> en <code>su</code>, ook mislukte pogingen (per IP-adres per uur opgeteld). Op de pagina <i>🛡️ IDS → Toegang</i>; er gaat geen melding uit. Werkt ook als het IDS uit staat. Op een server zelf uit te zetten met <code>AUTH_EVENTS=0</code>.') ?></p>
+          <?= xp(t('Houdt bij wie er inlogt (SSH, console, sudo, su), ook mislukte pogingen.'), t('<b>Wat het doet:</b> de agent houdt bij wie er inlogt via SSH en de console, en wie <code>sudo</code> en <code>su</code> gebruikt, ook mislukte pogingen (per IP-adres per uur opgeteld). <b>Waar je het ziet:</b> op <i>🛡️ IDS → Toegang</i>; er gaat geen melding uit. <b>Goed om te weten:</b> dit werkt ook als het IDS uit staat. Op een server zelf zet je het uit met <code>AUTH_EVENTS=0</code>.')) ?>
           <label><?= th('Negeren') ?> <span class="muted small"><?= th('(gebruikers en/of IP-adressen of netwerken, gescheiden door spaties)') ?></span>
             <textarea name="auth_ignore" rows="2" placeholder="<?= th('bv. ansible backup 192.168.2.5 10.0.0.0/8') ?>"></textarea></label>
           <h3 class="set-sub"><?= th('📬 Wekelijks overzicht') ?></h3>
@@ -821,13 +821,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Dag') ?><select name="ids_weekly_day"><?php foreach ([1 => 'maandag', 2 => 'dinsdag', 3 => 'woensdag', 4 => 'donderdag', 5 => 'vrijdag', 6 => 'zaterdag', 7 => 'zondag'] as $d => $n): ?><option value="<?= $d ?>"><?= th($n) ?></option><?php endforeach; ?></select></label>
             <label><?= th('Om') ?><input type="time" name="ids_weekly_time"></label>
           </div>
-          <p class="muted small" style="margin-top:-.2rem"><?= th('Geblokkeerde aanvallen, mislukte logins en de IP\'s met de meeste pogingen, honeypot, SSH-logins van buiten en de open incidenten van de afgelopen 7 dagen.') ?>
-            <button type="button" class="btn small-btn" id="ids-weekly-test"><?= th('Nu versturen') ?></button></p>
+          <?= xp(t('Een overzicht van de afgelopen week, op de dag en tijd die je kiest.'), t('Het weekoverzicht bevat: geblokkeerde aanvallen, mislukte logins en de IP-adressen met de meeste pogingen, de honeypot, SSH-logins van buiten en de open incidenten van de afgelopen 7 dagen. Met <i>Nu versturen</i> krijg je er meteen een.')) ?>
+          <p class="small"><button type="button" class="btn small-btn" id="ids-weekly-test"><?= th('Nu versturen') ?></button></p>
         </div>
 
         <div data-sk="ids_edr" class="card" id="ids-edr-card">
           <h2>🛡️ <?= th('Endpoint-bewaking') ?></h2>
-          <p class="muted small"><?= t('De agent (1.63.0) kijkt op het moment zelf mee: nieuwe <b>processen</b> (auditd), <b>verbindingen</b> en luisterpoorten, nieuwe <b>bestanden</b> in tijdelijke mappen en webmappen (inotify) en <b>containers</b>. RzMon toetst alles aan zijn eigen regels en aan de open <b>Sigma</b>-regels; een treffer wordt een incident, met het bewijs erbij. Alles staat ook op <i>🛡️ IDS → 🛰️ Live</i>. Per server aan/uit in de Agent Manager.') ?></p>
+          <?= xp(t('Kijkt live mee op je servers: processen, verbindingen, bestanden en containers.'), t('<b>Wat het is:</b> endpoint-bewaking (EDR). De agent (1.63.0 of nieuwer) ziet op het moment zelf nieuwe <b>processen</b> (auditd), <b>verbindingen</b> en luisterpoorten, nieuwe <b>bestanden</b> in tijdelijke mappen en webmappen (inotify) en <b>containers</b>. <b>Wat het doet:</b> RzMon toetst alles aan zijn eigen regels en aan de open <b>Sigma</b>-regels. Een treffer wordt een incident, met het bewijs erbij. <b>Waar je het ziet:</b> op <i>🛡️ IDS → 🛰️ Live</i>. Per server zet je het aan of uit in de Agent Manager.')) ?>
           <label class="switch"><input type="checkbox" name="edr_on"><span></span> <?= t('<b>Endpoint-bewaking aan</b> (op de servers waar het in de Agent Manager aan staat)') ?></label>
           <label class="switch"><input type="checkbox" name="edr_sigma"><span></span> <?= t('<b>Sigma-regels</b> van SigmaHQ gebruiken (naast de eigen regels van RzMon)') ?></label>
           <label class="switch"><input type="checkbox" name="edr_web"><span></span> <?= t('<b>Payload-inspectie</b> van verdachte webverzoeken (SWAG): SQL-injectie, XSS, Log4Shell, bekende exploits met CVE …') ?></label>
@@ -835,7 +835,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label class="switch"><input type="checkbox" name="edr_kill"><span></span> <?= t('<b>Proces stoppen</b> bij een regel die dat zegt (webshell, reverse shell, cryptominer …)') ?></label>
           <label class="switch"><input type="checkbox" name="edr_block"><span></span> <?= t('<b>IP blokkeren</b> bij een webaanval met een herkende payload') ?></label>
           <label class="switch"><input type="checkbox" name="edr_isolate"><span></span> <?= t('<b>Server isoleren</b> (24 uur) bij een reverse shell of cryptominer: alleen RzMon en je LAN kunnen er dan nog bij') ?></label>
-          <p class="muted small"><?= th('Wat RzMon zelf doet, staat altijd in het incident en gaat als critical ook naar Pushover. In de modus 🎓 Leren grijpt RzMon nooit in, maar meldt het wel.') ?></p>
+          <?= xp(t('Wat RzMon bij een treffer doet, staat altijd in het incident.'), t('Wat RzMon zelf doet (bijvoorbeeld een proces stoppen of een IP blokkeren), staat altijd in het incident en gaat als critical ook naar Pushover. <b>Goed om te weten:</b> in de modus <i>🎓 Leren</i> grijpt RzMon nooit in, maar meldt het wel.')) ?>
           <h3 class="set-sub"><?= th('🧬 Afwijkingen en ketens') ?></h3>
           <label class="switch"><input type="checkbox" name="edr_anom"><span></span> <?= t('<b>Afwijkingen melden</b> (RzMon leert per server wat normaal is)') ?></label>
           <div class="row">
@@ -845,19 +845,19 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label class="switch"><input type="checkbox" name="edr_chain"><span></span> <?= t('<b>Ketens melden</b> (combinaties die samen op een aanval wijzen)') ?></label>
           <label><?= th('Venster voor een keten (minuten)') ?> <input name="edr_chain_min" type="number" min="5" max="1440"></label>
           <label class="switch"><input type="checkbox" name="edr_chain_act"><span></span> <?= t('<b>Ingrijpen bij een keten</b> (aanvaller blokkeren; isoleren bij webshell of malware)') ?></label>
-          <p class="muted small"><?= t('Een afwijking is iets wat de server in de leerperiode nooit deed; boven de score wordt het een incident (warning). Een keten is een combinatie, zoals webaanval → webshell, inloggen → achterdeur of binnenhalen → contact naar buiten; die is critical en gaat naar Pushover. Ingrijpen gebeurt alleen in de modus ⛔ Blokkeren. Alles staat op <i>🛡️ IDS → 🧬 Afwijkingen</i> en <i>🧭 MITRE</i>.') ?></p>
+          <?= xp(t('Afwijkingen (iets nieuws) en ketens (een combinatie die op een aanval lijkt).'), t('<b>Afwijking:</b> iets wat de server in de leerperiode nooit deed. Boven de ingestelde score wordt het een incident (warning). <b>Keten:</b> een combinatie die op een aanval lijkt, zoals webaanval → webshell, inloggen → achterdeur, of iets binnenhalen → contact naar buiten. Een keten is critical en gaat naar Pushover. <b>Goed om te weten:</b> ingrijpen gebeurt alleen in de modus <i>⛔ Blokkeren</i>. Alles staat op <i>🛡️ IDS → 🧬 Afwijkingen</i> en <i>🧭 MITRE</i>.')) ?>
         </div>
 
         <div data-sk="ids_ti" class="card" id="ids-ti-card">
           <h2>🌐 <?= th('Dreigingsinformatie') ?></h2>
-          <p class="muted small"><?= t('RzMon vraagt na wat er op internet bekend is over de IP-adressen en bestanden uit je incidenten: is dit een bekende aanvaller, een onschuldige scanner, een Tor-uitgang, bekende malware? Dat staat dan bij het incident en bij het IP-adres, en RzMon handelt ernaar. Er gaat alleen het IP-adres of de hash van een bestand naar buiten, nooit namen van servers of gebruikers. Werkt alleen als het IDS aan staat.') ?></p>
+          <?= xp(t('Zoekt op of een IP-adres of bestand uit je incidenten al bekend is als gevaarlijk.'), t('<b>Wat het doet:</b> RzMon zoekt op wat er op internet bekend is over de IP-adressen en bestanden uit je incidenten: een bekende aanvaller, een onschuldige scanner, een Tor-uitgang, bekende malware? Dat staat dan bij het incident en bij het IP-adres, en RzMon handelt ernaar. <b>Privacy:</b> alleen het IP-adres of de vingerafdruk (hash) van een bestand gaat naar buiten, nooit namen van servers of gebruikers. <b>Goed om te weten:</b> werkt alleen als het IDS aan staat.')) ?>
           <label class="switch"><input type="checkbox" name="ti_on"><span></span> <?= t('<b>Dreigingsinformatie aan</b>') ?></label>
           <h3 class="set-sub">AbuseIPDB</h3>
           <label><?= th('API-sleutel') ?> <span class="hint"><?= t('(gratis: <a href="https://www.abuseipdb.com/account/api" target="_blank" rel="noopener">abuseipdb.com → Account → API</a>; 1.000 opzoekingen per dag)') ?></span>
             <input name="ti_abuseipdb_key" type="password" autocomplete="new-password" class="mono" placeholder="<?= th('plak hier je sleutel') ?>"></label>
           <p class="small"><button type="button" class="btn small-btn" data-ti-test="abuse"><?= th('Sleutel testen') ?></button> <span class="muted" data-ti-res="abuse"></span></p>
           <label class="switch"><input type="checkbox" name="ti_report"><span></span> <?= t('<b>Melden</b> bij AbuseIPDB wie RzMon automatisch blokkeert (brute force, webaanval, honeypot; hooguit één keer per dag per IP)') ?></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= th('Dan gaan het IP-adres, de soort aanval en de tekst "RzMon IDS" naar AbuseIPDB, zodat anderen die aanvaller ook kunnen weren. Nooit adressen uit je eigen netwerk of van de whitelist.') ?></p>
+          <?= xp(t('Meldt aanvallers terug aan AbuseIPDB, zodat anderen ze ook kunnen weren.'), t('Het IP-adres, de soort aanval en de tekst "RzMon IDS" gaan naar AbuseIPDB, zodat anderen die aanvaller ook kunnen weren. <b>Goed om te weten:</b> adressen uit je eigen netwerk of van de whitelist worden nooit gemeld.')) ?>
           <h3 class="set-sub"><?= th('Andere bronnen (gratis)') ?></h3>
           <label class="switch"><input type="checkbox" name="ti_greynoise"><span></span> <?= t('<b>GreyNoise</b> (scant dit IP het hele internet, is het een bekende dienst zoals Google of Shodan, of kwaadaardig)') ?></label>
           <label><?= th('GreyNoise-sleutel') ?> <span class="hint"><?= th('(niet nodig; zonder sleutel ongeveer 50 per dag)') ?></span><input name="ti_greynoise_key" type="password" autocomplete="new-password" class="mono"></label>
@@ -885,7 +885,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label class="switch"><input type="checkbox" name="edr_yara"><span></span> <?= t('<b>YARA</b> (regels van RzMon naar de agents sturen: nieuwe bestanden op webshells, miners, botnets en rootkits controleren; YARA moet op de server staan)') ?></label>
           <p class="muted small" id="ti-status"></p>
           <p class="small"><button type="button" class="btn small-btn" id="ti-lists"><?= th('Lijsten nu bijwerken') ?></button></p>
-          <p class="muted small"><?= t('Bronnen: AbuseIPDB, GreyNoise Community, Shodan InternetDB, CIRCL hashlookup, abuse.ch (Feodo Tracker, URLhaus, ThreatFox, MalwareBazaar), Tor Project. Opzoeken gaat op de achtergrond (cron), met een cache van een dag en een limiet per dag.') ?></p>
+          <?= xp(t('Welke bronnen RzMon gebruikt en hoe vaak hij opzoekt.'), t('<b>Bronnen:</b> AbuseIPDB, GreyNoise Community, Shodan InternetDB, CIRCL hashlookup, abuse.ch (Feodo Tracker, URLhaus, ThreatFox, MalwareBazaar) en het Tor Project. <b>Hoe:</b> opzoeken gebeurt op de achtergrond (cron), met een cache van een dag en een limiet per dag, zodat je binnen de gratis grenzen blijft.')) ?>
         </div>
 
         <div data-sk="ids_attack" class="card" id="ids-attack-card">
@@ -893,20 +893,20 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <p class="muted small"><?= t('Werkt alleen als het IDS aan staat (<a href="#settings/ids" data-goto="settings/ids">IDS: detectie</a>).') ?></p>
           <h3 class="set-sub"><?= th('☠️ Bekende aanvallers en land') ?></h3>
           <label class="switch"><input type="checkbox" name="ids_blocklists"><span></span> <?= th('Bekende aanvallers (Spamhaus DROP en FireHOL level 1, dagelijks bijgewerkt)') ?></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= th('In de modus blokkeren zetten de agents deze adressen vooraf in hun firewall; in de modus leren krijgen logins en incidenten van zo\'n adres het label ☠️. Je eigen netwerk staat er nooit in.') ?></p>
+          <?= xp(t('Lijsten met bekende aanvallers, die de agents vooraf al tegenhouden.'), t('In de modus <i>Blokkeren</i> zetten de agents de adressen van deze lijsten vooraf in hun firewall, zodat een bekende aanvaller niet eens een poging kan doen. In de modus <i>Leren</i> krijgen logins en incidenten van zo\'n adres het label ☠️. <b>Goed om te weten:</b> je eigen netwerk staat er nooit in.')) ?>
           <label class="switch"><input type="checkbox" name="ids_geo"><span></span> <?= th('Land per IP-adres (DB-IP Lite, maandelijks bijgewerkt)') ?></label>
           <label><?= th('Normale landen') ?> <span class="muted small"><?= th('(landcodes, bv. NL BE DE; een SSH-login van buiten vanuit een ander land is critical)') ?></span>
             <input name="ids_geo_allowed" class="mono" placeholder="NL"></label>
           <p class="muted small" id="ipintel-status"></p>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('IP-landgegevens: <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a> (CC BY 4.0). Opzoeken gebeurt op de RzMon-server zelf; er gaat per login niets naar buiten.') ?>
-            <button type="button" class="btn small-btn" id="ipintel-update"><?= th('Nu bijwerken') ?></button></p>
+          <?= xp(t('Uit welk land een IP-adres komt, opgezocht op de RzMon-server zelf.'), t('<b>Bron:</b> <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a> (CC BY 4.0), elke maand bijgewerkt. <b>Privacy:</b> opzoeken gebeurt op de RzMon-server zelf; er gaat per login niets naar buiten. Met <i>Nu bijwerken</i> haal je de nieuwste lijst meteen op.')) ?>
+          <p class="small"><button type="button" class="btn small-btn" id="ipintel-update"><?= th('Nu bijwerken') ?></button></p>
           <h3 class="set-sub"><?= th('🌐 Uitgaande verbindingen') ?> <span class="muted small"><?= th('(agent 1.56.0)') ?></span></h3>
           <label class="switch"><input type="checkbox" name="ids_outbound"><span></span> <span><?= t('Melden als een server verbinding maakt met een <b>bekende aanvaller</b> (critical)') ?></span></label>
           <label class="switch"><input type="checkbox" name="ids_outbound_country"><span></span> <span><?= t('…en met een land buiten je <b>normale landen</b> (warning, per programma aan te leren)') ?></span></label>
           <label class="switch"><input type="checkbox" name="ids_outbound_block"><span></span> <span><?= t('In de modus blokkeren uitgaand verkeer naar bekende aanvallers <b>blokkeren</b> (ook vanuit containers)') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Zo valt een server op die al besmet is: een cryptominer of een verbinding met de aanvaller. In de eerste uren (de basismeting) leert de IDS welke landen normaal zijn. Vrijgeven: bij het incident <b>✅ Vrijgeven</b> zet het IP op de whitelist (1, 7, 30 dagen of altijd), of <b>Dit is normaal</b> voor dat programma en land.') ?></p>
+          <?= xp(t('Meldt verbindingen van je servers naar ongewone landen of bekende aanvallers.'), t('<b>Waarom:</b> zo valt een server op die al besmet is, bijvoorbeeld door een cryptominer of een verbinding met de aanvaller. <b>Hoe:</b> in de eerste uren (de basismeting) leert het IDS welke landen normaal zijn. <b>Vrijgeven:</b> klik bij het incident op <b>✅ Vrijgeven</b> om het IP op de whitelist te zetten (1, 7, 30 dagen of altijd), of op <b>Dit is normaal</b> voor dat programma en land.')) ?>
           <h3 class="set-sub"><?= th('📜 Logs van webdiensten') ?> <span class="muted small"><?= th('(agent 1.58.0)') ?></span></h3>
-          <p class="muted small" style="margin-top:-.2rem"><?= t('De agent leest elke minuut de nieuwe regels en vat ze per IP samen; RzMon herkent aanvallen. Waar staan de logs? Leeg of <code>auto</code> = zelf zoeken (de container van SWAG, gangbare mappen; in Home Assistant via de Supervisor). Je eigen netwerk en de whitelist tellen nooit.') ?></p>
+          <?= xp(t('Herkent aanvallen in de logs van je webdiensten, zoals SWAG en Home Assistant.'), t('<b>Wat het doet:</b> de agent leest elke minuut de nieuwe regels uit de logs en vat ze per IP samen; RzMon herkent daarin aanvallen. <b>Waar staan de logs?</b> Leeg of <code>auto</code> = zelf zoeken (de container van SWAG, gangbare mappen; in Home Assistant via de Supervisor). <b>Goed om te weten:</b> je eigen netwerk en de whitelist tellen nooit mee.')) ?>
           <div class="row3">
             <label class="switch"><input type="checkbox" name="weblog_swag"><span></span> <span><b>SWAG</b> (nginx)</span></label>
             <label class="switch"><input type="checkbox" name="weblog_ha"><span></span> <span><b>Home Assistant</b></span></label>
@@ -927,7 +927,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div class="lock-row"><?= t('<b>Home Assistant</b>: mislukte logins vanaf') ?> <input type="number" name="wl_ha_n" min="2" max="1000" class="num-in"> · <?= t('<b>Vaultwarden</b> vanaf') ?> <input type="number" name="wl_vw_n" min="2" max="1000" class="num-in"></div>
           <div class="lock-row"><?= th('…binnen (minuten)') ?> <input type="number" name="wl_minutes" min="1" max="1440" class="num-in"></div>
           <label class="switch"><input type="checkbox" name="weblog_block"><span></span> <span><?= t('In de modus blokkeren zo\'n IP ook <b>blokkeren</b> (op al je servers, via <i>Automatische blokkades op alle servers</i>)') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Deblokkeren kan altijd bij <i>Blokkades en whitelist</i>. SWAG in Docker: de agent blokkeert vóór Docker (prerouting), dus ook verkeer naar de container wordt tegengehouden.') ?></p>
+          <?= xp(t('Deblokkeren kan altijd; ook verkeer naar Docker-containers wordt tegengehouden.'), t('Deblokkeren kan altijd bij <i>IDS → Blokkades en whitelist</i>. <b>SWAG in Docker:</b> de agent blokkeert vóór Docker (prerouting), dus ook verkeer naar de container wordt tegengehouden.')) ?>
         </div>
 
         <div data-sk="ids_servers" class="card" id="ids-servers-card">
@@ -936,17 +936,17 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <h3 class="set-sub"><?= th('🕸️ Webshell en persistentie') ?> <span class="muted small"><?= th('(agent 1.56.0)') ?></span></h3>
           <label class="switch"><input type="checkbox" name="ids_webshell"><span></span> <span><?= t('<b>Webshell</b>: een webserver (nginx, apache, php-fpm …) start een shell of een programma als <code>curl</code>, <code>wget</code> of <code>python</code>') ?></span></label>
           <label class="switch"><input type="checkbox" name="ids_webshell_kill"><span></span> <span><?= t('In de modus blokkeren dat <b>proces meteen stoppen</b>') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Critical, ook naar Pushover. Is het toch normaal (bv. een beheerpaneel dat scripts start)? Klik bij het incident <b>✅ Vrijgeven</b>: dan wordt het voortaan niet meer gemeld of gestopt. PHP-mail via <code>sendmail</code> telt niet.') ?></p>
+          <?= xp(t('Een webserver die opdrachten uitvoert is critical; vrijgeven kan bij het incident.'), t('Dit is altijd critical en gaat ook naar Pushover. <b>Toch normaal?</b> Bijvoorbeeld een beheerpaneel dat scripts start: klik bij het incident op <b>✅ Vrijgeven</b>, dan wordt het voortaan niet meer gemeld of gestopt. <b>Goed om te weten:</b> PHP-mail via <code>sendmail</code> telt niet.')) ?>
           <label class="switch"><input type="checkbox" name="ids_persist"><span></span> <span><?= t('<b>Nieuwe automatisch startende dienst of timer</b> (systemd)') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= th('Zo blijft een aanvaller na een herstart aanwezig. Tijdens een pakketupdate niet gemeld; nieuwe cronjobs en unit-bestanden ziet de IDS al bij de bestanden.') ?></p>
+          <?= xp(t('Meldt nieuwe manieren waarop iets na een herstart vanzelf weer start.'), t('<b>Waarom:</b> zo blijft een aanvaller na een herstart aanwezig (persistentie), bijvoorbeeld met een nieuwe dienst, cronjob of opstartregel. <b>Goed om te weten:</b> tijdens een pakketupdate wordt dit niet gemeld. Nieuwe cronjobs en unit-bestanden ziet het IDS al bij de bestanden.')) ?>
           <h3 class="set-sub"><?= th('🧰 Hardening') ?> <span class="muted small"><?= th('(agent 1.57.0)') ?></span></h3>
           <label class="switch"><input type="checkbox" name="ids_harden"><span></span> <span><?= t('<b>Hardening-score</b> per server, met een incident als iets slechter wordt') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= th('Elk uur: SSH met wachtwoord of als root, firewall, automatische updates, open databases, de Docker-socket, accounts zonder wachtwoord, sudo zonder wachtwoord, /tmp en SELinux. Klik op de score bij een server (IDS) voor uitleg en hoe je het dichtzet; daar zit ook isoleren en een gebruiker vergrendelen.') ?></p>
+          <?= xp(t('Elk uur een veiligheidsscore per server, met uitleg hoe je het dichtzet.'), t('<b>Wat het doet:</b> de agent controleert elk uur de basisbeveiliging: SSH met wachtwoord of als root, de firewall, automatische updates, open databases, de Docker-socket, accounts zonder wachtwoord, sudo zonder wachtwoord, /tmp en SELinux. <b>Waar je het ziet:</b> klik op de score bij een server (IDS) voor uitleg en hoe je het dichtzet; daar kun je een server ook isoleren of een gebruiker vergrendelen.')) ?>
         </div>
 
         <div data-sk="vulns" class="card" id="vulns-card">
           <h2>🐞 <?= th('Kwetsbaarheden') ?></h2>
-          <p class="muted small"><?= t('De agents (1.47.0 of nieuwer) sturen hun softwarelijst mee; voor de RzMon-server leest RzMon hem zelf. RzMon zoekt daar de bekende kwetsbaarheden (CVE\'s) bij op <b>OSV.dev</b>, met de adviezen van de distributie zelf, plus <i>actief misbruikt</i> (CISA) en de kans op misbruik (EPSS). Naar OSV.dev gaan alleen pakketnamen, versies en de distributie, geen servernamen of IP-adressen. Ondersteund: Debian, Ubuntu, Rocky Linux, AlmaLinux (en RHEL/CentOS via AlmaLinux) en Alpine.') ?></p>
+          <?= xp(t('Zoekt bekende lekken (CVE\'s) in de software op je servers.'), t('<b>Wat het doet:</b> de agents (1.47.0 of nieuwer) sturen hun softwarelijst mee; voor de RzMon-server leest RzMon die zelf. RzMon zoekt daar de bekende kwetsbaarheden (CVE\'s) bij op <b>OSV.dev</b>, met de adviezen van de distributie zelf. Erbij staat of een lek <i>actief misbruikt</i> wordt (lijst van CISA) en hoe groot de kans op misbruik is (EPSS). <b>Privacy:</b> naar OSV.dev gaan alleen pakketnamen, versies en de distributie, geen servernamen of IP-adressen. <b>Ondersteund:</b> Debian, Ubuntu, Rocky Linux, AlmaLinux (en RHEL/CentOS via AlmaLinux) en Alpine.')) ?>
           <div data-nodirty><label class="switch"><input type="checkbox" id="vuln-enabled"><span></span> <?= t('<b>Kwetsbaarheden aan</b> (tabblad 🐞 Kwetsbaarheden)') ?></label></div>
           <div class="row2">
             <label><?= th('Dagelijks scannen om') ?><input type="time" name="vuln_time"></label>
@@ -955,13 +955,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
           <input type="hidden" name="vuln_exclude">
           <div class="vuln-exclude"><span class="muted small"><?= th('Niet scannen:') ?></span> <span id="vuln-exclude-list"></span></div>
-          <p class="muted small"><?= t('Nodig: uitgaand HTTPS naar <code>api.osv.dev</code>, <code>www.cisa.gov</code>, <code>api.first.org</code> en <code>services.nvd.nist.gov</code>. Een ℹ️ info-melding bij een nieuwe critical of actief misbruikte kwetsbaarheid volgt de rij Info bij 🔔 Meldingen. Bijwerken via de agent kan als commando\'s als root aan staan voor die server; anders krijg je het commando om zelf uit te voeren.') ?></p>
+          <?= xp(t('Wat er nodig is, wanneer je een melding krijgt en hoe bijwerken werkt.'), t('<b>Nodig:</b> uitgaand HTTPS naar <code>api.osv.dev</code>, <code>www.cisa.gov</code>, <code>api.first.org</code> en <code>services.nvd.nist.gov</code>. <b>Meldingen:</b> een ℹ️ info-melding bij een nieuwe critical of actief misbruikte kwetsbaarheid volgt de rij <i>Info</i> bij Meldingen. <b>Bijwerken:</b> via de agent kan dat als commando\'s als root aan staan voor die server; anders krijg je het commando om zelf uit te voeren.')) ?>
           <div class="btn-row"><button type="button" class="btn" id="vuln-scan-now">🔍 <?= th('Nu scannen') ?></button> <span class="muted small" id="vuln-scan-info"></span></div>
         </div>
 
         <div data-sk="netscan" class="card" id="netscan-card">
           <h2>🔎 <?= th('Netwerkscan') ?></h2>
-          <p class="muted small"><?= t('RzMon zoekt wat er op je <b>lokale netwerken</b> zit (<i>Toegang → Lokale netwerken</i>): elk apparaat met IP-adres, MAC-adres, fabrikant, naam, open poorten en een gok wat voor apparaat het is. Je ziet ze op het tabblad <b>Netwerk</b>, waar je ze een naam geeft, als bekend markeert, negeert of met één klik aan RzMon toevoegt. Alleen privé-netwerken tot /22; nooit internet.') ?></p>
+          <?= xp(t('Zoekt alle apparaten in je thuisnetwerk, met open poorten en fabrikant.'), t('<b>Wat het doet:</b> RzMon zoekt wat er op je <b>lokale netwerken</b> zit (<i>Inloggen → Lokale netwerken</i>): elk apparaat met IP-adres, MAC-adres, fabrikant, naam, open poorten en een gok wat voor apparaat het is. <b>Waar je het ziet:</b> op het tabblad <b>Netwerk</b>. Daar geef je een apparaat een naam, markeer je het als bekend, negeer je het of voeg je het met één klik toe aan RzMon. <b>Goed om te weten:</b> alleen privé-netwerken tot /22; nooit internet.')) ?>
           <label class="switch"><input type="checkbox" name="net_scan"><span></span> <?= t('<b>Netwerkscan aan</b> (tabblad Netwerk)') ?></label>
           <div class="row2">
             <label><?= th('Snelle ronde (ping en ARP) elke') ?>
@@ -970,12 +970,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
               <select name="net_deep_per_day"><option value="1"><?= th('1× per dag') ?></option><option value="2"><?= th('2× per dag') ?></option><option value="4"><?= th('4× per dag') ?></option><option value="6"><?= th('6× per dag') ?></option><option value="12"><?= th('12× per dag') ?></option></select></label>
           </div>
           <div id="netscan-nets" class="small"></div>
-          <p class="muted small"><?= t('Een nieuw apparaat geeft een ℹ️-melding <i>Nieuw apparaat op je netwerk</i> (standaard alleen op de meldingenpagina; kanalen bij <i>Meldingen → Systeeminfo</i>). De eerste scan is de basismeting: die geeft geen meldingen. Met <code>fping</code> en <code>avahi-browse</code> (pakket <code>avahi-tools</code> of <code>avahi-utils</code>) op de RzMon-server gaat het sneller en herkent RzMon meer, maar nodig zijn ze niet. De fabrikant komt uit de lijst van Wireshark (maandelijks bijgewerkt, uitgaand HTTPS naar <code>www.wireshark.org</code>).') ?></p>
+          <?= xp(t('Een nieuw apparaat geeft een melding; extra programma\'s maken de scan sneller.'), t('<b>Meldingen:</b> een nieuw apparaat geeft een ℹ️-melding <i>Nieuw apparaat op je netwerk</i>, standaard alleen op de meldingenpagina (kanalen bij <i>Meldingen → Systeemmeldingen</i>). De eerste scan is de basismeting en geeft geen meldingen. <b>Sneller:</b> met <code>fping</code> en <code>avahi-browse</code> (pakket <code>avahi-tools</code> of <code>avahi-utils</code>) op de RzMon-server gaat het sneller en herkent RzMon meer, maar nodig zijn ze niet. <b>Fabrikant:</b> uit de lijst van Wireshark, maandelijks bijgewerkt (uitgaand HTTPS naar <code>www.wireshark.org</code>).')) ?>
         </div>
 
         <div data-sk="internet" class="card" id="internet-card">
           <h2>🌍 <?= th('Internet') ?></h2>
-          <p class="muted small"><?= t('Bewaakt je internetlijn vanaf de server van RzMon: <b>ping</b> (1.1.1.1, 8.8.8.8 en je router, elke minuut), <b>responstijd</b> (google.com en cloudflare.com, elke 5 minuten) en de <b>snelheid</b> (download en upload via speed.cloudflare.com, op de tijden hieronder).') ?></p>
+          <?= xp(t('Bewaakt je internetlijn: ping, responstijd en snelheid.'), t('<b>Wat het doet:</b> RzMon bewaakt je internetlijn vanaf zijn eigen server. <b>Ping:</b> naar 1.1.1.1, 8.8.8.8 en je router, elke minuut. <b>Responstijd:</b> naar google.com en cloudflare.com, elke 5 minuten. <b>Snelheid:</b> download en upload via speed.cloudflare.com, op de tijden hieronder.')) ?>
           <div id="inet-state"><p class="muted"><?= th('Laden…') ?></p></div>
           <h3 class="small" style="margin:1rem 0 .3rem"><?= th('Abonnement en drempels') ?></h3>
           <div class="row2">
@@ -991,24 +991,24 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Tijden') ?> <span class="hint"><?= th("(UU:MM, gescheiden door komma's)") ?></span><input name="inet_times" placeholder="03:30,09:30,13:30,17:30"></label>
             <label><?= th('Hooguit per richting (MB)') ?><input type="number" name="inet_speed_mb" min="10" max="2000" step="10"></label>
           </div>
-          <p class="muted small"><?= t('Elke test trekt je lijn een paar seconden vol; plan hem dus niet op de avond. Een test stopt na 10 seconden of na het aantal MB hierboven per richting (bij 1 Gbit/s ongeveer 2× 250 MB). Ping en responstijd leren mee met de slimme drempels; de snelheid vergelijkt RzMon met je abonnement.') ?></p>
+          <?= xp(t('Een snelheidstest belast je lijn even; plan hem dus niet op drukke momenten.'), t('Elke test trekt je lijn een paar seconden vol; plan hem dus niet in de avond. Een test stopt na 10 seconden of na het aantal MB hierboven per richting (bij 1 Gbit/s ongeveer 2× 250 MB). <b>Goed om te weten:</b> ping en responstijd leren mee met de slimme drempels; de snelheid vergelijkt RzMon met je abonnement.')) ?>
         </div>
 
         <div data-sk="smart" class="card" id="smart-card">
           <h2>🧠 <?= th('Slimme drempels') ?></h2>
-          <p class="muted small"><?= t('RzMon leert per check wat normaal is, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en zet daar de drempels op. Na 7 dagen gegevens; daarna stelt hij ze elke nacht bij, hooguit 10% per nacht. Elke aanpassing staat in het <i>Wijzigingslogboek</i> en is terug te draaien. Werkt bij ping, TCP, HTTP, CPU, RAM, SNMP (CPU, geheugen, interface, load, temperatuur, UPS, UniFi), containers (CPU of RAM als losse check), DNS, NTP en MySQL; disks houden vaste drempels met de voorspelling.') ?></p>
+          <?= xp(t('RzMon leert wat normaal is per check en zet de drempels daar zelf op.'), t('<b>Wat het doet:</b> RzMon leert per check wat normaal is, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en zet de drempels daarop. Dat begint na 7 dagen gegevens; daarna stelt RzMon ze elke nacht bij, hooguit 10% per nacht. <b>Terugdraaien:</b> elke aanpassing staat in het <i>Wijzigingslogboek</i>. <b>Werkt bij:</b> ping, TCP, HTTP, CPU, RAM, SNMP (CPU, geheugen, interface, load, temperatuur, UPS, UniFi), containers (CPU of RAM als losse check), DNS, NTP en MySQL. Disks houden vaste drempels, met de voorspelling wanneer ze vol raken.')) ?>
           <div class="row2">
             <label><?= th('Nieuwe checks') ?>
               <select name="thresh_default"><option value="guard">🧠🛡️ <?= th('Slim met vangnet') ?></option><option value="smart">🧠 <?= th('Slim') ?></option><option value="manual">✋ <?= th('Handmatig') ?></option></select></label>
             <label><?= th('Gevoeligheid') ?>
               <select name="smart_sens"><option value="calm"><?= th('rustig') ?></option><option value="normal"><?= th('normaal') ?></option><option value="sharp"><?= th('scherp') ?></option></select></label>
           </div>
-          <p class="muted small"><?= t('<b>Slim met vangnet</b>: geleerd, maar vanaf een harde grens altijd CRITICAL (bv. RAM 98%). <b>Rustig</b> geeft minder meldingen, <b>scherp</b> ziet een afwijking eerder. Per check aan te passen (✎). Stijgt de normaalwaarde van een check sluipend (een lek?), dan krijg je een ℹ️-melding en schuiven de drempels niet mee omhoog.') ?></p>
+          <?= xp(t('Slim met vangnet, rustig of scherp: hoe gevoelig de slimme drempels zijn.'), t('<b>Slim met vangnet:</b> geleerd, maar vanaf een harde grens altijd CRITICAL (bijvoorbeeld RAM 98%). <b>Rustig</b> geeft minder meldingen, <b>scherp</b> ziet een afwijking eerder. Per check aan te passen (✎). <b>Sluipende stijging:</b> stijgt de normaalwaarde van een check langzaam (een lek?), dan krijg je een ℹ️-melding en schuiven de drempels niet mee omhoog.')) ?>
           <label class="switch"><input type="checkbox" name="smart_auto"><span></span> <span><?= t('<b>Zelf omzetten</b>: een handmatige check gaat na 7 dagen leren vanzelf naar <i>slim met vangnet</i> als dat minstens 2 dagen minder warnings had gegeven') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Eén keer per check, met een ℹ️-melding (<i>Meldingen → Systeemmeldingen → Drempels zelf aangepast</i>) en een regel in het <i>Wijzigingslogboek</i>. Zet je hem daar terug, dan blijft de check handmatig.') ?></p>
+          <?= xp(t('Gebeurt één keer per check, met een melding en terug te draaien.'), t('Eén keer per check, met een ℹ️-melding (<i>Meldingen → Systeemmeldingen → Drempels zelf aangepast</i>) en een regel in het <i>Wijzigingslogboek</i>. Zet je hem daar terug, dan blijft de check handmatig.')) ?>
           <h3 class="small" style="margin:1rem 0 .3rem"><?= th('Voorstel voor bestaande checks') ?></h3>
-          <p class="muted small" style="margin-top:0"><?= t('Bestaande checks blijven handmatig tot je ze omzet. RzMon leert ook voor die checks en rekent na: <b>op hoeveel van de afgelopen dagen was er een warning geweest</b>, met de drempels van nu en met slimme drempels. Een dag telt net als een echte melding: pas als er zoveel metingen <b>achter elkaar</b> te hoog waren als de check vraagt (<i>melden na N</i>).') ?></p>
-          <p class="muted small"><?= t('<b>Minder dagen met slim</b> = minder onnodige meldingen: die checks staan al aangevinkt. <b>Grijs</b> = slim levert daar niets op; de reden staat erachter. <b>Grillig</b> = de check piekt bijna elke dag even (bv. de webinterface van een camera); daar helpt <i>melden na 3</i> meer dan slimme drempels.') ?></p>
+          <?= xp(t('Voor bestaande checks rekent RzMon uit hoeveel meldingen slim had gescheeld.'), t('Bestaande checks blijven handmatig tot je ze omzet. RzMon leert ook voor die checks en rekent na <b>op hoeveel van de afgelopen dagen er een warning was geweest</b>, met de drempels van nu en met slimme drempels. Een dag telt net als een echte melding: pas als er zoveel metingen <b>achter elkaar</b> te hoog waren als de check vraagt (<i>melden na N</i>).')) ?>
+          <?= xp(t('Zo lees je de voorstellen: minder dagen, grijs en grillig.'), t('<b>Minder dagen met slim</b> = minder onnodige meldingen; die checks staan al aangevinkt. <b>Grijs</b> = slim levert daar niets op; de reden staat erachter. <b>Grillig</b> = de check piekt bijna elke dag even (bijvoorbeeld de webinterface van een camera); daar helpt <i>melden na 3</i> meer dan slimme drempels.')) ?>
           <div id="smart-proposals"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
 
@@ -1020,8 +1020,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Bij een probleem elke … seconden') ?> <span class="muted small"><?= th('(ping, TCP, HTTP, SNMP)') ?></span><input type="number" name="smart_fast" min="10" max="300"></label>
             <label><?= th('Stabiel: hooguit … × het interval') ?> <span class="muted small"><?= th('(nooit trager dan een uur)') ?></span><input type="number" name="smart_slow" min="1" max="10"></label>
           </div>
-          <p class="muted small" style="margin-top:-.3rem"><?= th('Sneller checken laat je eerder weten of een storing echt is (en wanneer hij voorbij is); trager checken ontlast je servers als alles goed gaat. Checks van de agent volgen het rapport van de agent.') ?></p>
-          <p class="muted small"><?= t('<i>Melden na N</i> blijft gelijk: bij een check op <i>melden na 3</i> en een interval van 1 minuut gaat de melding pas uit als het <b>2 minuten</b> mis is, net als zonder slim interval. Het snellere checken maakt een korte hapering dus niet alsnog tot een melding; wel weet RzMon sneller dat het weer goed is.') ?></p>
+          <?= xp(t('Bij een probleem vaker checken, en minder vaak als alles goed gaat.'), t('Sneller checken bij een probleem laat je eerder weten of een storing echt is, en wanneer hij voorbij is. Trager checken als alles stabiel is, ontlast je servers. <b>Goed om te weten:</b> checks van de agent volgen het rapport van de agent.')) ?>
+          <?= xp(t('Melden na N blijft hetzelfde; sneller checken geeft geen extra meldingen.'), t('<i>Melden na N</i> blijft gelijk in tijd: bij een check op <i>melden na 3</i> met een interval van 1 minuut gaat de melding pas uit als het <b>2 minuten</b> mis is, net als zonder slim interval. Een korte hapering wordt dus niet alsnog een melding; wel weet RzMon sneller dat het weer goed is.')) ?>
           <h3 class="small" style="margin:1rem 0 .3rem">📈 <?= th('Afwijkingen en hints') ?></h3>
           <label class="switch"><input type="checkbox" name="anomaly_on"><span></span> <?= t('<b>Afwijkingen</b> bij checks zonder drempels (verkeer, clients, processen, logregels): ℹ️ als het flink anders is dan normaal op dat uur') ?></label>
           <label class="switch"><input type="checkbox" name="disk_jump_on"><span></span> <?= t('<b>Disk groeit hard</b>: ℹ️ als een disk in een uur zoveel procentpunt groeit:') ?> <input type="number" name="disk_jump_pct" min="1" max="50" style="width:4.5rem;display:inline-block"></label>
@@ -1041,17 +1041,17 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <button type="button" class="btn" id="update-pick" hidden><?= th('🔁 Andere versie…') ?></button>
           </div>
           <label class="switch" style="margin-top:.9rem"><input type="checkbox" name="update_backup"><span></span> <?= th('Eerst een back-up maken') ?></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Database en instellingen, in de lijst onder <i>Back-up</i>. Geldt voor de knop en voor automatisch bijwerken.') ?></p>
+          <?= xp(t('Maakt eerst een back-up, voor de knop en voor automatisch bijwerken.'), t('Een back-up van de database en de instellingen, die je terugvindt in de lijst bij <i>Back-up</i>. Dit geldt voor de knop en voor automatisch bijwerken.')) ?>
           <label class="switch"><input type="checkbox" name="update_auto"><span></span> <?= th('Automatisch bijwerken') ?></label>
           <label class="update-time"><?= th('Elke dag om') ?> <input type="time" name="update_time"> <?= th('als er een nieuwe versie is') ?></label>
-          <p class="muted small" style="margin-top:-.2rem"><?= t('RzMon kijkt één keer per dag op GitHub of er een nieuwe versie is. Bijwerken doet de hulpdienst op de server: eerst eventueel een back-up, dan de nieuwe versie ophalen en het installatiescript uitvoeren, net als het commando met <code>install-rocky.sh</code>. Je instellingen en gegevens blijven staan. De agents werk je apart bij (hieronder).') ?></p>
+          <?= xp(t('RzMon kijkt dagelijks of er een nieuwe versie is en werkt zichzelf bij.'), t('<b>Wat het doet:</b> RzMon kijkt één keer per dag op GitHub of er een nieuwe versie is. Bijwerken doet de hulpdienst op de server: eventueel eerst een back-up, dan de nieuwe versie ophalen en het installatiescript uitvoeren, net als het commando met <code>install-rocky.sh</code>. <b>Goed om te weten:</b> je instellingen en gegevens blijven staan. De agents werk je apart bij (hieronder).')) ?>
         </div>
 
         <div data-sk="agents" class="card" id="agents-card">
           <h2>🖥️ <?= th('Agents') ?></h2>
           <div data-nodirty id="enc-hosts"></div>
           <h3 class="set-sub">⬆ <?= th('Bijwerken') ?></h3>
-          <p class="muted small"><?= t('Bij een nieuwe versie van RzMon kun je de agents vanaf hier bijwerken: per server in het venster <i>Agent Manager</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzMon op, controleert hem en installeert hem zelf; zijn instellingen blijven staan. De eerste installatie gaat met het commando op de server.') ?></p>
+          <?= xp(t('Werk de agents vanaf hier bij, per server of allemaal tegelijk.'), t('Komt er een nieuwe agent, dan werk je die vanaf hier bij: per server in de <i>Agent Manager</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzMon op, controleert de handtekening en installeert hem zelf; zijn instellingen blijven staan. <b>Goed om te weten:</b> de eerste installatie gaat met het commando op de server.')) ?>
           <p class="small" id="agents-status">…</p>
           <button type="button" class="btn" id="agents-update-all" hidden><?= th('⬆ Alle verouderde agents bijwerken') ?></button>
         </div>
@@ -1066,13 +1066,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label><?= th('🔒 Ook zoeken naar certificaten in') ?> <span class="muted small"><?= th('(optioneel)') ?></span>
             <textarea name="cert_dirs" rows="2" class="mono" placeholder="/data/certs /home/app/ssl"></textarea>
             <span class="muted small"><?= t('De agent (1.59.0+) zoekt eens per dag naar certificaatbestanden (.crt, .pem, .cer) in de bekende mappen (/etc/ssl, /etc/pki, /etc/letsencrypt, /etc/nginx, /opt, /srv …). Zet hier extra mappen, gescheiden door spaties; ze gelden voor alle agents. Per server kan ook <code>CERT_DIRS</code> in <code>/etc/default/rzmon-agent</code>.') ?></span></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Verouderde agents werken zichzelf bij zonder dat je op de knop drukt (hooguit één poging per 6 uur). Home Assistant-add-ons werk je bij via de add-on winkel. Een server uitzonderen: <code>REMOTE_UPDATE=0</code> in <code>/etc/default/rzmon-agent</code>.') ?></p>
+          <?= xp(t('Verouderde agents werken zichzelf bij; een server uitzonderen kan.'), t('Verouderde agents werken zichzelf bij zonder dat je op de knop drukt (hooguit één poging per 6 uur). <b>Home Assistant:</b> de add-on werk je bij via de add-on winkel. <b>Een server uitzonderen:</b> zet <code>REMOTE_UPDATE=0</code> in <code>/etc/default/rzmon-agent</code>.')) ?>
         </div>
 
         <div data-sk="commands" class="card" id="commands-card">
           <h2><?= th('🖥️ Commando-checks') ?></h2>
           <div class="cmd-box" data-nodirty>
-            <p class="muted small"><?= t('Met een <i>Commando</i>-check voert de agent een commando uit en vergelijkt RzMon de uitvoer met het antwoord dat je verwacht. Standaard staat dit uit. Aanzetten vraagt om je wachtwoord en komt in het logboek. Op een server zelf blokkeer je het altijd met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent.') ?></p>
+            <?= xp(t('Laat agents een eigen commando uitvoeren en controleer de uitvoer.'), t('<b>Wat het doet:</b> met een <i>Commando</i>-check voert de agent een commando uit en vergelijkt RzMon de uitvoer met het antwoord dat je verwacht. <b>Veiligheid:</b> standaard staat dit uit. Aanzetten vraagt om je wachtwoord en komt in het logboek. Op een server zelf blokkeer je het altijd met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent.')) ?>
             <label><?= th('Commando\'s op agents') ?>
               <select id="agent-commands"><option value="off"><?= th('Uit') ?></option><option value="nobody"><?= th('Toestaan, als gebruiker nobody') ?></option><option value="root"><?= th('Toestaan, als root') ?></option></select></label>
             <p class="small" id="agent-commands-hosts"></p>
@@ -1082,7 +1082,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
         <div data-sk="backup" class="card" id="backup-card">
           <h2><?= th('💾 Back-up') ?></h2>
-          <p class="muted small"><?= t('Een zip met de hele database (servers, checks, instellingen, gebruikers) en <code>config.php</code>. De back-ups staan op deze server, buiten de webmap. Download er af en toe een, zodat je ook een kopie hebt als de server zelf stuk gaat.') ?></p>
+          <?= xp(t('Automatische back-ups van de hele database en config.php.'), t('<b>Wat het is:</b> een zip met de hele database (servers, checks, instellingen, gebruikers) en <code>config.php</code>. <b>Waar:</b> de back-ups staan op deze server, buiten de webmap. <b>Goed om te weten:</b> download er af en toe een, zodat je ook een kopie hebt als de server zelf stuk gaat.')) ?>
           <div class="row3">
             <label><?= th('Automatisch') ?>
               <select name="backup_freq">
@@ -1101,9 +1101,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             </select>
           </label>
           <label class="switch"><input type="checkbox" name="backup_history"><span></span> <?= th('Meethistorie meenemen') ?></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= th('De meetresultaten achter de grafieken. Uit = een veel kleinere zip; bij terugzetten blijft de huidige historie dan staan.') ?></p>
+          <?= xp(t('Ook de meetgeschiedenis meenemen; uit geeft een veel kleinere zip.'), t('De meetresultaten achter de grafieken. Uit = een veel kleinere zip; bij terugzetten blijft de huidige geschiedenis dan staan.')) ?>
           <label><?= th('Zip-wachtwoord') ?> <span class="hint"><?= th('(minstens 8 tekens; versleutelt met AES-256)') ?></span><input name="backup_pass" type="password" autocomplete="new-password"></label>
-          <p class="muted small" style="margin-top:-.4rem"><?= t('Nodig om een zip te openen (met 7-Zip) of terug te zetten op een andere server. <b>Bewaar het goed</b>: zonder wachtwoord is de back-up onbruikbaar. Wijzigen geldt voor nieuwe back-ups.') ?></p>
+          <?= xp(t('Bewaar dit wachtwoord goed: zonder is de back-up onbruikbaar.'), t('Het wachtwoord is nodig om een zip te openen (met 7-Zip) of terug te zetten op een andere server. <b>Bewaar het goed:</b> zonder wachtwoord is de back-up onbruikbaar. Wijzigen geldt voor nieuwe back-ups.')) ?>
           <p class="small" id="backup-status">…</p>
           <div class="btn-row">
             <button type="button" class="btn" id="backup-now"><?= th('💾 Nu back-up maken') ?></button>
@@ -1130,7 +1130,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="ip-status" id="ip-status">…</div>
         <label class="switch"><input type="checkbox" name="lan_no_login"><span></span> <?= th('Geen login nodig op het lokale netwerk') ?></label>
         <label class="switch"><input type="checkbox" name="lan_as_admin"><span></span> <?= t('Op het lokale netwerk als <b>beheerder</b> inloggen') ?></label>
-        <p class="muted small" style="margin-top:-.3rem"><?= t('Uit: op het lokale netwerk kom je binnen als <b>alleen lezen</b>, en met <i>Inloggen</i> rechtsboven krijg je de rechten van je eigen account. Van buitenaf is altijd een gebruikersnaam en wachtwoord nodig.') ?></p>
+        <?= xp(t('Aan: thuis ben je meteen beheerder. Uit: thuis eerst alleen lezen.'), t('<b>Aan:</b> op je lokale netwerk kom je zonder wachtwoord binnen als beheerder. <b>Uit:</b> op het lokale netwerk kom je binnen als <b>alleen lezen</b>; met <i>Inloggen</i> rechtsboven krijg je de rechten van je eigen account. <b>Goed om te weten:</b> van buitenaf is altijd een gebruikersnaam en wachtwoord nodig.')) ?>
         <label><?= th('Lokale netwerken') ?> <span class="hint"><?= th('(één per regel, bv. 192.168.1.0/24)') ?></span>
           <textarea name="trusted_networks" rows="5" spellcheck="false"></textarea></label>
         <details class="adv"><summary><?= th('Geavanceerd: reverse proxy') ?></summary>
@@ -1140,7 +1140,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         </details>
         <h3 class="set-sub">⏱️ <?= th('Uitloggen') ?></h3>
         <div class="lock-row"><?= th('Uitloggen na') ?> <select name="session_idle"></select> <?= th('zonder activiteit') ?></div>
-        <p class="muted small" style="margin-top:-.3rem"><?= t('Zolang RzMon open en zichtbaar is, blijf je ingelogd. Ligt je telefoon in je zak of staat de pagina op de achtergrond, dan telt de tijd. Met <b>Onthoud mij op dit apparaat</b> log je daarna vanzelf weer in (30 dagen; van buiten je netwerk alleen als het apparaat met 2FA is onthouden).') ?></p>
+        <?= xp(t('Wanneer je automatisch wordt uitgelogd, en hoe Onthoud mij werkt.'), t('Zolang RzMon open en zichtbaar is, blijf je ingelogd. Ligt je telefoon in je zak of staat de pagina op de achtergrond, dan telt de tijd. <b>Onthoud mij op dit apparaat:</b> daarmee log je daarna vanzelf weer in (30 dagen). Van buiten je netwerk werkt dat alleen als het apparaat met 2FA is onthouden.')) ?>
         <h3 class="set-sub">🔐 <?= th('Inlogbeveiliging') ?></h3>
         <div class="lock-row"><?= th('Na') ?> <input type="number" name="login_lock_fails" min="1" max="50" class="num-in"> <?= th('mislukte pogingen binnen') ?>
           <input type="number" name="login_lock_window" min="1" max="1440" class="num-in"> <?= th('minuten:') ?></div>
@@ -1148,13 +1148,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <label class="switch"><input type="checkbox" name="login_lock_ip"><span></span> <span><?= t('het <b>IP-adres</b> blokkeren (niet als het uit je lokale netwerken komt)') ?></span></label>
         <div class="lock-row"><?= th('Blokkade opheffen na') ?> <input type="number" name="login_lock_minutes" min="0" max="525600" class="num-in"> <?= th('minuten') ?>
           <span class="hint"><?= th('(0 = tot een beheerder deblokkeert)') ?></span></div>
-        <p class="muted small"><?= t('Een verkeerde 2FA-code telt ook. Pogingen tellen apart per account (vanaf welk IP dan ook) en per IP-adres. Een geblokkeerd account kan vanaf je <b>lokale netwerk</b> gewoon inloggen, zodat niemand van buiten je kan buitensluiten. Je krijgt een ⚠️-melding met Pushover. Deblokkeren: bij <i>Gebruikers</i> (🔓) en bij <i>Blokkades</i>; of op de server <code>sudo php install/install.php --unlock &lt;gebruiker&gt;</code>.') ?></p>
+        <?= xp(t('Blokkeert een account of IP-adres na te veel mislukte inlogpogingen.'), t('<b>Wat het doet:</b> na te veel mislukte pogingen blokkeert RzMon het account of het IP-adres. Een verkeerde 2FA-code telt ook. Pogingen tellen apart per account (vanaf welk IP dan ook) en per IP-adres. Je krijgt een ⚠️-melding via Pushover. <b>Goed om te weten:</b> een geblokkeerd account kan vanaf je <b>lokale netwerk</b> gewoon inloggen, zodat niemand van buiten je kan buitensluiten. <b>Deblokkeren:</b> bij <i>Gebruikers</i> (🔓) en bij <i>IDS → Blokkades</i>, of op de server met <code>sudo php install/install.php --unlock &lt;gebruiker&gt;</code>.')) ?>
         <p class="form-error" hidden></p>
       </form>
 
       <div data-sk="https" class="card need-admin" id="https-card">
         <h2>🔒 <?= th('Beheer via https') ?></h2>
-        <p class="muted small"><?= t('Open je RzMon via http, dan kan iemand op het netwerk je wachtwoord, je sessie en de pagina zelf (bv. een installatiecommando) zien of veranderen. Met een <b>beheeradres</b> via je reverse proxy (bv. SWAG met Let\'s Encrypt) en <i>Beheer alleen via https</i> gaat de webinterface altijd via https. Agents en de REST API blijven gewoon werken: hun berichten zijn al versleuteld of hebben een eigen sleutel.') ?></p>
+        <?= xp(t('Beheer RzMon van buiten alleen via een veilige https-verbinding.'), t('<b>Waarom:</b> open je RzMon via http, dan kan iemand op het netwerk je wachtwoord, je sessie en de pagina zelf (bijvoorbeeld een installatiecommando) zien of veranderen. <b>Wat het doet:</b> met een <b>beheeradres</b> via je reverse proxy (bijvoorbeeld SWAG met Let\'s Encrypt) en <i>Beheer alleen via https</i> gaat de webinterface altijd via https. <b>Goed om te weten:</b> agents en de REST API blijven gewoon werken: hun berichten zijn al versleuteld of hebben een eigen sleutel.')) ?>
         <div id="https-now" class="https-now"></div>
         <label><?= th('Beheeradres') ?> <span class="hint"><?= th('(https://… via je reverse proxy, bv. https://rzmon.jouwdomein.nl)') ?></span>
           <span class="inline-row"><input id="https-url" type="url" placeholder="https://rzmon.jouwdomein.nl" spellcheck="false"><button type="button" class="btn" id="https-check">🔍 <?= th('Nu controleren') ?></button></span></label>
@@ -1173,20 +1173,20 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <li><?= t('Open RzMon via het beheeradres, vul het hierboven in en zet <i>Beheer alleen via https</i> aan.') ?></li>
           </ol>
           <pre class="mono small https-conf" id="https-conf"></pre>
-          <p class="muted small"><?= t('<b>Nooddeur</b>: https op het IP-adres van RzMon zelf (self-signed, kies "toch doorgaan") blijft vanaf je interne netwerken altijd werken, ook als het certificaat van het beheeradres verlopen is. Buitengesloten? Op de server: <code>sudo php install/install.php --https-off</code>.') ?></p>
+          <?= xp(t('Nooddeur: via het IP-adres van RzMon kom je thuis altijd binnen.'), t('<b>Nooddeur:</b> https op het IP-adres van RzMon zelf (met een eigen certificaat; kies in je browser <i>toch doorgaan</i>) blijft vanaf je interne netwerken altijd werken, ook als het certificaat van het beheeradres verlopen is. <b>Buitengesloten?</b> Op de server: <code>sudo php install/install.php --https-off</code>.')) ?>
         </details>
         <p class="form-error" hidden></p>
       </div>
 
       <div data-sk="hibp" class="card need-admin" id="hibp-card">
         <h2>🔓 <?= th('Datalekken (Have I Been Pwned)') ?></h2>
-        <p class="muted small"><?= t('Controleert of <b>wachtwoorden</b> van RzMon-accounts en <b>e-mailadressen</b> in bekende datalekken staan. Wachtwoorden: gratis, en het wachtwoord gaat nooit de deur uit (alleen de eerste 5 tekens van de SHA-1-hash, met opvulling). E-mailadressen: met een API-sleutel van <a href="https://haveibeenpwned.com/API/Key" target="_blank" rel="noopener">haveibeenpwned.com</a>, dagelijks. Per account uit te zetten bij <i>Gebruikers</i> (🔓).') ?></p>
+        <?= xp(t('Controleert of wachtwoorden en e-mailadressen in bekende datalekken staan.'), t('<b>Wachtwoorden:</b> gratis, en je wachtwoord gaat nooit de deur uit: alleen de eerste 5 tekens van de SHA-1-vingerafdruk, met opvulling (dienst: Have I Been Pwned). <b>E-mailadressen:</b> met een API-sleutel van <a href="https://haveibeenpwned.com/API/Key" target="_blank" rel="noopener">haveibeenpwned.com</a>, elke dag. <b>Goed om te weten:</b> per account uit te zetten bij <i>Gebruikers</i> (🔓).')) ?>
         <label class="switch"><input type="checkbox" id="hibp-on"><span></span> <b><?= th('Controle op datalekken') ?></b></label>
         <div id="hibp-body">
           <h3 class="set-sub">🔑 <?= th('Wachtwoorden') ?></h3>
           <div class="lock-row"><?= th('Gelekt vanaf') ?> <input type="number" id="hibp-threshold" min="1" max="1000000" class="num-in"> <?= th('keer in datalekken') ?>
             <span class="hint"><?= th('(1 = elke treffer)') ?></span></div>
-          <p class="muted small" style="margin-top:-.2rem"><?= th('Bij het instellen van een gelekt wachtwoord krijg je een waarschuwing. Wie inlogt met een gelekt wachtwoord, moet eerst een nieuw kiezen; een gelekt wachtwoord wordt daar geweigerd.') ?></p>
+          <?= xp(t('Een gelekt wachtwoord wordt geweigerd; wie het al gebruikt, moet een nieuw kiezen.'), t('Kies je een wachtwoord dat in een datalek staat, dan krijg je een waarschuwing. Wie inlogt met een gelekt wachtwoord, moet eerst een nieuw kiezen; een gelekt wachtwoord wordt daar geweigerd.')) ?>
           <h3 class="set-sub">✉️ <?= th('E-mailadressen') ?></h3>
           <label><?= th('API-sleutel') ?> <span class="hint" id="hibp-key-state"></span>
             <span class="inline-row"><input type="password" id="hibp-key" autocomplete="off" spellcheck="false" placeholder="<?= th('niet gewijzigd') ?>"><button type="button" class="btn" id="hibp-test">🧪 <?= th('Testen') ?></button></span></label>
@@ -1202,7 +1202,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       <div data-sk="enc" class="card need-admin" id="enc-card">
         <h2>🔐 <?= th('Beveiligde verbinding met de agents') ?></h2>
-        <p class="muted small"><?= t('Elke agent (1.50.0 of nieuwer) heeft een <b>eigen sleutel</b>. Daarmee is alles wat hij verstuurt versleuteld en ondertekend (AES-256 met een handtekening), ook het antwoord van RzMon. Er gaat geen token meer over de lijn, en een sleutel nooit leesbaar: een nieuwe agent koppel je met een <b>koppelcode</b> (Agent Manager → 🔗 Koppelcode, eenmalig en 15 minuten geldig). Agents die al met de algemene sleutel werkten, krijgen hun eigen sleutel vanzelf. Een bericht met een verkeerde sleutel, een oude handtekening of van een onbekend IP-adres wordt geweigerd en geeft een ⚠️-melding.') ?></p>
+        <?= xp(t('Elke agent heeft een eigen sleutel: alles is versleuteld en ondertekend.'), t('<b>Wat het is:</b> elke agent (1.50.0 of nieuwer) heeft een <b>eigen sleutel</b>. Alles wat hij verstuurt is daarmee versleuteld en ondertekend (AES-256 met een handtekening), ook het antwoord van RzMon. Er gaat geen token meer over de lijn en een sleutel is nooit leesbaar. <b>Koppelen:</b> een nieuwe agent koppel je met een <b>koppelcode</b> (Agent Manager → 🔗 Koppelcode, eenmalig en 15 minuten geldig). Agents die nog de algemene sleutel gebruiken, krijgen hun eigen sleutel vanzelf. <b>Veiligheid:</b> een bericht met een verkeerde sleutel, een oude handtekening of van een onbekend IP-adres wordt geweigerd en geeft een ⚠️-melding.')) ?>
         <div class="btn-row"><button type="button" class="btn" id="conn-cert">🔐 <?= th('Certificaat bekijken') ?></button>
           <span class="muted small"><?= th('Welk certificaat de agents zien, downloaden en vernieuwen') ?></span></div>
         <div id="conn-ipwait"></div>
@@ -1212,7 +1212,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <label class="switch"><input type="checkbox" id="conn-pin"><span></span> <?= t('📌 <b>Certificaat van RzMon vastzetten</b> (bij een eigen, self-signed certificaat)') ?></label>
         <p class="muted small" id="conn-pin-info" style="margin-top:-.4rem"></p>
         <label class="switch"><input type="checkbox" id="conn-iplock"><span></span> <?= t('🌐 Agents alleen vanaf hun <b>bekende IP-adres</b>') ?></label>
-        <p class="muted small" style="margin-top:-.4rem"><?= t('Het eerste IP-adres van een agent wordt onthouden. Komt hij van een ander adres, dan weigert RzMon hem en krijg je een melding; hierboven kun je het nieuwe adres dan <b>toestaan</b>.') ?></p>
+        <?= xp(t('Een agent mag alleen vanaf het IP-adres waarmee hij zich de eerste keer meldde.'), t('Het eerste IP-adres van een agent wordt onthouden. Komt hij van een ander adres, dan weigert RzMon hem en krijg je een melding; hierboven kun je het nieuwe adres dan <b>toestaan</b>.')) ?>
         <label class="switch"><input type="checkbox" id="conn-https"><span></span> <?= t('🔒 Agents alleen via <b>https</b> (via het reserve-adres mag http, met een ⚠️)') ?></label>
         <label class="switch"><input type="checkbox" id="conn-ownkey"><span></span> <?= t('🔑 Alleen agents met een <b>eigen sleutel</b> (een agent met alleen een token wordt geweigerd; koppelen met een koppelcode blijft altijd kunnen)') ?></label>
         <div class="btn-row"><button type="button" class="btn" id="conn-cleanup">🧹 <?= th('Alle agents opruimen…') ?></button>
@@ -1221,7 +1221,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <span class="muted small"><?= th('bv. https via je reverse proxy; elke agent test het eerst (agent 1.51.0)') ?></span></div>
         <p class="muted small"><?= t('Per server (sleutel, IP-adres, verbinding): zie de tabel bij <a href="#settings/agents" data-goto="settings/agents">Agents</a>.') ?></p>
         <details class="adv"><summary><?= th('Algemene sleutel (agents 1.49.x)') ?></summary>
-          <p class="muted small"><?= t('Agents van versie 1.49.x versleutelen met één algemene sleutel. Nieuwere agents gebruiken die alleen nog om over te stappen op hun eigen sleutel.') ?></p>
+          <?= xp(t('Alleen voor oude agents (1.49.x) die nog één gedeelde sleutel gebruiken.'), t('Agents van versie 1.49.x versleutelen met één algemene sleutel. Nieuwere agents gebruiken die alleen nog om over te stappen op hun eigen sleutel. Heb je geen oude agents meer, dan kun je de algemene sleutel bij <i>Opruimen</i> wissen.')) ?>
           <label><?= th('Sleutel') ?> <span class="hint"><?= th('(64 tekens)') ?></span>
             <span class="enc-key-row"><input id="enc-key" type="password" readonly class="mono" placeholder="<?= th('nog geen sleutel') ?>">
               <button type="button" class="btn" id="enc-show" title="<?= th('Tonen') ?>">👁</button>
@@ -1232,17 +1232,17 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       <div data-sk="outside" class="card need-admin" id="outside-card">
         <h2>🕶️ <?= th('Onzichtbaar van buiten') ?></h2>
-        <p class="muted small"><?= t('Van buiten je eigen netwerk ziet een vreemde niets dat naar RzMon wijst: een gewone <b>404</b>, zoals een webserver die geeft. Agents, heartbeats, de links uit je meldingen en de REST API blijven gewoon werken. Thuis (je lokale netwerken bij <i>Toegang</i>) verandert er niets.') ?></p>
+        <?= xp(t('Van buiten lijkt RzMon niet te bestaan: een vreemde ziet alleen een 404.'), t('<b>Wat het doet:</b> van buiten je eigen netwerk ziet een vreemde niets dat naar RzMon wijst: alleen een gewone <b>404</b>, zoals een webserver die geeft. <b>Blijft werken:</b> agents, heartbeats, de links uit je meldingen en de REST API. Thuis (je lokale netwerken bij <i>Inloggen</i>) verandert er niets.')) ?>
         <div id="stealth-switches"></div>
         <div id="stealth-requests"></div>
         <h3 class="set-sub">📱 <?= th('Toegestane apparaten en passkeys') ?></h3>
-        <p class="muted small" style="margin-top:-.2rem"><?= t('Per gebruiker. Een apparaat zet je thuis op de lijst bij <i>Mijn account → Van buiten en passkeys</i>; hier kun je alles van iedereen zien, hernoemen en intrekken.') ?></p>
+        <?= xp(t('Alleen apparaten op deze lijst openen RzMon van buiten; hier zie je ze allemaal.'), t('Dit geldt per gebruiker. Een apparaat zet je thuis op de lijst bij <i>Mijn account → Van buiten en passkeys</i>. Hier zie je de apparaten van iedereen, en kun je ze hernoemen en intrekken.')) ?>
         <div id="stealth-devices"></div>
       </div>
 
       <div data-sk="api" class="card need-admin" id="api-card">
         <h2><?= th('API-sleutels') ?></h2>
-        <p class="muted small"><?= t('Lees statussen, meetwaarden en het IDS uit via de REST API, bijvoorbeeld vanuit Home Assistant, en blokkeer IP\'s of bevestig storingen vanuit een ander systeem. Per sleutel kies je wat hij mag, eventueel vanaf welke adressen, en hoe lang hij geldig is. Stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.') ?></p>
+        <?= xp(t('Sleutels waarmee andere systemen RzMon kunnen uitlezen en bedienen.'), t('<b>Wat het is:</b> met de REST API lees je statussen, meetwaarden en het IDS uit, bijvoorbeeld vanuit Home Assistant, en blokkeer je IP\'s of bevestig je storingen vanuit een ander systeem. <b>Per sleutel</b> kies je wat hij mag, eventueel vanaf welke adressen, en hoe lang hij geldig is. <b>Gebruik:</b> stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.')) ?>
         <p class="small"><?= th('Basis-URL:') ?> <code id="api-base"></code></p>
         <div id="api-keys" class="key-list"></div>
         <form id="api-key-form" class="api-key-form">
@@ -1287,7 +1287,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       <div data-sk="users" class="card" id="users-card" <?= ($user['id'] ?? 0) === 0 ? 'hidden' : '' ?>>
         <h2><?= th('Gebruikers') ?></h2>
-        <p class="muted small need-admin"><?= t('<b>Beheerder</b>: alles. <b>Gebruiker</b>: storingen afhandelen (bevestigen, nu checken, onderhoud, poortscan), maar niets inrichten. <b>Alleen lezen</b>: kijken. Met <b>tweestapsverificatie</b> (TOTP) is naast het wachtwoord een code uit een authenticator-app nodig, zoals Google/Microsoft Authenticator, Authy, Bitwarden of 1Password.') ?></p>
+        <?= xp(t('Accounts met hun rol (beheerder, gebruiker, alleen lezen) en tweestapsverificatie.'), t('<b>Beheerder:</b> mag alles. <b>Gebruiker:</b> handelt storingen af (bevestigen, nu checken, onderhoud, poortscan), maar richt niets in. <b>Alleen lezen:</b> kijkt alleen. <b>Tweestapsverificatie (2FA):</b> naast het wachtwoord is een code uit een authenticator-app nodig, zoals Google of Microsoft Authenticator, Authy, Bitwarden of 1Password.'), 'need-admin') ?>
         <p class="muted small" data-role-only="nonadmin"><?= th('Je account. Hier stel je je tweestapsverificatie in; je wachtwoord wijzig je hieronder.') ?></p>
         <div id="users" class="key-list"></div>
         <p class="small need-admin" id="pw-reset-info"></p>
@@ -1309,7 +1309,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         </form>
         <div class="need-admin" id="sess-admin">
           <h3 class="set-sub">📱 <?= th('Ingelogde apparaten') ?></h3>
-          <p class="muted small"><?= th('Alle sessies van alle gebruikers, en onthouden apparaten (die loggen bij hun volgende bezoek vanzelf in). Uitloggen werkt bij de volgende klik op dat apparaat; een onthouden apparaat wordt dan ook vergeten.') ?></p>
+          <?= xp(t('Wie waar is ingelogd, met uitloggen op afstand.'), t('Alle sessies van alle gebruikers, en de onthouden apparaten (die loggen bij hun volgende bezoek vanzelf in). <b>Uitloggen</b> werkt bij de volgende klik op dat apparaat; een onthouden apparaat wordt dan ook vergeten.')) ?>
           <div class="sess-tools"><select id="sess-user" aria-label="<?= th('Gebruiker') ?>"></select>
             <button type="button" class="btn small-btn" id="sess-user-out" hidden><?= th('Alles van deze gebruiker uitloggen') ?></button>
             <button type="button" class="btn small-btn danger" id="sess-all-out"><?= th('Iedereen uitloggen behalve mij') ?></button></div>
@@ -1321,7 +1321,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <?php endif; ?>
       <div data-sk="templates" class="card need-admin" id="templates-card">
         <h2>📋 <?= th('Sjablonen') ?></h2>
-        <p class="muted small"><?= t('Een sjabloon is een set checks (met drempels, interval en meldregels) die je aan servers koppelt, bv. <i>Linux-server</i> of <i>Website</i>. Pas je het sjabloon aan, dan veranderen de checks op alle gekoppelde servers mee, behalve checks die je op een server zelf hebt aangepast. Koppelen kan hier of bij <i>✎ Server bewerken</i>.') ?></p>
+        <?= xp(t('Vaste sets checks voor een soort server; wijzig het sjabloon en alle servers volgen.'), t('<b>Wat het is:</b> een sjabloon is een set checks (met drempels, interval en meldregels) die je aan servers koppelt, bijvoorbeeld <i>Linux-server</i> of <i>Website</i>. <b>Wat het doet:</b> pas je het sjabloon aan, dan veranderen de checks op alle gekoppelde servers mee, behalve checks die je op een server zelf hebt aangepast. <b>Koppelen:</b> hier of bij <i>✎ Server bewerken</i>.')) ?>
         <div class="btn-row"><button type="button" class="btn primary" id="tpl-new">＋ <?= th('Nieuw sjabloon') ?></button>
           <button type="button" class="btn" id="tpl-from-host">📋 <?= th('Sjabloon maken van een server…') ?></button></div>
         <div id="tpl-list"><p class="muted"><?= th('Laden…') ?></p></div>
@@ -1329,7 +1329,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       <div data-sk="allchecks" class="card need-admin" id="allchecks-card">
         <h2>☑️ <?= th('Alle checks') ?></h2>
-        <p class="muted small"><?= th('Vink checks aan om ze tegelijk aan te passen: interval, drempels, melden, onderhoud, aan of uit, kopiëren naar andere servers of verwijderen. Klik op een naam om die check te bewerken.') ?></p>
+        <?= xp(t('Alle checks in één lijst; vink er meer aan om ze samen te bewerken.'), t('Vink checks aan om ze tegelijk aan te passen: interval, drempels, melden, onderhoud, aan of uit, kopiëren naar andere servers of verwijderen. Klik op een naam om die ene check te bewerken.')) ?>
         <div class="ac-bar"><input type="search" id="ac-q" placeholder="<?= th('🔍 Zoek check, doel of server…') ?>" autocomplete="off">
           <select id="ac-host"><option value=""><?= th('Alle servers') ?></option></select>
           <select id="ac-type"><option value=""><?= th('Alle types') ?></option></select></div>
@@ -1339,15 +1339,15 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       <div data-sk="cleanup" class="card need-admin" id="cleanup-card">
         <h2>🧹 <?= th('Opschoonadvies') ?> <button type="button" class="btn small-btn" id="cleanup-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
-        <p class="muted small"><?= th('Checks die je aandacht verdienen: al dagen onbekend, de meeste meldingen (ruismakers), steeds wisselend, al lang in warning, net onder de drempel, of al lang uit. Met een voorstel; wat normaal is, zet je op "niet meer tonen".') ?></p>
+        <?= xp(t('Checks die opgeruimd of aangepast kunnen worden, met een voorstel.'), t('Checks die je aandacht verdienen: al dagen onbekend, de meeste meldingen (ruismakers), steeds wisselend, al lang in warning, net onder de drempel, of al lang uit. Bij elke check staat een voorstel. Wat normaal is, zet je op <i>niet meer tonen</i>.')) ?>
         <div id="cleanup-list"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
       <div data-sk="advice" class="card need-admin" id="advice-card">
         <h2>💡 <?= th('Slimme voorstellen') ?> <button type="button" class="btn small-btn" id="advice-run" title="<?= th('Nu opnieuw bepalen (anders elke nacht)') ?>">🔄</button></h2>
-        <p class="muted small"><?= th('Elke nacht kijkt RzMon naar de geschiedenis en stelt voor: melden na meer (of minder) mislukte checks, een vast onderhoudsvenster voor iets dat steeds op hetzelfde moment gebeurt, en afhankelijkheden (volgens UniFi, of omdat servers steeds samen uitvallen). Niets verandert tot jij op Toepassen klikt (behalve melden na N als de schakelaar hieronder aan staat); een genegeerd voorstel komt niet terug. Alles staat in het wijzigingslogboek.') ?></p>
+        <?= xp(t('Elke nacht doet RzMon voorstellen om minder en betere meldingen te krijgen.'), t('<b>Wat het doet:</b> elke nacht kijkt RzMon naar de geschiedenis en stelt voor: <i>melden na</i> meer (of minder) mislukte checks, een vast onderhoudsvenster voor iets dat steeds op hetzelfde moment gebeurt, en afhankelijkheden (volgens UniFi, of omdat servers steeds samen uitvallen). <b>Jij beslist:</b> niets verandert tot je op <i>Toepassen</i> klikt, behalve <i>melden na N</i> als de schakelaar hieronder aan staat. Een genegeerd voorstel komt niet terug, en alles staat in het wijzigingslogboek.')) ?>
         <label class="switch"><input type="checkbox" id="alert-auto"><span></span> <span><?= t('<b>Melden na N zelf instellen</b>: een voorstel voor <i>melden na N</i> meteen toepassen') ?></span></label>
-        <p class="muted small" style="margin-top:-.4rem"><?= t('Met een ℹ️-melding (<i>Systeemmeldingen → Melden na N zelf aangepast</i>) en een regel in het <i>Wijzigingslogboek</i> om terug te gaan naar de vorige waarde. Een teruggezet voorstel komt niet terug.') ?></p>
+        <?= xp(t('Wordt gemeld en is terug te draaien.'), t('Je krijgt een ℹ️-melding (<i>Systeemmeldingen → Melden na N zelf aangepast</i>) en er komt een regel in het <i>Wijzigingslogboek</i> om terug te gaan naar de vorige waarde. Een teruggezet voorstel komt niet terug.')) ?>
         <div id="advice-list"><p class="muted"><?= th('Laden…') ?></p></div>
         <h3 class="small" style="margin:1.2rem 0 .3rem">🗓️ <?= th('Vaste onderhoudsvensters') ?></h3>
         <p class="muted small" style="margin-top:0"><?= th('Elke dag of op één weekdag een tijd zonder meldingen, voor een server of één check (bv. de back-up om 2:00 of de herstart op zondag).') ?></p>
@@ -1356,20 +1356,20 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       <div data-sk="statuspage" class="card need-admin" id="statuspage-card">
         <h2>🟢 <?= th('Statuspagina') ?></h2>
-        <p class="muted small"><?= t('Een eenvoudige pagina voor huisgenoten of klanten: de onderdelen die je hieronder kiest, of ze nu werken, en een balk per dag over de laatste 90 dagen. Geen IP-adressen, servernamen of foutteksten. Te openen via een <b>geheime link</b>, ook van buiten (met <i>Onzichtbaar van buiten</i> aan geeft een verkeerde link gewoon een 404).') ?></p>
+        <?= xp(t('Een openbare statuspagina voor huisgenoten of klanten, via een geheime link.'), t('<b>Wat het is:</b> een eenvoudige pagina die laat zien of de onderdelen die jij kiest werken, met een balk per dag over de laatste 90 dagen. <b>Privacy:</b> geen IP-adressen, servernamen of foutteksten. <b>Openen:</b> via een <b>geheime link</b>, ook van buiten. Met <i>Onzichtbaar van buiten</i> aan geeft een verkeerde link gewoon een 404.')) ?>
         <div id="statuspage-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
       <div data-sk="chain" class="card need-admin" id="chain-card">
         <h2>🧪 <?= th('Meldketen testen') ?></h2>
-        <p class="muted small"><?= th('Stuurt één testmelding door alle kanalen die aan staan (Pushover, e-mail, Home Assistant-webhook, MQTT en de meldingenpagina), met de opgeslagen instellingen, en laat per kanaal zien of het lukte.') ?></p>
+        <?= xp(t('Test in één keer of alle meldkanalen werken.'), t('Stuurt één testmelding door alle kanalen die aan staan (Pushover, ntfy, e-mail, Home Assistant-webhook, MQTT en de meldingenpagina), met de opgeslagen instellingen. Per kanaal zie je of het lukte.')) ?>
         <button type="button" class="btn primary" id="chain-test">🧪 <?= th('Nu testen') ?></button>
         <div id="chain-out"></div>
       </div>
 
       <div data-sk="changelog" class="card need-admin" id="changelog-card">
         <h2>📜 <?= th('Wijzigingslogboek') ?> <button type="button" class="btn small-btn" id="cl-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
-        <p class="muted small"><?= th('Wie veranderde wat en wanneer: instellingen, servers, checks en sjablonen, met de oude en de nieuwe waarde. Een wijziging aan een instelling, server of check zet je terug met ↩; een verwijderde check of server komt terug (zonder meethistorie). Wachtwoorden en sleutels staan er nooit leesbaar in.') ?></p>
+        <?= xp(t('Wie wat veranderde en wanneer, met terugdraaien.'), t('<b>Wat het is:</b> een logboek van wie wat veranderde en wanneer: instellingen, servers, checks en sjablonen, met de oude en de nieuwe waarde. <b>Terugdraaien:</b> een wijziging aan een instelling, server of check zet je terug met ↩; een verwijderde check of server komt terug (zonder meetgeschiedenis). <b>Goed om te weten:</b> wachtwoorden en sleutels staan er nooit leesbaar in.')) ?>
         <div class="ac-bar"><select id="cl-kind"><option value=""><?= th('Alles') ?></option><option value="setting"><?= th('Instellingen') ?></option><option value="host"><?= th('Servers') ?></option>
           <option value="check"><?= th('Checks') ?></option><option value="template"><?= th('Sjablonen') ?></option><option value="system"><?= th('Systeem') ?></option></select>
           <span class="muted small"><?= th('Bewaren') ?></span> <select id="cl-days" aria-label="<?= th('Bewaren') ?>"><option value="30"><?= th('30 dagen') ?></option><option value="90"><?= th('90 dagen') ?></option><option value="365"><?= th('1 jaar') ?></option><option value="1095"><?= th('3 jaar') ?></option></select></div>
@@ -1378,22 +1378,22 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       <div data-sk="transfer" class="card need-admin" id="transfer-card">
         <h2>📦 <?= th('Exporteren en importeren') ?></h2>
-        <p class="muted small"><?= th('Servers, checks en sjablonen (en eventueel instellingen) als één JSON-bestand: om naar een andere RzMon te kopiëren, of als leesbare reserve naast de back-up. Zonder geheimen: wachtwoorden, tokens, sleutels en SNMP-community gaan niet mee, en agents koppel je op de nieuwe RzMon opnieuw.') ?></p>
+        <?= xp(t('Servers, checks en sjablonen als bestand, om over te zetten of als reserve.'), t('<b>Wat het is:</b> servers, checks en sjablonen (en eventueel instellingen) als één JSON-bestand, om naar een andere RzMon te kopiëren of als leesbare reserve naast de back-up. <b>Zonder geheimen:</b> wachtwoorden, tokens, sleutels en SNMP-community gaan niet mee; agents koppel je op de nieuwe RzMon opnieuw.')) ?>
         <label class="switch"><input type="checkbox" id="tr-settings"><span></span> <?= th('Ook de instellingen (zonder wachtwoorden)') ?></label>
         <div class="btn-row"><button type="button" class="btn" id="tr-export">⬇ <?= th('Exporteren') ?></button>
           <button type="button" class="btn" id="tr-import">⬆ <?= th('Importeren…') ?></button><input type="file" id="tr-file" accept=".json,application/json" hidden></div>
-        <p class="muted small"><?= th('Importeren voegt alleen toe: een server of sjabloon met dezelfde naam blijft zoals hij is, en een check die er al is wordt overgeslagen. Je ziet eerst wat er gebeurt.') ?></p>
+        <?= xp(t('Importeren voegt alleen toe en overschrijft niets.'), t('Importeren voegt alleen toe: een server of sjabloon met dezelfde naam blijft zoals hij is, en een check die er al is wordt overgeslagen. Je ziet eerst wat er gaat gebeuren.')) ?>
       </div>
 
       <div data-sk="conn" class="card need-admin" id="conn-card">
         <h2>📡 <?= th('Verbindingen en taken') ?> <button type="button" class="btn small-btn" id="conn-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
-        <p class="muted small"><?= th('Wat er bij RzMon binnenkomt en wat RzMon zelf op de achtergrond doet. Lukt een taak te lang niet, dan krijg je een ⚠️-melding (Meldingen → Systeeminfo → Achtergrondtaak lukt niet).') ?></p>
+        <?= xp(t('Wat er binnenkomt en wat RzMon op de achtergrond doet.'), t('Wat er bij RzMon binnenkomt (agents, heartbeats, API) en wat RzMon zelf op de achtergrond doet. Lukt een taak te lang niet, dan krijg je een ⚠️-melding (<i>Meldingen → Systeemmeldingen → Achtergrondtaak lukt niet</i>).')) ?>
         <div id="conn-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
       <div data-sk="dbconn" class="card need-admin" id="dbconn-card">
         <h2>🔌 <?= th('Databaseverbinding') ?></h2>
-        <p class="muted small"><?= th('Waar RzMon zijn gegevens bewaart (MariaDB of MySQL). Alleen aanpassen als je de database verhuist; opslaan vraagt je wachtwoord en installeert de tabellen op de nieuwe plek.') ?></p>
+        <?= xp(t('Waar RzMon zijn gegevens bewaart; alleen wijzigen als je de database verhuist.'), t('De database (MariaDB of MySQL) waarin RzMon alles bewaart. Pas dit alleen aan als je de database verhuist. Opslaan vraagt om je wachtwoord en maakt de tabellen op de nieuwe plek aan.')) ?>
         <div id="dbconn-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
@@ -1426,7 +1426,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
       <div data-sk="db" class="card need-admin" id="db-card">
         <h2>🔑 <?= th('Databasewachtwoord') ?></h2>
-        <p class="muted small"><?= th('RzMon gebruikt een eigen databasegebruiker. Met de knop maak je een nieuw, sterk wachtwoord en slaat RzMon het overal op. Alles blijft gewoon werken: dashboards, cron, API en agents.') ?></p>
+        <?= xp(t('Maak met één klik een nieuw, sterk wachtwoord voor de database.'), t('RzMon gebruikt een eigen databasegebruiker. Met de knop maak je een nieuw, sterk wachtwoord en slaat RzMon het overal op. Alles blijft gewoon werken: dashboards, cron, API en agents.')) ?>
         <p class="small" id="db-status">…</p>
         <button type="button" class="btn" id="db-rotate"><?= th('🔑 Databasewachtwoord vernieuwen') ?></button>
       </div>
@@ -1455,7 +1455,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="card" id="acct-logins"><h2>🕘 <?= th('Mijn laatste logins') ?></h2><div id="acct-logins-body"></div></div>
       <div class="card view-card" data-pk="view">
         <h2>🖥️ <?= th('Weergave') ?></h2>
-        <p class="muted small"><?= t('Hoe de pagina\'s eruitzien, direct toegepast. <i>Bij openen</i> en de <i>lay-out</i> gelden voor je account; de grootte voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc). <b>◈ CC</b>: alle pagina\'s in de stijl van het Command center, met kaarten die je kunt verslepen (✎ Indeling).') ?></p>
+        <?= xp(t('Hoe RzMon eruitziet voor jou; wijzigingen zie je meteen.'), t('<b>Wat het is:</b> hoe de pagina\'s eruitzien, direct toegepast. <i>Bij openen</i> en de <i>lay-out</i> gelden voor je account; de grootte geldt voor <b>dit apparaat</b> (zo kies je op je telefoon iets anders dan op je pc). <b>◈ CC:</b> alle pagina\'s in de stijl van het Command center, met kaarten die je kunt verslepen (✎ Indeling).')) ?>
         <div class="view-row">
           <span class="view-label"><?= th('Bij openen') ?> <span class="hint"><?= th('(voor je account)') ?></span></span>
           <div class="seg" role="group" aria-label="<?= th('Bij openen') ?>">

@@ -168,3 +168,14 @@ function th(string $nl, array $vars = []): string
 {
     return htmlspecialchars(t($nl, $vars), ENT_QUOTES);
 }
+
+/**
+ * 1.161.0: uitleg als één regel met een knop "Meer info"; de volledige tekst klapt open.
+ * Altijd dicht bij het openen van een pagina. $short en $more zijn al vertaald (t()) en mogen HTML bevatten.
+ */
+function xp(string $short, string $more, string $cls = '', string $attrs = ''): string
+{
+    return '<div class="xp' . ($cls !== '' ? ' ' . htmlspecialchars($cls, ENT_QUOTES) : '') . '"' . ($attrs !== '' ? ' ' . $attrs : '') . '>'
+        . '<p class="xp-s"><span>' . $short . '</span> <button type="button" class="xp-btn" aria-expanded="false">' . th('Meer info') . '</button></p>'
+        . '<div class="xp-d" hidden><p>' . implode('</p><p>', preg_split('~\s+(?=<b>[^<]{2,40}:</b>)~u', $more) ?: [$more]) . '</p></div></div>';
+}
