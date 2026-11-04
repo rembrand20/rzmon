@@ -2039,7 +2039,7 @@ function pgTools(page) {
     ${ed ? `<div class="cc-editbar pg-editbar">${esc(L('Sleep een kaart aan ⋮⋮, kies de breedte en verberg wat je niet nodig hebt. Dit geldt voor jouw account.'))}
       <button type="button" class="btn small-btn" data-pgreset="${page}">↺ ${esc(L('Standaard'))}</button></div>` : ''}`;
 }
-const PG_PAGES = ['mon', 'alerts'];
+const PG_PAGES = ['mon', 'alerts', 'ids', 'inc', 'vuln', 'net', 'an'];   // 1.159.0: ook IDS, Incidenten, Kwetsbaarheden, Netwerk en Analyse
 function applyLayout() {
   document.body.classList.toggle('lay-cc', isCC());
   PG_PAGES.forEach((p) => { pgApply(p); pgTools(p); });
@@ -2086,6 +2086,76 @@ function initPageGrid() {
     pgApply(page);
   });
   applyLayout();
+}
+/** 1.159.0: bouwstenen voor de grafieken in CC (licht SVG, kleuren uit het thema) */
+function ccBarsSvg(slots, cols, labels = [], H = 110) {
+  const W = 600, n = slots.length, bw = W / n;
+  const mx = Math.max(1, ...slots.map((x) => x.reduce((a, b) => a + b, 0)));
+  let bars = '';
+  slots.forEach((sl, i) => {
+    let y = H;
+    sl.forEach((v, j) => { if (!v) return; const h = (v / mx) * (H - 12); y -= h; bars += `<rect x="${(i * bw + 2).toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1, bw - 4).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${cols[j]}"><title>${sl.reduce((a, b) => a + b, 0)}</title></rect>`; });
+  });
+  const lab = labels.map(([i, t]) => `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${H + 12}" class="pg-ax" text-anchor="${i === 0 ? 'start' : i >= n - 1 ? 'end' : 'middle'}">${esc(t)}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H + 16}" class="pg-bars" preserveAspectRatio="none" aria-hidden="true">${bars}${lab}</svg>`;
+}
+const ccHbars = (rows, col = 'var(--fx-cy)') => { const m = Math.max(1, ...rows.map((r) => r[1])); return rows.map(([n, v, c]) => `<div class="pg-hbar"><span>${esc(n)}</span><span class="pg-hb"><i style="width:${(v / m * 100).toFixed(0)}%;background:${c || col};box-shadow:0 0 8px ${c || col}"></i></span><b>${v}</b></div>`).join(''); };
+function ccDonut(parts, center = '') {
+  const tot = parts.reduce((a, p) => a + p[1], 0), r = 38, c = 2 * Math.PI * r;
+  let off = 0;
+  const segs = tot ? parts.map(([, v, col]) => { const l = v / tot * c; const s = `<circle cx="48" cy="48" r="${r}" fill="none" stroke="${col}" stroke-width="11" stroke-dasharray="${l.toFixed(1)} ${(c - l).toFixed(1)}" stroke-dashoffset="${(-off).toFixed(1)}"/>`; off += l; return s; }).join('') : '';
+  return `<div class="pg-donut"><svg viewBox="0 0 96 96" width="110" height="110" aria-hidden="true"><g transform="rotate(-90 48 48)"><circle cx="48" cy="48" r="${r}" fill="none" stroke="var(--fx-bd)" stroke-width="11"/>${segs}</g><text x="48" y="53" text-anchor="middle" class="pg-dn">${esc(String(center))}</text></svg>
+    <div class="pg-dl">${parts.map(([n, v, col]) => `<span><i style="background:${col}"></i>${esc(n)} <b>${v}</b></span>`).join('')}</div></div>`;
+}
+const ccDay = (t) => { const d = new Date(String(t).replace(' ', 'T')); return isNaN(d) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+/** Incidenten in CC: geopend en opgelost per dag (30 dagen) en per bron */
+function ccIncCharts() {
+  const a = $('#inc-cc-chart'), b = $('#inc-cc-src');
+  if (!a || !b || !isCC() || !incData) return;
+  const today = ccDay(new Date().toISOString().slice(0, 10) + ' 00:00:00') ?? 0, D = 86400000;
+  const slots = Array.from({ length: 30 }, () => [0, 0]);
+  incData.incidents.forEach((i) => {
+    const o = ccDay(i.opened_at), r = i.resolved_at ? ccDay(i.resolved_at) : null;
+    const io = o === null ? -1 : 29 - Math.round((today - o) / D), ir = r === null ? -1 : 29 - Math.round((today - r) / D);
+    if (io >= 0 && io < 30) slots[io][0]++;
+    if (ir >= 0 && ir < 30) slots[ir][1]++;
+  });
+  const lab = [0, 10, 20, 29].map((k) => [k, new Date(today - (29 - k) * D).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' })]);
+  a.innerHTML = `<div class="cc-h"><span class="cc-hl">${esc(L('Geopend en opgelost · 30 dagen'))}</span></div>${ccBarsSvg(slots, ['var(--fx-cr)', 'var(--fx-ok)'], lab)}
+    <div class="pg-key small"><i style="background:var(--fx-cr)"></i>${esc(L('geopend'))} <i style="background:var(--fx-ok)"></i>${esc(L('opgelost'))}</div>`;
+  const act = incData.incidents.filter((i) => i.status !== 'resolved');
+  const SRC = { check: ['📈 Monitoring', 'var(--fx-cy)'], ids: ['🛡️ IDS', 'var(--fx-cr)'], vuln: ['🐞 ' + L('Kwetsbaarheden'), 'var(--fx-wa)'] };
+  const parts = Object.entries(SRC).map(([k, [n, c]]) => [n, act.filter((i) => i.source === k).length, c]);
+  const other = act.length - parts.reduce((x, p) => x + p[1], 0);
+  if (other > 0) parts.push([L('Overig'), other, 'var(--fx-mu)']);
+  b.innerHTML = `<div class="cc-h"><span class="cc-hl">${esc(L('Nog bezig, per bron'))}</span></div>${ccDonut(parts, act.length)}`;
+}
+/** Kwetsbaarheden in CC: per ernst en de servers met de meeste */
+function ccVulnCharts() {
+  const a = $('#vuln-cc-sev'), b = $('#vuln-cc-hosts');
+  if (!a || !b || !isCC() || !vulnData) return;
+  const live = vulnData.findings.filter((f) => !f.ignored);
+  const uniq = (fs) => new Set(fs.map((f) => f.host_id + '|' + f.cve)).size;
+  const SEV = [[4, 'Critical', 'var(--fx-cr)'], [3, 'High', 'var(--fx-wa)'], [2, 'Medium', 'var(--fx-ou)'], [1, 'Low', 'var(--fx-cy)']];
+  const parts = SEV.map(([s, n, c]) => [n, uniq(live.filter((f) => f.severity === s)), c]);
+  const kev = uniq(live.filter((f) => f.kev));
+  a.innerHTML = `<div class="cc-h"><span class="cc-hl">${esc(L('Per ernst'))}</span>${kev ? `<span class="cc-cr small">⚠ ${esc(L('{n} actief misbruikt (KEV)', { n: kev }))}</span>` : ''}</div>${ccDonut(parts, parts.reduce((x, p) => x + p[1], 0))}`;
+  const per = {};
+  live.forEach((f) => { (per[f.host_id] ||= new Set()).add(f.cve); });
+  const name = (id) => (findHost(id) || {}).name || ('#' + id);
+  const rows = Object.entries(per).map(([id, set]) => [name(id), set.size]).sort((x, y) => y[1] - x[1]).slice(0, 6);
+  b.innerHTML = `<div class="cc-h"><span class="cc-hl">${esc(L('Servers met de meeste kwetsbaarheden'))}</span></div>${rows.length ? ccHbars(rows, 'var(--fx-wa)') : `<p class="cc-mu small">${esc(L('Geen open kwetsbaarheden.'))}</p>`}`;
+}
+/** Netwerk in CC: de apparaten in één oogopslag */
+function ccNetChart() {
+  const a = $('#net-cc-chart');
+  if (!a || !isCC() || !netData) return;
+  const devs = netData.devices, day = Date.now() - 86400e3;
+  const online = devs.filter((x) => new Date(String(x.last_seen).replace(' ', 'T')).getTime() > day).length;
+  const rows = [[L('Online (24 uur)'), online, 'var(--fx-ok)'], [L('Nieuw'), devs.filter((x) => x.status === 'new').length, 'var(--fx-wa)'],
+    [L('Riskante poort'), devs.filter((x) => x.risky.length && x.status !== 'ignored').length, 'var(--fx-cr)'], [L('In RzMon'), devs.filter((x) => x.host).length, 'var(--fx-cy)'],
+    [L('Bekend'), devs.filter((x) => x.status === 'known').length, 'var(--fx-ou)'], [L('Genegeerd'), devs.filter((x) => x.status === 'ignored').length, 'var(--fx-mu)']];
+  a.innerHTML = `<div class="cc-h"><span class="cc-hl">${esc(L('Apparaten · {n} in totaal', { n: devs.length }))}</span></div><div class="pg-hgrid">${ccHbars(rows)}</div>`;
 }
 /** Meldingen in CC: per uur over 24 uur (gestapeld per status) en per kanaal over de geladen dagen */
 function renderAlertCharts() {
@@ -2287,6 +2357,10 @@ function setLayout(v) {
   showViewPrefs();
   render();
   if (alertData) renderAlerts();
+  if (incData) renderIncidents();
+  if (vulnData) renderVulns();
+  if (netData) renderNet();
+  if (idsData) renderIds();
   // Dashboard: klassiek of Command center, opnieuw laden (andere gegevens)
   ccEdit = false;
   markDash();
@@ -6829,8 +6903,8 @@ const IDS_CHART = [['login', () => L('Logins'), ['logins', 'decoy']], ['web', ()
   ['host', () => L('Processen en bestanden'), ['procs', 'files']], ['other', () => L('Overig'), null]];
 function renderIdsChart() {
   const box = $('#ids-chart');
-  let isOpen = false;
-  try { isOpen = localStorage.getItem('rzmon-ids-chart') === '1'; } catch (e) { /* standaard dicht */ }
+  let isOpen = isCC();   // 1.159.0: in CC staat de grafiek altijd open
+  try { isOpen = isOpen || localStorage.getItem('rzmon-ids-chart') === '1'; } catch (e) { /* standaard dicht */ }
   const days = idsPerDay(null, 14);
   const grp = (i) => { const c = idsCatOf(i); return (IDS_CHART.find((g) => g[2] && g[2].includes(c)) || IDS_CHART[4])[0]; };
   const rows = days.map(([day, xs]) => [day, IDS_CHART.map(([k]) => xs.filter((i) => grp(i) === k).length)]);
@@ -12108,6 +12182,7 @@ function renderNet() { withMorph(renderNetNow); }
 function renderNetNow() {
   const d = netData;
   if (!d) return;
+  try { ccNetChart(); } catch (e) { /* idem */ }
   const devs = d.devices;
   const day = Date.now() - 86400e3;
   const online = (x) => new Date(String(x.last_seen).replace(' ', 'T')).getTime() > day;
@@ -12538,6 +12613,7 @@ function riskPill(r) {
 
 function renderVulns() {
   if (!vulnData) return;
+  try { ccVulnCharts(); } catch (e) { /* idem */ }
   const d = vulnData;
   const list = vulnVisible();
   // Tellers per ernst (unieke CVE's per server), zonder geaccepteerde
@@ -13652,6 +13728,7 @@ function incVisible() {
 
 function renderIncidents() {
   if (!incData) return;
+  try { ccIncCharts(); } catch (e) { /* grafiek mag de lijst nooit tegenhouden */ }
   const c = incData.counts;
   $('#inc-badge').hidden = !c.open;
   $('#inc-badge').textContent = c.open || '';

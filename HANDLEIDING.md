@@ -169,13 +169,19 @@ Er zijn vier lay-outs, **per account** (je ziet dezelfde op elk apparaat):
 
 In **CC** krijgen alle pagina's (ook de instellingen) de futuristische stijl van het Command center: glazen panelen met een dunne gloeiende rand, cyaan accenten, een fijn raster op de achtergrond. In licht én donker, het volgt je thema. Alle informatie blijft precies hetzelfde; alleen de vorm verandert.
 
-**Kaarten indelen** (vanaf 1.158.0 op Monitoring en Meldingen; de andere pagina's volgen): rechtsboven staan **● Live**, **✎ Indeling** en **▣ TV-modus**. Met *Indeling*:
+**Kaarten indelen** (vanaf 1.158.0 op Monitoring en Meldingen, vanaf 1.159.0 ook op IDS, Incidenten, Kwetsbaarheden, Netwerk en Analyse): rechtsboven staan **● Live**, **✎ Indeling** en **▣ TV-modus**. Met *Indeling*:
 - **sleep** een kaart aan ⋮⋮ naar een andere plek;
 - kies de **breedte**: ¼, ⅓, ½, ¾ of de hele breedte;
 - **👁 verberg** wat je niet nodig hebt (in de indeling zie je het nog doorschijnend, zodat je het terug kunt zetten);
 - **↺ Standaard** zet alles terug.
 
 Dit wordt per pagina onthouden, voor jouw account. Op een smal scherm (telefoon) staan de kaarten onder elkaar, in jouw volgorde.
+
+**Extra kaarten in CC** (vanaf 1.159.0), naast alles wat er al stond:
+- **IDS**: *Aanvallen per dag* staat altijd open (in de andere lay-outs blijft het een regel die je uitklapt). De tabbladen (Incidenten, Aanvalskaart …) zijn samen één kaart.
+- **Incidenten**: *Geopend en opgelost* (per dag, 30 dagen) en *Nog bezig, per bron* (monitoring, IDS, kwetsbaarheden).
+- **Kwetsbaarheden**: *Per ernst* (met hoeveel er actief misbruikt worden) en *Servers met de meeste kwetsbaarheden*.
+- **Netwerk**: *Apparaten*: online, nieuw, riskante poort, in RzMon, bekend en genegeerd.
 
 **Meldingen in CC** heeft twee extra kaarten: **Meldingen per uur** (de laatste 24 uur, per status: critical, warning, hersteld en info) en **Per kanaal** (push, e-mail, webhook / Home Assistant en alleen op de pagina, over de geladen dagen).
 

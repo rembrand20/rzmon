@@ -291,11 +291,17 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="health-counts" id="ids-counts"></div>
         <span class="dash-last muted small" id="ids-last"></span>
       </div></div>
-      <div class="kpis" id="ids-kpis"></div>
-      <div class="attn-sec" id="ids-attn" hidden></div>
-      <div class="srv-list" id="ids-hosts"></div>
-      <div id="ids-chart" hidden></div>
-      <div class="subtabs ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
+      <div class="pg-tools" data-pgtools="ids"></div>
+      <div class="pgrid" data-pgrid="ids">
+      <div class="pcard" data-pk="kpis" data-pw="12" data-pt="<?= th('Kerncijfers') ?>"><div class="kpis" id="ids-kpis"></div>
+      </div>
+      <div class="pcard" data-pk="attn" data-pw="12" data-pt="<?= th('Nu aandacht nodig') ?>"><div class="attn-sec" id="ids-attn" hidden></div>
+      </div>
+      <div class="pcard" data-pk="hosts" data-pw="6" data-pt="<?= th('Servers met open incidenten') ?>"><div class="srv-list" id="ids-hosts"></div>
+      </div>
+      <div class="pcard" data-pk="chart" data-pw="6" data-pt="<?= th('Aanvallen per dag') ?>"><div id="ids-chart" hidden></div>
+      </div>
+      <div class="pcard" data-pk="tabs" data-pw="12" data-pt="<?= th('Tabbladen') ?>"><div class="subtabs ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
         <button type="button" class="seg-btn active" data-it="inc"><?= th('⚠️ Incidenten') ?> <span class="it-n" id="it-n-inc"></span></button>
         <button type="button" class="seg-btn" data-it="map"><?= th('🗺️ Aanvalskaart') ?></button>
         <button type="button" class="seg-btn" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
@@ -409,6 +415,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div>
 
       </div>
+      </div>
+      </div>
     </section>
 
     <?php if ($showVulns || $showLeaks): ?>
@@ -426,9 +434,17 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="health-counts" id="vuln-counts"></div>
         <span class="dash-last muted small" id="vuln-info"></span>
       </div></div>
-      <div id="vuln-banner"></div>
-      <div class="kpis" id="vuln-kpis"></div>
-      <div class="dash-bar">
+      <div class="pg-tools" data-pgtools="vuln"></div>
+      <div class="pgrid" data-pgrid="vuln">
+      <div class="pcard" data-pk="banner" data-pw="12" data-pt="<?= th('Melding') ?>"><div id="vuln-banner"></div>
+      </div>
+      <div class="pcard" data-pk="kpis" data-pw="12" data-pt="<?= th('Kerncijfers') ?>"><div class="kpis" id="vuln-kpis"></div>
+      </div>
+      <div class="pcard cc-only" data-pk="cc_sev" data-pw="4" data-pt="<?= th('Per ernst') ?>"><div class="cc-card" id="vuln-cc-sev"></div>
+      </div>
+      <div class="pcard cc-only" data-pk="cc_hosts" data-pw="8" data-pt="<?= th('Servers met de meeste kwetsbaarheden') ?>"><div class="cc-card" id="vuln-cc-hosts"></div>
+      </div>
+      <div class="pcard" data-pk="bar" data-pw="12" data-pt="<?= th('Zoeken en filters') ?>"><div class="dash-bar">
         <input type="search" id="vuln-search" placeholder="<?= th('🔍 Zoek pakket, CVE of server…') ?>" autocomplete="off">
         <div class="dash-chips" id="vuln-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
         <span class="dash-sp"></span>
@@ -442,7 +458,10 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div class="dash-menu" role="menu" hidden><button type="button" id="vuln-toggle" role="menuitem"><?= th('⊞ Alles openen / sluiten') ?></button></div>
         </div>
       </div>
-      <div id="vuln-hosts"></div>
+      </div>
+      <div class="pcard" data-pk="list" data-pw="12" data-pt="<?= th('Servers') ?>"><div id="vuln-hosts"></div>
+      </div>
+      </div>
       </div>
       <?php endif; ?>
       <?php if ($showLeaks): ?>
@@ -474,20 +493,32 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     <?php if ($role !== 'readonly'): ?>
     <section id="tab-incidents" class="tab-panel" hidden>
       <!-- 1.142.0: één lijst uit monitoring, IDS en kwetsbaarheden -->
-      <div class="kpis" id="inc-kpis"></div>
-      <div class="dash-bar">
+      <div class="pg-tools" data-pgtools="inc"></div>
+      <div class="pgrid" data-pgrid="inc">
+      <div class="pcard" data-pk="kpis" data-pw="12" data-pt="<?= th('Kerncijfers') ?>"><div class="kpis" id="inc-kpis"></div>
+      </div>
+      <div class="pcard cc-only" data-pk="cc_chart" data-pw="8" data-pt="<?= th('Geopend en opgelost') ?>"><div class="cc-card" id="inc-cc-chart"></div>
+      </div>
+      <div class="pcard cc-only" data-pk="cc_src" data-pw="4" data-pt="<?= th('Per bron') ?>"><div class="cc-card" id="inc-cc-src"></div>
+      </div>
+      <div class="pcard" data-pk="bar" data-pw="12" data-pt="<?= th('Zoeken en filters') ?>"><div class="dash-bar">
         <input type="search" id="inc-search" placeholder="<?= th('Zoek incident, server of eigenaar…') ?>" aria-label="<?= th('Zoeken') ?>">
         <div class="dash-chips" id="inc-filter" role="group"></div>
         <span class="dash-sp"></span>
         <span class="muted small"><?= th('Elke minuut bijgewerkt uit monitoring, IDS en kwetsbaarheden') ?></span>
       </div>
-      <div id="inc-list"><p class="muted">⏳ <?= th('Laden…') ?></p></div>
+      </div>
+      <div class="pcard" data-pk="list" data-pw="12" data-pt="<?= th('Incidenten') ?>"><div id="inc-list"><p class="muted">⏳ <?= th('Laden…') ?></p></div>
+      </div>
+      </div>
     </section>
     <?php endif; ?>
 
     <section id="tab-analytics" class="tab-panel" hidden>
       <!-- 1.106.0: trends door de tijd -->
-      <div class="dash-bar an-toolbar">
+      <div class="pg-tools" data-pgtools="an"></div>
+      <div class="pgrid" data-pgrid="an">
+      <div class="pcard" data-pk="bar" data-pw="12" data-pt="<?= th('Periode en tabbladen') ?>"><div class="dash-bar an-toolbar">
         <div class="dash-chips" id="an-period" role="group" aria-label="<?= th('Periode') ?>"></div>
         <span class="an-custom"><input type="date" id="an-from" aria-label="<?= th('Van') ?>"> – <input type="date" id="an-to" aria-label="<?= th('Tot en met') ?>"> <button type="button" class="btn small-btn" id="an-go"><?= th('Toon') ?></button></span>
         <span class="dash-sp"></span>
@@ -495,7 +526,10 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <button type="button" class="btn small-btn" id="an-pdf" title="<?= th('Afdrukbaar rapport over deze periode; bewaar het als PDF') ?>">📄 <?= th('Rapport (PDF)') ?></button>
         <div class="an-report need-admin" id="an-report"></div>
       </div>
-      <div id="an-body"><p class="muted">⏳ <?= th('Analyse laden…') ?></p></div>
+      </div>
+      <div class="pcard" data-pk="body" data-pw="12" data-pt="<?= th('Analyse') ?>"><div id="an-body"><p class="muted">⏳ <?= th('Analyse laden…') ?></p></div>
+      </div>
+      </div>
     </section>
     <?php endif; ?>
 
@@ -506,16 +540,25 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="health-counts" id="net-counts"></div>
         <span class="dash-last muted small" id="net-last"></span>
       </div></div>
-      <div id="net-banner"></div>
-      <div class="kpis" id="net-kpis"></div>
-      <div class="dash-bar">
+      <div class="pg-tools" data-pgtools="net"></div>
+      <div class="pgrid" data-pgrid="net">
+      <div class="pcard" data-pk="banner" data-pw="12" data-pt="<?= th('Melding') ?>"><div id="net-banner"></div>
+      </div>
+      <div class="pcard" data-pk="kpis" data-pw="12" data-pt="<?= th('Kerncijfers') ?>"><div class="kpis" id="net-kpis"></div>
+      </div>
+      <div class="pcard cc-only" data-pk="cc_chart" data-pw="12" data-pt="<?= th('Apparaten') ?>"><div class="cc-card" id="net-cc-chart"></div>
+      </div>
+      <div class="pcard" data-pk="bar" data-pw="12" data-pt="<?= th('Zoeken en filters') ?>"><div class="dash-bar">
         <input type="search" id="net-search" placeholder="<?= th('🔍 Zoek naam, IP, MAC of fabrikant…') ?>" autocomplete="off">
         <div class="dash-chips" id="net-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
         <span class="dash-sp"></span>
         <button type="button" class="btn need-admin" id="net-approve-all"><?= th('✔ Alle nieuwe bekend') ?></button>
         <button type="button" class="btn need-admin" id="net-scan">🔍 <?= th('Nu scannen') ?></button>
       </div>
-      <div class="card net-card"><div id="net-list"></div></div>
+      </div>
+      <div class="pcard" data-pk="list" data-pw="12" data-pt="<?= th('Apparaten') ?>"><div class="card net-card"><div id="net-list"></div></div>
+      </div>
+      </div>
     </section>
     <?php endif; ?>
 

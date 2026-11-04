@@ -14,6 +14,15 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.155.0**: **Analyse en advies**: slimme analyses die je gegevens combineren tot concreet advies met bewijs (zoals een verouderde dienst met een actief misbruikte CVE op een poort die van buiten wordt aangevallen), een veiligheidsscore per onderdeel en een melding bij kritieke, wereldwijd bekende lekken.
 - **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
 
+## 1.159.0 – 2026-11-04
+### Nieuw
+- **Lay-out CC, ronde 2**: ook **IDS, Incidenten, Kwetsbaarheden, Netwerk en Analyse** bestaan in CC uit kaarten die je versleept, smaller of breder maakt en verbergt (✎ Indeling), met **● Live** en **▣ TV-modus** rechtsboven. Alles wat er stond, blijft staan.
+- Nieuwe kaarten in CC:
+  - **IDS**: *Aanvallen per dag* staat altijd open;
+  - **Incidenten**: *Geopend en opgelost* (30 dagen) en *Nog bezig, per bron*;
+  - **Kwetsbaarheden**: *Per ernst* en *Servers met de meeste kwetsbaarheden*;
+  - **Netwerk**: *Apparaten* (online, nieuw, riskant, in RzMon, bekend, genegeerd).
+
 ## 1.158.0 – 2026-11-04
 ### Nieuw
 - **Lay-out CC** ◈: een vierde lay-out naast Blox, L1nes en Compact.
