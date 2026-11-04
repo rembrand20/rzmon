@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.160.0**: in de lay-out CC zijn nu ook de **Instellingen** (per onderdeel), **Mijn account** en de **Agent Manager** kaarten die je versleept en smaller of breder maakt; daarmee zit elke pagina in CC.
 - **1.158.0**: de **lay-out CC**: alle pagina's in de stijl van het Command center (licht en donker), met kaarten die je zelf versleept, smaller of breder maakt en verbergt; per account.
 
+## 1.163.1 – 2026-11-04
+### Opgelost
+- **Accountmenu in de lay-out CC** werd afgeknipt bij de rand van de zijbalk (met een schuifbalk eronder). Het menu staat nu helemaal in beeld, en is iets breder zodat *Lay-out* met Blox, L1nes, Compact en CC op één regel past (ook in de andere lay-outs).
+- **Lay-out CC zonder zichtbaar raster** op de achtergrond; de zachte gloed blijft.
+
 ## 1.163.0 – 2026-11-04
 ### Nieuw
 - **Meer info op alle pagina's en in de vensters**: ook de uitleg in de Agent Manager (installeren, TrueNAS, Proxmox, Home Assistant), het server- en checkformulier, IDS (Regels, MITRE, Afwijkingen, Blokkades, isoleren en vergrendelen), de aanvalskaart, Kwetsbaarheden, Netwerk, *Onzichtbaar van buiten* en de ingelogde apparaten is nu één korte regel met **Meer info**. Ruim 40 teksten herschreven, Nederlands en Engels.

@@ -2969,11 +2969,12 @@ body.lay-cc {
   --bg: var(--fx-bg); --bg-2: var(--fx-bg2); --card: var(--fx-bg2); --card-2: color-mix(in srgb, var(--fx-cy) 5%, var(--fx-bg));
   --border: var(--fx-bd); --text: var(--fx-tx); --muted: var(--fx-mu); --primary: var(--fx-cy); --ok: var(--fx-ok); --warn: var(--fx-wa); --crit: var(--fx-cr);
   --shadow: var(--fx-shadow);
-  background: radial-gradient(1100px 520px at 75% 0%, var(--fx-glow1), transparent 60%), radial-gradient(800px 500px at 0% 100%, var(--fx-glow2), transparent 60%),
-    repeating-linear-gradient(0deg, var(--fx-grid) 0 1px, transparent 1px 36px), repeating-linear-gradient(90deg, var(--fx-grid) 0 1px, transparent 1px 36px), var(--fx-bg);
+  /* 1.163.1: zonder zichtbaar raster; alleen de zachte gloed */
+  background: radial-gradient(1100px 520px at 75% 0%, var(--fx-glow1), transparent 60%), radial-gradient(800px 500px at 0% 100%, var(--fx-glow2), transparent 60%), var(--fx-bg);
   background-attachment: fixed;
 }
-body.lay-cc .app-top, body.lay-cc .side { background: color-mix(in srgb, var(--fx-bg) 88%, transparent); backdrop-filter: blur(6px); border-color: var(--fx-bd); }
+/* 1.163.1: geen backdrop-filter: die maakte van de zijbalk het kader voor het zwevende accountmenu, dat daardoor werd afgeknipt */
+body.lay-cc .app-top, body.lay-cc .side { background: var(--fx-bg); border-color: var(--fx-bd); }
 body.lay-cc .tab.active, body.lay-cc .tab[aria-selected="true"] { box-shadow: inset 3px 0 0 var(--fx-cy); }
 /* Kaarten: glas, dunne gloeiende bovenrand */
 body.lay-cc .card, body.lay-cc .kpi, body.lay-cc .host, body.lay-cc .alert-day, body.lay-cc .attn, body.lay-cc .ok-item, body.lay-cc .hm-row, body.lay-cc .cc-card {
@@ -3035,3 +3036,6 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 /* 1.162.0: IDS → Regels is om te bekijken; aan/uit staat in de Instellingen */
 .rule-view .rule-table td:first-child, .rule-view .rule-table th:first-child { display: none; }
 .wl-link { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }
+/* 1.163.1: accountmenu iets breder, zodat de vier lay-outs en het label op één regel passen */
+.acct-menu { width: 340px; max-width: calc(100vw - 24px); }
+.acct-row { white-space: nowrap; }
