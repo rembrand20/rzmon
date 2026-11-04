@@ -63,7 +63,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
   <?php if ($userTheme === null): ?><script nonce="<?= csp_nonce() ?>">try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script><?php endif; ?>
 </head>
-<body<?= ((json_decode((string) ($prefsJson ?? ''), true) ?: [])['side'] ?? '') === 'mini' ? ' class="side-mini"' : '' ?> data-role="<?= htmlspecialchars($role) ?>"<?php if ($user && !$mustChange && !$resetToken): ?> data-prefs="<?= htmlspecialchars($prefsJson ?? 'local') ?>"<?php endif; ?>>
+<?php $sidePrefs = json_decode((string) ($prefsJson ?? ''), true) ?: []; $sideW = (int) ($sidePrefs['side_w'] ?? 0); ?>
+<body<?= ($sidePrefs['side'] ?? '') === 'mini' ? ' class="side-mini"' : '' ?><?= $sideW >= 180 && $sideW <= 380 ? ' style="--side-w:' . $sideW . 'px"' : '' ?> data-role="<?= htmlspecialchars($role) ?>"<?php if ($user && !$mustChange && !$resetToken): ?> data-prefs="<?= htmlspecialchars($prefsJson ?? 'local') ?>"<?php endif; ?>>
 <?php if ($resetToken): ?>
   <main class="login-wrap">
     <form id="reset-form" class="card login-card" data-token="<?= htmlspecialchars($resetToken) ?>">
@@ -166,6 +167,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <?php if ($showNet): ?><button class="tab" data-tab="net" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/><path d="M12 7v5M5 17v-2.5a1.5 1.5 0 0 1 1.5-1.5h11a1.5 1.5 0 0 1 1.5 1.5V17"/></svg><span class="tab-badge s1" id="net-badge" hidden></span></span><span class="tab-lbl"><?= th('Netwerk') ?></span></button><?php endif; ?>
       <?php if ($role === 'admin'): ?><button class="tab side-only" data-tab="settings" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span><span class="tab-lbl"><?= th('Instellingen') ?></span></button><?php endif; ?>
     </nav>
+    <nav class="side-admin" id="side-admin" hidden aria-label="<?= th('Beheer') ?>">
+      <button type="button" class="side-back" id="side-back">← <?= th('Terug naar RzMon') ?></button>
+      <div class="side-admin-t" id="side-admin-t"></div>
+      <div id="side-admin-body"></div>
+      <div class="side-acct" id="side-acct" hidden></div>
+    </nav>
+    <div class="side-resize" id="side-resize" role="separator" aria-orientation="vertical" tabindex="0" aria-label="<?= th('Breedte van de zijbalk') ?>" title="<?= th('Sleep om de zijbalk breder of smaller te maken; dubbelklik zet hem terug') ?>"></div>
     <div class="top-actions">
       <button type="button" class="side-toggle" id="side-toggle" aria-expanded="true" title="<?= th('Zijbalk inklappen tot iconen') ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/><path d="M20 4v16"/></svg><span class="side-toggle-lbl"><?= th('Inklappen') ?></span></button>
       <button type="button" class="cmdk-btn" id="cmdk-btn" title="<?= th('Zoeken en doen (Ctrl+K)') ?>" aria-label="<?= th('Zoeken') ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="cmdk-kbd">Ctrl K</span></button>

@@ -2117,8 +2117,8 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
    Smaller: de tabbladen bovenaan zoals eerder, op de telefoon de balk onderaan. */
 .main-tabs .tab.side-only { display: none; }
 @media (min-width: 1101px) {
-  body:has(.app-top) { padding-left: 232px; }
-  .topbar.app-top { position: fixed; top: 0; left: 0; bottom: 0; z-index: 30; width: 232px; display: flex; flex-direction: column; align-items: stretch; gap: 1.1rem;
+  body:has(.app-top) { padding-left: var(--side-w, 232px); }
+  .topbar.app-top { position: fixed; top: 0; left: 0; bottom: 0; z-index: 30; width: var(--side-w, 232px); display: flex; flex-direction: column; align-items: stretch; gap: 1.1rem;
     padding: 1.1rem .75rem .9rem; background: var(--side); backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: 0; border-right: 1px solid var(--border); overflow-y: auto; }
   .app-top .brand { padding: 0 .45rem; flex-wrap: wrap; row-gap: .35rem; }
   .app-top .main-tabs { flex: 1 1 auto; flex-direction: column; align-items: stretch; justify-self: auto; gap: 2px; margin: 0; padding: 0; background: none; border: 0; border-radius: 0; overflow: visible; }
@@ -3151,3 +3151,26 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 .ids-top-i > b { font-family: var(--mono, ui-monospace, monospace); }
 .ids-top-b { display: block; height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; margin-top: .3rem; }
 .ids-top-b i { display: block; height: 100%; background: var(--crit); }
+/* 1.167.0: zijbalk breder of smaller slepen; in Instellingen en Mijn account het menu van die pagina */
+.side-resize, .side-admin { display: none; }
+@media (min-width: 1101px) {
+  .side-resize { display: block; position: fixed; top: 0; bottom: 0; left: calc(var(--side-w, 232px) - 4px); width: 8px; z-index: 31; cursor: col-resize; touch-action: none; }
+  .side-resize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background .15s; }
+  .side-resize:hover::after, .side-resize.drag::after, .side-resize:focus-visible::after { background: var(--primary); }
+  .side-resize:focus-visible { outline: none; }
+  body.side-mini .side-resize { display: none; }
+  body.side-dragging, body.side-dragging * { cursor: col-resize !important; user-select: none !important; }
+  body.side-admin-on .app-top .main-tabs { display: none; }
+  body.side-admin-on .side-admin:not([hidden]) { display: flex; flex-direction: column; gap: .55rem; flex: 1 1 auto; min-height: 0; }
+  .side-back { display: flex; align-items: center; gap: .45rem; width: 100%; padding: .55rem .75rem; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font: inherit; font-weight: 650; cursor: pointer; text-align: left; }
+  .side-back:hover { border-color: var(--primary); color: var(--primary); }
+  .side-admin-t { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--muted); padding: .35rem .45rem 0; }
+  .side-admin .set-side { position: static; top: auto; }
+  body.side-admin-on #tab-settings .set-layout { grid-template-columns: minmax(0, 1fr); }
+  .side-acct { display: flex; flex-direction: column; gap: 2px; }
+  .side-acct[hidden] { display: none; }
+  .side-acct-i { display: block; width: 100%; text-align: left; padding: .55rem .75rem; border-radius: 10px; border: 0; background: none; color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+  .side-acct-i:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+  .side-acct-i.on { background: color-mix(in srgb, var(--primary) 15%, transparent); box-shadow: inset 3px 0 0 var(--primary); }
+}
+.acct-flash { box-shadow: 0 0 0 2px var(--primary) !important; transition: box-shadow .3s; }

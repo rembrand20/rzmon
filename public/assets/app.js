@@ -1036,7 +1036,7 @@ function init() {
   showTab(location.hash.slice(1) || 'home');   // 1.134.0: het Dashboard is de startpagina
 
   initAccountMenu();
-  initSideToggle();
+  initSideToggle(); initSideResize(); initSideAdmin();
   initCC();   // 1.154.0
   initSettingsNav();
   initCmdk();
@@ -1571,8 +1571,9 @@ function showTab(name) {
   $$('.tab-panel').forEach((p) => (p.hidden = p.id !== 'tab-' + name));
   history.replaceState(null, '', '#' + name);
   fxSyncHash();
+  sideMode(name);   // 1.167.0
   if (name === 'settings') { loadSettings(); showSettingsSection(sub || setSection); }
-  if (name === 'account') loadAccount();
+  if (name === 'account') { loadAccount(); setTimeout(() => { if (sideTab === 'account' && document.body.classList.contains('side-admin-on')) sideAcctList(); }, 600); }
   if (name === 'alerts') loadAlerts();
   if ((name === 'dashboard' || name === 'alerts') && state.badges) refresh();   // tab gezien: teller naar 0
   if (name === 'ids') loadIds();
@@ -9371,6 +9372,84 @@ function initAccountMenu() {
   });
   markTheme();
 }
+// ---------------------------------------------------------------- 1.167.0: zijbalk breder of smaller slepen (per account)
+const SIDE_MIN = 180, SIDE_MAX = 380, SIDE_DEF = 232;
+function setSideW(w, save) {
+  const v = w ? Math.max(SIDE_MIN, Math.min(SIDE_MAX, Math.round(w))) : 0;
+  if (v) document.body.style.setProperty('--side-w', v + 'px'); else document.body.style.removeProperty('--side-w');
+  if (save) savePref('side_w', v);
+  requestAnimationFrame(() => moveTabIndicator(false));
+}
+function initSideResize() {
+  const h = $('#side-resize');
+  if (!h) return;
+  const cur = () => parseInt(getComputedStyle(document.body).getPropertyValue('--side-w'), 10) || SIDE_DEF;
+  h.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    h.setPointerCapture(e.pointerId);
+    h.classList.add('drag');
+    document.body.classList.add('side-dragging');
+    const move = (ev) => setSideW(ev.clientX, false);
+    const up = () => {
+      h.removeEventListener('pointermove', move);
+      h.classList.remove('drag');
+      document.body.classList.remove('side-dragging');
+      setSideW(cur(), true);
+    };
+    h.addEventListener('pointermove', move);
+    h.addEventListener('pointerup', up, { once: true });
+    h.addEventListener('pointercancel', up, { once: true });
+  });
+  h.addEventListener('dblclick', () => setSideW(0, true));
+  h.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); setSideW(cur() + (e.key === 'ArrowRight' ? 12 : -12), true); }
+    if (e.key === 'Home') { e.preventDefault(); setSideW(0, true); }
+  });
+}
+// ---------------------------------------------------------------- 1.167.0: in Instellingen en Mijn account wordt de zijbalk het menu van die pagina
+const SIDE_WIDE = window.matchMedia ? window.matchMedia('(min-width: 1101px)') : { matches: false, addEventListener() {} };
+let sideTab = 'home', sideBackTo = 'home';
+function sideMode(name = sideTab) {
+  sideTab = name;
+  if (name !== 'settings' && name !== 'account') sideBackTo = name;
+  const box = $('#side-admin');
+  if (!box) return;
+  const on = (name === 'settings' || name === 'account') && SIDE_WIDE.matches && !document.body.classList.contains('side-mini');
+  document.body.classList.toggle('side-admin-on', on);
+  box.hidden = !on;
+  // Het menu van de instellingen (met zoeken) verhuist naar de zijbalk, en terug als het niet past
+  const ss = $('#set-side'), home = $('#tab-settings .set-layout');
+  const target = on && name === 'settings' ? $('#side-admin-body') : home;
+  if (ss && target && ss.parentElement !== target) target.prepend(ss);
+  $('#side-admin-t').textContent = name === 'settings' ? L('Instellingen') : L('Mijn account');
+  const acct = $('#side-acct');
+  acct.hidden = !(on && name === 'account');
+  if (on && name === 'account') sideAcctList();
+}
+/** Mijn account: de kaarten van de pagina als menu; klik = ernaartoe */
+function sideAcctList() {
+  const cards = $$('#tab-account .acct-page > .card').filter((c) => !c.hidden && getComputedStyle(c).display !== 'none' && $('h2', c));
+  $('#side-acct').innerHTML = cards.map((c, i) => {
+    if (!c.id) c.id = 'acct-card-' + i;
+    return `<button type="button" class="side-acct-i" data-acct-go="${esc(c.id)}">${esc($('h2', c).textContent.replace(EMOJI_LEAD, '').trim())}</button>`;
+  }).join('');
+}
+function initSideAdmin() {
+  if (!$('#side-admin')) return;
+  $('#side-back').onclick = () => showTab(sideBackTo || 'home');
+  $('#side-acct').onclick = (e) => {
+    const b = e.target.closest('[data-acct-go]');
+    const c = b && document.getElementById(b.dataset.acctGo);
+    if (!c) return;
+    $$('#side-acct .side-acct-i').forEach((x) => x.classList.toggle('on', x === b));
+    c.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    c.classList.add('acct-flash');
+    setTimeout(() => c.classList.remove('acct-flash'), 1200);
+  };
+  const re = () => sideMode(sideTab);
+  if (SIDE_WIDE.addEventListener) SIDE_WIDE.addEventListener('change', re);
+}
+
 // ---------------------------------------------------------------- Zijbalk inklappen tot iconen (1.150.0), per gebruiker onthouden
 function initSideToggle() {
   const b = $('#side-toggle');
@@ -9389,6 +9468,7 @@ function initSideToggle() {
     if (a) a.classList.toggle('mini', mini);
     if (save) savePref('side', mini ? 'mini' : 'full');
     requestAnimationFrame(() => moveTabIndicator(false));
+    if (typeof sideMode === 'function' && $('#side-admin')) sideMode(sideTab);   // 1.167.0: ingeklapt = het gewone menu
   };
   set(PREFS.side === 'mini' || document.body.classList.contains('side-mini'), false);
   b.onclick = () => set(!document.body.classList.contains('side-mini'), true);

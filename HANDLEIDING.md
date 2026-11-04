@@ -421,6 +421,14 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 ### Accountmenu, Mijn account en Instellingen (vanaf 1.60.0)
 **Zijbalk** (vanaf 1.135.0): op een breed scherm staat het menu links onder elkaar (Dashboard, Monitoring, Meldingen, IDS, Kwetsbaarheden, Analyse, Netwerk), met onderaan **Instellingen** (beheerders), zoeken (Ctrl+K) en je account. Op een smaller scherm staan de tabbladen bovenaan, op de telefoon in de balk onderaan. Met **« Inklappen** onderaan (vanaf 1.150.0) wordt de zijbalk smal: alleen de iconen, met de tellers erbij en de naam als je een icoon aanwijst; **» Uitklappen** maakt hem weer breed. RzMon onthoudt dat per gebruiker (op elk apparaat). Het accountmenu (je naam onderaan) zweeft boven de pagina en past altijd helemaal.
 
+**Breedte van de zijbalk** (vanaf 1.167.0): sleep de rechterrand van de zijbalk naar links of rechts (tussen 180 en 380 pixels). **Dubbelklik** op de rand zet hem terug op de standaard. Met het toetsenbord: zet de focus op de rand en gebruik ← en →, *Home* = standaard. RzMon onthoudt de breedte voor je account.
+
+**Beheermenu in de zijbalk** (vanaf 1.167.0): ga je naar **Instellingen** of **Mijn account**, dan wordt de zijbalk het menu van die pagina:
+- bovenaan **← Terug naar RzMon**: terug naar de pagina waar je vandaan kwam;
+- bij Instellingen: het zoekveld en alle onderdelen (Overzicht, Monitoring, Meldingen, IDS, Beveiliging, Agents, Koppelingen, Systeem), met de bolletjes voor wat aandacht nodig heeft; de pagina zelf wordt daardoor breder;
+- bij Mijn account: de onderdelen van je account (Gegevens, Wachtwoord, Tweestapsverificatie, Van buiten en passkeys, Ingelogde apparaten, Mijn laatste logins, Weergave); klik en je springt ernaartoe.
+Is de zijbalk ingeklapt tot iconen, of is het scherm smaller, dan blijft het zoals eerder (het menu van de instellingen staat dan op de pagina zelf).
+
 **Thema** (accountmenu → 🌓): *auto* (volgt je apparaat), *licht* of *donker*. Vanaf 1.135.0 wordt je keuze **per gebruiker** bewaard, dus op elk apparaat waarop je inlogt hetzelfde. Het donkere thema is diep marineblauw, als een controlekamer.
 
 - **Rechtsboven** staat je naam met een menu: **👤 Mijn account**, **⚙️ Instellingen** (alleen beheerders), het **thema** (auto, licht of donker), de **taal** (NL of EN) en **⏻ Uitloggen**. Ben je zonder wachtwoord binnen via het lokale netwerk, dan staat er **🏠 Lokaal netwerk** met **Inloggen met je account**; *Mijn account* is er dan niet.

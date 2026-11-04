@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.167.0**: de **zijbalk** sleep je zelf breder of smaller, en in Instellingen en Mijn account wordt hij het menu van die pagina, met **← Terug naar RzMon**.
 - **1.166.0**: op de IDS-pagina **wat het IDS deed (24 u)**, de **meest actieve aanvallers** en een duidelijkere grafiek.
 - **1.165.0**: de **IDS-pagina** toont de servers als tabel (L1nes) of met *Wat nu aandacht vraagt*, kaarten en chips (Blox en CC), met modus en hardening duidelijk erbij.
 - **1.164.0**: in CC zijn de servers op Monitoring compacte blokken die met een animatie openklappen tot een **tabel met de checks eronder**.
 - **1.163.0**: **Meer info** nu op alle pagina's en in alle vensters, met herschreven uitleg.
-- **1.162.0**: persoonlijke keuzes (IDS-weergave, beweging, grootte, sortering, periode) gelden **per account**, en regels, uitzonderingen en de whitelist beheer je bij de **instellingen**.
+
+## 1.167.0 – 2026-11-04
+### Nieuw
+- **Zijbalk zelf breder of smaller**: sleep de rechterrand (180–380 pixels), dubbelklik zet hem terug; met het toetsenbord ← en →. Onthouden voor je account.
+- **Beheermenu in de zijbalk**: in **Instellingen** en **Mijn account** wordt de zijbalk het menu van die pagina, met bovenaan **← Terug naar RzMon** (terug naar waar je was).
+  - Instellingen: het zoekveld en alle onderdelen staan in de zijbalk, dus de pagina zelf is breder.
+  - Mijn account: de onderdelen van je account; klik en je springt ernaartoe.
+  - Ingeklapte zijbalk of een smaller scherm: zoals eerder.
 
 ## 1.166.0 – 2026-11-04
 ### Nieuw

@@ -7195,4 +7195,8 @@ return [
     '+{n} andere' => '+{n} other',
     'Geen aanvallen van buiten in de laatste 24 uur.' => 'No attacks from outside in the last 24 hours.',
     'Pogingen en treffers per IP-adres; klik op een adres voor de tijdlijn.' => 'Attempts and hits per IP address; click an address for the timeline.',
+    'Beheer' => 'Admin',
+    'Terug naar RzMon' => 'Back to RzMon',
+    'Breedte van de zijbalk' => 'Sidebar width',
+    'Sleep om de zijbalk breder of smaller te maken; dubbelklik zet hem terug' => 'Drag to make the sidebar wider or narrower; double-click resets it',
 ];
