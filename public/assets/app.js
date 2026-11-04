@@ -295,6 +295,26 @@ const PREFS = (() => {
   } catch (e) { return {}; }
 })();
 const prefTimers = {};
+/* 1.162.0: weergave-keuzes per account (ui): grootte per soort scherm (telefoon of computer), sortering en periode.
+   Eerst wat het account weet, anders wat deze browser nog weet (van vóór 1.162.0), anders de standaard. */
+const uiDev = () => (window.matchMedia && window.matchMedia('(max-width: 700px)').matches ? 'm' : 'd');
+function uiGet(k, ls, def) {
+  const u = PREFS.ui || {};
+  if (typeof u[k] === 'string' && u[k] !== '') return u[k];
+  try { const v = localStorage.getItem(ls); if (v !== null && v !== '') return v; } catch (e) { /* geen opslag */ }
+  return def;
+}
+function uiSet(k, ls, v) {
+  try { localStorage.setItem(ls, v); } catch (e) { /* alleen het account */ }
+  savePref('ui', { ...(PREFS.ui || {}), [k]: String(v) });
+}
+/** Sortering als "kolom:richting" (account) of JSON (oude opslag in de browser) */
+function uiSortGet(k, ls, cur) {
+  const u = (PREFS.ui || {})[k];
+  if (typeof u === 'string' && /^[a-z_]*:-?1$/.test(u)) { const [key, dir] = u.split(':'); return { key, dir: +dir }; }
+  return cur;
+}
+const uiSortSet = (k, ls, s) => { try { localStorage.setItem(ls, JSON.stringify(s)); } catch (e) { /* alleen het account */ } savePref('ui', { ...(PREFS.ui || {}), [k]: `${s.key || ''}:${s.dir < 0 ? -1 : 1}` }); };
 function savePref(key, value) {
   PREFS[key] = value;
   if (prefsLocal) { try { localStorage.setItem('rzmon-prefs', JSON.stringify(PREFS)); } catch (e) { /* alleen voor nu */ } return; }
@@ -303,6 +323,8 @@ function savePref(key, value) {
 }
 // Chip bovenaan de meldingen (1.84.0): per gebruiker onthouden (eerder alleen in deze browser)
 if (PREFS.alert_filter) alertFilter = PREFS.alert_filter;
+alertSort = uiSortGet('alert_sort', 'rzmon-alert-sort', alertSort);
+accSort = uiSortGet('acc_sort', 'rzmon-acc-sort', accSort);
 /** Slim openen (vandaag open, ernstige dingen open, onthouden): alleen als de gebruiker dat koos */
 const smartOpen = () => PREFS.open_mode === 'smart';
 
@@ -1037,7 +1059,7 @@ function init() {
     const b = e.target.closest('[data-dfilter]');
     if (b) { statusFilter = null; setDashFilter(b.dataset.dfilter); }
   });
-  $('#dash-sort').onchange = (e) => { dashSort = e.target.value; try { localStorage.setItem('rzmon-dash-sort', dashSort); } catch (ex) {} render(); };
+  $('#dash-sort').onchange = (e) => { dashSort = e.target.value; uiSet('dash_sort', 'rzmon-dash-sort', dashSort); render(); };
   $('#health-counts').addEventListener('click', (e) => {
     const b = e.target.closest('[data-st]');
     if (!b) return;
@@ -1264,16 +1286,19 @@ function init() {
   $('#edr-host').onchange = () => loadEdrFeed();
   $('#edr-hits').onchange = () => loadEdrFeed();
   $('#edr-own').onchange = () => loadEdrFeed();
-  $('#rule-q').oninput = () => renderEdrRules();
-  $('#rule-src').onclick = (e) => {
-    const b = e.target.closest('[data-rs]');
-    if (!b) return;
-    ruleSrc = b.dataset.rs;
-    $$('#rule-src .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
-    renderEdrRules();
-  };
+  ['#rule-q', '#rule-q-set'].forEach((id) => { if ($(id)) $(id).oninput = () => renderEdrRules(); });
+  ['#rule-src', '#rule-src-set'].forEach((id) => {
+    if (!$(id)) return;
+    $(id).onclick = (e) => {
+      const b = e.target.closest('[data-rs]');
+      if (!b) return;
+      ruleSrc = b.dataset.rs;
+      $$(id + ' .seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+      renderEdrRules();
+    };
+  });
   initExceptions();   // 1.132.0
-  $('#edr-rules').onchange = async (e) => {
+  if ($('#edr-rules-set')) $('#edr-rules-set').onchange = async (e) => {
     const c = e.target.closest('[data-rule]');
     if (!c) return;
     try { await api('edr_rule_set', { id: c.dataset.rule, on: c.checked }); toast(c.checked ? L('Regel aan') : L('Regel uit')); loadEdrRules(); } catch (ex) { toast(ex.message, 'err'); c.checked = !c.checked; }
@@ -1308,7 +1333,7 @@ function init() {
     if (th) {
       const k = th.dataset.sort;
       accSort = accSort.key !== k ? { key: k, dir: 1 } : accSort.dir > 0 ? { key: k, dir: -1 } : { key: '', dir: 1 };
-      try { localStorage.setItem('rzmon-acc-sort', JSON.stringify(accSort)); } catch (ex) { /* alleen voor nu */ }
+      uiSortSet('acc_sort', 'rzmon-acc-sort', accSort);
       return renderAccess();
     }
     const b = e.target.closest('[data-acc]');
@@ -1434,6 +1459,8 @@ function init() {
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-view-layout]'); if (b) setLayout(b.dataset.viewLayout); });
   // 1.157.0: rode gloed en live-animaties (per account)
   $$('[data-mon-pref]').forEach((c) => (c.onchange = () => { savePref(c.dataset.monPref === 'glow' ? 'mon_glow' : 'mon_anim', c.checked ? 'on' : 'off'); applyMonPrefs(); }));
+  $$('[data-acct-ids-modern]').forEach((c) => (c.onchange = () => { savePref('ids_modern', c.checked ? 'on' : 'off'); savedFlag(c, true); if (typeof idsData !== 'undefined' && idsData) renderIds(); }));
+  $$('[data-acct-motion]').forEach((c) => (c.onchange = () => { savePref('af_motion', String(c.value)); savedFlag(c, true); }));
   applyMonPrefs();
   initPageGrid();   // 1.158.0: lay-out CC
   // Bij openen: alles dicht of slim openen (voor je account, 1.71.0)
@@ -1693,7 +1720,7 @@ function dur(dt) {
 // Filterchips en sortering van het dashboard (per apparaat onthouden)
 // Keuze bovenaan (Alle, Problemen, of een soort apparaat): per gebruiker (1.75.0), daarvoor per browser
 let dashFilter = PREFS.dash_filter || (() => { try { return localStorage.getItem('rzmon-dash-filter') || 'all'; } catch (e) { return 'all'; } })();
-let dashSort = (() => { try { return localStorage.getItem('rzmon-dash-sort') || 'status'; } catch (e) { return 'status'; } })();
+let dashSort = uiGet('dash_sort', 'rzmon-dash-sort', 'status');
 let attnOpen = false;
 const attnBundles = new Set();   // 1.157.0: opengeklapte bundels in "Nu aandacht nodig"   // "Nu aandacht nodig": alles tonen (anders 6, op de telefoon 3)
 const isHa = (h) => h.checks.some((c) => c.type === 'ha') || h.metrics.includes('service:homeassistant');
@@ -2231,6 +2258,13 @@ function applyMonPrefs() {
   document.body.classList.toggle('no-glow', !monGlow());
   document.body.classList.toggle('no-anim', !monAnim());
   $$('[data-mon-pref]').forEach((c) => { c.checked = c.dataset.monPref === 'glow' ? monGlow() : monAnim(); });
+  // 1.162.0: IDS-weergave en beweging, per account (standaard: wat de beheerder instelde)
+  const vc = $('.view-card');
+  if (vc) {
+    const im = $('[data-acct-ids-modern]', vc), mo = $('[data-acct-motion]', vc);
+    if (im) im.checked = (PREFS.ids_modern || vc.dataset.idsModern) === 'on';
+    if (mo) mo.value = PREFS.af_motion !== undefined && PREFS.af_motion !== '' ? PREFS.af_motion : vc.dataset.afMotion;
+  }
 }
 /** Een server met een critical check die nog niet bevestigd is */
 const glowHost = (h) => +h.enabled && h.checks.some((c) => +c.enabled && !c.maintenance && +c.status === 2 && !c.acked_at);
@@ -2366,16 +2400,19 @@ function viewPrefs() {
   try {
     const lay = layoutPref();   // 1.158.0: per account (CC toont Monitoring als Blox, in de CC-stijl)
     layout = lay === 'l1nes' || lay === 'compact' ? lay : 'blox';
+    // 1.162.0: per account, apart voor telefoon en computer
     density = layout === 'l1nes'
-      ? (localStorage.getItem('rzmon-density') === 'large' ? 'large' : 'small')
-      : (localStorage.getItem('rzmon-blox-density') === 'small' ? 'small' : 'large');
+      ? (uiGet('dens_l1_' + uiDev(), 'rzmon-density', 'small') === 'large' ? 'large' : 'small')
+      : (uiGet('dens_blox_' + uiDev(), 'rzmon-blox-density', 'large') === 'small' ? 'small' : 'large');
   } catch (e) { /* geen opslag: standaard */ }
   return { layout, density };
 }
 function setViewPref(key, value) {
   if (key === 'layout') return setLayout(value);
-  if (key === 'density' && viewPrefs().layout === 'blox') key = 'blox-density';
-  try { localStorage.setItem('rzmon-' + key, value); } catch (e) {}
+  if (key === 'density') {
+    const blox = viewPrefs().layout === 'blox';
+    uiSet((blox ? 'dens_blox_' : 'dens_l1_') + uiDev(), blox ? 'rzmon-blox-density' : 'rzmon-density', value);
+  } else { try { localStorage.setItem('rzmon-' + key, value); } catch (e) { /* alleen nu */ } }
   showViewPrefs();
   render();
 }
@@ -5132,6 +5169,7 @@ function renderBlocks() {
       <td class="small">${+x.auto && x.src !== 'user' ? L('automatisch') : esc(x.by || '')}</td><td><span class="bl-acts">${btns(x, i)}</span></td></tr>`).join('')}</tbody></table></div>`
     : `<p class="muted small">${(src || qv) && (act ? d.active : d.history).length ? L('Niets gevonden.') : act ? L('Nu is er niets geblokkeerd. Je eigen IP-adres is {ip}.', { ip: `<code>${esc(d.my_ip)}</code>` })
       : L('Niets in de laatste {n} dagen.', { n: d.days })}</p>`;
+  if ($('#wl-count')) $('#wl-count').textContent = L('{n} op de whitelist', { n: d.whitelist.length });
   $('#wl-list').innerHTML = d.whitelist.length ? `<div class="table-scroll"><table class="vuln-table">
     <thead><tr><th>${L('Soort')}</th><th>${L('Wat')}</th><th>${L('Reden')}</th><th>${L('Tot')}</th><th>${L('Door')}</th><th></th></tr></thead><tbody>
     ${d.whitelist.map((w) => `<tr><td class="small">${WL_KIND[w.kind] ? WL_KIND[w.kind]() : esc(w.kind)}</td><td>${w.kind === 'user' ? '👤 <b>' + esc(w.value) + '</b>' : `<code>${esc(w.value)}</code>${ccTag(w.cc)}`}</td>
@@ -6203,7 +6241,7 @@ function showIdsTab() {
   $('#it-n-anom').textContent = nAnom || '';
   if (idsTab === 'blk' && isAdmin()) loadBlocks();
   if (idsTab === 'live') loadEdrFeed();
-  if (idsTab === 'rules') loadEdrRules();
+  if (idsTab === 'rules') { ruleWhere = 'ids'; if (ruleSrc === 'exc') ruleSrc = ''; loadEdrRules(); }
   if (idsTab === 'anom') loadAnom();
   if (idsTab === 'mitre') loadMitre();
   if (idsTab === 'prot') loadProt();
@@ -6212,6 +6250,11 @@ function showIdsTab() {
 
 // ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
 let edrFeed = null, edrRules = null, ruleSrc = '';
+/* 1.162.0: de regels staan op twee plekken: IDS → Regels (bekijken, met treffers) en Instellingen → IDS → Endpoint-bewaking
+   → Regels en uitzonderingen (aan/uit en uitzonderingen). ruleWhere zegt welke nu getekend wordt. */
+let ruleWhere = 'ids';
+const ruleBox = () => $(ruleWhere === 'set' ? '#edr-rules-set' : '#edr-rules');
+const ruleQ = () => $(ruleWhere === 'set' ? '#rule-q-set' : '#rule-q');
 const EDR_KIND_IC = { exec: '⚙️', net: '🌐', file: '📄', audit: '🔐', ctr: '📦', sur: '🦉' };
 const EDR_AUDIT_KEY = { rzmon_id: () => L('accounts/sudo'), rzmon_persist: () => L('cron/systemd/ssh'), rzmon_mod: () => L('kernelmodule') };
 const edrBase = (p) => String(p || '').split('/').pop();
@@ -6261,19 +6304,19 @@ async function loadEdrFeed() {
   });
 }
 async function loadEdrRules() {
-  try { edrRules = await api('edr_rules'); } catch (ex) { $('#edr-rules').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  try { edrRules = await api('edr_rules'); } catch (ex) { ruleBox().innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   renderEdrRules();
 }
 function renderEdrRules() {
-  $('#rule-q').hidden = ruleSrc === 'exc';
+  ruleQ().hidden = ruleSrc === 'exc';
   if (ruleSrc === 'exc') return loadExceptions();   // 1.132.0
   if (!edrRules) return;
-  const q = ($('#rule-q').value || '').trim().toLowerCase();
+  const q = (ruleQ().value || '').trim().toLowerCase();
   const list = edrRules.rules.filter((r) => (!ruleSrc || r.src === ruleSrc) && (!q || (r.title + ' ' + r.what + ' ' + r.tags.join(' ') + ' ' + r.id).toLowerCase().includes(q)));
   const act = (a) => a.map((x) => ({ kill: '⛔ ' + L('stopt het proces'), block: '🚫 ' + L('blokkeert het IP'), isolate: '🧱 ' + L('isoleert de server') }[x] || x)).join(' · ');
   const on = edrRules.rules.filter((r) => r.on).length;
   withMorph(() => {
-    $('#edr-rules').innerHTML = `<p class="muted small" style="margin-top:0">${L('{on} van {n} regels aan. Eigen regels van RzMon (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). Een regel uitzetten geldt voor alle servers; "Dit is normaal" bij een incident geldt voor één server.', { on, n: edrRules.rules.length })}
+    ruleBox().innerHTML = `<p class="muted small" style="margin-top:0">${L('{on} van {n} regels aan. Eigen regels van RzMon (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). Een regel uitzetten geldt voor alle servers; "Dit is normaal" bij een incident geldt voor één server.', { on, n: edrRules.rules.length })}
       ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → IDS → Endpoint-bewaking).')}</span>`}</p>
       <div class="table-scroll"><table class="vuln-table rule-table"><thead><tr><th></th><th>${L('Regel')}</th><th>${L('Ernst')}</th><th>${L('Doet zelf')}</th><th>MITRE</th><th title="${esc(L('Treffers in de laatste 3 dagen'))}">${L('Treffers')}</th></tr></thead><tbody>
       ${list.map((r) => `<tr class="${r.on ? '' : 'muted'}" data-key="${esc(r.id)}"><td><label class="switch small need-admin"><input type="checkbox" data-rule="${esc(r.id)}" ${r.on ? 'checked' : ''}><span></span></label></td>
@@ -6297,7 +6340,7 @@ const excCond = (c) => Object.entries(c || {}).map(([k, v]) => `<span class="exc
 const excRule = (r, target) => (!r ? (target === 'ids' ? L('alle IDS-meldingen') : L('alle regels')) : esc(((excData?.rules || []).find((x) => x.id === r) || {}).title || r));
 const excScope = (x) => (x.scope === 'host' ? esc(x.host_name || ('#' + x.scope_val)) : x.scope === 'group' ? esc((EXC_GROUPS[x.scope_val] || (() => x.scope_val))()) : L('alle servers'));
 async function loadExceptions() {
-  const box = $('#edr-rules');
+  const box = $('#edr-rules-set');
   if (!excData) box.innerHTML = `<p class="muted">${L('Laden…')}</p>`;
   try { excData = await api('exc_list'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   renderExceptions();
@@ -6333,7 +6376,7 @@ function renderExceptions() {
         <td class="nowrap"><button type="button" class="btn small-btn" data-exc-edit="${x.id}" title="${esc(L('Bewerken'))}">✎</button> <button type="button" class="btn small-btn" data-exc-del="${x.id}" title="${esc(L('Weghalen'))}">✕</button></td></tr>`).join('')}
       </tbody></table></div>` : `<p class="muted small">${L('Nog geen uitzonderingen.')}</p>`;
   withMorph(() => {
-    $('#edr-rules').innerHTML = `<p class="muted small" style="margin-top:0">${L('Wat hier staat is normaal: geen melding, niet ingrijpen en niet meetellen voor afwijkingen. Je ziet het wel als groene regel ✔ toegestaan in Live. Nooit uit te zonderen: malware (YARA), programma\'s in /dev/shm, lokaas, bekende kwade adressen en ketens.')}</p>
+    $('#edr-rules-set').innerHTML = `<p class="muted small" style="margin-top:0">${L('Wat hier staat is normaal: geen melding, niet ingrijpen en niet meetellen voor afwijkingen. Je ziet het wel als groene regel ✔ toegestaan in Live. Nooit uit te zonderen: malware (YARA), programma\'s in /dev/shm, lokaas, bekende kwade adressen en ketens.')}</p>
       <div class="btn-row"><button type="button" class="btn primary" id="exc-new">＋ ${L('Uitzondering')}</button>
         <button type="button" class="btn" id="exc-export">⇩ ${L('Exporteren')}</button>
         <label class="btn" for="exc-import">⇧ ${L('Importeren')}</label><input type="file" id="exc-import" accept="application/json,.json" hidden></div>
@@ -6377,7 +6420,8 @@ function excDialog(x = null) {
   $('#exc-target').onchange = (e) => { $('#exc-rule').innerHTML = ruleOpts(e.target.value); };
 }
 function initExceptions() {
-  const box = $('#edr-rules');
+  const box = $('#edr-rules-set');   // 1.162.0: uitzonderingen alleen in de Instellingen
+  if (!box) return;
   box.addEventListener('click', async (e) => {
     if (ruleSrc !== 'exc') return;
     const t = e.target;
@@ -6987,7 +7031,7 @@ function renderIds() {
   const maxF = Math.max(1, ...failHours);
   let fp = '';
   failHours.forEach((v, i) => { fp += `${fp ? 'L' : 'M'}${(i / 23 * 100).toFixed(1)},${(24 - v / maxF * 20).toFixed(1)}`; });
-  const modern = d.modern !== false;
+  const modern = PREFS.ids_modern ? PREFS.ids_modern === 'on' : d.modern !== false;   // 1.162.0: per account
   $('#tab-ids').classList.toggle('ids-modern', modern);
   if (modern) $('#ids-last').innerHTML = idsModePill(d) + (lastRep ? ` <span>${esc(L('IDS-rapport {ago}', { ago: ago(lastRep) }))}</span>` : '');
   $('#ids-kpis').innerHTML = `
@@ -7404,7 +7448,8 @@ const afEmpty = (filtered) => `<div class="card am-empty">${amSvg('stop', 'am-ic
 /** 1.153.0: hoeveel beweging (instelling af_motion: 0 = stil, 1 = rustig, 2 = vol); "minder beweging" van het apparaat telt als stil */
 function afMotion(d) {
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
-  const m = d && d.live ? +d.live.motion : 2;
+  const own = PREFS.af_motion;   // 1.162.0: per account; anders wat de beheerder instelde
+  const m = own !== undefined && own !== '' ? +own : (d && d.live ? +d.live.motion : 2);
   return [0, 1, 2].includes(m) ? m : 2;
 }
 
@@ -8616,7 +8661,7 @@ document.addEventListener('click', (e) => {
 });
 
 function saveAlertSort() {
-  try { localStorage.setItem('rzmon-alert-sort', JSON.stringify(alertSort)); } catch (e) { /* alleen voor deze sessie */ }
+  uiSortSet('alert_sort', 'rzmon-alert-sort', alertSort);
   renderAlerts();
 }
 
@@ -9245,9 +9290,11 @@ const SET_NAV = [
     ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzMon zelf, zoals updates en certificaten.')]]],
   ['ids', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS'), [
     ['ids', L('Algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
-    ['ids_edr', L('Endpoint-bewaking'), ['ids_edr'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.')],
+    ['ids_edr', L('Endpoint-bewaking'), ['ids_edr', 'ids_rules'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.'),
+      [['bewaking', L('Bewaking'), ['ids_edr']], ['regels', L('Regels en uitzonderingen'), ['ids_rules']]]],
     ['ids_ti', L('Dreigingsinformatie'), ['ids_ti'], L('Bekende aanvallers en malware opzoeken, en DNS en Suricata.')],
-    ['ids_attack', L('Netwerk en aanvallers'), ['ids_attack'], L('Blocklists, landen, uitgaand verkeer en de logs van webdiensten.')],
+    ['ids_attack', L('Netwerk en aanvallers'), ['ids_attack', 'whitelist'], L('Blocklists, landen, uitgaand verkeer, de logs van webdiensten en de whitelist.'),
+      [['aanvallers', L('Aanvallers en verkeer'), ['ids_attack']], ['whitelist', L('Whitelist'), ['whitelist']]]],
     ['ids_servers', L('Per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')]]],
   ['beveiliging', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Beveiliging'), [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
@@ -9275,8 +9322,8 @@ const SET_NAV = [
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
-const SET_ALIAS = { enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db' };   // 1.120.0: samengevoegde onderdelen
-const SET_TAB_OF = { smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
+const SET_ALIAS = { ids_rules: 'ids_edr', whitelist: 'ids_attack', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db' };   // 1.120.0: samengevoegde onderdelen
+const SET_TAB_OF = { ids_rules: 'regels', whitelist: 'whitelist', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
 let setHealthAt = 0;
@@ -9329,6 +9376,8 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'internet') loadInet();
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
+  if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0
+  if (setSection === 'ids_attack' && cards.includes('whitelist')) loadBlocks();
   if (setSection === 'db' || setSection === 'perf') loadSyscheck();   // 1.151.0: systeemcheck, cron, database, prestaties
   if (setSection === 'db') loadSetupInfo();
   if (focusEl) {
@@ -9639,7 +9688,7 @@ function polishSettings(root) {
     for (let n = h.nextElementSibling; n && !n.matches('h3.set-sub'); n = n.nextElementSibling) if (!n.hidden) { any = true; break; }
     h.hidden = !any;
   });
-  $$('[data-sk^="ids"]:not([data-sk="ids_servers"]) > h2', root).forEach((h) => {
+  $$('[data-sk^="ids"]:not([data-sk="ids_servers"]):not([data-sk="ids_rules"]) > h2', root).forEach((h) => {
     if (h.nextElementSibling && h.nextElementSibling.classList.contains('prot-hint')) return;
     h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je bij <a href="#ids/prot" data-goto="ids/prot">IDS → Bescherming</a>. Hier staan de algemene instellingen.')}</div>`);
   });
@@ -11732,7 +11781,7 @@ async function backupUpload(file) {
 }
 
 // ---------------------------------------------------------------- Analyse (1.106.0)
-let anPeriod = (() => { try { return localStorage.getItem('rzmon-an-period') || '30d'; } catch (e) { return '30d'; } })();
+let anPeriod = uiGet('an_period', 'rzmon-an-period', '30d');
 let anData = null;
 const AN_PERIODS = [['1d', () => L('24 uur')], ['7d', () => L('7 dagen')], ['30d', () => L('30 dagen')], ['90d', () => L('90 dagen')], ['365d', () => L('1 jaar')]];
 
@@ -11933,7 +11982,7 @@ function iaAction(a, x) {
 }
 
 function initAnalytics() {
-  $('#an-period').onclick = (e) => { const b = e.target.closest('[data-anp]'); if (b) { anPeriod = b.dataset.anp; try { localStorage.setItem('rzmon-an-period', anPeriod); } catch (ex) { /* alleen nu */ } loadAnalytics(); } };
+  $('#an-period').onclick = (e) => { const b = e.target.closest('[data-anp]'); if (b) { anPeriod = b.dataset.anp; uiSet('an_period', 'rzmon-an-period', anPeriod); loadAnalytics(); } };
   $('#an-go').onclick = () => { const f = $('#an-from').value, t = $('#an-to').value; if (f && t && f <= t) { anPeriod = `${f}..${t}`; loadAnalytics(); } };
   $('#an-body').onclick = (e) => {
     if (iaClick(e)) return;   // 1.155.0: adviezen en tabbladen
@@ -13025,7 +13074,7 @@ function vulnExcludeEditor() {
 // ---------------------------------------------------------------- Dashboard (1.134.0)
 // De startpagina: alles samen. Servers en checks komen uit `state` (live), de rest uit api('home') (hooguit eens per minuut).
 const HM_PERIODS = [['7d', () => L('7 dagen')], ['30d', () => L('30 dagen')], ['90d', () => L('90 dagen')]];
-let hmPeriod = (() => { try { return localStorage.getItem('rzmon-hm-period') || '7d'; } catch (e) { return '7d'; } })();
+let hmPeriod = uiGet('hm_period', 'rzmon-hm-period', '7d');
 let hmData = null;
 let hmAt = 0;
 const HM_ST = { ok: () => L('In orde'), warn: () => L('Aandacht'), crit: () => L('Storing'), unk: () => L('Onbekend') };
@@ -13040,8 +13089,8 @@ async function loadHome(fresh = false) {
   const per = cc ? CC_PERIODS : HM_PERIODS, cur = cc ? ccPeriod : hmPeriod;
   $('#hm-period').innerHTML = per.map(([k, l]) => `<button type="button" class="seg-btn ${k === cur ? 'active' : ''}" data-hmp="${k}">${esc(l())}</button>`).join('');
   $$('[data-hmp]').forEach((b) => (b.onclick = () => {
-    if (dashMode() === 'cc') { ccPeriod = b.dataset.hmp; try { localStorage.setItem('rzmon-cc-period', ccPeriod); } catch (e) {} }
-    else { hmPeriod = b.dataset.hmp; try { localStorage.setItem('rzmon-hm-period', hmPeriod); } catch (e) {} }
+    if (dashMode() === 'cc') { ccPeriod = b.dataset.hmp; uiSet('cc_period', 'rzmon-cc-period', ccPeriod); }
+    else { hmPeriod = b.dataset.hmp; uiSet('hm_period', 'rzmon-hm-period', hmPeriod); }
     loadHome();
   }));
   if ($('#hm-tools')) $('#hm-tools').innerHTML = ccTools();
@@ -13173,7 +13222,7 @@ function renderHome() {
 // TV-modus voor een scherm aan de muur. Volgt het thema (licht of donker), net als de Live Attack Flow.
 const dashMode = () => (isCC() ? 'cc' : 'classic');   // 1.158.0: volgt de lay-out (CC = Command center, anders klassiek)
 const CC_PERIODS = [['today', () => L('Vandaag')], ['7d', () => L('7 dagen')], ['30d', () => L('30 dagen')], ['90d', () => L('90 dagen')]];
-let ccPeriod = (() => { try { const p = localStorage.getItem('rzmon-cc-period'); return CC_PERIODS.some(([k]) => k === p) ? p : 'today'; } catch (e) { return 'today'; } })();
+let ccPeriod = (() => { const p = uiGet('cc_period', 'rzmon-cc-period', 'today'); return CC_PERIODS.some(([k]) => k === p) ? p : 'today'; })();
 const ccSeenAt = PREFS.dash_seen || '';   // het vorige bezoek (bij het laden van de pagina), voor "sinds je laatste bezoek"
 let ccSeenSaved = false, ccEdit = false, ccAtk = null, ccAtkAt = 0, ccDrag = null;
 const ccNowStr = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };

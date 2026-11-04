@@ -465,7 +465,15 @@ Bij de **installatie** (en als de database niet bereikbaar is) is er de **setup-
 Daarna staat alles in de beheerportal (vanaf 1.92.0; `setup.php` stuurt je erheen), alleen voor **beheerders**:
 **Nieuwe indeling van de instellingen** (vanaf 1.120.0)
 
-Elke pagina heeft één titel met daaronder één korte zin. **Uitleg** staat vanaf 1.161.0 als **één regel** met rechts **Meer info** (Engels: *More info*): klik erop en de volledige uitleg klapt open, met *Wat het is*, *Wat het doet* en *Goed om te weten*. De uitleg staat altijd dicht tot je hem zelf opent, en is weer dicht zodra je naar een andere pagina gaat. (Van 1.148.0 tot 1.160.0 stond de uitleg als gewone grijze tekst op de kaart; eerder in een ingeklapt oranje ⓘ-blok.) Oranje is alleen nog voor wat aandacht nodig heeft. Schakelaars staan als rijen: de tekst links, de schakelaar rechts. Alles wordt meteen opgeslagen (✔ naast het veld).
+Elke pagina heeft één titel met daaronder één korte zin. **Uitleg** staat vanaf 1.161.0 als **één regel** met rechts **Meer info** (Engels: *More info*): klik erop en de volledige uitleg klapt open, met *Wat het is*, *Wat het doet* en *Goed om te weten*. De uitleg staat altijd dicht tot je hem zelf opent, en is weer dicht zodra je naar een andere pagina gaat. (Van 1.148.0 tot 1.160.0 stond de uitleg als gewone grijze tekst op de kaart; eerder in een ingeklapt oranje ⓘ-blok.)
+
+**Wat voor je account geldt** (vanaf 1.162.0): bij *Mijn account → Weergave* staan alle keuzes voor hoe RzMon er voor jou uitziet. Ze gelden op al je apparaten:
+- lay-out, *Bij openen*, rode gloed en live animaties;
+- de **grootte** (Small of Large), apart voor je telefoon en je computer;
+- de **moderne weergave** van de IDS-pagina en de **beweging** in de live Attack Flow (standaard wat de beheerder eerder instelde);
+- je **sortering** (Monitoring, Meldingen, Toegang) en de gekozen **periode** op het Dashboard en bij Analyse.
+
+Wat per scherm logisch is, blijft per apparaat: de TV-modus, het laatst gekozen tabblad en een filter dat je even aanzet. Oranje is alleen nog voor wat aandacht nodig heeft. Schakelaars staan als rijen: de tekst links, de schakelaar rechts. Alles wordt meteen opgeslagen (✔ naast het veld).
 
 | Groep | Onderdelen | Was |
 |---|---|---|
@@ -2195,7 +2203,7 @@ De agent let op tekenen van een inbraak en RzMon vergelijkt dat met wat normaal 
 - **Servers met open incidenten** als kaart: open, critical, geblokkeerd, de hardening-score (klik voor details) en een staafje per dag over 7 dagen (rood = er was een critical). Klik op het aantal open voor de incidenten van die server. Servers zonder open incidenten staan eronder als compacte regel onder *✔ Rustig*.
 - **📊 Aanvallen per dag**: 14 dagen, gestapeld per soort (Logins, Web, Netwerk, Processen en bestanden, Overig), met een legenda met aantallen; ga met de muis over een dag voor de cijfers. Standaard dicht; de browser onthoudt of je hem open hebt.
 - De **werkbalk** van *Incidenten* staat op één regel; de chips schuiven opzij als ze niet passen.
-- Liever de oude, compacte weergave? Zet **Moderne weergave** uit bij *Instellingen → IDS → Algemeen*.
+- Liever de oude, compacte weergave? Zet **Moderne weergave** uit bij *Mijn account → Weergave* (vanaf 1.162.0 per account; daarvoor bij *Instellingen → IDS → Algemeen*, voor iedereen tegelijk).
 
 **Aanzetten** gaat op *Instellingen → IDS → Algemeen*:
 - **IDS aan/uit**: standaard **uit**. Uit = de agents verzamelen niets en er wordt niets geblokkeerd.
@@ -2295,7 +2303,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
   - **Scanner** (sqlmap, nikto, nuclei, zgrab …): meteen.
   - **Veel 404** (standaard 20), **veel 401/403** (10), **zonder hostnaam** (444, standaard 5) binnen de tijd (standaard 10 minuten).
   - **Mislukte logins** in Home Assistant of Vaultwarden (standaard 5).
-- **Nooit:** je eigen netwerk (privé-adressen en je lokale netwerken) en de ✅ whitelist. Deblokkeren kan bij *Blokkades en whitelist*.
+- **Nooit:** je eigen netwerk (privé-adressen en je lokale netwerken) en de ✅ whitelist. Deblokkeren kan bij *IDS → Blokkades*; de whitelist staat bij *Instellingen → IDS → Netwerk en aanvallers → Whitelist*.
 - **Home Assistant achter SWAG** ziet zonder `use_x_forwarded_for: true` en `trusted_proxies` alleen het IP van SWAG. RzMon herkent dat en zet een ⚠️ bij de gevonden log.
 - **SWAG in Docker:** vanaf agent 1.58.0 blokkeert de agent vóór Docker (prerouting). Daarvoor ging verkeer naar een container (SWAG) langs de blokkade heen.
 - **Voorbeeld:** om 03:12 vraagt `45.148.10.12` op SWAG `/.env` op (404). RzMon meldt *SWAG: aanvalspad /.env* en blokkeert het IP op al je servers. Je Home Assistant, Nextcloud en RzMon achter SWAG zijn meteen beschermd.
@@ -2473,7 +2481,7 @@ In één oogopslag: waar komt een aanval vandaan, welke server of welk apparaat 
   - Een **groen schild** vlak voor de server: het IDS heeft het IP geblokkeerd, de deeltjes stoppen daar. Een **rode ring** om een server: die wordt op dit moment (de laatste 2 minuten) geraakt door een aanvaller die nog niet geblokkeerd is. Een nieuwe aanval (de laatste 5 minuten) tekent zich in, met *NIEUW* op het label.
   - **Uitgaand** (paars): een eigen apparaat dat naar buiten belt; de deeltjes lopen dan van rechts naar links, naar de bestemming.
   - **Live**: bij *Nu* en *1 uur* elke 10 seconden bijgewerkt, bij *24 uur* elke 20 seconden en bij 7 of 30 dagen elke minuut. Naast *LIVE* zie je hoe lang geleden.
-  - Hoeveel beweging stel je in bij *Instellingen → IDS → Algemeen → Beweging in de live Attack Flow* (schuif *Stil · Rustig · Vol*). Staat *minder beweging* aan op je apparaat, dan is het altijd stil.
+  - Hoeveel beweging stel je in bij *Mijn account → Weergave → Beweging in de live Attack Flow* (schuif *Stil · Rustig · Vol*; vanaf 1.162.0 per account). Staat *minder beweging* aan op je apparaat, dan is het altijd stil.
   - **Waargenomen of afgeleid**: een **doorgetrokken lijn** is verkeer dat echt is gezien; bij de dienst staat door wie (*auth.log*, *log van de webdienst*, *Suricata*, *firewall*, *agent*). Een **stippellijn** is een verband dat RzMon uit meldingen afleidt (een keten, dreigingsinformatie): dat is géén bewezen verkeer. Met *Afgeleide verbanden tonen* uit zie je alleen wat echt is gezien.
   - **Interne aanvalspaden**: is de bron een server van jou (zijn IP-adres staat bij een server in RzMon), dan staat hij links als *interne aanvaller* in paars. Werd die server eerder zelf aangevallen, dan loopt er een paarse stippellijn van die aanval naar hem: *afgeleid · zelfde server, 40 min later*.
   - **Samenvoegen per IP**: meerdere lijnen van één aanvaller hebben één knoop met het totaal en het aantal samengevoegde meldingen. Zet het uit voor één knoop per lijn.
@@ -2551,7 +2559,7 @@ Wat RzMon zelf doet of veroorzaakt, houdt het IDS nooit tegen. Het wordt wel gel
 
 ### Uitzonderingen 🛡️ (vanaf 1.132.0)
 
-Wat in een bepaalde situatie **normaal** is, zet je op *🛡️ IDS → 🔏 Regels → 🛡️ Uitzonderingen*. Wat op een uitzondering past: **geen melding**, **niet ingrijpen** (geen proces stoppen, niets blokkeren), en het telt **niet mee** voor afwijkingen en ketens. Je ziet het wel als groene regel *✔ toegestaan · uitzondering: naam* in *Live*.
+Wat in een bepaalde situatie **normaal** is, zet je bij *Instellingen → IDS → Endpoint-bewaking → Regels en uitzonderingen → 🛡️ Uitzonderingen* (vanaf 1.162.0; daarvoor op *IDS → 🔏 Regels*). Op *IDS → 🔏 Regels* zie je de regels en hun treffers; met **⚙️ Regels en uitzonderingen beheren** ga je naar de instellingen. Wat op een uitzondering past: **geen melding**, **niet ingrijpen** (geen proces stoppen, niets blokkeren), en het telt **niet mee** voor afwijkingen en ketens. Je ziet het wel als groene regel *✔ toegestaan · uitzondering: naam* in *Live*.
 
 - **Een uitzondering** heeft:
   - **Soort**: *endpoint-bewaking* (processen, bestanden, netwerk, containers) of *IDS* (logins, uitgaand verkeer, webshell, bewaakte bestanden);
@@ -2971,7 +2979,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - **Nieuwe sleutel:** de vorige blijft nog **24 uur** geldig. Elke agent krijgt de nieuwe bij zijn volgende rapport (versleuteld met de oude). Is een agent langer offline, dan gooit hij na 3 geweigerde rapporten zijn oude sleutel weg en haalt hij de nieuwe op (bij *Aan*); bij *Verplicht* geef je hem met `--key` opnieuw mee.
 - Zet *Verplicht* pas aan als 🔒 bij alle servers staat. Versleuteling komt **bovenop** HTTPS: het helpt vooral als agents via HTTP of een proxy verbinden, en het bewijst dat een rapport echt van een agent met de sleutel komt.
 
-**⛔ Blokkades en whitelist** (tabblad *IDS → ⛔ Blokkades*, vanaf 1.92.0; of ⛔ *blokkeren* bij een melding)
+**⛔ Blokkades** (tabblad *IDS → ⛔ Blokkades*, vanaf 1.92.0; of ⛔ *blokkeren* bij een melding) en de **✅ whitelist** (vanaf 1.162.0 bij *Instellingen → IDS → Netwerk en aanvallers → Whitelist*)
 - Een geblokkeerd **IP-adres** (`203.0.113.7`) of **netwerk** (`203.0.113.0/24`, ook IPv6) krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de REST API en geen agents (HTTP 403). Per blokkade zie je hoe vaak hij iets tegenhield.
 - Jezelf (je huidige IP) en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: `sudo php install/install.php --unblock-all`.
 - Dit is iets anders dan blokkeren door het IDS: dat gebeurt op de aangevallen server zelf.
@@ -2986,7 +2994,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
   - **Account:** wordt nooit vergrendeld na mislukte logins. Het IP-adres van degene die het probeert wordt wél geblokkeerd. Zo kan niemand jou buitensluiten, en een aanvaller blijft buiten.
   - **Geen honeypot-naam:** de naam valt af van de honeypot-namen (op alle servers), bv. als *admin* bij jou een echte gebruiker is. Blokkades om die naam worden opgeheven.
   - **Voorbeeld:** je collega logt in vanaf een hotel (`198.51.100.23`) en tikt drie keer zijn wachtwoord fout. Zijn account en het IP-adres zijn geblokkeerd. Je klikt bij het account op **🔓 Deblokkeren** en bij het IP op **✅ Whitelist → 1 dag**. Morgen geldt het hotel-IP vanzelf weer als gewoon adres.
-  - De whitelist staat onder het overzicht. Met ✕ haal je een regel eraf. Je oude lijst *Nooit blokkeren* van het IDS is bij de update naar 1.83.0 overgenomen.
+  - De whitelist zelf staat vanaf 1.162.0 bij *Instellingen → IDS → Netwerk en aanvallers → Whitelist* (onder de blokkades staat hoeveel erop staan, met **✅ Whitelist beheren**). Met ✕ haal je een regel eraf. Je oude lijst *Nooit blokkeren* van het IDS is bij de update naar 1.83.0 overgenomen.
 
 **🔐 Inlogbeveiliging** (*Instellingen → Toegang*, vanaf 1.58.0; standaard aan)
 - **Na [3] mislukte pogingen binnen [10] minuten** wordt het **account** geblokkeerd en/of het **IP-adres**, elk met een eigen schakelaar. Een verkeerde 2FA-code telt ook.

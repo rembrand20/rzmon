@@ -3032,3 +3032,6 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 .xp-d p:last-child { margin: 0; }
 .xp-d b { font-weight: 650; }
 @media (max-width: 600px) { .xp-s { flex-wrap: wrap; row-gap: .1rem; } }
+/* 1.162.0: IDS → Regels is om te bekijken; aan/uit staat in de Instellingen */
+.rule-view .rule-table td:first-child, .rule-view .rule-table th:first-child { display: none; }
+.wl-link { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }

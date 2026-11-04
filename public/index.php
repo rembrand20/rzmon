@@ -350,9 +350,10 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="card" id="edr-feed"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="rules" hidden>
-        <div class="dash-bar"><div class="seg" id="rule-src"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzMon</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button><button type="button" class="seg-btn need-admin" data-rs="exc">🛡️ <?= th('Uitzonderingen') ?></button></div>
-          <input id="rule-q" type="search" placeholder="<?= th('Zoeken: naam, techniek (T1059) …') ?>" autocomplete="off"></div>
-        <div class="card" id="edr-rules"><p class="muted"><?= th('Laden…') ?></p></div>
+        <div class="dash-bar"><div class="seg" id="rule-src"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzMon</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button></div>
+          <input id="rule-q" type="search" placeholder="<?= th('Zoeken: naam, techniek (T1059) …') ?>" autocomplete="off">
+          <a class="btn small-btn need-admin" href="#settings/ids_rules" data-goto="settings/ids_rules">⚙️ <?= th('Regels en uitzonderingen beheren') ?></a></div>
+        <div class="card rule-view" id="edr-rules"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="inc">
         <div class="dash-bar">
@@ -398,7 +399,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="dash-bar"><span class="muted small" id="ids-block-info"></span></div>
         <div class="card" id="ids-blocks"></div>
       <div class="card need-admin" id="blocks-card">
-        <h2>⛔ <?= th('Blokkades en whitelist') ?></h2>
+        <h2>⛔ <?= th('Blokkades') ?></h2>
         <p class="muted small"><?= t('Een geblokkeerd IP-adres of netwerk krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de API en geen agents. Jezelf en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: <code>sudo php install/install.php --unblock-all</code>') ?></p>
         <div class="block-add"><input id="block-net" class="mono" placeholder="<?= th('bv. 203.0.113.7 of 203.0.113.0/24') ?>" autocomplete="off">
           <input id="block-reason" placeholder="<?= th('reden (optioneel)') ?>" autocomplete="off">
@@ -408,10 +409,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <select id="bl-src"><option value=""><?= th('Alles') ?></option><option value="rz"><?= th('IP in RzMon') ?></option><option value="user"><?= th('Accounts') ?></option><option value="ids"><?= th('IDS (servers)') ?></option></select>
           <input id="bl-q" type="search" placeholder="<?= th('Zoeken: IP, naam, server, reden…') ?>" autocomplete="off"></div>
         <div id="blocks-list"></div>
-        <h3 class="set-sub">✅ <?= th('Whitelist (nooit blokkeren)') ?></h3>
-        <p class="muted small" style="margin-top:-.2rem"><?= th('Een IP-adres of netwerk hierop wordt nergens geblokkeerd: niet in RzMon en niet door het IDS op welke server dan ook (ook niet via de lijsten met bekende aanvallers). Een account wordt nooit vergrendeld (het IP van de aanvaller wel). Een naam die geen honeypot-naam is, valt af van de honeypot-namen.') ?></p>
-        <div class="btn-row"><button type="button" class="btn" id="wl-add">✅ <?= th('Op de whitelist zetten…') ?></button></div>
-        <div id="wl-list"></div>
+        <p class="small wl-link"><span id="wl-count" class="muted"></span> <a class="btn small-btn" href="#settings/whitelist" data-goto="settings/whitelist">✅ <?= th('Whitelist beheren') ?></a></p>
       </div>
 
       </div>
@@ -779,13 +777,6 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
               <span id="ids-l-block"><?= th('⛔ Blokkeren') ?></span></div>
             <p class="muted small" id="ids-mode-info"></p>
           </div>
-          <label class="switch"><input type="checkbox" name="ids_modern"><span></span> <span><?= t('<b>Moderne weergave</b> van de pagina IDS (score, Nu aandacht nodig, serverkaarten, grafiek)') ?></span></label>
-          <?= xp(t('Uit: de oudere, compacte weergave van de IDS-pagina.'), t('Aan: de IDS-pagina met een score, <i>Nu aandacht nodig</i>, serverkaarten en een grafiek. Uit: de compacte weergave van vóór 1.117.0, met de modus als tegel en de servers als regels.')) ?>
-          <label class="af-motion-set"><span><?= t('<b>Beweging in de live Attack Flow</b> (IDS → Aanvalskaart)') ?></span>
-            <input type="range" name="af_motion" min="0" max="2" step="1" list="af-motion-steps">
-            <span class="af-motion-lbls small muted" aria-hidden="true"><span><?= th('Stil') ?></span><span><?= th('Rustig') ?></span><span><?= th('Vol') ?></span></span></label>
-          <datalist id="af-motion-steps"><option value="0"></option><option value="1"></option><option value="2"></option></datalist>
-          <?= xp(t('Hoeveel er beweegt in de live Attack Flow: stil, rustig of vol.'), t('<b>Vol:</b> bewegende deeltjes, flitsende schilden en een lopende band. <b>Rustig:</b> alles trager, zonder flitsen. <b>Stil:</b> geen beweging, handig voor een scherm dat de hele dag aanstaat. <b>Goed om te weten:</b> staat <i>minder beweging</i> aan op je apparaat, dan is het altijd stil.')) ?>
           <div class="row2">
             <label><?= th('Basismeting (uren)') ?> <span class="muted small"><?= th('eerst alleen vastleggen wat normaal is') ?></span><input type="number" name="ids_baseline_hours" min="0" max="720"></label>
             <label><?= th('Brute force bij … mislukte SSH-logins') ?><input type="number" name="ids_fail_count" min="2" max="1000"></label>
@@ -795,7 +786,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Blokkeren (uren)') ?><input type="number" name="ids_block_hours" min="1" max="8760"></label>
             <label><?= th('Bij herhaling (dagen)') ?><input type="number" name="ids_repeat_days" min="1" max="365"></label>
           </div>
-          <p class="small"><b><?= th('Nooit blokkeren') ?></b>: <?= t('je LAN en RzMon zelf worden nooit automatisch geblokkeerd. Andere IP-adressen en netwerken zet je op de <a href="#ids/blk" data-goto="ids/blk">✅ whitelist</a>; die geldt voor RzMon én het IDS op al je servers.') ?></p>
+          <p class="small"><b><?= th('Nooit blokkeren') ?></b>: <?= t('je LAN en RzMon zelf worden nooit automatisch geblokkeerd. Andere IP-adressen en netwerken zet je op de <a href="#settings/whitelist" data-goto="settings/whitelist">✅ whitelist</a>; die geldt voor RzMon én het IDS op al je servers.') ?></p>
           <label class="switch"><input type="checkbox" name="ids_block_shared"><span></span> <?= th('Automatische blokkades op alle servers') ?></label>
           <?= xp(t('Wordt een aanvaller op één server geblokkeerd, dan meteen op al je servers.'), t('Een aanvaller die op één server automatisch geblokkeerd wordt (brute force, honeypot), wordt meteen ook geblokkeerd op al je andere servers met het IDS op <i>Blokkeren</i>. <b>Goed om te weten:</b> met de hand blokkeren geldt alleen voor de server die je kiest.')) ?>
           <h3 class="set-sub"><?= th('🍯 Honeypot') ?></h3>
@@ -927,7 +918,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div class="lock-row"><?= t('<b>Home Assistant</b>: mislukte logins vanaf') ?> <input type="number" name="wl_ha_n" min="2" max="1000" class="num-in"> · <?= t('<b>Vaultwarden</b> vanaf') ?> <input type="number" name="wl_vw_n" min="2" max="1000" class="num-in"></div>
           <div class="lock-row"><?= th('…binnen (minuten)') ?> <input type="number" name="wl_minutes" min="1" max="1440" class="num-in"></div>
           <label class="switch"><input type="checkbox" name="weblog_block"><span></span> <span><?= t('In de modus blokkeren zo\'n IP ook <b>blokkeren</b> (op al je servers, via <i>Automatische blokkades op alle servers</i>)') ?></span></label>
-          <?= xp(t('Deblokkeren kan altijd; ook verkeer naar Docker-containers wordt tegengehouden.'), t('Deblokkeren kan altijd bij <i>IDS → Blokkades en whitelist</i>. <b>SWAG in Docker:</b> de agent blokkeert vóór Docker (prerouting), dus ook verkeer naar de container wordt tegengehouden.')) ?>
+          <?= xp(t('Deblokkeren kan altijd; ook verkeer naar Docker-containers wordt tegengehouden.'), t('Deblokkeren kan altijd bij <i>IDS → Blokkades</i>. <b>SWAG in Docker:</b> de agent blokkeert vóór Docker (prerouting), dus ook verkeer naar de container wordt tegengehouden.')) ?>
         </div>
 
         <div data-sk="ids_servers" class="card" id="ids-servers-card">
@@ -1125,6 +1116,19 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </form>
 
       <div class="settings-grid" style="margin-top:1.25rem" data-pgrid="set">
+        <div data-sk="ids_rules" class="card">
+          <h2><?= th('Regels en uitzonderingen') ?></h2>
+          <?= xp(t('Regels aan of uit zetten, en vastleggen wat op je servers normaal is.'), t('<b>Regels:</b> de eigen regels van RzMon en de Linux-regels van SigmaHQ. Een regel uitzetten geldt voor alle servers. <b>Uitzonderingen:</b> wat in een bepaalde situatie normaal is (een programma, gebruiker, pad, IP-adres …), per server, groep of overal. Dat geeft geen melding, RzMon grijpt niet in en het telt niet mee voor afwijkingen; in <i>IDS → Live</i> zie je het als groene regel. <b>Goed om te weten:</b> met één knop zet je een hele set aan (bijvoorbeeld systeemonderhoud of back-up), en RzMon stelt uitzonderingen voor op basis van je eigen meldingen. Op de IDS-pagina zie je de regels en hun treffers.')) ?>
+          <div class="dash-bar"><div class="seg" id="rule-src-set"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzMon</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button><button type="button" class="seg-btn" data-rs="exc">🛡️ <?= th('Uitzonderingen') ?></button></div>
+            <input id="rule-q-set" type="search" placeholder="<?= th('Zoeken: naam, techniek (T1059) …') ?>" autocomplete="off"></div>
+          <div id="edr-rules-set"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
+        <div data-sk="whitelist" class="card">
+          <h2>✅ <?= th('Whitelist (nooit blokkeren)') ?></h2>
+          <?= xp(t('IP-adressen, netwerken en accounts die nooit geblokkeerd worden.'), t('<b>Wat het doet:</b> een IP-adres of netwerk op de whitelist wordt nergens geblokkeerd: niet in RzMon en niet door het IDS op welke server dan ook, ook niet via de lijsten met bekende aanvallers. Een account op de whitelist wordt nooit vergrendeld (het IP van de aanvaller wel). <b>Hoe lang:</b> je kiest 1, 7 of 30 dagen of altijd. <b>Goed om te weten:</b> je eigen netwerk en RzMon zelf worden al nooit automatisch geblokkeerd. Wat nu geblokkeerd is en deblokkeren staan op <i>IDS → Blokkades</i>; bij een blokkade of incident zet je een adres ook met één klik op de whitelist.')) ?>
+          <div class="btn-row"><button type="button" class="btn" id="wl-add">✅ <?= th('Op de whitelist zetten…') ?></button></div>
+          <div id="wl-list"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
       <form data-sk="access" class="card need-admin" id="access-form">
         <h2><?= th('Toegang') ?></h2>
         <div class="ip-status" id="ip-status">…</div>
@@ -1453,9 +1457,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="card" id="acct-outside"><h2>🕶️ <?= th('Van buiten en passkeys') ?></h2><div id="acct-outside-body"></div></div>
       <div class="card" id="acct-devices"><h2>📱 <?= th('Ingelogde apparaten') ?></h2><div id="acct-devices-body"></div></div>
       <div class="card" id="acct-logins"><h2>🕘 <?= th('Mijn laatste logins') ?></h2><div id="acct-logins-body"></div></div>
-      <div class="card view-card" data-pk="view">
+      <div class="card view-card" data-pk="view" data-ids-modern="<?= setting('ids_modern', '1') === '1' ? 'on' : 'off' ?>" data-af-motion="<?= max(0, min(2, (int) setting('af_motion', '2'))) ?>">
         <h2>🖥️ <?= th('Weergave') ?></h2>
-        <?= xp(t('Hoe RzMon eruitziet voor jou; wijzigingen zie je meteen.'), t('<b>Wat het is:</b> hoe de pagina\'s eruitzien, direct toegepast. <i>Bij openen</i> en de <i>lay-out</i> gelden voor je account; de grootte geldt voor <b>dit apparaat</b> (zo kies je op je telefoon iets anders dan op je pc). <b>◈ CC:</b> alle pagina\'s in de stijl van het Command center, met kaarten die je kunt verslepen (✎ Indeling).')) ?>
+        <?= xp(t('Hoe RzMon eruitziet voor jou; wijzigingen zie je meteen.'), t('<b>Wat het is:</b> hoe de pagina\'s eruitzien, direct toegepast. Alles hier geldt voor <b>je account</b>, dus ook op je andere apparaten. <b>Grootte:</b> apart voor je telefoon en je computer, zodat je op een klein scherm iets anders kunt kiezen. <b>◈ CC:</b> alle pagina\'s in de stijl van het Command center, met kaarten die je kunt verslepen (✎ Indeling). <b>Goed om te weten:</b> ook je sortering en de gekozen periode op het Dashboard en bij Analyse worden voor je account onthouden.')) ?>
         <div class="view-row">
           <span class="view-label"><?= th('Bij openen') ?> <span class="hint"><?= th('(voor je account)') ?></span></span>
           <div class="seg" role="group" aria-label="<?= th('Bij openen') ?>">
@@ -1473,7 +1477,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
         </div>
         <div class="view-row">
-          <span class="view-label"><?= th('Grootte') ?> <span class="hint"><?= th('(per lay-out)') ?></span></span>
+          <span class="view-label"><?= th('Grootte') ?> <span class="hint"><?= th('(per lay-out; telefoon en computer apart)') ?></span></span>
           <div class="seg" role="group" aria-label="<?= th('Grootte') ?>">
             <button type="button" class="seg-btn" data-view-density="small" title="<?= th('Compact: meer servers tegelijk in beeld') ?>">Small</button>
             <button type="button" class="seg-btn" data-view-density="large" title="<?= th('Meer informatie: CPU, RAM, disk, bereikbaarheid') ?>">Large</button>
@@ -1481,6 +1485,14 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         </div>
         <label class="switch"><input type="checkbox" data-mon-pref="glow"><span></span> <span><?= t('<b>Rode gloed bij critical</b>: een server met een critical check pulseert zacht') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
         <label class="switch"><input type="checkbox" data-mon-pref="anim"><span></span> <span><?= t('<b>Live animaties</b>: getallen lopen naar de nieuwe waarde en een statuswissel licht even op') ?> <span class="hint"><?= th('(voor je account; staat je systeem op "minder beweging", dan altijd uit)') ?></span></span></label>
+        <h3 class="set-sub">🛡️ <?= th('IDS') ?></h3>
+        <label class="switch"><input type="checkbox" data-acct-ids-modern><span></span> <span><?= t('<b>Moderne weergave</b> van de pagina IDS (score, Nu aandacht nodig, serverkaarten, grafiek)') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
+        <?= xp(t('Uit: de oudere, compacte weergave van de IDS-pagina.'), t('Aan: de IDS-pagina met een score, <i>Nu aandacht nodig</i>, serverkaarten en een grafiek. Uit: de compacte weergave van vóór 1.117.0, met de modus als tegel en de servers als regels.')) ?>
+        <label class="af-motion-set"><span><?= t('<b>Beweging in de live Attack Flow</b> (IDS → Aanvalskaart)') ?> <span class="hint"><?= th('(voor je account)') ?></span></span>
+          <input type="range" data-acct-motion min="0" max="2" step="1" list="af-motion-steps">
+          <span class="af-motion-lbls small muted" aria-hidden="true"><span><?= th('Stil') ?></span><span><?= th('Rustig') ?></span><span><?= th('Vol') ?></span></span></label>
+        <datalist id="af-motion-steps"><option value="0"></option><option value="1"></option><option value="2"></option></datalist>
+        <?= xp(t('Hoeveel er beweegt in de live Attack Flow: stil, rustig of vol.'), t('<b>Vol:</b> bewegende deeltjes, flitsende schilden en een lopende band. <b>Rustig:</b> alles trager, zonder flitsen. <b>Stil:</b> geen beweging, handig voor een scherm dat de hele dag aanstaat. <b>Goed om te weten:</b> staat <i>minder beweging</i> aan op je apparaat, dan is het altijd stil.')) ?>
       </div>
 
       </div>

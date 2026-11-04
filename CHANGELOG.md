@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.162.0**: persoonlijke keuzes (IDS-weergave, beweging, grootte, sortering, periode) gelden **per account**, en regels, uitzonderingen en de whitelist beheer je bij de **instellingen**.
 - **1.161.0**: alle uitleg in de Instellingen en bij Mijn account herschreven, als **één regel met Meer info** die openklapt.
 - **1.160.0**: in de lay-out CC zijn nu ook de **Instellingen** (per onderdeel), **Mijn account** en de **Agent Manager** kaarten die je versleept en smaller of breder maakt; daarmee zit elke pagina in CC.
 - **1.158.0**: de **lay-out CC**: alle pagina's in de stijl van het Command center (licht en donker), met kaarten die je zelf versleept, smaller of breder maakt en verbergt; per account.
 - **1.157.0**: **Monitoring live**: per server de 3 belangrijkste checks met lijntjes en 24 uur, problemen gebundeld op oorzaak, een Compact-weergave en een zachte rode gloed; plus een nieuwe check **Internet** (ping, responstijd en snelheidstest van je lijn).
-- **1.156.0**: **slimme drempels** leren nu ook voor containers, DNS, NTP en MySQL, en RzMon zet een handmatige check zelf op *slim met vangnet* en stelt *melden na N* zelf in als dat minder ruis geeft, altijd met een melding en terug te draaien.
+
+## 1.162.0 – 2026-11-04
+### Nieuw
+- **Persoonlijke keuzes bij Mijn account**:
+  - **Moderne weergave van de pagina IDS** en **Beweging in de live Attack Flow** stel je nu zelf in bij *Mijn account → Weergave*. Eerst stond dat bij de IDS-instellingen en gold het voor iedereen. Wat de beheerder had ingesteld, is je standaard.
+  - De **grootte** (Small/Large), de **sortering** (Monitoring, Meldingen, Toegang) en de **periode** op het Dashboard en bij Analyse worden nu voor je account onthouden, dus ook op je andere apparaten. De grootte kies je apart voor je telefoon en je computer. Wat je in deze browser al had gekozen, blijft staan.
+- **Beheer bij de instellingen**:
+  - **Regels en uitzonderingen**: regels aan of uit zetten en de uitzonderingen staan nu bij *Instellingen → IDS → Endpoint-bewaking → Regels en uitzonderingen*. Op *IDS → Regels* zie je de regels en hun treffers, met een knop **⚙️ Regels en uitzonderingen beheren**.
+  - **Whitelist**: de lijst staat nu bij *Instellingen → IDS → Netwerk en aanvallers → Whitelist*. Op *IDS → Blokkades* staan nog steeds alle blokkades met deblokkeren en ✅ Whitelist per regel, plus hoeveel er op de whitelist staan.
 
 ## 1.161.0 – 2026-11-04
 ### Nieuw

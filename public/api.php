@@ -1211,6 +1211,22 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($action, ['pr
         }
     });
 }
+/** 1.162.0: weergave-keuzes per account (eerst alleen in de browser): grootte per soort scherm, sortering en periode */
+function clean_ui_prefs(array $in): array
+{
+    $size = '/^(small|large)$/';
+    $sort = '/^[a-z_]{0,20}:-?1$/';
+    $per = '/^[a-z0-9]{1,10}$/';
+    $re = ['dens_blox_d' => $size, 'dens_blox_m' => $size, 'dens_l1_d' => $size, 'dens_l1_m' => $size, 'dash_sort' => '/^[a-z_]{1,20}$/',
+        'alert_sort' => $sort, 'acc_sort' => $sort, 'hm_period' => $per, 'cc_period' => $per, 'an_period' => $per];
+    $out = [];
+    foreach ($re as $k => $r) {
+        if (isset($in[$k]) && is_string($in[$k]) && preg_match($r, $in[$k])) {
+            $out[$k] = $in[$k];
+        }
+    }
+    return $out;
+}
 /**
  * 1.158.0: indeling van de pagina's in de lay-out CC: per pagina de volgorde, verborgen kaarten en de breedte (3, 4, 6, 9 of 12 van 12).
  * Alleen korte, bekende tekens; hooguit 40 pagina's en 60 kaarten per pagina.
@@ -3724,7 +3740,7 @@ switch ($action) {
         }
         $in = input();
         $key = (string) ($in['key'] ?? '');
-        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen', 'mon_glow', 'mon_anim', 'layout', 'pages'], true)) {
+        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen', 'mon_glow', 'mon_anim', 'layout', 'pages', 'ids_modern', 'af_motion', 'ui'], true)) {
             out(['error' => t('Onbekende voorkeur')], 422);
         }
         $prefs = json_decode((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn(), true) ?: [];
@@ -3733,7 +3749,9 @@ switch ($action) {
             'theme' => in_array($in['value'] ?? '', ['light', 'dark'], true) ? $in['value'] : 'auto',   // 1.135.0: thema per gebruiker
             'side' => ($in['value'] ?? '') === 'mini' ? 'mini' : 'full',   // 1.150.0: zijbalk ingeklapt (alleen iconen)
             'dash' => ($in['value'] ?? '') === 'cc' ? 'cc' : 'classic',
-            'mon_glow', 'mon_anim' => ($in['value'] ?? '') === 'off' ? 'off' : 'on',
+            'mon_glow', 'mon_anim', 'ids_modern' => ($in['value'] ?? '') === 'off' ? 'off' : 'on',
+            'af_motion' => (string) max(0, min(2, (int) ($in['value'] ?? 2))),   // 1.162.0: beweging van de Attack Flow, per account
+            'ui' => clean_ui_prefs((array) ($in['value'] ?? [])),   // 1.162.0: weergave-keuzes die eerst per apparaat waren
             'layout' => in_array($in['value'] ?? '', ['blox', 'l1nes', 'compact', 'cc'], true) ? $in['value'] : 'blox',   // 1.158.0: lay-out per account
             'pages' => clean_page_layouts((array) ($in['value'] ?? [])),   // 1.158.0: indeling per pagina in CC   // 1.157.0: rode gloed en live-animaties op Monitoring   // 1.154.0: welk dashboard (klassiek of Command center)
             'dash_seen' => date('Y-m-d H:i:s'),   // 1.154.0: laatste bezoek aan het dashboard ("sinds je laatste bezoek")
