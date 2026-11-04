@@ -455,6 +455,156 @@ final class Installer
         return $ok;
     }
 
+    // ------------------------------------------------------------------ 1.168.0: config.php opslaan via de hulpdienst
+
+    /** Kan de hulpdienst config.php voor ons opslaan? (install/install-helper.sh, rzmon-config.path) */
+    public static function configHelper(): bool
+    {
+        return is_file(self::HELPER_DIR . '/config.installed') && is_writable(self::HELPER_DIR);
+    }
+
+    /**
+     * De wijzigingen controleren: alleen bekende velden, elk met een vaste vorm. Wordt twee keer gedaan: door de
+     * webpagina en opnieuw door de hulpdienst (root), zodat een verzoek nooit iets anders in config.php kan zetten.
+     * @return array<string, mixed>
+     */
+    public static function cleanConfigChanges(array $in): array
+    {
+        $out = [];
+        foreach ($in as $k => $v) {
+            switch ($k) {
+                case 'timezone':
+                    if (!is_string($v) || !in_array($v, timezone_identifiers_list(), true)) {
+                        throw new InvalidArgumentException('timezone');
+                    }
+                    $out[$k] = $v;
+                    break;
+                case 'ping_bin':
+                    if (!is_string($v) || !preg_match('#^/[\w./-]{1,200}$#', $v)) {
+                        throw new InvalidArgumentException('ping_bin');
+                    }
+                    $out[$k] = $v;
+                    break;
+                case 'base_url':
+                case 'external_url':
+                    if (!is_string($v) || ($v !== '' && (!filter_var($v, FILTER_VALIDATE_URL) || !preg_match('#^https?://[^\s\'"\\\\]{1,250}$#i', $v)))) {
+                        throw new InvalidArgumentException($k);
+                    }
+                    $out[$k] = $v;
+                    break;
+                case 'php':
+                    $p = (array) $v;
+                    $mem = (string) ($p['memory_limit'] ?? '');
+                    $met = (string) ($p['max_execution_time'] ?? '');
+                    $de = (string) ($p['display_errors'] ?? '0');
+                    if (($mem !== '' && !preg_match('/^(-1|\d{1,6}[KMG]?)$/i', $mem)) || ($met !== '' && !preg_match('/^\d{1,6}$/', $met)) || !in_array($de, ['0', '1'], true)) {
+                        throw new InvalidArgumentException('php');
+                    }
+                    $out[$k] = ['memory_limit' => $mem, 'max_execution_time' => $met, 'display_errors' => $de];
+                    break;
+                case 'db':
+                    $d = (array) $v;
+                    $host = (string) ($d['host'] ?? '');
+                    $port = (int) ($d['port'] ?? 3306);
+                    $name = (string) ($d['name'] ?? '');
+                    $user = (string) ($d['user'] ?? '');
+                    $pass = (string) ($d['pass'] ?? '');
+                    if (!preg_match('/^[A-Za-z0-9._:\[\]-]{1,255}$/', $host) || $port < 1 || $port > 65535
+                        || !preg_match('/^[A-Za-z0-9_$-]{1,64}$/', $name) || !preg_match('/^[A-Za-z0-9_.@$-]{1,80}$/', $user)
+                        || strlen($pass) > 200 || str_contains($pass, "\0")) {
+                        throw new InvalidArgumentException('db');
+                    }
+                    $out[$k] = ['host' => $host, 'port' => $port, 'name' => $name, 'user' => $user, 'pass' => $pass];
+                    break;
+                default:
+                    throw new InvalidArgumentException((string) $k);
+            }
+        }
+        return $out;
+    }
+
+    /** Webpagina: het verzoek voor de hulpdienst neerzetten. Geeft het kenmerk (nonce) terug om het resultaat op te halen. */
+    public static function requestConfig(array $changes): ?string
+    {
+        if (!self::configHelper()) {
+            return null;
+        }
+        $nonce = bin2hex(random_bytes(16));
+        $file = self::HELPER_DIR . '/config.request';
+        @unlink(self::HELPER_DIR . '/config.result');
+        if (file_put_contents($file . '.tmp', json_encode(['nonce' => $nonce, 'at' => time(), 'changes' => self::cleanConfigChanges($changes)]), LOCK_EX) === false) {
+            return null;
+        }
+        @chmod($file . '.tmp', 0660);
+        return rename($file . '.tmp', $file) ? $nonce : null;
+    }
+
+    /**
+     * Hulpdienst (root): het verzoek uitvoeren. Controleert alles opnieuw, test bij een databasewijziging eerst de
+     * verbinding, maakt een reservekopie van config.php en schrijft het nieuwe bestand met dezelfde eigenaar en rechten.
+     * @return array{ok: bool, error: ?string, nonce: string, backup?: string}
+     */
+    public static function applyConfigRequest(): array
+    {
+        $req = self::HELPER_DIR . '/config.request';
+        $raw = (string) @file_get_contents($req);
+        @unlink($req);
+        $j = json_decode($raw, true);
+        $nonce = is_array($j) ? substr(preg_replace('/[^a-f0-9]/', '', (string) ($j['nonce'] ?? '')), 0, 64) : '';
+        if ($nonce === '' || !is_array($j['changes'] ?? null) || (int) ($j['at'] ?? 0) < time() - 600) {
+            return ['ok' => false, 'error' => 'ongeldig of verlopen verzoek', 'nonce' => $nonce];
+        }
+        try {
+            $changes = self::cleanConfigChanges($j['changes']);
+            $cfg = self::mergedConfig($changes);
+            if (isset($changes['db'])) {
+                self::connect($cfg['db']);   // eerst testen: een database die niet werkt, komt er niet in
+            }
+            $file = SM_CONFIG_FILE;
+            $backup = '';
+            if (is_file($file)) {
+                @mkdir(self::HELPER_DIR . '/backups', 0770, true);
+                $backup = self::HELPER_DIR . '/backups/config-' . date('Ymd-His') . '.php';
+                if (!copy($file, $backup)) {
+                    throw new RuntimeException('reservekopie lukt niet');
+                }
+                @chmod($backup, 0600);
+                $old = glob(self::HELPER_DIR . '/backups/config-*.php') ?: [];
+                sort($old);
+                foreach (array_slice($old, 0, max(0, count($old) - 10)) as $o) {
+                    @unlink($o);   // de laatste 10 bewaren
+                }
+            }
+            $st = is_file($file) ? stat($file) : false;
+            $tmp = $file . '.helper.tmp';
+            if (file_put_contents($tmp, self::renderConfig($cfg), LOCK_EX) === false) {
+                throw new RuntimeException('schrijven lukt niet');
+            }
+            $lint = [];
+            $rc = 0;
+            exec(escapeshellarg(PHP_BINARY) . ' -l ' . escapeshellarg($tmp) . ' 2>&1', $lint, $rc);
+            if ($rc !== 0) {
+                @unlink($tmp);
+                throw new RuntimeException('nieuwe config.php klopt niet');
+            }
+            @chmod($tmp, $st ? ($st['mode'] & 0777) : 0640);
+            if ($st) {
+                @chown($tmp, (int) $st['uid']);
+                @chgrp($tmp, (int) $st['gid']);
+            }
+            if (!rename($tmp, $file)) {
+                @unlink($tmp);
+                throw new RuntimeException('vervangen lukt niet');
+            }
+            if (function_exists('opcache_invalidate')) {
+                @opcache_invalidate($file, true);
+            }
+            return ['ok' => true, 'error' => null, 'nonce' => $nonce, 'backup' => $backup];
+        } catch (Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage(), 'nonce' => $nonce];
+        }
+    }
+
     // ------------------------------------------------------------------ databasewachtwoord vernieuwen
 
     /** Map voor de hulpdienst (zie install/install-helper.sh): verzoek en resultaat van de wissel. */

@@ -1993,8 +1993,10 @@ function renderNow() {
     : arr.map((h) => hostCard(h, density === 'small')).join(''));
   const cls = cc ? 'hosts hb-grid' : `hosts layout-${layout} density-${density}`;
   const block = (arr, grouped) => {
-    const bad = arr.filter((h) => !okHost(h)), good = arr.filter(okHost);
-    return (bad.length ? (good.length ? head(grouped ? L('Met problemen') : L('Servers met problemen'), bad.length) : '') + `<div class="${cls}">${list(bad)}</div>` : '')
+    // 1.168.0: drie groepen: open problemen (zoals bij Nu aandacht nodig), alles al bevestigd, en in orde
+    const good = arr.filter(okHost), acked = arr.filter((h) => !okHost(h) && ackedOnly(h)), bad = arr.filter((h) => !okHost(h) && !ackedOnly(h));
+    return (bad.length ? (good.length || acked.length ? head(grouped ? L('Met open problemen') : L('Servers met open problemen'), bad.length) : '') + `<div class="${cls}">${list(bad)}</div>` : '')
+      + (acked.length ? head('✔ ' + L('Bevestigd'), (acked.length === 1 ? L('1 apparaat') : L('{n} apparaten', { n: acked.length })) + ' · ' + L('je weet ervan; er is nu niets te doen')) + `<div class="${cls} acked-grp">${list(acked)}</div>` : '')
       + (good.length ? head('✔ ' + L('Alles in orde'), good.length === 1 ? L('1 apparaat') : L('{n} apparaten', { n: good.length }))
         + (cc || lines || density === 'large' ? `<div class="${cls}">${list(good)}</div>` : `<div class="ok-list density-${density}">${good.map(okRow).join('')}</div>`) : '');
   };
@@ -2003,9 +2005,9 @@ function renderNow() {
   el.className = 'dash-hosts';
   el.innerHTML = dashGroup() || groups.length < 2 ? block(hosts, !!dashGroup() || groups[0] !== 'server') : groups.map((g) => {
     const arr = hosts.filter((h) => hostGroup(h) === g);
-    const nBad = arr.filter((h) => !okHost(h)).length;
+    const nBad = arr.filter((h) => !okHost(h) && !ackedOnly(h)).length, nAck = arr.filter((h) => !okHost(h) && ackedOnly(h)).length;   // 1.168.0
     return `<section class="grp-block"><div class="grp-h"><h2>${GROUP_INFO[g][0]} ${esc(GROUP_INFO[g][1]())}</h2>
-      <span>${arr.length === 1 ? L('1 apparaat') : L('{n} apparaten', { n: arr.length })}${nBad ? ` · <b class="bad">${L('{n} met problemen', { n: nBad })}</b>` : ''}</span></div>
+      <span>${arr.length === 1 ? L('1 apparaat') : L('{n} apparaten', { n: arr.length })}${nBad ? ` · <b class="bad">${L('{n} met problemen', { n: nBad })}</b>` : ''}${nAck ? ` · ✔ ${L('{n} bevestigd', { n: nAck })}` : ''}</span></div>
       ${block(arr, true)}</section>`;
   }).join('');
   $('#toggle-all').textContent = state.hosts.length && state.hosts.every((h) => (isCC() ? ccOpen : openHosts).has(+h.id)) ? '⊟ ' + L('Alles sluiten') : '⊞ ' + L('Alles openen');
@@ -2636,6 +2638,7 @@ function hostSummary(h) {
   if (n[1]) parts.push(L('{n} waarschuwing', { n: n[1] }));
   if (n[3]) parts.push(L('{n} onbekend', { n: n[3] }));
   if (!parts.length) return { text: `${L('Alles OK')} · ${active.length} check${active.length === 1 ? '' : 's'}`, cls: 's0' };
+  if (acked && acked === n[1] + n[2] + n[3]) return { text: '✔ ' + L('alles bevestigd') + ' · ' + parts.join(' · '), cls: 's-ack' };   // 1.168.0
   return { text: parts.join(' · ') + (acked ? ` (${L('{n} bevestigd', { n: acked })})` : ''), cls: 's' + hostStatus(h) };
 }
 
@@ -2660,7 +2663,7 @@ function hostParts(h) {
     title: `${esc(h.name)} <span class="badge">${esc(h.mode)}</span>${+h.enabled ? '' : `<span class="badge">${L('uit')}</span>`}`,
     via: parent ? ` <span class="via" title="${L('Afhankelijk van {name}: geen aparte meldingen als die onbereikbaar is', { name: esc(parent.name) })}">↳ via ${esc(parent.name)}</span>` : '',
     maint: h.maintenance ? `<span class="maint-tag">${esc(maintLabel(h.maintenance))}</span>` : '',
-    cls: `card host s${hostStatus(h)} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''} ${openHosts.has(+h.id) || h.autoOpen ? 'open' : ''}`,
+    cls: `card host s${hostStatus(h)} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''} ${openHosts.has(+h.id) || h.autoOpen ? 'open' : ''} ${ackedOnly(h) ? 'acked-only' : ''}`,
   };
 }
 
@@ -2686,6 +2689,8 @@ function groupChecks(checks) {
 
 /** Een probleem: aan, niet in onderhoud en warning, critical of onbekend */
 const isProblem = (c) => +c.enabled && !c.maintenance && +c.status !== 0;
+/** 1.168.0: alle problemen van deze server zijn al bevestigd (er is wel iets, maar niets meer te doen) */
+const ackedOnly = (h) => { const p = h.checks.filter(isProblem); return +h.enabled && !h.maintenance && p.length > 0 && p.every((c) => c.acked_at); };
 
 /**
  * Groep "⚠️ Problemen" bovenaan een server: [[sleutel, titel, checks], …] per status (critical → warning → onbekend),
@@ -2888,7 +2893,7 @@ function ccHostCard(h) {
       <td class="hb-act">${+c.enabled && s !== 0 && s !== 4 && !c.acked_at ? `<button type="button" class="btn small-btn need-user" data-act="ack" data-id="${c.id}">✔ ${L('Bevestig')}</button>` : ''}<button type="button" class="icon-btn need-admin" data-act="edit-check" data-id="${c.id}" title="${esc(L('Bewerken'))}" aria-label="${esc(L('Bewerken'))}">✎</button></td>
     </tr>`;
   }).join('');
-  return `<article class="hb s${st}${open ? ' open' : ''}${glowHost(h) ? ' glow' : ''}${+h.enabled ? '' : ' disabled'}" data-hid="${h.id}">
+  return `<article class="hb s${st}${open ? ' open' : ''}${glowHost(h) && !ackedOnly(h) ? ' glow' : ''}${+h.enabled ? '' : ' disabled'}${ackedOnly(h) ? ' acked-only' : ''}" data-hid="${h.id}">
     <div class="hb-tile" data-act="cc-open" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${open}" title="${esc(L('Klik: open als tabel met alle checks'))}">
       <div class="hb-th"><span class="host-ic" aria-hidden="true">${hostIcon(h)}</span>
         <div class="hb-tn"><strong>${name}</strong><span class="muted mono hb-sub">${sub}</span>${p.via}${p.maint}${edrNote(h)}</div>
@@ -11448,11 +11453,30 @@ function selfErrors(r) {
         <td>${e.count}</td><td class="nowrap">${esc(ago(e.last_at))}</td></tr>`).join('')}</tbody></table></div>` : `<p class="small good-txt">✔ ${L('Geen fouten.')}</p>`}`;
 }
 
+/** 1.168.0: config.php wordt door de hulpdienst opgeslagen: even wachten op het resultaat; lukt dat niet, dan zelf plaatsen */
+async function configSaved(r, okMsg) {
+  if (r.written) { toast(okMsg || L('Opgeslagen')); return; }
+  if (!r.helper || !r.nonce) { configManual(r); return; }
+  toast(L('De hulpdienst slaat config.php op…'));
+  for (let i = 0; i < 20; i++) {
+    await new Promise((res) => setTimeout(res, 1000));
+    let x;
+    try { x = await api('config_result', { nonce: r.nonce }); } catch (ex) { continue; }
+    if (!x.done) continue;
+    if (x.ok) { toast((okMsg ? okMsg + ' · ' : '') + L('Opgeslagen door de hulpdienst')); if (typeof loadSetupInfo === 'function') loadSetupInfo(); return; }
+    toast(x.error || L('Mislukt'), 'err');
+    configManual(r);
+    return;
+  }
+  toast(L('De hulpdienst reageert niet; zet config.php zelf neer.'), 'err');
+  configManual(r);
+}
 /** config.php kon niet geschreven worden (map vergrendeld): de inhoud om zelf te plaatsen */
 function configManual(r) {
   modal({
     title: L('config.php zelf plaatsen'),
-    body: `<p style="margin-top:0">${L('De installatiemap is vergrendeld (zo hoort het). Zet deze inhoud als root in {path}:', { path: `<code>${esc(r.path)}</code>` })}</p>${copyBox('cfg-content', r.content)}`,
+    body: `<p style="margin-top:0">${L('De installatiemap is vergrendeld (zo hoort het). Zet deze inhoud als root in {path}:', { path: `<code>${esc(r.path)}</code>` })}</p>${copyBox('cfg-content', r.content)}
+      ${r.helper ? '' : xpHtml(L('Liever dat RzMon dit zelf doet? Installeer de hulpdienst.'), L('De hulpdienst slaat config.php voor je op terwijl de map vergrendeld blijft. Hij neemt alleen de vaste instellingen over (tijdzone, adressen, PHP en database), controleert alles opnieuw, test een nieuwe database eerst en maakt een reservekopie in /var/lib/rzmon/backups. Installeren of bijwerken op de server: <code>sudo bash {dir}/install/install-helper.sh</code>. Bij bijwerken via de knop in RzMon (Rocky/RHEL/AlmaLinux) gebeurt dat vanzelf.', { dir: esc(String(r.path || '').replace(/\/config\.php$/, '')) }))}`,
     buttons: [{ label: L('Sluiten'), cls: 'primary', submit: true }],
   });
   wireCopy($('#modal-body'));
@@ -11478,7 +11502,7 @@ async function loadSetupInfo() {
     try {
       const r = await api('setup_app_save', { timezone: f.timezone.value, base_url: f.base_url.value, external_url: f.external_url.value, ping_bin: f.ping_bin.value,
         memory_limit: f.memory_limit.value, max_execution_time: f.max_execution_time.value, display_errors: f.display_errors.checked });
-      if (r.written) toast(L('Opgeslagen')); else configManual(r);
+      configSaved(r);   // 1.168.0: eventueel via de hulpdienst
     } catch (ex) { toast(ex.message, 'err'); }
   };
   const db = d.db;
@@ -11505,7 +11529,7 @@ async function loadSetupInfo() {
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Opslaan'), cls: 'danger', submit: true }],
     onSubmit: async (f) => {
       const r = await api('setup_db_save', { ...vals(), confirm: f.confirm });
-      if (r.written) toast(r.message); else setTimeout(() => configManual(r), 50);
+      configSaved(r, r.message);   // 1.168.0: eventueel via de hulpdienst
     },
   });
 }

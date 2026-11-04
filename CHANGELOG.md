@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.168.0**: Monitoring met een eigen groep **✔ Bevestigd**, en **config.php opslaan via de hulpdienst** terwijl de map vergrendeld blijft.
 - **1.167.0**: de **zijbalk** sleep je zelf breder of smaller, en in Instellingen en Mijn account wordt hij het menu van die pagina, met **← Terug naar RzMon**.
 - **1.166.0**: op de IDS-pagina **wat het IDS deed (24 u)**, de **meest actieve aanvallers** en een duidelijkere grafiek.
 - **1.165.0**: de **IDS-pagina** toont de servers als tabel (L1nes) of met *Wat nu aandacht vraagt*, kaarten en chips (Blox en CC), met modus en hardening duidelijk erbij.
 - **1.164.0**: in CC zijn de servers op Monitoring compacte blokken die met een animatie openklappen tot een **tabel met de checks eronder**.
-- **1.163.0**: **Meer info** nu op alle pagina's en in alle vensters, met herschreven uitleg.
+
+## 1.168.0 – 2026-11-04
+### Nieuw
+- **Monitoring: drie groepen**: *Met open problemen* (hetzelfde als *Nu aandacht nodig*), **✔ Bevestigd** (alle problemen al bevestigd: niets te doen) en *Alles in orde*. In elke lay-out.
+- **Bevestigd herkenbaar**: een server met alleen bevestigde problemen heeft een gestippelde rand, geen rode gloed en de regel *✔ alles bevestigd · …*; de kop per soort apparaat telt open en bevestigd apart.
+- **config.php opslaan via de hulpdienst**: lukt opslaan bij *Database en server* niet omdat de map vergrendeld is, dan slaat de hulpdienst (root) het op.
+  - De webpagina stuurt alleen de gewijzigde waarden, geen code. De hulpdienst neemt alleen vaste velden over (tijdzone, adressen, pad naar ping, PHP, database), controleert ze opnieuw, test een nieuwe database eerst, maakt een reservekopie (de laatste 10 in `/var/lib/rzmon/backups`) en houdt eigenaar en rechten gelijk.
+  - Lukt het niet of draait de hulpdienst niet, dan krijg je zoals eerder de inhoud om zelf te plaatsen, met uitleg hoe je de hulpdienst installeert.
+  - Nieuwe systemd-dienst `rzmon-config.path`: komt mee bij bijwerken via de knop (Rocky/RHEL/AlmaLinux); anders één keer `sudo bash install/install-helper.sh`.
 
 ## 1.167.0 – 2026-11-04
 ### Nieuw

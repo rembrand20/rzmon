@@ -3174,3 +3174,9 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
   .side-acct-i.on { background: color-mix(in srgb, var(--primary) 15%, transparent); box-shadow: inset 3px 0 0 var(--primary); }
 }
 .acct-flash { box-shadow: 0 0 0 2px var(--primary) !important; transition: box-shadow .3s; }
+/* 1.168.0: servers waarvan alles al bevestigd is: rustiger, gestippeld, met een vinkje */
+.host.acked-only, .hb.acked-only { border-style: dashed; box-shadow: none; }
+.host.acked-only { border-left-style: dashed; }
+.hb.acked-only::before { background: repeating-linear-gradient(180deg, var(--st) 0 6px, transparent 6px 10px); }
+.sum-line.s-ack { color: var(--muted); font-weight: 650; }
+.acked-only .counts .cnt.s1, .acked-only .counts .cnt.s2, .acked-only .counts .cnt.s3 { opacity: .55; }

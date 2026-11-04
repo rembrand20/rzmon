@@ -110,8 +110,13 @@ final class Setup
         if (Installer::writeConfig($cfg)) {
             return ['ok' => true, 'written' => true];
         }
-        return ['ok' => true, 'written' => false, 'path' => realpath(dirname(SM_CONFIG_FILE)) . '/config.php', 'user' => self::runAs(),
-            'content' => Installer::renderConfig($cfg)];
+        $manual = ['path' => realpath(dirname(SM_CONFIG_FILE)) . '/config.php', 'user' => self::runAs(), 'content' => Installer::renderConfig($cfg)];
+        // 1.168.0: de map is vergrendeld; de hulpdienst (root) kan het opslaan
+        $nonce = Installer::requestConfig($changes);
+        if ($nonce !== null) {
+            return ['ok' => true, 'written' => false, 'helper' => true, 'nonce' => $nonce] + $manual;
+        }
+        return ['ok' => true, 'written' => false] + $manual;
     }
 
     public static function dbTest(array $in): array

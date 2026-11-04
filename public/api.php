@@ -4571,12 +4571,23 @@ switch ($action) {
             out(['error' => $e->getMessage()], 422);
         }
 
+    case 'config_result':   // 1.168.0: is config.php door de hulpdienst opgeslagen?
+        $nonce = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['nonce'] ?? input()['nonce'] ?? ''));
+        $f = Installer::HELPER_DIR . '/config.result';
+        $r = is_file($f) ? json_decode((string) @file_get_contents($f), true) : null;
+        if (!is_array($r) || $nonce === '' || !hash_equals((string) ($r['nonce'] ?? ''), $nonce)) {
+            out(['done' => false, 'waiting' => is_file(Installer::HELPER_DIR . '/config.request')]);
+        }
+        @unlink($f);
+        out(['done' => true, 'ok' => (bool) $r['ok'], 'error' => $r['ok'] ? null : t('De hulpdienst kon config.php niet opslaan: {e}', ['e' => (string) $r['error']])]);
+
     case 'db_info':
         $h = Installer::HELPER_DIR;
         $root = realpath(SM_ROOT);
         $db = config('db');
         out([
             'helper' => is_file("$h/helper.installed") && is_writable($h),
+            'config_helper' => Installer::configHelper(),   // 1.168.0
             'direct' => Installer::configWritable() || is_writable(SM_CONFIG_FILE),
             'db' => ['host' => $db['host'], 'name' => $db['name'], 'user' => $db['user']],
             'cli_cmd' => "sudo php $root/install/install.php --rotate-db-password",

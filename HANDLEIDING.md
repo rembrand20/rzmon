@@ -204,7 +204,8 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
   Een tegel krijgt alleen een rode rand als er iets mis is. Klik op een servernaam en RzMon springt naar die server en klapt hem open.
 - **⚠️ Nu aandacht nodig**: alle open problemen in één lijst, critical eerst, daarna warning en onbekend, de oudste bovenaan. Per regel: de server, de check, het bericht, hoe lang al, en **✔ Bevestig** en **🔧** (onderhoud). Je ziet er 6 (op de telefoon 3); **Alle … tonen** klapt de rest uit. Bevestigde problemen staan er niet in, wel hoeveel het er zijn. Geen open problemen: dan verdwijnt de lijst (de tegel ernaast zegt al *Alles in orde*); zijn er wel bevestigde problemen, dan staat er een klein regeltje *✔ Geen open problemen · 2 bevestigd* met **bekijken** (zet de chip *Problemen* aan).
 - **Werkbalk**: zoeken (zoek je op een checknaam, dan klapt de server vanzelf open), **filterchips** met aantallen (*Alle · Problemen · Onderhoud · 🖥️ Servers · 🌐 Netwerk · 🗄️ Opslag · 🔋 Stroom · 📷 Camera's · 🏠 Smart home · 📦 Overig*; alleen soorten die je hebt, met een rood bolletje als er een open probleem is), **sorteren** (*Ergste eerst* of *Op naam*), het menu **⋯** met *🔧 Onderhoud* (alle meldingen pauzeren), *↻ Alles nu checken* en *⊞ Alles openen*, en **＋ Server**. De keuze wordt per gebruiker onthouden (vanaf 1.75.0), de sortering per apparaat.
-- **Servers met problemen** (of in onderhoud, of nog zonder checks) als kaart: een icoon voor de soort apparaat (zie hieronder), de status ("1 kritiek · 1 waarschuwing"), de checks met een probleem en **mini-grafiekjes van CPU, RAM en de volste disk over 24 uur** (zonder die checks: de eerste check met een meetwaarde, bv. ping).
+- **Drie groepen** (vanaf 1.168.0): *Met open problemen* (precies wat ook in **Nu aandacht nodig** staat), **✔ Bevestigd** (servers waarvan alle problemen al bevestigd zijn: je weet ervan, er is nu niets te doen) en *Alles in orde*. Een server in *Bevestigd* heeft een gestippelde rand, geen rode gloed en de regel **✔ alles bevestigd · …**; zo zie je in één oogopslag het verschil met een server waar nog iets open staat. In de kop van elke soort apparaat staat hoeveel er problemen hebben en hoeveel bevestigd zijn.
+- **Servers met open problemen** (of in onderhoud, of nog zonder checks) als kaart: een icoon voor de soort apparaat (zie hieronder), de status ("1 kritiek · 1 waarschuwing"), de checks met een probleem en **mini-grafiekjes van CPU, RAM en de volste disk over 24 uur** (zonder die checks: de eerste check met een meetwaarde, bv. ping).
 - **✔ Alles in orde**: servers waar alles OK is, compact onder elkaar: één regel met naam, aantal checks, de mini-grafiekjes en de beschikbaarheid over 24 uur. Klik erop voor alle checks.
 
 **Live tegels (vanaf 1.157.0).** De pagina laat nu meteen zien hoe het gaat, zonder dat je hoeft te klikken:
@@ -3565,6 +3566,12 @@ Dashboard, cron, agents en de API blijven gewoon werken: zij praten via RzMon me
 - De webpagina zet een verzoek in `/var/lib/rzmon`.
 - `rzmon-helper.path` ziet dat en start `install.php --rotate-db-password --helper`.
 - De dienst kan niets anders. Hij voert geen commando's uit die van de webpagina komen.
+
+**config.php opslaan via de hulpdienst** (vanaf 1.168.0). Sla je bij *Instellingen → Database en server* iets op (tijdzone, basis-URL, externe URL, pad naar ping, PHP-waarden of de databaseverbinding) terwijl de map vergrendeld is, dan doet de hulpdienst het voor je:
+- de webpagina zet alleen de gewijzigde **waarden** in `/var/lib/rzmon/config.request` (geen PHP-code);
+- `rzmon-config.path` start `install.php --apply-config --helper` als root. Die controleert alle waarden opnieuw (alleen deze vaste velden, elk met een vaste vorm), test bij een nieuwe database eerst de verbinding, maakt een **reservekopie** in `/var/lib/rzmon/backups/config-…php` (de laatste 10) en schrijft config.php met dezelfde eigenaar en rechten;
+- binnen een paar seconden zie je *Opgeslagen door de hulpdienst*. Lukt het niet, of draait de hulpdienst niet, dan krijg je zoals eerder de inhoud om zelf te plaatsen.
+Bij bijwerken met de knop in RzMon (Rocky/RHEL/AlmaLinux) komt de nieuwe dienst vanzelf mee; anders één keer `sudo bash /var/www/rzmon/install/install-helper.sh`.
 
 `install-rocky.sh` installeert de hulpdienst automatisch. Heb je een oudere installatie, voer dan één keer uit:
 

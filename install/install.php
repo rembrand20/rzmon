@@ -164,6 +164,22 @@ if (($argv[1] ?? '') === '--rotate-db-password') {
     }
     exit(0);
 }
+if (($argv[1] ?? '') === '--apply-config') {
+    // 1.168.0: config.php opslaan voor de webpagina (hulpdienst rzmon-config, zie install/install-helper.sh).
+    // Alleen de vaste instellingen uit het verzoek; alles wordt hier opnieuw gecontroleerd.
+    if (!in_array('--helper', $argv, true) || !is_file(Installer::HELPER_DIR . '/config.request')) {
+        exit(0);
+    }
+    $r = Installer::applyConfigRequest();
+    $file = Installer::HELPER_DIR . '/config.result';
+    $grp = @filegroup(Installer::HELPER_DIR);
+    file_put_contents($file, json_encode(['ok' => $r['ok'], 'error' => $r['error'], 'nonce' => $r['nonce'], 'at' => time()]));
+    @chmod($file, 0640);
+    if ($grp !== false) {
+        @chgrp($file, $grp);
+    }
+    exit($r['ok'] ? 0 : 1);
+}
 if (($argv[1] ?? '') === '--backup') {
     Installer::ensureSchema();
     $r = Backup::create('manual', in_array('--zonder-historie', $argv, true) ? false : null);

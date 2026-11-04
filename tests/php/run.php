@@ -1267,5 +1267,21 @@ save_setting('mqtt_topics', $big);
 ok(strlen($big) > 65535 && q("SELECT value FROM settings WHERE name = 'mqtt_topics'")->fetchColumn() === $big, 'een lijst MQTT-topics groter dan 64 KB wordt bewaard (' . round(strlen($big) / 1024) . ' KB)');
 save_setting('mqtt_topics', '[]');
 
+section('config.php via de hulpdienst (1.168.0)');
+$refused = 0;
+foreach ([['evil' => 'x'], ['base_url' => "http://x'.system('id').'"], ['ping_bin' => 'ping; rm'], ['db' => ['host' => 'a;b', 'name' => 'x', 'user' => 'y']],
+          ['php' => ['memory_limit' => '1G; x']], ['timezone' => 'Mars/Olympus']] as $bad) {
+    try { Installer::cleanConfigChanges($bad); } catch (InvalidArgumentException $e) { $refused++; }
+}
+ok($refused === 6, 'onbekende velden en vreemde waarden worden geweigerd (' . $refused . '/6)');
+$okc = Installer::cleanConfigChanges(['timezone' => 'Europe/Brussels', 'base_url' => 'http://192.168.2.207', 'php' => ['memory_limit' => '256M', 'max_execution_time' => '', 'display_errors' => '0'],
+    'db' => ['host' => '127.0.0.1', 'port' => '3306', 'name' => 'rzmon', 'user' => 'rzmon', 'pass' => "a'b\"c\\d"]]);
+$tmpCfg = tempnam(sys_get_temp_dir(), 'rzcfg');
+file_put_contents($tmpCfg, Installer::renderConfig($okc));
+$back = include $tmpCfg;
+unlink($tmpCfg);
+ok($okc['db']['port'] === 3306 && $okc['db']['pass'] === "a'b\"c\\d" && ($back['db']['pass'] ?? null) === "a'b\"c\\d",
+    'geldige waarden blijven, een wachtwoord met aanhalingstekens komt ongeschonden in config.php');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

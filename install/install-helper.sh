@@ -8,6 +8,8 @@
 # De hulpdienst doet niets anders: hij voert geen commando's van de webpagina uit.
 #
 # Ook de knop "Certificaat vernieuwen" (cert.request → install.php --renew-cert --helper).
+# En instellingen in config.php opslaan als de map vergrendeld is (config.request → install.php --apply-config --helper,
+# 1.168.0): alleen vaste velden (tijdzone, adressen, PHP, database), alles opnieuw gecontroleerd, met een reservekopie.
 # Op Rocky/RHEL/AlmaLinux met een git-installatie (install-rocky.sh) ook de knop "RzMon bijwerken":
 # bij /var/lib/rzmon/update.request start /usr/local/sbin/rzmon-update (kopie van install/rzmon-update.sh).
 #
@@ -22,6 +24,7 @@ UNIT=/etc/systemd/system/rzmon-helper
 UPD_UNIT=/etc/systemd/system/rzmon-update
 UPD_BIN=/usr/local/sbin/rzmon-update
 CERT_UNIT=/etc/systemd/system/rzmon-cert
+CFG_UNIT=/etc/systemd/system/rzmon-config
 GROUP=""
 MODE=install
 
@@ -47,10 +50,12 @@ if [ "$MODE" = uninstall ]; then
         systemctl disable --now rzmon-helper.path >/dev/null 2>&1 || true
         systemctl disable --now rzmon-update.path >/dev/null 2>&1 || true
         systemctl disable --now rzmon-cert.path >/dev/null 2>&1 || true
+        systemctl disable --now rzmon-config.path >/dev/null 2>&1 || true
     fi
     rm -f "$UNIT.path" "$UNIT.service" "$HELPER_DIR/helper.installed" "$HELPER_DIR/rotate.request" "$HELPER_DIR/rotate.result" \
         "$UPD_UNIT.path" "$UPD_UNIT.service" "$UPD_BIN" "$HELPER_DIR/update.installed" "$HELPER_DIR/update.request" \
-        "$CERT_UNIT.path" "$CERT_UNIT.service" "$HELPER_DIR/cert.installed" "$HELPER_DIR/cert.request" "$HELPER_DIR/cert.result"
+        "$CERT_UNIT.path" "$CERT_UNIT.service" "$HELPER_DIR/cert.installed" "$HELPER_DIR/cert.request" "$HELPER_DIR/cert.result" \
+        "$CFG_UNIT.path" "$CFG_UNIT.service" "$HELPER_DIR/config.installed" "$HELPER_DIR/config.request" "$HELPER_DIR/config.result"
     [ "$HAS_SYSTEMD" -eq 1 ] && systemctl daemon-reload
     ok "Hulpdienst verwijderd (back-ups in $HELPER_DIR/backups blijven staan)"
     exit 0
@@ -136,6 +141,31 @@ systemctl enable --now rzmon-cert.path >/dev/null
 echo "$DIR" >"$HELPER_DIR/cert.installed"
 chmod 0644 "$HELPER_DIR/cert.installed"
 ok "systemd: rzmon-cert.path (actief): knop \"Certificaat vernieuwen\""
+
+# 1.168.0: config.php opslaan vanuit de webinterface (tijdzone, adressen, PHP, database) terwijl de map vergrendeld is
+cat >"$CFG_UNIT.path" <<CFG_EOF
+[Unit]
+Description=RzMon-hulpdienst: wacht op "config.php opslaan" uit de webinterface
+
+[Path]
+PathExists=$HELPER_DIR/config.request
+
+[Install]
+WantedBy=multi-user.target
+CFG_EOF
+cat >"$CFG_UNIT.service" <<CFG_EOF
+[Unit]
+Description=RzMon-hulpdienst: config.php opslaan
+
+[Service]
+Type=oneshot
+ExecStart=$PHP $DIR/install/install.php --apply-config --helper
+CFG_EOF
+systemctl daemon-reload
+systemctl enable --now rzmon-config.path >/dev/null
+echo "$DIR" >"$HELPER_DIR/config.installed"
+chmod 0644 "$HELPER_DIR/config.installed"
+ok "systemd: rzmon-config.path (actief): instellingen in config.php opslaan"
 
 # RzMon bijwerken vanuit de webinterface: alleen bij een git-installatie met install-rocky.sh
 os_id=$(. /etc/os-release 2>/dev/null; echo "${ID:-}")
