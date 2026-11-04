@@ -1211,6 +1211,31 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($action, ['pr
         }
     });
 }
+/**
+ * 1.158.0: indeling van de pagina's in de lay-out CC: per pagina de volgorde, verborgen kaarten en de breedte (3, 4, 6, 9 of 12 van 12).
+ * Alleen korte, bekende tekens; hooguit 40 pagina's en 60 kaarten per pagina.
+ */
+function clean_page_layouts(array $in): array
+{
+    $out = [];
+    $id = static fn($v) => preg_replace('/[^a-z0-9_]/', '', strtolower((string) $v));
+    foreach (array_slice($in, 0, 40, true) as $page => $l) {
+        $page = $id($page);
+        if ($page === '' || !is_array($l)) {
+            continue;
+        }
+        $keys = static fn($a) => array_values(array_slice(array_unique(array_filter(array_map($id, (array) $a))), 0, 60));
+        $w = [];
+        foreach (array_slice((array) ($l['w'] ?? []), 0, 60, true) as $k => $v) {
+            if (($k = $id($k)) !== '' && in_array((int) $v, [3, 4, 6, 9, 12], true)) {
+                $w[$k] = (int) $v;
+            }
+        }
+        $out[$page] = ['order' => $keys($l['order'] ?? []), 'hide' => $keys($l['hide'] ?? []), 'w' => (object) $w];
+    }
+    return $out;
+}
+
 /** Niet-beheerders mogen alleen hun eigen account (2FA) beheren. */
 $ownOnly = static function (int $id) use ($user, $isAdmin): void {
     if (!$isAdmin && $id !== $user['id']) {
@@ -3699,7 +3724,7 @@ switch ($action) {
         }
         $in = input();
         $key = (string) ($in['key'] ?? '');
-        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen', 'mon_glow', 'mon_anim'], true)) {
+        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen', 'mon_glow', 'mon_anim', 'layout', 'pages'], true)) {
             out(['error' => t('Onbekende voorkeur')], 422);
         }
         $prefs = json_decode((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn(), true) ?: [];
@@ -3708,7 +3733,9 @@ switch ($action) {
             'theme' => in_array($in['value'] ?? '', ['light', 'dark'], true) ? $in['value'] : 'auto',   // 1.135.0: thema per gebruiker
             'side' => ($in['value'] ?? '') === 'mini' ? 'mini' : 'full',   // 1.150.0: zijbalk ingeklapt (alleen iconen)
             'dash' => ($in['value'] ?? '') === 'cc' ? 'cc' : 'classic',
-            'mon_glow', 'mon_anim' => ($in['value'] ?? '') === 'off' ? 'off' : 'on',   // 1.157.0: rode gloed en live-animaties op Monitoring   // 1.154.0: welk dashboard (klassiek of Command center)
+            'mon_glow', 'mon_anim' => ($in['value'] ?? '') === 'off' ? 'off' : 'on',
+            'layout' => in_array($in['value'] ?? '', ['blox', 'l1nes', 'compact', 'cc'], true) ? $in['value'] : 'blox',   // 1.158.0: lay-out per account
+            'pages' => clean_page_layouts((array) ($in['value'] ?? [])),   // 1.158.0: indeling per pagina in CC   // 1.157.0: rode gloed en live-animaties op Monitoring   // 1.154.0: welk dashboard (klassiek of Command center)
             'dash_seen' => date('Y-m-d H:i:s'),   // 1.154.0: laatste bezoek aan het dashboard ("sinds je laatste bezoek")
             // 1.154.0: indeling van het Command center: volgorde en verborgen kaarten (alleen bekende namen)
             'dash_layout' => ['order' => array_values(array_unique(array_filter(array_map(static fn($k) => preg_replace('/[^a-z_]/', '', (string) $k), (array) ($in['value']['order'] ?? []))))),

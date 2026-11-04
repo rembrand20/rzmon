@@ -1408,10 +1408,12 @@ function init() {
   if ($('#password-form')) $('#password-form').addEventListener('submit', changePassword);   // alleen op Mijn account (niet zonder account via het LAN)
   $('#user-form').addEventListener('submit', createUser);
   $('#db-rotate').onclick = dbRotateDialog;
-  $$('[data-view-layout]').forEach((b) => (b.onclick = () => setViewPref('layout', b.dataset.viewLayout)));
+  // 1.158.0: ook knoppen die later getekend worden (kop van het dashboard)
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-view-layout]'); if (b) setLayout(b.dataset.viewLayout); });
   // 1.157.0: rode gloed en live-animaties (per account)
   $$('[data-mon-pref]').forEach((c) => (c.onchange = () => { savePref(c.dataset.monPref === 'glow' ? 'mon_glow' : 'mon_anim', c.checked ? 'on' : 'off'); applyMonPrefs(); }));
   applyMonPrefs();
+  initPageGrid();   // 1.158.0: lay-out CC
   // Bij openen: alles dicht of slim openen (voor je account, 1.71.0)
   $$('[data-view-open]').forEach((b) => (b.onclick = () => {
     savePref('open_mode', b.dataset.viewOpen);
@@ -1980,6 +1982,145 @@ function hostSparks(h, mini = false) {
   }).join('');
 }
 
+// ---------------------------------------------------------------- Lay-out CC (1.158.0)
+// Vier lay-outs, per account: Blox, L1nes en Compact (klassiek dashboard) en CC: alles in de stijl van het Command center,
+// met kaarten die je kunt slepen, smaller of breder maken en verbergen (✎ Indeling, per pagina en per account).
+const LAYOUTS = ['blox', 'l1nes', 'compact', 'cc'];
+function layoutPref() {
+  if (LAYOUTS.includes(PREFS.layout)) return PREFS.layout;
+  let l = null;
+  try { l = localStorage.getItem('rzmon-layout'); } catch (e) { /* geen opslag */ }
+  if (LAYOUTS.includes(l) && l !== 'cc') return PREFS.dash === 'cc' ? 'cc' : l;
+  return PREFS.dash === 'cc' ? 'cc' : 'blox';   // wie het Command center al gebruikte, krijgt CC
+}
+const isCC = () => layoutPref() === 'cc';
+const layoutSeg = (cls = '') => `<div class="seg ${cls}" role="group" aria-label="${esc(L('Lay-out'))}">${[['blox', '▦ Blox'], ['l1nes', '☰ L1nes'], ['compact', '▪ Compact'], ['cc', '◈ CC']]
+  .map(([k, t]) => `<button type="button" class="seg-btn ${layoutPref() === k ? 'active' : ''}" data-view-layout="${k}">${t}</button>`).join('')}</div>`;
+let pgEdit = null;   // pagina waarvan de indeling open staat
+const PG_W = { 3: '¼', 4: '⅓', 6: '½', 9: '¾', 12: '1' };
+function pgLay(page) {
+  const l = (PREFS.pages || {})[page] || {};
+  return { order: Array.isArray(l.order) ? l.order : [], hide: Array.isArray(l.hide) ? l.hide : [], w: l.w && typeof l.w === 'object' ? l.w : {} };
+}
+function pgSave(page, lay) { savePref('pages', { ...(PREFS.pages || {}), [page]: lay }); }
+/** Volgorde, breedte en verbergen toepassen (met CSS order: de kaarten zelf blijven staan, dus live bijwerken gaat gewoon door) */
+function pgApply(page) {
+  const grid = document.querySelector(`[data-pgrid="${page}"]`);
+  if (!grid) return;
+  const lay = pgLay(page), cc = isCC(), edit = cc && pgEdit === page;
+  const cards = [...grid.children].filter((c) => c.dataset.pk);
+  const keys = cards.map((c) => c.dataset.pk);
+  const order = [...lay.order.filter((k) => keys.includes(k)), ...keys.filter((k) => !lay.order.includes(k))];
+  grid.classList.toggle('pg-editing', edit);
+  cards.forEach((c) => {
+    const k = c.dataset.pk;
+    const w = +(lay.w[k] || c.dataset.pw || 12);
+    c.style.order = cc ? String(order.indexOf(k)) : '';
+    c.style.setProperty('--pw', String(w));
+    c.classList.toggle('pg-hidden', cc && lay.hide.includes(k));
+    c.draggable = edit;
+    let bar = c.querySelector(':scope > .pg-bar');
+    if (!edit) { if (bar) bar.remove(); return; }
+    if (!bar) { bar = document.createElement('div'); bar.className = 'pg-bar'; c.prepend(bar); }
+    bar.innerHTML = `<span class="pg-grip" aria-hidden="true">⋮⋮</span><b>${esc(c.dataset.pt || k)}</b>
+      ${Object.entries(PG_W).map(([x, t]) => `<button type="button" class="pg-w ${+x === w ? 'on' : ''}" data-pgw="${x}" title="${esc(L('Breedte'))}">${t}</button>`).join('')}
+      <button type="button" class="pg-eye ${lay.hide.includes(k) ? 'off' : ''}" data-pghide title="${esc(lay.hide.includes(k) ? L('Tonen') : L('Verbergen'))}">${lay.hide.includes(k) ? '🚫' : '👁'}</button>`;
+  });
+}
+/** Knoppen rechtsboven op een pagina in CC: live, ✎ Indeling, ▣ TV-modus */
+function pgTools(page) {
+  const el = document.querySelector(`[data-pgtools="${page}"]`);
+  if (!el) return;
+  if (!isCC()) { el.innerHTML = ''; return; }
+  const ed = pgEdit === page, tv = document.body.classList.contains('tv');
+  el.innerHTML = `${page !== 'mon' ? livePill() : ''}
+    <button type="button" class="cc-tbtn ${ed ? 'on' : ''}" data-pgedit="${page}" aria-pressed="${ed}">✎ ${esc(ed ? L('Klaar') : L('Indeling'))}</button>
+    <button type="button" class="cc-tbtn ${tv ? 'on' : ''}" data-pgtv aria-pressed="${tv}">▣ ${esc(L('TV-modus'))}</button>
+    ${ed ? `<div class="cc-editbar pg-editbar">${esc(L('Sleep een kaart aan ⋮⋮, kies de breedte en verberg wat je niet nodig hebt. Dit geldt voor jouw account.'))}
+      <button type="button" class="btn small-btn" data-pgreset="${page}">↺ ${esc(L('Standaard'))}</button></div>` : ''}`;
+}
+const PG_PAGES = ['mon', 'alerts'];
+function applyLayout() {
+  document.body.classList.toggle('lay-cc', isCC());
+  PG_PAGES.forEach((p) => { pgApply(p); pgTools(p); });
+}
+function initPageGrid() {
+  let drag = null;
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-pgedit], [data-pgreset], [data-pgw], [data-pghide], [data-pgtv]');
+    if (!t) return;
+    if (t.dataset.pgtv !== undefined) { ccTv(!document.body.classList.contains('tv')); PG_PAGES.forEach(pgTools); return; }
+    if (t.dataset.pgedit) { pgEdit = pgEdit === t.dataset.pgedit ? null : t.dataset.pgedit; pgApply(t.dataset.pgedit); pgTools(t.dataset.pgedit); return; }
+    if (t.dataset.pgreset) { pgSave(t.dataset.pgreset, { order: [], hide: [], w: {} }); pgApply(t.dataset.pgreset); return; }
+    const card = t.closest('[data-pk]'), grid = card && card.closest('[data-pgrid]');
+    if (!grid) return;
+    const page = grid.dataset.pgrid, k = card.dataset.pk, lay = pgLay(page);
+    if (t.dataset.pgw) lay.w = { ...lay.w, [k]: +t.dataset.pgw };
+    else lay.hide = lay.hide.includes(k) ? lay.hide.filter((x) => x !== k) : [...lay.hide, k];
+    pgSave(page, lay);
+    pgApply(page);
+  });
+  document.addEventListener('dragstart', (e) => {
+    const c = e.target.closest && e.target.closest('.pg-editing > [data-pk]');
+    if (!c) return;
+    drag = c;
+    c.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', c.dataset.pk); } catch (ex) { /* oude browsers */ }
+  });
+  document.addEventListener('dragend', () => { if (drag) drag.classList.remove('dragging'); drag = null; $$('.pg-editing > .over').forEach((x) => x.classList.remove('over')); });
+  document.addEventListener('dragover', (e) => {
+    const c = drag && e.target.closest && e.target.closest('.pg-editing > [data-pk]');
+    if (c && c !== drag && c.parentElement === drag.parentElement) { e.preventDefault(); $$('.pg-editing > .over').forEach((x) => x !== c && x.classList.remove('over')); c.classList.add('over'); }
+  });
+  document.addEventListener('drop', (e) => {
+    const c = drag && e.target.closest && e.target.closest('.pg-editing > [data-pk]');
+    if (!c || c === drag || c.parentElement !== drag.parentElement) return;
+    e.preventDefault();
+    const grid = c.parentElement, page = grid.dataset.pgrid, lay = pgLay(page);
+    const keys = [...grid.children].filter((x) => x.dataset.pk).sort((a, b) => (+a.style.order || 0) - (+b.style.order || 0)).map((x) => x.dataset.pk);
+    keys.splice(keys.indexOf(drag.dataset.pk), 1);
+    keys.splice(keys.indexOf(c.dataset.pk), 0, drag.dataset.pk);
+    lay.order = keys;
+    pgSave(page, lay);
+    pgApply(page);
+  });
+  applyLayout();
+}
+/** Meldingen in CC: per uur over 24 uur (gestapeld per status) en per kanaal over de geladen dagen */
+function renderAlertCharts() {
+  const hb = $('#alerts-ch-hour'), cb = $('#alerts-ch-chan');
+  if (!hb || !cb || !alertData || !isCC()) return;
+  const list = alertData.alerts || [];
+  const now = Date.now(), H = 3600000;
+  const slots = Array.from({ length: 24 }, () => [0, 0, 0, 0]);   // critical, warning, hersteld, info/overig
+  list.forEach((a) => {
+    const t = new Date(String(a.created_at).replace(' ', 'T')).getTime();
+    const i = 23 - Math.floor((now - t) / H);
+    if (i < 0 || i > 23) return;
+    const st = +a.status;
+    slots[i][a.kind && a.kind !== 'notify' ? 3 : st === 2 ? 0 : st === 1 ? 1 : st === 0 ? 2 : 3]++;
+  });
+  const mx = Math.max(1, ...slots.map((x) => x[0] + x[1] + x[2] + x[3]));
+  const cols = ['var(--fx-cr)', 'var(--fx-wa)', 'var(--fx-ok)', 'color-mix(in srgb, var(--fx-cy) 70%, transparent)'];
+  const W = 600, Ht = 110, bw = W / 24;
+  let bars = '';
+  slots.forEach((sl, i) => {
+    let y = Ht;
+    sl.forEach((v, j) => { if (!v) return; const h = (v / mx) * (Ht - 12); y -= h; bars += `<rect x="${(i * bw + 2).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${cols[j]}"><title>${sl[0] + sl[1] + sl[2] + sl[3]}</title></rect>`; });
+  });
+  const hrs = [0, 6, 12, 18].map((k) => { const d = new Date(now - (23 - k) * H); return `<text x="${(k * bw + bw / 2).toFixed(1)}" y="${Ht + 12}" class="pg-ax">${String(d.getHours()).padStart(2, '0')}:00</text>`; }).join('');
+  const total = slots.reduce((a, x) => a + x[0] + x[1] + x[2] + x[3], 0);
+  hb.innerHTML = `<div class="cc-h"><span class="cc-hl">${esc(L('Meldingen per uur · 24 uur'))}</span><span class="cc-mu small">${esc(L('{n} meldingen', { n: total }))}</span></div>
+    ${total ? `<svg viewBox="0 0 ${W} ${Ht + 16}" class="pg-bars" preserveAspectRatio="none" role="img" aria-label="${esc(L('Meldingen per uur'))}">${bars}${hrs}</svg>` : `<p class="cc-mu small">${esc(L('Geen meldingen in de laatste 24 uur.'))}</p>`}
+    <div class="pg-key small"><i style="background:var(--fx-cr)"></i>critical <i style="background:var(--fx-wa)"></i>warning <i style="background:var(--fx-ok)"></i>${esc(L('hersteld'))} <i style="background:var(--fx-cy)"></i>info</div>`;
+  const ch = [[L('Push (Pushover, ntfy)'), list.filter((a) => +a.sent_ok).length], [L('E-mail'), list.filter((a) => +a.email_ok).length],
+    [L('Webhook / Home Assistant'), list.filter((a) => +a.webhook_ok).length], [L('Alleen op de pagina'), list.filter((a) => !+a.sent_ok && !+a.email_ok && !+a.webhook_ok).length]];
+  const cm = Math.max(1, ...ch.map((x) => x[1]));
+  cb.innerHTML = `<div class="cc-h"><span class="cc-hl">${esc(L('Per kanaal · {d} dagen', { d: alertData.days || 7 }))}</span></div>
+    ${ch.map(([n, v]) => `<div class="pg-hbar"><span>${esc(n)}</span><span class="pg-hb"><i style="width:${(v / cm * 100).toFixed(0)}%"></i></span><b>${v}</b></div>`).join('')}`;
+}
+
 // ---------------------------------------------------------------- Monitoring live (1.157.0)
 /** Rode gloed en live-animaties (Mijn account → Weergave, per account; standaard aan) */
 const monGlow = () => PREFS.mon_glow !== 'off';
@@ -2121,8 +2262,8 @@ function miniSpark(c, H) {
 function viewPrefs() {
   let layout = 'blox', density = 'large';
   try {
-    const lay = localStorage.getItem('rzmon-layout');
-    layout = lay === 'l1nes' || lay === 'compact' ? lay : 'blox';   // 1.157.0: Compact (heatmap)
+    const lay = layoutPref();   // 1.158.0: per account (CC toont Monitoring als Blox, in de CC-stijl)
+    layout = lay === 'l1nes' || lay === 'compact' ? lay : 'blox';
     density = layout === 'l1nes'
       ? (localStorage.getItem('rzmon-density') === 'large' ? 'large' : 'small')
       : (localStorage.getItem('rzmon-blox-density') === 'small' ? 'small' : 'large');
@@ -2130,15 +2271,32 @@ function viewPrefs() {
   return { layout, density };
 }
 function setViewPref(key, value) {
+  if (key === 'layout') return setLayout(value);
   if (key === 'density' && viewPrefs().layout === 'blox') key = 'blox-density';
   try { localStorage.setItem('rzmon-' + key, value); } catch (e) {}
   showViewPrefs();
   render();
 }
+/** 1.158.0: lay-out kiezen (per account): Blox, L1nes, Compact of CC */
+function setLayout(v) {
+  if (!LAYOUTS.includes(v) || v === layoutPref()) return;
+  savePref('layout', v);
+  try { localStorage.setItem('rzmon-layout', v); } catch (e) {}
+  if (v !== 'cc') { pgEdit = null; if (document.body.classList.contains('tv')) ccTv(false); }
+  applyLayout();
+  showViewPrefs();
+  render();
+  if (alertData) renderAlerts();
+  // Dashboard: klassiek of Command center, opnieuw laden (andere gegevens)
+  ccEdit = false;
+  markDash();
+  hmData = null;
+  if ($('#home')) { $('#home').innerHTML = `<p class="muted">${esc(L('Laden…'))}</p>`; loadHome(); }
+}
 function showViewPrefs() {
   const { layout, density } = viewPrefs();
   $$('[data-view-open]').forEach((b) => b.classList.toggle('active', b.dataset.viewOpen === (smartOpen() ? 'smart' : 'closed')));
-  $$('[data-view-layout]').forEach((b) => b.classList.toggle('active', b.dataset.viewLayout === layout));
+  $$('[data-view-layout]').forEach((b) => b.classList.toggle('active', b.dataset.viewLayout === layoutPref()));
   $$('[data-view-density]').forEach((b) => { b.classList.toggle('active', b.dataset.viewDensity === density); });
   applySettingsLayout();
   if (alertData) renderAlerts();
@@ -8276,6 +8434,7 @@ function renderAlertTop(d) {
 }
 
 function renderAlerts() {
+  try { renderAlertCharts(); } catch (e) { /* grafiek mag de lijst nooit tegenhouden */ }
   const el = $('#alerts');
   if (!alertData) { el.innerHTML = `<p class="muted">${L('Laden…')}</p>`; return; }
   const { layout, density } = viewPrefs();
@@ -12897,7 +13056,7 @@ function renderHome() {
 // ---------------------------------------------------------------- 1.154.0: tweede dashboard "Command center"
 // Per gebruiker te kiezen (accountmenu of de knop bovenaan), in te delen (kaarten verbergen en verslepen) en met een
 // TV-modus voor een scherm aan de muur. Volgt het thema (licht of donker), net als de Live Attack Flow.
-const dashMode = () => (PREFS.dash === 'cc' ? 'cc' : 'classic');
+const dashMode = () => (isCC() ? 'cc' : 'classic');   // 1.158.0: volgt de lay-out (CC = Command center, anders klassiek)
 const CC_PERIODS = [['today', () => L('Vandaag')], ['7d', () => L('7 dagen')], ['30d', () => L('30 dagen')], ['90d', () => L('90 dagen')]];
 let ccPeriod = (() => { try { const p = localStorage.getItem('rzmon-cc-period'); return CC_PERIODS.some(([k]) => k === p) ? p : 'today'; } catch (e) { return 'today'; } })();
 const ccSeenAt = PREFS.dash_seen || '';   // het vorige bezoek (bij het laden van de pagina), voor "sinds je laatste bezoek"
@@ -12946,11 +13105,11 @@ function ccTools() {
   return `<div class="cc-tools">
     ${dashMode() === 'cc' ? `<button type="button" class="cc-tbtn ${ccEdit ? 'on' : ''}" data-cc-edit aria-pressed="${ccEdit}">✎ ${esc(ccEdit ? L('Klaar') : L('Indeling'))}</button>
       <button type="button" class="cc-tbtn ${tv ? 'on' : ''}" data-cc-tv aria-pressed="${tv}">▣ ${esc(L('TV-modus'))}</button>` : ''}
-    <div class="seg cc-dash" role="group" aria-label="${esc(L('Dashboard'))}"><button type="button" class="seg-btn ${dashMode() === 'classic' ? 'active' : ''}" data-dash-set="classic">${esc(L('Klassiek'))}</button>
-      <button type="button" class="seg-btn ${dashMode() === 'cc' ? 'active' : ''}" data-dash-set="cc">${esc(L('Command center'))}</button></div></div>`;
+    ${layoutSeg('cc-dash')}</div>`;
 }
 function ccSetDash(v) {
   if (v === dashMode()) return;
+  return setLayout(v === 'cc' ? 'cc' : 'blox');   // 1.158.0: het dashboard volgt de lay-out
   savePref('dash', v);
   if (v !== 'cc') ccTv(false);
   ccEdit = false;

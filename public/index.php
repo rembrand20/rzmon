@@ -183,7 +183,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <?php if (!$hasAccount): ?><a role="menuitem" class="acct-item" href="index.php?login=1">🔑 <?= th('Inloggen met je account') ?></a><?php endif; ?>
           <div class="acct-sep"></div>
           <div class="acct-row">🌓 <?= th('Thema') ?> <span class="seg" id="theme-seg"><button type="button" data-theme-set="auto">auto</button><button type="button" data-theme-set="light"><?= th('licht') ?></button><button type="button" data-theme-set="dark"><?= th('donker') ?></button></span></div>
-          <div class="acct-row">📊 <?= th('Dashboard') ?> <span class="seg" id="dash-seg"><button type="button" data-dash-set="classic"><?= th('klassiek') ?></button><button type="button" data-dash-set="cc"><?= th('Command center') ?></button></span></div>
+          <div class="acct-row">◈ <?= th('Lay-out') ?> <span class="seg" id="dash-seg"><button type="button" data-view-layout="blox">Blox</button><button type="button" data-view-layout="l1nes">L1nes</button><button type="button" data-view-layout="compact">Compact</button><button type="button" data-view-layout="cc">CC</button></span></div>
           <div class="acct-row">🌐 <?= th('Taal') ?> <span class="seg" id="lang-seg"><button type="button" data-lang-set="nl" class="<?= I18n::lang() === 'nl' ? 'active' : '' ?>">NL</button><button type="button" data-lang-set="en" class="<?= I18n::lang() === 'en' ? 'active' : '' ?>">EN</button></span></div>
           <?php if ($hasAccount): ?><div class="acct-sep"></div><button type="button" role="menuitem" id="logout" class="danger-txt">⏻ <?= th('Uitloggen') ?></button><?php endif; ?>
         </div>
@@ -213,9 +213,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <span class="dash-last muted small"><span class="live-dot" id="live-dot" title="<?= th('Live: wijzigingen komen binnen een paar seconden binnen') ?>"></span> <span id="last-run"></span></span>
         </div>
       </div>
-      <div class="kpis" id="health"></div>
-      <section class="attn-sec" id="dash-attn"></section>
-      <div class="dash-bar">
+      <div class="pg-tools" data-pgtools="mon"></div>
+      <div class="pgrid" data-pgrid="mon">
+      <div class="pcard" data-pk="kpis" data-pw="12" data-pt="<?= th('Kerncijfers') ?>"><div class="kpis" id="health"></div></div>
+      <div class="pcard" data-pk="attn" data-pw="12" data-pt="<?= th('Nu aandacht nodig') ?>"><section class="attn-sec" id="dash-attn"></section></div>
+      <div class="pcard" data-pk="bar" data-pw="12" data-pt="<?= th('Zoeken en filters') ?>"><div class="dash-bar">
         <input type="search" id="filter" placeholder="<?= th('🔍 Zoek server of check…') ?>">
         <div class="dash-chips" id="dash-chips" role="group" aria-label="<?= th('Filter') ?>"></div>
         <span class="dash-sp"></span>
@@ -223,6 +225,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="seg-btn" data-view-layout="blox" title="<?= th('Een tegel per server') ?>">▦ Blox</button>
           <button type="button" class="seg-btn" data-view-layout="l1nes" title="<?= th('Servers onder elkaar, als een tabel') ?>">☰ L1nes</button>
           <button type="button" class="seg-btn" data-view-layout="compact" title="<?= th('Eén blokje per check') ?>">▪ Compact</button>
+          <button type="button" class="seg-btn" data-view-layout="cc" title="<?= th('Alles in de stijl van het Command center, met versleepbare kaarten') ?>">◈ CC</button>
         </div>
         <select id="dash-sort" aria-label="<?= th('Sorteren') ?>">
           <option value="status"><?= th('Ergste eerst') ?></option>
@@ -237,8 +240,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
         </div>
         <button class="btn primary need-admin" id="add-host">＋ <?= th('Server') ?></button>
+      </div></div>
+      <div class="pcard" data-pk="hosts" data-pw="12" data-pt="<?= th('Servers') ?>"><div id="hosts" class="hosts"></div></div>
       </div>
-      <div id="hosts" class="hosts"></div>
     </section>
 
     <section id="tab-alerts" class="tab-panel" hidden>
@@ -248,8 +252,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <div class="health-counts" id="alerts-counts" role="group" aria-label="<?= th('Filter') ?>"></div>
         <span class="dash-last muted small" id="alerts-info"></span>
       </div></div>
-      <div class="kpis" id="alerts-kpis"></div>
-      <div class="dash-bar">
+      <div class="pg-tools" data-pgtools="alerts"></div>
+      <div class="pgrid" data-pgrid="alerts">
+      <div class="pcard" data-pk="kpis" data-pw="12" data-pt="<?= th('Kerncijfers') ?>"><div class="kpis" id="alerts-kpis"></div></div>
+      <div class="pcard cc-only" data-pk="hour" data-pw="8" data-pt="<?= th('Meldingen per uur') ?>"><div class="cc-card" id="alerts-ch-hour"></div></div>
+      <div class="pcard cc-only" data-pk="chan" data-pw="4" data-pt="<?= th('Per kanaal') ?>"><div class="cc-card" id="alerts-ch-chan"></div></div>
+      <div class="pcard" data-pk="bar" data-pw="12" data-pt="<?= th('Zoeken en filters') ?>"><div class="dash-bar">
         <input type="search" id="alerts-search" placeholder="<?= th('🔍 Zoek in meldingen…') ?>">
         <div class="dash-chips" id="alerts-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
         <span class="dash-sp"></span>
@@ -272,8 +280,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <button type="button" id="alerts-toggle" role="menuitem">⊞ <?= th('Alles openen') ?></button>
           </div>
         </div>
+      </div></div>
+      <div class="pcard" data-pk="list" data-pw="12" data-pt="<?= th('Meldingen') ?>"><div id="alerts" class="alert-list"></div></div>
       </div>
-      <div id="alerts" class="alert-list"></div>
     </section>
 
     <section id="tab-ids" class="tab-panel" hidden>
@@ -1401,7 +1410,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="card" id="acct-logins"><h2>🕘 <?= th('Mijn laatste logins') ?></h2><div id="acct-logins-body"></div></div>
       <div class="card view-card">
         <h2>🖥️ <?= th('Weergave') ?></h2>
-        <p class="muted small"><?= t('Hoe de pagina\'s eruitzien, direct toegepast. <i>Bij openen</i> geldt voor je account; lay-out en grootte voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc).') ?></p>
+        <p class="muted small"><?= t('Hoe de pagina\'s eruitzien, direct toegepast. <i>Bij openen</i> en de <i>lay-out</i> gelden voor je account; de grootte voor <b>dit apparaat</b> (zo kun je op je telefoon iets anders kiezen dan op je pc). <b>◈ CC</b>: alle pagina\'s in de stijl van het Command center, met kaarten die je kunt verslepen (✎ Indeling).') ?></p>
         <div class="view-row">
           <span class="view-label"><?= th('Bij openen') ?> <span class="hint"><?= th('(voor je account)') ?></span></span>
           <div class="seg" role="group" aria-label="<?= th('Bij openen') ?>">
@@ -1415,6 +1424,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <button type="button" class="seg-btn" data-view-layout="blox" title="<?= th('Een tegel per server') ?>">▦ Blox</button>
             <button type="button" class="seg-btn" data-view-layout="l1nes" title="<?= th('Servers onder elkaar, als een tabel') ?>">☰ L1nes</button>
             <button type="button" class="seg-btn" data-view-layout="compact" title="<?= th('Eén blokje per check: veel checks tegelijk, of voor een TV-scherm') ?>">▪ Compact</button>
+            <button type="button" class="seg-btn" data-view-layout="cc" title="<?= th('Alles in de stijl van het Command center, met versleepbare kaarten') ?>">◈ CC</button>
           </div>
         </div>
         <div class="view-row">

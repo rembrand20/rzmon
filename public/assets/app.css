@@ -2927,3 +2927,72 @@ body.no-anim .live-dot { animation: none; }
 /* 1.157.3: live-lampje rechtsboven op het dashboard */
 .hm-live { order: -1; flex: 0 0 100%; display: flex; justify-content: flex-end; margin-bottom: -.5rem; }
 .hm-live:empty { display: none; }
+
+/* ================================================================ Lay-out CC (1.158.0) */
+/* Raster van kaarten: buiten CC gewoon de oude opbouw (display: contents), in CC een raster van 12 kolommen */
+.pgrid, .pcard { display: contents; }
+.pcard.cc-only { display: none; }
+.pg-tools:empty { display: none; }
+body.lay-cc .pgrid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-items: start; }
+body.lay-cc .pcard { display: block; grid-column: span var(--pw, 12); min-width: 0; position: relative; }
+body.lay-cc .pcard.pg-hidden { display: none; }
+body.lay-cc .pcard > .kpis, body.lay-cc .pcard > .attn-sec, body.lay-cc .pcard > .dash-bar { margin-bottom: 0; }
+@media (max-width: 900px) { body.lay-cc .pcard { grid-column: span 12; } }
+.pg-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .5rem; margin: 0 0 12px; }
+.pg-tools .pg-editbar { flex: 0 0 100%; margin: 4px 0 0; }
+/* Indeling aanpassen */
+.pg-editing > .pcard { outline: 1.5px dashed color-mix(in srgb, var(--fx-cy) 60%, transparent); outline-offset: 3px; border-radius: 16px; cursor: grab; }
+.pg-editing > .pcard.pg-hidden { display: block; opacity: .45; }
+.pg-editing > .pcard > :not(.pg-bar) { pointer-events: none; }
+.pg-editing > .pcard.over { outline: 2px solid var(--fx-cy); box-shadow: 0 0 0 4px color-mix(in srgb, var(--fx-cy) 18%, transparent); }
+.pg-editing > .pcard.dragging { opacity: .6; }
+.pg-bar { display: flex; align-items: center; gap: .3rem; margin: 0 0 8px; padding: .35rem .5rem; border-radius: 10px; font-size: .8rem;
+  background: color-mix(in srgb, var(--fx-cy) 9%, var(--fx-bg2)); border: 1px solid var(--fx-bd); color: var(--fx-tx); }
+.pg-bar b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-grip { cursor: grab; color: var(--fx-cy); font-weight: 800; letter-spacing: -1px; }
+.pg-w, .pg-eye { font: 700 .72rem var(--mono, ui-monospace, monospace); padding: .15rem .45rem; border-radius: 6px; border: 1px solid var(--fx-bd); background: transparent; color: var(--fx-mu); cursor: pointer; }
+.pg-w.on { background: var(--fx-cy); color: var(--fx-bg); border-color: var(--fx-cy); }
+.pg-eye.off { color: var(--fx-cr); }
+/* Grafieken op Meldingen */
+.pg-bars { width: 100%; height: 126px; display: block; }
+.pg-ax { font: 9px var(--mono, ui-monospace, monospace); fill: var(--fx-mu); text-anchor: middle; }
+.pg-key { display: flex; flex-wrap: wrap; gap: .35rem .8rem; align-items: center; color: var(--fx-mu); margin-top: 4px; }
+.pg-key i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: -.4rem; }
+.pg-hbar { display: grid; grid-template-columns: minmax(0, 1.3fr) 1fr 2.5rem; gap: .6rem; align-items: center; font-size: .82rem; padding: .3rem 0; }
+.pg-hb { height: 7px; border-radius: 4px; background: var(--fx-bd); overflow: hidden; }
+.pg-hb i { display: block; height: 100%; background: var(--fx-cy); box-shadow: 0 0 8px var(--fx-cy); }
+.pg-hbar b { text-align: right; font-variant-numeric: tabular-nums; }
+body.lay-cc .pcard > .cc-card { height: 100%; }
+
+/* ---------------- De CC-stijl op alle pagina's (volgt licht en donker) */
+body.lay-cc {
+  --bg: var(--fx-bg); --bg-2: var(--fx-bg2); --card: var(--fx-bg2); --card-2: color-mix(in srgb, var(--fx-cy) 5%, var(--fx-bg));
+  --border: var(--fx-bd); --text: var(--fx-tx); --muted: var(--fx-mu); --primary: var(--fx-cy); --ok: var(--fx-ok); --warn: var(--fx-wa); --crit: var(--fx-cr);
+  --shadow: var(--fx-shadow);
+  background: radial-gradient(1100px 520px at 75% 0%, var(--fx-glow1), transparent 60%), radial-gradient(800px 500px at 0% 100%, var(--fx-glow2), transparent 60%),
+    repeating-linear-gradient(0deg, var(--fx-grid) 0 1px, transparent 1px 36px), repeating-linear-gradient(90deg, var(--fx-grid) 0 1px, transparent 1px 36px), var(--fx-bg);
+  background-attachment: fixed;
+}
+body.lay-cc .app-top, body.lay-cc .side { background: color-mix(in srgb, var(--fx-bg) 88%, transparent); backdrop-filter: blur(6px); border-color: var(--fx-bd); }
+body.lay-cc .tab.active, body.lay-cc .tab[aria-selected="true"] { box-shadow: inset 3px 0 0 var(--fx-cy); }
+/* Kaarten: glas, dunne gloeiende bovenrand */
+body.lay-cc .card, body.lay-cc .kpi, body.lay-cc .host, body.lay-cc .alert-day, body.lay-cc .attn, body.lay-cc .ok-item, body.lay-cc .hm-row, body.lay-cc .cc-card {
+  background: linear-gradient(160deg, var(--fx-bg2), var(--fx-bg)); border-color: var(--fx-bd); box-shadow: var(--fx-shadow); border-radius: 16px; }
+body.lay-cc .card, body.lay-cc .kpi, body.lay-cc .attn, body.lay-cc .cc-card { position: relative; overflow: hidden; }
+body.lay-cc .card::after, body.lay-cc .kpi::after, body.lay-cc .attn::after, body.lay-cc .cc-card::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fx-cy) 65%, transparent), transparent); }
+body.lay-cc .kpi-lbl, body.lay-cc .card > h2:first-child, body.lay-cc .sec-h h2 { letter-spacing: .12em; text-transform: uppercase; font-size: .74rem; color: var(--fx-cy); }
+body.lay-cc .kpi-val, body.lay-cc .hc b, body.lay-cc .km-v, body.lay-cc .dchip b { font-family: var(--mono, ui-monospace, "JetBrains Mono", monospace); }
+/* Chips, knoppen en velden */
+body.lay-cc .hc, body.lay-cc .dchip, body.lay-cc .seg, body.lay-cc .btn:not(.primary), body.lay-cc .icon-btn {
+  background: color-mix(in srgb, var(--fx-cy) 6%, transparent); border-color: var(--fx-bd); }
+body.lay-cc .hc.on, body.lay-cc .dchip.on, body.lay-cc .seg-btn.active { border-color: var(--fx-cy); color: var(--fx-cy); box-shadow: 0 0 0 1px color-mix(in srgb, var(--fx-cy) 25%, transparent) inset; }
+body.lay-cc .seg-btn.active { background: color-mix(in srgb, var(--fx-cy) 16%, transparent); }
+body.lay-cc .btn.primary { background: var(--fx-cy); border-color: var(--fx-cy); color: var(--fx-bg); }
+body.lay-cc input:not([type=checkbox]):not([type=radio]):not([type=range]), body.lay-cc select, body.lay-cc textarea {
+  background: color-mix(in srgb, var(--fx-bg) 70%, transparent); border-color: var(--fx-bd); color: var(--fx-tx); }
+body.lay-cc input:focus, body.lay-cc select:focus, body.lay-cc textarea:focus { border-color: var(--fx-cy); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fx-cy) 20%, transparent); outline: none; }
+body.lay-cc .switch input:checked + span { background: var(--fx-cy); box-shadow: 0 0 10px color-mix(in srgb, var(--fx-cy) 45%, transparent); }
+body.lay-cc table th { color: var(--fx-cy); letter-spacing: .06em; }
+body.lay-cc dialog .modal-inner { background: linear-gradient(160deg, var(--fx-bg2), var(--fx-bg)); border: 1px solid var(--fx-bd); }

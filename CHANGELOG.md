@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.158.0**: de **lay-out CC**: alle pagina's in de stijl van het Command center (licht en donker), met kaarten die je zelf versleept, smaller of breder maakt en verbergt; per account.
 - **1.157.0**: **Monitoring live**: per server de 3 belangrijkste checks met lijntjes en 24 uur, problemen gebundeld op oorzaak, een Compact-weergave en een zachte rode gloed; plus een nieuwe check **Internet** (ping, responstijd en snelheidstest van je lijn).
 - **1.156.0**: **slimme drempels** leren nu ook voor containers, DNS, NTP en MySQL, en RzMon zet een handmatige check zelf op *slim met vangnet* en stelt *melden na N* zelf in als dat minder ruis geeft, altijd met een melding en terug te draaien.
 - **1.155.0**: **Analyse en advies**: slimme analyses die je gegevens combineren tot concreet advies met bewijs (zoals een verouderde dienst met een actief misbruikte CVE op een poort die van buiten wordt aangevallen), een veiligheidsscore per onderdeel en een melding bij kritieke, wereldwijd bekende lekken.
-- **1.154.0**: het **Command center**, een tweede dashboard met alles in één oogopslag (SSH-logins en -blokkades, de toppers, wie er inlogt, de monitoring), zelf in te delen en met een TV-modus.
 - **1.153.0**: de **Live Attack Flow**: bewegende aanvallen in de stijl van Stromen, de grootste aanvaller van nu met wat het IDS deed, een lopende band en een top 10.
+
+## 1.158.0 – 2026-11-04
+### Nieuw
+- **Lay-out CC** ◈: een vierde lay-out naast Blox, L1nes en Compact.
+  - **Per account** (was per apparaat): kies hem bovenaan het dashboard, bij Monitoring, in het accountmenu of bij *Mijn account → Weergave*.
+  - Met Blox, L1nes of Compact zie je het **klassieke dashboard**, met CC het **Command center** (de losse keuze *Klassiek / Command center* is daarmee vervallen).
+  - In CC krijgen **alle pagina's** de futuristische stijl van het Command center, in licht en donker. Alle informatie blijft staan; alleen de vorm verandert.
+  - **Kaarten indelen** op Monitoring en Meldingen (✎ Indeling): slepen, breedte (¼ tot de hele breedte), verbergen, ↺ Standaard. Onthouden per pagina en per account. De andere pagina's volgen in de volgende versies.
+  - **Meldingen** in CC: grafieken *Meldingen per uur* (24 uur, per status) en *Per kanaal*.
+  - **● Live**, **✎ Indeling** en **▣ TV-modus** rechtsboven op die pagina's.
+- Wie het Command center als dashboard gebruikte, krijgt vanzelf de lay-out CC.
 
 ## 1.157.4 – 2026-11-04
 ### Opgelost

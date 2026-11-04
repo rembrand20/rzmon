@@ -129,7 +129,7 @@ Het eerste tabblad, en de pagina waarop RzMon opent: monitoring, beveiliging, kw
 Vanaf 70 is het rood (hoog), vanaf 40 oranje.
 
 ### Command center: het tweede dashboard 🛰️ (vanaf 1.154.0)
-Naast het gewone dashboard (*Klassiek*) is er het **Command center**: alles in één oogopslag, in een futuristische stijl die meekleurt met je thema (licht of donker). Kies het met de knop **Klassiek · Command center** rechtsboven op het dashboard, of in het **accountmenu** (rechtsboven, *📊 Dashboard*). De keuze geldt voor jouw account, op elk apparaat.
+Naast het gewone dashboard (*Klassiek*) is er het **Command center**: alles in één oogopslag, in een futuristische stijl die meekleurt met je thema (licht of donker). Vanaf 1.158.0 hoort het bij de **lay-out CC** (zie hieronder): met Blox, L1nes of Compact zie je het klassieke dashboard, met CC het Command center. Kies de lay-out bovenaan het dashboard, bij Monitoring, in het accountmenu of bij *Mijn account → Weergave*. De keuze geldt voor jouw account, op elk apparaat.
 
 **Wat erop staat** (de standaardvolgorde):
 1. **Kop**: een begroeting en **sinds je laatste bezoek** (nieuwe kritieke meldingen, meldingen, blokkades en SSH-logins), de periode (*Vandaag*, 7, 30 of 90 dagen), *LIVE*, **Indeling** en **TV-modus**.
@@ -156,6 +156,30 @@ Naast het gewone dashboard (*Klassiek*) is er het **Command center**: alles in �
 - **Netwerk** (apparaten, DNS-blokkades van AdGuard, wifi-clients) en de **laatste gebeurtenissen** van alle soorten door elkaar.
 
 Rechtsboven kies je de periode: **7, 30 of 90 dagen**. De servers en checks lopen live mee; de rest wordt hooguit eens per minuut opnieuw opgehaald. Wie *alleen lezen* is, ziet monitoring, IDS en de netwerkkaart (geen analyse, CVE's of netwerkapparaten).
+
+### Lay-out CC ◈ (vanaf 1.158.0)
+Er zijn vier lay-outs, **per account** (je ziet dezelfde op elk apparaat):
+
+| Lay-out | Dashboard | Monitoring | Rest |
+|---|---|---|---|
+| ▦ **Blox** | Klassiek | tegels | zoals altijd |
+| ☰ **L1nes** | Klassiek | rijen | zoals altijd |
+| ▪ **Compact** | Klassiek | een blokje per check | zoals altijd |
+| ◈ **CC** | Command center | tegels in CC-stijl | **alles in de stijl van het Command center** |
+
+In **CC** krijgen alle pagina's (ook de instellingen) de futuristische stijl van het Command center: glazen panelen met een dunne gloeiende rand, cyaan accenten, een fijn raster op de achtergrond. In licht én donker, het volgt je thema. Alle informatie blijft precies hetzelfde; alleen de vorm verandert.
+
+**Kaarten indelen** (vanaf 1.158.0 op Monitoring en Meldingen; de andere pagina's volgen): rechtsboven staan **● Live**, **✎ Indeling** en **▣ TV-modus**. Met *Indeling*:
+- **sleep** een kaart aan ⋮⋮ naar een andere plek;
+- kies de **breedte**: ¼, ⅓, ½, ¾ of de hele breedte;
+- **👁 verberg** wat je niet nodig hebt (in de indeling zie je het nog doorschijnend, zodat je het terug kunt zetten);
+- **↺ Standaard** zet alles terug.
+
+Dit wordt per pagina onthouden, voor jouw account. Op een smal scherm (telefoon) staan de kaarten onder elkaar, in jouw volgorde.
+
+**Meldingen in CC** heeft twee extra kaarten: **Meldingen per uur** (de laatste 24 uur, per status: critical, warning, hersteld en info) en **Per kanaal** (push, e-mail, webhook / Home Assistant en alleen op de pagina, over de geladen dagen).
+
+Wie in 1.154–1.157 het Command center als dashboard had gekozen, krijgt na de update vanzelf de lay-out CC; voor de rest verandert er niets.
 
 ### Monitoring (HTML5)
 De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar beneden:
@@ -390,7 +414,7 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 **Thema** (accountmenu → 🌓): *auto* (volgt je apparaat), *licht* of *donker*. Vanaf 1.135.0 wordt je keuze **per gebruiker** bewaard, dus op elk apparaat waarop je inlogt hetzelfde. Het donkere thema is diep marineblauw, als een controlekamer.
 
 - **Rechtsboven** staat je naam met een menu: **👤 Mijn account**, **⚙️ Instellingen** (alleen beheerders), het **thema** (auto, licht of donker), de **taal** (NL of EN) en **⏻ Uitloggen**. Ben je zonder wachtwoord binnen via het lokale netwerk, dan staat er **🏠 Lokaal netwerk** met **Inloggen met je account**; *Mijn account* is er dan niet.
-- **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave op dit apparaat** (Blox, L1nes of Compact, Small of Large), en voor je account de **rode gloed bij critical** en de **live animaties** (vanaf 1.157.0, allebei standaard aan).
+- **Mijn account** (alleen als je met een account bent ingelogd): je gebruikersnaam en rol (wijzigen kan alleen een beheerder), je e-mailadres voor *wachtwoord vergeten*, de taal, **🔑 wachtwoord wijzigen**, **🔐 tweestapsverificatie** van je eigen account (instellen of uitzetten), je **📱 onthouden apparaten** (vergeten, één of alle), **🕘 je laatste 10 logins** (mislukte in rood; 90 dagen bewaard) en de **🖥️ weergave**: de lay-out (Blox, L1nes, Compact of CC, voor je account) en Small of Large (op dit apparaat), en voor je account de **rode gloed bij critical** en de **live animaties** (vanaf 1.157.0, allebei standaard aan).
 - **Instellingen** (alleen beheerders): links een **zijbalk** met de groepen (vanaf 1.92.0):
   - **✅ Overzicht**: Hoe staat het ervoor? · Verbindingen en taken;
   - **🧩 Checks**: Sjablonen · Alle checks · Opschoonadvies (vanaf 1.94.0);
