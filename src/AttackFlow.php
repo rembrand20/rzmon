@@ -21,7 +21,7 @@ final class AttackFlow
     /** Daarna is er ingelogd */
     private const LOGIN = ['breakin', 'ssh_login', 'newip', 'rootlogin'];
 
-    /** @param array{days?: int, mins?: int, host?: int, cc?: string, cat?: string, dir?: string, top?: int} $o */
+    /** @param array{days?: int, mins?: int, host?: int, cc?: string, cat?: string, dir?: string, top?: int, live?: int} $o */
     public static function build(array $o): array
     {
         $f = Ids::flows($o + ['top' => 12]);

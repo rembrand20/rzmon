@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.169.0**: **Monitoring → 📶 Beschikbaarheid**: per soort apparaat of eigen groep wat er online is, het percentage, storingen en het doel (SLA).
 - **1.168.0**: Monitoring met een eigen groep **✔ Bevestigd**, en **config.php opslaan via de hulpdienst** terwijl de map vergrendeld blijft.
 
+## 1.172.1 – 2026-11-05
+### Nieuw
+- 
+
 ## 1.172.0 – 2026-11-05
 ### Nieuw
 - **Live Attack Flow toont altijd tien aanvallers.** Bovenaan wie de laatste 15 minuten aanvalt (live). De overige plekken vult RzMon met de grootste aanvallen van de laatste 24 uur.
