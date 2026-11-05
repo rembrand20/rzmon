@@ -7483,10 +7483,10 @@ function renderIdsAttention(open) {
     <div class="attn ids-attn-l ${idsAttnOpen ? 'all' : ''}">${list.map((i) => `<div class="arow">
       <i class="adot s2"></i>
       <span class="a-srv">${esc(i.host_name)}</span>
-      <button type="button" class="a-chk linklike" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${i.type === 'chain' ? '🔗 ' : ''}${esc(i.title)}</button>${aiBtn('ids', i.id)}
+      <button type="button" class="a-chk linklike" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${i.type === 'chain' ? '🔗 ' : ''}${esc(i.title)}</button>
       <span class="a-msg">${esc(i.detail || '')}</span>
       <span class="a-since">${dur(i.created_at)}</span>
-      <span class="a-acts need-admin"><button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">✔ ${L('Afhandelen')}</button>${i.ip ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}" title="${esc(L('Blokkeer IP'))}">⛔</button>` : ''}</span>
+      <span class="a-acts">${aiBtn('ids', i.id)}<span class="need-admin a-acts-in"><button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">✔ ${L('Afhandelen')}</button>${i.ip ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}" title="${esc(L('Blokkeer IP'))}">⛔</button>` : ''}</span></span>
     </div>`).join('')}
     ${list.length > 3 ? `<button type="button" class="attn-more ${list.length > 5 ? '' : 'mob-only'}" data-ids-attn-more>${idsAttnOpen ? '▴ ' + L('Minder tonen') : '▾ ' + L('Alle {n} tonen', { n: list.length })}</button>` : ''}</div>`;
 }

@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.168.0**: Monitoring met een eigen groep **✔ Bevestigd**, en **config.php opslaan via de hulpdienst** terwijl de map vergrendeld blijft.
 - **1.167.0**: de **zijbalk** sleep je zelf breder of smaller, en in Instellingen en Mijn account wordt hij het menu van die pagina, met **← Terug naar RzMon**.
 
+## 1.171.2 – 2026-11-05
+### Opgelost
+- **IDS → Nu aandacht nodig**: de knop 🤖 staat nu in de rij met de knoppen (vóór *Afhandelen*), ook op de telefoon. Eerst stond hij los onder de titel; gebruikers zonder beheerrechten zien hem ook.
+
 ## 1.171.1 – 2026-11-04
 ### Opgelost
 - **AI-advies: meer knoppen 🤖**: ook in de lay-out CC bij elk serverblok (in de tegel en in elke checkregel met een probleem), en in de lijsten op de pagina's **IDS** (bij *Nu aandacht nodig* en elk open incident) en **Incidenten** (elk open incident). Eerst stonden ze daar alleen in het venster dat je opent.

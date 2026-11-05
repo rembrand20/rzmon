@@ -3262,3 +3262,4 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 .ai-st { display: inline-block; width: 1.2em; text-align: center; }
 .ai-st.error { color: var(--crit); } .ai-st.done { color: var(--ok); }
 .hb-tf .ai-btn, .m-tt .ai-btn, .attn .a-chk + .ai-btn, .inc-table .ai-btn { margin: 0 .35rem; padding: .1rem .35rem; font-size: .9rem; vertical-align: middle; }
+.a-acts-in { display: contents; }
