@@ -15,8 +15,8 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.168.0**: Monitoring met een eigen groep **✔ Bevestigd**, en **config.php opslaan via de hulpdienst** terwijl de map vergrendeld blijft.
 
 ## 1.172.1 – 2026-11-05
-### Nieuw
-- 
+### Opgelost
+- Codecontrole (PHPStan) kende de nieuwe optie *live* van de Attack Flow nog niet. Voor jou verandert er niets.
 
 ## 1.172.0 – 2026-11-05
 ### Nieuw
