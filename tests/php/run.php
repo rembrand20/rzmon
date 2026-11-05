@@ -1535,6 +1535,70 @@ ok($tcRate['status'] === STATUS_WARN && abs((float) $tcRate['value'] - 24.0) < 0
     && $tcNone['status'] === STATUS_UNKNOWN && $wm['src'] === 'devices' && $wm['rx'] >= 3000000000 && $wm['cap'] > $wmUsed
     && ($capAlert[80] ?? '') === date('Y-m') && ($capAlert[100] ?? '') === '' && $rep['top'][0]['rx'] >= 3000000000,
     'check verkeer: snelheid en upload vandaag met drempels, onbekend apparaat; internetlijn uit de som van de apparaten, 80% van de datalimiet gemeld; top in het rapport');
+// 1.189.0: stille-urenprofielen: check → server → eigen groep → soort → algemeen, nooit stil, critical door, periode, Nu stil
+Quiet::migrate();
+$qAll = ['from' => '00:00', 'to' => '00:00', 'days' => [1, 2, 3, 4, 5, 6, 7]];   // de hele dag, elke dag
+$qNight = Quiet::saveProfile(null, ['name' => 'Test nacht', 'windows' => [$qAll]]);
+$qCrit = Quiet::saveProfile(null, ['name' => 'Test crit door', 'windows' => [$qAll], 'crit' => 1]);
+$qPast = Quiet::saveProfile(null, ['name' => 'Test vakantie', 'windows' => [], 'date_from' => '2020-01-01', 'date_to' => '2020-01-07']);
+$qOldGlobal = setting('quiet_global', '');
+save_setting('quiet_global', (string) $qNight);
+Quiet::reset();
+q("INSERT INTO hosts (name, address, mode, enabled, grp, kind) VALUES ('Q-host', '10.189.0.1', 'remote', 1, 'Q-groep', 'camera')");
+$qH = (int) db()->lastInsertId();
+$qC = Templates::insertCheck($qH, ['type' => 'ping', 'target' => '', 'name' => 'Q-ping']);
+$qCheck = fn() => q('SELECT c.*, c.host_id AS hid FROM checks c WHERE c.id = ?', [$qC])->fetch();
+$qs = [];
+Quiet::reset(); $qs[] = Quiet::forCheck($qCheck())['src'];                          // algemeen
+Quiet::setGroup('kind:camera', 'never'); $qs[] = Quiet::forCheck($qCheck())['src'];  // soort apparaat
+Quiet::setGroup('grp:Q-groep', 'p:' . $qCrit); $qs[] = Quiet::forCheck($qCheck())['src'];   // eigen groep gaat voor de soort
+q('UPDATE hosts SET quiet = ? WHERE id = ?', ['p:' . $qPast, $qH]); Quiet::reset(); $qs[] = Quiet::forCheck($qCheck())['src'];
+$qPastOff = Quiet::until(Quiet::forCheck($qCheck())) === null;                       // periode voorbij: niet stil
+q('UPDATE checks SET quiet = ? WHERE id = ?', [json_encode(['mode' => 'never']), $qC]); Quiet::reset(); $qs[] = Quiet::forCheck($qCheck())['src'];
+$qNever = Quiet::holds($qCheck(), STATUS_WARN);
+q('UPDATE checks SET quiet = NULL WHERE id = ?', [$qC]);
+q('UPDATE hosts SET quiet = NULL WHERE id = ?', [$qH]); Quiet::reset();
+$qHoldWarn = Quiet::holds($qCheck(), STATUS_WARN);
+$qHoldCrit = Quiet::holds($qCheck(), STATUS_CRIT);                                  // eigen groep: critical komt door
+Quiet::setNow('check', $qC, time() + 3600);
+$qNow = Quiet::forCheck($qCheck());
+$qNowCrit = Quiet::holds($qCheck(), STATUS_CRIT);                                   // Nu stil: ook critical stil
+Quiet::deleteProfile($qCrit);
+$qAfterDel = (string) q("SELECT COUNT(*) FROM quiet_groups WHERE gkey = 'grp:Q-groep'")->fetchColumn();
+ok($qs === ['global', 'kind', 'grp', 'host', 'check'] && $qPastOff && !$qNever && $qHoldWarn && !$qHoldCrit
+    && $qNow['src'] === 'check_now' && $qNowCrit && $qAfterDel === '0'
+    && NotifyRules::cleanQuietOwn(['mode' => 'profile', 'id' => $qNight]) === ['mode' => 'profile', 'id' => $qNight] && NotifyRules::cleanQuietOwn(['mode' => 'profile', 'id' => 999999]) === null,
+    'stille uren: algemeen, soort, eigen groep (gaat voor), server, check; periode voorbij = niet stil; nooit stil; critical door; Nu stil gaat voor alles; profiel weg = volgt weer');
+q('DELETE FROM checks WHERE id = ?', [$qC]);
+q('DELETE FROM hosts WHERE id = ?', [$qH]);
+Quiet::setGroup('kind:camera', null);
+Quiet::deleteProfile($qNight);
+Quiet::deleteProfile($qPast);
+save_setting('quiet_global', $qOldGlobal);
+Quiet::reset();
+// migratie van vóór 1.189.0: algemene stille uren worden "Standaard" (★), eigen vensters van een check een eigen profiel
+$mgOld = [setting('notify_quiet', ''), setting('quiet_migrated', ''), setting('quiet_global', '')];
+save_setting('notify_quiet', json_encode(['on' => true, 'windows' => [['from' => '23:00', 'to' => '07:00', 'days' => [1, 2, 3, 4, 5, 6, 7]]]]));
+save_setting('quiet_migrated', '');
+q("INSERT INTO hosts (name, address, mode, enabled) VALUES ('Mg-host', '10.189.0.2', 'remote', 1)");
+$mgH = (int) db()->lastInsertId();
+$mgC = Templates::insertCheck($mgH, ['type' => 'ping', 'target' => '', 'name' => 'Mg-ping', 'quiet' => json_encode(['mode' => 'own', 'windows' => [['from' => '08:00', 'to' => '17:00', 'days' => [1, 2, 3, 4, 5]]]])]);
+Quiet::reset();
+Quiet::migrate();
+$mgQ = json_decode((string) q('SELECT quiet FROM checks WHERE id = ?', [$mgC])->fetchColumn(), true);
+$mgG = Quiet::profiles()[(int) setting('quiet_global', '')] ?? null;
+$mgP = Quiet::profiles()[(int) ($mgQ['id'] ?? 0)] ?? null;
+ok(($mgQ['mode'] ?? '') === 'profile' && $mgG && $mgG['name'] === 'Standaard' && $mgG['windows'][0]['from'] === '23:00' && $mgP && $mgP['windows'][0]['from'] === '08:00'
+    && str_contains($mgP['name'], 'Mg-ping'), 'stille uren na de update: algemeen wordt profiel Standaard (★), eigen vensters van een check een eigen profiel');
+foreach ([(int) setting('quiet_global', ''), (int) ($mgQ['id'] ?? 0)] as $mgId) {
+    Quiet::deleteProfile($mgId);
+}
+q('DELETE FROM checks WHERE id = ?', [$mgC]);
+q('DELETE FROM hosts WHERE id = ?', [$mgH]);
+save_setting('notify_quiet', $mgOld[0]);
+save_setting('quiet_migrated', $mgOld[1] ?: '1');
+save_setting('quiet_global', $mgOld[2]);
+Quiet::reset();
 // 1.188.0: andere bronnen: agent (netwerkkaart), SNMP (switchpoort met één MAC) en voorrang (UniFi > SNMP > agent)
 q('DELETE FROM net_counters WHERE device_id IN (?, ?)', [$trA, $trB]);
 q('DELETE FROM net_traffic WHERE device_id IN (?, ?)', [$trA, $trB]);

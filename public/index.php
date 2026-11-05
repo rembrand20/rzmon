@@ -649,6 +649,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="ntfy-test"><?= th('📲 Testbericht sturen') ?></button>
         </div>
 
+        <div data-sk="quiet" class="card" id="quiet-card" data-nodirty>
+          <h2>🌙 <?= th('Stille uren') ?></h2>
+          <?= xp(t('Profielen met een naam, te koppelen aan groepen, servers en checks.'), t('<b>Wat het doet:</b> in de stille uren stuurt RzMon niets via Pushover, ntfy, e-mail of Home Assistant; de checks lopen door en na afloop komt één samenvatting van wat nog speelt. <b>Profielen:</b> geef een profiel een naam en vensters (dagen en tijden, ook over middernacht), of een periode (bv. een vakantie). Met <i>Critical komt wel door</i> wordt je bij een critical toch gewekt. <b>Koppelen:</b> ★ Algemeen geldt overal; een groep, server of check kan een eigen profiel of <i>nooit stil</i> krijgen. Het fijnste wint: check → server → eigen groep → soort apparaat → algemeen. <b>Nu stil</b> (🌙 bij een server of check) gaat voor alles.')) ?>
+          <div id="quiet-box"><p class="muted small"><?= th('laden…') ?></p></div>
+        </div>
+
         <div data-sk="confirm" class="card">
           <h2>⏳ <?= th('Status bevestigen') ?></h2>
           <?= xp(t('Een check wordt pas warning of critical (of weer OK) als het een paar keer achter elkaar zo is.'), t('<b>Wat het doet:</b> één mislukte controle maakt een check nog niet rood. Pas na het aantal controles hieronder <b>achter elkaar</b> wisselt de status. Tot die tijd blijft de check zoals hij was, met het label <b>⏳ 1/3</b>. Warning, critical en onbekend tellen samen; is de check tussendoor één keer goed, dan begint de telling opnieuw. <b>Leeg</b> = meteen, zoals altijd. Per check kun je het anders instellen (✎ → Status bevestigen). <b>Goed om te weten:</b> <i>Melden na … mislukte checks</i> telt pas vanaf het moment dat de status bevestigd is. Met 3 hier en 2 bij melden krijg je dus pas na 4 mislukte controles een melding. Grafieken en de geschiedenis tonen gewoon elke meting.')) ?>
@@ -670,12 +676,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label><?= th('Taal van meldingen en checkberichten') ?> <span class="muted small">(<?= th('Pushover, e-mail, Home Assistant en de berichten van checks; voor iedereen hetzelfde') ?>)</span>
             <select name="notify_lang" style="max-width:12rem"><option value="nl">Nederlands</option><option value="en">English</option></select></label>
           <div id="notify-editor"></div>
-          <input type="hidden" name="notify_rules"><input type="hidden" name="notify_channels"><input type="hidden" name="notify_flap"><input type="hidden" name="notify_quiet">
-          <div class="quiet-box">
-            <h3><?= th('🌙 Stille uren') ?></h3>
-            <?= xp(t('Tijden zonder meldingen naar buiten; de checks lopen gewoon door.'), t('<b>Wat het doet:</b> in deze periodes stuurt RzMon niets via Pushover, ntfy, e-mail of Home Assistant. De checks draaien door en het dashboard en de meldingenpagina tonen alles. <b>Na afloop:</b> is er nog iets mis, dan krijg je <b>één bericht</b> met alle open problemen. Wat tussendoor vanzelf herstelde, wordt niet gemeld. <b>Goed om te weten:</b> per check kun je dit aanpassen (✎ → Stille uren).')) ?>
-            <div id="quiet-editor"></div>
-          </div>
+          <input type="hidden" name="notify_rules"><input type="hidden" name="notify_channels"><input type="hidden" name="notify_flap">
           <div class="row2">
             <label><?= th('Meldingen per server bundelen binnen … seconden') ?> <span class="muted small"><?= th('(0 = niet bundelen)') ?></span><input type="number" name="notify_group_seconds" min="0" max="3600"></label>
             <label class="switch" style="align-self:end"><input type="checkbox" name="notify_recovery_acked"><span></span> <?= th('Ook herstel melden na een bevestigde storing') ?></label>

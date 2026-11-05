@@ -1218,7 +1218,7 @@ $need = match ($action) {
     'home', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1831,7 +1831,7 @@ switch ($action) {
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen, watchdog, watchdog_min,
                     agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at, agent_url_pin, agent_url_fb_pin,
-                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, grp, agent_beats, edr_on, edr_info, iperf_ok FROM hosts ORDER BY name')->fetchAll();
+                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, grp, agent_beats, edr_on, edr_info, iperf_ok, quiet, quiet_until FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
         $global = Monitor::globalMaintenance();
@@ -1840,6 +1840,7 @@ switch ($action) {
         foreach ($checks as $c) {
             // Effectief onderhoud (globaal, server of check) voor de weergave
             $c['maintenance'] = Monitor::maintenanceFor($c);
+            $c['quiet_eff'] = Quiet::summary(Quiet::forCheck($c));   // 1.189.0: welke stille uren gelden, en waarvandaan
             unset($c['host_maintenance_until'], $c['host_maintenance_reason']);
             if (!$isAdmin) {
                 unset($c['hb_token']);   // geheime heartbeat-URL alleen voor beheerders
@@ -1856,6 +1857,7 @@ switch ($action) {
         $discover = $isAdmin ? Discover::counts() : [];   // 1.95.0: nog niet bewaakt (alleen beheerders voegen checks toe)
         foreach ($hosts as &$h) {
             $h['discover_n'] = $discover[(int) $h['id']] ?? 0;
+            $h['quiet_eff'] = Quiet::summary(Quiet::forHost($h));   // 1.189.0
             $h['checks'] = $byHost[$h['id']] ?? [];
             $h['metrics'] = $metrics[$h['id']] ?? [];
             $own = $h['maintenance_until'] && strtotime($h['maintenance_until']) > time()
@@ -1884,6 +1886,7 @@ switch ($action) {
              'host_tpls' => (object) array_reduce(q('SELECT host_id, template_id FROM host_templates')->fetchAll(), static function ($a, $r) { $a[$r['host_id']][] = (int) $r['template_id']; return $a; }, []),
              'notify_fails' => max(1, (int) setting('notify_fails', '1')),
              'confirm_fails' => Monitor::confirmNeeded([], false), 'confirm_ok' => Monitor::confirmNeeded([], true),   // 1.185.0
+             'quiet_profiles' => array_values(array_map(fn($p) => ['id' => $p['id'], 'name' => $p['name'], 'icon' => $p['icon']], Quiet::profiles())), 'quiet_global' => (int) setting('quiet_global', '') ?: null,   // 1.189.0
              'thresh_default' => (string) setting('thresh_default', 'guard'), 'smart_sens' => (string) setting('smart_sens', 'normal'),
              // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
              'net_new' => NetScan::enabled() ? NetScan::newCount() : 0,
@@ -2171,6 +2174,10 @@ switch ($action) {
         // 1.177.0: mag doorvoertest (iperf3) ontvangen voor de pad-check van een andere server
         if (array_key_exists('iperf_ok', $in)) {
             q('UPDATE hosts SET iperf_ok = ? WHERE id = ?', [!empty($in['iperf_ok']) ? 1 : 0, $id]);
+        }
+        // 1.189.0: stille uren van deze server (leeg = volgt de groep of algemeen)
+        if (array_key_exists('quiet', $in)) {
+            q('UPDATE hosts SET quiet = ? WHERE id = ?', [Quiet::cleanVal($in['quiet']), $id]);
         }
         // 1.169.0: eigen groep (vrije tekst, leeg = geen)
         if (array_key_exists('grp', $in)) {
@@ -4666,6 +4673,44 @@ switch ($action) {
         } catch (InvalidArgumentException $e) {
             out(['error' => $e->getMessage()], 422);
         }
+
+    // 1.189.0: stille-urenprofielen
+    case 'quiet_get':
+        out(Quiet::overview() + ['kinds' => HostKind::GROUPS]);
+
+    case 'quiet_profile_save':
+        $in = input();
+        try {
+            out(['ok' => true, 'id' => Quiet::saveProfile(!empty($in['id']) ? (int) $in['id'] : null, $in)]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'quiet_profile_delete':
+        Quiet::deleteProfile((int) (input()['id'] ?? 0));
+        out(['ok' => true]);
+
+    case 'quiet_global_save':
+        $gid = (int) (input()['id'] ?? 0);
+        save_setting('quiet_global', $gid && isset(Quiet::profiles()[$gid]) ? (string) $gid : '');
+        Quiet::reset();
+        out(['ok' => true]);
+
+    case 'quiet_group_save':
+        $in = input();
+        try {
+            Quiet::setGroup((string) ($in['key'] ?? ''), $in['val'] ?? null);
+            out(['ok' => true]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'quiet_now':   // Nu stil: minuten vanaf nu, of tot een tijdstip; 0 = opheffen
+        $in = input();
+        $what = ($in['what'] ?? '') === 'host' ? 'host' : 'check';
+        $until = !empty($in['until']) ? (int) strtotime((string) $in['until']) : (!empty($in['minutes']) ? time() + 60 * max(1, min(44640, (int) $in['minutes'])) : null);
+        Quiet::setNow($what, (int) ($in['id'] ?? 0), $until ?: null);
+        out(['ok' => true]);
 
     case 'net_links_test':
         out(NetLinks::test());

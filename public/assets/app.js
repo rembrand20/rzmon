@@ -1495,7 +1495,6 @@ function init() {
   $('#settings-form').addEventListener('input', () => settingsSummaries());
   $('#settings-form').addEventListener('change', (e) => { if (!e.target.closest('[data-nodirty]')) markSettingsDirty(true, e.target); settingsSummaries(); });
   // Knoppen die iets toevoegen of weghalen (stille uren): ook opslaan
-  $('#settings-form').addEventListener('click', (e) => { const b = e.target.closest('[data-q=add], [data-q=del]'); if (b) markSettingsDirty(true, $('#quiet-editor')); });
   $('#settings-form').update_auto.addEventListener('change', backupFormToggle);
   $('#update-check').onclick = async (e) => { const btn = e.currentTarget; btn.disabled = true; await loadUpdate(true); btn.disabled = false; };
   $('#update-badge').onclick = openUpdateDialog;
@@ -3555,7 +3554,7 @@ function settingsSummaries() {
     sum.pushover = f.pushover_enabled.checked ? on(`critical: ${opt(f.pushover_priority_crit)} · warning: ${opt(f.pushover_priority_warn)}`) : off;
     sum.ntfy = f.ntfy_enabled.checked ? on(esc(`${f.ntfy_server.value.replace(/^https?:\/\//, '').replace(/\/$/, '')}/${f.ntfy_topic.value}`)) : off;
     if (notifyGlobal) {
-      const n = notifyGlobal.get(), q = quietGlobal ? quietGlobal.get() : null;
+      const n = notifyGlobal.get(), q = null;
       sum.notify = esc([`warning: ${when(n.rules.warn)}`, `critical: ${when(n.rules.crit)}`, n.rules.crit && n.rules.crit.repeat ? L('herhalen elke {n} min', { n: n.rules.crit.repeat }) : '',
         q && q.on && q.windows.length ? `🌙 ${quietText(q.windows)}` : '', n.flap.on ? 'anti-flapping' : ''].filter(Boolean).join(' · '));
     }
@@ -3792,6 +3791,7 @@ function detailBar(h) {
   return `<div class="detail-bar">
         ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="btn ack-btn need-user" data-act="ack-host" data-id="${h.id}">✔ ${L('Alles bevestigen')}</button>` : ''}
         <button class="btn need-user" data-act="maint-host" data-id="${h.id}">🔧 ${L('Onderhoud')}</button>
+        <button class="btn need-user" data-act="quiet-host" data-id="${h.id}">🌙 ${h.quiet_eff && h.quiet_eff.src === 'host_now' ? L('Stil tot {t}', { t: fmtUntil(h.quiet_eff.now) }) : L('Nu stil')}</button>
         <button class="btn need-admin" data-act="add-check" data-id="${h.id}">＋ Check</button>
         ${+h.discover_n ? `<button class="btn need-admin discover-btn" data-act="discover" data-id="${h.id}" title="${esc(L('Nog niet bewaakt: disks, services, containers, certificaten en poorten die de agent ziet'))}">💡 ${+h.discover_n === 1 ? L('1 nieuw gevonden') : L('{n} nieuw gevonden', { n: h.discover_n })}</button>` : ''}
         <button class="btn need-user" data-act="scan" data-id="${h.id}">🔍 ${L('Poorten')}</button>
@@ -4158,13 +4158,13 @@ function checkBits(c) {
     + (+c.info_only ? ` <span class="info-tag" title="${L('Info-check: geeft alleen ℹ️ info-meldingen en telt nooit als storing')}">ℹ️ ${c.info_status ? STATUS_WORD[c.info_status] : 'info'}</span>` : '')
     + (c.notify ? ` <span class="own-notify" title="${L('Deze check heeft eigen meldregels')}">🔔</span>` : '')
     + (c.reverse_ok != null && REVERSIBLE.includes(c.type) ? ` <span class="rev-tag" title="${L('Omgekeerd: reageert het, dan {a}; reageert het niet, dan {b}', { a: STATUS_WORD[c.reverse_ok], b: STATUS_WORD[c.reverse_fail ?? 0] })}">⇄</span>` : '')
-    + ((q) => (q && q.mode === 'never' ? ` <span class="quiet-tag" title="${L('Nooit stil: meldt ook tijdens de stille uren')}">🌙✕</span>`
-      : q && q.mode === 'own' ? ` <span class="quiet-tag" title="${L('Eigen stille uren')}: ${esc(quietText(q.windows))}">🌙</span>` : ''))(quietOf(c))
+    + quietTag(c.quiet_eff)
     + (c.flapping_since ? ` <span class="flap-tag" title="${L('Wisselt steeds van status sinds {t}: per status hooguit één melding tot hij stabiel is', { t: esc(fmtUntil(c.flapping_since)) })}">🔀 ${L('flapt')}</span>` : '');
   const actions = `
       ${problem ? aiBtn('check', c.id) : ''}
       ${problem && !c.acked_at ? `<button class="icon-btn ack-btn need-user" title="${L('Storing bevestigen: geen meldingen meer')}" data-act="ack" data-id="${c.id}">✔</button>` : ''}
       <button class="icon-btn need-user" title="${L('Onderhoud')}" data-act="maint-check" data-id="${c.id}">🔧</button>
+      <button class="icon-btn need-user" title="${L('Nu stil (geen meldingen)')}" data-act="quiet-check" data-id="${c.id}">🌙</button>
       <button class="icon-btn need-user" title="${L('Nu checken')}" data-act="run" data-id="${c.id}">↻</button>
       <button class="icon-btn" title="${L('Historie')}" data-act="history" data-id="${c.id}">📈</button>
       <button class="icon-btn need-admin" title="${L('Bewerken')}" data-act="edit-check" data-id="${c.id}">✎</button>`;
@@ -4311,6 +4311,8 @@ async function onHostsClick(e) {
       if (!confirm(L('Bevestiging intrekken? Er worden dan weer meldingen verstuurd voor deze storing.'))) return;
       try { await api('unack', { id }); toast(L('Bevestiging ingetrokken')); refresh(); } catch (ex) { toast(ex.message, 'err'); }
       return;
+    case 'quiet-host': { const h = findHost(id); return quietNowDialog('host', id, h.name, h.quiet_eff); }   // 1.189.0
+    case 'quiet-check': { const [c, h] = findCheck(id); return quietNowDialog('check', id, `${h.name} – ${c.name}`, c.quiet_eff); }
     case 'maint-host': { const h = findHost(id); return maintenanceDialog('host', id, h.name, h.maintenance && h.maintenance.scope === 'host' ? h.maintenance : null); }
     case 'maint-check': { const [c, h] = findCheck(id); return maintenanceDialog('check', id, `${h.name} – ${c.name}`, c.maintenance && c.maintenance.scope === 'check' ? c.maintenance : null); }
     case 'run':
@@ -4365,7 +4367,7 @@ async function checkInfo(id, live = false, more = null) {
   ];
   const tags = [
     c.notify ? '🔔 ' + L('eigen meldregels') : '🔔 ' + L('algemene meldregels'),
-    (() => { const q = quietOf(c); return q ? (q.mode === 'never' ? '🌙✕ ' + L('nooit stil') : '🌙 ' + L('eigen stille uren')) : '🌙 ' + L('algemene stille uren'); })(),
+    (() => { const q = c.quiet_eff; return q ? (q.never ? '🌙✕ ' + L('nooit stil') : `${esc(q.icon || '🌙')} ${esc(q.name)} (${QUIET_SRC()[q.src] || q.src})`) : ''; })(),   // 1.189.0
     c.reverse_ok != null && REVERSIBLE.includes(c.type) ? '⇄ ' + L('omgekeerd: slaagt = {a}, mislukt = {b}', { a: STATUS_WORD[c.reverse_ok], b: STATUS_WORD[c.reverse_fail ?? 0] }) : '',
     sc && sc.maintenance ? `🔧 ${esc(maintLabel(sc.maintenance))}` : '',
     c.acked_at ? '✔ ' + L('bevestigd door {who}', { who: esc(c.acked_by || '?') }) : '',
@@ -4975,6 +4977,8 @@ function hostForm(h, preset = null) {
         <datalist id="grp-list">${[...new Set(state.hosts.map((x) => (x.grp || '').trim()).filter(Boolean))].sort().map((g) => `<option value="${esc(g)}">`).join('')}</datalist>
         <span class="hint">${L('Je eigen indeling, voor Monitoring → Beschikbaarheid. Leeg = geen groep.')}</span>
       </label>
+      <label>🌙 ${L('Stille uren')} <span class="hint">${L('(leeg = volgt de groep of algemeen)')}</span>
+        <select name="quiet">${quietOptions(h.quiet || '', L('volgt groep of algemeen'))}</select></label>
       <label>${L('Afhankelijk van')} <span class="hint">${L('(optioneel)')}</span>
         <select name="parent_id">
           <option value="">— ${L('geen')} —</option>
@@ -5674,9 +5678,8 @@ function checkForm(c, h, preset = {}, tpl = null) {
     if (!notifySw) d.notify_fails = '';
     if (!$('#confirm-sw').checked) { d.confirm_fails = ''; d.confirm_ok = ''; }   // 1.185.0: schakelaar uit = de algemene instellingen
     const notify = notifySw && $('#notify-own').checked && ownEditor ? ownEditor.get() : null;
-    const qm = $('#quiet-sw').checked ? $('#quiet-mode').value : 'global';
-    const quiet = qm === 'global' ? null : qm === 'never' ? { mode: 'never' } : { mode: 'own', windows: quietOwnEditor ? quietOwnEditor.get().windows : [] };
-    if (qm === 'own' && !quiet.windows.length) throw new Error(L('Stille uren: vul minstens één venster in met een dag'));
+    const qv = $('#quiet-sw').checked ? $('#quiet-sel').value : '';   // 1.189.0: een profiel of nooit stil
+    const quiet = qv === 'never' ? { mode: 'never' } : qv.startsWith('p:') ? { mode: 'profile', id: +qv.slice(2) } : null;
     const command = d.type === 'command' ? { cmd: d.cmd, expect: d.cmd_expect, match: d.cmd_match, timeout: d.cmd_timeout, fail: d.cmd_fail } : undefined;
     const res = {};
     ['cpu', 'mem', 'disk'].forEach((k) => { res[k] = { on: !!d[`res_${k}`], warn: d[`res_${k}_warn`], crit: d[`res_${k}_crit`] }; });
@@ -5924,10 +5927,9 @@ function checkForm(c, h, preset = {}, tpl = null) {
             <input name="confirm_ok" type="number" min="1" max="100" value="${c.confirm_ok ?? ''}" placeholder="${+state.confirm_ok || 1}" style="max-width:8rem"></label>
         </div>
       </div></section>
-      ${swsOpen({ id: 'quiet-wrap', cb: 'id="quiet-sw"', icon: '🌙', title: L('Stille uren'), on: !!quietOwn, sub: `<span id="quiet-mode-label">${QUIET_MODES[quietOwn ? quietOwn.mode : 'global']}</span>` })}
-        <input type="hidden" id="quiet-mode" value="${quietOwn ? quietOwn.mode : 'global'}">
-        ${swSeg('quiet', [['own', L('eigen vensters')], ['never', L('nooit stil: altijd melden')]], quietOwn ? quietOwn.mode : 'own')}
-        <div id="quiet-own-editor" hidden></div>
+      ${swsOpen({ id: 'quiet-wrap', cb: 'id="quiet-sw"', icon: '🌙', title: L('Stille uren'), on: !!quietOwn, sub: `<span id="quiet-mode-label">${quietOwn ? esc(quietLabel(quietOwn)) : L('volgt de server') + (c.quiet_eff ? ': ' + esc(c.quiet_eff.name) : '')}</span>` })}
+        <label>${L('Stille uren voor deze check')}<select id="quiet-sel">${quietOptions(quietOwn ? (quietOwn.mode === 'never' ? 'never' : quietOwn.mode === 'profile' ? 'p:' + quietOwn.id : '') : '', null)}</select></label>
+        <span class="hint">${L('Profielen maak je bij Instellingen → Meldingen → Stille uren.')}</span>
       </div></section>
       <div class="row3" id="thr-wrap">
         <label><span class="thr-word">${L('Warning vanaf')}</span> <span class="hint unit"></span><input name="warn_threshold" type="number" step="any" value="${c.warn_threshold ?? ''}"></label>
@@ -6046,32 +6048,11 @@ function checkForm(c, h, preset = {}, tpl = null) {
   if (+c.info_only) applyInfoOnly();
   $('[name=notify_fails]', form).oninput = (e) => { $('#notify-fails-label').textContent = e.target.value ? ' · ' + L('na {n}× mislukt', { n: +e.target.value }) : ''; };
   if (c.notify) showOwn();
-  // Stille uren: algemeen, eigen vensters (start met de algemene) of nooit stil
-  let quietOwnEditor = null;
-  const showQuiet = async () => {
-    const mode = $('#quiet-mode').value;
-    $('#quiet-mode-label').textContent = QUIET_MODES[mode];
-    $('#quiet-own-editor').hidden = mode !== 'own';
-    if (mode === 'own' && !quietOwnEditor) {
-      let windows = quietOwn && quietOwn.windows;
-      if (!windows || !windows.length) {
-        try { windows = JSON.parse((await api('settings')).notify_quiet || '{}').windows; } catch (e) { windows = null; }
-      }
-      quietOwnEditor = quietEditor($('#quiet-own-editor'), { windows: windows || [] }, false);
-    }
-  };
-  // 1.178.0: schakelaar = eigen stille uren; daaronder eigen vensters of nooit stil
-  const quietSync = () => {
-    const seg = $('[data-sw-seg=quiet] [aria-checked=true]', form);
-    $('#quiet-mode').value = $('#quiet-sw').checked ? (seg ? seg.dataset.v : 'own') : 'global';
-    showQuiet();
-  };
-  $('#quiet-sw').addEventListener('change', quietSync);
-  $('[data-sw-seg=quiet]', form).addEventListener('sw-seg', quietSync);
+  // Stille uren (1.189.0): volgt de server, een profiel of nooit stil
+  $('#quiet-sel').addEventListener('change', () => { $('#quiet-mode-label').textContent = $('#quiet-sel').selectedOptions[0]?.textContent || ''; });   // 1.189.0
   $('#notify-sw').addEventListener('change', () => {
     $('#notify-mode-label').textContent = $('#notify-sw').checked && $('#notify-own').checked ? L('eigen regels') : L('standaard (algemene instellingen)');
   });
-  showQuiet();
   const typeSel = $('[name=type]', form);
   const haSel = $('#ha-wrap [name=metric]', form);
   const pveSel = $('#pve-wrap [name=metric]', form);
@@ -11636,6 +11617,7 @@ const SET_NAV = [
       [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen'), [
     ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail en webhooks.')],
+    ['quiet', L('Stille uren'), ['quiet'], L('Profielen met een naam, gekoppeld aan groepen, servers en checks.')],
     ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm'], L('Meldregels, stille uren en wanneer een probleem een melding wordt.')],
     ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzMon zelf, zoals updates en certificaten.')]]],
   ['ids', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS'), [
@@ -11755,6 +11737,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'reports') loadReports();   // 1.180.0
   if (setSection === 'ids_prot') loadProtSettings();   // 1.181.0
   if (setSection === 'features') loadFeatures();   // 1.182.0
+  if (setSection === 'quiet') loadQuiet();   // 1.189.0
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0
@@ -12409,7 +12392,6 @@ async function loadSettings() {
   const parse = (v) => { try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
   notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels), flap: parse(s.notify_flap) },
     { push_enabled: s.pushover_enabled === '1' || s.ntfy_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
-  quietGlobal = quietEditor($('#quiet-editor'), parse(s.notify_quiet), true);
   sysinfoCfg = parse(s.sysinfo);
   renderSysinfo();
   vulnExcludeEditor();
@@ -12573,6 +12555,142 @@ function quietEditor(el, cfg, withSwitch) {
   };
 }
 
+// ---------------------------------------------------------------- 1.189.0: stille-urenprofielen
+const QUIET_SRC = () => ({ global: L('algemeen'), kind: L('soort apparaat'), grp: L('groep'), host: L('server'), check: L('deze check'), host_now: L('Nu stil (server)'), check_now: L('Nu stil') });
+const QUIET_ICONS = ['🌙', '🏢', '🏖️', '🎄', '📺', '😴', '🔧', '🌃'];
+/** Keuzelijst: volgt (leeg), elk profiel, nooit stil */
+function quietOptions(cur, followLabel) {
+  const ps = state.quiet_profiles || [];
+  return `${followLabel !== null ? `<option value="">${esc(followLabel)}</option>` : ''}${ps.map((p) => `<option value="p:${p.id}" ${cur === 'p:' + p.id ? 'selected' : ''}>${esc(p.icon)} ${esc(p.name)}</option>`).join('')}
+    <option value="never" ${cur === 'never' ? 'selected' : ''}>🔔 ${L('nooit stil: altijd melden')}</option>`;
+}
+function quietLabel(q) {
+  if (!q) return '';
+  if (q.mode === 'never') return L('nooit stil: altijd melden');
+  const p = (state.quiet_profiles || []).find((x) => +x.id === +q.id);
+  return p ? `${p.icon} ${p.name}` : L('eigen vensters');
+}
+/** Label bij een check: nu stil (met bron), of een eigen keuze */
+function quietTag(q) {
+  if (!q) return '';
+  const via = QUIET_SRC()[q.src] || q.src;
+  if (q.now) return ` <span class="quiet-tag on" title="${esc(L('Stil tot {t}: {name} (via {via})', { t: fmtUntil(q.now), name: q.name, via }) + (q.crit ? ' · ' + L('critical komt wel door') : ''))}">🌙 ${esc(fmtUntil(q.now))}</span>`;
+  if (q.src === 'check' && q.never) return ` <span class="quiet-tag" title="${L('Nooit stil: meldt ook tijdens de stille uren')}">🌙✕</span>`;
+  if (q.src === 'check') return ` <span class="quiet-tag" title="${esc(L('Eigen stille uren: {name}', { name: q.name }))}">🌙</span>`;
+  return '';
+}
+/** 🌙 Nu stil: voor een uur, vier uur, tot morgen 07:00 of tot een tijdstip; of opheffen */
+function quietNowDialog(what, id, label, q) {
+  const active = q && (q.src === what + '_now');
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(7, 0, 0, 0);
+  const pad = (n) => String(n).padStart(2, '0');
+  const local = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  modal({
+    title: '🌙 ' + L('Nu stil') + ' – ' + label,
+    body: `<p class="small">${what === 'host' ? L('Geen meldingen van deze server en zijn checks tot het tijdstip dat je kiest; ook critical niet. De checks lopen door; na afloop komt een samenvatting van wat nog speelt.')
+        : L('Geen meldingen van deze check tot het tijdstip dat je kiest; ook critical niet. De check loopt door; na afloop komt een samenvatting als er nog iets speelt.')}</p>
+      ${active ? `<div class="callout">🌙 ${L('Nu stil tot {t}', { t: esc(fmtUntil(q.now)) })}</div>` : q && q.now ? `<p class="muted small">${L('Nu al stil via {via}: {name}, tot {t}', { via: esc(QUIET_SRC()[q.src] || q.src), name: esc(q.name), t: esc(fmtUntil(q.now)) })}</p>` : ''}
+      <div class="qn-btns">${[[60, L('1 uur')], [240, L('4 uur')], [480, L('8 uur')]].map(([m, l]) => `<button type="button" class="btn" data-qn-min="${m}">${l}</button>`).join('')}
+        <button type="button" class="btn" data-qn-until="${local(tomorrow)}">${L('tot morgen 07:00')}</button></div>
+      <label>${L('Of tot')}<input type="datetime-local" name="until" value="${local(new Date(Date.now() + 2 * 3600e3))}"></label>`,
+    buttons: [...(active ? [{ label: '✕ ' + L('Opheffen'), cls: 'danger', style: 'margin-right:auto', onClick: () => go({}) }] : []),
+      { label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '🌙 ' + L('Stil tot dit tijdstip'), cls: 'primary', submit: true }],
+    onSubmit: (f) => go({ until: f.until }),
+  });
+  async function go(x) {
+    try { await api('quiet_now', { what, id: +id, ...x }); $('#modal').close(); toast(x.minutes || x.until ? L('Stil gezet') : L('Nu stil opgeheven')); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+  }
+  $('#modal .qn-btns').onclick = (e) => {
+    const m = e.target.closest('[data-qn-min]'); if (m) go({ minutes: +m.dataset.qnMin });
+    const u = e.target.closest('[data-qn-until]'); if (u) go({ until: u.dataset.qnUntil });
+  };
+}
+let quietData = null;
+async function loadQuiet() {
+  const box = $('#quiet-box');
+  if (!box) return;
+  try { quietData = await api('quiet_get'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
+  const d = quietData;
+  state.quiet_profiles = d.profiles.map((p) => ({ id: p.id, name: p.name, icon: p.icon }));
+  const admin = isAdmin();
+  const prof = (p) => {
+    const when = [p.windows.length ? quietText(p.windows) : '', p.date_from ? L('van {a} tot en met {b}', { a: fmtDay(p.date_from), b: fmtDay(p.date_to) }) : ''].filter(Boolean).join(' · ') || L('de hele dag');
+    const used = p.used.map((u) => `${{ grp: '👥', kind: '🏷️', host: '🖥️', check: '✅' }[u.type] || ''} ${esc(u.type === 'kind' ? (GROUP_INFO[u.label] || [0, () => u.label])[1]() : u.label)}`);
+    return `<div class="qp-row ${p.active ? 'active' : ''}">
+      <span class="qp-ic">${esc(p.icon)}</span>
+      <div class="qp-t"><b>${esc(p.name)}</b>${+d.global === +p.id ? ` <span class="badge">★ ${L('algemeen')}</span>` : ''}${p.active ? ` <span class="badge on">${L('nu actief')}</span>` : ''}${p.crit ? ` <span class="badge crit">🔴 ${L('critical komt door')}</span>` : ''}
+        <small>${esc(when)}</small>${used.length ? `<small class="qp-used">${L('gebruikt door')}: ${used.slice(0, 8).join(' · ')}${used.length > 8 ? ' ' + L('en nog {n}', { n: used.length - 8 }) : ''}</small>` : ''}</div>
+      ${admin ? `<div class="qp-acts"><button type="button" class="btn small-btn" data-qp-edit="${p.id}">✎</button><button type="button" class="icon-btn" data-qp-del="${p.id}" title="${esc(L('Verwijderen'))}">🗑</button></div>` : ''}
+    </div>`;
+  };
+  const grpRow = (g) => `<tr><td>${g.type === 'grp' ? '👥 ' + esc(g.label) : (GROUP_INFO[g.label] || ['🏷️'])[0] + ' ' + esc((GROUP_INFO[g.label] || [0, () => g.label])[1]())}</td>
+      <td class="muted small">${g.type === 'grp' ? L('eigen groep') : L('soort apparaat')} · ${L('{n} servers', { n: g.hosts })}</td>
+      <td><select data-qg="${esc(g.key)}" ${admin ? '' : 'disabled'}>${quietOptions(g.val || '', L('volgt algemeen'))}</select></td></tr>`;
+  box.innerHTML = `<div class="qp-global"><label>★ ${L('Algemeen')} <span class="hint">${L('(geldt voor alles zonder eigen keuze)')}</span>
+      <select id="qp-global" ${admin ? '' : 'disabled'}><option value="">${L('geen stille uren')}</option>${d.profiles.map((p) => `<option value="${p.id}" ${+d.global === +p.id ? 'selected' : ''}>${esc(p.icon)} ${esc(p.name)}</option>`).join('')}</select></label></div>
+    <h3 class="set-sub">${L('Profielen')}</h3>
+    <div class="qp-list">${d.profiles.map(prof).join('') || `<p class="muted small">${L('Nog geen profielen.')}</p>`}</div>
+    ${admin ? `<button type="button" class="btn small-btn" data-qp-new>＋ ${L('Nieuw profiel')}</button>` : ''}
+    <h3 class="set-sub">${L('Groepen')}</h3>
+    <p class="muted small">${L('Een eigen groep gaat voor de soort apparaat. Een server of check met een eigen keuze gaat daar weer voor.')}</p>
+    <div class="table-scroll"><table class="vuln-table qg-table"><tbody>${d.groups.filter((g) => g.hosts || g.val).map(grpRow).join('')}</tbody></table></div>
+    ${d.never.length ? `<h3 class="set-sub">🔔 ${L('Nooit stil')}</h3><p class="small">${d.never.map((u) => esc(u.type === 'kind' ? (GROUP_INFO[u.label] || [0, () => u.label])[1]() : u.label)).join(' · ')}</p>` : ''}
+    ${d.now.length ? `<h3 class="set-sub">🌙 ${L('Nu stil')}</h3><div class="qp-list">${d.now.map((n) => `<div class="qp-row"><span class="qp-ic">${n.type === 'host' ? '🖥️' : '✅'}</span>
+        <div class="qp-t"><b>${esc(n.label)}</b><small>${L('tot {t}', { t: esc(fmtUntil(n.until)) })}</small></div>
+        <div class="qp-acts need-user"><button type="button" class="btn small-btn" data-qn-off="${n.type}:${n.id}">✕ ${L('Opheffen')}</button></div></div>`).join('')}</div>` : ''}`;
+  box.onchange = async (e) => {
+    const g = e.target.closest('[data-qg]');
+    try {
+      if (e.target.id === 'qp-global') await api('quiet_global_save', { id: +e.target.value || 0 });
+      else if (g) await api('quiet_group_save', { key: g.dataset.qg, val: g.value });
+      else return;
+      savedFlag(e.target.closest('label, td'), true);
+      loadQuiet(); refresh();
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+  box.onclick = async (e) => {
+    const ed = e.target.closest('[data-qp-edit]'), nw = e.target.closest('[data-qp-new]'), del = e.target.closest('[data-qp-del]'), off = e.target.closest('[data-qn-off]');
+    if (ed || nw) return quietProfileDialog(ed ? d.profiles.find((p) => +p.id === +ed.dataset.qpEdit) : null);
+    if (del) {
+      const p = d.profiles.find((x) => +x.id === +del.dataset.qpDel);
+      if (!confirm(L('Profiel "{name}" verwijderen? Wat het gebruikt, volgt daarna weer het niveau erboven.', { name: p.name }))) return;
+      try { await api('quiet_profile_delete', { id: p.id }); loadQuiet(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+    }
+    if (off) { const [what, id] = off.dataset.qnOff.split(':'); try { await api('quiet_now', { what, id: +id }); loadQuiet(); refresh(); } catch (ex) { toast(ex.message, 'err'); } }
+  };
+}
+/** Een profiel maken of bewerken */
+function quietProfileDialog(p) {
+  p = p || { name: '', icon: '🌙', windows: [QUIET_DEFAULT()], crit: false, date_from: null, date_to: null };
+  let ed = null;
+  modal({
+    title: '🌙 ' + (p.id ? L('Profiel bewerken') : L('Nieuw profiel')),
+    body: `<div class="row2"><label>${L('Naam')}<input name="name" value="${esc(p.name)}" maxlength="60" required placeholder="${L('bv. Nacht, Kantoortijden, Vakantie')}"></label>
+        <label>${L('Icoon')}<select name="icon">${QUIET_ICONS.map((i) => `<option ${p.icon === i ? 'selected' : ''}>${i}</option>`).join('')}</select></label></div>
+      <label class="switch"><input type="checkbox" name="crit" ${p.crit ? 'checked' : ''}><span></span> 🔴 <b>${L('Critical komt wel door')}</b> <span class="hint">${L('(warning en onbekend blijven stil)')}</span></label>
+      <label class="switch"><input type="checkbox" name="period" ${p.date_from ? 'checked' : ''}><span></span> 🏖️ <b>${L('Alleen in een periode')}</b> <span class="hint">${L('(bv. een vakantie)')}</span></label>
+      <div class="row2" id="qp-dates" ${p.date_from ? '' : 'hidden'}><label>${L('Van')}<input type="date" name="date_from" value="${esc(p.date_from || '')}"></label>
+        <label>${L('Tot en met')}<input type="date" name="date_to" value="${esc(p.date_to || '')}"></label></div>
+      <label class="switch" id="qp-allday-wrap" ${p.date_from ? '' : 'hidden'}><input type="checkbox" name="allday" ${p.date_from && !p.windows.length ? 'checked' : ''}><span></span> ${L('De hele dag (geen tijden)')}</label>
+      <div id="qp-win"></div>`,
+    wide: true,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Opslaan'), cls: 'primary', submit: true }],
+    onSubmit: async (f) => {
+      const period = !!f.period, allday = period && !!f.allday;
+      await api('quiet_profile_save', { id: p.id || null, name: f.name, icon: f.icon, crit: !!f.crit, windows: allday ? [] : ed.get().windows,
+        date_from: period ? f.date_from : null, date_to: period ? f.date_to : null });
+      toast(L('Opgeslagen')); loadQuiet(); refresh();
+    },
+  });
+  ed = quietEditor($('#qp-win'), { windows: p.windows.length ? p.windows : [QUIET_DEFAULT()] }, false);
+  const sync = () => {
+    const per = $('#modal [name=period]').checked;
+    $('#qp-dates').hidden = !per; $('#qp-allday-wrap').hidden = !per;
+    $('#qp-win').hidden = per && $('#modal [name=allday]').checked;
+  };
+  $('#modal [name=period]').onchange = sync; $('#modal [name=allday]').onchange = sync; sync();
+}
+
 // ---------------------------------------------------------------- ℹ️ Systeeminfo: per melding de kanalen
 const SYSINFO_ROWS = [
   ['RzMon', [['rzmon_update', '⬆ ' + L('RzMon bijgewerkt')]]],
@@ -12651,7 +12769,6 @@ function settingsData() {
     f.notify_channels.value = JSON.stringify(n.channels);
     f.notify_flap.value = JSON.stringify(n.flap);
   }
-  if (quietGlobal) f.notify_quiet.value = JSON.stringify(quietGlobal.get());
   if (sysinfoCfg) f.sysinfo.value = JSON.stringify(sysinfoCfg);
   if (fimGlobal) f.ids_fim.value = JSON.stringify(fimGlobal.get());
   const d = {};

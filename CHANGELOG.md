@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.189.0**: **stille uren met een naam**: profielen (ook voor een vakantie) die je algemeen of per groep, soort, server of check koppelt, met *critical komt door* en **🌙 Nu stil**.
 - **1.188.0**: **verkeer ook zonder UniFi**: via SNMP op je switches en via de agent op je servers (agent 1.80.0), met UniFi als eerste keus.
 - **1.187.0**: je **internetlijn per maand** met een datalimiet, **diensten per apparaat** (DPI), een nieuwe **check Verkeer** en het rapport **Netwerkverkeer**.
 - **1.186.0**: **verkeer per apparaat** (uit UniFi): top 10 van vandaag, grafieken per uur en per dag, een heatmap van aanwezigheid en verkeer, en een melding bij ongewoon veel of nachtelijk verkeer.
 - **1.185.0**: **status bevestigen**: een check wordt pas warning of critical (en eventueel weer OK) na N controles achter elkaar; algemeen in de beheerportal en per check te overschrijven, leeg = meteen.
-- **1.184.0**: **Netwerk → Overzicht**: een kaart van je netwerk (internet → router → switches en access points → apparaten), met tellers per soort en per netwerk.
+
+## 1.189.0 – 2026-11-05
+### Nieuw
+- **🌙 Stille uren met een naam.** Stille uren zijn nu **profielen** die je een naam en een icoon geeft, bv. *Nacht*, *Kantoortijden* of *Vakantie*. Je vindt ze bij **Instellingen → Meldingen → Stille uren**.
+  - **★ Algemeen:** één profiel geldt voor alles zonder eigen keuze.
+  - **Overschrijven:** een **eigen groep**, een **soort apparaat** (bv. camera's), een **server** of een **check** kan een eigen profiel krijgen, of *nooit stil*. Het fijnste wint: check → server → eigen groep → soort apparaat → algemeen. Een eigen groep gaat voor de soort.
+  - **Critical komt wel door:** per profiel aan te zetten; warning en onbekend blijven dan stil, een critical wekt je toch.
+  - **Periode:** een profiel kan alleen gelden van een begin- tot een einddatum (bv. je vakantie), de hele dag of met tijden.
+  - **🌙 Nu stil:** bij een server of check zet je meldingen meteen stil voor 1 uur, 8 uur, tot morgen 07:00 of tot een tijdstip naar keuze; dat gaat voor alles. Een server die nu stil is, neemt zijn checks mee.
+  - Bij elke check zie je welk profiel geldt en waarom (🌙 met de naam en de bron).
+- **Na de update verandert er niets:** je oude stille uren worden het profiel *Standaard* (en algemeen als ze aan stonden); checks met eigen vensters krijgen een profiel *Eigen: server – check*.
 
 ## 1.188.0 – 2026-11-05
 ### Nieuw

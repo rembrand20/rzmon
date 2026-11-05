@@ -1033,8 +1033,24 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - Zet *Stille uren aan* en vul één of meer **vensters** in: *van* en *tot*, en de **dagen** waarop het venster begint. Over middernacht mag: *23:00 tot 07:00 op ma–vr* loopt van maandagavond tot dinsdagochtend. Van gelijk aan tot betekent 24 uur. Met **＋ Venster** voeg je er één toe, bijvoorbeeld in het weekend *00:00 tot 10:00*.
 - Tijdens stille uren gaat er niets naar Pushover, e-mail of Home Assistant, ook geen critical. Checks draaien gewoon door; het dashboard, MQTT en de API laten alles zien. In de gezondheidsbalk staat **🌙 Stil tot 07:00**.
 - **Na afloop** krijg je **één bericht** met alles wat dan nog mis is, van alle servers samen, bijvoorbeeld *"🌅 Na de stille uren: 2 problemen open"* met per regel de server, de check en sinds hoe laat. Kreeg je vóór de stille uren een melding over een probleem dat 's nachts herstelde, dan staat het herstel er ook in. Wat 's nachts misging en vanzelf weer goed kwam, wordt niet gemeld. Bevestigde checks en checks in onderhoud tellen niet mee.
-- **Per check** kies je in het checkformulier (✎) onder **🌙 Stille uren**: *algemeen*, *eigen vensters* of *nooit stil: altijd melden* (bijvoorbeeld voor je router). Checks met eigen stille uren hebben een 🌙 op het dashboard, checks die nooit stil zijn een 🌙✕.
 - Home Assistant krijgt na afloop per check een bericht met `"event": "quiet"` (nog open) of `"recovery"`.
+
+**🌙 Stille-urenprofielen** (vanaf 1.189.0): je vindt ze bij **Instellingen → Meldingen → Stille uren**.
+- **Profiel:** geef het een **naam** en een **icoon** (bv. 🌙 *Nacht*, 🏢 *Kantoortijden*, 🏖️ *Vakantie*) en vul de vensters in zoals hierboven. Met **＋ Nieuw profiel** maak je er een, met ✎ pas je het aan. Bij elk profiel staat hoe vaak het gebruikt wordt en of het nu actief is.
+- **Critical komt wel door** (per profiel, standaard uit): warning en onbekend blijven stil, maar een critical gaat gewoon naar buiten.
+- **Alleen in een periode:** vul een begin- en einddatum in (bv. je vakantie). Met *De hele dag* is het de hele periode stil; anders alleen binnen de vensters in die periode. Buiten de periode doet het profiel niets.
+- **★ Algemeen:** kies welk profiel overal geldt (of *geen stille uren*).
+- **Koppelen en overschrijven.** Een fijnere keuze gaat voor een grovere:
+  1. **🌙 Nu stil** bij de check of bij de server;
+  2. de **check** (✎ → 🌙 Stille uren: *volgt de server*, een profiel of *nooit stil*);
+  3. de **server** (✎ Bewerken → Stille uren: *volgt groep of algemeen*, een profiel of *nooit stil*);
+  4. de **eigen groep** van de server (tabel *Groepen* op de pagina Stille uren);
+  5. de **soort apparaat** (bv. camera's, netwerk), in dezelfde tabel;
+  6. **★ Algemeen**.
+  Een eigen groep gaat dus voor de soort. *Nooit stil* betekent: altijd melden (bijvoorbeeld voor je router).
+- **🌙 Nu stil:** met de knop 🌙 bij een server of check zet je de meldingen meteen stil: 1 uur, 8 uur, tot morgen 07:00, of tot een tijdstip naar keuze. Dat gaat voor alles, ook voor critical. Een server die nu stil is, neemt al zijn checks mee. Met *Opheffen* ben je er eerder vanaf. Op de pagina Stille uren staat wat nu stil is.
+- Bij elke check zie je welk profiel geldt en waar het vandaan komt (🌙 met de naam; in de popup *via server*, *groep*, *soort apparaat* …).
+- **Na de update naar 1.189.0** verandert er niets: je oude algemene stille uren werden het profiel *Standaard* (en ★ Algemeen als ze aan stonden). Checks met eigen vensters kregen een profiel *Eigen: server – check*; checks met *nooit stil* bleven dat.
 
 **Per check aanpassen:** in het checkformulier (✎) staat **🔔 Meldingen**. Zet *Eigen meldregels* aan en pas de tabel aan; de algemene instellingen zijn het startpunt. Checks met eigen regels hebben een 🔔 op het dashboard. Bijvoorbeeld: een back-upcheck die pas na een dag meldt, of een ping die critical meteen meldt en herstel na 2 minuten.
 

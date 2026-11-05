@@ -74,6 +74,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🔔 Meldingen | **Status bevestigen** | Pas warning/critical (of weer OK) na N controles achter elkaar; algemeen en per check. | 1.185.0 |
 | 🔔 Meldingen | **Anti-flapping** | Eén melding als een check steeds wisselt. | 1.26.0 |
 | 🔔 Meldingen | **Stille uren** | Periodes zonder meldingen, behalve critical als je wilt. | 1.28.0 |
+| 🔔 Meldingen | **Stille-urenprofielen** | Profielen met een naam (ook een periode zoals een vakantie), algemeen en per groep, soort, server of check; met Nu stil en critical die door mag. | 1.189.0 |
 | 🔔 Meldingen | **Bundelen per server** | Eén melding als meerdere checks tegelijk misgaan. | 1.25.0 |
 | 🔔 Meldingen | **Escaleren** | Een volgende stap als niemand reageert. | 1.108.0 |
 | 🔔 Meldingen | **Info-meldingen** | Gebeurtenissen die geen storing zijn: herstart, ingelogd, bijgewerkt … | 1.52.0 |
@@ -274,6 +275,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **🌙 Stille uren:**
   - vensters (van–tot, per dag van de week, ook over middernacht) waarin geen meldingen uitgaan;
   - algemeen, per check eigen vensters, of *nooit stil*;
+  - vanaf 1.189.0 als **profielen met een naam**, te koppelen aan een eigen groep, soort apparaat, server of check (het fijnste wint), met *critical komt wel door*, een **periode** (vakantie) en **🌙 Nu stil**;
   - na afloop **één bericht** met alles wat dan nog open is.
 - **Herstelmelding** zodra het weer goed gaat. Een **nieuwe melding bij escalatie** (warning → critical).
 - **Automatisch onderhoud** na herhaalde meldingen voor dezelfde storing, tot hij is opgelost.

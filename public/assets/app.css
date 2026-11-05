@@ -4093,3 +4093,16 @@ button.feat-n { cursor: pointer; } button.feat-n:hover, button.feat-n.on { borde
 .dpi-bar { height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--muted) 15%, transparent); } .dpi-bar i { display: block; height: 100%; border-radius: 99px; background: var(--tr-dn); }
 @media (max-width: 900px) { .nm-tr2 { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .dpi-row { grid-template-columns: 1fr; gap: .15rem; } }
+
+/* 1.189.0: stille-urenprofielen */
+.qp-global { margin-bottom: .6rem; } .qp-global select { max-width: 320px; }
+.qp-list { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .6rem; }
+.qp-row { display: flex; gap: .7rem; align-items: center; padding: .55rem .7rem; border: 1px solid var(--border); border-radius: 12px; }
+.qp-row.active { border-color: color-mix(in srgb, var(--primary) 60%, var(--border)); background: color-mix(in srgb, var(--primary) 7%, transparent); }
+.qp-ic { font-size: 1.3rem; width: 1.8rem; text-align: center; flex: none; }
+.qp-t { flex: 1; min-width: 0; } .qp-t small { display: block; color: var(--muted); } .qp-used { font-size: .75rem; }
+.qp-acts { display: flex; gap: .3rem; }
+.qp-row .badge.on { background: color-mix(in srgb, var(--primary) 18%, transparent); } .qp-row .badge.crit { background: color-mix(in srgb, var(--crit, #e5484d) 16%, transparent); }
+.qg-table td { padding: .4rem .5rem; } .qg-table select { min-width: 200px; }
+.qn-btns { display: flex; flex-wrap: wrap; gap: .4rem; margin: .6rem 0; }
+.quiet-tag.on { background: color-mix(in srgb, var(--primary) 14%, transparent); border-radius: 6px; padding: 0 .3rem; }

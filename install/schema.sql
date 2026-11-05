@@ -1361,3 +1361,19 @@ CREATE TABLE IF NOT EXISTS net_wan_day (
     src VARCHAR(8) NOT NULL DEFAULT 'unifi'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('net_wan_cap_gb', '');
+
+-- 1.189.0: stille uren als profielen met een naam, te koppelen aan groepen, servers en checks
+CREATE TABLE IF NOT EXISTS quiet_profiles (
+    id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name      VARCHAR(60)  NOT NULL,
+    icon      VARCHAR(16)  NOT NULL DEFAULT '🌙',
+    windows   TEXT         NULL,
+    crit      TINYINT(1)   NOT NULL DEFAULT 0,
+    date_from DATE         NULL,
+    date_to   DATE         NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS quiet_groups (
+    gkey VARCHAR(90) NOT NULL PRIMARY KEY,
+    val  VARCHAR(20) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('quiet_global', '');

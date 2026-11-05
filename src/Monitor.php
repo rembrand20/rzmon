@@ -559,7 +559,7 @@ final class Monitor
         if ($min <= 0 || $age < $min * 60) {
             return null;
         }
-        if (setting('esc_quiet', '1') === '1' && NotifyRules::quietUntil(NotifyRules::quietFor($check)) !== null) {
+        if (setting('esc_quiet', '1') === '1' && Quiet::holds($check, $status)) {
             return null;   // stille uren: niet escaleren (na afloop komt de samenvatting)
         }
         return $status === STATUS_CRIT ? max(-1, min(2, (int) setting('esc_crit_prio', '2'))) : max(0, min(2, (int) setting('pushover_priority_crit', '1')));
@@ -681,7 +681,7 @@ final class Monitor
                 continue;
             }
             $c = q(self::CHECK_SELECT . ' WHERE c.id = ?', [$it['check_id']])->fetch();
-            if ($c && NotifyRules::quietUntil(NotifyRules::quietFor($c)) !== null) {
+            if ($c && Quiet::holds($c, (int) $it['status'])) {   // 1.189.0: critical komt door als het profiel dat zegt
                 // Stille uren: niet versturen. Onthouden wat de gebruiker het laatst kreeg; na afloop volgt één samenvatting.
                 q('UPDATE checks SET quiet_held = COALESCE(quiet_held, ?) WHERE id = ?', [(int) $it['previous'], $c['id']]);
             } elseif ($c) {
