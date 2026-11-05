@@ -7956,4 +7956,5 @@ return [
     'Nuclei-template (scanners zoeken ernaar)' => 'Nuclei template (scanners look for it)',
     '7 dagen · totaal' => '7 days · total',
     'De AI kijkt naar je servers: staat het pakket open naar het netwerk, is er al misbruik, is er een oplossing. Je krijgt een oordeel en wat je moet doen.' => 'The AI looks at your servers: is the package open to the network, is it already exploited, is there a fix. You get a verdict and what to do.',
+    'Geen verbinding met RzMon (het netwerk of de proxy verbrak de verbinding). Probeer het opnieuw.' => 'No connection to RzMon (the network or the proxy dropped the connection). Please try again.',
 ];

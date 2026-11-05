@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.176.0**: **Monitoring → Containers** (alle Podman- en Docker-containers met status, CPU, geheugen en schijf), labels **Running / Failed / Stopped / Paused**, een **nieuwe popup per check** en een compacte **Nu aandacht nodig** in CC.
 - **1.175.0**: **Monitoring in CC** in een nieuw jasje: één raster met tegels (ring, lijntjes, 24 uur) zonder aparte sectie *met problemen*, en openklappen over de volle breedte met een veeranimatie zoals op een Mac.
 
+## 1.179.2 – 2026-11-05
+### Opgelost
+- **"Failed to fetch" bij het openen van een check** (bv. vanuit *Nu aandacht nodig* op Monitoring): viel de verbinding weg, bijvoorbeeld omdat de webserver of de reverse proxy een oude verbinding net had gesloten, dan gaf RzMon meteen een fout. Nu probeert RzMon een leesverzoek vanzelf nog twee keer; lukt het dan nog niet, dan staat er een duidelijke melding. Iets wijzigen wordt nooit vanzelf herhaald.
+
 ## 1.179.1 – 2026-11-05
 ### Opgelost
 - Een melding van de codecontrole (PHPStan) in de rugbaarheid van 1.179.0 opgelost; voor de gebruiker verandert er niets.

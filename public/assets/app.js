@@ -284,12 +284,22 @@ const idsDayOpen = {};
 // ---------------------------------------------------------------- API
 async function api(action, body, params = {}, retried = false) {
   const qs = new URLSearchParams({ action, ...params });
-  const res = await fetch('api.php?' + qs, {
+  const opts = {
     method: body ? 'POST' : 'GET',
     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
     body: body ? JSON.stringify(body) : undefined,
     credentials: 'same-origin',
-  });
+  };
+  // 1.179.2: verbinding weggevallen ("Failed to fetch"), bv. een oude keep-alive-verbinding die de server of de reverse
+  // proxy net sloot: een leesverzoek (GET) nog twee keer proberen. Iets wijzigen (POST) nooit vanzelf opnieuw.
+  let res;
+  for (let i = 0; ; i++) {
+    try { res = await fetch('api.php?' + qs, opts); break; }
+    catch (ex) {
+      if (body || i >= 2) throw Object.assign(new Error(L('Geen verbinding met RzMon (het netwerk of de proxy verbrak de verbinding). Probeer het opnieuw.')), { status: 0, network: true, cause: ex });
+      await new Promise((ok) => setTimeout(ok, i ? 1200 : 300));
+    }
+  }
   const data = await res.json().catch(() => ({ error: L('Ongeldig antwoord van server') }));
   const tok = res.headers.get('X-CSRF-Token');
   if (tok) CSRF = tok;
