@@ -297,15 +297,16 @@ final class Reports
             if ($f['fixed'] === null) {
                 continue;
             }
-            $p = &$pk[$f['package']];
-            $p ??= ['name' => $f['package'], 'cves' => [], 'hosts' => [], 'sum' => 0, 'kev' => 0];
-            if (!isset($p['cves'][$f['cve']])) {
-                $p['kev'] += $f['kev'] ? 1 : 0;
+            $n = (string) $f['package'];
+            if (!isset($pk[$n])) {
+                $pk[$n] = ['name' => $n, 'cves' => [], 'hosts' => [], 'sum' => 0, 'kev' => 0];
             }
-            $p['cves'][$f['cve']] = 1;
-            $p['hosts'][$f['host_id']] = 1;
-            $p['sum'] += $f['risk'];
-            unset($p);
+            if (!isset($pk[$n]['cves'][$f['cve']]) && $f['kev']) {
+                $pk[$n]['kev']++;
+            }
+            $pk[$n]['cves'][$f['cve']] = 1;
+            $pk[$n]['hosts'][$f['host_id']] = 1;
+            $pk[$n]['sum'] += (int) $f['risk'];
         }
         usort($pk, static fn($a, $b) => $b['sum'] <=> $a['sum']);
         $pk = array_slice($pk, 0, 5);

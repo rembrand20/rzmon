@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.177.0**: nieuwe **pad-check** (traceroute): per hop vertraging en verlies, je switches, de linksnelheid via UniFi en de echte doorvoer met iperf3, als futuristisch pad in de popup, op **Monitoring → Netwerkpaden** als netwerkkaart en in het kort bij de server.
 - **1.176.0**: **Monitoring → Containers** (alle Podman- en Docker-containers met status, CPU, geheugen en schijf), labels **Running / Failed / Stopped / Paused**, een **nieuwe popup per check** en een compacte **Nu aandacht nodig** in CC.
 
+## 1.180.1 – 2026-11-05
+### Opgelost
+- Een melding van de codecontrole (PHPStan) in het rapport Kwetsbaarheden van 1.180.0 opgelost; voor de gebruiker verandert er niets.
+
 ## 1.180.0 – 2026-11-05
 ### Nieuw
 - **📬 Instellingen → Rapporten**: alle overzichten die RzMon verstuurt op één plek, alleen in de beheerportal. Per rapport stel je in:
