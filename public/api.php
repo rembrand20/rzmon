@@ -1933,7 +1933,8 @@ switch ($action) {
         $cfg = Ai::cfg($in);
         try {
             if ($action === 'ai_models') {
-                out(['models' => Ai::models($cfg)]);
+                $models = Ai::models($cfg);
+                out(['models' => $models, 'suggest' => Ai::suggestModel($models)]);
             }
             $r = Ai::chat(['max_tokens' => 200, 'timeout' => min(120, $cfg['timeout'])] + $cfg, t('Antwoord in één korte zin.'), t('Zeg dat de verbinding met RzMon werkt.'));
             out(['ok' => true, 'text' => mb_substr($r['text'], 0, 300), 'ms' => $r['ms']]);

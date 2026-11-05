@@ -2309,8 +2309,8 @@ function initAiSettings() {
       const r = await api('ai_models', aiFormVals());
       $(`#ai-ml-${p}`).innerHTML = r.models.map((m) => `<option value="${esc(m)}">`).join('');
       const inp = $('#settings-form').elements[`ai_${p}_model`];
-      if (inp && !inp.value && r.models.length) { inp.value = r.models[0]; markSettingsDirty(true, inp); }
-      toast(L('{n} modellen gevonden; kies er een in het veld Model', { n: r.models.length }));
+      if (inp && !inp.value && (r.suggest || r.models[0])) { inp.value = r.suggest || r.models[0]; markSettingsDirty(true, inp); }
+      toast(L('{n} modellen gevonden; kies er een in het veld Model', { n: r.models.length }) + (r.suggest ? ' · ' + L('voorstel: {m}', { m: r.suggest }) : ''));
       inp && inp.focus();
     } catch (ex) { toast(ex.message, 'err'); }
     b.disabled = false;

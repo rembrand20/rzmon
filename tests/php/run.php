@@ -1359,6 +1359,16 @@ ok(str_contains($ctx['text'], 'ai-host') && str_contains($ctx['text'], 'Poort 22
     'context van een check: server, melding, netwerkdiagnose door RzMon (geen agent), geen herstelacties');
 q('DELETE FROM hosts WHERE id = ?', [$aiH]);
 save_setting('ai_on', '0');
+[, , $rb] = Ai::request(['provider' => 'openai', 'url' => 'x', 'key' => 'k', 'model' => 'o3-2025-04-16', 'max_tokens' => 1500], 's', 'p');
+[, , $nb] = Ai::request(['provider' => 'openai', 'url' => 'x', 'key' => 'k', 'model' => 'gpt-4.1-mini', 'max_tokens' => 1500], 's', 'p');
+ok($rb['max_completion_tokens'] > 1500 && ($rb['reasoning_effort'] ?? '') === 'low' && $nb['max_completion_tokens'] === 1500 && !isset($nb['reasoning_effort']),
+    'redeneermodel (o3) krijgt ruimte om na te denken en weinig denkwerk; een gewoon model niet');
+$noAns = false;
+[$pt, , , $ps] = Ai::parse('openai', ['choices' => [['message' => ['content' => ''], 'finish_reason' => 'length']]]);
+ok($pt === '' && $ps === 'length' && Ai::parse('gemini', ['candidates' => [['content' => ['parts' => [['text' => 'denk', 'thought' => true], ['text' => 'antwoord']]]]]])[0] === 'antwoord',
+    'antwoord lezen: lege tekst met de reden, denkstappen van Gemini weggelaten');
+ok(Ai::suggestModel(Ai::sortModels(['o4-mini-2025-04-16', 'o3', 'gpt-5-mini', 'gpt-5'])) === 'gpt-5-mini' && Ai::suggestModel(Ai::sortModels(['gemini-2.5-pro', 'gemini-2.5-flash'])) === 'gemini-2.5-flash',
+    'modellen ophalen: zonder datum eerst, voorstel een zuinig model (niet "gemini" als mini)');
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

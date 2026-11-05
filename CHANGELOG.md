@@ -14,6 +14,14 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.168.0**: Monitoring met een eigen groep **✔ Bevestigd**, en **config.php opslaan via de hulpdienst** terwijl de map vergrendeld blijft.
 - **1.167.0**: de **zijbalk** sleep je zelf breder of smaller, en in Instellingen en Mijn account wordt hij het menu van die pagina, met **← Terug naar RzMon**.
 
+## 1.171.3 – 2026-11-05
+### Opgelost
+- **AI-advies met een redeneermodel** (zoals OpenAI o3 en o4, GPT-5, Gemini 2.5, Grok 4, of DeepSeek-R1 en Qwen3 in Ollama) gaf *"Leeg antwoord van het model"*.
+  - Die modellen denken eerst na, en dat telde mee voor *Langste antwoord*. Nu krijgen ze daar ruimte voor; de extra tokens kosten alleen iets als ze echt gebruikt worden.
+  - Bij OpenAI staat het denkwerk op *laag*.
+  - Gebeurt het toch, dan zegt RzMon wat er aan de hand is.
+- **⟳ Modellen ophalen**: modellen zonder datum (die de aanbieder zelf bijwerkt) staan bovenaan, en RzMon stelt een zuinig, gangbaar model voor, zoals een mini-, flash- of haiku-model. Uitgefaseerde modellen met een datum staan onderaan.
+
 ## 1.171.2 – 2026-11-05
 ### Opgelost
 - **IDS → Nu aandacht nodig**: de knop 🤖 staat nu in de rij met de knoppen (vóór *Afhandelen*), ook op de telefoon. Eerst stond hij los onder de titel; gebruikers zonder beheerrechten zien hem ook.

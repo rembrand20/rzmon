@@ -7419,4 +7419,7 @@ return [
     'Diep zoeken via de agent' => 'Deep search via the agent',
     'Uitvoeren vanuit een advies' => 'Run from advice',
     'Advies van Claude, ChatGPT, Gemini, Grok of Ollama bij storingen.' => 'Advice from Claude, ChatGPT, Gemini, Grok or Ollama on outages.',
+    // 1.171.3
+    'Het model had al zijn tokens nodig om na te denken en gaf geen antwoord. Zet "Langste antwoord" hoger, of kies een model dat niet redeneert (bv. een mini-model).' => 'The model needed all its tokens to think and gave no answer. Raise "Longest answer", or choose a model that does not reason (e.g. a mini model).',
+    'voorstel: {m}' => 'suggestion: {m}',
 ];

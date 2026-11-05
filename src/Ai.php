@@ -77,38 +77,77 @@ final class Ai
         if ($cfg['provider'] !== 'ollama' && $cfg['key'] === '') {
             throw new RuntimeException(t('Vul de API-sleutel in'));
         }
+        $t0 = microtime(true);
+        [$url, $hdr, $body] = self::request($cfg, $system, $prompt);
+        $j = self::http('POST', $url, $hdr, $body, (int) $cfg['timeout']);
+        $ms = (int) round((microtime(true) - $t0) * 1000);
+        [$text, $in, $out, $stop] = self::parse($cfg['provider'], $j);
+        if ($text === '') {
+            // 1.171.3: een redeneermodel kan al zijn tokens aan nadenken besteden en dan niets antwoorden
+            throw new RuntimeException(in_array(strtolower((string) $stop), ['length', 'max_tokens', 'max_output_tokens'], true)
+                ? t('Het model had al zijn tokens nodig om na te denken en gaf geen antwoord. Zet "Langste antwoord" hoger, of kies een model dat niet redeneert (bv. een mini-model).')
+                : t('Leeg antwoord van het model'));
+        }
+        return ['text' => $text, 'in' => $in !== null ? (int) $in : null, 'out' => $out !== null ? (int) $out : null, 'ms' => $ms];
+    }
+
+    /** Redeneert dit model eerst (denktokens tellen dan mee voor het maximum)? */
+    public static function reasons(string $provider, string $model): bool
+    {
+        $m = strtolower($model);
+        return match ($provider) {
+            'openai' => (bool) preg_match('/^(o\d|gpt-5)/', $m),
+            'grok' => (bool) preg_match('/grok-(3-mini|4)/', $m),
+            'gemini' => (bool) preg_match('/gemini-(2\.5|[3-9])/', $m),
+            'ollama' => (bool) preg_match('/(^|[^a-z])(r1|qwq|qwen3|think|reason|magistral|gpt-oss)/', $m),
+            default => false,
+        };
+    }
+
+    /**
+     * Het verzoek voor de aanbieder: [url, headers, body]. Redeneermodellen krijgen extra ruimte om na te denken
+     * (die tokens kosten alleen geld als ze echt gebruikt worden), en bij OpenAI zo weinig mogelijk denkwerk.
+     * @return array{0: string, 1: list<string>, 2: array<string, mixed>}
+     */
+    public static function request(array $cfg, string $system, string $prompt): array
+    {
         $p = $cfg['provider'];
         $mt = (int) $cfg['max_tokens'];
-        $t0 = microtime(true);
-        [$url, $hdr, $body] = match ($p) {
+        $think = self::reasons($p, (string) $cfg['model']);
+        $room = $think ? $mt + 6000 : $mt;
+        $msgs = [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $prompt]];
+        return match ($p) {
             'claude' => [$cfg['url'] . '/v1/messages', ['x-api-key: ' . $cfg['key'], 'anthropic-version: 2023-06-01'],
                 ['model' => $cfg['model'], 'max_tokens' => $mt, 'system' => $system, 'messages' => [['role' => 'user', 'content' => $prompt]]]],
             'openai' => [$cfg['url'] . '/v1/chat/completions', ['Authorization: Bearer ' . $cfg['key']],
-                ['model' => $cfg['model'], 'max_completion_tokens' => $mt, 'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $prompt]]]],
+                ['model' => $cfg['model'], 'max_completion_tokens' => $room, 'messages' => $msgs] + ($think ? ['reasoning_effort' => 'low'] : [])],
             'grok' => [$cfg['url'] . '/v1/chat/completions', ['Authorization: Bearer ' . $cfg['key']],
-                ['model' => $cfg['model'], 'max_tokens' => $mt, 'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $prompt]]]],
+                ['model' => $cfg['model'], 'max_tokens' => $room, 'messages' => $msgs]],
             'gemini' => [$cfg['url'] . '/v1beta/models/' . rawurlencode(preg_replace('#^models/#', '', $cfg['model']) ?? '') . ':generateContent', ['x-goog-api-key: ' . $cfg['key']],
                 ['systemInstruction' => ['parts' => [['text' => $system]]], 'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['maxOutputTokens' => $mt]]],
+                    'generationConfig' => ['maxOutputTokens' => $room]]],
             default => [$cfg['url'] . '/api/chat', $cfg['key'] !== '' ? ['Authorization: Bearer ' . $cfg['key']] : [],
-                ['model' => $cfg['model'], 'stream' => false, 'options' => ['num_predict' => $mt],
-                    'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $prompt]]]],
+                ['model' => $cfg['model'], 'stream' => false, 'options' => ['num_predict' => $think ? $mt + 4000 : $mt], 'messages' => $msgs]],
         };
-        $j = self::http('POST', $url, $hdr, $body, (int) $cfg['timeout']);
-        $ms = (int) round((microtime(true) - $t0) * 1000);
-        [$text, $in, $out] = match ($p) {
-            'claude' => [implode('', array_map(static fn($c) => (string) ($c['text'] ?? ''), (array) ($j['content'] ?? []))),
-                $j['usage']['input_tokens'] ?? null, $j['usage']['output_tokens'] ?? null],
-            'openai', 'grok' => [(string) ($j['choices'][0]['message']['content'] ?? ''), $j['usage']['prompt_tokens'] ?? null, $j['usage']['completion_tokens'] ?? null],
-            'gemini' => [implode('', array_map(static fn($c) => (string) ($c['text'] ?? ''), (array) ($j['candidates'][0]['content']['parts'] ?? []))),
-                $j['usageMetadata']['promptTokenCount'] ?? null, $j['usageMetadata']['candidatesTokenCount'] ?? null],
-            default => [(string) ($j['message']['content'] ?? ''), $j['prompt_eval_count'] ?? null, $j['eval_count'] ?? null],
+    }
+
+    /**
+     * Het antwoord van de aanbieder: [tekst, tokens in, tokens uit, waarom gestopt]
+     * @return array{0: string, 1: mixed, 2: mixed, 3: ?string}
+     */
+    public static function parse(string $p, array $j): array
+    {
+        [$text, $in, $out, $stop] = match ($p) {
+            'claude' => [implode('', array_map(static fn($c) => (string) ($c['text'] ?? ''), array_filter((array) ($j['content'] ?? []), static fn($c) => ($c['type'] ?? 'text') === 'text'))),
+                $j['usage']['input_tokens'] ?? null, $j['usage']['output_tokens'] ?? null, $j['stop_reason'] ?? null],
+            'openai', 'grok' => [(string) ($j['choices'][0]['message']['content'] ?? ''), $j['usage']['prompt_tokens'] ?? null, $j['usage']['completion_tokens'] ?? null,
+                $j['choices'][0]['finish_reason'] ?? null],
+            'gemini' => [implode('', array_map(static fn($c) => !empty($c['thought']) ? '' : (string) ($c['text'] ?? ''), (array) ($j['candidates'][0]['content']['parts'] ?? []))),
+                $j['usageMetadata']['promptTokenCount'] ?? null, $j['usageMetadata']['candidatesTokenCount'] ?? null, $j['candidates'][0]['finishReason'] ?? null],
+            default => [(string) ($j['message']['content'] ?? ''), $j['prompt_eval_count'] ?? null, $j['eval_count'] ?? null, $j['done_reason'] ?? null],
         };
-        $text = trim(preg_replace('#<think>.*?</think>#s', '', $text) ?? $text);   // denkstappen van redeneermodellen weglaten
-        if ($text === '') {
-            throw new RuntimeException(t('Leeg antwoord van het model'));
-        }
-        return ['text' => $text, 'in' => $in !== null ? (int) $in : null, 'out' => $out !== null ? (int) $out : null, 'ms' => $ms];
+        $text = trim(preg_replace('#<think>.*?(</think>|$)#s', '', $text) ?? $text);   // denkstappen van redeneermodellen weglaten
+        return [$text, $in, $out, $stop !== null ? (string) $stop : null];
     }
 
     /** Beschikbare modellen bij de aanbieder (voor de keuzelijst) */
@@ -134,9 +173,29 @@ final class Ai
         if ($p === 'openai') {
             $list = array_filter($list, static fn($m) => (bool) preg_match('/^(gpt|o\d|chatgpt)/', $m) && !preg_match('/(audio|realtime|image|tts|transcribe|search|embedding)/', $m));
         }
-        $list = array_values(array_unique(array_filter($list)));
-        rsort($list);
+        return self::sortModels(array_values(array_unique(array_filter($list))));
+    }
+
+    /** 1.171.3: modellen zonder datum (aliassen, die de aanbieder bijwerkt) eerst, dan de rest; nieuwste naam bovenaan */
+    public static function sortModels(array $list): array
+    {
+        $dated = static fn(string $m): bool => (bool) preg_match('/(\d{4}-\d{2}-\d{2}|-\d{4}$|-\d{6,8}$|preview|exp-\d)/', $m);
+        usort($list, static fn($a, $b) => [$dated($a), $b] <=> [$dated($b), $a]);
         return array_slice($list, 0, 150);
+    }
+
+    /** Een zuinig, gangbaar model om voor te stellen: een alias met mini, flash, haiku of fast, anders de eerste alias */
+    public static function suggestModel(array $sorted): string
+    {
+        $skip = '/(\d{4}-\d{2}-\d{2}|-\d{4}$|-\d{6,8}$|preview|exp|nano|lite|audio|tts|image|search|realtime|transcribe|embed)/i';
+        foreach (['/(?<![a-z])(mini|flash|haiku)(?![a-z])/i', '/(?<![a-z])(sonnet|fast)(?![a-z])/i'] as $want) {
+            foreach ($sorted as $m) {
+                if (preg_match($want, $m) && !preg_match($skip, $m)) {
+                    return $m;
+                }
+            }
+        }
+        return (string) ($sorted[0] ?? '');
     }
 
     /** @return array<string, mixed> */
