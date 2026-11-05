@@ -14839,6 +14839,12 @@ function trSpark(arr) {
   const max = Math.max(1, ...arr);
   return `<span class="tr-spark" aria-hidden="true">${arr.map((v) => `<i style="--h:${Math.max(v ? 8 : 0, Math.round((v / max) * 100))}%"></i>`).join('')}</span>`;
 }
+/** 1.188.0: welke bronnen het verkeer leveren */
+const TR_SRC = () => ({ unifi: 'UniFi', snmp: L('SNMP (switchpoort)'), agent: L('agent (netwerkkaart)') });
+function trSources(st) {
+  const s = Object.keys(st.sources || {}).sort((a, b) => ['unifi', 'snmp', 'agent'].indexOf(a) - ['unifi', 'snmp', 'agent'].indexOf(b));
+  return s.length ? L('bron: {s}', { s: s.map((k) => TR_SRC()[k] || k).join(', ') }) : L('volgens UniFi');
+}
 /** Top 10 van de laatste 24 uur (download en upload naast elkaar) */
 function trTopHtml(limit = 10) {
   const d = netData;
@@ -14849,7 +14855,7 @@ function trTopHtml(limit = 10) {
   const pct = (a, b) => (b > 0 ? Math.round(((a - b) / b) * 100) : null);
   const cmp = (a, b) => { const p = pct(a, b); return p === null ? '' : ` <small class="${p > 0 ? 'warn-txt' : 'good-txt'}">${p > 0 ? '+' : ''}${p}% ${L('t.o.v. gisteren')}</small>`; };
   if (!st.on) {
-    return `<p class="muted small">${!st.unifi ? L('Koppel UniFi (Instellingen → Koppelingen → UniFi en AdGuard Home) om het verkeer per apparaat te zien.')
+    return `<p class="muted small">${!st.unifi && st.setting ? L('Nog geen bron voor verkeer. Koppel UniFi (aanbevolen), zet SNMP aan op je switch, of werk de agent op je servers bij naar 1.80.0.') + ' ' + L('Koppel UniFi (Instellingen → Koppelingen → UniFi en AdGuard Home) om het verkeer per apparaat te zien.')
       : !st.account ? L('Verkeer per apparaat vraagt een lokaal UniFi-account; met alleen een API-sleutel geeft UniFi geen tellers.')
       : !st.setting ? L('Verkeer per apparaat staat uit (Instellingen → Beveiliging → Netwerkscan).') : L('De netwerkscan staat uit.')}</p>`;
   }
@@ -14860,7 +14866,7 @@ function trTopHtml(limit = 10) {
     <div class="tr-top">${rows.map(({ x, t }) => `<div class="tr-row"><button type="button" class="nd-link" data-nm-open="${x.id}">${(NET_KIND[netKind(x)] || NET_KIND.unknown)[0]} ${esc(x.label)}</button>
       <span class="tr-bars"><i class="dn" style="width:${(t.rx / max) * 100}%"></i><i class="up" style="width:${(t.tx / max) * 100}%"></i></span>
       <span class="tr-num small">↓ ${fmtBytes(t.rx)} · ↑ ${fmtBytes(t.tx)}</span></div>`).join('')}</div>
-    <p class="muted small tr-legend"><i class="lg dn"></i> ${L('download')} <i class="lg up"></i> ${L('upload')} · ${L('laatste 24 uur, volgens UniFi')}</p>`;
+    <p class="muted small tr-legend"><i class="lg dn"></i> ${L('download')} <i class="lg up"></i> ${L('upload')} · ${L('laatste 24 uur')} · ${trSources(st)}</p>`;
 }
 /** 1.187.0: de internetlijn deze maand (UniFi-gateway, anders de som van de apparaten), met de datalimiet */
 function wanHtml() {
@@ -14930,7 +14936,7 @@ async function netTrafficBox(x, box) {
       <polyline points="${line(1)}" class="tr-l dn"/><polyline points="${line(2)}" class="tr-l up"/></svg>
     <p class="small muted" style="margin:.6rem 0 .2rem">${L('Per dag, laatste 30 dagen')}</p>
     <div class="tr-days">${days.map(([day, rx, tx]) => `<span title="${esc(fmtDay(day) + ': ↓ ' + fmtBytes(rx) + ' · ↑ ' + fmtBytes(tx))}"><i class="up" style="height:${(tx / dmx) * 100}%"></i><i class="dn" style="height:${(rx / dmx) * 100}%"></i></span>`).join('')}</div>
-    <p class="muted small tr-legend"><i class="lg dn"></i> ${L('download')} <i class="lg up"></i> ${L('upload')} · ${L('volgens UniFi')}</p></div>`;
+    <p class="muted small tr-legend"><i class="lg dn"></i> ${L('download')} <i class="lg up"></i> ${L('upload')} · ${d.src ? L('bron: {s}', { s: TR_SRC()[d.src] || d.src }) : L('volgens UniFi')}</p></div>`;
 }
 
 // ---------------------------------------------------------------- 1.184.0: Netwerk → Overzicht (netwerkkaart)

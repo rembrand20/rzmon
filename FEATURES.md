@@ -125,6 +125,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🌐 Netwerk | **Netwerkscan** | Welke apparaten er op je netwerk zitten, en wat nieuw is. | 1.103.0 |
 | 🌐 Netwerk | **Netwerkkaart** | Internet → router → switches en access points → apparaten, met tellers per soort en per netwerk. | 1.184.0 |
 | 🌐 Netwerk | **Verkeer per apparaat** | Download en upload per apparaat (UniFi): top 10, per uur en per dag, en een melding bij ongewoon veel of nachtelijk verkeer. | 1.186.0 |
+| 🌐 Netwerk | **Verkeer zonder UniFi** | Verkeer via SNMP (switchpoort met één apparaat) en de netwerkkaarten van servers met de agent; UniFi gaat voor. | 1.188.0 |
 | 🌐 Netwerk | **Internetlijn per maand** | Verkeer van je internetlijn per dag (UniFi-gateway), met een datalimiet en een verwachting voor de maand. | 1.187.0 |
 | 🌐 Netwerk | **Diensten per apparaat (DPI)** | Welke soort verkeer een apparaat doet (streaming, updates, sociale media …), uit UniFi. | 1.187.0 |
 | 🧩 Checks en monitoring | **Check Verkeer** | Warning of critical als een apparaat te veel verkeer doet (nu of vandaag). | 1.187.0 |
@@ -230,6 +231,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **🎯 Aanvalspad en impact** per server (vanaf 1.146.0): open poorten met pakket en ergste kwetsbaarheid, open incidenten en afhankelijke servers (blast radius).
 - **🎯 Doelen (SLO) en "na de actie"** op Analyse (vanaf 1.146.0): melding binnen 5 minuten, agents rapporteren, slagingspercentage van zelf herstellen, onterechte automatische blokkades en slimme drempels die meer ruis gaven.
 - **📄 Rapport als PDF** (vanaf 1.142.0; eerste pagina *In één oogopslag* met MTTD/MTTR, SLO's en de 5 grootste risico's vanaf 1.146.0): afdrukbaar rapport over een periode (samenvatting, incidenten, beschikbaarheid, lastigste checks, beveiliging, kwetsbaarheden, wat nu aanpakken).
+- **🔌 Verkeer zonder UniFi** (vanaf 1.188.0, agent 1.80.0): verkeer via SNMP op switches (poort met één apparaat) en via de netwerkkaarten van servers met de agent; UniFi gaat voor, zonder sprong bij een andere bron.
 - **🌐 Internetlijn, diensten, check Verkeer en rapport** (vanaf 1.187.0): internetverkeer per dag met datalimiet (melding bij 80% en 100%) en verwachting, diensten per apparaat (UniFi DPI), checktype *Verkeer* (snelheid of hoeveelheid vandaag), rapport *Netwerkverkeer* met de top 10, en ℹ️-meldingen bij ongewoon verkeer.
 - **📊 Verkeer per apparaat** (vanaf 1.186.0, UniFi): download en upload per apparaat per uur en per dag, top 10 van vandaag, grafieken in het venster, heatmap van aanwezigheid en verkeer, en een melding bij ongewoon veel of nachtelijk verkeer.
 - **⏳ Status bevestigen** (vanaf 1.185.0): een check wordt pas warning of critical (en eventueel weer OK) na N controles achter elkaar, met het label ⏳ 2/3 zolang het nog niet bevestigd is; algemeen en per check, leeg = meteen.

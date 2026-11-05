@@ -2994,6 +2994,15 @@ Met UniFi ziet RzMon hoeveel elk apparaat downloadt en uploadt.
   - **🌙 Verkeer 's nachts**: minstens 50 MB tussen 0 en 6 uur, terwijl het apparaat 's nachts normaal (bijna) stil is.
 - **Goed om te weten:** RzMon telt wat UniFi ziet. Verkeer tussen twee apparaten op dezelfde switch telt UniFi maar voor een deel; het verkeer naar internet klopt het best.
 
+**Verkeer zonder UniFi** (vanaf 1.188.0)
+
+Heb je geen UniFi, of ziet UniFi een apparaat niet, dan kan RzMon het verkeer op twee andere manieren tellen:
+- **SNMP op een switch:** zet bij de switch in RzMon SNMP aan (✎ Bewerken, of de algemene SNMP-instelling bij *Koppelingen*), met als soort apparaat *switch*, *router*, *access point* of *firewall*. Elke 5 minuten leest RzMon de tabel met MAC-adressen per poort (BRIDGE-MIB en Q-BRIDGE-MIB) en de bytetellers van de poorten (IF-MIB, 64-bit). Zit er op een poort precies één apparaat, dan is het verkeer van die poort het verkeer van dat apparaat: wat de poort ontvangt is de upload van het apparaat, wat de poort verstuurt de download. Poorten met meer apparaten (uplinks, een switch erachter) tellen niet mee. Het apparaat moet in de netwerkscan staan (met MAC-adres).
+- **De agent op een server** (agent 1.80.0 of nieuwer): de agent stuurt de tellers van zijn echte netwerkkaarten mee (de kaarten met een apparaat erachter, plus bond en wifi; virtuele kaarten zoals docker0, veth of bridges niet). RzMon koppelt dat aan het apparaat in de netwerkscan met het adres van de server (of een van de agent-IP's).
+- **Voorrang:** UniFi gaat voor, dan SNMP, dan de agent. Een bron met minder voorrang telt alleen als de betere bron het apparaat al 15 minuten niet meer zag. Wisselt de bron, dan telt RzMon pas vanaf de volgende meting verder, zodat er geen sprong ontstaat.
+- Onder de grafieken en de top 10 staat welke bron het verkeer leverde.
+- Zonder UniFi is er geen *Internetlijn* van de gateway en geen *Diensten (DPI)*; de internetlijn is dan de som van alle apparaten die RzMon telt.
+
 **🌐 Internetlijn, diensten, check en rapport** (vanaf 1.187.0)
 - **Internetlijn deze maand** (*Netwerk → Overzicht*, naast *Verkeer vandaag*): elk uur haalt RzMon het verkeer per dag op van je UniFi-gateway (het dagrapport van de site). Lukt dat niet, dan telt RzMon het verkeer van alle apparaten op; dat staat er dan onder. Je ziet download en upload deze maand, een staafje per dag en wat je aan het eind van de maand waarschijnlijk gebruikt hebt.
 - **Datalimiet:** vul bij *Instellingen → Beveiliging → Netwerkscan* je limiet in GB per maand in (download + upload samen). Er komt een balk bij, met een streepje waar je naar verwachting uitkomt. Bij **80%** en bij **100%** krijg je één keer per maand een ℹ️-melding (*Meldingen → Systeemmeldingen → Datalimiet internet bijna of helemaal op*).

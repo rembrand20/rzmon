@@ -148,3 +148,26 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && command -v wg >/dev/null 2>&1; th
     wg_json="[${wg_json%,}]"
 fi
 
+
+# Netwerkverkeer (agent 1.80.0): bytes van de echte netwerkkaarten (met een apparaat erachter, plus bond en wifi),
+# voor Netwerk → Verkeer als UniFi deze server niet ziet. Een poort van een bond telt via de bond zelf (niet dubbel).
+nic_json=""
+nic_rx=0
+nic_tx=0
+nic_ifs=""
+for nic_d in /sys/class/net/*; do
+    nic_i=${nic_d##*/}
+    [ "$nic_i" = lo ] && continue
+    [[ "$nic_i" =~ ^[A-Za-z0-9_.-]{1,15}$ ]] || continue
+    [ -e "$nic_d/master" ] && continue
+    if [ ! -e "$nic_d/device" ]; then
+        case "$nic_i" in bond*|wl*) ;; *) continue ;; esac
+    fi
+    nic_r=$(cat "$nic_d/statistics/rx_bytes" 2>/dev/null)
+    nic_t=$(cat "$nic_d/statistics/tx_bytes" 2>/dev/null)
+    [[ "$nic_r" =~ ^[0-9]+$ && "$nic_t" =~ ^[0-9]+$ ]] || continue
+    nic_rx=$((nic_rx + nic_r))
+    nic_tx=$((nic_tx + nic_t))
+    nic_ifs+="\"$nic_i\","
+done
+[ -n "$nic_ifs" ] && nic_json="{\"rx\":$nic_rx,\"tx\":$nic_tx,\"ifs\":[${nic_ifs%,}]}"

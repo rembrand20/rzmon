@@ -26,9 +26,20 @@ final class NetTraffic
     /** @var (callable(): array)|null alleen voor tests: geeft de clients zoals unifiClients()['clients'] */
     public static $fetch = null;
 
+    /** 1.188.0: bronnen, de hoogste gaat voor (UniFi ziet het hele apparaat; SNMP de switchpoort; de agent de eigen netwerkkaart) */
+    public const PRIO = ['unifi' => 3, 'snmp' => 2, 'agent' => 1];
+    /** @var (callable(array): ?array)|null alleen voor tests: SNMP-tabellen van een switch [fdb_q, fdb_d, base, in, out] */
+    public static $snmpFetch = null;
+
     public static function enabled(): bool
     {
-        return setting('net_traffic', '1') === '1' && (self::$fetch !== null || (NetScan::enabled() && NetLinks::unifiOn()));
+        return setting('net_traffic', '1') === '1' && (self::$fetch !== null || NetScan::enabled());
+    }
+
+    /** Is er een bron die tellers kan geven? (UniFi met account, een switch met SNMP, of een agent met 1.80.0) */
+    public static function hasSource(): bool
+    {
+        return NetLinks::unifiAccountMode() || (bool) q("SELECT 1 FROM net_counters LIMIT 1")->fetchColumn();
     }
 
     /** Uit de cron: elke 5 minuten de tellers ophalen, en één keer per dag de vergelijking */
@@ -46,9 +57,7 @@ final class NetTraffic
         if ((int) ($st['wan_at'] ?? 0) <= time() - 3600) {   // 1.187.0: de internetlijn elk uur
             $st['wan_at'] = time();
             save_setting('net_traffic_state', json_encode($st));
-            if ($m = self::wanUpdate()) {
-                $msg[] = $m;
-            }
+            self::wanUpdate();
             self::capCheck();
         }
         if (($st['daily'] ?? '') !== date('Y-m-d') && (int) date('G') >= 1) {
@@ -72,6 +81,12 @@ final class NetTraffic
         if (self::$fetch) {
             $clients = (self::$fetch)();
             $err = null;
+        } elseif (!NetLinks::unifiAccountMode()) {
+            $clients = [];
+            $err = null;
+            $msg = self::snmpPoll($now);   // 1.188.0: zonder UniFi alleen de switches
+            save_setting('net_traffic_state', json_encode(['at' => $now, 'error' => null] + $st));
+            return 'Verkeer: ' . $msg;
         } else {
             $r = NetLinks::unifiTraffic();
             $clients = $r['clients'];
@@ -94,32 +109,140 @@ final class NetTraffic
             if ($mac === null || !isset($byMac[$mac])) {
                 continue;
             }
-            $id = $byMac[$mac];
-            $rx = max(0, (int) ($c['rx'] ?? 0));
-            $tx = max(0, (int) ($c['tx'] ?? 0));
-            $last = q('SELECT rx, tx, at FROM net_counters WHERE device_id = ?', [$id])->fetch();
-            q('INSERT INTO net_counters (device_id, rx, tx, rate_rx, rate_tx, at) VALUES (?, ?, ?, ?, ?, ?)
-               ON DUPLICATE KEY UPDATE rx = VALUES(rx), tx = VALUES(tx), rate_rx = VALUES(rate_rx), rate_tx = VALUES(rate_tx), at = VALUES(at)',
-                [$id, $rx, $tx, (int) ($c['rate_rx'] ?? 0), (int) ($c['rate_tx'] ?? 0), $now]);
-            if (!$last) {
-                continue;   // eerste keer: alleen de teller onthouden
+            $d = self::feed($byMac[$mac], 'unifi', max(0, (int) ($c['rx'] ?? 0)), max(0, (int) ($c['tx'] ?? 0)), $now, (int) ($c['rate_rx'] ?? 0), (int) ($c['rate_tx'] ?? 0));
+            if ($d) {
+                $total[0] += $d[0];
+                $total[1] += $d[1];
+                $n++;
             }
-            $dt = max(1, $now - (int) $last['at']);
-            if ($dt > 6 * 3600) {
-                continue;   // te lang geleden (RzMon stond stil): niet weten waar het verkeer viel
-            }
-            $dRx = self::delta((int) $last['rx'], $rx, $dt);
-            $dTx = self::delta((int) $last['tx'], $tx, $dt);
-            if ($dRx + $dTx === 0) {
+        }
+        $snmp = self::$fetch ? '' : ' · ' . self::snmpPoll($now);
+        save_setting('net_traffic_state', json_encode(['at' => $now, 'error' => null, 'n' => $n] + $st));
+        return 'Verkeer: ' . $n . ' apparaten, ↓' . self::human($total[0]) . ' ↑' . self::human($total[1]) . $snmp;
+    }
+
+    /**
+     * 1.188.0: een tellerstand van een bron verwerken. Een bron met meer voorrang die het apparaat de laatste 15 minuten zag,
+     * gaat voor; neemt een andere bron het over, dan telt pas de volgende meting (geen verschil tussen twee bronnen).
+     * Geen snelheid meegegeven ($rateRx < 0), dan wordt die uit het verschil berekend. Geeft [rx, tx] erbij, of null.
+     */
+    public static function feed(int $id, string $src, int $rx, int $tx, int $now, int $rateRx = -1, int $rateTx = -1): ?array
+    {
+        $last = q('SELECT rx, tx, at, src FROM net_counters WHERE device_id = ?', [$id])->fetch();
+        if ($last && $last['src'] !== $src && (self::PRIO[$last['src']] ?? 0) > (self::PRIO[$src] ?? 0) && (int) $last['at'] >= $now - 900) {
+            return null;   // een betere bron houdt dit apparaat al bij
+        }
+        $same = $last && $last['src'] === $src;
+        $dt = $last ? max(1, $now - (int) $last['at']) : 0;
+        $dRx = $same && $dt <= 6 * 3600 ? self::delta((int) $last['rx'], $rx, $dt) : 0;
+        $dTx = $same && $dt <= 6 * 3600 ? self::delta((int) $last['tx'], $tx, $dt) : 0;
+        if ($rateRx < 0) {
+            $rateRx = $dt ? intdiv($dRx, $dt) : 0;
+            $rateTx = $dt ? intdiv($dTx, $dt) : 0;
+        }
+        q('INSERT INTO net_counters (device_id, rx, tx, rate_rx, rate_tx, at, src) VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE rx = VALUES(rx), tx = VALUES(tx), rate_rx = VALUES(rate_rx), rate_tx = VALUES(rate_tx), at = VALUES(at), src = VALUES(src)',
+            [$id, $rx, $tx, max(0, $rateRx), max(0, $rateTx), $now, $src]);
+        if ($dRx + $dTx === 0) {
+            return null;   // eerste keer, andere bron, te lang geleden of niets gedaan
+        }
+        self::add($id, date('Y-m-d H:00:00', $now), date('Y-m-d', $now), $dRx, $dTx);
+        return [$dRx, $dTx];
+    }
+
+    /** 1.188.0 (agent 1.80.0): de netwerkkaarten van een server met de agent */
+    public static function fromAgent(array $host, array $in, ?int $now = null): void
+    {
+        $nic = $in['nic'] ?? null;
+        if (!is_array($nic) || !isset($nic['rx'], $nic['tx']) || setting('net_traffic', '1') !== '1') {
+            return;
+        }
+        $ips = array_filter(array_merge([(string) ($host['address'] ?? '')], parse_list((string) ($host['agent_ips'] ?? ''))), fn($ip) => filter_var($ip, FILTER_VALIDATE_IP));
+        if (!$ips) {
+            return;
+        }
+        $id = (int) q('SELECT id FROM net_devices WHERE ip IN (' . implode(',', array_fill(0, count($ips), '?')) . ') ORDER BY last_seen DESC LIMIT 1', array_values($ips))->fetchColumn();
+        if ($id) {
+            self::feed($id, 'agent', max(0, (int) $nic['rx']), max(0, (int) $nic['tx']), $now ?? time());
+        }
+    }
+
+    /**
+     * 1.188.0: switches met SNMP. Per poort met precies één MAC-adres (een apparaat, geen uplink) de bytetellers van die poort:
+     * ifHCInOctets = wat het apparaat verstuurde (upload), ifHCOutOctets = wat het ontving (download).
+     */
+    public static function snmpPoll(int $now): string
+    {
+        $hosts = q("SELECT id, name, address, snmp, kind, kind_auto FROM hosts WHERE enabled = 1 AND snmp IS NOT NULL")->fetchAll();
+        $byMac = [];
+        foreach (q('SELECT id, mac FROM net_devices WHERE mac IS NOT NULL')->fetchAll() as $r) {
+            $byMac[$r['mac']] = (int) $r['id'];
+        }
+        $n = 0;
+        $sw = 0;
+        foreach ($hosts as $h) {
+            $kind = (string) ($h['kind'] ?: $h['kind_auto']);
+            if (!in_array($kind, ['switch', 'router', 'ap', 'firewall'], true)) {
                 continue;
             }
-            self::add($id, $hour, $day, $dRx, $dTx);
-            $total[0] += $dRx;
-            $total[1] += $dTx;
-            $n++;
+            try {
+                $t = self::$snmpFetch ? (self::$snmpFetch)($h) : self::snmpTables($h);
+            } catch (Throwable) {
+                $t = null;
+            }
+            if (!$t) {
+                continue;
+            }
+            $sw++;
+            foreach (self::snmpPorts(...$t) as $mac => [$rx, $tx]) {
+                if (isset($byMac[$mac]) && self::feed($byMac[$mac], 'snmp', $rx, $tx, $now)) {
+                    $n++;
+                }
+            }
         }
-        save_setting('net_traffic_state', json_encode(['at' => $now, 'error' => null, 'n' => $n] + $st));
-        return 'Verkeer: ' . $n . ' apparaten, ↓' . self::human($total[0]) . ' ↑' . self::human($total[1]);
+        return $sw ? "SNMP $sw switch(es), $n apparaten" : 'geen switches met SNMP';
+    }
+
+    /** De vijf tabellen van een switch via SNMP */
+    private static function snmpTables(array $h): ?array
+    {
+        $c = SnmpMonitor::open($h);
+        if (!$c) {
+            return null;
+        }
+        return [$c->walk('1.3.6.1.2.1.17.7.1.2.2.1.2'), $c->walk('1.3.6.1.2.1.17.4.3.1.2'), $c->walk('1.3.6.1.2.1.17.1.4.1.2'),
+            $c->walk('1.3.6.1.2.1.31.1.1.1.6'), $c->walk('1.3.6.1.2.1.31.1.1.1.10')];
+    }
+
+    /**
+     * Van de SNMP-tabellen naar [mac => [rx, tx]] voor poorten met precies één MAC-adres.
+     * $fdbQ: Q-BRIDGE (vlan.m1.m2.m3.m4.m5.m6 => brugpoort), $fdbD: BRIDGE (m1…m6 => brugpoort), $base: brugpoort => ifIndex,
+     * $in/$out: ifIndex => octets.
+     */
+    public static function snmpPorts(array $fdbQ, array $fdbD, array $base, array $in, array $out): array
+    {
+        $port = [];   // ifIndex => [mac, …]
+        foreach ([[$fdbQ, 6], [$fdbD, 6]] as [$tbl, $len]) {
+            foreach ($tbl as $k => $bp) {
+                $parts = explode('.', (string) $k);
+                if (count($parts) < $len) {
+                    continue;
+                }
+                $mac = implode(':', array_map(fn($p) => sprintf('%02x', (int) $p & 255), array_slice($parts, -$len)));
+                $if = (int) ($base[(string) (int) $bp] ?? $bp);
+                if ($if > 0) {
+                    $port[$if][$mac] = true;
+                }
+            }
+        }
+        $res = [];
+        foreach ($port as $if => $macs) {
+            if (count($macs) !== 1 || !isset($in[(string) $if], $out[(string) $if])) {
+                continue;
+            }
+            $res[array_key_first($macs)] = [(int) $out[(string) $if], (int) $in[(string) $if]];
+        }
+        return $res;
     }
 
     /** Verschil tussen twee tellerstanden; terug naar een lagere stand = opnieuw verbonden (telt vanaf nul) */
@@ -208,20 +331,19 @@ final class NetTraffic
     // ------------------------------------------------------------------ 1.187.0: internetlijn per dag en datalimiet
 
     /** Internetverkeer per dag uit UniFi; lukt dat niet, dan de som van alle apparaten (bron 'devices') */
-    public static function wanUpdate(): ?string
+    public static function wanUpdate(): void
     {
         $r = self::$fetch ? ['days' => [], 'error' => 'test'] : NetLinks::unifiWanDaily(35);
         if ($r['days']) {
             foreach ($r['days'] as $day => [$rx, $tx]) {
                 q("INSERT INTO net_wan_day (day, rx, tx, src) VALUES (?, ?, ?, 'unifi') ON DUPLICATE KEY UPDATE rx = VALUES(rx), tx = VALUES(tx), src = 'unifi'", [$day, $rx, $tx]);
             }
-            return null;
+            return;
         }
         foreach (q('SELECT day, SUM(rx) rx, SUM(tx) tx FROM net_traffic_day WHERE day >= CURDATE() - INTERVAL 34 DAY GROUP BY day')->fetchAll() as $d) {
             q("INSERT INTO net_wan_day (day, rx, tx, src) VALUES (?, ?, ?, 'devices') ON DUPLICATE KEY UPDATE rx = IF(src = 'unifi', rx, VALUES(rx)), tx = IF(src = 'unifi', tx, VALUES(tx))",
                 [$d['day'], (int) $d['rx'], (int) $d['tx']]);
         }
-        return null;
     }
 
     /** Deze maand: totaal, per dag, de datalimiet en de verwachting aan het eind van de maand */
@@ -234,7 +356,7 @@ final class NetTraffic
         $cap = (float) str_replace(',', '.', (string) setting('net_wan_cap_gb', ''));
         $daysIn = (int) date('t', (int) strtotime($month . '-01'));
         $today = $month === date('Y-m') ? (int) date('j') : $daysIn;
-        $forecast = $today > 0 ? (int) round(($rx + $tx) / max(1, $today - 1 + (int) date('G') / 24) * $daysIn) : 0;
+        $forecast = (int) round(($rx + $tx) / max(1, $today - 1 + (int) date('G') / 24) * $daysIn);
         return ['month' => $month, 'rx' => $rx, 'tx' => $tx, 'cap' => $cap > 0 ? (int) round($cap * 1e9) : null, 'forecast' => $month === date('Y-m') ? $forecast : null,
             'src' => $rows ? (in_array('unifi', array_column($rows, 'src'), true) ? 'unifi' : 'devices') : null,
             'days' => array_map(fn($r) => [(string) $r['day'], (int) $r['rx'], (int) $r['tx']], $rows)];
@@ -247,17 +369,18 @@ final class NetTraffic
         if (!$m['cap']) {
             return;
         }
-        $used = $m['rx'] + $m['tx'];
+        $used = (int) $m['rx'] + (int) $m['tx'];
+        $cap = (int) $m['cap'];
         $done = json_decode((string) setting('net_wan_cap_alert', ''), true) ?: [];
         foreach ([100, 80] as $pct) {
-            if ($used >= $m['cap'] * $pct / 100 && ($done[$pct] ?? '') !== $m['month']) {
+            if ($used >= $cap * $pct / 100 && ($done[$pct] ?? '') !== $m['month']) {
                 $done[$pct] = $m['month'];
                 if ($pct === 100) {
                     $done[80] = $m['month'];
                 }
                 save_setting('net_wan_cap_alert', json_encode($done));
                 Monitor::sysInfo('net_cap', null, null, '📶 ' . t('Internet: {p}% van je datalimiet gebruikt', ['p' => $pct]),
-                    fn() => t('Deze maand {u} van {c} (↓ {d} · ↑ {up}).', ['u' => self::human($used), 'c' => self::human((int) $m['cap']), 'd' => self::human($m['rx']), 'up' => self::human($m['tx'])]));
+                    fn() => t('Deze maand {u} van {c} (↓ {d} · ↑ {up}).', ['u' => self::human($used), 'c' => self::human($cap), 'd' => self::human($m['rx']), 'up' => self::human($m['tx'])]));
                 break;
             }
         }
@@ -396,19 +519,24 @@ final class NetTraffic
         $days = q('SELECT day, rx, tx FROM net_traffic_day WHERE device_id = ? AND day >= CURDATE() - INTERVAL 29 DAY ORDER BY day', [$id])->fetchAll();
         $hist = array_values(array_filter($days, fn($d) => $d['day'] < date('Y-m-d')));
         $hist = array_slice($hist, -14);
-        $last = q('SELECT rate_rx, rate_tx, at FROM net_counters WHERE device_id = ?', [$id])->fetch() ?: null;
+        $last = q('SELECT rate_rx, rate_tx, at, src FROM net_counters WHERE device_id = ?', [$id])->fetch() ?: null;
         return [
             'hours' => array_map(fn($r) => [substr((string) $r['hour'], 0, 13), (int) $r['rx'], (int) $r['tx']], $hours),
             'days' => array_map(fn($r) => [(string) $r['day'], (int) $r['rx'], (int) $r['tx']], $days),
             'normal' => count($hist) >= 7 ? ['rx' => self::median(array_map('intval', array_column($hist, 'rx'))), 'tx' => self::median(array_map('intval', array_column($hist, 'tx')))] : null,
             'rate' => $last && (int) $last['at'] >= time() - 3 * self::EVERY ? ['rx' => (int) $last['rate_rx'], 'tx' => (int) $last['rate_tx']] : null,
+            'src' => $last['src'] ?? null,
         ];
     }
 
     public static function state(): array
     {
         $st = json_decode((string) setting('net_traffic_state', ''), true) ?: [];
-        return ['on' => self::enabled(), 'setting' => setting('net_traffic', '1') === '1', 'unifi' => NetLinks::unifiOn(), 'account' => NetLinks::unifiAccountMode(),
-            'at' => $st['at'] ?? null, 'error' => $st['error'] ?? null];
+        $src = [];
+        foreach (q('SELECT src, COUNT(*) n FROM net_counters WHERE at >= ? GROUP BY src', [time() - 3600])->fetchAll() as $r) {
+            $src[$r['src']] = (int) $r['n'];
+        }
+        return ['on' => self::enabled() && self::hasSource(), 'setting' => setting('net_traffic', '1') === '1', 'unifi' => NetLinks::unifiOn(), 'account' => NetLinks::unifiAccountMode(),
+            'at' => $st['at'] ?? null, 'error' => $st['error'] ?? null, 'sources' => $src ?: (object) []];
     }
 }

@@ -711,6 +711,12 @@ if ($action === 'agent') {
     } catch (Throwable $e) {
         error_log('RzMon: pad-gegevens niet verwerkt: ' . $e->getMessage());
     }
+    // 1.188.0 (agent 1.80.0): verkeer van de netwerkkaarten, voor Netwerk → Verkeer als UniFi deze server niet ziet
+    try {
+        NetTraffic::fromAgent($host, $in);
+    } catch (Throwable $e) {
+        error_log('RzMon: netwerkverkeer van de agent niet verwerkt: ' . $e->getMessage());
+    }
     // 1.178.0 (agent 1.79.0): antwoord op 🧪 Test
     try {
         AgentTest::fromAgent($host, $in);

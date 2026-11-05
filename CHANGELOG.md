@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.188.0**: **verkeer ook zonder UniFi**: via SNMP op je switches en via de agent op je servers (agent 1.80.0), met UniFi als eerste keus.
 - **1.187.0**: je **internetlijn per maand** met een datalimiet, **diensten per apparaat** (DPI), een nieuwe **check Verkeer** en het rapport **Netwerkverkeer**.
 - **1.186.0**: **verkeer per apparaat** (uit UniFi): top 10 van vandaag, grafieken per uur en per dag, een heatmap van aanwezigheid en verkeer, en een melding bij ongewoon veel of nachtelijk verkeer.
 - **1.185.0**: **status bevestigen**: een check wordt pas warning of critical (en eventueel weer OK) na N controles achter elkaar; algemeen in de beheerportal en per check te overschrijven, leeg = meteen.
 - **1.184.0**: **Netwerk → Overzicht**: een kaart van je netwerk (internet → router → switches en access points → apparaten), met tellers per soort en per netwerk.
-- **1.183.0**: **Netwerk → Ontdekken**: nieuwe en onbekende apparaten, wat er verandert (IP, poorten, nieuwe domeinen, weg of terug), voorstellen om met één klik te bewaken, en wanneer elk apparaat online was. Apparaten kun je nu ook groeperen.
+
+## 1.188.0 – 2026-11-05
+### Nieuw
+- **📊 Verkeer per apparaat, ook zonder UniFi.** Naast UniFi kent RzMon nu twee bronnen voor het verkeer:
+  - **SNMP op je switches:** van een switch met SNMP (soort switch, router, access point of firewall) leest RzMon elke 5 minuten welke MAC-adressen op welke poort zitten, en de bytetellers van die poorten. Een poort met precies één apparaat erop telt voor dat apparaat; een uplink (meer apparaten) telt niet mee.
+  - **De agent op je servers** (**agent 1.80.0 nodig**): de agent stuurt de tellers van zijn echte netwerkkaarten mee. RzMon koppelt die aan het apparaat in de netwerkscan met het adres van de server.
+  - **Voorrang:** ziet UniFi een apparaat, dan gaat UniFi voor; daarna SNMP, daarna de agent. Wisselt de bron, dan telt pas de volgende meting, zodat er geen sprong in het verkeer komt.
+  - Bij het verkeer staat nu welke bron het leverde (UniFi, SNMP of agent).
+- Nieuwe agent 1.80.0 (zie de [changelog van de agent](agent/CHANGELOG.md)).
+### Opgelost
+- Meldingen van de codecontrole (PHPStan) in het verkeer van de internetlijn (1.187.0); voor de gebruiker verandert er niets.
 
 ## 1.187.0 – 2026-11-05
 ### Nieuw

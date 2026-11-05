@@ -138,6 +138,8 @@ final class Installer
         ['checks', 'confirm_ok', 'SMALLINT UNSIGNED NULL'],
         ['checks', 'pend_status', 'TINYINT NULL'],
         ['checks', 'pend_count', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0'],
+        // 1.188.0: waar de tellerstand van een apparaat vandaan komt (unifi, snmp of agent)
+        ['net_counters', 'src', "VARCHAR(8) NOT NULL DEFAULT 'unifi'"],
         // Info-meldingen: per server uit te zetten voor agent-updates (1 = volgt de algemene info-regel)
         ['hosts', 'info_agent', 'TINYINT(1) NOT NULL DEFAULT 1'],
         // Info-check: geeft alleen info-meldingen, telt nooit als storing

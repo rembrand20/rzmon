@@ -221,6 +221,13 @@ final class SnmpMonitor
         return new SnmpConn($s, $peer);
     }
 
+    /** 1.188.0: verbinding met een server die SNMP heeft (eigen of algemene instelling), of null */
+    public static function open(array $host): ?SnmpConn
+    {
+        $cfg = self::config($host['snmp'] ?? null);
+        return $cfg && self::available() ? self::session($cfg, (string) $host['address']) : null;
+    }
+
     /** Systeeminformatie (voor 🔍 Test SNMP): naam, beschrijving, uptime, fabrikant en de herkende soort apparaat */
     public static function test(array $cfg, string $address): array
     {

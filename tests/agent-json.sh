@@ -42,6 +42,10 @@ st = d.get('selftest') or {}
 if st.get('id') != 42 or not any(i.get('k') == 'url' and i.get('ok') == 'ok' for i in st.get('items', [])):
     print('✘ zelftest ontbreekt of het adres van RzMon was niet bereikbaar (selftest):', st); sys.exit(1)
 print('✔ zelftest: ' + ', '.join('%s=%s' % (i['k'], i['ok']) for i in st['items']))
+nic = d.get('nic')   # agent 1.80.0: netwerkkaarten (in een container zonder echte netwerkkaart mag het ontbreken)
+if nic is not None and not (isinstance(nic.get('rx'), int) and isinstance(nic.get('tx'), int) and nic.get('ifs')):
+    print('✘ netwerkverkeer (nic) is niet geldig:', nic); sys.exit(1)
+print('✔ netwerkverkeer: ' + ('%s (↓ %d, ↑ %d bytes)' % (','.join(nic['ifs']), nic['rx'], nic['tx']) if nic else 'geen echte netwerkkaart (container)'))
 odd = [p for p in d['proc_list'] if p[0] == 'rztestproc' and '\\[' in p[3] and '"x"' in p[3]]
 print('✔ geldige JSON, %d bytes, %d processen, %d disks%s' % (len(raw), len(d['proc_list']), len(d['disks']),
       ', proces met backslash netjes meegestuurd' if odd else ''))

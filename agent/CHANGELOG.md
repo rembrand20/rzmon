@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.80.0 – 2026-11-05
+- **Netwerkverkeer** (RzMon 1.188.0): de agent stuurt de bytetellers van de echte netwerkkaarten van de server mee (met een apparaat erachter, plus bond en wifi; de poorten van een bond tellen via de bond, niet dubbel). RzMon gebruikt die voor *Netwerk → Verkeer per apparaat* als UniFi deze server niet ziet. Alleen lezen uit `/sys/class/net`, geen extra programma's nodig.
+
 ## 1.79.0 – 2026-11-05
 - **Zelftest** (RzMon 1.178.0): met **🧪 Test** in de Agent Manager test de agent zichzelf bij zijn volgende ronde: de planning (timer of cron), de rechten van het instellingenbestand, DNS, het adres en het reserve-adres van RzMon, de klok, de vrije ruimte, de wachtrij, fouten in zijn log van het laatste uur en de hulpprogramma's die hij nodig heeft. Alleen vaste controles die lezen, één keer per vraag.
 

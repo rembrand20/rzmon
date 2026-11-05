@@ -1535,6 +1535,29 @@ ok($tcRate['status'] === STATUS_WARN && abs((float) $tcRate['value'] - 24.0) < 0
     && $tcNone['status'] === STATUS_UNKNOWN && $wm['src'] === 'devices' && $wm['rx'] >= 3000000000 && $wm['cap'] > $wmUsed
     && ($capAlert[80] ?? '') === date('Y-m') && ($capAlert[100] ?? '') === '' && $rep['top'][0]['rx'] >= 3000000000,
     'check verkeer: snelheid en upload vandaag met drempels, onbekend apparaat; internetlijn uit de som van de apparaten, 80% van de datalimiet gemeld; top in het rapport');
+// 1.188.0: andere bronnen: agent (netwerkkaart), SNMP (switchpoort met één MAC) en voorrang (UniFi > SNMP > agent)
+q('DELETE FROM net_counters WHERE device_id IN (?, ?)', [$trA, $trB]);
+q('DELETE FROM net_traffic WHERE device_id IN (?, ?)', [$trA, $trB]);
+$t0 = time() - 2000;
+$f1 = NetTraffic::feed($trB, 'agent', 1000, 500, $t0);                 // eerste stand
+$f2 = NetTraffic::feed($trB, 'agent', 4000, 1500, $t0 + 300);          // +3000/+1000
+$f3 = NetTraffic::feed($trB, 'unifi', 90000, 9000, $t0 + 400);         // UniFi neemt over: nog geen verschil
+$f4 = NetTraffic::feed($trB, 'agent', 5000, 2000, $t0 + 500);          // UniFi is vers: agent telt niet
+$f5 = NetTraffic::feed($trB, 'unifi', 91000, 9500, $t0 + 700);         // +1000/+500
+$rate = (int) q('SELECT rate_rx FROM net_counters WHERE device_id = ?', [$trB])->fetchColumn();
+q('INSERT INTO hosts (name, address, mode, enabled, agent_ips) VALUES (\'Agentserver\', \'10.186.0.1\', \'agent\', 1, \'\')');
+$agHost = q('SELECT * FROM hosts WHERE id = ?', [(int) db()->lastInsertId()])->fetch();
+NetTraffic::fromAgent($agHost, ['nic' => ['rx' => 100, 'tx' => 100]], $t0 + 100);
+NetTraffic::fromAgent($agHost, ['nic' => ['rx' => 2100, 'tx' => 600]], $t0 + 400);
+$agTr = q('SELECT SUM(rx) rx, SUM(tx) tx FROM net_traffic WHERE device_id = ?', [$trA])->fetch();
+q('DELETE FROM hosts WHERE id = ?', [$agHost['id']]);
+$ports = NetTraffic::snmpPorts(
+    ['1.238.238.238.0.1.134' => '3', '1.170.187.204.0.0.1' => '5', '1.170.187.204.0.0.2' => '5'],   // poort 3: één MAC, poort 5: twee (uplink)
+    [], ['3' => '103', '5' => '105'], ['103' => '7000', '105' => '1'], ['103' => '9000', '105' => '1']);
+ok($f1 === null && $f2 === [3000, 1000] && $f3 === null && $f4 === null && $f5 === [1000, 500] && $rate === 3
+    && (int) $agTr['rx'] === 2000 && (int) $agTr['tx'] === 500
+    && $ports === ['ee:ee:ee:00:01:86' => [9000, 7000]],
+    'bronnen: agent telt, UniFi neemt over zonder sprong en gaat voor, snelheid uit het verschil; agent via het adres van de server; SNMP alleen poorten met één MAC (in = upload)');
 q('DELETE FROM net_wan_day');
 q('DELETE FROM net_events WHERE device_id IN (?, ?)', [$trA, $trB]);
 q('DELETE FROM net_devices WHERE id IN (?, ?)', [$trA, $trB]);
