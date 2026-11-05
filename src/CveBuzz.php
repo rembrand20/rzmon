@@ -319,7 +319,7 @@ final class CveBuzz
                 . ' → ' . ($h['fixed'] ?: t('nog geen oplossing')) . ' · ' . ($ports ? t('luistert op het netwerk: {p}', ['p' => implode(', ', $ports)]) : t('luistert niet op het netwerk'))
                 . ($h['ignored'] ? ' · ' . t('risico geaccepteerd') : '');
         }
-        return ['text' => implode("\n", array_filter($lines, static fn($l) => $l !== null)), 'host_id' => $firstHost, 'actions' => [], 'diag' => null];
+        return ['text' => implode("\n", $lines), 'host_id' => $firstHost, 'actions' => [], 'diag' => null];
     }
 
     /** Oordeel uit het antwoord: now (eerst doen) | later (kan wachten) | na (niet van toepassing) */

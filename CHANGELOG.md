@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.176.0**: **Monitoring → Containers** (alle Podman- en Docker-containers met status, CPU, geheugen en schijf), labels **Running / Failed / Stopped / Paused**, een **nieuwe popup per check** en een compacte **Nu aandacht nodig** in CC.
 - **1.175.0**: **Monitoring in CC** in een nieuw jasje: één raster met tegels (ring, lijntjes, 24 uur) zonder aparte sectie *met problemen*, en openklappen over de volle breedte met een veeranimatie zoals op een Mac.
 
+## 1.179.1 – 2026-11-05
+### Opgelost
+- Een melding van de codecontrole (PHPStan) in de rugbaarheid van 1.179.0 opgelost; voor de gebruiker verandert er niets.
+
 ## 1.179.0 – 2026-11-05
 ### Nieuw
 - **🔥 Rugbaarheid per CVE** (0–100): hoeveel aandacht een kwetsbaarheid op je servers krijgt en of hij al misbruikt wordt. RzMon telt één keer per dag (actief misbruikt of high/critical: twee keer):
