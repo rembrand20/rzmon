@@ -1187,7 +1187,7 @@ function init() {
       s.geo_error ? `<span class="warn-txt">${esc(s.geo_error)}</span>` : '',
     ].filter(Boolean).join(' · ');
   };
-  api('ipintel_status').then(ipintelShow).catch(() => {});
+  if (isAdmin()) api('ipintel_status').then(ipintelShow).catch(() => {});
   // Dreigingsinformatie (1.112.0): stand, sleutels testen, lijsten bijwerken
   const tiShow = (s) => {
     const prov = { abuse: 'AbuseIPDB', greynoise: 'GreyNoise', shodan: 'Shodan', circl: 'CIRCL', bazaar: 'MalwareBazaar', report: L('gemeld') };
@@ -1205,7 +1205,7 @@ function init() {
         dn.error ? `<span class="warn-txt">${esc(dn.error)}</span>` : ''].filter(Boolean).join(' · ');
   };
   const tiLoad = () => api('ti_status').then(tiShow).catch(() => {});
-  tiLoad();
+  if (isAdmin()) tiLoad();
   $('#ids-ti-card').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-ti-test]');
     if (!b) return;
@@ -1312,8 +1312,8 @@ function init() {
     try { await api('settings_save', { [c.dataset.protToggle]: c.checked ? '1' : '0' }); toast(c.checked ? L('Aangezet') : L('Uitgezet')); loadProt(); } catch (ex) { toast(ex.message, 'err'); c.checked = !c.checked; }
   };
   $('#prot-cards').onclick = (e) => {
-    const cfg = e.target.closest('[data-prot-cfg]');
-    if (cfg) return protCfgDialog(cfg.dataset.protCfg);
+    const set = e.target.closest('[data-prot-set]');   // 1.181.0: instellen gebeurt in de beheerportal
+    if (set) { protFocus = set.dataset.protSet; showTab('settings/ids_prot'); return; }
     const b = e.target.closest('[data-prot-show]');
     if (!b) return;
     idsCard = b.dataset.protShow; idsFilter = 'all'; idsCat = '';
@@ -1606,7 +1606,7 @@ function showTab(name) {
     if (page) fxFromQuery(page, qs);
   }
   if (name.startsWith('settings/')) { sub = name.slice(9); name = 'settings'; }
-  if (name === 'settings' && !isAdmin()) name = $('#tab-account') ? 'account' : 'dashboard';   // instellingen: alleen beheerders
+  if (name === 'settings' && !isAdmin() && !isUser()) name = $('#tab-account') ? 'account' : 'dashboard';   // 1.181.0: beheerders, en gebruikers alleen bekijken
   if (!$('#tab-' + name)) name = 'home';
   $$('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
   moveTabIndicator();
@@ -4673,7 +4673,7 @@ async function loadAdvice() {
   el.innerHTML = r.list.length ? `<div class="adv-list">${r.list.map((a) => `<div class="adv-item">
       <span class="adv-ic" title="${esc(ADVICE_KIND[a.kind][1])}">${ADVICE_KIND[a.kind][0]}</span>
       <div class="adv-txt"><b>${esc(a.label)}</b><span class="small">${esc(a.text)}</span></div>
-      <div class="adv-btns"><button type="button" class="btn small-btn primary" data-adv="${a.id}" data-apply="1">${L('Toepassen')}</button>
+      <div class="adv-btns need-admin"><button type="button" class="btn small-btn primary" data-adv="${a.id}" data-apply="1">${L('Toepassen')}</button>
         <button type="button" class="btn small-btn" data-adv="${a.id}" data-apply="0">${L('Negeren')}</button></div></div>`).join('')}</div>`
     : `<p class="muted small">✔ ${L('Geen open voorstellen.')} ${r.last ? L('Laatst bekeken: {d}.', { d: esc(r.last) }) : L('De eerste keer vannacht (of nu met 🔄).')}</p>`;
   $$('[data-adv]', el).forEach((b) => {
@@ -5059,6 +5059,39 @@ document.addEventListener('click', (e) => {
 });
 
 // ---------------------------------------------------------------- SNMP
+// ---------------------------------------------------------------- 1.181.0: Instellingen → IDS → Beschermingen
+let protFocus = null;
+async function loadProtSettings() {
+  const box = $('#protset');
+  if (!box) return;
+  let d;
+  try { d = await api('ids_protect'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
+  protData = d;
+  box.innerHTML = `${!d.enabled ? `<div class="callout">⚠️ ${L('Het IDS staat uit: deze beschermingen doen pas iets als het IDS aan staat (IDS → Algemeen).')}</div>`
+      : d.mode !== 'block' ? `<div class="callout">🎓 ${L('Modus Leren: alles wordt alleen gemeld; blokkeren, stoppen en isoleren gebeuren pas in de modus Blokkeren (IDS → Algemeen).')}</div>` : ''}
+    ${Object.entries(d.groups).map(([g, [icon, name]]) => `<h3 class="set-sub">${icon} ${esc(name)}</h3><div class="ps-list">
+      ${d.cards.filter((c) => c.g === g).map((c) => `<div class="ps-row" id="protset-${esc(c.id)}">
+        <div class="ps-t"><b>${esc(c.title)}</b><small>${esc(c.what)}</small>
+          <span class="ps-acts">${c.sev === 2 ? '<span class="sev-chip s2">🔴 critical</span>' : c.sev === 1 ? '<span class="sev-chip s1">🟠 warning</span>' : ''} → ${c.acts.map(([ic, text]) => `<span class="act-chip">${ic} ${esc(text)}</span>`).join(' ')}</span>
+          ${c.attention ? `<span class="warn-txt small">⚠️ ${esc(c.attention)}</span>` : ''}</div>
+        <div class="ps-r">${PROT_CFG[c.id] ? `<button type="button" class="btn small-btn" data-ps-cfg="${esc(c.id)}">⚙️ ${L('Drempels')}</button>` : ''}
+          ${c.toggle ? `<label class="am-sw" title="${esc(c.toggle.label)}"><input type="checkbox" data-ps-toggle="${esc(c.toggle.key)}" ${c.toggle.on ? 'checked' : ''}><span aria-hidden="true"></span></label>`
+            : `<span class="muted small">${L('altijd aan')}</span>`}</div>
+      </div>`).join('')}</div>`).join('')}`;
+  box.onchange = async (e) => {
+    const t = e.target.closest('[data-ps-toggle]');
+    if (!t) return;
+    try { await api('settings_save', { [t.dataset.psToggle]: t.checked ? '1' : '0' }); savedFlag(t.closest('.ps-r'), true); }
+    catch (ex) { toast(ex.message, 'err'); t.checked = !t.checked; }
+  };
+  box.onclick = (e) => { const c = e.target.closest('[data-ps-cfg]'); if (c) protCfgDialog(c.dataset.psCfg); };
+  if (protFocus) {
+    const row = $('#protset-' + protFocus);
+    protFocus = null;
+    if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.classList.add('ps-hl'); setTimeout(() => row.classList.remove('ps-hl'), 2200); }
+  }
+}
+
 // ---------------------------------------------------------------- 1.180.0: Instellingen → Rapporten
 const REP_DAYS = () => [[1, L('ma')], [2, L('di')], [3, L('wo')], [4, L('do')], [5, L('vr')], [6, L('za')], [7, L('zo')]];
 const REP_INFO = {
@@ -8578,7 +8611,7 @@ function renderProt() {
         <br><span class="small muted">${L('{on} van {n} onderdelen aan', { on: d.on, n: d.total })}${d.attention ? ` · <span class="warn-txt">${L('{n} aandachtspunt(en)', { n: d.attention })}</span>` : ''}</span></div>`;
     $('#prot-cards').innerHTML = Object.entries(d.groups).map(([g, [icon, name]]) => `<h3 class="set-sub">${icon} ${esc(name)}</h3><div class="prot-grid">
       ${d.cards.filter((c) => c.g === g).map((c) => `<div class="prot-card ${c.toggle && !c.toggle.on ? 'off' : ''}" data-key="${esc(c.id)}" id="prot-${esc(c.id)}">
-        <div class="prot-head"><b>${esc(c.title)}</b>${PROT_CFG[c.id] ? `<button type="button" class="icon-btn need-admin prot-cfg" data-prot-cfg="${esc(c.id)}" title="${esc(L('Drempels en details'))}">⚙️</button>` : ''}${c.toggle ? `<label class="switch small need-admin" title="${esc(c.toggle.label)}"><input type="checkbox" data-prot-toggle="${esc(c.toggle.key)}" ${c.toggle.on ? 'checked' : ''}><span></span></label>` : ''}</div>
+        <div class="prot-head"><b>${esc(c.title)}</b>${c.toggle ? `<span class="prot-st ${c.toggle.on ? 'on' : 'off'}">${c.toggle.on ? L('aan') : L('uit')}</span>` : ''}${c.toggle || PROT_CFG[c.id] ? `<button type="button" class="btn small-btn need-admin prot-set" data-prot-set="${esc(c.id)}" title="${esc(L('Instellen in de beheerportal'))}">⚙️ ${L('Instellen')}</button>` : ''}</div>
         <p class="small muted">${esc(c.what)}</p>
         <div class="prot-acts">${c.sev === 2 ? '<span class="sev-chip s2">🔴 critical</span>' : c.sev === 1 ? '<span class="sev-chip s1">🟠 warning</span>' : ''} →
           ${c.acts.map(([icon, text, a]) => `<span class="act-chip t-${a} ${!block && ['block', 'kill', 'isolate', 'preblock'].includes(a) ? 'learn' : ''}" title="${esc(!block && ['block', 'kill', 'isolate', 'preblock'].includes(a) ? L('in de modus Leren alleen melden') : text)}">${icon} ${esc(text)}</span>`).join(' ')}
@@ -11286,6 +11319,8 @@ async function apiKeyClick(e) {
 }
 
 function isAdmin() { return document.body.dataset.role === 'admin'; }
+/** 1.181.0: de rol gebruiker (niet beheerder, niet alleen-lezen): mag een paar onderdelen van de beheerportal bekijken */
+function isUser() { return document.body.dataset.role === 'user'; }
 
 // ---------------------------------------------------------------- Accountmenu (rechtsboven)
 function initAccountMenu() {
@@ -11511,6 +11546,7 @@ const SET_NAV = [
     ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzMon zelf, zoals updates en certificaten.')]]],
   ['ids', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS'), [
     ['ids', L('Algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
+    ['ids_prot', L('Beschermingen'), ['ids_prot'], L('Wat het IDS doet bij een aanval: per bescherming aan of uit, met de drempels.')],
     ['ids_edr', L('Endpoint-bewaking'), ['ids_edr', 'ids_rules'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.'),
       [['bewaking', L('Bewaking'), ['ids_edr']], ['regels', L('Regels en uitzonderingen'), ['ids_rules']]]],
     ['ids_ti', L('Dreigingsinformatie'), ['ids_ti'], L('Bekende aanvallers en malware opzoeken, en DNS en Suricata.')],
@@ -11538,6 +11574,7 @@ const SET_NAV = [
     ['api', L('REST API'), ['api'], L('API-sleutels voor andere toepassingen.')],
     ['statuspage', L('Statuspagina'), ['statuspage'], L('Een openbare pagina met de status, via een geheime link.')]]],
   ['systeem', SET_IC('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), L('Systeem'), [
+    ['looks', L('Weergave'), ['looks'], L('De standaard weergave voor accounts die zelf nog niets kozen.')],
     ['update', L('Bijwerken'), ['update'], L('Nieuwe versies van RzMon, met of zonder automatisch bijwerken.')],
     ['backup', L('Back-up'), ['backup'], L('Automatische back-ups en terugzetten.')],
     ['db', L('Database en server'), ['dbconn', 'db', 'storage', 'dbuse', 'server', 'syscheck', 'cron'], L('Databaseverbinding, bewaartermijnen, tijdzone, PHP en de systeemcheck.'),
@@ -11546,6 +11583,22 @@ const SET_NAV = [
     ['changelog', L('Wijzigingslogboek'), ['changelog'], L('Wie wat wijzigde, met terugdraaien.')],
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
+/* 1.181.0: de rol gebruiker ziet alleen deze onderdelen, om te bekijken (de rest is voor beheerders) */
+const SET_USER = { overview: null, features: null, reports: null, advice: ['smart', 'advice'], changelog: null };
+if (document.body.dataset.role === 'user') {
+  for (let gi = SET_NAV.length - 1; gi >= 0; gi--) {
+    const subs = SET_NAV[gi][3];
+    for (let si = subs.length - 1; si >= 0; si--) {
+      const k = subs[si][0];
+      if (!(k in SET_USER)) { subs.splice(si, 1); continue; }
+      if (SET_USER[k]) {
+        subs[si][2] = subs[si][2].filter((c) => SET_USER[k].includes(c));
+        if (subs[si][4]) subs[si][4] = subs[si][4].map((t) => [t[0], t[1], t[2].filter((c) => SET_USER[k].includes(c))]).filter((t) => t[2].length);
+      }
+    }
+    if (!subs.length) SET_NAV.splice(gi, 1);
+  }
+}
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
 const SET_ALIAS = { ids_rules: 'ids_edr', whitelist: 'ids_attack', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db' };   // 1.120.0: samengevoegde onderdelen
 const SET_TAB_OF = { ids_rules: 'regels', whitelist: 'whitelist', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
@@ -11584,7 +11637,11 @@ function showSettingsSection(id, focusEl) {
   const inForm = cards.some((k) => { const c = $(`#tab-settings [data-sk="${k}"]`); return c && c.closest('#settings-form') && !c.hasAttribute('data-nodirty'); });
   $('#settings-form').classList.toggle('set-noform', !inForm);
   $('#set-title').textContent = f.sub[1];
-  $('#set-lead').textContent = f.sub[3] || '';
+  $('#set-lead').textContent = (!isAdmin() ? '👁 ' + L('Alleen bekijken') + ' · ' : '') + (f.sub[3] || '');
+  if (!isAdmin()) {
+    $('#settings-form').classList.add('set-noform');
+    $$('#tab-settings [data-sk] input, #tab-settings [data-sk] select, #tab-settings [data-sk] textarea').forEach((x) => { x.disabled = true; });
+  }
   $('#set-crumb').textContent = `${L('Instellingen')} › ${f.group}`;
   // Eén kaart op de pagina: zijn titel is gelijk aan de paginatitel, dus weg (tenzij er knoppen in staan)
   const shown = $$('#tab-settings [data-sk]').filter((c) => !c.classList.contains('set-off'));
@@ -11602,6 +11659,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'ai') loadAiSettings();   // 1.171.0
   if (setSection === 'snmp') loadSnmpGlobal();   // 1.178.0
   if (setSection === 'reports') loadReports();   // 1.180.0
+  if (setSection === 'ids_prot') loadProtSettings();   // 1.181.0
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0
@@ -11763,7 +11821,7 @@ async function loadSettingsHealth() {
     <div class="ov-list">${items.map((i, n) => `<div class="ov-cell"><button type="button" class="ov-item ${i.status}" data-set-go="${esc(i.section)}">
       <span class="ov-ic">${icon[i.status]}</span><span class="ov-txt"><b>${esc(i.title)}</b><small>${esc(i.detail)}</small></span><span class="ov-go">›</span></button>
       ${i.subs ? `<ul class="ov-subs">${i.subs.filter((s) => s.status !== 'ok').map((s) => `<li class="${s.status}"><span class="ov-ic">${icon[s.status]}</span> <b>${esc(s.title)}</b> <span class="muted">${esc(s.detail)}</span></li>`).join('')}</ul>` : ''}
-      ${i.code || i.acts ? `<div class="ov-extra">${i.code ? copyBox(`ov-code-${n}`, i.code) : ''}${(i.acts || []).map((a) => `<button type="button" class="btn small-btn primary" data-ov-act="${esc(a[0])}">${esc(a[1] || L('Regelen'))}</button>`).join('')}</div>` : ''}</div>`).join('')}</div>`;
+      ${i.code || i.acts ? `<div class="ov-extra">${i.code ? copyBox(`ov-code-${n}`, i.code) : ''}${(i.acts || []).map((a) => `<button type="button" class="btn small-btn primary need-admin" data-ov-act="${esc(a[0])}">${esc(a[1] || L('Regelen'))}</button>`).join('')}</div>` : ''}</div>`).join('')}</div>`;
   wireCopy(box);
   $$('[data-ov-act]', box).forEach((b) => (b.onclick = () => healthAction(b.dataset.ovAct, b)));
   renderSettingsNav();
@@ -11916,9 +11974,9 @@ function polishSettings(root) {
     for (let n = h.nextElementSibling; n && !n.matches('h3.set-sub'); n = n.nextElementSibling) if (!n.hidden) { any = true; break; }
     h.hidden = !any;
   });
-  $$('[data-sk^="ids"]:not([data-sk="ids_servers"]):not([data-sk="ids_rules"]) > h2', root).forEach((h) => {
+  $$('[data-sk^="ids"]:not([data-sk="ids_servers"]):not([data-sk="ids_rules"]):not([data-sk="ids_prot"]) > h2', root).forEach((h) => {
     if (h.nextElementSibling && h.nextElementSibling.classList.contains('prot-hint')) return;
-    h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je bij <a href="#ids/prot" data-goto="ids/prot">IDS → Bescherming</a>. Hier staan de algemene instellingen.')}</div>`);
+    h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je bij <a href="#settings/ids_prot" data-goto="settings/ids_prot">IDS → Beschermingen</a>. Hier staan de algemene instellingen.')}</div>`);
   });
   $$('[data-sk] h2:not([data-pol]), [data-sk] h3.set-sub:not([data-pol])', root).forEach((h) => {
     h.dataset.pol = '1';
@@ -13160,7 +13218,7 @@ async function loadChangeLog() {
       <div class="muted small">${esc(fmtDateTime(i.at))} · ${esc(i.username)} · ${esc(i.ip)}${i.undone_at ? ' · ' + L('teruggezet op {t}', { t: esc(fmtDateTime(i.undone_at)) }) : ''}</div>
       ${i.changes.length ? `<details class="small"><summary>${i.changes.length === 1 ? L('1 wijziging') : L('{n} wijzigingen', { n: i.changes.length })}</summary>
         <table class="kv">${i.changes.map(([k, o, n]) => `<tr><th class="mono">${esc(k)}</th><td>${val(o)} → ${val(n)}</td></tr>`).join('')}</table></details>` : ''}</div>
-      <div class="cl-act">${i.can_undo ? `<button type="button" class="btn small-btn" data-undo="${i.id}" title="${esc(L('Terugzetten naar hoe het was'))}">↩ ${L('Terugzetten')}</button>` : ''}</div></div>`).join('')
+      <div class="cl-act">${i.can_undo ? `<button type="button" class="btn small-btn need-admin" data-undo="${i.id}" title="${esc(L('Terugzetten naar hoe het was'))}">↩ ${L('Terugzetten')}</button>` : ''}</div></div>`).join('')
     : `<p class="muted">${L('Nog niets.')}</p>`;
 }
 
@@ -14095,7 +14153,9 @@ function iaCard(a) {
   const acts = (a.acts || []).map((x, i) => {
     const lbl = { upgrade: '⬆ ' + (x.label ? L('Bijwerken op {h}', { h: x.label }) : L('Bijwerken via de agent')), cve: '🐞 ' + x.cve, ip: '🔎 ' + L('Alles over {ip}', { ip: x.ip }),
       block: '⛔ ' + L('Blokkeren'), ids_block: '⛔ ' + L('Nu op Blokkeren zetten'), ids_on: L('IDS aanzetten'), set: '✔ ' + L('Nu aanzetten'), go: (x.label || L('Bekijken')) + ' →' }[x.k] || x.k;
-    return `<button type="button" class="btn small-btn ${i === 0 && ['upgrade', 'ids_block', 'set', 'block', 'ids_on'].includes(x.k) ? 'primary' : ''}" data-ia-act="${i}">${esc(lbl)}</button>`;
+    // 1.181.0: wat iets verandert (bijwerken, blokkeren, een instelling) alleen voor beheerders
+    const adm = ['upgrade', 'ids_block', 'set', 'block', 'ids_on'].includes(x.k) ? ' need-admin' : '';
+    return `<button type="button" class="btn small-btn${adm} ${i === 0 && adm ? 'primary' : ''}" data-ia-act="${i}">${esc(lbl)}</button>`;
   }).join('');
   const cmds = (a.cmds || []).map(([l, c]) => `<div class="ia-cmd"><span class="small muted">${esc(l)}</span><pre>${esc(c)}</pre><button type="button" class="linkbtn small" data-ia-copy>${esc(L('Kopiëren'))}</button></div>`).join('');
   const st = a.status ? `<span class="cc-tag ${a.status === 'done' ? 'ok' : ''}">${esc(IA_ST[a.status]())}</span>` : '';

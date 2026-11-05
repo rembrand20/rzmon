@@ -165,7 +165,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <?php if ($showVulns || $showLeaks): ?><button class="tab" data-tab="vulns" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.5 13H3M21 13h-3.5M6 17l-2.5 2M18 17l2.5 2M6 9 3.5 7.5M18 9l2.5-1.5"/></svg><span class="tab-badge" id="vuln-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Kwetsbaarheden') ?></span><span class="tab-lbl-s"><?= th('CVE\'s') ?></span></button><?php endif; ?>
       <?php if ($showStats): ?><button class="tab" data-tab="analytics" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span><span class="tab-lbl"><?= th('Analyse') ?></span></button><?php endif; ?>
       <?php if ($showNet): ?><button class="tab" data-tab="net" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/><path d="M12 7v5M5 17v-2.5a1.5 1.5 0 0 1 1.5-1.5h11a1.5 1.5 0 0 1 1.5 1.5V17"/></svg><span class="tab-badge s1" id="net-badge" hidden></span></span><span class="tab-lbl"><?= th('Netwerk') ?></span></button><?php endif; ?>
-      <?php if ($role === 'admin'): ?><button class="tab side-only" data-tab="settings" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span><span class="tab-lbl"><?= th('Instellingen') ?></span></button><?php endif; ?>
+      <?php if ($role === 'admin' || $role === 'user'): ?><button class="tab side-only" data-tab="settings" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span><span class="tab-lbl"><?= th('Instellingen') ?></span></button><?php endif; ?>
     </nav>
     <nav class="side-admin" id="side-admin" hidden aria-label="<?= th('Beheer') ?>">
       <button type="button" class="side-back" id="side-back">← <?= th('Terug naar RzMon') ?></button>
@@ -187,7 +187,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <span class="role-tag r-<?= htmlspecialchars($role) ?>"><?= th(ROLE_LABELS[$role] ?? $role) ?></span>
             <div class="muted small"><?= $hasAccount ? th('Ingelogd vanaf {ip}', ['ip' => client_ip()]) : th('Ingelogd zonder wachtwoord omdat je op het lokale netwerk zit') ?></div></div>
           <?php if ($hasAccount): ?><button type="button" role="menuitem" data-acct="account">👤 <?= th('Mijn account') ?></button><?php endif; ?>
-          <?php if ($role === 'admin'): ?><button type="button" role="menuitem" data-acct="settings">⚙️ <?= th('Instellingen') ?></button><?php endif; ?>
+          <?php if ($role === 'admin' || $role === 'user'): ?><button type="button" role="menuitem" data-acct="settings">⚙️ <?= th('Instellingen') ?></button><?php endif; ?>
           <?php if (!$hasAccount): ?><a role="menuitem" class="acct-item" href="index.php?login=1">🔑 <?= th('Inloggen met je account') ?></a><?php endif; ?>
           <div class="acct-sep"></div>
           <div class="acct-row">🌓 <?= th('Thema') ?> <span class="seg" id="theme-seg"><button type="button" data-theme-set="auto">auto</button><button type="button" data-theme-set="light"><?= th('licht') ?></button><button type="button" data-theme-set="dark"><?= th('donker') ?></button></span></div>
@@ -594,7 +594,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <span class="muted small"><?= th('Klik op een onderdeel om het te openen of te sluiten.') ?></span>
         <button type="button" class="btn" id="set-toggle-all"><?= th('⊞ Alles openen') ?></button>
       </div>
-      <form id="settings-form" class="settings-grid need-admin" data-pgrid="set">
+      <form id="settings-form" class="settings-grid" data-pgrid="set">
         <div data-sk="pushover" class="card">
           <h2>Pushover</h2>
           <?= xp(t('Pushmeldingen op je telefoon via de Pushover-app.'), t('<b>Wat het is:</b> Pushover is een app voor iPhone, Android en de computer die berichten van RzMon meteen op je scherm zet, met een eigen geluid per prioriteit en noodmeldingen die blijven herhalen tot je reageert. <b>Instellen:</b> maak op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> een applicatie aan; dat geeft het <i>API-token</i>. Je <i>user key</i> staat op je Pushover-dashboard. <b>Goed om te weten:</b> na een gratis proefperiode betaal je Pushover één keer per platform.')) ?>
@@ -726,6 +726,20 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label class="switch"><input type="checkbox" name="smtp_verify_ssl"><span></span> <?= th('SSL-certificaat controleren (uit bij self-signed)') ?></label>
           </details>
           <button type="button" class="btn" id="email-test"><?= th('📧 Testmail sturen') ?></button>
+        </div>
+
+        <div data-sk="looks" class="card" id="looks-card">
+          <h2>🎨 <?= th('Weergave voor nieuwe accounts') ?></h2>
+          <?= xp(t('De standaard voor accounts die zelf nog niets kozen.'), t('<b>Wat het doet:</b> elk account kiest zijn eigen weergave bij <i>Mijn account → Weergave</i>. Wat je hier instelt, geldt voor accounts die daar nog niets kozen, en voor het lokale netwerk zonder account.')) ?>
+          <label class="switch"><input type="checkbox" name="ids_modern"><span></span> <?= t('<b>Moderne IDS-weergave</b> (anders compact)') ?></label>
+          <label><?= th('Beweging in de Attack Flow en het Command center') ?>
+            <select name="af_motion"><option value="0"><?= th('stil') ?></option><option value="1"><?= th('rustig') ?></option><option value="2"><?= th('vol') ?></option></select></label>
+        </div>
+
+        <div data-sk="ids_prot" class="card" id="idsprot-card" data-nodirty>
+          <h2>🛡️ <?= th('Beschermingen') ?></h2>
+          <?= xp(t('Per bescherming aan of uit, met de drempels.'), t('<b>Wat het doet:</b> hier zet je elke bescherming van het IDS aan of uit en stel je met <b>⚙️ Drempels</b> in wanneer hij ingrijpt. Op <i>IDS → Bescherming</i> zie je wat elke bescherming de laatste 7 dagen deed; met <b>Instellen</b> kom je hier. <b>Modus:</b> in de modus <i>Leren</i> wordt alles alleen gemeld; blokkeren, stoppen en isoleren gebeuren pas in de modus <i>Blokkeren</i> (IDS → Algemeen).')) ?>
+          <div id="protset"><p class="muted small"><?= th('laden…') ?></p></div>
         </div>
 
         <div data-sk="reports" class="card" id="reports-card" data-nodirty>

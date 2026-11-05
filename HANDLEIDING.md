@@ -659,8 +659,13 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
   - alles over https wordt één regel **Beheer via https** (beheeradres, certificaat, DNS, inloggen via http, 2FA van buiten).
 
   Onder zo'n regel staan alleen de punten die aandacht nodig hebben, met hun knoppen (bv. *Alles opruimen*).
-- **IDS: aan/uit op één plek.** Een onderdeel van het IDS zet je aan of uit op de kaarten van *IDS → 🛡️ Bescherming*. De drempels van zo'n onderdeel staan achter **⚙️** op de kaart, bijvoorbeeld het aantal mislukte logins, de blokkeerduur, de honeypot, de leerperiode, de score om te blokkeren en de drempels van de webdiensten.
-- Op de IDS-pagina's bij *Instellingen* staan nog de algemene instellingen (aan/uit van het IDS, de modus, API-sleutels, logbestanden …), met bovenaan een verwijzing naar Bescherming. Een kopje waar niets meer onder staat, verdwijnt.
+- **IDS: aan/uit op één plek.** Vanaf 1.181.0 zet je een onderdeel van het IDS aan of uit op *Instellingen → IDS → 🛡️ Beschermingen*. Daar staan ook de drempels, achter **⚙️ Drempels**, bijvoorbeeld:
+  - het aantal mislukte logins en de blokkeerduur;
+  - de honeypot en de leerperiode;
+  - de score om te blokkeren en de drempels van de webdiensten.
+
+  Tot 1.181.0 stonden de schakelaars op de kaarten van *IDS → Bescherming*. Die pagina is nu een overzicht: per kaart zie je **aan** of **uit**, en met **⚙️ Instellen** kom je bij de juiste regel in de beheerportal.
+- Op de andere IDS-pagina's bij *Instellingen* staan de algemene instellingen, zoals het IDS zelf aan of uit, de modus, de API-sleutels en de logbestanden. Bovenaan staat een verwijzing naar Beschermingen. Een kopje waar niets meer onder staat, verdwijnt.
 
 - Vanaf 1.151.0 staat wat eerst op *Overzicht → Gezondheid* stond op twee plekken onder **Systeem**: *Database en server → **Server*** (systeemcheck: PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en de cron-regel), *Database en server → **Database*** (grootte, groei en wanneer de disk vol is, de tabellen en *Database optimaliseren*) en de nieuwe pagina ***Prestaties en fouten*** (snelheid, duur van een cron-ronde, traagste checks en PHP-fouten). Een oude link naar Gezondheid brengt je vanzelf naar *Server*.
 - Eerder: *Instellingen → Overzicht → **Gezondheid*** (tot 1.120.0: *Systeem → Systeemcheck*): PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en een kant-en-klare cron-regel. Vanaf 1.96.0 ook de gezondheid van RzMon zelf:
@@ -2796,7 +2801,7 @@ Wat in een bepaalde situatie **normaal** is, zet je bij *Instellingen → IDS �
 - **🛡️ IDS → Bescherming**: alles wat het IDS doet, als kaarten in groepen (Inloggen, Web, Processen en bestanden, Netwerk en DNS, Afwijkingen en ketens, Dreigingsinformatie). Per kaart:
   - wat het ziet (kort) en, waar dat speelt, de drempel (*meer dan 10 mislukte SSH-logins binnen 10 minuten*);
   - de ernst (🟠/🔴) en de actie: 🔔 alleen melden, 🚫 IP blokkeren, ⛔ proces stoppen, 🧱 server isoleren, ✔ vanzelf afhandelen, 🚫 vooraf blokkeren. In de modus Leren zijn de acties doorgestreept: dan wordt alles alleen gemeld;
-  - een schakelaar (beheerders) voor dat onderdeel of de actie ervan; dezelfde instelling als bij *Instellingen*;
+  - of het onderdeel **aan** of **uit** staat, met **⚙️ Instellen** (beheerders) naar *Instellingen → IDS → Beschermingen* (vanaf 1.181.0; daarvoor stond hier een schakelaar);
   - hoe vaak het de laatste 7 dagen raak was, met **Toon incidenten** (de lijst gefilterd op die kaart);
   - een ⚠️ aandachtspunt als het ergens niet werkt (auditd ontbreekt op een server, geen AbuseIPDB-sleutel, AdGuard niet gekoppeld).
   - Bovenaan staat de modus (Leren of Blokkeren) met een knop om te wisselen, en hoeveel onderdelen aan staan.
@@ -3154,12 +3159,16 @@ Onder *Instellingen → Gebruikers* beheer je wie er mag inloggen, en met welke 
 | Dashboard, checks, grafieken, meldingen, containers bekijken | ✅ | ✅ | ✅ |
 | Eigen wachtwoord en eigen 2FA | ✅ | ✅ | ✅ |
 | Storing bevestigen, nu checken, onderhoud, poortscan | ✅ | ✅ | ❌ |
-| Servers en checks inrichten, agents, instellingen, gebruikers, API-sleutels, Setup | ✅ | ❌ | ❌ |
+| Beheerportal bekijken: Status, Advies, Rapporten, Wijzigingslogboek (vanaf 1.181.0) | ✅ | 👁 | ❌ |
+| Rapport naar je eigen e-mailadres sturen (*Rapporten → Naar mij*) | ✅ | ✅ | ❌ |
+| Servers en checks inrichten, agents, instellingen wijzigen, gebruikers, API-sleutels, Setup | ✅ | ❌ | ❌ |
 
 - De rol kies je bij het aanmaken. Wijzigen gaat met de keuzelijst bij de gebruiker.
 - Je kunt je eigen rol niet wijzigen, en er blijft altijd minimaal één beheerder.
 - Knoppen die niet mogen, verdwijnen. Rechtsboven zie je *👤 Gebruiker* of *👁 Alleen lezen*.
 - De server controleert de rechten ook zelf, dus ook via de API kan niemand meer dan zijn rol toestaat.
+- **👁 Beheerportal voor gebruikers** (vanaf 1.181.0): een gebruiker ziet in *Instellingen* alleen *Overzicht → Status*, *Monitoring → Advies*, *Rapporten* en *Systeem → Wijzigingslogboek*. Bovenaan staat *👁 Alleen bekijken*. Velden staan uit, en knoppen om iets te wijzigen, toe te passen, op te ruimen of terug te draaien zijn weg. Een link naar een ander onderdeel brengt hem naar *Status*. *Alleen lezen* ziet de beheerportal niet.
+- **🎨 Weergave voor nieuwe accounts** (vanaf 1.181.0): op *Instellingen → Systeem → Weergave* kies je de standaard voor accounts die bij *Mijn account → Weergave* nog niets kozen. Je kiest de moderne of compacte IDS-weergave, en de beweging in de Attack Flow en het Command center (stil, rustig of vol). Die standaard geldt ook voor het lokale netwerk zonder account.
 
 - **Gebruiker toevoegen:** vul een naam en wachtwoord in. Wil je meteen 2FA, zet dan *Direct tweestapsverificatie instellen* aan. Zonder 2FA is alleen het wachtwoord nodig.
 - **2FA instellen:** klik bij de gebruiker op **🔐 2FA instellen** en scan de QR-code met een authenticator-app, zoals Google of Microsoft Authenticator, Authy, Bitwarden of 1Password. Lukt scannen niet, typ dan de sleutel eronder over. Vul de code in die de app toont: pas daarna staat 2FA aan, dus je kunt jezelf niet per ongeluk buitensluiten.

@@ -3923,3 +3923,15 @@ html[data-motion="0"] .sws-b { animation: none; }
 .rep-parts { padding-top: .6rem; border-top: 1px dashed var(--border); }
 .rep-parts > .muted { flex-basis: 100%; }
 .rep-btns { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: .5rem 0 0 .2rem; }
+
+/* 1.181.0: Instellingen → IDS → Beschermingen en de status op Bescherming */
+.ps-list { display: flex; flex-direction: column; }
+.ps-row { display: flex; gap: 1rem; align-items: center; padding: .65rem .3rem; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); border-radius: 8px; transition: background .6s; }
+.ps-row.ps-hl { background: color-mix(in srgb, var(--primary) 14%, transparent); }
+.ps-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .2rem; } .ps-t small { color: var(--muted); }
+.ps-acts { font-size: .78rem; display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.ps-r { flex: none; display: flex; align-items: center; gap: .5rem; }
+.prot-st { font: 700 .7rem ui-monospace, monospace; padding: .15rem .45rem; border-radius: 6px; margin-left: auto; }
+.prot-st.on { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); } .prot-st.off { color: var(--muted); background: color-mix(in srgb, var(--muted) 14%, transparent); }
+.prot-set { margin-left: .4rem; white-space: nowrap; flex: none; }
+@media (max-width: 560px) { .ps-row { flex-wrap: wrap; } .ps-r { width: 100%; justify-content: flex-end; } }

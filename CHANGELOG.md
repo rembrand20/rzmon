@@ -8,11 +8,28 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.181.0**: de **IDS-beschermingen** stel je nu in op *Instellingen → IDS → Beschermingen*; *IDS → Bescherming* is een overzicht met een knop **Instellen**. De rol **gebruiker** mag een paar onderdelen van de beheerportal bekijken (Status, Advies, Rapporten, Wijzigingslogboek).
 - **1.180.0**: alle **rapporten op één plek** (*Instellingen → Rapporten*): IDS- en AI-weekoverzicht, maandrapport en nieuw kwetsbaarheden, beschikbaarheid, back-ups en datalekken, als HTML-mail of push, met **Nu versturen**, **Voorbeeld**, **Naar mij** en een **Maandoverzicht** met alles in één.
 - **1.179.0**: **CVE's slimmer**: rugbaarheid per kwetsbaarheid (exploits en hoeveel erover gepraat wordt), **Raakt dit jou echt?** met AI, **Eén update, veel opgelost** en een melding als een CVE op je servers veel aandacht krijgt.
 - **1.178.0**: de **Agent Manager** opnieuw ingedeeld in kaarten met schakelaars, een echte **🧪 Test** in een eigen popup, en één **algemene SNMP-instelling** (Koppelingen) met eigen instellingen per apparaat.
 - **1.177.0**: nieuwe **pad-check** (traceroute): per hop vertraging en verlies, je switches, de linksnelheid via UniFi en de echte doorvoer met iperf3, als futuristisch pad in de popup, op **Monitoring → Netwerkpaden** als netwerkkaart en in het kort bij de server.
-- **1.176.0**: **Monitoring → Containers** (alle Podman- en Docker-containers met status, CPU, geheugen en schijf), labels **Running / Failed / Stopped / Paused**, een **nieuwe popup per check** en een compacte **Nu aandacht nodig** in CC.
+
+## 1.181.0 – 2026-11-05
+### Nieuw
+- **🛡️ Instellingen → IDS → Beschermingen**: elke bescherming van het IDS zet je nu hier aan of uit. Ook de drempels (**⚙️ Drempels**) stel je hier in. Een bescherming die altijd aan staat, toont *altijd aan*. Staat het IDS uit of in de modus Leren, dan zie je dat bovenaan.
+- **IDS → Bescherming** is nu een overzicht:
+  - per kaart staat of de bescherming **aan** of **uit** staat, wat hij doet en wat hij de laatste 7 dagen deed;
+  - met **⚙️ Instellen** ga je naar de juiste regel in de beheerportal, die even oplicht;
+  - de schakelaars op deze pagina zijn weg.
+- **👤 Rol gebruiker: een deel van de beheerportal bekijken.** Gebruikers zien in *Instellingen* alleen:
+  - *Overzicht → Status*;
+  - *Monitoring → Advies*;
+  - *Rapporten*: een voorbeeld bekijken en met **Naar mij** een rapport naar hun eigen e-mailadres sturen;
+  - *Systeem → Wijzigingslogboek*.
+
+  Alles staat er op **👁 Alleen bekijken**: de velden staan uit en de knoppen om iets te wijzigen, toe te passen of terug te draaien zijn weg. De rol *alleen lezen* ziet niets van de beheerportal. De server controleert dit ook zelf.
+- **🎨 Instellingen → Systeem → Weergave**: de standaard weergave voor accounts die zelf nog niets kozen (moderne of compacte IDS-weergave, beweging in de Attack Flow en het Command center).
+- Opties die verspreid stonden, zijn nu alleen voor beheerders. De knoppen op de pagina *Analyse en advies* om iets in te stellen of te blokkeren (bijwerken, IDS aanzetten, IP blokkeren …) zie je alleen als beheerder.
 
 ## 1.180.1 – 2026-11-05
 ### Opgelost
