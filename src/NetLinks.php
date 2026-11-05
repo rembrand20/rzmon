@@ -165,6 +165,71 @@ final class NetLinks
         return ['clients' => $out, 'error' => null];
     }
 
+    /** 1.187.0: DPI-categorieën van UniFi (Traffic Identification) */
+    public const DPI_CATS = [0 => 'Chatten', 1 => 'P2P', 3 => 'Bestanden versturen', 4 => 'Streaming (video en muziek)', 5 => 'Mail en samenwerken', 6 => 'Bellen (VoIP)',
+        7 => 'Database', 8 => 'Games', 9 => 'Netwerkbeheer', 10 => 'Op afstand inloggen', 11 => 'VPN, proxy en tunnels', 12 => 'Beurs', 13 => 'Web',
+        14 => 'Updates en beveiliging', 15 => 'Chatten via het web', 17 => 'Zakelijk', 18 => 'Netwerkprotocollen', 19 => 'Netwerkprotocollen', 20 => 'Netwerkprotocollen',
+        23 => 'Eigen protocol', 24 => 'Sociale media', 255 => 'Onbekend'];
+
+    /**
+     * 1.187.0: per client hoeveel verkeer per DPI-categorie (alleen als DPI aan staat in UniFi, met een lokaal account).
+     * @return array{cats: list<array{cat: int, name: string, rx: int, tx: int}>, error: ?string}
+     */
+    public static function unifiDpi(string $mac): array
+    {
+        if (!self::unifiOn() || !self::unifiAccount()) {
+            return ['cats' => [], 'error' => t('Verkeer per apparaat vraagt een lokaal UniFi-account; met alleen een API-sleutel geeft UniFi geen tellers')];
+        }
+        [$d, $err] = self::unifiCall('stat/stadpi', ['type' => 'by_cat', 'macs' => [$mac]]);
+        if ($err) {
+            return ['cats' => [], 'error' => $err];
+        }
+        $swap = setting('net_traffic_swap', '0') === '1';
+        $sum = [];
+        foreach ((array) $d as $row) {
+            if (NetScan::normMac($row['mac'] ?? null) !== $mac) {
+                continue;
+            }
+            foreach ((array) ($row['by_cat'] ?? []) as $c) {
+                $cat = (int) ($c['cat'] ?? 255);
+                $down = (int) ($c['tx_bytes'] ?? 0);
+                $up = (int) ($c['rx_bytes'] ?? 0);
+                $sum[$cat] = [($sum[$cat][0] ?? 0) + ($swap ? $up : $down), ($sum[$cat][1] ?? 0) + ($swap ? $down : $up)];
+            }
+        }
+        $out = [];
+        foreach ($sum as $cat => [$rx, $tx]) {
+            $out[] = ['cat' => $cat, 'name' => t(self::DPI_CATS[$cat] ?? 'Onbekend'), 'rx' => $rx, 'tx' => $tx];
+        }
+        usort($out, fn($a, $b) => ($b['rx'] + $b['tx']) <=> ($a['rx'] + $a['tx']));
+        return ['cats' => $out, 'error' => null];
+    }
+
+    /**
+     * 1.187.0: het verkeer van je internetlijn per dag (UniFi-gateway, stat/report/daily.site): [Y-m-d => [rx, tx]], rx = download.
+     * @return array{days: array<string, array{0: int, 1: int}>, error: ?string}
+     */
+    public static function unifiWanDaily(int $days = 35): array
+    {
+        if (!self::unifiOn() || !self::unifiAccount()) {
+            return ['days' => [], 'error' => t('Verkeer per apparaat vraagt een lokaal UniFi-account; met alleen een API-sleutel geeft UniFi geen tellers')];
+        }
+        $end = time() * 1000;
+        [$d, $err] = self::unifiCall('stat/report/daily.site', ['attrs' => ['wan-rx_bytes', 'wan-tx_bytes', 'time'], 'start' => $end - $days * 86400000, 'end' => $end]);
+        if ($err) {
+            return ['days' => [], 'error' => $err];
+        }
+        $out = [];
+        foreach ((array) $d as $r) {
+            if (!isset($r['time']) || (!isset($r['wan-rx_bytes']) && !isset($r['wan-tx_bytes']))) {
+                continue;
+            }
+            $day = date('Y-m-d', (int) floor((float) $r['time'] / 1000));
+            $out[$day] = [(int) ($r['wan-rx_bytes'] ?? 0), (int) ($r['wan-tx_bytes'] ?? 0)];
+        }
+        return ['days' => $out, 'error' => null];
+    }
+
     /** Met een API-sleutel (Network 9+): de officiële Integration API, alleen lezen */
     private static function unifiKeyClients(): array
     {

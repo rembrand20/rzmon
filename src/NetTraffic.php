@@ -43,10 +43,19 @@ final class NetTraffic
             $msg[] = self::poll();
             $st = json_decode((string) setting('net_traffic_state', ''), true) ?: [];
         }
+        if ((int) ($st['wan_at'] ?? 0) <= time() - 3600) {   // 1.187.0: de internetlijn elk uur
+            $st['wan_at'] = time();
+            save_setting('net_traffic_state', json_encode($st));
+            if ($m = self::wanUpdate()) {
+                $msg[] = $m;
+            }
+            self::capCheck();
+        }
         if (($st['daily'] ?? '') !== date('Y-m-d') && (int) date('G') >= 1) {
             $st['daily'] = date('Y-m-d');
             save_setting('net_traffic_state', json_encode($st));
             $n = self::daily();
+            self::notifyDaily($st['daily']);
             self::purge();
             if ($n) {
                 $msg[] = "Verkeer: $n ongewoon";
@@ -176,6 +185,146 @@ final class NetTraffic
         return $n;
     }
 
+    /** 1.187.0: de gebeurtenissen van vannacht ook als ℹ️-melding (Systeemmeldingen → Ongewoon netwerkverkeer) */
+    private static function notifyDaily(string $today): void
+    {
+        $rows = q("SELECT e.kind, e.detail, d.id FROM net_events e JOIN net_devices d ON d.id = e.device_id WHERE e.kind IN ('traffic', 'traffic_night') AND e.created_at >= ?",
+            [$today . ' 00:00:00'])->fetchAll();
+        $label = [];
+        foreach (NetScan::list() as $x) {
+            $label[(int) $x['id']] = (string) $x['label'];
+        }
+        foreach (array_slice($rows, 0, 10) as $r) {
+            $x = json_decode((string) $r['detail'], true) ?: [];
+            $name = $label[(int) $r['id']] ?? '?';
+            Monitor::sysInfo('net_traffic', null, null, ($r['kind'] === 'traffic' ? '📈 ' . t('Ongewoon veel verkeer: {name}', ['name' => $name]) : '🌙 ' . t('Verkeer \'s nachts: {name}', ['name' => $name])),
+                fn() => $r['kind'] === 'traffic'
+                    ? t('{dir} {b} op {day}; normaal {n} per dag.', ['dir' => ($x['dir'] ?? '') === 'up' ? t('Upload') : t('Download'), 'b' => self::human((int) ($x['bytes'] ?? 0)),
+                        'day' => (string) ($x['day'] ?? ''), 'n' => self::human((int) ($x['normal'] ?? 0))]) . "\n" . t('Zie Netwerk → Ontdekken.')
+                    : t('{b} tussen 0 en 6 uur op {day}, terwijl het \'s nachts normaal stil is.', ['b' => self::human((int) ($x['bytes'] ?? 0)), 'day' => (string) ($x['day'] ?? '')]) . "\n" . t('Zie Netwerk → Ontdekken.'));
+        }
+    }
+
+    // ------------------------------------------------------------------ 1.187.0: internetlijn per dag en datalimiet
+
+    /** Internetverkeer per dag uit UniFi; lukt dat niet, dan de som van alle apparaten (bron 'devices') */
+    public static function wanUpdate(): ?string
+    {
+        $r = self::$fetch ? ['days' => [], 'error' => 'test'] : NetLinks::unifiWanDaily(35);
+        if ($r['days']) {
+            foreach ($r['days'] as $day => [$rx, $tx]) {
+                q("INSERT INTO net_wan_day (day, rx, tx, src) VALUES (?, ?, ?, 'unifi') ON DUPLICATE KEY UPDATE rx = VALUES(rx), tx = VALUES(tx), src = 'unifi'", [$day, $rx, $tx]);
+            }
+            return null;
+        }
+        foreach (q('SELECT day, SUM(rx) rx, SUM(tx) tx FROM net_traffic_day WHERE day >= CURDATE() - INTERVAL 34 DAY GROUP BY day')->fetchAll() as $d) {
+            q("INSERT INTO net_wan_day (day, rx, tx, src) VALUES (?, ?, ?, 'devices') ON DUPLICATE KEY UPDATE rx = IF(src = 'unifi', rx, VALUES(rx)), tx = IF(src = 'unifi', tx, VALUES(tx))",
+                [$d['day'], (int) $d['rx'], (int) $d['tx']]);
+        }
+        return null;
+    }
+
+    /** Deze maand: totaal, per dag, de datalimiet en de verwachting aan het eind van de maand */
+    public static function wanMonth(?string $month = null): array
+    {
+        $month ??= date('Y-m');
+        $rows = q("SELECT day, rx, tx, src FROM net_wan_day WHERE day LIKE ? ORDER BY day", [$month . '-%'])->fetchAll();
+        $rx = array_sum(array_map('intval', array_column($rows, 'rx')));
+        $tx = array_sum(array_map('intval', array_column($rows, 'tx')));
+        $cap = (float) str_replace(',', '.', (string) setting('net_wan_cap_gb', ''));
+        $daysIn = (int) date('t', (int) strtotime($month . '-01'));
+        $today = $month === date('Y-m') ? (int) date('j') : $daysIn;
+        $forecast = $today > 0 ? (int) round(($rx + $tx) / max(1, $today - 1 + (int) date('G') / 24) * $daysIn) : 0;
+        return ['month' => $month, 'rx' => $rx, 'tx' => $tx, 'cap' => $cap > 0 ? (int) round($cap * 1e9) : null, 'forecast' => $month === date('Y-m') ? $forecast : null,
+            'src' => $rows ? (in_array('unifi', array_column($rows, 'src'), true) ? 'unifi' : 'devices') : null,
+            'days' => array_map(fn($r) => [(string) $r['day'], (int) $r['rx'], (int) $r['tx']], $rows)];
+    }
+
+    /** Melding bij 80% en 100% van de datalimiet (één keer per maand per stap) */
+    public static function capCheck(): void
+    {
+        $m = self::wanMonth();
+        if (!$m['cap']) {
+            return;
+        }
+        $used = $m['rx'] + $m['tx'];
+        $done = json_decode((string) setting('net_wan_cap_alert', ''), true) ?: [];
+        foreach ([100, 80] as $pct) {
+            if ($used >= $m['cap'] * $pct / 100 && ($done[$pct] ?? '') !== $m['month']) {
+                $done[$pct] = $m['month'];
+                if ($pct === 100) {
+                    $done[80] = $m['month'];
+                }
+                save_setting('net_wan_cap_alert', json_encode($done));
+                Monitor::sysInfo('net_cap', null, null, '📶 ' . t('Internet: {p}% van je datalimiet gebruikt', ['p' => $pct]),
+                    fn() => t('Deze maand {u} van {c} (↓ {d} · ↑ {up}).', ['u' => self::human($used), 'c' => self::human((int) $m['cap']), 'd' => self::human($m['rx']), 'up' => self::human($m['tx'])]));
+                break;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ 1.187.0: check "Verkeer"
+
+    /**
+     * Check van het type traffic: target = MAC- of IP-adres (leeg = het adres van de server). metric:
+     * rate (Mbit/s nu, down + up), up_rate (Mbit/s upload), day (GB vandaag), up_day (GB upload vandaag).
+     */
+    public static function check(array $check, array $host): array
+    {
+        $t = trim((string) ($check['target'] ?? '')) ?: (string) $host['address'];
+        $mac = NetScan::normMac($t);
+        $dev = $mac ? q('SELECT id, ip FROM net_devices WHERE mac = ?', [$mac])->fetch()
+            : q('SELECT id, ip FROM net_devices WHERE ip = ? ORDER BY last_seen DESC LIMIT 1', [$t])->fetch();
+        if (!$dev) {
+            return Checks::result(STATUS_UNKNOWN, null, t('{t} staat niet in de netwerkscan (Netwerk → Apparaten)', ['t' => $t]));
+        }
+        if (!self::enabled()) {
+            return Checks::result(STATUS_UNKNOWN, null, t('Verkeer per apparaat staat uit of UniFi is niet gekoppeld'));
+        }
+        $id = (int) $dev['id'];
+        $metric = (string) ($check['metric'] ?: 'rate');
+        if ($metric === 'rate' || $metric === 'up_rate') {
+            $c = q('SELECT rate_rx, rate_tx, at FROM net_counters WHERE device_id = ?', [$id])->fetch();
+            if (!$c || (int) $c['at'] < time() - 3 * self::EVERY) {
+                return Checks::result(STATUS_UNKNOWN, null, t('Nu geen gegevens van UniFi (apparaat niet verbonden?)'));
+            }
+            $bps = $metric === 'up_rate' ? (int) $c['rate_tx'] : (int) $c['rate_rx'] + (int) $c['rate_tx'];
+            $v = round($bps * 8 / 1e6, 2);
+            $msg = t('{v} Mbit/s nu (↓ {d} · ↑ {u} Mbit/s)', ['v' => I18n::dec((string) $v), 'd' => I18n::dec((string) round((int) $c['rate_rx'] * 8 / 1e6, 2)), 'u' => I18n::dec((string) round((int) $c['rate_tx'] * 8 / 1e6, 2))]);
+        } else {
+            $d = q('SELECT rx, tx FROM net_traffic_day WHERE device_id = ? AND day = CURDATE()', [$id])->fetch() ?: ['rx' => 0, 'tx' => 0];
+            $b = $metric === 'up_day' ? (int) $d['tx'] : (int) $d['rx'] + (int) $d['tx'];
+            $v = round($b / 1e9, 2);
+            $msg = t('{v} GB vandaag (↓ {d} · ↑ {u})', ['v' => I18n::dec((string) $v), 'd' => self::human((int) $d['rx']), 'u' => self::human((int) $d['tx'])]);
+        }
+        $w = $check['warn_threshold'] !== null ? (float) $check['warn_threshold'] : null;
+        $c2 = $check['crit_threshold'] !== null ? (float) $check['crit_threshold'] : null;
+        $st = $c2 !== null && $v >= $c2 ? STATUS_CRIT : ($w !== null && $v >= $w ? STATUS_WARN : STATUS_OK);
+        return Checks::result($st, $v, $msg);
+    }
+
+    // ------------------------------------------------------------------ 1.187.0: rapport
+
+    /** Top 10 en totaal over een periode */
+    public static function report(string $from, string $to): array
+    {
+        $top = q('SELECT device_id, SUM(rx) rx, SUM(tx) tx FROM net_traffic_day WHERE day BETWEEN ? AND ? GROUP BY device_id ORDER BY SUM(rx + tx) DESC LIMIT 10', [$from, $to])->fetchAll();
+        $label = [];
+        foreach (NetScan::list() as $x) {
+            $label[(int) $x['id']] = (string) $x['label'];
+        }
+        $wan = q('SELECT COALESCE(SUM(rx), 0) rx, COALESCE(SUM(tx), 0) tx FROM net_wan_day WHERE day BETWEEN ? AND ?', [$from, $to])->fetch();
+        $len = max(1, (int) ((strtotime($to) - strtotime($from)) / 86400) + 1);
+        $prevFrom = date('Y-m-d', (int) strtotime($from) - $len * 86400);
+        $prevTo = date('Y-m-d', (int) strtotime($from) - 86400);
+        $prev = [];
+        foreach (q('SELECT device_id, SUM(rx + tx) b FROM net_traffic_day WHERE day BETWEEN ? AND ? GROUP BY device_id', [$prevFrom, $prevTo])->fetchAll() as $p) {
+            $prev[(int) $p['device_id']] = (int) $p['b'];
+        }
+        return ['wan' => [(int) $wan['rx'], (int) $wan['tx']], 'top' => array_map(fn($r) => ['name' => $label[(int) $r['device_id']] ?? '?', 'rx' => (int) $r['rx'], 'tx' => (int) $r['tx'],
+            'prev' => $prev[(int) $r['device_id']] ?? null], $top)];
+    }
+
     public static function median(array $v): int
     {
         if (!$v) {
@@ -193,6 +342,7 @@ final class NetTraffic
         q('DELETE t FROM net_traffic t LEFT JOIN net_devices d ON d.id = t.device_id WHERE d.id IS NULL');
         q('DELETE t FROM net_traffic_day t LEFT JOIN net_devices d ON d.id = t.device_id WHERE d.id IS NULL');
         q('DELETE t FROM net_counters t LEFT JOIN net_devices d ON d.id = t.device_id WHERE d.id IS NULL');
+        q('DELETE FROM net_wan_day WHERE day < CURDATE() - INTERVAL ' . self::KEEP_DAYS . ' DAY');
     }
 
     // ------------------------------------------------------------------ voor de pagina's

@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.187.0**: je **internetlijn per maand** met een datalimiet, **diensten per apparaat** (DPI), een nieuwe **check Verkeer** en het rapport **Netwerkverkeer**.
 - **1.186.0**: **verkeer per apparaat** (uit UniFi): top 10 van vandaag, grafieken per uur en per dag, een heatmap van aanwezigheid en verkeer, en een melding bij ongewoon veel of nachtelijk verkeer.
 - **1.185.0**: **status bevestigen**: een check wordt pas warning of critical (en eventueel weer OK) na N controles achter elkaar; algemeen in de beheerportal en per check te overschrijven, leeg = meteen.
 - **1.184.0**: **Netwerk → Overzicht**: een kaart van je netwerk (internet → router → switches en access points → apparaten), met tellers per soort en per netwerk.
 - **1.183.0**: **Netwerk → Ontdekken**: nieuwe en onbekende apparaten, wat er verandert (IP, poorten, nieuwe domeinen, weg of terug), voorstellen om met één klik te bewaken, en wanneer elk apparaat online was. Apparaten kun je nu ook groeperen.
-- **1.182.0**: **alle functies in één tabel** (*Instellingen → Overzicht → Functies* en bovenaan FEATURES.md), met de status van nu (aan, uit, niet ingesteld) en een knop naar waar je hem instelt.
+
+## 1.187.0 – 2026-11-05
+### Nieuw
+- **🌐 Internetlijn deze maand** (*Netwerk → Overzicht*): het verkeer van je internetlijn per dag, uit je UniFi-gateway (lukt dat niet, dan de som van alle apparaten), met wat je aan het eind van de maand waarschijnlijk gebruikt hebt.
+  - **Datalimiet** (*Instellingen → Beveiliging → Netwerkscan*): vul je limiet in GB per maand in. Je ziet een balk met hoeveel je gebruikt hebt, en een waarschuwing als je er deze maand waarschijnlijk overheen gaat. Bij 80% en 100% komt er een ℹ️-melding (*Systeemmeldingen → Datalimiet internet*).
+- **🧩 Diensten per apparaat** (venster van een apparaat): welke soort verkeer een apparaat doet, zoals streaming, updates, sociale media of VPN, met de verdeling in procenten. Uit UniFi; daarvoor moet *Traffic Identification* (DPI) aan staan.
+- **Check Verkeer (UniFi)**: een nieuw checktype. Je kiest het apparaat (MAC- of IP-adres; leeg = het adres van de server) en wat je meet: de snelheid nu, de upload nu, het verkeer vandaag of de upload vandaag. Warning en critical gaan af als het meer is dan je drempel, met *status bevestigen* en *melden na N* zoals bij elke check.
+- **📊 Rapport Netwerkverkeer** (*Instellingen → Rapporten*, ook in het Maandoverzicht): het verkeer van je internetlijn en de top 10 apparaten, met hoeveel het veranderde ten opzichte van de periode ervoor.
+- **Ongewoon verkeer als melding**: *📈 Ongewoon veel verkeer* en *🌙 Verkeer 's nachts* (van 1.186.0) komen nu ook als ℹ️-melding (*Systeemmeldingen → Ongewoon netwerkverkeer*), standaard alleen op de meldingenpagina.
 
 ## 1.186.0 – 2026-11-05
 ### Nieuw

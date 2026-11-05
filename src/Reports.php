@@ -20,10 +20,11 @@ final class Reports
         'avail' => ['📶', null],
         'backup' => ['💾', null],
         'leaks' => ['🔓', null],
+        'traffic' => ['📊', null],   // 1.187.0
         'all' => ['📦', null],
     ];
     /** Onderdelen die in het Maandoverzicht kunnen */
-    public const PARTS = ['month', 'ids_week', 'vulns', 'avail', 'backup', 'leaks'];
+    public const PARTS = ['month', 'ids_week', 'vulns', 'avail', 'backup', 'leaks', 'traffic'];
 
     public static function label(string $k): string
     {
@@ -35,6 +36,7 @@ final class Reports
             'avail' => t('Beschikbaarheid'),
             'backup' => t('Back-ups'),
             'leaks' => t('Datalekken'),
+            'traffic' => t('Netwerkverkeer'),
             'all' => t('Maandoverzicht (alles in één)'),
             default => $k,
         };
@@ -273,6 +275,8 @@ final class Reports
                 return self::partBackup($from, $to, $when, $e);
             case 'leaks':
                 return self::partLeaks($from, $when, $e);
+            case 'traffic':
+                return self::partTraffic($from, $to, $when, $e);   // 1.187.0
         }
         throw new RuntimeException(t('Onbekend rapport'));
     }
@@ -381,6 +385,29 @@ final class Reports
             . ($problem ? '<p class="w">⚠️ ' . $e($problem) . '</p>' : '') . ($freq === 'off' ? '<p class="w">' . $e(t('Automatische back-ups staan uit.')) . '</p>' : '');
         return ['title' => self::label('backup') . ' · ' . $when, 'text' => implode("\n", $lines), 'html' => $html,
             'short' => t('{n} back-up(s), laatste {t}', ['n' => count($in), 't' => $last ? substr((string) $last, 0, 16) : '–']) . ($problem ? ' · ⚠️' : '')];
+    }
+
+    /** 1.187.0: internetlijn en de top 10 apparaten */
+    private static function partTraffic(string $from, string $to, string $when, callable $e): array
+    {
+        if (!NetTraffic::enabled() && !q('SELECT 1 FROM net_traffic_day LIMIT 1')->fetchColumn()) {
+            return ['title' => self::label('traffic'), 'text' => t('Verkeer per apparaat staat uit of UniFi is niet gekoppeld.'), 'html' => '<p>' . $e(t('Verkeer per apparaat staat uit of UniFi is niet gekoppeld.')) . '</p>', 'short' => ''];
+        }
+        $r = NetTraffic::report($from, $to);
+        $h = [NetTraffic::class, 'human'];
+        $lines = [t('Internet: ↓ {d} · ↑ {u} ({w})', ['d' => $h($r['wan'][0]), 'u' => $h($r['wan'][1]), 'w' => $when])];
+        $rows = '';
+        foreach ($r['top'] as $i => $x) {
+            $tot = $x['rx'] + $x['tx'];
+            $chg = $x['prev'] ? (int) round(($tot - $x['prev']) / max(1, $x['prev']) * 100) : null;
+            $lines[] = ($i + 1) . '. ' . $x['name'] . ': ↓ ' . $h($x['rx']) . ' · ↑ ' . $h($x['tx']) . ($chg !== null ? ' (' . ($chg > 0 ? '+' : '') . $chg . '%)' : '');
+            $rows .= '<tr><td>' . ($i + 1) . '</td><td>' . $e($x['name']) . '</td><td>' . $e($h($x['rx'])) . '</td><td>' . $e($h($x['tx'])) . '</td><td class="' . ($chg !== null && $chg >= 100 ? 'w' : '') . '">'
+                . ($chg !== null ? ($chg > 0 ? '+' : '') . $chg . '%' : '–') . '</td></tr>';
+        }
+        $html = '<div class="tiles">' . self::tile(t('Download'), $h($r['wan'][0]), '') . self::tile(t('Upload'), $h($r['wan'][1]), '') . '</div>'
+            . ($rows ? '<table><tr><th>#</th><th>' . $e(t('Apparaat')) . '</th><th>' . $e(t('Download')) . '</th><th>' . $e(t('Upload')) . '</th><th>' . $e(t('t.o.v. ervoor')) . '</th></tr>' . $rows . '</table>' : '');
+        return ['title' => self::label('traffic') . ' · ' . $when, 'text' => implode("\n", $lines), 'html' => $html,
+            'short' => t('Internet ↓ {d} · ↑ {u}', ['d' => $h($r['wan'][0]), 'u' => $h($r['wan'][1])]) . ($r['top'] ? ' · ' . t('meest: {n}', ['n' => $r['top'][0]['name']]) : '')];
     }
 
     private static function partLeaks(string $from, string $when, callable $e): array

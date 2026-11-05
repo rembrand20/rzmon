@@ -1512,6 +1512,30 @@ ok((int) $trH[$trA]['rx'] === 5800 && (int) $trH[$trA]['tx'] === 2200 && (int) $
     && $trN === 2 && $trEv[0]['kind'] === 'traffic' && (int) $trEv[0]['device_id'] === $trA && json_decode($trEv[0]['detail'], true)['dir'] === 'up'
     && $trEv[1]['kind'] === 'traffic_night' && (int) $trEv[1]['device_id'] === $trB && NetTraffic::human(1500000) === '1,5 MB',
     'verkeer: verschil per uur en dag, teller terug telt vanaf nul, onmogelijke sprong genegeerd, ongewoon veel upload en verkeer \'s nachts');
+// 1.187.0: check Verkeer, internetlijn per maand met datalimiet (som van de apparaten zonder gateway), rapport
+NetTraffic::$fetch = fn() => [];
+q('INSERT INTO net_counters (device_id, rx, tx, rate_rx, rate_tx, at) VALUES (?, 0, 0, 2500000, 500000, ?) ON DUPLICATE KEY UPDATE rate_rx = 2500000, rate_tx = 500000, at = VALUES(at)', [$trA, time()]);
+q('INSERT INTO net_traffic_day (device_id, day, rx, tx) VALUES (?, CURDATE(), 3000000000, 1500000000) ON DUPLICATE KEY UPDATE rx = 3000000000, tx = 1500000000', [$trA]);
+$tcHost = ['address' => '10.186.0.1'];
+$tcRate = NetTraffic::check(['target' => '', 'metric' => 'rate', 'warn_threshold' => 10, 'crit_threshold' => 50], $tcHost);
+$tcUp = NetTraffic::check(['target' => 'ee:ee:ee:00:01:86', 'metric' => 'up_day', 'warn_threshold' => 1, 'crit_threshold' => 5], $tcHost);
+$tcNone = NetTraffic::check(['target' => '10.9.9.9', 'metric' => 'rate', 'warn_threshold' => 1, 'crit_threshold' => 2], $tcHost);
+q('DELETE FROM net_wan_day');
+NetTraffic::wanUpdate();
+$wmUsed = NetTraffic::wanMonth()['rx'] + NetTraffic::wanMonth()['tx'];
+save_setting('net_wan_cap_gb', (string) round($wmUsed / 0.9 / 1e9, 3));   // 90% gebruikt
+save_setting('net_wan_cap_alert', '');
+$wm = NetTraffic::wanMonth();
+NetTraffic::capCheck();
+$capAlert = json_decode((string) setting('net_wan_cap_alert', ''), true) ?: [];
+$rep = NetTraffic::report(date('Y-m-d'), date('Y-m-d'));
+save_setting('net_wan_cap_gb', '');
+NetTraffic::$fetch = null;
+ok($tcRate['status'] === STATUS_WARN && abs((float) $tcRate['value'] - 24.0) < 0.01 && $tcUp['status'] === STATUS_WARN && abs((float) $tcUp['value'] - 1.5) < 0.01
+    && $tcNone['status'] === STATUS_UNKNOWN && $wm['src'] === 'devices' && $wm['rx'] >= 3000000000 && $wm['cap'] > $wmUsed
+    && ($capAlert[80] ?? '') === date('Y-m') && ($capAlert[100] ?? '') === '' && $rep['top'][0]['rx'] >= 3000000000,
+    'check verkeer: snelheid en upload vandaag met drempels, onbekend apparaat; internetlijn uit de som van de apparaten, 80% van de datalimiet gemeld; top in het rapport');
+q('DELETE FROM net_wan_day');
 q('DELETE FROM net_events WHERE device_id IN (?, ?)', [$trA, $trB]);
 q('DELETE FROM net_devices WHERE id IN (?, ?)', [$trA, $trB]);
 NetTraffic::purge();

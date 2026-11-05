@@ -1352,3 +1352,12 @@ CREATE TABLE IF NOT EXISTS net_counters (
     at        INT UNSIGNED NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('net_traffic', '1'), ('net_traffic_swap', '0');
+
+-- 1.187.0: het verkeer van de internetlijn per dag (uit de UniFi-gateway, anders de som van de apparaten) en de datalimiet
+CREATE TABLE IF NOT EXISTS net_wan_day (
+    day DATE NOT NULL PRIMARY KEY,
+    rx  BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    tx  BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    src VARCHAR(8) NOT NULL DEFAULT 'unifi'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('net_wan_cap_gb', '');

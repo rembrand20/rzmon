@@ -45,6 +45,7 @@ final class Checks
                 'dns', 'ntp', 'smart', 'ups', 'mysql' => ExtraChecks::run($check, $host),   // 1.138.0
                 'internet' => Internet::run($check),   // 1.157.0: vanaf de server van RzMon
                 'domain', 'mqtt', 'vpn' => NetChecks::run($check, $host),   // 1.170.0
+                'traffic' => NetTraffic::check($check, $host),   // 1.187.0
                 default => self::result(STATUS_UNKNOWN, null, t('Onbekend checktype')),
             };
         } catch (Throwable $e) {

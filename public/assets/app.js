@@ -80,6 +80,8 @@ const TYPES = {
   domain:  { label: L('Domein (verloopdatum)'), target: L('Domein'), unit: 'dagen', warn: 30, crit: 14, low: true, ph: 'example.nl', help: L('Wanneer verloopt je domein? RzMon vraagt het hooguit twee keer per dag op bij de registry (RDAP, de opvolger van WHOIS). Sommige registries, zoals die van .nl, publiceren geen verloopdatum: dan controleert RzMon of het domein nog geregistreerd en actief is (status als opheffing of quarantaine = CRITICAL).') },
   mqtt:    { label: L('MQTT-broker'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server (poort 1883, met TLS 8883)'), help: L('RzMon logt in bij de broker (bv. Mosquitto), stuurt een testbericht en ontvangt het zelf weer: de waarde is die rondgang in ms. Lukt inloggen niet, of komt het bericht niet terug, dan CRITICAL. Daarnaast kun je een topic bekijken, bv. zigbee2mqtt/bridge/state met "online".') },
   vpn:     { label: L('VPN (Gluetun of WireGuard)'), target: null, unit: null, help: L('Werkt je VPN? Kies hieronder Gluetun of WireGuard.') },
+  // 1.187.0: verkeer van een apparaat (uit UniFi)
+  traffic: { label: L('Verkeer (UniFi)'), target: L('MAC- of IP-adres'), unit: 'Mbit/s', warn: 50, crit: 200, ph: L('leeg = adres van de server'), help: L('Hoeveel verkeer een apparaat doet, uit de tellers van UniFi (Netwerk → Verkeer per apparaat). Kies wat: de snelheid nu of de hoeveelheid vandaag. Warning en critical gaan af als het meer is dan je drempel.') },
   // 1.157.0: de internetlijn, vanaf de server van RzMon
   internet: { label: L('Internet'), target: null, unit: 'ms', warn: 50, crit: 150, help: L('Bewaakt je internetlijn vanaf de server van RzMon. Kies wat: ping, responstijd, download of upload. De snelheidstest draait op vaste tijden; abonnement, drempels en tijden staan bij Instellingen → Monitoring → Internet.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
@@ -192,6 +194,13 @@ const INET_METRICS = {
   down: { label: L('Download (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internet).') },
   up: { label: L('Upload (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internet).') },
 };
+/** 1.187.0: wat een verkeer-check meet */
+const TRAFFIC_METRICS = {
+  rate: { label: L('Snelheid nu (download + upload)'), unit: 'Mbit/s', warn: 50, crit: 200, help: L('De snelheid volgens UniFi bij de laatste meting (elke 5 minuten).') },
+  up_rate: { label: L('Upload nu'), unit: 'Mbit/s', warn: 10, crit: 50, help: L('Alleen wat het apparaat verstuurt: handig voor camera\'s en slimme apparaten die niet veel horen te versturen.') },
+  day: { label: L('Vandaag (download + upload)'), unit: 'GB', warn: 20, crit: 50, help: L('Hoeveel het apparaat vandaag deed, vanaf middernacht.') },
+  up_day: { label: L('Upload vandaag'), unit: 'GB', warn: 2, crit: 10, help: L('Hoeveel het apparaat vandaag verstuurde, vanaf middernacht.') },
+};
 /** Proxmox VE (1.105.0): wat een pve-check bewaakt */
 const PVE_METRICS = {
   overview: { label: L('Overzicht van de node'), unit: null, help: L('CRITICAL als een guest die automatisch moet starten uit staat, een opslag niet beschikbaar is, een ZFS-pool niet gezond is of de cluster geen quorum heeft; WARNING bij een gepauzeerde of vergrendelde guest of een mislukte back-uptaak.') },
@@ -209,6 +218,7 @@ function typeOf(c) {
   if (c.type === 'ha') return { ...TYPES.ha, ...(HA_METRICS[c.metric] || {}), label: 'Home Assistant' };
   if (c.type === 'pve') return { ...TYPES.pve, ...(PVE_METRICS[c.metric] || PVE_METRICS.overview), label: 'Proxmox' };
   if (c.type === 'internet') return { ...TYPES.internet, ...(INET_METRICS[c.metric] || INET_METRICS.ping), label: L('Internet') };
+  if (c.type === 'traffic') return { ...TYPES.traffic, ...(TRAFFIC_METRICS[c.metric] || TRAFFIC_METRICS.rate), label: L('Verkeer') };   // 1.187.0
   if (c.type === 'vpn') return { ...TYPES.vpn, ...(VPN_METRICS[c.metric] || VPN_METRICS.gluetun), label: 'VPN' };   // 1.170.0
   if (c.type === 'truenas') return { ...TYPES.truenas, ...(TN_METRICS[c.metric] || TN_METRICS.alerts), label: 'TrueNAS' };   // 1.174.0
   return c.type === 'container' && c.metric ? { ...TYPES.container, ...METRICS[c.metric], label: TYPES.container.label } : TYPES[c.type];
@@ -5164,6 +5174,7 @@ const REP_INFO = {
   avail: () => L('Per server hoe vaak hij bereikbaar was, de storingen en de langste.'),
   backup: () => L('Hoeveel back-ups er gemaakt zijn, hoeveel ruimte ze innemen, de laatste en of er een probleem is.'),
   leaks: () => L('Nieuwe datalekken op je adressen en wat nog niet afgehandeld is.'),
+  traffic: () => L('Het verkeer van je internetlijn en de top 10 apparaten, met de verandering ten opzichte van de periode ervoor.'),
 };
 let repData = null;
 let repTimer = null;
@@ -5640,7 +5651,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   c = c || { type: 'ping', target: '', name: '', warn_threshold: pt.warn ?? null, crit_threshold: pt.crit ?? null, interval_sec: 60, enabled: 1, ...preset };
   const quietOwn = quietOf(c);
   const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
-  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'dns', 'ntp', 'mysql', 'domain', 'mqtt', 'vpn', 'snmp', 'heartbeat', 'internet']
+  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'dns', 'ntp', 'mysql', 'domain', 'mqtt', 'vpn', 'snmp', 'heartbeat', 'internet', 'traffic']
     : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command', 'pve', 'truenas', 'smart', 'ups', 'path'].includes(k))
       .filter((k) => k !== 'pve' || isPveHost(h) || c?.type === 'pve')
       .filter((k) => k !== 'truenas' || isTnHost(h) || c?.type === 'truenas')   // 1.174.0
@@ -5811,6 +5822,10 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <label id="pve-per-wrap" hidden>${L('Afwijkend per guest')} <span class="hint">${L('(bv. <code>101=7/14 105=uit</code>: warning/critical in dagen, of niet bewaken)')}</span>
           <input name="pve_per" value="${esc(opts.per || '')}" placeholder="101=7/14 105=uit"></label>
       </div>
+      <label id="tr-wrap" hidden>${L('Meten')}
+        <select name="metric">${Object.entries(TRAFFIC_METRICS).map(([k, m]) => `<option value="${k}" ${(c.type === 'traffic' ? c.metric || 'rate' : 'rate') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+        <span class="hint" id="tr-help"></span>
+      </label>
       <label id="inet-wrap" hidden>${L('Meten')}
         <select name="metric">${Object.entries(INET_METRICS).map(([k, m]) => `<option value="${k}" ${(c.type === 'internet' ? c.metric || 'ping' : 'ping') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
         <span class="hint" id="inet-help"></span>
@@ -6061,6 +6076,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const haSel = $('#ha-wrap [name=metric]', form);
   const pveSel = $('#pve-wrap [name=metric]', form);
   const inetSel = $('#inet-wrap [name=metric]', form);
+  const trSel = $('#tr-wrap [name=metric]', form);   // 1.187.0
   const vpnSel = $('#vpn-wrap [name=metric]', form);   // 1.170.0
   const tnSel = $('#tn-wrap [name=metric]', form);   // 1.174.0
   $('[name=reverse_ok]', form).onchange = () => update(false);
@@ -6070,6 +6086,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     const isHa = typeSel.value === 'ha';
     const isPve = typeSel.value === 'pve';
     const isInet = typeSel.value === 'internet';
+    const isTr = typeSel.value === 'traffic';
     const isVpn = typeSel.value === 'vpn';
     const isTn = typeSel.value === 'truenas';
     const isSnmp = typeSel.value === 'snmp';
@@ -6078,6 +6095,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     const t = isHa ? { ...TYPES.ha, ...HA_METRICS[haSel.value] }
       : isPve ? { ...TYPES.pve, ...PVE_METRICS[pveSel.value] }
       : isInet ? { ...TYPES.internet, ...INET_METRICS[inetSel.value] }
+      : isTr ? { ...TYPES.traffic, ...TRAFFIC_METRICS[trSel.value] }
       : isVpn ? { ...TYPES.vpn, ...VPN_METRICS[vpnSel.value] }
       : isTn ? { ...TYPES.truenas, ...TN_METRICS[tnSel.value] }
       : isSnmp ? snmpType({ metric: snmpSel.value, options: JSON.stringify({ mode: oidMode, unit: $('[name=oid_unit]', form).value, low: $('[name=oid_low]', form).checked }) })
@@ -6095,6 +6113,9 @@ function checkForm(c, h, preset = {}, tpl = null) {
     pveSel.disabled = !isPve;
     $('#inet-wrap').hidden = !isInet;
     inetSel.disabled = !isInet;
+    $('#tr-wrap').hidden = !isTr;
+    trSel.disabled = !isTr;
+    $('#tr-help').textContent = isTr ? TRAFFIC_METRICS[trSel.value].help : '';
     $('#inet-help').textContent = isInet ? INET_METRICS[inetSel.value].help : '';
     $('#vpn-wrap').hidden = !isVpn;
     vpnSel.disabled = !isVpn;
@@ -12566,7 +12587,7 @@ const SYSINFO_ROWS = [
   [L('Onzichtbaar van buiten'), [['device_request', '⏳ ' + L('Geweigerd apparaat van buiten (wachtend)')], ['device_trust', '📱 ' + L('Apparaat toegestaan of ingetrokken')], ['passkey', '🔑 ' + L('Passkey aangemaakt of verwijderd')],
     ['stealth_door', '🚪 ' + L('Noodlink aangevraagd of gebruikt')]]],
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
-  [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')], ['path_change', '🛣️ ' + L('Pad naar een doel gewijzigd (pad-check, als die dat mag)')]]],
+  [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')], ['net_traffic', '📈 ' + L('Ongewoon netwerkverkeer (veel of \'s nachts)')], ['net_cap', '📶 ' + L('Datalimiet internet bijna of helemaal op')], ['path_change', '🛣️ ' + L('Pad naar een doel gewijzigd (pad-check, als die dat mag)')]]],
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
     ['watchdog', '🐕 ' + L('Waakhond: RzMon was onbereikbaar of de checks stonden stil')]]],
   ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
@@ -14841,6 +14862,38 @@ function trTopHtml(limit = 10) {
       <span class="tr-num small">↓ ${fmtBytes(t.rx)} · ↑ ${fmtBytes(t.tx)}</span></div>`).join('')}</div>
     <p class="muted small tr-legend"><i class="lg dn"></i> ${L('download')} <i class="lg up"></i> ${L('upload')} · ${L('laatste 24 uur, volgens UniFi')}</p>`;
 }
+/** 1.187.0: de internetlijn deze maand (UniFi-gateway, anders de som van de apparaten), met de datalimiet */
+function wanHtml() {
+  const w = netData?.wan;
+  if (!w || !w.days || !w.days.length) return '';
+  const used = w.rx + w.tx;
+  const mx = Math.max(1, ...w.days.map((d) => d[1] + d[2]));
+  const daysIn = new Date(+w.month.slice(0, 4), +w.month.slice(5, 7), 0).getDate();
+  const byDay = Object.fromEntries(w.days.map((d) => [d[0], d]));
+  const bars = Array.from({ length: daysIn }, (_, i) => { const k = `${w.month}-${String(i + 1).padStart(2, '0')}`; const d = byDay[k];
+    return `<span title="${esc(fmtDay(k) + (d ? ': ↓ ' + fmtBytes(d[1]) + ' · ↑ ' + fmtBytes(d[2]) : ''))}">${d ? `<i class="up" style="height:${(d[2] / mx) * 100}%"></i><i class="dn" style="height:${(d[1] / mx) * 100}%"></i>` : ''}</span>`; }).join('');
+  const pct = w.cap ? Math.min(100, Math.round((used / w.cap) * 100)) : null;
+  return `<section class="card nm-wan"><h3>🌐 ${L('Internetlijn deze maand')}</h3>
+    <div class="tr-tot"><span>↓ <b>${fmtBytes(w.rx)}</b></span><span>↑ <b>${fmtBytes(w.tx)}</b></span>
+      ${w.forecast ? `<small class="muted">${L('verwacht aan het eind van de maand: {f}', { f: fmtBytes(w.forecast) })}</small>` : ''}</div>
+    ${w.cap ? `<div class="wan-cap"><span class="wan-bar"><i class="${pct >= 100 ? 'bad' : pct >= 80 ? 'warn' : ''}" style="width:${pct}%"></i>${w.forecast ? `<b style="left:${Math.min(100, (w.forecast / w.cap) * 100)}%" title="${esc(L('verwacht'))}"></b>` : ''}</span>
+      <small>${L('{u} van {c} ({p}%)', { u: fmtBytes(used), c: fmtBytes(w.cap), p: pct })}${w.forecast && w.forecast > w.cap ? ' · <span class="warn-txt">⚠️ ' + L('je komt er deze maand waarschijnlijk overheen') + '</span>' : ''}</small></div>` : ''}
+    <div class="tr-days wan-days">${bars}</div>
+    <p class="muted small tr-legend"><i class="lg dn"></i> ${L('download')} <i class="lg up"></i> ${L('upload')} · ${w.src === 'unifi' ? L('van je UniFi-gateway') : L('de som van alle apparaten (geen gegevens van de gateway)')}</p></section>`;
+}
+
+/** 1.187.0: diensten (UniFi DPI) in het venster van een apparaat */
+async function netDpiBox(x, box) {
+  let d;
+  try { d = await api('net_dpi', null, { id: x.id }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  if (d.error) { box.innerHTML = `<p class="muted">${esc(d.error)}</p>`; return; }
+  if (!d.cats.length) { box.innerHTML = `<p class="muted">${L('Geen gegevens. Staat DPI aan in UniFi (Settings → Traffic Identification)?')}</p>`; return; }
+  const tot = d.cats.reduce((a, c) => a + c.rx + c.tx, 0) || 1;
+  box.innerHTML = `<div class="dpi-list">${d.cats.slice(0, 10).map((c) => { const p = ((c.rx + c.tx) / tot) * 100;
+    return `<div class="dpi-row"><span>${esc(c.name)}</span><span class="dpi-bar"><i style="width:${p}%"></i></span><span class="small muted nowrap">${dec(p.toFixed(p < 10 ? 1 : 0))}% · ↓ ${fmtBytes(c.rx)} ↑ ${fmtBytes(c.tx)}</span></div>`; }).join('')}</div>
+    <p class="muted small">${L('Volgens UniFi (Traffic Identification), sinds het apparaat verbonden is.')}</p>`;
+}
+
 /** Verkeer in het venster van een apparaat */
 async function netTrafficBox(x, box) {
   let d;
@@ -14957,7 +15010,7 @@ function renderNetMap() {
       <section class="card nm-kinds-card"><h3>${L('Wat zit er op je netwerk')}</h3><div class="nm-kinds">${kindChips}</div></section>
       <section class="card nm-nets-card"><h3>${L('Per netwerk')}</h3>${netRows || `<p class="muted small">${L('Nog geen netwerk ingesteld.')}</p>`}</section>
     </div>
-    <section class="card nm-traffic"><h3>📊 ${L('Verkeer vandaag')}</h3>${trTopHtml(10)}</section>
+    <div class="nm-tr2"><section class="card nm-traffic"><h3>📊 ${L('Verkeer vandaag')}</h3>${trTopHtml(10)}</section>${wanHtml()}</div>
     <section class="card nm-map">
       <div class="nm-legend small muted"><span><i class="lg on"></i> ${L('online')}</span><span><i class="lg off"></i> ${L('offline (24 uur niet gezien)')}</span><span><i class="lg new"></i> ${L('nieuw')}</span><span><i class="lg risky"></i> ${L('riskante poort')}</span><span><i class="lg rz"></i> ${L('in RzMon')}</span></div>
       <div class="nm-tree">
@@ -15094,6 +15147,7 @@ function netDialog(x) {
         <p class="small" style="margin:0">${L('Heb je deze dienst niet nodig, zet hem dan uit in de instellingen van het apparaat. Anders: zorg voor een sterk wachtwoord en laat de poort nooit van internet bereikbaar zijn.')}</p></div>` : ''}
       ${x.blocked ? `<div class="callout bad-callout"><b>⛔ ${L('Geweerd')}</b>: ${esc(netBlockedText(x))}</div>` : ''}
       ${netData.traffic_state?.on ? `<details class="notify-own" id="net-tr" open><summary>📊 ${L('Verkeer')}</summary><div id="net-tr-body" class="small"><p class="muted">${L('laden…')}</p></div></details>` : ''}
+      ${netData.traffic_state?.on ? `<details class="notify-own" id="net-dpi"><summary>🧩 ${L('Diensten (UniFi DPI)')}</summary><div id="net-dpi-body" class="small"></div></details>` : ''}
       ${netData.links.adguard ? `<details class="notify-own" id="net-dom"><summary>🌐 ${L('Met welke domeinen praat dit apparaat? (AdGuard)')}</summary><div id="net-dom-body" class="small"></div></details>` : ''}
       ${admin ? `<label>${L('Eigen naam')}<input name="name" value="${esc(x.name || '')}" maxlength="100" placeholder="${esc(x.label)}"></label>
       <label>${L('Soort apparaat')}<select name="kind_user"><option value="">${L('vanzelf: {k}', { k: (NET_KIND[x.kind] || NET_KIND.unknown)[1]() })}</option>
@@ -15113,6 +15167,8 @@ function netDialog(x) {
     onSubmit: async (f) => { await api('net_device_save', { id: +x.id, name: f.name, kind_user: f.kind_user, notes: f.notes, status: f.status }); toast(L('Opgeslagen')); loadNet(); },
   });
   if ($('#net-tr-body')) netTrafficBox(x, $('#net-tr-body'));   // 1.186.0
+  const dpi = $('#net-dpi');
+  if (dpi) dpi.ontoggle = () => { if (dpi.open && !dpi.dataset.loaded) { dpi.dataset.loaded = '1'; netDpiBox(x, $('#net-dpi-body')); } };   // 1.187.0
   const dom = $('#net-dom');
   if (dom) dom.ontoggle = () => { if (dom.open && !dom.dataset.loaded) { dom.dataset.loaded = '1'; netDomains(x, $('#net-dom-body')); } };
 }

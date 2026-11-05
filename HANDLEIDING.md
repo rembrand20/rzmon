@@ -2994,6 +2994,23 @@ Met UniFi ziet RzMon hoeveel elk apparaat downloadt en uploadt.
   - **🌙 Verkeer 's nachts**: minstens 50 MB tussen 0 en 6 uur, terwijl het apparaat 's nachts normaal (bijna) stil is.
 - **Goed om te weten:** RzMon telt wat UniFi ziet. Verkeer tussen twee apparaten op dezelfde switch telt UniFi maar voor een deel; het verkeer naar internet klopt het best.
 
+**🌐 Internetlijn, diensten, check en rapport** (vanaf 1.187.0)
+- **Internetlijn deze maand** (*Netwerk → Overzicht*, naast *Verkeer vandaag*): elk uur haalt RzMon het verkeer per dag op van je UniFi-gateway (het dagrapport van de site). Lukt dat niet, dan telt RzMon het verkeer van alle apparaten op; dat staat er dan onder. Je ziet download en upload deze maand, een staafje per dag en wat je aan het eind van de maand waarschijnlijk gebruikt hebt.
+- **Datalimiet:** vul bij *Instellingen → Beveiliging → Netwerkscan* je limiet in GB per maand in (download + upload samen). Er komt een balk bij, met een streepje waar je naar verwachting uitkomt. Bij **80%** en bij **100%** krijg je één keer per maand een ℹ️-melding (*Meldingen → Systeemmeldingen → Datalimiet internet bijna of helemaal op*).
+- **Diensten (UniFi DPI)** in het venster van een apparaat: klap het open voor de verdeling van het verkeer over soorten diensten (streaming, web, updates en beveiliging, sociale media, VPN en tunnels, games …), sinds het apparaat verbonden is. Daarvoor moet in UniFi *Traffic Identification* aan staan. UniFi geeft per soort dienst geen namen van apps door; RzMon laat de soort zien.
+- **Check Verkeer (UniFi):** bij ＋ Check → *Verkeer (UniFi)*. Vul het MAC- of IP-adres van het apparaat in (leeg = het adres van de server, handig als het apparaat zelf in RzMon staat) en kies wat je meet:
+
+  | Meten | Eenheid | Voorbeeld |
+  |---|---|---|
+  | Snelheid nu (download + upload) | Mbit/s | warning boven 50, critical boven 200 |
+  | Upload nu | Mbit/s | een camera die meer dan 10 Mbit/s verstuurt |
+  | Vandaag (download + upload) | GB | een tv die meer dan 20 GB per dag doet |
+  | Upload vandaag | GB | een slim apparaat dat meer dan 2 GB per dag verstuurt |
+
+  *Status bevestigen* en *Melden na N* werken zoals bij elke check. Staat het apparaat niet in de netwerkscan, of is het niet verbonden, dan is de check onbekend.
+- **Rapport Netwerkverkeer** (*Instellingen → Rapporten*, ook aan te vinken in het Maandoverzicht): het verkeer van je internetlijn en de top 10 apparaten over de periode, met de verandering ten opzichte van de periode ervoor (+100% of meer is gemarkeerd).
+- **Melding bij ongewoon verkeer:** de gebeurtenissen *📈 Ongewoon veel verkeer* en *🌙 Verkeer 's nachts* komen ook als ℹ️-melding (*Systeemmeldingen → Ongewoon netwerkverkeer*). Zet daar Pushover of e-mail aan als je ze meteen wilt weten.
+
 **🔍 Netwerk → Ontdekken** (vanaf 1.183.0)
 
 Bij **📋 Apparaten** (de lijst hierboven) staat de keuzelijst om te groeperen; **🔍 Ontdekken** Met de keuzelijst rechts op Apparaten kun je **groeperen**: per soort, per fabrikant of per verbinding (wifi-netwerk of bedraad; dat komt uit UniFi). Ontdekken laat zien wat er verandert op je netwerk:

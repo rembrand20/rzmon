@@ -1212,7 +1212,7 @@ $need = match ($action) {
     'home', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1383,7 +1383,7 @@ $confirm = static function (string $word) use ($user): void {
 $checkCols = static function (array $in, bool $dry = false) use ($user): array {   // $dry: alleen proberen (geen logboek)
             $type = $in['type'] ?? '';
             if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat', 'process', 'pve',
-                'dns', 'ntp', 'smart', 'ups', 'mysql', 'internet', 'domain', 'mqtt', 'vpn', 'truenas', 'path'], true)) {
+                'dns', 'ntp', 'smart', 'ups', 'mysql', 'internet', 'domain', 'mqtt', 'vpn', 'truenas', 'path', 'traffic'], true)) {
                 out(['error' => t('Ongeldig type')], 422);
             }
             // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -1441,6 +1441,16 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                     out(['error' => t('Kies wat je van internet wilt bewaken')], 422);
                 }
                 $target = '';
+            }
+            // 1.187.0: verkeer van een apparaat (UniFi): snelheid of hoeveelheid vandaag; doel = MAC- of IP-adres (leeg = adres van de server)
+            if ($type === 'traffic') {
+                $metric = (string) ($in['metric'] ?? 'rate');
+                if (!in_array($metric, ['rate', 'up_rate', 'day', 'up_day'], true)) {
+                    out(['error' => t('Kies wat je van het verkeer wilt bewaken')], 422);
+                }
+                if ($target !== '' && NetScan::normMac($target) === null && !filter_var($target, FILTER_VALIDATE_IP)) {
+                    out(['error' => t('Vul een MAC- of IP-adres in, of laat het leeg')], 422);
+                }
             }
             // 1.174.0: TrueNAS (agent 1.77.0): meldingen, taken, apps, update of schijftemperaturen
             if ($type === 'truenas') {
@@ -3476,7 +3486,7 @@ switch ($action) {
             'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model',   // 1.171.0
             'ai_budget_month', 'ai_memory', 'ai_cache', 'ai_cache_hours', 'ai_fallback', 'ai_notify', 'ai_weekly', 'ai_weekly_day', 'ai_triage', 'ai_report',   // 1.173.0
             'confirm_fails', 'confirm_ok',   // 1.185.0
-            'net_traffic', 'net_traffic_swap'];   // 1.186.0
+            'net_traffic', 'net_traffic_swap', 'net_wan_cap_gb'];   // 1.186.0, 1.187.0
         // 1.179.0: Mastodon alleen via https naar een gewone hostnaam
         if (isset($in['cve_mastodon_url']) && trim((string) $in['cve_mastodon_url']) !== '' && !CveBuzz::safeUrl(rtrim(trim((string) $in['cve_mastodon_url']), '/'))) {
             out(['error' => t('Mastodon: vul een https-adres in, bv. https://infosec.exchange')], 422);
@@ -4253,7 +4263,7 @@ switch ($action) {
     // 1.103.0: netwerkscan – alle apparaten op je lokale netwerken
     case 'net_devices':
         $nets = NetScan::networks();
-        out(['enabled' => NetScan::enabled(), 'devices' => NetScan::list(), 'traffic' => NetTraffic::summary() ?: (object) [], 'traffic_totals' => NetTraffic::totals(), 'traffic_state' => NetTraffic::state(), 'state' => NetScan::state(), 'networks' => $nets,
+        out(['enabled' => NetScan::enabled(), 'devices' => NetScan::list(), 'traffic' => NetTraffic::summary() ?: (object) [], 'traffic_totals' => NetTraffic::totals(), 'traffic_state' => NetTraffic::state(), 'wan' => NetTraffic::wanMonth(), 'state' => NetScan::state(), 'networks' => $nets,
             'risky_reasons' => NetScan::riskyReasons(), 'kinds' => NetScan::KINDS, 'now' => now(), 'vendors' => (int) q('SELECT COUNT(*) FROM mac_vendors')->fetchColumn(),
             'links' => ['unifi' => NetLinks::unifiOn(), 'unifi_block' => NetLinks::unifiCanBlock(), 'adguard' => NetLinks::adguardOn()], 'my_ip' => client_ip()]);
 
@@ -4637,6 +4647,10 @@ switch ($action) {
 
     case 'net_traffic_device':   // 1.186.0: verkeer van één apparaat
         out(NetTraffic::device((int) ($_GET['id'] ?? 0)));
+
+    case 'net_dpi':   // 1.187.0: diensten (UniFi DPI) van één apparaat
+        $mac = (string) q('SELECT mac FROM net_devices WHERE id = ?', [(int) ($_GET['id'] ?? 0)])->fetchColumn();
+        out($mac !== '' ? NetLinks::unifiDpi($mac) : ['cats' => [], 'error' => t('Geen MAC-adres bekend')]);
 
     case 'net_adopt':   // 1.183.0: apparaat met één klik in RzMon, met de gekozen checks
         $in = input();
