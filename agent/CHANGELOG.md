@@ -5,6 +5,15 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.77.0 – 2026-11-05
+- **TrueNAS SCALE uitlezen** (RzMon 1.174.0): als root vraagt de agent TrueNAS zelf met `midclt`, zonder API-sleutel:
+  - de meldingen van TrueNAS, de taken (replicatie, snapshots, cloud sync, rsync) en de apps, elke 5 minuten;
+  - de schijftemperaturen, elk kwartier;
+  - of er een TrueNAS-update klaarstaat, elke 6 uur.
+
+  `TRUENAS=0` in de instellingen zet het uit.
+- **TrueNAS: blokkeren door het IDS als keuze.** Op TrueNAS detecteerde het IDS alleen. Zet je in RzMon voor deze server *IDS mag hier blokkeren* aan, dan blokkeert de agent aanvallers en werkt de honeypot-poort, net als op andere servers (eigen firewalltabel, elke minuut teruggezet). Staat het uit, dan blijft het bij detecteren.
+
 ## 1.76.0 – 2026-11-04
 - **Diagnose voor AI-advies** (RzMon 1.171.0): vraagt RzMon erom bij een storing, dan voert de agent eenmalig een **vaste lijst commando's uit die alleen lezen**, en stuurt de uitvoer mee.
   - Per soort: `systemctl status` en `journalctl -u` voor een service, status en logs voor een container, `df` en `du` voor een disk, de zwaarste processen en OOM-meldingen bij CPU en RAM, en wie er op een poort luistert.

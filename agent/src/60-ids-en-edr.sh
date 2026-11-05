@@ -341,9 +341,15 @@ fi
 # stuurt die IP's mee en haalt ze na een geslaagd rapport uit de set. Ook in de modus leren (dan alleen melden).
 fw_json=""; decoy_json=""; decoy_err=""; dc_sent4=""; dc_sent6=""
 decoy_port=""
+# 1.77.0: TrueNAS beheert zijn eigen netwerk; blokkeren en de honeypot-poort alleen als RzMon het voor deze server toestaat
+tn_block=1
+if command -v midclt >/dev/null 2>&1; then
+    tn_block=0
+    grep -q $'^0\ttruenas_fw\t1' "${t_cache:-/dev/null}" 2>/dev/null && tn_block=1
+fi
 [ -n "$ids_mode" ] && [ -r "${t_cache-}" ] && decoy_port=$(awk -F'\t' '$1 == "0" && $2 == "decoy" && $3 ~ /^[0-9]+$/ && $3 >= 1 && $3 <= 65535 { print $3; exit }' "$t_cache")
 if [ -n "$decoy_port" ]; then
-    if command -v midclt >/dev/null 2>&1 || ! command -v nft >/dev/null 2>&1; then decoy_port=""
+    if [ "$tn_block" = 0 ] || ! command -v nft >/dev/null 2>&1; then decoy_port=""
     elif [ -n "$(ss -Htln "sport = :$decoy_port" 2>/dev/null)" ]; then decoy_err="poort $decoy_port is hier in gebruik"; decoy_port=""; fi
 fi
 decoy_hits() {  # decoy_hits <set>: IP's in de lokaas-set
@@ -393,7 +399,7 @@ fw_build() {  # opnieuw opbouwen als de lijst of de lokaas-poort veranderde; zet
 want4=""; want6=""; kn4=""; kn6=""; outblock=0
 [ "$ids_mode" = block ] && grep -q $'^0\toutblock\t1' "${t_cache:-/dev/null}" 2>/dev/null && outblock=1
 if [ "$ids_mode" = block ]; then
-    if command -v midclt >/dev/null 2>&1; then
+    if [ "$tn_block" = 0 ]; then
         fw_json="\"fw\":{\"state\":\"unsupported\",\"err\":\"TrueNAS: alleen detecteren\"}"
     elif [ "$IDS_BLOCK" = 0 ]; then
         fw_json="\"fw\":{\"state\":\"disabled\",\"err\":\"IDS_BLOCK=0 op deze server\"}"

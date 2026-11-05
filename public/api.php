@@ -695,6 +695,14 @@ if ($action === 'agent') {
         $st->execute([$host['id'], 'proclist', json_encode($pl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
     }
     // Podman: overzicht, en per container en pod een eigen regel (sleutel: naam, of gebruiker/naam bij rootless)
+    // 1.174.0 (agent 1.77.0): TrueNAS SCALE via midclt: meldingen, taken, apps, update, schijftemperaturen
+    if (isset($in['truenas']) && is_array($in['truenas'])) {
+        try {
+            Truenas::fromAgent($host, $in['truenas'], $st, $now);
+        } catch (Throwable $e) {
+            error_log('RzMon: TrueNAS-gegevens niet verwerkt: ' . $e->getMessage());
+        }
+    }
     // Proxmox VE (agent 1.61.0): guests, opslag, ZFS, back-ups en taken
     if (isset($in['pve']) && is_array($in['pve'])) {
         try {
@@ -1190,7 +1198,7 @@ $need = match ($action) {
     'home', 'state', 'availability', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1201,7 +1209,7 @@ I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
 if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'home', 'state', 'availability', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
-    'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview', 'incidents', 'incident_info', 'report',
+    'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview', 'truenas_overview', 'incidents', 'incident_info', 'report',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();
 }
@@ -1361,7 +1369,7 @@ $confirm = static function (string $word) use ($user): void {
 $checkCols = static function (array $in, bool $dry = false) use ($user): array {   // $dry: alleen proberen (geen logboek)
             $type = $in['type'] ?? '';
             if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat', 'process', 'pve',
-                'dns', 'ntp', 'smart', 'ups', 'mysql', 'internet', 'domain', 'mqtt', 'vpn'], true)) {
+                'dns', 'ntp', 'smart', 'ups', 'mysql', 'internet', 'domain', 'mqtt', 'vpn', 'truenas'], true)) {
                 out(['error' => t('Ongeldig type')], 422);
             }
             // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -1419,6 +1427,19 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                     out(['error' => t('Kies wat je van internet wilt bewaken')], 422);
                 }
                 $target = '';
+            }
+            // 1.174.0: TrueNAS (agent 1.77.0): meldingen, taken, apps, update of schijftemperaturen
+            if ($type === 'truenas') {
+                $metric = (string) ($in['metric'] ?? 'alerts');
+                if (!in_array($metric, Truenas::METRICS, true)) {
+                    out(['error' => t('Kies wat je van TrueNAS wilt bewaken')], 422);
+                }
+                if (mb_strlen($target) > 100 || preg_match('/[\x00-\x1f]/', $target)) {
+                    out(['error' => t('Ongeldige naam')], 422);
+                }
+                if (in_array($metric, ['alerts', 'update'], true)) {
+                    $target = '';
+                }
             }
             // Proxmox VE (1.105.0): wat, en voor een guest de VMID
             if ($type === 'pve') {
@@ -1716,7 +1737,8 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 $in['name'] = ['overview' => 'Proxmox', 'guest' => $g ? ($g['kind'] === 'ct' ? '📦 ' : '🖥️ ') . ($g['name'] ?: "VM $target") : "VM $target",
                     'backups' => $target !== '' ? t('Back-up {id}', ['id' => $target]) : t('Proxmox-back-ups'), 'storage' => t('Proxmox-opslag') . ($target !== '' ? " $target" : ''), 'zfs' => 'ZFS'][$metric];
             }
-            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'dns' => 'DNS', 'ntp' => t('Tijd'), 'smart' => t('Schijfgezondheid'), 'ups' => 'UPS', 'mysql' => 'MariaDB', 'domain' => t('Domein'), 'mqtt' => 'MQTT', 'vpn' => $metric === 'wg' ? 'WireGuard' : 'Gluetun', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
+            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'dns' => 'DNS', 'ntp' => t('Tijd'), 'smart' => t('Schijfgezondheid'), 'ups' => 'UPS', 'mysql' => 'MariaDB', 'domain' => t('Domein'), 'mqtt' => 'MQTT', 'vpn' => $metric === 'wg' ? 'WireGuard' : 'Gluetun',
+                'truenas' => ['alerts' => t('TrueNAS-meldingen'), 'tasks' => t('TrueNAS-taken'), 'apps' => t('TrueNAS-apps'), 'update' => t('TrueNAS-update'), 'temp' => t('Schijftemperatuur')][$metric] ?? 'TrueNAS', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
                 'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'heartbeat' => 'Heartbeat', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
                 'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',
                     'disklife' => 'SD-kaart/eMMC', 'osupdate' => 'HA OS-update', 'usb' => 'USB'][$metric] ?? 'HA'][$type] . ($target !== '' ? " $target" : '');
@@ -2381,7 +2403,7 @@ switch ($action) {
                 'old_until' => $until > time() ? date('Y-m-d H:i:s', $until) : null, 'agent_min' => AgentCrypto::AGENT_MIN],
             'agent_tick' => agent_tick(null),
             'hosts' => array_map(static fn($h) => array_diff_key($h, ['agent_beats' => 1]) + ['key_days' => $h['agent_key_at'] ? (int) floor((time() - strtotime($h['agent_key_at'])) / 86400) : null,
-                'contact' => agent_contact($h)],
+                'contact' => agent_contact($h), 'truenas' => Truenas::is((int) $h['id'])],   // 1.174.0: TrueNAS apart tonen
                 q("SELECT id, name, agent_version, agent_seen, agent_tick, realtime, agent_beats, agent_ip, enc, enc_seen, agent_key_seen, agent_key_at, agent_ips, agent_ip_new, agent_ip_new_at, pin_mode, ip_lock,
                           agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at,
                           agent_url_pin, agent_url_fb_pin, (pair_until > NOW()) AS pairing FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll()),
@@ -5015,10 +5037,30 @@ switch ($action) {
         out(['ok' => true]);
 
     // ---------- Hardening, isoleren, gebruiker vergrendelen en de tijdlijn per IP (1.88.0) ----------
+    case 'truenas_overview':   // 1.174.0: wat TrueNAS laatst meldde (meldingen, taken, apps, update, temperaturen)
+        $o = Truenas::overview((int) ($_GET['host_id'] ?? 0));
+        $o ? out($o) : out(['error' => t('Nog geen gegevens van TrueNAS: agent 1.77.0 of nieuwer nodig, als root')], 404);
+
     case 'harden_detail':
         $hid = (int) ($_GET['host_id'] ?? 0);
         out(Hardening::detail($hid) + ['iso' => q('SELECT isolate_until, isolate_by, isolate_state FROM hosts WHERE id = ?', [$hid])->fetch() ?: null,
-            'userlocks' => Ids::userLocks($hid), 'my_ip' => client_ip()]);
+            'userlocks' => Ids::userLocks($hid), 'my_ip' => client_ip(),
+            'truenas' => Truenas::is($hid) ? ['fw' => (int) q('SELECT truenas_fw FROM hosts WHERE id = ?', [$hid])->fetchColumn() === 1,
+                'state' => (string) q('SELECT fw_state FROM ids_state WHERE host_id = ?', [$hid])->fetchColumn()] : null]);
+
+    case 'host_truenas_fw':   // 1.174.0: IDS mag op deze TrueNAS blokkeren (aanzetten met je wachtwoord)
+        $in = input();
+        $hid = (int) ($in['host_id'] ?? 0);
+        $on = !empty($in['on']);
+        if (!Truenas::is($hid)) {
+            out(['error' => t('Dit is geen TrueNAS-server')], 422);
+        }
+        if ($on) {
+            $confirm('TOESTAAN');
+        }
+        q('UPDATE hosts SET truenas_fw = ? WHERE id = ?', [$on ? 1 : 0, $hid]);   // de lijst voor de agent verandert: hij haalt hem bij zijn volgende ronde op
+        AgentCommands::audit($user['username'], 'TrueNAS: blokkeren door het IDS', ($on ? 'aan' : 'uit') . ' op ' . (string) q('SELECT name FROM hosts WHERE id = ?', [$hid])->fetchColumn());
+        out(['ok' => true, 'on' => $on]);
 
     case 'harden_ignore':
         $in = input();

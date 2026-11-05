@@ -282,6 +282,7 @@ final class Installer
         ['ai_advice', 'fb_by', 'VARCHAR(64) NULL'],
         ['ai_advice', 'fb_at', 'DATETIME NULL'],
         ['ai_advice', 'verdict', 'VARCHAR(12) NULL'],
+        ['hosts', 'truenas_fw', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 1.174.0: IDS mag op deze TrueNAS blokkeren (standaard uit)
     ];
 
     private static function migrate(PDO $pdo): void

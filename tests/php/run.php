@@ -1429,5 +1429,37 @@ foreach (['ai_on' => '0', 'ai_provider' => 'ollama', 'ai_budget_month' => '0', '
     save_setting($k, $v);
 }
 
+// 1.174.0: TrueNAS SCALE: herkennen, uitlezen (meldingen, taken, apps, update, temperatuur), kwetsbaarheden en IDS-blokkeren
+q("INSERT INTO hosts (name, address, mode, agent_seen, agent_version) VALUES ('ci-truenas', '192.0.2.60', 'agent', NOW(), '1.77.0')");
+$tnH = (int) db()->lastInsertId();
+$tnSt = db()->prepare('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)');
+$tnIsBefore = Truenas::is($tnH);
+$tnSt->execute([$tnH, 'cfg', json_encode(['sched' => 'truenas']), now()]);
+Truenas::fromAgent(['id' => $tnH], ['version' => 'TrueNAS-27.0.0', 'at' => time(),
+    'alerts' => [['level' => 'CRITICAL', 'formatted' => 'Pool <b>tank</b> is DEGRADED', 'dismissed' => false], ['level' => 'WARNING', 'formatted' => 'weg', 'dismissed' => true]],
+    'repl' => [['id' => 1, 'name' => 'naar backup', 'enabled' => true, 'state' => ['state' => 'ERROR', 'error' => 'No route to host']]],
+    'snap' => [['id' => 2, 'dataset' => 'tank', 'enabled' => true, 'state' => ['state' => 'FINISHED']]], 'cloud' => [], 'rsync' => [],
+    'apps' => [['name' => 'plex', 'state' => 'RUNNING', 'upgrade_available' => true], ['name' => 'nc', 'state' => 'STOPPED']],
+    'temps' => ['sda' => 41, 'sdb' => 62], 'update' => ['status' => 'AVAILABLE', 'version' => '27.0.1']], $tnSt, now());
+$tnHost = q('SELECT * FROM hosts WHERE id = ?', [$tnH])->fetch();
+$tc = static fn($m, $t = '', $w = null, $c = null) => Truenas::check(['metric' => $m, 'target' => $t, 'warn_threshold' => $w, 'crit_threshold' => $c], $tnHost);
+[$aS, , $aM] = $tc('alerts');
+[$tS, , $tM] = $tc('tasks');
+[$apS] = $tc('apps');
+[$ap1S] = $tc('apps', 'nc');
+[$uS] = $tc('update');
+[$teS, $teV] = $tc('temp', '', 50, 60);
+ok(!$tnIsBefore && Truenas::is($tnH) && $aS === STATUS_CRIT && str_contains($aM, 'Pool tank is DEGRADED') && !str_contains($aM, 'weg')
+    && $tS === STATUS_CRIT && str_contains($tM, 'No route to host') && $apS === STATUS_OK && $ap1S === STATUS_CRIT && $uS === STATUS_WARN && $teS === STATUS_CRIT && $teV === 62.0,
+    'TrueNAS: herkend; CRITICAL-melding (weggeklikte niet), mislukte replicatie, gestopte app alleen als je hem apart bewaakt, update = WARNING, warmste schijf telt');
+$deb = Vulns::derivedEcosystem('truenas', 'TrueNAS 27.0.0-RC.1', '', [['base-files', '13.8+deb13u1'], ['bash', '5.2']]);
+$noUbuntu = Vulns::derivedEcosystem('pop', 'Pop!_OS', 'ubuntu debian', [['base-files', '13ubuntu10']]);
+q('UPDATE hosts SET truenas_fw = 1 WHERE id = ?', [$tnH]);
+$tnLines = Ids::agentLines($tnH);
+ok($deb === 'Debian:13' && $noUbuntu === null && Vulns::upgradeBlocked($tnHost) !== null && str_contains((string) Vulns::upgradeBlocked($tnHost), 'TrueNAS')
+    && in_array("0\ttruenas_fw\t1", $tnLines, true),
+    'TrueNAS: kwetsbaarheden als de Debian eronder (base-files), Ubuntu-achtigen niet; nooit bijwerken met apt; blokkeren toegestaan = regel voor de agent');
+q('DELETE FROM hosts WHERE id = ?', [$tnH]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

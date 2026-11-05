@@ -51,6 +51,22 @@ final class Vulns
         };
     }
 
+    /**
+     * 1.174.0: een afgeleide van Debian (TrueNAS SCALE, of iets dat zich "like debian" noemt) die zelf niet in OSV staat:
+     * de Debian-versie eronder uit het pakket base-files.
+     * @param list<array> $list de softwarelijst
+     */
+    public static function derivedEcosystem(string $id, string $name, string $like, array $list): ?string
+    {
+        $truenas = $id === 'truenas' || stripos($name, 'truenas') !== false;
+        $debLike = in_array('debian', preg_split('/\s+/', strtolower($like)) ?: [], true) && !in_array($id, ['ubuntu', 'linuxmint', 'pop', 'elementary', 'zorin'], true);
+        if (!$truenas && !$debLike) {
+            return null;
+        }
+        $major = Truenas::debianMajor($list);
+        return $major !== null ? "Debian:$major" : null;
+    }
+
     // ------------------------------------------------------------------ softwarelijst opslaan
 
     /**
@@ -112,7 +128,8 @@ final class Vulns
            ON DUPLICATE KEY UPDATE mgr = VALUES(mgr), os_id = VALUES(os_id), os_version = VALUES(os_version), os_name = VALUES(os_name), ecosystem = VALUES(ecosystem),
              hash = VALUES(hash), packages = VALUES(packages), exposed = VALUES(exposed), restart_svc = VALUES(restart_svc), kernel_running = VALUES(kernel_running),
              kernel_latest = VALUES(kernel_latest), updated_at = VALUES(updated_at), scanned_at = IF(?, scanned_at, NULL)', [
-            $hostId, $mgr, $osId, $osVer, $s($os['name'] ?? '', 120), self::ecosystem($osId, $osVer), $hash,
+            $hostId, $mgr, $osId, $osVer, $s($os['name'] ?? '', 120),
+            self::ecosystem($osId, $osVer) ?? ($mgr === 'dpkg' ? self::derivedEcosystem($osId, (string) ($os['name'] ?? ''), (string) ($os['like'] ?? ''), $list) : null), $hash,
             json_encode($list, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), json_encode($exposed), json_encode($restart),
             $s($d['kernel']['running'] ?? '', 100) ?: null, $s($d['kernel']['latest'] ?? '', 100) ?: null, now(), $prev === $hash ? 1 : 0,   // zelfde lijst: niet opnieuw scannen
         ]);
@@ -221,6 +238,13 @@ final class Vulns
         }
         $done = static fn(?string $err) => q('UPDATE vuln_inventory SET scanned_at = ?, scan_error = ? WHERE host_id = ?', [now(), $err, $hostId]);
         $eco = $inv['ecosystem'];
+        if (!$eco && $inv['mgr'] === 'dpkg') {
+            // 1.174.0: eerder opgeslagen zonder ecosysteem (bv. TrueNAS): nu alsnog afleiden uit de softwarelijst
+            $eco = self::derivedEcosystem((string) $inv['os_id'], (string) $inv['os_name'], '', (array) json_decode((string) $inv['packages'], true));
+            if ($eco) {
+                q('UPDATE vuln_inventory SET ecosystem = ? WHERE host_id = ?', [$eco, $hostId]);
+            }
+        }
         if (!$eco) {
             q('DELETE FROM vuln_findings WHERE host_id = ?', [$hostId]);
             $done(t('Deze distributie wordt nog niet ondersteund: {os}', ['os' => $inv['os_name'] ?: $inv['os_id'] ?: '?']));
@@ -872,6 +896,7 @@ final class Vulns
         return match (true) {
             $host['mode'] !== 'agent' => t('alleen bij servers met een agent'),
             ($host['agent_update_via'] ?? '') === 'ha' => t('Home Assistant werk je bij via Home Assistant zelf'),
+            Truenas::is((int) ($host['host_id'] ?? $host['id'] ?? 0)) => t('TrueNAS werk je bij met een TrueNAS-update (System → Update), nooit met apt'),
             !$host['agent_version'] || version_compare((string) $host['agent_version'], self::AGENT_MIN, '<') => t('agent {v} of nieuwer nodig', ['v' => self::AGENT_MIN]),
             AgentCommands::modeFor($host) !== 'root' => t("commando's als root staan uit voor deze server (Instellingen → 🖥️ Commando-checks, of de Agent Manager)"),
             default => null,
@@ -1106,7 +1131,7 @@ final class Vulns
             $bins = self::binaries((array) json_decode((string) $r['packages'], true), (string) $r['mgr'], [$r['package']]);
             $hosts[] = ['host_id' => (int) $r['host_id'], 'host' => $r['host_name'], 'package' => $r['package'], 'version' => $r['version'], 'fixed' => $r['fixed_version'],
                 'vuln_id' => $r['vuln_id'], 'ignored' => self::ignored($cve, $r['package'], (int) $r['host_id']),
-                'command' => $r['fixed_version'] ? self::upgradeCommand((string) $r['mgr'], $bins) : null, 'upgrade_blocked' => self::upgradeBlocked($r)];
+                'command' => $r['fixed_version'] && !Truenas::is((int) $r['host_id']) ? self::upgradeCommand((string) $r['mgr'], $bins) : null, 'upgrade_blocked' => self::upgradeBlocked($r)];
         }
         $links = [];
         if (str_starts_with($cve, 'CVE-')) {

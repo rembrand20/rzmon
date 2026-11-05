@@ -88,7 +88,7 @@ final class Monitor
     }
 
     /** Checks die op gegevens van de agent draaien (niet ping/poort/HTTP/certificaat: die doet RzMon zelf). */
-    private const AGENT_TYPES = ['disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'command', 'ha', 'pve'];
+    private const AGENT_TYPES = ['disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'command', 'ha', 'pve', 'truenas'];
 
     /**
      * Net binnengekomen rapport van een agent: de agent-checks van die server die aan de beurt zijn meteen

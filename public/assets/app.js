@@ -62,6 +62,7 @@ const TYPES = {
   container: { label: L('Container (Podman/Docker)'), target: L('Container'), unit: null, ph: L('naam, of gebruiker/naam (rootless)'), help: L('Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.') },
   log:     { label: L('Logbestand (zoeken)'), target: L('Bron'), unit: 'treffers', warn: 5, crit: 20, ph: L('/var/log/secure, journal, journal:sshd of kernel'), help: L('De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.') },
   command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents → Commando-checks).') },
+  truenas: { label: L('TrueNAS'), target: null, unit: null, help: L('Via de agent op TrueNAS SCALE (agent 1.77.0 of nieuwer, als root): TrueNAS zelf uitgelezen met midclt, zonder API-sleutel.') },
   pve:     { label: L('Proxmox VE'), target: null, unit: null, help: L('Via de agent op een Proxmox-host (agent 1.61.0 of nieuwer, als root): de guests (VM\'s en containers), back-ups, opslag en ZFS. Kies hieronder wat je wilt bewaken.') },
   ha:      { label: L('Home Assistant'), target: null, unit: null, help: L('Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.') },
   snmp:    { label: L('SNMP'),          target: null,            unit: null, help: L('RzMon leest het apparaat zelf uit via SNMP (switches, access points, NAS, UPS, printers, Proxmox…). Interfaces, schijven en voorraden kies je het makkelijkst via 📡 SNMP-checks bij de server.') },
@@ -169,6 +170,15 @@ const HA_METRICS = {
   osupdate:     { label: L('OS-update mislukt (A/B-terugval)'), unit: null, help: L('CRITICAL als een OS-update niet wilde opstarten en Home Assistant OS is teruggevallen op de vorige versie.') },
   usb:          { label: L('USB-apparaat aanwezig'), unit: null, target: L('USB-apparaat'), ph: L('kies uit de lijst'), help: L('CRITICAL als het apparaat (Zigbee- of Z-Wave-stick, Bluetooth) niet meer gezien wordt door Home Assistant OS.') },
 };
+/** 1.174.0: TrueNAS SCALE: wat een truenas-check bewaakt */
+const TN_METRICS = {
+  alerts: { label: L('TrueNAS-meldingen'), unit: null, help: L('De meldingen van TrueNAS zelf (de bel rechtsboven in TrueNAS): een melding WARNING = WARNING; ERROR, CRITICAL of erger = CRITICAL. Meldingen die je in TrueNAS wegklikt tellen niet mee.') },
+  tasks: { label: L('Taken (replicatie, snapshots, cloud sync, rsync)'), unit: null, target: L('Taak (leeg = alle)'), ph: L('leeg = alle, of een deel van de naam'), help: L('Is de laatste keer van een taak mislukt (ERROR of FAILED), dan CRITICAL, met de foutmelding. Alleen taken die aan staan.') },
+  apps: { label: L('Apps'), unit: null, target: L('App (leeg = alle)'), ph: L('leeg = alle, of de naam van één app'), help: L('Alle apps: CRITICAL als een app vastgelopen is (CRASHED); gestopte apps staan in de melding. Eén app: CRITICAL als die niet draait. Een beschikbare app-update staat in de melding.') },
+  update: { label: L('TrueNAS-update'), unit: null, help: L('WARNING als er een nieuwe TrueNAS-versie klaarstaat, of als TrueNAS bijgewerkt is en op een herstart wacht. Elke 6 uur gecontroleerd.') },
+  temp: { label: L('Schijftemperatuur'), unit: '°C', warn: 50, crit: 60, target: L('Schijf (leeg = de warmste)'), ph: L('leeg = alle, of bv. sda'), help: L('De temperatuur van de schijven volgens TrueNAS; de warmste telt. Elk kwartier gemeten.') },
+};
+const isTnHost = (h) => h.metrics.includes('truenas');
 /** VPN (1.170.0): Gluetun via zijn control server, of WireGuard via de agent */
 const VPN_METRICS = {
   gluetun: { label: L('Gluetun (control server)'), target: L('Control server'), unit: null, ph: L('leeg = http://<adres van de server>:8000'), help: L('RzMon vraagt de control server van Gluetun of de VPN draait en via welk publiek IP het verkeer gaat. Is dat je eigen IP (van de internetlijn van RzMon), dan lekt de VPN: CRITICAL. Staat de control server achter een API-sleutel, vul die hieronder in.') },
@@ -199,6 +209,7 @@ function typeOf(c) {
   if (c.type === 'pve') return { ...TYPES.pve, ...(PVE_METRICS[c.metric] || PVE_METRICS.overview), label: 'Proxmox' };
   if (c.type === 'internet') return { ...TYPES.internet, ...(INET_METRICS[c.metric] || INET_METRICS.ping), label: L('Internet') };
   if (c.type === 'vpn') return { ...TYPES.vpn, ...(VPN_METRICS[c.metric] || VPN_METRICS.gluetun), label: 'VPN' };   // 1.170.0
+  if (c.type === 'truenas') return { ...TYPES.truenas, ...(TN_METRICS[c.metric] || TN_METRICS.alerts), label: 'TrueNAS' };   // 1.174.0
   return c.type === 'container' && c.metric ? { ...TYPES.container, ...METRICS[c.metric], label: TYPES.container.label } : TYPES[c.type];
 }
 
@@ -2802,7 +2813,7 @@ const glowHost = (h) => +h.enabled && h.checks.some((c) => +c.enabled && !c.main
 
 /** Volgorde voor "de 3 belangrijkste checks": eerst wat stuk is, dan checks met een meetwaarde, in deze volgorde */
 const KEY_RANK = ['internet:down', 'internet:up', 'internet:ping', 'cpu', 'ram', 'disk', 'internet:resp', 'ping', 'http', 'tcp', 'dns', 'mysql', 'ntp',
-  'container', 'snmp', 'pve', 'ha', 'ups', 'smart', 'process', 'service', 'ssl', 'heartbeat', 'log', 'command', 'reboot'];
+  'container', 'snmp', 'pve', 'truenas', 'ha', 'ups', 'smart', 'process', 'service', 'ssl', 'heartbeat', 'log', 'command', 'reboot'];
 const keyKind = (c) => (c.type === 'internet' ? 'internet:' + (c.metric || '') : c.type);
 function keyChecks(h, n = 3) {
   const on = h.checks.filter((c) => +c.enabled && !c.maintenance);
@@ -3262,6 +3273,7 @@ function detailBar(h) {
         ${hostKind(h) === 'camera' ? `<button class="btn need-admin" data-act="cam-rec" data-id="${h.id}">${L('＋ Aanbevolen checks')}</button>` : ''}
         ${h.metrics.includes('podman') ? `<button class="btn" data-act="podman" data-id="${h.id}">📦 Containers</button>` : ''}
         ${isPveHost(h) ? `<button class="btn" data-act="pve" data-id="${h.id}">🖥️ Proxmox</button>` : ''}
+        ${isTnHost(h) ? `<button class="btn" data-act="truenas" data-id="${h.id}">🗄️ TrueNAS</button>` : ''}
         <button class="btn need-admin" data-act="edit-host" data-id="${h.id}">✎ ${L('Bewerken')}</button>
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
       </div>`;
@@ -3654,6 +3666,7 @@ async function onHostsClick(e) {
     case 'cam-rec': return cameraRecommended(findHost(id));
     case 'podman': return podmanOverview(findHost(id));
     case 'pve': return pveOverview(findHost(id));
+    case 'truenas': return tnOverview(findHost(id));   // 1.174.0
     case 'toggle': return toggleHost(id);
     case 'cc-open': return ccToggle(id, !ccOpen.has(+id));
     case 'cc-close': return ccToggle(id, false);
@@ -4523,8 +4536,9 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const quietOwn = quietOf(c);
   const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
   const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'dns', 'ntp', 'mysql', 'domain', 'mqtt', 'vpn', 'snmp', 'heartbeat', 'internet']
-    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command', 'pve', 'smart', 'ups'].includes(k))
+    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command', 'pve', 'truenas', 'smart', 'ups'].includes(k))
       .filter((k) => k !== 'pve' || isPveHost(h) || c?.type === 'pve')
+      .filter((k) => k !== 'truenas' || isTnHost(h) || c?.type === 'truenas')   // 1.174.0
       .filter((k) => k !== 'reboot' || h.mode !== 'remote' || c?.type === 'reboot')
       .filter((k) => k !== 'ha' || h.metrics.some((m) => m.startsWith('ha:') || m === 'service:supervisor') || c?.type === 'ha'))
     .filter((k) => k !== 'snmp' || h.snmp || c?.type === 'snmp')
@@ -4564,6 +4578,10 @@ function checkForm(c, h, preset = {}, tpl = null) {
       <label>${L('Type')}
         <select name="type">${allowed.map((k) => `<option value="${k}" ${c.type === k ? 'selected' : ''}>${TYPES[k].label}</option>`).join('')}</select>
         <span class="hint" id="type-help"></span>
+      </label>
+      <label id="tn-wrap" hidden>${L('Bewaken')}
+        <select name="metric">${Object.entries(TN_METRICS).map(([k, m]) => `<option value="${k}" ${(c.type === 'truenas' ? c.metric || 'alerts' : 'alerts') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+        <span class="hint" id="tn-help"></span>
       </label>
       <label id="vpn-wrap" hidden>${L('Welke VPN')}
         <select name="metric">${Object.entries(VPN_METRICS).filter(([k]) => k !== 'wg' || h.mode === 'agent' || c.metric === 'wg').map(([k, m]) => `<option value="${k}" ${(c.type === 'vpn' ? c.metric || 'gluetun' : 'gluetun') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
@@ -4893,6 +4911,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const pveSel = $('#pve-wrap [name=metric]', form);
   const inetSel = $('#inet-wrap [name=metric]', form);
   const vpnSel = $('#vpn-wrap [name=metric]', form);   // 1.170.0
+  const tnSel = $('#tn-wrap [name=metric]', form);   // 1.174.0
   $('[name=reverse_ok]', form).onchange = () => update(false);
   const snmpSel = $('#snmp-metric');
   const update = (setDefaults) => {
@@ -4901,6 +4920,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     const isPve = typeSel.value === 'pve';
     const isInet = typeSel.value === 'internet';
     const isVpn = typeSel.value === 'vpn';
+    const isTn = typeSel.value === 'truenas';
     const isSnmp = typeSel.value === 'snmp';
     const oidMode = $('[name=oid_mode]', form).value;
     const isHb = typeSel.value === 'heartbeat';
@@ -4908,6 +4928,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       : isPve ? { ...TYPES.pve, ...PVE_METRICS[pveSel.value] }
       : isInet ? { ...TYPES.internet, ...INET_METRICS[inetSel.value] }
       : isVpn ? { ...TYPES.vpn, ...VPN_METRICS[vpnSel.value] }
+      : isTn ? { ...TYPES.truenas, ...TN_METRICS[tnSel.value] }
       : isSnmp ? snmpType({ metric: snmpSel.value, options: JSON.stringify({ mode: oidMode, unit: $('[name=oid_unit]', form).value, low: $('[name=oid_low]', form).checked }) })
         : isHb ? { ...TYPES.heartbeat, unit: $('[name=hb_unit]', form).value.trim() || null }
           : TYPES[typeSel.value];
@@ -4926,6 +4947,9 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#inet-help').textContent = isInet ? INET_METRICS[inetSel.value].help : '';
     $('#vpn-wrap').hidden = !isVpn;
     vpnSel.disabled = !isVpn;
+    $('#tn-wrap').hidden = !isTn;
+    tnSel.disabled = !isTn;
+    $('#tn-help').textContent = isTn ? TN_METRICS[tnSel.value].help : '';
     $('#vpn-help').textContent = isVpn ? VPN_METRICS[vpnSel.value].help : '';
     $('#glu-x-wrap').hidden = !(isVpn && vpnSel.value === 'gluetun');
     $('#mqtt-x-wrap').hidden = typeSel.value !== 'mqtt';
@@ -5222,6 +5246,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   haSel.onchange = () => update('metric');
   pveSel.onchange = () => update('metric');
   vpnSel.onchange = () => update('metric');   // 1.170.0
+  tnSel.onchange = () => update('metric');   // 1.174.0
   snmpSel.onchange = () => update('metric');
   $('[name=oid_mode]', form).onchange = () => update(false);
   $('[name=oid_low]', form).onchange = () => update(false);
@@ -5627,12 +5652,16 @@ function agentOverview(keyText) {
         <span class="a-acts">${h.agent_version && !latest(h) ? `<button type="button" class="btn small-btn" data-ag-update="${h.id}">⬆ ${L('Bijwerken')}</button>` : ''}<button type="button" class="btn small-btn" data-am="${h.id}">${L('Agent Manager')}</button></span></div>`).join('')}
         ${secInfo.audit && Object.values(secInfo.audit).some((a) => a.bad) ? `<div class="ag-attn-foot"><button type="button" class="btn small-btn" id="ag-cleanup">🧹 ${L('Alles opruimen')}</button> <span class="muted small">${L('oude tokens wissen en agents opnieuw laten installeren met een reservekopie')}</span></div>` : ''}</div>`
       : `<div class="attn-ok">✔ ${L('Alle agents zijn online, bijgewerkt en veilig verbonden')}</div>`}
-    <div class="sec-h hosts-h ag-h"><h2>${L('Agents')}</h2><span>${n}</span>
+    <div class="sec-h hosts-h ag-h"><h2>${L('Agents')}</h2><span>${sorted.filter((h) => !h.truenas).length}</span>
       <button type="button" class="th-sort" id="contact-sort" title="${esc(agentSort === 'contact' ? L('Weer op naam sorteren') : L('Langst geen contact bovenaan'))}">${agentSort === 'contact' ? L('Op contact') : L('Op naam')} ⇅</button></div>
-    <div class="ag-cards">${sorted.map((h) => {
+    <div class="ag-cards">${sorted.filter((h) => !h.truenas).map((h) => agCard(h)).join('')}</div>
+    ${sorted.some((h) => h.truenas) ? `<div class="sec-h hosts-h ag-h ag-tn-h"><h2>🗄️ TrueNAS</h2><span>${sorted.filter((h) => h.truenas).length}</span></div>
+      <p class="muted small ag-tn-note">${L('TrueNAS SCALE draait de agent op de pool, gestart door een cronjob van TrueNAS zelf. Bijwerken van pakketten gaat via een TrueNAS-update; het IDS blokkeert alleen als je dat per server aanzet.')}</p>
+      <div class="ag-cards">${sorted.filter((h) => h.truenas).map((h) => agCard(h)).join('')}</div>` : ''}`;
+  function agCard(h) {
       const iss = issues(h).length;
       return `<article class="ag-card ${!online(h) ? 's2' : iss ? 's1' : 's0'}">
-        <div class="ag-head"><i class="adot s${!online(h) ? 2 : iss ? 1 : 0}"></i><strong>${esc(h.name)}</strong>
+        <div class="ag-head"><i class="adot s${!online(h) ? 2 : iss ? 1 : 0}"></i><strong>${h.truenas ? '🗄️ ' : ''}${esc(h.name)}</strong>
           <span class="ag-ver ${latest(h) ? '' : 'warn-txt'}">${h.agent_version ? 'v' + esc(h.agent_version) : '–'}${h.agent_version && !latest(h) ? ' ⬆' : ''}</span></div>
         <div class="small ag-contact">${contactHtml(h, 'short')}</div>
         <div class="ag-badges">
@@ -5647,7 +5676,7 @@ function agentOverview(keyText) {
           <button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗 ${L('Koppelen')}</button>
           <button type="button" class="btn small-btn" data-url-host="${h.id}" title="${esc(L('Adres van RzMon voor deze agent wijzigen'))}">🌐 ${L('Adres')}</button></div>
       </article>`;
-    }).join('')}</div>`;
+  }
 }
 
 function renderSecurity() {
@@ -6422,6 +6451,65 @@ const pveBytes = (b) => (+b ? (+b / 1073741824 >= 1024 ? dec((+b / 1099511627776
 const pveAgo = (ts) => (ts ? ago(new Date(ts * 1000).toISOString()) : '–');
 
 /** Overzicht van een Proxmox-node, of van alle nodes in dezelfde (aangemerkte) cluster */
+/** 1.174.0: TrueNAS SCALE: wat de agent via midclt uitleest, met een knop per onderdeel om een check aan te maken */
+const TN_TASK = { repl: () => L('Replicatie'), snap: () => L('Snapshots'), cloud: () => L('Cloud sync'), rsync: () => 'Rsync' };
+const tnState = (s) => (['ERROR', 'FAILED', 'ABORTED', 'CRASHED'].includes(s) ? 'crit-txt' : ['RUNNING', 'FINISHED', 'SUCCESS'].includes(s) ? 'good-txt' : s === 'STOPPED' ? 'warn-txt' : 'muted');
+const tnLevel = (l) => (['ERROR', 'CRITICAL', 'ALERT', 'EMERGENCY'].includes(l) ? 'crit-txt' : l === 'WARNING' ? 'warn-txt' : 'muted');
+async function tnOverview(h) {
+  let o;
+  try { o = await api('truenas_overview', null, { host_id: h.id }); } catch (ex) { return toast(ex.message, 'err'); }
+  const has = (metric, target = '') => o.checks.some((c) => c.metric === metric && (c.target || '') === String(target));
+  const addBtn = (metric, target = '', label = '') => (has(metric, target) ? `<span class="badge" title="${esc(L('Er is al zo\'n check'))}">✔ ${L('check')}</span>`
+    : `<button type="button" class="btn small-btn need-admin" data-tn-add="${metric}" data-tn-target="${esc(target)}">＋ ${esc(label || L('Check'))}</button>`);
+  const when = (ts) => (ts ? esc(ago(new Date(ts * 1000).toISOString())) : '–');
+  const alerts = o.alerts.length
+    ? `<ul class="tn-list">${o.alerts.map((a) => `<li><b class="${tnLevel(a.l)}">${esc(a.l)}</b> ${esc(a.t)} <span class="muted small">${when(a.at)}</span></li>`).join('')}</ul>`
+    : `<p class="good-txt small">✔ ${L('Geen meldingen')}</p>`;
+  const tasks = o.tasks.length
+    ? `<div class="table-wrap"><table class="small"><thead><tr><th>${L('Soort')}</th><th>${L('Taak')}</th><th>${L('Laatste keer')}</th><th></th></tr></thead><tbody>
+      ${o.tasks.map((x) => `<tr class="${x.on ? '' : 'muted'}"><td>${esc((TN_TASK[x.k] || (() => x.k))())}</td><td>${esc(x.n)}${x.on ? '' : ` <span class="muted">(${L('uit')})</span>`}</td>
+        <td><span class="${tnState(x.st)}">${esc(x.st || '–')}</span> · ${when(x.at)}${x.err ? `<br><span class="crit-txt">${esc(x.err)}</span>` : ''}</td>
+        <td>${x.on ? addBtn('tasks', x.n, L('Bewaken')) : ''}</td></tr>`).join('')}</tbody></table></div>`
+    : `<p class="muted small">${L('Geen taken ingesteld (replicatie, snapshots, cloud sync, rsync).')}</p>`;
+  const apps = o.apps.length
+    ? `<div class="table-wrap"><table class="small"><thead><tr><th>${L('App')}</th><th>${L('Status')}</th><th>${L('Versie')}</th><th></th></tr></thead><tbody>
+      ${o.apps.map((a) => `<tr><td><b>${esc(a.n)}</b></td><td><span class="${tnState(a.st)}">● ${esc(a.st)}</span></td>
+        <td>${esc(a.v || '')}${a.up ? ` <span class="warn-txt">⬆ ${L('update beschikbaar')}</span>` : ''}</td><td>${addBtn('apps', a.n, L('Bewaken'))}</td></tr>`).join('')}</tbody></table></div>`
+    : `<p class="muted small">${L('Geen apps.')}</p>`;
+  const temps = Object.entries(o.temps || {}).sort((a, b) => b[1] - a[1]);
+  const tempHtml = temps.length ? `<div class="tn-temps">${temps.map(([d, t]) => `<span class="tn-temp ${t >= 60 ? 'crit' : t >= 50 ? 'warn' : ''}"><b>${esc(d)}</b> ${dec(t)} °C</span>`).join('')}</div>`
+    : `<p class="muted small">${L('Geen schijftemperaturen ontvangen.')}</p>`;
+  const u = o.update;
+  const upd = !u ? `<span class="muted">${L('nog niet gecontroleerd')}</span>` : u.reboot ? `<b class="warn-txt">${L('bijgewerkt, wacht op een herstart')}</b>`
+    : u.av ? `<b class="warn-txt">⬆ ${L('update beschikbaar: {v}', { v: esc(u.v || '?') })}</b>` : `<span class="good-txt">✔ ${L('bijgewerkt')}</span>`;
+  const sec = (title, metric, body, label) => `<div class="tn-sec"><div class="tn-sec-h"><h3 class="set-sub">${title}</h3>${addBtn(metric, '', label)}</div>${body}</div>`;
+  const { form } = modal({
+    title: `🗄️ TrueNAS · ${esc(h.name)}`, wide: true,
+    body: `<p class="muted small" style="margin-top:0">${esc(o.v || 'TrueNAS')} · ${L('bijgewerkt {t}', { t: when(o.at) })}${o.fresh ? '' : ` · <b class="warn-txt">${L('niet vers')}</b>`} · ${L('update')}: ${upd}</p>
+      ${sec('🔔 ' + L('Meldingen van TrueNAS'), 'alerts', alerts, L('Meldingen bewaken'))}
+      ${sec('🔁 ' + L('Taken'), 'tasks', tasks, L('Alle taken bewaken'))}
+      ${sec('📦 ' + L('Apps'), 'apps', apps, L('Alle apps bewaken'))}
+      ${sec('🌡️ ' + L('Schijftemperaturen'), 'temp', tempHtml, L('Temperatuur bewaken'))}
+      ${sec('⬆ ' + L('TrueNAS-update'), 'update', '', L('Update bewaken'))}`,
+    buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
+  });
+  form.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-tn-add]');
+    if (!b) return;
+    e.preventDefault();
+    const metric = b.dataset.tnAdd, target = b.dataset.tnTarget || '', m = TN_METRICS[metric];
+    b.disabled = true;
+    try {
+      await api('check_save', { host_id: h.id, type: 'truenas', metric, target, enabled: true, verify_ssl: true, interval_sec: metric === 'update' ? 3600 : 300,
+        warn_threshold: m.warn ?? null, crit_threshold: m.crit ?? null });
+      toast(L('Check toegevoegd'));
+      $('#modal').close();
+      await refresh();
+      tnOverview(findHost(h.id));
+    } catch (ex) { b.disabled = false; toast(ex.message, 'err'); }
+  });
+}
+
 async function pveOverview(h) {
   let o;
   try { o = await api('pve_overview', null, { host_id: h.id }); } catch (ex) { return toast(ex.message, 'err'); }
@@ -6873,7 +6961,7 @@ function keepOpen(root, draw) {
 const IDS_FW = {
   active: (h) => `⛔ ${L('blokkeren actief')}${h.blocks ? ` · ${L('{n} geblokkeerd', { n: h.blocks })}` : ''}`,
   off: () => L('alleen melden'),
-  unsupported: () => L('TrueNAS: alleen detecteren'),
+  unsupported: () => L('TrueNAS: alleen detecteren (aan te zetten bij 🛡️ Hardening)'),
   disabled: () => L('blokkeren uit op de server (IDS_BLOCK=0)'),
   error: (h) => `<span class="bad">✘ ${L('firewall: {e}', { e: esc(h.fw_error || L('fout')) })}</span>`,
 };
@@ -7700,9 +7788,9 @@ function idsModeChip(h, d) {
   if (!h.last_report) return `<span class="ids-mode-chip na">${esc(L('geen rapport'))}</span>`;
   if (h.learning) return `<span class="ids-mode-chip learn" title="${esc(L('Eerst vastleggen wat normaal is'))}">📏 ${esc(L('basismeting'))}</span>`;
   if (d.mode !== 'block') return `<span class="ids-mode-chip learn">🎓 ${esc(L('Leren'))}</span>`;
-  const m = { active: ['block', '⛔ ' + L('Blokkeren')], off: ['detect', '👁 ' + L('Alleen melden')], unsupported: ['detect', '👁 ' + L('Alleen detecteren')],
+  const m = { active: ['block', '⛔ ' + L('Blokkeren')], off: ['detect', '👁 ' + L('Alleen melden')], unsupported: ['detect', '👁 ' + L('Alleen detecteren'), L('TrueNAS: blokkeren staat uit. Zet het aan bij de server: 🛡️ Hardening → TrueNAS: ingrijpen door het IDS.')],
     disabled: ['detect', '👁 ' + L('Blokkeren uit')], error: ['err', '✘ ' + L('Firewall-fout')] }[h.fw_state] || ['block', '⛔ ' + L('Blokkeren')];
-  return `<span class="ids-mode-chip ${m[0]}">${esc(m[1])}</span>`;
+  return `<span class="ids-mode-chip ${m[0]}" ${m[2] ? `title="${esc(m[2])}"` : ''}>${esc(m[1])}</span>`;
 }
 /** 1.165.0: incidenten per dag (7 dagen) als staafjes */
 function idsWeekSvg(h) {
@@ -7913,6 +8001,10 @@ async function hostSecDialog(hostId) {
           ${hp.caution && i.ok !== true ? `<p class="callout small">⚠️ ${esc(hp.caution)}</p>` : ''}</div></details>`; }).join('')}</div>`
         : `<p class="muted small">${L('Nog geen gegevens: agent 1.57.0 nodig; hij stuurt ze elk uur.')}</p>`}
       <div class="need-admin">
+      ${d.truenas ? `<h3 class="set-sub">🗄️ ${L('TrueNAS: ingrijpen door het IDS')}</h3>
+        <label class="switch"><input type="checkbox" data-tn-fw ${d.truenas.fw ? 'checked' : ''}><span></span> <b>${L('IDS mag hier blokkeren')}</b></label>
+        <p class="muted small">${L('Standaard alleen detecteren: TrueNAS beheert zijn eigen netwerk. Zet je dit aan (met je wachtwoord), dan mag het IDS aanvallers blokkeren en werkt de honeypot-poort, net als op andere servers. De agent gebruikt een eigen firewalltabel en zet die elke minuut terug, ook na een herstart of update van TrueNAS. Je lokale netwerken en RzMon worden nooit geblokkeerd. Agent 1.77.0 of nieuwer nodig.')}</p>
+        ${d.truenas.fw && d.truenas.state === 'unsupported' ? `<p class="warn-txt small">⏳ ${L('Aangezet; de agent neemt het over bij zijn volgende ronde (agent 1.77.0 of nieuwer).')}</p>` : ''}` : ''}
       <h3 class="set-sub">🧱 ${L('Isoleren')}</h3>
       ${xpHtml(L('Sluit de server af van alles behalve RzMon, je eigen netwerk en jou.'), L('<b>Bij een hack:</b> alleen RzMon, je lokale netwerken en jouw IP-adres ({ip}) kunnen er nog bij; al het andere verkeer (in, uit en containers) stopt. <b>Goed om te weten:</b> het vervalt vanzelf na de gekozen tijd, ook als RzMon onbereikbaar is.', { ip: `<code>${esc(d.my_ip)}</code>` }))}
       ${iso ? `<p><b class="danger-txt">🧱 ${L('Geïsoleerd tot {t}', { t: esc(fmtDateTime(d.iso.isolate_until)) })}</b> · ${L('door {by}', { by: esc(d.iso.isolate_by || '?') })} · <span class="muted">${esc(d.iso.isolate_state || '')}</span>
@@ -7935,6 +8027,23 @@ async function hostSecDialog(hostId) {
     if (!c) return;
     try { await api('harden_ignore', { host_id: hostId, item: c.dataset.hardIgn, ignored: c.checked }); $('#modal').close(); hostSecDialog(hostId); loadIds(); } catch (ex) { toast(ex.message, 'err'); }
   };
+  body.addEventListener('change', async (e) => {   // 1.174.0: TrueNAS mag blokkeren
+    const tn = e.target.closest('[data-tn-fw]');
+    if (!tn) return;
+    const on = tn.checked;
+    tn.checked = !on;
+    try {
+      let pw = '';
+      if (on) {
+        pw = await askConfirm({ title: L('IDS laten blokkeren op {name}?', { name: h.name }), danger: true, word: 'TOESTAAN', ok: L('Aanzetten'),
+          text: L('Het IDS mag dan aanvallers op deze TrueNAS blokkeren, met een eigen firewalltabel. Je lokale netwerken en RzMon worden nooit geblokkeerd.') });
+        if (pw === null) return;
+      }
+      await api('host_truenas_fw', { host_id: hostId, on: on ? 1 : 0, confirm: pw });
+      tn.checked = on;
+      toast(on ? L('Aangezet; de agent neemt het over bij zijn volgende ronde') : L('Uitgezet: alleen detecteren'));
+    } catch (ex) { toast(ex.message, 'err'); }
+  });
   body.onclick = async (e) => {
     const isoB = e.target.closest('[data-isolate]'), un = e.target.closest('[data-unisolate]'), ul = e.target.closest('[data-ulock]'), uu = e.target.closest('[data-uunlock]');
     if (!isoB && !un && !ul && !uu) return;

@@ -262,7 +262,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - **critical** ook naar Pushover (ook tijdens stille uren), **warning** alleen op de pagina IDS;
   - **blokkeren** op de aangevallen server: automatisch bij brute force (24 uur; bij herhaling binnen 30 dagen 7 dagen; permanent met de hand) of met één klik, en **deblokkeren**; je LAN, RzMon en een eigen lijst nooit automatisch;
   - **📁 bestanden bewaken** (FIM): eigen paden (algemeen en per server, met jokertekens zoals `/var/www/**/*.php`), met hash, grootte, rechten en eigenaar; nieuw, gewijzigd, verwijderd of SUID erbij; elke minuut snel, dagelijks volledig; veel wijzigingen tegelijk als één incident; *＋ Aanbevolen*, *goedkeuren* en *niet meer bewaken*;
-  - TrueNAS SCALE alleen detecteren;
+  - TrueNAS SCALE standaard alleen detecteren; per server **blokkeren toestaan** (1.174.0, agent 1.77.0);
   - **🛰️ endpoint-bewaking** (1.110.0, agent 1.63.0; algemeen en per server aan/uit): processen, gevoelige paden en kernelmodules (auditd), verbindingen en luisterpoorten, nieuwe bestanden in tijdelijke mappen en webmappen (inotify) en containers, op het moment zelf; getoetst aan **eigen regels met uitleg** en **121 Sigma-regels van SigmaHQ**; RzMon **stopt het proces**, **blokkeert het IP** of **isoleert de server** (elk los aan/uit, alleen in de modus Blokkeren); ontbrekende onderdelen (auditd, inotify-tools) staan onder de servernaam, met **installeren via de agent**; tabbladen **🛰️ Live** en **🔏 Regels**; **🛡️ uitzonderingen** (1.132.0): wat normaal is per server, groep of overal, met voorwaarden (programma, ouder, pad, IP …), **sets met één knop** (systeemonderhoud, containers, Plex, back-up) en **voorstellen uit je eigen meldingen** met het aantal erachter; toegestaan = groene regel in Live; exporteren/importeren;
   - **🧬 afwijkingen** (1.111.0): RzMon leert per server 14 dagen (instelbaar) wat normaal is en meldt daarna wat die server nog nooit deed (een dienst die iets nieuws start, een nieuw programma dat luistert of naar buiten belt, een nieuwe gebruiker, een nieuw land, ongewoon veel processen, actief op een ongewoon tijdstip …), met een score; vanaf een drempel een incident; *Leren afronden* en *Opnieuw leren* per server;
   - **🔗 ketens en combinaties** (1.111.0): webaanval → code op de webserver, inloggen → rechten of achterdeur, binnenhalen → contact naar buiten, meerdere aanvalsstappen, veel afwijkingen tegelijk en een login vanaf een gehackte eigen server; critical met alle stappen in volgorde, en in de modus Blokkeren de aanvaller blokkeren of de server isoleren;
@@ -343,7 +343,10 @@ Een bash-script (`rzmon-agent.sh`) dat elke minuut een rapport naar RzMon stuurt
   - een **cronjob van TrueNAS** wordt via de API aangemaakt (uitvoer verborgen); die blijft staan na een TrueNAS-update;
   - een bestaande handmatige installatie wordt overgenomen.
 - **Bijwerken met de knop** in RzMon, net als op andere servers.
-- **🛡️ IDS:** alleen detecteren, niet blokkeren.
+- **🗄️ TrueNAS uitlezen** (1.174.0, agent 1.77.0): via `midclt`, zonder API-sleutel. Checktype **TrueNAS** voor de **meldingen** van TrueNAS, **taken** (replicatie, snapshots, cloud sync, rsync), **apps**, een **TrueNAS-update** en de **schijftemperatuur**; bij de server een knop **🗄️ TrueNAS** met een overzicht en ＋ Check per onderdeel.
+- **🐞 Kwetsbaarheden** (1.174.0): gescand als de Debian eronder (uit `base-files`); bijwerken alleen via een TrueNAS-update, nooit met apt.
+- **🛡️ IDS:** standaard alleen detecteren; met **IDS mag hier blokkeren** (in *🛡️ Hardening*, met je wachtwoord) ook blokkeren en de honeypot-poort (1.174.0, agent 1.77.0).
+- **Agents-overzicht:** TrueNAS in een eigen groep (1.174.0).
 - **Tip:** bewaak je pools met een commando-check `zpool status -x`.
 - **TrueNAS CORE** (FreeBSD) voeg je toe als *Remote* met netwerkchecks.
 

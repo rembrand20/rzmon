@@ -63,6 +63,10 @@ final class Ids
             }
             $out[] = implode("\t", [0, 'fim', base64_encode($cfg)]);
         }
+        // 1.174.0 (agent 1.77.0): op TrueNAS alleen blokkeren als de beheerder het voor deze server heeft toegestaan
+        if ((int) q('SELECT truenas_fw FROM hosts WHERE id = ?', [$hostId])->fetchColumn() === 1) {
+            $out[] = implode("\t", [0, 'truenas_fw', 1]);
+        }
         if (self::blocking()) {
             foreach (self::blocksFor($hostId) as $b) {
                 $out[] = implode("\t", [0, 'block', $b['ip'], $b['until'] ? strtotime($b['until']) : 0]);

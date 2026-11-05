@@ -3357,3 +3357,14 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 .ai-verdict.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
 .ai-verdict.bad { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 50%, transparent); background: color-mix(in srgb, var(--crit) 10%, transparent); }
 @media (max-width: 600px) { .ai-extras .ai-sub { margin-left: 0; } }
+
+/* 1.174.0: TrueNAS-venster */
+.tn-sec { margin-bottom: .9rem; }
+.tn-sec-h { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+.tn-sec-h .set-sub { margin: .6rem 0 .3rem; }
+.tn-list { list-style: none; padding: 0; margin: 0; font-size: .88rem; }
+.tn-list li { padding: .3rem 0; border-top: 1px solid var(--border); }
+.tn-temps { display: flex; flex-wrap: wrap; gap: .4rem; }
+.tn-temp { font-size: .85rem; padding: .2rem .55rem; border-radius: 999px; border: 1px solid var(--border); background: var(--card-2); font-variant-numeric: tabular-nums; }
+.tn-temp.warn { border-color: color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); }
+.tn-temp.crit { border-color: color-mix(in srgb, var(--crit) 60%, transparent); color: var(--crit); }

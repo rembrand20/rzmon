@@ -2164,8 +2164,32 @@ Goed om te weten:
 - **Testen:** `bash /mnt/<pool>/rzmon-agent/rzmon-agent-setup --test`. **Verwijderen:** `… --uninstall`; dat haalt ook de cronjob weg.
 - **Lukt de cronjob via de API niet**, dan zegt het script dat en toont het het commando om hem zelf aan te maken.
 - **Disks:** je pools staan onder `/mnt/…`, bijvoorbeeld een diskcheck op `/mnt/tank`.
-- **Pools bewaken:** voeg een **Commando**-check toe (§8.10) met `zpool status -x` en verwacht antwoord `all pools are healthy`.
-- **Apps:** TrueNAS SCALE 24.10 en nieuwer gebruikt Docker; de agent kent alleen Podman, dus apps worden niet gemeld.
+- **Pools bewaken:** voeg een **Commando**-check toe (§8.10) met `zpool status -x` en verwacht antwoord `all pools are healthy`, of kies de voorinstelling *ZFS-pools gezond*.
+- **Apps (Docker):** de agent ziet de containers van je apps (Docker, als root), net als op andere servers. Met de TrueNAS-check *Apps* (hieronder) zie je ook de status van TrueNAS zelf (vastgelopen, gestopt, update beschikbaar).
+
+**🗄️ TrueNAS uitlezen** (vanaf RzMon 1.174.0, agent 1.77.0, als root)
+
+De agent vraagt TrueNAS zelf met `midclt`, zonder API-sleutel: alles gaat over de bestaande versleutelde verbinding. Bij de server staat dan de knop **🗄️ TrueNAS** met een overzicht, en per onderdeel een knop om er een check van te maken. Of kies bij *＋ Check* het type **TrueNAS**:
+
+| Bewaken | Wat | Hoe vaak |
+|---|---|---|
+| Meldingen | de meldingen van TrueNAS zelf (de bel in TrueNAS); WARNING = WARNING, ERROR of erger = CRITICAL. Weggeklikte meldingen tellen niet mee. | elke 5 min |
+| Taken | replicatie, snapshots, cloud sync en rsync: is de laatste keer mislukt, dan CRITICAL met de foutmelding. Eén taak: vul (een deel van) de naam in. | elke 5 min |
+| Apps | vastgelopen app = CRITICAL; gestopte apps en beschikbare app-updates staan in de melding. Eén app: CRITICAL als die niet draait. | elke 5 min |
+| TrueNAS-update | WARNING als er een nieuwe versie klaarstaat, of TrueNAS op een herstart wacht na een update | elke 6 uur |
+| Schijftemperatuur | de warmste schijf (of één schijf), standaard warning 50 °C en critical 60 °C | elk kwartier |
+
+`TRUENAS=0` in `agent.conf` zet het uitlezen uit.
+
+**Kwetsbaarheden** (vanaf 1.174.0): TrueNAS is Debian eronder. RzMon leest uit het pakket `base-files` welke Debian het is en scant met de Debian-adviezen. Bijwerken gaat **nooit met apt** (dat kan TrueNAS kapotmaken): daarom zit er geen knop *Bijwerken* bij. Werk bij met een TrueNAS-update (*System → Update*).
+
+**IDS op TrueNAS** (vanaf 1.174.0, agent 1.77.0): standaard **alleen detecteren**, want TrueNAS beheert zijn eigen netwerk. Wil je dat het IDS ook blokkeert, open dan bij de server **🛡️ Hardening** en zet **IDS mag hier blokkeren** aan (met je wachtwoord). Dan:
+- blokkeert het IDS aanvallers en werkt de honeypot-poort, net als op andere servers;
+- gebruikt de agent een eigen firewalltabel (`inet rzmon`) en zet die elke minuut terug, ook na een herstart of update van TrueNAS;
+- worden je lokale netwerken en RzMon nooit geblokkeerd.
+Isoleren werkte al op TrueNAS.
+
+**Agents-overzicht:** TrueNAS-servers staan in een eigen groep **🗄️ TrueNAS**, onder de andere agents.
 - **TrueNAS CORE** (FreeBSD) kan de agent niet draaien. Voeg hem toe als **Remote** met ping, poorten (445 SMB, 2049 NFS, 22 SSH) en HTTP(S) op de webinterface.
 
 ### 8.9a Proxmox VE 🖥️ (vanaf 1.105.0, agent 1.61.0)

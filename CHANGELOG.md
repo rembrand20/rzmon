@@ -8,11 +8,28 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.174.0**: **TrueNAS SCALE** beter ondersteund: meldingen, taken, apps, update en temperaturen als checks, kwetsbaarheden scannen, en het IDS mag er blokkeren als je dat aanzet.
 - **1.173.0**: **AI-advies** met **verbruik, tegoed en maandbudget**, en extra's als geheugen, niet twee keer betalen, terugvallen op Ollama, een weekoverzicht en een oordeel bij IDS-incidenten.
 - **1.172.0**: de **Live Attack Flow toont altijd tien aanvallers** (live eerst, aangevuld uit de top 10 van 24 uur) en een **banner bovenaan** zodra een server in isolatie gaat.
 - **1.171.0**: **🤖 AI-advies** bij storingen en incidenten (Claude, ChatGPT, Gemini, Grok of Ollama), met diep zoeken via de agent en desgewenst uitvoeren na bevestiging.
 - **1.170.0**: nieuwe checks **Domein** (verloopdatum), **MQTT-broker** (rondgang en topic) en **VPN** (Gluetun met lekcontrole, WireGuard-handshakes).
-- **1.169.0**: **Monitoring → 📶 Beschikbaarheid**: per soort apparaat of eigen groep wat er online is, het percentage, storingen en het doel (SLA).
+
+## 1.174.0 – 2026-11-05
+Nieuwe agent 1.77.0 (nodig voor het uitlezen van TrueNAS en het blokkeren door het IDS op TrueNAS).
+### Nieuw
+- **🗄️ TrueNAS SCALE uitlezen** (agent 1.77.0): de agent vraagt TrueNAS zelf, zonder API-sleutel.
+  - Nieuw checktype **TrueNAS**, te bewaken:
+    - **meldingen** van TrueNAS (WARNING of ERROR/CRITICAL);
+    - **taken** (replicatie, snapshots, cloud sync, rsync): mislukt = CRITICAL;
+    - **apps** (vastgelopen = CRITICAL, of één app die niet draait);
+    - een **TrueNAS-update** die klaarstaat;
+    - de **schijftemperatuur**.
+  - Bij de server een knop **🗄️ TrueNAS**: een overzicht van meldingen, taken, apps, temperaturen en de update, met per onderdeel een knop om er een check van te maken.
+- **TrueNAS: IDS mag blokkeren.** In het venster *🛡️ Hardening* van een TrueNAS-server staat de schakelaar *IDS mag hier blokkeren* (standaard uit, aanzetten met je wachtwoord). Dan blokkeert het IDS aanvallers en werkt de honeypot-poort, in plaats van alleen te detecteren.
+- **Agents-overzicht: TrueNAS apart.** TrueNAS-servers staan in een eigen groep **🗄️ TrueNAS**, los van de andere agents.
+### Opgelost
+- **Kwetsbaarheden op TrueNAS SCALE** gaven *"Deze distributie wordt nog niet ondersteund"*. TrueNAS is Debian eronder: RzMon leest nu uit het pakket `base-files` welke Debian (bv. 13 bij TrueNAS 27) en scant met de Debian-adviezen.
+  - Bijwerken met apt kan TrueNAS kapotmaken. Daarom zit er bij TrueNAS geen *Bijwerken*-knop en geen apt-commando: je werkt bij met een TrueNAS-update (System → Update).
 
 ## 1.173.1 – 2026-11-05
 ### Opgelost

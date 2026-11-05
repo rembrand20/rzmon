@@ -28,6 +28,7 @@ final class Checks
                 'podman' => self::podman($check, $host),
                 'container' => self::container($check, $host),
                 'pve' => self::pve($check, $host),
+                'truenas' => self::truenas($check, $host),   // 1.174.0
                 'log' => self::logCheck($check, $host),
                 'command' => self::commandCheck($check, $host),
                 'ha' => $host['mode'] === 'agent' ? self::haCheck($check, $host)
@@ -532,6 +533,16 @@ final class Checks
 
     /** Algehele status: draait podman, en zijn er gestopte (exitcode ≠ 0), ongezonde of gepauzeerde containers? */
     /** Proxmox VE (1.105.0): overzicht, guest, back-ups, opslag of ZFS (zie Pve) */
+    /** 1.174.0: TrueNAS SCALE via de agent (midclt) */
+    private static function truenas(array $check, array $host): array
+    {
+        if ($stale = self::agentStale($host)) {
+            return $stale;
+        }
+        [$st, $val, $msg] = Truenas::check($check, $host);
+        return self::result($st, $val, $msg);
+    }
+
     private static function pve(array $check, array $host): array
     {
         if ($stale = self::agentStale($host)) {

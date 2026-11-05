@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.76.0"
+AGENT_VERSION="1.77.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -2571,9 +2571,15 @@ fi
 # stuurt die IP's mee en haalt ze na een geslaagd rapport uit de set. Ook in de modus leren (dan alleen melden).
 fw_json=""; decoy_json=""; decoy_err=""; dc_sent4=""; dc_sent6=""
 decoy_port=""
+# 1.77.0: TrueNAS beheert zijn eigen netwerk; blokkeren en de honeypot-poort alleen als RzMon het voor deze server toestaat
+tn_block=1
+if command -v midclt >/dev/null 2>&1; then
+    tn_block=0
+    grep -q $'^0\ttruenas_fw\t1' "${t_cache:-/dev/null}" 2>/dev/null && tn_block=1
+fi
 [ -n "$ids_mode" ] && [ -r "${t_cache-}" ] && decoy_port=$(awk -F'\t' '$1 == "0" && $2 == "decoy" && $3 ~ /^[0-9]+$/ && $3 >= 1 && $3 <= 65535 { print $3; exit }' "$t_cache")
 if [ -n "$decoy_port" ]; then
-    if command -v midclt >/dev/null 2>&1 || ! command -v nft >/dev/null 2>&1; then decoy_port=""
+    if [ "$tn_block" = 0 ] || ! command -v nft >/dev/null 2>&1; then decoy_port=""
     elif [ -n "$(ss -Htln "sport = :$decoy_port" 2>/dev/null)" ]; then decoy_err="poort $decoy_port is hier in gebruik"; decoy_port=""; fi
 fi
 decoy_hits() {  # decoy_hits <set>: IP's in de lokaas-set
@@ -2623,7 +2629,7 @@ fw_build() {  # opnieuw opbouwen als de lijst of de lokaas-poort veranderde; zet
 want4=""; want6=""; kn4=""; kn6=""; outblock=0
 [ "$ids_mode" = block ] && grep -q $'^0\toutblock\t1' "${t_cache:-/dev/null}" 2>/dev/null && outblock=1
 if [ "$ids_mode" = block ]; then
-    if command -v midclt >/dev/null 2>&1; then
+    if [ "$tn_block" = 0 ]; then
         fw_json="\"fw\":{\"state\":\"unsupported\",\"err\":\"TrueNAS: alleen detecteren\"}"
     elif [ "$IDS_BLOCK" = 0 ]; then
         fw_json="\"fw\":{\"state\":\"disabled\",\"err\":\"IDS_BLOCK=0 op deze server\"}"
@@ -3125,6 +3131,42 @@ if [ "$HA_MODE" = 0 ] && [ "${PVE:-1}" != 0 ] && command -v pvesh >/dev/null 2>&
     pve_json="{$(cat "$pve_dir/live" "$pve_dir/slow" 2>/dev/null)\"at\":$(date +%s)}"
 fi
 
+# ---------------------------------------------------------------- TrueNAS SCALE (agent 1.77.0)
+# Alleen op TrueNAS, als root: TrueNAS zelf uitlezen met midclt (geen API-sleutel nodig). midclt geeft JSON; dat gaat
+# ongewijzigd mee (RzMon leest het), dus jq is niet nodig. Met "select" vragen we alleen de velden die RzMon gebruikt.
+# Meldingen, taken en apps elke 5 minuten, schijftemperaturen elk kwartier, of er een update is elke 6 uur.
+# TRUENAS=0 in de instellingen zet het uit.
+truenas_json=""
+if [ "$HA_MODE" = 0 ] && [ "${TRUENAS:-1}" != 0 ] && command -v midclt >/dev/null 2>&1 && [ "$(id -u)" = 0 ]; then
+    tn_dir="$t_dir/truenas"
+    mkdir -p "$tn_dir" 2>/dev/null
+    tj() {  # tj <tijd> <methode> [argumenten…]: JSON van midclt, of null (hooguit 200 kB)
+        local to=$1 o; shift
+        o=$(timeout "$to" midclt call "$@" 2>/dev/null | head -c 200000)
+        case "$o" in '['*|'{'*) printf '%s' "$o" ;; *) printf 'null' ;; esac
+    }
+    if ! due_cached "$tn_dir/live" 300; then
+        printf '"version":"%s","alerts":%s,"repl":%s,"snap":%s,"cloud":%s,"rsync":%s,"apps":%s,' \
+            "$(json_escape "$(head -c 60 /etc/version 2>/dev/null)")" \
+            "$(tj 20 alert.list)" \
+            "$(tj 20 replication.query '[]' '{"select":["id","name","enabled","state"]}')" \
+            "$(tj 20 pool.snapshottask.query '[]' '{"select":["id","dataset","enabled","state"]}')" \
+            "$(tj 20 cloudsync.query '[]' '{"select":["id","description","enabled","job"]}')" \
+            "$(tj 20 rsynctask.query '[]' '{"select":["id","desc","path","enabled","job"]}')" \
+            "$(tj 30 app.query '[]' '{"select":["name","state","upgrade_available","version"]}')" \
+            >"$tn_dir/live.tmp" && mv -f "$tn_dir/live.tmp" "$tn_dir/live"
+    fi
+    if ! due_cached "$tn_dir/temp" 900; then
+        printf '"temps":%s,' "$(tj 60 disk.temperatures)" >"$tn_dir/temp.tmp" && mv -f "$tn_dir/temp.tmp" "$tn_dir/temp"
+    fi
+    if ! due_cached "$tn_dir/upd" 21600; then
+        # Nieuwere TrueNAS: update.status; oudere: update.check_available
+        tn_u=$(tj 60 update.status)
+        [ "$tn_u" = null ] && tn_u=$(tj 60 update.check_available)
+        printf '"update":%s,' "$tn_u" >"$tn_dir/upd.tmp" && mv -f "$tn_dir/upd.tmp" "$tn_dir/upd"
+    fi
+    truenas_json="{$(cat "$tn_dir/live" "$tn_dir/temp" "$tn_dir/upd" 2>/dev/null)\"at\":$(date +%s)}"
+fi
 # ---------------------------------------------------------------- Certificaten
 lap certs
 # Per bron: onderwerp (CN), uitgever, vervaldatum (epoch) en of het certificaat vertrouwd wordt.
@@ -3837,7 +3879,7 @@ boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${
 parts="processen=$(grep -o '\["' <<<"$proc_list" | wc -l) certificaatbestanden=$(grep -o '"path"' <<<"$cert_found" | wc -l) softwarelijst=$( [ -n "$pkgs_json" ] && echo ja || echo ongewijzigd) heartbeats=${#hb_files[@]} ids=$( [ -n "$ids_json" ] && echo ja || echo nee)"
 # Agent 1.69.0: wat deze agent hier kan (RzMon toont het in de Agent Manager en kiest er checks bij)
 caps=""
-for c_tool in podman docker zpool smartctl nvme auditctl nft upsc chronyc timedatectl systemctl apt-get dnf apk pveversion; do
+for c_tool in podman docker zpool smartctl nvme auditctl nft upsc chronyc timedatectl systemctl apt-get dnf apk pveversion midclt; do
     command -v "$c_tool" >/dev/null 2>&1 && caps+="\"$c_tool\","
 done
 # Wachtrij (store-and-forward): metingen van rapporten die niet aankwamen gaan met dit rapport mee (hooguit 120)
@@ -3847,7 +3889,7 @@ if [ -s "$q_file" ]; then
     q_sent=$(head -n 120 "$q_file" | wc -l)
 fi
 run_ms=$(( $(now_ms) - run_t0 ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
 # Agent 1.66.1: 50 seconden wachten op RzMon (was 20): een druk bezette RzMon verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit
