@@ -289,6 +289,30 @@ Een AI legt een storing of incident uit en stelt een oplossing voor. Je zet het 
   - Een service wordt alleen herstart als hij echt stil ligt.
 - **Ollama op een andere machine:** laat het daar luisteren op het netwerk (`OLLAMA_HOST=0.0.0.0`) en zet poort 11434 in de firewall **alleen open voor de server van RzMon**. Ollama heeft zelf geen wachtwoord.
 
+#### 💶 Verbruik en tegoed (vanaf 1.173.0)
+De aanbieders laten met een gewone API-sleutel **niet** zien hoeveel tegoed je nog hebt. RzMon telt daarom zelf mee; de bedragen zijn een **schatting**.
+- **Tokens:** elk antwoord zegt hoeveel tokens erin en eruit gingen. Dat staat onder elk advies, met de geschatte kosten (*± € 0,0042*). Bij Ollama staat er *gratis* en hoeveel tokens per seconde het model maakte.
+- **Prijs per model:** vul in de tabel de prijs in euro per **1 miljoen tokens** in (in en uit apart). Die staat op de website van de aanbieder, vaak in dollars: reken om naar euro. Vul je de prijs later in, dan rekent RzMon de adviezen van deze maand alsnog uit.
+- **Bovenaan:** vandaag, deze maand (met je budget als balk) en per aanbieder je tegoed. Daaronder de kosten per dag over 30 dagen (zonder kosten, bv. alleen Ollama: tokens per dag).
+- **Tegoed bijhouden:** vul per aanbieder in hoeveel je hebt opgewaardeerd en vanaf welke dag. RzMon trekt de kosten sindsdien eraf: *± € 7,40 over van € 10*. Is er nog 20% over, dan krijg je een melding. Waardeer je op, pas dan het bedrag en de datum aan.
+- **Maandbudget (€):** is het op, dan stopt AI-advies via de cloud tot de volgende maand, of gaat het naar Ollama (zie *Terugvallen op Ollama*). Bij 80% krijg je een melding. 0 = geen budget. De daglimiet (vragen per dag) blijft daarnaast gelden.
+- **Tegoed op:** meldt een aanbieder dat het tegoed op is, dan:
+  - staat dat rood bovenaan dit onderdeel, met een knop **Opwaarderen ↗** naar de website van de aanbieder;
+  - staat de knop ook in het venster van het advies dat mislukte;
+  - krijg je één melding (*💳 Tegoed op bij …*);
+  - verdwijnt het vanzelf bij de eerste vraag die weer lukt.
+- De meldingen over het budget en het tegoed stel je in bij **Meldingen → ℹ️ Systeeminfo → AI-advies**.
+
+#### ✨ Extra's (vanaf 1.173.0)
+Elke extra heeft een eigen schakelaar bij **Instellingen → AI-advies → Extra's**.
+- **🧠 Geheugen** (standaard aan): onder een advies staan 👍, 👎 en **✔ Dit loste het op**. Valt dezelfde check (of server, of hetzelfde incident) later weer om, dan gaat die feedback mee naar de AI: die begint met wat werkte en raadt niet opnieuw aan wat niet hielp. Het geheugen gaat tot 180 dagen terug.
+- **♻️ Niet twee keer betalen** (standaard aan, 6 uur): dezelfde storing binnen die tijd krijgt het bestaande advies, ook als iemand anders erom vraagt of het automatisch gaat. Een nieuwe storing (de check was tussendoor weer OK) krijgt een nieuw advies. **🔄 Opnieuw vragen** vraagt altijd een nieuw advies.
+- **🏠 Terugvallen op Ollama** (standaard aan): is de cloud onbereikbaar, het tegoed op, of de daglimiet of het budget bereikt, dan gaat de vraag naar Ollama. Vul daarvoor ook het adres en een model van Ollama in; die velden staan dan ook bij een cloudaanbieder. In het advies staat waarom (*Via Ollama: het maandbudget is op*). Een geweigerde API-sleutel valt niet terug: die moet je zelf herstellen.
+- **🔔 Samenvatting in de melding** (standaard aan): bij een **automatisch** advies krijg je een korte melding met de waarschijnlijke oorzaak, bijvoorbeeld *🤖 AI-advies: NAS – Webinterface · Waarschijnlijk: de schijf is vol*. Kanalen: **Meldingen → ℹ️ Systeeminfo → AI-advies**.
+- **📅 Weekoverzicht** (standaard aan, maandag vanaf 8 uur): één keer per week in gewone taal wat er speelde, wat terugkwam en waar je eens naar moet kijken, op basis van de storingen, incidenten, IDS, zelf herstellen en stille agents van de afgelopen 7 dagen. Het komt als melding, en met **📅 Weekoverzicht bekijken** lees je het hele overzicht. Eén vraag per week.
+- **🏷️ Oordeel bij IDS-incidenten** (standaard **uit**, want het kost een vraag per incident): nieuwe IDS-incidenten krijgen een label **🤖 lijkt onschuldig**, **verdacht** of **lijkt echt**, met de reden als je de muis erop houdt. Klik voor het hele oordeel. Het is **alleen een label**: de AI handelt nooit iets af en blokkeert niets. Hooguit 3 per minuut, en ze tellen mee voor de daglimiet en het budget.
+- **📝 Verslag na een incident** (standaard aan): bij een **opgelost** incident staat in het venster de knop **📝 AI-verslag**: wat er gebeurde, hoe lang en hoe erg, wat hielp en hoe je het voorkomt. Alleen op verzoek.
+
 ### Incidenten ⚠ (vanaf 1.142.0)
 Het tabblad **⚠ Incidenten** zet in **één lijst** wat er echt mis is, uit alle onderdelen, zodat je het kunt afhandelen. Beheerders en gebruikers zien het; *alleen lezen* niet.
 

@@ -1190,7 +1190,7 @@ $need = match ($action) {
     'home', 'state', 'availability', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run' => 'user',
+    'net_devices', 'pve_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1945,7 +1945,27 @@ switch ($action) {
     case 'ai_info':
         out(['on' => Ai::on(), 'used' => Ai::usedToday(), 'diag' => setting('ai_diag', '0') === '1', 'exec' => setting('ai_exec', '0') === '1',
             'providers' => array_map(static fn($p) => ['label' => $p['label'], 'cloud' => $p['cloud']], Ai::PROVIDERS),
-            'recent' => array_map([Ai::class, 'public'], q('SELECT * FROM ai_advice ORDER BY id DESC LIMIT 8')->fetchAll())]);
+            'recent' => array_map([Ai::class, 'public'], q("SELECT * FROM ai_advice WHERE kind <> 'triage' ORDER BY id DESC LIMIT 8")->fetchAll()),
+            'usage' => Ai::usage(), 'week_ref' => (int) date('oW'),   // 1.173.0: verbruik, tegoed, budget en het weekoverzicht
+            'week_last' => (int) q("SELECT MAX(ref_id) FROM ai_advice WHERE kind = 'week'")->fetchColumn() ?: null,
+            'triage_n' => (int) q("SELECT COUNT(*) FROM ai_advice WHERE kind = 'triage' AND created_at >= CURDATE()")->fetchColumn()]);
+
+    case 'ai_cost_set':   // 1.173.0: prijzen per model en het bijgehouden tegoed
+        $in = input();
+        Ai::saveCost((array) ($in['prices'] ?? []), (array) ($in['credit'] ?? []));
+        out(['ok' => true, 'usage' => Ai::usage()]);
+
+    case 'ai_feedback':   // 1.173.0: hielp het advies? (geheugen voor de volgende keer)
+        if (!Ai::on()) {
+            out(['error' => t('AI-advies staat uit')], 404);
+        }
+        $in = input();
+        try {
+            $r = Ai::feedback((int) ($in['id'] ?? 0), array_key_exists('rating', $in) ? (int) $in['rating'] : null, array_key_exists('solved', $in) ? !empty($in['solved']) : null, $user['username']);
+            out(['advice' => Ai::public($r)]);
+        } catch (RuntimeException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
 
     case 'ai_guard_set':
         $in = input();
@@ -3276,7 +3296,8 @@ switch ($action) {
             'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'edr_yara', 'ids_modern', 'af_motion', 'smart_auto', 'alert_auto', 'inet_down', 'inet_up', 'inet_warn_pct', 'inet_crit_pct', 'inet_times', 'inet_speed_mb', 'perf_on', 'edr_note_hide', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup',
             'ai_on', 'ai_provider', 'ai_auto', 'ai_daily', 'ai_mask', 'ai_timeout', 'ai_max_tokens', 'ai_ollama_url', 'ai_ollama_key',
-            'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model'];   // 1.171.0
+            'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model',   // 1.171.0
+            'ai_budget_month', 'ai_memory', 'ai_cache', 'ai_cache_hours', 'ai_fallback', 'ai_notify', 'ai_weekly', 'ai_weekly_day', 'ai_triage', 'ai_report'];   // 1.173.0
         // 1.171.0: AI-advies: een bekende aanbieder, een geldig adres voor Ollama, getallen binnen de grenzen
         if (isset($in['ai_provider']) && !isset(Ai::PROVIDERS[(string) $in['ai_provider']])) {
             out(['error' => t('Onbekende aanbieder')], 422);
@@ -3284,7 +3305,10 @@ switch ($action) {
         if (isset($in['ai_ollama_url']) && (trim((string) $in['ai_ollama_url']) === '' || ExtraChecks::urlBlocked(trim((string) $in['ai_ollama_url'])) !== null)) {
             out(['error' => t('Vul het adres van Ollama in, bv. http://127.0.0.1:11434')], 422);
         }
-        foreach (['ai_daily' => [0, 10000], 'ai_timeout' => [10, 600], 'ai_max_tokens' => [200, 8000]] as $k => [$lo, $hi]) {
+        if (isset($in['ai_budget_month'])) {   // 1.173.0: maandbudget in euro (0 = geen)
+            $in['ai_budget_month'] = (string) round(max(0, min(100000, (float) str_replace(',', '.', (string) $in['ai_budget_month']))), 2);
+        }
+        foreach (['ai_daily' => [0, 10000], 'ai_timeout' => [10, 600], 'ai_max_tokens' => [200, 8000], 'ai_cache_hours' => [1, 72], 'ai_weekly_day' => [1, 7]] as $k => [$lo, $hi]) {
             if (isset($in[$k])) {
                 $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
             }

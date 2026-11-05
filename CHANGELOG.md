@@ -8,11 +8,29 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.173.0**: **AI-advies** met **verbruik, tegoed en maandbudget**, en extra's als geheugen, niet twee keer betalen, terugvallen op Ollama, een weekoverzicht en een oordeel bij IDS-incidenten.
 - **1.172.0**: de **Live Attack Flow toont altijd tien aanvallers** (live eerst, aangevuld uit de top 10 van 24 uur) en een **banner bovenaan** zodra een server in isolatie gaat.
 - **1.171.0**: **🤖 AI-advies** bij storingen en incidenten (Claude, ChatGPT, Gemini, Grok of Ollama), met diep zoeken via de agent en desgewenst uitvoeren na bevestiging.
 - **1.170.0**: nieuwe checks **Domein** (verloopdatum), **MQTT-broker** (rondgang en topic) en **VPN** (Gluetun met lekcontrole, WireGuard-handshakes).
 - **1.169.0**: **Monitoring → 📶 Beschikbaarheid**: per soort apparaat of eigen groep wat er online is, het percentage, storingen en het doel (SLA).
-- **1.168.0**: Monitoring met een eigen groep **✔ Bevestigd**, en **config.php opslaan via de hulpdienst** terwijl de map vergrendeld blijft.
+
+## 1.173.0 – 2026-11-05
+### Nieuw
+- **AI-advies: 💶 verbruik en tegoed** (Instellingen → AI-advies). De aanbieders tonen je tegoed niet via de API, dus RzMon telt zelf mee:
+  - tokens en geschatte kosten onder elk advies, vandaag, deze maand en per dag (30 dagen);
+  - een prijs per model die je zelf invult (later invullen rekent deze maand alsnog uit);
+  - **tegoed bijhouden** per aanbieder (opgewaardeerd bedrag en sinds wanneer), met een melding bij 20% over;
+  - een **maandbudget** in euro, met een melding bij 80%; is het op, dan stopt de cloud tot volgende maand of gaat het naar Ollama;
+  - **tegoed op**: meldt een aanbieder dat het tegoed op is, dan zie je dat rood met een knop *Opwaarderen ↗* en krijg je één melding.
+- **AI-advies: ✨ extra's**, elk met een eigen schakelaar:
+  - **🧠 geheugen**: 👍, 👎 en *dit loste het op* bij een advies; bij dezelfde storing gaat dat mee naar de AI;
+  - **♻️ niet twee keer betalen**: dezelfde storing binnen 6 uur (instelbaar) krijgt het bestaande advies;
+  - **🏠 terugvallen op Ollama** als de cloud onbereikbaar is, het tegoed op, of de daglimiet of het budget bereikt;
+  - **🔔 samenvatting in de melding** bij automatisch advies (de waarschijnlijke oorzaak in één zin);
+  - **📅 weekoverzicht** in gewone taal, op een dag die je kiest;
+  - **🏷️ oordeel bij IDS-incidenten** (*lijkt onschuldig*, *verdacht*, *lijkt echt*; standaard uit): alleen een label, de AI handelt nooit iets af;
+  - **📝 verslag** van een opgelost incident, op verzoek.
+- Nieuwe meldingen bij **Meldingen → ℹ️ Systeeminfo → AI-advies**: samenvatting van een advies, weekoverzicht, en tegoed of budget (bijna) op.
 
 ## 1.172.1 – 2026-11-05
 ### Opgelost

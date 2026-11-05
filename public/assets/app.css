@@ -3325,3 +3325,35 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 @keyframes iso-glow { 0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--ib-cr) 18%, transparent), 0 0 22px color-mix(in srgb, var(--ib-cr) 18%, transparent), var(--fx-shadow); }
   50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--ib-cr) 40%, transparent), 0 0 40px color-mix(in srgb, var(--ib-cr) 38%, transparent), var(--fx-shadow); } }
 @media (prefers-reduced-motion: reduce) { .iso-banner, .iso-banner *, .iso-banner::before { animation: none !important; } }
+
+/* 1.173.0: AI-advies: verbruik, tegoed, budget, extra's, feedback en het oordeel bij IDS */
+.ai-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .6rem; margin: .4rem 0 .6rem; }
+.ai-kpi { display: flex; flex-direction: column; gap: .15rem; padding: .6rem .75rem; border: 1px solid var(--border); border-radius: 10px; background: var(--card-2); min-width: 0; }
+.ai-kpi b { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.ai-kpi.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--border)); } .ai-kpi.bad { border-color: color-mix(in srgb, var(--crit) 60%, var(--border)); }
+.ai-bar { display: block; height: 6px; border-radius: 4px; background: var(--border); overflow: hidden; margin-top: .25rem; }
+.ai-bar > i { display: block; height: 100%; border-radius: 4px; background: var(--primary); }
+.ai-kpi.warn .ai-bar > i { background: var(--warn); } .ai-kpi.bad .ai-bar > i { background: var(--crit); }
+.ai-kpi-note { grid-column: 1 / -1; margin: 0; }
+.ai-chart { border: 1px solid var(--border); border-radius: 10px; padding: .6rem .75rem; margin-bottom: .6rem; }
+.ai-chart-h { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: space-between; margin-bottom: .4rem; }
+.ai-bars { display: flex; align-items: flex-end; gap: 2px; height: 64px; }
+.ai-bars > i { flex: 1; min-width: 2px; border-radius: 3px 3px 0 0; background: var(--primary); }
+.ai-bars > i.zero { background: var(--border); }
+.ai-bars > i:hover { filter: brightness(1.2); }
+.ai-chart-x { display: flex; justify-content: space-between; margin-top: .2rem; }
+.ai-budget { max-width: 260px; }
+.ai-price-t input { width: 100%; min-width: 80px; max-width: 150px; }
+.ai-price-t td { vertical-align: middle; }
+.ai-extras { display: flex; flex-direction: column; gap: .45rem; }
+.ai-extras .ai-sub { margin: -.15rem 0 .2rem 0; padding-left: .2rem; display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: .5rem; flex-wrap: wrap; font-weight: 500; }
+.ai-extras .ai-sub input, .ai-extras .ai-sub select { width: auto; min-width: 90px; }
+.ai-fb { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .8rem; }
+.ai-fb .btn.on { background: color-mix(in srgb, var(--primary) 16%, var(--card)); border-color: var(--primary); }
+.ai-out { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .55rem .75rem; border-radius: 10px; margin: .4rem 0;
+  border: 1px solid color-mix(in srgb, var(--crit) 55%, transparent); background: color-mix(in srgb, var(--crit) 10%, var(--card)); }
+.ai-verdict { font: inherit; font-size: .78rem; font-weight: 600; cursor: pointer; white-space: nowrap; padding: .1rem .5rem; border-radius: 999px; margin: 0 .25rem; border: 1px solid; background: transparent; }
+.ai-verdict.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.ai-verdict.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.ai-verdict.bad { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 50%, transparent); background: color-mix(in srgb, var(--crit) 10%, transparent); }
+@media (max-width: 600px) { .ai-extras .ai-sub { margin-left: 0; } }

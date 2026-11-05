@@ -160,6 +160,8 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - **Diep zoeken** via de agent: vaste commando's die alleen lezen.
   - Optioneel **uitvoeren** van een bestaande herstelactie na bevestiging.
   - Staat het uit, dan is er nergens iets van te zien.
+  - **💶 Verbruik en tegoed** (1.173.0): tokens en geschatte kosten per advies, per dag en per maand (prijs per model zelf in te vullen), een bijgehouden tegoed per aanbieder, een **maandbudget** en een melding met een link om op te waarderen als het tegoed op is.
+  - **✨ Extra's** (1.173.0), elk met een eigen schakelaar: **geheugen** (👍/👎/*dit loste het op* gaat mee bij dezelfde storing), **niet twee keer betalen**, **terugvallen op Ollama**, een **samenvatting in de melding**, een **weekoverzicht**, een **oordeel bij IDS-incidenten** (alleen een label) en een **verslag** na een opgelost incident.
 
 ## 7. REST API
 - JSON, met API-sleutels die je in de webinterface beheert.

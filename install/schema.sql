@@ -1263,3 +1263,6 @@ CREATE TABLE IF NOT EXISTS ai_advice (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('ai_on', '0'), ('ai_provider', 'ollama'), ('ai_auto', '0'), ('ai_daily', '50'), ('ai_mask', '1'),
     ('ai_diag', '0'), ('ai_exec', '0'), ('ai_timeout', '120'), ('ai_max_tokens', '1500'), ('ai_ollama_url', 'http://127.0.0.1:11434');
+-- 1.173.0: kosten (prijzen per model, tegoed, maandbudget) en de extra's, elk apart uit te zetten
+INSERT IGNORE INTO settings (name, value) VALUES ('ai_prices', '{}'), ('ai_credit', '{}'), ('ai_budget_month', '0'), ('ai_memory', '1'), ('ai_cache', '1'),
+    ('ai_cache_hours', '6'), ('ai_fallback', '1'), ('ai_notify', '1'), ('ai_weekly', '1'), ('ai_weekly_day', '1'), ('ai_triage', '0'), ('ai_report', '1');

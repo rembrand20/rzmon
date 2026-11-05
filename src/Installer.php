@@ -274,6 +274,14 @@ final class Installer
         ['hosts', 'ai_diag', 'VARCHAR(255) NULL'],
         ['checks', 'ai_exec', 'VARCHAR(80) NULL'],
         ['checks', 'ai_exec_at', 'DATETIME NULL'],
+        // 1.173.0: AI-advies: kosten, opmerking (bv. via Ollama), feedback (hielp / loste het op) en het oordeel bij een IDS-beoordeling
+        ['ai_advice', 'cost', 'DECIMAL(12,6) NULL'],
+        ['ai_advice', 'note', 'VARCHAR(255) NULL'],
+        ['ai_advice', 'rating', 'TINYINT NULL'],
+        ['ai_advice', 'solved', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['ai_advice', 'fb_by', 'VARCHAR(64) NULL'],
+        ['ai_advice', 'fb_at', 'DATETIME NULL'],
+        ['ai_advice', 'verdict', 'VARCHAR(12) NULL'],
     ];
 
     private static function migrate(PDO $pdo): void

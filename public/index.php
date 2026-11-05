@@ -791,6 +791,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
                 <option value="grok">Grok (xAI)</option>
               </select>
             </label>
+            <p class="muted small" data-fb-note hidden>🏠 <?= th('Ollama als reserve (Extra\'s → Terugvallen op Ollama):') ?></p>
             <div class="row2" data-prov="ollama" hidden>
               <label><?= th('Adres van Ollama') ?><input name="ai_ollama_url" spellcheck="false" placeholder="http://127.0.0.1:11434"></label>
               <label><?= th('Model') ?><input name="ai_ollama_model" list="ai-ml-ollama" spellcheck="false" placeholder="llama3.1:8b"><datalist id="ai-ml-ollama"></datalist></label>
@@ -835,6 +836,31 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
               <p class="muted small"><?= th('Uitvoeren: een advies mag een bestaande herstelactie voorstellen (herstarten of een herstelscript uit heal.d); die gaat pas na jouw klik en bevestiging. Aanzetten vraagt je wachtwoord; de AI bedenkt nooit zelf commando\'s die worden uitgevoerd.') ?></p>
             </div>
             <p class="small" id="ai-usage"></p>
+            <!-- 1.173.0: verbruik, tegoed en budget -->
+            <h3 class="set-sub">💶 <?= th('Verbruik en tegoed') ?></h3>
+            <?= xp(t('Wat het AI-advies kost: tokens en geschatte kosten, je tegoed en een maandbudget.'), t('<b>Waarom geschat:</b> de aanbieders laten met een gewone API-sleutel niet zien hoeveel tegoed je nog hebt. RzMon telt daarom zelf: elk antwoord zegt hoeveel tokens het kostte, en met de prijs per model die jij invult rekent RzMon de kosten uit. <b>Tegoed:</b> vul in hoeveel je hebt opgewaardeerd en vanaf wanneer; RzMon trekt de kosten eraf. Bij 80% krijg je een melding. <b>Maandbudget:</b> is het op, dan stopt AI-advies via de cloud tot volgende maand (of gaat het naar Ollama, zie Extra\'s). <b>Tegoed op:</b> meldt een aanbieder dat het tegoed op is, dan zie je dat hier en krijg je een melding met een link om op te waarderen.')) ?>
+            <div id="ai-credit-out"></div>
+            <div id="ai-cost-kpi" class="ai-kpis"></div>
+            <div id="ai-cost-chart"></div>
+            <label class="ai-budget"><?= th('Maandbudget (€)') ?> <span class="muted small"><?= th('0 = geen budget') ?></span><input type="number" name="ai_budget_month" min="0" max="100000" step="0.01" inputmode="decimal"></label>
+            <div data-nodirty id="ai-cost-edit"></div>
+            <!-- 1.173.0: extra's, elk apart uit te zetten -->
+            <h3 class="set-sub">✨ <?= th('Extra\'s') ?></h3>
+            <div class="ai-extras">
+              <label class="switch"><input type="checkbox" name="ai_memory"><span></span> <?= t('<b>🧠 Geheugen</b>: geef bij een advies aan of het hielp of het probleem oploste. Bij dezelfde storing gaat dat mee naar de AI, zodat die begint met wat werkte.') ?></label>
+              <label class="switch"><input type="checkbox" name="ai_cache"><span></span> <?= t('<b>♻️ Niet twee keer betalen</b>: dezelfde storing binnen de ingestelde tijd krijgt het bestaande advies; <i>Opnieuw vragen</i> vraagt altijd een nieuw.') ?></label>
+              <label class="ai-sub"><?= th('Bewaren (uren)') ?><input type="number" name="ai_cache_hours" min="1" max="72"></label>
+              <label class="switch"><input type="checkbox" name="ai_fallback"><span></span> <?= t('<b>🏠 Terugvallen op Ollama</b>: is de cloud onbereikbaar, het tegoed op of de daglimiet of het budget bereikt, dan gaat de vraag naar Ollama (vul daarvoor het adres en een model van Ollama in).') ?></label>
+              <label class="switch"><input type="checkbox" name="ai_notify"><span></span> <?= t('<b>🔔 Samenvatting in de melding</b>: bij automatisch advies een korte melding met de waarschijnlijke oorzaak (kanalen: Meldingen → ℹ️ Systeeminfo).') ?></label>
+              <label class="switch"><input type="checkbox" name="ai_weekly"><span></span> <?= t('<b>📅 Weekoverzicht</b>: één keer per week in gewone taal wat er speelde, wat terugkwam en waar je eens naar moet kijken.') ?></label>
+              <label class="ai-sub"><?= th('Op') ?><select name="ai_weekly_day">
+                <option value="1"><?= th('maandag') ?></option><option value="2"><?= th('dinsdag') ?></option><option value="3"><?= th('woensdag') ?></option><option value="4"><?= th('donderdag') ?></option>
+                <option value="5"><?= th('vrijdag') ?></option><option value="6"><?= th('zaterdag') ?></option><option value="7"><?= th('zondag') ?></option></select>
+                <span class="muted small"><?= th('vanaf 8 uur') ?></span></label>
+              <div class="btn-row ai-sub"><button type="button" class="btn small-btn" id="ai-week-open">📅 <?= th('Weekoverzicht bekijken') ?></button></div>
+              <label class="switch"><input type="checkbox" name="ai_triage"><span></span> <?= t('<b>🏷️ Oordeel bij IDS-incidenten</b>: nieuwe IDS-incidenten krijgen een label <i>lijkt onschuldig</i>, <i>verdacht</i> of <i>lijkt echt</i> met de reden. Alleen een label: de AI handelt nooit iets af. Kost een vraag per incident.') ?></label>
+              <label class="switch"><input type="checkbox" name="ai_report"><span></span> <?= t('<b>📝 Verslag na een incident</b>: bij een opgelost incident een knop voor een kort verslag: wat er gebeurde, hoe lang, wat hielp en hoe je het voorkomt.') ?></label>
+            </div>
             <h3 class="set-sub"><?= th('Laatste adviezen') ?></h3>
             <div id="ai-recent"></div>
           </div>

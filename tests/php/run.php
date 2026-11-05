@@ -1383,5 +1383,51 @@ ok($pt === '' && $ps === 'length' && Ai::parse('gemini', ['candidates' => [['con
 ok(Ai::suggestModel(Ai::sortModels(['o4-mini-2025-04-16', 'o3', 'gpt-5-mini', 'gpt-5'])) === 'gpt-5-mini' && Ai::suggestModel(Ai::sortModels(['gemini-2.5-pro', 'gemini-2.5-flash'])) === 'gemini-2.5-flash',
     'modellen ophalen: zonder datum eerst, voorstel een zuinig model (niet "gemini" als mini)');
 
+// 1.173.0: AI-advies: oordeel, samenvatting, kosten, tegoed, budget met terugvallen op Ollama, niet twee keer betalen, geheugen
+$ans = "### Wat is er aan de hand\nDe dienst ligt stil.\n### Waarschijnlijke oorzaak\nDe schijf is vol. Daardoor start hij niet.\n### Oplossing\n1. Ruim op.";
+ok(Ai::verdict("OORDEEL: onschuldig\nREDEN: Een update.") === 'benign' && Ai::verdict('VERDICT: suspicious') === 'suspect' && Ai::verdict('OORDEEL: **echt**') === 'real' && Ai::verdict('weet niet') === null
+    && Ai::reason("OORDEEL: verdacht\nREDEN: Onbekend IP op poort 22.") === 'Onbekend IP op poort 22.' && Ai::summary($ans) === 'De schijf is vol.' && Ai::section($ans, ['Oplossing']) === '1. Ruim op.',
+    'AI: oordeel en reden uit het antwoord, samenvatting = de oorzaak in één zin, een kopje uit het antwoord');
+Ai::saveCost(['grok|ci-model' => [2, 10], 'ollama|x' => [1, 1], 'nep|y' => [1, 1], 'grok|bad model!' => [1, 1]], ['grok' => ['amount' => 3, 'since' => date('Y-m-d')], 'ollama' => ['amount' => 5]]);
+$pr = json_decode((string) setting('ai_prices'), true);
+ok(array_keys($pr) === ['grok|ci-model'] && Ai::costOf('grok', 'ci-model', 1000000, 100000) === 3.0 && Ai::costOf('grok', 'onbekend', 10, 10) === null && Ai::costOf('ollama', 'x', 10, 10) === 0.0
+    && array_keys(json_decode((string) setting('ai_credit'), true)) === ['grok'],
+    'AI: prijzen alleen voor cloudmodellen met een geldige naam; kosten uitgerekend; Ollama gratis; tegoed alleen bij een cloudaanbieder');
+foreach (['ai_on' => '1', 'ai_provider' => 'grok', 'ai_grok_key' => 'xai-ci', 'ai_grok_model' => 'ci-model', 'ai_ollama_model' => 'ci-ollama', 'ai_budget_month' => '1', 'ai_fallback' => '1', 'ai_cache' => '1'] as $k => $v) {
+    save_setting($k, $v);
+}
+q("INSERT INTO ai_advice (kind, ref_id, status, provider, model, cost, created_at, done_at) VALUES ('check', 999999, 'done', 'grok', 'ci-model', 1.5, NOW(), NOW())");
+$cr = Ai::credits()['grok'] ?? null;
+[$rc, $rn] = Ai::route();
+save_setting('ai_fallback', '0');
+$stop = null;
+try { Ai::route(); } catch (RuntimeException $e) { $stop = $e->getMessage(); }
+save_setting('ai_fallback', '1');
+ok($cr && abs($cr['left'] - 1.5) < 0.001 && $cr['pct'] === 50 && $rc['provider'] === 'ollama' && str_contains((string) $rn, 'Ollama') && $stop !== null && str_contains($stop, 'budget'),
+    'AI: tegoed min de kosten; maandbudget op → naar Ollama (met de reden), zonder terugvallen stopt het');
+q("INSERT INTO hosts (name, address, mode) VALUES ('ai-host2', '192.0.2.51', 'remote')");
+$aiH2 = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, type, name, target, status, last_message, problem_since) VALUES (?, 'tcp', 'SSH', '22', 2, 'Poort 22 dicht', NOW() - INTERVAL 1 HOUR)", [$aiH2]);
+$aiC2 = (int) db()->lastInsertId();
+$a1 = Ai::ask('check', $aiC2, 'ci');
+q("UPDATE ai_advice SET status = 'done', answer = ? WHERE id = ?", [$ans, $a1['id']]);
+$a2 = Ai::ask('check', $aiC2, 'ci');
+Ai::feedback((int) $a1['id'], 1, true, 'ci');
+$mem = (new ReflectionMethod(Ai::class, 'memory'))->invoke(null, 'check', $aiC2, 0);
+q("UPDATE checks SET problem_since = NOW() + INTERVAL 1 MINUTE WHERE id = ?", [$aiC2]);   // een nieuwe storing
+$a3 = Ai::ask('check', $aiC2, 'ci');
+ok($a1['provider'] === 'ollama' && str_contains((string) $a1['note'], 'budget') && $a2['id'] === $a1['id'] && $a3['id'] !== $a1['id']
+    && str_contains($mem, 'loste het op') && str_contains($mem, 'Ruim op'),
+    'AI: dezelfde storing = hetzelfde advies, een nieuwe storing een nieuw; feedback gaat als geheugen mee bij de volgende vraag');
+$blk = false;
+save_setting('ai_report', '0');
+try { Ai::ask('report', 1, 'ci'); } catch (RuntimeException $e) { $blk = true; }
+ok($blk, 'AI: een extra die uit staat (verslag) kan niet gevraagd worden');
+q('DELETE FROM ai_advice');
+q('DELETE FROM hosts WHERE id = ?', [$aiH2]);
+foreach (['ai_on' => '0', 'ai_provider' => 'ollama', 'ai_budget_month' => '0', 'ai_report' => '1', 'ai_prices' => '{}', 'ai_credit' => '{}'] as $k => $v) {
+    save_setting($k, $v);
+}
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

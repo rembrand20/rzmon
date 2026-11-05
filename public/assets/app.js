@@ -2163,6 +2163,19 @@ function aiBtn(kind, ref, big = false) {
     : `<button type="button" class="icon-btn ai-btn${has ? ' has' : ''}" data-ai-kind="${kind}" data-ai-ref="${ref}" title="${esc(has ? L('AI-advies bekijken') : L('AI-advies vragen'))}">🤖</button>`;
 }
 
+/** 1.173.0: bedragen (euro) en tokens */
+const aiMoney = (v) => { const n = +v || 0, d = n && Math.abs(n) < 0.01 ? 4 : 2; return '€ ' + n.toLocaleString(LOCALE, { minimumFractionDigits: d, maximumFractionDigits: d }); };
+const aiTok = (n) => (+n || 0).toLocaleString(LOCALE);
+const aiDay = (d) => new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
+/** 1.173.0: oordeel van de AI bij een IDS-incident (alleen een label) */
+const AI_VERDICT = { benign: ['ok', () => L('lijkt onschuldig')], suspect: ['warn', () => L('verdacht')], real: ['bad', () => L('lijkt echt')] };
+function aiTriage(id) {
+  const t = aiOn() && state.ai.triage && state.ai.triage[id];
+  if (!t || !AI_VERDICT[t[0]]) return '';
+  const [cls, lbl] = AI_VERDICT[t[0]];
+  return `<button type="button" class="ai-verdict ${cls}" data-ai-kind="triage" data-ai-ref="${id}" title="${esc(L('Oordeel van de AI (alleen een label, er wordt niets afgehandeld)') + ': ' + t[1])}">🤖 ${esc(lbl())}</button>`;
+}
+
 /** Eenvoudige, veilige opmaak van het antwoord: kopjes, lijsten, vet, code en codeblokken met een kopieerknop */
 function aiMd(src) {
   return String(src || '').split(/```[A-Za-z0-9_+-]*[ \t]*\n?/).map((part, i) => {
@@ -2182,6 +2195,9 @@ let aiCur = null;
 function aiTitle(kind, ref) {
   if (kind === 'check') { const [c, h] = findCheck(ref); return c ? `${h ? h.name + ' – ' : ''}${c.name}` : '#' + ref; }
   if (kind === 'bundle') { const h = findHost(ref); return h ? h.name : '#' + ref; }
+  if (kind === 'week') return L('Weekoverzicht') + ' ' + L('week {w}', { w: String(ref).slice(4) });
+  if (kind === 'triage') return L('Oordeel') + ' · ' + L('IDS-incident') + ' #' + ref;
+  if (kind === 'report') return L('Verslag') + ' · ' + L('Incident') + ' #' + ref;
   return (kind === 'ids' ? L('IDS-incident') : L('Incident')) + ' #' + ref;
 }
 async function aiOpen(kind, ref) {
@@ -2220,15 +2236,20 @@ function aiShow(a, err = '') {
   const cur = aiCur;
   const canAsk = state.ai && state.ai.ask;
   const busy = a && ['pending', 'diag', 'running'].includes(a.status);
+  const tps = a && a.provider === 'ollama' && a.tok_out && a.ms ? ' · ' + L('{n} tokens/s', { n: (a.tok_out / (a.ms / 1000)).toLocaleString(LOCALE, { maximumFractionDigits: 1 }) }) : '';
   const meta = a && a.id ? [a.provider_label + (a.model ? ' · ' + a.model : ''), a.created_at ? whenText(a.created_at) : '', a.auto ? L('automatisch') : (a.created_by || ''),
-    a.ms ? (a.ms / 1000).toLocaleString(LOCALE, { maximumFractionDigits: 1 }) + ' s' : '', a.has_diag ? '🔎 ' + L('met diagnose') : ''].filter(Boolean).join(' · ') : '';
+    a.ms ? (a.ms / 1000).toLocaleString(LOCALE, { maximumFractionDigits: 1 }) + ' s' + tps : '', a.has_diag ? '🔎 ' + L('met diagnose') : '',
+    a.tok_in != null || a.tok_out != null ? L('{i} + {o} tokens', { i: aiTok(a.tok_in), o: aiTok(a.tok_out) }) : '',
+    a.status === 'done' ? (a.cost != null ? (a.cloud ? '± ' + aiMoney(a.cost) : L('gratis')) : (a.cloud ? L('prijs onbekend') : '')) : ''].filter(Boolean).join(' · ') : '';
   let html = '';
   if (err) html += `<p class="form-error">${esc(err)}</p>`;
   if (!a && !err) html += `<p>${L('Er is nog geen advies.')}</p>`;
   if (a && a.status === 'diag') html += `<p class="ai-wait"><span class="ai-spin"></span> 🔎 ${L('De agent verzamelt gegevens over de storing (meestal 1–2 minuten)…')}</p>`;
   if (a && (a.status === 'pending' || a.status === 'running')) html += `<p class="ai-wait"><span class="ai-spin"></span> 🤖 ${esc(a.provider_label || L('De AI'))} ${L('denkt na…')}</p>`;
-  if (a && a.status === 'error') html += `<p class="form-error">✘ ${esc(a.error || L('Onbekende fout'))}</p>`;
+  if (a && a.status === 'error') html += `<p class="form-error">✘ ${esc(a.error || L('Onbekende fout'))}</p>${a.billing ? `<p><a class="btn small-btn" href="${esc(a.billing)}" target="_blank" rel="noopener noreferrer">💳 ${L('Opwaarderen bij {p}', { p: esc(a.provider_label) })} ↗</a></p>` : ''}`;
+  if (a && a.note) html += `<p class="muted small">ℹ️ ${esc(a.note)}</p>`;
   if (a && a.status === 'done') {
+    if (cur.kind === 'triage' && a.verdict && AI_VERDICT[a.verdict]) html += `<p><span class="ai-verdict ${AI_VERDICT[a.verdict][0]}">🤖 ${esc(AI_VERDICT[a.verdict][1]())}</span> <span class="muted small">${L('Alleen een label: er wordt niets afgehandeld.')}</span></p>`;
     html += `<div class="ai-answer">${aiMd(a.answer)}</div>`;
     if ((a.actions || []).length && state.ai.exec) {
       html += `<div class="ai-exec"><b>🩹 ${L('Voorgestelde herstelactie')}</b> ${a.actions.map((x) => `<button type="button" class="btn small-btn" data-ai-exec="${esc(x)}">▶ ${esc(AI_ACT(x))}</button>`).join(' ')}
@@ -2236,6 +2257,13 @@ function aiShow(a, err = '') {
     } else if ((a.actions || []).length) {
       html += `<p class="muted small">🩹 ${L('Voorgestelde herstelactie')}: ${esc(a.actions.map(AI_ACT).join(', '))} (${L('uitvoeren staat uit: alleen tekst')})</p>`;
     }
+  }
+  if (a && a.status === 'done' && a.id && canAsk && !['week', 'triage'].includes(cur.kind)) {
+    // 1.173.0: geheugen: hielp het? (gaat bij dezelfde storing mee naar de AI)
+    html += `<div class="ai-fb"><span class="muted small">${L('Hielp dit?')}</span>
+      <button type="button" class="btn small-btn ${a.rating === 1 ? 'on' : ''}" data-ai-fb="rating" data-v="${a.rating === 1 ? 0 : 1}" title="${esc(L('Hielp'))}">👍</button>
+      <button type="button" class="btn small-btn ${a.rating === -1 ? 'on' : ''}" data-ai-fb="rating" data-v="${a.rating === -1 ? 0 : -1}" title="${esc(L('Hielp niet'))}">👎</button>
+      <button type="button" class="btn small-btn ${a.solved ? 'on' : ''}" data-ai-fb="solved" data-v="${a.solved ? 0 : 1}">✔ ${L('Dit loste het op')}</button></div>`;
   }
   if (meta) html += `<p class="muted small ai-meta">${esc(meta)}</p>`;
   html += `<div class="btn-row">${canAsk && !busy ? `<button type="button" class="btn ${a ? '' : 'primary'}" data-ai-ask="${a ? 1 : 0}">${a ? '🔄 ' + L('Opnieuw vragen') : '🤖 ' + L('Vraag advies')}</button>` : ''}</div>
@@ -2258,6 +2286,19 @@ document.addEventListener('click', async (e) => {
   if (b) { e.preventDefault(); e.stopPropagation(); aiOpen(b.dataset.aiKind, +b.dataset.aiRef); return; }
   const ask = e.target.closest('[data-ai-ask]');
   if (ask && $('#ai-box') && $('#ai-box').contains(ask)) { e.preventDefault(); aiAsk(ask.dataset.aiAsk === '1'); return; }
+  const fb = e.target.closest('[data-ai-fb]');
+  if (fb && aiCur && $('#ai-box') && $('#ai-box').contains(fb)) {
+    e.preventDefault();
+    const cur = aiCur;
+    try {
+      const r0 = await api('ai_get', null, { kind: cur.kind, ref: cur.ref });
+      if (!r0.advice) return;
+      const r = await api('ai_feedback', { id: r0.advice.id, [fb.dataset.aiFb]: +fb.dataset.v });
+      if (cur === aiCur) aiShow(r.advice);
+      toast(L('Dank je, dat onthoudt RzMon'));
+    } catch (err) { toast(err.message, 'err'); }
+    return;
+  }
   const cp = e.target.closest('[data-ai-copy]');
   if (cp) {
     e.preventDefault();
@@ -2285,7 +2326,10 @@ function aiFormVals() {
 function aiProvUi() {
   const f = $('#settings-form');
   const p = f.elements.ai_provider ? f.elements.ai_provider.value : 'ollama';
-  $$('#ai-card [data-prov]').forEach((el) => { el.hidden = el.dataset.prov !== p; });
+  // 1.173.0: het adres en model van Ollama ook tonen bij een cloudaanbieder als terugvallen op Ollama aan staat
+  const fb = p !== 'ollama' && f.elements.ai_fallback && f.elements.ai_fallback.checked;
+  $$('#ai-card [data-prov]').forEach((el) => { el.hidden = el.dataset.prov !== p && !(fb && el.dataset.prov === 'ollama'); });
+  $$('#ai-card [data-fb-note]').forEach((el) => { el.hidden = !fb; });
   const on = f.elements.ai_on && f.elements.ai_on.checked;
   $('#ai-body').classList.toggle('ai-off', !on);
   const cloud = p !== 'ollama';
@@ -2296,16 +2340,70 @@ async function loadAiSettings() {
   aiProvUi();
   let r;
   try { r = await api('ai_info'); } catch (ex) { $('#ai-usage').textContent = ex.message; return; }
+  aiProvUi();   // 1.173.0: de waarden van het formulier zijn er nu zeker
   $('#ai-diag').checked = r.diag;
   $('#ai-exec').checked = r.exec;
-  $('#ai-usage').innerHTML = r.on ? L('Vandaag {n} vragen naar een cloudmodel.', { n: r.used }) : '';
+  $('#ai-usage').innerHTML = r.on ? L('Vandaag {n} vragen naar een cloudmodel.', { n: r.used }) + (r.triage_n ? ' · ' + L('{n} IDS-oordelen', { n: r.triage_n }) : '') : '';
+  aiWeek = r.week_last || r.week_ref;
+  aiCostRender(r.usage);
   $('#ai-recent').innerHTML = r.recent.length ? `<ul class="ai-recent">${r.recent.map((a) => `<li><span class="ai-st ${a.status}">${esc({ done: '✔', error: '✘', diag: '🔎', pending: '…', running: '…' }[a.status] || a.status)}</span>
-      ${esc(whenText(a.created_at))} · ${esc(a.kind)} #${a.ref_id} · ${esc(a.provider_label)}${a.model ? ' · ' + esc(a.model) : ''}${a.auto ? ' · ' + L('automatisch') : ''}${a.error ? ` · <span class="bad">${esc(a.error)}</span>` : ''}</li>`).join('')}</ul>` : `<p class="muted small">${L('Nog geen adviezen gevraagd.')}</p>`;
+      ${esc(whenText(a.created_at))} · ${esc(a.kind)} #${a.ref_id} · ${esc(a.provider_label)}${a.model ? ' · ' + esc(a.model) : ''}${a.auto ? ' · ' + L('automatisch') : ''}${a.status === 'done' && a.cost != null && a.cloud ? ' · ± ' + aiMoney(a.cost) : ''}${a.note ? ' · ' + esc(a.note) : ''}${a.error ? ` · <span class="bad">${esc(a.error)}</span>` : ''}</li>`).join('')}</ul>` : `<p class="muted small">${L('Nog geen adviezen gevraagd.')}</p>`;
+}
+let aiWeek = null, aiUsage = null;
+/** 1.173.0: verbruik en tegoed: kerncijfers, kosten per dag, prijzen per model en het bijgehouden tegoed */
+function aiCostRender(u) {
+  if (!u || !$('#ai-cost-kpi')) return;
+  aiUsage = u;
+  $('#ai-credit-out').innerHTML = (u.credit_out || []).map((f) => `<p class="ai-out">💳 <b>${L('Tegoed op bij {p}', { p: esc(f.label) })}</b> <span class="muted small">${f.at ? esc(whenText(f.at)) : ''}</span>
+    <a class="btn small-btn" href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">${L('Opwaarderen')} ↗</a></p>`).join('');
+  const b = +u.budget || 0, m = u.month, pct = b > 0 ? Math.min(100, (m.cost / b) * 100) : 0;
+  const credits = Object.entries(u.credits || {});
+  const kpi = (label, big, sub, bar = null, cls = '') => `<div class="ai-kpi ${cls}"><span class="muted small">${label}</span><b>${big}</b><span class="muted small">${sub}</span>${bar !== null ? `<i class="ai-bar"><i style="width:${bar.toFixed(0)}%"></i></i>` : ''}</div>`;
+  $('#ai-cost-kpi').innerHTML = [
+    kpi(L('Vandaag'), aiMoney(u.today.cost), L('{n} vragen · {t} tokens', { n: u.today.n, t: aiTok(u.today.tin + u.today.tout) })),
+    kpi(L('Deze maand'), aiMoney(m.cost), (b > 0 ? L('van {b} budget', { b: aiMoney(b) }) + ' · ' : '') + L('{n} vragen · {t} tokens', { n: m.n, t: aiTok(m.tin + m.tout) }), b > 0 ? pct : null, pct >= 100 ? 'bad' : pct >= 80 ? 'warn' : ''),
+    ...credits.map(([p, c]) => kpi(L('Tegoed {p}', { p: esc((u.models.find((x) => x.provider === p) || {}).label || p) }), '± ' + aiMoney(Math.max(0, c.left)),
+      L('van {a} sinds {d}', { a: aiMoney(c.amount), d: aiDay(c.since) }), c.pct, c.pct <= 0 ? 'bad' : c.pct <= 20 ? 'warn' : '')),
+  ].join('') + (m.unpriced ? `<p class="muted small ai-kpi-note">⚠️ ${L('{n} adviezen deze maand zonder prijs: vul hieronder de prijs per model in, dan rekent RzMon ze alsnog mee.', { n: m.unpriced })}</p>` : '');
+  // Kosten per dag (30 dagen); zonder kosten (Ollama of geen prijzen): tokens per dag
+  const byCost = u.days.some((d) => d.cost > 0), val = (d) => (byCost ? d.cost : d.tok), max = Math.max(...u.days.map(val), 0);
+  $('#ai-cost-chart').innerHTML = max > 0 ? `<div class="ai-chart"><div class="ai-chart-h small"><b>${byCost ? L('Kosten per dag') : L('Tokens per dag')}</b> <span class="muted">${L('laatste 30 dagen')} · ${L('hoogste {v}', { v: byCost ? aiMoney(max) : aiTok(max) })}</span></div>
+    <div class="ai-bars" role="img" aria-label="${esc(byCost ? L('Kosten per dag') : L('Tokens per dag'))}">${u.days.map((d) => `<i class="${val(d) ? '' : 'zero'}" style="height:${Math.max(val(d) ? 6 : 2, (val(d) / max) * 100).toFixed(0)}%" title="${esc(aiDay(d.d) + ': ' + (byCost ? aiMoney(d.cost) : aiTok(d.tok) + ' tokens') + ' · ' + L('{n} vragen', { n: d.n }))}"></i>`).join('')}</div>
+    <div class="ai-chart-x small muted"><span>${esc(aiDay(u.days[0].d))}</span><span>${L('vandaag')}</span></div></div>` : '';
+  // Prijzen per model (deze maand gebruikt of ingesteld) en het bijgehouden tegoed per aanbieder
+  const cloud = u.models.filter((x) => x.cloud);
+  const provs = [...new Set([...cloud.map((x) => x.provider), ...Object.keys(u.credit_cfg || {})])];
+  const plabel = (p) => (u.models.find((x) => x.provider === p) || {}).label || p;
+  const num = (v) => (v == null ? '' : String(v));
+  $('#ai-cost-edit').innerHTML = cloud.length || provs.length ? `<div class="table-wrap"><table class="small ai-price-t"><thead><tr><th>${L('Model')}</th><th class="num">${L('Vragen')}</th><th class="num">${L('Tokens in / uit')}</th><th class="num">${L('Kosten')}</th>
+      <th>${L('€ per 1 miljoen tokens in')}</th><th>${L('… uit')}</th></tr></thead><tbody>
+      ${cloud.map((x) => `<tr><td>${esc(x.label)}<br><span class="mono muted">${esc(x.model)}</span></td><td class="num">${x.n}</td><td class="num">${aiTok(x.tin)} / ${aiTok(x.tout)}</td>
+        <td class="num">${x.price ? aiMoney(x.cost) : '<span class="muted">–</span>'}</td>
+        <td><input type="number" min="0" step="0.001" inputmode="decimal" data-price="${esc(x.provider + '|' + x.model)}" data-i="0" value="${esc(num(x.price && x.price[0]))}" placeholder="${esc(L('bv. 1'))}"></td>
+        <td><input type="number" min="0" step="0.001" inputmode="decimal" data-price="${esc(x.provider + '|' + x.model)}" data-i="1" value="${esc(num(x.price && x.price[1]))}" placeholder="${esc(L('bv. 5'))}"></td></tr>`).join('')}</tbody></table></div>
+    <p class="muted small">${L('De prijs staat op de website van de aanbieder (per miljoen tokens, vaak in dollars: reken om naar euro). Ollama is altijd gratis.')}</p>
+    ${provs.length ? `<div class="table-wrap"><table class="small ai-price-t"><thead><tr><th>${L('Tegoed')}</th><th>${L('Opgewaardeerd (€)')}</th><th>${L('Sinds')}</th><th></th></tr></thead><tbody>
+      ${provs.map((p) => { const c = (u.credit_cfg || {})[p] || {}; return `<tr><td>${esc(plabel(p))}</td>
+        <td><input type="number" min="0" step="0.01" inputmode="decimal" data-credit="${esc(p)}" data-f="amount" value="${esc(num(c.amount))}" placeholder="${esc(L('leeg = niet bijhouden'))}"></td>
+        <td><input type="date" data-credit="${esc(p)}" data-f="since" value="${esc(c.since || '')}"></td>
+        <td>${u.billing[p] ? `<a href="${esc(u.billing[p])}" target="_blank" rel="noopener noreferrer" class="small">${L('naar de aanbieder')} ↗</a>` : ''}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
+    <div class="btn-row"><button type="button" class="btn small-btn primary need-admin" id="ai-cost-save">💾 ${L('Prijzen en tegoed opslaan')}</button></div>`
+    : `<p class="muted small">${L('Kies een cloudaanbieder met een API-sleutel en een model; dan vul je hier de prijs en je tegoed in.')}</p>`;
 }
 function initAiSettings() {
   const card = $('#ai-card');
   if (!card) return;
-  card.addEventListener('change', (e) => { if (['ai_provider', 'ai_on'].includes(e.target.name)) aiProvUi(); });
+  card.addEventListener('click', async (e) => {
+    if (e.target.closest('#ai-week-open')) { e.preventDefault(); aiOpen('week', aiWeek || 0); return; }
+    if (!e.target.closest('#ai-cost-save')) return;
+    e.preventDefault();
+    const prices = {}, credit = {};
+    $$('#ai-cost-edit [data-price]').forEach((el) => { (prices[el.dataset.price] ??= ['', ''])[+el.dataset.i] = el.value.trim(); });
+    Object.keys(prices).forEach((k) => { if (prices[k].some((v) => v === '')) delete prices[k]; });
+    $$('#ai-cost-edit [data-credit]').forEach((el) => { (credit[el.dataset.credit] ??= {})[el.dataset.f] = el.value.trim(); });
+    try { const r = await api('ai_cost_set', { prices, credit }); aiCostRender(r.usage); toast(L('Opgeslagen')); } catch (ex) { toast(ex.message, 'err'); }
+  });
+  card.addEventListener('change', (e) => { if (['ai_provider', 'ai_on', 'ai_fallback'].includes(e.target.name)) aiProvUi(); });
   $('#ai-models').onclick = async (e) => {
     const b = e.currentTarget, p = $('#settings-form').elements.ai_provider.value;
     b.disabled = true;
@@ -7491,7 +7589,7 @@ function renderIdsAttention(open) {
       <button type="button" class="a-chk linklike" data-inc="${i.id}" title="${esc(L('Details, advies en acties'))}">${i.type === 'chain' ? '🔗 ' : ''}${esc(i.title)}</button>
       <span class="a-msg">${esc(i.detail || '')}</span>
       <span class="a-since">${dur(i.created_at)}</span>
-      <span class="a-acts">${aiBtn('ids', i.id)}<span class="need-admin a-acts-in"><button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">✔ ${L('Afhandelen')}</button>${i.ip ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}" title="${esc(L('Blokkeer IP'))}">⛔</button>` : ''}</span></span>
+      <span class="a-acts">${aiTriage(i.id)}${aiBtn('ids', i.id)}<span class="need-admin a-acts-in"><button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">✔ ${L('Afhandelen')}</button>${i.ip ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}" title="${esc(L('Blokkeer IP'))}">⛔</button>` : ''}</span></span>
     </div>`).join('')}
     ${list.length > 3 ? `<button type="button" class="attn-more ${list.length > 5 ? '' : 'mob-only'}" data-ids-attn-more>${idsAttnOpen ? '▴ ' + L('Minder tonen') : '▾ ' + L('Alle {n} tonen', { n: list.length })}</button>` : ''}</div>`;
 }
@@ -8970,7 +9068,7 @@ async function incidentDialog(id, nav = null) {
       ${a.steps.length || a.cmds.length ? `<h3 class="set-sub">🛠️ ${L('Wat te doen')}</h3>${a.steps.length ? `<ul>${a.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${cmdList(a.cmds, 'inc-c')}` : ''}
       ${a.prevent ? `<h3 class="set-sub">🛡️ ${L('Voorkomen')}</h3><p>${esc(a.prevent)}</p>` : ''}
       ${a.ip ? `<h3 class="set-sub">🌐 ${L('IP-adres')} <code>${esc(a.ip)}</code></h3><div id="inc-ip"></div>` : ''}
-      ${aiOn() ? `<div class="btn-row">${aiBtn('ids', +id, true)}</div>` : ''}
+      ${aiOn() ? `<div class="btn-row">${aiTriage(+id)}${aiBtn('ids', +id, true)}</div>` : ''}
       <div class="btn-row need-admin inc-actions">
         ${open ? `<button type="button" class="btn" data-inc-act="handle">✔ ${L('Afhandelen')}</button>
           <button type="button" class="btn" data-inc-act="normal" title="${esc(L('Afhandelen en dit voortaan niet meer melden'))}">🚫 ${L('Dit is normaal')}</button>`
@@ -9063,7 +9161,7 @@ function idsRow(i, group = null, nav = null) {
   const many = group && !done ? group.filter((x) => x.status === 'open').map((x) => x.id).join(',') : '';
   return `<div class="irow s${sev} ${done ? 'ids-done' : ''}">
     <i class="adot s${sev}"></i>
-    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" ${nav && nav.length > 1 ? `data-inc-list="${nav.map((x) => x.id).join(',')}"` : ''} title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${done ? '' : aiBtn('ids', i.id)}${actChips(((idsData && idsData.prot) || {})[i.id])}${+i.hits > 1 ? ` <span class="rep hits" tabindex="0" title="${esc(L('Dit incident is {n}× gezien · eerst {a} · laatst {b}', { n: i.hits, a: fmtDateTime(i.created_at), b: fmtDateTime(i.last_seen || i.created_at) }))}">${i.hits}×</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort op {host} ({o} open) · van {a} tot {b} · klik om ze te tonen; klik op de titel om ze één voor één te bekijken', { n: group.length, host: i.host_name, o: group.filter((x) => x.status === 'open').length, a: group[group.length - 1].created_at.slice(11, 16), b: group[0].created_at.slice(11, 16) }))}">${group.length}×</button>` : ''}
+    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" ${nav && nav.length > 1 ? `data-inc-list="${nav.map((x) => x.id).join(',')}"` : ''} title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${aiTriage(i.id)}${done ? '' : aiBtn('ids', i.id)}${actChips(((idsData && idsData.prot) || {})[i.id])}${+i.hits > 1 ? ` <span class="rep hits" tabindex="0" title="${esc(L('Dit incident is {n}× gezien · eerst {a} · laatst {b}', { n: i.hits, a: fmtDateTime(i.created_at), b: fmtDateTime(i.last_seen || i.created_at) }))}">${i.hits}×</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort op {host} ({o} open) · van {a} tot {b} · klik om ze te tonen; klik op de titel om ze één voor één te bekijken', { n: group.length, host: i.host_name, o: group.filter((x) => x.status === 'open').length, a: group[group.length - 1].created_at.slice(11, 16), b: group[0].created_at.slice(11, 16) }))}">${group.length}×</button>` : ''}
       <small>${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>${ccTag(i.cc)}` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</small></span>
     <span class="m-sv">${esc(i.host_name)}</span>
     <span class="m-t" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))}</span>
@@ -11016,6 +11114,7 @@ const SYSINFO_ROWS = [
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
     ['watchdog', '🐕 ' + L('Waakhond: RzMon was onbereikbaar of de checks stonden stil')]]],
   ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
+  [L('AI-advies'), [['ai_advice', '🤖 ' + L('Samenvatting van een automatisch advies')], ['ai_week', '📅 ' + L('Weekoverzicht')], ['ai_credit', '💳 ' + L('Tegoed of budget bijna op of op')]]],   // 1.173.0
 ];
 const SYSINFO_CH = [['pushover', '📲 Push', 'push'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
 let sysinfoCfg = null;
@@ -14678,7 +14777,7 @@ async function caseDialog(id) {
     body: `<div style="padding:1rem 1.2rem">
       <p class="muted small">${esc(src())}${i.host ? ' · ' + esc(i.host) : ''} · ${L('geopend {t}', { t: esc(fmtDateTime(i.opened_at)) })}${i.resolved_at ? ' · ' + L('opgelost {t}', { t: esc(fmtDateTime(i.resolved_at)) }) : ''}</p>
       ${i.detail ? `<p>${esc(i.detail)}</p>` : ''}
-      ${aiOn() ? `<div class="btn-row">${aiBtn('incident', +id, true)}</div>` : ''}
+      ${aiOn() ? `<div class="btn-row">${aiBtn('incident', +id, true)}${i.status === 'resolved' && state.ai.report && state.ai.ask ? `<button type="button" class="btn small-btn ai-btn" data-ai-kind="report" data-ai-ref="${+id}">📝 ${L('AI-verslag')}</button>` : ''}</div>` : ''}
       ${i.status !== 'resolved' ? `<p class="small">${urgPill(i.urgency, i.why)} <b>${L('Urgentie {u}', { u: i.urgency })}</b>: ${esc(i.why.join(' · '))}</p>` : ''}
       ${i.path && i.path.length ? `<div class="inc-path" aria-label="${esc(L('Pad'))}">${i.path.map((p) => `<span>${esc(p)}</span>`).join('<i aria-hidden="true">→</i>')}</div>` : ''}
       ${i.steps && i.steps.length ? `<h3>${L('Stappen')}</h3><ol class="inc-steps">${i.steps.map((s) => `<li class="${s.severity >= 2 ? 'crit' : 'warn'}"><b>${esc(s.title)}</b>
