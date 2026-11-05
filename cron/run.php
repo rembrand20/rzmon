@@ -163,6 +163,15 @@ try {
     fwrite(STDERR, 'Netwerkscan: ' . $e->getMessage() . "\n");
 }
 Perf::lap('netwerkscan');
+// 1.186.0: netwerkverkeer per apparaat (UniFi), elke 5 minuten
+try {
+    if ($msg = NetTraffic::cron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Verkeer: ' . $e->getMessage() . "\n");
+}
+Perf::lap('verkeer');
 // Analyse (1.106.0): dagtotalen elk uur bijwerken, en het maandrapport op de 1e van de maand
 try {
     // 1.155.0: slimme analyses (elke 15 minuten), kritieke CVE's melden, de score per dag

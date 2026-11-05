@@ -14613,6 +14613,7 @@ const NET_KIND = {
 const NET_TO_HOST = { router: 'router', network: 'switch', server: 'server', nas: 'nas', printer: 'printer', camera: 'camera', smarthome: 'smarthome', iot: 'smarthome' };
 let netData = null;
 let netFilter = 'all';
+let netSortTr = false;   // 1.186.0: Apparaten sorteren op verkeer
 const netKind = (d) => d.kind_user || d.kind || 'unknown';
 
 function initNet() {
@@ -14632,7 +14633,7 @@ function initNet() {
     if (!n || !confirm(L('Alle {n} nieuwe apparaten als bekend markeren?', { n }))) return;
     try { await api('net_approve_all', {}); toast(L('{n} apparaten bekend', { n })); loadNet(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
   };
-  $('#net-list').onclick = netClick;
+  $('#net-list').onclick = (e) => { if (e.target.closest('[data-net-sort]')) { netSortTr = !netSortTr; renderNet(); return; } netClick(e); };
 }
 
 async function loadNet() {
@@ -14666,6 +14667,7 @@ async function ndLoad() {
 const ND_EV = () => ({
   new: ['🆕', L('Nieuw apparaat')], ip: ['🔁', L('Ander IP-adres')], ports_new: ['🚪', L('Nieuwe poort open')], ports_gone: ['🔒', L('Poort dicht')],
   domains: ['🌐', L('Praat met nieuwe domeinen')], gone: ['💤', L('Al dagen weg')], back: ['👋', L('Weer terug')],
+  traffic: ['📈', L('Ongewoon veel verkeer')], traffic_night: ['🌙', L('Verkeer \'s nachts')],
 });
 function ndEvText(e, dev) {
   const x = e.detail || {};
@@ -14677,6 +14679,8 @@ function ndEvText(e, dev) {
     case 'domains': return (x.domains || []).join(', ') + (x.n > (x.domains || []).length ? ' ' + L('en nog {n}', { n: x.n - x.domains.length }) : '');
     case 'gone': return L('niet meer gezien sinds {t}', { t: x.last ? fmtDay(x.last) : '?' });
     case 'back': return L('weer gezien na {d} dagen', { d: x.days ?? '?' });
+    case 'traffic': return L('{dir} {b} op {day} (normaal {n})', { dir: x.dir === 'up' ? '↑ ' + L('upload') : '↓ ' + L('download'), b: fmtBytes(x.bytes), day: fmtDay(x.day), n: fmtBytes(x.normal) });
+    case 'traffic_night': return L('{b} tussen 0 en 6 uur op {day}, terwijl het \'s nachts normaal stil is', { b: fmtBytes(x.bytes), day: fmtDay(x.day) });
     default: return '';
   }
 }
@@ -14724,7 +14728,7 @@ function renderNetDisc() {
     <div class="dash-chips nd-chips"><button type="button" class="dchip ${ndFilter ? '' : 'on'}" data-nd-f="">${L('Alles')} <b>${d.events.length}</b></button>
       ${kinds.map((k) => { const n = d.events.filter((e) => e.kind === k).length; return n ? `<button type="button" class="dchip ${ndFilter === k ? 'on' : ''}" data-nd-f="${k}">${ev[k][0]} ${esc(ev[k][1])} <b>${n}</b></button>` : ''; }).join('')}</div>
     ${evList.length ? `<div class="nd-list">${evList.slice(0, 80).map((e) => { const x = byId[e.device]; const [ic, w] = ev[e.kind] || ['•', e.kind];
-      const bad = (e.kind === 'ports_new' && (e.detail.risky || []).length) || e.kind === 'domains';
+      const bad = (e.kind === 'ports_new' && (e.detail.risky || []).length) || e.kind === 'domains' || e.kind === 'traffic' || e.kind === 'traffic_night';
       return `<div class="nd-row ${bad ? 'nd-bad' : ''}"><span class="nd-ic">${ic}</span>
         <div class="nd-t">${x ? devLink(x.id, x.label) : `<span class="muted">${L('(vergeten apparaat)')}</span>`} <span class="muted small">· ${esc(w)}</span><small>${esc(ndEvText(e, x))}</small></div>
         <span class="muted small nowrap" title="${esc(e.at)}">${esc(ago(e.at))}</span></div>`; }).join('')}</div>`
@@ -14746,12 +14750,19 @@ function renderNetDisc() {
       pdays.forEach((k) => { const h = p[k] || 0; for (let b = 0; b < 24; b++) if (h & (1 << b)) { on++; if (b < 6) night++; } });
       return { x, p, on, night }; }).sort((a, b) => b.on - a.on);
   const presKinds = [...new Set(nd.devices.filter((x) => d.presence[x.id]).map(netKind))];
-  const presHtml = `<section class="card nd-sec"><h3>🕒 ${L('Aanwezigheid')} <span class="muted small">${L('wanneer een apparaat online was, laatste 7 dagen')}</span></h3>
+  const trG = d.traffic || {};
+  const hasTr = Object.keys(trG).length > 0;
+  const trMax = {};
+  Object.entries(trG).forEach(([id, h]) => { trMax[id] = Math.max(1, ...Object.values(h)); });
+  const presHtml = `<section class="card nd-sec"><h3>🕒 ${hasTr ? L('Aanwezigheid en verkeer') : L('Aanwezigheid')} <span class="muted small">${hasTr ? L('wanneer een apparaat online was en hoe druk, laatste 7 dagen') : L('wanneer een apparaat online was, laatste 7 dagen')}</span></h3>
     <div class="nd-pbar"><select id="nd-pkind" aria-label="${esc(L('Soort'))}"><option value="">${L('Alle soorten')}</option>${presKinds.map((k) => `<option value="${k}" ${ndPresKind === k ? 'selected' : ''}>${(NET_KIND[k] || NET_KIND.unknown)[0]} ${esc((NET_KIND[k] || NET_KIND.unknown)[1]())}</option>`).join('')}</select>
-      <span class="muted small">${L('Elk blokje is een uur; 🌙 = ook \'s nachts (0–6 uur) online.')}</span></div>
+      <span class="muted small">${L('Elk blokje is een uur; 🌙 = ook \'s nachts (0–6 uur) online.')}${hasTr ? ' ' + L('Hoe donkerder, hoe meer verkeer in dat uur.') : ''}</span></div>
     ${pres.length ? `<div class="nd-pres"><div class="nd-prow nd-phead"><span></span>${pdays.map((k) => `<span class="nd-pday">${esc(new Date(k + 'T12:00').toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric' }))}</span>`).join('')}<span></span></div>
       ${pres.slice(0, 60).map(({ x, p, on, night }) => `<div class="nd-prow"><span class="nd-pname">${icon(x)} ${devLink(x.id, x.label)}</span>
-        ${pdays.map((k) => { const h = p[k] || 0; return `<span class="nd-pday">${Array.from({ length: 24 }, (_, b) => `<i class="${h & (1 << b) ? 'on' : ''} ${b < 6 ? 'n' : ''}"></i>`).join('')}</span>`; }).join('')}
+        ${pdays.map((k) => { const h = p[k] || 0; const tg = trG[x.id] || {};
+          return `<span class="nd-pday">${Array.from({ length: 24 }, (_, b) => { const tb = tg[`${k} ${String(b).padStart(2, '0')}`] || 0;
+            const lv = tb ? Math.min(4, 1 + Math.floor(Math.sqrt(tb / trMax[x.id]) * 3.999)) : 0;
+            return `<i class="${h & (1 << b) || tb ? 'on' : ''} ${b < 6 ? 'n' : ''} ${lv ? 't' + lv : ''}" ${tb ? `title="${esc(k + ' ' + b + ':00 · ' + fmtBytes(tb))}"` : ''}></i>`; }).join('')}</span>`; }).join('')}
         <span class="nd-ppct small">${Math.round((on / 168) * 100)}%${night ? ' 🌙' : ''}</span></div>`).join('')}</div>`
       : `<p class="muted small">${L('Nog geen gegevens: vanaf 1.183.0 houdt elke scan bij welke apparaten er zijn. Na een paar uur zie je hier de eerste blokjes.')}</p>`}</section>`;
   box.innerHTML = kpis + `<div class="nd-grid">${newHtml}${chHtml}</div>` + sugHtml + presHtml;
@@ -14798,6 +14809,76 @@ async function netScanNow(btn) {
 }
 
 function renderNet() { withMorph(renderNetNow); if (netSub === 'map') renderNetMap(); }
+
+// ---------------------------------------------------------------- 1.186.0: verkeer per apparaat
+const fmtRate = (bps) => (bps >= 125000 ? dec(((bps * 8) / 1e6).toFixed(bps * 8 >= 1e8 ? 0 : 1)) + ' Mbit/s' : dec(((bps * 8) / 1e3).toFixed(0)) + ' kbit/s');
+const netTr = (x) => netData?.traffic?.[x.id] || null;
+/** Minigrafiek: 24 staafjes (bytes per uur) */
+function trSpark(arr) {
+  const max = Math.max(1, ...arr);
+  return `<span class="tr-spark" aria-hidden="true">${arr.map((v) => `<i style="--h:${Math.max(v ? 8 : 0, Math.round((v / max) * 100))}%"></i>`).join('')}</span>`;
+}
+/** Top 10 van de laatste 24 uur (download en upload naast elkaar) */
+function trTopHtml(limit = 10) {
+  const d = netData;
+  if (!d) return '';
+  const st = d.traffic_state || {};
+  const rows = d.devices.map((x) => ({ x, t: netTr(x) })).filter((r) => r.t && r.t.rx + r.t.tx > 0).sort((a, b) => (b.t.rx + b.t.tx) - (a.t.rx + a.t.tx)).slice(0, limit);
+  const tt = d.traffic_totals || { today: [0, 0], yesterday: [0, 0] };
+  const pct = (a, b) => (b > 0 ? Math.round(((a - b) / b) * 100) : null);
+  const cmp = (a, b) => { const p = pct(a, b); return p === null ? '' : ` <small class="${p > 0 ? 'warn-txt' : 'good-txt'}">${p > 0 ? '+' : ''}${p}% ${L('t.o.v. gisteren')}</small>`; };
+  if (!st.on) {
+    return `<p class="muted small">${!st.unifi ? L('Koppel UniFi (Instellingen → Koppelingen → UniFi en AdGuard Home) om het verkeer per apparaat te zien.')
+      : !st.account ? L('Verkeer per apparaat vraagt een lokaal UniFi-account; met alleen een API-sleutel geeft UniFi geen tellers.')
+      : !st.setting ? L('Verkeer per apparaat staat uit (Instellingen → Beveiliging → Netwerkscan).') : L('De netwerkscan staat uit.')}</p>`;
+  }
+  if (st.error) return `<p class="warn-txt small">⚠️ ${esc(st.error)}</p>`;
+  if (!rows.length) return `<p class="muted small">${L('Nog geen verkeer gemeten. Na 5 tot 10 minuten zie je hier de eerste cijfers.')}</p>`;
+  const max = Math.max(1, ...rows.map((r) => Math.max(r.t.rx, r.t.tx)));
+  return `<div class="tr-tot"><span>↓ <b>${fmtBytes(tt.today[0])}</b>${cmp(tt.today[0], tt.yesterday[0])}</span><span>↑ <b>${fmtBytes(tt.today[1])}</b>${cmp(tt.today[1], tt.yesterday[1])}</span><small class="muted">${L('vandaag, alle apparaten')}</small></div>
+    <div class="tr-top">${rows.map(({ x, t }) => `<div class="tr-row"><button type="button" class="nd-link" data-nm-open="${x.id}">${(NET_KIND[netKind(x)] || NET_KIND.unknown)[0]} ${esc(x.label)}</button>
+      <span class="tr-bars"><i class="dn" style="width:${(t.rx / max) * 100}%"></i><i class="up" style="width:${(t.tx / max) * 100}%"></i></span>
+      <span class="tr-num small">↓ ${fmtBytes(t.rx)} · ↑ ${fmtBytes(t.tx)}</span></div>`).join('')}</div>
+    <p class="muted small tr-legend"><i class="lg dn"></i> ${L('download')} <i class="lg up"></i> ${L('upload')} · ${L('laatste 24 uur, volgens UniFi')}</p>`;
+}
+/** Verkeer in het venster van een apparaat */
+async function netTrafficBox(x, box) {
+  let d;
+  try { d = await api('net_traffic_device', null, { id: x.id }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  if (!d.hours.length && !d.days.length) { box.innerHTML = `<p class="muted small">${L('Nog geen verkeer gemeten voor dit apparaat.')}</p>`; return; }
+  // per uur, 7 dagen: twee lijnen (download, upload)
+  const hrs = [];
+  const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - 6);
+  const byH = Object.fromEntries(d.hours.map(([h, rx, tx]) => [h, [rx, tx]]));
+  for (let i = 0; i < 7 * 24; i++) {
+    const t = new Date(start.getTime() + i * 3600e3);
+    const k = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')} ${String(t.getHours()).padStart(2, '0')}`;
+    hrs.push([t, ...(byH[k] || [0, 0])]);
+  }
+  const W = 700, H = 150, P = 4;
+  const mx = Math.max(1, ...hrs.map((h) => Math.max(h[1], h[2])));
+  const xy = (i, v) => `${(P + (i / (hrs.length - 1)) * (W - 2 * P)).toFixed(1)},${(H - P - (v / mx) * (H - 2 * P - 14)).toFixed(1)}`;
+  const line = (k) => hrs.map((h, i) => xy(i, h[k])).join(' ');
+  const dayTicks = Array.from({ length: 7 }, (_, j) => { const xx = P + ((j * 24) / (hrs.length - 1)) * (W - 2 * P);
+    return `<line x1="${xx}" y1="0" x2="${xx}" y2="${H}" class="tr-grid"/><text x="${xx + 4}" y="12" class="tr-ax">${esc(hrs[j * 24][0].toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric' }))}</text>`; }).join('');
+  const days = d.days;
+  const dmx = Math.max(1, ...days.map((r) => r[1] + r[2]));
+  const sum = (k) => days.slice(-1).reduce((a, r) => a + r[k], 0);
+  const n = d.normal;
+  const ratio = (v, nv) => (nv > 0 ? v / nv : null);
+  const rUp = n ? ratio(sum(2), n.tx) : null, rDn = n ? ratio(sum(1), n.rx) : null;
+  box.innerHTML = `<div class="tr-dev">
+    <div class="tr-dev-head"><span>↓ <b>${fmtBytes(sum(1))}</b> ↑ <b>${fmtBytes(sum(2))}</b> <small class="muted">${L('vandaag')}</small></span>
+      ${d.rate ? `<span class="small">${L('nu')}: ↓ ${fmtRate(d.rate.rx)} · ↑ ${fmtRate(d.rate.tx)}</span>` : ''}
+      ${n ? `<span class="small muted">${L('normaal per dag')}: ↓ ${fmtBytes(n.rx)} · ↑ ${fmtBytes(n.tx)}</span>` : `<span class="small muted">${L('nog aan het leren wat normaal is (7 dagen)')}</span>`}
+      ${(rUp && rUp >= 5) || (rDn && rDn >= 5) ? `<span class="warn-txt small">⚠️ ${L('vandaag {x}× zoveel als normaal', { x: dec(Math.max(rUp || 0, rDn || 0).toFixed(1)) })}</span>` : ''}</div>
+    <p class="small muted" style="margin:.4rem 0 .2rem">${L('Per uur, laatste 7 dagen')}</p>
+    <svg viewBox="0 0 ${W} ${H}" class="tr-chart" role="img" aria-label="${esc(L('Verkeer per uur, laatste 7 dagen'))}">${dayTicks}
+      <polyline points="${line(1)}" class="tr-l dn"/><polyline points="${line(2)}" class="tr-l up"/></svg>
+    <p class="small muted" style="margin:.6rem 0 .2rem">${L('Per dag, laatste 30 dagen')}</p>
+    <div class="tr-days">${days.map(([day, rx, tx]) => `<span title="${esc(fmtDay(day) + ': ↓ ' + fmtBytes(rx) + ' · ↑ ' + fmtBytes(tx))}"><i class="up" style="height:${(tx / dmx) * 100}%"></i><i class="dn" style="height:${(rx / dmx) * 100}%"></i></span>`).join('')}</div>
+    <p class="muted small tr-legend"><i class="lg dn"></i> ${L('download')} <i class="lg up"></i> ${L('upload')} · ${L('volgens UniFi')}</p></div>`;
+}
 
 // ---------------------------------------------------------------- 1.184.0: Netwerk → Overzicht (netwerkkaart)
 const ipNum = (ip) => String(ip).split('.').reduce((a, o) => a * 256 + (+o || 0), 0);
@@ -14855,7 +14936,9 @@ function renderNetMap() {
   const dot = (x) => {
     const cls = [online(x) ? 'on' : 'off', x.status === 'new' ? 'new' : '', x.risky.length ? 'risky' : '', x.host ? 'rz' : '', nmKind && netKind(x) !== nmKind ? 'dim' : ''].join(' ');
     const tip = [x.label, x.ip, x.vendor, online(x) ? L('online') : L('offline'), x.status === 'new' ? L('nieuw') : '', x.risky.length ? L('riskante poort') : '', x.host ? L('in RzMon') : ''].filter(Boolean).join(' · ');
-    return `<button type="button" class="nm-dot ${cls}" data-nm-open="${x.id}" title="${esc(tip)}" aria-label="${esc(tip)}"><span>${icon(x)}</span><small>${esc(x.label)}</small></button>`;
+    const t = netTr(x);
+    const tb = t ? t.rx + t.tx : 0;
+    return `<button type="button" class="nm-dot ${cls} ${tb >= 1e9 ? 'heavy' : ''}" data-nm-open="${x.id}" title="${esc(tip + (t ? ` · ↓ ${fmtBytes(t.rx)} ↑ ${fmtBytes(t.tx)} (24 u)` : ''))}" aria-label="${esc(tip)}"><span>${icon(x)}</span><small>${esc(x.label)}</small>${tb ? `<em class="nm-tr">${fmtBytes(tb)}</em>` : ''}</button>`;
   };
   const node = (n) => {
     const x = n.dev;
@@ -14874,6 +14957,7 @@ function renderNetMap() {
       <section class="card nm-kinds-card"><h3>${L('Wat zit er op je netwerk')}</h3><div class="nm-kinds">${kindChips}</div></section>
       <section class="card nm-nets-card"><h3>${L('Per netwerk')}</h3>${netRows || `<p class="muted small">${L('Nog geen netwerk ingesteld.')}</p>`}</section>
     </div>
+    <section class="card nm-traffic"><h3>📊 ${L('Verkeer vandaag')}</h3>${trTopHtml(10)}</section>
     <section class="card nm-map">
       <div class="nm-legend small muted"><span><i class="lg on"></i> ${L('online')}</span><span><i class="lg off"></i> ${L('offline (24 uur niet gezien)')}</span><span><i class="lg new"></i> ${L('nieuw')}</span><span><i class="lg risky"></i> ${L('riskante poort')}</span><span><i class="lg rz"></i> ${L('in RzMon')}</span></div>
       <div class="nm-tree">
@@ -14937,6 +15021,8 @@ function renderNetNow() {
   const gName = (k) => (grp === 'kind' ? (NET_KIND[k] || NET_KIND.unknown)[0] + ' ' + (NET_KIND[k] || NET_KIND.unknown)[1]()
     : grp === 'vendor' ? (k === '🎭' ? '🎭 ' + L('Privé-adres (geen fabrikant)') : k || L('Onbekende fabrikant'))
     : k.startsWith('w:') ? '📶 ' + k.slice(2) : k === 'cable' ? '🔌 ' + L('Bedraad') : L('Onbekend (geen UniFi-gegevens)'));
+  const hasTr = !!(d.traffic_state?.on && Object.keys(d.traffic || {}).length);
+  if (hasTr && netSortTr) list.sort((a, b) => ((netTr(b)?.rx || 0) + (netTr(b)?.tx || 0)) - ((netTr(a)?.rx || 0) + (netTr(a)?.tx || 0)));
   const groups = [];
   if (grp) {
     const m = new Map();
@@ -14953,13 +15039,14 @@ function renderNetNow() {
         <td class="small"><span class="mono">${esc(x.ip)}</span>${online(x) ? '' : ` <span class="muted">(${L('offline')})</span>`}</td>
         <td class="small">${x.mac ? `<span class="mono">${esc(x.mac.toUpperCase())}</span>` : '–'}${+x.random_mac ? ` <span class="badge" title="${esc(L('Willekeurig MAC-adres (privé-wifiadres): telefoons en laptops gebruiken dat per netwerk, en soms wisselt het'))}">🎭 ${L('privé')}</span>` : ''}<br><span class="muted">${esc(x.vendor || '')}</span></td>
         <td class="small">${x.ports.length ? x.ports.map((p) => `<span class="port-tag ${x.risky.includes(p) ? 'bad' : ''}" title="${esc(x.risky.includes(p) ? d.risky_reasons[p] : '')}">${p}</span>`).join(' ') : `<span class="muted">${x.deep_at ? L('geen') : '…'}</span>`}</td>
+        ${hasTr ? `<td class="small nowrap">${netTr(x) ? `${trSpark(netTr(x).spark)}<br>↓ ${fmtBytes(netTr(x).rx)} · ↑ ${fmtBytes(netTr(x).tx)}` : '<span class="muted">–</span>'}</td>` : ''}
         <td class="small">${esc(ago(x.last_seen))}<br><span class="muted">${L('sinds {d}', { d: esc(fmtDay(x.first_seen)) })}</span></td>
         <td class="nowrap">${!x.host ? `<button type="button" class="btn small-btn need-admin" data-net-add="${x.id}" title="${esc(L('Toevoegen aan RzMon'))}">＋ RzMon</button>` : ''}
           ${x.status !== 'known' ? `<button type="button" class="icon-btn need-admin" data-net-st="known:${x.id}" title="${esc(L('Bekend: dit apparaat hoort hier'))}">✔</button>` : ''}
           ${x.status !== 'ignored' ? `<button type="button" class="icon-btn need-admin" data-net-st="ignored:${x.id}" title="${esc(L('Negeren: niet meer tonen'))}">🙈</button>` : `<button type="button" class="icon-btn need-admin" data-net-st="new:${x.id}" title="${esc(L('Weer tonen'))}">↩</button>`}</td></tr>`;
   };
-  $('#net-list').innerHTML = `<div class="table-scroll"><table class="vuln-table net-table"><thead><tr><th>${L('Apparaat')}</th><th>${L('IP-adres')}</th><th>${L('MAC en fabrikant')}</th><th>${L('Poorten')}</th><th>${L('Gezien')}</th><th></th></tr></thead>
-    ${groups.map(([name, xs]) => `<tbody>${name ? `<tr class="net-grp"><th colspan="6">${esc(name)} <span class="muted">${xs.length}</span></th></tr>` : ''}${xs.map(row).join('')}</tbody>`).join('')}</table></div>`;
+  $('#net-list').innerHTML = `<div class="table-scroll"><table class="vuln-table net-table"><thead><tr><th>${L('Apparaat')}</th><th>${L('IP-adres')}</th><th>${L('MAC en fabrikant')}</th><th>${L('Poorten')}</th>${hasTr ? `<th><button type="button" class="link-btn" data-net-sort="tr">${L('Verkeer 24 u')} ${netSortTr ? '▼' : '⇅'}</button></th>` : ''}<th>${L('Gezien')}</th><th></th></tr></thead>
+    ${groups.map(([name, xs]) => `<tbody>${name ? `<tr class="net-grp"><th colspan="${hasTr ? 7 : 6}">${esc(name)} <span class="muted">${xs.length}</span></th></tr>` : ''}${xs.map(row).join('')}</tbody>`).join('')}</table></div>`;
 }
 
 async function netClick(e) {
@@ -15006,6 +15093,7 @@ function netDialog(x) {
       ${x.risky.length ? `<div class="callout bad-callout"><b>⚠️ ${L('Riskante poorten')}</b><ul>${x.risky.map((p) => `<li><b>${p}</b>: ${esc(netData.risky_reasons[p] || '')}</li>`).join('')}</ul>
         <p class="small" style="margin:0">${L('Heb je deze dienst niet nodig, zet hem dan uit in de instellingen van het apparaat. Anders: zorg voor een sterk wachtwoord en laat de poort nooit van internet bereikbaar zijn.')}</p></div>` : ''}
       ${x.blocked ? `<div class="callout bad-callout"><b>⛔ ${L('Geweerd')}</b>: ${esc(netBlockedText(x))}</div>` : ''}
+      ${netData.traffic_state?.on ? `<details class="notify-own" id="net-tr" open><summary>📊 ${L('Verkeer')}</summary><div id="net-tr-body" class="small"><p class="muted">${L('laden…')}</p></div></details>` : ''}
       ${netData.links.adguard ? `<details class="notify-own" id="net-dom"><summary>🌐 ${L('Met welke domeinen praat dit apparaat? (AdGuard)')}</summary><div id="net-dom-body" class="small"></div></details>` : ''}
       ${admin ? `<label>${L('Eigen naam')}<input name="name" value="${esc(x.name || '')}" maxlength="100" placeholder="${esc(x.label)}"></label>
       <label>${L('Soort apparaat')}<select name="kind_user"><option value="">${L('vanzelf: {k}', { k: (NET_KIND[x.kind] || NET_KIND.unknown)[1]() })}</option>
@@ -15024,6 +15112,7 @@ function netDialog(x) {
     ] : [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
     onSubmit: async (f) => { await api('net_device_save', { id: +x.id, name: f.name, kind_user: f.kind_user, notes: f.notes, status: f.status }); toast(L('Opgeslagen')); loadNet(); },
   });
+  if ($('#net-tr-body')) netTrafficBox(x, $('#net-tr-body'));   // 1.186.0
   const dom = $('#net-dom');
   if (dom) dom.ontoggle = () => { if (dom.open && !dom.dataset.loaded) { dom.dataset.loaded = '1'; netDomains(x, $('#net-dom-body')); } };
 }

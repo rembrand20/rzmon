@@ -1325,3 +1325,30 @@ CREATE TABLE IF NOT EXISTS net_presence (
 
 -- 1.185.0: een check gaat pas naar warning/critical (of weer naar OK) na zoveel controles achter elkaar; leeg = meteen (zoals altijd)
 INSERT IGNORE INTO settings (name, value) VALUES ('confirm_fails', ''), ('confirm_ok', '');
+
+-- 1.186.0: netwerkverkeer per apparaat (uit UniFi): per uur (30 dagen), per dag (een jaar) en de laatste tellerstand
+CREATE TABLE IF NOT EXISTS net_traffic (
+    device_id INT UNSIGNED NOT NULL,
+    hour      DATETIME     NOT NULL,
+    rx        BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    tx        BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (device_id, hour),
+    KEY idx_nettr_hour (hour)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS net_traffic_day (
+    device_id INT UNSIGNED NOT NULL,
+    day       DATE         NOT NULL,
+    rx        BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    tx        BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (device_id, day),
+    KEY idx_nettrd_day (day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS net_counters (
+    device_id INT UNSIGNED NOT NULL PRIMARY KEY,
+    rx        BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    tx        BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    rate_rx   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    rate_tx   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    at        INT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('net_traffic', '1'), ('net_traffic_swap', '0');

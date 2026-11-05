@@ -15,7 +15,7 @@ final class NetDiscover
     public const LEARN_DAYS = 7;         // zo lang leren welke domeinen normaal zijn
     public const KEEP_EVENTS = 90;
     public const KEEP_PRESENCE = 30;
-    public const EVENT_KINDS = ['new', 'ip', 'ports_new', 'ports_gone', 'domains', 'gone', 'back'];
+    public const EVENT_KINDS = ['new', 'ip', 'ports_new', 'ports_gone', 'domains', 'gone', 'back', 'traffic', 'traffic_night'];   // 1.186.0: verkeer
 
     /** Poorten die een check waard zijn: poort => [soort check, label, doel] (doel: {ip} wordt ingevuld) */
     private const PORT_CHECKS = [

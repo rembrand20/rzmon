@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.186.0**: **verkeer per apparaat** (uit UniFi): top 10 van vandaag, grafieken per uur en per dag, een heatmap van aanwezigheid en verkeer, en een melding bij ongewoon veel of nachtelijk verkeer.
 - **1.185.0**: **status bevestigen**: een check wordt pas warning of critical (en eventueel weer OK) na N controles achter elkaar; algemeen in de beheerportal en per check te overschrijven, leeg = meteen.
 - **1.184.0**: **Netwerk → Overzicht**: een kaart van je netwerk (internet → router → switches en access points → apparaten), met tellers per soort en per netwerk.
 - **1.183.0**: **Netwerk → Ontdekken**: nieuwe en onbekende apparaten, wat er verandert (IP, poorten, nieuwe domeinen, weg of terug), voorstellen om met één klik te bewaken, en wanneer elk apparaat online was. Apparaten kun je nu ook groeperen.
 - **1.182.0**: **alle functies in één tabel** (*Instellingen → Overzicht → Functies* en bovenaan FEATURES.md), met de status van nu (aan, uit, niet ingesteld) en een knop naar waar je hem instelt.
-- **1.181.0**: de **IDS-beschermingen** stel je nu in op *Instellingen → IDS → Beschermingen*; *IDS → Bescherming* is een overzicht met een knop **Instellen**. De rol **gebruiker** mag een paar onderdelen van de beheerportal bekijken (Status, Advies, Rapporten, Wijzigingslogboek).
+
+## 1.186.0 – 2026-11-05
+### Nieuw
+- **📊 Verkeer per apparaat** (uit UniFi): RzMon leest elke 5 minuten de tellers van UniFi en houdt per apparaat bij hoeveel het downloadt en uploadt, per uur (30 dagen) en per dag (een jaar).
+  - **Netwerk → Overzicht → Verkeer vandaag**: het totaal van vandaag (met de vergelijking met gisteren tot hetzelfde uur) en een **top 10** van de laatste 24 uur, met download en upload naast elkaar. Op de netwerkkaart staat onder elk apparaat hoeveel het deed; een zware gebruiker (meer dan 1 GB) krijgt een blauwe ring.
+  - **Netwerk → Apparaten**: kolom **Verkeer 24 u** met een minigrafiek per uur; klik op de kolomkop om op verkeer te sorteren.
+  - **Venster van een apparaat**: download en upload per uur (7 dagen) en per dag (30 dagen), de snelheid van nu, wat normaal is per dag, en een waarschuwing als het vandaag veel meer is.
+  - **Netwerk → Ontdekken → Aanwezigheid en verkeer**: dezelfde blokjes per uur, maar hoe donkerder, hoe meer verkeer.
+  - **Ongewoon verkeer** in *Veranderingen*: na 7 dagen leren **📈 Ongewoon veel verkeer** (op een dag 5× zoveel upload of download als normaal, minstens 300 MB) en **🌙 Verkeer 's nachts** (minstens 50 MB tussen 0 en 6 uur bij een apparaat dat 's nachts normaal stil is). Zo valt een camera of slim apparaat op dat ineens data verstuurt.
+- Aan of uit bij *Instellingen → Beveiliging → Netwerkscan* (standaard aan). Nodig: UniFi met een lokaal account; met alleen een API-sleutel geeft UniFi geen tellers. Telt jouw controller download en upload andersom, zet dan *Download en upload omdraaien* aan.
 
 ## 1.185.0 – 2026-11-05
 ### Nieuw

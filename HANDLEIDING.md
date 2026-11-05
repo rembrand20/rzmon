@@ -2978,6 +2978,22 @@ Netwerk heeft drie tabbladen: **🗺️ Overzicht**, **📋 Apparaten** en **�
   - Aan welk access point of welke switch een apparaat hangt, komt uit **UniFi** (*Instellingen → Koppelingen → UniFi en AdGuard Home*). Bedrade apparaten waarvan de switch niet bekend is, staan onder *Bedraad*; wat UniFi niet kent, onder *Verbinding onbekend*. Zonder UniFi staat alles in één blok onder je router.
   - Een switch of access point die zelf ook een apparaat in de scan is, krijgt zijn naam en IP-adres uit de scan; klik erop voor de details.
 
+**📊 Verkeer per apparaat** (vanaf 1.186.0)
+
+Met UniFi ziet RzMon hoeveel elk apparaat downloadt en uploadt.
+- **Aanzetten:** *Instellingen → Beveiliging → Netwerkscan → Verkeer per apparaat bijhouden* (standaard aan). Nodig: de netwerkscan aan, en UniFi gekoppeld met een **lokaal account** (*Koppelingen → UniFi en AdGuard Home*). Met alleen een API-sleutel geeft UniFi geen tellers.
+- **Hoe het werkt:** elke 5 minuten vraagt RzMon de bytetellers van alle verbonden clients op (`stat/sta`). Het verschil met de vorige keer gaat per uur (30 dagen bewaard) en per dag (een jaar) in de database. Verbindt een apparaat opnieuw, dan begint zijn teller bij nul; RzMon telt dan vanaf nul verder en ziet het niet als negatief verkeer. Een onmogelijk grote sprong (meer dan 10 Gbit/s) wordt genegeerd.
+- **Download en upload** zijn gezien vanaf het apparaat: download = wat het ontvangt, upload = wat het verstuurt. Telt jouw controller het andersom (bijvoorbeeld een camera die ineens veel *download*), zet dan *Download en upload omdraaien* aan.
+- **Waar je het ziet:**
+  - *Netwerk → Overzicht → Verkeer vandaag*: het totaal van vandaag met de vergelijking met gisteren (tot hetzelfde uur), en een top 10 van de laatste 24 uur. Op de kaart staat onder elk apparaat het verkeer van 24 uur; meer dan 1 GB = een blauwe ring.
+  - *Netwerk → Apparaten*: kolom *Verkeer 24 u* met een staafje per uur. Klik op de kolomkop om te sorteren.
+  - *Het venster van een apparaat*: grafiek per uur (7 dagen, blauw = download, oranje = upload), staafjes per dag (30 dagen), de snelheid van nu, wat normaal is (de mediaan van de laatste 14 dagen, na 7 dagen) en ⚠️ als het vandaag 5× zoveel is.
+  - *Netwerk → Ontdekken → Aanwezigheid en verkeer*: hoe donkerder het blokje, hoe meer verkeer in dat uur (in vier stappen, per apparaat).
+- **Ongewoon verkeer** (in *Ontdekken → Veranderingen*, elke nacht over de dag ervoor, na minstens 7 dagen gegevens):
+  - **📈 Ongewoon veel verkeer**: op een dag minstens 5× zoveel upload of download als normaal, en minstens 300 MB;
+  - **🌙 Verkeer 's nachts**: minstens 50 MB tussen 0 en 6 uur, terwijl het apparaat 's nachts normaal (bijna) stil is.
+- **Goed om te weten:** RzMon telt wat UniFi ziet. Verkeer tussen twee apparaten op dezelfde switch telt UniFi maar voor een deel; het verkeer naar internet klopt het best.
+
 **🔍 Netwerk → Ontdekken** (vanaf 1.183.0)
 
 Bij **📋 Apparaten** (de lijst hierboven) staat de keuzelijst om te groeperen; **🔍 Ontdekken** Met de keuzelijst rechts op Apparaten kun je **groeperen**: per soort, per fabrikant of per verbinding (wifi-netwerk of bedraad; dat komt uit UniFi). Ontdekken laat zien wat er verandert op je netwerk:

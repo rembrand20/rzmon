@@ -1212,7 +1212,7 @@ $need = match ($action) {
     'home', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -3475,7 +3475,8 @@ switch ($action) {
             'cve_buzz_on', 'cve_buzz_alert', 'cve_github_token', 'cve_mastodon_url', 'cve_mastodon_token', 'cve_exploitdb', 'cve_nuclei',   // 1.179.0
             'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model',   // 1.171.0
             'ai_budget_month', 'ai_memory', 'ai_cache', 'ai_cache_hours', 'ai_fallback', 'ai_notify', 'ai_weekly', 'ai_weekly_day', 'ai_triage', 'ai_report',   // 1.173.0
-            'confirm_fails', 'confirm_ok'];   // 1.185.0
+            'confirm_fails', 'confirm_ok',   // 1.185.0
+            'net_traffic', 'net_traffic_swap'];   // 1.186.0
         // 1.179.0: Mastodon alleen via https naar een gewone hostnaam
         if (isset($in['cve_mastodon_url']) && trim((string) $in['cve_mastodon_url']) !== '' && !CveBuzz::safeUrl(rtrim(trim((string) $in['cve_mastodon_url']), '/'))) {
             out(['error' => t('Mastodon: vul een https-adres in, bv. https://infosec.exchange')], 422);
@@ -4252,7 +4253,7 @@ switch ($action) {
     // 1.103.0: netwerkscan – alle apparaten op je lokale netwerken
     case 'net_devices':
         $nets = NetScan::networks();
-        out(['enabled' => NetScan::enabled(), 'devices' => NetScan::list(), 'state' => NetScan::state(), 'networks' => $nets,
+        out(['enabled' => NetScan::enabled(), 'devices' => NetScan::list(), 'traffic' => NetTraffic::summary() ?: (object) [], 'traffic_totals' => NetTraffic::totals(), 'traffic_state' => NetTraffic::state(), 'state' => NetScan::state(), 'networks' => $nets,
             'risky_reasons' => NetScan::riskyReasons(), 'kinds' => NetScan::KINDS, 'now' => now(), 'vendors' => (int) q('SELECT COUNT(*) FROM mac_vendors')->fetchColumn(),
             'links' => ['unifi' => NetLinks::unifiOn(), 'unifi_block' => NetLinks::unifiCanBlock(), 'adguard' => NetLinks::adguardOn()], 'my_ip' => client_ip()]);
 
@@ -4632,7 +4633,10 @@ switch ($action) {
     case 'net_discover':   // 1.183.0: Netwerk → Ontdekken
         $devs = NetScan::list();
         out(['enabled' => NetScan::enabled(), 'events' => NetDiscover::events(30), 'presence' => NetDiscover::presenceGrid(7), 'new_per_day' => NetDiscover::newPerDay(),
-            'suggestions' => NetDiscover::suggestions($devs), 'learn_days' => NetDiscover::LEARN_DAYS, 'gone_days' => NetDiscover::GONE_DAYS, 'adguard' => NetLinks::adguardOn()]);
+            'suggestions' => NetDiscover::suggestions($devs), 'traffic' => NetTraffic::hourGrid(7) ?: (object) [], 'learn_days' => NetDiscover::LEARN_DAYS, 'gone_days' => NetDiscover::GONE_DAYS, 'adguard' => NetLinks::adguardOn()]);
+
+    case 'net_traffic_device':   // 1.186.0: verkeer van één apparaat
+        out(NetTraffic::device((int) ($_GET['id'] ?? 0)));
 
     case 'net_adopt':   // 1.183.0: apparaat met één klik in RzMon, met de gekozen checks
         $in = input();

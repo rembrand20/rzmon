@@ -123,6 +123,48 @@ final class NetLinks
         return [(array) ($j['data'] ?? []), null];
     }
 
+    /** 1.186.0: met een lokaal account (niet met alleen een API-sleutel) */
+    public static function unifiAccountMode(): bool
+    {
+        return self::unifiOn() && self::unifiAccount();
+    }
+
+    /**
+     * 1.186.0: bytetellers van alle verbonden clients, gezien vanaf het apparaat (rx = download, tx = upload).
+     * UniFi telt vanaf het netwerk: tx_bytes = naar de client (download), rx_bytes = van de client (upload).
+     * Bedrade clients hebben soms eigen wired-velden. Met net_traffic_swap = 1 draai je het om, mocht je controller het andersom tellen.
+     * Alleen met een lokaal account; de Integration API (API-sleutel) geeft geen tellers.
+     * @return array{clients: array<string, array{rx: int, tx: int, rate_rx: int, rate_tx: int}>, error: ?string}
+     */
+    public static function unifiTraffic(): array
+    {
+        if (!self::unifiOn()) {
+            return ['clients' => [], 'error' => t('UniFi is niet ingesteld')];
+        }
+        if (!self::unifiAccount()) {
+            return ['clients' => [], 'error' => t('Verkeer per apparaat vraagt een lokaal UniFi-account; met alleen een API-sleutel geeft UniFi geen tellers')];
+        }
+        [$sta, $err] = self::unifiCall('stat/sta');
+        if ($err) {
+            return ['clients' => [], 'error' => $err];
+        }
+        $swap = setting('net_traffic_swap', '0') === '1';
+        $out = [];
+        foreach ((array) $sta as $c) {
+            $mac = NetScan::normMac($c['mac'] ?? null);
+            if ($mac === null) {
+                continue;
+            }
+            $w = !empty($c['is_wired']) && isset($c['wired-tx_bytes']) ? 'wired-' : '';
+            $down = (int) ($c[$w . 'tx_bytes'] ?? 0);
+            $up = (int) ($c[$w . 'rx_bytes'] ?? 0);
+            $rDown = (int) ($c[$w . 'tx_bytes-r'] ?? 0);
+            $rUp = (int) ($c[$w . 'rx_bytes-r'] ?? 0);
+            $out[$mac] = $swap ? ['rx' => $up, 'tx' => $down, 'rate_rx' => $rUp, 'rate_tx' => $rDown] : ['rx' => $down, 'tx' => $up, 'rate_rx' => $rDown, 'rate_tx' => $rUp];
+        }
+        return ['clients' => $out, 'error' => null];
+    }
+
     /** Met een API-sleutel (Network 9+): de officiële Integration API, alleen lezen */
     private static function unifiKeyClients(): array
     {

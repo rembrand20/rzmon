@@ -1483,6 +1483,38 @@ $ex = CheckInfo::extra(q('SELECT * FROM checks WHERE id = ?', [$ctId])->fetch())
 ok($ex['counts']['n24'] === 2 && $ex['counts']['f24'] === 1 && $ex['outages']['count'] === 2 && $ex['outages']['mttr'] === 1800 && $ex['notify']['streak'] === 3
     && ($ex['detail']['kind'] ?? '') === 'container' && $ex['detail']['state'] === 'running',
     'popup van een check: hoe vaak gecheckt, storingen en hersteltijd over 30 dagen, melden na N, details van de container');
+// 1.186.0: verkeer per apparaat: verschil van de tellers per uur en per dag, teller terug = opnieuw verbonden, ongewoon veel en 's nachts
+q("DELETE FROM net_devices WHERE mac IN ('ee:ee:ee:00:01:86', 'ee:ee:ee:00:01:87')");
+q("INSERT INTO net_devices (mac, ip, kind, status, info, first_seen, last_seen) VALUES ('ee:ee:ee:00:01:86', '10.186.0.1', 'camera', 'known', '{}', NOW(), NOW()), ('ee:ee:ee:00:01:87', '10.186.0.2', 'iot', 'known', '{}', NOW(), NOW())");
+$trA = (int) q("SELECT id FROM net_devices WHERE mac = 'ee:ee:ee:00:01:86'")->fetchColumn();
+$trB = (int) q("SELECT id FROM net_devices WHERE mac = 'ee:ee:ee:00:01:87'")->fetchColumn();
+$trT0 = strtotime(date('Y-m-d 10:02:00'));
+$trSeq = [[1000, 500, 0, 0], [6000, 2500, 300, 100], [800, 200, 400, 150]];   // A: +5000/+2000, dan teller terug (opnieuw verbonden)
+foreach ($trSeq as $i => [$aRx, $aTx, $bRx, $bTx]) {
+    NetTraffic::$fetch = fn() => ['EE:EE:EE:00:01:86' => ['rx' => $aRx, 'tx' => $aTx], 'ee:ee:ee:00:01:87' => ['rx' => $bRx, 'tx' => $bTx]];
+    NetTraffic::poll($trT0 + $i * 300);
+}
+NetTraffic::$fetch = null;
+$trH = q('SELECT device_id, rx, tx FROM net_traffic WHERE device_id IN (?, ?) ORDER BY device_id', [$trA, $trB])->fetchAll(PDO::FETCH_UNIQUE);
+$trD = q('SELECT rx, tx FROM net_traffic_day WHERE device_id = ?', [$trA])->fetch();
+// ongewoon: 10 dagen 50 MB upload, gisteren 1 GB; 's nachts 100 MB terwijl het 's nachts stil is
+$yday = date('Y-m-d', strtotime('yesterday'));
+for ($i = 2; $i <= 11; $i++) {
+    q('INSERT INTO net_traffic_day (device_id, day, rx, tx) VALUES (?, CURDATE() - INTERVAL ? DAY, 20000000, 50000000), (?, CURDATE() - INTERVAL ? DAY, 1000, 1000)', [$trA, $i, $trB, $i]);
+}
+q('INSERT INTO net_traffic_day (device_id, day, rx, tx) VALUES (?, ?, 30000000, 1000000000), (?, ?, 100000000, 1000)', [$trA, $yday, $trB, $yday]);
+q('INSERT INTO net_traffic (device_id, hour, rx, tx) VALUES (?, ?, 100000000, 0)', [$trB, $yday . ' 03:00:00']);
+q('DELETE FROM net_events WHERE device_id IN (?, ?)', [$trA, $trB]);
+$trN = NetTraffic::daily($yday);
+$trEv = q('SELECT device_id, kind, detail FROM net_events WHERE device_id IN (?, ?) ORDER BY id', [$trA, $trB])->fetchAll();
+ok((int) $trH[$trA]['rx'] === 5800 && (int) $trH[$trA]['tx'] === 2200 && (int) $trH[$trB]['rx'] === 400 && (int) $trH[$trB]['tx'] === 150
+    && (int) $trD['rx'] === 5800 && NetTraffic::delta(100, 50, 300) === 50 && NetTraffic::delta(0, PHP_INT_MAX >> 1, 300) === 0
+    && $trN === 2 && $trEv[0]['kind'] === 'traffic' && (int) $trEv[0]['device_id'] === $trA && json_decode($trEv[0]['detail'], true)['dir'] === 'up'
+    && $trEv[1]['kind'] === 'traffic_night' && (int) $trEv[1]['device_id'] === $trB && NetTraffic::human(1500000) === '1,5 MB',
+    'verkeer: verschil per uur en dag, teller terug telt vanaf nul, onmogelijke sprong genegeerd, ongewoon veel upload en verkeer \'s nachts');
+q('DELETE FROM net_events WHERE device_id IN (?, ?)', [$trA, $trB]);
+q('DELETE FROM net_devices WHERE id IN (?, ?)', [$trA, $trB]);
+NetTraffic::purge();
 // 1.185.0: status bevestigen: pas na N controles achter elkaar warning/critical, herstel apart, leeg = meteen
 save_setting('confirm_fails', '');
 save_setting('confirm_ok', '');
