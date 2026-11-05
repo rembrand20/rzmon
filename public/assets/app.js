@@ -1227,7 +1227,7 @@ function init() {
     try { const r = await api('ipintel_update', { geo: true }); toast(r.result); ipintelShow(r); } catch (ex) { toast(ex.message, 'err'); }
     e.target.disabled = false;
   };
-  $('#ids-weekly-test').onclick = async (e) => {
+  if ($('#ids-weekly-test')) $('#ids-weekly-test').onclick = async (e) => {   // 1.180.0: staat nu bij Rapporten
     e.target.disabled = true;
     try {
       const r = await api('ids_weekly_test', {});
@@ -5059,6 +5059,121 @@ document.addEventListener('click', (e) => {
 });
 
 // ---------------------------------------------------------------- SNMP
+// ---------------------------------------------------------------- 1.180.0: Instellingen → Rapporten
+const REP_DAYS = () => [[1, L('ma')], [2, L('di')], [3, L('wo')], [4, L('do')], [5, L('vr')], [6, L('za')], [7, L('zo')]];
+const REP_INFO = {
+  all: () => L('Eén bericht met de onderdelen die je aanvinkt; standaard op de 1e van de maand over de vorige maand.'),
+  ids_week: () => L('Geblokkeerde aanvallen, mislukte logins, de IP-adressen met de meeste pogingen, de honeypot, SSH-logins van buiten en open incidenten.'),
+  ai_week: () => L('De AI schrijft in gewone taal wat er speelde, wat terugkwam en waar je eens naar moet kijken.'),
+  month: () => L('Beschikbaarheid, storingen, meldingen, beveiliging, kwetsbaarheden en wat nu aanpakken, over de vorige maand.'),
+  vulns: () => L('Wat er open staat per ernst, actief misbruikt, de top 5 van Eén update, veel opgelost en de CVE\'s met veel aandacht.'),
+  avail: () => L('Per server hoe vaak hij bereikbaar was, de storingen en de langste.'),
+  backup: () => L('Hoeveel back-ups er gemaakt zijn, hoeveel ruimte ze innemen, de laatste en of er een probleem is.'),
+  leaks: () => L('Nieuwe datalekken op je adressen en wat nog niet afgehandeld is.'),
+};
+let repData = null;
+let repTimer = null;
+async function loadReports() {
+  const box = $('#reports-box');
+  if (!box) return;
+  try { repData = await api('reports_get'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
+  const r = repData;
+  const ro = !r.admin;
+  const need = { ai_week: r.ai ? '' : L('AI-advies staat uit (Instellingen → Koppelingen → AI-advies).'), ids_week: r.ids ? '' : L('Het IDS staat uit.'),
+    vulns: r.vulns ? '' : L('Kwetsbaarheden staat uit.'), leaks: r.hibp ? '' : L('Datalekken staat uit.') };
+  const card = (m) => {
+    const c = r.cfg[m.key];
+    const dis = ro ? 'disabled' : '';
+    const freq = m.fixed || c.freq;
+    const sub = !c.on ? L('uit') : (freq === 'week' ? L('elke {d} om {t}', { d: REP_DAYS().find(([v]) => v === c.day)[1], t: c.time }) : L('elke maand op de {d}e om {t}', { d: c.day, t: c.time }))
+      + ' · ' + [c.email ? L('e-mail') : '', c.push ? L('push') : ''].filter(Boolean).join(' + ');
+    return `<div class="rep-card${m.key === 'all' ? ' rep-all' : ''}" data-rep="${m.key}">
+      ${swsOpen({ id: 'rep-' + m.key, cb: `data-rep-on ${dis}`, icon: m.icon, title: esc(m.label), on: c.on, sub: `<span data-rep-sub>${esc(sub)}</span>` })}
+        <p class="muted small rep-what">${esc(REP_INFO[m.key]())}</p>
+        ${need[m.key] ? `<p class="warn-txt small">⚠️ ${esc(need[m.key])}</p>` : ''}
+        <div class="rep-grid">
+          ${m.fixed ? '' : `<label>${L('Hoe vaak')} ${swSeg('freq', [['week', L('elke week')], ['month', L('elke maand')]], c.freq, `data-rep-f="freq" ${dis}`)}</label>`}
+          <label data-rep-dayw ${freq === 'week' ? '' : 'hidden'}>${L('Dag')} ${swSeg('dayw', REP_DAYS(), c.day, `data-rep-f="dayw" ${dis}`)}</label>
+          <label data-rep-daym ${freq === 'month' ? '' : 'hidden'}>${L('Dag van de maand')} <input type="number" min="1" max="28" value="${c.day}" data-rep-f="daym" ${dis}></label>
+          <label>${L('Om')} <input type="time" value="${esc(c.time)}" data-rep-f="time" ${dis}></label>
+        </div>
+        <div class="rep-ch">
+          <label class="switch small"><input type="checkbox" data-rep-f="email" ${c.email ? 'checked' : ''} ${dis}><span></span> 📧 ${L('E-mail (HTML)')}${r.mail ? '' : ` <span class="warn-txt">${L('nog niet ingesteld')}</span>`}</label>
+          <label class="switch small"><input type="checkbox" data-rep-f="push" ${c.push ? 'checked' : ''} ${dis}><span></span> 📱 ${L('Push (korte samenvatting)')}${r.push ? '' : ` <span class="warn-txt">${L('nog niet ingesteld')}</span>`}</label>
+        </div>
+        ${m.key === 'all' ? `<div class="rep-parts"><span class="muted small">${L('Onderdelen')}</span>${r.parts.map((p) => {
+          const pm = r.meta.find((x) => x.key === p);
+          return `<label class="switch small"><input type="checkbox" data-rep-part="${p}" ${c.parts.includes(p) ? 'checked' : ''} ${dis}><span></span> ${pm.icon} ${esc(pm.label)}</label>`;
+        }).join('')}</div>` : ''}
+      </div></section>
+      <div class="rep-btns">
+        ${r.admin ? `<button type="button" class="btn small-btn primary" data-rep-send>📤 ${L('Nu versturen')}</button>` : ''}
+        <button type="button" class="btn small-btn" data-rep-prev>👁 ${L('Voorbeeld')}</button>
+        <button type="button" class="btn small-btn" data-rep-me title="${esc(r.me ? L('Naar {e}', { e: r.me }) : L('Vul eerst je e-mailadres in bij Mijn account'))}">✉️ ${L('Naar mij')}</button>
+        ${m.last ? `<span class="muted small">${L('laatst: {p}', { p: esc(m.last) })}</span>` : ''}
+      </div>
+    </div>`;
+  };
+  box.innerHTML = `${!r.mail ? `<div class="callout">⚠️ ${L('E-mail is nog niet ingesteld (Instellingen → Meldingen → Kanalen). Zonder e-mail gaan rapporten alleen als push.')}</div>` : ''}
+    <div class="rep-list">${r.meta.filter((m) => m.key === 'all').map(card).join('')}${r.meta.filter((m) => m.key !== 'all').map(card).join('')}</div>`;
+  $$('.rep-card', box).forEach((el) => repWire(el));
+}
+/** Wat er in één rapportkaart staat */
+function repRead(el) {
+  const k = el.dataset.rep;
+  const c = { ...repData.cfg[k] };
+  c.on = $('[data-rep-on]', el).checked;
+  const fseg = $('[data-rep-f=freq] [aria-checked=true]', el);
+  if (fseg) c.freq = fseg.dataset.v;
+  const freq = (repData.meta.find((m) => m.key === k) || {}).fixed || c.freq;
+  c.day = freq === 'week' ? +(($('[data-rep-f=dayw] [aria-checked=true]', el) || {}).dataset || {}).v || 1 : Math.max(1, Math.min(28, +$('[data-rep-f=daym]', el).value || 1));
+  c.time = $('[data-rep-f=time]', el).value || '08:00';
+  c.email = $('[data-rep-f=email]', el).checked;
+  c.push = $('[data-rep-f=push]', el).checked;
+  if (k === 'all') c.parts = $$('[data-rep-part]', el).filter((x) => x.checked).map((x) => x.dataset.repPart);
+  return c;
+}
+function repWire(el) {
+  const k = el.dataset.rep;
+  const save = () => {
+    if (!repData.admin) return;
+    const c = repRead(el);
+    const freq = (repData.meta.find((m) => m.key === k) || {}).fixed || c.freq;
+    $('[data-rep-dayw]', el).hidden = freq !== 'week';
+    $('[data-rep-daym]', el).hidden = freq !== 'month';
+    clearTimeout(repTimer);
+    repTimer = setTimeout(async () => {
+      try {
+        const r = await api('reports_save', { cfg: { [k]: c } });
+        repData.cfg = r.cfg;
+        const n = r.cfg[k];
+        const f = (repData.meta.find((m) => m.key === k) || {}).fixed || n.freq;
+        $('[data-rep-sub]', el).textContent = !n.on ? L('uit') : (f === 'week' ? L('elke {d} om {t}', { d: REP_DAYS().find(([v]) => v === n.day)[1], t: n.time }) : L('elke maand op de {d}e om {t}', { d: n.day, t: n.time }))
+          + ' · ' + [n.email ? L('e-mail') : '', n.push ? L('push') : ''].filter(Boolean).join(' + ');
+        savedFlag($('.sws-h', el), true);
+      } catch (ex) { toast(ex.message, 'err'); }
+    }, 400);
+  };
+  el.addEventListener('change', save);
+  $$('.sw-seg', el).forEach((seg) => seg.addEventListener('sw-seg', save));
+  el.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-rep-send], [data-rep-me], [data-rep-prev]');
+    if (!b) return;
+    if (b.matches('[data-rep-prev]')) { window.open('api.php?' + new URLSearchParams({ action: 'report_preview', key: k }), '_blank', 'noopener'); return; }
+    b.disabled = true;
+    try {
+      if (b.matches('[data-rep-send]')) {
+        const r = await api('report_send', { key: k });
+        toast(L('Verstuurd via {c}', { c: r.sent.map((x) => (x === 'email' ? L('e-mail') : L('push'))).join(' + ') }) + (r.warn ? ' · ' + r.warn : ''), r.warn ? 'err' : undefined);
+      } else {
+        const r = await api('report_me', { key: k });
+        toast(L('Verstuurd naar {e}', { e: r.to }));
+      }
+    } catch (ex) { toast(ex.message, 'err'); }
+    b.disabled = false;
+  });
+}
+
 /** 1.178.0: SNMP-velden uit een blok (de knoppen schrijven in verborgen velden) */
 function snmpRootData(root) {
   const g = (n) => ($(`[name=${n}]`, root) || {}).value;
@@ -11413,6 +11528,8 @@ const SET_NAV = [
     ['agents', L('Overzicht'), ['agents'], L('Alle agents: status, versie, verbinding en wat aandacht nodig heeft.')],
     ['agentdef', L('Standaardinstellingen'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat.')],
     ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')]]],
+  ['rapporten', SET_IC('<path d="M4 4h16v16H4z"/><path d="M4 8l8 5 8-5"/>'), L('Rapporten'), [
+    ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzMon per e-mail of push verstuurt, en het Maandoverzicht.')]]],
   ['koppelingen', SET_IC('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'), L('Koppelingen'), [
     ['netlinks', L('UniFi en AdGuard'), ['netlinks'], L('Apparaten en DNS uit je UniFi-controller en AdGuard Home.')],
     ['snmp', 'SNMP', ['snmp'], L('Eén SNMP-instelling voor al je apparaten, met per apparaat een uitzondering.')],
@@ -11484,6 +11601,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'internet') loadInet();
   if (setSection === 'ai') loadAiSettings();   // 1.171.0
   if (setSection === 'snmp') loadSnmpGlobal();   // 1.178.0
+  if (setSection === 'reports') loadReports();   // 1.180.0
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0
@@ -14122,14 +14240,8 @@ function initAnalytics() {
     const go = g.dataset.anGo;
     if (go.startsWith('check:')) checkInfo(go.slice(6)); else showTab(go);
   };
-  $('#an-report').onchange = async (e) => {
-    if (!e.target.matches('[data-an-report]')) return;
-    try { await api('settings_save', { report_monthly: e.target.checked ? '1' : '0' }); toast(e.target.checked ? L('Maandrapport staat aan: op de 1e van elke maand per e-mail') : L('Maandrapport staat uit')); } catch (ex) { toast(ex.message, 'err'); }
-  };
-  $('#an-report').onclick = async (e) => {
-    if (!e.target.closest('[data-an-send]')) return;
-    try { await api('analytics_report_send', {}); toast(L('Rapport van vorige maand verstuurd')); } catch (ex) { toast(ex.message, 'err'); }
-  };
+  $('#an-report').onclick = (e) => { const g = e.target.closest('a[data-goto]'); if (g) { e.preventDefault(); showTab(g.dataset.goto); } };   // 1.180.0
+
 }
 
 async function loadAnalytics(fresh = false) {
@@ -14227,8 +14339,7 @@ function renderAnalytics() {
   if (!d.since || d.prev[1] < d.since) ['avail', 'incidents', 'mttr', 'alerts', 'security'].forEach((x) => { k[x][1] = null; });
   $('#an-info').textContent = `${anDay(d.from)} – ${anDay(d.to)}${d.since ? ' · ' + L('gegevens sinds {d}', { d: anDay(d.since) }) : ''}${d.cached ? '' : ''}`;
   $('#an-from').value = d.from; $('#an-to').value = d.to;
-  $('#an-report').innerHTML = `<label class="switch small" title="${esc(L('Op de 1e van elke maand een samenvatting per e-mail (naar het e-mailadres bij Meldingen → Kanalen)'))}"><input type="checkbox" data-an-report ${d.report_monthly ? 'checked' : ''} ${d.mail ? '' : 'disabled'}><span></span> 📧 ${L('Maandrapport')}</label>
-    <button type="button" class="btn small-btn" data-an-send ${d.mail ? '' : 'disabled'} title="${esc(d.mail ? L('Het rapport van vorige maand nu versturen') : L('Stel eerst e-mail in (Meldingen → Kanalen)'))}">${L('Nu versturen')}</button>`;
+  $('#an-report').innerHTML = `<a class="btn small-btn" href="#settings/reports" data-goto="settings/reports">📬 ${L('Rapporten')}</a>`;   // 1.180.0: instellen in de beheerportal
   const tile = (lbl, val, sub, spark = '', cls = '') => `<div class="kpi ${cls}"><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${val}</div><div class="kpi-sub">${sub}</div>${spark}</div>`;
   const kspark = (s) => `<div class="an-kspark">${anLine(s, { h: 34, cls: 'an-mini' })}</div>`;
   const score = k.score;

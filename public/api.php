@@ -1212,7 +1212,7 @@ $need = match ($action) {
     'home', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -4562,6 +4562,40 @@ switch ($action) {
             $hd['cc'] = CommandCenter::data((string) ($_GET['ccp'] ?? 'today'), mb_substr((string) ($_GET['seen'] ?? ''), 0, 30));
         }
         out($hd);
+
+    // 1.180.0: Instellingen → Rapporten. Lezen, voorbeeld en "naar mij": gebruikers; instellen en versturen: beheerders
+    case 'reports_get':
+        $rl = json_decode((string) setting('reports_last', ''), true) ?: [];
+        $meta = [];
+        foreach (Reports::LIST as $k => [$icon, $fixed]) {
+            $meta[] = ['key' => $k, 'label' => Reports::label($k), 'icon' => $icon, 'fixed' => $fixed, 'last' => $rl[$k] ?? null];
+        }
+        $me = (string) q('SELECT email FROM users WHERE id = ?', [(int) ($user['id'] ?? 0)])->fetchColumn();
+        out(['cfg' => Reports::cfg(), 'meta' => $meta, 'parts' => Reports::PARTS, 'admin' => $isAdmin,
+            'mail' => trim((string) setting('smtp_host', '')) !== '' && trim((string) setting('mail_to', '')) !== '', 'push' => Push::enabled(),
+            'ai' => Ai::on(), 'ids' => Ids::enabled(), 'vulns' => Vulns::enabled(), 'hibp' => Hibp::enabled(), 'me' => $me]);
+
+    case 'reports_save':
+        out(['ok' => true, 'cfg' => Reports::save((array) (input()['cfg'] ?? []))]);
+
+    case 'report_send':
+        $r = Reports::send((string) (input()['key'] ?? ''));
+        $r['ok'] ? out(['ok' => true, 'sent' => $r['sent'], 'warn' => $r['error'] ?? null]) : out(['error' => $r['error'] ?? t('Versturen mislukt')], 422);
+
+    case 'report_me':
+        $to = (string) q('SELECT email FROM users WHERE id = ?', [(int) ($user['id'] ?? 0)])->fetchColumn();
+        if ($to === '') {
+            out(['error' => t('Vul eerst je e-mailadres in bij Mijn account')], 422);
+        }
+        $r = Reports::send((string) (input()['key'] ?? ''), $to);
+        $r['ok'] ? out(['ok' => true, 'to' => $to]) : out(['error' => $r['error'] ?? t('Versturen mislukt')], 422);
+
+    case 'report_preview':
+        $k = (string) ($_GET['key'] ?? '');
+        header('Content-Type: text/html; charset=utf-8');
+        header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+        echo isset(Reports::LIST[$k]) ? I18n::forNotify(fn() => Reports::build($k))['html'] : htmlspecialchars(t('Onbekend rapport'));
+        exit;
 
     case 'analytics_report_send':
         $m = (string) (input()['month'] ?? date('Y-m', strtotime('first day of last month')));

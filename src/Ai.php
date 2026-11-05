@@ -408,16 +408,7 @@ final class Ai
                 }
             }
         }
-        // 1.173.0: weekoverzicht (op de gekozen dag vanaf 8 uur) en een oordeel bij nieuwe IDS-incidenten
-        if (self::x('ai_weekly') && (int) date('N') === max(1, min(7, (int) setting('ai_weekly_day', '1'))) && (int) date('G') >= 8) {
-            $wk = (int) date('oW');
-            if (!q("SELECT 1 FROM ai_advice WHERE kind = 'week' AND ref_id = ?", [$wk])->fetchColumn()) {
-                try {
-                    self::ask('week', $wk, 'auto', false, true);
-                } catch (RuntimeException) {
-                }
-            }
-        }
+        // 1.173.0: een oordeel bij nieuwe IDS-incidenten. Het weekoverzicht plant Reports (1.180.0, Instellingen → Rapporten).
         if (self::x('ai_triage')) {
             foreach (q("SELECT i.id FROM ids_incidents i WHERE i.status = 'open' AND i.severity >= 1 AND i.created_at > NOW() - INTERVAL 2 HOUR
                         AND NOT EXISTS (SELECT 1 FROM ai_advice a WHERE a.kind = 'triage' AND a.ref_id = i.id) ORDER BY i.severity DESC, i.id DESC LIMIT 3")->fetchAll(PDO::FETCH_COLUMN) as $iid) {
@@ -804,7 +795,9 @@ final class Ai
     {
         $kind = (string) $r['kind'];
         if ($kind === 'week') {
-            Monitor::sysInfo('ai_week', null, null, '📅 ' . t('Weekoverzicht van RzMon'), static fn() => self::section((string) $r['answer'], ['Samenvatting', 'Summary'], 700) . "\n" . t('Het hele overzicht staat in RzMon (Instellingen → AI-advies).'));
+            if ((int) $r['auto'] === 1) {
+                Reports::afterAiWeek();   // 1.180.0: via de kanalen van het rapport (Instellingen → Rapporten)
+            }
             return;
         }
         if ((int) $r['auto'] !== 1 || !self::x('ai_notify') || !in_array($kind, ['check', 'bundle', 'incident'], true)) {

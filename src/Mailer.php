@@ -14,7 +14,7 @@ final class Mailer
      * @param array $cfg optioneel andere instellingen (voor de testknop), anders uit de database
      * @return array{ok: bool, error: ?string}
      */
-    public static function send(string $subject, string $body, ?array $cfg = null, ?string $to = null): array
+    public static function send(string $subject, string $body, ?array $cfg = null, ?string $to = null, ?string $html = null): array
     {
         $cfg ??= self::config();
         $to ??= (string) $cfg['mail_to'];
@@ -50,7 +50,7 @@ final class Mailer
                 $m->cmd('RCPT TO:<' . $r . '>', [250, 251]);
             }
             $m->cmd('DATA', [354]);
-            $m->cmd(self::message($from, $recipients, $subject, $body) . "\r\n.", [250]);
+            $m->cmd(self::message($from, $recipients, $subject, $body, $html) . "\r\n.", [250]);
             $m->cmd('QUIT', [221], false);
             return ['ok' => true, 'error' => null];
         } catch (RuntimeException $e) {
@@ -151,7 +151,8 @@ final class Mailer
         return preg_match('/[^\x20-\x7e]/', $v) ? '=?UTF-8?B?' . base64_encode($v) . '?=' : $v;
     }
 
-    private static function message(string $from, array $to, string $subject, string $body): string
+    /** 1.180.0: met $html een multipart/alternative (platte tekst en HTML), anders alleen platte tekst */
+    private static function message(string $from, array $to, string $subject, string $body, ?string $html = null): string
     {
         $headers = [
             'Date: ' . date('r'),
@@ -160,11 +161,19 @@ final class Mailer
             'Subject: ' . self::encodeHeader($subject),
             'Message-ID: <' . bin2hex(random_bytes(12)) . '@rzmon>',
             'MIME-Version: 1.0',
-            'Content-Type: text/plain; charset=UTF-8',
-            'Content-Transfer-Encoding: base64',
             'X-Mailer: RzMon ' . RZMON_VERSION,
         ];
-        $body = str_replace(["\r\n", "\r"], "\n", $body);
-        return implode("\r\n", $headers) . "\r\n\r\n" . rtrim(chunk_split(base64_encode(str_replace("\n", "\r\n", $body)), 76, "\r\n"));
+        $b64 = static fn(string $s): string => rtrim(chunk_split(base64_encode(str_replace("\n", "\r\n", str_replace(["\r\n", "\r"], "\n", $s))), 76, "\r\n"));
+        if ($html === null) {
+            $headers[] = 'Content-Type: text/plain; charset=UTF-8';
+            $headers[] = 'Content-Transfer-Encoding: base64';
+            return implode("\r\n", $headers) . "\r\n\r\n" . $b64($body);
+        }
+        $bnd = 'rzmon-' . bin2hex(random_bytes(12));
+        $headers[] = 'Content-Type: multipart/alternative; boundary="' . $bnd . '"';
+        return implode("\r\n", $headers) . "\r\n\r\n"
+            . "--$bnd\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . $b64($body) . "\r\n"
+            . "--$bnd\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . $b64($html) . "\r\n"
+            . "--$bnd--";
     }
 }

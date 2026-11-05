@@ -115,7 +115,7 @@ try {
     if ($msg = OwnCert::cron()) {
         echo date('c') . " $msg\n";
     }
-    if ($msg = Ids::weeklyCron()) {
+    if ($msg = Reports::cron()) {   // 1.180.0: alle rapporten (IDS-, AI-weekoverzicht, maandrapport, maandoverzicht …)
         echo date('c') . " $msg\n";
     }
     Perf::lap('certificaten');
@@ -174,9 +174,6 @@ try {
         fwrite(STDERR, 'Analyse en advies: ' . $e->getMessage() . "\n");
     }
     if ($msg = Analytics::cron()) {
-        echo date('c') . " $msg\n";
-    }
-    if ($msg = Analytics::monthlyCron()) {
         echo date('c') . " $msg\n";
     }
 } catch (Throwable $e) {

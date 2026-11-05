@@ -728,6 +728,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="email-test"><?= th('📧 Testmail sturen') ?></button>
         </div>
 
+        <div data-sk="reports" class="card" id="reports-card" data-nodirty>
+          <h2>📬 <?= th('Rapporten') ?></h2>
+          <?= xp(t('Alle overzichten die RzMon verstuurt, op één plek.'), t('<b>Wat het doet:</b> per rapport kies je of het aan staat, hoe vaak (elke week of elke maand), de dag, de tijd en de kanalen: e-mail (als HTML, met een platte versie erbij) en/of een korte push. Het <b>Maandoverzicht</b> zet de onderdelen die je aanvinkt samen in één bericht. <b>Nu versturen</b> stuurt een rapport meteen via zijn kanalen, <b>Voorbeeld</b> laat zien hoe hij eruitziet, en <b>Naar mij</b> stuurt hem naar het e-mailadres van je eigen account (Mijn account). <b>Nodig:</b> e-mail bij <i>Meldingen → Kanalen</i>; voor push Pushover of ntfy.')) ?>
+          <div id="reports-box"><p class="muted small"><?= th('laden…') ?></p></div>
+        </div>
+
         <div data-sk="netlinks" class="card" id="netlinks-card">
           <h2>📡 <?= th('UniFi en AdGuard Home') ?></h2>
           <?= xp(t('Namen en extra gegevens uit UniFi en AdGuard Home voor de netwerkscan.'), t('<b>Wat het doet:</b> de netwerkscan (tabblad Netwerk) haalt uit UniFi de namen, het wifi-netwerk en het access point van je apparaten, en uit AdGuard Home de namen en de domeinen die elk apparaat opzoekt. Je kunt een apparaat ook <b>weren</b>: van het wifi en/of geen DNS meer. <b>Goed om te weten:</b> wachtwoorden en de API-sleutel gaan nooit terug naar de browser.')) ?>
@@ -864,11 +870,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
               <label class="ai-sub"><?= th('Bewaren (uren)') ?><input type="number" name="ai_cache_hours" min="1" max="72"></label>
               <label class="switch"><input type="checkbox" name="ai_fallback"><span></span> <?= t('<b>🏠 Terugvallen op Ollama</b>: is de cloud onbereikbaar, het tegoed op of de daglimiet of het budget bereikt, dan gaat de vraag naar Ollama (vul daarvoor het adres en een model van Ollama in).') ?></label>
               <label class="switch"><input type="checkbox" name="ai_notify"><span></span> <?= t('<b>🔔 Samenvatting in de melding</b>: bij automatisch advies een korte melding met de waarschijnlijke oorzaak (kanalen: Meldingen → ℹ️ Systeeminfo).') ?></label>
-              <label class="switch"><input type="checkbox" name="ai_weekly"><span></span> <?= t('<b>📅 Weekoverzicht</b>: één keer per week in gewone taal wat er speelde, wat terugkwam en waar je eens naar moet kijken.') ?></label>
-              <label class="ai-sub"><?= th('Op') ?><select name="ai_weekly_day">
-                <option value="1"><?= th('maandag') ?></option><option value="2"><?= th('dinsdag') ?></option><option value="3"><?= th('woensdag') ?></option><option value="4"><?= th('donderdag') ?></option>
-                <option value="5"><?= th('vrijdag') ?></option><option value="6"><?= th('zaterdag') ?></option><option value="7"><?= th('zondag') ?></option></select>
-                <span class="muted small"><?= th('vanaf 8 uur') ?></span></label>
+              <p class="small muted"><?= t('<b>📅 Weekoverzicht</b>: één keer per week in gewone taal wat er speelde, wat terugkwam en waar je eens naar moet kijken.') ?> <?= th('Aan of uit, de dag en de kanalen stel je in bij Rapporten.') ?> <a href="#settings/reports" data-goto="settings/reports"><?= th('Naar Rapporten') ?></a></p>
               <div class="btn-row ai-sub"><button type="button" class="btn small-btn" id="ai-week-open">📅 <?= th('Weekoverzicht bekijken') ?></button></div>
               <label class="switch"><input type="checkbox" name="ai_triage"><span></span> <?= t('<b>🏷️ Oordeel bij IDS-incidenten</b>: nieuwe IDS-incidenten krijgen een label <i>lijkt onschuldig</i>, <i>verdacht</i> of <i>lijkt echt</i> met de reden. Alleen een label: de AI handelt nooit iets af. Kost een vraag per incident.') ?></label>
               <label class="switch"><input type="checkbox" name="ai_report"><span></span> <?= t('<b>📝 Verslag na een incident</b>: bij een opgelost incident een knop voor een kort verslag: wat er gebeurde, hoe lang, wat hielp en hoe je het voorkomt.') ?></label>
@@ -918,13 +920,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <label><?= th('Negeren') ?> <span class="muted small"><?= th('(gebruikers en/of IP-adressen of netwerken, gescheiden door spaties)') ?></span>
             <textarea name="auth_ignore" rows="2" placeholder="<?= th('bv. ansible backup 192.168.2.5 10.0.0.0/8') ?>"></textarea></label>
           <h3 class="set-sub"><?= th('📬 Wekelijks overzicht') ?></h3>
-          <div class="row3">
-            <label><?= th('Versturen via') ?><select name="ids_weekly"><option value="off"><?= th('uit') ?></option><option value="email"><?= th('e-mail') ?></option><option value="pushover">Pushover</option><option value="both"><?= th('e-mail en Pushover') ?></option></select></label>
-            <label><?= th('Dag') ?><select name="ids_weekly_day"><?php foreach ([1 => 'maandag', 2 => 'dinsdag', 3 => 'woensdag', 4 => 'donderdag', 5 => 'vrijdag', 6 => 'zaterdag', 7 => 'zondag'] as $d => $n): ?><option value="<?= $d ?>"><?= th($n) ?></option><?php endforeach; ?></select></label>
-            <label><?= th('Om') ?><input type="time" name="ids_weekly_time"></label>
-          </div>
-          <?= xp(t('Een overzicht van de afgelopen week, op de dag en tijd die je kiest.'), t('Het weekoverzicht bevat: geblokkeerde aanvallen, mislukte logins en de IP-adressen met de meeste pogingen, de honeypot, SSH-logins van buiten en de open incidenten van de afgelopen 7 dagen. Met <i>Nu versturen</i> krijg je er meteen een.')) ?>
-          <p class="small"><button type="button" class="btn small-btn" id="ids-weekly-test"><?= th('Nu versturen') ?></button></p>
+          <p class="small muted"><?= th('Het IDS-weekoverzicht stel je in bij Rapporten: aan of uit, de dag, de tijd en de kanalen.') ?> <a href="#settings/reports" data-goto="settings/reports"><?= th('Naar Rapporten') ?></a></p>
         </div>
 
         <div data-sk="ids_edr" class="card" id="ids-edr-card">

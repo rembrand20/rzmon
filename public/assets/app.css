@@ -3908,3 +3908,18 @@ html[data-motion="0"] .sws-b { animation: none; }
 .vbz-ai { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; margin-top: .8rem; padding: .7rem .8rem; border-radius: 12px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--purple, #7a49d9) 13%, var(--card)), var(--card)); border: 1px solid color-mix(in srgb, var(--purple, #7a49d9) 40%, var(--border)); }
 .vbz-ai > div { min-width: 0; flex: 1 1 260px; } .vbz-ai p { margin: .2rem 0 0; }
+
+/* ---------------------------------------------------------------- 1.180.0: Instellingen → Rapporten */
+.rep-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: .9rem; align-items: start; }
+.rep-card { min-width: 0; }
+.rep-card .sws { margin: 0; }
+.rep-all { grid-column: 1 / -1; }
+.rep-all .sws { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 8%, var(--card)), var(--card) 60%); }
+.rep-what { margin: .5rem 0; }
+.rep-grid { display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; align-items: flex-end; }
+.rep-grid label { margin: 0; display: flex; flex-direction: column; gap: .3rem; font-size: .8rem; }
+.rep-grid input[type=number] { width: 5.5rem; } .rep-grid input[type=time] { width: 7.5rem; }
+.rep-ch, .rep-parts { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; margin-top: .7rem; align-items: center; }
+.rep-parts { padding-top: .6rem; border-top: 1px dashed var(--border); }
+.rep-parts > .muted { flex-basis: 100%; }
+.rep-btns { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: .5rem 0 0 .2rem; }

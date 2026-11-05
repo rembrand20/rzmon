@@ -645,6 +645,12 @@ final class Analytics
         return " ($arrow " . abs((int) round($d)) . '% ' . t('t.o.v. vorige maand') . ')';
     }
 
+    /** 1.180.0: de tekst van het maandrapport (voor Rapporten) */
+    public static function monthlyTextFor(array $r, string $month): string
+    {
+        return self::monthlyText($r, $month);
+    }
+
     private static function monthlyText(array $r, string $month): string
     {
         $k = $r['kpi'];

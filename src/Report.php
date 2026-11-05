@@ -8,7 +8,8 @@ declare(strict_types=1);
  */
 final class Report
 {
-    public static function html(string $period): string
+    /** @param bool $bodyOnly 1.180.0: alleen de inhoud (voor het maandoverzicht en de HTML-mail van Rapporten) */
+    public static function html(string $period, bool $bodyOnly = false): string
     {
         $r = Analytics::report($period);
         $k = $r['kpi'];
@@ -93,6 +94,9 @@ final class Report
             ? '<ul class="todo">' . implode('', array_map(fn($t) => '<li class="s' . (int) $t['sev'] . '">' . $e($t['text']) . '</li>', array_slice($r['todo'], 0, 15))) . '</ul>'
             : '<p>✔ ' . $e(t('niets dringends')) . '</p>');
 
+        if ($bodyOnly) {
+            return implode("\n", $h);
+        }
         $title = $e(t('RzMon-rapport')) . ' ' . $e($r['from']) . ' – ' . $e($r['to']);
         return '<!doctype html><html lang="' . $e(I18n::lang()) . '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . $title . '</title><style>'
             . self::css() . '</style></head><body><main>' . implode("\n", $h) . '<footer>' . $e(t('Bewaren als PDF: Afdrukken (Ctrl+P) → Opslaan als PDF.')) . '</footer></main></body></html>';
@@ -135,7 +139,7 @@ final class Report
         return $out . '</section>';
     }
 
-    private static function css(): string
+    public static function css(): string
     {
         return <<<'CSS'
 :root { --ink: #1c2433; --muted: #5f6b7f; --line: #dde3ec; --bad: #c62f2f; --warn: #b8740a; --good: #1a8a50; --bg: #fff; }

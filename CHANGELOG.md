@@ -8,11 +8,34 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.180.0**: alle **rapporten op één plek** (*Instellingen → Rapporten*): IDS- en AI-weekoverzicht, maandrapport en nieuw kwetsbaarheden, beschikbaarheid, back-ups en datalekken, als HTML-mail of push, met **Nu versturen**, **Voorbeeld**, **Naar mij** en een **Maandoverzicht** met alles in één.
 - **1.179.0**: **CVE's slimmer**: rugbaarheid per kwetsbaarheid (exploits en hoeveel erover gepraat wordt), **Raakt dit jou echt?** met AI, **Eén update, veel opgelost** en een melding als een CVE op je servers veel aandacht krijgt.
 - **1.178.0**: de **Agent Manager** opnieuw ingedeeld in kaarten met schakelaars, een echte **🧪 Test** in een eigen popup, en één **algemene SNMP-instelling** (Koppelingen) met eigen instellingen per apparaat.
 - **1.177.0**: nieuwe **pad-check** (traceroute): per hop vertraging en verlies, je switches, de linksnelheid via UniFi en de echte doorvoer met iperf3, als futuristisch pad in de popup, op **Monitoring → Netwerkpaden** als netwerkkaart en in het kort bij de server.
 - **1.176.0**: **Monitoring → Containers** (alle Podman- en Docker-containers met status, CPU, geheugen en schijf), labels **Running / Failed / Stopped / Paused**, een **nieuwe popup per check** en een compacte **Nu aandacht nodig** in CC.
-- **1.175.0**: **Monitoring in CC** in een nieuw jasje: één raster met tegels (ring, lijntjes, 24 uur) zonder aparte sectie *met problemen*, en openklappen over de volle breedte met een veeranimatie zoals op een Mac.
+
+## 1.180.0 – 2026-11-05
+### Nieuw
+- **📬 Instellingen → Rapporten**: alle overzichten die RzMon verstuurt op één plek, alleen in de beheerportal. Per rapport stel je in:
+  - aan of uit;
+  - hoe vaak (elke week of elke maand);
+  - de dag en de tijd;
+  - de kanalen: 📧 e-mail en/of 📱 push.
+
+  En per rapport zijn er drie knoppen:
+  - **Nu versturen**: meteen via de kanalen van het rapport;
+  - **Voorbeeld**: laat zien hoe het eruitziet;
+  - **Naar mij**: stuurt het naar het e-mailadres van je eigen account.
+- **De rapporten**:
+  - het **IDS-weekoverzicht** en het **AI-weekoverzicht**, nu met een eigen tijd en eigen kanalen;
+  - het **Maandrapport**, met een eigen dag en tijd, en ook als push;
+  - nieuw: **Kwetsbaarheden** (open per ernst, actief misbruikt, de top 5 van *Eén update, veel opgelost*, veel aandacht);
+  - nieuw: **Beschikbaarheid** (per server, storingen en de langste);
+  - nieuw: **Back-ups** (gemaakt, bewaard, ruimte, de laatste, problemen);
+  - nieuw: **Datalekken** (nieuw en nog niet afgehandeld).
+- **📦 Maandoverzicht (alles in één)**: één bericht per maand met de onderdelen die je aanvinkt.
+- **HTML-mail**: een rapport komt als nette HTML-mail, met een platte versie erbij voor mailprogramma's zonder HTML. Een push krijgt een korte samenvatting.
+- **Niet meer verspreid**: het weekoverzicht bij IDS en AI-advies en de schakelaar *Maandrapport* op Analyse staan nu bij Rapporten; op de oude plekken staat een link. Wat je had ingesteld, is overgenomen.
 
 ## 1.179.2 – 2026-11-05
 ### Opgelost

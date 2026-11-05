@@ -313,7 +313,7 @@ Elke extra heeft een eigen schakelaar bij **Instellingen → AI-advies → Extra
 - **♻️ Niet twee keer betalen** (standaard aan, 6 uur): dezelfde storing binnen die tijd krijgt het bestaande advies, ook als iemand anders erom vraagt of het automatisch gaat. Een nieuwe storing (de check was tussendoor weer OK) krijgt een nieuw advies. **🔄 Opnieuw vragen** vraagt altijd een nieuw advies.
 - **🏠 Terugvallen op Ollama** (standaard aan): is de cloud onbereikbaar, het tegoed op, of de daglimiet of het budget bereikt, dan gaat de vraag naar Ollama. Vul daarvoor ook het adres en een model van Ollama in; die velden staan dan ook bij een cloudaanbieder. In het advies staat waarom (*Via Ollama: het maandbudget is op*). Een geweigerde API-sleutel valt niet terug: die moet je zelf herstellen.
 - **🔔 Samenvatting in de melding** (standaard aan): bij een **automatisch** advies krijg je een korte melding met de waarschijnlijke oorzaak, bijvoorbeeld *🤖 AI-advies: NAS – Webinterface · Waarschijnlijk: de schijf is vol*. Kanalen: **Meldingen → ℹ️ Systeeminfo → AI-advies**.
-- **📅 Weekoverzicht** (standaard aan, maandag vanaf 8 uur): één keer per week in gewone taal wat er speelde, wat terugkwam en waar je eens naar moet kijken, op basis van de storingen, incidenten, IDS, zelf herstellen en stille agents van de afgelopen 7 dagen. Het komt als melding, en met **📅 Weekoverzicht bekijken** lees je het hele overzicht. Eén vraag per week.
+- **📅 Weekoverzicht** (standaard aan, maandag vanaf 8 uur): één keer per week in gewone taal wat er speelde, wat terugkwam en waar je eens naar moet kijken, op basis van de storingen, incidenten, IDS, zelf herstellen en stille agents van de afgelopen 7 dagen. Vanaf 1.180.0 stel je de dag, de tijd en de kanalen in bij *Instellingen → Rapporten*; met **📅 Weekoverzicht bekijken** lees je het hele overzicht. Eén vraag per week.
 - **🏷️ Oordeel bij IDS-incidenten** (standaard **uit**, want het kost een vraag per incident): nieuwe IDS-incidenten krijgen een label **🤖 lijkt onschuldig**, **verdacht** of **lijkt echt**, met de reden als je de muis erop houdt. Klik voor het hele oordeel. Het is **alleen een label**: de AI handelt nooit iets af en blokkeert niets. Hooguit 3 per minuut, en ze tellen mee voor de daglimiet en het budget.
 - **📝 Verslag na een incident** (standaard aan): bij een **opgelost** incident staat in het venster de knop **📝 AI-verslag**: wat er gebeurde, hoe lang en hoe erg, wat hielp en hoe je het voorkomt. Alleen op verzoek.
 
@@ -432,7 +432,35 @@ Het tabblad **📊 Analyse** laat zien hoe het over langere tijd gaat, en wat je
 
 Beweeg over een grafiek voor de precieze waarde. RzMon houdt hiervoor elk uur **dagtotalen** bij (tabel `stats_daily`) en bewaart die **een jaar**, ook als de losse meetwaarden al opgeruimd zijn. Bij de eerste keer rekent RzMon alles uit wat er nog aan meetwaarden is. Sommige cijfers (aantal checks, open kwetsbaarheden) worden pas vanaf 1.106.0 bijgehouden.
 
-**Maandrapport per e-mail.** Met de schakelaar **Maandrapport** (alleen beheerders) krijg je op de **1e van elke maand** (na 7:00) een korte samenvatting van de vorige maand: score, beschikbaarheid, storingen, hersteltijd, meldingen, de minst bereikbare servers en wat je nu het best aanpakt. Het gaat naar het e-mailadres bij *Meldingen → Kanalen*; stel dat eerst in. Met **Nu versturen** krijg je het rapport van vorige maand meteen. Standaard staat het uit.
+**Rapporten** (vanaf 1.180.0): alle overzichten die RzMon per e-mail of push verstuurt, stel je in bij **Instellingen → Rapporten**. Op Analyse staat daarvoor de knop **📬 Rapporten**.
+
+| Rapport | Wat erin staat | Standaard |
+|---|---|---|
+| 📦 Maandoverzicht (alles in één) | de onderdelen die je aanvinkt, in één bericht | uit, op de 1e |
+| 🛡️ IDS-weekoverzicht | geblokkeerde aanvallen, mislukte logins, top-IP's, honeypot, SSH-logins van buiten, open incidenten | zoals je het had (anders maandag 08:00, e-mail) |
+| 🤖 AI-weekoverzicht | wat er speelde, wat terugkwam, waar je eens naar moet kijken (AI-advies moet aan staan) | maandag 08:00 |
+| 📈 Maandrapport | beschikbaarheid, storingen, meldingen, beveiliging, kwetsbaarheden en wat nu aanpakken | zoals je het had (anders uit) |
+| 🐞 Kwetsbaarheden | open per ernst, actief misbruikt, *Eén update, veel opgelost*, veel aandacht | uit |
+| 📶 Beschikbaarheid | per server het percentage, de storingen en de langste | uit |
+| 💾 Back-ups | gemaakt, bewaard, ruimte, de laatste en problemen | uit |
+| 🔓 Datalekken | nieuwe lekken en wat nog niet afgehandeld is | uit |
+
+- **Per rapport stel je in:**
+  - aan of uit;
+  - elke week (een dag van de week) of elke maand (dag 1 tot en met 28);
+  - de tijd;
+  - de kanalen: 📧 e-mail en/of 📱 push.
+- **Een rapport gaat over:** de afgelopen 7 dagen (elke week) of de vorige maand (elke maand). Het wordt één keer per week of maand verstuurd, op of na de gekozen tijd.
+- **Hoe het aankomt:**
+  - E-mail is **HTML** (zoals het rapport op Analyse), met een platte versie erbij.
+  - Push is een korte samenvatting.
+  - Geen kanaal gekozen: dan e-mail.
+- **Knoppen per rapport:**
+  - **Nu versturen** (beheerders): verstuurt hem meteen.
+  - **Voorbeeld**: opent hem in een nieuw tabblad.
+  - **Naar mij**: stuurt hem naar het e-mailadres bij *Mijn account*.
+- **Nodig:** e-mail bij *Meldingen → Kanalen*, en voor push Pushover of ntfy.
+- **Over het AI-weekoverzicht:** de AI maakt het op de gekozen dag en tijd, en zodra het klaar is wordt het verstuurd.
 
 ### Live bijwerken ⚡ en Zoeken en doen ⌨️ (vanaf 1.107.0)
 - **Live bijwerken**: RzMon kijkt elke paar seconden of er iets veranderd is (een storing, een melding, iets bevestigd of in onderhoud, een nieuwe checkronde) en werkt dan meteen het scherm bij. Het groene bolletje bij *Laatste check* laat zien dat het werkt (grijs = even geen verbinding). Het is licht voor de server: er blijven geen verbindingen openstaan.
@@ -2512,7 +2540,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 
 **🌐 Automatische blokkades op alle servers** (vanaf 1.81.0, standaard aan): wordt een aanvaller op één server automatisch geblokkeerd (brute force, honeypot), dan blokkeren al je servers met de IDS op *blokkeren* hem ook. Een botnet probeert meestal al je servers die van buiten bereikbaar zijn. Met de hand blokkeren geldt alleen voor de server die je kiest. Uit te zetten bij *Instellingen → 🛡️ IDS*.
 
-**📬 Wekelijks overzicht** (vanaf 1.81.0; *Instellingen → IDS → Algemeen → Wekelijks overzicht*): standaard op **maandag 08:00** per **e-mail** (of Pushover, of allebei, of uit). Met daarin, over de afgelopen 7 dagen: geblokkeerde aanvallen, mislukte SSH-logins en de IP's met de meeste pogingen, hoe vaak de honeypot is aangetikt, SSH-logins van buiten, nieuwe incidenten en wat er nog open staat. Met **Nu versturen** zie je meteen hoe het eruitziet.
+**📬 Wekelijks overzicht** (vanaf 1.81.0; vanaf 1.180.0 bij *Instellingen → Rapporten*): standaard op **maandag 08:00** per **e-mail** (en/of push, of uit). Met daarin, over de afgelopen 7 dagen: geblokkeerde aanvallen, mislukte SSH-logins en de IP's met de meeste pogingen, hoe vaak de honeypot is aangetikt, SSH-logins van buiten, nieuwe incidenten en wat er nog open staat. Met **Nu versturen** zie je meteen hoe het eruitziet.
 
 **☠️ Bekende aanvallers** (vanaf 1.82.0, agent 1.55.0; *Instellingen → IDS → Netwerk en aanvallers*, standaard aan)
 - RzMon haalt dagelijks twee openbare lijsten op met netwerken van bekende criminelen en botnets: **Spamhaus DROP** (IPv4 en IPv6) en **FireHOL level 1**. Samen zo'n 4.500 bereiken. Privé- en gereserveerde adressen (je LAN) worden er altijd uit gefilterd, net als alles op je ✅ *whitelist*.

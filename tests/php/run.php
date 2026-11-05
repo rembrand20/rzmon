@@ -1483,6 +1483,25 @@ $ex = CheckInfo::extra(q('SELECT * FROM checks WHERE id = ?', [$ctId])->fetch())
 ok($ex['counts']['n24'] === 2 && $ex['counts']['f24'] === 1 && $ex['outages']['count'] === 2 && $ex['outages']['mttr'] === 1800 && $ex['notify']['streak'] === 3
     && ($ex['detail']['kind'] ?? '') === 'container' && $ex['detail']['state'] === 'running',
     'popup van een check: hoe vaak gecheckt, storingen en hersteltijd over 30 dagen, melden na N, details van de container');
+// 1.180.0: Rapporten: de oude instellingen worden overgenomen, wanneer een rapport aan de beurt is, één keer per periode, de inhoud
+save_setting('reports', '');
+save_setting('ids_weekly', 'both');
+save_setting('ids_weekly_day', '3');
+save_setting('ids_weekly_time', '07:30');
+save_setting('report_monthly', '1');
+$rpCfg = Reports::cfg();
+$rpWed = strtotime('2026-11-04 08:00');   // een woensdag
+$rpSaved = Reports::save(['vulns' => ['on' => 1, 'freq' => 'week', 'day' => 9, 'time' => '25:00', 'email' => 1], 'all' => ['on' => 1, 'day' => 40, 'parts' => ['vulns', 'onzin']]]);
+$rpDoc = Reports::build('vulns');
+$rpAll = Reports::build('all');
+ok($rpCfg['ids_week']['on'] && $rpCfg['ids_week']['day'] === 3 && $rpCfg['ids_week']['time'] === '07:30' && $rpCfg['ids_week']['email'] && $rpCfg['ids_week']['push'] && $rpCfg['month']['on']
+    && Reports::due('ids_week', $rpCfg['ids_week'], $rpWed) === '2026-W45' && Reports::due('ids_week', $rpCfg['ids_week'], strtotime('2026-11-04 07:00')) === null
+    && Reports::due('ids_week', $rpCfg['ids_week'], strtotime('2026-11-05 08:00')) === null
+    && Reports::due('month', ['on' => true, 'freq' => 'month', 'day' => 1, 'time' => '07:00'], $rpWed) === '2026-11'
+    && $rpSaved['vulns']['day'] === 7 && $rpSaved['vulns']['time'] === '08:00' && $rpSaved['all']['day'] === 28 && $rpSaved['all']['parts'] === ['vulns']
+    && setting('ids_weekly') === 'both' && str_contains($rpDoc['html'], '<!doctype html>') && $rpDoc['text'] !== '' && str_contains($rpAll['html'], '<section>'),
+    'rapporten: oude instellingen overgenomen, aan de beurt op de dag na de tijd (één keer per week/maand), grenzen bewaakt, HTML en tekst');
+save_setting('reports', '');
 // 1.179.0: rugbaarheid: score uit de bronnen, SSVC lezen, map in Vulnrichment, oordeel van de AI, alleen veilige Mastodon-adressen
 q("INSERT IGNORE INTO vuln_cve (cve, severity, kev, epss) VALUES ('CVE-2099-7001', 4, 1, 0.81)");
 $bz = CveBuzz::update('CVE-2099-7001', ['gh' => 31, 'hn' => 40, 'hn7' => 12, 'md7' => 25, 'edb' => true, 'nuclei' => true, 'ssvc' => ['e' => 'active', 'a' => 'yes', 't' => 'total']]);
