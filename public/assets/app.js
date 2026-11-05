@@ -15372,7 +15372,7 @@ function ccServers(d) {
   const ring = (v, lbl, x) => {
     const r = 17, C = 2 * Math.PI * r, f = v === null ? 0 : Math.min(100, v) / 100, cls = v === null ? 'na' : v >= 90 ? 'crit' : v >= 75 ? 'warn' : 'ok';
     return `<g transform="translate(${x} 24)"><circle r="${r}" class="cc-ring-bg"/>${v === null ? '' : `<circle r="${r}" class="cc-sring ${cls}" stroke-dasharray="${(C * f).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90)"/>`}
-      <text y="4" text-anchor="middle" class="cc-sring-n">${v === null ? '–' : v}</text><text y="54" text-anchor="middle" class="cc-sring-l">${esc(lbl)}</text></g>`;
+      <text y="4" text-anchor="middle" class="cc-sring-n">${v === null ? '–' : v}</text><text y="33" text-anchor="middle" class="cc-sring-l">${esc(lbl)}</text></g>`;
   };
   const why = (h) => { const p = h.checks.filter((c) => +c.enabled && !c.maintenance && +c.status >= 1 && +c.status <= 2).sort((a, b) => b.status - a.status); return p.length ? (p.length > 1 ? L('{n} problemen', { n: p.length }) : p[0].name) : ''; };
   return ccCard('servers', `${ccHead(L('Servers'), `<span class="cc-mu small">${esc(L('ringen = CPU · RAM · disk · de rand = status · klik voor de server'))}</span>`)}
