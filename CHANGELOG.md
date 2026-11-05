@@ -14,6 +14,12 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.168.0**: Monitoring met een eigen groep **✔ Bevestigd**, en **config.php opslaan via de hulpdienst** terwijl de map vergrendeld blijft.
 - **1.167.0**: de **zijbalk** sleep je zelf breder of smaller, en in Instellingen en Mijn account wordt hij het menu van die pagina, met **← Terug naar RzMon**.
 
+## 1.171.4 – 2026-11-05
+### Opgelost
+- **Monitoring opent altijd op *Alle***. Eerst onthield RzMon de laatst gekozen filterchip (bijvoorbeeld *🌐 Netwerk*). Opende je de pagina later, dan zag je alleen die groep, en ook de tellers en kerncijfers golden alleen voor die groep, terwijl er elders criticals waren.
+  - Een filterchip geldt nu alleen zolang je op de pagina blijft.
+  - Kom je terug van een andere pagina of herlaad je, dan staat hij weer op *Alle*. Het statusfilter (tikken op een teller) gaat ook terug.
+
 ## 1.171.3 – 2026-11-05
 ### Opgelost
 - **AI-advies met een redeneermodel** (zoals OpenAI o3 en o4, GPT-5, Gemini 2.5, Grok 4, of DeepSeek-R1 en Qwen3 in Ollama) gaf *"Leeg antwoord van het model"*.

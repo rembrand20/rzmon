@@ -1064,7 +1064,7 @@ function init() {
     e.target.disabled = false;
   };
   $('#filter').addEventListener('input', render);
-  const setDashFilter = (k) => { dashFilter = k; savePref('dash_filter', k); render(); };
+  const setDashFilter = (k) => { dashFilter = k; render(); };   // 1.171.4: alleen zolang je op de pagina blijft
   $('#dash-chips').addEventListener('click', (e) => {
     const b = e.target.closest('[data-dfilter]');
     if (b) { statusFilter = null; setDashFilter(b.dataset.dfilter); }
@@ -1557,6 +1557,8 @@ function init() {
 
 function showTab(name) {
   xpClose();
+  // 1.171.4: terug op Monitoring vanaf een andere pagina: weer alles (filterknop en statusfilter terug naar Alle)
+  if (/^dashboard\b/.test(String(name)) && ($('.tab-panel:not([hidden])') || {}).id !== 'tab-dashboard') { dashFilter = 'all'; statusFilter = null; }
   if (!/^dashboard\b/.test(String(name))) ccOpen.clear();   // 1.164.0: CC-servers weer dicht   // 1.161.0: van pagina wisselen = alle uitleg weer dicht
   let sub = null;
   // Filters in het adres (1.71.0): #alerts?server=NAS,Pi&status=crit, #ids/acc?result=fail, #vulns/leak?status=open
@@ -1742,7 +1744,7 @@ function dur(dt) {
 
 // Filterchips en sortering van het dashboard (per apparaat onthouden)
 // Keuze bovenaan (Alle, Problemen, of een soort apparaat): per gebruiker (1.75.0), daarvoor per browser
-let dashFilter = PREFS.dash_filter || (() => { try { return localStorage.getItem('rzmon-dash-filter') || 'all'; } catch (e) { return 'all'; } })();
+let dashFilter = 'all';   // 1.171.4: niet meer onthouden; Monitoring opent altijd op Alle, zodat je geen problemen mist
 let dashSort = uiGet('dash_sort', 'rzmon-dash-sort', 'status');
 let attnOpen = false;
 const attnBundles = new Set();   // 1.157.0: opengeklapte bundels in "Nu aandacht nodig"   // "Nu aandacht nodig": alles tonen (anders 6, op de telefoon 3)
