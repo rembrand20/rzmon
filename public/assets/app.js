@@ -4137,7 +4137,12 @@ function checkBits(c) {
   const need = +c.notify_fails || +state.notify_fails || 1;
   const pending = problem && !c.acked_at && !c.maintenance && +c.notified_status !== s && need > 1 && +c.status_streak < need
     ? ` <span class="pend-tag" title="${esc(L('Nog niet gemeld: een melding volgt na {need} mislukte checks achter elkaar met deze status (nu {n})', { need, n: +c.status_streak }))}">⏳ ${+c.status_streak}/${need}</span>` : '';
-  const flags = pending + (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ ${L('bevestigd')}</button>` : '')
+  // 1.185.0: nieuwe status nog niet bevestigd (status pas na N controles)
+  const ownN = (v) => (v === null || v === undefined || v === '' ? null : +v);
+  const cNeed = +c.pend_status === 0 ? (ownN(c.confirm_ok) ?? (+state.confirm_ok || 1)) : (ownN(c.confirm_fails) ?? (+state.confirm_fails || 1));
+  const confirming = c.pend_status != null && +c.pend_count > 0 && +c.enabled
+    ? ` <span class="pend-tag conf-tag" title="${esc(L('Nog niet bevestigd: wordt {s} na {need} controles achter elkaar (nu {n})', { s: STATUS_WORD[+c.pend_status] || '?', need: cNeed, n: +c.pend_count }))}">⏳ ${esc(STATUS_WORD[+c.pend_status] || '?')} ${+c.pend_count}/${cNeed}</span>` : '';
+  const flags = confirming + pending + (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ ${L('bevestigd')}</button>` : '')
     + (own ? ` <span class="maint-tag" title="${esc(maintLabel(c.maintenance))}">${c.maintenance.auto ? '🔧 ' + L('auto, tot opgelost') : `🔧 ${L('tot {t}', { t: esc(fmtUntil(c.maintenance.until)) })}`}</span>` : '')
     + (c.suppressed_by ? ` <span class="supp-tag" title="${L('Geen melding: een server erboven is onbereikbaar')}">🔕 ${L('onderdrukt')}</span>` : '')
     + (+c.info_only ? ` <span class="info-tag" title="${L('Info-check: geeft alleen ℹ️ info-meldingen en telt nooit als storing')}">ℹ️ ${c.info_status ? STATUS_WORD[c.info_status] : 'info'}</span>` : '')
@@ -5656,6 +5661,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const payloadOf = (d) => {
     const notifySw = $('#notify-sw').checked;   // 1.178.0: schakelaar uit = de algemene instellingen
     if (!notifySw) d.notify_fails = '';
+    if (!$('#confirm-sw').checked) { d.confirm_fails = ''; d.confirm_ok = ''; }   // 1.185.0: schakelaar uit = de algemene instellingen
     const notify = notifySw && $('#notify-own').checked && ownEditor ? ownEditor.get() : null;
     const qm = $('#quiet-sw').checked ? $('#quiet-mode').value : 'global';
     const quiet = qm === 'global' ? null : qm === 'never' ? { mode: 'never' } : { mode: 'own', windows: quietOwnEditor ? quietOwnEditor.get().windows : [] };
@@ -5892,6 +5898,16 @@ function checkForm(c, h, preset = {}, tpl = null) {
           <input name="notify_fails" type="number" min="1" max="100" value="${c.notify_fails ?? ''}" placeholder="${state.notify_fails || 1}" style="max-width:8rem"></label>
         <label class="switch small"><input type="checkbox" id="notify-own" ${c.notify ? 'checked' : ''}><span></span> <span id="notify-own-label">${L('Eigen meldregels voor deze check')}</span></label>
         <div id="notify-own-editor" ${c.notify ? '' : 'hidden'}></div>
+      </div></section>
+      ${swsOpen({ id: 'confirm-wrap', cb: 'id="confirm-sw"', icon: '⏳', title: L('Status bevestigen'), on: c.confirm_fails != null || c.confirm_ok != null,
+        sub: `<span id="confirm-label">${c.confirm_fails != null || c.confirm_ok != null ? L('eigen aantallen') : L('standaard (algemene instellingen)')}</span>` })}
+        ${xpHtml(L('Pas van status wisselen na een paar controles achter elkaar.'), L('Leeg = de algemene instelling (Instellingen → Meldingen → Wanneer melden). 1 = meteen. Warning, critical en onbekend tellen samen; is de check tussendoor één keer goed, dan begint de telling opnieuw.'))}
+        <div class="conf-row">
+          <label>${L('Warning of critical pas na … mislukte controles')} <span class="hint">${L('(leeg = standaard, nu {n})', { n: +state.confirm_fails > 1 ? state.confirm_fails : L('meteen') })}</span>
+            <input name="confirm_fails" type="number" min="1" max="100" value="${c.confirm_fails ?? ''}" placeholder="${+state.confirm_fails || 1}" style="max-width:8rem"></label>
+          <label>${L('Weer OK pas na … goede controles')} <span class="hint">${L('(leeg = standaard, nu {n})', { n: +state.confirm_ok > 1 ? state.confirm_ok : L('meteen') })}</span>
+            <input name="confirm_ok" type="number" min="1" max="100" value="${c.confirm_ok ?? ''}" placeholder="${+state.confirm_ok || 1}" style="max-width:8rem"></label>
+        </div>
       </div></section>
       ${swsOpen({ id: 'quiet-wrap', cb: 'id="quiet-sw"', icon: '🌙', title: L('Stille uren'), on: !!quietOwn, sub: `<span id="quiet-mode-label">${QUIET_MODES[quietOwn ? quietOwn.mode : 'global']}</span>` })}
         <input type="hidden" id="quiet-mode" value="${quietOwn ? quietOwn.mode : 'global'}">
@@ -11599,7 +11615,7 @@ const SET_NAV = [
       [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen'), [
     ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail en webhooks.')],
-    ['rules', L('Wanneer melden'), ['notify', 'alarm'], L('Meldregels, stille uren en wanneer een probleem een melding wordt.')],
+    ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm'], L('Meldregels, stille uren en wanneer een probleem een melding wordt.')],
     ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzMon zelf, zoals updates en certificaten.')]]],
   ['ids', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS'), [
     ['ids', L('Algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],

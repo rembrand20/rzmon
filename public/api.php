@@ -1790,10 +1790,13 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
             $revFail = $revOk !== null ? max(STATUS_OK, min(STATUS_CRIT, (int) ($in['reverse_fail'] ?? STATUS_OK))) : null;
             // Melden na zoveel mislukte checks achter elkaar; leeg = de algemene instelling
             $fails = trim((string) ($in['notify_fails'] ?? '')) === '' ? null : max(1, min(100, (int) $in['notify_fails']));
+            // 1.185.0: status pas na N controles; leeg = de algemene instelling
+            $cf = trim((string) ($in['confirm_fails'] ?? '')) === '' ? null : max(1, min(100, (int) $in['confirm_fails']));
+            $co = trim((string) ($in['confirm_ok'] ?? '')) === '' ? null : max(1, min(100, (int) $in['confirm_ok']));
     return [['type' => $type, 'target' => $target, 'name' => mb_substr($name, 0, 100), 'warn_threshold' => $warn, 'crit_threshold' => $crit,
         'interval_sec' => max(30, (int) ($in['interval_sec'] ?? 60)), 'enabled' => !empty($in['enabled']) ? 1 : 0, 'verify_ssl' => ($in['verify_ssl'] ?? true) ? 1 : 0,
         'metric' => $metric, 'options' => $options, 'notify' => $notify, 'quiet' => $quiet, 'command' => $command, 'reverse_ok' => $revOk, 'reverse_fail' => $revFail,
-        'notify_fails' => $fails, 'info_only' => !empty($in['info_only']) ? 1 : 0], $hbNew];
+        'notify_fails' => $fails, 'info_only' => !empty($in['info_only']) ? 1 : 0, 'confirm_fails' => $cf, 'confirm_ok' => $co], $hbNew];
 };
 
 
@@ -1864,6 +1867,7 @@ switch ($action) {
              'tpl_items' => (object) array_column(q('SELECT ti.id, t.name FROM template_items ti JOIN check_templates t ON t.id = ti.template_id')->fetchAll(), 'name', 'id'),
              'host_tpls' => (object) array_reduce(q('SELECT host_id, template_id FROM host_templates')->fetchAll(), static function ($a, $r) { $a[$r['host_id']][] = (int) $r['template_id']; return $a; }, []),
              'notify_fails' => max(1, (int) setting('notify_fails', '1')),
+             'confirm_fails' => Monitor::confirmNeeded([], false), 'confirm_ok' => Monitor::confirmNeeded([], true),   // 1.185.0
              'thresh_default' => (string) setting('thresh_default', 'guard'), 'smart_sens' => (string) setting('smart_sens', 'normal'),
              // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
              'net_new' => NetScan::enabled() ? NetScan::newCount() : 0,
@@ -3470,7 +3474,8 @@ switch ($action) {
             'ai_on', 'ai_provider', 'ai_auto', 'ai_daily', 'ai_mask', 'ai_timeout', 'ai_max_tokens', 'ai_ollama_url', 'ai_ollama_key',
             'cve_buzz_on', 'cve_buzz_alert', 'cve_github_token', 'cve_mastodon_url', 'cve_mastodon_token', 'cve_exploitdb', 'cve_nuclei',   // 1.179.0
             'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model',   // 1.171.0
-            'ai_budget_month', 'ai_memory', 'ai_cache', 'ai_cache_hours', 'ai_fallback', 'ai_notify', 'ai_weekly', 'ai_weekly_day', 'ai_triage', 'ai_report'];   // 1.173.0
+            'ai_budget_month', 'ai_memory', 'ai_cache', 'ai_cache_hours', 'ai_fallback', 'ai_notify', 'ai_weekly', 'ai_weekly_day', 'ai_triage', 'ai_report',   // 1.173.0
+            'confirm_fails', 'confirm_ok'];   // 1.185.0
         // 1.179.0: Mastodon alleen via https naar een gewone hostnaam
         if (isset($in['cve_mastodon_url']) && trim((string) $in['cve_mastodon_url']) !== '' && !CveBuzz::safeUrl(rtrim(trim((string) $in['cve_mastodon_url']), '/'))) {
             out(['error' => t('Mastodon: vul een https-adres in, bv. https://infosec.exchange')], 422);
@@ -3595,6 +3600,11 @@ switch ($action) {
         }
         if (isset($in['notify_fails'])) {
             $in['notify_fails'] = (string) max(1, min(100, (int) $in['notify_fails']));
+        }
+        foreach (['confirm_fails', 'confirm_ok'] as $k) {   // 1.185.0: leeg = meteen
+            if (isset($in[$k])) {
+                $in[$k] = trim((string) $in[$k]) === '' ? '' : (string) max(1, min(100, (int) $in[$k]));
+            }
         }
         if (isset($in['vuln_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['vuln_time'])) {
             out(['error' => t('Scantijd voor kwetsbaarheden: gebruik uu:mm, bv. 03:30')], 422);

@@ -649,6 +649,17 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <button type="button" class="btn" id="ntfy-test"><?= th('📲 Testbericht sturen') ?></button>
         </div>
 
+        <div data-sk="confirm" class="card">
+          <h2>⏳ <?= th('Status bevestigen') ?></h2>
+          <?= xp(t('Een check wordt pas warning of critical (of weer OK) als het een paar keer achter elkaar zo is.'), t('<b>Wat het doet:</b> één mislukte controle maakt een check nog niet rood. Pas na het aantal controles hieronder <b>achter elkaar</b> wisselt de status. Tot die tijd blijft de check zoals hij was, met het label <b>⏳ 1/3</b>. Warning, critical en onbekend tellen samen; is de check tussendoor één keer goed, dan begint de telling opnieuw. <b>Leeg</b> = meteen, zoals altijd. Per check kun je het anders instellen (✎ → Status bevestigen). <b>Goed om te weten:</b> <i>Melden na … mislukte checks</i> telt pas vanaf het moment dat de status bevestigd is. Met 3 hier en 2 bij melden krijg je dus pas na 4 mislukte controles een melding. Grafieken en de geschiedenis tonen gewoon elke meting.')) ?>
+          <div class="conf-row">
+            <label><?= th('Warning of critical pas na … mislukte controles') ?> <span class="muted small"><?= th('(leeg = meteen)') ?></span>
+              <input type="number" name="confirm_fails" min="1" max="100" placeholder="<?= th('meteen') ?>" style="max-width:8rem"></label>
+            <label><?= th('Weer OK pas na … goede controles') ?> <span class="muted small"><?= th('(leeg = meteen)') ?></span>
+              <input type="number" name="confirm_ok" min="1" max="100" placeholder="<?= th('meteen') ?>" style="max-width:8rem"></label>
+          </div>
+        </div>
+
         <div data-sk="notify" class="card notify-card">
           <h2><?= th('🔔 Meldingen') ?></h2>
           <?= xp(t('Per status kies je: nooit melden, direct, of pas als het een tijdje zo blijft.'), t('<b>Wat het doet:</b> voor elke status (warning, critical, onbekend, hersteld) bepaal je wanneer er een melding uitgaat: <b>nooit</b>, <b>direct</b>, of pas <b>na X minuten</b> onafgebroken in die status. Herstelt het eerder, dan krijg je niets. Bij <i>Hersteld</i> betekent X: pas melden als het X minuten goed blijft. <b>Goed om te weten:</b> per check kun je dit anders instellen (✎ → Meldingen).')) ?>

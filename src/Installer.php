@@ -133,6 +133,11 @@ final class Installer
         // Melden na N mislukte checks: hoe vaak achter elkaar dezelfde status, en per check een eigen N (NULL = algemeen)
         ['checks', 'status_streak', 'INT UNSIGNED NOT NULL DEFAULT 0'],
         ['checks', 'notify_fails', 'SMALLINT UNSIGNED NULL'],
+        // 1.185.0: status pas na N controles achter elkaar (NULL = algemeen), en de telling van de status die nog bevestigd moet worden
+        ['checks', 'confirm_fails', 'SMALLINT UNSIGNED NULL'],
+        ['checks', 'confirm_ok', 'SMALLINT UNSIGNED NULL'],
+        ['checks', 'pend_status', 'TINYINT NULL'],
+        ['checks', 'pend_count', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0'],
         // Info-meldingen: per server uit te zetten voor agent-updates (1 = volgt de algemene info-regel)
         ['hosts', 'info_agent', 'TINYINT(1) NOT NULL DEFAULT 1'],
         // Info-check: geeft alleen info-meldingen, telt nooit als storing

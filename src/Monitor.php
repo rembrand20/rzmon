@@ -294,8 +294,49 @@ final class Monitor
 
     // ------------------------------------------------------------------ verwerking
 
+    /**
+     * 1.185.0: zoveel controles achter elkaar met een andere status voordat de check echt van status wisselt.
+     * $toOk: terug naar OK (confirm_ok), anders naar warning/critical/onbekend (confirm_fails). Van de check zelf, anders algemeen; leeg = 1 (meteen).
+     */
+    public static function confirmNeeded(array $check, bool $toOk): int
+    {
+        $col = $toOk ? 'confirm_ok' : 'confirm_fails';
+        $own = $check[$col] ?? null;
+        $n = $own !== null && $own !== '' ? (int) $own : (int) setting($col, '');
+        return max(1, min(100, $n));
+    }
+
+    /**
+     * 1.185.0: is de nieuwe status bevestigd? Zo niet, dan blijft de oude status staan en telt pend_count op.
+     * Warning, critical en onbekend tellen samen ("mislukt"); OK telt apart. Een check die nog nooit draaide, krijgt meteen zijn status.
+     * @return array{0: int, 1: ?int, 2: int} [status die geldt, status die nog bevestigd wordt (of null), hoe vaak al]
+     */
+    public static function confirmStatus(array $check, int $raw): array
+    {
+        $cur = (int) $check['status'];
+        if (empty($check['last_checked']) || $raw === $cur) {
+            return [$raw, null, 0];
+        }
+        $need = self::confirmNeeded($check, $raw === STATUS_OK);
+        $pend = $check['pend_status'] ?? null;
+        $same = $pend !== null && (((int) $pend === STATUS_OK) === ($raw === STATUS_OK));
+        $count = ($same ? (int) ($check['pend_count'] ?? 0) : 0) + 1;
+        if ($count >= $need) {
+            return [$raw, null, 0];
+        }
+        return [$cur, $raw, $count];
+    }
+
     private static function process(array $check, array $res): void
     {
+        $raw = (int) $res['status'];
+        [$res['status'], $pendStatus, $pendCount] = self::confirmStatus($check, $raw);
+        if ($pendStatus !== null || (int) ($check['pend_count'] ?? 0) > 0) {
+            q('UPDATE checks SET pend_status = ?, pend_count = ? WHERE id = ?', [$pendStatus, $pendCount, $check['id']]);
+        }
+        if ($pendStatus !== null && $res['status'] === STATUS_OK) {
+            $res['message'] = '⏳ ' . t('nog niet bevestigd ({n}/{need})', ['n' => $pendCount, 'need' => self::confirmNeeded($check, false)]) . ': ' . $res['message'];
+        }
         $status = $res['status'];
         $failCount = $status === STATUS_OK ? 0 : (int) $check['fail_count'] + 1;
         // Hoe vaak achter elkaar deze status (per status: van warning naar critical begint de telling opnieuw)
@@ -305,7 +346,7 @@ final class Monitor
         $message = $res['message'];
 
         q('INSERT INTO results (check_id, status, value, vals) VALUES (?, ?, ?, ?)',
-            [$check['id'], $status, $res['value'], !empty($res['vals']) ? json_encode($res['vals']) : null]);
+            [$check['id'], $raw, $res['value'], !empty($res['vals']) ? json_encode($res['vals']) : null]);   // 1.185.0: de echte meting, ook als die nog bevestigd moet worden
 
         // Onderdrukken: een server erboven is onbereikbaar → dat is al gemeld
         $upstream = $status !== STATUS_OK ? self::upstreamDown((int) $check['hid']) : null;

@@ -71,6 +71,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🔔 Meldingen | **ntfy** | Gratis pushmeldingen via ntfy.sh of je eigen server. | 1.140.0 |
 | 🔔 Meldingen | **Home Assistant-webhook** | Elke melding als webhook naar Home Assistant. | 1.2.0 |
 | 🔔 Meldingen | **Melden na N mislukte checks** | Algemeen en per check. | 1.48.0 |
+| 🔔 Meldingen | **Status bevestigen** | Pas warning/critical (of weer OK) na N controles achter elkaar; algemeen en per check. | 1.185.0 |
 | 🔔 Meldingen | **Anti-flapping** | Eén melding als een check steeds wisselt. | 1.26.0 |
 | 🔔 Meldingen | **Stille uren** | Periodes zonder meldingen, behalve critical als je wilt. | 1.28.0 |
 | 🔔 Meldingen | **Bundelen per server** | Eén melding als meerdere checks tegelijk misgaan. | 1.25.0 |
@@ -225,6 +226,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **🎯 Aanvalspad en impact** per server (vanaf 1.146.0): open poorten met pakket en ergste kwetsbaarheid, open incidenten en afhankelijke servers (blast radius).
 - **🎯 Doelen (SLO) en "na de actie"** op Analyse (vanaf 1.146.0): melding binnen 5 minuten, agents rapporteren, slagingspercentage van zelf herstellen, onterechte automatische blokkades en slimme drempels die meer ruis gaven.
 - **📄 Rapport als PDF** (vanaf 1.142.0; eerste pagina *In één oogopslag* met MTTD/MTTR, SLO's en de 5 grootste risico's vanaf 1.146.0): afdrukbaar rapport over een periode (samenvatting, incidenten, beschikbaarheid, lastigste checks, beveiliging, kwetsbaarheden, wat nu aanpakken).
+- **⏳ Status bevestigen** (vanaf 1.185.0): een check wordt pas warning of critical (en eventueel weer OK) na N controles achter elkaar, met het label ⏳ 2/3 zolang het nog niet bevestigd is; algemeen en per check, leeg = meteen.
 - **🗺️ Netwerk → Overzicht** (vanaf 1.184.0): een netwerkkaart (internet → router → switches en access points → apparaten, uit UniFi), met tellers per soort en per netwerk; klik op een soort om die op de kaart te laten oplichten.
 - **🔍 Netwerk → Ontdekken** (vanaf 1.183.0): nieuwe en onbekende apparaten, veranderingen (ander IP-adres, nieuwe of gesloten poorten, nieuwe domeinen via AdGuard, al dagen weg, weer terug), voorstellen om met één klik te bewaken (met de checks die bij de open poorten passen) en de aanwezigheid per uur. Op *Apparaten* groeperen per soort, fabrikant of verbinding.
 - **📋 Functies** (vanaf 1.182.0): alle functies in één tabel bij *Instellingen → Overzicht → Functies*, met status en een knop naar de instelling (zie de tabel hierboven).

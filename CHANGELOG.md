@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.185.0**: **status bevestigen**: een check wordt pas warning of critical (en eventueel weer OK) na N controles achter elkaar; algemeen in de beheerportal en per check te overschrijven, leeg = meteen.
 - **1.184.0**: **Netwerk → Overzicht**: een kaart van je netwerk (internet → router → switches en access points → apparaten), met tellers per soort en per netwerk.
 - **1.183.0**: **Netwerk → Ontdekken**: nieuwe en onbekende apparaten, wat er verandert (IP, poorten, nieuwe domeinen, weg of terug), voorstellen om met één klik te bewaken, en wanneer elk apparaat online was. Apparaten kun je nu ook groeperen.
 - **1.182.0**: **alle functies in één tabel** (*Instellingen → Overzicht → Functies* en bovenaan FEATURES.md), met de status van nu (aan, uit, niet ingesteld) en een knop naar waar je hem instelt.
 - **1.181.0**: de **IDS-beschermingen** stel je nu in op *Instellingen → IDS → Beschermingen*; *IDS → Bescherming* is een overzicht met een knop **Instellen**. De rol **gebruiker** mag een paar onderdelen van de beheerportal bekijken (Status, Advies, Rapporten, Wijzigingslogboek).
-- **1.180.0**: alle **rapporten op één plek** (*Instellingen → Rapporten*): IDS- en AI-weekoverzicht, maandrapport en nieuw kwetsbaarheden, beschikbaarheid, back-ups en datalekken, als HTML-mail of push, met **Nu versturen**, **Voorbeeld**, **Naar mij** en een **Maandoverzicht** met alles in één.
+
+## 1.185.0 – 2026-11-05
+### Nieuw
+- **⏳ Status bevestigen**: een check gaat pas naar warning of critical na een aantal mislukte controles **achter elkaar**. Eén keer een time-out maakt een check zo niet meteen rood.
+  - Algemeen in te stellen bij *Instellingen → Meldingen → Wanneer melden → Status bevestigen*, en per check te overschrijven (✎ → *Status bevestigen*).
+  - **Leeg = meteen**, zoals altijd. Na de update verandert er dus niets tot je iets invult.
+  - Twee velden: *Warning of critical pas na … mislukte controles* en *Weer OK pas na … goede controles* (ook leeg = meteen; handig bij een check die steeds even terugvalt).
+  - Warning, critical en onbekend tellen samen. Is de check tussendoor één keer goed, dan begint de telling opnieuw.
+  - Zolang de nieuwe status nog niet bevestigd is, blijft de check zoals hij was, met het label **⏳ CRITICAL 2/3** en het bericht van de laatste controle.
+  - *Melden na … mislukte checks* telt pas vanaf het moment dat de status bevestigd is: met 3 bij bevestigen en 2 bij melden komt de melding na 4 mislukte controles.
+  - Een nieuwe check krijgt bij de eerste controle meteen zijn status. Grafieken en de geschiedenis tonen gewoon elke meting.
 
 ## 1.184.0 – 2026-11-05
 ### Nieuw

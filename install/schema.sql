@@ -1322,3 +1322,6 @@ CREATE TABLE IF NOT EXISTS net_presence (
     PRIMARY KEY (device_id, day),
     KEY idx_netpres_day (day)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.185.0: een check gaat pas naar warning/critical (of weer naar OK) na zoveel controles achter elkaar; leeg = meteen (zoals altijd)
+INSERT IGNORE INTO settings (name, value) VALUES ('confirm_fails', ''), ('confirm_ok', '');

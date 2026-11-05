@@ -11,7 +11,7 @@ declare(strict_types=1);
 final class Templates
 {
     public const COLS = ['type', 'target', 'name', 'warn_threshold', 'crit_threshold', 'interval_sec', 'enabled', 'verify_ssl', 'metric', 'options',
-        'notify', 'quiet', 'command', 'reverse_ok', 'reverse_fail', 'notify_fails', 'info_only'];
+        'notify', 'quiet', 'command', 'reverse_ok', 'reverse_fail', 'notify_fails', 'info_only', 'confirm_fails', 'confirm_ok'];
 
     /** Alleen de bekende kolommen, in vaste volgorde */
     private static function clean(array $cols): array

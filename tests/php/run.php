@@ -1483,6 +1483,28 @@ $ex = CheckInfo::extra(q('SELECT * FROM checks WHERE id = ?', [$ctId])->fetch())
 ok($ex['counts']['n24'] === 2 && $ex['counts']['f24'] === 1 && $ex['outages']['count'] === 2 && $ex['outages']['mttr'] === 1800 && $ex['notify']['streak'] === 3
     && ($ex['detail']['kind'] ?? '') === 'container' && $ex['detail']['state'] === 'running',
     'popup van een check: hoe vaak gecheckt, storingen en hersteltijd over 30 dagen, melden na N, details van de container');
+// 1.185.0: status bevestigen: pas na N controles achter elkaar warning/critical, herstel apart, leeg = meteen
+save_setting('confirm_fails', '');
+save_setting('confirm_ok', '');
+$cfBase = ['status' => STATUS_OK, 'last_checked' => now(), 'pend_status' => null, 'pend_count' => 0, 'confirm_fails' => null, 'confirm_ok' => null];
+$cfOff = Monitor::confirmStatus($cfBase, STATUS_CRIT);
+save_setting('confirm_fails', '3');
+$cf1 = Monitor::confirmStatus($cfBase, STATUS_WARN);
+$cf2 = Monitor::confirmStatus(['pend_status' => STATUS_WARN, 'pend_count' => 1] + $cfBase, STATUS_CRIT);   // warning en critical tellen samen
+$cf3 = Monitor::confirmStatus(['pend_status' => STATUS_CRIT, 'pend_count' => 2] + $cfBase, STATUS_CRIT);
+$cfReset = Monitor::confirmStatus(['pend_status' => STATUS_CRIT, 'pend_count' => 2] + $cfBase, STATUS_OK);   // tussendoor goed: telling weg
+$cfNew = Monitor::confirmStatus(['last_checked' => null] + $cfBase, STATUS_CRIT);   // nieuwe check: meteen
+$cfOwn = Monitor::confirmStatus(['confirm_fails' => 1] + $cfBase, STATUS_CRIT);   // eigen 1 = meteen, ook al staat algemeen 3
+$cfRecNow = Monitor::confirmStatus(['status' => STATUS_CRIT] + $cfBase, STATUS_OK);
+save_setting('confirm_ok', '2');
+$cfRec1 = Monitor::confirmStatus(['status' => STATUS_CRIT] + $cfBase, STATUS_OK);
+$cfRec2 = Monitor::confirmStatus(['status' => STATUS_CRIT, 'pend_status' => STATUS_OK, 'pend_count' => 1] + $cfBase, STATUS_OK);
+save_setting('confirm_fails', '');
+save_setting('confirm_ok', '');
+ok($cfOff === [STATUS_CRIT, null, 0] && $cf1 === [STATUS_OK, STATUS_WARN, 1] && $cf2 === [STATUS_OK, STATUS_CRIT, 2] && $cf3 === [STATUS_CRIT, null, 0]
+    && $cfReset === [STATUS_OK, null, 0] && $cfNew === [STATUS_CRIT, null, 0] && $cfOwn === [STATUS_CRIT, null, 0]
+    && $cfRecNow === [STATUS_OK, null, 0] && $cfRec1 === [STATUS_CRIT, STATUS_OK, 1] && $cfRec2 === [STATUS_OK, null, 0],
+    'status bevestigen: leeg = meteen, na 3 mislukte (warning en critical samen) critical, tussendoor goed = opnieuw, nieuwe check meteen, eigen waarde gaat voor, herstel na 2');
 // 1.183.0: Netwerk → Ontdekken: poorten, domeinen (eerst leren), aanwezigheid, voorstellen en met één klik in RzMon
 q("DELETE FROM net_devices WHERE mac = 'ee:ee:ee:00:01:83'");
 q("INSERT INTO net_devices (mac, ip, random_mac, vendor, kind, status, ports, info, first_seen, last_seen) VALUES ('ee:ee:ee:00:01:83', '10.183.0.9', 0, 'Reolink', 'camera', 'new', '[80,554]', '{}', NOW(), NOW())");

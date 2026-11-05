@@ -87,6 +87,7 @@ final class Features
         ['notify', ['ntfy', 'ntfy'], ['Gratis pushmeldingen via ntfy.sh of je eigen server.', 'Free push notifications through ntfy.sh or your own server.'], '1.140.0', 'ntfy_enabled|ntfy_topic', 'channels'],
         ['notify', ['Home Assistant-webhook', 'Home Assistant webhook'], ['Elke melding als webhook naar Home Assistant.', 'Every notification as a webhook to Home Assistant.'], '1.2.0', 'ha_webhook_enabled|ha_webhook_url', 'channels'],
         ['notify', ['Melden na N mislukte checks', 'Notify after N failed checks'], ['Algemeen en per check.', 'Global and per check.'], '1.48.0', '', 'rules'],
+        ['notify', ['Status bevestigen', 'Confirm status'], ['Pas warning/critical (of weer OK) na N controles achter elkaar; algemeen en per check.', 'Only warning/critical (or OK again) after N checks in a row; global and per check.'], '1.185.0', 'confirm_fails', 'rules'],
         ['notify', ['Anti-flapping', 'Anti-flapping'], ['Eén melding als een check steeds wisselt.', 'One notification when a check keeps changing.'], '1.26.0', '', 'rules'],
         ['notify', ['Stille uren', 'Quiet hours'], ['Periodes zonder meldingen, behalve critical als je wilt.', 'Periods without notifications, except critical if you like.'], '1.28.0', '', 'rules'],
         ['notify', ['Bundelen per server', 'Bundle per server'], ['Eén melding als meerdere checks tegelijk misgaan.', 'One notification when several checks fail at once.'], '1.25.0', 'notify_bundle_hosts', 'rules'],

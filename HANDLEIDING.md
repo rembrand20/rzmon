@@ -1040,6 +1040,18 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 
 Bij de update naar 1.25.0 zijn je oude instellingen omgezet, zodat er niets veranderde. "Alarm na N fouten" werd "na N−1 minuten", "ook melden bij WARNING" uit werd "Nooit", en de webhook-keuze "alleen critical en herstel" werd de kolom Home Assistant.
 
+### Status bevestigen ⏳ (vanaf 1.185.0)
+Een check wisselt pas van status na een aantal controles **achter elkaar**. Eén time-out of een kort piekje maakt een check zo niet meteen rood.
+
+- **Waar:** algemeen bij *Instellingen → Meldingen → Wanneer melden → Status bevestigen*; per check bij ✎ → *Status bevestigen* (schakelaar aan, dan eigen aantallen; uit = de algemene instelling).
+- **Warning of critical pas na … mislukte controles**: bijvoorbeeld 3. Warning, critical en onbekend tellen samen. Is de check tussendoor één keer goed, dan begint de telling opnieuw.
+- **Weer OK pas na … goede controles**: bijvoorbeeld 2, voor een check die steeds even terugvalt. Leeg = meteen OK (dan komt je herstelmelding het snelst).
+- **Leeg = meteen**, zoals vóór 1.185.0. 1 betekent ook meteen.
+- **Wat je ziet:** zolang een nieuwe status nog niet bevestigd is, blijft de check zoals hij was, met het label **⏳ CRITICAL 2/3** (nog 1 controle). Ga erop staan voor de uitleg. Het bericht is dat van de laatste controle.
+- **Samen met melden na N:** *Melden na … mislukte checks* telt pas vanaf het moment dat de status bevestigd is. Met 3 bij bevestigen en 2 bij melden komt de melding na 4 mislukte controles. Wil je alleen bevestigen, zet melden dan op 1.
+- Een nieuwe check krijgt bij de eerste controle meteen zijn status. Grafieken, de geschiedenis en de popup van de check tonen gewoon elke meting.
+- **Tip:** met *slim interval* (Instellingen → Monitoring → Advies → Voorstellen) controleert RzMon sneller zolang er iets mis is; dan is een status ook sneller bevestigd.
+
 ### 6.2b Alarmgedrag
 | Instelling | Standaard | Uitleg |
 |---|---|---|
