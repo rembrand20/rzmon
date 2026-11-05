@@ -8,11 +8,25 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.177.0**: nieuwe **pad-check** (traceroute): per hop vertraging en verlies, je switches, de linksnelheid via UniFi en de echte doorvoer met iperf3, als futuristisch pad in de popup, op **Monitoring → Netwerkpaden** als netwerkkaart en in het kort bij de server.
 - **1.176.0**: **Monitoring → Containers** (alle Podman- en Docker-containers met status, CPU, geheugen en schijf), labels **Running / Failed / Stopped / Paused**, een **nieuwe popup per check** en een compacte **Nu aandacht nodig** in CC.
 - **1.175.0**: **Monitoring in CC** in een nieuw jasje: één raster met tegels (ring, lijntjes, 24 uur) zonder aparte sectie *met problemen*, en openklappen over de volle breedte met een veeranimatie zoals op een Mac.
 - **1.174.0**: **TrueNAS SCALE** beter ondersteund: meldingen, taken, apps, update en temperaturen als checks, kwetsbaarheden scannen, en het IDS mag er blokkeren als je dat aanzet.
 - **1.173.0**: **AI-advies** met **verbruik, tegoed en maandbudget**, en extra's als geheugen, niet twee keer betalen, terugvallen op Ollama, een weekoverzicht en een oordeel bij IDS-incidenten.
-- **1.172.0**: de **Live Attack Flow toont altijd tien aanvallers** (live eerst, aangevuld uit de top 10 van 24 uur) en een **banner bovenaan** zodra een server in isolatie gaat.
+
+## 1.177.0 – 2026-11-05
+### Nieuw
+- **Nieuwe check: Pad (traceroute)** (agent 1.78.0 nodig). Kies bij een server met de agent het doel (IP-adres of hostnaam) en eventueel de **tussenliggende apparaten** (bv. de IP-adressen van je switches). Elke 5 minuten meet de agent:
+  - per hop de vertraging (gemiddeld, beste, slechtste), jitter en verlies (`mtr`, anders `traceroute`);
+  - een ping naar de opgegeven switches, die zet RzMon op de juiste plek in het pad;
+  - de snelheid van de netwerkkaart, of de server virtueel draait (met de Proxmox-host als laag) en, met `lldpd`, de switch en poort.
+- **UniFi**: met je bestaande UniFi-koppeling (lokaal account) ziet RzMon op welke switchpoort de server zit, met welke snelheid, en de **uplink** van die switch (snelheid en fouten). Zakt een linksnelheid (bv. 1 Gbit → 100 Mbit), dan wordt de check WARNING.
+- **Doorvoer (iperf3)**: elk uur (of eens per dag, of alleen met de knop) meet de bron 3 seconden de echte doorvoer naar een andere server met de agent en iperf3 in hetzelfde netwerk (of die je kiest). Die server start daarvoor kort een ontvanger die na één meting stopt. Per server uit te zetten met **Mag doorvoertest ontvangen** (standaard aan).
+- **Melden**: te veel vertraging of verlies naar het doel (warning/critical), een tussenliggend apparaat dat niet reageert (CRITICAL), een gezakte linksnelheid, doorvoer onder een grens (WARNING). Verlies bij een tussenhop van je provider telt niet mee als de hops erna niets verliezen. Een gewijzigd pad kan als ℹ️ info.
+- **Popup**: het pad van links naar rechts (bron → virtueel → switch → apparaten → router → internet → doel) met bewegende lijnen, vertraging en snelheid; per hop een tabel met 24 uur; de doorvoer per meting met de knop **Doorvoer nu testen**; en **Wat er veranderde**. Op een telefoon loopt het pad van boven naar beneden.
+- **Monitoring → Netwerkpaden**: nieuw tabblad met kerncijfers, een **netwerkkaart** van alle paden samen, de tabel met paden (met bolletjes per hop) en de **switchpoorten uit UniFi**, de langzaamste eerst.
+- **In het kort bij de server**: in de servertegel (CC) een strookje *Pad → doel* met bolletjes per hop, de vertraging en de doorvoer; in de lijst met checks dezelfde bolletjes en wat er speelt.
+- Nieuwe agent 1.78.0 (pad-check en doorvoertest).
 
 ## 1.176.0 – 2026-11-05
 ### Nieuw

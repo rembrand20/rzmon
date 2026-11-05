@@ -29,6 +29,7 @@ final class Checks
                 'container' => self::container($check, $host),
                 'pve' => self::pve($check, $host),
                 'truenas' => self::truenas($check, $host),   // 1.174.0
+                'path' => Paths::check($check, $host),   // 1.177.0
                 'log' => self::logCheck($check, $host),
                 'command' => self::commandCheck($check, $host),
                 'ha' => $host['mode'] === 'agent' ? self::haCheck($check, $host)

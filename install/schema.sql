@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS hosts (
 CREATE TABLE IF NOT EXISTS checks (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     host_id         INT UNSIGNED NOT NULL,
-    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql','internet','domain','mqtt','vpn','truenas') NOT NULL,
+    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql','internet','domain','mqtt','vpn','truenas','path') NOT NULL,
     target          VARCHAR(255) NOT NULL DEFAULT '',
     name            VARCHAR(100) NOT NULL,
     warn_threshold  DOUBLE NULL,
@@ -221,7 +221,7 @@ INSERT IGNORE INTO settings (name, value) VALUES ('notify_fails', '1');
 INSERT IGNORE INTO settings (name, value) VALUES ('notify_lang', 'nl');
 
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
-ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql','internet','domain','mqtt','vpn','truenas') NOT NULL;
+ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql','internet','domain','mqtt','vpn','truenas','path') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;
 -- 1.157.4: de lijst met MQTT-topics werd bij veel checks groter dan 64 KB (TEXT)
 ALTER TABLE settings MODIFY value MEDIUMTEXT NULL;
@@ -1266,3 +1266,25 @@ INSERT IGNORE INTO settings (name, value) VALUES ('ai_on', '0'), ('ai_provider',
 -- 1.173.0: kosten (prijzen per model, tegoed, maandbudget) en de extra's, elk apart uit te zetten
 INSERT IGNORE INTO settings (name, value) VALUES ('ai_prices', '{}'), ('ai_credit', '{}'), ('ai_budget_month', '0'), ('ai_memory', '1'), ('ai_cache', '1'),
     ('ai_cache_hours', '6'), ('ai_fallback', '1'), ('ai_notify', '1'), ('ai_weekly', '1'), ('ai_weekly_day', '1'), ('ai_triage', '0'), ('ai_report', '1');
+
+-- 1.177.0: pad-check (agent 1.78.0): metingen per hop van de laatste dagen, en wat er veranderde
+CREATE TABLE IF NOT EXISTS path_runs (
+    id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    check_id INT UNSIGNED NOT NULL,
+    at       DATETIME NOT NULL,
+    kind     VARCHAR(4) NOT NULL DEFAULT 'run',   -- run (het pad) | tp (doorvoer)
+    data     TEXT NULL,
+    INDEX idx_pr_check (check_id, at),
+    INDEX idx_pr_at (at),
+    CONSTRAINT fk_pr_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS path_events (
+    id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    check_id INT UNSIGNED NOT NULL,
+    at       DATETIME NOT NULL,
+    kind     VARCHAR(10) NOT NULL,   -- path | speed | tp
+    text     VARCHAR(300) NOT NULL DEFAULT '',
+    INDEX idx_pe_check (check_id, id),
+    CONSTRAINT fk_pe_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('iperf_port', '5201');

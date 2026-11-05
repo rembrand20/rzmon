@@ -219,6 +219,54 @@ final class NetLinks
         return ['ok' => true, 'mode' => self::$u['mode'], 'clients' => $out, 'devices' => $aps];
     }
 
+    /**
+     * 1.177.0 (pad-check): switches met hun poorten (snelheid, fouten, uplink) en op welke poort elke bekabelde client zit.
+     * Alleen met een lokaal account (stat/device en stat/sta); met alleen een API-sleutel: null.
+     * @return array{switches: array<string, array<string, mixed>>, clients: array<string, array<string, mixed>>, error: ?string}|null
+     */
+    public static function unifiPorts(): ?array
+    {
+        if (!self::unifiOn() || !self::unifiAccount()) {
+            return null;
+        }
+        [$devs, $err] = self::unifiCall('stat/device');
+        if ($err) {
+            return ['switches' => [], 'clients' => [], 'error' => $err];
+        }
+        $sw = [];
+        foreach ((array) $devs as $d) {
+            $mac = NetScan::normMac($d['mac'] ?? null);
+            if (!$mac || !is_array($d['port_table'] ?? null)) {
+                continue;
+            }
+            $ports = [];
+            foreach ($d['port_table'] as $p) {
+                $idx = (int) ($p['port_idx'] ?? 0);
+                if ($idx <= 0) {
+                    continue;
+                }
+                $ports[$idx] = ['idx' => $idx, 'name' => mb_substr((string) ($p['name'] ?? ('Port ' . $idx)), 0, 60), 'up' => !empty($p['up']),
+                    'speed' => (int) ($p['speed'] ?? 0), 'full' => !empty($p['full_duplex']), 'uplink' => !empty($p['is_uplink']),
+                    'rx_err' => (int) ($p['rx_errors'] ?? 0), 'tx_err' => (int) ($p['tx_errors'] ?? 0)];
+            }
+            $up = is_array($d['uplink'] ?? null) ? $d['uplink'] : [];
+            $sw[$mac] = ['mac' => $mac, 'name' => mb_substr((string) ($d['name'] ?? $d['model'] ?? $mac), 0, 80), 'ip' => (string) ($d['ip'] ?? ''),
+                'model' => (string) ($d['model'] ?? ''), 'type' => (string) ($d['type'] ?? ''), 'ports' => $ports,
+                'uplink' => ['mac' => NetScan::normMac($up['uplink_mac'] ?? null), 'port' => (int) ($up['uplink_remote_port'] ?? 0),
+                    'local' => (int) ($up['port_idx'] ?? 0), 'speed' => (int) ($up['speed'] ?? 0), 'type' => (string) ($up['type'] ?? '')]];
+        }
+        [$sta] = self::unifiCall('stat/sta');
+        $cl = [];
+        foreach ((array) $sta as $c) {
+            $ip = (string) ($c['ip'] ?? '');
+            $swm = NetScan::normMac($c['sw_mac'] ?? null);
+            if ($ip !== '' && !empty($c['is_wired']) && $swm) {
+                $cl[$ip] = ['mac' => NetScan::normMac($c['mac'] ?? null), 'sw' => $swm, 'port' => (int) ($c['sw_port'] ?? 0), 'name' => (string) ($c['name'] ?? $c['hostname'] ?? '')];
+            }
+        }
+        return ['switches' => $sw, 'clients' => $cl, 'error' => null];
+    }
+
     /** Client blokkeren of weer toelaten op het wifi (op MAC-adres). @return true|string */
     public static function unifiBlock(string $mac, bool $block): true|string
     {

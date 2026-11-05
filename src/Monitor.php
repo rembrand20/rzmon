@@ -88,7 +88,7 @@ final class Monitor
     }
 
     /** Checks die op gegevens van de agent draaien (niet ping/poort/HTTP/certificaat: die doet RzMon zelf). */
-    private const AGENT_TYPES = ['disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'command', 'ha', 'pve', 'truenas'];
+    private const AGENT_TYPES = ['disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'command', 'ha', 'pve', 'truenas', 'path'];
 
     /**
      * Net binnengekomen rapport van een agent: de agent-checks van die server die aan de beurt zijn meteen
@@ -334,8 +334,8 @@ final class Monitor
         $age = time() - (int) strtotime($statusSince);
 
         // Status eerst opslaan: meldingen kijken (via hostUnreachable) naar de actuele status
-        q('UPDATE checks SET status = ?, last_value = ?, last_message = ?, last_checked = ?, fail_count = ?, status_streak = ?, suppressed_by = ?, problem_since = ?, status_since = ?, cstate = ? WHERE id = ?', [
-            $status, $res['value'], mb_substr($message, 0, 500), now(), $failCount, $streak, $upstream['id'] ?? null, $problemSince, $statusSince, $res['cstate'] ?? null, $check['id'],
+        q('UPDATE checks SET status = ?, last_value = ?, last_message = ?, last_checked = ?, fail_count = ?, status_streak = ?, suppressed_by = ?, problem_since = ?, status_since = ?, cstate = ?, path_sum = ? WHERE id = ?', [
+            $status, $res['value'], mb_substr($message, 0, 500), now(), $failCount, $streak, $upstream['id'] ?? null, $problemSince, $statusSince, $res['cstate'] ?? null, $res['path_sum'] ?? null, $check['id'],
         ]);
         // Statuswijziging bewaren (popup van de check), met de reden als er zeker geen melding uitgaat
         if ($status !== (int) $check['status']) {

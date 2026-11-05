@@ -226,6 +226,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="subtabs mon-tabs" role="tablist" aria-label="<?= th('Monitoring') ?>" id="mon-tabs">
         <button type="button" class="seg-btn active" data-msub="checks" role="tab" aria-selected="true">📋 <?= th('Checks') ?></button>
         <button type="button" class="seg-btn" data-msub="cont" role="tab" aria-selected="false">📦 <?= th('Containers') ?></button>
+        <button type="button" class="seg-btn" data-msub="paths" role="tab" aria-selected="false">🛣️ <?= th('Netwerkpaden') ?></button>
         <button type="button" class="seg-btn" data-msub="avail" role="tab" aria-selected="false">📶 <?= th('Beschikbaarheid') ?></button>
       </div>
       <div class="pg-tools" data-pgtools="mon"></div>
@@ -254,6 +255,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div>
       <div id="avail" class="avail" aria-live="polite"></div>
       <div id="containers" class="containers"></div>
+      <div id="netpaths" class="netpaths"></div>
     </section>
 
     <section id="tab-alerts" class="tab-panel" hidden>

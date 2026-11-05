@@ -62,6 +62,7 @@ const TYPES = {
   container: { label: L('Container (Podman/Docker)'), target: L('Container'), unit: null, ph: L('naam, of gebruiker/naam (rootless)'), help: L('Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.') },
   log:     { label: L('Logbestand (zoeken)'), target: L('Bron'), unit: 'treffers', warn: 5, crit: 20, ph: L('/var/log/secure, journal, journal:sshd of kernel'), help: L('De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.') },
   command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents → Commando-checks).') },
+  path:    { label: L('Pad (traceroute)'), target: L('Doel'), unit: 'ms', warn: 50, crit: 150, ph: L('IP-adres of hostnaam, bv. 1.1.1.1'), help: L('Meet vanaf deze server het pad naar een doel: vertraging, jitter en verlies per hop, de switches (UniFi en de apparaten die je hieronder opgeeft) en de doorvoer (iperf3) binnen je netwerk. Agent 1.78.0 of nieuwer, met mtr of traceroute.') },
   truenas: { label: L('TrueNAS'), target: null, unit: null, help: L('Via de agent op TrueNAS SCALE (agent 1.77.0 of nieuwer, als root): TrueNAS zelf uitgelezen met midclt, zonder API-sleutel.') },
   pve:     { label: L('Proxmox VE'), target: null, unit: null, help: L('Via de agent op een Proxmox-host (agent 1.61.0 of nieuwer, als root): de guests (VM\'s en containers), back-ups, opslag en ZFS. Kies hieronder wat je wilt bewaken.') },
   ha:      { label: L('Home Assistant'), target: null, unit: null, help: L('Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.') },
@@ -1092,6 +1093,7 @@ function init() {
   });
   initAvail();   // 1.169.0
   initContainers();   // 1.176.0
+  initNetPaths();   // 1.177.0
   $('#health').addEventListener('click', (e) => {
     const b = e.target.closest('[data-host]');
     if (b) return jumpToHost(b.dataset.host);
@@ -2047,10 +2049,12 @@ const avPct = (v) => (v === null || v === undefined ? '–' : dec(v >= 99.9995 ?
 const avMean = (a) => { const v = a.filter((x) => x !== null && x !== undefined); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
 
 function setMonSub(s) {
-  monSub = s === 'avail' || s === 'cont' ? s : 'checks';
+  monSub = s === 'avail' || s === 'cont' || s === 'paths' ? s : 'checks';
   $('#tab-dashboard').classList.toggle('mon-av', monSub === 'avail');
   $('#tab-dashboard').classList.toggle('mon-ct', monSub === 'cont');   // 1.176.0
   if (monSub === 'cont') ctLoad();
+  $('#tab-dashboard').classList.toggle('mon-np', monSub === 'paths');   // 1.177.0
+  if (monSub === 'paths') npLoad();
   $$('#mon-tabs [data-msub]').forEach((b) => { const on = b.dataset.msub === monSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   if (monSub === 'avail') avLoad();
 }
@@ -2421,6 +2425,242 @@ function initContainers() {
   });
 }
 
+// ============ 1.177.0: pad-check (popup, Monitoring → Netwerkpaden, summier bij de server) ============
+const NP_ICON = {
+  src: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+  virt: '<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M8 20h8M12 16v4M8 9l2 2-2 2M13 13h3"/>',
+  switch: '<rect x="3" y="8" width="18" height="8" rx="2"/><path d="M7 12h.01M10 12h.01M13 12h.01M16 12h.01"/>',
+  via: '<rect x="3" y="8" width="18" height="8" rx="2"/><path d="M7 12h.01M10 12h.01M13 12h.01M16 12h.01"/>',
+  router: '<rect x="4" y="14" width="16" height="6" rx="2"/><path d="M8 17h.01M12 11V4M9 7l3-3 3 3"/>',
+  hop: '<rect x="4" y="14" width="16" height="6" rx="2"/><path d="M8 17h.01M12 11V4M9 7l3-3 3 3"/>',
+  ext: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  hidden: '<circle cx="12" cy="12" r="9"/><path d="M9 12h6"/>',
+  dst: '<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2"/>',
+};
+const npSvg = (k, s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NP_ICON[k] || NP_ICON.hop}</svg>`;
+const NP_KIND = () => ({ src: L('BRON'), virt: L('VIRTUEEL'), switch: L('SWITCH'), via: L('APPARAAT'), router: L('ROUTER'), hop: L('INTERN'), ext: L('EXTERN'), hidden: L('GEEN ANTWOORD'), dst: L('DOEL') });
+const npMs = (v) => (v === null || v === undefined ? '–' : dec(String(v >= 100 ? Math.round(v) : Math.round(v * 10) / 10)) + ' ms');
+const npSpeed = (m) => (!m ? '' : m >= 1000 ? dec(String(Math.round(m / 100) / 10)) + ' Gbit' : m + ' Mbit');
+const npMbit = (m) => (m === null || m === undefined ? '' : m >= 1000 ? dec(String(Math.round(m / 100) / 10)) + ' Gbit/s' : Math.round(m) + ' Mbit/s');
+
+/** Het pad van links naar rechts: knooppunten met een icoon, lijnen met pulsjes, vertraging erboven en snelheid eronder */
+function npStrip(m) {
+  if (!m || !m.nodes) return `<p class="muted small">${L('Nog geen meting.')}</p>`;
+  const kinds = NP_KIND();
+  const tp = m.tp && m.tp.mbit ? m.tp : null;
+  const list = [];
+  m.nodes.forEach((n) => {
+    if (n.kind === 'ext' || n.kind === 'hidden') {
+      const last = list[list.length - 1];
+      if (last && last.kind === 'net') { last.count++; last.avg = n.avg ?? last.avg; if (n.st === 'w' || n.st === 'c') last.st = n.st; return; }
+      list.push({ kind: 'net', name: L('Internet'), ip: n.ip, avg: n.avg, st: n.st === 'w' || n.st === 'c' ? n.st : 'x', count: 1 });
+      return;
+    }
+    list.push(n);
+  });
+  list.forEach((n) => { if (n.kind === 'net') { n.kind = 'ext'; n.ip = L('{n} hops', { n: n.count }); } });
+  const parts = list.map((n, i) => {
+    const next = list[i + 1];
+    const sub = n.kind === 'src' ? [n.dev, npSpeed(n.speed)].filter(Boolean).join(' · ')
+      : n.kind === 'switch' ? [n.via === 'unifi' ? 'UniFi' : n.via === 'lldp' ? 'LLDP' : '', n.port ? L('poort {p}', { p: n.port }) : ''].filter(Boolean).join(' · ')
+      : n.kind === 'virt' ? n.ip : n.ip && n.ip !== n.name ? n.ip : '';
+    let link = '';
+    if (next) {
+      const ms = next.avg !== null && next.avg !== undefined ? npMs(next.avg) : '';
+      // Snelheid onder de lijn: linksnelheid (UniFi of de netwerkkaart) en, binnen je netwerk, de gemeten doorvoer
+      let low = '', how = '';
+      if (n.kind === 'switch' && n.uplink_speed) { low = npSpeed(n.uplink_speed); how = L('uplink poort {p}', { p: n.uplink_port || '?' }); }
+      else if (next.kind === 'switch' && next.speed) { low = npSpeed(next.speed); how = L('poort {p}', { p: next.port }); }
+      else if (n.kind === 'src' && n.speed) { low = npSpeed(n.speed); how = n.dev || ''; }
+      if (tp && (next.kind === 'switch' || (i === 0 && !list.some((x) => x.kind === 'switch')))) { low = npMbit(tp.mbit); how = 'iperf3' + (tp.name ? ' → ' + tp.name : ''); }
+      link = `<div class="np-link" data-st="${next.st}"><span class="np-lt">${ms}</span><span class="np-wire"><i></i><i></i></span><span class="np-lb">${esc(low)}</span><span class="np-lh">${esc(how)}</span></div>`;
+    }
+    return `<div class="np-node k-${n.kind}" data-st="${n.st}" title="${esc(n.ip || '')}"><span class="np-ic">${npSvg(n.kind)}</span><b>${esc(n.name || '?')}</b>${sub ? `<span class="mono">${esc(sub)}</span>` : ''}<span class="np-tag">${kinds[n.kind] || ''}</span></div>${link}`;
+  }).join('');
+  return `<div class="np-strip" data-motion="${afMotion(null)}">${parts}</div>`;
+}
+
+/** Bolletjes per hop (uit de samenvatting van de check), voor tegels en rijen */
+function npDots(code) {
+  return `<span class="np-dots" aria-hidden="true">${String(code || '').split('').map((ch, i, a) => `<i class="d-${ch}"></i>${i < a.length - 1 ? `<b class="d-${a[i + 1]}"></b>` : ''}`).join('')}</span>`;
+}
+const pathSum = (c) => { if (!c || c.type !== 'path' || !c.path_sum) return null; try { return JSON.parse(c.path_sum); } catch { return null; } };
+/** In de lijst met checks: bolletjes + kort wat er speelt */
+function pathMini(c) {
+  const p = pathSum(c);
+  if (!p) return '';
+  return `<span class="np-mini">${npDots(p.d)}<small>${esc([p.w, p.ms !== null ? npMs(p.ms) : '', p.mb ? npMbit(p.mb) : ''].filter(Boolean).join(' · '))}</small></span>`;
+}
+/** In de servertegel: strookje "Pad → doel" */
+function pathTileStrip(h) {
+  const list = h.checks.filter((c) => +c.enabled && c.type === 'path' && pathSum(c)).slice(0, 2);
+  return list.map((c) => {
+    const p = pathSum(c);
+    return `<div class="np-tile s${c.status}" data-cid="${c.id}"><span class="np-th"><span>${L('PAD')} → ${esc(p.t || c.target)}</span><b class="mono">${p.ms !== null ? npMs(p.ms) : '–'}</b></span>${npDots(p.d)}
+      <span class="np-th"><span>${L('{n} hops', { n: p.h })}</span>${p.mb ? `<b class="mono">${npMbit(p.mb)}</b>` : ''}</span></div>`;
+  }).join('');
+}
+
+/** De popup van een pad-check: het pad, per hop een tabel met 24 uur, doorvoer per uur en wat er veranderde */
+async function npLoadInfo(id) {
+  const el = $('#ci2-path');
+  if (!el) return;
+  let r;
+  try { r = await api('path_info', null, { id }); } catch (ex) { el.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const m = r.model;
+  if (!m) {
+    el.innerHTML = `<section class="ci2-sec"><h4 class="ci2-sh">${L('Het pad')}</h4><p class="muted small">${L('Wacht op de eerste meting. Nodig op {h}: de agent 1.78.0 of nieuwer, en mtr of traceroute.', { h: esc(r.check.host) })}
+      ${r.caps.length ? ' ' + L('Gevonden: {l}', { l: esc(r.caps.join(', ')) }) : ''}</p></section>`;
+    return;
+  }
+  const kinds = NP_KIND();
+  const segs = (b) => `<span class="tl24">${(b || Array(24).fill(null)).map((s) => `<i class="${s === null || s === undefined ? 'n' : 's' + s}"></i>`).join('')}</span>`;
+  const rows = m.nodes.map((n, i) => {
+    const bar = n.kind === 'dst' ? r.bars.dst : r.bars[n.ip];
+    const link = n.kind === 'switch' ? [n.speed ? L('poort {p}: {s}', { p: n.port, s: npSpeed(n.speed) }) : '', n.uplink_speed ? L('uplink: {s}', { s: npSpeed(n.uplink_speed) }) : ''].filter(Boolean).join(' · ')
+      : n.kind === 'src' ? (n.speed ? `${esc(n.dev || '')} ${npSpeed(n.speed)}` : '–') : '–';
+    return `<div class="np-tr" data-st="${n.st}"><b class="mono">${n.n ?? (n.kind === 'src' ? 0 : '·')}</b>
+      <span class="np-tn"><b>${esc(n.name || '?')}</b><span class="mono">${esc(n.ip && n.ip !== n.name ? n.ip : '')}</span></span>
+      <span><span class="np-tag k-${n.kind}">${kinds[n.kind] || ''}</span></span>
+      <b class="mono">${npMs(n.avg)}</b><span class="mono small">${n.best !== null && n.best !== undefined ? `${npMs(n.best)} / ${npMs(n.worst)}` : '–'}</span>
+      <span class="mono small">${n.jit !== null && n.jit !== undefined ? dec(String(n.jit)) : '–'}</span>
+      <span class="mono small ${n.loss >= (m.opts.loss_warn || 5) && n.kind !== 'ext' ? 'ct-bad' : ''}">${n.loss !== null && n.loss !== undefined ? Math.round(n.loss) + '%' : '–'}</span>
+      <span class="mono small">${esc(link)}</span>${segs(bar)}</div>`;
+  }).join('');
+  const tp = m.tp;
+  const th = r.tp_hist || [];
+  const maxMb = Math.max(1, ...th.map((x) => x.mbit));
+  const bars = th.length ? `<div class="np-bars" role="img" aria-label="${esc(L('Doorvoer per meting, laatste 24 uur'))}">${th.slice(-24).map((x) => `<span style="height:${Math.max(4, Math.round(x.mbit / maxMb * 100))}%" class="${x.mbit < (m.opts.tp_min || 200) ? 'low' : ''}" title="${esc(npMbit(x.mbit))}"></span>`).join('')}</div>` : '';
+  const tpText = !m.opts.tp ? L('Doorvoertest staat uit.')
+    : m.tp_busy ? L('Doorvoertest loopt (de ontvanger op het doel start bij de volgende ronde van de agent)…')
+    : tp && tp.mbit ? L('Laatst gemeten: {m} naar {t} ({w}).', { m: npMbit(tp.mbit), t: esc(tp.name || tp.to || '?'), w: esc(whenText(new Date(tp.at * 1000).toISOString().slice(0, 19).replace('T', ' '))) })
+    : tp && tp.err ? `<span class="ct-bad">${esc(tp.err)}</span>` : L('Nog niet gemeten.');
+  const ev = (r.events || []).map((e) => `<li class="k-${esc(e.kind)}"><i class="ci2-dot"></i><div><span class="mono muted small">${esc(whenText(e.at))}</span><br>${esc(e.text)}</div></li>`).join('');
+  el.innerHTML = `<section class="ci2-sec np-sec"><h4 class="ci2-sh">${L('Het pad')} <span class="muted small">${esc(m.tool || '')} · ${L('{n} hops', { n: m.hops })} · ${L('{n} intern', { n: m.intern })}${m.unifi && m.unifi.error ? ' · UniFi: ' + esc(m.unifi.error) : m.ul ? ' · UniFi' : ''}</span></h4>${npStrip(m)}</section>
+    <section class="ci2-sec"><h4 class="ci2-sh">${L('Per hop')}</h4>
+      <div class="np-tbl"><div class="np-tr np-th"><span>#</span><span>${L('Apparaat')}</span><span>${L('Soort')}</span><span>${L('Vertraging')}</span><span>${L('Beste / slechtste')}</span><span>Jitter</span><span>${L('Verlies')}</span><span>${L('Link')}</span><span>${L('24 uur')}</span></div>${rows}</div>
+      <p class="muted small">${L('Verlies op een tussenhop van je provider telt niet als storing zolang de hops erna niets verliezen: die routers beantwoorden pings met lage voorrang.')}</p></section>
+    <div class="ci2-g2"><section class="ci2-sec"><h4 class="ci2-sh">${L('Doorvoer (iperf3)')}</h4>${bars}<p class="small">${tpText}</p>
+        ${m.opts.tp && !m.tp_busy ? `<button type="button" class="btn small-btn need-user" data-np-tp="${r.check.id}">${L('Doorvoer nu testen')}</button>` : ''}</section>
+      <section class="ci2-sec"><h4 class="ci2-sh">${L('Wat er veranderde')}</h4>${ev ? `<ol class="ci2-tl">${ev}</ol>` : `<p class="muted small">${L('Nog niets veranderd.')}</p>`}</section></div>`;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('#modal [data-np-tp]');
+  if (!b) return;
+  b.disabled = true;
+  try { const r = await api('path_tp_now', { id: +b.dataset.npTp }); toast(L('Doorvoertest aangevraagd naar {t}; de uitkomst staat er binnen een minuut of twee', { t: r.to })); npLoadInfo(+b.dataset.npTp); } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
+});
+
+// ---- Monitoring → Netwerkpaden ----
+let npData = null, npAt = 0, npBusy = false;
+async function npLoad(force = false) {
+  if (!force && npData && Date.now() - npAt < 30000) return renderNetPaths();
+  if (npBusy) return;
+  npBusy = true;
+  if (!npData) $('#netpaths').innerHTML = `<p class="muted">${L('laden…')}</p>`;
+  try { npData = await api('paths'); npAt = Date.now(); } catch (ex) { $('#netpaths').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; } finally { npBusy = false; }
+  renderNetPaths();
+}
+
+/** Alle paden samen als kaart: kolommen bron → virtueel → switch → intern → internet → doel */
+function npMap(paths) {
+  const col = { src: 0, virt: 1, switch: 2, via: 2, router: 3, hop: 3, ext: 4, hidden: 4, dst: 5 };
+  const nodes = new Map(), edges = new Map();
+  const RANK = { c: 4, w: 3, h: 1, x: 1, g: 0, v: 0, d: 0 };
+  paths.forEach((p) => {
+    if (!p.model) return;
+    let prev = null;
+    p.model.nodes.forEach((n) => {
+      const k = n.kind === 'src' ? 'h' + p.host_id : n.kind === 'virt' ? 'v' + n.name : (n.kind === 'ext' || n.kind === 'hidden') ? 'net' : n.kind === 'dst' ? 'd' + n.ip : 'i' + (n.ip || n.name);
+      if (prev === k) return;
+      const cur = nodes.get(k);
+      const st = n.kind === 'ext' || n.kind === 'hidden' ? 'x' : n.st;
+      if (!cur) nodes.set(k, { k, col: col[n.kind] ?? 3, name: n.kind === 'ext' || n.kind === 'hidden' ? 'Internet' : n.name, ip: n.kind === 'ext' ? '' : n.ip, kind: n.kind === 'hidden' ? 'ext' : n.kind, st });
+      else if (RANK[st] > RANK[cur.st]) cur.st = st;
+      if (prev) {
+        const ek = prev + '>' + k;
+        const e0 = edges.get(ek);
+        const ms = n.avg !== null && n.avg !== undefined ? n.avg : null;
+        const est = n.kind === 'ext' || n.kind === 'hidden' || (n.kind === 'dst' && prev === 'net' && n.st === 'g') ? 'x' : n.st;
+        if (!e0) edges.set(ek, { a: prev, b: k, st: est, ms, n: 1 });
+        else { e0.n++; if (RANK[n.st] > RANK[e0.st]) e0.st = n.st; }
+      }
+      prev = k;
+    });
+  });
+  const byCol = [[], [], [], [], [], []];
+  nodes.forEach((n) => byCol[n.col].push(n));
+  const H = Math.max(300, Math.max(...byCol.map((c) => c.length)) * 92 + 40);
+  const used = byCol.map((c, i) => (c.length ? i : -1)).filter((i) => i >= 0);
+  byCol.forEach((list, ci) => list.forEach((n, i) => {
+    n.x = 60 + (used.indexOf(ci) / Math.max(1, used.length - 1)) * 880;
+    n.y = (i + 1) * (H / (list.length + 1));
+  }));
+  const col2 = { g: 'var(--ok)', w: 'var(--warn)', c: 'var(--crit)', x: 'var(--unknown)', h: 'var(--unknown)', v: 'var(--primary)', d: 'var(--primary)' };
+  const lines = [...edges.values()].map((e) => {
+    const a = nodes.get(e.a), b = nodes.get(e.b), m = (a.x + b.x) / 2;
+    const d = `M${a.x},${a.y} C${m},${a.y} ${m},${b.y} ${b.x},${b.y}`;
+    return `<path d="${d}" class="np-mbg" style="stroke:${col2[e.st] || col2.g}"/><path d="${d}" class="np-mfl" style="stroke:${col2[e.st] || col2.g}"/>`;
+  }).join('');
+  const labels = [...edges.values()].filter((e) => e.ms !== null).map((e) => {
+    const a = nodes.get(e.a), b = nodes.get(e.b);
+    return `<span class="np-ml" data-st="${e.st}" style="left:${((a.x + b.x) / 2 / 10).toFixed(1)}%;top:${((a.y + b.y) / 2).toFixed(0)}px">${npMs(e.ms)}</span>`;
+  }).join('');
+  const nd = [...nodes.values()].map((n) => `<div class="np-mn k-${n.kind}" data-st="${n.st}" style="left:${(n.x / 10).toFixed(1)}%;top:${n.y.toFixed(0)}px"><span class="np-ic">${npSvg(n.kind, 20)}</span><b>${esc(n.name || '?')}</b>${n.ip && n.ip !== n.name ? `<span class="mono">${esc(n.ip)}</span>` : ''}</div>`).join('');
+  return `<div class="np-map" style="height:${H}px"><svg viewBox="0 0 1000 ${H}" preserveAspectRatio="none" aria-hidden="true">${lines}</svg>${labels}${nd}</div>`;
+}
+
+function renderNetPaths() {
+  if (!npData) return;
+  const el = $('#netpaths');
+  const ps = npData.paths;
+  const bad = ps.filter((p) => +p.status === 1 || +p.status === 2).length;
+  const tps = ps.map((p) => p.model && p.model.tp && p.model.tp.mbit).filter(Boolean);
+  const minTp = tps.length ? Math.min(...tps) : null;
+  const inet = ps.map((p) => p.model && p.model.nodes && p.model.nodes[p.model.nodes.length - 1]).filter((n) => n && n.avg !== null && n.avg !== undefined && !n.intern);
+  const avg = inet.length ? inet.reduce((s, n) => s + n.avg, 0) / inet.length : null;
+  const slowPorts = (npData.ports || []).filter((p) => p.speed && p.speed < 1000).length;
+  if (!ps.length) {
+    el.innerHTML = `<div class="av-hint">${L('Nog geen pad-checks. Voeg er een toe bij een server met de agent: ＋ Check → Pad (traceroute), met het doel (bijvoorbeeld 1.1.1.1) en eventueel je switches als tussenliggende apparaten.')}</div>`;
+    return;
+  }
+  const rows = ps.map((p) => {
+    const m = p.model;
+    const code = m ? m.nodes.map((n) => (n.kind === 'dst' ? (n.st === 'g' ? 'd' : n.st) : n.st)).join('') : '';
+    const dst = m ? m.nodes[m.nodes.length - 1] : null;
+    return `<div class="np-pr s${p.status}" data-cid="${p.id}" role="button" tabindex="0"><span class="np-src"><span><b>${esc(p.host)}</b> <span class="muted">→</span> <span class="mono">${esc(p.target)}</span></span><small class="muted">${esc(p.name)}</small></span>
+      <span><span class="ax-lbl s${p.status === 0 ? 0 : p.status}" style="${p.status === 0 ? 'color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 10%,transparent)' : ''}">${STATUS[+p.status]}</span></span>
+      <span class="mono">${m ? m.hops : '–'}</span><b class="mono">${dst ? npMs(dst.avg) : '–'}</b><span class="mono ${m && m.tp && m.tp.mbit && m.tp.mbit < (m.opts.tp_min || 200) ? 'ct-bad' : ''}">${m && m.tp && m.tp.mbit ? npMbit(m.tp.mbit) : '–'}</span>
+      <span>${npDots(code)}</span><span>${checkTimeline({ id: p.id })}</span></div>`;
+  }).join('');
+  const ports = (npData.ports || []).slice(0, 14).map((p) => `<div class="np-port${p.speed && p.speed < 1000 ? ' slow' : ''}"><span><b>${esc(p.switch)} · ${L('poort {p}', { p: p.port })}</b><br><span class="muted small">${esc(p.to || p.name)}</span></span>
+    <span class="r"><b class="mono">${npSpeed(p.speed) || '–'}</b><br><span class="mono small muted">${p.full ? L('vol-duplex') : L('half-duplex')}${p.errors ? ' · ' + L('{n} fouten', { n: p.errors }) : ''}</span></span></div>`).join('');
+  el.dataset.motion = String(afMotion(null));
+  el.innerHTML = `<div class="np-kpis">
+      <div class="ct-k"><span class="ct-kl">${L('Paden')}</span><b class="ct-kv">${ps.length}</b><span class="small muted">${L('{a} in orde · {b} met een probleem', { a: ps.length - bad, b: bad })}</span></div>
+      <div class="ct-k"><span class="ct-kl">${L('Naar internet')}</span><b class="ct-kv mono">${avg !== null ? npMs(avg) : '–'}</b><span class="small muted">${L('gemiddeld')}</span></div>
+      <div class="ct-k${minTp !== null && minTp < 200 ? ' ct-k-fail on' : ''}"><span class="ct-kl">${L('Laagste doorvoer')}</span><b class="ct-kv mono">${minTp !== null ? npMbit(minTp) : '–'}</b><span class="small muted">iperf3</span></div>
+      <div class="ct-k"><span class="ct-kl">${L('Links (UniFi)')}</span><b class="ct-kv">${npData.unifi === 'ok' ? (npData.ports || []).length : '–'}</b><span class="small muted">${npData.unifi === 'ok' ? L('{n} langzamer dan 1 Gbit', { n: slowPorts }) : npData.unifi === 'off' ? L('UniFi niet gekoppeld (met account)') : esc(npData.unifi)}</span></div>
+      <div class="ct-k"><span class="ct-kl">${L('Pad gewijzigd')}</span><b class="ct-kv">${npData.changes7}×</b><span class="small muted">${L('in 7 dagen')}</span></div>
+    </div>
+    <section class="ct-grp np-mapsec"><div class="ct-gh"><span class="ct-gi">${npSvg('ext', 18)}</span><b>${L('Netwerkkaart')}</b><span class="small muted">${L('alle paden samen · kleur = status · stippel = virtueel of buiten je netwerk')}</span></div>${npMap(ps)}</section>
+    <div class="np-cols">
+      <section class="ct-grp"><div class="ct-gh"><b>${L('Paden')}</b></div>
+        <div class="np-pr np-th"><span>${L('Bron → doel')}</span><span>${L('Status')}</span><span>${L('Hops')}</span><span>${L('Vertraging')}</span><span>${L('Doorvoer')}</span><span>${L('Pad')}</span><span>${L('24 uur')}</span></div>${rows}</section>
+      <section class="ct-grp"><div class="ct-gh"><b>${L('Links (UniFi)')}</b><span class="small muted">${L('langzaamste eerst')}</span></div>${ports || `<p class="muted small" style="padding:.8rem 1rem">${npData.unifi === 'ok' ? L('Geen poorten gevonden.') : L('Koppel UniFi met een lokaal account (Instellingen → Koppelingen) om de switchpoorten en hun snelheid te zien.')}</p>`}</section>
+    </div>`;
+}
+function initNetPaths() {
+  $('#netpaths').addEventListener('click', (e) => {
+    const r = e.target.closest('[data-cid]');
+    if (r) checkInfo(+r.dataset.cid);
+  });
+  $('#netpaths').addEventListener('keydown', (e) => {
+    const r = e.target.closest('[data-cid]');
+    if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); checkInfo(+r.dataset.cid); }
+  });
+}
+
 // ============ 1.171.0: AI-advies (staat AI uit, dan is state.ai null en is er nergens iets van te zien) ============
 const aiOn = () => !!(state && state.ai);
 const aiHas = (kind, ref) => aiOn() && !!(state.ai.have || {})[`${kind}:${ref}`];
@@ -2719,6 +2959,7 @@ function renderNow() {
   renderIsoBanner();
   if (monSub === 'avail') avLoad();   // 1.169.0
   if (monSub === 'cont') ctLoad();   // 1.176.0 (elke 30 s opnieuw)
+  if (monSub === 'paths') npLoad();   // 1.177.0
   const banner = $('#maint-banner');
   banner.hidden = !state.maintenance;
   if (state.maintenance) {
@@ -3706,7 +3947,7 @@ function ccHostCard(h) {
     return `<div class="ccx-row s${s}${c.acked_at ? ' acked' : ''}" data-cid="${c.id}" style="--i:${Math.min(i, 12)}" role="button" tabindex="0" title="${esc(L('Klik voor de details van deze check'))}">
       <span class="ccx-st"><i></i>${esc(ccWord(c))}${c.acked_at ? ` <span class="ccx-ack" title="${esc(L('Bevestigd'))}">✔</span>` : ''}</span>
       <span class="ccx-cn"><span class="ccx-ti" aria-hidden="true">${checkIcon(c)}</span><span><b>${esc(c.name)}</b><small>${esc(typeOf(c).label || c.type)}</small></span></span>
-      <b class="ccx-v" data-flash>${ctOf(c) || (un ? `${v}<small>${esc(un)}</small>` : '')}</b>
+      <b class="ccx-v" data-flash>${ctOf(c) || pathMini(c) || (un ? `${v}<small>${esc(un)}</small>` : '')}</b>
       <span class="ccx-msg">${esc(msg.slice(0, 220)) || '<span class="muted">–</span>'}</span>
       <span class="ccx-tl">${checkTimeline(c)}</span>
       <span class="ccx-act">${aiBtn('check', c.id)}${!c.acked_at ? `<button type="button" class="btn small-btn need-user" data-act="ack" data-id="${c.id}">✔ ${L('Bevestig')}</button>` : ''}</span>
@@ -3729,6 +3970,7 @@ function ccHostCard(h) {
         ${ccRing(okN, on.length, st)}</div>
       <div class="ccx-chips"><span class="ccx-pill">${esc(p.sum.text)}</span><span class="ccx-kind">${esc(kind)}${ver}</span></div>
       ${sparks ? `<div class="ccx-sps">${sparks}</div>` : ''}
+      ${pathTileStrip(h)}
       <div class="ccx-foot"><span class="ccx-foot-h"><small>${L('24 uur')} · ${up}</small><small>${last}</small></span>${hostTimeline(h)}</div>
       ${h.checks.some(isProblem) ? `<div class="ccx-tile-ai">${aiBtn('bundle', h.id)}</div>` : ''}
     </div>
@@ -3966,7 +4208,7 @@ function checkLines(h, large) {
 
 function checkLine(c, large) {
   const b = checkBits(c);
-  const value = ctOf(c) ? ctOf(c) : b.pctVal !== null
+  const value = ctOf(c) ? ctOf(c) : pathMini(c) ? pathMini(c) : b.pctVal !== null
     ? `<span class="cl-meter" title="${fmt(b.pctVal, '%')}"><span class="bar"><i style="width:${b.pctVal}%"></i>${b.ticks}</span><b data-flash>${Math.round(b.pctVal)}%</b></span>`
     : b.num ? `<span class="cl-num" data-flash>${b.num}</span>` : '<span class="muted">–</span>';
   return `
@@ -3983,6 +4225,13 @@ function checkLine(c, large) {
 }
 
 function findHost(id) { return state.hosts.find((h) => +h.id === +id); }
+/** 1.177.0: keuzelijst voor tussenliggende apparaten (servers en apparaten uit de netwerkscan met een IP-adres) */
+function pathViaOptions(h) {
+  const m = new Map();
+  state.hosts.forEach((x) => { if (x.address && +x.id !== +h.id) m.set(x.address, x.name); });
+  ((typeof netData !== 'undefined' && netData && netData.devices) || []).forEach((x) => { if (x.ip && !m.has(x.ip)) m.set(x.ip, x.name || x.hostname || x.ip); });
+  return [...m.entries()].map(([ip, n]) => `<option value="${esc(ip)}">${esc(n)}</option>`).join('');
+}
 /** 1.176.0: label Running/Failed/Stopped/Paused bij een container-check (leeg bij andere checks) */
 const ctOf = (c) => (c && c.type === 'container' && c.cstate && (!c.metric || c.metric === 'status') ? ctLabel(c.cstate) : '');
 function findCheck(id) {
@@ -4227,7 +4476,8 @@ async function checkInfo(id, live = false, more = null) {
   }).join('');
   const moreBtn = (r.changes_total || 0) > r.changes.length ? `<button type="button" class="btn small-btn ci2-more" data-ci-more="${c.id}">＋ ${L('{n} eerdere tonen', { n: Math.min(25, r.changes_total) - r.changes.length })}</button>` : '';
   const tlSec = sec(L('Statuswijzigingen'), tl ? `<ol class="ci2-tl">${tl}</ol>${moreBtn}` : `<p class="muted small">${L('Nog geen statuswijzigingen bewaard.')}</p>`);
-  const ciBody = `<div class="ci2" data-motion="${afMotion(null)}">${hero}${chart}
+  const pathSec = c.type === 'path' ? `<div id="ci2-path"><p class="muted small">${L('laden…')}</p></div>` : '';   // 1.177.0
+  const ciBody = `<div class="ci2" data-motion="${afMotion(null)}">${hero}${pathSec}${chart}
       <div class="ci2-g2">${avail}${details}</div>
       <div class="ci2-g2">${melden}${samen}</div>
       ${aiSec}
@@ -4236,6 +4486,7 @@ async function checkInfo(id, live = false, more = null) {
     </div>`;
   const title = `${ST_ICON[st]} ${c.name} – ${c.host_name}`;
   if (unit) setTimeout(() => ciChart(c, t), 0);
+  if (c.type === 'path') setTimeout(() => npLoadInfo(c.id), 0);
   if (live) {
     $('#modal-title').textContent = title;
     withMorph(() => { $('#modal-body').innerHTML = ciBody; });
@@ -4705,6 +4956,7 @@ function hostForm(h, preset = null) {
         </select>
         <span class="hint">${L('Bereikbaar via deze server, bv. een router, switch, VPN of hypervisor. Is die onbereikbaar, dan krijg je één melding voor die server en niet ook voor deze.')}</span>
       </label>
+      <label class="switch" ${h.mode === 'agent' || isNew ? '' : 'hidden'} id="iperf-ok-wrap"><input type="checkbox" name="iperf_ok" ${+(h.iperf_ok ?? 1) ? 'checked' : ''}><span></span> ${L('Mag doorvoertest ontvangen (iperf3)')} <span class="hint">${L('voor de pad-check van een andere server; de agent start dan kort een ontvanger die na één meting stopt')}</span></label>
       ${snmpHostFields(h.snmp)}
       <details class="notify-own" id="fim-host-wrap" ${h.mode === 'agent' ? '' : 'hidden'}>
         <summary>📁 ${L('Bestanden bewaken (IDS)')}: <span id="fim-host-label">${L('laden…')}</span></summary>
@@ -4728,7 +4980,7 @@ function hostForm(h, preset = null) {
     ],
     onSubmit: async (d) => {
       const snmp = snmpData(d);
-      const r = await api('host_save', { ...d, id: h.id, enabled: !!d.enabled, add_ping: !!d.add_ping, snmp, ...(fimHost ? { ids_fim: fimHost.get() } : {}) });
+      const r = await api('host_save', { ...d, id: h.id, enabled: !!d.enabled, add_ping: !!d.add_ping, iperf_ok: !!d.iperf_ok, snmp, ...(fimHost ? { ids_fim: fimHost.get() } : {}) });
       // Sjablonen koppelen of loskoppelen (de checks van een losgekoppeld sjabloon blijven staan)
       const had = hostTpls(h);
       for (const cb of $$('#modal-body [data-tpl]')) {
@@ -5043,7 +5295,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const quietOwn = quietOf(c);
   const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
   const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'dns', 'ntp', 'mysql', 'domain', 'mqtt', 'vpn', 'snmp', 'heartbeat', 'internet']
-    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command', 'pve', 'truenas', 'smart', 'ups'].includes(k))
+    : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command', 'pve', 'truenas', 'smart', 'ups', 'path'].includes(k))
       .filter((k) => k !== 'pve' || isPveHost(h) || c?.type === 'pve')
       .filter((k) => k !== 'truenas' || isTnHost(h) || c?.type === 'truenas')   // 1.174.0
       .filter((k) => k !== 'reboot' || h.mode !== 'remote' || c?.type === 'reboot')
@@ -5073,6 +5325,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       d.hb_ext = !!d.hb_ext;
       d.hb_new_token = !!d.hb_new_token;
     }
+    if (d.type === 'path') ['tp', 'link', 'hop', 'change'].forEach((k) => { d[k] = !!d[k]; });   // 1.177.0
     return { ...d, res, notify, quiet, command, enabled: !!d.enabled, verify_ssl: !!d.verify_ssl, deep: !!d.deep, info_only: !!d.info_only };
   };
   const { form } = modal({
@@ -5090,6 +5343,28 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <select name="metric">${Object.entries(TN_METRICS).map(([k, m]) => `<option value="${k}" ${(c.type === 'truenas' ? c.metric || 'alerts' : 'alerts') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
         <span class="hint" id="tn-help"></span>
       </label>
+      <div id="path-wrap" hidden>
+        <label>${L('Tussenliggende apparaten')} <span class="hint">${L('(optioneel: switches en andere apparaten op de weg, IP-adressen met komma\'s)')}</span>
+          <input name="via" class="mono" list="path-via-list" value="${esc((opts.via || []).join(', '))}" placeholder="${L('bv. 192.168.2.5, 192.168.2.10')}">
+          <datalist id="path-via-list">${pathViaOptions(h)}</datalist>
+          <span class="hint">${L('Een switch zie je niet in een traceroute; met zijn IP-adres pingt RzMon hem wel en zet hem op de juiste plek in het pad.')}</span>
+        </label>
+        <label class="switch"><input type="checkbox" name="tp" ${opts.tp === 0 ? '' : 'checked'}><span></span> ${L('Doorvoer meten met iperf3')}</label>
+        <div class="row2">
+          <label>${L('Doorvoer naar')}<select name="tp_host"><option value="0">${L('Automatisch (een server met iperf3 in hetzelfde netwerk)')}</option>
+            ${state.hosts.filter((x) => x.mode === 'agent' && +x.id !== +h.id).map((x) => `<option value="${x.id}" ${+opts.tp_host === +x.id ? 'selected' : ''}>${esc(x.name)}${+x.iperf_ok === 0 ? ' · ' + L('uit') : ''}</option>`).join('')}</select></label>
+          <label>${L('Hoe vaak')}<select name="tp_every">${[[3600, L('Elk uur (max. 3 s)')], [86400, L('Eens per dag')], [0, L('Alleen met de knop')]].map(([v, l]) => `<option value="${v}" ${+(opts.tp_every ?? 3600) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        </div>
+        <div class="row2">
+          <label>${L('Doorvoer onder')} <span class="hint">Mbit/s → WARNING</span><input name="tp_min" type="number" min="1" value="${esc(String(opts.tp_min ?? 200))}"></label>
+          <label>${L('Verlies naar het doel')} <span class="hint">${L('warning / critical in %')}</span>
+            <span style="display:flex;gap:.5rem"><input name="loss_warn" type="number" min="1" max="100" value="${esc(String(opts.loss_warn ?? 5))}" aria-label="warning %"><input name="loss_crit" type="number" min="1" max="100" value="${esc(String(opts.loss_crit ?? 20))}" aria-label="critical %"></span></label>
+        </div>
+        <label class="switch"><input type="checkbox" name="link" ${opts.link === 0 ? '' : 'checked'}><span></span> ${L('Melden als een linksnelheid zakt (bv. 1 Gbit → 100 Mbit)')}</label>
+        <label class="switch"><input type="checkbox" name="hop" ${opts.hop === 0 ? '' : 'checked'}><span></span> ${L('Melden als een tussenliggend apparaat niet reageert (CRITICAL)')}</label>
+        <label class="switch"><input type="checkbox" name="change" ${+opts.change ? 'checked' : ''}><span></span> ${L('Pad gewijzigd als ℹ️ info melden')}</label>
+        <p class="hint">${L('De vertraging naar het doel staat hierboven bij de drempels (ms). Op de server zijn mtr (of traceroute) en voor de doorvoer iperf3 nodig, ook op het apparaat waar naartoe gemeten wordt; dat start daar kort een ontvanger die na één meting stopt.')}</p>
+      </div>
       <label id="vpn-wrap" hidden>${L('Welke VPN')}
         <select name="metric">${Object.entries(VPN_METRICS).filter(([k]) => k !== 'wg' || h.mode === 'agent' || c.metric === 'wg').map(([k, m]) => `<option value="${k}" ${(c.type === 'vpn' ? c.metric || 'gluetun' : 'gluetun') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
         <span class="hint" id="vpn-help"></span>
@@ -5456,6 +5731,10 @@ function checkForm(c, h, preset = {}, tpl = null) {
     vpnSel.disabled = !isVpn;
     $('#tn-wrap').hidden = !isTn;
     tnSel.disabled = !isTn;
+    const isPath = typeSel.value === 'path';   // 1.177.0
+    $('#path-wrap').hidden = !isPath;
+    $$('#path-wrap input, #path-wrap select', form).forEach((el) => { el.disabled = !isPath; });
+    if (isPath && isNew && $('[name=interval_sec]', form).value === '60') $('[name=interval_sec]', form).value = '300';
     $('#tn-help').textContent = isTn ? TN_METRICS[tnSel.value].help : '';
     $('#vpn-help').textContent = isVpn ? VPN_METRICS[vpnSel.value].help : '';
     $('#glu-x-wrap').hidden = !(isVpn && vpnSel.value === 'gluetun');
@@ -11726,7 +12005,7 @@ const SYSINFO_ROWS = [
   [L('Onzichtbaar van buiten'), [['device_request', '⏳ ' + L('Geweigerd apparaat van buiten (wachtend)')], ['device_trust', '📱 ' + L('Apparaat toegestaan of ingetrokken')], ['passkey', '🔑 ' + L('Passkey aangemaakt of verwijderd')],
     ['stealth_door', '🚪 ' + L('Noodlink aangevraagd of gebruikt')]]],
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
-  [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')]]],
+  [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')], ['path_change', '🛣️ ' + L('Pad naar een doel gewijzigd (pad-check, als die dat mag)')]]],
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
     ['watchdog', '🐕 ' + L('Waakhond: RzMon was onbereikbaar of de checks stonden stil')]]],
   ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],

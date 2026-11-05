@@ -496,6 +496,7 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     // 1.107.0: zelf herstellen (services en containers) en de waakhond
     array_push($out, ...Heal::testLines($hostId, $secure));
     array_push($out, ...Ai::diagLines($hostId));   // 1.171.0: diagnose voor AI-advies (agent 1.76.0)
+    array_push($out, ...Paths::agentLines($hostId));   // 1.177.0: pad-checks en doorvoertests (agent 1.78.0)
     return $out ? implode("\n", $out) . "\n" : '';
 }
 
@@ -702,6 +703,12 @@ if ($action === 'agent') {
         } catch (Throwable $e) {
             error_log('RzMon: TrueNAS-gegevens niet verwerkt: ' . $e->getMessage());
         }
+    }
+    // 1.177.0 (agent 1.78.0): pad-checks, doorvoer en de iperf3-ontvanger
+    try {
+        Paths::fromAgent($host, $in);
+    } catch (Throwable $e) {
+        error_log('RzMon: pad-gegevens niet verwerkt: ' . $e->getMessage());
     }
     // Proxmox VE (agent 1.61.0): guests, opslag, ZFS, back-ups en taken
     if (isset($in['pve']) && is_array($in['pve'])) {
@@ -1195,10 +1202,10 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'home', 'state', 'availability', 'containers', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'home', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1208,7 +1215,7 @@ $isAdmin = has_role($user, 'admin');
 I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
-if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'home', 'state', 'availability', 'containers', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
+if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'home', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
     'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview', 'truenas_overview', 'incidents', 'incident_info', 'report',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();
@@ -1369,7 +1376,7 @@ $confirm = static function (string $word) use ($user): void {
 $checkCols = static function (array $in, bool $dry = false) use ($user): array {   // $dry: alleen proberen (geen logboek)
             $type = $in['type'] ?? '';
             if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat', 'process', 'pve',
-                'dns', 'ntp', 'smart', 'ups', 'mysql', 'internet', 'domain', 'mqtt', 'vpn', 'truenas'], true)) {
+                'dns', 'ntp', 'smart', 'ups', 'mysql', 'internet', 'domain', 'mqtt', 'vpn', 'truenas', 'path'], true)) {
                 out(['error' => t('Ongeldig type')], 422);
             }
             // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -1638,6 +1645,26 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 $options = json_encode($hb, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 $hbNew = !empty($in['hb_new_token']);
             }
+            // 1.177.0: pad-check: doel, tussenliggende apparaten, doorvoertest en wanneer melden
+            if ($type === 'path') {
+                if (!Paths::okHost($target)) {
+                    out(['error' => t('Vul het doel in: een IP-adres of hostnaam, bv. 1.1.1.1')], 422);
+                }
+                $via = [];
+                foreach (preg_split('/[\s,;]+/', is_array($in['via'] ?? null) ? implode(',', $in['via']) : (string) ($in['via'] ?? '')) ?: [] as $v) {
+                    if ($v !== '' && !Paths::okHost($v)) {
+                        out(['error' => t('Ongeldig tussenliggend apparaat: {v}', ['v' => mb_substr($v, 0, 40)])], 422);
+                    }
+                    if ($v !== '') {
+                        $via[] = $v;
+                    }
+                }
+                $options = json_encode(['via' => array_slice(array_values(array_unique($via)), 0, 6), 'tp' => !empty($in['tp']) ? 1 : 0, 'tp_host' => (int) ($in['tp_host'] ?? 0),
+                    'tp_every' => in_array((int) ($in['tp_every'] ?? 3600), [0, 3600, 86400], true) ? (int) ($in['tp_every'] ?? 3600) : 3600,
+                    'tp_min' => max(1, min(100000, (int) ($in['tp_min'] ?? 200))), 'loss_warn' => max(1, min(100, (int) ($in['loss_warn'] ?? 5))),
+                    'loss_crit' => max(1, min(100, (int) ($in['loss_crit'] ?? 20))), 'link' => !empty($in['link']) ? 1 : 0, 'hop' => !empty($in['hop']) ? 1 : 0,
+                    'change' => !empty($in['change']) ? 1 : 0]);
+            }
             // Proces (1.98.0): op naam of op een patroon in de opdrachtregel, eventueel van één gebruiker; aantal en CPU/RAM
             if ($type === 'process') {
                 $pmode = ($in['proc_mode'] ?? '') === 'pattern' ? 'pattern' : 'name';
@@ -1778,7 +1805,7 @@ switch ($action) {
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen, watchdog, watchdog_min,
                     agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at, agent_url_pin, agent_url_fb_pin,
-                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, grp, agent_beats, edr_on, edr_info FROM hosts ORDER BY name')->fetchAll();
+                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, grp, agent_beats, edr_on, edr_info, iperf_ok FROM hosts ORDER BY name')->fetchAll();
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
         $global = Monitor::globalMaintenance();
@@ -2113,6 +2140,10 @@ switch ($action) {
         if (array_key_exists('kind', $in)) {
             $kind = (string) $in['kind'];
             q('UPDATE hosts SET kind = ? WHERE id = ?', [isset(HostKind::KINDS[$kind]) ? $kind : null, $id]);
+        }
+        // 1.177.0: mag doorvoertest (iperf3) ontvangen voor de pad-check van een andere server
+        if (array_key_exists('iperf_ok', $in)) {
+            q('UPDATE hosts SET iperf_ok = ? WHERE id = ?', [!empty($in['iperf_ok']) ? 1 : 0, $id]);
         }
         // 1.169.0: eigen groep (vrije tekst, leeg = geen)
         if (array_key_exists('grp', $in)) {
@@ -2863,6 +2894,24 @@ switch ($action) {
              'watchdog' => ['on' => (bool) $h['watchdog'], 'min' => (int) ($h['watchdog_min'] ?: 5), 'enc' => (bool) $h['enc_seen'],
                  'pushover' => Push::names() !== '', 'push' => Push::names()],
              'heal_cmds' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'heal_cmds'", [$id])->fetchColumn(), true) ?: []]);
+
+    case 'path_info':
+        // 1.177.0: popup van een pad-check
+        $pi = Paths::info((int) ($_GET['id'] ?? 0));
+        $pi === null ? out(['error' => t('Deze check bestaat niet meer')], 404) : out($pi);
+
+    case 'paths':
+        // 1.177.0: Monitoring → Netwerkpaden
+        out(Paths::overview());
+
+    case 'path_tp_now':
+        // 1.177.0: doorvoertest nu (bij de volgende ronde van de agents)
+        $pc = q("SELECT id, host_id FROM checks WHERE id = ? AND type = 'path'", [(int) (input()['id'] ?? 0)])->fetch();
+        if (!$pc) {
+            out(['error' => t('Deze check bestaat niet meer')], 404);
+        }
+        $rq = Paths::request((int) $pc['id'], (int) $pc['host_id']);
+        out($rq ? ['ok' => true, 'to' => $rq['name']] : ['error' => t('Geen apparaat om naartoe te meten: zet bij een andere server met de agent en iperf3 "Mag doorvoertest ontvangen" aan')], $rq ? 200 : 422);
 
     case 'containers':
         // 1.176.0: Monitoring → Containers: alle containers van alle servers (Podman en Docker), met hun status en check

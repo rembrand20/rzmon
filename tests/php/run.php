@@ -1483,6 +1483,40 @@ $ex = CheckInfo::extra(q('SELECT * FROM checks WHERE id = ?', [$ctId])->fetch())
 ok($ex['counts']['n24'] === 2 && $ex['counts']['f24'] === 1 && $ex['outages']['count'] === 2 && $ex['outages']['mttr'] === 1800 && $ex['notify']['streak'] === 3
     && ($ex['detail']['kind'] ?? '') === 'container' && $ex['detail']['state'] === 'running',
     'popup van een check: hoe vaak gecheckt, storingen en hersteltijd over 30 dagen, melden na N, details van de container');
+// 1.177.0: pad-check: regels voor de agent, metingen opslaan, beoordelen (doel, tussenliggend apparaat, linksnelheid via UniFi, doorvoer)
+q("INSERT INTO hosts (name, address, mode, agent_seen, agent_version) VALUES ('ci-pad-doel', '192.0.2.61', 'agent', NOW(), '1.78.0')");
+$pdH = (int) db()->lastInsertId();
+$tnSt->execute([$pdH, 'caps', json_encode(['iperf3', 'mtr']), now()]);
+q("INSERT INTO checks (host_id, type, target, name, interval_sec, warn_threshold, crit_threshold, options) VALUES (?, 'path', '1.1.1.1', 'pad', 300, 50, 150, ?)",
+    [$tnH, json_encode(['via' => ['192.0.2.5'], 'tp' => 1, 'tp_every' => 3600, 'tp_min' => 200])]);
+$pcId = (int) db()->lastInsertId();
+$pcLines = Paths::agentLines($tnH);
+$pdLines = Paths::agentLines($pdH);
+$pcReq = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = ?", [$tnH, 'pathreq:' . $pcId])->fetchColumn(), true);
+save_setting('path_unifi_cache', json_encode(['at' => time() + 3600, 'd' => ['error' => null,
+    'switches' => ['aa:00:00:00:00:01' => ['mac' => 'aa:00:00:00:00:01', 'name' => 'USW', 'ip' => '192.0.2.10', 'model' => '', 'type' => 'usw',
+        'ports' => [5 => ['idx' => 5, 'name' => 'Port 5', 'up' => true, 'speed' => 1000, 'full' => true, 'uplink' => false, 'rx_err' => 0, 'tx_err' => 0],
+            8 => ['idx' => 8, 'name' => 'Port 8', 'up' => true, 'speed' => 100, 'full' => true, 'uplink' => true, 'rx_err' => 3, 'tx_err' => 0]],
+        'uplink' => ['mac' => null, 'port' => 0, 'local' => 8, 'speed' => 100, 'type' => 'wire']]],
+    'clients' => ['192.0.2.60' => ['mac' => null, 'sw' => 'aa:00:00:00:00:01', 'port' => 5, 'name' => 'ci']]]]));
+$tnSt->execute([$tnH, 'pathmax:' . $pcId, json_encode(['nic' => 1000, 'port' => 1000, 'uplink' => 1000]), now()]);
+$pcHost = q('SELECT * FROM hosts WHERE id = ?', [$tnH])->fetch();
+$pcRun = static function (array $via, array $ping, ?array $tp = null) use ($pcHost, $pcId) {
+    Paths::fromAgent($pcHost, ['path' => [$pcId => ['at' => time(), 'tool' => 'mtr', 'dst' => '1.1.1.1', 'dev' => 'eth0', 'src' => '192.0.2.60', 'gw' => '192.0.2.1', 'speed' => 1000, 'virt' => '',
+        'hops' => [['n' => 1, 'ip' => '192.0.2.1', 'loss' => 0, 'avg' => 1.2], ['n' => 2, 'ip' => '203.0.113.9', 'loss' => 60, 'avg' => 9.1], ['n' => 3, 'ip' => '1.1.1.1', 'loss' => 0, 'avg' => 12.0]],
+        'via' => [$via], 'ping' => $ping] + ($tp ? ['tp' => $tp] : [])]]);
+    return Paths::check(q('SELECT * FROM checks WHERE id = ?', [$pcId])->fetch(), $pcHost);
+};
+$pr1 = $pcRun(['ip' => '192.0.2.5', 'loss' => 0, 'avg' => 0.5], ['ip' => '1.1.1.1', 'loss' => 0, 'avg' => 12.0], ['to' => '192.0.2.61', 'mbit' => 94.0, 'key' => $pcReq['key'] ?? '']);
+$pr2 = $pcRun(['ip' => '192.0.2.5', 'loss' => 100, 'avg' => null], ['ip' => '1.1.1.1', 'loss' => 0, 'avg' => 12.0]);
+$pr3 = $pcRun(['ip' => '192.0.2.5', 'loss' => 0, 'avg' => 0.5], ['ip' => '1.1.1.1', 'loss' => 100, 'avg' => null]);
+ok(in_array("$pcId\tpath\t1.1.1.1\t192.0.2.5\t300", $pcLines, true) && ($pcReq['host'] ?? 0) === $pdH && (bool) preg_grep('/^0\tiperfs\t5201\t\d+$/', $pdLines)
+    && $pr1['status'] === STATUS_WARN && str_contains($pr1['message'], 'uplink') && str_contains($pr1['message'], '94') && $pr1['value'] === 12.0
+    && !str_contains($pr1['message'], '203.0.113.9') && $pr2['status'] === STATUS_CRIT && $pr3['status'] === STATUS_CRIT && str_contains($pr3['message'], 'onbereikbaar')
+    && str_starts_with((string) json_decode((string) $pr1['path_sum'], true)['d'], 'g'),
+    'pad-check: opdracht voor de agent, doorvoertest naar een server met iperf3, uplink op 100 Mbit en lage doorvoer = WARNING, verlies bij een tussenhop van de provider telt niet, switch of doel weg = CRITICAL');
+q('DELETE FROM hosts WHERE id = ?', [$pdH]);
+save_setting('path_unifi_cache', '');
 // 1.175.0: TrueNAS 27 geeft via midclt geen temperaturen: dan uit de SMART-gegevens van de agent
 Truenas::fromAgent(['id' => $tnH], ['version' => 'TrueNAS-27.0.0', 'at' => time(), 'temps' => []], $tnSt, now());
 $tnSt->execute([$tnH, 'smart', json_encode([['dev' => '/dev/sda', 'temp' => 38], ['dev' => '/dev/nvme0', 'temp' => 57], ['dev' => '/dev/sdc', 'standby' => true], ['dev' => '/dev/x;y', 'temp' => 99]]), now()]);

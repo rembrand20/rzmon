@@ -1981,6 +1981,24 @@ Met de check **Proces** kijk je of een programma draait dat geen systemd-service
 - Niet op Home Assistant-agents en niet op servers zonder agent (dan kan RzMon de processen niet zien). Processen staan niet bij *🔎 Wat wordt nog niet bewaakt*: je kiest ze zelf.
 
 
+### 8.5b Pad-check: het pad naar een doel 🛣️ (vanaf 1.177.0, agent 1.78.0)
+Met **＋ Check → Pad (traceroute)** bij een server met de agent meet RzMon het pad van die server naar een doel, bijvoorbeeld `1.1.1.1` of je eigen website.
+
+| Wat | Hoe |
+|---|---|
+| **Elke hop** | vertraging (gemiddeld, beste, slechtste), jitter en verlies, met `mtr` (of `traceroute`) |
+| **Switches** | een gewone switch zie je niet in een traceroute. Vul bij *Tussenliggende apparaten* hun IP-adressen in: RzMon pingt ze en zet ze op de juiste plek in het pad |
+| **UniFi** | met de UniFi-koppeling (lokaal account, *Instellingen → Koppelingen*): op welke switchpoort de server zit, de snelheid, en de uplink van die switch met fouten |
+| **Virtueel** | draait de server als VM, dan staat de host (bij *Afhankelijk van*, bv. Proxmox) als laag in het pad |
+| **Doorvoer** | iperf3: de echte snelheid in Mbit/s naar een andere server met de agent |
+
+**Doorvoer (iperf3).** iperf3 meet de echte snelheid tussen twee computers: de ene ontvangt, de andere stuurt 3 seconden zoveel mogelijk data. Een ping zegt alleen hoe snel een pakketje heen en terug gaat, de linksnelheid alleen wat de kabel zou kunnen. RzMon kiest zelf een server met de agent en iperf3 in hetzelfde netwerk (of de server die je kiest). Daar start de agent kort een ontvanger die na één meting stopt (hooguit 2 minuten); er blijft niets openstaan. Per server zet je dat uit met **Mag doorvoertest ontvangen** in het formulier van de server. Standaard elk uur; ook eens per dag of alleen met de knop **Doorvoer nu testen** in de popup.
+Installeren: `sudo apt install mtr-tiny iperf3` (Debian/Ubuntu) of `sudo dnf install mtr iperf3` (Rocky/RHEL); `lldpd` is optioneel. Switches en routers kunnen geen iperf3: daarvoor zijn de ping en UniFi.
+
+**Wanneer meldt hij?** Te veel vertraging naar het doel (de drempels in ms) of verlies (warning/critical in %), een tussenliggend apparaat dat niet reageert (CRITICAL), een linksnelheid die zakt (bv. een poort van 1 Gbit naar 100 Mbit: vaak een slechte kabel) en doorvoer onder de grens (WARNING). Verlies bij een tussenhop van je provider telt niet, zolang de hops erna niets verliezen. Een gewijzigd pad staat bij *Wat er veranderde* en kan als ℹ️ info (*Instellingen → Meldingen → Info*).
+
+**Waar zie je het?** In de popup van de check (het pad, per hop een tabel, de doorvoer en wat er veranderde), op **Monitoring → Netwerkpaden** (een netwerkkaart van alle paden samen, de paden en de switchpoorten uit UniFi, de langzaamste eerst) en in het kort in de servertegel en de lijst met checks (bolletjes per hop).
+
 ### 8.6 Containers: Podman en Docker 📦
 
 **Monitoring → Containers** (vanaf 1.176.0): onder Monitoring staat naast *Checks* en *Beschikbaarheid* het tabblad **📦 Containers**: alle containers van alle servers in één overzicht. Bovenaan zie je hoeveel er draaien (ring), het aantal **Failed**, **Stopped** en **Paused** (klik erop om te filteren), CPU en geheugen samen en de schijf (images, volumes, containers) met wat je kunt opruimen. Zoek op naam of image, filter op status, groepeer per server, per stack (pod of de naam vóór de `_`) of als één lijst, en kies Podman, Docker of beide. Per container staan de status, het image, hoe lang hij draait, CPU, geheugen (met de limiet), schijf (schrijflaag plus volumes; zie de tooltip), herstarts, de laatste 24 uur (als er een check op staat) en **bewaakt** of **＋ Check**. Klik op een rij voor de details: laatste status en exitcode met wat die betekent, starttijd, netwerk en processen, met *Check openen*, *AI-advies* en *Naar de server*.

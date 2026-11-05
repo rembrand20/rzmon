@@ -5,6 +5,11 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.78.0 – 2026-11-05
+- **Pad-check** (RzMon 1.177.0): de agent meet het pad naar een doel: per hop verlies en vertraging (met `mtr`, anders `traceroute`), een ping naar de tussenliggende apparaten die je in RzMon opgeeft (switches zie je niet in een traceroute), de snelheid van de netwerkkaart, of de server virtueel draait, en met `lldpd` op welke switch en poort hij zit. Standaard elke 5 minuten.
+- **Doorvoertest met iperf3**: op aanvraag van RzMon meet de agent 3 seconden de echte doorvoer naar een andere server; daar start de agent dan kort een iperf3-ontvanger die na één meting zelf stopt (hooguit 2 minuten). Alleen als `iperf3` is geïnstalleerd.
+- Nieuw in de lijst met wat de agent kan: `mtr`, `traceroute`, `iperf3` en `lldpctl`.
+
 ## 1.77.0 – 2026-11-05
 - **TrueNAS SCALE uitlezen** (RzMon 1.174.0): als root vraagt de agent TrueNAS zelf met `midclt`, zonder API-sleutel:
   - de meldingen van TrueNAS, de taken (replicatie, snapshots, cloud sync, rsync) en de apps, elke 5 minuten;
