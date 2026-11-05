@@ -623,24 +623,20 @@ final class Checks
             $restarts = (int) ($c['restarts'] ?? 0);
             $up = !empty($c['started']) && $running ? ' · ' . t('draait sinds {t}', ['t' => date('d-m H:i', (int) $c['started'])]) : '';
             $extra = ($c['pod'] ?? '') !== '' ? " · pod {$c['pod']}" : '';
-            if ($running && ($c['health'] ?? '') === 'unhealthy') {
-                return self::result(STATUS_CRIT, (float) $restarts, t('{name} draait maar is ONGEZOND (healthcheck faalt)', ['name' => $name]) . $extra);
-            }
-            if ($state === 'paused') {
-                return self::result(STATUS_WARN, (float) $restarts, t('{name} is gepauzeerd', ['name' => $name]) . $extra);
-            }
-            if (!$running) {
-                return self::result(STATUS_CRIT, (float) $restarts, t('{name} is gestopt ({state}, exitcode {code})', ['name' => $name, 'state' => $state, 'code' => (int) ($c['exit_code'] ?? 0)]) . $extra);
+            $cs = self::containerState($c);
+            if ($cs !== 'running') {
+                [$st, $msg] = self::containerStateResult($cs, $c, $name);
+                return self::result($st, (float) $restarts, $msg . $extra) + ['cstate' => $cs];
             }
             // Automatisch herstart (restart-policy) in het afgelopen kwartier: WARNING, lang genoeg voor
             // "alarm na N fouten". Een crashende container blijft zo WARNING. Handmatig herstarten telt niet.
             if ($restarts > 0 && !empty($c['started']) && (int) $c['started'] > time() - 900) {
                 $min = max(1, (int) round((time() - (int) $c['started']) / 60));
-                return self::result(STATUS_WARN, (float) $restarts, t('{name} is {min} min geleden automatisch herstart (totaal {n}×)', ['name' => $name, 'min' => $min, 'n' => $restarts]) . $extra);
+                return self::result(STATUS_WARN, (float) $restarts, t('{name} is {min} min geleden automatisch herstart (totaal {n}×)', ['name' => $name, 'min' => $min, 'n' => $restarts]) . $extra) + ['cstate' => 'running'];
             }
             $health = ($c['health'] ?? '') !== '' ? " ({$c['health']})" : '';
             return self::result(STATUS_OK, (float) $restarts, t('{name} draait', ['name' => $name]) . "$health$up"
-                . (isset($c['cpu']) ? sprintf(' · CPU %.1f%%', $c['cpu']) : '') . ($memText ? " · RAM $memText" : '') . $extra);
+                . (isset($c['cpu']) ? sprintf(' · CPU %.1f%%', $c['cpu']) : '') . ($memText ? " · RAM $memText" : '') . $extra) + ['cstate' => 'running'];
         }
 
         if ($metric === 'disk') {
@@ -670,6 +666,40 @@ final class Checks
     }
 
     /**
+     * 1.176.0: de status van een container in één woord: running, failed (gestopt met een foutcode,
+     * vastgelopen of ongezond), stopped (netjes gestopt met exitcode 0, of nooit gestart) of paused.
+     */
+    public static function containerState(array $c): string
+    {
+        $state = strtolower((string) ($c['state'] ?? 'unknown'));
+        if ($state === 'running') {
+            return ($c['health'] ?? '') === 'unhealthy' ? 'failed' : 'running';
+        }
+        if ($state === 'paused') {
+            return 'paused';
+        }
+        if (in_array($state, ['dead', 'restarting', 'oomkilled', 'unknown', 'error'], true)) {
+            return 'failed';
+        }
+        return (int) ($c['exit_code'] ?? 0) !== 0 ? 'failed' : 'stopped';
+    }
+
+    /** Status en melding bij een container die niet gewoon draait: failed = CRITICAL, stopped en paused = WARNING */
+    private static function containerStateResult(string $cs, array $c, string $name): array
+    {
+        $state = (string) ($c['state'] ?? 'unknown');
+        $code = (int) ($c['exit_code'] ?? 0);
+        return match ($cs) {
+            'paused' => [STATUS_WARN, t('{name} is gepauzeerd', ['name' => $name])],
+            'stopped' => [STATUS_WARN, t('{name} is netjes gestopt ({state}, exitcode 0)', ['name' => $name, 'state' => $state])],
+            default => $state === 'running'
+                ? [STATUS_CRIT, t('{name} draait maar is ONGEZOND (healthcheck faalt)', ['name' => $name])]
+                : [STATUS_CRIT, t('{name} is gestopt ({state}, exitcode {code})', ['name' => $name, 'state' => $state, 'code' => $code])
+                    . ($code === 137 ? ' · ' . t('vaak: geheugen op (OOM)') : '')],
+        };
+    }
+
+    /**
      * Eén check per container: altijd de status (draait, healthcheck, herstarts), plus de gekozen
      * resources met eigen drempels (options.res = {"cpu": [warn, crit], "mem": [...], "disk": [...]}).
      * De slechtste uitkomst telt; wat over een drempel gaat staat vooraan in het bericht.
@@ -684,12 +714,9 @@ final class Checks
         $pod = ($c['pod'] ?? '') !== '' ? " · pod {$c['pod']}" : '';
 
         // 1. Status
-        if ($running && ($c['health'] ?? '') === 'unhealthy') {
-            [$status, $base] = [STATUS_CRIT, t('{name} draait maar is ONGEZOND (healthcheck faalt)', ['name' => $name])];
-        } elseif ($state === 'paused') {
-            [$status, $base] = [STATUS_WARN, t('{name} is gepauzeerd', ['name' => $name])];
-        } elseif (!$running) {
-            [$status, $base] = [STATUS_CRIT, t('{name} is gestopt ({state}, exitcode {code})', ['name' => $name, 'state' => $state, 'code' => (int) ($c['exit_code'] ?? 0)])];
+        $cs = self::containerState($c);
+        if ($cs !== 'running') {
+            [$status, $base] = self::containerStateResult($cs, $c, $name);
         } elseif ($restarts > 0 && !empty($c['started']) && (int) $c['started'] > time() - 900) {
             $min = max(1, (int) round((time() - (int) $c['started']) / 60));
             [$status, $base] = [STATUS_WARN, t('{name} is {min} min geleden automatisch herstart (totaal {n}×)', ['name' => $name, 'min' => $min, 'n' => $restarts])];
@@ -736,7 +763,7 @@ final class Checks
         $parts = $running ? array_filter([$show['cpu'], $show['mem'], $show['disk']]) : [$show['disk']];
         $message = implode(' · ', array_merge($problems, [$base], $parts)) . $pod;
         $value = $vals['cpu'] ?? $vals['mem'] ?? $vals['disk'] ?? null;
-        return ['status' => $status, 'value' => $value, 'message' => $message, 'vals' => $vals ?: null];
+        return ['status' => $status, 'value' => $value, 'message' => $message, 'vals' => $vals ?: null, 'cstate' => $cs];
     }
 
     /**

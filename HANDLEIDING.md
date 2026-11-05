@@ -187,6 +187,8 @@ In de **Instellingen** heeft elk onderdeel (bv. *Meldingen → Kanalen* of *IDS 
 
 **Vanaf 1.175.0** ziet Monitoring in CC er anders uit. Er is geen aparte sectie *met problemen* meer: per groep staan alle servers in één raster, wie aandacht vraagt eerst. Elke tegel toont een **ring** (checks in orde van het totaal), de samenvatting en de soort als chips, **twee lijntjes** van de belangrijkste checks en de laatste 24 uur. **Klik op een tegel** en hij klapt met een veeranimatie (zoals op een Mac) open over de volle breedte; de andere tegels schuiven opzij. Bovenaan staan meters (CPU, RAM, schijf, beschikbaar 24 uur), dan de knoppen, dan **Vraagt aandacht** (één rij per check, met ✔ Bevestig) en **In orde** als kleine tegels: de eerste 8, de rest met *＋ … andere checks tonen*. Met ✕ krimpt hij terug. Er komt nooit een schuifbalk naar links of rechts, ook niet op een telefoon. Wil je geen animaties, zet dan **Beweging** op *Stil* (of *Rustig*: wel openklappen, geen scan en pulsjes). Je thema (licht of donker) verandert niet.
 
+**Nu aandacht nodig in CC** (vanaf 1.176.0): bovenaan Monitoring staat in CC een compacte lijst met vaste kolommen: status, server, check, melding, hoe lang al, de laatste 24 uur en de knoppen ✓ (bevestigen), AI en → (openen). Bovenaan het aantal open problemen, een balk met de verdeling en filters op *Critical*, *Warning* en *Onbekend*. Een server met veel problemen of een stille agent is één regel; klap hem open voor de checks eronder. Wat al bevestigd is staat ingeklapt onderaan. Na 8 regels: *Alle … tonen*. In Blox, L1nes en Compact blijft het zoals het was.
+
 **Extra kaarten in CC** (vanaf 1.159.0), naast alles wat er al stond:
 - **IDS**: *Aanvallen per dag* staat altijd open (in de andere lay-outs blijft het een regel die je uitklapt). De tabbladen (Incidenten, Aanvalskaart …) zijn samen één kaart.
 - **Incidenten**: *Geopend en opgelost* (per dag, 30 dagen) en *Nog bezig, per bron* (monitoring, IDS, kwetsbaarheden).
@@ -1189,6 +1191,7 @@ Klik op een serverkaart op **＋**. Per type:
 - **Na opslaan** wordt de check direct uitgevoerd.
 - **Knoppen per check:** ↻ = nu checken, 📈 = grafiek, ✎ = bewerken of verwijderen.
 - **Klik op een check** (op de naam of het bericht) voor een popup met meer informatie:
+  - Vanaf 1.176.0 ziet die popup er zo uit: bovenaan de status in het groot met hoe lang het al duurt en een meter met de grenzen; dan de **grafiek van 24 uur** (met drempels, geleerde band en statuswissels); **beschikbaarheid** (24 uur, 7 en 30 dagen), het aantal storingen, de gemiddelde hersteltijd en de langste storing, en **hoe vaak gecheckt** (24 uur, 7 dagen en alles wat bewaard is, met hoeveel mislukt); **details** per soort (container, disk met *vol over*, certificaat en domein); **melden** (hoe ver *melden na N* is, laatst gemeld via welke kanalen, escalatie, bevestigd door wie met de notitie); **samenhang** (andere problemen op dezelfde server, klik om te openen, en de server waar hij van afhangt); het **laatste AI-advies** in één zin; de **instellingen** en de **statuswijzigingen** als tijdlijn (*＋ eerdere tonen* voor meer).
   - de huidige status, sinds wanneer, en het bericht;
   - type, doel, interval, drempels, laatste check en de beschikbaarheid over 24 uur en 7 dagen;
   - of hij eigen meldregels, eigen stille uren, een omgekeerde status, onderhoud of een bevestiging heeft;
@@ -1979,6 +1982,17 @@ Met de check **Proces** kijk je of een programma draait dat geen systemd-service
 
 
 ### 8.6 Containers: Podman en Docker 📦
+
+**Monitoring → Containers** (vanaf 1.176.0): onder Monitoring staat naast *Checks* en *Beschikbaarheid* het tabblad **📦 Containers**: alle containers van alle servers in één overzicht. Bovenaan zie je hoeveel er draaien (ring), het aantal **Failed**, **Stopped** en **Paused** (klik erop om te filteren), CPU en geheugen samen en de schijf (images, volumes, containers) met wat je kunt opruimen. Zoek op naam of image, filter op status, groepeer per server, per stack (pod of de naam vóór de `_`) of als één lijst, en kies Podman, Docker of beide. Per container staan de status, het image, hoe lang hij draait, CPU, geheugen (met de limiet), schijf (schrijflaag plus volumes; zie de tooltip), herstarts, de laatste 24 uur (als er een check op staat) en **bewaakt** of **＋ Check**. Klik op een rij voor de details: laatste status en exitcode met wat die betekent, starttijd, netwerk en processen, met *Check openen*, *AI-advies* en *Naar de server*.
+
+**De vier statussen** (vanaf 1.176.0), ook als label bij elke container-check:
+
+| Label | Wanneer | Status van de check |
+|---|---|---|
+| **Running** | de container draait (en is niet ongezond) | OK, of WARNING als hij net automatisch herstart is |
+| **Failed** | gestopt met een foutcode (bv. 137 = geheugen op), vastgelopen of ongezond (healthcheck faalt) | CRITICAL |
+| **Stopped** | netjes gestopt met exitcode 0, of nog nooit gestart | WARNING |
+| **Paused** | gepauzeerd | WARNING |
 **Docker** (vanaf RzMon 1.137.0, agent 1.69.0) werkt precies zoals Podman hieronder: dezelfde checks (*Containers (algemeen)* en *Container (Podman/Docker)*), dezelfde lijst in het venster van de server, compose-projecten verschijnen als pods, en *zelf herstellen* herstart een Docker-container net zo. De agent meldt Docker alleen als de Docker-daemon draait; staan Podman en Docker allebei op de server, dan zie je ze naast elkaar (gebruiker *docker* voor de Docker-containers). `DOCKER=0` in `/etc/default/rzmon-agent` zet Docker uit.
 
 Staat **podman** op de server, dan meldt de agent vanzelf alle containers. Er hoeft niets ingesteld te worden. Zonder podman stuurt de agent hier niets over.

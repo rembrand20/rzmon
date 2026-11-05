@@ -8,11 +8,32 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.176.0**: **Monitoring → Containers** (alle Podman- en Docker-containers met status, CPU, geheugen en schijf), labels **Running / Failed / Stopped / Paused**, een **nieuwe popup per check** en een compacte **Nu aandacht nodig** in CC.
 - **1.175.0**: **Monitoring in CC** in een nieuw jasje: één raster met tegels (ring, lijntjes, 24 uur) zonder aparte sectie *met problemen*, en openklappen over de volle breedte met een veeranimatie zoals op een Mac.
 - **1.174.0**: **TrueNAS SCALE** beter ondersteund: meldingen, taken, apps, update en temperaturen als checks, kwetsbaarheden scannen, en het IDS mag er blokkeren als je dat aanzet.
 - **1.173.0**: **AI-advies** met **verbruik, tegoed en maandbudget**, en extra's als geheugen, niet twee keer betalen, terugvallen op Ollama, een weekoverzicht en een oordeel bij IDS-incidenten.
 - **1.172.0**: de **Live Attack Flow toont altijd tien aanvallers** (live eerst, aangevuld uit de top 10 van 24 uur) en een **banner bovenaan** zodra een server in isolatie gaat.
-- **1.171.0**: **🤖 AI-advies** bij storingen en incidenten (Claude, ChatGPT, Gemini, Grok of Ollama), met diep zoeken via de agent en desgewenst uitvoeren na bevestiging.
+
+## 1.176.0 – 2026-11-05
+### Nieuw
+- **Monitoring → Containers**: een nieuw tabblad naast *Checks* en *Beschikbaarheid*, met alle containers van alle servers (Podman en Docker) in één overzicht:
+  - bovenaan een ring met hoeveel er draaien, het aantal Failed, Stopped en Paused, het CPU- en geheugengebruik samen, en de schijf (images, volumes, containers) met wat er op te ruimen is;
+  - zoeken, filteren op status, groeperen per server, per stack of als één lijst, en kiezen tussen Podman en Docker;
+  - per container: naam, status, image, hoe lang hij draait, CPU, geheugen (met de limiet), schijf, herstarts, de laatste 24 uur en of hij **bewaakt** wordt (anders de knop *＋ Check*);
+  - klik op een container voor de details: laatste status, exitcode en wat die betekent (137 = geheugen op), starttijd, netwerk, processen, en de knoppen *Check openen* en *AI-advies*;
+  - op een telefoon worden de rijen kaartjes; er is nooit een schuifbalk naar links of rechts.
+- **Containerstatus als label**: bij container-checks staat overal **Running** (groen), **Failed** (rood), **Stopped** (grijs) of **Paused** (oranje), in de rijen, tegels, de popup en *Nu aandacht nodig*.
+- **Nieuwe popup van een check** (alle lay-outs):
+  - groot statusblok met hoe lang het al duurt en een meter met de warning- en critical-grens;
+  - grafiek van de laatste 24 uur met de drempels, de geleerde band en de statuswissels;
+  - beschikbaarheid over 24 uur, 7 en 30 dagen als ringen, storingen, gemiddelde hersteltijd, langste storing, en **hoe vaak gecheckt** (24 uur, 7 dagen en alles wat bewaard is, met hoeveel mislukt);
+  - details per soort: container (image, exitcode, herstarts, geheugen …), disk (groei per dag, wanneer vol), certificaat en domein (dagen geldig);
+  - melden: hoe ver *melden na N* is, wanneer en via welke kanalen het laatst gemeld is, escalatie, en wie bevestigde met de notitie;
+  - samenhang: andere problemen op dezelfde server (klik om te openen) en de server waar hij van afhangt;
+  - het laatste AI-advies in één zin met het oordeel, de instellingen in het kort (met de laatste wijziging) en de statuswijzigingen als tijdlijn met *＋ eerdere tonen*.
+- **Nu aandacht nodig in de lay-out CC**: één compacte lijst met vaste kolommen (status, server, check, melding, duur, 24 uur, acties), filters op Critical, Warning en Onbekend, een balk met de verdeling, gebundelde oorzaken als ingesprongen regels, icoonknoppen (✓ bevestigen, AI, openen) en *Bevestigd* ingeklapt onderaan. Animaties volgen je instelling *Beweging*.
+### Gewijzigd
+- Een container die **netjes gestopt** is (exitcode 0) is nu **WARNING** (Stopped) in plaats van CRITICAL. Met een foutcode gestopt, vastgelopen of ongezond blijft **CRITICAL** (Failed). Geen nieuwe agent nodig.
 
 ## 1.175.0 – 2026-11-05
 ### Nieuw

@@ -1459,6 +1459,30 @@ $tnLines = Ids::agentLines($tnH);
 ok($deb === 'Debian:13' && $noUbuntu === null && Vulns::upgradeBlocked($tnHost) !== null && str_contains((string) Vulns::upgradeBlocked($tnHost), 'TrueNAS')
     && in_array("0\ttruenas_fw\t1", $tnLines, true),
     'TrueNAS: kwetsbaarheden als de Debian eronder (base-files), Ubuntu-achtigen niet; nooit bijwerken met apt; blokkeren toegestaan = regel voor de agent');
+// 1.176.0: containers: Running / Failed / Stopped / Paused, Stopped (netjes, exitcode 0) is WARNING; overzicht en popup-extra's
+$cs = static fn($st, $code = 0, $health = '') => Checks::containerState(['state' => $st, 'exit_code' => $code, 'health' => $health]);
+$ctC = ['id' => 0, 'type' => 'container', 'target' => 'web', 'metric' => 'status', 'warn_threshold' => null, 'crit_threshold' => null, 'options' => null];
+$tnSt->execute([$tnH, 'podman', json_encode(['version' => '5.2', 'images_size' => 1e9, 'volumes_size' => 2e9, 'reclaimable' => 5e8, 'pods' => []]), now()]);
+$ctRun = static function (array $c) use ($tnSt, $tnH, $ctC, $tnHost) { $tnSt->execute([$tnH, 'container:web', json_encode(['name' => 'web', 'user' => 'root', 'image' => 'nginx'] + $c), now()]); return Checks::run($ctC, $tnHost); };
+$rStop = $ctRun(['state' => 'exited', 'exit_code' => 0]);
+$rFail = $ctRun(['state' => 'exited', 'exit_code' => 137]);
+$rSick = $ctRun(['state' => 'running', 'health' => 'unhealthy']);
+$rOk = $ctRun(['state' => 'running', 'started' => time() - 3600, 'cpu' => 1.5, 'mem' => 1e8, 'mem_limit' => 5e8]);
+$ov = Containers::overview();
+$ovH = array_values(array_filter($ov['hosts'], fn($h) => $h['id'] === $tnH))[0] ?? null;
+ok($cs('running') === 'running' && $cs('running', 0, 'unhealthy') === 'failed' && $cs('exited') === 'stopped' && $cs('exited', 1) === 'failed' && $cs('paused') === 'paused' && $cs('dead') === 'failed' && $cs('created') === 'stopped'
+    && $rStop['status'] === STATUS_WARN && ($rStop['cstate'] ?? '') === 'stopped' && $rFail['status'] === STATUS_CRIT && ($rFail['cstate'] ?? '') === 'failed' && str_contains($rFail['message'], 'OOM')
+    && $rSick['status'] === STATUS_CRIT && $rOk['status'] === STATUS_OK && ($rOk['cstate'] ?? '') === 'running'
+    && $ovH && count($ovH['containers']) === 1 && $ovH['containers'][0]['state'] === 'running' && $ovH['containers'][0]['mem_pct'] === 20.0,
+    'containers: Running/Failed/Stopped/Paused, netjes gestopt = WARNING, foutcode of ongezond = CRITICAL; overzicht met geheugen in procenten');
+q("INSERT INTO checks (host_id, type, target, name, interval_sec, status, status_since, status_streak) VALUES (?, 'container', 'web', 'web', 60, 2, NOW() - INTERVAL 10 MINUTE, 3)", [$tnH]);
+$ctId = (int) db()->lastInsertId();
+q("INSERT INTO status_changes (check_id, from_status, to_status, message, created_at) VALUES (?, 0, 2, 'x', NOW() - INTERVAL 2 DAY), (?, 2, 0, 'y', NOW() - INTERVAL 2 DAY + INTERVAL 30 MINUTE), (?, 0, 2, 'z', NOW() - INTERVAL 10 MINUTE)", [$ctId, $ctId, $ctId]);
+q("INSERT INTO results (check_id, status, value, created_at) VALUES (?, 0, 1, NOW() - INTERVAL 2 HOUR), (?, 2, 1, NOW() - INTERVAL 5 MINUTE)", [$ctId, $ctId]);
+$ex = CheckInfo::extra(q('SELECT * FROM checks WHERE id = ?', [$ctId])->fetch());
+ok($ex['counts']['n24'] === 2 && $ex['counts']['f24'] === 1 && $ex['outages']['count'] === 2 && $ex['outages']['mttr'] === 1800 && $ex['notify']['streak'] === 3
+    && ($ex['detail']['kind'] ?? '') === 'container' && $ex['detail']['state'] === 'running',
+    'popup van een check: hoe vaak gecheckt, storingen en hersteltijd over 30 dagen, melden na N, details van de container');
 // 1.175.0: TrueNAS 27 geeft via midclt geen temperaturen: dan uit de SMART-gegevens van de agent
 Truenas::fromAgent(['id' => $tnH], ['version' => 'TrueNAS-27.0.0', 'at' => time(), 'temps' => []], $tnSt, now());
 $tnSt->execute([$tnH, 'smart', json_encode([['dev' => '/dev/sda', 'temp' => 38], ['dev' => '/dev/nvme0', 'temp' => 57], ['dev' => '/dev/sdc', 'standby' => true], ['dev' => '/dev/x;y', 'temp' => 99]]), now()]);

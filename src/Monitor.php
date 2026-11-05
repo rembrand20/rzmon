@@ -334,8 +334,8 @@ final class Monitor
         $age = time() - (int) strtotime($statusSince);
 
         // Status eerst opslaan: meldingen kijken (via hostUnreachable) naar de actuele status
-        q('UPDATE checks SET status = ?, last_value = ?, last_message = ?, last_checked = ?, fail_count = ?, status_streak = ?, suppressed_by = ?, problem_since = ?, status_since = ? WHERE id = ?', [
-            $status, $res['value'], mb_substr($message, 0, 500), now(), $failCount, $streak, $upstream['id'] ?? null, $problemSince, $statusSince, $check['id'],
+        q('UPDATE checks SET status = ?, last_value = ?, last_message = ?, last_checked = ?, fail_count = ?, status_streak = ?, suppressed_by = ?, problem_since = ?, status_since = ?, cstate = ? WHERE id = ?', [
+            $status, $res['value'], mb_substr($message, 0, 500), now(), $failCount, $streak, $upstream['id'] ?? null, $problemSince, $statusSince, $res['cstate'] ?? null, $check['id'],
         ]);
         // Statuswijziging bewaren (popup van de check), met de reden als er zeker geen melding uitgaat
         if ($status !== (int) $check['status']) {

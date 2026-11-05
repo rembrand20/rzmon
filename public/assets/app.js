@@ -119,7 +119,7 @@ const LOG_SOURCES = ['journal', 'journal:sshd', 'journal:ssh', 'kernel', '/var/l
 
 // Container-checks: wat er gemeten wordt (eigen eenheid en drempels)
 const METRICS = {
-  status: { label: L('Status (draait, healthcheck, herstarts)'), unit: null, help: L('OK als de container draait. CRITICAL als hij gestopt of ongezond (healthcheck) is. WARNING als hij gepauzeerd is, of in het afgelopen kwartier automatisch herstart is (crash).') },
+  status: { label: L('Status (draait, healthcheck, herstarts)'), unit: null, help: L('OK (Running) als de container draait. CRITICAL (Failed) als hij met een foutcode gestopt, vastgelopen of ongezond (healthcheck) is. WARNING (Stopped) als hij netjes gestopt is met exitcode 0, ook WARNING als hij gepauzeerd is of in het afgelopen kwartier automatisch herstart is (crash).') },
   cpu:    { label: L('CPU-gebruik'), unit: '%', warn: 80, crit: 95, help: L('CPU-gebruik zoals podman stats het toont: 100% = één volledige core (kan dus boven 100% komen).') },
   mem:    { label: L('Geheugen (RAM)'), unit: '%', warn: 85, crit: 95, help: L('Percentage van de geheugenlimiet van de container, of van het totale geheugen als er geen limiet is.') },
   disk:   { label: L('Diskgebruik'), unit: 'MB', warn: 5000, crit: 10000, help: L('Schrijflaag van de container plus de grootte van zijn volumes (volumes worden elk uur gemeten).') },
@@ -1091,6 +1091,7 @@ function init() {
     if (statusFilter !== null) $('#hosts').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   initAvail();   // 1.169.0
+  initContainers();   // 1.176.0
   $('#health').addEventListener('click', (e) => {
     const b = e.target.closest('[data-host]');
     if (b) return jumpToHost(b.dataset.host);
@@ -1102,6 +1103,10 @@ function init() {
     const ab = e.target.closest('[data-attn-bundle]');
     if (ab) { const id = +ab.dataset.attnBundle; if (attnBundles.has(id)) attnBundles.delete(id); else attnBundles.add(id); renderAttention(); return; }
     if (e.target.closest('[data-attn-more]')) { attnOpen = !attnOpen; return renderAttention(); }
+    const axf = e.target.closest('[data-ax-f]');
+    if (axf) { axFilter = axf.dataset.axF; return renderAttention(); }   // 1.176.0
+    const axo = e.target.closest('[data-ax-open]');
+    if (axo) return checkInfo(+axo.dataset.axOpen);
     if (e.target.closest('[data-attn-acked]')) { statusFilter = null; return setDashFilter('problems'); }
     onHostsClick(e);
   });
@@ -1871,6 +1876,81 @@ function healthSpark(inGroup = () => true) {
   return `<svg class="kpi-spark" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><path d="${d}L100,26L0,26Z" fill="${col}" opacity=".14"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
+/**
+ * 1.176.0: "Nu aandacht nodig" in de lay-out CC: één compacte lijst met vaste kolommen (status, server, check, melding,
+ * duur, 24 uur, acties), filters per status, gebundelde oorzaken als ingesprongen regels en bevestigd ingeklapt onderaan.
+ */
+let axFilter = 'all';
+const AX_ICON = {
+  box: '<path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  disk: '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/>', temp: '<path d="M14 14.8V4a2 2 0 1 0-4 0v10.8a4 4 0 1 0 4 0z"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>', lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>', pulse: '<path d="M2 12h4l3-7 4 14 3-7h6"/>',
+  off: '<path d="M5 12.5a7 7 0 0 1 14 0M8.5 12.5a3.5 3.5 0 0 1 7 0"/><path d="M3 3l18 18"/>', srv: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/>',
+  ok: '<path d="M20 6 9 17l-5-5"/>', ai: '<path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/>', go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  up: '<path d="M6 15l6-6 6 6"/>', down: '<path d="M6 9l6 6 6-6"/>', warn: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+};
+const axSvg = (k, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${AX_ICON[k] || AX_ICON.pulse}</svg>`;
+const axIconOf = (c) => ({ container: 'box', podman: 'box', heartbeat: 'clock', disk: 'disk', smart: 'disk', truenas: 'temp', ssl: 'lock', domain: 'globe', http: 'globe', dns: 'globe', cpu: 'cpu', ram: 'cpu' }[c.type] || 'pulse');
+const axWord = (s) => [L('OK'), 'WARNING', 'CRITICAL', L('ONBEKEND')][s] || '?';
+const axStatusKey = (s) => (s === 2 ? 'crit' : s === 1 ? 'warn' : 'unk');
+
+function renderAttnCC(box, items, open, acked, ackedList, down, why, since) {
+  const worstOf = (it) => it.list.reduce((m, c) => (STATUS_RANK[+c.status] > STATUS_RANK[m] ? +c.status : m), 0);
+  const n = { crit: 0, warn: 0, unk: 0 };
+  items.forEach((it) => { n[axStatusKey(worstOf(it))]++; });
+  const shown = items.filter((it) => axFilter === 'all' || axStatusKey(worstOf(it)) === axFilter);
+  const hosts = new Set(items.map((it) => +it.h.id)).size;
+  const okN = state.hosts.reduce((s, h) => s + h.checks.filter((c) => +c.enabled && +c.status === 0).length, 0);
+  const newest = open.map(([, c]) => String(c.problem_since || '')).filter(Boolean).sort().pop();
+  const lbl = (s, c) => (c && ctOf(c) ? ctOf(c) : `<span class="ax-lbl s${s}">${axWord(s)}</span>`);
+  const acts = (c) => `<span class="ax-acts">${!c.acked_at ? `<button type="button" class="ax-ib ok need-user" data-act="ack" data-id="${c.id}" aria-label="${esc(L('Bevestigen'))}" title="${esc(L('Bevestigen'))}">${axSvg('ok', 15)}</button>` : ''}${aiOn() ? `<span class="ax-ai">${aiBtn('check', c.id)}</span>` : ''}<button type="button" class="ax-ib" data-ax-open="${c.id}" aria-label="${esc(L('Openen'))}" title="${esc(L('Openen'))}">${axSvg('go', 15)}</button></span>`;
+  let k = 0;
+  const row = (h, c, sub = false) => `<div class="ax-row s${c.status}${sub ? ' sub' : ''}" data-cid="${c.id}" style="--i:${Math.min(k++, 20)}">
+      ${sub ? '<span class="ax-tree" aria-hidden="true"></span>' : `<span class="ax-si s${c.status}">${axSvg(axIconOf(c))}</span>`}
+      <span>${sub ? '' : lbl(+c.status, c)}</span>
+      <span>${sub ? '' : `<button type="button" class="ax-srv" data-host="${h.id}">${axSvg('srv', 12)}<span>${esc(h.name)}</span></button>`}</span>
+      <span class="ax-chk"><b>${esc(c.name)}</b>${sub ? ` ${lbl(+c.status, c)}` : `<small class="ax-hs">${esc(h.name)}</small>`}</span>
+      <span class="ax-msg" title="${esc(c.last_message || '')}">${esc(c.last_message || '')}</span>
+      <span class="ax-dur mono">${c.problem_since ? dur(c.problem_since) : ''}</span>
+      <span class="ax-tl">${checkTimeline(c)}</span>
+      ${acts(c)}
+    </div>`;
+  const bundle = (it) => {
+    const st = worstOf(it), d = down.get(+it.h.id), isOpen = attnBundles.has(+it.h.id), s0 = since(it);
+    const cause = d ? (why[d.reason] || L('onbereikbaar')) : '';
+    const unacked = it.list.some((c) => !c.acked_at);
+    return `<div class="ax-row ax-bundle s${st}" style="--i:${Math.min(k++, 20)}">
+      <span class="ax-si s${st}">${axSvg(d ? 'off' : 'warn')}</span>
+      <span>${lbl(st)}</span>
+      <span><button type="button" class="ax-srv" data-host="${it.h.id}">${axSvg('srv', 12)}<span>${esc(it.h.name)}</span></button></span>
+      <span class="ax-chk">${d ? `<b>${esc(cause)}</b>` : ''}<span class="ax-cnt">${L('{n} checks', { n: it.list.length })}</span><small class="ax-hs">${esc(it.h.name)}</small></span>
+      <span class="ax-msg">${esc(it.list.map((c) => c.name).slice(0, 6).join(', '))}${it.list.length > 6 ? ' …' : ''}</span>
+      <span class="ax-dur mono">${s0 ? dur(s0) : ''}</span>
+      <span class="ax-tl">${hostTimeline(it.h)}</span>
+      <span class="ax-acts"><button type="button" class="ax-ib" data-attn-bundle="${it.h.id}" aria-expanded="${isOpen}" aria-label="${esc(isOpen ? L('Dichtklappen') : L('Openklappen'))}">${axSvg(isOpen ? 'up' : 'down', 15)}</button>${unacked ? `<button type="button" class="ax-ib ok need-user" data-act="ack-host" data-id="${it.h.id}" aria-label="${esc(L('Alles bevestigen'))}" title="${esc(L('Alles bevestigen'))}">${axSvg('ok', 15)}</button>` : ''}${aiOn() ? `<span class="ax-ai">${aiBtn('bundle', it.h.id)}</span>` : ''}</span>
+    </div>${isOpen ? it.list.map((c) => row(it.h, c, true)).join('') : ''}`;
+  };
+  const limit = attnOpen ? Infinity : 8;
+  const list = shown.slice(0, limit);
+  const chip = (key, label, cnt, dot) => `<button type="button" class="${axFilter === key ? 'on' : ''}" data-ax-f="${key}">${dot ? `<i class="ax-d ${dot}"></i>` : ''}${label}${cnt !== null ? ` <b>${cnt}</b>` : ''}</button>`;
+  const total = n.crit + n.warn + n.unk || 1;
+  box.innerHTML = `<div class="ax" data-motion="${afMotion(null)}"><span class="ax-scan" aria-hidden="true"></span>
+    <div class="ax-head">
+      <span class="ax-hi">${axSvg('warn', 20)}</span>
+      <div class="ax-ht"><span class="ax-k">${L('Nu aandacht nodig')}</span>
+        <b>${open.length === 1 ? L('1 open probleem') : L('{n} open problemen', { n: open.length })}</b> <span class="muted">${L('op {n} servers', { n: hosts })}${acked ? ' · ' + L('{n} bevestigd', { n: acked }) : ''}${newest ? ' · ' + L('nieuwste {t} geleden', { t: dur(newest) }) : ''}</span></div>
+      <div class="ax-meter"><span class="ax-mbar" aria-hidden="true">${n.crit ? `<i class="crit" style="flex:${n.crit / total}"></i>` : ''}${n.warn ? `<i class="warn" style="flex:${n.warn / total}"></i>` : ''}${n.unk ? `<i class="unk" style="flex:${n.unk / total}"></i>` : ''}</span>
+        <span class="ax-ml mono small"><span><b class="c">${n.crit}</b> critical</span><span><b class="w">${n.warn}</b> warning</span><span><b>${n.unk}</b> ${L('onbekend')}</span><span class="ax-okn">${L('{n} checks in orde', { n: okN })}</span></span></div>
+      <div class="ax-seg" role="group" aria-label="${esc(L('Filter'))}">${chip('all', L('Alle'), items.length)}${chip('crit', 'Critical', n.crit, 'crit')}${chip('warn', 'Warning', n.warn, 'warn')}${chip('unk', L('Onbekend'), n.unk, 'unk')}</div>
+    </div>
+    <div class="ax-body"><div class="ax-row ax-th" aria-hidden="true"><span></span><span>${L('Status')}</span><span>${L('Server')}</span><span>${L('Check')}</span><span>${L('Melding')}</span><span>${L('Duur')}</span><span>${L('24 uur')}</span><span class="r">${L('Actie')}</span></div>
+      ${list.map((it) => (it.bundle ? bundle(it) : row(it.h, it.list[0]))).join('') || `<p class="muted small ax-none">${L('Niets met dit filter.')}</p>`}
+      ${shown.length > 8 ? `<button type="button" class="ax-more" data-attn-more>${attnOpen ? L('Minder tonen') : L('Alle {n} tonen', { n: shown.length })}</button>` : ''}</div>
+    ${acked ? `<button type="button" class="ax-acked" data-attn-acked>${axSvg('ok', 15)}<b>${L('Bevestigd · {n}', { n: acked })}</b><span>${esc(ackedList.slice(0, 3).map(([h, c]) => `${c.name} (${h.name})`).join(' · '))}${ackedList.length > 3 ? ' …' : ''}</span>${axSvg('down', 15)}</button>` : ''}
+  </div>`;
+}
+
 /** Alle open problemen in één lijst, critical eerst; bevestigde staan er niet in (wel geteld) */
 function renderAttention() {
   const all = [];
@@ -1882,7 +1962,8 @@ function renderAttention() {
   const box = $('#dash-attn');
   // Niets open: de tegel ernaast zegt al "Alles in orde". Alleen bevestigde problemen nog als klein regeltje (1.77.0).
   box.hidden = !open.length && !acked;
-  if (!open.length) {
+  box.classList.toggle('ax-on', isCC());
+  if (!open.length && !(isCC() && acked)) {
     box.innerHTML = acked ? `<div class="attn-acked">✔ ${L('Geen open problemen')} · ${acked === 1 ? L('1 bevestigd') : L('{n} bevestigd', { n: acked })}
       <button type="button" class="link-btn" data-attn-acked>${L('bekijken')}</button></div>` : '';
     return;
@@ -1902,6 +1983,7 @@ function renderAttention() {
   const since = (it) => it.list.map((c) => String(c.problem_since || '')).filter(Boolean).sort()[0] || '';
   items.sort((a, b) => worst(b) - worst(a) || since(a).localeCompare(since(b)));
   const why = { agent: L('agent stil'), parent: L('achter een uitgevallen server') };
+  if (isCC()) return renderAttnCC(box, items, open, acked, all.filter(([, c]) => c.acked_at), down, why, since);   // 1.176.0
   const row = ([h, c], sub = false) => `<div class="arow${sub ? ' sub' : ''}" data-cid="${c.id}">
       <i class="adot s${c.status}"></i>
       <button type="button" class="a-srv hl-link" data-host="${h.id}">${esc(h.name)}</button>
@@ -1965,8 +2047,10 @@ const avPct = (v) => (v === null || v === undefined ? '–' : dec(v >= 99.9995 ?
 const avMean = (a) => { const v = a.filter((x) => x !== null && x !== undefined); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
 
 function setMonSub(s) {
-  monSub = s === 'avail' ? 'avail' : 'checks';
+  monSub = s === 'avail' || s === 'cont' ? s : 'checks';
   $('#tab-dashboard').classList.toggle('mon-av', monSub === 'avail');
+  $('#tab-dashboard').classList.toggle('mon-ct', monSub === 'cont');   // 1.176.0
+  if (monSub === 'cont') ctLoad();
   $$('#mon-tabs [data-msub]').forEach((b) => { const on = b.dataset.msub === monSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   if (monSub === 'avail') avLoad();
 }
@@ -2159,6 +2243,182 @@ function initAvail() {
     if (h) { setMonSub('checks'); jumpToHost(h.dataset.avhost); }
   });
   $('#avail').addEventListener('change', (e) => { if (e.target.id === 'av-target') { uiSet('av_target', 'rzmon-av-target', e.target.value); renderAvail(); } });
+}
+
+// ============ 1.176.0: Monitoring → Containers (alle containers van alle servers, Podman en Docker) ============
+let ctData = null, ctAt = 0, ctBusy = false;
+const ctOpen = new Set();   // uitgeklapte containers (host:key)
+const CT_STATE = { running: ['run', 'Running'], failed: ['fail', 'Failed'], stopped: ['stop', 'Stopped'], paused: ['pause', 'Paused'] };
+const ctFilter = () => uiGet('ct_filter', 'rzmon-ct-filter', 'all');
+const ctGroup = () => uiGet('ct_group', 'rzmon-ct-group', 'host');
+const ctRt = () => uiGet('ct_rt', 'rzmon-ct-rt', 'all');
+let ctQuery = '';
+/** Label Running / Failed / Stopped / Paused (ook gebruikt in de checks) */
+function ctLabel(s, big = false) {
+  const [cls, txt] = CT_STATE[s] || CT_STATE.stopped;
+  return `<span class="ct-l ${cls}${big ? ' big' : ''}"><i></i>${txt}</span>`;
+}
+const ctIcon = {
+  box: '<path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/>',
+  srv: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+  shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  chev: '<path d="M6 9l6 6 6-6"/>',
+};
+const ctSvg = (p, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+
+async function ctLoad(force = false) {
+  if (!force && ctData && Date.now() - ctAt < 30000) return renderContainers();
+  if (ctBusy) return;
+  ctBusy = true;
+  if (!ctData) $('#containers').innerHTML = `<p class="muted">${L('laden…')}</p>`;
+  try { ctData = await api('containers'); ctAt = Date.now(); } catch (ex) {
+    $('#containers').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return;
+  } finally { ctBusy = false; }
+  renderContainers();
+}
+
+function ctExit(code) {
+  return { 137: L('gestopt door geheugentekort (OOM) of kill'), 143: L('netjes afgesloten na een stopsignaal'), 1: L('het programma gaf een fout'), 125: L('Podman/Docker kon hem niet starten'), 126: L('commando niet uitvoerbaar'), 127: L('commando niet gevonden'), 139: L('vastgelopen (segfault)') }[code] || '';
+}
+
+function renderContainers() {
+  if (!ctData) return;
+  const el = $('#containers');
+  const t = ctData.total, f = ctFilter(), g = ctGroup(), rt = ctRt(), q = ctQuery.trim().toLowerCase();
+  const pct = (a, b) => (b ? Math.round(a / b * 100) : 0);
+  const ring = (() => {
+    const C = 2 * Math.PI * 26, run = t.n ? t.running / t.n * C : 0, bad = t.n ? t.failed / t.n * C : 0;
+    return `<svg class="ct-ring" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="${esc(L('{n} van {t} draaien', { n: t.running, t: t.n }))}"><circle cx="32" cy="32" r="26" class="ct-ring-bg"/>`
+      + `<circle cx="32" cy="32" r="26" class="ct-ring-ok" stroke-dasharray="${run.toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 32 32)"/>`
+      + (bad ? `<circle cx="32" cy="32" r="26" class="ct-ring-bad" stroke-dasharray="${bad.toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-run).toFixed(1)}" transform="rotate(-90 32 32)"/>` : '')
+      + `<text x="32" y="37" text-anchor="middle">${t.running}</text></svg>`;
+  })();
+  const memLimit = ctData.hosts.reduce((s, h) => s + h.containers.reduce((x, c) => x + (c.state === 'running' && c.mem_limit ? Math.min(c.mem_limit, 1e12) : 0), 0), 0);
+  const failedNames = ctData.hosts.flatMap((h) => h.containers.filter((c) => c.state === 'failed').map((c) => c.name));
+  const disk = t.images + t.volumes + t.rw;
+  const kpis = `<div class="ct-kpis">
+    <div class="ct-k ct-k-main"><span class="ct-scan" aria-hidden="true"></span>${ring}<div><span class="ct-kl">${L('Containers')}</span><div><b class="ct-kv">${t.n}</b> <span class="muted small">${L('op {n} servers', { n: t.hosts })}</span>
+      <div class="small">Podman ${t.podman} · Docker ${t.docker}${t.pods ? ' · ' + L('{n} pods', { n: t.pods }) : ''}</div></div></div></div>
+    <button type="button" class="ct-k ct-k-fail${t.failed ? ' on' : ''}" data-ct-f="failed"><span class="ct-kl">Failed</span><b class="ct-kv">${t.failed}</b><span class="muted small">${esc(failedNames.slice(0, 3).join(', ') || L('geen'))}</span></button>
+    <button type="button" class="ct-k" data-ct-f="stopped"><span class="ct-kl">Stopped</span><b class="ct-kv">${t.stopped}</b><span class="muted small">${L('netjes gestopt')}</span></button>
+    <button type="button" class="ct-k" data-ct-f="paused"><span class="ct-kl">Paused</span><b class="ct-kv">${t.paused}</b><span class="muted small">${L('gepauzeerd')}</span></button>
+    <div class="ct-k"><span class="ct-kl">${L('CPU en geheugen')}</span>
+      <span class="ct-kr"><span>CPU <b class="mono">${dec(String(t.cpu))}%</b></span><span class="muted mono">${L('100% = één core')}</span></span><span class="ct-bar"><i style="width:${Math.min(100, t.cpu / Math.max(1, t.running) )}%" class="c-cpu"></i></span>
+      <span class="ct-kr"><span>${L('Geheugen')} <b class="mono">${fmtBytes(t.mem)}</b></span>${memLimit ? `<span class="muted mono">${L('van {n}', { n: fmtBytes(memLimit) })}</span>` : ''}</span><span class="ct-bar"><i style="width:${memLimit ? pct(t.mem, memLimit) : 0}%" class="c-mem"></i></span></div>
+    <div class="ct-k"><span class="ct-kl">${L('Schijf')} · ${fmtBytes(disk)}</span>
+      <span class="ct-stack" aria-hidden="true"><i class="c-img" style="flex:${t.images || 0}"></i><i class="c-vol" style="flex:${t.volumes || 0}"></i><i class="c-rw" style="flex:${t.rw || 0}"></i></span>
+      <span class="ct-kr small"><span>images <b>${fmtBytes(t.images)}</b></span><span>volumes <b>${fmtBytes(t.volumes)}</b></span><span>containers <b>${fmtBytes(t.rw)}</b></span></span>
+      ${t.reclaim > 0 ? `<span class="ct-warn small">${L('{n} op te ruimen (ongebruikte images)', { n: fmtBytes(t.reclaim) })}</span>` : ''}</div>
+  </div>`;
+  const chip = (k, lbl, n, dot) => `<button type="button" class="seg-btn${f === k ? ' active' : ''}" data-ct-f="${k}">${dot ? `<i class="ct-dot ${dot}"></i>` : ''}${lbl} ${n}</button>`;
+  const tools = `<div class="ct-tools">
+    <input type="search" id="ct-q" placeholder="${esc(L('Zoek container of image'))}" value="${esc(ctQuery)}" aria-label="${esc(L('Zoeken'))}">
+    <div class="seg" role="group">${chip('all', L('Alle'), t.n)}${chip('running', 'Running', t.running, 'run')}${chip('failed', 'Failed', t.failed, 'fail')}${chip('stopped', 'Stopped', t.stopped, 'stop')}${chip('paused', 'Paused', t.paused, 'pause')}</div>
+    <div class="seg" role="group">${[['host', L('Per server')], ['stack', L('Per stack')], ['none', L('Eén lijst')]].map(([k, l]) => `<button type="button" class="seg-btn${g === k ? ' active' : ''}" data-ct-g="${k}">${l}</button>`).join('')}</div>
+    <div class="seg ct-rt" role="group">${[['all', 'Podman + Docker'], ['podman', 'Podman'], ['docker', 'Docker']].map(([k, l]) => `<button type="button" class="seg-btn${rt === k ? ' active' : ''}" data-ct-rt="${k}">${l}</button>`).join('')}</div>
+  </div>`;
+  // Alle containers in één lijst, met de server erbij
+  const all = ctData.hosts.flatMap((h) => h.containers.map((c) => ({ ...c, host: h })));
+  const shown = all.filter((c) => (f === 'all' || c.state === f) && (rt === 'all' || c.runtime === rt)
+    && (!q || (c.name + ' ' + c.image + ' ' + c.pod + ' ' + c.host.name).toLowerCase().includes(q)));
+  const stackOf = (c) => c.pod || (c.name.includes('_') ? c.name.split('_')[0] : '') || L('zonder stack');
+  let groups;
+  if (g === 'none') groups = [{ key: 'all', title: L('Alle containers'), sub: '', list: shown }];
+  else if (g === 'stack') {
+    const m = new Map(); shown.forEach((c) => { const k = stackOf(c); if (!m.has(k)) m.set(k, []); m.get(k).push(c); });
+    groups = [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, list]) => ({ key: 's:' + k, title: k, sub: L('{n} containers', { n: list.length }), list }));
+  } else {
+    groups = ctData.hosts.map((h) => ({ key: 'h:' + h.id, host: h, title: h.name, list: shown.filter((c) => c.host.id === h.id) })).filter((x) => x.list.length);
+  }
+  const head = `<div class="ct-tr ct-th"><span>${L('Container')}</span><span>${L('Status')}</span><span>${L('Image')}</span><span>${L('Draait')}</span><span>CPU</span><span>${L('Geheugen')}</span><span>${L('Schijf')}</span><span>${L('Herstart')}</span><span>${L('24 uur')}</span><span class="r">${L('Check')}</span></div>`;
+  const row = (c, i) => {
+    const id = c.host.id + ':' + c.key, open = ctOpen.has(id), run = c.state === 'running';
+    const memW = c.mem_pct !== null ? Math.min(100, c.mem_pct) : 0;
+    const sub = [g !== 'host' ? c.host.name : '', c.pod ? 'pod: ' + c.pod : '', c.user && c.user !== 'root' && c.user !== 'docker' ? L('gebruiker: {u}', { u: c.user }) : '', c.health === 'unhealthy' ? L('ongezond (healthcheck faalt)') : c.health === 'healthy' ? L('gezond') : ''].filter(Boolean).join(' · ');
+    const chk = c.check ? `<button type="button" class="ct-mon" data-ct-check="${c.check.id}">${ctSvg(ctIcon.shield, 14)}${L('bewaakt')}</button>`
+      : (isAdmin() ? `<button type="button" class="btn small-btn" data-ct-add="${c.host.id}" data-ct-key="${esc(c.key)}">＋ ${L('Check')}</button>` : `<span class="muted small">–</span>`);
+    return `<div class="ct-tr ct-s-${c.state}${open ? ' open' : ''}" data-ct-row="${esc(id)}" style="--i:${Math.min(i, 20)}" role="button" tabindex="0" aria-expanded="${open}">
+      <span class="ct-name"><b>${esc(c.name)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
+      <span>${ctLabel(c.state)}</span>
+      <span class="mono ct-img" data-l="${esc(L('Image'))}" title="${esc(c.image)}">${esc(c.image || '–')}</span>
+      <span class="mono" data-l="${esc(L('Draait'))}">${run && c.started ? durText(Date.now() / 1000 - c.started) : '–'}</span>
+      <span class="ct-cpu" data-l="CPU">${c.cpu !== null ? `<span class="ct-bar"><i class="c-cpu" style="width:${Math.min(100, c.cpu)}%"></i></span><b class="mono">${dec(String(c.cpu))}%</b>` : '<span class="muted">–</span>'}</span>
+      <span class="ct-mem" data-l="${esc(L('Geheugen'))}"><span class="mono small">${c.mem !== null ? fmtBytes(c.mem) + (c.mem_limit && c.mem_limit < 1e12 ? ' / ' + fmtBytes(c.mem_limit) : '') : '–'}</span>${c.mem_pct !== null ? `<span class="ct-bar"><i class="${memW >= 90 ? 'c-bad' : memW >= 75 ? 'c-warn' : 'c-mem'}" style="width:${memW}%"></i></span>` : ''}</span>
+      <span class="mono small" data-l="${esc(L('Schijf'))}" title="${esc(L('container {a} · volumes {b}', { a: fmtBytes(c.size_rw), b: fmtBytes(c.volumes) }))}">${fmtBytes(c.size_rw + c.volumes)}</span>
+      <span class="mono ${c.restarts ? 'ct-bad' : 'muted'}" data-l="${esc(L('Herstart'))}">${c.restarts}</span>
+      <span class="ct-24" data-l="${esc(L('24 uur'))}">${c.check ? timelineOf([c.check.id]) : '<span class="muted small">–</span>'}</span>
+      <span class="r">${chk}</span>
+    </div>${open ? ctDetail(c) : ''}`;
+  };
+  const groupHtml = (x, gi) => {
+    const h = x.host;
+    const cnt = (s) => x.list.filter((c) => c.state === s).length;
+    const sum = [L('{n} containers', { n: x.list.length }), cnt('failed') ? cnt('failed') + ' failed' : '', cnt('stopped') ? cnt('stopped') + ' stopped' : '', cnt('paused') ? cnt('paused') + ' paused' : ''].filter(Boolean).join(' · ');
+    const cpu = x.list.reduce((s, c) => s + (c.cpu || 0), 0), mem = x.list.reduce((s, c) => s + (c.mem || 0), 0), dsk = x.list.reduce((s, c) => s + c.size_rw + c.volumes, 0);
+    return `<section class="ct-grp" style="--g:${gi}">
+      <div class="ct-gh"><span class="ct-gi">${ctSvg(h ? ctIcon.srv : ctIcon.box, 18)}</span><b>${esc(x.title)}</b>
+        ${h ? `<span class="mono muted small">${esc(h.version ? (h.containers.some((c) => c.runtime === 'docker') && !h.containers.some((c) => c.runtime === 'podman') ? 'Docker ' : 'Podman ') + h.version : '')}</span>` : ''}
+        <span class="small">${esc(sum)}</span>${h && h.stale ? `<span class="ct-l stop">${L('agent stil')}</span>` : ''}${h && h.error ? `<span class="ct-warn small">${esc(h.error)}</span>` : ''}
+        <span class="ct-gs small"><span>CPU <b class="mono">${dec(cpu.toFixed(1))}%</b></span><span>RAM <b class="mono">${fmtBytes(mem)}</b></span><span>${L('Schijf')} <b class="mono">${fmtBytes(dsk)}</b></span></span></div>
+      <div class="ct-tbl">${head}${x.list.map(row).join('')}</div></section>`;
+  };
+  const empty = !ctData.hosts.length
+    ? `<div class="av-hint">${L('Nog geen containers: de agent meldt ze zodra Podman of Docker op een server draait (agent 1.70.0 of nieuwer).')}</div>`
+    : (!shown.length ? `<p class="muted">${L('Geen containers met deze filters.')}</p>` : '');
+  el.dataset.motion = String(afMotion(null));
+  el.innerHTML = kpis + tools + empty + groups.map(groupHtml).join('')
+    + `<p class="muted small av-foot">${esc(L('Running = draait. Failed = gestopt met een foutcode, vastgelopen of ongezond (CRITICAL). Stopped = netjes gestopt met exitcode 0 (WARNING). Paused = gepauzeerd (WARNING). De gegevens komen van de agent, elke minuut.'))}</p>`;
+}
+
+function ctDetail(c) {
+  const why = c.state === 'failed' ? ctExit(c.exit_code) : '';
+  const kv = [
+    [L('Laatste status'), `${esc(c.raw_state || '–')}${c.state !== 'running' ? ` · exitcode <b>${c.exit_code}</b>` : ''}`],
+    why ? [L('Betekent'), esc(why)] : null,
+    [L('Status van de runtime'), esc(c.status_text || '–')],
+    c.started ? [c.state === 'running' ? L('Draait sinds') : L('Laatst gestart'), esc(new Date(c.started * 1000).toLocaleString(LOCALE, { dateStyle: 'short', timeStyle: 'short' }))] : null,
+    c.net_in !== null ? [L('Netwerk'), `↓ ${fmtBytes(c.net_in)} · ↑ ${fmtBytes(c.net_out)}`] : null,
+    c.pids !== null ? [L('Processen'), String(c.pids)] : null,
+    [L('Runtime'), esc(c.runtime === 'docker' ? 'Docker' : 'Podman' + (c.user && c.user !== 'root' ? ` (rootless, ${c.user})` : ''))],
+  ].filter(Boolean);
+  return `<div class="ct-det ct-s-${c.state}">
+    <div class="ct-kvs">${kv.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')}</div>
+    <div class="ct-det-a">${c.check ? `<button type="button" class="btn small-btn" data-ct-check="${c.check.id}">${L('Check openen')}</button>${aiBtn('check', c.check.id)}`
+      : (isAdmin() ? `<button type="button" class="btn small-btn" data-ct-add="${c.host.id}" data-ct-key="${esc(c.key)}">＋ ${L('Check maken')}</button>` : '')}
+      <button type="button" class="btn small-btn" data-ct-host="${c.host.id}">${L('Naar de server')}</button></div>
+  </div>`;
+}
+
+function initContainers() {
+  const el = $('#containers');
+  el.addEventListener('click', (e) => {
+    const fb = e.target.closest('[data-ct-f]');
+    if (fb) { uiSet('ct_filter', 'rzmon-ct-filter', ctFilter() === fb.dataset.ctF && fb.classList.contains('ct-k') ? 'all' : fb.dataset.ctF); return renderContainers(); }
+    const gb = e.target.closest('[data-ct-g]');
+    if (gb) { uiSet('ct_group', 'rzmon-ct-group', gb.dataset.ctG); return renderContainers(); }
+    const rb = e.target.closest('[data-ct-rt]');
+    if (rb) { uiSet('ct_rt', 'rzmon-ct-rt', rb.dataset.ctRt); return renderContainers(); }
+    const ck = e.target.closest('[data-ct-check]');
+    if (ck) { e.stopPropagation(); return checkInfo(+ck.dataset.ctCheck); }
+    const add = e.target.closest('[data-ct-add]');
+    if (add) { e.stopPropagation(); return checkForm(null, findHost(+add.dataset.ctAdd), { type: 'container', target: add.dataset.ctKey, name: '', options: '{"res":{}}' }); }
+    const hb = e.target.closest('[data-ct-host]');
+    if (hb) { setMonSub('checks'); return jumpToHost(hb.dataset.ctHost); }
+    if (e.target.closest('button, a, [data-ai]')) return;
+    const r = e.target.closest('[data-ct-row]');
+    if (r) { const k = r.dataset.ctRow; if (ctOpen.has(k)) ctOpen.delete(k); else ctOpen.add(k); renderContainers(); }
+  });
+  el.addEventListener('keydown', (e) => {
+    const r = e.target.closest('[data-ct-row]');
+    if (r && (e.key === 'Enter' || e.key === ' ') && e.target === r) { e.preventDefault(); r.click(); }
+  });
+  el.addEventListener('input', (e) => {
+    if (e.target.id !== 'ct-q') return;
+    ctQuery = e.target.value;
+    const pos = e.target.selectionStart;
+    renderContainers();
+    const n = $('#ct-q'); if (n) { n.focus(); n.setSelectionRange(pos, pos); }
+  });
 }
 
 // ============ 1.171.0: AI-advies (staat AI uit, dan is state.ai null en is er nergens iets van te zien) ============
@@ -2458,6 +2718,7 @@ function renderNow() {
   renderHealth();
   renderIsoBanner();
   if (monSub === 'avail') avLoad();   // 1.169.0
+  if (monSub === 'cont') ctLoad();   // 1.176.0 (elke 30 s opnieuw)
   const banner = $('#maint-banner');
   banner.hidden = !state.maintenance;
   if (state.maintenance) {
@@ -3445,7 +3706,7 @@ function ccHostCard(h) {
     return `<div class="ccx-row s${s}${c.acked_at ? ' acked' : ''}" data-cid="${c.id}" style="--i:${Math.min(i, 12)}" role="button" tabindex="0" title="${esc(L('Klik voor de details van deze check'))}">
       <span class="ccx-st"><i></i>${esc(ccWord(c))}${c.acked_at ? ` <span class="ccx-ack" title="${esc(L('Bevestigd'))}">✔</span>` : ''}</span>
       <span class="ccx-cn"><span class="ccx-ti" aria-hidden="true">${checkIcon(c)}</span><span><b>${esc(c.name)}</b><small>${esc(typeOf(c).label || c.type)}</small></span></span>
-      <b class="ccx-v" data-flash>${un ? `${v}<small>${esc(un)}</small>` : ''}</b>
+      <b class="ccx-v" data-flash>${ctOf(c) || (un ? `${v}<small>${esc(un)}</small>` : '')}</b>
       <span class="ccx-msg">${esc(msg.slice(0, 220)) || '<span class="muted">–</span>'}</span>
       <span class="ccx-tl">${checkTimeline(c)}</span>
       <span class="ccx-act">${aiBtn('check', c.id)}${!c.acked_at ? `<button type="button" class="btn small-btn need-user" data-act="ack" data-id="${c.id}">✔ ${L('Bevestig')}</button>` : ''}</span>
@@ -3454,7 +3715,7 @@ function ccHostCard(h) {
   const goodTiles = good.map((c, i) => {
     const s = !+c.enabled ? 'off' : c.maintenance ? 4 : +c.status, [v, un] = keyValue(c), msg = (c.last_message || '').replace(/\s+/g, ' ');
     return `<div class="ccx-ok s${s}${i >= CC_OK_SHOW ? ' more' : ''}" data-cid="${c.id}" role="button" tabindex="0" title="${esc(c.name)}: ${esc(msg)}">
-      <i class="ccx-dot"></i><span class="ccx-ok-t"><b>${esc(c.name)}</b><small>${esc(msg.slice(0, 80)) || esc(ccWord(c))}</small></span>${keySpark(c, 22)}<b class="ccx-v" data-flash>${v}<small>${esc(un)}</small></b></div>`;
+      <i class="ccx-dot"></i><span class="ccx-ok-t"><b>${esc(c.name)}</b><small>${esc(msg.slice(0, 80)) || esc(ccWord(c))}</small></span>${keySpark(c, 22)}<b class="ccx-v" data-flash>${ctOf(c) || `${v}<small>${esc(un)}</small>`}</b></div>`;
   }).join('');
   const cpu = ccTop(h, 'cpu'), ram = ccTop(h, 'ram'), disk = ccTop(h, 'disk');
   const gauges = [cpu ? ccGauge('CPU', +cpu.last_value, 'cpu') : '', ram ? ccGauge('RAM', +ram.last_value, 'ram') : '', disk ? ccGauge(disk.name, +disk.last_value, 'disk') : '',
@@ -3654,7 +3915,7 @@ function checkRow(c) {
   return `
   <li class="chk ${b.cls}" title="${b.title}" data-cid="${c.id}">
     <span class="dot"></span>
-    <span class="chk-name">${esc(c.name)}<span class="type">${b.t.label}${b.num ? ` · <span data-flash>${b.num}</span>` : ''}</span>${b.flags}</span>
+    <span class="chk-name">${esc(c.name)}<span class="type">${b.t.label}${ctOf(c) ? ' ' + ctOf(c) : b.num ? ` · <span data-flash>${b.num}</span>` : ''}</span>${b.flags}</span>
     <span class="chk-actions">${b.actions}
     </span>
     ${bar}
@@ -3705,7 +3966,7 @@ function checkLines(h, large) {
 
 function checkLine(c, large) {
   const b = checkBits(c);
-  const value = b.pctVal !== null
+  const value = ctOf(c) ? ctOf(c) : b.pctVal !== null
     ? `<span class="cl-meter" title="${fmt(b.pctVal, '%')}"><span class="bar"><i style="width:${b.pctVal}%"></i>${b.ticks}</span><b data-flash>${Math.round(b.pctVal)}%</b></span>`
     : b.num ? `<span class="cl-num" data-flash>${b.num}</span>` : '<span class="muted">–</span>';
   return `
@@ -3722,6 +3983,8 @@ function checkLine(c, large) {
 }
 
 function findHost(id) { return state.hosts.find((h) => +h.id === +id); }
+/** 1.176.0: label Running/Failed/Stopped/Paused bij een container-check (leeg bij andere checks) */
+const ctOf = (c) => (c && c.type === 'container' && c.cstate && (!c.metric || c.metric === 'status') ? ctLabel(c.cstate) : '');
 function findCheck(id) {
   for (const h of state.hosts) { const c = h.checks.find((c) => +c.id === +id); if (c) return [c, h]; }
   return [null, null];
@@ -3804,9 +4067,10 @@ function whenText(dt) {
   return (today ? '' : d.toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + dt.slice(11, 16);
 }
 
-async function checkInfo(id, live = false) {
+async function checkInfo(id, live = false, more = null) {
   let r;
-  try { r = await api('check_info', null, { id }); } catch (ex) { return live ? null : toast(ex.message, 'err'); }
+  if (more === null) more = live && $('#modal').dataset.ciMore === String(id);
+  try { r = await api('check_info', null, more ? { id, more: 1 } : { id }); } catch (ex) { return live ? null : toast(ex.message, 'err'); }
   // Live (1.109.0): alleen bijwerken als dit venster nog open is voor deze check
   if (live && !($('#modal').open && $('#modal').dataset.live === 'check:' + id)) return;
   const c = r.check;
@@ -3864,15 +4128,114 @@ async function checkInfo(id, live = false) {
     ...(sc ? [{ label: '📈 ' + L('Grafiek'), onClick: () => { close(); showHistory(sc, h); } }] : []),
     ...(sc ? [{ label: '✎ ' + L('Bewerken'), cls: 'need-admin', onClick: () => checkForm(sc, h) }] : []),
   ];
-  const ciBody = `<div class="ci">
-      <p class="ci-status s${st}"><b>${STATUS[st]}</b>${since}<br><span class="ci-msg">${esc(c.last_message || '–')}</span></p>
-      <dl class="ci-grid">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
-      <p class="small muted ci-tags">${tags.join(' · ')}</p>
-      ${r.smart ? smartBlock(r.smart, c) : ''}
-      <h3 class="ci-h">${L('Laatste 5 statuswijzigingen')}</h3>
-      ${changes ? `<ol class="ci-changes">${changes}</ol>` : `<p class="muted small">${L('Nog geen statuswijzigingen bewaard. Ze worden bijgehouden vanaf versie 1.37.0.')}</p>`}
+  // ---- 1.176.0: de nieuwe popup (status, 24 uur, beschikbaarheid, details, melden, samenhang, AI, instellingen, tijdlijn) ----
+  const x = r.extra || {};
+  const cnt = x.counts || {}, out = x.outages || {}, nt = x.notify || {};
+  const n0 = (v) => (+v || 0).toLocaleString(LOCALE);
+  const sec = (title, body, cls = '') => `<section class="ci2-sec ${cls}"><h4 class="ci2-sh">${title}</h4>${body}</section>`;
+  const kv = (list) => `<dl class="ci2-kv">${list.filter(Boolean).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+  // 1. status nu, met meter als er een waarde en drempels zijn
+  const hasVal = c.last_value !== null && c.last_value !== undefined && unit;
+  const w = c.warn_threshold !== null ? +c.warn_threshold : null, cr = c.crit_threshold !== null ? +c.crit_threshold : null;
+  let meter = '';
+  if (hasVal) {
+    const [vv, uu] = keyValue(c);
+    const top = unit === '%' ? 100 : Math.max(+c.last_value, cr ?? 0, w ?? 0) * 1.15 || 1;
+    const p = (v) => Math.max(0, Math.min(100, v / top * 100));
+    const zones = !t.low && w !== null && cr !== null ? `background:linear-gradient(90deg,var(--ok) 0 ${p(w)}%,var(--warn) ${p(w)}% ${p(cr)}%,var(--crit) ${p(cr)}% 100%)` : '';
+    meter = `<div class="ci2-meter"><div class="ci2-mv"><span class="muted small">${L('Huidige waarde')}</span><b class="mono">${vv}<small>${esc(uu)}</small></b></div>
+      ${zones ? `<div class="ci2-mbar" style="${zones}"><i style="left:${p(+c.last_value)}%"></i></div>
+      <div class="ci2-mtk mono"><span style="left:0">0</span><span style="left:${p(w)}%">${dec(String(w))}</span><span style="left:${p(cr)}%">${dec(String(cr))}</span></div>` : ''}</div>`;
+  } else if (ctOf(c)) meter = `<div class="ci2-meter ci2-mct">${ctLabel(c.cstate, true)}</div>`;
+  const hero = `<div class="ci2-hero s${st}">
+    <div class="ci2-hl"><div class="ci2-st"><i class="ci2-pulse"></i><b>${STATUS[st]}</b>${c.status_since ? `<span class="mono muted small">${L('sinds {t}', { t: esc(whenText(c.status_since)) })}</span>` : ''}</div>
+      <div class="ci2-msg">${esc(c.last_message || '–')}</div>
+      ${c.status_since && st !== 0 ? `<span class="ci2-dur mono">${L('duurt al {d}', { d: durText((now - toTime(c.status_since)) / 1000) })}</span>` : ''}</div>
+    ${meter}</div>`;
+  // 2. grafiek van 24 uur (geladen in de achtergrond)
+  const chart = unit ? sec(L('Laatste 24 uur'), `<div class="ci2-chart" id="ci2-chart"><p class="muted small">${L('laden…')}</p></div>`) : '';
+  // 3. beschikbaarheid en hoe vaak gecheckt
+  const C = 2 * Math.PI * 24;
+  const ringOf = (lbl, v) => `<div class="ci2-ring"><svg width="58" height="58" viewBox="0 0 58 58" role="img" aria-label="${esc(lbl)} ${v === null ? '–' : fmtPct(v)}"><circle cx="29" cy="29" r="24" class="bg"/>${v === null ? '' : `<circle cx="29" cy="29" r="24" class="fg${v < 99 ? ' bad' : ''}" stroke-dasharray="${(C * v / 100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 29 29)"/>`}<text x="29" y="33" text-anchor="middle">${v === null ? '–' : (v >= 99.95 ? '100' : dec(v.toFixed(v >= 99 ? 1 : 0)))}%</text></svg><span>${lbl}</span></div>`;
+  const avail = sec(L('Beschikbaarheid'), `<div class="ci2-rings">${ringOf(L('24 uur'), r.uptime.d1)}${ringOf(L('7 dagen'), r.uptime.d7)}${ringOf(L('30 dagen'), out.up30 ?? null)}
+      ${kv([[L('Storingen 30 d'), `<b>${out.count || 0}</b>`], [L('Gem. hersteltijd'), out.mttr ? durText(out.mttr) : '–'], [L('Langste storing'), out.longest ? durText(out.longest) : '–']])}</div>
+    <div class="ci2-counts">
+      <div><span>${L('Gecheckt 24 u')}</span><b class="mono">${n0(cnt.n24)}×</b>${cnt.f24 ? `<em class="bad">· ${L('{n} mislukt', { n: n0(cnt.f24) })}</em>` : ''}</div>
+      <div><span>${L('Gecheckt 7 d')}</span><b class="mono">${n0(cnt.n7)}×</b>${cnt.f7 ? `<em class="bad">· ${L('{n} mislukt', { n: n0(cnt.f7) })}</em>` : ''}</div>
+      <div><span>${cnt.since ? L('Sinds {d}', { d: esc(new Date(cnt.since.replace(' ', 'T')).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' })) }) : L('Totaal bewaard')}</span><b class="mono">${n0(cnt.total)}×</b>${cnt.total ? `<em class="${cnt.total_fail ? 'warn' : 'good'}">· ${fmtPct(Math.round((1 - cnt.total_fail / cnt.total) * 1000) / 10)} ${L('goed')}</em>` : ''}</div>
+    </div>`);
+  // 4. details per soort (container, disk, certificaat), anders de basis
+  const d = x.detail;
+  let det;
+  if (d && d.kind === 'container') {
+    det = ([[L('Status'), `${ctLabel(d.state)} <span class="muted small">${esc(d.raw_state)}${d.state !== 'running' ? ` · exitcode ${d.exit_code}` : ''}</span>`],
+      d.state === 'failed' && ctExit(d.exit_code) ? [L('Betekent'), esc(ctExit(d.exit_code))] : null,
+      [L('Image'), `<code>${esc(d.image || '–')}</code>`], d.health ? [L('Health'), esc(d.health)] : null,
+      [L('Herstarts'), `<b class="${d.restarts ? 'ct-bad' : ''}">${d.restarts}×</b>`],
+      d.started ? [d.state === 'running' ? L('Draait sinds') : L('Laatst gestart'), esc(new Date(d.started * 1000).toLocaleString(LOCALE, { dateStyle: 'short', timeStyle: 'short' }))] : null,
+      d.cpu !== null ? ['CPU', `${dec(String(d.cpu))}%`] : null,
+      d.mem !== null ? [L('Geheugen'), `${fmtBytes(d.mem)}${d.mem_limit && d.mem_limit < 1e12 ? ' / ' + fmtBytes(d.mem_limit) : ''}`] : null,
+      [L('Schijf'), `${fmtBytes(d.size_rw)}${d.volumes ? ' + ' + L('volumes {n}', { n: fmtBytes(d.volumes) }) : ''}`],
+      d.pod ? ['Pod', esc(d.pod)] : null]);
+  } else if (d && d.kind === 'disk') {
+    det = ([[L('Gebruikt'), `<b>${dec(String(Math.round(d.pct * 10) / 10))}%</b>`],
+      [L('Groei'), d.per_day !== null ? `${d.per_day >= 0 ? '+' : ''}${dec(String(Math.round(d.per_day * 100) / 100))} ${L('procentpunt per dag')}` : `<span class="muted">${L('nog te weinig gegevens')}</span>`],
+      [L('Vol over'), d.days_to_full !== null && d.days_to_full !== undefined ? `<b class="${d.days_to_full < 14 ? 'ct-bad' : ''}">± ${Math.round(d.days_to_full)} ${L('dagen')}</b>` : `<span class="muted">${L('niet in zicht')}</span>`]]);
+  } else if (d && d.kind === 'days') {
+    det = ([[L('Nog geldig'), `<b class="${d.days < 14 ? 'ct-bad' : ''}">${Math.floor(d.days)} ${L('dagen')}</b>`], [L('Verloopt'), esc(new Date(Date.now() + d.days * 86400000).toLocaleDateString(LOCALE, { dateStyle: 'medium' }))]]);
+  } else det = rows.slice(0, 2);
+  const details = sec(d ? L('Details') : L('Over deze check'), kv(d ? [...det, rows[0]] : det));
+  // 5. melden
+  const steps = Math.max(1, Math.min(10, nt.needed || 1));
+  const done = st === 0 ? 0 : Math.min(steps, nt.streak || 0);
+  const last = nt.last;
+  const melden = sec(L('Melden'), `${st !== 0 ? `<div class="ci2-steps" aria-hidden="true">${Array.from({ length: steps }, (_, i) => `<i class="${i < done ? 'on s' + st : ''}"></i>`).join('')}</div>` : ''}
+    ${kv([[L('Melden na'), steps === 1 ? L('de eerste mislukte check') : L('{n} mislukte checks', { n: steps }) + (st !== 0 ? ` · <b>${done >= steps ? L('bereikt') : L('{a} van {b}', { a: done, b: steps })}</b>` : '')],
+      [L('Laatst gemeld'), last ? `${esc(whenText(last.created_at))} · ${channelIcons(last)}` : `<span class="muted">${L('nog nooit')}</span>`],
+      nt.escalated ? [L('Escalatie'), `⏫ ${L('al geëscaleerd')}`] : nt.escalation ? [L('Escalatie'), nt.escalation.in > 0 ? L('over {d}, als niet bevestigd', { d: durText(nt.escalation.in) }) : L('bij de volgende herhaling')] : null,
+      c.acked_at ? [L('Bevestigd'), `✔ ${esc(c.acked_by || '?')} · ${esc(whenText(c.acked_at))}${c.ack_comment ? `<br><i class="muted">“${esc(c.ack_comment)}”</i>` : ''}`] : null])}
+    <p class="small muted ci-tags">${tags.join(' · ')}</p>`);
+  // 6. samenhang: andere problemen op dezelfde server en de server erboven
+  const others = h ? h.checks.filter((o) => +o.id !== +c.id && isProblem(o)).sort((a, b) => STATUS_RANK[b.status] - STATUS_RANK[a.status]).slice(0, 4) : [];
+  const parent = h && h.parent_id ? findHost(h.parent_id) : null;
+  const pDown = parent && ((state.health && state.health.down) || []).some((q) => +q.id === +parent.id);
+  const samen = sec(L('Samenhang'), `${others.length ? `<p class="small muted">${L('Ook niet in orde op {h}, mogelijk dezelfde oorzaak', { h: esc(c.host_name) })}</p>
+      <div class="ci2-rel">${others.map((o) => `<button type="button" class="ci2-ro s${o.status}" data-ci-open="${o.id}"><i></i><b>${esc(o.name)}</b><span>${esc((o.last_message || '').slice(0, 90))}</span>${ctOf(o) || `<em>${STATUS[+o.status]}</em>`}</button>`).join('')}</div>`
+      : `<p class="small muted">${L('Geen andere problemen op {h}.', { h: esc(c.host_name) })}</p>`}
+    ${parent ? `<p class="small">${L('Hangt af van')}: <b>${esc(parent.name)}</b> <span class="${pDown ? 'ct-bad' : 'ci2-ok'}">· ${pDown ? L('onbereikbaar') : L('bereikbaar')}</span></p>` : ''}`);
+  // 7. laatste AI-advies
+  const ai = x.ai;
+  const VERD = { real: [L('Echt probleem'), 'bad'], suspicious: [L('Verdacht'), 'warn'], benign: [L('Onschuldig'), 'good'] };
+  const aiSec = ai && aiOn() ? sec(L('Laatste AI-advies') + ` <span class="muted small">${esc(whenText(ai.at))} · ${esc(ai.model || ai.provider)}${ai.cost ? ' · ' + esc(aiMoney(ai.cost)) : ''}</span>`,
+    `<div class="ci2-ai">${ai.verdict && VERD[ai.verdict] ? `<span class="ci2-verd ${VERD[ai.verdict][1]}">${VERD[ai.verdict][0]}</span>` : ''}<span>${esc(ai.summary || L('Zie het volledige advies.'))}</span>
+      <button type="button" class="btn small-btn" data-ci-ai="${c.id}">${L('Volledig advies')}</button></div>`, 'ci2-aisec') : '';
+  // 8. instellingen
+  const setRows = [rows[1], rows[2] && rows[2][0] !== L('Laatste check') ? rows[2] : null,
+    r.smart && r.smart.mode !== 'manual' ? [L('Drempels'), esc(SMART_MODES[r.smart.mode] || '')] : null,
+    [L('Melden na'), steps === 1 ? L('meteen') : L('{n} mislukte checks', { n: steps })],
+    [L('Laatste check'), rows.find((q) => q[0] === L('Laatste check'))[1]],
+    x.changed ? [L('Gewijzigd'), `${esc(whenText(x.changed.at))} ${L('door {u}', { u: esc(x.changed.username || '?') })}`] : null];
+  const inst = sec(L('Instellingen'), kv(setRows));
+  // 9. tijdlijn van statuswijzigingen
+  const tl = r.changes.map((ch) => {
+    const sent = ch.alerts.filter((a) => a.kind !== 'ack' && a.kind !== 'info');
+    const acks = ch.alerts.filter((a) => a.kind === 'ack');
+    const dd = ((ch.ended_at ? toTime(ch.ended_at) : now) - toTime(ch.created_at)) / 1000;
+    const why = sent.length ? `${L('gemeld {t}', { t: esc(whenText(sent[0].created_at)) })} · ${channelIcons(sent[0])}` : ch.note ? L('niet gemeld: {note}', { note: esc(ch.note) }) : +ch.to_status === 0 ? '' : L('niet gemeld');
+    return `<li class="s${+ch.to_status}"><i class="ci2-dot"></i><div><div class="ci2-th"><span class="mono muted small">${esc(whenText(ch.created_at))}</span><b>${STATUS[+ch.from_status]} → ${STATUS[+ch.to_status]}</b><span class="muted small">${ch.ended_at ? L('duurde') : L('duurt nu')} ${durText(dd)}</span></div>
+      <div class="small">${esc((ch.message || '–').slice(0, 160))}</div>${why || acks.length ? `<div class="muted small">${why}${acks.length ? ` · ✔ ${L('bevestigd {t}', { t: esc(whenText(acks[0].created_at)) })}` : ''}</div>` : ''}</div></li>`;
+  }).join('');
+  const moreBtn = (r.changes_total || 0) > r.changes.length ? `<button type="button" class="btn small-btn ci2-more" data-ci-more="${c.id}">＋ ${L('{n} eerdere tonen', { n: Math.min(25, r.changes_total) - r.changes.length })}</button>` : '';
+  const tlSec = sec(L('Statuswijzigingen'), tl ? `<ol class="ci2-tl">${tl}</ol>${moreBtn}` : `<p class="muted small">${L('Nog geen statuswijzigingen bewaard.')}</p>`);
+  const ciBody = `<div class="ci2" data-motion="${afMotion(null)}">${hero}${chart}
+      <div class="ci2-g2">${avail}${details}</div>
+      <div class="ci2-g2">${melden}${samen}</div>
+      ${aiSec}
+      <div class="ci2-g2 ci2-g2b">${inst}${tlSec}</div>
+      ${r.smart ? `<section class="ci2-sec">${smartBlock(r.smart, c)}</section>` : ''}
     </div>`;
   const title = `${ST_ICON[st]} ${c.name} – ${c.host_name}`;
+  if (unit) setTimeout(() => ciChart(c, t), 0);
   if (live) {
     $('#modal-title').textContent = title;
     withMorph(() => { $('#modal-body').innerHTML = ciBody; });
@@ -3882,8 +4245,55 @@ async function checkInfo(id, live = false) {
   }
   modal({ title, wide: true, body: ciBody, buttons: btns });
   $('#modal').dataset.live = 'check:' + id;
+  $('#modal').dataset.ciMore = more ? String(id) : '';
+  if (!live) { const mb = $('#modal-body'); if (mb && !more) mb.scrollTop = 0; }
   $('#modal').dataset.btns = btns.map((b) => b.label).join('|');
 }
+
+/** 1.176.0: grafiek van 24 uur in de popup: waarde, geleerde band, drempels en de statuswissels als stip */
+const ciChartCache = new Map();
+async function ciChart(c, t) {
+  let d = ciChartCache.get(c.id);
+  if (!d || Date.now() - d.at > 60000) {
+    try { d = { at: Date.now(), r: await api('history', null, { check_id: c.id, hours: 24 }) }; ciChartCache.set(c.id, d); } catch { d = null; }
+  }
+  const el = $('#ci2-chart');
+  if (!el || !d) return;
+  const pts = (d.r.points || []).filter((p) => p.v !== null && p.v !== undefined);
+  if (pts.length < 2) { el.innerHTML = `<p class="muted small">${L('Nog te weinig metingen voor een grafiek.')}</p>`; return; }
+  const W = 600, H = 130, t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+  const band = d.r.band;
+  const w = c.warn_threshold !== null ? +c.warn_threshold : null, cr = c.crit_threshold !== null ? +c.crit_threshold : null;
+  const vals = pts.map((p) => +p.v).concat(band ? band.flatMap((b) => [b[0], b[1]]).filter((v) => v !== null) : []);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (t.unit === '%') { lo = Math.min(lo, 0); hi = Math.max(hi, 100); }
+  [w, cr].forEach((v) => { if (v !== null && v <= hi * 1.4 && v >= lo - Math.abs(hi - lo)) { hi = Math.max(hi, v); lo = Math.min(lo, v); } });
+  if (hi === lo) hi = lo + 1;
+  const pad = (hi - lo) * .08;
+  const X = (tt) => ((tt - t0) / Math.max(1, t1 - t0) * W).toFixed(1), Y = (v) => (H - 6 - ((v - (lo - pad)) / ((hi + pad) - (lo - pad))) * (H - 12)).toFixed(1);
+  const line = pts.map((p) => `${X(p.t)},${Y(+p.v)}`).join(' ');
+  const area = `M${X(t0)},${H} L${pts.map((p) => `${X(p.t)},${Y(+p.v)}`).join(' L')} L${X(t1)},${H} Z`;
+  let bandPath = '';
+  if (band && band.length === (d.r.points || []).length) {
+    const all = d.r.points.map((p, i) => [p.t, band[i]]).filter(([, b]) => b && b[0] !== null && b[1] !== null);
+    if (all.length > 1) bandPath = `<path class="ci2-band" d="M${all.map(([tt, b]) => `${X(tt)},${Y(b[1])}`).join(' L')} L${all.reverse().map(([tt, b]) => `${X(tt)},${Y(b[0])}`).join(' L')} Z"/>`;
+  }
+  const thr = (v, cls) => (v !== null && v >= lo - pad && v <= hi + pad ? `<line class="${cls}" x1="0" x2="${W}" y1="${Y(v)}" y2="${Y(v)}"/>` : '');
+  const dots = [];
+  for (let i = 1; i < pts.length; i++) if (+pts[i].s !== +pts[i - 1].s) dots.push(`<circle class="ci2-cd s${+pts[i].s}" cx="${X(pts[i].t)}" cy="${Y(+pts[i].v)}" r="4.5"/>`);
+  const lab = (tt) => new Date(tt * 1000).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
+  const leg = [`<span><i class="lg-v"></i>${L('waarde')}</span>`, bandPath ? `<span><i class="lg-b"></i>${L('geleerde band')}</span>` : '', w !== null ? `<span><i class="lg-w"></i>warning</span>` : '', cr !== null ? `<span><i class="lg-c"></i>critical</span>` : ''].join('');
+  el.innerHTML = `<div class="ci2-leg small">${leg}</div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="ci2-svg" role="img" aria-label="${esc(L('Verloop van de laatste 24 uur'))}">${bandPath}
+    ${thr(w, 'ci2-tw')}${thr(cr, 'ci2-tc')}<path class="ci2-area" d="${area}"/><polyline class="ci2-line" points="${line}"/>${dots.join('')}</svg>
+    <div class="ci2-ax mono small"><span>${lab(t0)}</span><span>${lab(t0 + (t1 - t0) / 2)}</span><span>${L('nu')}</span></div>`;
+}
+document.addEventListener('click', (e) => {
+  const m = e.target.closest('#modal [data-ci-more], #modal [data-ci-open], #modal [data-ci-ai]');
+  if (!m) return;
+  if (m.dataset.ciMore) return checkInfo(+m.dataset.ciMore, false, true);
+  if (m.dataset.ciOpen) return checkInfo(+m.dataset.ciOpen);
+  if (m.dataset.ciAi) return aiOpen('check', +m.dataset.ciAi);
+});
 
 /**
  * 🧠 Slimme drempels in de popup (1.107.0): modus, wat er nu geldt, de week als grafiekje (normale band en warning per uur),

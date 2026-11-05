@@ -1195,7 +1195,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'home', 'state', 'availability', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'home', 'state', 'availability', 'containers', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback' => 'user',
@@ -1208,7 +1208,7 @@ $isAdmin = has_role($user, 'admin');
 I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
-if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'home', 'state', 'availability', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
+if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'home', 'state', 'availability', 'containers', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
     'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview', 'truenas_overview', 'incidents', 'incident_info', 'report',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();
@@ -1872,7 +1872,8 @@ switch ($action) {
                         COUNT(*) AS n7, SUM(status <> 2) AS ok7
                  FROM results WHERE check_id = ? AND created_at >= NOW() - INTERVAL 7 DAY', [$id])->fetch();
         $pct = static fn($ok, $n) => (int) $n > 0 ? round(100 * (int) $ok / (int) $n, 1) : null;
-        $changes = q('SELECT * FROM status_changes WHERE check_id = ? ORDER BY created_at DESC, id DESC LIMIT 5', [$id])->fetchAll();
+        $changes = q('SELECT * FROM status_changes WHERE check_id = ? ORDER BY created_at DESC, id DESC LIMIT ' . (!empty($_GET['more']) ? 25 : 5), [$id])->fetchAll();
+        $nChanges = (int) q('SELECT COUNT(*) FROM status_changes WHERE check_id = ?', [$id])->fetchColumn();
         $end = null;   // de wijziging erna (nieuwste eerst), of nu
         foreach ($changes as &$ch) {
             // Meldingen die bij deze wijziging horen: tussen deze en de volgende wijziging
@@ -1887,7 +1888,7 @@ switch ($action) {
             $c['options'] = ExtraChecks::maskOptions($c['options']);
         }
         out(['check' => $c, 'uptime' => ['d1' => $pct($up['ok1'], $up['n1']), 'd7' => $pct($up['ok7'], $up['n7'])],
-             'changes' => $changes, 'now' => now(), 'smart' => Smart::info($c)]);
+             'changes' => $changes, 'changes_total' => $nChanges, 'now' => now(), 'smart' => Smart::info($c), 'extra' => CheckInfo::extra($c)]);
 
     case 'history':
         $id = (int) ($_GET['check_id'] ?? 0);
@@ -2862,6 +2863,10 @@ switch ($action) {
              'watchdog' => ['on' => (bool) $h['watchdog'], 'min' => (int) ($h['watchdog_min'] ?: 5), 'enc' => (bool) $h['enc_seen'],
                  'pushover' => Push::names() !== '', 'push' => Push::names()],
              'heal_cmds' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'heal_cmds'", [$id])->fetchColumn(), true) ?: []]);
+
+    case 'containers':
+        // 1.176.0: Monitoring → Containers: alle containers van alle servers (Podman en Docker), met hun status en check
+        out(Containers::overview());
 
     case 'podman':
         // Overzicht van alle containers die de agent van deze server meldt
