@@ -147,7 +147,9 @@ final class Features
         ['vuln', ['Datalekken (Have I Been Pwned)', 'Data breaches (Have I Been Pwned)'], ['E-mailadressen en je domein controleren op lekken.', 'Check email addresses and your domain for breaches.'], '1.69.0', 'hibp_enabled|hibp_key', 'hibp'],
 
         // Netwerk
-        ['net', ['Netwerkscan', 'Network scan'], ['Welke apparaten er op je netwerk zitten, en wat nieuw is.', 'Which devices are on your network, and what is new.'], '1.103.0', '', 'netscan'],
+        ['net', ['Netwerkscan', 'Network scan'], ['Welke apparaten er op je netwerk zitten, en wat nieuw is.', 'Which devices are on your network, and what is new.'], '1.103.0', 'net_scan', 'netscan'],
+        ['net', ['Ontdekken', 'Discover'], ['Nieuwe apparaten, veranderingen (IP, poorten, domeinen, weg of terug), voorstellen met één klik en aanwezigheid per uur.', 'New devices, changes (IP, ports, domains, gone or back), one-click suggestions and presence per hour.'], '1.183.0', 'net_scan', '#net:disc'],
+        ['net', ['Apparaten groeperen', 'Group devices'], ['Per soort, fabrikant of verbinding (wifi-netwerk of bedraad).', 'By type, vendor or connection (wifi network or wired).'], '1.183.0', 'net_scan', '#net'],
         ['net', ['UniFi en AdGuard Home', 'UniFi and AdGuard Home'], ['Namen, wifi en access point uit UniFi; DNS uit AdGuard.', 'Names, wifi and access point from UniFi; DNS from AdGuard.'], '1.104.0', '', 'netlinks'],
         ['net', ['Poortscan', 'Port scan'], ['Open poorten per server, met één klik een check.', 'Open ports per server, a check with one click.'], '1.8.0', '', '#dashboard'],
         ['net', ['Aanvalspad en impact', 'Attack path and impact'], ['Wat een aanvaller via een server kan bereiken.', 'What an attacker could reach through a server.'], '1.146.0', '', '#home'],

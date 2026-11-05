@@ -5092,7 +5092,7 @@ async function loadFeatures() {
     const go = e.target.closest('[data-feat-go]');
     if (!go) return;
     const t = go.dataset.featGo;
-    if (t.startsWith('#')) { const [tab, sub] = t.slice(1).split(':'); showTab(tab); if (sub) setMonSub(sub); } else showSettingsSection(t);
+    if (t.startsWith('#')) { const [tab, sub] = t.slice(1).split(':'); showTab(tab); if (sub) (tab === 'net' ? setNetSub : setMonSub)(sub); } else showSettingsSection(t);
   };
   featRender();
 }
@@ -14600,6 +14600,10 @@ let netFilter = 'all';
 const netKind = (d) => d.kind_user || d.kind || 'unknown';
 
 function initNet() {
+  $('#net-tabs').onclick = (e) => { const b = e.target.closest('[data-nsub]'); if (b) setNetSub(b.dataset.nsub); };
+  $('#net-group').value = (() => { try { return localStorage.getItem('rzmon-net-group') || ''; } catch (ex) { return ''; } })();
+  $('#net-group').onchange = (e) => { try { localStorage.setItem('rzmon-net-group', e.target.value); } catch (ex) { /* niet erg */ } renderNet(); };
+  $('#net-disc').onclick = ndClick;
   $('#net-search').oninput = () => renderNet();
   $('#net-filter').onclick = (e) => { const b = e.target.closest('[data-nf]'); if (b) { netFilter = b.dataset.nf; renderNet(); } };
   $('#net-counts').onclick = (e) => { const b = e.target.closest('[data-nf]'); if (b) { netFilter = netFilter === b.dataset.nf ? 'all' : b.dataset.nf; renderNet(); } };
@@ -14615,6 +14619,151 @@ function initNet() {
 
 async function loadNet() {
   try { netData = await api('net_devices'); renderNet(); } catch (ex) { $('#net-list').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; }
+  if (netSub === 'disc') ndLoad();
+}
+
+// ---------------------------------------------------------------- 1.183.0: Netwerk → Ontdekken
+let netSub = 'list';
+let ndData = null;
+let ndFilter = '';
+let ndPresKind = '';
+function setNetSub(s) {
+  netSub = s === 'disc' ? 'disc' : 'list';
+  $('#tab-net').classList.toggle('net-dc', netSub === 'disc');
+  $$('#net-tabs [data-nsub]').forEach((b) => { const on = b.dataset.nsub === netSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+  if (netSub === 'disc') ndLoad();
+}
+async function ndLoad() {
+  if (!ndData) $('#net-disc').innerHTML = `<p class="muted">${L('laden…')}</p>`;
+  try {
+    const [d] = await Promise.all([api('net_discover'), netData ? null : api('net_devices').then((x) => { netData = x; })]);
+    ndData = d;
+    renderNetDisc();
+  } catch (ex) { $('#net-disc').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; }
+}
+const ND_EV = () => ({
+  new: ['🆕', L('Nieuw apparaat')], ip: ['🔁', L('Ander IP-adres')], ports_new: ['🚪', L('Nieuwe poort open')], ports_gone: ['🔒', L('Poort dicht')],
+  domains: ['🌐', L('Praat met nieuwe domeinen')], gone: ['💤', L('Al dagen weg')], back: ['👋', L('Weer terug')],
+});
+function ndEvText(e, dev) {
+  const x = e.detail || {};
+  switch (e.kind) {
+    case 'new': return L('verscheen op je netwerk als {ip}', { ip: x.ip || dev?.ip || '?' });
+    case 'ip': return L('{from} → {to}', { from: x.from || '?', to: x.to || '?' });
+    case 'ports_new': return L('poort {p} open', { p: (x.ports || []).join(', ') }) + ((x.risky || []).length ? ' · ⚠️ ' + L('riskant') : '');
+    case 'ports_gone': return L('poort {p} niet meer open', { p: (x.ports || []).join(', ') });
+    case 'domains': return (x.domains || []).join(', ') + (x.n > (x.domains || []).length ? ' ' + L('en nog {n}', { n: x.n - x.domains.length }) : '');
+    case 'gone': return L('niet meer gezien sinds {t}', { t: x.last ? fmtDay(x.last) : '?' });
+    case 'back': return L('weer gezien na {d} dagen', { d: x.days ?? '?' });
+    default: return '';
+  }
+}
+function renderNetDisc() {
+  const d = ndData, nd = netData;
+  if (!d || !nd) return;
+  const box = $('#net-disc');
+  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Beveiliging → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
+  const byId = Object.fromEntries(nd.devices.map((x) => [x.id, x]));
+  const ev = ND_EV();
+  const week = Date.now() - 7 * 86400e3;
+  const ts = (s) => new Date(String(s).replace(' ', 'T')).getTime();
+  const ev7 = d.events.filter((e) => ts(e.at) > week);
+  const newDevs = nd.devices.filter((x) => x.status === 'new').sort((a, b) => ts(b.first_seen) - ts(a.first_seen));
+  const hourAgo = Date.now() - 3600e3;
+  const onlineNow = nd.devices.filter((x) => x.status !== 'ignored' && ts(x.last_seen) > hourAgo - 15 * 60e3).length;
+  const devLink = (id, label) => `<button type="button" class="nd-link" data-nd-open="${id}">${esc(label)}</button>`;
+  const icon = (x) => (NET_KIND[netKind(x)] || NET_KIND.unknown)[0];
+  // Kerncijfers
+  const kpis = `<div class="kpis nd-kpis">
+    <div class="kpi ${newDevs.length ? 'warn' : ''}"><div class="kpi-lbl">🆕 ${L('Nieuw en onbekend')}</div><div class="kpi-val">${newDevs.length}</div><div class="kpi-sub">${L('{n} deze week verschenen', { n: ev7.filter((e) => e.kind === 'new').length })}</div></div>
+    <div class="kpi"><div class="kpi-lbl">🔄 ${L('Veranderingen')}</div><div class="kpi-val">${ev7.filter((e) => e.kind !== 'new').length}</div><div class="kpi-sub">${L('laatste 7 dagen')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">💡 ${L('Voorstellen')}</div><div class="kpi-val">${d.suggestions.length}</div><div class="kpi-sub">${L('nog niet in RzMon')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">🟢 ${L('Nu online')}</div><div class="kpi-val">${onlineNow}<small>/${nd.devices.filter((x) => x.status !== 'ignored').length}</small></div><div class="kpi-sub">${L('het laatste uur gezien')}</div></div>
+  </div>`;
+  // Nieuw en onbekend, met nieuwe apparaten per dag
+  const days = [];
+  for (let i = 29; i >= 0; i--) { const t = new Date(Date.now() - i * 86400e3); days.push(t.toISOString().slice(0, 10)); }
+  const max = Math.max(1, ...days.map((k) => d.new_per_day[k] || 0));
+  const spark = `<div class="nd-bars" role="img" aria-label="${esc(L('Nieuwe apparaten per dag, laatste 30 dagen'))}">${days.map((k) => { const n = d.new_per_day[k] || 0;
+    return `<span class="nd-bar ${n ? '' : 'z'}" style="--h:${Math.round((n / max) * 100)}%" title="${esc(fmtDay(k) + ': ' + n)}"></span>`; }).join('')}</div>
+    <div class="nd-bars-ax muted small"><span>${esc(fmtDay(days[0]))}</span><span>${L('vandaag')}</span></div>`;
+  const newHtml = `<section class="card nd-sec"><h3>🆕 ${L('Nieuw en onbekend')} <span class="muted small">${L('apparaten die je nog niet beoordeelde')}</span></h3>
+    ${spark}
+    ${newDevs.length ? `<div class="nd-list">${newDevs.slice(0, 30).map((x) => `<div class="nd-row">
+        <span class="nd-ic">${icon(x)}</span>
+        <div class="nd-t">${devLink(x.id, x.label)} <span class="muted small mono">${esc(x.ip)}</span><small>${esc([x.vendor, x.info.unifi?.essid ? '📶 ' + x.info.unifi.essid : ''].filter(Boolean).join(' · ') || L('onbekende fabrikant'))} · ${L('verschenen {t}', { t: ago(x.first_seen) })}</small></div>
+        <div class="nd-acts need-admin"><button type="button" class="btn small-btn" data-nd-st="known:${x.id}">✔ ${L('Bekend')}</button><button type="button" class="icon-btn" data-nd-st="ignored:${x.id}" title="${esc(L('Negeren: niet meer tonen'))}">🙈</button></div>
+      </div>`).join('')}${newDevs.length > 30 ? `<p class="muted small">${L('en nog {n} op Apparaten', { n: newDevs.length - 30 })}</p>` : ''}</div>`
+      : `<p class="good-txt small">✔ ${L('Alles op je netwerk is beoordeeld.')}</p>`}</section>`;
+  // Veranderingen
+  const kinds = Object.keys(ev);
+  const evList = d.events.filter((e) => !ndFilter || e.kind === ndFilter);
+  const chHtml = `<section class="card nd-sec"><h3>🔄 ${L('Veranderingen')} <span class="muted small">${L('laatste 30 dagen')}</span></h3>
+    <div class="dash-chips nd-chips"><button type="button" class="dchip ${ndFilter ? '' : 'on'}" data-nd-f="">${L('Alles')} <b>${d.events.length}</b></button>
+      ${kinds.map((k) => { const n = d.events.filter((e) => e.kind === k).length; return n ? `<button type="button" class="dchip ${ndFilter === k ? 'on' : ''}" data-nd-f="${k}">${ev[k][0]} ${esc(ev[k][1])} <b>${n}</b></button>` : ''; }).join('')}</div>
+    ${evList.length ? `<div class="nd-list">${evList.slice(0, 80).map((e) => { const x = byId[e.device]; const [ic, w] = ev[e.kind] || ['•', e.kind];
+      const bad = (e.kind === 'ports_new' && (e.detail.risky || []).length) || e.kind === 'domains';
+      return `<div class="nd-row ${bad ? 'nd-bad' : ''}"><span class="nd-ic">${ic}</span>
+        <div class="nd-t">${x ? devLink(x.id, x.label) : `<span class="muted">${L('(vergeten apparaat)')}</span>`} <span class="muted small">· ${esc(w)}</span><small>${esc(ndEvText(e, x))}</small></div>
+        <span class="muted small nowrap" title="${esc(e.at)}">${esc(ago(e.at))}</span></div>`; }).join('')}</div>`
+      : `<p class="muted small">${L('Nog niets veranderd. RzMon houdt dit bij vanaf 1.183.0: nieuwe apparaten, een ander IP-adres, nieuwe of gesloten poorten, apparaten die al {g} dagen weg zijn{dom}.', { g: d.gone_days, dom: d.adguard ? L(' en nieuwe domeinen (via AdGuard, na {n} dagen leren)', { n: d.learn_days }) : '' })}</p>`}</section>`;
+  // Voorstellen
+  const sugHtml = `<section class="card nd-sec"><h3>💡 ${L('Voorstellen')} <span class="muted small">${L('apparaten die je waarschijnlijk wilt bewaken')}</span></h3>
+    ${d.suggestions.length ? `<div class="nd-sug">${d.suggestions.slice(0, 24).map((s, i) => `<div class="nd-sc" data-nd-sug="${s.id}">
+        <div class="nd-sh"><span class="nd-ic">${(NET_KIND[s.kind] || NET_KIND.unknown)[0]}</span><div>${devLink(s.id, s.label)}<small class="muted mono">${esc(s.ip)} · ${esc((NET_KIND[s.kind] || NET_KIND.unknown)[1]())}</small></div></div>
+        <div class="nd-checks">${s.checks.map((c, j) => `<label class="nd-ck"><input type="checkbox" value="${esc(c.key)}" ${j < 3 ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> ${esc(c.label)}${c.target && c.type !== 'tcp' ? '' : c.type === 'tcp' ? ` <span class="muted mono">:${esc(c.target)}</span>` : ''}</label>`).join('')}</div>
+        ${s.snmp ? `<p class="muted small">📡 ${L('Ondersteunt dit apparaat SNMP? Zet dat daarna aan bij de server voor poorten, temperatuur en meer.')}</p>` : ''}
+        <div class="nd-acts need-admin"><button type="button" class="btn small-btn primary" data-nd-adopt="${s.id}">＋ ${L('In RzMon met deze checks')}</button>
+          <button type="button" class="btn small-btn" data-nd-form="${s.id}">✎ ${L('Zelf instellen')}</button><button type="button" class="icon-btn" data-nd-st="ignored:${s.id}" title="${esc(L('Negeren: niet meer voorstellen'))}">🙈</button></div>
+      </div>`).join('')}</div>` : `<p class="good-txt small">✔ ${L('Geen voorstellen: wat je wilt bewaken, staat al in RzMon.')}</p>`}</section>`;
+  // Aanwezigheid
+  const pdays = [];
+  for (let i = 6; i >= 0; i--) pdays.push(new Date(Date.now() - i * 86400e3).toISOString().slice(0, 10));
+  const pres = nd.devices.filter((x) => x.status !== 'ignored' && d.presence[x.id] && (!ndPresKind || netKind(x) === ndPresKind))
+    .map((x) => { const p = d.presence[x.id]; let on = 0, night = 0;
+      pdays.forEach((k) => { const h = p[k] || 0; for (let b = 0; b < 24; b++) if (h & (1 << b)) { on++; if (b < 6) night++; } });
+      return { x, p, on, night }; }).sort((a, b) => b.on - a.on);
+  const presKinds = [...new Set(nd.devices.filter((x) => d.presence[x.id]).map(netKind))];
+  const presHtml = `<section class="card nd-sec"><h3>🕒 ${L('Aanwezigheid')} <span class="muted small">${L('wanneer een apparaat online was, laatste 7 dagen')}</span></h3>
+    <div class="nd-pbar"><select id="nd-pkind" aria-label="${esc(L('Soort'))}"><option value="">${L('Alle soorten')}</option>${presKinds.map((k) => `<option value="${k}" ${ndPresKind === k ? 'selected' : ''}>${(NET_KIND[k] || NET_KIND.unknown)[0]} ${esc((NET_KIND[k] || NET_KIND.unknown)[1]())}</option>`).join('')}</select>
+      <span class="muted small">${L('Elk blokje is een uur; 🌙 = ook \'s nachts (0–6 uur) online.')}</span></div>
+    ${pres.length ? `<div class="nd-pres"><div class="nd-prow nd-phead"><span></span>${pdays.map((k) => `<span class="nd-pday">${esc(new Date(k + 'T12:00').toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric' }))}</span>`).join('')}<span></span></div>
+      ${pres.slice(0, 60).map(({ x, p, on, night }) => `<div class="nd-prow"><span class="nd-pname">${icon(x)} ${devLink(x.id, x.label)}</span>
+        ${pdays.map((k) => { const h = p[k] || 0; return `<span class="nd-pday">${Array.from({ length: 24 }, (_, b) => `<i class="${h & (1 << b) ? 'on' : ''} ${b < 6 ? 'n' : ''}"></i>`).join('')}</span>`; }).join('')}
+        <span class="nd-ppct small">${Math.round((on / 168) * 100)}%${night ? ' 🌙' : ''}</span></div>`).join('')}</div>`
+      : `<p class="muted small">${L('Nog geen gegevens: vanaf 1.183.0 houdt elke scan bij welke apparaten er zijn. Na een paar uur zie je hier de eerste blokjes.')}</p>`}</section>`;
+  box.innerHTML = kpis + `<div class="nd-grid">${newHtml}${chHtml}</div>` + sugHtml + presHtml;
+  $('#nd-pkind')?.addEventListener('change', (e) => { ndPresKind = e.target.value; renderNetDisc(); });
+  const badge = $('#net-disc-badge');
+  if (badge) { const n = newDevs.length; badge.hidden = !n; badge.textContent = n; }
+}
+async function ndClick(e) {
+  const f = e.target.closest('[data-nd-f]');
+  if (f) { ndFilter = f.dataset.ndF; return renderNetDisc(); }
+  const find = (id) => netData.devices.find((x) => +x.id === +id);
+  const op = e.target.closest('[data-nd-open]');
+  if (op) return netDialog(find(op.dataset.ndOpen));
+  const fm = e.target.closest('[data-nd-form]');
+  if (fm) return netAddHost(find(fm.dataset.ndForm));
+  const st = e.target.closest('[data-nd-st]');
+  if (st) {
+    const [status, id] = st.dataset.ndSt.split(':');
+    try { await api('net_device_save', { id: +id, status }); await loadNet(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+    return;
+  }
+  const ad = e.target.closest('[data-nd-adopt]');
+  if (ad) {
+    const card = ad.closest('[data-nd-sug]');
+    const checks = $$('input[type=checkbox]:checked', card).map((c) => c.value);
+    const x = find(ad.dataset.ndAdopt);
+    if (!checks.length) return toast(L('Kies minstens één check'), 'err');
+    ad.disabled = true;
+    try {
+      await api('net_adopt', { id: +ad.dataset.ndAdopt, checks, name: x?.name || x?.label || '' });
+      toast(L('{name} staat nu in RzMon met {n} checks', { name: x?.label || '', n: checks.length }));
+      await loadNet(); refresh();
+    } catch (ex) { toast(ex.message, 'err'); ad.disabled = false; }
+  }
 }
 
 async function netScanNow(btn) {
@@ -14668,8 +14817,19 @@ function renderNetNow() {
     && (!q || [x.label, x.ip, x.mac, x.vendor, x.hostname, x.name, x.info.netbios, x.info.ssdp?.model].some((v) => String(v || '').toLowerCase().includes(q))));
   if (!devs.length) { $('#net-list').innerHTML = `<p class="muted">${d.enabled ? L('Nog geen apparaten gevonden.') : L('De netwerkscan staat uit.')}</p>`; return; }
   if (!list.length) { $('#net-list').innerHTML = `<p class="muted">${L('Niets gevonden met dit filter.')}</p>`; return; }
-  $('#net-list').innerHTML = `<div class="table-scroll"><table class="vuln-table net-table"><thead><tr><th>${L('Apparaat')}</th><th>${L('IP-adres')}</th><th>${L('MAC en fabrikant')}</th><th>${L('Poorten')}</th><th>${L('Gezien')}</th><th></th></tr></thead><tbody>
-    ${list.map((x) => {
+  // 1.183.0: groeperen per soort, fabrikant of verbinding
+  const grp = $('#net-group')?.value || '';
+  const gKey = (x) => (grp === 'kind' ? netKind(x) : grp === 'vendor' ? (x.vendor || (+x.random_mac ? '🎭' : '')) : grp === 'conn' ? (x.info.unifi?.essid ? 'w:' + x.info.unifi.essid : x.info.unifi?.wired ? 'cable' : '') : '');
+  const gName = (k) => (grp === 'kind' ? (NET_KIND[k] || NET_KIND.unknown)[0] + ' ' + (NET_KIND[k] || NET_KIND.unknown)[1]()
+    : grp === 'vendor' ? (k === '🎭' ? '🎭 ' + L('Privé-adres (geen fabrikant)') : k || L('Onbekende fabrikant'))
+    : k.startsWith('w:') ? '📶 ' + k.slice(2) : k === 'cable' ? '🔌 ' + L('Bedraad') : L('Onbekend (geen UniFi-gegevens)'));
+  const groups = [];
+  if (grp) {
+    const m = new Map();
+    list.forEach((x) => { const k = gKey(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); });
+    [...m.entries()].sort((a, b) => b[1].length - a[1].length || String(a[0]).localeCompare(String(b[0]))).forEach(([k, xs]) => groups.push([gName(k), xs]));
+  } else groups.push(['', list]);
+  const row = (x) => {
       const [ic, kl] = NET_KIND[netKind(x)] || NET_KIND.unknown;
       const u = x.info.unifi || {};
       const sub = [kl(), x.name && x.hostname ? x.hostname : '', x.info.ssdp?.model || '', u.essid ? '📶 ' + u.essid + (u.ap ? ' · ' + u.ap : '') : u.wired ? '🔌 ' + L('bedraad') : ''].filter(Boolean).join(' · ');
@@ -14683,7 +14843,9 @@ function renderNetNow() {
         <td class="nowrap">${!x.host ? `<button type="button" class="btn small-btn need-admin" data-net-add="${x.id}" title="${esc(L('Toevoegen aan RzMon'))}">＋ RzMon</button>` : ''}
           ${x.status !== 'known' ? `<button type="button" class="icon-btn need-admin" data-net-st="known:${x.id}" title="${esc(L('Bekend: dit apparaat hoort hier'))}">✔</button>` : ''}
           ${x.status !== 'ignored' ? `<button type="button" class="icon-btn need-admin" data-net-st="ignored:${x.id}" title="${esc(L('Negeren: niet meer tonen'))}">🙈</button>` : `<button type="button" class="icon-btn need-admin" data-net-st="new:${x.id}" title="${esc(L('Weer tonen'))}">↩</button>`}</td></tr>`;
-    }).join('')}</tbody></table></div>`;
+  };
+  $('#net-list').innerHTML = `<div class="table-scroll"><table class="vuln-table net-table"><thead><tr><th>${L('Apparaat')}</th><th>${L('IP-adres')}</th><th>${L('MAC en fabrikant')}</th><th>${L('Poorten')}</th><th>${L('Gezien')}</th><th></th></tr></thead>
+    ${groups.map(([name, xs]) => `<tbody>${name ? `<tr class="net-grp"><th colspan="6">${esc(name)} <span class="muted">${xs.length}</span></th></tr>` : ''}${xs.map(row).join('')}</tbody>`).join('')}</table></div>`;
 }
 
 async function netClick(e) {

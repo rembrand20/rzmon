@@ -1483,6 +1483,35 @@ $ex = CheckInfo::extra(q('SELECT * FROM checks WHERE id = ?', [$ctId])->fetch())
 ok($ex['counts']['n24'] === 2 && $ex['counts']['f24'] === 1 && $ex['outages']['count'] === 2 && $ex['outages']['mttr'] === 1800 && $ex['notify']['streak'] === 3
     && ($ex['detail']['kind'] ?? '') === 'container' && $ex['detail']['state'] === 'running',
     'popup van een check: hoe vaak gecheckt, storingen en hersteltijd over 30 dagen, melden na N, details van de container');
+// 1.183.0: Netwerk → Ontdekken: poorten, domeinen (eerst leren), aanwezigheid, voorstellen en met één klik in RzMon
+q("DELETE FROM net_devices WHERE mac = 'ee:ee:ee:00:01:83'");
+q("INSERT INTO net_devices (mac, ip, random_mac, vendor, kind, status, ports, info, first_seen, last_seen) VALUES ('ee:ee:ee:00:01:83', '10.183.0.9', 0, 'Reolink', 'camera', 'new', '[80,554]', '{}', NOW(), NOW())");
+$ndId = (int) db()->lastInsertId();
+NetDiscover::ports($ndId, null, [80, 554]);
+NetDiscover::ports($ndId, [80, 554], [23, 80]);
+$ndInfo = [];
+NetDiscover::domains($ndId, $ndInfo, ['a.reolink.com' => 5], time() - 10 * 86400);
+NetDiscover::domains($ndId, $ndInfo, ['api.reolink.com' => 3, 'x.tuyacn.com' => 9, 'cam.local' => 1]);
+NetDiscover::presence([$ndId], strtotime('today 03:30'));
+NetDiscover::presence([$ndId], strtotime('today 05:10'));
+$ndEv = array_values(array_filter(NetDiscover::events(1), fn($e) => $e['device'] === $ndId));
+$ndKinds = array_column($ndEv, 'kind');
+$ndPres = NetDiscover::presenceGrid(1)[$ndId][date('Y-m-d')] ?? 0;
+$ndDev = array_values(array_filter(NetScan::list(), fn($d) => (int) $d['id'] === $ndId))[0];
+$ndSug = NetDiscover::suggest($ndDev);
+$ndHost = NetDiscover::adopt($ndId, ['ping', 'p23x', 'p80'], 'Testcamera', 'test');
+$ndChecks = q('SELECT type, target FROM checks WHERE host_id = ? ORDER BY id', [$ndHost])->fetchAll();
+ok(in_array('ports_new', $ndKinds, true) && in_array('ports_gone', $ndKinds, true) && in_array('domains', $ndKinds, true) && count($ndEv) === 3
+    && $ndEv[0]['kind'] === 'domains' && $ndEv[0]['detail']['domains'] === ['tuyacn.com'] && NetDiscover::baseDomain('a.b.voorbeeld.co.uk') === 'voorbeeld.co.uk'
+    && $ndPres === ((1 << 3) | (1 << 5)) && array_column($ndSug, 'key') === ['ping', 'p80', 'p554']
+    && count($ndChecks) === 2 && $ndChecks[1]['target'] === 'http://10.183.0.9/' && q('SELECT kind FROM hosts WHERE id = ?', [$ndHost])->fetchColumn() === 'camera'
+    && q('SELECT status FROM net_devices WHERE id = ?', [$ndId])->fetchColumn() === 'known',
+    'ontdekken: nieuwe en gesloten poort, nieuw domein pas na het leren (lokaal genegeerd), uren gezien, voorstel per poort, met één klik in RzMon');
+q('DELETE FROM checks WHERE host_id = ?', [$ndHost]);
+q('DELETE FROM hosts WHERE id = ?', [$ndHost]);
+q('DELETE FROM net_events WHERE device_id = ?', [$ndId]);
+q('DELETE FROM net_presence WHERE device_id = ?', [$ndId]);
+q('DELETE FROM net_devices WHERE id = ?', [$ndId]);
 // 1.182.0: functietabel: status uit de instellingen, elke rij compleet, FEATURES.md loopt niet achter
 $ftSt = [Features::status('', []), Features::status('x_on', ['x_on' => '1']), Features::status('x_on', ['x_on' => '0']), Features::status('x_on|x_key', ['x_on' => '1', 'x_key' => '']), Features::status('backup_freq', ['backup_freq' => 'off'])];
 $ftRows = Features::rows();

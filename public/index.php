@@ -548,6 +548,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
     <?php if ($showNet): ?>
     <section id="tab-net" class="tab-panel" hidden>
+      <!-- 1.183.0: Apparaten (de lijst) en Ontdekken (wat er verandert, voorstellen, aanwezigheid) -->
+      <div class="subtabs mon-tabs" role="tablist" aria-label="<?= th('Netwerk') ?>" id="net-tabs">
+        <button type="button" class="seg-btn active" data-nsub="list" role="tab" aria-selected="true">📋 <?= th('Apparaten') ?></button>
+        <button type="button" class="seg-btn" data-nsub="disc" role="tab" aria-selected="false">🔍 <?= th('Ontdekken') ?> <span class="tab-badge" id="net-disc-badge" hidden></span></button>
+      </div>
       <!-- 1.103.0: netwerkscan, zelfde opbouw als het dashboard -->
       <div class="dash-counters"><div class="dash-in">
         <div class="health-counts" id="net-counts"></div>
@@ -565,6 +570,10 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <input type="search" id="net-search" placeholder="<?= th('🔍 Zoek naam, IP, MAC of fabrikant…') ?>" autocomplete="off">
         <div class="dash-chips" id="net-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
         <span class="dash-sp"></span>
+        <select id="net-group" aria-label="<?= th('Groeperen') ?>">
+          <option value=""><?= th('Niet groeperen') ?></option><option value="kind"><?= th('Per soort') ?></option>
+          <option value="vendor"><?= th('Per fabrikant') ?></option><option value="conn"><?= th('Per verbinding (wifi of bedraad)') ?></option>
+        </select>
         <button type="button" class="btn need-admin" id="net-approve-all"><?= th('✔ Alle nieuwe bekend') ?></button>
         <button type="button" class="btn need-admin" id="net-scan">🔍 <?= th('Nu scannen') ?></button>
       </div>
@@ -572,6 +581,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="pcard" data-pk="list" data-pw="12" data-pt="<?= th('Apparaten') ?>"><div class="card net-card"><div id="net-list"></div></div>
       </div>
       </div>
+      <div id="net-disc" class="net-disc" aria-live="polite"></div>
     </section>
     <?php endif; ?>
 

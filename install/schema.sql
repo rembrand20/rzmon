@@ -1304,3 +1304,21 @@ CREATE TABLE IF NOT EXISTS path_events (
     CONSTRAINT fk_pe_check FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('iperf_port', '5201');
+
+-- 1.183.0: Netwerk → Ontdekken: wat er verandert op het netwerk, en wanneer een apparaat online is
+CREATE TABLE IF NOT EXISTS net_events (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    device_id   INT UNSIGNED NOT NULL,
+    kind        VARCHAR(16)  NOT NULL,
+    detail      TEXT         NULL,
+    created_at  DATETIME     NOT NULL,
+    KEY idx_netev_time (created_at),
+    KEY idx_netev_dev (device_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS net_presence (
+    device_id   INT UNSIGNED NOT NULL,
+    day         DATE         NOT NULL,
+    hours       INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (device_id, day),
+    KEY idx_netpres_day (day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

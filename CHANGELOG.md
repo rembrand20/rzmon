@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.183.0**: **Netwerk → Ontdekken**: nieuwe en onbekende apparaten, wat er verandert (IP, poorten, nieuwe domeinen, weg of terug), voorstellen om met één klik te bewaken, en wanneer elk apparaat online was. Apparaten kun je nu ook groeperen.
 - **1.182.0**: **alle functies in één tabel** (*Instellingen → Overzicht → Functies* en bovenaan FEATURES.md), met de status van nu (aan, uit, niet ingesteld) en een knop naar waar je hem instelt.
 - **1.181.0**: de **IDS-beschermingen** stel je nu in op *Instellingen → IDS → Beschermingen*; *IDS → Bescherming* is een overzicht met een knop **Instellen**. De rol **gebruiker** mag een paar onderdelen van de beheerportal bekijken (Status, Advies, Rapporten, Wijzigingslogboek).
 - **1.180.0**: alle **rapporten op één plek** (*Instellingen → Rapporten*): IDS- en AI-weekoverzicht, maandrapport en nieuw kwetsbaarheden, beschikbaarheid, back-ups en datalekken, als HTML-mail of push, met **Nu versturen**, **Voorbeeld**, **Naar mij** en een **Maandoverzicht** met alles in één.
 - **1.179.0**: **CVE's slimmer**: rugbaarheid per kwetsbaarheid (exploits en hoeveel erover gepraat wordt), **Raakt dit jou echt?** met AI, **Eén update, veel opgelost** en een melding als een CVE op je servers veel aandacht krijgt.
-- **1.178.0**: de **Agent Manager** opnieuw ingedeeld in kaarten met schakelaars, een echte **🧪 Test** in een eigen popup, en één **algemene SNMP-instelling** (Koppelingen) met eigen instellingen per apparaat.
+
+## 1.183.0 – 2026-11-05
+### Nieuw
+- **🌐 Netwerk heeft nu twee tabbladen**: **📋 Apparaten** (de lijst van altijd) en **🔍 Ontdekken**. Het oranje getal bij Ontdekken telt de apparaten die je nog niet beoordeelde.
+- **🔍 Netwerk → Ontdekken** laat zien wat er op je netwerk verandert, en wat je ermee kunt:
+  - **🆕 Nieuw en onbekend**: apparaten die je nog niet beoordeelde, met een staafje per dag (laatste 30 dagen) en de knoppen **✔ Bekend** en **🙈 Negeren**;
+  - **🔄 Veranderingen** (laatste 30 dagen, te filteren): een nieuw apparaat, een ander IP-adres, een nieuwe poort die open gaat (⚠️ als hij riskant is), een poort die dicht gaat, een apparaat dat al 3 dagen weg is, en weer terug;
+  - **🌐 Praat met nieuwe domeinen** (met AdGuard Home): RzMon leert 7 dagen met welke domeinen een apparaat praat, en meldt daarna een nieuw hoofddomein. Handig om te zien of een camera of slim apparaat ineens naar een onbekende server belt;
+  - **💡 Voorstellen**: apparaten die nog niet in RzMon staan en die je waarschijnlijk wilt bewaken (router, switch, NAS, printer, camera, smart home …). Per apparaat staan de checks die passen bij de open poorten: ping, web (http/https), SSH, SMB, RTSP voor camera's, IPP voor printers, MQTT, Home Assistant … Met **＋ In RzMon met deze checks** staat het apparaat met één klik in RzMon, met de soort al goed. **✎ Zelf instellen** opent het gewone formulier;
+  - **🕒 Aanwezigheid**: per apparaat een blokje per uur over de laatste 7 dagen, met hoeveel procent van de tijd het online was en 🌙 als het ook 's nachts online is. Te filteren op soort.
+- **📋 Apparaten groeperen**: per soort, per fabrikant of per verbinding (wifi-netwerk of bedraad, uit UniFi). RzMon onthoudt je keuze.
+- In de functietabel (*Instellingen → Overzicht → Functies*) staan Ontdekken en groeperen erbij. De netwerkscan toont daar nu ook of hij aan staat.
 
 ## 1.182.0 – 2026-11-05
 ### Nieuw

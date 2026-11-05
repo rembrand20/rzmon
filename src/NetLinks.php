@@ -389,6 +389,30 @@ final class NetLinks
         return ['domains' => $list, 'total' => $total, 'blocked' => $blocked, 'unique' => count($dom), 'since' => $first, 'errors' => $errors];
     }
 
+    /**
+     * 1.183.0: per client welke domeinen hij opvroeg (de laatste 5000 vragen per instantie): [ip => [domein => aantal]]
+     * @return array<string, array<string, int>>
+     */
+    public static function adguardByClient(): array
+    {
+        $out = [];
+        foreach (self::adguardUrls() as $base) {
+            [$j, $e] = self::ag($base, 'querylog?limit=5000');
+            if ($e) {
+                continue;
+            }
+            foreach ((array) ($j['data'] ?? []) as $q) {
+                $ip = (string) ($q['client'] ?? '');
+                $name = strtolower(rtrim((string) ($q['question']['name'] ?? ''), '.'));
+                if ($ip === '' || $name === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+                    continue;
+                }
+                $out[$ip][$name] = ($out[$ip][$name] ?? 0) + 1;
+            }
+        }
+        return $out;
+    }
+
     /** IP-adres op (of van) de lijst "Niet toegestane clients", op elke instantie. @return true|string */
     public static function adguardDisallow(string $ip, bool $add): true|string
     {

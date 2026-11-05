@@ -2956,6 +2956,31 @@ RzMon zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons
 - Een UniFi IPS of een strenge firewall kan de scan van RzMon als poortscan zien. Sta in dat geval het IP-adres van de RzMon-server toe.
 - Andere VLAN's: daar ziet RzMon alleen IP-adressen (geen MAC-adres of fabrikant), omdat ARP niet over een router gaat.
 
+**🔍 Netwerk → Ontdekken** (vanaf 1.183.0)
+
+Het tabblad Netwerk heeft twee tabbladen: **📋 Apparaten** (de lijst hierboven) en **🔍 Ontdekken**. Bij Apparaten kun je met de keuzelijst rechts **groeperen**: per soort, per fabrikant of per verbinding (wifi-netwerk of bedraad; dat komt uit UniFi). Ontdekken laat zien wat er verandert op je netwerk:
+
+- **🆕 Nieuw en onbekend**: alles wat je nog niet als bekend of genegeerd markeerde, nieuwste bovenaan, met een staafje per dag voor de laatste 30 dagen. Met **✔ Bekend** of **🙈 Negeren** ben je klaar. Het oranje getal bij het tabblad telt deze apparaten.
+- **🔄 Veranderingen** (laatste 30 dagen; klik op een soort om te filteren):
+
+  | | Wat het betekent |
+  |---|---|
+  | 🆕 Nieuw apparaat | voor het eerst gezien (niet bij de allereerste scan, want dan is alles nieuw) |
+  | 🔁 Ander IP-adres | hetzelfde MAC-adres kreeg een ander IP-adres |
+  | 🚪 Nieuwe poort open | de diepere scan vond een poort die eerder dicht was; ⚠️ bij een riskante poort (Telnet, FTP, VNC …) |
+  | 🔒 Poort dicht | een poort die open was, is dicht |
+  | 🌐 Praat met nieuwe domeinen | alleen met AdGuard Home: RzMon leert eerst **7 dagen** met welke hoofddomeinen een apparaat praat (`cdn.voorbeeld.nl` telt als `voorbeeld.nl`), en meldt daarna elk nieuw hoofddomein. Lokale namen (`.local`, `.lan`, `.home`) tellen niet mee |
+  | 💤 Al dagen weg | **3 dagen** niet gezien. Alleen voor apparaten met een vast MAC-adres die je niet negeert; telefoons met een privé-adres wisselen te vaak |
+  | 👋 Weer terug | een apparaat dat weg was, is er weer |
+
+- **💡 Voorstellen**: apparaten die nog niet in RzMon staan, die je niet negeert, die de laatste 7 dagen gezien zijn, en die je meestal wilt bewaken: router, switch of access point, server, NAS, printer, camera, smart home, IoT en media. Telefoons en laptops komen hier alleen als ze een dienst aanbieden.
+  - Per apparaat staan de checks die passen bij de open poorten: **Ping**, **Web** (https gaat voor http; certificaten worden niet gecontroleerd, want apparaten hebben bijna altijd een eigen certificaat), beheerpagina's (5000/5001, Proxmox 8006), **Home Assistant** (8123), **Plex**, en poortchecks voor SSH, DNS, SMB, AFP, **RTSP** (camerabeeld), **IPP** en 9100 (printen), MQTT, MariaDB en PostgreSQL. De eerste drie staan aangevinkt.
+  - **＋ In RzMon met deze checks** (beheerders) zet het apparaat met één klik in RzMon: als server zonder agent, met het IP-adres, de juiste soort en de gekozen checks. In het netwerkoverzicht wordt het apparaat *bekend*. **✎ Zelf instellen** opent het gewone formulier om een server toe te voegen.
+  - Bij een router, switch, NAS of printer staat een tip om daarna **SNMP** aan te zetten (poorten, temperatuur en meer).
+- **🕒 Aanwezigheid**: per apparaat een blokje per uur over de laatste 7 dagen (groen = gezien in een scan van dat uur), het percentage van de tijd dat het online was, en 🌙 als het ook 's nachts (0–6 uur) online was. Filter op soort, bijvoorbeeld alleen telefoons. Handig voor Home Assistant (wie is er thuis) en om te zien wat er 's nachts aan staat.
+
+Goed om te weten: RzMon houdt dit bij vanaf 1.183.0, dus na de update is Ontdekken eerst nog leeg. Hoe vaak er gescand wordt, stel je in bij *Instellingen → Beveiliging → Netwerkscan*; met een lichte ronde per uur zie je per uur of een apparaat er was. Veranderingen worden 90 dagen bewaard, de aanwezigheid 30 dagen.
+
 ### 8.14c Ondertekende updates 🔏 (vanaf 1.139.0, agent 1.71.0)
 Elke nieuwe agent wordt in GitHub **ondertekend** met een geheime sleutel die alleen daar staat (het geheim `AGENT_SIGN_KEY`; de workflow *Agent ondertekenen* zet de handtekeningen `agent/*.sig` erbij). In de agent zelf staat de bijbehorende **publieke sleutel**. Bij bijwerken haalt de agent de nieuwe versie en de handtekeningen bij RzMon op en installeert alleen als ze kloppen. Zo kan ook iemand die RzMon zelf zou overnemen geen eigen code op je servers zetten.
 

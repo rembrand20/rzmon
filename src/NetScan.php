@@ -162,6 +162,7 @@ final class NetScan
         }
         $first = !q('SELECT 1 FROM net_devices LIMIT 1')->fetchColumn();
         $new = [];
+        self::$seenIds = [];
         foreach ($alive as $ip => $mac) {
             if ($d = self::upsert($ip, $mac, $first)) {
                 $new[] = $d;
@@ -170,6 +171,7 @@ final class NetScan
         // DNS-naam van nieuwe apparaten, en de namen uit UniFi en AdGuard
         self::enrichBasic(array_column($new, 'id'));
         self::applyLinks($links);
+        NetDiscover::afterSweep(self::$seenIds);   // 1.183.0: aanwezigheid en "al dagen weg"
         if ($new && !$first) {
             self::notifyNew(array_column($new, 'id'));
         }
@@ -252,6 +254,9 @@ final class NetScan
     }
 
     /** Apparaat bijwerken of toevoegen. @return array|null het nieuwe apparaat */
+    /** 1.183.0: apparaten die in deze ronde gezien zijn (voor de aanwezigheid) */
+    private static array $seenIds = [];
+
     private static function upsert(string $ip, ?string $mac, bool $first): ?array
     {
         $now = now();
@@ -264,16 +269,23 @@ final class NetScan
         }
         if ($row) {
             $info = json_decode((string) $row['info'], true) ?: [];
+            NetDiscover::seen($row, $ip, $info);   // 1.183.0: ander IP-adres of weer terug
             if ($row['ip'] !== $ip) {   // ander IP-adres: de vorige onthouden
                 $info['ips'] = array_slice(array_values(array_unique(array_merge([$row['ip']], (array) ($info['ips'] ?? [])))), 0, 5);
             }
             q('UPDATE net_devices SET ip = ?, mac = COALESCE(?, mac), last_seen = ?, info = ? WHERE id = ?',
                 [$ip, $mac, $now, json_encode($info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $row['id']]);
+            self::$seenIds[] = (int) $row['id'];
             return null;
         }
         q('INSERT INTO net_devices (mac, ip, random_mac, vendor, status, first_seen, last_seen, info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [$mac, $ip, (int) self::randomMac($mac), $mac && !self::randomMac($mac) ? self::vendor($mac) : null, 'new', $now, $now, '{}']);
-        return ['id' => (int) db()->lastInsertId(), 'ip' => $ip, 'mac' => $mac, 'first' => $first];
+        $newId = (int) db()->lastInsertId();
+        self::$seenIds[] = $newId;
+        if (!$first) {
+            NetDiscover::event($newId, 'new', ['ip' => $ip, 'mac' => $mac]);   // 1.183.0 (niet bij de allereerste scan: dan is alles nieuw)
+        }
+        return ['id' => $newId, 'ip' => $ip, 'mac' => $mac, 'first' => $first];
     }
 
     /** DNS-naam (2 s per adres, 16 tegelijk) */
@@ -378,6 +390,7 @@ final class NetScan
         }
         $http = self::httpTitles($ports);
         $banners = self::banners($ports);   // 1.155.0: wat een dienst over zichzelf vertelt (versie), voor de analyse
+        $agDom = NetLinks::adguardOn() ? NetLinks::adguardByClient() : [];   // 1.183.0: met welke domeinen elk apparaat praat
         $gw = self::gateway();
         foreach ($rows as $r) {
             $ip = $r['ip'];
@@ -401,6 +414,10 @@ final class NetScan
             }
             $info['gateway'] = $ip === $gw;
             $p = $ports[$ip] ?? [];
+            NetDiscover::ports((int) $r['id'], $r['ports'] !== null ? (json_decode((string) $r['ports'], true) ?: []) : null, $p);   // 1.183.0
+            if (isset($agDom[$ip])) {
+                NetDiscover::domains((int) $r['id'], $info, $agDom[$ip]);
+            }
             $r['info'] = $info;
             $r['hostname'] = $dns[$ip] ?? $r['hostname'];
             if ($r['mac'] && !$r['vendor'] && !self::randomMac($r['mac'])) {   // een willekeurig MAC-adres heeft geen fabrikant
@@ -1014,6 +1031,7 @@ final class NetScan
     {
         try {
             q("DELETE FROM net_devices WHERE last_seen < NOW() - INTERVAL 90 DAY AND blocked IS NULL AND NOT (status = 'known' AND name IS NOT NULL)");
+            NetDiscover::purge();   // 1.183.0
         } catch (Throwable) {
         }
     }

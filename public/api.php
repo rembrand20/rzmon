@@ -1212,7 +1212,7 @@ $need = match ($action) {
     'home', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -4619,6 +4619,20 @@ switch ($action) {
         out(['ok' => true]);
 
     // 1.104.0: UniFi en AdGuard Home testen, een apparaat weren of weer toelaten, en de domeinen van een apparaat
+    case 'net_discover':   // 1.183.0: Netwerk → Ontdekken
+        $devs = NetScan::list();
+        out(['enabled' => NetScan::enabled(), 'events' => NetDiscover::events(30), 'presence' => NetDiscover::presenceGrid(7), 'new_per_day' => NetDiscover::newPerDay(),
+            'suggestions' => NetDiscover::suggestions($devs), 'learn_days' => NetDiscover::LEARN_DAYS, 'gone_days' => NetDiscover::GONE_DAYS, 'adguard' => NetLinks::adguardOn()]);
+
+    case 'net_adopt':   // 1.183.0: apparaat met één klik in RzMon, met de gekozen checks
+        $in = input();
+        try {
+            $hid = NetDiscover::adopt((int) ($in['id'] ?? 0), (array) ($in['checks'] ?? []), (string) ($in['name'] ?? ''), (string) $user['username']);
+            out(['ok' => true, 'host_id' => $hid]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
     case 'net_links_test':
         out(NetLinks::test());
 
