@@ -27,7 +27,7 @@ final class Paths
             'tp' => !array_key_exists('tp', $o) || !empty($o['tp']),
             'tp_host' => (int) ($o['tp_host'] ?? 0),
             'tp_every' => in_array((int) ($o['tp_every'] ?? 3600), [0, 3600, 86400], true) ? (int) ($o['tp_every'] ?? 3600) : 3600,
-            'tp_min' => isset($o['tp_min']) && $o['tp_min'] !== '' && $o['tp_min'] !== null ? max(1, (int) $o['tp_min']) : 200,
+            'tp_min' => isset($o['tp_min']) && $o['tp_min'] !== '' ? max(1, (int) $o['tp_min']) : 200,
             'loss_warn' => isset($o['loss_warn']) ? max(1, min(100, (int) $o['loss_warn'])) : 5,
             'loss_crit' => isset($o['loss_crit']) ? max(1, min(100, (int) $o['loss_crit'])) : 20,
             'link' => !array_key_exists('link', $o) || !empty($o['link']),
@@ -377,7 +377,7 @@ final class Paths
             $later = array_slice($hops, $i + 1);
             $realLoss = $h['loss'] !== null && $h['loss'] >= $lw && ($dstLoss === null || $dstLoss >= $lw) && !array_filter($later, static fn($x) => ($x['loss'] ?? 100) < $lw);
             $st = $h['ip'] === '' ? 'h' : ($realLoss ? 'w' : ($priv ? 'g' : 'x'));
-            $nodes[] = ['kind' => $h['ip'] === '' ? 'hidden' : ($priv ? (count($nodes) && $h['ip'] === $d['gw'] ? 'router' : 'hop') : 'ext'), 'n' => $h['n'],
+            $nodes[] = ['kind' => $h['ip'] === '' ? 'hidden' : ($priv ? ($h['ip'] === $d['gw'] ? 'router' : 'hop') : 'ext'), 'n' => $h['n'],
                 'name' => $names[$h['ip']] ?? ($h['ip'] === '' ? t('geen antwoord') : $h['ip']), 'ip' => $h['ip'], 'avg' => $h['avg'], 'loss' => $h['loss'], 'best' => $h['best'],
                 'worst' => $h['worst'], 'jit' => $h['jit'], 'intern' => $priv, 'st' => $st];
         }
@@ -467,7 +467,7 @@ final class Paths
             $why[] = t('linksnelheid: {l}', ['l' => implode('; ', $m['slow'])]);
         }
         $tp = $m['tp'];
-        $mbit = $tp && isset($tp['mbit']) && $tp['mbit'] !== null && (int) ($tp['at'] ?? 0) > time() - max(7200, 2 * $o['tp_every']) ? (float) $tp['mbit'] : null;
+        $mbit = $tp && isset($tp['mbit']) && (int) ($tp['at'] ?? 0) > time() - max(7200, 2 * $o['tp_every']) ? (float) $tp['mbit'] : null;
         if ($mbit !== null && $o['tp'] && $mbit < $o['tp_min']) {
             $up(STATUS_WARN);
             $why[] = t('doorvoer {m} Mbit/s (onder {n})', ['m' => I18n::dec((string) round($mbit)), 'n' => $o['tp_min']]);

@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.174.0**: **TrueNAS SCALE** beter ondersteund: meldingen, taken, apps, update en temperaturen als checks, kwetsbaarheden scannen, en het IDS mag er blokkeren als je dat aanzet.
 - **1.173.0**: **AI-advies** met **verbruik, tegoed en maandbudget**, en extra's als geheugen, niet twee keer betalen, terugvallen op Ollama, een weekoverzicht en een oordeel bij IDS-incidenten.
 
+## 1.177.1 – 2026-11-05
+### Opgelost
+- Codecontrole (PHPStan) gaf een melding over de nieuwe pad-check. Voor jou verandert er niets.
+
 ## 1.177.0 – 2026-11-05
 ### Nieuw
 - **Nieuwe check: Pad (traceroute)** (agent 1.78.0 nodig). Kies bij een server met de agent het doel (IP-adres of hostnaam) en eventueel de **tussenliggende apparaten** (bv. de IP-adressen van je switches). Elke 5 minuten meet de agent:
