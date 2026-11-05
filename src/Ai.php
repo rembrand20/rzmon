@@ -1314,8 +1314,8 @@ final class Ai
             'answer' => $r['answer'], 'error' => $r['error'], 'actions' => json_decode((string) $r['actions'], true) ?: [], 'has_diag' => (string) $r['diag'] !== '',
             'tok_in' => $r['tok_in'] !== null ? (int) $r['tok_in'] : null, 'tok_out' => $r['tok_out'] !== null ? (int) $r['tok_out'] : null, 'ms' => $r['ms'] !== null ? (int) $r['ms'] : null,
             'created_by' => $r['created_by'], 'created_at' => $r['created_at'], 'done_at' => $r['done_at'],
-            'cost' => isset($r['cost']) && $r['cost'] !== null ? (float) $r['cost'] : null, 'cloud' => (bool) (self::PROVIDERS[$r['provider']]['cloud'] ?? false),
-            'note' => $r['note'] ?? null, 'rating' => isset($r['rating']) && $r['rating'] !== null ? (int) $r['rating'] : null, 'solved' => (int) ($r['solved'] ?? 0) === 1,
+            'cost' => isset($r['cost']) ? (float) $r['cost'] : null, 'cloud' => (bool) (self::PROVIDERS[$r['provider']]['cloud'] ?? false),
+            'note' => $r['note'] ?? null, 'rating' => isset($r['rating']) ? (int) $r['rating'] : null, 'solved' => (int) ($r['solved'] ?? 0) === 1,
             'verdict' => $r['verdict'] ?? null,
             'billing' => $r['status'] === 'error' && preg_match(self::CREDIT_RE, (string) $r['error']) ? (self::BILLING[$r['provider']] ?? null) : null];
     }

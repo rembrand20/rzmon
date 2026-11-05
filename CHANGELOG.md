@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.170.0**: nieuwe checks **Domein** (verloopdatum), **MQTT-broker** (rondgang en topic) en **VPN** (Gluetun met lekcontrole, WireGuard-handshakes).
 - **1.169.0**: **Monitoring → 📶 Beschikbaarheid**: per soort apparaat of eigen groep wat er online is, het percentage, storingen en het doel (SLA).
 
+## 1.173.1 – 2026-11-05
+### Opgelost
+- Codecontrole (PHPStan) gaf drie meldingen over de nieuwe code van 1.173.0. Voor jou verandert er niets.
+
 ## 1.173.0 – 2026-11-05
 ### Nieuw
 - **AI-advies: 💶 verbruik en tegoed** (Instellingen → AI-advies). De aanbieders tonen je tegoed niet via de API, dus RzMon telt zelf mee:

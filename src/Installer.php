@@ -288,14 +288,16 @@ final class Installer
     {
         $st = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS
                              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+        $st->execute(['users', 'lang']);
+        $hadLang = (int) $st->fetchColumn() > 0;
         foreach (self::COLUMNS as [$table, $column, $definition]) {
             $st->execute([$table, $column]);
             if (!(int) $st->fetchColumn()) {
                 $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
-                if ("$table.$column" === 'users.lang') {
-                    $pdo->exec("UPDATE users SET lang = 'nl'");   // bestaande accounts blijven Nederlands
-                }
             }
+        }
+        if (!$hadLang) {
+            $pdo->exec("UPDATE users SET lang = 'nl'");   // users.lang net toegevoegd: bestaande accounts blijven Nederlands
         }
         // 1.107.0: nieuwe checks (elke manier van toevoegen) beginnen op 'auto': bij de eerste run de standaard drempelmodus
         $pdo->exec("ALTER TABLE checks ALTER COLUMN thresh_mode SET DEFAULT 'auto'");
