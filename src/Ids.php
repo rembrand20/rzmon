@@ -103,11 +103,11 @@ final class Ids
     }
 
     /** Server isoleren: $hours 1–72; het IP van de beheerder mag erbij (en je LAN, en RzMon zelf) */
-    public static function isolate(int $hostId, int $hours, string $by, string $byIp): void
+    public static function isolate(int $hostId, int $hours, string $by, string $byIp, string $reason = ''): void
     {
         $until = date('Y-m-d H:i:s', time() + max(1, min(72, $hours)) * 3600);
-        q('UPDATE hosts SET isolate_until = ?, isolate_by = ?, isolate_allow = ?, isolate_state = ? WHERE id = ?',
-            [$until, mb_substr($by, 0, 64), @inet_pton($byIp) !== false ? $byIp : null, 'wacht op de agent', $hostId]);
+        q('UPDATE hosts SET isolate_until = ?, isolate_by = ?, isolate_allow = ?, isolate_state = ?, isolate_reason = ?, isolate_at = ? WHERE id = ?',
+            [$until, mb_substr($by, 0, 64), @inet_pton($byIp) !== false ? $byIp : null, 'wacht op de agent', $reason !== '' ? mb_substr($reason, 0, 255) : null, now(), $hostId]);
         $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
         AgentCommands::audit($by, 'Server geïsoleerd', "$name tot $until");
         Monitor::sysInfo('isolate', $hostId, $name, '🧱 ' . t('Server geïsoleerd: {name}', ['name' => $name]),
@@ -120,6 +120,14 @@ final class Ids
         $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
         AgentCommands::audit($by, 'Isolatie opgeheven', $name);
         Monitor::sysInfo('isolate', $hostId, $name, '🔓 ' . t('Isolatie opgeheven: {name}', ['name' => $name]), fn() => t('{name} is weer gewoon bereikbaar (door {by})', ['name' => $name, 'by' => $by]));
+    }
+
+    /** 1.172.0: servers die nu geïsoleerd zijn (voor de banner bovenaan de pagina) */
+    public static function isolated(): array
+    {
+        return array_map(static fn($h) => ['id' => (int) $h['id'], 'name' => (string) $h['name'], 'address' => (string) $h['address'], 'until' => $h['isolate_until'],
+            'at' => $h['isolate_at'], 'by' => (string) $h['isolate_by'], 'reason' => (string) $h['isolate_reason'], 'state' => (string) $h['isolate_state']],
+            q('SELECT id, name, address, isolate_until, isolate_at, isolate_by, isolate_reason, isolate_state FROM hosts WHERE isolate_until > NOW() ORDER BY isolate_at DESC, name')->fetchAll());
     }
 
     /** Stand van de agent: iso (actief, uit, fout) en de uitkomst van gebruikers vergrendelen */
@@ -1200,9 +1208,24 @@ final class Ids
             $countries[$cc][$f['dir'] === 'o' ? 'out' : 'in'] += $f['hits'];
         }
         $src = array_values($src);
-        usort($src, static fn($a, $b) => [$b['sev'], $b['hits']] <=> [$a['sev'], $a['hits']]);
-        $shown = array_slice($src, 0, $top);
-        $rest = array_slice($src, $top);
+        if (!empty($o['live'])) {
+            // 1.172.0: Attack Flow: eerst wie nu (laatste 15 minuten) aanvalt, de rest van de plekken voor de grootste van de periode
+            $cut = date('Y-m-d H:i:s', time() - 900);
+            $byHits = static fn($a, $b) => [$b['hits'], $b['sev']] <=> [$a['hits'], $a['sev']];
+            $live = array_values(array_filter($src, static fn($s) => $s['last'] >= $cut));
+            $old = array_values(array_filter($src, static fn($s) => $s['last'] < $cut));
+            usort($live, $byHits);
+            usort($old, $byHits);
+            $nLive = min($top, count($live));
+            $fill = max(0, $top - $nLive);
+            $shown = array_merge(array_map(static fn($s) => $s + ['live' => true], array_slice($live, 0, $nLive)),
+                array_map(static fn($s) => $s + ['live' => false], array_slice($old, 0, $fill)));
+            $rest = array_merge(array_slice($live, $nLive), array_slice($old, $fill));
+        } else {
+            usort($src, static fn($a, $b) => [$b['sev'], $b['hits']] <=> [$a['sev'], $a['hits']]);
+            $shown = array_slice($src, 0, $top);
+            $rest = array_slice($src, $top);
+        }
         $ips = array_column($shown, 'ip');
         // Geblokkeerd (IDS op een server, of in RzMon zelf) en reputatie (alleen uit de cache)
         $blocked = [];

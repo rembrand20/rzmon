@@ -8,11 +8,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.172.0**: de **Live Attack Flow toont altijd tien aanvallers** (live eerst, aangevuld uit de top 10 van 24 uur) en een **banner bovenaan** zodra een server in isolatie gaat.
 - **1.171.0**: **🤖 AI-advies** bij storingen en incidenten (Claude, ChatGPT, Gemini, Grok of Ollama), met diep zoeken via de agent en desgewenst uitvoeren na bevestiging.
 - **1.170.0**: nieuwe checks **Domein** (verloopdatum), **MQTT-broker** (rondgang en topic) en **VPN** (Gluetun met lekcontrole, WireGuard-handshakes).
 - **1.169.0**: **Monitoring → 📶 Beschikbaarheid**: per soort apparaat of eigen groep wat er online is, het percentage, storingen en het doel (SLA).
 - **1.168.0**: Monitoring met een eigen groep **✔ Bevestigd**, en **config.php opslaan via de hulpdienst** terwijl de map vergrendeld blijft.
-- **1.167.0**: de **zijbalk** sleep je zelf breder of smaller, en in Instellingen en Mijn account wordt hij het menu van die pagina, met **← Terug naar RzMon**.
+
+## 1.172.0 – 2026-11-05
+### Nieuw
+- **Live Attack Flow toont altijd tien aanvallers.** Bovenaan wie de laatste 15 minuten aanvalt (live). De overige plekken vult RzMon met de grootste aanvallen van de laatste 24 uur.
+  - Bij 5 live aanvallen zie je nog 5 uit de top 10, bij 2 live nog 8. Is het rustig, dan zie je de top 10 in plaats van een lege stroom.
+  - De aangevulde aanvallers zijn gedimd (met *top 10 · laatst …*), zodat live altijd opvalt. Meer dan 10 live: de 10 grootste, de rest als *+ n kleinere aanvallers*.
+- **Banner *Server in isolatie*.** Zodra een server geïsoleerd is, staat er bovenaan de IDS-pagina over de hele breedte een rode banner in de stijl van de Attack Flow.
+  - Per server: de reden (incident, EDR-regel of aanvalsketen), door wie, sinds wanneer, of de agent het al toepast en een afteller tot het vervalt.
+  - Met **🔓 Opheffen** direct in de banner (alleen beheerders).
+  - Op het Dashboard en Monitoring een smallere versie met *Bekijk*.
+
+### Gewijzigd
+- **Isolatie opheffen vraagt nu je wachtwoord** (op het LAN: `OPHEFFEN`), net als isoleren zelf: opheffen haalt de bescherming weg.
 
 ## 1.171.4 – 2026-11-05
 ### Opgelost

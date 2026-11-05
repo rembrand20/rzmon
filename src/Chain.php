@@ -199,7 +199,7 @@ final class Chain
                     }
                 }
                 if ($c['isolate'] && setting('edr_isolate', '1') === '1' && !q('SELECT 1 FROM hosts WHERE id = ? AND isolate_until > NOW()', [$hid])->fetchColumn()) {
-                    Ids::isolate($hid, 24, 'RzMon (' . t('automatisch') . ')', '');
+                    Ids::isolate($hid, 24, 'RzMon (' . t('automatisch') . ')', '', t('Aanvalsketen: {what}', ['what' => t($sc['title'])]));
                     $done[] = t('server geïsoleerd (24 uur)');
                 }
             } else {

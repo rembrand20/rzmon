@@ -120,6 +120,14 @@ final class AttackFlow
         usort($events, static fn($a, $b) => strcmp((string) $a['at'], (string) $b['at']));
         $r = $f + ['pivots' => $pivots, 'events' => array_slice($events, -3000), 'since' => $since, 'now' => now()];
         $r['live'] = self::live($r, (int) ($o['host'] ?? 0));
+        // 1.172.0: de stroom zelf toont altijd tien aanvallers: eerst wie nu (laatste 15 minuten) aanvalt, aangevuld met de
+        // grootste van de laatste 24 uur (of van het gekozen venster als dat langer is). Bij 5 live aanvallen dus nog 5 uit de top.
+        if (empty($o['live'])) {
+            $fl = self::build(['live' => 1, 'top' => 10, 'mins' => 0, 'days' => $f['mins'] ? 1 : $days] + $o);
+            $r['flow'] = ['sources' => $fl['sources'], 'lines' => $fl['lines'], 'targets' => $fl['targets'], 'rest' => $fl['rest'], 'pivots' => $fl['pivots'],
+                'live' => ['lines' => $fl['live']['lines'], 'hit' => $fl['live']['hit']], 'days' => $fl['days'],
+                'nlive' => count(array_filter($fl['sources'], static fn($s) => !empty($s['live'])))];
+        }
         return $r;
     }
 

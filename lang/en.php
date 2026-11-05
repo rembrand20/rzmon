@@ -7422,4 +7422,19 @@ return [
     // 1.171.3
     'Het model had al zijn tokens nodig om na te denken en gaf geen antwoord. Zet "Langste antwoord" hoger, of kies een model dat niet redeneert (bv. een mini-model).' => 'The model needed all its tokens to think and gave no answer. Raise "Longest answer", or choose a model that does not reason (e.g. a mini model).',
     'voorstel: {m}' => 'suggestion: {m}',
+    // 1.172.0 Attack Flow top 10 en isolatie-banner
+    'Aanvalsketen: {what}' => 'Attack chain: {what}',
+    'actief op de server' => 'active on the server',
+    'nog niet actief' => 'not active yet',
+    'door' => 'by',
+    'vervalt over' => 'expires in',
+    'SERVER IN ISOLATIE' => 'SERVER ISOLATED',
+    '{n} SERVERS IN ISOLATIE' => '{n} SERVERS ISOLATED',
+    'Al het verkeer van en naar deze server is geblokkeerd. Alleen RzMon, je lokale netwerken en het IP-adres van wie isoleerde kunnen er nog bij.' => 'All traffic to and from this server is blocked. Only RzMon, your local networks and the IP address of whoever isolated it can still reach it.',
+    'Isolatie van {name} opheffen?' => 'Lift the isolation of {name}?',
+    'De server is daarna weer gewoon bereikbaar. Doe dit pas als de oorzaak is opgelost.' => 'The server will be reachable again. Only do this once the cause is fixed.',
+    '{n} live · {m} uit de top 10 van de {p}' => '{n} live · {m} from the top 10 of the {p}',
+    'gedimd = top 10, de laatste 15 minuten niet actief' => 'dimmed = top 10, not active in the last 15 minutes',
+    'top 10 · laatst {t}' => 'top 10 · last {t}',
+    'OPHEFFEN' => 'LIFT',
 ];

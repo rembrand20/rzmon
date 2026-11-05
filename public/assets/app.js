@@ -1472,6 +1472,7 @@ function init() {
   $('#email-test').onclick = (e) => testChannel(e, 'email_test', L('Testmail verstuurd 📧'), L('E-mail'));
   $('#mqtt-test').onclick = (e) => testChannel(e, 'mqtt_test', null, 'MQTT');
   $('#maint-all').onclick = () => maintenanceDialog('all', 0, L('alle servers'), state.maintenance);
+  initIsoBanner();   // 1.172.0
   $('#maint-banner').addEventListener('click', (e) => e.target.closest('[data-maint-end]') && endMaintenance('all', 0));
   if ($('#password-form')) $('#password-form').addEventListener('submit', changePassword);   // alleen op Mijn account (niet zonder account via het LAN)
   $('#user-form').addEventListener('submit', createUser);
@@ -1585,6 +1586,7 @@ function showTab(name) {
   history.replaceState(null, '', '#' + name);
   fxSyncHash();
   sideMode(name);   // 1.167.0
+  renderIsoBanner(name);   // 1.172.0
   if (name === 'settings') { loadSettings(); showSettingsSection(sub || setSection); }
   if (name === 'account') { loadAccount(); setTimeout(() => { if (sideTab === 'account' && document.body.classList.contains('side-admin-on')) sideAcctList(); }, 600); }
   if (name === 'alerts') loadAlerts();
@@ -2345,6 +2347,7 @@ function initAiSettings() {
 function render() { withMorph(renderNow); }
 function renderNow() {
   renderHealth();
+  renderIsoBanner();
   if (monSub === 'avail') avLoad();   // 1.169.0
   const banner = $('#maint-banner');
   banner.hidden = !state.maintenance;
@@ -7846,7 +7849,7 @@ async function hostSecDialog(hostId) {
         await api('host_isolate', { host_id: hostId, hours: +isoB.dataset.isolate, confirm: pw });
         toast(L('{name} wordt geïsoleerd; de agent past het binnen een minuut toe', { name: h.name }));
       } else if (un) {
-        await api('host_unisolate', { host_id: hostId }); toast(L('Isolatie wordt opgeheven'));
+        await isoLift(hostId, h.name);
       } else if (ul) {
         const name = $('#ul-name').value.trim();
         if (!name) return;
@@ -8028,7 +8031,7 @@ function initAttackMap() {
     else if (t.dataset.afBlockall) blockDialog(t.dataset.afBlockall);
     else if (t.dataset.amInc) incidentDialog(+t.dataset.amInc);
     else if (t.dataset.amIp) amDetail(t.dataset.amIp);
-    else if (t.dataset.amLine !== undefined) { const l = amData.lines[+t.dataset.amLine]; if (l) amDetail(l.ip); }
+    else if (t.dataset.amLine !== undefined) { const l = afFD().lines[+t.dataset.amLine]; if (l) amDetail(l.ip); }
     else if (t.dataset.amHost) { amOpt.host = amOpt.host === t.dataset.amHost ? '' : t.dataset.amHost; loadAttackMap(); }
     else if (t.dataset.amCc) { amOpt.cc = t.dataset.amCc; amOpt.view = 'flow'; loadAttackMap(); }
   });
@@ -8100,17 +8103,88 @@ function afMotion(d) {
   return [0, 1, 2].includes(m) ? m : 2;
 }
 
+/** 1.172.0: wat de stroom toont: eerst wie nu (15 min) aanvalt, aangevuld tot tien met de grootste van de laatste 24 uur (of het langere venster) */
+const afFD = (d = amData) => (d && d.flow ? { ...d, ...d.flow, live: { ...(d.live || {}), ...d.flow.live } } : d);
+const afOld = (s) => !!s && s.live === false;
+
+/** 1.172.0: banner bovenaan als een server geïsoleerd is: groot op de IDS-pagina, smal op Dashboard en Monitoring */
+const ISO_PAGES = { ids: 'big', home: 'slim', dashboard: 'slim' };
+function renderIsoBanner(tab) {
+  const el = $('#iso-banner');
+  if (!el || !state) return;
+  tab = tab || (($('.tab-panel:not([hidden])') || {}).id || '').replace('tab-', '');
+  const list = state.isolated || [], size = ISO_PAGES[tab];
+  el.hidden = !list.length || !size;
+  if (el.hidden) { el.innerHTML = ''; el.dataset.key = ''; return; }
+  const stTxt = (s) => (s === 'active' ? ['ok', L('actief op de server')] : /^(fout|error)/.test(s) ? ['bad', s] : s === 'off' ? ['warn', L('nog niet actief')] : ['warn', s || L('wacht op de agent')]);
+  const key = size + '|' + list.map((x) => [x.id, x.until, x.state, x.reason].join('/')).join(',');
+  if (el.dataset.key === key) { isoTick(); return; }
+  el.dataset.key = key;
+  const rows = list.map((x) => {
+    const [sc, st] = stTxt(x.state);
+    return `<div class="iso-row">
+      <div class="iso-who"><b>${esc(x.name)}</b>${x.address ? `<span class="mono iso-mut">${esc(x.address)}</span>` : ''}</div>
+      <div class="iso-meta">${x.reason ? `<span><span class="iso-mut">${L('Reden')}:</span> ${esc(x.reason)}</span>` : ''}
+        <span><span class="iso-mut">${L('door')}</span> ${esc(x.by || '?')}</span>
+        ${x.at ? `<span><span class="iso-mut">${L('sinds')}</span> ${esc(fmtUntil(x.at))}</span>` : ''}
+        <span class="iso-st ${sc}">● ${esc(st)}</span></div>
+      <div class="iso-cd"><small>${L('vervalt over')}</small><b class="mono" data-iso-cd="${esc(x.until)}">–</b><small>${L('tot {t}', { t: esc(fmtUntil(x.until)) })}</small></div>
+      <div class="iso-acts">${size === 'slim' ? `<button type="button" class="iso-btn ghost" data-iso-go>${L('Bekijk')}</button>` : ''}
+        <button type="button" class="iso-btn need-admin" data-iso-un="${x.id}" data-iso-name="${esc(x.name)}">🔓 ${L('Opheffen')}</button></div></div>`;
+  }).join('');
+  el.className = 'iso-banner ' + size;
+  el.innerHTML = `<div class="iso-scan" aria-hidden="true"></div><div class="iso-grid" aria-hidden="true"></div>
+    <div class="iso-head"><span class="iso-ic" aria-hidden="true"><i></i>🧱</span>
+      <div><div class="iso-kick"><i class="af-blink"></i>${esc(list.length === 1 ? L('SERVER IN ISOLATIE') : L('{n} SERVERS IN ISOLATIE', { n: list.length }))}</div>
+      ${size === 'big' ? `<div class="iso-mut small">${L('Al het verkeer van en naar deze server is geblokkeerd. Alleen RzMon, je lokale netwerken en het IP-adres van wie isoleerde kunnen er nog bij.')}</div>` : ''}</div></div>
+    <div class="iso-rows">${rows}</div>`;
+  isoTick();
+}
+/** Afteller in de banner (elke seconde) */
+function isoTick() {
+  $$('#iso-banner [data-iso-cd]').forEach((b) => {
+    let s = Math.max(0, Math.round((new Date(b.dataset.isoCd.replace(' ', 'T')) - Date.now()) / 1000));
+    const d = Math.floor(s / 86400);
+    s %= 86400;
+    const p = (n) => String(n).padStart(2, '0');
+    b.textContent = (d ? d + 'd ' : '') + `${Math.floor(s / 3600)}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`;
+  });
+}
+setInterval(() => { const el = document.getElementById('iso-banner'); if (!document.hidden && el && !el.hidden) isoTick(); }, 1000);
+/** Isolatie opheffen (met je wachtwoord): vanuit de banner en vanuit Hardening en isoleren */
+async function isoLift(hostId, name) {
+  const pw = await askConfirm({ title: L('Isolatie van {name} opheffen?', { name }), danger: true, word: 'OPHEFFEN', ok: '🔓 ' + L('Opheffen'),
+    text: L('De server is daarna weer gewoon bereikbaar. Doe dit pas als de oorzaak is opgelost.') });
+  if (pw === null) return false;
+  await api('host_unisolate', { host_id: hostId, confirm: pw });
+  toast(L('Isolatie wordt opgeheven'));
+  refresh();
+  return true;
+}
+function initIsoBanner() {
+  const el = $('#iso-banner');
+  if (!el) return;
+  el.addEventListener('click', async (e) => {
+    const un = e.target.closest('[data-iso-un]'), go = e.target.closest('[data-iso-go]');
+    if (go) { showTab('ids'); return; }
+    if (!un) return;
+    try { await isoLift(+un.dataset.isoUn, un.dataset.isoName); } catch (ex) { toast(ex.message, 'err'); }
+  });
+}
+
 /** 1.153.0: Live Attack Flow: bovenaan wie nu het hardst aanvalt en wat het IDS deed, dan de stroom, onderaan de ticker en de top 10 */
 function renderLiveFlow(d, box) {
   const lv = d.live || {}, m = afMotion(d);
   const filtered = amOpt.host || amOpt.cc || amOpt.cat || amOpt.dir;
   const html = [`<div class="af-livebox m${m}">`, afHero(d, lv)];
-  if (!d.lines.length) html.push(afEmpty(filtered));
+  const fd = afFD(d), nOld = (fd.sources || []).filter(afOld).length;
+  const pool = AM_WIN_LBL[{ 1: '24h', 7: '7d', 30: '30d' }[fd.days] || '24h']();
+  if (!fd.lines.length) html.push(afEmpty(filtered));
   else {
     html.push(`<section class="af-live" aria-label="Live Attack Flow">
       <div class="af-lhead"><h2>Live Attack Flow</h2>
         <span class="af-pill-live" title="${esc(L('Wordt elke {n} seconden bijgewerkt', { n: (AM_WIN[amOpt.win] || AM_WIN['15m']).refresh }))}"><i class="af-blink"></i>LIVE · <span class="af-ago"></span></span>
-        <span class="af-win">${esc(AM_WIN_LBL[amOpt.win]())}</span>
+        <span class="af-win">${esc(d.flow ? L('{n} live · {m} uit de top 10 van de {p}', { n: fd.nlive || 0, m: nOld, p: pool }) : AM_WIN_LBL[amOpt.win]())}</span>
         <div class="af-opts small"><label class="switch small"><input type="checkbox" data-af-opt="inferred" ${afOpt.inferred ? 'checked' : ''}><span></span> ${L('Afgeleide verbanden tonen')}</label>
           <label class="switch small"><input type="checkbox" data-af-opt="group" ${afOpt.group ? 'checked' : ''}><span></span> ${L('Samenvoegen per IP')}</label></div>
         <button type="button" class="af-tlbtn" data-af-tl>${amSvg('clock', 'am-ic sm')} ${L('Tijdlijn')}</button></div>
@@ -8119,9 +8193,10 @@ function renderLiveFlow(d, box) {
         <span><svg width="38" height="10" aria-hidden="true"><path d="M2 5 H36" class="af-key-i"/></svg>${L('afgeleid')}</span>
         <span>${amSvg('shield', 'am-ic sm af-okc')}${L('schild = het IDS houdt het tegen')}</span>
         <span><i class="af-key-hit"></i>${L('doelwit wordt nu geraakt')}</span>
+        ${nOld ? `<span><i class="af-key-old"></i>${L('gedimd = top 10, de laatste 15 minuten niet actief')}</span>` : ''}
         <span class="af-mut">${L('hoe sneller de deeltjes, hoe meer pogingen per minuut')}</span></div>
       <div class="af-cols3 small"><span>${L('Aanvaller')}</span><span>${L('Dienst en poort')}</span><span>${L('Doelwit')}</span></div>
-      ${afHtml(d)}
+      ${afHtml(fd)}
     </section>`);
   }
   html.push(`<div class="af-bottom">${afTicker(lv)}${afTop10(lv)}</div></div>`);
@@ -8239,8 +8314,8 @@ function afHtml(d) {
     const r = n.r, rate = n.rows.reduce((s, x) => s + (+x.lv.rate || 0), 0), hits = n.rows.reduce((s, x) => s + x.l.hits, 0), sev = Math.max(...n.rows.map((x) => x.l.sev));
     const ks = n.rows.map((x) => (x.l.outcome || {}).k);
     const st = ks.includes('login') ? ['login', L('INGELOGD')] : r.left.k === 'ext' && r.left.s.blocked ? ['ok', L('BLOK')] : ks.includes('open') ? ['open', L('OPEN')] : ['inf', L('?')];
-    const isTop = lv.top && lv.top.ip === r.l.ip;
-    const sub = [rate > 0 ? `${dec(Math.round(rate * 10) / 10)}/min` : L('{n} pogingen', { n: amN(hits) }), isTop ? L('#1 aanvaller') : '',
+    const isTop = lv.top && lv.top.ip === r.l.ip, old = afOld(r.left.s);
+    const sub = [old ? L('top 10 · laatst {t}', { t: fmtUntil(String(r.left.s.last)) }) : '', rate > 0 ? `${dec(Math.round(rate * 10) / 10)}/min` : L('{n} pogingen', { n: amN(hits) }), isTop ? L('#1 aanvaller') : '',
       r.left.k === 'dest' ? L('bestemming') : '', r.left.k === 'ext' && r.left.s.bad ? L('bekende aanvaller') : '', n.rows.length > 1 ? L('{n} doelwitten', { n: n.rows.length }) : ''].filter(Boolean).join(' · ');
     let inner;
     if (r.left.k === 'int') {
@@ -8250,13 +8325,13 @@ function afHtml(d) {
       const s = r.left.s;
       inner = `${afCcBadge(s.cc, s.internal)}<span class="af-ntx"><span class="mono">${esc(s.ip)}</span><span class="af-mut">${esc(s.internal ? L('eigen netwerk') + ' · ' + sub : sub)}</span></span>`;
     }
-    html.push(`<button type="button" class="af-n af-nl s${sev} ${r.left.k} ${isTop ? 'top' : ''}" data-am-ip="${esc(r.left.k === 'int' ? r.left.s.ip : r.l.ip)}" style="top:${n.y}px;height:${g.row}px;width:${g.src * 100}%">
+    html.push(`<button type="button" class="af-n af-nl s${sev} ${r.left.k} ${isTop ? 'top' : ''} ${old ? 'old' : ''}" data-am-ip="${esc(r.left.k === 'int' ? r.left.s.ip : r.l.ip)}" style="top:${n.y}px;height:${g.row}px;width:${g.src * 100}%">
       ${inner}<span class="af-st ${st[0]}">${esc(st[1])}</span></button>`);
   });
   lay.right.forEach((n) => {
-    const h = n.h, isHit = hit.has(+h.id), out = n.rows.some((r) => r.out), blocked = n.rows.every((r) => (r.l.outcome || {}).k === 'blocked');
+    const h = n.h, isHit = hit.has(+h.id), out = n.rows.some((r) => r.out), blocked = n.rows.every((r) => (r.l.outcome || {}).k === 'blocked'), old = !isHit && n.rows.every((r) => afOld(r.s));
     const sub = isHit ? L('nu geraakt') : out ? L('belt naar buiten') : blocked ? L('beschermd') : L('{n} bron(nen)', { n: n.rows.length });
-    html.push(`<button type="button" class="af-n af-nr ${isHit ? 'hit' : ''} ${out ? 'out' : ''}" data-am-host="${h.id}" style="top:${n.y}px;height:${g.row}px;left:${g.tgt * 100}%;width:${(1 - g.tgt) * 100}%">
+    html.push(`<button type="button" class="af-n af-nr ${isHit ? 'hit' : ''} ${out ? 'out' : ''} ${old ? 'old' : ''}" data-am-host="${h.id}" style="top:${n.y}px;height:${g.row}px;left:${g.tgt * 100}%;width:${(1 - g.tgt) * 100}%">
       <span class="af-tic">${amSvg(amKindIc(h), 'am-ic sm')}</span><span class="af-ntx"><b>${esc(h.name)}</b><span class="af-mut"><span class="mono">${esc(h.address || '')}</span> · ${esc(sub)}</span></span></button>`);
   });
   const list = `<details class="af-asl"><summary class="small">${L('Als lijst')}</summary><ul class="am-list">${lay.rows.map((r) => `<li><button type="button" class="linkbtn" data-am-ip="${esc(r.l.ip)}">
@@ -8273,7 +8348,8 @@ function afDraw() {
   if (!wrap || !amData) return;
   const W = wrap.clientWidth, H = wrap.clientHeight, g = AF_G;
   if (!W) return;
-  const lay = afLayout(amData), maxH = Math.max(1, ...lay.rows.map((r) => r.l.hits)), m = afMotion(amData);
+  const fd = afFD();
+  const lay = afLayout(fd), maxH = Math.max(1, ...lay.rows.map((r) => r.l.hits)), m = afMotion(amData);
   const xL = g.src * W, xR = g.tgt * W, mid = (xL + xR) / 2, xS = xR - 30;
   const now = performance.now() / 1000;
   const svg = [`<defs><filter id="afGlow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="2.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`];
@@ -8282,7 +8358,7 @@ function afDraw() {
   lay.rows.forEach((r) => {
     const l = r.l, y1 = lay.left[r.li].y + g.row / 2 + r.ly, y2 = lay.right[r.ri].y + g.row / 2 + r.ry;
     const blocked = (l.outcome || {}).k === 'blocked' && !r.out;
-    const cls = `${r.out || r.left.k === 'int' ? 'out' : l.sev >= 2 ? 'crit' : 'warn'}${l.obs ? '' : ' inf'}`;
+    const cls = `${r.out || r.left.k === 'int' ? 'out' : l.sev >= 2 ? 'crit' : 'warn'}${l.obs ? '' : ' inf'}${afOld(r.s) ? ' old' : ''}`;
     const w = 1.6 + 4 * Math.sqrt(l.hits / maxH);
     const curve = `M${xL.toFixed(1)} ${y1.toFixed(1)} C${mid.toFixed(1)} ${y1.toFixed(1)} ${mid.toFixed(1)} ${y2.toFixed(1)} ${xS.toFixed(1)} ${y2.toFixed(1)}`;
     const full = `${curve} H${xR.toFixed(1)}`;
@@ -8322,7 +8398,7 @@ function afDraw() {
   });
   // Afgeleid: een server die eerst werd aangevallen en daarna zelf een bron is
   if (afOpt.inferred) {
-    (amData.pivots || []).forEach((p) => {
+    (fd.pivots || []).forEach((p) => {
       const ti = lay.right.findIndex((n) => +n.id === +p.host_id);
       const fi = lay.left.findIndex((n) => n.r.left.k === 'int' && n.r.left.s.ip === p.ip);
       if (ti < 0 || fi < 0) return;
@@ -8566,11 +8642,12 @@ async function amDetail(ip) {
   const days = (typeof amOpt !== 'undefined' && amOpt.days) || 7;
   let d, tl = null;
   try { [d, tl] = await Promise.all([api('ids_ip_events', null, { ip, days: Math.max(days, 1) }), api('ip_timeline', null, { ip }).catch(() => null)]); } catch (ex) { return toast(ex.message, 'err'); }
-  const lines = amData ? amData.lines.filter((l) => l.ip === ip) : [];
+  const fd = afFD(), inWin = amData ? amData.lines.filter((l) => l.ip === ip) : [];
+  const lines = inWin.length || !fd ? inWin : fd.lines.filter((l) => l.ip === ip);   // 1.172.0: een aanvaller uit de top 10 van 24 uur
   const sev = Math.max(0, ...d.incidents.map((i) => i.sev));
   const obs = d.incidents.some((i) => i.observed) || d.rows.some((r) => r.k === 'fail' || r.k === 'login' || r.k === 'ev');
   const bands = lines.map((l) => {
-    const t = (amData.targets || []).find((x) => x.id === l.host_id) || { name: '?', address: '' };
+    const t = [...(amData.targets || []), ...((fd && fd.targets) || [])].find((x) => x.id === l.host_id) || { name: '?', address: '' };
     const cls = l.dir === 'o' ? 'out' : l.sev >= 2 ? 'crit' : 'warn', path = l.dir === 'o' ? 'M140 10 H4' : 'M4 10 H140';
     return `<div class="am-band"><div class="am-bflow"><div class="am-bside"><span class="am-badge s${l.sev}">${d.internal ? amSvg('home') : esc(d.cc || '?')}</span>
         <span><span class="muted small">${L('Aanvaller')}</span><br><span class="mono">${esc(ip)}</span><br><span class="small muted">${esc(amCcName(d.internal ? 'LAN' : d.cc))}</span></span></div>
@@ -8965,7 +9042,7 @@ async function incidentDialog(id, nav = null) {
         const pw = await askConfirm({ title: L('{name} isoleren (24 uur)?', { name: i.host_name }), danger: true, word: 'ISOLEREN', ok: '🧱 ' + L('Isoleren'),
           text: L('Alleen RzMon, je lokale netwerken en jouw IP-adres kunnen er nog bij; al het andere verkeer stopt. Vervalt vanzelf na de gekozen tijd.') });
         if (pw === null) return;
-        await api('host_isolate', { host_id: +i.host_id, hours: 24, confirm: pw });
+        await api('host_isolate', { host_id: +i.host_id, hours: 24, confirm: pw, incident_id: +i.id });
         toast(L('{name} wordt geïsoleerd; de agent past het binnen een minuut toe', { name: i.host_name }));
       }
     } catch (ex) { toast(ex.message, 'err'); }

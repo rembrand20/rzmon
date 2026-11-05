@@ -223,6 +223,8 @@ final class Installer
         ['hosts', 'isolate_by', 'VARCHAR(64) NULL'],
         ['hosts', 'isolate_allow', 'VARCHAR(255) NULL'],
         ['hosts', 'isolate_state', 'VARCHAR(255) NULL'],
+        ['hosts', 'isolate_reason', 'VARCHAR(255) NULL'],   // 1.172.0: waarom (incident, regel of keten), voor de banner
+        ['hosts', 'isolate_at', 'DATETIME NULL'],           // 1.172.0: sinds wanneer
         ['checks', 'template_item_id', 'INT UNSIGNED NULL'],     // uit welk sjabloon deze check komt (1.94.0)
         ['checks', 'tpl_override', 'TINYINT(1) NOT NULL DEFAULT 0'],   // per server aangepast: gaat niet meer mee met het sjabloon
         ['hosts', 'discover_ignore', 'TEXT NULL'],

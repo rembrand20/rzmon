@@ -1801,7 +1801,7 @@ switch ($action) {
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'badges' => tab_badges($user, $hosts, (string) ($_GET['seen'] ?? '')), 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'agent_https_only' => setting('agent_https_only', '0') === '1', 'lan_session' => is_lan_session(), 'maintenance' => $global,
-             'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'edr_note_hide' => json_decode((string) setting('edr_note_hide', '{}'), true) ?: (object) [], 'role' => $user['role'], 'user_id' => $user['id'], 'ai' => Ai::stateInfo($user), 'health' => Health::current(), 'health_groups' => Health::groups(),
+             'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'edr_note_hide' => json_decode((string) setting('edr_note_hide', '{}'), true) ?: (object) [], 'role' => $user['role'], 'user_id' => $user['id'], 'ai' => Ai::stateInfo($user), 'isolated' => Ids::isolated(), 'health' => Health::current(), 'health_groups' => Health::groups(),
              'agent_tick' => agent_tick(null), 'now_ts' => time(),
              // Sjablonen (1.94.0): item → naam van het sjabloon, en welke sjablonen per server
              'templates' => q('SELECT id, name FROM check_templates ORDER BY name')->fetchAll(),
@@ -5015,10 +5015,15 @@ switch ($action) {
                 out(['error' => t('Dit is de RzMon-server zelf: isoleren zou al je checks stilleggen')], 422);
             }
         }
-        Ids::isolate($hid, (int) ($in['hours'] ?? 24), $user['username'], client_ip());
+        $why = '';
+        if (($iid = (int) ($in['incident_id'] ?? 0)) > 0) {   // 1.172.0: vanuit een incident: dat is de reden
+            $why = (string) q('SELECT title FROM ids_incidents WHERE id = ? AND host_id = ?', [$iid, $hid])->fetchColumn();
+        }
+        Ids::isolate($hid, (int) ($in['hours'] ?? 24), $user['username'], client_ip(), $why !== '' ? $why : t('Handmatig'));
         out(['ok' => true]);
 
     case 'host_unisolate':
+        $confirm('OPHEFFEN');   // 1.172.0: opheffen verlaagt de bescherming, dus ook met je wachtwoord
         Ids::unisolate((int) (input()['host_id'] ?? 0), $user['username']);
         out(['ok' => true]);
 

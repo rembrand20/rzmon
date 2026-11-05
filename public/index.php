@@ -201,6 +201,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 
   <button type="button" class="cc-tvexit" id="cc-tvexit" hidden><?= th('✕ TV-modus uit') ?></button>
   <main class="container">
+    <div class="iso-banner" id="iso-banner" role="alert" hidden></div><!-- 1.172.0: server in isolatie -->
     <section id="tab-home" class="tab-panel" aria-label="<?= th('Dashboard') ?>">
       <div class="hm-head">
         <div class="hm-live" id="hm-live"></div>

@@ -1156,6 +1156,19 @@ ok(($lv['top']['ip'] ?? '') === '198.51.100.23' && $lv['top']['now'] && $lv['top
     && in_array('198.51.100.23', array_column($lv['top10'], 'ip'), true) && !in_array($fa, $lv['hit'], true)
     && !array_filter($lv15['lines'], fn($l) => $l['ip'] === '198.51.100.23') && $lv15['mins'] === 15 && in_array($lv['motion'], [0, 1, 2], true),
     'live: grootste aanvaller nu met pogingen per minuut en waar geblokkeerd, IDS-acties, top 10; geblokkeerd = server niet "nu geraakt"; venster van 15 minuten');
+// 1.172.0: de stroom toont eerst wie nu (15 min) aanvalt en vult aan uit de top van 24 uur (gedimd); isolatie met reden in de banner
+$fla = AttackFlow::build(['days' => 1, 'mins' => 15, 'host' => $fa])['flow'] ?? null;   // per server: andere tests maken ook live aanvallen
+$flb = AttackFlow::build(['days' => 1, 'mins' => 15, 'host' => $fb])['flow'] ?? null;
+$fs = $fla && $flb ? array_column($fla['sources'], 'live', 'ip') + array_column($flb['sources'], 'live', 'ip') : [];
+$liveCol = $fla ? array_column($fla['sources'], 'live') : [];
+ok($fla && $flb && ($fs['10.8.0.1'] ?? null) === true && ($fs['198.51.100.23'] ?? null) === false && count($fla['sources']) <= 10 && $flb['nlive'] >= 1
+    && $liveCol === array_values(array_merge(array_filter($liveCol), array_filter($liveCol, fn($x) => !$x))) && $fla['days'] === 1,
+    'Attack Flow: live aanvallers eerst, aangevuld tot tien met de grootste van de laatste 24 uur (die gemarkeerd als niet live)');
+Ids::isolate($fb, 2, 'ci', '', 'ci-reden');
+$iso = array_values(array_filter(Ids::isolated(), fn($x) => $x['id'] === $fb))[0] ?? null;
+Ids::unisolate($fb, 'ci');
+ok($iso && $iso['reason'] === 'ci-reden' && $iso['at'] && strtotime((string) $iso['until']) > time() && !array_filter(Ids::isolated(), fn($x) => $x['id'] === $fb),
+    'isolatie: reden en starttijd voor de banner; na opheffen niet meer in de lijst');
 // 1.154.0: Command center: SSH-logins (nieuw IP), mislukte pogingen, sudo, de toppers en de monitoring (uitgevoerd, fout, meldingen)
 q("INSERT INTO access_log (host_id, kind, type, title, message, detail, created_at) VALUES
    (?, 'auth', 'ssh', 'x', 'x', '{\"type\":\"ssh\",\"user\":\"ci-cc\",\"ip\":\"203.0.113.77\",\"m\":\"publickey\"}', NOW() - INTERVAL 1 MINUTE),

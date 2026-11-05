@@ -3263,3 +3263,65 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 .ai-st.error { color: var(--crit); } .ai-st.done { color: var(--ok); }
 .hb-tf .ai-btn, .m-tt .ai-btn, .attn .a-chk + .ai-btn, .inc-table .ai-btn { margin: 0 .35rem; padding: .1rem .35rem; font-size: .9rem; vertical-align: middle; }
 .a-acts-in { display: contents; }
+
+/* 1.172.0: Attack Flow: aangevuld uit de top 10 (de laatste 15 minuten niet actief) = gedimd */
+.af-n.old { opacity: .5; filter: saturate(.45); border-style: dashed; }
+.af-n.old:hover, .af-n.old:focus-visible { opacity: 1; filter: none; }
+.af-l.old { opacity: .28; }
+.af-l.old .af-p { animation: none; }
+.af-pl.old { opacity: .55; }
+.af-key-old { display: inline-block; width: 22px; height: 10px; border-radius: 3px; border: 1px dashed var(--af-mu); opacity: .6; vertical-align: middle; margin-right: 6px; }
+
+/* 1.172.0: banner: server in isolatie (groot op IDS, smal op Dashboard en Monitoring), in de stijl van de Attack Flow */
+.iso-banner { --ib-cr: var(--fx-cr); position: relative; overflow: hidden; isolation: isolate; margin: 0 0 16px; color: var(--fx-tx); border-radius: 16px;
+  background: radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--ib-cr) 22%, transparent), transparent 55%), linear-gradient(160deg, var(--fx-bg2), var(--fx-bg));
+  border: 1px solid color-mix(in srgb, var(--ib-cr) 60%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ib-cr) 18%, transparent), 0 0 34px color-mix(in srgb, var(--ib-cr) 28%, transparent), var(--fx-shadow);
+  animation: iso-glow 2.6s ease-in-out infinite; }
+.iso-banner > * { position: relative; z-index: 1; }
+.iso-banner .iso-grid { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .55;
+  background-image: linear-gradient(var(--fx-grid) 1px, transparent 1px), linear-gradient(90deg, var(--fx-grid) 1px, transparent 1px); background-size: 22px 22px; }
+.iso-banner .iso-scan { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ib-cr) 16%, transparent), transparent); transform: translateX(-100%); animation: af-scan 3.2s linear infinite; }
+.iso-banner::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; z-index: 1; background: var(--ib-cr); box-shadow: 0 0 14px var(--ib-cr); }
+.iso-head { display: flex; align-items: center; gap: 14px; padding: 16px 20px 6px 22px; }
+.iso-ic { position: relative; display: grid; place-items: center; flex: none; width: 46px; height: 46px; border-radius: 50%; font-size: 22px;
+  background: color-mix(in srgb, var(--ib-cr) 18%, transparent); border: 1px solid color-mix(in srgb, var(--ib-cr) 65%, transparent); }
+.iso-ic i { position: absolute; inset: -1px; border-radius: 50%; border: 2px solid var(--ib-cr); animation: af-pulse 1.8s ease-out infinite; }
+.iso-kick { display: flex; align-items: center; gap: 8px; font-weight: 800; letter-spacing: .14em; font-size: 1.05rem; color: var(--ib-cr); text-shadow: 0 0 12px color-mix(in srgb, var(--ib-cr) 45%, transparent); }
+.iso-kick .af-blink { --af-ok: var(--ib-cr); background: var(--ib-cr); box-shadow: 0 0 8px var(--ib-cr); }
+.iso-mut { color: var(--fx-mu); }
+.iso-rows { display: flex; flex-direction: column; gap: 8px; padding: 8px 20px 16px 22px; }
+.iso-row { display: grid; grid-template-columns: minmax(140px, 1.1fr) minmax(0, 2.6fr) auto auto; align-items: center; gap: 10px 18px; padding: 10px 14px; border-radius: 12px;
+  background: color-mix(in srgb, var(--fx-node) 55%, transparent); border: 1px solid var(--fx-bd); }
+.iso-who { display: flex; flex-direction: column; min-width: 0; }
+.iso-who b { font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iso-who .mono { font-size: .82rem; }
+.iso-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .9rem; min-width: 0; }
+.iso-st.ok { color: var(--fx-ok); } .iso-st.warn { color: var(--fx-wa); } .iso-st.bad { color: var(--fx-cr); }
+.iso-cd { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+.iso-cd b { font-size: 1.45rem; color: var(--fx-cy); text-shadow: 0 0 10px color-mix(in srgb, var(--fx-cy) 40%, transparent); font-variant-numeric: tabular-nums; }
+.iso-cd small { color: var(--fx-mu); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
+.iso-acts { display: flex; gap: 8px; }
+.iso-btn { font: inherit; font-weight: 700; cursor: pointer; padding: 8px 14px; border-radius: 10px; color: #fff; white-space: nowrap;
+  background: color-mix(in srgb, var(--ib-cr) 85%, #000); border: 1px solid var(--ib-cr); box-shadow: 0 0 14px color-mix(in srgb, var(--ib-cr) 40%, transparent); }
+.iso-btn:hover, .iso-btn:focus-visible { background: var(--ib-cr); }
+.iso-btn.ghost { color: var(--fx-tx); background: transparent; border-color: var(--fx-bd); box-shadow: none; }
+.iso-btn.ghost:hover { border-color: var(--fx-cy); }
+/* Smal: één regel per server */
+.iso-banner.slim .iso-head { padding: 10px 16px 0 18px; }
+.iso-banner.slim .iso-ic { width: 34px; height: 34px; font-size: 16px; }
+.iso-banner.slim .iso-kick { font-size: .9rem; }
+.iso-banner.slim .iso-rows { padding: 6px 16px 10px 18px; }
+.iso-banner.slim .iso-row { padding: 6px 10px; background: transparent; border-color: transparent; }
+.iso-banner.slim .iso-cd b { font-size: 1.1rem; }
+.iso-banner.slim .iso-cd small:last-child { display: none; }
+@media (max-width: 860px) {
+  .iso-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .iso-meta { grid-column: 1 / -1; grid-row: 2; }
+  .iso-acts { grid-column: 1 / -1; }
+  .iso-acts .iso-btn { flex: 1; }
+}
+@keyframes iso-glow { 0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--ib-cr) 18%, transparent), 0 0 22px color-mix(in srgb, var(--ib-cr) 18%, transparent), var(--fx-shadow); }
+  50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--ib-cr) 40%, transparent), 0 0 40px color-mix(in srgb, var(--ib-cr) 38%, transparent), var(--fx-shadow); } }
+@media (prefers-reduced-motion: reduce) { .iso-banner, .iso-banner *, .iso-banner::before { animation: none !important; } }

@@ -361,7 +361,7 @@ final class Edr
             }
             if (in_array('isolate', $acts, true) && setting('edr_isolate', '1') === '1'
                 && !q('SELECT 1 FROM hosts WHERE id = ? AND isolate_until > NOW()', [$host['id']])->fetchColumn()) {
-                Ids::isolate((int) $host['id'], 24, 'RzMon (' . t('automatisch') . ')', '');
+                Ids::isolate((int) $host['id'], 24, 'RzMon (' . t('automatisch') . ')', '', $title);
                 $done[] = t('server geïsoleerd (24 uur)');
             }
         } elseif ($acts) {
