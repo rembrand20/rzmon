@@ -251,7 +251,7 @@ final class NetDiscover
         $kind = (string) ($d['kind_user'] ?: $d['kind']);
         q("INSERT INTO hosts (name, address, mode, enabled) VALUES (?, ?, 'remote', 1)", [$name, $ip]);
         $hostId = (int) db()->lastInsertId();
-        if (isset(self::TO_HOST[$kind]) && isset(HostKind::KINDS[self::TO_HOST[$kind]])) {
+        if (isset(self::TO_HOST[$kind])) {   // alle soorten in TO_HOST bestaan in HostKind::KINDS
             q('UPDATE hosts SET kind = ? WHERE id = ?', [self::TO_HOST[$kind], $hostId]);
         }
         $keys = array_map('strval', $keys) ?: ['ping'];

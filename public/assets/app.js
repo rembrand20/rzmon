@@ -14604,6 +14604,8 @@ function initNet() {
   $('#net-group').value = (() => { try { return localStorage.getItem('rzmon-net-group') || ''; } catch (ex) { return ''; } })();
   $('#net-group').onchange = (e) => { try { localStorage.setItem('rzmon-net-group', e.target.value); } catch (ex) { /* niet erg */ } renderNet(); };
   $('#net-disc').onclick = ndClick;
+  $('#net-map').onclick = nmClick;
+  setNetSub(netSub);
   $('#net-search').oninput = () => renderNet();
   $('#net-filter').onclick = (e) => { const b = e.target.closest('[data-nf]'); if (b) { netFilter = b.dataset.nf; renderNet(); } };
   $('#net-counts').onclick = (e) => { const b = e.target.closest('[data-nf]'); if (b) { netFilter = netFilter === b.dataset.nf ? 'all' : b.dataset.nf; renderNet(); } };
@@ -14623,13 +14625,17 @@ async function loadNet() {
 }
 
 // ---------------------------------------------------------------- 1.183.0: Netwerk → Ontdekken
-let netSub = 'list';
+let netSub = (() => { try { return localStorage.getItem('rzmon-net-sub') || 'map'; } catch (ex) { return 'map'; } })();   // 1.184.0: standaard het overzicht
+let nmKind = '';
 let ndData = null;
 let ndFilter = '';
 let ndPresKind = '';
 function setNetSub(s) {
-  netSub = s === 'disc' ? 'disc' : 'list';
+  netSub = ['disc', 'map'].includes(s) ? s : 'list';
+  try { localStorage.setItem('rzmon-net-sub', netSub); } catch (ex) { /* niet erg */ }
   $('#tab-net').classList.toggle('net-dc', netSub === 'disc');
+  $('#tab-net').classList.toggle('net-mp', netSub === 'map');
+  if (netSub === 'map') renderNetMap();
   $$('#net-tabs [data-nsub]').forEach((b) => { const on = b.dataset.nsub === netSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   if (netSub === 'disc') ndLoad();
 }
@@ -14775,7 +14781,99 @@ async function netScanNow(btn) {
   btn.textContent = old;
 }
 
-function renderNet() { withMorph(renderNetNow); }
+function renderNet() { withMorph(renderNetNow); if (netSub === 'map') renderNetMap(); }
+
+// ---------------------------------------------------------------- 1.184.0: Netwerk → Overzicht (netwerkkaart)
+const ipNum = (ip) => String(ip).split('.').reduce((a, o) => a * 256 + (+o || 0), 0);
+function ipInCidr(ip, cidr) {
+  const [base, bits] = String(cidr).split('/');
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(ip) || bits === undefined) return false;
+  const size = 2 ** (32 - +bits);
+  return Math.floor(ipNum(ip) / size) === Math.floor(ipNum(base) / size);
+}
+function renderNetMap() {
+  const d = netData, box = $('#net-map');
+  if (!box) return;
+  if (!d) { box.innerHTML = `<p class="muted">${L('laden…')}</p>`; return; }
+  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Beveiliging → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
+  const day = Date.now() - 86400e3;
+  const ts = (s) => new Date(String(s).replace(' ', 'T')).getTime();
+  const devs = d.devices.filter((x) => x.status !== 'ignored');
+  const online = (x) => ts(x.last_seen) > day;
+  const icon = (x) => (NET_KIND[netKind(x)] || NET_KIND.unknown)[0];
+  // Router: de standaardgateway, anders een apparaat van de soort router
+  const router = devs.find((x) => x.info.gateway) || devs.find((x) => netKind(x) === 'router');
+  // Infrastructuur uit UniFi: de namen van access points en switches waar clients aan hangen
+  const infra = new Map();
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const infraDev = (name) => devs.find((x) => x !== router && [x.name, x.info.unifi?.name, x.label, x.hostname].some((v) => v && norm(v) === norm(name)));
+  devs.forEach((x) => {
+    const u = x.info.unifi || {};
+    const via = u.essid && u.ap ? ['ap', u.ap] : u.sw ? ['sw', u.sw] : null;
+    if (!via) return;
+    const key = via[0] + ':' + via[1];
+    if (!infra.has(key)) infra.set(key, { kind: via[0], name: via[1], dev: infraDev(via[1]), clients: [], ssids: new Set() });
+    infra.get(key).clients.push(x);
+    if (u.essid) infra.get(key).ssids.add(u.essid);
+  });
+  const infraDevs = new Set([...infra.values()].map((n) => n.dev).filter(Boolean));
+  // Netwerkapparaten zonder clients (switch zonder UniFi-gegevens) ook als knoop
+  devs.filter((x) => x !== router && netKind(x) === 'network' && !infraDevs.has(x)).forEach((x) => {
+    infra.set('dev:' + x.id, { kind: 'net', name: x.label, dev: x, clients: [], ssids: new Set() });
+    infraDevs.add(x);
+  });
+  const placed = new Set([router, ...infraDevs, ...[...infra.values()].flatMap((n) => n.clients)].filter(Boolean));
+  const wired = devs.filter((x) => !placed.has(x) && x.info.unifi?.wired);
+  const rest = devs.filter((x) => !placed.has(x) && !x.info.unifi?.wired);
+  const hasUnifi = devs.some((x) => x.info.unifi);
+  // Tellers per soort en per netwerk
+  const kinds = {};
+  devs.forEach((x) => { const k = netKind(x); kinds[k] = kinds[k] || { n: 0, on: 0 }; kinds[k].n++; if (online(x)) kinds[k].on++; });
+  const nets = (d.networks?.scan || []).map((c) => { const xs = devs.filter((x) => ipInCidr(x.ip, c)); return { c, n: xs.length, on: xs.filter(online).length }; });
+  const other = devs.filter((x) => !(d.networks?.scan || []).some((c) => ipInCidr(x.ip, c)));
+  if (other.length) nets.push({ c: L('Andere netwerken'), n: other.length, on: other.filter(online).length });
+  const kindChips = Object.entries(kinds).sort((a, b) => b[1].n - a[1].n).map(([k, v]) => `<button type="button" class="nm-kind ${nmKind === k ? 'on' : ''}" data-nm-kind="${k}">
+      <span class="nm-ki">${(NET_KIND[k] || NET_KIND.unknown)[0]}</span><b>${v.n}</b><small>${esc((NET_KIND[k] || NET_KIND.unknown)[1]())}${v.on < v.n ? ` · ${L('{n} online', { n: v.on })}` : ''}</small></button>`).join('');
+  const netRows = nets.map((n) => `<div class="nm-net"><span class="mono">${esc(n.c)}</span><span class="nm-netbar"><i style="width:${n.n ? Math.round((n.on / n.n) * 100) : 0}%"></i></span><span class="small">${L('{on} van {n} online', { on: n.on, n: n.n })}</span></div>`).join('');
+  // Een apparaat als bolletje
+  const dot = (x) => {
+    const cls = [online(x) ? 'on' : 'off', x.status === 'new' ? 'new' : '', x.risky.length ? 'risky' : '', x.host ? 'rz' : '', nmKind && netKind(x) !== nmKind ? 'dim' : ''].join(' ');
+    const tip = [x.label, x.ip, x.vendor, online(x) ? L('online') : L('offline'), x.status === 'new' ? L('nieuw') : '', x.risky.length ? L('riskante poort') : '', x.host ? L('in RzMon') : ''].filter(Boolean).join(' · ');
+    return `<button type="button" class="nm-dot ${cls}" data-nm-open="${x.id}" title="${esc(tip)}" aria-label="${esc(tip)}"><span>${icon(x)}</span><small>${esc(x.label)}</small></button>`;
+  };
+  const node = (n) => {
+    const x = n.dev;
+    const ic = n.kind === 'ap' ? '📶' : '🔀';
+    const on = n.clients.filter(online).length;
+    return `<div class="nm-node ${nmKind && !n.clients.some((c) => netKind(c) === nmKind) && !(x && netKind(x) === nmKind) ? 'dim' : ''}">
+      <div class="nm-nh">${x ? `<button type="button" class="nd-link" data-nm-open="${x.id}">${ic} ${esc(n.name)}</button>` : `<b>${ic} ${esc(n.name)}</b>`}
+        <small class="muted">${n.kind === 'ap' ? L('access point') : n.kind === 'sw' ? L('switch') : L('netwerkapparaat')}${n.ssids.size ? ' · ' + [...n.ssids].map(esc).join(', ') : ''}${x ? ' · ' + esc(x.ip) : ''}</small>
+        <span class="nm-cnt">${n.clients.length ? L('{on}/{n} online', { on, n: n.clients.length }) : ''}</span></div>
+      <div class="nm-dots">${n.clients.sort((a, b) => netKind(a).localeCompare(netKind(b)) || a.label.localeCompare(b.label)).map(dot).join('') || `<span class="muted small">${L('geen clients bekend')}</span>`}</div></div>`;
+  };
+  const nodes = [...infra.values()].sort((a, b) => (a.kind === 'sw' ? 0 : 1) - (b.kind === 'sw' ? 0 : 1) || b.clients.length - a.clients.length);
+  const bucket = (title, ic, xs, sub) => (xs.length ? `<div class="nm-node nm-bucket"><div class="nm-nh"><b>${ic} ${esc(title)}</b><small class="muted">${esc(sub)}</small><span class="nm-cnt">${L('{on}/{n} online', { on: xs.filter(online).length, n: xs.length })}</span></div>
+    <div class="nm-dots">${xs.sort((a, b) => netKind(a).localeCompare(netKind(b)) || a.label.localeCompare(b.label)).map(dot).join('')}</div></div>` : '');
+  box.innerHTML = `<div class="nm-top">
+      <section class="card nm-kinds-card"><h3>${L('Wat zit er op je netwerk')}</h3><div class="nm-kinds">${kindChips}</div></section>
+      <section class="card nm-nets-card"><h3>${L('Per netwerk')}</h3>${netRows || `<p class="muted small">${L('Nog geen netwerk ingesteld.')}</p>`}</section>
+    </div>
+    <section class="card nm-map">
+      <div class="nm-legend small muted"><span><i class="lg on"></i> ${L('online')}</span><span><i class="lg off"></i> ${L('offline (24 uur niet gezien)')}</span><span><i class="lg new"></i> ${L('nieuw')}</span><span><i class="lg risky"></i> ${L('riskante poort')}</span><span><i class="lg rz"></i> ${L('in RzMon')}</span></div>
+      <div class="nm-tree">
+        <div class="nm-root"><div class="nm-inet">☁️ ${L('Internet')}</div><div class="nm-line"></div>
+          <div class="nm-router">${router ? `<button type="button" class="nd-link" data-nm-open="${router.id}">🌐 ${esc(router.label)}</button><small class="muted mono">${esc(router.ip)}</small>` : `<b>🌐 ${L('Router')}</b><small class="muted">${L('nog niet herkend')}</small>`}</div>
+          <div class="nm-line"></div></div>
+        <div class="nm-level">${nodes.map(node).join('')}${bucket(L('Bedraad'), '🔌', wired, L('switch onbekend'))}${bucket(hasUnifi ? L('Verbinding onbekend') : L('Op je netwerk'), hasUnifi ? '❔' : '🏠', rest, hasUnifi ? L('niet in UniFi gezien') : L('koppel UniFi om te zien aan welk access point of welke switch elk apparaat hangt'))}</div>
+      </div>
+    </section>`;
+}
+function nmClick(e) {
+  const k = e.target.closest('[data-nm-kind]');
+  if (k) { nmKind = nmKind === k.dataset.nmKind ? '' : k.dataset.nmKind; return renderNetMap(); }
+  const o = e.target.closest('[data-nm-open]');
+  if (o) netDialog(netData.devices.find((x) => +x.id === +o.dataset.nmOpen));
+}
 function renderNetNow() {
   const d = netData;
   if (!d) return;

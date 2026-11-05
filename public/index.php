@@ -550,6 +550,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
     <section id="tab-net" class="tab-panel" hidden>
       <!-- 1.183.0: Apparaten (de lijst) en Ontdekken (wat er verandert, voorstellen, aanwezigheid) -->
       <div class="subtabs mon-tabs" role="tablist" aria-label="<?= th('Netwerk') ?>" id="net-tabs">
+        <button type="button" class="seg-btn" data-nsub="map" role="tab" aria-selected="false">🗺️ <?= th('Overzicht') ?></button>
         <button type="button" class="seg-btn active" data-nsub="list" role="tab" aria-selected="true">📋 <?= th('Apparaten') ?></button>
         <button type="button" class="seg-btn" data-nsub="disc" role="tab" aria-selected="false">🔍 <?= th('Ontdekken') ?> <span class="tab-badge" id="net-disc-badge" hidden></span></button>
       </div>
@@ -582,6 +583,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div>
       </div>
       <div id="net-disc" class="net-disc" aria-live="polite"></div>
+      <div id="net-map" class="net-map"></div>
     </section>
     <?php endif; ?>
 

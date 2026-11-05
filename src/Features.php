@@ -148,6 +148,7 @@ final class Features
 
         // Netwerk
         ['net', ['Netwerkscan', 'Network scan'], ['Welke apparaten er op je netwerk zitten, en wat nieuw is.', 'Which devices are on your network, and what is new.'], '1.103.0', 'net_scan', 'netscan'],
+        ['net', ['Netwerkkaart', 'Network map'], ['Internet → router → switches en access points → apparaten, met tellers per soort en per netwerk.', 'Internet → router → switches and access points → devices, with counts per type and per network.'], '1.184.0', 'net_scan', '#net:map'],
         ['net', ['Ontdekken', 'Discover'], ['Nieuwe apparaten, veranderingen (IP, poorten, domeinen, weg of terug), voorstellen met één klik en aanwezigheid per uur.', 'New devices, changes (IP, ports, domains, gone or back), one-click suggestions and presence per hour.'], '1.183.0', 'net_scan', '#net:disc'],
         ['net', ['Apparaten groeperen', 'Group devices'], ['Per soort, fabrikant of verbinding (wifi-netwerk of bedraad).', 'By type, vendor or connection (wifi network or wired).'], '1.183.0', 'net_scan', '#net'],
         ['net', ['UniFi en AdGuard Home', 'UniFi and AdGuard Home'], ['Namen, wifi en access point uit UniFi; DNS uit AdGuard.', 'Names, wifi and access point from UniFi; DNS from AdGuard.'], '1.104.0', '', 'netlinks'],

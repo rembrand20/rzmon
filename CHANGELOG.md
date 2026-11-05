@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.184.0**: **Netwerk → Overzicht**: een kaart van je netwerk (internet → router → switches en access points → apparaten), met tellers per soort en per netwerk.
 - **1.183.0**: **Netwerk → Ontdekken**: nieuwe en onbekende apparaten, wat er verandert (IP, poorten, nieuwe domeinen, weg of terug), voorstellen om met één klik te bewaken, en wanneer elk apparaat online was. Apparaten kun je nu ook groeperen.
 - **1.182.0**: **alle functies in één tabel** (*Instellingen → Overzicht → Functies* en bovenaan FEATURES.md), met de status van nu (aan, uit, niet ingesteld) en een knop naar waar je hem instelt.
 - **1.181.0**: de **IDS-beschermingen** stel je nu in op *Instellingen → IDS → Beschermingen*; *IDS → Bescherming* is een overzicht met een knop **Instellen**. De rol **gebruiker** mag een paar onderdelen van de beheerportal bekijken (Status, Advies, Rapporten, Wijzigingslogboek).
 - **1.180.0**: alle **rapporten op één plek** (*Instellingen → Rapporten*): IDS- en AI-weekoverzicht, maandrapport en nieuw kwetsbaarheden, beschikbaarheid, back-ups en datalekken, als HTML-mail of push, met **Nu versturen**, **Voorbeeld**, **Naar mij** en een **Maandoverzicht** met alles in één.
-- **1.179.0**: **CVE's slimmer**: rugbaarheid per kwetsbaarheid (exploits en hoeveel erover gepraat wordt), **Raakt dit jou echt?** met AI, **Eén update, veel opgelost** en een melding als een CVE op je servers veel aandacht krijgt.
+
+## 1.184.0 – 2026-11-05
+### Nieuw
+- **🗺️ Netwerk → Overzicht**: een kaart van je netwerk, als eerste tabblad van Netwerk (RzMon onthoudt welk tabblad je laatst open had):
+  - **Wat zit er op je netwerk**: een teller per soort (📷 4 camera's, 📱 2 telefoons, 💡 smart home …) met hoeveel er online zijn. Klik op een soort, dan licht die soort op de kaart op;
+  - **Per netwerk**: per gescand netwerk (bv. `192.168.2.0/24`) hoeveel apparaten er online zijn;
+  - **De kaart**: Internet → je router → je switches en access points → de apparaten die eraan hangen. Elk apparaat is een bolletje met een icoon: groen = online, grijs = 24 uur niet gezien, een blauwe stip = nieuw, een rode stip = riskante poort, een groene ring = staat in RzMon. Klik op een apparaat voor alle details;
+  - welk apparaat aan welk access point (met de wifi-netwerken) of welke switch hangt, komt uit **UniFi**. Zonder UniFi staat alles onder je router, met een tip om UniFi te koppelen.
+### Opgelost
+- Een melding van de codecontrole (PHPStan) in Netwerk → Ontdekken van 1.183.0; voor de gebruiker verandert er niets.
 
 ## 1.183.0 – 2026-11-05
 ### Nieuw

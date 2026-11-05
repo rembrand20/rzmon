@@ -122,6 +122,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🐞 Kwetsbaarheden en datalekken | **Eén update, veel opgelost** | Welke update de meeste kwetsbaarheden oplost. | 1.179.0 |
 | 🐞 Kwetsbaarheden en datalekken | **Datalekken (Have I Been Pwned)** | E-mailadressen en je domein controleren op lekken. | 1.69.0 |
 | 🌐 Netwerk | **Netwerkscan** | Welke apparaten er op je netwerk zitten, en wat nieuw is. | 1.103.0 |
+| 🌐 Netwerk | **Netwerkkaart** | Internet → router → switches en access points → apparaten, met tellers per soort en per netwerk. | 1.184.0 |
 | 🌐 Netwerk | **Ontdekken** | Nieuwe apparaten, veranderingen (IP, poorten, domeinen, weg of terug), voorstellen met één klik en aanwezigheid per uur. | 1.183.0 |
 | 🌐 Netwerk | **Apparaten groeperen** | Per soort, fabrikant of verbinding (wifi-netwerk of bedraad). | 1.183.0 |
 | 🌐 Netwerk | **UniFi en AdGuard Home** | Namen, wifi en access point uit UniFi; DNS uit AdGuard. | 1.104.0 |
@@ -224,6 +225,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **🎯 Aanvalspad en impact** per server (vanaf 1.146.0): open poorten met pakket en ergste kwetsbaarheid, open incidenten en afhankelijke servers (blast radius).
 - **🎯 Doelen (SLO) en "na de actie"** op Analyse (vanaf 1.146.0): melding binnen 5 minuten, agents rapporteren, slagingspercentage van zelf herstellen, onterechte automatische blokkades en slimme drempels die meer ruis gaven.
 - **📄 Rapport als PDF** (vanaf 1.142.0; eerste pagina *In één oogopslag* met MTTD/MTTR, SLO's en de 5 grootste risico's vanaf 1.146.0): afdrukbaar rapport over een periode (samenvatting, incidenten, beschikbaarheid, lastigste checks, beveiliging, kwetsbaarheden, wat nu aanpakken).
+- **🗺️ Netwerk → Overzicht** (vanaf 1.184.0): een netwerkkaart (internet → router → switches en access points → apparaten, uit UniFi), met tellers per soort en per netwerk; klik op een soort om die op de kaart te laten oplichten.
 - **🔍 Netwerk → Ontdekken** (vanaf 1.183.0): nieuwe en onbekende apparaten, veranderingen (ander IP-adres, nieuwe of gesloten poorten, nieuwe domeinen via AdGuard, al dagen weg, weer terug), voorstellen om met één klik te bewaken (met de checks die bij de open poorten passen) en de aanwezigheid per uur. Op *Apparaten* groeperen per soort, fabrikant of verbinding.
 - **📋 Functies** (vanaf 1.182.0): alle functies in één tabel bij *Instellingen → Overzicht → Functies*, met status en een knop naar de instelling (zie de tabel hierboven).
 - **🛡️ IDS-beschermingen in de beheerportal** (vanaf 1.181.0): *Instellingen → IDS → Beschermingen* met per bescherming een schakelaar en de drempels. *IDS → Bescherming* is een overzicht met aan/uit en **Instellen**.

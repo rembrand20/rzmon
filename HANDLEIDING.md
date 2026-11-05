@@ -2956,9 +2956,19 @@ RzMon zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons
 - Een UniFi IPS of een strenge firewall kan de scan van RzMon als poortscan zien. Sta in dat geval het IP-adres van de RzMon-server toe.
 - Andere VLAN's: daar ziet RzMon alleen IP-adressen (geen MAC-adres of fabrikant), omdat ARP niet over een router gaat.
 
+**🗺️ Netwerk → Overzicht** (vanaf 1.184.0)
+
+Netwerk heeft drie tabbladen: **🗺️ Overzicht**, **📋 Apparaten** en **🔍 Ontdekken**. RzMon onthoudt (per browser) welk tabblad je laatst open had; de eerste keer is dat Overzicht.
+- **Wat zit er op je netwerk**: een teller per soort apparaat, met hoeveel er de laatste 24 uur online waren. Klik op een soort: op de kaart licht die soort op en wordt de rest lichter.
+- **Per netwerk**: per gescand netwerk een balk met hoeveel apparaten online zijn. Apparaten buiten die netwerken staan onder *Andere netwerken*.
+- **De kaart**: bovenaan het internet en je **router** (de standaardgateway van de RzMon-server). Daaronder je **switches** en **access points**, elk met de apparaten die eraan hangen en hoeveel er online zijn; bij een access point ook de wifi-netwerken.
+  - Elk apparaat is een bolletje: **groen** = online, **grijs** = 24 uur niet gezien, **blauwe stip** = nieuw (nog niet beoordeeld), **rode stip** = riskante poort open, **groene ring** = staat in RzMon. Ga erop staan voor naam, IP en fabrikant; klik voor alle details.
+  - Aan welk access point of welke switch een apparaat hangt, komt uit **UniFi** (*Instellingen → Koppelingen → UniFi en AdGuard Home*). Bedrade apparaten waarvan de switch niet bekend is, staan onder *Bedraad*; wat UniFi niet kent, onder *Verbinding onbekend*. Zonder UniFi staat alles in één blok onder je router.
+  - Een switch of access point die zelf ook een apparaat in de scan is, krijgt zijn naam en IP-adres uit de scan; klik erop voor de details.
+
 **🔍 Netwerk → Ontdekken** (vanaf 1.183.0)
 
-Het tabblad Netwerk heeft twee tabbladen: **📋 Apparaten** (de lijst hierboven) en **🔍 Ontdekken**. Bij Apparaten kun je met de keuzelijst rechts **groeperen**: per soort, per fabrikant of per verbinding (wifi-netwerk of bedraad; dat komt uit UniFi). Ontdekken laat zien wat er verandert op je netwerk:
+Bij **📋 Apparaten** (de lijst hierboven) staat de keuzelijst om te groeperen; **🔍 Ontdekken** Met de keuzelijst rechts op Apparaten kun je **groeperen**: per soort, per fabrikant of per verbinding (wifi-netwerk of bedraad; dat komt uit UniFi). Ontdekken laat zien wat er verandert op je netwerk:
 
 - **🆕 Nieuw en onbekend**: alles wat je nog niet als bekend of genegeerd markeerde, nieuwste bovenaan, met een staafje per dag voor de laatste 30 dagen. Met **✔ Bekend** of **🙈 Negeren** ben je klaar. Het oranje getal bij het tabblad telt deze apparaten.
 - **🔄 Veranderingen** (laatste 30 dagen; klik op een soort om te filteren):
