@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.171.0**: **🤖 AI-advies** bij storingen en incidenten (Claude, ChatGPT, Gemini, Grok of Ollama), met diep zoeken via de agent en desgewenst uitvoeren na bevestiging.
 - **1.170.0**: nieuwe checks **Domein** (verloopdatum), **MQTT-broker** (rondgang en topic) en **VPN** (Gluetun met lekcontrole, WireGuard-handshakes).
 
+## 1.174.1 – 2026-11-05
+### Opgelost
+- Codecontrole (PHPStan) gaf een melding over de nieuwe TrueNAS-code. Voor jou verandert er niets.
+
 ## 1.174.0 – 2026-11-05
 Nieuwe agent 1.77.0 (nodig voor het uitlezen van TrueNAS en het blokkeren door het IDS op TrueNAS).
 ### Nieuw

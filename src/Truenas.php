@@ -39,7 +39,7 @@ final class Truenas
 
     /**
      * Debian-versie onder een afgeleide distributie (TrueNAS, of iets dat "like debian" is) uit het pakket base-files.
-     * @param list<array{0: string, 1: string}> $list de softwarelijst [naam, versie, …]
+     * @param array<mixed> $list de softwarelijst [naam, versie, …] (van buitenaf: velden kunnen ontbreken)
      */
     public static function debianMajor(array $list): ?int
     {
