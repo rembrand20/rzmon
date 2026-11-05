@@ -753,6 +753,12 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div id="netlinks-result" class="small"></div>
         </div>
 
+        <div data-sk="snmp" class="card" id="snmp-card" data-nodirty>
+          <h2>📡 <?= th('SNMP – algemene instelling') ?></h2>
+          <?= xp(t('Eén SNMP-instelling voor al je apparaten, met per apparaat een uitzondering.'), t('<b>Wat het doet:</b> elk apparaat met SNMP aan en zonder <i>Eigen instellingen</i> gebruikt deze versie, poort, community of v3-gebruiker. Verander je hier iets, dan geldt dat meteen voor al die apparaten. <b>Per apparaat afwijken:</b> zet bij het apparaat (<i>Server bewerken</i> of de Agent Manager) <i>Eigen instellingen</i> aan. <b>Goed om te weten:</b> de community en de wachtwoorden gaan nooit terug naar de browser.')) ?>
+          <div id="snmp-global"><p class="muted small"><?= th('laden…') ?></p></div>
+        </div>
+
         <div data-sk="mqtt" class="card">
           <h2><?= th('MQTT (Home Assistant)') ?></h2>
           <?= xp(t('Elke server als apparaat met sensoren in Home Assistant, via MQTT.'), t('<b>Wat het doet:</b> RzMon meldt zich via <b>MQTT discovery</b> bij Home Assistant. Elke server wordt een apparaat, met sensoren voor de status en de meetwaarden van zijn checks. Zo gebruik je ze in dashboards en automatiseringen. <b>Nodig:</b> een MQTT-broker (bijvoorbeeld de add-on <i>Mosquitto broker</i>) en de MQTT-integratie in Home Assistant. Log bij Mosquitto in met een HA-gebruiker of een aparte gebruiker.')) ?>

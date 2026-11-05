@@ -1483,6 +1483,30 @@ $ex = CheckInfo::extra(q('SELECT * FROM checks WHERE id = ?', [$ctId])->fetch())
 ok($ex['counts']['n24'] === 2 && $ex['counts']['f24'] === 1 && $ex['outages']['count'] === 2 && $ex['outages']['mttr'] === 1800 && $ex['notify']['streak'] === 3
     && ($ex['detail']['kind'] ?? '') === 'container' && $ex['detail']['state'] === 'running',
     'popup van een check: hoe vaak gecheckt, storingen en hersteltijd over 30 dagen, melden na N, details van de container');
+// 1.178.0: algemene SNMP-instelling (een server volgt hem of heeft eigen instellingen) en 🧪 Test (RzMon-deel + zelftest van de agent)
+save_setting(SnmpMonitor::GLOBAL_KEY, '');
+$sgNo = SnmpMonitor::clean(['on' => 1, 'use' => 'global'], null);
+save_setting(SnmpMonitor::GLOBAL_KEY, json_encode(['v' => '3', 'port' => 161, 'user' => 'rzmon', 'level' => 'authPriv', 'auth_proto' => 'SHA256', 'auth_pass' => 'geheimgeheim', 'priv_proto' => 'AES', 'priv_pass' => 'geheimgeheim2']));
+$sgYes = SnmpMonitor::clean(['on' => 1, 'use' => 'global'], null);
+$sgCfg = SnmpMonitor::config(SnmpMonitor::USE_GLOBAL);
+$sgMask = SnmpMonitor::masked(SnmpMonitor::USE_GLOBAL);
+$sgOwn = SnmpMonitor::config(json_encode(['v' => '2c', 'port' => 161, 'community' => 'thuis']));
+q("INSERT INTO hosts (name, address, mode, agent_seen, agent_version, agent_tick) VALUES ('ci-zelftest', '192.0.2.71', 'agent', NOW(), '1.79.0', 30)");
+$atH = (int) db()->lastInsertId();
+$atId = AgentTest::start($atH);
+$atLines = AgentTest::agentLines($atH);
+$atWait = AgentTest::result($atH, $atId);
+AgentTest::fromAgent(['id' => $atH], ['selftest' => ['id' => $atId, 'now' => time() - 200, 'items' => [['k' => 'url', 'ok' => 'ok', 'd' => 'bereikbaar'], ['k' => 'BAD key', 'ok' => 'ok', 'd' => 'x'], ['k' => 'disk', 'ok' => 'raar', 'd' => 'y']]]]);
+$atDone = AgentTest::result($atH, $atId);
+$atSkew = array_values(array_filter($atDone['agent'] ?? [], fn($i) => $i['k'] === 'skew'))[0] ?? null;
+ok(is_string($sgNo) && $sgYes === ['use' => 'global'] && ($sgCfg['user'] ?? '') === 'rzmon' && ($sgMask['use'] ?? '') === 'global' && ($sgMask['auth_pass'] ?? '') === '••••••••'
+    && ($sgOwn['community'] ?? '') === 'thuis'
+    && $atLines === ["0\tselftest\t$atId"] && $atWait['pending'] === true && $atWait['agent'] === null && $atWait['can'] === true
+    && count($atDone['agent']) === 3 && $atDone['agent'][1]['ok'] === 'skip' && ($atSkew['ok'] ?? '') === 'bad' && AgentTest::agentLines($atH) === []
+    && in_array('contact', array_column($atDone['server'], 'k'), true),
+    'SNMP: zonder algemene instelling geweigerd, daarna volgt de server hem (gemaskeerd naar de browser); 🧪 Test: regel voor de agent, wachten, antwoord met klokverschil, vreemde sleutels eruit');
+q('DELETE FROM hosts WHERE id = ?', [$atH]);
+save_setting(SnmpMonitor::GLOBAL_KEY, '');
 // 1.177.0: pad-check: regels voor de agent, metingen opslaan, beoordelen (doel, tussenliggend apparaat, linksnelheid via UniFi, doorvoer)
 q("INSERT INTO hosts (name, address, mode, agent_seen, agent_version) VALUES ('ci-pad-doel', '192.0.2.61', 'agent', NOW(), '1.78.0')");
 $pdH = (int) db()->lastInsertId();

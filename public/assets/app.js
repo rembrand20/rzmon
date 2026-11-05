@@ -4958,16 +4958,15 @@ function hostForm(h, preset = null) {
       </label>
       <label class="switch" ${h.mode === 'agent' || isNew ? '' : 'hidden'} id="iperf-ok-wrap"><input type="checkbox" name="iperf_ok" ${+(h.iperf_ok ?? 1) ? 'checked' : ''}><span></span> ${L('Mag doorvoertest ontvangen (iperf3)')} <span class="hint">${L('voor de pad-check van een andere server; de agent start dan kort een ontvanger die na één meting stopt')}</span></label>
       ${snmpHostFields(h.snmp)}
-      <details class="notify-own" id="fim-host-wrap" ${h.mode === 'agent' ? '' : 'hidden'}>
-        <summary>📁 ${L('Bestanden bewaken (IDS)')}: <span id="fim-host-label">${L('laden…')}</span></summary>
+      ${swsOpen({ id: 'fim-host-wrap', cb: 'id="fim-host-sw"', icon: '📁', title: L('Bestanden bewaken (IDS)'), on: false, sub: `<span id="fim-host-label">${L('laden…')}</span>`, hidden: h.mode !== 'agent' })}
         ${xpHtml(L('Extra bestanden om te bewaken, alleen op deze server.'), L('Deze paden komen bovenop de algemene lijst (<i>Instellingen → IDS → Algemeen</i>). Staat hetzelfde pad in allebei, dan geldt dit pad, bijvoorbeeld om de ernst te veranderen.'))}
         <div id="fim-host"></div>
-      </details>
-      ${(state.templates || []).length ? `<details class="notify-own" ${isNew || hostTpls(h).length ? 'open' : ''}>
-        <summary>📋 ${L('Sjablonen')}: <span>${hostTpls(h).length ? esc(hostTpls(h).map((id) => (state.templates.find((t) => +t.id === id) || {}).name).join(', ')) : L('geen')}</span></summary>
+      </div></section>
+      ${(state.templates || []).length ? `${swsOpen({ id: 'tpl-wrap', cb: null, icon: '📋', title: L('Sjablonen'), on: isNew || hostTpls(h).length > 0,
+        sub: hostTpls(h).length ? esc(hostTpls(h).map((id) => (state.templates.find((t) => +t.id === id) || {}).name).join(', ')) : L('geen') })}
         ${xpHtml(L('Sjablonen zetten vaste checks op deze server.'), L('De checks uit een sjabloon komen vanzelf op deze server en veranderen mee als je het sjabloon aanpast. <b>Uitvinken</b> koppelt het sjabloon los; de checks blijven dan gewoon staan.'))}
         ${state.templates.map((t) => `<label class="switch"><input type="checkbox" data-tpl="${t.id}" ${hostTpls(h).includes(+t.id) ? 'checked' : ''}><span></span> ${esc(t.name)}</label>`).join('')}
-      </details>` : ''}
+      </div></section>` : ''}
       <label class="switch"><input type="checkbox" name="enabled" ${+h.enabled ? 'checked' : ''}><span></span> ${L('Actief')}</label>
       ${isNew ? `<label class="switch"><input type="checkbox" name="add_ping" checked><span></span> ${L('Direct een ping-check toevoegen')}</label>` : ''}`,
     buttons: [
@@ -4980,7 +4979,7 @@ function hostForm(h, preset = null) {
     ],
     onSubmit: async (d) => {
       const snmp = snmpData(d);
-      const r = await api('host_save', { ...d, id: h.id, enabled: !!d.enabled, add_ping: !!d.add_ping, iperf_ok: !!d.iperf_ok, snmp, ...(fimHost ? { ids_fim: fimHost.get() } : {}) });
+      const r = await api('host_save', { ...d, id: h.id, enabled: !!d.enabled, add_ping: !!d.add_ping, iperf_ok: !!d.iperf_ok, snmp, ...(fimHost ? { ids_fim: $('#fim-host-sw').checked ? fimHost.get() : [] } : {}) });
       // Sjablonen koppelen of loskoppelen (de checks van een losgekoppeld sjabloon blijven staan)
       const had = hostTpls(h);
       for (const cb of $$('#modal-body [data-tpl]')) {
@@ -5005,60 +5004,187 @@ function hostForm(h, preset = null) {
   snmpHostInit(h);
 }
 
+
+// ---------------------------------------------------------------- 1.178.0: schakelaarblokken
+/**
+ * Blok met een schakelaar in de kop in plaats van een uitklaplijst: aan = de velden eronder verschijnen (en gelden),
+ * uit = de algemene instelling. Sluiten met </div></section>. cb = attributen van de checkbox (null = geen schakelaar,
+ * het blok staat dan altijd open). De verandering gaat via de gewone change van de checkbox.
+ */
+function swsOpen({ id, cb, icon, title, sub = '', on, hidden = false }) {
+  const open = cb === null || on;
+  return `<section class="sws${open ? ' on' : ''}" id="${id}"${hidden ? ' hidden' : ''}>
+    <label class="sws-h"><span class="sws-ic" aria-hidden="true">${icon}</span><span class="sws-t"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span>
+      ${cb === null ? '' : `<input type="checkbox" class="sws-cb" ${cb} ${on ? 'checked' : ''}><i class="sws-sw" aria-hidden="true"></i>`}</label>
+    <div class="sws-b"${open ? '' : ' hidden'}>`;
+}
+/** Blok open of dicht zetten vanuit de code (zonder change-event) */
+function swsSet(sec, on) {
+  if (!sec) return;
+  const cb = $('.sws-cb', sec);
+  if (cb) cb.checked = on;
+  sec.classList.toggle('on', on);
+  const b = sec.querySelector(':scope > .sws-b');
+  if (b) b.hidden = !on;
+}
+/** Keuze uit een paar waarden als knoppen naast elkaar; geeft het event "sw-seg" (detail = waarde) */
+function swSeg(name, opts, cur, attrs = '') {
+  return `<div class="sw-seg" data-sw-seg="${name}" role="radiogroup" ${attrs}>${opts.map(([v, l]) => `<button type="button" role="radio" data-v="${esc(String(v))}" aria-checked="${String(v) === String(cur)}">${l}</button>`).join('')}</div>`;
+}
+document.addEventListener('change', (e) => {
+  const cb = e.target.closest && e.target.closest('.sws-cb');
+  if (!cb) return;
+  const sec = cb.closest('.sws');
+  sec.classList.toggle('on', cb.checked);
+  const b = sec.querySelector(':scope > .sws-b');
+  if (b) b.hidden = !cb.checked;
+});
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest && e.target.closest('.sw-seg > button');
+  if (!btn || btn.disabled) return;
+  const seg = btn.parentElement;
+  $$('button', seg).forEach((x) => x.setAttribute('aria-checked', String(x === btn)));
+  seg.dispatchEvent(new CustomEvent('sw-seg', { detail: btn.dataset.v }));
+});
+
 // ---------------------------------------------------------------- SNMP
-/** Blok "📡 SNMP" in het serverformulier; geheimen staan er gemaskeerd in (••••••••) */
-function snmpHostFields(s) {
-  const c = s || { v: '2c', port: 161, community: '', level: 'authPriv', auth_proto: 'SHA', priv_proto: 'AES' };
-  const opt = (list, cur) => list.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('');
-  return `<details class="notify-own" id="snmp-wrap" ${s ? 'open' : ''}>
-    <summary>📡 SNMP: <span id="snmp-label">${s ? L('aan (v{v})', { v: esc(s.v) }) : L('uit')}</span></summary>
-    <label class="switch"><input type="checkbox" name="snmp_on" ${s ? 'checked' : ''}><span></span> ${L('SNMP gebruiken')}</label>
-    <div id="snmp-fields">
-      <div class="row2">
-        <label>${L('Versie')} <select name="snmp_v">${opt([['2c', 'v2c (community)'], ['3', L('v3 (gebruiker en wachtwoorden)')]], c.v)}</select></label>
-        <label>${L('Poort')} <input name="snmp_port" type="number" min="1" max="65535" value="${+c.port || 161}"></label>
-      </div>
-      <label data-snmp-v="2c">Community <span class="hint">${L('(alleen lezen; liever niet "public")')}</span>
-        <input name="snmp_community" class="mono" autocomplete="off" spellcheck="false" maxlength="100" value="${esc(c.community || '')}"></label>
-      <div data-snmp-v="3">
-        <div class="row2">
-          <label>${L('Gebruiker')} <input name="snmp_user" class="mono" autocomplete="off" spellcheck="false" maxlength="64" value="${esc(c.user || '')}"></label>
-          <label>${L('Beveiliging')} <select name="snmp_level">${opt([['authPriv', L('Inloggen + versleutelen (aanbevolen)')], ['authNoPriv', L('Alleen inloggen')], ['noAuthNoPriv', L('Geen')]], c.level || 'authPriv')}</select></label>
-        </div>
-        <div class="row2" data-snmp-lvl="auth">
-          <label>${L('Auth-protocol')} <select name="snmp_auth_proto">${opt([['SHA', 'SHA'], ['SHA256', 'SHA-256'], ['SHA512', 'SHA-512'], ['MD5', L('MD5 (verouderd)')]], c.auth_proto || 'SHA')}</select></label>
-          <label>${L('Auth-wachtwoord')} <input name="snmp_auth_pass" type="password" autocomplete="new-password" value="${esc(c.auth_pass || '')}"></label>
-        </div>
-        <div class="row2" data-snmp-lvl="priv">
-          <label>${L('Privacy-protocol')} <select name="snmp_priv_proto">${opt([['AES', 'AES'], ['DES', L('DES (verouderd)')]], c.priv_proto || 'AES')}</select></label>
-          <label>${L('Privacy-wachtwoord')} <input name="snmp_priv_pass" type="password" autocomplete="new-password" value="${esc(c.priv_pass || '')}"></label>
-        </div>
-      </div>
-      <div class="snmp-test-row"><button type="button" class="btn" id="snmp-test">🔍 ${L('Test SNMP')}</button><span class="small" id="snmp-test-out"></span></div>
-      ${xpHtml(L('RzMon leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzMon vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het IP-adres van RzMon toegang. Daarna kies je bij de server via <b>📡 SNMP-checks</b> wat je wilt bewaken. <b>Goed om te weten:</b> de community en wachtwoorden gaan nooit terug naar de browser.'))}
-    </div>
-  </details>`;
+/** 1.178.0: SNMP-velden uit een blok (de knoppen schrijven in verborgen velden) */
+function snmpRootData(root) {
+  const g = (n) => ($(`[name=${n}]`, root) || {}).value;
+  return { v: g('snmp_v'), port: g('snmp_port'), community: g('snmp_community'), user: g('snmp_user'), level: g('snmp_level'),
+    auth_proto: g('snmp_auth_proto'), auth_pass: g('snmp_auth_pass'), priv_proto: g('snmp_priv_proto'), priv_pass: g('snmp_priv_pass') };
 }
 
-/** SNMP-velden uit het formulier, zoals host_save en snmp_test ze verwachten */
+/** 1.178.0: Instellingen → Koppelingen → SNMP: de algemene instelling en welke apparaten hem gebruiken */
+async function loadSnmpGlobal() {
+  const box = $('#snmp-global');
+  if (!box) return;
+  let r;
+  try { r = await api('snmp_global'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
+  const nGlob = r.hosts.filter((x) => x.global).length;
+  box.innerHTML = `${r.available ? '' : `<div class="callout">⚠️ ${L('De PHP-extensie snmp ontbreekt op de RzMon-server. Rocky Linux: sudo dnf install php-snmp en herstart PHP (of voer install-rocky.sh opnieuw uit)')}</div>`}
+    ${swsOpen({ id: 'snmpg-wrap', cb: 'id="snmpg-on"', icon: '🌐', title: L('Algemene instelling'), on: !!r.cfg,
+      sub: r.cfg ? L('{n} apparaten gebruiken hem', { n: nGlob }) : L('uit: elk apparaat heeft dan eigen instellingen nodig') })}
+      <div id="snmpg-fields">${snmpFieldsHtml(r.cfg)}</div>
+    </div></section>
+    <div class="snmpg-btns"><button type="button" class="btn primary" id="snmpg-save">${L('Opslaan')}</button>
+      <button type="button" class="btn" id="snmpg-test" ${r.cfg && nGlob ? '' : 'disabled'}>🔍 ${L('Alles testen')}</button><span class="small muted" id="snmpg-out"></span></div>
+    <h3 class="set-sub">${L('Apparaten met SNMP')}</h3>
+    ${r.hosts.length ? `<div class="snmpg-list">${r.hosts.map((x) => `<div class="snmpg-row">
+        <span class="snmpg-n"><b>${esc(x.name)}</b><small class="mono muted">${esc(x.address)}</small></span>
+        <span class="snmpg-src ${x.global ? 'g' : 'o'}">${x.global ? L('algemeen') : L('eigen')}${x.v ? ' · v' + esc(x.v) : ''}</span>
+        <span class="snmpg-st small" id="snmpg-st-${x.id}"></span>
+        <button type="button" class="btn small-btn" data-snmpg-edit="${x.id}">✎ ${L('Bewerken')}</button></div>`).join('')}</div>`
+      : `<p class="muted small">${L('Nog geen apparaten met SNMP. Zet SNMP aan bij een apparaat (Server bewerken → 📡 SNMP).')}</p>`}`;
+  snmpFieldsInit($('#snmpg-fields'));
+  $('#snmpg-save').onclick = async () => {
+    const out = $('#snmpg-out');
+    try {
+      await api('snmp_global_save', { on: $('#snmpg-on').checked, ...snmpRootData($('#snmpg-fields')) });
+      toast(L('Opgeslagen'));
+      await refresh();
+      loadSnmpGlobal();
+    } catch (ex) { out.className = 'small bad'; out.textContent = '✘ ' + ex.message; }
+  };
+  $('#snmpg-test').onclick = async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    $('#snmpg-out').className = 'small muted';
+    $('#snmpg-out').textContent = L('Bezig…');
+    r.hosts.filter((x) => x.global).forEach((x) => { $(`#snmpg-st-${x.id}`).innerHTML = '<span class="muted">…</span>'; });
+    try {
+      const t = await api('snmp_global_test', {});
+      let ok = 0;
+      t.results.forEach((x) => {
+        const el = $(`#snmpg-st-${x.id}`);
+        if (x.ok) ok++;
+        if (el) el.innerHTML = x.ok ? `<span class="good">✔ ${x.ms} ms${x.name ? ' · ' + esc(x.name) : ''}</span>` : `<span class="bad" title="${esc(x.error)}">✘ ${esc(x.error)}</span>`;
+      });
+      $('#snmpg-out').textContent = L('{a} van {n} antwoorden', { a: ok, n: t.results.length });
+    } catch (ex) { $('#snmpg-out').className = 'small bad'; $('#snmpg-out').textContent = '✘ ' + ex.message; }
+    btn.disabled = false;
+  };
+  $$('[data-snmpg-edit]', box).forEach((b) => (b.onclick = () => { const h = findHost(+b.dataset.snmpgEdit); if (h) hostForm(h); }));
+}
+
+/** 1.178.0: de SNMP-velden (versie t/m wachtwoorden), gedeeld door het serverformulier, de Agent Manager en de algemene instelling */
+function snmpFieldsHtml(c) {
+  c = { v: '2c', port: 161, community: '', level: 'authPriv', auth_proto: 'SHA', priv_proto: 'AES', ...(c || {}) };
+  const seg = (name, list, cur) => `<input type="hidden" name="${name}" value="${esc(cur)}">${swSeg(name, list, cur, `data-snmp-field="${name}"`)}`;
+  return `<div class="snmp-grid">
+      <label>${L('Versie')} ${seg('snmp_v', [['2c', 'v2c'], ['3', 'v3']], c.v)}</label>
+      <label>${L('Poort')} <input name="snmp_port" type="number" min="1" max="65535" value="${+c.port || 161}"></label>
+    </div>
+    <label data-snmp-v="2c">Community <span class="hint">${L('(alleen lezen; liever niet "public")')}</span>
+      <input name="snmp_community" class="mono" autocomplete="off" spellcheck="false" maxlength="100" value="${esc(c.community || '')}"></label>
+    <div data-snmp-v="3">
+      <label>${L('Gebruiker')} <input name="snmp_user" class="mono" autocomplete="off" spellcheck="false" maxlength="64" value="${esc(c.user || '')}"></label>
+      <label>${L('Beveiliging')} ${seg('snmp_level', [['authPriv', L('inloggen + versleutelen')], ['authNoPriv', L('alleen inloggen')], ['noAuthNoPriv', L('geen')]], c.level || 'authPriv')}</label>
+      <div class="snmp-grid" data-snmp-lvl="auth">
+        <label>${L('Auth-protocol')} ${seg('snmp_auth_proto', [['SHA', 'SHA'], ['SHA256', 'SHA-256'], ['SHA512', 'SHA-512'], ['MD5', 'MD5']], c.auth_proto || 'SHA')}</label>
+        <label>${L('Auth-wachtwoord')} <input name="snmp_auth_pass" type="password" autocomplete="new-password" value="${esc(c.auth_pass || '')}"></label>
+      </div>
+      <div class="snmp-grid" data-snmp-lvl="priv">
+        <label>${L('Privacy-protocol')} ${seg('snmp_priv_proto', [['AES', 'AES'], ['DES', L('DES (verouderd)')]], c.priv_proto || 'AES')}</label>
+        <label>${L('Privacy-wachtwoord')} <input name="snmp_priv_pass" type="password" autocomplete="new-password" value="${esc(c.priv_pass || '')}"></label>
+      </div>
+    </div>`;
+}
+/** Velden tonen die bij de gekozen versie en beveiliging horen; de knoppen schrijven in het verborgen veld */
+function snmpFieldsInit(root, onChange = () => {}) {
+  const val = (n) => ($(`[name=${n}]`, root) || {}).value;
+  const show = () => {
+    const v = val('snmp_v'), lvl = val('snmp_level');
+    $$('[data-snmp-v]', root).forEach((el) => { el.hidden = el.dataset.snmpV !== v; });
+    $('[data-snmp-lvl=auth]', root).hidden = lvl === 'noAuthNoPriv';
+    $('[data-snmp-lvl=priv]', root).hidden = lvl !== 'authPriv';
+    onChange();
+  };
+  $$('[data-snmp-field]', root).forEach((seg) => seg.addEventListener('sw-seg', (e) => { $(`[name=${seg.dataset.snmpField}]`, root).value = e.detail; show(); }));
+  show();
+}
+/** Wat er geldt als een server de algemene instelling volgt */
+function snmpGlobalText() {
+  const g = state.snmp_global;
+  return g ? L('uit = de algemene instelling (v{v}{u})', { v: g.v, u: g.v === '3' && g.user ? ', ' + g.user : '' })
+    : L('nog geen algemene instelling: vul die in bij Instellingen → Koppelingen → SNMP');
+}
+
+/** Blok "📡 SNMP" in het serverformulier (1.178.0: schakelaar, en eigen instellingen of de algemene); geheimen gemaskeerd */
+function snmpHostFields(s) {
+  const own = s ? s.use !== 'global' : !state.snmp_global;
+  return `${swsOpen({ id: 'snmp-wrap', cb: 'name="snmp_on"', icon: '📡', title: 'SNMP', on: !!s, sub: `<span id="snmp-label"></span>` })}
+    <label class="switch"><input type="checkbox" name="snmp_own" ${own ? 'checked' : ''}><span></span> ${L('Eigen instellingen')} <span class="hint">${esc(snmpGlobalText())}</span></label>
+    <div id="snmp-fields" ${own ? '' : 'hidden'}>${snmpFieldsHtml(s || state.snmp_global)}</div>
+    <div class="snmp-test-row"><button type="button" class="btn" id="snmp-test">🔍 ${L('Test SNMP')}</button><span class="small" id="snmp-test-out"></span></div>
+    ${xpHtml(L('RzMon leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzMon vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het een community (v2c) of een gebruiker (v3). <b>Algemeen of eigen:</b> zonder <i>Eigen instellingen</i> gebruikt dit apparaat de algemene instelling uit <i>Instellingen → Koppelingen → SNMP</i>; verander je die, dan geldt dat meteen voor alle apparaten zonder eigen instellingen.'))}
+  </div></section>`;
+}
+
+/** SNMP-velden uit het formulier, zoals host_save, host_snmp en snmp_test ze verwachten */
 function snmpData(d) {
-  return { on: !!d.snmp_on, v: d.snmp_v, port: d.snmp_port, community: d.snmp_community, user: d.snmp_user, level: d.snmp_level,
+  return { on: !!d.snmp_on, ...(d.snmp_own ? {} : { use: 'global' }), v: d.snmp_v, port: d.snmp_port, community: d.snmp_community, user: d.snmp_user, level: d.snmp_level,
     auth_proto: d.snmp_auth_proto, auth_pass: d.snmp_auth_pass, priv_proto: d.snmp_priv_proto, priv_pass: d.snmp_priv_pass };
+}
+
+/** Uitslag van 🔍 Test SNMP als tekst */
+function snmpSysText(s) {
+  return `✔ ${esc(s.name || L('(geen naam)'))}${s.vendor ? ` · ${esc(s.vendor)}` : ''}${s.kind && KIND_INFO[s.kind] ? ` · ${esc(kindLabel(s.kind))}` : ''}${s.uptime !== null && s.uptime !== undefined ? ` · ${L('aan sinds {t}', { t: esc(fmtDur(s.uptime)) })}` : ''}`;
 }
 
 function snmpHostInit(h) {
   const form = $('#modal-form');
   const f = (n) => $(`[name=${n}]`, form);
-  const show = () => {
-    const on = f('snmp_on').checked, v = f('snmp_v').value, lvl = f('snmp_level').value;
-    $('#snmp-fields').hidden = !on;
-    $$('[data-snmp-v]', form).forEach((el) => { el.hidden = el.dataset.snmpV !== v; });
-    $('[data-snmp-lvl=auth]', form).hidden = lvl === 'noAuthNoPriv';
-    $('[data-snmp-lvl=priv]', form).hidden = lvl !== 'authPriv';
-    $('#snmp-label').textContent = on ? L('aan (v{v})', { v }) : L('uit');
+  const label = () => {
+    const on = f('snmp_on').checked, own = f('snmp_own').checked;
+    $('#snmp-fields').hidden = !own;
+    const v = own ? f('snmp_v').value : (state.snmp_global || {}).v;
+    $('#snmp-label').textContent = !on ? L('uit') : own ? L('eigen instellingen (v{v})', { v }) : (v ? L('algemene instelling (v{v})', { v }) : L('algemene instelling (nog niet ingevuld)'));
   };
-  ['snmp_on', 'snmp_v', 'snmp_level'].forEach((n) => { f(n).onchange = show; });
-  show();
+  snmpFieldsInit($('#snmp-fields'), label);
+  f('snmp_on').addEventListener('change', label);
+  f('snmp_own').addEventListener('change', label);
+  label();
   $('#snmp-test').onclick = async () => {
     const out = $('#snmp-test-out');
     out.className = 'small muted';
@@ -5072,7 +5198,7 @@ function snmpHostInit(h) {
         $('#kind-auto-opt').textContent = kindAutoText(null, s.kind);
         $('[name=kind_auto]', form).value = s.kind;
       }
-      out.innerHTML = `✔ ${esc(s.name || L('(geen naam)'))}${s.vendor ? ` · ${esc(s.vendor)}` : ''}${s.kind && KIND_INFO[s.kind] ? ` · ${esc(kindLabel(s.kind))}` : ''}${s.uptime !== null ? ` · ${L('aan sinds {t}', { t: esc(fmtDur(s.uptime)) })}` : ''}<br><span class="muted">${esc(s.descr)}</span>`;
+      out.innerHTML = snmpSysText(s) + (s.descr ? `<br><span class="muted">${esc(s.descr)}</span>` : '');
     } catch (ex) {
       out.className = 'small bad';
       out.textContent = '✘ ' + ex.message;
@@ -5156,7 +5282,7 @@ async function hostFimInit(h) {
   const label = () => { const n = fimHost.get().length; $('#fim-host-label').textContent = n ? (n === 1 ? L('1 extra pad') : L('{n} extra paden', { n })) : L('alleen de algemene lijst'); };
   fimHost = fimEditor($('#fim-host'), own, h.id || null, label);
   label();
-  if (own.length) wrap.open = true;
+  if (own.length) swsSet(wrap, true);
 }
 
 /** Servers die als parent kunnen dienen: niet de server zelf en niets wat (indirect) eronder hangt. */
@@ -5313,8 +5439,10 @@ function checkForm(c, h, preset = {}, tpl = null) {
   // 1.107.0: slimme drempels. Nieuwe check: de standaard uit Instellingen; 'auto' (nog niet gedraaid) ook
   const smartMode = !c.thresh_mode || c.thresh_mode === 'auto' ? (state.thresh_default || 'guard') : c.thresh_mode;
   const payloadOf = (d) => {
-    const notify = $('#notify-own').checked && ownEditor ? ownEditor.get() : null;
-    const qm = $('#quiet-mode').value;
+    const notifySw = $('#notify-sw').checked;   // 1.178.0: schakelaar uit = de algemene instellingen
+    if (!notifySw) d.notify_fails = '';
+    const notify = notifySw && $('#notify-own').checked && ownEditor ? ownEditor.get() : null;
+    const qm = $('#quiet-sw').checked ? $('#quiet-mode').value : 'global';
     const quiet = qm === 'global' ? null : qm === 'never' ? { mode: 'never' } : { mode: 'own', windows: quietOwnEditor ? quietOwnEditor.get().windows : [] };
     if (qm === 'own' && !quiet.windows.length) throw new Error(L('Stille uren: vul minstens één venster in met een dag'));
     const command = d.type === 'command' ? { cmd: d.cmd, expect: d.cmd_expect, match: d.cmd_match, timeout: d.cmd_timeout, fail: d.cmd_fail } : undefined;
@@ -5543,18 +5671,18 @@ function checkForm(c, h, preset = {}, tpl = null) {
       </div>
       <label class="switch"><input type="checkbox" name="info_only" ${+c.info_only ? 'checked' : ''}><span></span> ℹ️ <b>${L('Alleen info-meldingen')}</b></label>
       ${xpHtml(L('Een info-check is nooit een storing; hij geeft alleen een ℹ️ info-melding.'), L('Bij een statuswissel komt er een ℹ️ info-melding in plaats van warning, critical of hersteld, en de check telt nooit als storing. <b>Waarheen:</b> dat staat bij de rij ℹ️ <i>Info</i> (Instellingen → Meldingen, of de eigen meldregels hieronder). Standaard staat info uit.'))}
-      <details class="notify-own" ${c.notify || c.notify_fails ? 'open' : ''}>
-        <summary>🔔 ${L('Meldingen')}: <span id="notify-mode-label">${c.notify ? L('eigen regels') : L('standaard (algemene instellingen)')}</span><span class="muted" id="notify-fails-label">${c.notify_fails ? ' · ' + L('na {n}× mislukt', { n: +c.notify_fails }) : ''}</span></summary>
+      ${swsOpen({ id: 'notify-wrap', cb: 'id="notify-sw"', icon: '🔔', title: L('Meldingen'), on: !!(c.notify || c.notify_fails),
+        sub: `<span id="notify-mode-label">${c.notify ? L('eigen regels') : L('standaard (algemene instellingen)')}</span><span id="notify-fails-label">${c.notify_fails ? ' · ' + L('na {n}× mislukt', { n: +c.notify_fails }) : ''}</span>` })}
         <label>${L('Melden na … mislukte checks achter elkaar')} <span class="hint">${L('(leeg = standaard, nu {n})', { n: state.notify_fails || 1 })}</span>
           <input name="notify_fails" type="number" min="1" max="100" value="${c.notify_fails ?? ''}" placeholder="${state.notify_fails || 1}" style="max-width:8rem"></label>
         <label class="switch small"><input type="checkbox" id="notify-own" ${c.notify ? 'checked' : ''}><span></span> <span id="notify-own-label">${L('Eigen meldregels voor deze check')}</span></label>
         <div id="notify-own-editor" ${c.notify ? '' : 'hidden'}></div>
-      </details>
-      <details class="notify-own" ${quietOwn ? 'open' : ''}>
-        <summary>🌙 ${L('Stille uren')}: <span id="quiet-mode-label">${QUIET_MODES[quietOwn ? quietOwn.mode : 'global']}</span></summary>
-        <select id="quiet-mode">${Object.entries(QUIET_MODES).map(([k, l]) => `<option value="${k}" ${(quietOwn ? quietOwn.mode : 'global') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      </div></section>
+      ${swsOpen({ id: 'quiet-wrap', cb: 'id="quiet-sw"', icon: '🌙', title: L('Stille uren'), on: !!quietOwn, sub: `<span id="quiet-mode-label">${QUIET_MODES[quietOwn ? quietOwn.mode : 'global']}</span>` })}
+        <input type="hidden" id="quiet-mode" value="${quietOwn ? quietOwn.mode : 'global'}">
+        ${swSeg('quiet', [['own', L('eigen vensters')], ['never', L('nooit stil: altijd melden')]], quietOwn ? quietOwn.mode : 'own')}
         <div id="quiet-own-editor" hidden></div>
-      </details>
+      </div></section>
       <div class="row3" id="thr-wrap">
         <label><span class="thr-word">${L('Warning vanaf')}</span> <span class="hint unit"></span><input name="warn_threshold" type="number" step="any" value="${c.warn_threshold ?? ''}"></label>
         <label><span class="thr-word">${L('Critical vanaf')}</span> <span class="hint unit"></span><input name="crit_threshold" type="number" step="any" value="${c.crit_threshold ?? ''}"></label>
@@ -5686,7 +5814,17 @@ function checkForm(c, h, preset = {}, tpl = null) {
       quietOwnEditor = quietEditor($('#quiet-own-editor'), { windows: windows || [] }, false);
     }
   };
-  $('#quiet-mode').onchange = showQuiet;
+  // 1.178.0: schakelaar = eigen stille uren; daaronder eigen vensters of nooit stil
+  const quietSync = () => {
+    const seg = $('[data-sw-seg=quiet] [aria-checked=true]', form);
+    $('#quiet-mode').value = $('#quiet-sw').checked ? (seg ? seg.dataset.v : 'own') : 'global';
+    showQuiet();
+  };
+  $('#quiet-sw').addEventListener('change', quietSync);
+  $('[data-sw-seg=quiet]', form).addEventListener('sw-seg', quietSync);
+  $('#notify-sw').addEventListener('change', () => {
+    $('#notify-mode-label').textContent = $('#notify-sw').checked && $('#notify-own').checked ? L('eigen regels') : L('standaard (algemene instellingen)');
+  });
   showQuiet();
   const typeSel = $('[name=type]', form);
   const haSel = $('#ha-wrap [name=metric]', form);
@@ -6903,6 +7041,208 @@ async function saveHostConn(sel, done) {
   }
 }
 
+// ---------------------------------------------------------------- 1.178.0: Agent Manager (kaarten met schakelaars)
+/** Schakelaar (aan/uit) */
+const amSw = (id, on, attrs = '') => `<label class="am-sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} ${attrs}><span aria-hidden="true"></span></label>`;
+/** Rij in een kaart: titel en uitleg links, rechts een schakelaar, keuze of knop */
+const amRow = (title, sub, right, cls = '') => `<div class="am-row${cls}"><div class="am-rt"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</div><div class="am-rr">${right}</div></div>`;
+/** Instelling met de algemene waarde als standaard: schakelaar = eigen keuze, daaronder de keuze */
+function amOwn(key, title, sub, cur, opts, globalText) {
+  const own = cur !== '';
+  return `${amRow(title, `${sub ? sub + ' · ' : ''}<span data-am-own-txt="${key}">${own ? L('eigen keuze') : esc(globalText)}</span>`, amSw(`am-own-${key}`, own, `data-am-own="${key}" data-global="${esc(globalText)}"`))}
+    <div class="am-sub" data-am-own-sub="${key}" ${own ? '' : 'hidden'}>${swSeg('own-' + key, opts, own ? cur : opts[0][0])}</div>`;
+}
+/** Bovenaan: in één oogopslag hoe deze agent ervoor staat */
+function amChips(h) {
+  const chip = (ok, txt) => `<span class="am-chip ${ok === true ? 'ok' : ok === false ? 'w' : ''}">${txt}</span>`;
+  const out = [];
+  if (h.mode === 'agent') {
+    out.push(chip(+h.agent_key_seen === 1, +h.agent_key_seen === 1 ? '🔑 ' + L('eigen sleutel') : '🔑 ' + L('token')));
+    out.push(chip(+h.enc_seen === 1, +h.enc_seen === 1 ? '🔐 ' + L('versleuteld') : '🔓 ' + L('onversleuteld')));
+    if (h.agent_conn) out.push(chip(h.agent_conn !== 'http' && !h.agent_fb_at, h.agent_fb_at ? '⚠ ' + L('reserve-adres') : h.agent_conn === 'http' ? '🌐 http' : '🔒 https'));
+    out.push(chip(+(h.edr_on ?? 1) ? true : null, '🛡️ EDR ' + (+(h.edr_on ?? 1) ? L('aan') : L('uit'))));
+    if (+h.watchdog) out.push(chip(true, '🐕 ' + L('waakhond')));
+  }
+  out.push(chip(h.snmp ? true : null, '📡 SNMP: ' + (!h.snmp ? L('uit') : h.snmp.use === 'global' ? L('algemeen') + (h.snmp.v ? ` (v${esc(h.snmp.v)})` : '') : L('eigen') + ` (v${esc(h.snmp.v)})`)));
+  return out.join('');
+}
+/** Kaart SNMP: uit, de algemene instelling, of eigen instellingen (met de velden) */
+function amSnmp(h) {
+  const s = h.snmp, own = s ? s.use !== 'global' : !state.snmp_global;
+  return `${amRow(L('SNMP gebruiken'), `<span id="am-snmp-txt">${!s ? L('uit') : own ? L('eigen instellingen (v{v})', { v: esc(s.v) }) : L('algemene instelling (v{v})', { v: esc(s.v || '?') })}</span>`, amSw('am-snmp-on', !!s))}
+    <div id="am-snmp-body" ${s ? '' : 'hidden'}>
+      ${amRow(L('Eigen instellingen'), esc(snmpGlobalText()), amSw('am-snmp-own', own))}
+      <div class="am-sub" id="am-snmp-fields" ${own ? '' : 'hidden'}>${snmpFieldsHtml(s || state.snmp_global)}
+        <div class="snmpg-btns"><button type="button" class="btn primary small-btn" id="am-snmp-save">${L('Opslaan')}</button></div></div>
+      ${amRow('🔍 ' + L('Test SNMP'), `<span id="am-snmp-out">${L('vraagt het apparaat nu om zijn systeeminformatie')}</span>`, `<button type="button" class="btn small-btn" id="am-snmp-test">${L('Test')}</button>`)}
+    </div>`;
+}
+/** Alle schakelaars en keuzes van de Agent Manager */
+function amInit(h, body) {
+  const done = () => { refresh(); loadSecurity(); };
+  const err = (ex) => toast(ex.message, 'err');
+  // Rapporteren
+  $('[data-sw-seg=tick]', body).addEventListener('sw-seg', async (e) => {
+    try {
+      const r = await api('host_tick', { id: h.id, tick: +e.detail });
+      toast(L('{name} rapporteert elke {tick}; de agent pakt het binnen een minuut op', { name: h.name, tick: tickText(r.tick) }));
+      refresh();
+    } catch (ex) { err(ex); }
+  });
+  $('#host-realtime').onchange = async (e) => {
+    try {
+      await api('host_realtime', { id: h.id, on: e.target.checked });
+      toast(e.target.checked ? L('Realtime aan voor {name}; de agent pakt het binnen een minuut op', { name: h.name }) : L('Realtime uit voor {name}; de agent pakt het binnen een minuut op', { name: h.name }));
+      refresh();
+    } catch (ex) { e.target.checked = !e.target.checked; err(ex); }
+  };
+  // Beveiliging
+  $('#host-edr').onchange = async (e) => {
+    try {
+      await api('edr_host_set', { host_id: h.id, on: e.target.checked });
+      toast(e.target.checked ? L('Endpoint-bewaking aan voor {name}; de agent pakt het binnen een minuut op', { name: h.name }) : L('Endpoint-bewaking uit voor {name}', { name: h.name }));
+      loadEdrHost(h);
+      refresh();
+    } catch (ex) { e.target.checked = !e.target.checked; err(ex); }
+  };
+  loadEdrHost(h);
+  api('agent_commands').then((r) => {
+    const me = r.hosts.find((x) => x.id === +h.id);
+    if (!me) return;
+    const sw = $('#host-cmd-own'), sub = $('#host-cmd-sub'), seg = $('[data-sw-seg=cmd]', body);
+    const glob = L('algemene instelling: {m}', { m: CMD_MODES[r.global] || r.global });
+    sw.checked = !!me.own;
+    sub.hidden = !me.own;
+    $$('button', seg).forEach((b) => b.setAttribute('aria-checked', String(b.dataset.v === (me.own || me.mode))));
+    $('#host-commands-info').textContent = me.own ? L('eigen keuze: {m}', { m: CMD_MODES[me.own] }) : glob;
+    const again = () => agentInstructions(findHost(h.id));
+    sw.onchange = () => {
+      sub.hidden = !sw.checked;
+      if (!sw.checked) setAgentCommands(h.id, 'global', me.mode, h.name, again);
+    };
+    seg.addEventListener('sw-seg', (e) => setAgentCommands(h.id, e.detail, me.mode, h.name, again));
+  }).catch(() => {});
+  // Meldingen
+  const wdSave = async () => {
+    try {
+      await api('host_watchdog', { id: h.id, on: $('#host-watchdog').checked, min: +$('#host-wd-min').value || 5 });
+      toast($('#host-watchdog').checked ? L('Waakhond aan voor {name}; de agent pakt het binnen een paar minuten op', { name: h.name }) : L('Waakhond uit voor {name}', { name: h.name }));
+      refresh();
+    } catch (ex) { err(ex); }
+  };
+  $('#host-watchdog').onchange = () => { $('#host-wd-sub').hidden = !$('#host-watchdog').checked; wdSave(); };
+  $('#host-wd-min').onchange = () => { if ($('#host-watchdog').checked) wdSave(); };
+  $('#host-info-agent').onchange = async (e) => {
+    try { await api('host_info_agent', { id: h.id, on: e.target.checked }); toast(L('Opgeslagen')); refresh(); }
+    catch (ex) { e.target.checked = !e.target.checked; err(ex); }
+  };
+  // Verbinding: eigen keuze of de algemene instelling
+  const saveOwn = (key, val) => {
+    if (key === 'enc') return api('host_enc', { host_id: h.id, enc: val }).then(() => { toast(L('Opgeslagen; de agent pakt het op bij zijn volgende rapport')); done(); }).catch(err);
+    const el = $(`[data-am-own-sub="${key}"]`, body);
+    el.dataset.host = h.id;
+    el.dataset.hostConn = key;
+    el.value = val;
+    return saveHostConn(el, () => agentInstructions(findHost(h.id)));
+  };
+  $$('[data-am-own]', body).forEach((sw) => {
+    const key = sw.dataset.amOwn, sub = $(`[data-am-own-sub="${key}"]`, body);
+    sw.onchange = () => {
+      sub.hidden = !sw.checked;
+      $(`[data-am-own-txt="${key}"]`, body).textContent = sw.checked ? L('eigen keuze') : sw.dataset.global;
+      const cur = $('[aria-checked=true]', sub);
+      saveOwn(key, sw.checked ? (cur ? cur.dataset.v : 'on') : '');
+    };
+    $('.sw-seg', sub).addEventListener('sw-seg', (e) => saveOwn(key, e.detail));
+  });
+  // SNMP
+  const sn = $('#am-snmp', body);
+  const snmpWire = () => {
+    snmpFieldsInit($('#am-snmp-fields', sn));
+    const send = async (snmp) => {
+      try {
+        const r = await api('host_snmp', { id: h.id, snmp });
+        toast(L('Opgeslagen'));
+        await refresh();
+        const hh = findHost(h.id);
+        hh.snmp = r.snmp;
+        sn.innerHTML = amSnmp(hh);
+        $('.am-chips', body).innerHTML = amChips(hh);
+        snmpWire();
+      } catch (ex) { err(ex); sn.innerHTML = amSnmp(findHost(h.id)); snmpWire(); }
+    };
+    const data = () => ({ on: true, ...($('#am-snmp-own', sn).checked ? {} : { use: 'global' }), ...snmpRootData($('#am-snmp-fields', sn)) });
+    $('#am-snmp-on', sn).onchange = (e) => {
+      $('#am-snmp-body', sn).hidden = !e.target.checked;
+      if (!e.target.checked) return send({ on: false });
+      if (!$('#am-snmp-own', sn).checked) send(data());   // de algemene instelling: meteen opslaan; eigen: eerst invullen
+    };
+    $('#am-snmp-own', sn).onchange = (e) => {
+      $('#am-snmp-fields', sn).hidden = !e.target.checked;
+      if (!e.target.checked && $('#am-snmp-on', sn).checked) send(data());
+    };
+    $('#am-snmp-save', sn).onclick = () => send(data());
+    $('#am-snmp-test', sn).onclick = async () => {
+      const out = $('#am-snmp-out', sn);
+      out.className = 'muted';
+      out.textContent = L('Bezig…');
+      try {
+        const r = await api('snmp_test', { id: h.id, address: h.address, snmp: data() });
+        out.className = 'good';
+        out.innerHTML = snmpSysText(r.sys);
+      } catch (ex) { out.className = 'bad'; out.textContent = '✘ ' + ex.message; }
+    };
+  };
+  snmpWire();
+}
+
+/** 1.178.0: 🧪 Test: wat RzMon meteen weet en test, en (agent 1.79.0) wat de agent bij zijn volgende ronde over zichzelf meldt */
+async function agentTestDialog(h) {
+  let r;
+  try { r = await api('agent_selftest', { id: h.id }); } catch (ex) { return toast(ex.message, 'err'); }
+  const testId = r.test, started = Date.now();
+  const icon = { ok: '✔', warn: '⚠', bad: '✘', skip: '–' };
+  const list = (items) => `<ul class="at-list">${items.map((x) => `<li class="at-${x.ok}"><span class="at-ic" aria-hidden="true">${icon[x.ok] || '–'}</span><span class="at-t"><b>${esc(x.t)}</b><small>${esc(x.d)}</small></span></li>`).join('')}</ul>`;
+  const score = (items) => {
+    const n = { ok: 0, warn: 0, bad: 0 };
+    items.forEach((x) => { if (n[x.ok] !== undefined) n[x.ok]++; });
+    return n;
+  };
+  const verdict = (all) => {
+    const n = score(all);
+    return n.bad ? ['bad', L('{n} probleem/problemen gevonden', { n: n.bad })] : n.warn ? ['warn', L('Werkt, met {n} aandachtspunt(en)', { n: n.warn })] : ['ok', L('Alles in orde')];
+  };
+  const render = (x) => {
+    const agentPart = h.mode !== 'agent' ? '' : x.agent ? list(x.agent)
+      : x.can === false ? `<p class="muted small">${L('Deze agent is te oud om zichzelf te testen (agent {v} of nieuwer nodig). Werk hem bij met ⬆ Bijwerken.', { v: '1.79.0' })}</p>`
+      : x.pending ? `<div class="at-wait"><span class="at-spin" aria-hidden="true"></span><span>${L('Wacht op de agent: hij test zichzelf bij zijn volgende ronde (elke {n} s)…', { n: x.tick })}<small class="muted" id="at-left"></small></span></div>`
+      : `<p class="warn-txt small">${L('De agent antwoordde niet binnen 5 minuten. Draait hij nog? Kijk bij het laatste rapport hierboven.')}</p>`;
+    const all = [...x.server, ...(x.agent || [])];
+    const [cls, txt] = x.pending && h.mode === 'agent' ? ['run', L('Bezig met testen…')] : verdict(all);
+    return `<div class="at-hero at-${cls}"><span class="at-big" aria-hidden="true">${cls === 'run' ? '🧪' : icon[cls]}</span><div><b>${txt}</b><small>${esc(h.name)} · ${esc(h.address)}</small></div></div>
+      <div class="at-cols"><div><h3 class="at-h">🖥️ ${L('Vanuit RzMon')}</h3>${list(x.server)}</div>
+      ${h.mode === 'agent' ? `<div><h3 class="at-h">🤖 ${L('Op de server (door de agent zelf)')}</h3>${agentPart}</div>` : ''}</div>`;
+  };
+  modal({
+    title: `🧪 ${L('Test')} – ${h.name}`, wide: true,
+    body: `<div class="at-body" id="at-body">${render(r)}</div>`,
+    buttons: [{ label: L('Opnieuw testen'), onClick: () => agentTestDialog(findHost(h.id)) }, { label: L('Sluiten'), cls: 'primary', submit: true }],
+  });
+  const poll = async () => {
+    const box = $('#at-body');
+    if (!box || !$('#modal').open) return;
+    let x;
+    try { x = await api('agent_selftest_get', null, { id: h.id, test: testId }); } catch (ex) { return; }
+    if (!$('#at-body')) return;
+    box.innerHTML = render(x);
+    const left = $('#at-left');
+    if (left) left.textContent = ' · ' + L('{s} s bezig', { s: Math.round((Date.now() - started) / 1000) });
+    if (x.pending) setTimeout(poll, 3000);
+  };
+  $('#modal-body').scrollTop = 0;
+  if (r.pending) setTimeout(poll, 3000);
+}
+
 /** "30 s", "2 min" */
 function tickText(t) { return +t >= 120 ? `${+t / 60} min` : `${+t} s`; }
 
@@ -6944,45 +7284,53 @@ function agentInstructions(h, pairNow = false) {
     wide: true,
     page: true,
     body: `
-      <section class="am-sec am-top">
+      <section class="am-sec am-top am-hero">
+      <div class="am-hero-bar"><div class="am-chips">${amChips(h)}</div>
+        ${isAdmin() ? `<div class="am-hero-btns"><button type="button" class="btn" data-am-test>🧪 ${L('Test')}</button><button type="button" class="btn primary" data-am-rec>＋ ${L('Aanbevolen checks')}</button></div>` : ''}</div>
       <div class="agent-live" id="agent-live"><span class="muted">${L('Status ophalen…')}</span></div>
       <div class="cmd-host-row contact-row">📡 ${L('Contact:')} <div>${contactHtml(h, 'full')}</div></div>
       </section>
       <div class="pg-tools" data-pgtools="am"></div>
-      <div class="am-grid" data-pgrid="am">
-      <section class="am-sec need-admin" data-pk="func" data-pw="6"><h3 class="am-h">${L('Functies')}</h3>
-      <div class="cmd-host-row need-admin">⏱ ${L('Rapporteren elke:')}
-        <select id="host-tick"><option value="0">${L('standaard ({t})', { t: tickText(state.agent_tick) })}</option>${[30, 60, 120, 300].map((t) => `<option value="${t}" ${+h.agent_tick === t ? 'selected' : ''}>${tickText(t)}</option>`).join('')}</select>
-        <span class="muted small" id="host-tick-info">${h.agent_update_via === 'direct' ? L('via cron/TrueNAS: minimaal elke minuut') : ''}</span></div>
-      <div class="cmd-host-row need-admin">⚡ Realtime:
-        <select id="host-realtime"><option value="0" ${+h.realtime ? '' : 'selected'}>${L('uit')}</option><option value="1" ${+h.realtime ? 'selected' : ''}>${L('aan')}</option></select>
-        <span class="muted small" id="host-realtime-info">${h.agent_update_via === 'direct' ? L('werkt alleen met systemd (niet via cron of op TrueNAS)') : L('logins, sudo, services en 🔴-bestanden meteen')}</span></div>
-      <div class="cmd-host-row need-admin">🐕 ${L('Waakhond:')}
-        <select id="host-watchdog"><option value="0" ${+h.watchdog ? '' : 'selected'}>${L('uit')}</option><option value="1" ${+h.watchdog ? 'selected' : ''}>${L('aan')}</option></select>
-        ${L('melden na')} <input id="host-wd-min" type="number" min="2" max="120" value="${+h.watchdog_min || 5}" style="width:4.5rem"> ${L('min')}
-        <span class="muted small" id="host-wd-info">${L('deze agent stuurt zelf een pushbericht (Pushover of ntfy) als RzMon onbereikbaar is of de checks stilstaan')}</span></div>
-      <div class="cmd-host-row need-admin">🛡️ ${L('Endpoint-bewaking:')}
-        <select id="host-edr"><option value="1" ${+(h.edr_on ?? 1) ? 'selected' : ''}>${L('aan')}</option><option value="0" ${+(h.edr_on ?? 1) ? '' : 'selected'}>${L('uit')}</option></select>
-        <span class="muted small">${L('processen, netwerk, bestanden en containers meteen bekeken; RzMon grijpt in bij een aanval')}</span></div>
-      <div id="host-edr-info" class="need-admin edr-host"></div>
-      ${edrHidden(h.id).length ? `<div class="cmd-host-row need-admin small muted">🙈 ${L('Melding over ontbrekende onderdelen verborgen ({what})', { what: esc(edrHidden(h.id).join(', ')) })}
-        <button type="button" class="btn small-btn" id="host-edr-unhide">${L('Weer tonen')}</button></div>` : ''}
-      <div class="cmd-host-row need-admin">ℹ️ ${L('Info bij agent-updates:')}
-        <select id="host-info-agent"><option value="1" ${+(h.info_agent ?? 1) ? 'selected' : ''}>${L('aan (volgt de algemene info-regel)')}</option><option value="0" ${+(h.info_agent ?? 1) ? '' : 'selected'}>${L('uit')}</option></select></div>
-      <div class="cmd-host-row need-admin">🖥️ ${L('Commando-checks op deze server:')}
-        <select id="host-commands"><option value="global">${L('algemene instelling')}</option>${Object.entries(CMD_MODES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
-        <span class="muted small" id="host-commands-info"></span></div>
+      <div class="am-grid am-grid3" data-pgrid="am">
+      <section class="am-sec am-card need-admin" data-pk="run" data-pw="4" style="--c: var(--primary)"><h3 class="am-h"><i aria-hidden="true">⏱</i>${L('Rapporteren')}</h3>
+        <p class="am-lead">${L('Hoe vaak en hoe snel de agent meldt')}</p>
+        ${amRow(L('Elke'), `<span id="host-tick-info">${h.agent_update_via === 'direct' ? L('via cron/TrueNAS: minimaal elke minuut') : L('standaard {t}', { t: tickText(state.agent_tick) })}</span>`,
+          swSeg('tick', [[0, L('std')], [30, '30 s'], [60, '1 m'], [120, '2 m'], [300, '5 m']], +h.agent_tick || 0))}
+        ${amRow('⚡ Realtime', `<span id="host-realtime-info">${h.agent_update_via === 'direct' ? L('werkt alleen met systemd (niet via cron of op TrueNAS)') : L('logins, sudo, services en 🔴-bestanden meteen')}</span>`, amSw('host-realtime', +h.realtime))}
       </section>
-      <section class="am-sec need-admin" data-pk="conn" data-pw="6"><h3 class="am-h">${L('Verbinding')}</h3>
-      <div class="cmd-host-row need-admin">🔐 ${L('Versleuteld versturen:')}
-        <select id="host-enc">${ENC_HOST_MODES.map(([k, l]) => `<option value="${k}" ${(h.enc || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
-        <span class="muted small">${encSeenText(h)} · ${+h.agent_key_seen === 1 ? '🔑 ' + L('eigen sleutel') : L('nog geen eigen sleutel: maak hieronder een koppelcode')}</span></div>
-      <div class="cmd-host-row need-admin">📌 ${L('Certificaat van RzMon vastzetten:')} ${connSelect('pin', h, state.conn_pin)}</div>
-      <div class="cmd-host-row need-admin">🌐 ${L('Alleen vanaf het bekende IP-adres:')} ${connSelect('ip', h, state.conn_ip_lock)}</div>
-      <div class="cmd-host-row need-admin">🔒 ${L('Alleen via https:')} ${connSelect('https', h, state.conn_https)}</div>
-      <div class="cmd-host-row need-admin am-url">🌍 ${L('Adres van RzMon:')} <span class="small">${connText(h)}</span>
-        <button type="button" class="btn small-btn" data-am-url>✏️ ${L('Wijzigen')}</button></div>
-      ${h.agent_ip_new ? `<div class="callout need-admin">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents → Standaardinstellingen.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
+      <section class="am-sec am-card need-admin" data-pk="sec" data-pw="4" style="--c: var(--crit)"><h3 class="am-h"><i aria-hidden="true">🛡️</i>${L('Beveiliging')}</h3>
+        <p class="am-lead">${L('Wat de agent bewaakt en mag doen')}</p>
+        ${amRow(L('Endpoint-bewaking (EDR)'), L('processen, netwerk, bestanden en containers meteen bekeken; RzMon grijpt in bij een aanval'), amSw('host-edr', +(h.edr_on ?? 1)))}
+        <div id="host-edr-info" class="edr-host am-sub"></div>
+        ${amRow(L('Commando-checks'), `<span id="host-commands-info">${L('laden…')}</span>`, amSw('host-cmd-own', false, 'title="' + esc(L('Eigen keuze voor deze server')) + '"'))}
+        <div class="am-sub" id="host-cmd-sub" hidden>${swSeg('cmd', Object.entries(CMD_MODES), 'off')}</div>
+      </section>
+      <section class="am-sec am-card need-admin" data-pk="notify" data-pw="4" style="--c: var(--warn)"><h3 class="am-h"><i aria-hidden="true">🔔</i>${L('Meldingen')}</h3>
+        <p class="am-lead">${L('Wanneer deze server zelf iets laat weten')}</p>
+        ${amRow('🐕 ' + L('Waakhond'), `<span id="host-wd-info">${L('deze agent stuurt zelf een pushbericht (Pushover of ntfy) als RzMon onbereikbaar is of de checks stilstaan')}</span>`, amSw('host-watchdog', +h.watchdog))}
+        <div class="am-sub" id="host-wd-sub" ${+h.watchdog ? '' : 'hidden'}>${L('melden na')} <input id="host-wd-min" type="number" min="2" max="120" value="${+h.watchdog_min || 5}" style="width:4.5rem"> ${L('min')}</div>
+        ${amRow('ℹ️ ' + L('Info bij agent-updates'), L('volgt de algemene info-regel'), amSw('host-info-agent', +(h.info_agent ?? 1)))}
+        ${edrHidden(h.id).length ? amRow('🙈 ' + L('Melding over ontbrekende onderdelen'), L('verborgen: {what}', { what: esc(edrHidden(h.id).join(', ')) }),
+          `<button type="button" class="btn small-btn" id="host-edr-unhide">${L('Weer tonen')}</button>`) : ''}
+      </section>
+      <section class="am-sec am-card need-admin" data-pk="conn" data-pw="4" style="--c: var(--ok)"><h3 class="am-h"><i aria-hidden="true">🔗</i>${L('Verbinding')}</h3>
+        <p class="am-lead">${L('Schakelaar uit = de algemene instelling · aan = een eigen keuze voor deze server')}</p>
+        ${amOwn('enc', '🔐 ' + L('Versleuteld versturen'), `${encSeenText(h)} · ${+h.agent_key_seen === 1 ? '🔑 ' + L('eigen sleutel') : L('nog geen eigen sleutel: koppel opnieuw (Onderhoud)')}`,
+          h.enc || '', [['on', L('aan')], ['required', L('verplicht')], ['off', L('uit')]], L('algemene instelling'))}
+        ${amOwn('pin', '📌 ' + L('Certificaat van RzMon vastzetten'), '', h.pin_mode || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_pin ? L('aan') : L('uit')}`)}
+        ${amOwn('ip', '🌐 ' + L('Alleen vanaf het bekende IP-adres'), '', h.ip_lock || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_ip_lock ? L('aan') : L('uit')}`)}
+        ${amOwn('https', '🔒 ' + L('Alleen via https'), '', h.agent_https || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_https ? L('aan') : L('uit')}`)}
+        ${amRow('🌍 ' + L('Adres van RzMon'), connText(h), `<button type="button" class="btn small-btn" data-am-url>✏️ ${L('Wijzigen')}</button>`, ' am-url')}
+        ${h.agent_ip_new ? `<div class="callout">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents → Standaardinstellingen.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
+      </section>
+      <section class="am-sec am-card need-admin" data-pk="snmp" data-pw="4" style="--c: var(--purple, #7a49d9)"><h3 class="am-h"><i aria-hidden="true">📡</i>SNMP</h3>
+        <p class="am-lead">${L('RzMon leest het apparaat zelf uit (zonder agent)')}</p>
+        <div id="am-snmp">${amSnmp(h)}</div>
+      </section>
+      <section class="am-sec am-card need-admin" data-pk="maint" data-pw="4" style="--c: var(--muted)"><h3 class="am-h"><i aria-hidden="true">🧰</i>${L('Onderhoud')}</h3>
+        <p class="am-lead">${L('Sleutels en tokens')}</p>
+        ${amRow('🔗 ' + L('Opnieuw koppelen'), L('nieuwe koppelcode; de agent haalt er een nieuwe eigen sleutel mee op'), `<button type="button" class="btn small-btn" data-am-pair>${L('Koppelcode')}</button>`)}
+        ${amRow('↻ ' + L('Nieuw token'), L('alleen voor agents ouder dan 1.50.0; de oude agent werkt dan niet meer'), `<button type="button" class="btn small-btn" data-am-token>${L('Nieuw token')}</button>`)}
       </section>
       </div>
       <details class="am-sec am-install" ${pairNow || !h.agent_seen ? 'open' : ''}><summary><h3 class="am-h">${L('Installeren of opnieuw koppelen')}</h3></summary>
@@ -7057,14 +7405,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
       </details>
       </div>
       </details>`,
-    buttons: [
-      ...(isAdmin() ? [{ label: L('＋ Aanbevolen checks'), style: 'margin-right:auto', onClick: () => recommendedChecks(findHost(h.id)) }] : []),
-      { label: L('↻ Nieuw token'), onClick: async () => {
-        if (!confirm(L('Nieuw token genereren? De oude agent werkt dan niet meer.'))) return;
-        await api('host_token', { id: h.id }); await refresh(); agentInstructions(findHost(h.id));
-      } },
-      { label: L('Sluiten'), cls: 'primary', submit: true },
-    ],
+    buttons: [{ label: L('Sluiten'), cls: 'primary', submit: true }],
   });
   const body = $('#modal-body');
   if (pgEdit === 'am') pgEdit = null;
@@ -7076,57 +7417,8 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   $$('.seg-btn', body).forEach((b) => (b.onclick = () => show(b.dataset.seg)));
   pollAgentStatus(h.id);
   const unhide = $('#host-edr-unhide');
-  if (unhide) unhide.onclick = async () => { try { await edrHideSave(h.id, []); unhide.parentElement.remove(); toast(L('Wordt weer getoond')); } catch (ex) { toast(ex.message, 'err'); } };
-  $('#host-edr').onchange = async (e) => {
-    try {
-      await api('edr_host_set', { host_id: h.id, on: e.target.value === '1' });
-      toast(e.target.value === '1' ? L('Endpoint-bewaking aan voor {name}; de agent pakt het binnen een minuut op', { name: h.name }) : L('Endpoint-bewaking uit voor {name}', { name: h.name }));
-      loadEdrHost(h);
-      refresh();
-    } catch (ex) { toast(ex.message, 'err'); }
-  };
-  loadEdrHost(h);
-  $('#host-realtime').onchange = async (e) => {
-    try {
-      await api('host_realtime', { id: h.id, on: e.target.value === '1' });
-      toast(e.target.value === '1' ? L('Realtime aan voor {name}; de agent pakt het binnen een minuut op', { name: h.name }) : L('Realtime uit voor {name}; de agent pakt het binnen een minuut op', { name: h.name }));
-      refresh();
-    } catch (ex) { toast(ex.message, 'err'); }
-  };
-  const wdSave = async () => {
-    try {
-      await api('host_watchdog', { id: h.id, on: $('#host-watchdog').value === '1', min: +$('#host-wd-min').value || 5 });
-      toast($('#host-watchdog').value === '1' ? L('Waakhond aan voor {name}; de agent pakt het binnen een paar minuten op', { name: h.name }) : L('Waakhond uit voor {name}', { name: h.name }));
-      refresh();
-    } catch (ex) { toast(ex.message, 'err'); }
-  };
-  $('#host-watchdog').onchange = wdSave;
-  $('#host-wd-min').onchange = () => { if ($('#host-watchdog').value === '1') wdSave(); };
-  $('#host-enc').onchange = async (e) => {
-    try { await api('host_enc', { host_id: h.id, enc: e.target.value }); toast(L('Opgeslagen; de agent pakt het op bij zijn volgende rapport')); refresh(); }
-    catch (ex) { toast(ex.message, 'err'); }
-  };
-  $('#host-info-agent').onchange = async (e) => {
-    try { await api('host_info_agent', { id: h.id, on: e.target.value === '1' }); toast(L('Opgeslagen')); refresh(); }
-    catch (ex) { toast(ex.message, 'err'); }
-  };
-  $('#host-tick').onchange = async (e) => {
-    try {
-      const r = await api('host_tick', { id: h.id, tick: +e.target.value });
-      toast(L('{name} rapporteert elke {tick}; de agent pakt het binnen een minuut op', { name: h.name, tick: tickText(r.tick) }));
-      refresh();
-    } catch (ex) { toast(ex.message, 'err'); }
-  };
-  if (isAdmin()) {
-    api('agent_commands').then((r) => {
-      const me = r.hosts.find((x) => x.id === +h.id);
-      if (!me) return;
-      const sel = $('#host-commands');
-      sel.value = me.own || 'global';
-      $('#host-commands-info').textContent = me.own ? '' : L('(nu: {m})', { m: CMD_MODES[me.mode] });
-      sel.onchange = () => setAgentCommands(h.id, sel.value, me.mode, h.name, () => agentInstructions(findHost(h.id)));
-    }).catch(() => {});
-  }
+  if (unhide) unhide.onclick = async () => { try { await edrHideSave(h.id, []); unhide.closest('.am-row').remove(); toast(L('Wordt weer getoond')); } catch (ex) { toast(ex.message, 'err'); } };
+  if (isAdmin()) amInit(h, body);
   // Koppelcode: één code voor alle drie de manieren; daarna wachten tot de agent gekoppeld is
   const makePair = async () => {
     let r;
@@ -7156,12 +7448,18 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   };
   body.addEventListener('click', async (e) => {
     if (e.target.closest('[data-make-pair]')) return makePair();
+    if (e.target.closest('[data-am-pair]')) { const det = $('.am-install', body); det.open = true; det.scrollIntoView({ behavior: 'smooth', block: 'start' }); return makePair(); }
+    if (e.target.closest('[data-am-test]')) return agentTestDialog(findHost(h.id));
+    if (e.target.closest('[data-am-rec]')) return recommendedChecks(findHost(h.id));
+    if (e.target.closest('[data-am-token]')) {
+      if (!confirm(L('Nieuw token genereren? De oude agent werkt dan niet meer.'))) return;
+      await api('host_token', { id: h.id }); await refresh(); agentInstructions(findHost(h.id)); return;
+    }
     const c = e.target.closest('[data-copy]');
     if (!c) return;
     try { await navigator.clipboard.writeText(c.dataset.copy); toast(L('Gekopieerd')); }
     catch (ex) { getSelection().selectAllChildren(c.previousElementSibling); toast(L('Geselecteerd — druk Ctrl+C'), 'err'); }
   });
-  $$('[data-host-conn]', body).forEach((sel) => (sel.onchange = () => saveHostConn(sel, () => { refresh(); loadSecurity(); })));
   const amUrl = $('[data-am-url]', body);
   if (amUrl) amUrl.onclick = () => agentUrlDialog(findHost(h.id));
   if (pairNow && isAdmin()) makePair();
@@ -11106,6 +11404,7 @@ const SET_NAV = [
     ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')]]],
   ['koppelingen', SET_IC('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'), L('Koppelingen'), [
     ['netlinks', L('UniFi en AdGuard'), ['netlinks'], L('Apparaten en DNS uit je UniFi-controller en AdGuard Home.')],
+    ['snmp', 'SNMP', ['snmp'], L('Eén SNMP-instelling voor al je apparaten, met per apparaat een uitzondering.')],
     ['mqtt', L('Home Assistant (MQTT)'), ['mqtt'], L('Sensoren en meldingen in Home Assistant.')],
     ['ai', L('AI-advies'), ['ai'], L('Advies van Claude, ChatGPT, Gemini, Grok of Ollama bij storingen.')],
     ['api', L('REST API'), ['api'], L('API-sleutels voor andere toepassingen.')],
@@ -11154,7 +11453,7 @@ function showSettingsSection(id, focusEl) {
   pgApply('set');   // 1.160.0: indeling van dit onderdeel (lay-out CC)
   pgTools('set');
   // De knop "Instellingen opslaan" alleen bij onderdelen uit dat formulier
-  const inForm = cards.some((k) => { const c = $(`#tab-settings [data-sk="${k}"]`); return c && c.closest('#settings-form'); });
+  const inForm = cards.some((k) => { const c = $(`#tab-settings [data-sk="${k}"]`); return c && c.closest('#settings-form') && !c.hasAttribute('data-nodirty'); });
   $('#settings-form').classList.toggle('set-noform', !inForm);
   $('#set-title').textContent = f.sub[1];
   $('#set-lead').textContent = f.sub[3] || '';
@@ -11173,6 +11472,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'statuspage') loadStatusPage();
   if (setSection === 'internet') loadInet();
   if (setSection === 'ai') loadAiSettings();   // 1.171.0
+  if (setSection === 'snmp') loadSnmpGlobal();   // 1.178.0
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0

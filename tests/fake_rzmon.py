@@ -27,7 +27,8 @@ class Handler(BaseHTTPRequestHandler):
         if self._action() == 'agent_tests':
             # Tik, en een service-check zodat ook dat deel van het rapport gevuld wordt
             # 1.63.0: met endpoint-bewaking aan (zonder auditd in de container: "missing" in edr.info)
-            self._send('0\ttick\t60\n1\tsvc\tcron\n0\tedr\t1\n', 'text/plain')
+            # Agent 1.79.0: ook een zelftest (🧪 Test in de Agent Manager)
+            self._send('0\ttick\t60\n1\tsvc\tcron\n0\tedr\t1\n0\tselftest\t42\n', 'text/plain')
         else:
             self._send(json.dumps({'ok': True, 'app': 'RzMon'}))
 

@@ -497,6 +497,7 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     array_push($out, ...Heal::testLines($hostId, $secure));
     array_push($out, ...Ai::diagLines($hostId));   // 1.171.0: diagnose voor AI-advies (agent 1.76.0)
     array_push($out, ...Paths::agentLines($hostId));   // 1.177.0: pad-checks en doorvoertests (agent 1.78.0)
+    array_push($out, ...AgentTest::agentLines($hostId));   // 1.178.0: 🧪 Test uit de Agent Manager (agent 1.79.0)
     return $out ? implode("\n", $out) . "\n" : '';
 }
 
@@ -709,6 +710,12 @@ if ($action === 'agent') {
         Paths::fromAgent($host, $in);
     } catch (Throwable $e) {
         error_log('RzMon: pad-gegevens niet verwerkt: ' . $e->getMessage());
+    }
+    // 1.178.0 (agent 1.79.0): antwoord op 🧪 Test
+    try {
+        AgentTest::fromAgent($host, $in);
+    } catch (Throwable $e) {
+        error_log('RzMon: zelftest niet verwerkt: ' . $e->getMessage());
     }
     // Proxmox VE (agent 1.61.0): guests, opslag, ZFS, back-ups en taken
     if (isset($in['pve']) && is_array($in['pve'])) {
@@ -1849,7 +1856,7 @@ switch ($action) {
         }
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'badges' => tab_badges($user, $hosts, (string) ($_GET['seen'] ?? '')), 'last_run' => $lastRun, 'user' => $user['username'],
-             'base_url' => config('base_url', ''), 'agent_https_only' => setting('agent_https_only', '0') === '1', 'lan_session' => is_lan_session(), 'maintenance' => $global,
+             'base_url' => config('base_url', ''), 'snmp_global' => ($sg = SnmpMonitor::global()) ? array_intersect_key($sg, array_flip(['v', 'port', 'user', 'level', 'auth_proto', 'priv_proto'])) : null, 'agent_https_only' => setting('agent_https_only', '0') === '1', 'lan_session' => is_lan_session(), 'maintenance' => $global,
              'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'edr_note_hide' => json_decode((string) setting('edr_note_hide', '{}'), true) ?: (object) [], 'role' => $user['role'], 'user_id' => $user['id'], 'ai' => Ai::stateInfo($user), 'isolated' => Ids::isolated(), 'health' => Health::current(), 'health_groups' => Health::groups(),
              'agent_tick' => agent_tick(null), 'now_ts' => time(),
              // Sjablonen (1.94.0): item → naam van het sjabloon, en welke sjablonen per server
@@ -2173,6 +2180,9 @@ switch ($action) {
         if ($addr === '' || !preg_match('/^[A-Za-z0-9.:\-\[\]]+$/', $addr)) {
             out(['error' => t('Vul eerst het adres van de server in')], 422);
         }
+        if (isset($cfg['use'])) {
+            $cfg = SnmpMonitor::global() ?? [];   // 1.178.0: de algemene instelling testen op dit apparaat
+        }
         try {
             $sys = SnmpMonitor::test($cfg, $addr);
             if (!empty($in['id'])) {
@@ -2182,6 +2192,82 @@ switch ($action) {
         } catch (Throwable $e) {
             out(['error' => $e->getMessage()], 422);
         }
+
+    // 1.178.0: de algemene SNMP-instelling (Instellingen → Koppelingen → SNMP) en wie hem gebruikt
+    case 'snmp_global':
+        $rows = [];
+        foreach (q("SELECT id, name, address, snmp FROM hosts WHERE snmp IS NOT NULL AND snmp <> '' ORDER BY name") as $r) {
+            $c = SnmpMonitor::config($r['snmp']);
+            $glob = SnmpMonitor::usesGlobal($r['snmp']);
+            if ($c !== null || $glob) {
+                $rows[] = ['id' => (int) $r['id'], 'name' => $r['name'], 'address' => $r['address'], 'global' => $glob, 'v' => $c['v'] ?? null];
+            }
+        }
+        out(['cfg' => SnmpMonitor::mask(SnmpMonitor::global()), 'hosts' => $rows, 'available' => SnmpMonitor::available()]);
+
+    case 'snmp_global_save':
+        $in = input();
+        if (empty($in['on'])) {
+            if ((int) q('SELECT COUNT(*) FROM hosts WHERE snmp = ?', [SnmpMonitor::USE_GLOBAL])->fetchColumn() > 0) {
+                out(['error' => t('Er zijn nog apparaten die de algemene instelling gebruiken: geef die eerst eigen instellingen, of zet SNMP daar uit')], 422);
+            }
+            save_setting(SnmpMonitor::GLOBAL_KEY, '');
+            out(['ok' => true]);
+        }
+        $cfg = SnmpMonitor::clean(['on' => 1] + array_diff_key((array) $in, ['use' => 1]), SnmpMonitor::global());
+        if (is_string($cfg) || $cfg === null) {
+            out(['error' => $cfg ?: t('Vul de SNMP-instellingen in')], 422);
+        }
+        save_setting(SnmpMonitor::GLOBAL_KEY, json_encode($cfg, JSON_UNESCAPED_UNICODE));
+        AgentCommands::audit($user['username'], 'SNMP', t('algemene instelling opgeslagen (v{v})', ['v' => $cfg['v']]));
+        out(['ok' => true]);
+
+    case 'snmp_global_test':
+        // Alle apparaten die de algemene instelling gebruiken (of één adres) met de algemene instelling testen
+        $g = SnmpMonitor::global();
+        if ($g === null) {
+            out(['error' => t('Vul eerst de algemene SNMP-instelling in en sla hem op')], 422);
+        }
+        $res = [];
+        foreach (q('SELECT id, name, address FROM hosts WHERE snmp = ? ORDER BY name LIMIT 40', [SnmpMonitor::USE_GLOBAL]) as $r) {
+            $t0 = microtime(true);
+            try {
+                $sys = SnmpMonitor::test($g, (string) $r['address']);
+                $res[] = ['id' => (int) $r['id'], 'ok' => true, 'ms' => (int) round((microtime(true) - $t0) * 1000), 'name' => $sys['name']];
+            } catch (Throwable $e) {
+                $res[] = ['id' => (int) $r['id'], 'ok' => false, 'error' => $e->getMessage()];
+            }
+        }
+        out(['results' => $res]);
+
+    // 1.178.0: SNMP van één server (Agent Manager): uit, de algemene instelling, of eigen instellingen
+    case 'host_snmp':
+        $in = input();
+        $hid = (int) ($in['id'] ?? 0);
+        $before = ChangeLog::hostRow($hid);
+        if (!$before) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        $snmp = SnmpMonitor::clean($in['snmp'] ?? null, SnmpMonitor::config(q('SELECT snmp FROM hosts WHERE id = ?', [$hid])->fetchColumn() ?: null));
+        if (is_string($snmp)) {
+            out(['error' => $snmp], 422);
+        }
+        q('UPDATE hosts SET snmp = ? WHERE id = ?', [$snmp ? json_encode($snmp, JSON_UNESCAPED_UNICODE) : null, $hid]);
+        ChangeLog::record('host', $hid, 'update', $before['name'] . ' (📡 SNMP)', $before, ChangeLog::hostRow($hid));
+        out(['ok' => true, 'snmp' => SnmpMonitor::masked(q('SELECT snmp FROM hosts WHERE id = ?', [$hid])->fetchColumn() ?: null)]);
+
+    // 1.178.0: 🧪 Test in de Agent Manager: starten, en daarna de uitslag ophalen (het agentdeel komt bij zijn volgende ronde)
+    case 'agent_selftest':
+        $hid = (int) (input()['id'] ?? 0);
+        if (!q('SELECT 1 FROM hosts WHERE id = ?', [$hid])->fetchColumn()) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        $tid = AgentTest::start($hid);
+        out(['test' => $tid] + (AgentTest::result($hid, $tid) ?? []));
+
+    case 'agent_selftest_get':
+        $r = AgentTest::result((int) ($_GET['id'] ?? 0), (int) ($_GET['test'] ?? 0));
+        $r === null ? out(['error' => t('Server niet gevonden')], 404) : out($r);
 
     // Wat er via SNMP op deze server te bewaken valt (＋ SNMP-checks)
     case 'snmp_discover':
@@ -3349,7 +3435,7 @@ switch ($action) {
         foreach (SECRET_SETTINGS as $k) {
             $s[$k] = ($s[$k] ?? '') !== '' ? '••••••••' : '';
         }
-        unset($s['ack_secret'], $s['mqtt_topics'], $s['mqtt_hash'], $s['stats_cache'], $s['update_cache']);
+        unset($s['ack_secret'], $s[SnmpMonitor::GLOBAL_KEY], $s['path_unifi_cache'], $s['mqtt_topics'], $s['mqtt_hash'], $s['stats_cache'], $s['update_cache']);
         $s['alerts_days'] = (string) Monitor::alertDays();
         $s['db_growth'] = Retention::growth();   // 1.136.0: grootte van de database en groei per dag (geen formulierveld)
         $s['sysinfo'] = json_encode(NotifyRules::sysinfo());

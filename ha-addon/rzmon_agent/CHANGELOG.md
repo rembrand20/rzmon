@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.79.0 – 2026-11-05
+- **Zelftest** (RzMon 1.178.0): met **🧪 Test** in de Agent Manager test de agent zichzelf bij zijn volgende ronde: de planning (timer of cron), de rechten van het instellingenbestand, DNS, het adres en het reserve-adres van RzMon, de klok, de vrije ruimte, de wachtrij, fouten in zijn log van het laatste uur en de hulpprogramma's die hij nodig heeft. Alleen vaste controles die lezen, één keer per vraag.
+
 ## 1.78.0 – 2026-11-05
 - **Pad-check** (RzMon 1.177.0): de agent meet het pad naar een doel: per hop verlies en vertraging (met `mtr`, anders `traceroute`), een ping naar de tussenliggende apparaten die je in RzMon opgeeft (switches zie je niet in een traceroute), de snelheid van de netwerkkaart, of de server virtueel draait, en met `lldpd` op welke switch en poort hij zit. Standaard elke 5 minuten.
 - **Doorvoertest met iperf3**: op aanvraag van RzMon meet de agent 3 seconden de echte doorvoer naar een andere server; daar start de agent dan kort een iperf3-ontvanger die na één meting zelf stopt (hooguit 2 minuten). Alleen als `iperf3` is geïnstalleerd.

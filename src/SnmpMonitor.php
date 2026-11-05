@@ -93,17 +93,38 @@ final class SnmpMonitor
         return class_exists('SNMP');
     }
 
-    /** Instellingen van een server (hosts.snmp), of null als SNMP uit staat */
+    /** 1.178.0: de algemene SNMP-instelling (Instellingen → Koppelingen → SNMP), voor apparaten zonder eigen instellingen */
+    public const GLOBAL_KEY = 'snmp_global';
+    /** Wat een server bewaart als hij de algemene instelling volgt */
+    public const USE_GLOBAL = '{"use":"global"}';
+
+    /** De algemene SNMP-instelling, of null als die niet is ingevuld */
+    public static function global(): ?array
+    {
+        $c = json_decode((string) setting(self::GLOBAL_KEY, ''), true);
+        return is_array($c) && in_array($c['v'] ?? '', ['2c', '3'], true) ? $c : null;
+    }
+
+    /** Volgt deze server (hosts.snmp) de algemene instelling? */
+    public static function usesGlobal(?string $json): bool
+    {
+        $c = json_decode((string) $json, true);
+        return is_array($c) && ($c['use'] ?? '') === 'global';
+    }
+
+    /** Instellingen van een server (hosts.snmp), of null als SNMP uit staat; "algemeen" = de algemene instelling */
     public static function config(?string $json): ?array
     {
+        if (self::usesGlobal($json)) {
+            return self::global();
+        }
         $c = json_decode((string) $json, true);
         return is_array($c) && in_array($c['v'] ?? '', ['2c', '3'], true) ? $c : null;
     }
 
-    /** Voor de browser: zonder community en wachtwoorden (alleen of ze ingevuld zijn) */
-    public static function masked(?string $json): ?array
+    /** Geheimen vervangen door ••••••••, of leeg als ze niet zijn ingevuld */
+    public static function mask(?array $c): ?array
     {
-        $c = self::config($json);
         if ($c === null) {
             return null;
         }
@@ -114,6 +135,18 @@ final class SnmpMonitor
     }
 
     /**
+     * Voor de browser: zonder community en wachtwoorden (alleen of ze ingevuld zijn). Volgt de server de algemene
+     * instelling, dan "use":"global" met die instelling erbij (gemaskeerd), zodat het formulier kan laten zien wat geldt.
+     */
+    public static function masked(?string $json): ?array
+    {
+        if (self::usesGlobal($json)) {
+            return ['use' => 'global'] + (self::mask(self::global()) ?? ['v' => '2c', 'port' => 161]);
+        }
+        return self::mask(self::config($json));
+    }
+
+    /**
      * Instellingen uit het formulier controleren. Gemaskeerde geheimen ($old) blijven staan.
      * @return array|string|null de instellingen, een foutmelding, of null (SNMP uit)
      */
@@ -121,6 +154,9 @@ final class SnmpMonitor
     {
         if (!is_array($in) || empty($in['on'])) {
             return null;
+        }
+        if (($in['use'] ?? '') === 'global') {
+            return self::global() === null ? t('Vul eerst de algemene SNMP-instelling in (Instellingen → Koppelingen → SNMP), of zet Eigen instellingen aan') : ['use' => 'global'];
         }
         $v = in_array($in['v'] ?? '', ['2c', '3'], true) ? $in['v'] : '2c';
         $port = (int) ($in['port'] ?? 161);

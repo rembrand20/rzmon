@@ -601,7 +601,21 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
   - **⚠️ Nu aandacht nodig**: per agent alles wat niet goed is (offline, oude versie, de punten van de verbindingscontrole, een geweigerd IP-adres), met **⬆ Bijwerken** en **Agent Manager**, en onderaan **🧹 Alles opruimen**;
   - een **kaart per agent**: status, versie, laatste contact (live) en badges (sleutel, versleuteld, http/https, ritme, realtime, bekend IP-adres), met *Agent Manager*, *Koppelen* en *Adres*. Sorteren op naam of op contact.
 - *Agents → **Standaardinstellingen***: wat voor alle agents geldt: automatisch bijwerken, het ritme, offline na … minuten, certificaatmappen, de versleuteling, het certificaat en de beveiligde verbinding (vroeger *Beveiligde verbinding*).
-- De **Agent Manager** is een pagina over bijna het hele scherm, zonder tabbladen en zonder zijwaarts schuiven: bovenaan de status en het contact, daaronder **Functies** (rapporteren, realtime, waakhond, endpoint-bewaking, info, commando-checks) en **Verbinding** (versleuteling, vastzetten, IP-slot, https, adres) naast elkaar, en **Installeren of opnieuw koppelen** ingeklapt (open als er nog nooit een rapport kwam).
+- De **Agent Manager** (vanaf 1.178.0 opnieuw ingedeeld) is een pagina over bijna het hele scherm.
+  - **Bovenaan** staan labels die laten zien hoe de agent ervoor staat (sleutel, versleuteld, https, EDR, waakhond, SNMP), met **🧪 Test** en **＋ Aanbevolen checks**, en daaronder de status en het contact.
+  - **Daaronder zes kaarten:**
+    - **Rapporteren:** het interval (std / 30 s / 1 m / 2 m / 5 m) en ⚡ Realtime.
+    - **Beveiliging:** endpoint-bewaking en commando-checks.
+    - **Meldingen:** 🐕 waakhond met *melden na … min* en de info bij agent-updates.
+    - **Verbinding:** versleuteling, certificaat vastzetten, IP-slot, alleen https en het adres van RzMon.
+    - **📡 SNMP:** zie §7.7.
+    - **Onderhoud:** opnieuw koppelen en een nieuw token.
+  - **Installeren of opnieuw koppelen** staat onderaan, ingeklapt (open als er nog nooit een rapport kwam).
+  - **Schakelaars:** alles is een schakelaar, geen keuzelijst. Heeft een instelling een algemene waarde (versleuteling, vastzetten, IP-slot, https, commando-checks), dan betekent de schakelaar *eigen keuze*: uit = de algemene instelling (die staat eronder), aan = je kiest voor deze server.
+- **🧪 Test** (vanaf 1.178.0) opent een popup met de uitslag in twee delen:
+  - **Vanuit RzMon (meteen):** het laatste rapport, de punten van de verbindingscontrole, geweigerde rapporten in de laatste 24 uur, de duur van een ronde, en met SNMP aan een echte vraag aan het apparaat.
+  - **Op de server (agent 1.79.0 of nieuwer):** de agent test zichzelf bij zijn volgende ronde: de timer of cronjob, de rechten van het instellingenbestand (600), DNS, het adres en het reserve-adres van RzMon, de klok (ook het verschil met RzMon), vrije ruimte, de wachtrij en fouten in zijn log. De popup wacht er hooguit 5 minuten op.
+  - Bovenaan staat het oordeel: *Alles in orde*, *Werkt, met aandachtspunten* of *problemen gevonden*. Met **Opnieuw testen** begin je opnieuw.
 - De keuzelijsten per agent (versleuteling, 📌, 🌐, 🔒) staan alleen nog in de Agent Manager; in de oude tabel stonden ze dubbel.
 
 **Commando bij installeren** (vanaf 1.124.0): in de Agent Manager staat onder elk ontbrekend onderdeel van de endpoint-bewaking een uitklapmenu **Commando** met wat de agent uitvoert (als root) en het commando om het zelf te doen (📋 kopiëren). Installeren via de agent kan alleen als commando's als root zijn toegestaan; anders staat alleen het commando voor jezelf erbij. Vanaf 1.125.0 (agent 1.66.0) kun je daar ook **eigen pakketnamen** opgeven, bijvoorbeeld `audit audispd-plugins`; de agent installeert die dan met `dnf`/`apt`. Alleen gewone pakketnamen (geen opties of paden), hooguit 10.
@@ -1319,8 +1333,10 @@ Op apparaten waar geen agent op kan, zoals switches, access points, een NAS, een
 - Kies **v2c** met een eigen community (liever niet `public`), of beter **v3** met een gebruiker, *SHA* en *AES*.
 - Waar het zit verschilt per merk en versie: bij UniFi in de Network-app (instellingen, SNMP), bij TP-Link Omada of JetStream onder de systeeminstellingen (SNMP), bij Synology: *Configuratiescherm → Terminal & SNMP → SNMP*; Proxmox/Debian: `apt install snmpd` en in `/etc/snmp/snmpd.conf` bijvoorbeeld `rocommunity <community> <IP van RzMon>` en `agentAddress udp:161`.
 
+**Algemene instelling** (vanaf 1.178.0): in *Instellingen → Koppelingen → SNMP* vul je één keer de versie, poort en community of v3-gebruiker in. Elk apparaat met SNMP aan en zonder *Eigen instellingen* gebruikt die. Je ziet er welke apparaten de algemene en welke een eigen instelling hebben; **🔍 Alles testen** vraagt ze allemaal tegelijk om hun systeeminformatie. Uitzetten kan pas als geen apparaat de algemene instelling meer gebruikt.
+
 **In RzMon**
-1. ✎ Bewerk de server (of ＋ Server) en open **📡 SNMP**: zet *SNMP gebruiken* aan, kies de versie en vul de community of de v3-gebruiker met wachtwoorden in.
+1. ✎ Bewerk de server (of ＋ Server), of open de **Agent Manager**, en zet bij **📡 SNMP** de schakelaar aan. Zonder **Eigen instellingen** gebruikt het apparaat de algemene instelling; met *Eigen instellingen* kies je de versie en vul je de community of de v3-gebruiker met wachtwoorden in.
 2. Klik op **🔍 Test SNMP**. Je ziet de naam, de fabrikant en hoe lang het apparaat aan staat, of een duidelijke fout (geen antwoord, verkeerde community…).
 3. Sla op. RzMon doorzoekt het apparaat meteen en toont **📡 SNMP-checks**: vink aan wat je wilt bewaken en klik op **Toevoegen**. Later open je die lijst met de knop **📡 SNMP-checks** bij de server; wat al bewaakt wordt, staat er grijs bij.
 

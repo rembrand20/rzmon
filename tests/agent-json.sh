@@ -38,6 +38,10 @@ for k in ('agent_version', 'hostname', 'cpu', 'mem', 'disks', 'services', 'proc_
 info = (d.get('edr') or {}).get('info') or {}
 if 'audit' not in info or not isinstance(d['edr'].get('ev'), list):
     print('✘ endpoint-bewaking ontbreekt in het rapport (edr.info/ev):', d.get('edr')); sys.exit(1)
+st = d.get('selftest') or {}
+if st.get('id') != 42 or not any(i.get('k') == 'url' and i.get('ok') == 'ok' for i in st.get('items', [])):
+    print('✘ zelftest ontbreekt of het adres van RzMon was niet bereikbaar (selftest):', st); sys.exit(1)
+print('✔ zelftest: ' + ', '.join('%s=%s' % (i['k'], i['ok']) for i in st['items']))
 odd = [p for p in d['proc_list'] if p[0] == 'rztestproc' and '\\[' in p[3] and '"x"' in p[3]]
 print('✔ geldige JSON, %d bytes, %d processen, %d disks%s' % (len(raw), len(d['proc_list']), len(d['disks']),
       ', proces met backslash netjes meegestuurd' if odd else ''))

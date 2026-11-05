@@ -8,11 +8,28 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.178.0**: de **Agent Manager** opnieuw ingedeeld in kaarten met schakelaars, een echte **🧪 Test** in een eigen popup, en één **algemene SNMP-instelling** (Koppelingen) met eigen instellingen per apparaat.
 - **1.177.0**: nieuwe **pad-check** (traceroute): per hop vertraging en verlies, je switches, de linksnelheid via UniFi en de echte doorvoer met iperf3, als futuristisch pad in de popup, op **Monitoring → Netwerkpaden** als netwerkkaart en in het kort bij de server.
 - **1.176.0**: **Monitoring → Containers** (alle Podman- en Docker-containers met status, CPU, geheugen en schijf), labels **Running / Failed / Stopped / Paused**, een **nieuwe popup per check** en een compacte **Nu aandacht nodig** in CC.
 - **1.175.0**: **Monitoring in CC** in een nieuw jasje: één raster met tegels (ring, lijntjes, 24 uur) zonder aparte sectie *met problemen*, en openklappen over de volle breedte met een veeranimatie zoals op een Mac.
 - **1.174.0**: **TrueNAS SCALE** beter ondersteund: meldingen, taken, apps, update en temperaturen als checks, kwetsbaarheden scannen, en het IDS mag er blokkeren als je dat aanzet.
-- **1.173.0**: **AI-advies** met **verbruik, tegoed en maandbudget**, en extra's als geheugen, niet twee keer betalen, terugvallen op Ollama, een weekoverzicht en een oordeel bij IDS-incidenten.
+
+## 1.178.0 – 2026-11-05
+### Nieuw
+- **Agent Manager opnieuw ingedeeld** in de stijl van de nieuwe pagina's. Bovenaan staat hoe de agent ervoor staat (sleutel, versleuteld, https, EDR, waakhond, SNMP) met de knoppen **🧪 Test** en **＋ Aanbevolen checks**. Daaronder staan zes kaarten waarin bij elkaar staat wat bij elkaar hoort:
+  - **Rapporteren:** het interval en Realtime.
+  - **Beveiliging:** endpoint-bewaking en commando-checks.
+  - **Meldingen:** de waakhond en de info bij agent-updates.
+  - **Verbinding:** versleuteling, certificaat vastzetten, IP-slot, alleen https en het adres van RzMon.
+  - **SNMP.**
+  - **Onderhoud:** opnieuw koppelen en een nieuw token.
+- **Schakelaars in plaats van keuzelijsten**: elke aan/uit-keuze is een schakelaar. Bij instellingen met een algemene waarde betekent de schakelaar *eigen keuze*: uit = de algemene instelling (die staat ernaast), aan = een keuze voor deze server.
+- **🧪 Test** (agent 1.79.0 voor het tweede deel) in een eigen popup met de uitslag:
+  - **Vanuit RzMon, meteen:** laatste rapport, de verbindingscontrole, geweigerde rapporten, de duur van een ronde en een echte SNMP-vraag als SNMP aan staat.
+  - **Op de server, bij de volgende ronde van de agent:** planning, instellingenbestand, DNS, het adres en het reserve-adres, de klok (ook tegenover RzMon), vrije ruimte, de wachtrij en fouten in het log.
+- **Algemene SNMP-instelling** (*Instellingen → Koppelingen → SNMP*): één versie, poort, community of v3-gebruiker voor al je apparaten. Per apparaat zet je **Eigen instellingen** aan als het anders moet. Je ziet welke apparaten welke instelling gebruiken, en met **🔍 Alles testen** test je ze in één keer. De community en de wachtwoorden gaan nooit naar de browser.
+- **Schakelaars in de formulieren**: in het serverformulier (📡 SNMP en 📁 Bestanden bewaken) en het checkformulier (🔔 Meldingen en 🌙 Stille uren) zijn de uitklaplijsten vervangen door een schakelaar. Aan = de velden verschijnen en gelden, uit = de algemene instellingen.
+- Nieuwe agent 1.79.0 (zelftest).
 
 ## 1.177.2 – 2026-11-05
 ### Opgelost
