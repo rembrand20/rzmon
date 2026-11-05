@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.182.0**: **alle functies in één tabel** (*Instellingen → Overzicht → Functies* en bovenaan FEATURES.md), met de status van nu (aan, uit, niet ingesteld) en een knop naar waar je hem instelt.
 - **1.181.0**: de **IDS-beschermingen** stel je nu in op *Instellingen → IDS → Beschermingen*; *IDS → Bescherming* is een overzicht met een knop **Instellen**. De rol **gebruiker** mag een paar onderdelen van de beheerportal bekijken (Status, Advies, Rapporten, Wijzigingslogboek).
 - **1.180.0**: alle **rapporten op één plek** (*Instellingen → Rapporten*): IDS- en AI-weekoverzicht, maandrapport en nieuw kwetsbaarheden, beschikbaarheid, back-ups en datalekken, als HTML-mail of push, met **Nu versturen**, **Voorbeeld**, **Naar mij** en een **Maandoverzicht** met alles in één.
 - **1.179.0**: **CVE's slimmer**: rugbaarheid per kwetsbaarheid (exploits en hoeveel erover gepraat wordt), **Raakt dit jou echt?** met AI, **Eén update, veel opgelost** en een melding als een CVE op je servers veel aandacht krijgt.
 - **1.178.0**: de **Agent Manager** opnieuw ingedeeld in kaarten met schakelaars, een echte **🧪 Test** in een eigen popup, en één **algemene SNMP-instelling** (Koppelingen) met eigen instellingen per apparaat.
-- **1.177.0**: nieuwe **pad-check** (traceroute): per hop vertraging en verlies, je switches, de linksnelheid via UniFi en de echte doorvoer met iperf3, als futuristisch pad in de popup, op **Monitoring → Netwerkpaden** als netwerkkaart en in het kort bij de server.
+
+## 1.182.0 – 2026-11-05
+### Nieuw
+- **📋 Instellingen → Overzicht → Functies**: alle functies van RzMon in één tabel (nu 122). Per functie zie je:
+  - het onderdeel en de versie waarin hij kwam;
+  - wat hij doet;
+  - de status van nu: ✅ **aan**, ⚪ **uit**, ⚠️ **niet ingesteld** (er ontbreekt nog iets, zoals een sleutel of server) of ✔ **altijd** (geen schakelaar);
+  - een knop naar de plek waar je hem instelt of bekijkt.
+
+  Je kunt zoeken, filteren op onderdeel en status, en op een teller klikken. Gebruikers zien de tabel ook (alleen bekijken).
+- **FEATURES.md** begint nu met dezelfde tabel. Die komt uit `src/Features.php` en wordt gemaakt met `php tools/features-table.php`; een test controleert dat hij klopt.
 
 ## 1.181.0 – 2026-11-05
 ### Nieuw

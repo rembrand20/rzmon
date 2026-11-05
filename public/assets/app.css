@@ -3935,3 +3935,24 @@ html[data-motion="0"] .sws-b { animation: none; }
 .prot-st.on { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); } .prot-st.off { color: var(--muted); background: color-mix(in srgb, var(--muted) 14%, transparent); }
 .prot-set { margin-left: .4rem; white-space: nowrap; flex: none; }
 @media (max-width: 560px) { .ps-row { flex-wrap: wrap; } .ps-r { width: 100%; justify-content: flex-end; } }
+
+/* 1.182.0: Instellingen → Overzicht → Functies */
+.feat-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .6rem; margin: .4rem 0 1rem; }
+.feat-n { display: flex; flex-direction: column; gap: .15rem; padding: .7rem .9rem; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--card) 80%, transparent); text-align: left; font: inherit; color: inherit; }
+button.feat-n { cursor: pointer; } button.feat-n:hover, button.feat-n.on { border-color: var(--primary); }
+.feat-n b { font-size: 1.5rem; line-height: 1; } .feat-n small { color: var(--muted); }
+.feat-bar { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .6rem; }
+.feat-bar input { flex: 1 1 220px; min-width: 0; } .feat-bar select { flex: 1 1 160px; max-width: 260px; }
+.feat-wrap { overflow-x: auto; }
+.feat-tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.feat-tbl th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: .4rem .5rem; border-bottom: 1px solid var(--border); }
+.feat-tbl td { padding: .55rem .5rem; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); vertical-align: top; }
+.feat-tbl td small { display: block; color: var(--muted); margin-top: .15rem; }
+.feat-g { white-space: nowrap; color: var(--muted); } .feat-v { font-family: ui-monospace, monospace; font-size: .8rem; white-space: nowrap; }
+.feat-go { text-align: right; white-space: nowrap; }
+.feat-pill { font-size: .75rem; font-weight: 600; padding: .15rem .5rem; border-radius: 999px; white-space: nowrap; }
+.feat-pill.feat-st-on { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.feat-pill.feat-st-off { color: var(--muted); background: color-mix(in srgb, var(--muted) 14%, transparent); }
+.feat-pill.feat-st-unset { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.feat-pill.feat-st-always { color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+@media (max-width: 640px) { .feat-g, .feat-tbl th:first-child { display: none; } .feat-go .btn { padding-inline: .5rem; } }

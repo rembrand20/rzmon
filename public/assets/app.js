@@ -5059,6 +5059,62 @@ document.addEventListener('click', (e) => {
 });
 
 // ---------------------------------------------------------------- SNMP
+// ---------------------------------------------------------------- 1.182.0: Instellingen → Overzicht → Functies
+let featData = null;
+const featF = { q: '', g: '', st: '' };
+const FEAT_ST = () => ({ on: ['✅', L('aan')], off: ['⚪', L('uit')], unset: ['⚠️', L('niet ingesteld')], always: ['✔', L('altijd')] });
+async function loadFeatures() {
+  const box = $('#features-box');
+  if (!box) return;
+  try { featData = await api('features'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
+  const st = FEAT_ST();
+  const cnt = (k) => featData.rows.filter((r) => r.status === k).length;
+  box.innerHTML = `<div class="feat-sum">
+      <div class="feat-n"><b>${featData.rows.length}</b><small>${L('functies')}</small></div>
+      ${['on', 'off', 'unset', 'always'].map((k) => `<button type="button" class="feat-n feat-st-${k}" data-feat-st="${k}"><b>${cnt(k)}</b><small>${st[k][0]} ${esc(st[k][1])}</small></button>`).join('')}
+    </div>
+    <div class="feat-bar">
+      <input type="search" id="feat-q" placeholder="${esc(L('Zoek een functie…'))}" aria-label="${esc(L('Zoek een functie'))}">
+      <select id="feat-g" aria-label="${esc(L('Onderdeel'))}"><option value="">${L('Alle onderdelen')}</option>
+        ${Object.entries(featData.groups).map(([k, [ic, n]]) => `<option value="${esc(k)}">${ic} ${esc(n)}</option>`).join('')}</select>
+      <select id="feat-st" aria-label="${esc(L('Status'))}"><option value="">${L('Elke status')}</option>
+        ${['on', 'off', 'unset', 'always'].map((k) => `<option value="${k}">${st[k][0]} ${esc(st[k][1])}</option>`).join('')}</select>
+    </div>
+    <div class="feat-wrap"><table class="feat-tbl"><thead><tr><th>${L('Onderdeel')}</th><th>${L('Functie')}</th><th>${L('Sinds')}</th><th>${L('Status')}</th><th></th></tr></thead><tbody id="feat-body"></tbody></table></div>
+    <p class="muted small" id="feat-foot"></p>`;
+  $('#feat-q').value = featF.q; $('#feat-g').value = featF.g; $('#feat-st').value = featF.st;
+  $('#feat-q').oninput = (e) => { featF.q = e.target.value; featRender(); };
+  $('#feat-g').onchange = (e) => { featF.g = e.target.value; featRender(); };
+  $('#feat-st').onchange = (e) => { featF.st = e.target.value; featRender(); };
+  box.onclick = (e) => {
+    const s = e.target.closest('[data-feat-st]');
+    if (s) { featF.st = featF.st === s.dataset.featSt ? '' : s.dataset.featSt; $('#feat-st').value = featF.st; featRender(); return; }
+    const go = e.target.closest('[data-feat-go]');
+    if (!go) return;
+    const t = go.dataset.featGo;
+    if (t.startsWith('#')) { const [tab, sub] = t.slice(1).split(':'); showTab(tab); if (sub) setMonSub(sub); } else showSettingsSection(t);
+  };
+  featRender();
+}
+function featRender() {
+  const st = FEAT_ST();
+  const q = featF.q.trim().toLowerCase();
+  const navOk = new Set(SET_NAV.flatMap((g) => g[3].map((s) => s[0])));
+  const rows = featData.rows.filter((r) => (!featF.g || r.g === featF.g) && (!featF.st || r.status === featF.st)
+    && (!q || (r.name + ' ' + r.what + ' ' + r.since).toLowerCase().includes(q)));
+  $('#feat-body').innerHTML = rows.map((r) => {
+    const [ic, gn] = featData.groups[r.g] || ['', r.g];
+    const canGo = r.sec && (r.sec.startsWith('#') || navOk.has(r.sec));
+    return `<tr class="feat-r-${r.status}"><td class="feat-g">${ic} ${esc(gn)}</td>
+      <td><b>${esc(r.name)}</b><small>${esc(r.what)}</small></td>
+      <td class="feat-v">${esc(r.since)}</td>
+      <td><span class="feat-pill feat-st-${r.status}">${st[r.status][0]} ${esc(st[r.status][1])}</span></td>
+      <td class="feat-go">${canGo ? `<button type="button" class="btn small-btn" data-feat-go="${esc(r.sec)}">${r.sec.startsWith('#') ? L('Openen') : (isAdmin() ? '⚙️ ' + L('Instellen') : L('Bekijken'))} →</button>` : ''}</td></tr>`;
+  }).join('') || `<tr><td colspan="5" class="muted">${L('Geen functies gevonden.')}</td></tr>`;
+  $('#feat-foot').textContent = L('{n} van {t} functies', { n: rows.length, t: featData.rows.length });
+  $$('[data-feat-st]').forEach((b) => b.classList.toggle('on', b.dataset.featSt === featF.st));
+}
+
 // ---------------------------------------------------------------- 1.181.0: Instellingen → IDS → Beschermingen
 let protFocus = null;
 async function loadProtSettings() {
@@ -11533,6 +11589,7 @@ const SET_IC = (d) => `<svg class="tab-ic set-ic" viewBox="0 0 24 24" aria-hidde
 const SET_NAV = [
   ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Overzicht'), [
     ['overview', L('Status'), ['overview'], L('Wat er nog aandacht nodig heeft, met een knop om het te regelen.')],
+    ['features', L('Functies'), ['features'], L('Alle functies van RzMon, met wat er aan staat en waar je het instelt.')],
     ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzMon elke minuut uitvoert.')]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
     ['allchecks', L('Alle checks'), ['allchecks'], L('Alle checks van alle servers in één lijst, ook samen bewerken.')],
@@ -11660,6 +11717,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'snmp') loadSnmpGlobal();   // 1.178.0
   if (setSection === 'reports') loadReports();   // 1.180.0
   if (setSection === 'ids_prot') loadProtSettings();   // 1.181.0
+  if (setSection === 'features') loadFeatures();   // 1.182.0
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0

@@ -1483,6 +1483,13 @@ $ex = CheckInfo::extra(q('SELECT * FROM checks WHERE id = ?', [$ctId])->fetch())
 ok($ex['counts']['n24'] === 2 && $ex['counts']['f24'] === 1 && $ex['outages']['count'] === 2 && $ex['outages']['mttr'] === 1800 && $ex['notify']['streak'] === 3
     && ($ex['detail']['kind'] ?? '') === 'container' && $ex['detail']['state'] === 'running',
     'popup van een check: hoe vaak gecheckt, storingen en hersteltijd over 30 dagen, melden na N, details van de container');
+// 1.182.0: functietabel: status uit de instellingen, elke rij compleet, FEATURES.md loopt niet achter
+$ftSt = [Features::status('', []), Features::status('x_on', ['x_on' => '1']), Features::status('x_on', ['x_on' => '0']), Features::status('x_on|x_key', ['x_on' => '1', 'x_key' => '']), Features::status('backup_freq', ['backup_freq' => 'off'])];
+$ftRows = Features::rows();
+$ftOk = count($ftRows) === count(Features::LIST);
+foreach (Features::LIST as $r) $ftOk = $ftOk && isset(Features::GROUPS[$r[0]]) && count($r[1]) === 2 && count($r[2]) === 2 && preg_match('/^\d+\.\d+\.\d+$/', $r[3]);
+exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/../../tools/features-table.php') . ' --check 2>&1', $ftOut, $ftRc);
+ok($ftSt === ['always', 'on', 'off', 'unset', 'off'] && $ftOk && $ftRc === 0, 'functietabel: altijd/aan/uit/niet ingesteld, elke rij heeft een groep, NL+EN en een versie, FEATURES.md is bijgewerkt');
 // 1.180.0: Rapporten: de oude instellingen worden overgenomen, wanneer een rapport aan de beurt is, één keer per periode, de inhoud
 save_setting('reports', '');
 save_setting('ids_weekly', 'both');

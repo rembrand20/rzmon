@@ -590,6 +590,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="seg set-tabs" id="set-tabs" role="tablist" hidden></div>
       <div class="pg-tools" data-pgtools="set"></div>
       <div data-sk="overview" class="card set-overview" id="set-overview"></div>
+      <div data-sk="features" class="card" id="features-card" data-nodirty>
+        <h2>📋 <?= th('Functies') ?></h2>
+        <?= xp(t('Alle functies van RzMon op één plek.'), t('<b>Wat je ziet:</b> elke functie met het onderdeel, de versie waarin hij kwam en de status van nu: <b>aan</b>, <b>uit</b>, <b>niet ingesteld</b> (er ontbreekt nog iets, zoals een sleutel of server) of <b>altijd</b> (geen schakelaar). Met de knop ga je naar de plek waar je hem instelt. Klik op een teller om te filteren.')) ?>
+        <div id="features-box"><p class="muted small"><?= th('laden…') ?></p></div>
+      </div>
       <div class="set-toolbar">
         <span class="muted small"><?= th('Klik op een onderdeel om het te openen of te sluiten.') ?></span>
         <button type="button" class="btn" id="set-toggle-all"><?= th('⊞ Alles openen') ?></button>
