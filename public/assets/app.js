@@ -2709,6 +2709,7 @@ function aiTitle(kind, ref) {
   if (kind === 'week') return L('Weekoverzicht') + ' ' + L('week {w}', { w: String(ref).slice(4) });
   if (kind === 'triage') return L('Oordeel') + ' · ' + L('IDS-incident') + ' #' + ref;
   if (kind === 'report') return L('Verslag') + ' · ' + L('Incident') + ' #' + ref;
+  if (kind === 'cve') { const e = vulnData && vulnData.buzz ? Object.entries(vulnData.buzz).find(([, v]) => v.id === +ref) : null; return L('Raakt dit jou echt?') + (e ? ' · ' + e[0] : ''); }
   return (kind === 'ids' ? L('IDS-incident') : L('Incident')) + ' #' + ref;
 }
 async function aiOpen(kind, ref) {
@@ -11395,7 +11396,7 @@ const SET_NAV = [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
     ['outside', L('Beheer via https'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk.')],
     ['users', L('Gebruikers'), ['users'], L('Accounts, rollen en tweestapsverificatie.')],
-    ['vulns', L('Kwetsbaarheden'), ['vulns'], L('Bekende lekken in de software op je servers.')],
+    ['vulns', L('Kwetsbaarheden'), ['vulns', 'cvebuzz'], L('Bekende lekken in de software op je servers.')],
     ['hibp', L('Datalekken'), ['hibp'], L('Staan je e-mailadressen of domein in een datalek?')],
     ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
   ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents'), [
@@ -12299,7 +12300,7 @@ const SYSINFO_ROWS = [
   [L('Inloggen'), [['login_ok', '🔑 ' + L('Ingelogd')], ['login_fail', '❌ ' + L('Mislukte login')], ['server_login', '🖥️ ' + L('Login op een server, van binnen (SSH of console)')]]],
   [L('Blokkades'), [['account_lock', '🔒 ' + L('Account geblokkeerd')], ['account_unlock', '🔓 ' + L('Account gedeblokkeerd')],
     ['ip_block', '⛔ ' + L('IP geblokkeerd')], ['ip_unblock', '✅ ' + L('Blokkade opgeheven')]]],
-  [L('Kwetsbaarheden'), [['vuln_new', '🐞 ' + L('Nieuwe kwetsbaarheden')], ['vuln_upgrade', '📦 ' + L('Pakketten bijgewerkt of mislukt')], ['advice_crit', '🚨 ' + L('Kritiek advies (wereldwijd bekende kwetsbaarheid)')]]],
+  [L('Kwetsbaarheden'), [['vuln_new', '🐞 ' + L('Nieuwe kwetsbaarheden')], ['vuln_buzz', '🔥 ' + L('Een kwetsbaarheid op je servers krijgt veel aandacht')], ['vuln_upgrade', '📦 ' + L('Pakketten bijgewerkt of mislukt')], ['advice_crit', '🚨 ' + L('Kritiek advies (wereldwijd bekende kwetsbaarheid)')]]],
   [L('Beveiliging'), [['cert', '🔐 ' + L('Certificaat verloopt binnenkort')], ['breach', '🔓 ' + L('Datalek (zonder wachtwoorden of eerste controle)')],
     ['local_only', '🏠 ' + L('Inlogpoging van buiten op een lokaal account')], ['sec', '⚠️ ' + L('Niet-geautoriseerde verbinding')]]],
   [L('Onzichtbaar van buiten'), [['device_request', '⏳ ' + L('Geweigerd apparaat van buiten (wachtend)')], ['device_trust', '📱 ' + L('Apparaat toegestaan of ingetrokken')], ['passkey', '🔑 ' + L('Passkey aangemaakt of verwijderd')],
@@ -14802,15 +14803,23 @@ function vulnVisible() {
     if (vulnFilter === 'fix' && !f.fixed) return false;
     if (vulnFilter === 'kev' && !f.kev) return false;
     if (vulnFilter === 'risk' && f.risk < 70) return false;
+    if (vulnFilter === 'buzz') { const b = vulnBuzz(f.cve); if (!b || b.score === null || b.score < (vulnData.buzz_min || 60)) return false; }   // 1.179.0
     return !q || f.package.toLowerCase().includes(q) || f.cve.toLowerCase().includes(q) || f.vuln_id.toLowerCase().includes(q)
       || (f.binaries || '').toLowerCase().includes(q) || hostName[f.host_id].includes(q) || (f.summary || '').toLowerCase().includes(q);
   });
 }
 
+/** 1.179.0: rugbaarheid van een CVE (of null), en het oordeel van de AI */
+const vulnBuzz = (cve) => (vulnData && vulnData.buzz ? vulnData.buzz[cve] || null : null);
+const VULN_AI = { now: ['bad', () => L('eerst doen')], later: ['warn', () => L('kan wachten')], na: ['ok', () => L('niet van toepassing')] };
 function vulnChip(f) {
   const [icon] = VULN_SEV[f.severity] || VULN_SEV[0];
-  return `<button type="button" class="cve-chip sev${f.severity}${f.kev ? ' kev' : ''}" data-cve="${esc(f.cve)}"
-    title="${esc((f.summary || f.vuln_id) + ` · ${L('risico')} ${f.risk}` + (f.cvss ? ` · CVSS ${f.cvss}` : '') + (f.kev ? ' · ' + L('actief misbruikt') : ''))}">${icon} ${esc(f.cve)}${f.kev ? ' ⚠️' : ''}</button>`;
+  const b = vulnBuzz(f.cve);
+  const hot = b && b.score !== null && b.score >= (vulnData.buzz_min || 60);
+  const ai = b && VULN_AI[b.ai];
+  return `<button type="button" class="cve-chip sev${f.severity}${f.kev ? ' kev' : ''}${hot ? ' hot' : ''}" data-cve="${esc(f.cve)}"
+    title="${esc((f.summary || f.vuln_id) + ` · ${L('risico')} ${f.risk}` + (f.cvss ? ` · CVSS ${f.cvss}` : '') + (f.kev ? ' · ' + L('actief misbruikt') : '')
+      + (b && b.score !== null ? ' · ' + L('rugbaarheid {s}', { s: b.score }) : '') + (ai ? ' · AI: ' + ai[1]() : ''))}">${icon} ${esc(f.cve)}${f.kev ? ' ⚠️' : ''}${hot ? ` <span class="cve-hot">🔥${b.score}</span>` : ''}${ai ? ` <span class="cve-ai ${ai[0]}" aria-hidden="true">🤖</span>` : ''}</button>`;
 }
 
 /** 1.141.0: risicoscore 0–100 als pil (hoog ≥ 70, midden ≥ 40) */
@@ -14866,9 +14875,10 @@ function renderVulns() {
       <div class="kpi-sub">${L('volgende scan om {t} (over {l})', { t: esc(d.scan_time), l: left >= 60 ? `${Math.floor(left / 60)} ${L('u')} ${left % 60} min` : `${left} min` })}</div></div>`;
   // Chips met aantallen
   const cntF = (k) => new Set(d.findings.filter((f) => (k === 'ignored' ? f.ignored : !f.ignored)
-    && (k !== 'exposed' || (d.hosts.find((h) => +h.id === +f.host_id)?.exposed || {})[f.package]) && (k !== 'fix' || f.fixed) && (k !== 'kev' || f.kev) && (k !== 'risk' || f.risk >= 70)).map((f) => f.host_id + '|' + f.cve)).size;
-  $('#vuln-filter').innerHTML = [['all', L('Alles')], ['risk', '🔥 ' + L('Hoog risico')], ['exposed', '🌐 ' + L('Bereikbaar')], ['fix', L('Met oplossing')], ['kev', '⚠️ ' + L('Actief misbruikt')], ['ignored', L('Geaccepteerd')]]
+    && (k !== 'exposed' || (d.hosts.find((h) => +h.id === +f.host_id)?.exposed || {})[f.package]) && (k !== 'fix' || f.fixed) && (k !== 'kev' || f.kev) && (k !== 'risk' || f.risk >= 70) && (k !== 'buzz' || ((vulnBuzz(f.cve) || {}).score ?? -1) >= (d.buzz_min || 60))).map((f) => f.host_id + '|' + f.cve)).size;
+  $('#vuln-filter').innerHTML = [['all', L('Alles')], ['risk', '⚡ ' + L('Hoog risico')], ...(d.buzz ? [['buzz', '🔥 ' + L('Veel aandacht')]] : []), ['exposed', '🌐 ' + L('Bereikbaar')], ['fix', L('Met oplossing')], ['kev', '⚠️ ' + L('Actief misbruikt')], ['ignored', L('Geaccepteerd')]]
     .map(([k, l]) => `<button type="button" class="dchip ${vulnFilter === k ? 'on' : ''}" data-vf="${k}">${l} <b>${cntF(k)}</b></button>`).join('');
+  $('#vuln-oneup').innerHTML = vulnOneUp(live);
   $('#vuln-badge').hidden = !(n[4] + kev);
   $('#vuln-badge').textContent = n[4] + kev || '';
   if (!d.hosts.length) {
@@ -14882,6 +14892,53 @@ function renderVulns() {
   const hostsShown = fxActive('vulns') ? d.hosts.filter((h) => (byHost[h.id] || []).length) : d.hosts;
   $('#vuln-hosts').innerHTML = hostsShown.length ? hostsShown.map((h) => vulnHostCard(h, byHost[h.id] || [])).join('')
     : `<div class="card"><p class="muted" style="margin:0">${L('Niets gevonden.')}</p></div>`;
+}
+
+/**
+ * 1.179.0: "Eén update, veel opgelost": per pakket hoeveel kwetsbaarheden een update oplost, op hoeveel servers,
+ * gesorteerd op het risico dat verdwijnt (som van het risico per server en CVE). Alleen wat een oplossing heeft.
+ */
+function vulnOneUp(live) {
+  const by = {};
+  live.filter((f) => f.fixed).forEach((f) => {
+    const p = (by[f.package] ||= { name: f.package, hosts: {}, cves: new Set(), kev: new Set(), hot: new Set(), sum: 0, seen: new Set(), max: 0 });
+    const k = f.host_id + '|' + f.cve;
+    if (!p.seen.has(k)) { p.seen.add(k); p.sum += f.risk || 0; }
+    p.cves.add(f.cve);
+    if (f.kev) p.kev.add(f.cve);
+    const b = vulnBuzz(f.cve);
+    if (b && b.score !== null && b.score >= (vulnData.buzz_min || 60)) p.hot.add(f.cve);
+    p.max = Math.max(p.max, f.risk || 0);
+    const hh = (p.hosts[f.host_id] ||= { id: f.host_id, fixed: f.fixed, n: 0 });
+    hh.n++;
+    if (String(f.fixed) > String(hh.fixed)) hh.fixed = f.fixed;
+  });
+  const list = Object.values(by).filter((p) => p.cves.size >= 2 || p.kev.size || p.max >= 70).sort((a, b) => b.sum - a.sum).slice(0, 6);
+  if (!list.length) return '';
+  const name = (id) => (vulnData.hosts.find((h) => h.id === +id) || {}).name || '#' + id;
+  return `<div class="card vou"><div class="vou-h"><h3>🎯 ${L('Eén update, veel opgelost')}</h3><span class="muted small">${L('de updates die het meeste risico wegnemen')}</span></div>
+    <div class="vou-list">${list.map((p, i) => {
+      const hs = Object.values(p.hosts);
+      const fixed = [...new Set(hs.map((x) => x.fixed))];
+      return `<div class="vou-row"><span class="vou-rank" aria-hidden="true">${i + 1}</span>
+        <span class="vou-main"><b>${esc(p.name)}</b> <span class="muted small mono">→ ${esc(fixed.length === 1 ? fixed[0] : L('{n} versies', { n: fixed.length }))}</span>
+          <small>${p.cves.size === 1 ? L('1 kwetsbaarheid opgelost') : L('{n} kwetsbaarheden opgelost', { n: p.cves.size })} · ${hs.length === 1 ? esc(name(hs[0].id)) : L('op {n} servers', { n: hs.length })}${p.kev.size ? ` · <b class="bad">⚠️ ${L('{n} actief misbruikt', { n: p.kev.size })}</b>` : ''}${p.hot.size ? ` · 🔥 ${L('{n} met veel aandacht', { n: p.hot.size })}` : ''}</small></span>
+        <span class="vou-bar" title="${esc(L('Risico dat verdwijnt: {n}', { n: p.sum }))}"><i style="width:${Math.min(100, Math.round(p.sum / list[0].sum * 100))}%"></i></span>
+        <button type="button" class="btn small-btn need-admin" data-vou="${esc(p.name)}">⬆ ${L('Bijwerken')}</button></div>`;
+    }).join('')}</div></div>`;
+}
+/** Bijwerken vanuit "Eén update": één server meteen, meer servers eerst kiezen */
+function vulnOneUpDo(pkg) {
+  const hosts = [...new Set(vulnData.findings.filter((f) => f.package === pkg && f.fixed && !f.ignored).map((f) => f.host_id))]
+    .map((id) => vulnData.hosts.find((h) => h.id === id)).filter(Boolean);
+  if (hosts.length === 1) return vulnUpgrade(hosts[0], [pkg]);
+  modal({
+    title: L('{p} bijwerken', { p: pkg }),
+    body: `<div style="padding:1rem 1.2rem"><p class="muted small">${L('Kies de server; bijwerken gaat per server via de agent (of met het commando).')}</p>
+      ${hosts.map((h) => `<div class="am-row"><div class="am-rt"><b>${esc(h.name)}</b><small>${esc(h.os || '')}</small></div><div class="am-rr"><button type="button" class="btn small-btn" data-vou-h="${h.id}">⬆ ${L('Bijwerken')}</button></div></div>`).join('')}</div>`,
+    buttons: [{ label: L('Sluiten'), cls: 'primary', submit: true }],
+  });
+  $$('[data-vou-h]', $('#modal')).forEach((b) => (b.onclick = () => vulnUpgrade(hosts.find((h) => h.id === +b.dataset.vouH), [pkg])));
 }
 
 function vulnHostCard(h, fs) {
@@ -14948,6 +15005,8 @@ function vulnHostCard(h, fs) {
 }
 
 function vulnClick(e) {
+  const vou = e.target.closest('[data-vou]');
+  if (vou) return vulnOneUpDo(vou.dataset.vou);
   const det = e.target.closest('details.vuln-host');
   if (det && $(':scope > summary', det).contains(e.target)) {   // open/dicht onthouden (per account)
     setTimeout(() => { vulnTmp.h.set(+det.dataset.host, det.open); vulnOpenSave('h', [[+det.dataset.host, det.open]]); }, 0);
@@ -14966,6 +15025,45 @@ function vulnClick(e) {
     const fs = vulnVisible().filter((f) => f.host_id === h.id && f.package === b.dataset.pkg);
     b.parentElement.innerHTML = fs.map(vulnChip).join(' ');
   }
+}
+
+/** 1.179.0: blok Rugbaarheid (meter, bronnen, verloop) en Raakt dit jou echt? (AI) in de popup van een kwetsbaarheid */
+function vulnBuzzHtml(d) {
+  const b = d.buzz;
+  if (!b) return '';
+  const x = b.data || {};
+  const lvl = b.score >= b.threshold ? 'hot' : b.score >= 30 ? 'mid' : 'low';
+  const ssvc = x.ssvc ? ({ active: L('actief misbruikt'), poc: L('er is een proof-of-concept'), none: L('geen misbruik bekend') }[x.ssvc.e] || '?')
+    + (x.ssvc.a === 'yes' ? ' · ' + L('automatiseerbaar') : '') + (x.ssvc.t === 'total' ? ' · ' + L('volledige overname') : '') : L('nog geen oordeel');
+  const yes = (v) => (v ? `<b class="bad">${L('ja')}</b>` : L('nee'));
+  const cnt = (n) => (+n ? `<b>${(+n).toLocaleString(LOCALE)}</b>` : '0');
+  const hist = (b.history || []).slice(-14);
+  const max = Math.max(10, ...hist.map((h) => +h[1]));
+  const spark = hist.length > 1 ? `<svg class="vbz-spark" viewBox="0 0 ${(hist.length - 1) * 10} 30" preserveAspectRatio="none" aria-hidden="true"><polyline points="${hist.map((h, i) => `${i * 10},${(30 - (h[1] / max) * 28).toFixed(1)}`).join(' ')}"/></svg>` : '';
+  const ai = VULN_AI[b.ai];
+  const tag = (u) => `${esc(b.mastodon)}/tags/${u}`;
+  const m = /^CVE-(\d{4})-(\d+)$/.exec(d.cve);
+  return `<section class="vbz vbz-${lvl}" id="vbz">
+    <div class="vbz-top">
+      <div class="vbz-ring" style="--p:${b.score}"><div><b>${b.checked_at ? b.score : '–'}</b><small>${L('rugbaarheid')}</small></div></div>
+      <div class="vbz-txt"><h3>🔥 ${L('Rugbaarheid')} ${b.checked_at && b.trend ? `<span class="vbz-trend ${b.trend > 0 ? 'up' : 'down'}">${b.trend > 0 ? '↑ +' : '↓ '}${b.trend} ${L('in 7 dagen')}</span>` : ''}</h3>
+        <p class="muted small">${b.checked_at ? L('Exploits {e}/60 · praat {t}/40 · bijgewerkt {w}', { e: b.exploit, t: b.talk, w: ago(b.checked_at) }) : b.on ? L('Nog niet bijgewerkt; dat gebeurt bij de volgende scan.') : L('Staat uit (Instellingen → Kwetsbaarheden → Rugbaarheid).')}</p>
+        ${spark}
+        ${b.on ? `<button type="button" class="btn small-btn" data-vbuzz-now>↻ ${L('Nu bijwerken')}</button>` : ''}</div>
+    </div>
+    ${b.checked_at ? `<div class="vbz-src">
+      <span>⚠️ ${L('Actief misbruikt (CISA KEV)')}</span><span>${yes(d.kev)}</span>
+      <span>🏛️ ${L('Oordeel van CISA (SSVC)')}</span><span>${esc(ssvc)}</span>
+      <span>💥 <a href="https://github.com/search?type=repositories&q=${encodeURIComponent('"' + d.cve + '"')}" target="_blank" rel="noopener noreferrer">${L("Openbare PoC's op GitHub")}</a></span><span>${cnt(x.gh)}</span>
+      <span>🗡️ ${L('Exploit op Exploit-DB')}</span><span>${yes(x.edb)}</span>
+      <span>🎯 ${L('Nuclei-template (scanners zoeken ernaar)')}</span><span>${yes(x.nuclei)}</span>
+      <span>🟠 <a href="https://hn.algolia.com/?query=${encodeURIComponent('"' + d.cve + '"')}" target="_blank" rel="noopener noreferrer">Hacker News</a> <span class="muted small">${L('7 dagen · totaal')}</span></span><span>${cnt(x.hn7)} · ${cnt(x.hn)}</span>
+      <span>🐘 ${m ? `<a href="${tag('CVE' + m[1] + m[2])}" target="_blank" rel="noopener noreferrer">Mastodon</a>` : 'Mastodon'} <span class="muted small">${L('7 dagen')}</span></span><span>${cnt(x.md7)}</span>
+    </div>` : ''}
+    ${aiOn() ? `<div class="vbz-ai"><div><b>🤖 ${L('Raakt dit jou echt?')}</b>${ai ? ` <span class="ai-verdict ${ai[0]}">${esc(ai[1]())}</span>` : ''}
+        <p class="muted small">${L('De AI kijkt naar je servers: staat het pakket open naar het netwerk, is er al misbruik, is er een oplossing. Je krijgt een oordeel en wat je moet doen.')}</p></div>
+      ${aiBtn('cve', b.id, true)}</div>` : ''}
+  </section>`;
 }
 
 /** CVSS-vector in gewone woorden: hoe is hij te misbruiken? */
@@ -15008,6 +15106,7 @@ async function vulnDetail(cve) {
       ${d.summary ? `<p><b>${esc(d.summary)}</b></p>` : ''}
       ${d.details ? `<details class="vd-details" ${d.details.length < 600 ? 'open' : ''}><summary>${L('Omschrijving')}</summary><p class="small" style="white-space:pre-wrap">${esc(d.details)}</p></details>` : ''}
       <table class="kv">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
+      ${vulnBuzzHtml(d)}
       <h3>${L('Zo los je het op')}</h3>
       ${xpHtml(L('Installeer de oplossing uit de pakketbron van je distributie.'), L('Installeer de nieuwe versie uit de eigen pakketbron van de distributie (zoals hieronder); een download bij de maker is niet nodig. <b>Goed om te weten:</b> bij de kernel of een bibliotheek is daarna een herstart van de server of van de services nodig.'))}
       ${hostRows}
@@ -15020,6 +15119,13 @@ async function vulnDetail(cve) {
     ],
   });
   wireCopy(form);
+  const bn = $('[data-vbuzz-now]', form);
+  if (bn) bn.onclick = async () => {
+    bn.disabled = true;
+    bn.textContent = L('Bezig…');
+    try { const r = await api('vuln_buzz_now', { cve }); d.buzz = r.buzz; $('#vbz', form).outerHTML = vulnBuzzHtml(d); if (vulnData && vulnData.buzz) vulnData.buzz[cve] = { ...(vulnData.buzz[cve] || {}), id: r.buzz.id, score: r.buzz.score, trend: r.buzz.trend }; }
+    catch (ex) { toast(ex.message, 'err'); bn.disabled = false; }
+  };
   $$('[data-vd-unign]', form).forEach((b) => (b.onclick = async () => {
     try { await api('vuln_unignore', { id: +b.dataset.vdUnign }); toast(L('Telt weer mee')); $('#modal').close(); loadVulns(); vulnDetail(cve); }
     catch (ex) { toast(ex.message, 'err'); }

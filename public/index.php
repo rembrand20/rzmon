@@ -455,6 +455,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       </div>
       <div class="pcard cc-only" data-pk="cc_hosts" data-pw="8" data-pt="<?= th('Servers met de meeste kwetsbaarheden') ?>"><div class="cc-card" id="vuln-cc-hosts"></div>
       </div>
+      <div class="pcard" data-pk="oneup" data-pw="12" data-pt="<?= th('Eén update, veel opgelost') ?>"><div id="vuln-oneup"></div>
+      </div>
       <div class="pcard" data-pk="bar" data-pw="12" data-pt="<?= th('Zoeken en filters') ?>"><div class="dash-bar">
         <input type="search" id="vuln-search" placeholder="<?= th('🔍 Zoek pakket, CVE of server…') ?>" autocomplete="off">
         <div class="dash-chips" id="vuln-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
@@ -1057,6 +1059,23 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div class="vuln-exclude"><span class="muted small"><?= th('Niet scannen:') ?></span> <span id="vuln-exclude-list"></span></div>
           <?= xp(t('Wat er nodig is, wanneer je een melding krijgt en hoe bijwerken werkt.'), t('<b>Nodig:</b> uitgaand HTTPS naar <code>api.osv.dev</code>, <code>www.cisa.gov</code>, <code>api.first.org</code> en <code>services.nvd.nist.gov</code>. <b>Meldingen:</b> een ℹ️ info-melding bij een nieuwe critical of actief misbruikte kwetsbaarheid volgt de rij <i>Info</i> bij Meldingen. <b>Bijwerken:</b> via de agent kan dat als commando\'s als root aan staan voor die server; anders krijg je het commando om zelf uit te voeren.')) ?>
           <div class="btn-row"><button type="button" class="btn" id="vuln-scan-now">🔍 <?= th('Nu scannen') ?></button> <span class="muted small" id="vuln-scan-info"></span></div>
+        </div>
+
+        <div data-sk="cvebuzz" class="card" id="cvebuzz-card">
+          <h2>🔥 <?= th('Rugbaarheid en exploits') ?></h2>
+          <?= xp(t('Hoeveel aandacht krijgt een kwetsbaarheid, en wordt hij al misbruikt?'), t('<b>Wat het doet:</b> voor elke CVE op je servers telt RzMon één keer per dag (actief misbruikt of high/critical: twee keer) hoe vaak hij besproken wordt (Hacker News, Mastodon) en of er een exploit is (GitHub, Exploit-DB, een Nuclei-template, het oordeel van CISA). Dat wordt een score van 0 tot 100: de <b>rugbaarheid</b>. Passeert een CVE de grens of stijgt hij snel, dan krijg je een ℹ️-melding <i>veel aandacht</i>. <b>Naar buiten gaat alleen het CVE-nummer</b>, nooit de naam van je server of pakket. <b>Sleutels:</b> zonder GitHub-token zoekt RzMon er minder per minuut; het token heeft geen rechten nodig (een fine-grained token met alleen publieke toegang). Een Mastodon-token telt ook berichten zonder hashtag; zonder token telt RzMon de hashtag (bv. #CVE20243094).')) ?>
+          <label class="switch"><input type="checkbox" name="cve_buzz_on"><span></span> <?= t('<b>Rugbaarheid bijhouden</b>') ?></label>
+          <div class="row2">
+            <label><?= th('Melden vanaf') ?> <span class="hint"><?= th('(rugbaarheid 0–100)') ?></span><input name="cve_buzz_alert" type="number" min="20" max="95" placeholder="60"></label>
+            <label><?= th('GitHub-token') ?> <span class="hint"><?= th('(optioneel; zonder rechten)') ?></span><input name="cve_github_token" type="password" autocomplete="new-password" spellcheck="false" placeholder="github_pat_…"></label>
+          </div>
+          <div class="row2">
+            <label><?= th('Mastodon-instantie') ?><input name="cve_mastodon_url" class="mono" spellcheck="false" placeholder="https://infosec.exchange"></label>
+            <label><?= th('Mastodon-token') ?> <span class="hint"><?= th('(optioneel; alleen lezen)') ?></span><input name="cve_mastodon_token" type="password" autocomplete="new-password" spellcheck="false"></label>
+          </div>
+          <label class="switch"><input type="checkbox" name="cve_exploitdb"><span></span> <?= th('Exploit-DB (lijst van openbare exploits, één keer per dag)') ?></label>
+          <label class="switch"><input type="checkbox" name="cve_nuclei"><span></span> <?= th('Nuclei-templates (waar scanners naar zoeken, één keer per dag)') ?></label>
+          <?= xp(t('Welke adressen RzMon hiervoor gebruikt.'), t('<b>Nodig:</b> uitgaand HTTPS naar <code>api.github.com</code>, <code>hn.algolia.com</code>, <code>raw.githubusercontent.com</code> (CISA Vulnrichment en Nuclei), <code>gitlab.com</code> (Exploit-DB) en je Mastodon-instantie. <b>AI:</b> met AI-advies aan staat in de popup van een kwetsbaarheid de knop <i>Raakt dit jou echt?</i>: de AI kijkt naar je servers (staat het pakket open naar het netwerk, is er een oplossing) en zegt <i>eerst doen</i>, <i>kan wachten</i> of <i>niet van toepassing</i>.')) ?>
         </div>
 
         <div data-sk="netscan" class="card" id="netscan-card">

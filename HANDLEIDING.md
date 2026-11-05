@@ -2855,6 +2855,28 @@ Vanaf **70** is het rood: **🔥 Hoog risico** (ook als filter), vanaf 40 oranje
 
 **Nog niet**: de Home Assistant-add-on, Podman-containers, en software die niet via de pakketbeheerder is geïnstalleerd (zelf gecompileerd, pip, npm…). Fedora en openSUSE worden nog niet ondersteund.
 
+#### Rugbaarheid, Raakt dit jou echt? en Eén update, veel opgelost 🔥 (vanaf 1.179.0)
+**Rugbaarheid** is een score van 0 tot 100: hoeveel aandacht krijgt een kwetsbaarheid, en wordt hij al misbruikt? RzMon berekent hem alleen voor de CVE's die op je servers staan, één keer per dag (actief misbruikt of high/critical: twee keer).
+
+| Deel | Bronnen | Punten |
+|---|---|---|
+| Exploits | actief misbruikt (CISA KEV) 25 · oordeel van CISA (SSVC): actief misbruikt 20, proof-of-concept 10 · Exploit-DB 10 · Nuclei-template 8 · PoC's op GitHub tot 15 | tot 60 |
+| Praat | Hacker News laatste 7 dagen tot 20 en totaal tot 8 · Mastodon laatste 7 dagen tot 20 | tot 40 |
+| Kans op misbruik | EPSS | tot 10 |
+
+- In de **popup** van een kwetsbaarheid zie je de meter, de stijging in 7 dagen, het verloop en elke bron (met een link). **↻ Nu bijwerken** haalt alles meteen opnieuw op.
+- In de lijst staat een **🔥 met de score** bij een CVE boven de grens; het filter **🔥 Veel aandacht** laat alleen die zien.
+- **Melding**: passeert een CVE de grens (standaard 60) of stijgt hij snel (+15 in 7 dagen), dan krijg je per server een ℹ️-melding, hooguit eens per 14 dagen.
+- **Instellen** bij *Instellingen → Kwetsbaarheden → Rugbaarheid en exploits*:
+  - **GitHub-token**: optioneel. Zonder token zoekt RzMon er 6 per minuut, met token 20. Maak een *fine-grained token* zonder rechten (alleen publieke repositories).
+  - **Mastodon**: zonder token telt RzMon de hashtag (bijvoorbeeld `#CVE20243094`) op de instantie die je kiest (standaard infosec.exchange). Met een token (alleen lezen) telt hij ook berichten zonder hashtag.
+  - **Exploit-DB** en **Nuclei**: één keer per dag de lijst, aan of uit.
+- Naar buiten gaat alleen het CVE-nummer. Nodig: uitgaand HTTPS naar `api.github.com`, `hn.algolia.com`, `raw.githubusercontent.com`, `gitlab.com` en je Mastodon-instantie.
+
+**🤖 Raakt dit jou echt?** Met AI-advies aan staat deze knop in de popup. De AI krijgt de gegevens van de CVE (CVSS, EPSS, KEV, SSVC, rugbaarheid) en per server het pakket, de versie, de oplossing en of het pakket op het netwerk luistert. Hij antwoordt met een oordeel (**eerst doen**, **kan wachten** of **niet van toepassing**), waarom, per server, wat je moet doen en wat je kunt doen als bijwerken nu niet kan. Het oordeel staat daarna als 🤖 bij de CVE in de lijst. Het is alleen tekst: RzMon voert niets uit wat de AI voorstelt. Met *Gegevens maskeren* aan gaan servernamen en IP-adressen gemaskeerd naar een cloud-AI.
+
+**🎯 Eén update, veel opgelost** staat bovenaan *Kwetsbaarheden*: de updates die het meeste risico wegnemen. Per pakket zie je naar welke versie, hoeveel kwetsbaarheden het oplost, op hoeveel servers, en of er actief misbruikte of veelbesproken bij zijn. Met **⬆ Bijwerken** werk je één server meteen bij; staat het pakket op meer servers, dan kies je eerst de server.
+
 ### 8.14 Netwerkscan: wat zit er op je netwerk? 🔎 (vanaf 1.103.0)
 RzMon zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons, laptops, camera's, printers, slimme stekkers, je NAS. Je ziet ze op het tabblad **Netwerk**.
 

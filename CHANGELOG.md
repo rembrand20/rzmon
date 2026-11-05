@@ -8,11 +8,25 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.179.0**: **CVE's slimmer**: rugbaarheid per kwetsbaarheid (exploits en hoeveel erover gepraat wordt), **Raakt dit jou echt?** met AI, **Eén update, veel opgelost** en een melding als een CVE op je servers veel aandacht krijgt.
 - **1.178.0**: de **Agent Manager** opnieuw ingedeeld in kaarten met schakelaars, een echte **🧪 Test** in een eigen popup, en één **algemene SNMP-instelling** (Koppelingen) met eigen instellingen per apparaat.
 - **1.177.0**: nieuwe **pad-check** (traceroute): per hop vertraging en verlies, je switches, de linksnelheid via UniFi en de echte doorvoer met iperf3, als futuristisch pad in de popup, op **Monitoring → Netwerkpaden** als netwerkkaart en in het kort bij de server.
 - **1.176.0**: **Monitoring → Containers** (alle Podman- en Docker-containers met status, CPU, geheugen en schijf), labels **Running / Failed / Stopped / Paused**, een **nieuwe popup per check** en een compacte **Nu aandacht nodig** in CC.
 - **1.175.0**: **Monitoring in CC** in een nieuw jasje: één raster met tegels (ring, lijntjes, 24 uur) zonder aparte sectie *met problemen*, en openklappen over de volle breedte met een veeranimatie zoals op een Mac.
-- **1.174.0**: **TrueNAS SCALE** beter ondersteund: meldingen, taken, apps, update en temperaturen als checks, kwetsbaarheden scannen, en het IDS mag er blokkeren als je dat aanzet.
+
+## 1.179.0 – 2026-11-05
+### Nieuw
+- **🔥 Rugbaarheid per CVE** (0–100): hoeveel aandacht een kwetsbaarheid op je servers krijgt en of hij al misbruikt wordt. RzMon telt één keer per dag (actief misbruikt of high/critical: twee keer):
+  - **Exploits** (tot 60): actief misbruikt (CISA KEV), het oordeel van CISA (SSVC: misbruik, automatiseerbaar, impact), een exploit op Exploit-DB, een Nuclei-template en openbare PoC's op GitHub.
+  - **Praat** (tot 40): Hacker News (7 dagen en totaal) en Mastodon (7 dagen).
+  - Daarbij tot 10 punten voor de kans op misbruik (EPSS).
+  - Naar buiten gaat alleen het CVE-nummer, nooit de naam van je server of pakket.
+- **Popup van een kwetsbaarheid**: een meter met de rugbaarheid, de stijging in 7 dagen, het verloop, alle bronnen met links en de knop **↻ Nu bijwerken**.
+- **🤖 Raakt dit jou echt?** (met AI-advies aan): de AI kijkt naar je servers (staat het pakket open naar het netwerk, is er misbruik, is er een oplossing) en geeft een oordeel: **eerst doen**, **kan wachten** of **niet van toepassing**, met wat je moet doen en wat je kunt doen als bijwerken nu niet kan. Het oordeel staat daarna ook als 🤖 bij de CVE in de lijst. Alleen tekst: RzMon voert niets uit.
+- **🎯 Eén update, veel opgelost**: bovenaan *Kwetsbaarheden* de updates die het meeste risico wegnemen (hoeveel kwetsbaarheden, op hoeveel servers, actief misbruikt, veel aandacht), met **⬆ Bijwerken** per server.
+- **Filter 🔥 Veel aandacht** en een 🔥 met de score bij de CVE. *Hoog risico* heeft nu ⚡.
+- **ℹ️ Melding** *veel aandacht*: een CVE op je servers passeert de grens (standaard 60) of stijgt snel. Per server, hooguit eens per 14 dagen. Aan of uit bij *Instellingen → Meldingen → Info*.
+- **Instellingen → Kwetsbaarheden → Rugbaarheid en exploits**: aan/uit, de grens, een **GitHub-token** (optioneel, zonder rechten: meer zoekvragen per minuut), de **Mastodon-instantie** en een **Mastodon-token** (optioneel), en Exploit-DB en Nuclei aan of uit. De tokens gaan nooit naar de browser.
 
 ## 1.178.0 – 2026-11-05
 ### Nieuw

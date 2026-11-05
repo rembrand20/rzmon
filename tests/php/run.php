@@ -1483,6 +1483,21 @@ $ex = CheckInfo::extra(q('SELECT * FROM checks WHERE id = ?', [$ctId])->fetch())
 ok($ex['counts']['n24'] === 2 && $ex['counts']['f24'] === 1 && $ex['outages']['count'] === 2 && $ex['outages']['mttr'] === 1800 && $ex['notify']['streak'] === 3
     && ($ex['detail']['kind'] ?? '') === 'container' && $ex['detail']['state'] === 'running',
     'popup van een check: hoe vaak gecheckt, storingen en hersteltijd over 30 dagen, melden na N, details van de container');
+// 1.179.0: rugbaarheid: score uit de bronnen, SSVC lezen, map in Vulnrichment, oordeel van de AI, alleen veilige Mastodon-adressen
+q("INSERT IGNORE INTO vuln_cve (cve, severity, kev, epss) VALUES ('CVE-2099-7001', 4, 1, 0.81)");
+$bz = CveBuzz::update('CVE-2099-7001', ['gh' => 31, 'hn' => 40, 'hn7' => 12, 'md7' => 25, 'edb' => true, 'nuclei' => true, 'ssvc' => ['e' => 'active', 'a' => 'yes', 't' => 'total']]);
+$bzQuiet = CveBuzz::score(['gh' => 0, 'hn' => 0, 'hn7' => 0, 'md7' => 0], null);
+$bzSsvc = CveBuzz::ssvc(['containers' => ['adp' => [['metrics' => [['other' => ['type' => 'ssvc', 'content' => ['options' => [['Exploitation' => 'poc'], ['Automatable' => 'no'], ['Technical Impact' => 'total']]]]]]]]]]);
+$bzInfo = CveBuzz::info('CVE-2099-7001');
+ok($bz['score'] === 100 && $bz['exploit'] === 60 && $bz['talk'] >= 30 && $bzQuiet === [0, 0, 0] && $bzSsvc === ['e' => 'poc', 'a' => 'no', 't' => 'total']
+    && CveBuzz::bucket('3094') === '3xxx' && CveBuzz::bucket('12345') === '12xxx' && CveBuzz::bucket('123') === '0xxx'
+    && CveBuzz::verdict("OORDEEL: **eerst doen**\n### Waarom") === 'now' && CveBuzz::verdict('VERDICT: can wait') === 'later' && CveBuzz::verdict('geen oordeel') === ''
+    && CveBuzz::safeUrl('https://infosec.exchange') && !CveBuzz::safeUrl('http://infosec.exchange') && !CveBuzz::safeUrl('https://10.0.0.1') && !CveBuzz::safeUrl('https://a.b:8443')
+    && CveBuzz::trend([[date('Y-m-d', time() - 9 * 86400), 40], [date('Y-m-d'), 70]], 70) === 30 && $bzInfo['score'] === 100 && $bzInfo['id'] > 0
+    && CveBuzz::info('geen-cve') === null && str_contains(CveBuzz::why($bz['data']), 'actief misbruikt'),
+    'rugbaarheid: alles = 100 (exploits 60), stil = 0, SSVC en map voor CISA, AI-oordeel, Mastodon alleen via https naar een naam, stijging in 7 dagen');
+q("DELETE FROM vuln_buzz WHERE cve = 'CVE-2099-7001'");
+q("DELETE FROM vuln_cve WHERE cve = 'CVE-2099-7001'");
 // 1.178.0: algemene SNMP-instelling (een server volgt hem of heeft eigen instellingen) en 🧪 Test (RzMon-deel + zelftest van de agent)
 save_setting(SnmpMonitor::GLOBAL_KEY, '');
 $sgNo = SnmpMonitor::clean(['on' => 1, 'use' => 'global'], null);

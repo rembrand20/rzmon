@@ -1212,7 +1212,7 @@ $need = match ($action) {
     'home', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -2255,6 +2255,16 @@ switch ($action) {
         q('UPDATE hosts SET snmp = ? WHERE id = ?', [$snmp ? json_encode($snmp, JSON_UNESCAPED_UNICODE) : null, $hid]);
         ChangeLog::record('host', $hid, 'update', $before['name'] . ' (📡 SNMP)', $before, ChangeLog::hostRow($hid));
         out(['ok' => true, 'snmp' => SnmpMonitor::masked(q('SELECT snmp FROM hosts WHERE id = ?', [$hid])->fetchColumn() ?: null)]);
+
+    // 1.179.0: rugbaarheid van één CVE nu bijwerken (knop in de popup)
+    case 'vuln_buzz_now':
+        $cv = mb_substr(trim((string) (input()['cve'] ?? '')), 0, 40);
+        try {
+            CveBuzz::update($cv);
+        } catch (Throwable $e) {
+            out(['error' => t('Dit lukte niet: {e}', ['e' => $e->getMessage()])], 422);
+        }
+        out(['ok' => true, 'buzz' => CveBuzz::info($cv)]);
 
     // 1.178.0: 🧪 Test in de Agent Manager: starten, en daarna de uitslag ophalen (het agentdeel komt bij zijn volgende ronde)
     case 'agent_selftest':
@@ -3458,8 +3468,13 @@ switch ($action) {
             'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'edr_yara', 'ids_modern', 'af_motion', 'smart_auto', 'alert_auto', 'inet_down', 'inet_up', 'inet_warn_pct', 'inet_crit_pct', 'inet_times', 'inet_speed_mb', 'perf_on', 'edr_note_hide', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup',
             'ai_on', 'ai_provider', 'ai_auto', 'ai_daily', 'ai_mask', 'ai_timeout', 'ai_max_tokens', 'ai_ollama_url', 'ai_ollama_key',
+            'cve_buzz_on', 'cve_buzz_alert', 'cve_github_token', 'cve_mastodon_url', 'cve_mastodon_token', 'cve_exploitdb', 'cve_nuclei',   // 1.179.0
             'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model',   // 1.171.0
             'ai_budget_month', 'ai_memory', 'ai_cache', 'ai_cache_hours', 'ai_fallback', 'ai_notify', 'ai_weekly', 'ai_weekly_day', 'ai_triage', 'ai_report'];   // 1.173.0
+        // 1.179.0: Mastodon alleen via https naar een gewone hostnaam
+        if (isset($in['cve_mastodon_url']) && trim((string) $in['cve_mastodon_url']) !== '' && !CveBuzz::safeUrl(rtrim(trim((string) $in['cve_mastodon_url']), '/'))) {
+            out(['error' => t('Mastodon: vul een https-adres in, bv. https://infosec.exchange')], 422);
+        }
         // 1.171.0: AI-advies: een bekende aanbieder, een geldig adres voor Ollama, getallen binnen de grenzen
         if (isset($in['ai_provider']) && !isset(Ai::PROVIDERS[(string) $in['ai_provider']])) {
             out(['error' => t('Onbekende aanbieder')], 422);
@@ -4983,7 +4998,7 @@ switch ($action) {
 
     case 'vuln_detail':
         $d = Vulns::detail(mb_substr(trim((string) ($_GET['cve'] ?? '')), 0, 80));
-        $d ? out($d) : out(['error' => t('Kwetsbaarheid niet gevonden')], 404);
+        $d ? out($d + ['buzz' => CveBuzz::info($d['cve'])]) : out(['error' => t('Kwetsbaarheid niet gevonden')], 404);   // 1.179.0: rugbaarheid erbij
 
     case 'vuln_ignore':
         $in = input();

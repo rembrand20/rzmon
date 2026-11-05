@@ -470,6 +470,22 @@ CREATE TABLE IF NOT EXISTS vuln_resolved (
 
 INSERT IGNORE INTO settings (name, value) VALUES ('vuln_enabled', '0'), ('vuln_time', '03:30'), ('vuln_min_severity', '0'), ('vuln_exclude', '');
 
+-- 1.179.0: rugbaarheid per CVE (GitHub, Exploit-DB, Nuclei, CISA SSVC, Hacker News, Mastodon) en het verloop per dag
+CREATE TABLE IF NOT EXISTS vuln_buzz (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    cve        VARCHAR(40) NOT NULL,
+    score      TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    exploit    TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    talk       TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    data       TEXT NULL,
+    history    TEXT NULL,
+    checked_at DATETIME NULL,
+    alerted_at DATETIME NULL,
+    UNIQUE KEY uq_vb_cve (cve)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('cve_buzz_on', '1'), ('cve_buzz_alert', '60'), ('cve_github_token', ''), ('cve_mastodon_url', 'https://infosec.exchange'),
+    ('cve_mastodon_token', ''), ('cve_exploitdb', '1'), ('cve_nuclei', '1');
+
 -- Beveiliging (1.57.0): geblokkeerde IP-adressen en netwerken (heel RzMon), mislukte pogingen om te tellen,
 -- en eenmalige nummers van versleutelde agent-berichten (tegen opnieuw afspelen)
 CREATE TABLE IF NOT EXISTS rz_blocks (

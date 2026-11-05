@@ -220,6 +220,11 @@ final class Vulns
                 self::enrich($end);
             }
             self::notifyNew();
+            try {
+                CveBuzz::cron($end);   // 1.179.0: rugbaarheid, met de tijd die over is
+            } catch (Throwable $e) {
+                error_log('RzMon: rugbaarheid: ' . $e->getMessage());
+            }
             if ($n) {
                 save_setting('vuln_last_scan', now());
             }
@@ -1082,6 +1087,7 @@ final class Vulns
             }
         }
         return ['enabled' => true, 'hosts' => $hosts, 'findings' => $findings, 'min_severity' => (int) setting('vuln_min_severity', '0'),
+            'buzz' => CveBuzz::on() ? CveBuzz::map() : null, 'buzz_min' => CveBuzz::threshold(),   // 1.179.0
             'last_scan' => setting('vuln_last_scan', null), 'scan_time' => setting('vuln_time', '03:30'),
             'ignore' => q('SELECT i.*, h.name AS host_name, (i.until IS NOT NULL AND i.until < CURDATE()) AS expired FROM vuln_ignore i LEFT JOIN hosts h ON h.id = i.host_id ORDER BY i.created_at DESC')->fetchAll(),
             'resolved' => (int) q('SELECT COUNT(DISTINCT host_id, cve) FROM vuln_resolved WHERE resolved_at >= NOW() - INTERVAL 30 DAY')->fetchColumn()];

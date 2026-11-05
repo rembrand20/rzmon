@@ -30,7 +30,7 @@ final class Ai
         'grok' => ['label' => 'Grok (xAI)', 'url' => 'https://api.x.ai', 'cloud' => true],
         'ollama' => ['label' => 'Ollama', 'url' => 'http://127.0.0.1:11434', 'cloud' => false],
     ];
-    public const KINDS = ['check', 'bundle', 'incident', 'ids', 'week', 'triage', 'report'];
+    public const KINDS = ['check', 'bundle', 'incident', 'ids', 'week', 'triage', 'report', 'cve'];   // 1.179.0: cve = Raakt dit jou echt?
     /** 1.173.0: de extra's met hun standaardwaarde (Instellingen → AI-advies → Extra's) */
     public const EXTRAS = ['ai_memory' => '1', 'ai_cache' => '1', 'ai_fallback' => '1', 'ai_notify' => '1', 'ai_weekly' => '1', 'ai_triage' => '0', 'ai_report' => '1'];
     /** Waar je het tegoed opwaardeert */
@@ -378,7 +378,7 @@ final class Ai
                 $res = $ask($cfg);
             }
             [$answer, $action] = self::parseAction($res['text'], $ctx['actions']);
-            $verdict = $kind === 'triage' ? self::verdict($answer) : null;
+            $verdict = $kind === 'triage' ? self::verdict($answer) : ($kind === 'cve' ? CveBuzz::verdict($answer) : null);
             $cost = self::costOf($cfg['provider'], (string) $cfg['model'], $res['in'], $res['out']);
             q("UPDATE ai_advice SET status = 'done', provider = ?, model = ?, answer = ?, actions = ?, tok_in = ?, tok_out = ?, ms = ?, cost = ?, note = ?, verdict = ?, done_at = ?, error = NULL WHERE id = ?",
                 [$cfg['provider'], mb_substr($cfg['model'], 0, 80), $answer, $action !== null ? json_encode([$action]) : null, $res['in'], $res['out'], $res['ms'], $cost,
@@ -988,6 +988,7 @@ final class Ai
             'ids', 'triage' => self::ctxIds($ref),
             'week' => self::ctxWeek(),
             'report' => self::ctxReport($ref),
+            'cve' => CveBuzz::aiContext($ref),
             default => throw new RuntimeException(t('Ongeldige vraag')),
         };
     }
@@ -1215,6 +1216,14 @@ final class Ai
             return "Je beoordeelt een melding van het inbraakdetectiesysteem (IDS) van RzMon voor een thuis- of kantoornetwerk: is dit waarschijnlijk vals alarm of echt? "
                 . "Antwoord met precies twee regels en verder niets:\nOORDEEL: onschuldig | verdacht | echt\nREDEN: <één korte zin in het $lang>\n"
                 . "Kies onschuldig alleen als de gegevens dat duidelijk laten zien (bv. een bekende eigen dienst of een update). Twijfel je, kies verdacht. $guard";
+        }
+        if ($kind === 'cve') {
+            return "Je bent een ervaren beveiligingsspecialist en beoordeelt voor de beheerder van een thuis- of kantoornetwerk een kwetsbaarheid (CVE) die op zijn servers staat: raakt die hem echt? "
+                . "Weeg mee: is het pakket bereikbaar via het netwerk of alleen lokaal, de CVSS-vector, actief misbruik (CISA KEV, SSVC), openbare exploits en hoeveel aandacht hij krijgt, en of er een oplossing is. "
+                . "Begin met precies deze regel: OORDEEL: eerst doen | kan wachten | niet van toepassing\n"
+                . "Daarna in het $lang, kort en concreet, in Markdown met deze kopjes (### ...): Waarom, Per server, Wat moet je doen, Kan het nu niet. "
+                . "Bij Wat moet je doen: bijwerken uit de pakketbron van de distributie (met de versie), en wat daarna nodig is (een service herstarten, opnieuw opstarten). "
+                . "Bij Kan het nu niet: een tijdelijke maatregel. Verzin geen gegevens; zeg het als iets onzeker is. $guard";
         }
         $heads = match ($kind) {
             'ids' => ['Wat is er gebeurd', 'Hoe ernstig is het', 'Wat moet je doen', 'Controleren'],
