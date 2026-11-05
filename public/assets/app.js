@@ -1132,7 +1132,7 @@ function init() {
     if (head && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleHost(head.dataset.id); }
     const t = e.target.closest('.hb-tile[data-act=cc-open]');
     if (t && e.target === t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); ccToggle(t.dataset.id, !ccOpen.has(+t.dataset.id)); }
-    const ck = e.target.closest('tr.hb-ck[data-cid]');
+    const ck = e.target.closest('tr.hb-ck[data-cid], .ccx-row[data-cid], .ccx-ok[data-cid]');
     if (ck && e.target === ck && e.key === 'Enter') checkInfo(ck.dataset.cid);
   });
   $('#toggle-all').onclick = () => {
@@ -2502,6 +2502,7 @@ function renderNow() {
 
   fxRender('dash');
   const el = $('#hosts');
+  el.dataset.motion = String(afMotion(null));   // 1.175.0: Beweging (Stil · Rustig · Vol) voor de CC-animaties
   if (!state.hosts.length) {
     el.innerHTML = `<div class="card empty">${L('Nog geen servers. Klik op <b>＋ Server</b> om te beginnen.')}</div>`;
     return;
@@ -2524,6 +2525,8 @@ function renderNow() {
   const block = (arr, grouped) => {
     // 1.168.0: drie groepen: open problemen (zoals bij Nu aandacht nodig), alles al bevestigd, en in orde
     const good = arr.filter(okHost), acked = arr.filter((h) => !okHost(h) && ackedOnly(h)), bad = arr.filter((h) => !okHost(h) && !ackedOnly(h));
+    // 1.175.0: in CC één raster (aandacht, bevestigd, in orde); geen aparte secties meer
+    if (cc) return `<div class="${cls} cc2-grid">${list([...bad, ...acked, ...good])}</div>`;
     return (bad.length ? (good.length || acked.length ? head(grouped ? L('Met open problemen') : L('Servers met open problemen'), bad.length) : '') + `<div class="${cls}">${list(bad)}</div>` : '')
       + (acked.length ? head('✔ ' + L('Bevestigd'), (acked.length === 1 ? L('1 apparaat') : L('{n} apparaten', { n: acked.length })) + ' · ' + L('je weet ervan; er is nu niets te doen')) + `<div class="${cls} acked-grp">${list(acked)}</div>` : '')
       + (good.length ? head('✔ ' + L('Alles in orde'), good.length === 1 ? L('1 apparaat') : L('{n} apparaten', { n: good.length }))
@@ -3403,70 +3406,163 @@ function hostCard(h, small) {
    ze zelf. Niet onthouden: weg van Monitoring (of herladen) en alles is weer dicht. */
 const ccOpen = new Set();
 const ccWord = (c) => (!+c.enabled ? L('uit') : c.maintenance ? L('Onderhoud') : [L('OK'), L('Warning'), L('Critical'), L('Onbekend')][+c.status] || '?');
+/* 1.175.0: CC-monitoring in een nieuw jasje. Eén raster per soort apparaat (wat aandacht vraagt eerst, geen aparte
+   sectie meer); een tegel met ring (checks in orde), twee lijntjes, de laatste 24 uur en hoe lang geleden. Klik = de server
+   klapt open over de volle breedte, direct onder zijn rij (de rest van de rij schuift erboven), met meters, knoppen,
+   wat aandacht vraagt en de checks die in orde zijn (ingeklapt). Openen en sluiten met een veeranimatie zoals op een Mac;
+   hoeveel beweging volgt de instelling Beweging (Stil · Rustig · Vol). Geen tabellen meer: niets schuift naar opzij. */
+const ccAllOk = new Set();   // servers waarvan alle checks in orde getoond worden
+const CC_OK_SHOW = 8;
+/** Ring: hoeveel checks in orde zijn (van de checks die aan staan) */
+function ccRing(ok, total, st, size = 42, label = '') {
+  const r = size / 2 - 5, C = 2 * Math.PI * r, f = total ? ok / total : 0;
+  return `<svg class="ccx-ring s${st}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${esc(label || L('{n} van {t} checks in orde', { n: ok, t: total }))}">
+    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="ccx-ring-bg"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="ccx-ring-fg" style="--len:${(C * f).toFixed(1)};--c:${C.toFixed(1)}" transform="rotate(-90 ${size / 2} ${size / 2})"/>
+    <text x="50%" y="50%" dy=".35em" text-anchor="middle">${ok}</text></svg>`;
+}
+/** Meter in het geopende blok: ring met percentage */
+function ccGauge(label, v, cls = '') {
+  const C = 2 * Math.PI * 18, f = Math.max(0, Math.min(100, v)) / 100;
+  return `<div class="ccx-gauge ${cls}"><svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true"><circle cx="23" cy="23" r="18" class="ccx-ring-bg"/><circle cx="23" cy="23" r="18" class="ccx-ring-fg" style="--len:${(C * f).toFixed(1)};--c:${C.toFixed(1)}" transform="rotate(-90 23 23)"/></svg>
+    <span><small>${esc(label)}</small><b>${dec(Math.round(v))}%</b></span></div>`;
+}
+const ccTop = (h, type) => h.checks.filter((c) => c.type === type && +c.enabled && c.last_value !== null).sort((a, b) => b.last_value - a.last_value)[0] || null;
 function ccHostCard(h) {
   const p = hostParts(h), st = h.maintenance ? 4 : p.st, u = stats.uptime[h.id], open = ccOpen.has(+h.id);
-  const sub = `${esc(h.address)} · ${isHa(h) ? 'Home Assistant' : esc(h.mode)}${h.mode === 'agent' && h.agent_version ? ' ' + esc(h.agent_version) + (+h.agent_key_seen === 1 ? ' 🔑' : '') : ''}`;
+  const on = h.checks.filter((c) => +c.enabled && !c.maintenance), okN = on.filter((c) => +c.status === 0).length;
+  const kind = isHa(h) ? 'Home Assistant' : isTnHost(h) ? 'TrueNAS' : isPveHost(h) ? 'Proxmox' : h.mode === 'agent' ? 'agent' : h.mode === 'remote' ? L('netwerk') : h.mode;
+  const ver = h.mode === 'agent' && h.agent_version ? ' ' + esc(h.agent_version) : '';
   const last = p.lastChecked ? agoSpan(p.lastChecked) : '–';
   const up = u && u.h24 !== null ? pct(u.h24) : '–';
   const name = `${esc(h.name)}${+h.enabled ? '' : ` <span class="badge">${L('uit')}</span>`}`;
+  const sparks = keyChecks(h, 2).map((c) => { const [v, un] = keyValue(c); return `<span class="ccx-sp s${c.maintenance ? 4 : +c.status}"><span class="ccx-sp-h"><small>${esc(c.name)}</small><b>${v}<small>${esc(un)}</small></b></span>${keySpark(c, 26)}</span>`; }).join('');
+  // Geopend: wat aandacht vraagt (ook bevestigd), en wat in orde is (ingeklapt)
   const rank = (c) => (+c.enabled ? STATUS_RANK[c.maintenance ? 4 : +c.status] : -9);
-  const rows = [...h.checks].sort((a, b) => rank(b) - rank(a) || String(a.name).localeCompare(String(b.name))).map((c, i) => {
-    const s = c.maintenance ? 4 : +c.status, [v, un] = keyValue(c), msg = (c.last_message || '').replace(/\s+/g, ' ');
-    return `<tr class="hb-ck s${s}${+c.enabled ? '' : ' off'}" data-cid="${c.id}" style="--i:${Math.min(i, 14)}" title="${esc(L('Klik voor de details van deze check'))}">
-      <td><span class="hb-st"><i></i>${esc(ccWord(c))}</span></td>
-      <td class="hb-cn">${esc(c.name)}${c.acked_at ? ` <span class="hb-ack" title="${esc(L('Bevestigd'))}">✔</span>` : ''}</td>
-      <td><b class="hb-v" data-flash>${v}<small>${esc(un)}</small></b></td>
-      <td class="hb-sp">${keySpark(c, 24)}</td>
-      <td class="hb-msg">${esc(msg.slice(0, 160)) || '<span class="muted">–</span>'}</td>
-      <td class="hb-tl">${checkTimeline(c)}</td>
-      <td class="hb-act">${+c.enabled && s !== 0 && s !== 4 ? aiBtn('check', c.id) : ''}${+c.enabled && s !== 0 && s !== 4 && !c.acked_at ? `<button type="button" class="btn small-btn need-user" data-act="ack" data-id="${c.id}">✔ ${L('Bevestig')}</button>` : ''}<button type="button" class="icon-btn need-admin" data-act="edit-check" data-id="${c.id}" title="${esc(L('Bewerken'))}" aria-label="${esc(L('Bewerken'))}">✎</button></td>
-    </tr>`;
+  const bad = h.checks.filter((c) => +c.enabled && !c.maintenance && +c.status !== 0).sort((a, b) => !!a.acked_at - !!b.acked_at || rank(b) - rank(a) || String(a.name).localeCompare(String(b.name)));
+  const good = h.checks.filter((c) => !bad.includes(c)).sort((a, b) => rank(b) - rank(a) || String(a.name).localeCompare(String(b.name)));
+  const badRows = bad.map((c, i) => {
+    const s = +c.status, [v, un] = keyValue(c), msg = (c.last_message || '').replace(/\s+/g, ' ');
+    return `<div class="ccx-row s${s}${c.acked_at ? ' acked' : ''}" data-cid="${c.id}" style="--i:${Math.min(i, 12)}" role="button" tabindex="0" title="${esc(L('Klik voor de details van deze check'))}">
+      <span class="ccx-st"><i></i>${esc(ccWord(c))}${c.acked_at ? ` <span class="ccx-ack" title="${esc(L('Bevestigd'))}">✔</span>` : ''}</span>
+      <span class="ccx-cn"><span class="ccx-ti" aria-hidden="true">${checkIcon(c)}</span><span><b>${esc(c.name)}</b><small>${esc(typeOf(c).label || c.type)}</small></span></span>
+      <b class="ccx-v" data-flash>${un ? `${v}<small>${esc(un)}</small>` : ''}</b>
+      <span class="ccx-msg">${esc(msg.slice(0, 220)) || '<span class="muted">–</span>'}</span>
+      <span class="ccx-tl">${checkTimeline(c)}</span>
+      <span class="ccx-act">${aiBtn('check', c.id)}${!c.acked_at ? `<button type="button" class="btn small-btn need-user" data-act="ack" data-id="${c.id}">✔ ${L('Bevestig')}</button>` : ''}</span>
+    </div>`;
   }).join('');
-  return `<article class="hb s${st}${open ? ' open' : ''}${glowHost(h) && !ackedOnly(h) ? ' glow' : ''}${+h.enabled ? '' : ' disabled'}${ackedOnly(h) ? ' acked-only' : ''}" data-hid="${h.id}">
-    <div class="hb-tile" data-act="cc-open" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${open}" title="${esc(L('Klik: open als tabel met alle checks'))}">
+  const goodTiles = good.map((c, i) => {
+    const s = !+c.enabled ? 'off' : c.maintenance ? 4 : +c.status, [v, un] = keyValue(c), msg = (c.last_message || '').replace(/\s+/g, ' ');
+    return `<div class="ccx-ok s${s}${i >= CC_OK_SHOW ? ' more' : ''}" data-cid="${c.id}" role="button" tabindex="0" title="${esc(c.name)}: ${esc(msg)}">
+      <i class="ccx-dot"></i><span class="ccx-ok-t"><b>${esc(c.name)}</b><small>${esc(msg.slice(0, 80)) || esc(ccWord(c))}</small></span>${keySpark(c, 22)}<b class="ccx-v" data-flash>${v}<small>${esc(un)}</small></b></div>`;
+  }).join('');
+  const cpu = ccTop(h, 'cpu'), ram = ccTop(h, 'ram'), disk = ccTop(h, 'disk');
+  const gauges = [cpu ? ccGauge('CPU', +cpu.last_value, 'cpu') : '', ram ? ccGauge('RAM', +ram.last_value, 'ram') : '', disk ? ccGauge(disk.name, +disk.last_value, 'disk') : '',
+    u && u.h24 !== null ? ccGauge(L('Beschikbaar 24 u'), +u.h24, 'up') : ''].join('');
+  const moreOk = Math.max(0, good.length - CC_OK_SHOW);
+  return `<article class="hb cc2 s${st}${open ? ' open' : ''}${ccAllOk.has(+h.id) ? ' all-ok' : ''}${glowHost(h) && !ackedOnly(h) ? ' glow' : ''}${+h.enabled ? '' : ' disabled'}${ackedOnly(h) ? ' acked-only' : ''}" data-hid="${h.id}">
+    <div class="hb-tile" data-act="cc-open" data-id="${h.id}" role="button" tabindex="0" aria-expanded="${open}" title="${esc(L('Klik: open met alle checks'))}">
+      <span class="ccx-scan" aria-hidden="true"></span>
       <div class="hb-th"><span class="host-ic" aria-hidden="true">${hostIcon(h)}</span>
-        <div class="hb-tn"><strong>${name}</strong><span class="muted mono hb-sub">${sub}</span>${p.via}${p.maint}${edrNote(h)}</div>
-        <span class="counts">${p.counts}</span></div>
-      <div class="sum-line ${p.sum.cls}">${esc(p.sum.text)}</div>
-      <div class="hb-tf"><span class="muted small">${p.lastChecked ? L('Laatste check') + ' ' + last : ''}</span>${h.checks.some(isProblem) ? aiBtn('bundle', h.id) : ''}${hostTimeline(h)}</div>
+        <div class="hb-tn"><strong>${name}<i class="ccx-pulse" aria-hidden="true"></i></strong><span class="muted mono hb-sub">${esc(h.address)}</span>${p.via}${p.maint}${edrNote(h)}</div>
+        ${ccRing(okN, on.length, st)}</div>
+      <div class="ccx-chips"><span class="ccx-pill">${esc(p.sum.text)}</span><span class="ccx-kind">${esc(kind)}${ver}</span></div>
+      ${sparks ? `<div class="ccx-sps">${sparks}</div>` : ''}
+      <div class="ccx-foot"><span class="ccx-foot-h"><small>${L('24 uur')} · ${up}</small><small>${last}</small></span>${hostTimeline(h)}</div>
+      ${h.checks.some(isProblem) ? `<div class="ccx-tile-ai">${aiBtn('bundle', h.id)}</div>` : ''}
     </div>
     <div class="hb-ov">
-      <div class="table-scroll"><table class="hb-stbl"><thead><tr><th>${L('Server')}</th><th>${L('Adres')}</th><th>${L('Soort')}</th><th>${L('Status')}</th><th>${L('Checks')}</th><th>${L('Beschikbaar 24 u')}</th><th>${L('Laatste 24 uur')}</th><th>${L('Laatste check')}</th><th></th></tr></thead>
-        <tbody><tr>
-          <td><span class="hb-th"><span class="host-ic" aria-hidden="true">${hostIcon(h)}</span><strong>${name}</strong></span>${p.via}${p.maint}</td>
-          <td class="muted mono">${esc(h.address)}</td><td>${isHa(h) ? 'Home Assistant' : esc(h.mode)}${h.mode === 'agent' && h.agent_version ? ' ' + esc(h.agent_version) : ''}</td>
-          <td><span class="hb-st"><i></i>${esc(p.sum.text)}</span></td><td><span class="counts">${p.counts}</span></td>
-          <td class="hb-v">${up}</td><td>${hostTimeline(h)}</td><td class="muted">${last}</td>
-          <td class="hb-x"><button type="button" class="icon-btn" data-act="cc-close" data-id="${h.id}" title="${esc(L('Sluiten'))}" aria-label="${esc(L('Sluiten'))}">✕</button></td>
-        </tr></tbody></table></div>
+      <div class="ccx-head">
+        <span class="host-ic big" aria-hidden="true">${hostIcon(h)}</span>
+        <div class="ccx-head-t"><div class="ccx-head-n"><h3>${name}</h3><span class="muted mono">${esc(h.address)}</span><span class="ccx-kind">${esc(kind)}${ver}</span></div>
+          <div class="muted small">${p.via ? p.via + ' · ' : ''}${h.mode === 'agent' && !h.agent_seen ? 'agent ' + L('nog niet gezien') + ' · ' : ''}${L('{n} checks', { n: h.checks.length })} · ${L('laatste check')} ${last}${p.maint}</div></div>
+        <div class="ccx-gauges">${gauges}</div>
+        <button type="button" class="icon-btn ccx-x" data-act="cc-close" data-id="${h.id}" title="${esc(L('Sluiten'))}" aria-label="${esc(L('Sluiten'))}">✕</button>
+      </div>
       <div class="hb-bar">${detailBar(h)}</div>
-      <div class="hb-checks"><div class="table-scroll"><table class="hb-ctbl"><thead><tr><th>${L('Status')}</th><th>${L('Check')}</th><th>${L('Waarde')}</th><th>${L('Verloop')}</th><th>${L('Melding')}</th><th>${L('24 uur')}</th><th></th></tr></thead>
-        <tbody>${rows || `<tr><td colspan="7" class="muted">${L('Nog geen checks.')}</td></tr>`}</tbody></table></div></div>
+      <div class="ccx-body">
+        ${bad.length ? `<div class="ccx-sec warn"><b>${L('Vraagt aandacht')}</b><span>${bad.length}</span></div><div class="ccx-rows">${badRows}</div>` : `<div class="ccx-allgood">✔ ${L('Alle checks in orde')}</div>`}
+        ${good.length ? `<div class="ccx-sec ok"><b>${L('In orde')}</b><span>${good.length}</span></div><div class="ccx-oks">${goodTiles}</div>
+          ${moreOk ? `<button type="button" class="ccx-more" data-act="cc-allok" data-id="${h.id}"><span class="ccx-more-a">＋ ${L('{n} andere checks tonen', { n: moreOk })}</span><span class="ccx-more-b">− ${L('Minder tonen')}</span></button>` : ''}` : ''}
+        ${!h.checks.length ? `<p class="muted">${L('Nog geen checks.')}</p>` : ''}
+      </div>
     </div>
   </article>`;
 }
-/** Openen of sluiten, met een vloeiende overgang: elk blok schuift naar zijn nieuwe plek, het geopende groeit */
+/** Klein icoon per soort check */
+function checkIcon(c) {
+  const p = { cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>', ram: '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 17v3M11 17v3M15 17v3M7 10v4M11 10v4M15 10v4"/>',
+    disk: '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/>', ping: '<path d="M2 12h4l3-7 4 14 3-7h6"/>', http: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+    tcp: '<path d="M8 3v4M16 3v4M5 7h14v4a7 7 0 0 1-14 0zM12 18v3"/>', ssl: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>', service: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>',
+    container: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>', truenas: '<path d="M14 14.8V4a2 2 0 1 0-4 0v10.8a4 4 0 1 0 4 0z"/>' }[c.type]
+    || '<path d="M4 12l5 5L20 6"/>';
+  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+}
+/** 1.175.0: openen of sluiten met een veeranimatie (zoals een venster op een Mac): het geopende blok groeit vanuit de tegel
+ *  naar de volle breedte, de inhoud komt er gestaffeld in; de andere tegels schuiven veerkrachtig naar hun nieuwe plek.
+ *  Sluiten: het blok krimpt terug tot de tegel. Beweging volgt de instelling (Stil = meteen, Rustig = korter, geen staffeling). */
+const CC_SPRING = 'cubic-bezier(.32, .72, 0, 1)';   // de veercurve van macOS/iOS
 function ccToggle(id, on) {
   const el = document.querySelector(`.hb[data-hid="${+id}"]`);
   if (on) ccOpen.add(+id); else ccOpen.delete(+id);
   if (!el) return render();
+  const m = afMotion(null);
   const grid = el.parentElement, els = [...grid.querySelectorAll(':scope > .hb')];
   const first = new Map(els.map((e) => [e, e.getBoundingClientRect()]));
-  el.classList.toggle('open', on);
-  const t = el.querySelector('.hb-tile');
-  if (t) t.setAttribute('aria-expanded', String(on));
-  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduce || !el.animate) return;
-  els.forEach((e) => {
+  const from = first.get(el);
+  const apply = () => {
+    el.classList.toggle('open', on);
+    const t = el.querySelector('.hb-tile');
+    if (t) t.setAttribute('aria-expanded', String(on));
+  };
+  if (!m || !el.animate) { apply(); if (on) el.scrollIntoView({ block: 'nearest' }); return; }
+  const dur = m === 1 ? 380 : 620;
+  const slide = () => els.forEach((e) => {   // de andere tegels naar hun nieuwe plek
+    if (e === el) return;
     const a = first.get(e), b = e.getBoundingClientRect();
-    if (Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1 && Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1) return;
-    const tr = `translate(${a.left - b.left}px, ${a.top - b.top}px)`, opt = { duration: 420, easing: 'cubic-bezier(.2, .8, .2, 1)' };
-    if (Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1) { e.animate([{ transform: tr }, { transform: 'none' }], opt); return; }
-    // groeien of krimpen zonder de tekst uit te rekken
-    const r = Math.max(0, b.width - a.width), d = Math.max(0, b.height - a.height);
-    e.animate([{ transform: tr, clipPath: `inset(0 ${r}px ${d}px 0 round 16px)` }, { transform: 'none', clipPath: 'inset(0 0 0 0 round 16px)' }], opt);
+    if (Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1) return;
+    e.animate([{ transform: `translate(${a.left - b.left}px, ${a.top - b.top}px)` }, { transform: 'none' }], { duration: dur, easing: CC_SPRING });
   });
-  if (on) setTimeout(() => el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' }), 430);
+  if (on) {
+    apply();
+    const to = el.getBoundingClientRect();
+    // Groeien vanuit de tegel: het blok begint op de plek en grootte van de tegel en veert open
+    const clip = `inset(${Math.max(0, from.top - to.top)}px ${Math.max(0, to.right - from.right)}px ${Math.max(0, to.bottom - from.bottom)}px ${Math.max(0, from.left - to.left)}px round 16px)`;
+    el.animate([{ clipPath: clip, transform: 'scale(.985)', boxShadow: '0 0 0 rgba(0,0,0,0)' }, { clipPath: 'inset(0 0 0 0 round 18px)', transform: 'none' }],
+      { duration: dur, easing: CC_SPRING });
+    const ov = el.querySelector('.hb-ov');
+    if (ov) ov.animate([{ opacity: 0, filter: 'blur(4px)' }, { opacity: 1, filter: 'none' }], { duration: dur * .7, easing: 'ease-out', delay: dur * .12, fill: 'backwards' });
+    if (m === 2) $$('.ccx-gauge, .ccx-row, .ccx-ok:not(.more)', el).forEach((x, i) => x.animate([{ opacity: 0, transform: 'translateY(8px) scale(.98)' }, { opacity: 1, transform: 'none' }],
+      { duration: 420, easing: CC_SPRING, delay: 140 + Math.min(i, 16) * 28, fill: 'backwards' }));
+    slide();
+    setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), dur * .6);
+    return;
+  }
+  // Sluiten: terug krimpen naar waar de tegel komt, dan dicht
+  const toRect = (() => { apply(); const r = el.getBoundingClientRect(); el.classList.add('open'); return r; })();
+  const big = el.getBoundingClientRect();
+  const clip = `inset(${Math.max(0, toRect.top - big.top)}px ${Math.max(0, big.right - toRect.right)}px ${Math.max(0, big.bottom - toRect.bottom)}px ${Math.max(0, toRect.left - big.left)}px round 16px)`;
+  const ov = el.querySelector('.hb-ov');
+  if (ov) ov.animate([{ opacity: 1 }, { opacity: 0, filter: 'blur(3px)' }], { duration: dur * .45, easing: 'ease-in', fill: 'forwards' });
+  const a = el.animate([{ clipPath: 'inset(0 0 0 0 round 18px)' }, { clipPath: clip, transform: 'scale(.99)' }], { duration: dur * .7, easing: CC_SPRING });
+  a.onfinish = () => {
+    const before = new Map(els.map((e) => [e, e.getBoundingClientRect()]));
+    els.forEach((e) => first.set(e, before.get(e)));
+    apply();
+    if (ov) ov.getAnimations().forEach((x) => x.cancel());
+    el.animate([{ transform: 'scale(.96)', opacity: .6 }, { transform: 'none', opacity: 1 }], { duration: dur * .8, easing: CC_SPRING });
+    slide();
+  };
+}
+/** "In orde": alles tonen of weer de eerste acht (zonder alles opnieuw te tekenen) */
+function ccAllOkToggle(id) {
+  const el = document.querySelector(`.hb[data-hid="${+id}"]`);
+  const on = !ccAllOk.has(+id);
+  if (on) ccAllOk.add(+id); else ccAllOk.delete(+id);
+  if (!el) return render();
+  el.classList.toggle('all-ok', on);
+  if (on && afMotion(null) && el.animate) $$('.ccx-ok.more', el).forEach((x, i) => x.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
+    { duration: 360, easing: CC_SPRING, delay: Math.min(i, 30) * 14, fill: 'backwards' }));
 }
 
 // L1nes: een balk over de volle breedte per server, als een tabel (Small of Large)
@@ -3670,6 +3766,7 @@ async function onHostsClick(e) {
     case 'toggle': return toggleHost(id);
     case 'cc-open': return ccToggle(id, !ccOpen.has(+id));
     case 'cc-close': return ccToggle(id, false);
+    case 'cc-allok': return ccAllOkToggle(id);   // 1.175.0
     case 'ack': { const [c, h] = findCheck(id); return ackDialog('check', id, `${h.name} – ${c.name}`, c.last_message); }
     case 'ack-host': { const h = findHost(id); const n = h.checks.filter((c) => +c.enabled && +c.status !== 0 && !c.acked_at).length; return ackDialog('host', id, h.name, L('{n} onbevestigde storing(en)', { n })); }
     case 'unack':

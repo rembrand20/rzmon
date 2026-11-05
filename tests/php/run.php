@@ -1459,6 +1459,13 @@ $tnLines = Ids::agentLines($tnH);
 ok($deb === 'Debian:13' && $noUbuntu === null && Vulns::upgradeBlocked($tnHost) !== null && str_contains((string) Vulns::upgradeBlocked($tnHost), 'TrueNAS')
     && in_array("0\ttruenas_fw\t1", $tnLines, true),
     'TrueNAS: kwetsbaarheden als de Debian eronder (base-files), Ubuntu-achtigen niet; nooit bijwerken met apt; blokkeren toegestaan = regel voor de agent');
+// 1.175.0: TrueNAS 27 geeft via midclt geen temperaturen: dan uit de SMART-gegevens van de agent
+Truenas::fromAgent(['id' => $tnH], ['version' => 'TrueNAS-27.0.0', 'at' => time(), 'temps' => []], $tnSt, now());
+$tnSt->execute([$tnH, 'smart', json_encode([['dev' => '/dev/sda', 'temp' => 38], ['dev' => '/dev/nvme0', 'temp' => 57], ['dev' => '/dev/sdc', 'standby' => true], ['dev' => '/dev/x;y', 'temp' => 99]]), now()]);
+[$smS, $smV, $smM] = $tc('temp', '', 50, 60);
+$smD = Truenas::data($tnH);
+ok($smS === STATUS_WARN && $smV === 57.0 && !str_contains((string) $smM, 'midclt') && ($smD['temps_from'] ?? '') === 'smart' && array_keys($smD['temps']) === ['nvme0', 'sda'],
+    'TrueNAS: geen temperaturen via midclt, dan die uit SMART (slapende schijf en vreemde namen overgeslagen)');
 q('DELETE FROM hosts WHERE id = ?', [$tnH]);
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");

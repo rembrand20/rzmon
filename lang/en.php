@@ -7615,4 +7615,9 @@ return [
     'Het IDS mag dan aanvallers op deze TrueNAS blokkeren, met een eigen firewalltabel. Je lokale netwerken en RzMon worden nooit geblokkeerd.' => 'The IDS may then block attackers on this TrueNAS, with its own firewall table. Your local networks and RzMon are never blocked.',
     'Aangezet; de agent neemt het over bij zijn volgende ronde' => 'Turned on; the agent takes it over in its next round',
     'Uitgezet: alleen detecteren' => 'Turned off: detect only',
+    '{n} van {t} checks in orde' => '{n} of {t} checks OK',
+    'Klik: open met alle checks' => 'Click: open with all checks',
+    'Vraagt aandacht' => 'Needs attention',
+    'Alle checks in orde' => 'All checks OK',
+    '{n} andere checks tonen' => 'Show {n} other checks',
 ];

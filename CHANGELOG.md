@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.175.0**: **Monitoring in CC** in een nieuw jasje: één raster met tegels (ring, lijntjes, 24 uur) zonder aparte sectie *met problemen*, en openklappen over de volle breedte met een veeranimatie zoals op een Mac.
 - **1.174.0**: **TrueNAS SCALE** beter ondersteund: meldingen, taken, apps, update en temperaturen als checks, kwetsbaarheden scannen, en het IDS mag er blokkeren als je dat aanzet.
 - **1.173.0**: **AI-advies** met **verbruik, tegoed en maandbudget**, en extra's als geheugen, niet twee keer betalen, terugvallen op Ollama, een weekoverzicht en een oordeel bij IDS-incidenten.
 - **1.172.0**: de **Live Attack Flow toont altijd tien aanvallers** (live eerst, aangevuld uit de top 10 van 24 uur) en een **banner bovenaan** zodra een server in isolatie gaat.
 - **1.171.0**: **🤖 AI-advies** bij storingen en incidenten (Claude, ChatGPT, Gemini, Grok of Ollama), met diep zoeken via de agent en desgewenst uitvoeren na bevestiging.
-- **1.170.0**: nieuwe checks **Domein** (verloopdatum), **MQTT-broker** (rondgang en topic) en **VPN** (Gluetun met lekcontrole, WireGuard-handshakes).
+
+## 1.175.0 – 2026-11-05
+### Nieuw
+- **Monitoring in de lay-out CC** opnieuw vormgegeven (alleen de stijl CC; je thema blijft hetzelfde, licht en donker):
+  - de aparte sectie *Servers met problemen* is weg: alle servers staan in **één raster per groep**, de servers die aandacht vragen eerst;
+  - elke tegel heeft een **ring** (hoeveel checks in orde zijn), een **pulsje** bij de naam, chips met de samenvatting en de soort, **twee lijntjes** van de belangrijkste checks en de **laatste 24 uur**;
+  - **klik op een tegel** en hij klapt open over de **volle breedte** van het raster, met een **veeranimatie zoals op een Mac** (de tegel groeit uit zijn eigen plek, de andere tegels schuiven soepel opzij, de inhoud komt er één voor één in); sluiten (✕) krimpt hem terug naar zijn plek;
+  - geopend zie je bovenaan **meters** (CPU, RAM, schijf, beschikbaar 24 uur), daaronder de knoppen, dan **Vraagt aandacht** (rijen met icoon per soort check, waarde, melding, 24 uur en ✔ Bevestig) en **In orde** als kleine tegels: de eerste 8, de rest met *＋ andere checks tonen*;
+  - **geen schuifbalk** naar links of rechts meer, ook niet op een telefoon: het paneel past zich aan de breedte aan;
+  - de animaties volgen je instelling **Beweging** (*Stil* = geen animaties, *Rustig* = zonder scan en pulsjes) en *minder beweging* van je apparaat.
+### Opgelost
+- **TrueNAS: schijftemperatuur** gaf op nieuwere TrueNAS-versies (bv. 27) *TrueNAS gaf hier geen antwoord op (midclt)*. RzMon gebruikt dan de temperaturen uit de **SMART-gegevens** die de agent al meestuurt (smartctl). Geen nieuwe agent nodig.
 
 ## 1.174.1 – 2026-11-05
 ### Opgelost

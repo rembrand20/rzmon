@@ -185,6 +185,8 @@ In de **Instellingen** heeft elk onderdeel (bv. *Meldingen → Kanalen* of *IDS 
 
 **Servers op Monitoring in CC** (vanaf 1.164.0): elke server is een compact blok met naam, adres, soort, tellers, een samenvatting en de laatste 24 uur. **Klik op een blok** en het groeit vloeiend naar de volle breedte: de server wordt één tabelrij (adres, soort, status, checks, beschikbaar 24 uur, laatste 24 uur, laatste check), met daaronder de knoppen van de server (bevestigen, onderhoud, ＋ Check, poorten, bewerken, Agent Manager) en de **lijst met checks**, iets ingesprongen en rechts gelijk met de server. Per check zie je status, waarde, verloop, melding en 24 uur, met ✔ Bevestig en ✎. **Klik op een check** voor het checkvenster. Je opent en sluit elke server zelf (✕); er mogen er meer tegelijk open zijn. *Alles openen* opent ze allemaal. RzMon onthoudt dit niet: ga je naar een andere pagina of herlaad je, dan is alles weer dicht. In Blox, L1nes en Compact verandert er niets.
 
+**Vanaf 1.175.0** ziet Monitoring in CC er anders uit. Er is geen aparte sectie *met problemen* meer: per groep staan alle servers in één raster, wie aandacht vraagt eerst. Elke tegel toont een **ring** (checks in orde van het totaal), de samenvatting en de soort als chips, **twee lijntjes** van de belangrijkste checks en de laatste 24 uur. **Klik op een tegel** en hij klapt met een veeranimatie (zoals op een Mac) open over de volle breedte; de andere tegels schuiven opzij. Bovenaan staan meters (CPU, RAM, schijf, beschikbaar 24 uur), dan de knoppen, dan **Vraagt aandacht** (één rij per check, met ✔ Bevestig) en **In orde** als kleine tegels: de eerste 8, de rest met *＋ … andere checks tonen*. Met ✕ krimpt hij terug. Er komt nooit een schuifbalk naar links of rechts, ook niet op een telefoon. Wil je geen animaties, zet dan **Beweging** op *Stil* (of *Rustig*: wel openklappen, geen scan en pulsjes). Je thema (licht of donker) verandert niet.
+
 **Extra kaarten in CC** (vanaf 1.159.0), naast alles wat er al stond:
 - **IDS**: *Aanvallen per dag* staat altijd open (in de andere lay-outs blijft het een regel die je uitklapt). De tabbladen (Incidenten, Aanvalskaart …) zijn samen één kaart.
 - **Incidenten**: *Geopend en opgelost* (per dag, 30 dagen) en *Nog bezig, per bron* (monitoring, IDS, kwetsbaarheden).
@@ -2177,7 +2179,7 @@ De agent vraagt TrueNAS zelf met `midclt`, zonder API-sleutel: alles gaat over d
 | Taken | replicatie, snapshots, cloud sync en rsync: is de laatste keer mislukt, dan CRITICAL met de foutmelding. Eén taak: vul (een deel van) de naam in. | elke 5 min |
 | Apps | vastgelopen app = CRITICAL; gestopte apps en beschikbare app-updates staan in de melding. Eén app: CRITICAL als die niet draait. | elke 5 min |
 | TrueNAS-update | WARNING als er een nieuwe versie klaarstaat, of TrueNAS op een herstart wacht na een update | elke 6 uur |
-| Schijftemperatuur | de warmste schijf (of één schijf), standaard warning 50 °C en critical 60 °C | elk kwartier |
+| Schijftemperatuur | de warmste schijf (of één schijf), standaard warning 50 °C en critical 60 °C. Geeft TrueNAS ze niet via `midclt` (bv. TrueNAS 27), dan gebruikt RzMon vanaf 1.175.0 de temperaturen uit SMART (smartctl, al meegestuurd door de agent). | elk kwartier |
 
 `TRUENAS=0` in `agent.conf` zet het uitlezen uit.
 

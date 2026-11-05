@@ -144,7 +144,32 @@ final class Truenas
     public static function data(int $hostId): ?array
     {
         $v = q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'truenas'", [$hostId])->fetchColumn();
-        return $v ? (json_decode((string) $v, true) ?: null) : null;
+        $d = $v ? (json_decode((string) $v, true) ?: null) : null;
+        if ($d && !$d['temps']) {
+            // 1.175.0: nieuwere TrueNAS (bv. 27) geeft via midclt geen temperaturen: dan die uit SMART (smartctl, al bij de agent)
+            $d['temps'] = self::smartTemps($hostId);
+            $d['have']['temps'] = (bool) $d['temps'];
+            $d['temps_from'] = $d['temps'] ? 'smart' : null;
+        }
+        return $d;
+    }
+
+    /** Schijftemperaturen uit de SMART-gegevens die de agent zelf meestuurt (agent_data 'smart': lijst met dev/temp) */
+    public static function smartTemps(int $hostId): array
+    {
+        $out = [];
+        $list = json_decode((string) Checks::agentMetric(['id' => $hostId], 'smart'), true);
+        foreach (is_array($list) ? $list : [] as $d) {
+            if (!is_array($d) || !isset($d['temp']) || !is_numeric($d['temp']) || !empty($d['standby'])) {
+                continue;
+            }
+            $dev = basename((string) ($d['dev'] ?? ''));
+            if (preg_match('/^[A-Za-z0-9_-]{1,32}$/', $dev)) {
+                $out[$dev] = round((float) $d['temp'], 1);
+            }
+        }
+        ksort($out);
+        return $out;
     }
 
     private const LEVEL = ['EMERGENCY' => 2, 'ALERT' => 2, 'CRITICAL' => 2, 'ERROR' => 2, 'WARNING' => 1, 'NOTICE' => 0, 'INFO' => 0];
