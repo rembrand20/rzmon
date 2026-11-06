@@ -16,7 +16,7 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
   console.log('✔ ingelogd, dashboard geladen');
   await pg.waitForSelector('#home .hm-sum .hm-tile', { timeout: 60000 });   // 1.134.0: het Dashboard is de startpagina
   console.log('✔ Dashboard (startpagina) geladen');
-  for (const tab of await pg.$$eval('.main-tabs .tab', (t) => t.map((x) => x.dataset.tab))) {
+  for (const tab of await pg.$$eval('.main-tabs .tab', (t) => t.filter((x) => x.offsetParent !== null).map((x) => x.dataset.tab))) {   // 1.194.0: alleen zichtbare tabs (mDS is er alleen op een telefoon)
     await pg.click(`.main-tabs .tab[data-tab="${tab}"]`);
     await pg.waitForTimeout(1500);
     console.log(`✔ tabblad ${tab}`);

@@ -157,6 +157,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <button type="button" class="update-badge need-admin" id="update-badge" hidden title="<?= th('Er is een nieuwe versie van RzMon: klik om bij te werken') ?>"></button></div>
     <nav class="tabs main-tabs" role="tablist" id="main-tabs">
       <span class="tab-ind" aria-hidden="true"></span>
+      <button class="tab mobile-only" data-tab="mds" role="tab" title="<?= th('Mobile device summary') ?>"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg><span class="tab-badge" id="mds-badge" hidden></span></span><span class="tab-lbl">mDS</span></button>
       <button class="tab active" data-tab="home" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14l4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/><circle cx="12" cy="14" r="1.6"/></svg></span><span class="tab-lbl has-s"><?= th('Dashboard') ?></span><span class="tab-lbl-s"><?= th('Start') ?></span></button>
       <button class="tab" data-tab="dashboard" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="tab-badge" id="dash-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Monitoring') ?></span><span class="tab-lbl-s"><?= th('Checks') ?></span></button>
       <button class="tab" data-tab="alerts" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="tab-badge" id="alerts-badge" hidden></span></span><span class="tab-lbl"><?= th('Meldingen') ?></span></button>
@@ -202,6 +203,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <button type="button" class="cc-tvexit" id="cc-tvexit" hidden><?= th('✕ TV-modus uit') ?></button>
   <main class="container">
     <div class="iso-banner" id="iso-banner" role="alert" hidden></div><!-- 1.172.0: server in isolatie -->
+    <!-- 1.194.0: mDS, alleen op een telefoon -->
+    <section id="tab-mds" class="tab-panel" aria-label="<?= th('Mobile device summary') ?>" hidden><div id="mds" class="mds"></div></section>
     <section id="tab-home" class="tab-panel" aria-label="<?= th('Dashboard') ?>">
       <div class="hm-head">
         <div class="hm-live" id="hm-live"></div>

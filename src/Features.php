@@ -80,6 +80,7 @@ final class Features
         ['dash', ['Filters op elke pagina', 'Filters on every page'], ['Per onderdeel meerdere waarden, onthouden per account.', 'Several values per part, remembered per account.'], '1.71.0', '', ''],
         ['dash', ['Nederlands en Engels', 'Dutch and English'], ['De hele interface en de meldingen.', 'The whole interface and the notifications.'], '1.50.0', '', '#account'],
         ['dash', ['Statuspagina', 'Status page'], ['Een openbare pagina met een geheime link.', 'A public page with a secret link.'], '1.107.0', 'status_link', 'statuspage'],
+        ['dash', ['mDS (Mobile device summary)', 'mDS (Mobile device summary)'], ['Op een telefoon de startpagina: één oordeel, wat nu aandacht vraagt (met bevestigen, onderhoud, stil en nu checken), beveiliging, netwerk en de servers.', 'The start page on a phone: one verdict, what needs attention (with acknowledge, maintenance, quiet and check now), security, network and the servers.'], '1.194.0', '', ''],
 
         // Meldingen
         ['notify', ['Pushover', 'Pushover'], ['Met prioriteit per status en bevestigen vanuit de app.', 'With priority per status and acknowledge from the app.'], '1.0.0', 'pushover_enabled|pushover_token,pushover_user', 'channels'],

@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.194.0**: **mDS**, een eigen samenvatting voor je telefoon (startpagina daar), met snelle acties.
 - **1.193.0**: **van meting tot melding** zichtbaar in de popup, **bevestigen per soort check**, **sneller bevestigen** en één knop **Advies toepassen**.
 - **1.192.0**: **iperf3 vanzelf geïnstalleerd** waar de doorvoertest het nodig heeft (zender en ontvanger), veilig via dezelfde weg als pakketten bijwerken.
 - **1.191.0**: het **netwerkpad als eigen sectie** in de opengeklapte server (CC), met één klik naar Netwerkpaden; de tegel blijft clean.
 - **1.190.0**: **het pad als lichtspoor**: past altijd, met gloeiende punten voor router, switch, provider en doel, streepjes voor stille hops en een lichtpuls.
-- **1.189.0**: **stille uren met een naam**: profielen (ook voor een vakantie) die je algemeen of per groep, soort, server of check koppelt, met *critical komt door* en **🌙 Nu stil**.
+
+## 1.194.0 – 2026-11-06
+### Nieuw
+- **⚡ mDS (Mobile device summary)**: een eigen pagina voor je telefoon, alleen daar zichtbaar, vooraan in de tabbalk en op een telefoon altijd de startpagina. Kort maar krachtig:
+  - **één oordeel** bovenaan (*Alles in orde* of *3 problemen*, hoeveel kritiek), met servers en checks die OK zijn en de beschikbaarheid van 24 uur;
+  - **Nu aandacht nodig**: de top 5, met per probleem **✔ Bevestig**, **🔧 onderhoud 1 uur**, **🌙 stil 1 uur** en **↻ nu checken**; tik op de regel voor de check;
+  - **Beveiliging**: open incidenten, geblokkeerd vandaag, logins vandaag, kritieke CVE's en datalekken;
+  - **Netwerk**: internet (↓ ↑ en vertraging), het verbruik deze maand (met je limiet), nieuwe apparaten en de top 3 verkeer vandaag;
+  - **Servers**: elke server met een bolletje, CPU, RAM en disk als balkje, en een melding als een agent stil is.
+- Op een computer verandert niets; een link naar `#mds` opent daar gewoon het dashboard.
 
 ## 1.193.2 – 2026-11-06
 ### Opgelost

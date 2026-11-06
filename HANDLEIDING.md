@@ -1035,6 +1035,14 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - **Na afloop** krijg je **één bericht** met alles wat dan nog mis is, van alle servers samen, bijvoorbeeld *"🌅 Na de stille uren: 2 problemen open"* met per regel de server, de check en sinds hoe laat. Kreeg je vóór de stille uren een melding over een probleem dat 's nachts herstelde, dan staat het herstel er ook in. Wat 's nachts misging en vanzelf weer goed kwam, wordt niet gemeld. Bevestigde checks en checks in onderhoud tellen niet mee.
 - Home Assistant krijgt na afloop per check een bericht met `"event": "quiet"` (nog open) of `"recovery"`.
 
+**⚡ mDS – Mobile device summary** (vanaf 1.194.0). Op een telefoon (schermen tot 720 px breed) staat **mDS** vooraan in de tabbalk, en RzMon opent daar altijd mee (een link als `#alerts?server=…` of `#ids/inc` opent wel gewoon die pagina). Op een computer zie je de tab niet. Van boven naar beneden:
+- **het oordeel**: *Alles in orde* of *3 problemen* (met hoeveel kritiek en hoeveel bevestigd), hoeveel servers en checks OK zijn en de beschikbaarheid van de laatste 24 uur;
+- **Nu aandacht nodig**: de 5 belangrijkste problemen (eerst wat niet bevestigd is, critical voor warning), met hoe lang al. Per probleem: **✔ Bevestig**, **🔧 1 u** (onderhoud), **🌙 1 u** (Nu stil) en **↻ Check** (nu opnieuw checken). Tik op de regel voor de popup van de check; *alle 18 ›* opent Monitoring;
+- **Beveiliging**: open incidenten (en hoeveel kritiek), geblokkeerd vandaag (en nu actief), logins vandaag (en mislukte), kritieke CVE's (en actief misbruikt) en datalekken. Tik op een tegel voor die pagina;
+- **Netwerk** (als de netwerkscan aan staat): internet (↓ ↑ en vertraging van de laatste meting), het verbruik deze maand met je limiet, nieuwe apparaten en de top 3 verkeer vandaag;
+- **Servers**: elke server met zijn kleur, CPU, RAM en disk als balkje, en *agent stil …* als een agent langer dan 10 minuten niets stuurde. Tik voor de server op Monitoring.
+De pagina werkt live mee; beveiliging en netwerk worden eens per minuut opgehaald. De knoppen zie je alleen met de rol gebruiker of beheerder.
+
 **⏳ Van meting tot melding** (vanaf 1.193.0). Een melding gaat door drie stappen, elk na de vorige:
 1. **Status bevestigen** (*Warning of critical pas na … mislukte controles*): de status wisselt pas na zoveel controles achter elkaar;
 2. **Melden na … mislukte checks**: daarna moet die status nog zoveel controles zo blijven;

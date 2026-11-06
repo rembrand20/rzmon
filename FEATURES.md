@@ -66,6 +66,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🧭 Dashboard en weergave | **Filters op elke pagina** | Per onderdeel meerdere waarden, onthouden per account. | 1.71.0 |
 | 🧭 Dashboard en weergave | **Nederlands en Engels** | De hele interface en de meldingen. | 1.50.0 |
 | 🧭 Dashboard en weergave | **Statuspagina** | Een openbare pagina met een geheime link. | 1.107.0 |
+| 🧭 Dashboard en weergave | **mDS (Mobile device summary)** | Op een telefoon de startpagina: één oordeel, wat nu aandacht vraagt (met bevestigen, onderhoud, stil en nu checken), beveiliging, netwerk en de servers. | 1.194.0 |
 | 🔔 Meldingen | **Pushover** | Met prioriteit per status en bevestigen vanuit de app. | 1.0.0 |
 | 🔔 Meldingen | **E-mail** | SMTP met STARTTLS of SSL/TLS. | 1.7.0 |
 | 🔔 Meldingen | **ntfy** | Gratis pushmeldingen via ntfy.sh of je eigen server. | 1.140.0 |

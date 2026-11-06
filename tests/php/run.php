@@ -1681,6 +1681,12 @@ ok($ctDisk === 1 && $ctPing === 3 && $ctOwn === 4 && !$ctBad && $fl['raw'] === 2
     && ($fl['eta'] ?? -1) >= 99 && ($fl['eta'] ?? 0) <= 101,
     'status bevestigen per soort: disk 1, ping de algemene 3, eigen waarde gaat voor, ongeldige soort weg; popup: ruwe meting critical, bevestigen 1/3, melding over ±100 s (40 s sneller bevestigen + meldregel na 1 min)');
 
+// 1.194.0: mDS (Mobile device summary): beveiliging en netwerk in één keer, ook als een module uit staat
+$mds = Mds::data();
+ok(is_array($mds['sec']) && isset($mds['sec']['inc'], $mds['sec']['blk_today'], $mds['sec']['logins']) && array_key_exists('vulns', $mds['sec'])
+    && is_array($mds['net']) && array_key_exists('wan', $mds['net']) && is_array($mds['net']['top']),
+    'mDS: beveiliging (incidenten, blokkades, logins, kwetsbaarheden, datalekken) en netwerk (internet, maand, nieuwe apparaten, top 3) zonder fouten');
+
 // 1.183.0: Netwerk → Ontdekken: poorten, domeinen (eerst leren), aanwezigheid, voorstellen en met één klik in RzMon
 q("DELETE FROM net_devices WHERE mac = 'ee:ee:ee:00:01:83'");
 q("INSERT INTO net_devices (mac, ip, random_mac, vendor, kind, status, ports, info, first_seen, last_seen) VALUES ('ee:ee:ee:00:01:83', '10.183.0.9', 0, 'Reolink', 'camera', 'new', '[80,554]', '{}', NOW(), NOW())");
