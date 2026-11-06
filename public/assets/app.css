@@ -4147,6 +4147,8 @@ button.feat-n { cursor: pointer; } button.feat-n:hover, button.feat-n.on { borde
   border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border)); transition: border-color .15s, transform .15s; }
 .ccx-prow:hover, .ccx-prow:focus-visible { border-color: var(--primary); transform: translateY(-1px); outline: none; }
 .ccx-prow.s1 { border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); } .ccx-prow.s2 { border-color: color-mix(in srgb, var(--crit) 45%, var(--border)); }
+/* 1.193.2: eigen statuskleur (anders erfde de rij die van de server, bv. rood bij een critical elders) */
+.ccx-prow { --st: var(--ok); } .ccx-prow.s1 { --st: var(--warn); } .ccx-prow.s2 { --st: var(--crit); } .ccx-prow.s3 { --st: var(--unknown, var(--muted)); } .ccx-prow.s4 { --st: var(--muted); }
 .ccx-prow .np-trail { height: 26px; }
 .ccx-prow { position: relative; overflow: hidden; box-shadow: var(--np-halo); }
 .ccx-prow::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--np-grid, none); }

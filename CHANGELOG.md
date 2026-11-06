@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.190.0**: **het pad als lichtspoor**: past altijd, met gloeiende punten voor router, switch, provider en doel, streepjes voor stille hops en een lichtpuls.
 - **1.189.0**: **stille uren met een naam**: profielen (ook voor een vakantie) die je algemeen of per groep, soort, server of check koppelt, met *critical komt door* en **🌙 Nu stil**.
 
+## 1.193.2 – 2026-11-06
+### Opgelost
+- **Netwerkpaden kleurden rood terwijl ze OK waren** (opengeklapte server, CC). De pad-rij nam de kleur van de server over; had die ergens anders een critical, dan werden het woord *OK*, het bolletje en het icoon rood. De rij heeft nu zijn eigen kleur: groen bij OK, oranje bij warning, rood bij critical.
+
 ## 1.193.1 – 2026-11-06
 ### Opgelost
 - Melding van de codecontrole (PHPStan) in de nieuwe regel *van meting tot melding* (1.193.0); voor de gebruiker verandert er niets.
