@@ -177,6 +177,25 @@ final class Paths
 
     // ------------------------------------------------------------------ van de agent
 
+    /** @var int[] 1.191.1: pad-checks met een nieuwe meting in dit rapport */
+    private static array $fresh = [];
+
+    /**
+     * 1.191.1: pad-checks met een verse meting meteen beoordelen (anders bleef een nieuwe check tot het volgende
+     * interval op "Wacht op de eerste meting"). Niet als die check in dit rapport al beoordeeld is: dan zou
+     * "status bevestigen" dubbel tellen.
+     */
+    public static function runFresh(string $since): void
+    {
+        foreach (array_unique(self::$fresh) as $id) {
+            $claim = q('UPDATE checks SET last_checked = NOW() WHERE id = ? AND enabled = 1 AND (last_checked IS NULL OR last_checked < ?)', [$id, $since]);
+            if ($claim->rowCount() === 1) {
+                Monitor::runCheckById($id);
+            }
+        }
+        self::$fresh = [];
+    }
+
     /** Pad-metingen, doorvoer en de iperf3-ontvanger van een rapport opslaan */
     public static function fromAgent(array $host, array $in): void
     {
@@ -231,6 +250,7 @@ final class Paths
             ];
             $prev = self::data($hid, 'path:' . $id);
             self::put($hid, 'path:' . $id, $d);
+            self::$fresh[] = $id;   // 1.191.1: meteen beoordelen, niet wachten op het volgende interval
             q('INSERT INTO path_runs (check_id, at, kind, data) VALUES (?, NOW(), ?, ?)', [$id, 'run', json_encode(['h' => array_map(static fn($h) => [$h['ip'], $h['avg'], $h['loss']], $hops),
                 'v' => array_map(static fn($v) => [$v['ip'], $v['avg'], $v['loss']], $d['via']), 'd' => $d['ping'] ? [$d['ping']['avg'], $d['ping']['loss']] : null])]);
             // Pad gewijzigd: een andere reeks (bekende) hops dan de vorige meting

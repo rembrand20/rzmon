@@ -1006,6 +1006,7 @@ if ($action === 'agent') {
     // Agent-checks van deze server meteen beoordelen (niet wachten op de volgende cron-minuut)
     try {
         Monitor::runAgentHost((int) $host['id']);
+        Paths::runFresh($now);   // 1.191.1: pad-check met een nieuwe meting meteen beoordelen
     } catch (Throwable $e) {
         error_log('RzMon: agent-checks direct beoordelen mislukt: ' . $e->getMessage());
     }

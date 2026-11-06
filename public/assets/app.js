@@ -813,7 +813,8 @@ function withMorph(fn) {
   Object.defineProperty(Element.prototype, 'innerHTML', {
     configurable: true,
     get() { return d.get.call(this); },
-    set(v) { if (morphOn && this.isConnected) morph(this, String(v)); else d.set.call(this, v); },
+    // 1.191.1: ook een element met data-morph (bv. het pad en de grafiek in de popup) morpht altijd: live bijwerken zonder knipperen
+    set(v) { if ((morphOn || (this.dataset && this.dataset.morph !== undefined && this.firstChild)) && this.isConnected) morph(this, String(v)); else d.set.call(this, v); },
   });
 })();
 /** "12 s geleden" telt gewoon door: <span class="ago" data-ts="…"> */
@@ -4489,7 +4490,9 @@ async function checkInfo(id, live = false, more = null) {
       ${c.status_since && st !== 0 ? `<span class="ci2-dur mono">${L('duurt al {d}', { d: durText((now - toTime(c.status_since)) / 1000) })}</span>` : ''}</div>
     ${meter}</div>`;
   // 2. grafiek van 24 uur (geladen in de achtergrond)
-  const chart = unit ? sec(L('Laatste 24 uur'), `<div class="ci2-chart" id="ci2-chart"><p class="muted small">${L('laden…')}</p></div>`) : '';
+  // 1.191.1: live bijwerken laat de huidige inhoud staan (geen "laden…" tussendoor); daarna morpht alleen wat veranderde
+  const keep = (sel) => (live && $(sel) && $(sel).innerHTML.trim()) || `<p class="muted small">${L('laden…')}</p>`;
+  const chart = unit ? sec(L('Laatste 24 uur'), `<div class="ci2-chart" id="ci2-chart" data-morph>${keep('#ci2-chart')}</div>`) : '';
   // 3. beschikbaarheid en hoe vaak gecheckt
   const C = 2 * Math.PI * 24;
   const ringOf = (lbl, v) => `<div class="ci2-ring"><svg width="58" height="58" viewBox="0 0 58 58" role="img" aria-label="${esc(lbl)} ${v === null ? '–' : fmtPct(v)}"><circle cx="29" cy="29" r="24" class="bg"/>${v === null ? '' : `<circle cx="29" cy="29" r="24" class="fg${v < 99 ? ' bad' : ''}" stroke-dasharray="${(C * v / 100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 29 29)"/>`}<text x="29" y="33" text-anchor="middle">${v === null ? '–' : (v >= 99.95 ? '100' : dec(v.toFixed(v >= 99 ? 1 : 0)))}%</text></svg><span>${lbl}</span></div>`;
@@ -4563,7 +4566,7 @@ async function checkInfo(id, live = false, more = null) {
   }).join('');
   const moreBtn = (r.changes_total || 0) > r.changes.length ? `<button type="button" class="btn small-btn ci2-more" data-ci-more="${c.id}">＋ ${L('{n} eerdere tonen', { n: Math.min(25, r.changes_total) - r.changes.length })}</button>` : '';
   const tlSec = sec(L('Statuswijzigingen'), tl ? `<ol class="ci2-tl">${tl}</ol>${moreBtn}` : `<p class="muted small">${L('Nog geen statuswijzigingen bewaard.')}</p>`);
-  const pathSec = c.type === 'path' ? `<div id="ci2-path"><p class="muted small">${L('laden…')}</p></div>` : '';   // 1.177.0
+  const pathSec = c.type === 'path' ? `<div id="ci2-path" data-morph>${keep('#ci2-path')}</div>` : '';   // 1.177.0
   const ciBody = `<div class="ci2" data-motion="${afMotion(null)}">${hero}${pathSec}${chart}
       <div class="ci2-g2">${avail}${details}</div>
       <div class="ci2-g2">${melden}${samen}</div>

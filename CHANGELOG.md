@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.188.0**: **verkeer ook zonder UniFi**: via SNMP op je switches en via de agent op je servers (agent 1.80.0), met UniFi als eerste keus.
 - **1.187.0**: je **internetlijn per maand** met een datalimiet, **diensten per apparaat** (DPI), een nieuwe **check Verkeer** en het rapport **Netwerkverkeer**.
 
+## 1.191.1 – 2026-11-06
+### Opgelost
+- **De popup van een check knipperde** bij elke live-verversing: het pad en de grafiek werden eerst leeggemaakt ("laden…") en daarna opnieuw opgebouwd, waardoor de pagina versprong. Nu blijft alles staan en verandert alleen wat echt anders is, zoals een nieuwe vertraging of een andere kleur.
+- **Een nieuwe pad-check bleef een paar minuten op onbekend staan** ("Wacht op de eerste meting"), ook als het pad er al was. Komt er een nieuwe meting binnen, dan beoordeelt RzMon de check nu meteen; niet twee keer in hetzelfde rapport, zodat *status bevestigen* goed blijft tellen.
+
 ## 1.191.0 – 2026-11-06
 ### Nieuw
 - **🛣️ Netwerkpad in de opengeklapte server (lay-out CC).** De servertegel blijft clean: het pad staat er niet meer in. Klap je een server open, dan staat het pad als eigen sectie **Netwerkpad** tussen *Vraagt aandacht* en *In orde*, in dezelfde opmaak als een check: status, doel, het lichtspoor, de vertraging, hops en verlies, en de laatste 24 uur.

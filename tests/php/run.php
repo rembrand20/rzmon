@@ -1783,6 +1783,16 @@ $pr4 = Paths::check(q('SELECT * FROM checks WHERE id = ?', [$pcId])->fetch(), $p
 $left = q('SELECT metric FROM agent_data WHERE host_id = ?', [$tnH])->fetchAll(PDO::FETCH_COLUMN);
 ok($pr4['status'] === STATUS_CRIT && in_array('path:' . $pcId, $left, true) && in_array('pathmax:' . $pcId, $left, true) && !in_array('ci_oud', $left, true) && !in_array('path:999999', $left, true),
     'pad-check na een rapport zonder nieuwe meting: de meting blijft (niet onbekend), oude regels en die van verwijderde checks gaan weg');
+// 1.191.1: een nieuwe meting wordt meteen beoordeld (niet pas na het interval), maar niet twee keer in hetzelfde rapport
+q('UPDATE checks SET status = 3, last_checked = NOW() - INTERVAL 1 MINUTE WHERE id = ?', [$pcId]);
+$pfSince = now();
+$pcRun(['ip' => '192.0.2.5', 'loss' => 0, 'avg' => 0.5], ['ip' => '1.1.1.1', 'loss' => 0, 'avg' => 12.0]);
+Paths::runFresh($pfSince);
+$pf1 = q('SELECT status, (SELECT COUNT(*) FROM results WHERE check_id = c.id) AS n FROM checks c WHERE id = ?', [$pcId])->fetch();
+$pcRun(['ip' => '192.0.2.5', 'loss' => 0, 'avg' => 0.5], ['ip' => '1.1.1.1', 'loss' => 0, 'avg' => 12.0]);
+Paths::runFresh($pfSince);
+$pf2 = (int) q('SELECT COUNT(*) FROM results WHERE check_id = ?', [$pcId])->fetchColumn();
+ok((int) $pf1['status'] !== 3 && $pf2 === (int) $pf1['n'], 'pad-check: een nieuwe meting wordt meteen beoordeeld (niet meer onbekend), maar niet twee keer in hetzelfde rapport');
 q('DELETE FROM hosts WHERE id = ?', [$pdH]);
 save_setting('path_unifi_cache', '');
 // 1.175.0: TrueNAS 27 geeft via midclt geen temperaturen: dan uit de SMART-gegevens van de agent
