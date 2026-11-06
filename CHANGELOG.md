@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.204.0**: een **nieuw update-venster** met voortgangsring, tijdlijn per stap en duidelijke foutmeldingen.
 - **1.203.0**: de **zijbalk klapt vanzelf in** tot icoontjes als je hem smaller sleept of het venster smal is.
 - **1.202.0**: een **laadteller** met animatie als een pagina lang duurt, en de **zijbalk** als zwevend paneel.
 - **1.201.0**: **Liquid Glass** als keuze per account, en een **laadanimatie** waarin je servers oplichten.
 - **1.200.0**: **databases van binnen bewaken**: MariaDB/MySQL en PostgreSQL, via de agent zonder wachtwoord, met overzicht en losse waarden.
-- **1.199.0**: **kruimelpad** boven elke pagina en **CPU · RAM · Disk** (hoogste waarde) in de tellerbalk van Monitoring.
+
+## 1.204.0 – 2026-11-06
+### Nieuw
+- **🔄 Update-venster vernieuwd**: een kop met je versie en de nieuwe als chips, *Wat is er nieuw* als korte kaartjes, en de back-up en versiekeuze in één blok. Tijdens het bijwerken een **voortgangsring** met verstreken tijd en een **tijdlijn** van de stappen (met de duur per stap); de herstart van RzMon als oranje regel en het logboek als terminal. **Klaar** toont hoe lang het duurde, of er een back-up is en hoe lang RzMon niet bereikbaar was; **Mislukt** zegt welke stap misging, of er iets veranderd is, en heeft **↻ Opnieuw proberen**.
+- **Pakketten bijwerken** (Kwetsbaarheden) in dezelfde opmaak.
+- De update-knop bovenaan pulseert zacht zolang er een update klaarstaat.
 
 ## 1.203.0 – 2026-11-06
 ### Nieuw

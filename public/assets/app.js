@@ -5490,6 +5490,7 @@ function modal({ title, body, buttons = [], wide = false, page = false, onSubmit
   const form = $('#modal-form');
   dlg.dataset.live = '';   // een ander venster: niet meer live bijwerken als check (checkInfo zet het weer)
   dlg.classList.toggle('wide', wide);
+  dlg.classList.remove('upd-modal');   // 1.204.0: alleen de bijwerk-vensters
   dlg.classList.toggle('page', page);   // 1.121.0: als pagina (bijna het hele scherm), bv. de Agent Manager
   $('#modal-title').textContent = title;
   $('#modal-body').innerHTML = body;
@@ -14794,11 +14795,13 @@ function pollUpdate() {
   updatePoll = setTimeout(async () => {
     let r;
     // Hooguit 10 seconden wachten: tijdens het herstarten van PHP of Apache kan een verzoek anders blijven hangen
-    try { r = await Promise.race([api('update_status'), new Promise((res, rej) => setTimeout(() => rej(new Error('timeout')), 10000))]); updateFails = 0; }
+    try { r = await Promise.race([api('update_status'), new Promise((res, rej) => setTimeout(() => rej(new Error('timeout')), 10000))]); updateFails = 0; if (updDownAt) { updDownMs += Date.now() - updDownAt; updDownAt = 0; } }
     catch (ex) {   // even onbereikbaar tijdens het installeren
       updatePollAt = Date.now();
       updateFails++;
-      if (updateDialogShown()) $('#upd-now').innerHTML = '🔄 ' + L('Even geduld, RzMon wordt herstart…');
+      if (!updDownAt) updDownAt = Date.now();
+      const rn = $('#upd-now');
+      if (rn) rn.hidden = false;
       pollUpdate();
       return;
     }
@@ -14822,6 +14825,70 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && up
 const updateDialogShown = () => $('#modal').open && !!$('#modal-body .upd-dlg:not(.vu-dlg)');
 let updatePct = 0;   // de balk gaat tijdens één update nooit terug
 
+// 1.204.0: de bijwerk-vensters (RzMon en Pakketten bijwerken) in een nieuw jasje: kop met versies, ring, tijdlijn, terminal
+const UPD_ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+const UPD_SRV = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>';
+function updHead(title, chips = [], icon = UPD_ARROW) {
+  return `<div class="upd-head"><span class="upd-ic">${icon}</span><div class="upd-ht"><b>${title}</b>${chips.length ? `<div class="upd-vers">${chips.join('<span class="upd-arrow">→</span>')}</div>` : ''}</div>
+    <button type="button" class="upd-x icon-btn" value="cancel" formnovalidate aria-label="${esc(L('Sluiten'))}">✕</button></div>`;
+}
+const updChip = (v, isNew) => `<span class="upd-chip${isNew ? ' new' : ''}">${esc(v)}</span>`;
+/** Voortgangsring; pct null = onbekend (een draaiende boog). */
+function updRing(pct, sub) {
+  const C = +(2 * Math.PI * 60).toFixed(2);
+  const known = typeof pct === 'number';
+  return `<div class="upd-ring${known ? '' : ' indet'}" role="progressbar" aria-valuemin="0" aria-valuemax="100" ${known ? `aria-valuenow="${pct}"` : ''}>
+    <svg viewBox="0 0 140 140"><circle class="trk" cx="70" cy="70" r="60"/><circle class="val" cx="70" cy="70" r="60" stroke-dasharray="${C}" stroke-dashoffset="${known ? (C * (1 - pct / 100)).toFixed(2) : (C * 0.72).toFixed(2)}"/></svg>
+    <div class="upd-pct"><b>${known ? pct + '%' : '…'}</b>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
+}
+/** Tijdlijn van de stappen: klaar ✓, bezig (pulserend), mislukt ✕; detail onder de huidige stap, duur rechts. */
+function updSteps(steps, cur, state, detail, durs = []) {
+  return `<ol class="upd-tl">${steps.map(([, l], i) => {
+    const cls = state === 'ok' || i < cur ? 'done' : i === cur ? (state === 'error' ? 'fail' : 'cur') : '';
+    const mark = cls === 'done' ? '✓' : cls === 'fail' ? '✕' : i + 1;
+    return `<li class="${cls}"><span class="upd-dot">${mark}</span><span class="upd-st">${l}${i === cur && detail && state !== 'ok' ? `<small>${detail}</small>` : ''}</span><span class="upd-dur">${durs[i] || ''}</span></li>`;
+  }).join('')}</ol>`;
+}
+function updLog(log, open, n = 12) {
+  const lines = (log || '').trim().split('\n').filter(Boolean);
+  if (!lines.length) return '';
+  return `<details class="upd-term" ${open ? 'open' : ''}><summary><span>▸ ${L('Logboek')}</span><span>${L('{n} regels', { n: lines.length })}</span></summary><pre class="upd-log">${esc(lines.slice(-n).join('\n'))}</pre></details>`;
+}
+const updMmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const updSecs = (ms) => (ms >= 60000 ? updMmss(ms) : L('{n} s', { n: Math.max(1, Math.round(ms / 1000)) }));
+/** Highlights uit de changelog: de vetgedrukte punten (eerst Nieuw), als kaartjes. */
+function updHighlights(notes) {
+  const out = [];
+  const plain = (t) => String(t).replace(/\*\*|`/g, '').replace(/\*(.+?)\*/g, '$1').trim();
+  for (const n of notes || []) {
+    let sec = '';
+    for (const line of String(n.text || '').split('\n')) {
+      if (/^### /.test(line)) { sec = line.slice(4).trim(); continue; }
+      const m = line.match(/^- \*\*(.+?)\*\*[:\s]*(.*)$/) || line.match(/^- (.+?)()$/);
+      if (!m) continue;
+      const t = plain(m[1]);
+      const lead = (t.match(EMOJI_LEAD) || [''])[0].trim();
+      let d = plain(m[2]);
+      if (d.length > 110) d = d.slice(0, 107).replace(/\s+\S*$/, '') + '…';
+      out.push({ v: n.version, fix: /opgelost|fixed/i.test(sec), ic: lead || (/opgelost|fixed/i.test(sec) ? '🛠️' : '✨'), t: t.replace(EMOJI_LEAD, '').replace(/[:.]$/, ''), d });
+    }
+  }
+  return out.sort((a, b) => a.fix - b.fix).slice(0, 3);
+}
+function updNotesBlock(notes) {
+  if (!(notes || []).length) return '';
+  const hl = updHighlights(notes);
+  const all = notes.length === 1 ? L('Alles lezen (1 versie)') : L('Alles lezen ({n} versies)', { n: notes.length });
+  return `<div class="upd-news"><div class="upd-news-h"><span>${L('Wat is er nieuw')}</span></div>
+    ${hl.map((h) => `<div class="upd-hl"><span class="upd-hl-ic">${esc(h.ic)}</span><div><b>${esc(h.t)}</b>${h.d ? `<span>${esc(h.d)}</span>` : ''}</div><em>${esc(h.v)}</em></div>`).join('')}
+    <details class="update-notes upd-notes"><summary>${all}</summary>
+      ${notes.map((n) => `<div class="un-ver"><h3>${esc(n.version)} <span class="muted small">${esc(n.date)}</span></h3>${mdLite(n.text)}</div>`).join('')}</details></div>`;
+}
+
+// Tijden van deze update (in de browser): wanneer elke stap begon, en hoe lang RzMon onbereikbaar was
+let updT = {}, updT0 = 0, updEnd = 0, updDownAt = 0, updDownMs = 0, updBackup = null;
+function updResetTimes() { updT = {}; updT0 = Date.now(); updEnd = 0; updDownAt = 0; updDownMs = 0; }
+
 /** Vraag "wil je bijwerken?" (met back-up), of meteen de voortgang als er al een update loopt. */
 async function openUpdateDialog(pick = false) {
   let u = updateInfo;
@@ -14833,21 +14900,27 @@ async function openUpdateDialog(pick = false) {
     showTab('settings/update');
     return;
   }
+  const to = u.available ? u.latest : '?';
   modal({
-    title: '⬆ ' + L('RzMon bijwerken'),
-    body: `<p style="margin-top:0">${u.available ? L('RzMon bijwerken van <b>{from}</b> naar <b>{to}</b>?', { from: esc(u.current), to: esc(u.latest) }) : L('Je gebruikt <b>{v}</b>.', { v: esc(u.current) })}</p>
-      ${versions.length ? `<label>${L('Versie')} <span class="hint">${L('(niets kiezen = de nieuwste)')}</span>
-        <select name="version"><option value="">${L('De nieuwste ({v})', { v: esc(u.latest || '?') })}</option>
-          ${versions.map((v) => `<option value="${esc(v.version)}">${esc(v.version)}${v.date ? ` – ${esc(v.date)}` : ''}${verCmp(v.version, u.current) < 0 ? ` · ${L('ouder: terugzetten')}` : ''}</option>`).join('')}</select></label>
-        <div id="upd-older" class="callout small" hidden>${L('⚠️ <b>Terugzetten naar een oudere versie.</b> Je instellingen en gegevens blijven staan; de database blijft zoals hij is (nieuwere kolommen worden niet gebruikt). Wat er sindsdien bij kwam, werkt niet meer. Automatisch bijwerken pauzeert tot je weer naar de nieuwste gaat. Agents hoef je niet terug te zetten.')}
+    title: L('RzMon bijwerken'),
+    body: `<div class="upd-dlg upd-ask">
+      ${updHead(L('RzMon bijwerken'), [updChip(u.current), `<span id="upd-to">${updChip(to, true)}</span>`])}
+      <div class="upd-body">
+        ${updNotesBlock(u.notes)}
+        <div class="upd-opts">
+          <label class="upd-opt"><span class="grow">${L('Eerst een back-up maken')}<small>${L('Database en instellingen. Aanbevolen.')}</small></span>
+            <span class="switch"><input type="checkbox" name="backup" ${u.backup ? 'checked' : ''}><span></span></span></label>
+          ${versions.length ? `<label class="upd-opt"><span class="grow">${L('Versie')}<small>${L('Een oudere kiezen = terugzetten (met bevestigen)')}</small></span>
+            <select name="version"><option value="">${L('De nieuwste ({v})', { v: esc(u.latest || '?') })}</option>
+              ${versions.map((v) => `<option value="${esc(v.version)}">${esc(v.version)}${v.date ? ` – ${esc(v.date)}` : ''}${verCmp(v.version, u.current) < 0 ? ` · ${L('ouder: terugzetten')}` : ''}</option>`).join('')}</select></label>` : ''}
+        </div>
+        ${versions.length ? `<div id="upd-older" class="callout small" hidden>${L('⚠️ <b>Terugzetten naar een oudere versie.</b> Je instellingen en gegevens blijven staan; de database blijft zoals hij is (nieuwere kolommen worden niet gebruikt). Wat er sindsdien bij kwam, werkt niet meer. Automatisch bijwerken pauzeert tot je weer naar de nieuwste gaat. Agents hoef je niet terug te zetten.')}
           ${confirmField('TERUGZETTEN')}</div>` : ''}
-      ${u.notes.length ? `<details class="update-notes upd-notes"><summary>${u.notes.length === 1 ? L('Wat is er nieuw (1 versie)') : L('Wat is er nieuw ({n} versies)', { n: u.notes.length })}</summary>
-        ${u.notes.map((n) => `<div class="un-ver"><h3>${esc(n.version)} <span class="muted small">${esc(n.date)}</span></h3>${mdLite(n.text)}</div>`).join('')}</details>` : ''}
-      <label class="switch"><input type="checkbox" name="backup" ${u.backup ? 'checked' : ''}><span></span> ${L('Eerst een back-up maken')}</label>
-      <p class="muted small">${L('RzMon is tijdens het installeren even niet bereikbaar. Dit venster laat zien hoe ver de installatie is.')}</p>`,
+        <div class="upd-facts"><span>${L('RzMon is tijdens het installeren even niet bereikbaar')}</span><span>${L('Agents blijven meten en sturen hun gegevens later na')}</span><span>${L('Dit venster laat zien hoe ver het is')}</span></div>
+      </div></div>`,
     buttons: [
       { label: L('Annuleren'), onClick: () => $('#modal').close() },
-      { label: '⬆ ' + L('Bijwerken'), cls: 'primary', onClick: async (btn) => {
+      { label: '⬆ ' + (u.available ? L('Bijwerken naar {v}', { v: u.latest }) : L('Bijwerken')), cls: 'primary', onClick: async (btn) => {
         const f = $('#modal-form');
         const backup = f.backup.checked;
         const version = f.version ? f.version.value : '';
@@ -14856,7 +14929,9 @@ async function openUpdateDialog(pick = false) {
           await api('update_start', { backup, version, confirm: f.confirm ? f.confirm.value : '' });
           if ($('#settings-form')) $('#settings-form').update_backup.checked = backup;   // keuze is opgeslagen
           updatePct = 0;
-          const s = { state: 'queued', step: 'queued', message: L('Wachten op de hulpdienst…'), at: Date.now() / 1000 };
+          updResetTimes();
+          updBackup = backup;
+          const s = { state: 'queued', step: 'queued', message: L('Wachten op de hulpdienst…'), at: Date.now() / 1000, from: u.current, to: version || u.latest };
           showUpdateDialog(s, '', true);
           showUpdateProgress(s, '');
           pollUpdate();
@@ -14864,9 +14939,13 @@ async function openUpdateDialog(pick = false) {
       } },
     ],
   });
-  // Een oudere versie gekozen: waarschuwing en bevestigen
+  $('#modal').classList.add('upd-modal');
+  // Een andere versie gekozen: de chip mee, en bij een oudere de waarschuwing en bevestigen
   const sel = $('#modal-form').version;
-  if (sel) sel.onchange = () => { $('#upd-older').hidden = !(sel.value && verCmp(sel.value, u.current) < 0); };
+  if (sel) sel.onchange = () => {
+    $('#upd-older').hidden = !(sel.value && verCmp(sel.value, u.current) < 0);
+    $('#upd-to').innerHTML = updChip(sel.value || u.latest || '?', true);
+  };
 }
 
 /** Percentage van de balk: van het script (pct), anders een schatting per stap. */
@@ -14881,31 +14960,59 @@ function updatePercent(s) {
 function showUpdateDialog(s, log, force = false) {
   if (!s) return;
   if (!force && $('#modal').open && !updateDialogShown()) return;   // niet over een ander venster heen
+  const now = Date.now();
+  if (!updT0) updT0 = s.at ? Math.min(now, s.at * 1000) : now;
   const pct = updatePercent(s);
-  const cur = UPDATE_STEPS.findIndex(([k]) => k === s.step);
-  const icon = (i) => (s.state === 'ok' || i < cur ? '✔' : i === cur ? (s.state === 'error' ? '✘' : '⏳') : '·');
-  // Waar de installatie nu mee bezig is: de stap, en bij Installeren het onderdeel van het installatiescript
+  const cur = s.state === 'ok' ? UPDATE_STEPS.length - 1 : UPDATE_STEPS.findIndex(([k]) => k === s.step);
+  if (cur >= 0 && !updT[cur]) updT[cur] = now;
+  if (s.state !== 'running' && s.state !== 'queued' && !updEnd) updEnd = now;
+  // Duur per afgeronde stap (alleen als we het begin van die stap en de volgende gezien hebben)
+  const durs = UPDATE_STEPS.map((_, i) => (updT[i] && updT[i + 1] && i < cur ? updSecs(updT[i + 1] - updT[i]) : i === cur && s.state === 'running' ? '…' : ''));
+  // Waar de installatie nu mee bezig is: bij Installeren het onderdeel van het installatiescript
   const part = (s.detail || '').match(/^(\d+\/\d+) (.*)$/);
-  const step = s.state === 'queued' ? L('Wachten op de hulpdienst…') : cur >= 0 ? UPDATE_STEPS[cur][1] : esc(s.message || '');
-  const now = s.state === 'ok' ? '✔ ' + L('Bijgewerkt naar {v}. De pagina wordt zo herladen…', { v: esc(s.to || '') })
-    : s.state === 'error' ? '✘ ' + esc(s.message || L('Bijwerken mislukt'))
-    : '⏳ ' + step + (part ? `: ${esc(L(part[2]))} <span class="muted">(${part[1]})</span>` : '');
-  const tail = (log || '').trim().split('\n').slice(-8).join('\n');
+  const detail = s.state === 'queued' ? L('Wachten op de hulpdienst…')
+    : s.state === 'error' ? esc(s.message || L('Bijwerken mislukt'))
+    : part ? L('Onderdeel {n}: {what}', { n: esc(part[1].replace('/', ' ' + L('van') + ' ')), what: esc(L(part[2])) }) : esc(s.message || '');
+  const chips = s.from && s.to ? [updChip(s.from), updChip(s.to, true)] : s.to ? [updChip(s.to, true)] : [];
+  const elapsed = updMmss((updEnd || now) - updT0);
+  let body;
+  if (s.state === 'ok') {
+    const took = updEnd - updT0;
+    body = `<div class="upd-dlg ok">${updHead(L('Bijgewerkt'), chips)}
+      <div class="upd-body">
+        <div class="upd-done"><span class="upd-check"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+          <b>${L('RzMon draait nu op {v}', { v: esc(s.to || '') })}</b><span class="muted">${L('De pagina wordt over 3 seconden herladen.')}</span></div>
+        <div class="upd-stats">
+          <div><b>${took > 1500 ? updSecs(took) : '–'}</b><small>${L('duur')}</small></div>
+          <div><b>${updBackup === null ? '–' : updBackup ? '✓' : '✕'}</b><small>${L('back-up gemaakt')}</small></div>
+          <div><b>${updDownMs ? updSecs(updDownMs) : '–'}</b><small>${L('niet bereikbaar')}</small></div>
+        </div>
+        <div class="upd-reload"><i></i></div>
+      </div></div>`;
+  } else {
+    const nothing = s.state === 'error' && cur >= 0 && cur < UPDATE_STEPS.findIndex(([k]) => k === 'install');
+    body = `<div class="upd-dlg ${s.state}">${updHead(s.state === 'error' ? L('Bijwerken mislukt') : L('Bezig met bijwerken…'), chips)}
+      <div class="upd-body">
+        <div class="upd-prog">${updRing(pct, s.state === 'error' ? L('gestopt') : L('{t} verstreken', { t: elapsed }))}${updSteps(UPDATE_STEPS, Math.max(cur, 0), s.state === 'queued' ? 'running' : s.state, detail, durs)}</div>
+        <div class="upd-restart" id="upd-now" ${updateFails ? '' : 'hidden'}><i></i>${L('RzMon wordt herstart; dit venster gaat vanzelf verder zodra hij terug is.')}</div>
+        ${s.state === 'queued' && s.stuck ? `<p class="warn-txt small">${L('De hulpdienst reageert niet. Controleer op de server:')} <code>systemctl status rzmon-update.path</code></p>` : ''}
+        ${s.state === 'error' ? `<div class="upd-err"><b>${nothing ? L('Er is niets veranderd.') : L('Het bijwerken is gestopt.')}</b>
+          <span>${nothing ? L('Je draait nog steeds op {v}.', { v: esc(s.from || (updateInfo && updateInfo.current) || '') }) : L('Kijk in het logboek wat er misging.')}${updBackup ? ' ' + L('De back-up van vandaag staat bij Instellingen → Back-up.') : ''}</span></div>` : ''}
+        ${s.stale ? `<p class="small">${L('Controleer op de server:')} <code>systemctl status rzmon-update.service</code> ${L('en')} <code>tail -30 /var/lib/rzmon/update.log</code></p>` : ''}
+        ${updLog(log, s.state === 'error')}
+      </div></div>`;
+  }
   modal({
-    title: '⬆ ' + L('RzMon bijwerken') + (s.from && s.to ? ` ${esc(s.from)} → ${esc(s.to)}` : ''),
-    body: `<div class="upd-dlg ${s.state}">
-      <div class="upd-top"><b>${s.state === 'ok' ? L('Klaar') : s.state === 'error' ? L('Mislukt') : L('Bezig met bijwerken…')}</b><b>${pct}%</b></div>
-      <div class="upd-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>
-      <ol class="update-steps">${UPDATE_STEPS.map(([k, l], i) => `<li class="${i === cur ? 'cur' : ''}">${icon(i)} ${l}</li>`).join('')}</ol>
-      <p class="upd-now" id="upd-now">${now}</p>
-      ${s.state === 'queued' && s.stuck ? `<p class="warn-txt small">${L('De hulpdienst reageert niet. Controleer op de server:')} <code>systemctl status rzmon-update.path</code></p>` : ''}
-      ${s.stale ? `<p class="small">${L('Controleer op de server:')} <code>systemctl status rzmon-update.service</code> ${L('en')} <code>tail -30 /var/lib/rzmon/update.log</code></p>` : ''}
-      ${tail ? `<pre class="update-log upd-log">${esc(tail)}</pre>` : ''}
-    </div>`,
-    buttons: s.state === 'ok' ? []
-      : s.state === 'error' ? [{ label: L('Sluiten'), cls: 'primary', onClick: () => $('#modal').close() }]
+    title: L('RzMon bijwerken'),
+    body,
+    buttons: s.state === 'ok' ? [{ label: L('Nu herladen'), cls: 'primary', onClick: () => location.reload() }]
+      : s.state === 'error' ? [{ label: L('Sluiten'), onClick: () => $('#modal').close() }, { label: '↻ ' + L('Opnieuw proberen'), cls: 'primary', onClick: () => { $('#modal').close(); openUpdateDialog(); } }]
       : [{ label: L('Op de achtergrond'), onClick: () => $('#modal').close() }],
   });
+  const dlg = $('#modal');
+  dlg.classList.add('upd-modal');
+  const ft = $('#modal-footer');
+  if (s.state === 'running' || s.state === 'queued') ft.insertAdjacentHTML('afterbegin', `<span class="upd-note">${L('Je kunt dit venster sluiten; het bijwerken gaat door.')}</span>`);
   const lg = $('#modal-body .upd-log');
   if (lg) lg.scrollTop = lg.scrollHeight;
 }
@@ -16773,7 +16880,6 @@ async function vulnUpgradeDialog(h, force, first) {
   const step = st.state === 'queued' ? 'queued' : st.state === 'ok' || st.state === 'error' ? 'done'
     : st.stage === 'verify' ? 'install' : st.stage || 'update';
   const cur = VULN_UP_STEPS.findIndex(([k]) => k === step);
-  const icon = (i) => (st.state === 'ok' || i < cur ? '✔' : i === cur ? (st.state === 'error' ? '✘' : '⏳') : '·');
   // Zonder tussenstand (oude agent, of nog niets gehoord): een bewegende balk zonder percentage
   const known = st.state === 'ok' || st.state === 'error' || typeof st.pct === 'number';
   const pct = st.state === 'ok' ? 100 : st.state === 'queued' ? 2 : known ? st.pct : 100;
@@ -16788,22 +16894,24 @@ async function vulnUpgradeDialog(h, force, first) {
   const after = st.state !== 'ok' ? ''
     : rescanned ? `<p class="good-txt small">🔍 ${L('Opnieuw gescand: de lijst met kwetsbaarheden is bijgewerkt.')}</p>`
     : `<p class="muted small">🔍 ${L('RzMon scant opnieuw zodra de agent de nieuwe softwarelijst stuurt (meestal binnen een paar minuten).')}</p>`;
-  const tail = (st.log || '').trim().split('\n').slice(-8).join('\n');
+  const pk = st.pkgs || [];
+  let nowTxt = now.replace(/^[⏳✔✘] /, '');
+  if (nowTxt.startsWith(label + ': ')) nowTxt = nowTxt.slice(label.length + 2);   // de stap staat er al boven
   modal({
-    title: '⬆ ' + L('Bijwerken op {name}', { name: h.name }),
+    title: L('Bijwerken op {name}', { name: h.name }),
     body: `<div class="upd-dlg vu-dlg ${st.state === 'ok' ? 'ok' : st.state === 'error' ? 'error' : ''}">
-      <div class="upd-top"><b>${st.state === 'ok' ? L('Klaar') : st.state === 'error' ? L('Mislukt') : L('Bezig met bijwerken…')}</b><b>${known || st.state === 'queued' ? pct + '%' : ''}</b></div>
-      <div class="upd-bar ${known || st.state === 'queued' ? '' : 'indet'}" role="progressbar" aria-valuemin="0" aria-valuemax="100" ${known ? `aria-valuenow="${pct}"` : ''}><i style="width:${pct}%"></i></div>
-      <ol class="update-steps">${VULN_UP_STEPS.map(([k, l], i) => `<li class="${i === cur ? 'cur' : ''}">${icon(i)} ${l}</li>`).join('')}</ol>
-      <p class="upd-now">${now}</p>
-      ${busy && st.state === 'running' && !r.live ? `<p class="muted small">${L('Deze agent meldt geen tussenstand. Werk hem bij naar {v} voor een voortgangsbalk.', { v: '1.48.0' })}</p>` : ''}
-      ${after}
-      <p class="muted small">${L('Pakketten')}: <span class="mono">${esc((st.pkgs || []).join(' '))}</span></p>
-      ${tail ? `<pre class="update-log upd-log">${esc(tail)}</pre>` : ''}
-    </div>`,
+      ${updHead(L('Bijwerken op {name}', { name: esc(h.name) }), [updChip(pk.length === 1 ? pk[0] : L('{n} pakketten', { n: pk.length }), true)], UPD_SRV)}
+      <div class="upd-body">
+        <div class="upd-prog">${updRing(known || st.state === 'queued' ? pct : null, st.state === 'ok' ? L('klaar') : st.state === 'error' ? L('gestopt') : since.replace(' · ', ''))}${updSteps(VULN_UP_STEPS, cur, st.state === 'queued' ? 'running' : st.state, nowTxt)}</div>
+        ${busy && st.state === 'running' && !r.live ? `<p class="muted small">${L('Deze agent meldt geen tussenstand. Werk hem bij naar {v} voor een voortgangsbalk.', { v: '1.48.0' })}</p>` : ''}
+        ${after}
+        <p class="muted small">${L('Pakketten')}: <span class="mono">${esc(pk.join(' '))}</span></p>
+        ${updLog(st.log, st.state === 'error', 8)}
+      </div></div>`,
     buttons: busy ? [{ label: L('Op de achtergrond'), onClick: () => { $('#modal').close(); loadVulns(); } }]
       : [{ label: L('Sluiten'), cls: 'primary', onClick: () => { $('#modal').close(); loadVulns(); } }],
   });
+  $('#modal').classList.add('upd-modal');
   const lg = $('#modal-body .upd-log');
   if (lg) lg.scrollTop = lg.scrollHeight;
   // Doorvragen tot klaar, en daarna tot de nieuwe scan er is (hooguit 15 minuten)
