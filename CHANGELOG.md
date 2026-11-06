@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.195.0**: **mDS volledig touch**: bladen van onderaf, vegen, trekken om te verversen en grote knoppen.
 - **1.194.0**: **mDS**, een eigen samenvatting voor je telefoon (startpagina daar), met snelle acties.
 - **1.193.0**: **van meting tot melding** zichtbaar in de popup, **bevestigen per soort check**, **sneller bevestigen** en één knop **Advies toepassen**.
 - **1.192.0**: **iperf3 vanzelf geïnstalleerd** waar de doorvoertest het nodig heeft (zender en ontvanger), veilig via dezelfde weg als pakketten bijwerken.
 - **1.191.0**: het **netwerkpad als eigen sectie** in de opengeklapte server (CC), met één klik naar Netwerkpaden; de tegel blijft clean.
-- **1.190.0**: **het pad als lichtspoor**: past altijd, met gloeiende punten voor router, switch, provider en doel, streepjes voor stille hops en een lichtpuls.
+
+## 1.195.0 – 2026-11-06
+### Nieuw
+- **👆 mDS volledig met de vinger te bedienen.** Alleen de mDS-pagina; de andere pagina's blijven zoals ze zijn.
+  - **Bladen van onderaf**: tik op een probleem of server en er schuift een blad omhoog met alle details en grote knoppen (bevestigen, nu checken, onderhoud 1 uur, stil 1 uur; bij een server onderhoud of stil voor de hele server). Sluiten met vegen naar beneden of een tik ernaast.
+  - **Trekken om te verversen** bovenaan de pagina.
+  - **Alle problemen** klappen in de pagina open (*alle 18 ▾*), in plaats van naar Monitoring te springen.
+  - Elke knop is minstens 44 px hoog, geen dubbeltik-zoom, duidelijke feedback bij het tikken en een korte trilling na een actie (als je telefoon dat kan).
 
 ## 1.194.1 – 2026-11-06
 ### Opgelost

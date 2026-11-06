@@ -1043,6 +1043,8 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - **Servers**: elke server met zijn kleur, CPU, RAM en disk als balkje, en *agent stil …* als een agent langer dan 10 minuten niets stuurde. Tik voor de server op Monitoring.
 De pagina werkt live mee; beveiliging en netwerk worden eens per minuut opgehaald. De knoppen zie je alleen met de rol gebruiker of beheerder.
 
+**Met de vinger** (vanaf 1.195.0): tik op een probleem of een server en er schuift een **blad** van onderaf omhoog met de details en grote knoppen (bevestigen, nu checken, onderhoud 1 uur, stil 1 uur; bij een server voor de hele server). Veeg het blad naar beneden of tik ernaast om te sluiten; *Volledige check openen* of *Op Monitoring openen* brengt je naar de gewone pagina. **Trek de pagina bovenaan naar beneden** om te verversen. *alle 18 ▾* klapt alle problemen open. Na een actie trilt je telefoon kort (als dat kan).
+
 **⏳ Van meting tot melding** (vanaf 1.193.0). Een melding gaat door drie stappen, elk na de vorige:
 1. **Status bevestigen** (*Warning of critical pas na … mislukte controles*): de status wisselt pas na zoveel controles achter elkaar;
 2. **Melden na … mislukte checks**: daarna moet die status nog zoveel controles zo blijven;

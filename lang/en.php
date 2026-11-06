@@ -8356,4 +8356,8 @@ return [
     'Meeste verkeer vandaag' => 'Most traffic today',
     'totaal {b}' => 'total {b}',
     'agent stil {d}' => 'agent quiet {d}',
+    'al {d}' => 'for {d}',
+    'Stil 1 uur' => 'Quiet 1 hour',
+    'Volledige check openen' => 'Open the full check',
+    'Op Monitoring openen' => 'Open in Monitoring',
 ];

@@ -243,7 +243,7 @@ const REV_FAIL = [[0, '✅ OK'], [1, '🟠 WARNING'], [2, '🔴 CRITICAL']];
 const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', L('onbekend')];
 // 1.194.0: mDS (Mobile device summary) alleen op een telefoon
 const MDS_MQ = window.matchMedia ? window.matchMedia('(max-width: 720px)') : { matches: false, addEventListener() {} };
-let mdsData = null, mdsAt = 0;
+let mdsData = null, mdsAt = 0, mdsAll = false;
 
 let stats = { uptime: {}, sparks: {} };
 // Sorteren op de pagina Meldingen (per apparaat onthouden): { key: 'time'|'status'|'server'|'check'|'message'|'channels', dir: 1|-1 }
@@ -1638,6 +1638,7 @@ function showTab(name) {
   if (name === 'net') loadNet();
   if (name === 'home') loadHome();
   if (name === 'mds') loadMds();   // 1.194.0
+  document.body.classList.toggle('mds-on', name === 'mds');   // 1.195.0: geen trekken-om-te-herladen van de browser zelf
   if (name === 'analytics') loadAnalytics();
   if (name === 'incidents') loadIncidents();
   if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
@@ -2763,10 +2764,10 @@ function renderMds() {
       <button type="button" data-mds="maint" data-id="${c.id}" title="${esc(L('Onderhoud 1 uur'))}">🔧<small>1 u</small></button>
       <button type="button" data-mds="quiet" data-id="${c.id}" title="${esc(L('Nu stil, 1 uur'))}">🌙<small>1 u</small></button>
       <button type="button" data-mds="run" data-id="${c.id}" title="${esc(L('Nu checken'))}">↻<small>${L('Check')}</small></button></div>` : '');
-  const rows = probs.slice(0, 5).map(([h, c]) => `<div class="mds-p s${+c.status}${c.acked_at ? ' acked' : ''}">
+  const rows = probs.slice(0, mdsAll ? 60 : 5).map(([h, c]) => `<div class="mds-p s${+c.status}${c.acked_at ? ' acked' : ''}">
       <button type="button" class="mds-pt" data-mds="open" data-id="${c.id}"><i class="mds-dot"></i><span><b>${esc(h.name)} · ${esc(c.name)}</b><small>${esc(String(c.last_message || '').replace(/\s+/g, ' ').slice(0, 90))}</small></span>
         <span class="mds-dur">${c.acked_at ? '✔ ' : ''}${c.problem_since ? esc(dur(c.problem_since)) : ''}</span></button>${acts(c)}</div>`).join('');
-  const attn = `<section class="mds-sec"><h3>${L('Nu aandacht nodig')}${probs.length > 5 ? ` <button type="button" class="mds-more" data-mds="tab" data-tab="dashboard">${L('alle {n}', { n: probs.length })} ›</button>` : ''}</h3>
+  const attn = `<section class="mds-sec"><h3>${L('Nu aandacht nodig')}${probs.length > 5 ? ` <button type="button" class="mds-more" data-mds="all">${mdsAll ? L('minder') + ' ▴' : L('alle {n}', { n: probs.length }) + ' ▾'}</button>` : ''}</h3>
     ${rows || `<p class="mds-calm">✔ ${L('Niets dat aandacht vraagt')}</p>`}</section>`;
   // 3. Beveiliging
   const s = mdsData && mdsData.sec;
@@ -2803,22 +2804,119 @@ function renderMds() {
   const badge = $('#mds-badge');
   if (badge) { badge.hidden = !open.length; badge.textContent = open.length; badge.classList.toggle('s1', !crit); }
 }
+/* 1.195.0: mDS volledig met de vinger: bladen van onderaf (vegen om te sluiten), trekken om te verversen, grote tikvlakken */
+const mdsBuzz = () => { try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* geen trilling */ } };
+function mdsSheet(html) {
+  let sh = $('#mds-sheet');
+  if (!sh) {
+    sh = document.createElement('div');
+    sh.id = 'mds-sheet';
+    sh.className = 'mds-sheet';
+    sh.innerHTML = `<div class="mds-sheet-bg" data-mds="close"></div><div class="mds-sheet-p" role="dialog" aria-modal="true"><div class="mds-grip" data-mds="close" aria-label="${esc(L('Sluiten'))}"></div><div class="mds-sheet-c"></div></div>`;
+    document.body.append(sh);
+    // Vegen naar beneden sluit het blad (alleen als de inhoud bovenaan staat)
+    const p = $('.mds-sheet-p', sh);
+    let y0 = null, dy = 0;
+    p.addEventListener('touchstart', (e) => { y0 = $('.mds-sheet-c', sh).scrollTop <= 0 ? e.touches[0].clientY : null; dy = 0; }, { passive: true });
+    p.addEventListener('touchmove', (e) => { if (y0 === null) return; dy = Math.max(0, e.touches[0].clientY - y0); p.style.transform = dy ? `translateY(${dy}px)` : ''; }, { passive: true });
+    p.addEventListener('touchend', () => { p.style.transform = ''; if (y0 !== null && dy > 90) mdsSheetClose(); y0 = null; });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sh.classList.contains('open')) mdsSheetClose(); });
+  }
+  $('.mds-sheet-c', sh).innerHTML = html;
+  $('.mds-sheet-c', sh).scrollTop = 0;
+  sh.hidden = false;
+  requestAnimationFrame(() => sh.classList.add('open'));
+  document.body.classList.add('mds-sheet-on');
+}
+function mdsSheetClose() {
+  const sh = $('#mds-sheet');
+  if (!sh) return;
+  sh.classList.remove('open');
+  document.body.classList.remove('mds-sheet-on');
+  setTimeout(() => { if (!sh.classList.contains('open')) sh.hidden = true; }, 260);
+}
+function mdsCheckSheet(id) {
+  const [c, h] = findCheck(id);
+  if (!c) return;
+  const st = c.maintenance ? 4 : +c.status, [v, un] = keyValue(c);
+  const user = isAdmin() || isUser();
+  const btn = (act, ic, lbl, cls = '') => `<button type="button" class="mds-big ${cls}" data-mds="${act}" data-id="${c.id}">${ic}<span>${lbl}</span></button>`;
+  mdsSheet(`<div class="mds-sh s${st}"><i class="mds-dot"></i><div><b>${esc(h.name)} · ${esc(c.name)}</b>
+      <small>${esc(STATUS_WORD[+c.status] || '?')}${c.problem_since && +c.status ? ' · ' + L('al {d}', { d: esc(dur(c.problem_since)) }) : ''}${c.acked_at ? ' · ✔ ' + L('bevestigd') : ''}</small></div></div>
+    <p class="mds-msg">${esc(c.last_message || '–')}</p>
+    <div class="mds-kv">${v !== '' && v !== null && v !== undefined ? `<span>${L('Waarde')}</span><b class="mono">${v}${esc(un || '')}</b>` : ''}
+      <span>${L('Laatste check')}</span><b>${c.last_checked ? agoSpan(c.last_checked) : '–'}</b>
+      ${c.pend_status != null && +c.pend_count > 0 ? `<span>${L('Bevestigen')}</span><b>⏳ ${esc(STATUS_WORD[+c.pend_status] || '?')} ${+c.pend_count}×</b>` : ''}</div>
+    ${user ? `<div class="mds-bigs">${!c.acked_at && +c.status ? btn('ack', '✔', L('Bevestigen'), 'pri') : ''}${btn('run', '↻', L('Nu checken'))}${btn('maint', '🔧', L('Onderhoud 1 uur'))}${btn('quiet', '🌙', L('Stil 1 uur'))}</div>` : ''}
+    <button type="button" class="mds-link" data-mds="full" data-id="${c.id}">${L('Volledige check openen')} ›</button>`);
+}
+function mdsHostSheet(id) {
+  const h = findHost(id);
+  if (!h) return;
+  const st = hostStatus(h), user = isAdmin() || isUser();
+  const probs = h.checks.filter(isProblem).sort((a, b) => STATUS_RANK[+b.status] - STATUS_RANK[+a.status]);
+  const val = (t) => { const x = h.checks.filter((c) => c.type === t && +c.enabled && c.last_value !== null).map((c) => +c.last_value); return x.length ? Math.max(...x) : null; };
+  const met = [['CPU', val('cpu')], ['RAM', val('ram')], [L('Disk'), val('disk')]].filter(([, x]) => x !== null);
+  const up = stats.uptime && stats.uptime[h.id] ? stats.uptime[h.id].h24 : null;
+  mdsSheet(`<div class="mds-sh s${st}"><i class="mds-dot"></i><div><b>${esc(h.name)}</b><small class="mono">${esc(h.address || '')}${up !== null ? ` · ${L('24 u')} ${pct(up)}` : ''}</small></div></div>
+    ${h.mode === 'agent' && h.agent_seen ? `<p class="mds-msg muted">${L('agent {ago}', { ago: L('{d} geleden', { d: dur(h.agent_seen) }) })}</p>` : ''}
+    ${met.length ? `<div class="mds-mets">${met.map(([l, x]) => `<div><span>${l}</span>${mdsBar(x, 'wide')}<b class="mono">${dec(String(Math.round(x)))}%</b></div>`).join('')}</div>` : ''}
+    <h4 class="mds-h4">${probs.length ? L('Vraagt aandacht') + ` · ${probs.length}` : '✔ ' + L('Alle checks in orde')}</h4>
+    ${probs.map((c) => `<button type="button" class="mds-li s${+c.status}" data-mds="open" data-id="${c.id}"><i class="mds-dot"></i><span><b>${esc(c.name)}</b><small>${esc(String(c.last_message || '').slice(0, 80))}</small></span><span class="mds-dur">›</span></button>`).join('')}
+    ${user ? `<div class="mds-bigs">${btnHost('hmaint', '🔧', L('Onderhoud 1 uur'), h.id)}${btnHost('hquiet', '🌙', L('Stil 1 uur'), h.id)}</div>` : ''}
+    <button type="button" class="mds-link" data-mds="hostpage" data-id="${h.id}">${L('Op Monitoring openen')} ›</button>`);
+}
+const btnHost = (act, ic, lbl, id) => `<button type="button" class="mds-big" data-mds="${act}" data-id="${id}">${ic}<span>${lbl}</span></button>`;
 document.addEventListener('click', async (e) => {
-  const b = e.target.closest && e.target.closest('#mds [data-mds]');
+  const b = e.target.closest && e.target.closest('#mds [data-mds], #mds-sheet [data-mds]');
   if (!b) return;
   const id = +b.dataset.id, act = b.dataset.mds;
-  if (act === 'open') return checkInfo(id);
+  if (act === 'close') return mdsSheetClose();
+  if (act === 'open') return mdsCheckSheet(id);
+  if (act === 'host') return mdsHostSheet(id);
+  if (act === 'all') { mdsAll = !mdsAll; return renderMds(); }
+  if (act === 'full') { mdsSheetClose(); return checkInfo(id); }
   if (act === 'tab') return showTab(b.dataset.tab);
-  if (act === 'host') { showTab('dashboard'); setTimeout(() => { const t = $(`[data-hid="${id}"]`); if (t) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 300); return; }
+  if (act === 'hostpage') { mdsSheetClose(); showTab('dashboard'); setTimeout(() => { const t = $(`[data-hid="${id}"]`); if (t) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 300); return; }
   b.disabled = true;
+  b.classList.add('busy');
   try {
     if (act === 'ack') { await api('ack', { id, comment: '' }); toast('✔ ' + L('Bevestigd')); }
     if (act === 'maint') { await api('maintenance_set', { scope: 'check', id, minutes: 60 }); toast('🔧 ' + L('Onderhoud 1 uur')); }
     if (act === 'quiet') { await api('quiet_now', { what: 'check', id, minutes: 60 }); toast('🌙 ' + L('Stil tot {t}', { t: mdsTime(Date.now() + 3600000) })); }
+    if (act === 'hmaint') { await api('maintenance_set', { scope: 'host', id, minutes: 60 }); toast('🔧 ' + L('Onderhoud 1 uur')); }
+    if (act === 'hquiet') { await api('quiet_now', { what: 'host', id, minutes: 60 }); toast('🌙 ' + L('Stil tot {t}', { t: mdsTime(Date.now() + 3600000) })); }
     if (act === 'run') { const r = await api('check_run', { id }); toast(`${STATUS[r.result.status]}: ${r.result.message || ''}`, +r.result.status === 0 ? 'ok' : 'warn'); }
+    mdsBuzz();
+    mdsSheetClose();
     await refresh();
-  } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
+  } catch (ex) { toast(ex.message, 'err'); b.disabled = false; b.classList.remove('busy'); }
 });
+// Trekken om te verversen (alleen op mDS, alleen als de pagina bovenaan staat)
+(() => {
+  let y0 = null, dy = 0, busy = false;
+  const ind = () => { let i = $('#mds-ptr'); if (!i) { i = document.createElement('div'); i.id = 'mds-ptr'; i.className = 'mds-ptr'; i.innerHTML = '<i>↻</i>'; document.body.append(i); } return i; };
+  document.addEventListener('touchstart', (e) => {
+    if (busy || $('#tab-mds').hidden || document.body.classList.contains('mds-sheet-on') || (window.scrollY || document.documentElement.scrollTop) > 0) { y0 = null; return; }
+    y0 = e.touches[0].clientY; dy = 0;
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    const i = ind(), d = Math.min(90, dy * 0.5);
+    i.style.transform = `translate(-50%, ${d - 40}px) rotate(${dy * 2}deg)`;
+    i.classList.toggle('ready', dy > 110);
+    i.classList.toggle('on', dy > 8);
+  }, { passive: true });
+  document.addEventListener('touchend', async () => {
+    if (y0 === null) return;
+    const i = ind(), go = dy > 110;
+    y0 = null;
+    if (!go) { i.classList.remove('on', 'ready'); i.style.transform = ''; return; }
+    busy = true; i.classList.add('spin'); mdsBuzz();
+    try { await Promise.all([refresh(), loadMds()]); } finally { busy = false; i.classList.remove('on', 'ready', 'spin'); i.style.transform = ''; }
+  });
+})();
 
 function initNetPaths() {
   $('#netpaths').addEventListener('click', (e) => {
