@@ -1804,6 +1804,26 @@ $pcRun(['ip' => '192.0.2.5', 'loss' => 0, 'avg' => 0.5], ['ip' => '1.1.1.1', 'lo
 Paths::runFresh($pfSince);
 $pf2 = (int) q('SELECT COUNT(*) FROM results WHERE check_id = ?', [$pcId])->fetchColumn();
 ok((int) $pf1['status'] !== 3 && $pf2 === (int) $pf1['n'], 'pad-check: een nieuwe meting wordt meteen beoordeeld (niet meer onbekend), maar niet twee keer in hetzelfde rapport');
+// 1.192.0: doorvoertest aan en geen iperf3: de agent installeert het (één opdracht, niet opnieuw); zonder commando's als root niet
+q("INSERT INTO hosts (name, address, mode, agent_seen, agent_version, commands) VALUES ('ci-ip-zender', '192.0.2.81', 'agent', NOW(), '1.80.0', 'root')");
+$ipA = (int) db()->lastInsertId();
+q("INSERT INTO hosts (name, address, mode, agent_seen, agent_version, commands) VALUES ('ci-ip-noroot', '192.0.2.82', 'agent', NOW(), '1.80.0', 'off')");
+$ipB = (int) db()->lastInsertId();
+foreach ([$ipA, $ipB] as $ipH) {
+    $tnSt->execute([$ipH, 'caps', json_encode(['mtr']), now()]);
+    q("INSERT INTO checks (host_id, type, target, name, interval_sec, options) VALUES (?, 'path', '1.1.1.1', 'pad', 300, ?)", [$ipH, json_encode(['tp' => 1, 'tp_every' => 3600])]);
+}
+Paths::agentLines($ipA);
+$ipReq1 = json_decode((string) q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$ipA])->fetchColumn(), true);
+Paths::agentLines($ipA);
+$ipReq2 = json_decode((string) q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$ipA])->fetchColumn(), true);
+Paths::agentLines($ipB);
+$ipReqB = q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$ipB])->fetchColumn();
+Paths::cleanAgentData($ipA, now());   // de markering overleeft het opruimen na een rapport
+$ipMark = q("SELECT 1 FROM agent_data WHERE host_id = ? AND metric = 'iperf_inst'", [$ipA])->fetchColumn();
+q('DELETE FROM hosts WHERE id IN (?, ?)', [$ipA, $ipB]);
+ok(($ipReq1['pkgs'] ?? null) === ['iperf3'] && ($ipReq1['mode'] ?? '') === 'install' && ($ipReq2['id'] ?? '') === ($ipReq1['id'] ?? 'x') && !$ipReqB && $ipMark,
+    'iperf3: doorvoertest aan en het ontbreekt = de agent installeert het (één opdracht, niet opnieuw), zonder commando\'s als root niet');
 q('DELETE FROM hosts WHERE id = ?', [$pdH]);
 save_setting('path_unifi_cache', '');
 // 1.175.0: TrueNAS 27 geeft via midclt geen temperaturen: dan uit de SMART-gegevens van de agent

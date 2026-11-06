@@ -72,7 +72,7 @@ final class Paths
     public static function cleanAgentData(int $hostId, string $now): void
     {
         $keep = '^(path|pathtp|pathmax|pathreq):[0-9]+$';
-        q("DELETE FROM agent_data WHERE host_id = ? AND updated_at < ? AND metric NOT REGEXP '$keep' AND metric NOT IN ('iperfs', 'selftest', 'selftest_req')", [$hostId, $now]);
+        q("DELETE FROM agent_data WHERE host_id = ? AND updated_at < ? AND metric NOT REGEXP '$keep' AND metric NOT IN ('iperfs', 'selftest', 'selftest_req', 'iperf_inst')", [$hostId, $now]);
         $ids = array_map('intval', q("SELECT id FROM checks WHERE host_id = ? AND type = 'path'", [$hostId])->fetchAll(PDO::FETCH_COLUMN));
         foreach (q("SELECT metric FROM agent_data WHERE host_id = ? AND metric REGEXP '$keep'", [$hostId])->fetchAll(PDO::FETCH_COLUMN) as $m) {
             if (!in_array((int) substr((string) $m, strpos((string) $m, ':') + 1), $ids, true)) {
@@ -88,8 +88,10 @@ final class Paths
     {
         $out = [];
         $port = self::port();
+        $needTp = false;
         foreach (q("SELECT * FROM checks WHERE host_id = ? AND type = 'path' AND enabled = 1", [$hostId]) as $c) {
             $o = self::opts($c);
+            $needTp = $needTp || ($o['tp'] && $o['tp_every'] > 0);
             if (!self::okHost((string) $c['target'])) {
                 continue;
             }
@@ -125,7 +127,45 @@ final class Paths
         if ($until) {
             $out[] = implode("\t", [0, 'iperfs', $port, $until]);
         }
+        // 1.192.0: deze server doet een doorvoertest maar heeft geen iperf3: de agent installeert het
+        if ($needTp && !self::hasIperf($hostId)) {
+            self::ensureIperf($hostId);
+        }
         return $out;
+    }
+
+    /** Heeft de agent op deze server iperf3? (null = nog niet bekend: geen lijst van de agent) */
+    public static function hasIperf(int $hostId): ?bool
+    {
+        $caps = self::data($hostId, 'caps');
+        return $caps === null ? null : in_array('iperf3', $caps, true);
+    }
+
+    /**
+     * 1.192.0: iperf3 laten installeren door de agent (via dezelfde weg als pakketten bijwerken: apt of dnf, als root,
+     * met voortgang en een melding achteraf). Niet bij Home Assistant, TrueNAS (nooit apt) of zonder commando's als root,
+     * niet terwijl er al iets loopt, en hooguit eens per 12 uur per server (ook na een mislukte poging). Uit te zetten met
+     * de instelling iperf_install. Geeft true als de opdracht klaarstaat of net klaargezet is.
+     */
+    public static function ensureIperf(int $hostId): bool
+    {
+        if (setting('iperf_install', '1') !== '1' || self::hasIperf($hostId) !== false) {
+            return false;
+        }
+        $h = q('SELECT * FROM hosts WHERE id = ?', [$hostId])->fetch();
+        if (!$h || Vulns::upgradeBlocked($h)) {
+            return false;
+        }
+        $m = self::data($hostId, 'iperf_inst');
+        if ($m && (int) ($m['at'] ?? 0) > time() - 43200) {
+            return empty($m['err']) && (int) $m['at'] > time() - 1800;   // net aangevraagd: nog bezig
+        }
+        if (!empty($h['vuln_upgrade_req'])) {
+            return false;   // er loopt al een opdracht (bijwerken of installeren): die niet overschrijven
+        }
+        $r = Vulns::requestInstall($h, ['iperf3'], 'RzMon (doorvoertest)', true);
+        self::put($hostId, 'iperf_inst', ['at' => time(), 'err' => $r === true ? '' : (string) $r]);
+        return $r === true;
     }
 
     public static function port(): int
@@ -140,7 +180,18 @@ final class Paths
         $o ??= self::opts(q('SELECT * FROM checks WHERE id = ?', [$checkId])->fetch() ?: []);
         $t = self::tpTarget($hostId, $o['tp_host']);
         if (!$t) {
+            // 1.192.0: nog geen ontvanger met iperf3: op de beste kandidaat installeren (hetzelfde netwerk eerst)
+            $cand = !$o['tp_host'] ? self::tpTarget($hostId, 0, true) : null;
+            if ($cand && self::ensureIperf((int) $cand['id'])) {
+                self::put($hostId, 'pathtp:' . $checkId, ['at' => time(), 'err' => t('iperf3 wordt geïnstalleerd op {h} (de ontvanger); de doorvoertest volgt daarna vanzelf', ['h' => $cand['name']])]);
+                return null;
+            }
             self::put($hostId, 'pathtp:' . $checkId, ['at' => time(), 'err' => t('Geen apparaat om naartoe te meten: zet bij een andere server met de agent en iperf3 "Mag doorvoertest ontvangen" aan')]);
+            return null;
+        }
+        // 1.192.0: de gekozen ontvanger mist iperf3: daar installeren
+        if (!self::hasIperf((int) $t['id']) && self::ensureIperf((int) $t['id'])) {
+            self::put($hostId, 'pathtp:' . $checkId, ['at' => time(), 'err' => t('iperf3 wordt geïnstalleerd op {h} (de ontvanger); de doorvoertest volgt daarna vanzelf', ['h' => $t['name']])]);
             return null;
         }
         $req = ['key' => bin2hex(random_bytes(8)), 'at' => time(), 'until' => time() + self::TP_WINDOW, 'host' => (int) $t['id'], 'ip' => $t['address'], 'name' => $t['name']];
@@ -149,10 +200,10 @@ final class Paths
     }
 
     /** @return array<string, mixed>|null */
-    private static function tpTarget(int $srcId, int $wanted): ?array
+    private static function tpTarget(int $srcId, int $wanted, bool $anyCaps = false): ?array
     {
         $src = q('SELECT address FROM hosts WHERE id = ?', [$srcId])->fetchColumn();
-        $rows = q("SELECT h.id, h.name, h.address, c.value AS caps FROM hosts h LEFT JOIN agent_data c ON c.host_id = h.id AND c.metric = 'caps'
+        $rows = q("SELECT h.*, c.value AS caps FROM hosts h LEFT JOIN agent_data c ON c.host_id = h.id AND c.metric = 'caps'
                    WHERE h.mode = 'agent' AND h.enabled = 1 AND h.iperf_ok = 1 AND h.id <> ?", [$srcId])->fetchAll();
         $best = null;
         $score = -1;
@@ -163,8 +214,11 @@ final class Paths
             if ($wanted && (int) $r['id'] === $wanted) {
                 return $r;
             }
-            if ($wanted || !in_array('iperf3', json_decode((string) $r['caps'], true) ?: [], true)) {
+            if ($wanted || (!$anyCaps && !in_array('iperf3', json_decode((string) $r['caps'], true) ?: [], true))) {
                 continue;
+            }
+            if ($anyCaps && Vulns::upgradeBlocked($r)) {
+                continue;   // 1.192.0: daar kan de agent niets installeren (Home Assistant, TrueNAS, geen root)
             }
             // Zelfde netwerk (eerste drie delen van het adres) gaat voor
             $s = is_string($src) && implode('.', array_slice(explode('.', $src), 0, 3)) === implode('.', array_slice(explode('.', $r['address']), 0, 3)) ? 2 : 1;

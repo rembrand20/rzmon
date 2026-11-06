@@ -8304,4 +8304,5 @@ return [
     'Klik: naar Monitoring → Netwerkpaden' => 'Click: go to Monitoring → Network paths',
     'Netwerkpad' => 'Network path',
     'in orde, nog niet bevestigd ({n}/{need})' => 'fine, not yet confirmed ({n}/{need})',
+    'iperf3 wordt geïnstalleerd op {h} (de ontvanger); de doorvoertest volgt daarna vanzelf' => 'iperf3 is being installed on {h} (the receiver); the throughput test follows automatically',
 ];

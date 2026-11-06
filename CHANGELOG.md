@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.192.0**: **iperf3 vanzelf geïnstalleerd** waar de doorvoertest het nodig heeft (zender en ontvanger), veilig via dezelfde weg als pakketten bijwerken.
 - **1.191.0**: het **netwerkpad als eigen sectie** in de opengeklapte server (CC), met één klik naar Netwerkpaden; de tegel blijft clean.
 - **1.190.0**: **het pad als lichtspoor**: past altijd, met gloeiende punten voor router, switch, provider en doel, streepjes voor stille hops en een lichtpuls.
 - **1.189.0**: **stille uren met een naam**: profielen (ook voor een vakantie) die je algemeen of per groep, soort, server of check koppelt, met *critical komt door* en **🌙 Nu stil**.
 - **1.188.0**: **verkeer ook zonder UniFi**: via SNMP op je switches en via de agent op je servers (agent 1.80.0), met UniFi als eerste keus.
-- **1.187.0**: je **internetlijn per maand** met een datalimiet, **diensten per apparaat** (DPI), een nieuwe **check Verkeer** en het rapport **Netwerkverkeer**.
+
+## 1.192.0 – 2026-11-06
+### Nieuw
+- **🛣️ iperf3 wordt vanzelf geïnstalleerd als de doorvoertest het nodig heeft.** Staat bij een pad-check de doorvoertest aan en mist iperf3, dan installeert de agent het (apt of dnf, als root, met voortgang en een ℹ️-melding achteraf):
+  - op de server die de doorvoertest doet;
+  - op de ontvanger die je zelf bij de check koos;
+  - kies je de ontvanger niet zelf en heeft nog geen enkele server iperf3, dan op de server die RzMon als ontvanger zou kiezen (hetzelfde netwerk eerst).
+  - Niet bij Home Assistant, TrueNAS (nooit apt) of als commando's als root uit staan; niet als er al een installatie of update loopt; hooguit eens per 12 uur per server. In de popup van de pad-check staat dat iperf3 geïnstalleerd wordt; de doorvoertest volgt daarna vanzelf.
+  - Werkt met de agent die je al hebt (1.66.0 of nieuwer); een nieuwe agent is niet nodig.
 
 ## 1.191.2 – 2026-11-06
 ### Opgelost
