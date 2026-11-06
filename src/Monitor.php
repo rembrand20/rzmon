@@ -38,6 +38,8 @@ final class Monitor
 
     /** Checks die RzMon zelf uitvoert en die bij een probleem sneller mogen (slim interval) */
     private const FAST_TYPES = ['ping', 'tcp', 'http', 'snmp'];
+    /** 1.193.0: veranderen niet zomaar heen en weer; advies: meteen geldig (bevestigen = 1) */
+    public const SLOW_CONFIRM_TYPES = ['disk', 'ssl', 'domain', 'heartbeat', 'path', 'smart', 'reboot'];
 
     /**
      * Interval van een check in SQL (1.108.0, slim interval, Instellingen → Monitoring → Advies): bij een probleem
@@ -46,13 +48,14 @@ final class Monitor
      */
     private static function intervalSql(): string
     {
-        if (setting('smart_interval', '0') !== '1') {
-            return 'c.interval_sec';
-        }
         $fast = max(10, min(300, (int) setting('smart_fast', '20')));
-        $slow = max(1, min(10, (int) setting('smart_slow', '2')));
         $types = "'" . implode("','", self::FAST_TYPES) . "'";
-        return "(CASE WHEN c.type IN ($types) AND (c.status <> 0 OR c.fail_count > 0) THEN LEAST(c.interval_sec, $fast)
+        $pend = self::confirmFast() ? ' OR c.pend_status IS NOT NULL' : '';   // 1.193.0: twijfelt nog = sneller opnieuw
+        if (setting('smart_interval', '0') !== '1') {
+            return $pend ? "(CASE WHEN c.type IN ($types) AND c.pend_status IS NOT NULL THEN LEAST(c.interval_sec, $fast) ELSE c.interval_sec END)" : 'c.interval_sec';
+        }
+        $slow = max(1, min(10, (int) setting('smart_slow', '2')));
+        return "(CASE WHEN c.type IN ($types) AND (c.status <> 0 OR c.fail_count > 0$pend) THEN LEAST(c.interval_sec, $fast)
                  WHEN c.status = 0 AND c.fail_count = 0 AND c.flapping_since IS NULL AND c.status_since < NOW() - INTERVAL 1 HOUR
                  THEN GREATEST(c.interval_sec, LEAST(c.interval_sec * $slow, 3600)) ELSE c.interval_sec END)";
     }
@@ -63,15 +66,22 @@ final class Monitor
      */
     public static function runFastLoop(float $deadline): int
     {
-        if (setting('smart_interval', '0') !== '1') {
+        $smart = setting('smart_interval', '0') === '1';
+        if (!$smart && !self::confirmFast()) {
             return 0;
         }
+        // 1.193.0: zonder slim interval alleen de checks die nog bevestigen
+        $which = $smart ? '(c.status <> 0 OR c.fail_count > 0' . (self::confirmFast() ? ' OR c.pend_status IS NOT NULL' : '') . ')' : 'c.pend_status IS NOT NULL';
         $n = 0;
         $types = "'" . implode("','", self::FAST_TYPES) . "'";
         while (microtime(true) < $deadline - 5) {
+            // Zonder slim interval: niets meer te bevestigen = stoppen (de cron hoeft dan niet de hele minuut te wachten)
+            if (!$smart && !q("SELECT 1 FROM checks WHERE enabled = 1 AND pend_status IS NOT NULL AND type IN ($types) LIMIT 1")->fetchColumn()) {
+                break;
+            }
             sleep(5);
             $iv = self::intervalSql();
-            $rows = q(self::CHECK_SELECT . " WHERE c.enabled = 1 AND h.enabled = 1 AND c.type IN ($types) AND (c.status <> 0 OR c.fail_count > 0)
+            $rows = q(self::CHECK_SELECT . " WHERE c.enabled = 1 AND h.enabled = 1 AND c.type IN ($types) AND $which
                       AND c.last_checked <= NOW() - INTERVAL ($iv - LEAST(15, $iv DIV 4)) SECOND")->fetchAll();
             foreach ($rows as $row) {
                 if (microtime(true) > $deadline) {
@@ -302,8 +312,102 @@ final class Monitor
     {
         $col = $toOk ? 'confirm_ok' : 'confirm_fails';
         $own = $check[$col] ?? null;
-        $n = $own !== null && $own !== '' ? (int) $own : (int) setting($col, '');
+        if ($own !== null && $own !== '') {
+            return max(1, min(100, (int) $own));
+        }
+        // 1.193.0: per soort check (Instellingen → Status bevestigen), dan algemeen
+        $t = self::confirmTypes()[(string) ($check['type'] ?? '')][$toOk ? 'o' : 'f'] ?? '';
+        $n = $t !== '' ? (int) $t : (int) setting($col, '');
         return max(1, min(100, $n));
+    }
+
+    /**
+     * 1.193.0: status bevestigen per soort check: {type: {f: mislukt, o: goed}}; leeg = de algemene waarde.
+     * @return array<string, array{f: string, o: string}>
+     */
+    public static function confirmTypes(): array
+    {
+        static $raw = null, $c = [];
+        $v = (string) setting('confirm_types', '');
+        if ($v !== $raw) {
+            [$raw, $c] = [$v, self::cleanConfirmTypes(json_decode($v, true))];
+        }
+        return $c;
+    }
+
+    /** @return array<string, array{f: string, o: string}> */
+    public static function cleanConfirmTypes(mixed $in): array
+    {
+        $out = [];
+        foreach (is_array($in) ? $in : [] as $type => $v) {
+            if (!is_string($type) || !preg_match('/^[a-z0-9_]{1,20}$/', $type) || !is_array($v)) {
+                continue;
+            }
+            $row = [];
+            foreach (['f', 'o'] as $k) {
+                $x = trim((string) ($v[$k] ?? ''));
+                $row[$k] = $x === '' || !is_numeric($x) ? '' : (string) max(1, min(100, (int) $x));
+            }
+            if ($row['f'] !== '' || $row['o'] !== '') {
+                $out[$type] = $row;
+            }
+        }
+        ksort($out);
+        return $out;
+    }
+
+    /** 1.193.0: twijfelt een snelle check (ping, TCP, HTTP, SNMP) nog, dan sneller opnieuw controleren (zoals slim interval) */
+    private static function confirmFast(): bool
+    {
+        return setting('confirm_fast', '1') === '1';
+    }
+
+    /**
+     * 1.193.0: waar staat deze check? Ruwe meting, bevestigen, melden na N, de meldregel en wanneer de melding komt.
+     * Voor de regel bovenaan de popup. eta = seconden tot de melding (ongeveer), null = geen melding op komst.
+     * @return array<string, mixed>
+     */
+    public static function flow(array $c): array
+    {
+        $raw = q('SELECT status FROM results WHERE check_id = ? ORDER BY id DESC LIMIT 1', [$c['id']])->fetchColumn();
+        $st = (int) $c['status'];
+        $pend = $c['pend_status'] !== null && $c['pend_status'] !== '' ? (int) $c['pend_status'] : null;
+        $iv = max(10, (int) $c['interval_sec']);
+        $fastIv = in_array($c['type'], self::FAST_TYPES, true) && (self::confirmFast() || setting('smart_interval', '0') === '1')
+            ? min($iv, max(10, min(300, (int) setting('smart_fast', '20')))) : $iv;
+        $target = $pend ?? $st;   // de status waar het naartoe gaat (of al is)
+        $problem = $target !== STATUS_OK;
+        $cfg = NotifyRules::forCheck($c);
+        $rule = $cfg['rules'][NotifyRules::KEYS[$target]] ?? null;
+        $needF = self::confirmNeeded($c, false);
+        $needO = self::confirmNeeded($c, true);
+        $nf = self::failsNeeded($c);
+        $streak = $pend === null ? (int) $c['status_streak'] : 0;
+        $notified = (int) $c['notified_status'];
+        $age = $c['status_since'] ? max(0, time() - (int) strtotime((string) $c['status_since'])) : 0;
+        $eta = null;
+        $why = '';
+        if ($problem && $notified !== $target) {
+            if (!$rule || $rule['mode'] === 'never' || ($target === STATUS_UNKNOWN && setting('notify_unknown', '1') !== '1')) {
+                $why = 'never';
+            } elseif (!empty($c['acked_at'])) {
+                $why = 'acked';
+            } else {
+                $confirmRem = $pend !== null ? max(0, $needF - (int) $c['pend_count']) * $fastIv : 0;
+                $failsRem = max(0, $nf - ($pend !== null ? 1 : $streak)) * ($pend !== null || $streak ? $fastIv : $iv);
+                $failsRem = max($failsRem, self::failsWindow($c) - ($pend !== null ? 0 : $age));
+                $ruleRem = $rule['mode'] === 'after' ? max(0, (int) $rule['min'] * 60 - ($pend !== null ? 0 : $age)) : 0;
+                $eta = $confirmRem + max($failsRem, $ruleRem);
+            }
+        } elseif (!$problem && $pend === STATUS_OK && $notified !== STATUS_OK && $notified !== 0) {
+            $eta = max(0, $needO - (int) $c['pend_count']) * $fastIv;   // herstelmelding na bevestigen
+        }
+        return [
+            'raw' => $raw === false ? null : (int) $raw, 'status' => $st, 'pend' => $pend, 'pend_n' => (int) $c['pend_count'],
+            'need' => $pend === STATUS_OK ? $needO : $needF, 'need_f' => $needF, 'need_o' => $needO,
+            'streak' => $streak, 'fails_need' => $nf, 'rule' => $rule ? ['mode' => $rule['mode'], 'min' => (int) $rule['min']] : null,
+            'notified' => $notified, 'notified_at' => $c['notified_at'], 'eta' => $eta, 'why' => $why, 'iv' => $fastIv,
+        ];
     }
 
     /**

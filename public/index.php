@@ -664,6 +664,16 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <label><?= th('Weer OK pas na … goede controles') ?> <span class="muted small"><?= th('(leeg = meteen)') ?></span>
               <input type="number" name="confirm_ok" min="1" max="100" placeholder="<?= th('meteen') ?>" style="max-width:8rem"></label>
           </div>
+          <!-- 1.193.0: sneller bevestigen, per soort check, en het advies in één keer -->
+          <label class="switch conf-fast"><input type="checkbox" name="confirm_fast"><span></span> <?= t('<b>Sneller bevestigen</b>: twijfelt een ping, TCP, HTTP of SNMP nog, dan controleert RzMon hem elke 20 s opnieuw') ?></label>
+          <?= xp(t('Zo is een echte storing binnen een minuut bevestigd; een hapering van een paar seconden blijft stil.'), t('<b>Wat het doet:</b> zolang een snelle check nog bevestigt (⏳), controleert RzMon hem elke 20 seconden in plaats van na zijn gewone interval. Met 3 hier is een echte storing dan na ±40 seconden bevestigd in plaats van na 2 tot 3 minuten. <b>Goed om te weten:</b> een hapering van minder dan ±40 seconden blijft stil; korter dan dat wordt niet meer gefilterd. Andere checks (agent, disk, back-up …) volgen hun eigen interval.')) ?>
+          <h3 class="set-sub"><?= th('Per soort check') ?> <span class="muted small"><?= th('(leeg = de waarde hierboven; een check met een eigen waarde gaat voor)') ?></span></h3>
+          <input type="hidden" name="confirm_types">
+          <div id="conf-types" class="conf-types"></div>
+          <div class="conf-adv">
+            <button type="button" class="btn need-admin" id="conf-advice">✨ <?= th('Advies toepassen') ?></button>
+            <span class="muted small"><?= th('Critical direct, warning na 10 minuten, onbekend na 15 minuten, herstel direct; melden na 1; langzame checks meteen geldig. Je ziet eerst wat er verandert.') ?></span>
+          </div>
         </div>
 
         <div data-sk="notify" class="card notify-card">

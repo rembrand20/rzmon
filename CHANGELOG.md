@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.193.0**: **van meting tot melding** zichtbaar in de popup, **bevestigen per soort check**, **sneller bevestigen** en één knop **Advies toepassen**.
 - **1.192.0**: **iperf3 vanzelf geïnstalleerd** waar de doorvoertest het nodig heeft (zender en ontvanger), veilig via dezelfde weg als pakketten bijwerken.
 - **1.191.0**: het **netwerkpad als eigen sectie** in de opengeklapte server (CC), met één klik naar Netwerkpaden; de tegel blijft clean.
 - **1.190.0**: **het pad als lichtspoor**: past altijd, met gloeiende punten voor router, switch, provider en doel, streepjes voor stille hops en een lichtpuls.
 - **1.189.0**: **stille uren met een naam**: profielen (ook voor een vakantie) die je algemeen of per groep, soort, server of check koppelt, met *critical komt door* en **🌙 Nu stil**.
-- **1.188.0**: **verkeer ook zonder UniFi**: via SNMP op je switches en via de agent op je servers (agent 1.80.0), met UniFi als eerste keus.
+
+## 1.193.0 – 2026-11-06
+### Nieuw
+- **⏳ Van meting tot melding in de popup.** Bovenaan de popup van een check staat nu waar hij staat: de **ruwe meting** → **bevestigen** (bv. ●○○ 1/3) → **melden na N** → de **meldregel** → *melding over ±40 s*, *gemeld om 14:32*, of waarom er geen melding komt (onderhoud, bevestigd, meldregel nooit). In de opengeklapte server (CC) staat een knipperend ⏳ bij checks die nog bevestigen.
+- **Status bevestigen per soort check.** In *Status bevestigen* staat een tabel met per soort check (disk, SSL, TCP …) een eigen waarde voor mislukt (✘) en goed (✔). Volgorde: de check zelf → de soort → de algemene waarde.
+- **Sneller bevestigen** (standaard aan): twijfelt een ping, TCP, HTTP of SNMP nog, dan controleert RzMon hem elke 20 seconden opnieuw, ook zonder slim interval. Een echte storing is dan met 3 bevestigingen na ±40 seconden bevestigd in plaats van na 2–3 minuten; een hapering van minder dan ±40 seconden blijft stil.
+- **✨ Advies toepassen**: één knop die het advies instelt (critical direct, warning na 10 minuten, onbekend na 15 minuten, herstel direct; melden na 1; disk, SSL, domein, heartbeat, pad, SMART en uptime meteen geldig). Je ziet eerst wat er verandert; herhalen en kanalen blijven, en terugdraaien kan in het wijzigingslogboek.
 
 ## 1.192.0 – 2026-11-06
 ### Nieuw

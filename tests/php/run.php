@@ -1659,6 +1659,28 @@ ok($cfOff === [STATUS_CRIT, null, 0] && $cf1 === [STATUS_OK, STATUS_WARN, 1] && 
     && $cfRecNow === [STATUS_OK, null, 0] && $cfRec1 === [STATUS_CRIT, STATUS_OK, 1] && $cfRec2 === [STATUS_OK, null, 0]
     && $cfFirst === [STATUS_OK, null, 0] && $cfAgain === [STATUS_UNKNOWN, STATUS_OK, 1],
     'status bevestigen: leeg = meteen, na 3 mislukte (warning en critical samen) critical, tussendoor goed = opnieuw, nieuwe check meteen, eigen waarde gaat voor, herstel na 2, eerste echte meting na alleen onbekend meteen');
+// 1.193.0: bevestigen per soort check (check → soort → algemeen), en waar staat de check (van meting tot melding)
+save_setting('confirm_fails', '3');
+save_setting('confirm_types', json_encode(['disk' => ['f' => '1', 'o' => ''], 'xx bad' => ['f' => '5']]));
+$ctDisk = Monitor::confirmNeeded(['type' => 'disk'], false);
+$ctPing = Monitor::confirmNeeded(['type' => 'ping'], false);
+$ctOwn = Monitor::confirmNeeded(['type' => 'disk', 'confirm_fails' => 4], false);
+$ctBad = array_key_exists('xx bad', Monitor::confirmTypes());
+save_setting('notify_fails', '1');
+save_setting('confirm_fast', '1');
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-flow', '192.0.2.93', 'remote')");
+$flH = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, type, target, name, interval_sec, status, pend_status, pend_count, status_since, last_checked) VALUES (?, 'ping', '192.0.2.93', 'flow', 60, 0, 2, 1, NOW(), NOW())", [$flH]);
+$flC = q('SELECT * FROM checks WHERE id = ?', [(int) db()->lastInsertId()])->fetch();
+q('INSERT INTO results (check_id, status, value) VALUES (?, 2, NULL)', [$flC['id']]);
+$fl = Monitor::flow($flC);
+q('DELETE FROM hosts WHERE id = ?', [$flH]);
+save_setting('confirm_fails', '');
+save_setting('confirm_types', '');
+ok($ctDisk === 1 && $ctPing === 3 && $ctOwn === 4 && !$ctBad && $fl['raw'] === 2 && $fl['pend'] === 2 && $fl['need'] === 3 && $fl['pend_n'] === 1
+    && ($fl['eta'] ?? -1) >= 99 && ($fl['eta'] ?? 0) <= 101,
+    'status bevestigen per soort: disk 1, ping de algemene 3, eigen waarde gaat voor, ongeldige soort weg; popup: ruwe meting critical, bevestigen 1/3, melding over ±100 s (40 s sneller bevestigen + meldregel na 1 min)');
+
 // 1.183.0: Netwerk → Ontdekken: poorten, domeinen (eerst leren), aanwezigheid, voorstellen en met één klik in RzMon
 q("DELETE FROM net_devices WHERE mac = 'ee:ee:ee:00:01:83'");
 q("INSERT INTO net_devices (mac, ip, random_mac, vendor, kind, status, ports, info, first_seen, last_seen) VALUES ('ee:ee:ee:00:01:83', '10.183.0.9', 0, 'Reolink', 'camera', 'new', '[80,554]', '{}', NOW(), NOW())");

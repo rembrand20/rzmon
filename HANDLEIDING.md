@@ -1035,6 +1035,15 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - **Na afloop** krijg je **één bericht** met alles wat dan nog mis is, van alle servers samen, bijvoorbeeld *"🌅 Na de stille uren: 2 problemen open"* met per regel de server, de check en sinds hoe laat. Kreeg je vóór de stille uren een melding over een probleem dat 's nachts herstelde, dan staat het herstel er ook in. Wat 's nachts misging en vanzelf weer goed kwam, wordt niet gemeld. Bevestigde checks en checks in onderhoud tellen niet mee.
 - Home Assistant krijgt na afloop per check een bericht met `"event": "quiet"` (nog open) of `"recovery"`.
 
+**⏳ Van meting tot melding** (vanaf 1.193.0). Een melding gaat door drie stappen, elk na de vorige:
+1. **Status bevestigen** (*Warning of critical pas na … mislukte controles*): de status wisselt pas na zoveel controles achter elkaar;
+2. **Melden na … mislukte checks**: daarna moet die status nog zoveel controles zo blijven;
+3. **de meldregel** per status: direct, na X minuten, of nooit.
+Met 3 en 3 komt een melding dus pas bij de **5e** mislukte controle op rij. Bovenaan de popup van een check zie je waar hij staat: *Meting CRITICAL › Bevestigen ●○○ 1/3 › Melden na N 0/1 › Meldregel direct · ⏳ melding over ±40 s*, of *🔔 gemeld om 14:32*. In de opengeklapte server (CC) staat ⏳ bij checks die nog bevestigen.
+- **Per soort check:** in de tabel onder *Status bevestigen* geef je een soort een eigen waarde (✘ = mislukt, ✔ = goed). Leeg = de algemene waarde; een check met een eigen waarde (✎ → Status bevestigen) gaat voor.
+- **Sneller bevestigen** (standaard aan): twijfelt een ping, TCP, HTTP of SNMP nog, dan controleert RzMon hem elke 20 seconden opnieuw (ook zonder slim interval). Met 3 is een echte storing zo na ±40 seconden bevestigd; korter dan dat blijft stil.
+- **✨ Advies toepassen** stelt in één keer in: critical direct, warning na 10 minuten, onbekend na 15 minuten, herstel direct, melden na 1, en bevestigen = 1 voor disk, SSL, domein, heartbeat, pad, SMART en uptime. Je ziet eerst wat er verandert. Herhalen en kanalen blijven; terugdraaien kan in het wijzigingslogboek.
+
 **🌙 Stille-urenprofielen** (vanaf 1.189.0): je vindt ze bij **Instellingen → Meldingen → Stille uren**.
 - **Profiel:** geef het een **naam** en een **icoon** (bv. 🌙 *Nacht*, 🏢 *Kantoortijden*, 🏖️ *Vakantie*) en vul de vensters in zoals hierboven. Met **＋ Nieuw profiel** maak je er een, met ✎ pas je het aan. Bij elk profiel staat hoe vaak het gebruikt wordt en of het nu actief is.
 - **Critical komt wel door** (per profiel, standaard uit): warning en onbekend blijven stil, maar een critical gaat gewoon naar buiten.

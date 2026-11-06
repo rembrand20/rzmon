@@ -3994,6 +3994,9 @@ function ccGauge(label, v, cls = '') {
   return `<div class="ccx-gauge ${cls}"><svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true"><circle cx="23" cy="23" r="18" class="ccx-ring-bg"/><circle cx="23" cy="23" r="18" class="ccx-ring-fg" style="--len:${(C * f).toFixed(1)};--c:${C.toFixed(1)}" transform="rotate(-90 23 23)"/></svg>
     <span><small>${esc(label)}</small><b>${dec(Math.round(v))}%</b></span></div>`;
 }
+/** 1.193.0: ⏳ zolang een check nog bevestigt (de status wisselt pas na N controles) */
+const ccPend = (c) => (c.pend_status != null && +c.pend_count > 0 && +c.enabled
+  ? ` <span class="ccx-pend s${+c.pend_status}" title="${esc(L('Nog niet bevestigd: wordt mogelijk {s} ({n} keer gezien)', { s: STATUS_WORD[+c.pend_status] || '?', n: +c.pend_count }))}">⏳</span>` : '');
 const ccTop = (h, type) => h.checks.filter((c) => c.type === type && +c.enabled && c.last_value !== null).sort((a, b) => b.last_value - a.last_value)[0] || null;
 function ccHostCard(h) {
   const p = hostParts(h), st = h.maintenance ? 4 : p.st, u = stats.uptime[h.id], open = ccOpen.has(+h.id);
@@ -4014,7 +4017,7 @@ function ccHostCard(h) {
   const badRows = bad.map((c, i) => {
     const s = +c.status, [v, un] = keyValue(c), msg = (c.last_message || '').replace(/\s+/g, ' ');
     return `<div class="ccx-row s${s}${c.acked_at ? ' acked' : ''}" data-cid="${c.id}" style="--i:${Math.min(i, 12)}" role="button" tabindex="0" title="${esc(L('Klik voor de details van deze check'))}">
-      <span class="ccx-st"><i></i>${esc(ccWord(c))}${c.acked_at ? ` <span class="ccx-ack" title="${esc(L('Bevestigd'))}">✔</span>` : ''}</span>
+      <span class="ccx-st"><i></i>${esc(ccWord(c))}${c.acked_at ? ` <span class="ccx-ack" title="${esc(L('Bevestigd'))}">✔</span>` : ''}${ccPend(c)}</span>
       <span class="ccx-cn"><span class="ccx-ti" aria-hidden="true">${checkIcon(c)}</span><span><b>${esc(c.name)}</b><small>${esc(typeOf(c).label || c.type)}</small></span></span>
       <b class="ccx-v" data-flash>${ctOf(c) || pathMini(c) || (un ? `${v}<small>${esc(un)}</small>` : '')}</b>
       <span class="ccx-msg">${esc(msg.slice(0, 220)) || '<span class="muted">–</span>'}</span>
@@ -4025,7 +4028,7 @@ function ccHostCard(h) {
   const goodTiles = good.map((c, i) => {
     const s = !+c.enabled ? 'off' : c.maintenance ? 4 : +c.status, [v, un] = keyValue(c), msg = (c.last_message || '').replace(/\s+/g, ' ');
     return `<div class="ccx-ok s${s}${i >= CC_OK_SHOW ? ' more' : ''}" data-cid="${c.id}" role="button" tabindex="0" title="${esc(c.name)}: ${esc(msg)}">
-      <i class="ccx-dot"></i><span class="ccx-ok-t"><b>${esc(c.name)}</b><small>${esc(msg.slice(0, 80)) || esc(ccWord(c))}</small></span>${keySpark(c, 22)}<b class="ccx-v" data-flash>${ctOf(c) || `${v}<small>${esc(un)}</small>`}</b></div>`;
+      <i class="ccx-dot"></i><span class="ccx-ok-t"><b>${esc(c.name)}${ccPend(c)}</b><small>${esc(msg.slice(0, 80)) || esc(ccWord(c))}</small></span>${keySpark(c, 22)}<b class="ccx-v" data-flash>${ctOf(c) || `${v}<small>${esc(un)}</small>`}</b></div>`;
   }).join('');
   const pathRows = paths.map((c) => {
     const s = pathSum(c), st = c.maintenance ? 4 : +c.status, quiet = (String(s.d || '').match(/h/g) || []).length;
@@ -4208,7 +4211,8 @@ function checkBits(c) {
     ? ` <span class="pend-tag" title="${esc(L('Nog niet gemeld: een melding volgt na {need} mislukte checks achter elkaar met deze status (nu {n})', { need, n: +c.status_streak }))}">⏳ ${+c.status_streak}/${need}</span>` : '';
   // 1.185.0: nieuwe status nog niet bevestigd (status pas na N controles)
   const ownN = (v) => (v === null || v === undefined || v === '' ? null : +v);
-  const cNeed = +c.pend_status === 0 ? (ownN(c.confirm_ok) ?? (+state.confirm_ok || 1)) : (ownN(c.confirm_fails) ?? (+state.confirm_fails || 1));
+  const tNeed = (state.confirm_types || {})[c.type] || {};   // 1.193.0: per soort
+  const cNeed = +c.pend_status === 0 ? (ownN(c.confirm_ok) ?? ownN(tNeed.o) ?? (+state.confirm_ok || 1)) : (ownN(c.confirm_fails) ?? ownN(tNeed.f) ?? (+state.confirm_fails || 1));
   const confirming = c.pend_status != null && +c.pend_count > 0 && +c.enabled
     ? ` <span class="pend-tag conf-tag" title="${esc(L('Nog niet bevestigd: wordt {s} na {need} controles achter elkaar (nu {n})', { s: STATUS_WORD[+c.pend_status] || '?', need: cNeed, n: +c.pend_count }))}">⏳ ${esc(STATUS_WORD[+c.pend_status] || '?')} ${+c.pend_count}/${cNeed}</span>` : '';
   const flags = confirming + pending + (problem && c.acked_at ? ` <button class="ack-tag need-user-act" data-act="unack" data-id="${c.id}" title="${esc(ackTitle)}">✔ ${L('bevestigd')}</button>` : '')
@@ -4487,7 +4491,8 @@ async function checkInfo(id, live = false, more = null) {
   const hero = `<div class="ci2-hero s${st}">
     <div class="ci2-hl"><div class="ci2-st"><i class="ci2-pulse"></i><b>${STATUS[st]}</b>${c.status_since ? `<span class="mono muted small">${L('sinds {t}', { t: esc(whenText(c.status_since)) })}</span>` : ''}</div>
       <div class="ci2-msg">${esc(c.last_message || '–')}</div>
-      ${c.status_since && st !== 0 ? `<span class="ci2-dur mono">${L('duurt al {d}', { d: durText((now - toTime(c.status_since)) / 1000) })}</span>` : ''}</div>
+      ${c.status_since && st !== 0 ? `<span class="ci2-dur mono">${L('duurt al {d}', { d: durText((now - toTime(c.status_since)) / 1000) })}</span>` : ''}
+      ${ciFlow(r.flow, sc ? Object.assign({}, c, { maintenance: sc.maintenance }) : c)}</div>
     ${meter}</div>`;
   // 2. grafiek van 24 uur (geladen in de achtergrond)
   // 1.191.1: live bijwerken laat de huidige inhoud staan (geen "laden…" tussendoor); daarna morpht alleen wat veranderde
@@ -11927,6 +11932,76 @@ function setSearch(q) {
 }
 
 // ---- Hoe staat het ervoor?
+/* 1.193.0: status bevestigen per soort check (tabel in de kaart Status bevestigen) */
+const CONF_SLOW = ['disk', 'ssl', 'domain', 'heartbeat', 'path', 'smart', 'reboot'];
+let confTypeVals = {};
+function confTypes(vals) {
+  confTypeVals = vals && typeof vals === 'object' ? vals : {};
+  const el = $('#conf-types');
+  if (!el) return;
+  const used = new Set((state && state.hosts ? state.hosts.flatMap((h) => h.checks.map((c) => c.type)) : []).concat(CONF_SLOW, Object.keys(confTypeVals)));
+  const types = [...used].filter((t) => TYPES[t]).sort((a, b) => String(TYPES[a].label).localeCompare(String(TYPES[b].label)));
+  const n = (t) => (state && state.hosts ? state.hosts.reduce((s, h) => s + h.checks.filter((c) => c.type === t).length, 0) : 0);
+  const v = (t, k) => esc((confTypeVals[t] || {})[k] || '');
+  const cnt = (k) => (k === 1 ? L('1 check') : k ? L('{n} checks', { n: k }) : '');
+  el.innerHTML = `<p class="ct-legend muted small">✘ ${L('= warning of critical pas na … mislukte controles')} · ✔ ${L('= weer OK pas na … goede controles')}</p>`
+    + types.map((t) => `<div class="ct-row${(confTypeVals[t] || {}).f || (confTypeVals[t] || {}).o ? ' own' : ''}"><span class="ct-n">${esc(TYPES[t].label)} <span class="muted small">${cnt(n(t))}</span></span>
+      <label class="ct-i" title="${esc(L('Warning of critical pas na … mislukte controles'))}">✘<input type="number" min="1" max="100" data-ct="${esc(t)}" data-k="f" value="${v(t, 'f')}" placeholder="${esc(String(state && state.confirm_fails || '–'))}"></label>
+      <label class="ct-i" title="${esc(L('Weer OK pas na … goede controles'))}">✔<input type="number" min="1" max="100" data-ct="${esc(t)}" data-k="o" value="${v(t, 'o')}" placeholder="${esc(String(state && state.confirm_ok || '–'))}"></label></div>`).join('');
+  const f = $('#settings-form');
+  if (f && f.confirm_types) f.confirm_types.value = JSON.stringify(confTypeVals);
+}
+document.addEventListener('change', (e) => {
+  const i = e.target.closest && e.target.closest('#conf-types input[data-ct]');
+  if (!i) return;
+  const t = i.dataset.ct, k = i.dataset.k, val = i.value.trim();
+  confTypeVals[t] = Object.assign({ f: '', o: '' }, confTypeVals[t] || {}, { [k]: val === '' ? '' : String(Math.max(1, Math.min(100, +val || 1))) });
+  if (!confTypeVals[t].f && !confTypeVals[t].o) delete confTypeVals[t];
+  i.closest('.ct-row').classList.toggle('own', !!confTypeVals[t]);
+  $('#settings-form').confirm_types.value = JSON.stringify(confTypeVals);
+  markSettingsDirty(true, i);
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest || !e.target.closest('#conf-advice')) return;
+  const rows = [
+    [L('Critical'), L('direct melden')], [L('Warning'), L('melden na 10 minuten')], [L('Onbekend'), L('melden na 15 minuten')], [L('Hersteld'), L('direct melden')],
+    [L('Melden na … mislukte checks'), '1'],
+    [L('Bevestigen = 1 (meteen geldig)'), CONF_SLOW.map((t) => (TYPES[t] ? TYPES[t].label : t)).join(', ')],
+  ];
+  modal({ title: '✨ ' + L('Advies toepassen'), body: `<p>${L('Dit wordt ingesteld:')}</p><table class="conf-adv-t">${rows.map(([a, b]) => `<tr><td>${esc(a)}</td><td><b>${esc(b)}</b></td></tr>`).join('')}</table>
+    <p class="muted small">${L('Herhalen en kanalen blijven zoals ze zijn. Checks met een eigen waarde houden die. Terugdraaien kan in het wijzigingslogboek.')}</p>`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '✨ ' + L('Toepassen'), cls: 'primary', submit: true }],
+    onSubmit: async () => { await api('notify_advice_apply', {}); toast(L('Advies toegepast')); loadSettings(); } });
+});
+
+/** 1.193.0: waar staat deze check? Ruwe meting → bevestigen → melden → meldregel → wanneer de melding komt */
+function ciFlow(f, c) {
+  if (!f || !+c.enabled) return '';
+  const W = (s) => (s === null || s === undefined ? '–' : STATUS_WORD[s] || '?');
+  const dots = (n, need) => `<span class="cf-dots">${Array.from({ length: Math.min(need, 10) }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
+  const target = f.pend !== null ? f.pend : f.status;
+  const step = [];
+  step.push(`<span class="cf-s s${f.raw ?? 3}" title="${esc(L('De laatste meting zelf, vóór bevestigen'))}"><small>${L('Meting')}</small><b>${esc(W(f.raw))}</b></span>`);
+  step.push(f.pend !== null
+    ? `<span class="cf-s busy" title="${esc(L('Wordt {s} na {need} controles achter elkaar', { s: W(f.pend), need: f.need }))}"><small>${L('Bevestigen')}</small>${dots(f.pend_n, f.need)}<b>${f.pend_n}/${f.need}</b></span>`
+    : `<span class="cf-s done"><small>${L('Bevestigd')}</small><b>${esc(W(f.status))}</b></span>`);
+  if (target !== 0) {
+    const sN = f.pend !== null ? 0 : f.streak;
+    step.push(`<span class="cf-s${sN >= f.fails_need ? ' done' : ' busy'}" title="${esc(L('Melden na {n} mislukte checks achter elkaar', { n: f.fails_need }))}"><small>${L('Melden na N')}</small>${f.fails_need > 1 ? dots(sN, f.fails_need) : ''}<b>${Math.min(sN, f.fails_need)}/${f.fails_need}</b></span>`);
+    const r = f.rule;
+    step.push(`<span class="cf-s"><small>${L('Meldregel')}</small><b>${!r ? '–' : r.mode === 'never' ? L('nooit') : r.mode === 'now' ? L('direct') : L('na {n} min', { n: r.min })}</b></span>`);
+  }
+  let end;
+  if (target === 0 && f.pend === null) end = `<span class="cf-end ok">✔ ${L('in orde')}</span>`;
+  else if (+f.notified === target && f.notified_at) end = `<span class="cf-end sent">🔔 ${L('gemeld om {t}', { t: esc(whenText(f.notified_at)) })}</span>`;
+  else if (c.maintenance) end = `<span class="cf-end">🔧 ${L('onderhoud: geen melding')}</span>`;
+  else if (f.why === 'never') end = `<span class="cf-end">🔕 ${L('geen melding (meldregel staat op nooit)')}</span>`;
+  else if (f.why === 'acked') end = `<span class="cf-end">✔ ${L('bevestigd: geen melding')}</span>`;
+  else if (f.eta !== null && f.eta !== undefined) end = `<span class="cf-end busy">⏳ ${target === 0 ? L('herstelmelding over ±{d}', { d: durText(f.eta) }) : f.eta <= 0 ? L('melding bij de volgende controle') : L('melding over ±{d}', { d: durText(f.eta) })}</span>`;
+  else end = `<span class="cf-end">${L('geen melding')}</span>`;
+  return `<div class="ci2-flow" aria-label="${esc(L('Van meting tot melding'))}">${step.join('<span class="cf-arr" aria-hidden="true">›</span>')}${end}</div>`;
+}
+
 async function loadSettingsHealth() {
   const box = $('#set-overview');
   if (!box.innerHTML) box.innerHTML = `<p class="muted">${L('Laden…')}</p>`;
@@ -12463,6 +12538,7 @@ async function loadSettings() {
   $('#ids-enabled').checked = s.ids_enabled === '1';
   $('#ids-mode').checked = s.ids_mode === 'block';
   fimGlobal = fimEditor($('#fim-editor'), parse(s.ids_fim || '[]'), null, () => { markSettingsDirty(true); settingsSummaries(); });
+  confTypes(parse(s.confirm_types));   // 1.193.0
   idsModeInfo();
   backupFormToggle();
   markSettingsDirty(false);

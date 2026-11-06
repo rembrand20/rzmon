@@ -275,6 +275,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
 - **🌙 Stille uren:**
   - vensters (van–tot, per dag van de week, ook over middernacht) waarin geen meldingen uitgaan;
   - algemeen, per check eigen vensters, of *nooit stil*;
+  - vanaf 1.193.0: **van meting tot melding** zichtbaar in de popup (bevestigen, melden na N, meldregel, wanneer de melding komt), bevestigen **per soort check**, **sneller bevestigen** (elke 20 s) en een knop **Advies toepassen**;
   - vanaf 1.189.0 als **profielen met een naam**, te koppelen aan een eigen groep, soort apparaat, server of check (het fijnste wint), met *critical komt wel door*, een **periode** (vakantie) en **🌙 Nu stil**;
   - na afloop **één bericht** met alles wat dan nog open is.
 - **Herstelmelding** zodra het weer goed gaat. Een **nieuwe melding bij escalatie** (warning → critical).

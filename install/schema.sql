@@ -1377,3 +1377,5 @@ CREATE TABLE IF NOT EXISTS quiet_groups (
     val  VARCHAR(20) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('quiet_global', '');
+-- 1.193.0: status bevestigen per soort check, en sneller bevestigen (twijfelende snelle checks elke 20 s)
+INSERT IGNORE INTO settings (name, value) VALUES ('confirm_types', ''), ('confirm_fast', '1');

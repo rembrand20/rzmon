@@ -1887,6 +1887,7 @@ switch ($action) {
              'host_tpls' => (object) array_reduce(q('SELECT host_id, template_id FROM host_templates')->fetchAll(), static function ($a, $r) { $a[$r['host_id']][] = (int) $r['template_id']; return $a; }, []),
              'notify_fails' => max(1, (int) setting('notify_fails', '1')),
              'confirm_fails' => Monitor::confirmNeeded([], false), 'confirm_ok' => Monitor::confirmNeeded([], true),   // 1.185.0
+             'confirm_types' => (object) Monitor::confirmTypes(),   // 1.193.0
              'quiet_profiles' => array_values(array_map(fn($p) => ['id' => $p['id'], 'name' => $p['name'], 'icon' => $p['icon']], Quiet::profiles())), 'quiet_global' => (int) setting('quiet_global', '') ?: null,   // 1.189.0
              'thresh_default' => (string) setting('thresh_default', 'guard'), 'smart_sens' => (string) setting('smart_sens', 'normal'),
              // Open critical IDS-incidenten (rood bolletje op het tabblad 🛡️ IDS)
@@ -1945,7 +1946,7 @@ switch ($action) {
         if (in_array($c['type'], ['mysql', 'mqtt', 'vpn'], true)) {
             $c['options'] = ExtraChecks::maskOptions($c['options']);
         }
-        out(['check' => $c, 'uptime' => ['d1' => $pct($up['ok1'], $up['n1']), 'd7' => $pct($up['ok7'], $up['n7'])],
+        out(['check' => $c, 'flow' => Monitor::flow($c), 'uptime' => ['d1' => $pct($up['ok1'], $up['n1']), 'd7' => $pct($up['ok7'], $up['n7'])],
              'changes' => $changes, 'changes_total' => $nChanges, 'now' => now(), 'smart' => Smart::info($c), 'extra' => CheckInfo::extra($c)]);
 
     case 'history':
@@ -3499,7 +3500,7 @@ switch ($action) {
             'cve_buzz_on', 'cve_buzz_alert', 'cve_github_token', 'cve_mastodon_url', 'cve_mastodon_token', 'cve_exploitdb', 'cve_nuclei',   // 1.179.0
             'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model',   // 1.171.0
             'ai_budget_month', 'ai_memory', 'ai_cache', 'ai_cache_hours', 'ai_fallback', 'ai_notify', 'ai_weekly', 'ai_weekly_day', 'ai_triage', 'ai_report',   // 1.173.0
-            'confirm_fails', 'confirm_ok',   // 1.185.0
+            'confirm_fails', 'confirm_ok', 'confirm_types', 'confirm_fast',   // 1.185.0, 1.193.0
             'net_traffic', 'net_traffic_swap', 'net_wan_cap_gb'];   // 1.186.0, 1.187.0
         // 1.179.0: Mastodon alleen via https naar een gewone hostnaam
         if (isset($in['cve_mastodon_url']) && trim((string) $in['cve_mastodon_url']) !== '' && !CveBuzz::safeUrl(rtrim(trim((string) $in['cve_mastodon_url']), '/'))) {
@@ -3625,6 +3626,12 @@ switch ($action) {
         }
         if (isset($in['notify_fails'])) {
             $in['notify_fails'] = (string) max(1, min(100, (int) $in['notify_fails']));
+        }
+        if (isset($in['confirm_types'])) {   // 1.193.0: per soort check
+            $in['confirm_types'] = json_encode(Monitor::cleanConfirmTypes(json_decode((string) $in['confirm_types'], true)), JSON_FORCE_OBJECT);
+        }
+        if (isset($in['confirm_fast'])) {
+            $in['confirm_fast'] = $in['confirm_fast'] === '0' ? '0' : '1';
         }
         foreach (['confirm_fails', 'confirm_ok'] as $k) {   // 1.185.0: leeg = meteen
             if (isset($in[$k])) {
@@ -4711,6 +4718,22 @@ switch ($action) {
         $what = ($in['what'] ?? '') === 'host' ? 'host' : 'check';
         $until = !empty($in['until']) ? (int) strtotime((string) $in['until']) : (!empty($in['minutes']) ? time() + 60 * max(1, min(44640, (int) $in['minutes'])) : null);
         Quiet::setNow($what, (int) ($in['id'] ?? 0), $until ?: null);
+        out(['ok' => true]);
+
+    // 1.193.0: het advies voor bevestigen en melden in één keer (komt in het wijzigingslogboek, terug te draaien)
+    case 'notify_advice_apply':
+        $g = NotifyRules::global()['rules'];
+        $g['crit'] = ['mode' => 'now', 'min' => 0, 'repeat' => (int) ($g['crit']['repeat'] ?? 0)];
+        $g['warn'] = ['mode' => 'after', 'min' => 10, 'repeat' => (int) ($g['warn']['repeat'] ?? 0)];
+        $g['unknown'] = ['mode' => 'after', 'min' => 15, 'repeat' => (int) ($g['unknown']['repeat'] ?? 0)];
+        $g['recovery'] = ['mode' => 'now', 'min' => 0, 'repeat' => 0];
+        save_setting('notify_rules', json_encode(NotifyRules::cleanRules($g)));
+        save_setting('notify_fails', '1');
+        $ct = Monitor::confirmTypes();
+        foreach (Monitor::SLOW_CONFIRM_TYPES as $t) {
+            $ct[$t] = ['f' => '1', 'o' => $ct[$t]['o'] ?? ''];
+        }
+        save_setting('confirm_types', json_encode(Monitor::cleanConfirmTypes($ct), JSON_FORCE_OBJECT));
         out(['ok' => true]);
 
     case 'net_links_test':
