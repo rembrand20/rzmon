@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.205.0**: **agents wachten tijdens een update** van RzMon (wachtrij, vrijgave, samenvatting) en geven pas na 5 minuten alarm.
 - **1.204.0**: een **nieuw update-venster** met voortgangsring, tijdlijn per stap en duidelijke foutmeldingen.
 - **1.203.0**: de **zijbalk klapt vanzelf in** tot icoontjes als je hem smaller sleept of het venster smal is.
 - **1.202.0**: een **laadteller** met animatie als een pagina lang duurt, en de **zijbalk** als zwevend paneel.
 - **1.201.0**: **Liquid Glass** als keuze per account, en een **laadanimatie** waarin je servers oplichten.
-- **1.200.0**: **databases van binnen bewaken**: MariaDB/MySQL en PostgreSQL, via de agent zonder wachtwoord, met overzicht en losse waarden.
+
+## 1.205.0 – 2026-11-06
+### Nieuw
+- **⏸ Agents wachten tijdens een update van RzMon** (agent 1.82.0 nodig): bij *Bijwerken* waarschuwt RzMon eerst de agents (*Agents waarschuwen (3 van 5)* in het update-venster; hooguit 75 s). Lukt een rapport tijdens de update niet, dan zet de agent zijn meting in de wachtrij zonder alarm, en na de vrijgave stuurt hij alles na (0–24 s willekeurig, niet allemaal tegelijk). Geen *agent stil* tijdens de update.
+- Na afloop een **systeeminfo** bij Meldingen: duur, hoeveel agents wachtten en hoeveel metingen ze nastuurden. Mislukt de update of komt een agent niet terug, dan ook via je meldkanalen.
+- **Te lang?** Na de ingestelde tijd (standaard **5 minuten**, *Instellingen → RzMon bijwerken*, 5–60) geeft de waakhond alsnog alarm: *⚠️ RzMon onbereikbaar tijdens update*.
+- Alleen uit een versleuteld antwoord van RzMon zelf, dus niet na te doen. Het update-venster noemt agents die te oud of onversleuteld zijn om te wachten.
+- Werkt vanaf de update ná deze versie (de update naar 1.205.0 zelf draait nog op de oude manier).
+- Nieuwe agent 1.82.0.
 
 ## 1.204.0 – 2026-11-06
 ### Nieuw

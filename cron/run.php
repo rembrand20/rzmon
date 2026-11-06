@@ -99,6 +99,14 @@ Perf::lap('internet');
 if ($msg = Updater::cron()) {
     echo date('c') . " $msg\n";
 }
+// 1.205.0: update aangekondigd aan de agents: starten, samenvatting na afloop, of vrijgeven als het misging
+try {
+    if ($msg = UpdateHold::cron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Update-aankondiging: ' . $e->getMessage() . "\n");
+}
 // Certificaat van het beheeradres: dagelijks (Instellingen → Beveiliging → Beheer via https)
 try {
     if ($msg = Https::cron()) {

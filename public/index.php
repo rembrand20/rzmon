@@ -1235,6 +1235,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label class="switch"><input type="checkbox" name="update_auto"><span></span> <?= th('Automatisch bijwerken') ?></label>
           <label class="update-time"><?= th('Elke dag om') ?> <input type="time" name="update_time"> <?= th('als er een nieuwe versie is') ?></label>
           <?= xp(t('RzMon kijkt dagelijks of er een nieuwe versie is en werkt zichzelf bij.'), t('<b>Wat het doet:</b> RzMon kijkt één keer per dag op GitHub of er een nieuwe versie is. Bijwerken doet de hulpdienst op de server: eventueel eerst een back-up, dan de nieuwe versie ophalen en het installatiescript uitvoeren, net als het commando met <code>install-rocky.sh</code>. <b>Goed om te weten:</b> je instellingen en gegevens blijven staan. De agents werk je apart bij (hieronder).')) ?>
+          <label class="update-hold"><?= th('Agents wachten tijdens een update hooguit') ?> <input type="number" name="update_hold_min" min="5" max="60" step="1" style="width:5rem"> <?= th('minuten') ?></label>
+          <?= xp(t('Tijdens een update houden de agents hun metingen vast en geven ze geen alarm, tot RzMon terug is.'), t('Bij <b>Bijwerken</b> waarschuwt RzMon eerst de agents (vanaf agent 1.82.0, versleuteld). Lukt een rapport dan niet, dan zet de agent zijn meting in de wachtrij en wacht hij op de vrijgave; daarna stuurt hij alles na. Is RzMon na deze tijd nog weg, dan geeft de waakhond alsnog alarm (<i>RzMon onbereikbaar tijdens update</i>). Na afloop staat er een samenvatting bij Meldingen (ℹ️ Systeeminfo). Standaard 5 minuten, 5–60.')) ?>
         </div>
 
         <div data-sk="agents" class="card" id="agents-card">

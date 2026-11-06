@@ -4573,3 +4573,4 @@ body.no-loader .rz-wait-cv { display: none; }
   .upd-ring.indet svg, .upd-tl .cur .upd-dot, .upd-restart i, .upd-reload i, .update-badge:not([hidden]) { animation: none; }
   .upd-check svg { animation: none; stroke-dashoffset: 0; }
 }
+.update-hold { flex-direction: row; align-items: center; gap: .5rem; flex-wrap: wrap; font-weight: 400; }   /* 1.205.0 */

@@ -73,7 +73,8 @@ final class Installer
         try {
             // 1 = nieuw, 2 = gewijzigd, 0 = een ander proces was eerst
             $n = q("INSERT INTO settings (name, value) VALUES ('info_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", [RZMON_VERSION])->rowCount();
-            if ($n > 0) {
+            // 1.205.0: waren de agents gewaarschuwd, dan volgt de samenvatting (met de agents) zodra ze terug zijn
+            if ($n > 0 && !UpdateHold::finished((string) $from)) {
                 Monitor::infoSystem(fn() => t('RzMon bijgewerkt van {from} naar {to}', ['from' => $from, 'to' => RZMON_VERSION]));
             }
         } catch (Throwable) {

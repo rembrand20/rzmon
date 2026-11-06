@@ -60,6 +60,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🧭 Dashboard en weergave | **Dashboard: zo staat het ervoor** | Totaalscore, Nu doen, servers die aandacht vragen en grafieken. | 1.134.0 |
 | 🧭 Dashboard en weergave | **Command center** | Een tweede dashboard met indeling naar keuze en TV-modus. | 1.154.0 |
 | 🧭 Dashboard en weergave | **Lay-outs Blox, L1nes, Compact en CC** | Per account te kiezen. | 1.158.0 |
+| 🖥️ Servers en agents | **Agents wachten tijdens een update** | Tijdens een update van RzMon houden agents hun metingen vast en geven ze geen alarm, tot de vrijgave. | 1.205.0 |
 | 🧭 Dashboard en weergave | **Nieuw update-venster** | Bijwerken met wat er nieuw is als kaartjes, een voortgangsring, tijdlijn per stap en duidelijke fouten. | 1.204.0 |
 | 🧭 Dashboard en weergave | **Zijbalk vanzelf inklappen** | Smaller slepen of een smal venster = alleen icoontjes; je eigen keuze blijft. | 1.203.0 |
 | 🧭 Dashboard en weergave | **Laadteller per pagina** | Duurt een pagina lang, dan een teller, de pols-animatie per onderdeel en na 8 s Opnieuw. | 1.202.0 |

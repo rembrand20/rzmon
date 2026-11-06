@@ -1051,7 +1051,8 @@ final class Checks
         if ($host['agent_seen'] === null) {
             return self::result(STATUS_UNKNOWN, null, t('Agent heeft nog nooit gerapporteerd'));
         }
-        if (strtotime($host['agent_seen']) < time() - agent_stale_seconds(isset($host['agent_tick']) ? (int) $host['agent_tick'] : null)) {
+        if (strtotime($host['agent_seen']) < time() - agent_stale_seconds(isset($host['agent_tick']) ? (int) $host['agent_tick'] : null)
+            && !UpdateHold::covers((string) $host['agent_seen'])) {   // 1.205.0: tijdens een update van RzMon is stil normaal
             return self::result(STATUS_CRIT, null, t('Agent stil sinds {t}', ['t' => date('d-m-Y H:i:s', strtotime((string) $host['agent_seen']))]));
         }
         return null;

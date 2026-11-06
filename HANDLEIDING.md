@@ -3198,6 +3198,14 @@ Valt RzMon zelf uit, dan krijg je van RzMon niets meer, en denk je dat alles goe
 - **RzMon draait, maar de checks staan stil** (de cron loopt niet): RzMon geeft bij elk rapport mee wanneer de checks voor het laatst draaiden; is dat langer geleden dan je ingestelde tijd, dan meldt de waakhond ook dat (*⚠️ RzMon: checks staan stil*), en weer als ze draaien.
 - **Nodig**: Pushover of ntfy aan (*Meldingen → Kanalen*; ntfy vanaf agent 1.72.0) en een **versleutelde verbinding** (koppelcode): de pushgegevens gaan naar de agent, en staan daar in de cache die alleen root kan lezen. Met `WATCHDOG=0` in `/etc/default/rzmon-agent` doet die server nooit mee. Een Pushover-compatibele dienst gebruiken? Zet `PUSHOVER_API` (standaard `https://api.pushover.net/1/messages.json`).
 
+**Tijdens een update van RzMon** (vanaf RzMon 1.205.0 en agent 1.82.0) wachten de agents rustig:
+1. Bij **Bijwerken** (met de knop of automatisch) waarschuwt RzMon eerst de agents: in zijn antwoord op hun rapport staat *update bezig*, met hoe lang ze hooguit wachten. Het update-venster toont dan *Agents waarschuwen (3 van 5)*. De update begint zodra iedereen het weet, of na 75 seconden.
+2. Lukt een rapport tijdens de update niet, dan zet de agent zijn meting in de **wachtrij** en geeft de waakhond **geen alarm**. In `rzmon-agent --status` staat *RzMon-update: wacht op de vrijgave*.
+3. Antwoordt RzMon weer (zonder *update bezig*), dan is dat de **vrijgave**: de agent wacht 0–24 willekeurige seconden (zodat niet alle agents tegelijk komen) en stuurt de wachtrij na. RzMon telt de update niet als *agent stil*.
+4. Na afloop staat bij **Meldingen** een ℹ️ **systeeminfo** met de duur, hoeveel agents wachtten en hoeveel metingen ze nastuurden (alleen op de meldingenpagina). Komt een agent niet terug, of mislukt de update, dan gaat de melding ook via je meldkanalen.
+5. **Duurt het te lang** (standaard **5 minuten**, in te stellen bij *Instellingen → RzMon bijwerken*, 5–60), dan geeft de waakhond alsnog alarm: *⚠️ RzMon onbereikbaar tijdens update*. Het herstelbericht komt alleen als je eerst het alarm kreeg.
+- **Veilig:** de agent gelooft *update bezig* alleen uit een **versleuteld antwoord van RzMon zelf**; een foutpagina of proxy kan de waakhond niet stilzetten. Agents zonder versleuteling of ouder dan 1.82.0 doen wat ze altijd deden; het update-venster noemt ze. Een nieuwe agent installeert zich pas na de vrijgave.
+
 ## 9. Agent op Home Assistant OS
 
 Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De agent draait daarom als **add-on**.

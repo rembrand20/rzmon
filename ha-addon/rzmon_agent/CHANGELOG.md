@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.82.0 – 2026-11-06
+- **Wachten tijdens een update van RzMon** (RzMon 1.205.0): zegt RzMon in een versleuteld antwoord dat hij zo wordt bijgewerkt, dan zet de agent metingen die niet aankomen in de wachtrij en geeft de waakhond geen alarm, tot RzMon weer antwoordt (de vrijgave) of de tijd die RzMon meegaf voorbij is (standaard 5 minuten, hooguit een uur). Na de vrijgave wacht hij 0–24 s en stuurt hij de wachtrij na, met hoe lang hij wachtte. Duurt het te lang: *⚠️ RzMon onbereikbaar tijdens update*. Tijdens het wachten werkt de agent zichzelf niet bij. `rzmon-agent --status` toont het. Alleen uit een versleuteld antwoord: een foutpagina of proxy kan de waakhond niet stilzetten.
+
 ## 1.81.0 – 2026-11-06
 - **Databases** (RzMon 1.200.0): de agent leest MariaDB/MySQL en PostgreSQL op de server zelf uit, of in een Docker/Podman-container (`docker exec` / `podman exec`). Zonder gebruiker zonder wachtwoord: MariaDB/MySQL als root via de socket (in een container met het wachtwoord uit de container zelf), PostgreSQL als gebruiker `postgres`. Alleen lezen: status, verbindingen, lopende query's, replicatie en grootte (MariaDB/MySQL hooguit eens per half uur). Eén meting per verbinding, ook als er meerdere checks op staan. Een wachtwoord krijgt de agent alleen over een versleutelde verbinding, en het gaat via de omgeving naar de client, nooit op de opdrachtregel. Nodig op de server: de client (`mariadb`/`mysql` of `psql`), of de database in een container.
 

@@ -1911,5 +1911,36 @@ ok($smS === STATUS_WARN && $smV === 57.0 && !str_contains((string) $smM, 'midclt
     'TrueNAS: geen temperaturen via midclt, dan die uit SMART (slapende schijf en vreemde namen overgeslagen)');
 q('DELETE FROM hosts WHERE id = ?', [$tnH]);
 
+// 1.205.0: agents wachten tijdens een update van RzMon (aankondigen, vrijgave, samenvatting, geen "agent stil")
+section('Update: agents wachten op de vrijgave');
+q("INSERT INTO hosts (name, address, mode, enc_seen, agent_version, agent_seen) VALUES ('ci-uh1', '10.0.9.1', 'agent', 1, '1.82.0', NOW()), ('ci-uh2', '10.0.9.2', 'agent', 1, '1.82.0', NOW()), ('ci-uh3', '10.0.9.3', 'agent', 1, '1.81.0', NOW())");
+$uh1 = (int) q("SELECT id FROM hosts WHERE name = 'ci-uh1'")->fetchColumn();
+$uh2 = (int) q("SELECT id FROM hosts WHERE name = 'ci-uh2'")->fetchColumn();
+$uhOld = (int) q("SELECT id FROM hosts WHERE name = 'ci-uh3'")->fetchColumn();
+save_setting('update_hold_min', '5');
+UpdateHold::announce(['backup' => true, 'by' => 'ci', 'at' => time()], '1.204.0', '1.205.0');
+$uhH = UpdateHold::get();
+$uhA = UpdateHold::forAgent(['id' => $uh1], true, []);
+$uhPlain = UpdateHold::forAgent(['id' => $uh2], false, []);
+$uhSt = Updater::status();
+ok($uhH && in_array($uh1, $uhH['need'], true) && !in_array($uhOld, $uhH['need'], true) && empty($uhH['started'])
+    && ($uhA['rz_hold']['id'] ?? '') === $uhH['id'] && ($uhA['rz_hold']['max'] ?? 0) > 280 && ($uhA['rz_hold']['max'] ?? 0) <= 300
+    && $uhPlain === [] && ($uhSt['state'] ?? '') === 'queued' && ($uhSt['agents'] ?? []) === [1, 2],
+    'update aangekondigd: alleen versleuteld en vanaf agent 1.82.0 (5 min); start pas als iedereen het weet (1 van 2)');
+q("UPDATE hosts SET agent_seen = NOW() - INTERVAL 7 MINUTE WHERE id = ?", [$uh2]);
+q("UPDATE hosts SET agent_seen = NOW() - INTERVAL 30 MINUTE WHERE id = ?", [$uhOld]);   // was al stil vóór de update
+$uhCov = Checks::agentStale(q('SELECT * FROM hosts WHERE id = ?', [$uh2])->fetch()) === null
+    && Checks::agentStale(q('SELECT * FROM hosts WHERE id = ?', [$uhOld])->fetch()) !== null;
+// Gestart (zonder hulpdienst in de test), dan de nieuwe versie: klaar, de agent meldt zijn wachttijd
+$uhH['started'] = time() - 50;
+save_setting('update_hold', (string) json_encode($uhH));
+$uhFin = UpdateHold::finished('1.204.0');
+$uhAfter = UpdateHold::forAgent(['id' => $uh1], true, ['hold' => ['id' => $uhH['id'], 'since' => time() - 40, 'q' => 3]]);
+$uhMsg = (string) UpdateHold::cron();
+ok($uhCov && $uhFin && $uhAfter === [] && str_contains($uhMsg, '1.205.0') && str_contains($uhMsg, '3 metingen') && str_contains($uhMsg, 'ci-uh1')
+    && UpdateHold::get() === null && !q("SELECT COUNT(*) FROM settings WHERE name LIKE 'update_hold_ack:%'")->fetchColumn(),
+    'na de update: vrijgave (geen rz_hold), samenvatting met nagestuurde metingen, opgeruimd; tijdens de update geen "agent stil" (wel als hij al eerder stil was)');
+q('DELETE FROM hosts WHERE id IN (?, ?, ?)', [$uh1, $uh2, $uhOld]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

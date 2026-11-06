@@ -971,6 +971,12 @@ if ($action === 'agent') {
     if ((int) ($host['watchdog'] ?? 0) === 1) {
         $resp['cron_age'] = Heal::cronAge();
     }
+    // 1.205.0: RzMon wordt zo bijgewerkt: de agent houdt zijn metingen vast tot de vrijgave (alleen versleuteld)
+    try {
+        $resp += UpdateHold::forAgent($host, $encrypted, $in);
+    } catch (Throwable $e) {
+        error_log('RzMon: update-aankondiging: ' . $e->getMessage());
+    }
     $resp += agent_enc_fields($host, $agentVersion);
     if ($u = agent_url_report($host, $in, $agentVersion, $encrypted)) {
         $resp['url_set'] = $u;
@@ -3525,7 +3531,7 @@ switch ($action) {
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_keep_manual', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
             'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'edr_yara', 'ids_modern', 'af_motion', 'smart_auto', 'alert_auto', 'inet_down', 'inet_up', 'inet_warn_pct', 'inet_crit_pct', 'inet_times', 'inet_speed_mb', 'perf_on', 'edr_note_hide', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
-            'update_auto', 'update_time', 'update_backup',
+            'update_auto', 'update_time', 'update_backup', 'update_hold_min',
             'ai_on', 'ai_provider', 'ai_auto', 'ai_daily', 'ai_mask', 'ai_timeout', 'ai_max_tokens', 'ai_ollama_url', 'ai_ollama_key',
             'cve_buzz_on', 'cve_buzz_alert', 'cve_github_token', 'cve_mastodon_url', 'cve_mastodon_token', 'cve_exploitdb', 'cve_nuclei',   // 1.179.0
             'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model',   // 1.171.0
@@ -3555,6 +3561,9 @@ switch ($action) {
             if (isset($in["ai_{$p}_model"]) && !preg_match('/^[A-Za-z0-9._:\/-]{0,80}$/', trim((string) $in["ai_{$p}_model"]))) {
                 out(['error' => t('Ongeldige modelnaam')], 422);
             }
+        }
+        if (isset($in['update_hold_min'])) {
+            $in['update_hold_min'] = (string) max(5, min(60, (int) $in['update_hold_min']));   // 1.205.0
         }
         if (isset($in['update_time']) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['update_time'])) {
             out(['error' => t('Tijdstip voor automatisch bijwerken: gebruik uu:mm, bv. 04:00')], 422);
@@ -5530,6 +5539,8 @@ switch ($action) {
             'pinned' => (string) setting('update_pinned', ''),
             'unavailable' => Updater::unavailable(),
             'status' => Updater::status(),
+            'hold_old' => UpdateHold::oldAgents(),   // 1.205.0: deze agents kunnen niet wachten tijdens de update
+            'hold_min' => UpdateHold::minutes(),
             'backup' => setting('update_backup', '1') === '1',
             'source' => implode('@', Updater::source()),
             'install_dir' => SM_ROOT,
@@ -5546,6 +5557,7 @@ switch ($action) {
         $r === true ? out(['ok' => true]) : out(['error' => $r], 409);
 
     case 'update_status':
+        UpdateHold::tick();   // 1.205.0: de agents weten het (of de tijd is om): de update kan beginnen
         out(['status' => Updater::status(), 'version' => RZMON_VERSION,
             'log' => is_readable(Installer::HELPER_DIR . '/update.log') ? mb_substr((string) file_get_contents(Installer::HELPER_DIR . '/update.log'), -6000) : '']);
 

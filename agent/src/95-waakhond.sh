@@ -36,8 +36,15 @@ if [ -n "$wd_line" ] && [ "$WATCHDOG" != 0 ] && [ "$TEST" != 1 ]; then
     wd_now=$(date +%s)
     if [ "$rc" != 0 ]; then
         [ "$wd_down" -gt 0 ] || wd_down=$wd_now
-        if [ "$wd_sent" = 0 ] && [ $(( wd_now - wd_down )) -ge $(( wd_min * 60 )) ]; then
-            if wd_push "⚠️ RzMon onbereikbaar" "RzMon is vanaf $hostname niet bereikbaar sinds $(date -d "@$wd_down" +%H:%M 2>/dev/null || date +%H:%M)${st_err:+ ($st_err)}. Gemeld door de waakhond op $hostname." "$wd_prio"; then
+        # Agent 1.82.0: tijdens een aangekondigde update van RzMon niet alarmeren, tot de tijd die RzMon meegaf voorbij is
+        wd_title="⚠️ RzMon onbereikbaar"
+        wd_msg="RzMon is vanaf $hostname niet bereikbaar sinds $(date -d "@$wd_down" +%H:%M 2>/dev/null || date +%H:%M)${st_err:+ ($st_err)}. Gemeld door de waakhond op $hostname."
+        if [ -n "${hold_id-}" ]; then
+            wd_title="⚠️ RzMon onbereikbaar tijdens update"
+            wd_msg="De update van RzMon begon om $(date -d "@${hold_since:-$wd_down}" +%H:%M 2>/dev/null || echo ?) en RzMon is nog niet terug$( [ -s "${q_file-}" ] && echo "; $(wc -l <"$q_file") metingen in de wachtrij"). Gemeld door de waakhond op $hostname."
+        fi
+        if [ "$wd_sent" = 0 ] && [ $(( wd_now - wd_down )) -ge $(( wd_min * 60 )) ] && { [ -z "${hold_id-}" ] || [ "$wd_now" -ge "${hold_until:-0}" ]; }; then
+            if wd_push "$wd_title" "$wd_msg" "$wd_prio"; then
                 wd_sent=1; wd_self=0
             else
                 wd_self=1   # Pushover/ntfy ook niet bereikbaar (of geen gegevens): eerder het netwerk van deze server
@@ -47,7 +54,7 @@ if [ -n "$wd_line" ] && [ "$WATCHDOG" != 0 ] && [ "$TEST" != 1 ]; then
         if [ "$wd_down" -gt 0 ]; then
             [ "$wd_sent" = 1 ] && wd_push "✅ RzMon weer bereikbaar" "RzMon is vanaf $hostname weer bereikbaar ($(( (wd_now - wd_down + 59) / 60 )) min weg)." -1
             # Voor RzMon (ℹ️ in het volgende rapport): alleen als het langer duurde dan de ingestelde tijd
-            [ $(( wd_now - wd_down )) -ge $(( wd_min * 60 )) ] && printf '{"down":%s,"up":%s,"sent":%s,"self":%s}\n' "$wd_down" "$wd_now" "$wd_sent" "$wd_self" >"$wd_file.gap"
+            [ $(( wd_now - wd_down )) -ge $(( wd_min * 60 )) ] && [ "${hold_released:-0}" = 0 ] && printf '{"down":%s,"up":%s,"sent":%s,"self":%s}\n' "$wd_down" "$wd_now" "$wd_sent" "$wd_self" >"$wd_file.gap"
             wd_down=0; wd_sent=0; wd_self=0
         fi
         # RzMon antwoordt, maar staan de checks stil (cron)?

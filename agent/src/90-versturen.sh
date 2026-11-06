@@ -17,8 +17,22 @@ if [ -s "$q_file" ]; then
     backlog=$(head -n 120 "$q_file" | grep '^{"t":[0-9]' | paste -sd, -)
     q_sent=$(head -n 120 "$q_file" | wc -l)
 fi
+# Agent 1.82.0: RzMon wordt bijgewerkt (dat zei hij zelf, in een versleuteld antwoord). Dan gaan metingen die niet aankomen
+# in de wachtrij zonder alarm, tot de vrijgave (een antwoord zonder "rz_hold") of tot de tijd die RzMon meegaf (hooguit een uur).
+hold_file="$k_dir/rzhold"; hold_id=""; hold_until=0; hold_since=0; hold_json=""; hold_released=0
+if [ -r "$hold_file" ]; then
+    read -r hold_id hold_until hold_since _ <"$hold_file" 2>/dev/null
+    if ! [[ "$hold_id" =~ ^[0-9a-f]{8,32}$ && "$hold_until" =~ ^[0-9]+$ && "$hold_since" =~ ^[0-9]+$ ]]; then
+        hold_id=""; hold_until=0; hold_since=0; rm -f "$hold_file"
+    fi
+fi
+if [ -n "$hold_id" ] && [ "$hold_since" -gt 0 ]; then
+    hold_json="{\"id\":\"$hold_id\",\"since\":$hold_since,\"q\":$( [ -s "$q_file" ] && wc -l <"$q_file" || echo 0)}"
+    # Na de update niet allemaal op dezelfde seconde terug: 0-24 s wachten
+    [ "$TEST" != 1 ] && [ "${HOLD_JITTER:-1}" != 0 ] && sleep $(( RANDOM % 25 ))
+fi
 run_ms=$(( $(now_ms) - run_t0 ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
 # Agent 1.66.1: 50 seconden wachten op RzMon (was 20): een druk bezette RzMon verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit
@@ -237,6 +251,26 @@ elif [ "$rc" != 0 ] && [ -d "$k_dir" ]; then
     (umask 077; printf '{"t":%s,"cpu":%s,"mem":%s,"disks":[%s]}\n' "$(date +%s)" "$cpu_pct" "$mem" "${disks%,}" >>"$q_file") 2>/dev/null
     [ "$(wc -l 2>/dev/null <"$q_file" || echo 0)" -gt 2880 ] && { tail -n 2880 "$q_file" >"$q_file.tmp" && mv -f "$q_file.tmp" "$q_file"; }
 fi
+# Agent 1.82.0: update van RzMon. Alleen uit een versleuteld antwoord (een foutpagina of proxy kan het niet nadoen)
+hold_now=$(date +%s)
+if [ "$rc" = 0 ]; then
+    if [ -n "$seal_n" ] && [[ "$resp" =~ \"rz_hold\":\{\"id\":\"([0-9a-f]{8,32})\",\"max\":([0-9]{1,6}) ]]; then
+        h_max=${BASH_REMATCH[2]}; [ "$h_max" -gt 3600 ] && h_max=3600
+        [ "${BASH_REMATCH[1]}" = "$hold_id" ] || hold_since=0
+        hold_id=${BASH_REMATCH[1]}; hold_until=$(( hold_now + h_max ))
+        (umask 077; printf '%s %s %s\n' "$hold_id" "$hold_until" "$hold_since" >"$hold_file") 2>/dev/null
+    elif [ -n "$hold_id" ]; then
+        if [ "$hold_since" -gt 0 ]; then
+            hold_released=1
+            echo "RzMon is bijgewerkt en weer bereikbaar na $(( hold_now - hold_since )) s; de wachtrij gaat mee" >&2
+        fi
+        rm -f "$hold_file"; hold_id=""; hold_until=0
+    fi
+elif [ -n "$hold_id" ] && [ "$hold_now" -lt "$hold_until" ]; then
+    [ "$hold_since" -gt 0 ] || hold_since=$hold_now
+    (umask 077; printf '%s %s %s\n' "$hold_id" "$hold_until" "$hold_since" >"$hold_file") 2>/dev/null
+    echo "RzMon wordt bijgewerkt: meting in de wachtrij, wacht op de vrijgave (hooguit tot $(date -d "@$hold_until" +%H:%M 2>/dev/null || echo "$hold_until"))" >&2
+fi
 # Uitvoer (komt in het logboek): zonder sleutels
 sed -E 's/"(agent_key|enc_key)":"[0-9a-f]{64}"/"\1":"…"/g' <<<"$resp"
 if [ "$rc" -eq 0 ]; then
@@ -287,7 +321,7 @@ if [ "$rc" -eq 0 ]; then
     if [ -n "$rev" ] && [ -n "${t_cache-}" ] && [ -r "$t_cache" ] && [ "$(sha1sum "$t_cache" | cut -c1-12)" != "$rev" ]; then
         : >"$t_dir/tests.stale" 2>/dev/null || rm -f "$t_cache"   # volgende run opnieuw ophalen; de oude lijst blijft tot dan
     fi
-    [[ "$resp" =~ \"update\":[[:space:]]*\{ ]] && remote_update "$resp"
+    [[ "$resp" =~ \"update\":[[:space:]]*\{ ]] && [ -z "$hold_id" ] && remote_update "$resp"   # 1.82.0: niet tijdens een update van RzMon
     # Softwarelijst: RzMon heeft deze stand nu (of vraagt om alles opnieuw); uitkomst van het bijwerken is doorgegeven
     if [ -n "$pk_hash" ]; then
         if [[ "$resp" =~ \"packages_resend\":[[:space:]]*true ]]; then : >"$pk_dir/resend"; rm -f "$pk_dir/sent"

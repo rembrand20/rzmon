@@ -108,6 +108,10 @@ final class Updater
     /** Voortgang van de laatste update (uit update.status), of null. */
     public static function status(): ?array
     {
+        // 1.205.0: aangekondigd, de agents worden nog gewaarschuwd
+        if ($hold = UpdateHold::status()) {
+            return $hold;
+        }
         $st = json_decode((string) @file_get_contents(self::DIR . '/update.status'), true);
         if (is_file(self::DIR . '/update.request')) {
             // Verzoek staat klaar; de hulpdienst heeft het nog niet opgepakt
@@ -157,14 +161,26 @@ final class Updater
         if (self::running()) {
             return t('Er loopt al een update');
         }
-        $tmp = self::DIR . '/update.request.tmp';
-        if (file_put_contents($tmp, json_encode(['backup' => $backup, 'by' => $by, 'at' => time()] + ($version ? ['version' => $version] : []))) === false || !rename($tmp, self::DIR . '/update.request')) {
+        if (!is_writable(self::DIR)) {
             return t('Kan geen verzoek neerzetten in {dir}', ['dir' => self::DIR]);
         }
+        // 1.205.0: eerst de agents waarschuwen; het verzoek gaat naar de hulpdienst zodra ze het weten (UpdateHold::tick)
+        UpdateHold::announce(['backup' => $backup, 'by' => $by, 'at' => time()] + ($version ? ['version' => $version] : []),
+            RZMON_VERSION, $version ?: ((string) (self::check()['latest'] ?? '') ?: null));
         save_setting('update_requested', json_encode(['from' => RZMON_VERSION, 'to' => $version ?: null, 'by' => $by, 'at' => time()]));
         // Bewust een andere versie dan de nieuwste: automatisch bijwerken pauzeert tot je weer naar de nieuwste gaat
         $latest = (string) (self::check()['latest'] ?? '');
         save_setting('update_pinned', $version && $version !== $latest ? $version : '');
+        return true;
+    }
+
+    /** Het verzoek voor de hulpdienst neerzetten (na de aankondiging aan de agents). @return true|string */
+    public static function writeRequest(array $req): true|string
+    {
+        $tmp = self::DIR . '/update.request.tmp';
+        if (file_put_contents($tmp, json_encode($req)) === false || !rename($tmp, self::DIR . '/update.request')) {
+            return t('Kan geen verzoek neerzetten in {dir}', ['dir' => self::DIR]);
+        }
         return true;
     }
 

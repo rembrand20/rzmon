@@ -276,6 +276,12 @@ if [ "${STATUS-0}" = 1 ]; then
     else
         sl "Laatste rapport:" "nog niet bijgehouden (komt na het volgende rapport)"
     fi
+    # Agent 1.82.0: RzMon wordt bijgewerkt (aangekondigd door RzMon zelf)
+    if [ -r "$k_dir/rzhold" ] && read -r _ h_u h_s _ <"$k_dir/rzhold" 2>/dev/null && [[ "$h_u" =~ ^[0-9]+$ && "$h_s" =~ ^[0-9]+$ ]]; then
+        if [ "$h_s" -gt 0 ]; then sl "RzMon-update:" "wacht op de vrijgave sinds $(dt "$h_s"); alarm pas na $(dt "$h_u")"
+        else sl "RzMon-update:" "aangekondigd; lukt een rapport niet, dan wacht de agent tot $(dt "$h_u")"; fi
+        [ -s "$k_dir/queue.jsonl" ] && sl "Wachtrij:" "$(wc -l <"$k_dir/queue.jsonl") metingen"
+    fi
     tk=$(awk -F'\t' '$1 == "0" && $2 == "tick" { print $3; exit }' "$t_cache" 2>/dev/null)
     if [ -n "$tk" ]; then
         sl "Ritme:" "elke $tk s (ingesteld in RzMon)$( [ -n "${l_t-}" ] && echo "; volgende rapport rond $(date -d "@$(( l_t + tk ))" '+%H:%M:%S' 2>/dev/null)")"

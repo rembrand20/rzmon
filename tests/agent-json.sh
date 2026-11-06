@@ -67,3 +67,22 @@ if command -v gzip >/dev/null 2>&1; then
 else
     echo "· gzip ontbreekt: compressie niet getest"
 fi
+# Agent 1.82.0: tijdens een (aangekondigde) update van RzMon gaat de meting in de wachtrij en wacht de agent op de vrijgave;
+# daarna gaan de wachttijd en de wachtrij mee en is de aankondiging weg. (De aankondiging zelf komt alleen versleuteld;
+# hier zetten we hem klaar zoals de agent hem na zo'n antwoord bewaart.)
+hold_f="$work/agent/keys/rzhold"
+[ -d "$work/agent/keys" ] || hold_f="$work/cache/rzhold"
+printf 'abcdef012345 %s 0\n' "$(( $(date +%s) + 300 ))" >"$hold_f"
+MONITOR_URL="http://127.0.0.1:1" TOKEN=ci-test RZ_FORCE=1 CACHE_DIRECTORY="$work/cache" AGENT_DIR="$work/agent" \
+    HEAL_DIR="$work/heal.d" IDS_BLOCK=0 PODMAN=0 timeout 300 bash agent/rzmon-agent.sh >"$work/out" 2>&1
+read -r _ _ h_since _ <"$hold_f" 2>/dev/null
+if [ "${h_since:-0}" -le 0 ] || ! grep -q 'wacht op de vrijgave' "$work/out"; then
+    echo "✘ update van RzMon: de agent wachtte niet op de vrijgave"; tail -n 20 "$work/out"; exit 1
+fi
+rm -f "$work/payload.json"
+MONITOR_URL="http://127.0.0.1:$port" TOKEN=ci-test RZ_FORCE=1 CACHE_DIRECTORY="$work/cache" AGENT_DIR="$work/agent" \
+    HEAL_DIR="$work/heal.d" IDS_BLOCK=0 PODMAN=0 HOLD_JITTER=0 timeout 300 bash agent/rzmon-agent.sh >"$work/out" 2>&1
+if ! python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); h=d["hold"]; assert h["id"]=="abcdef012345" and h["since"]>0 and h["q"]>=1 and d.get("backlog")' "$work/payload.json" 2>/dev/null || [ -e "$hold_f" ]; then
+    echo "✘ update van RzMon: na de vrijgave geen wachttijd/wachtrij meegestuurd, of de aankondiging bleef staan"; tail -n 20 "$work/out"; exit 1
+fi
+echo "✔ update van RzMon: meting in de wachtrij, na de vrijgave nagestuurd met de wachttijd"

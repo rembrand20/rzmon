@@ -14916,7 +14916,8 @@ async function openUpdateDialog(pick = false) {
         </div>
         ${versions.length ? `<div id="upd-older" class="callout small" hidden>${L('⚠️ <b>Terugzetten naar een oudere versie.</b> Je instellingen en gegevens blijven staan; de database blijft zoals hij is (nieuwere kolommen worden niet gebruikt). Wat er sindsdien bij kwam, werkt niet meer. Automatisch bijwerken pauzeert tot je weer naar de nieuwste gaat. Agents hoef je niet terug te zetten.')}
           ${confirmField('TERUGZETTEN')}</div>` : ''}
-        <div class="upd-facts"><span>${L('RzMon is tijdens het installeren even niet bereikbaar')}</span><span>${L('Agents blijven meten en sturen hun gegevens later na')}</span><span>${L('Dit venster laat zien hoe ver het is')}</span></div>
+        <div class="upd-facts"><span>${L('RzMon is tijdens het installeren even niet bereikbaar')}</span><span>${L('Agents houden hun metingen vast en geven tot {n} min geen alarm', { n: u.hold_min || 5 })}</span><span>${L('Dit venster laat zien hoe ver het is')}</span></div>
+        ${(u.hold_old || []).length ? `<p class="callout small">⚠️ ${L('Deze agents zijn ouder dan {v} of onversleuteld en kunnen tijdens de update alarm geven: {names}', { v: '1.82.0', names: esc(u.hold_old.slice(0, 8).join(', ') + (u.hold_old.length > 8 ? ' …' : '')) })}</p>` : ''}
       </div></div>`,
     buttons: [
       { label: L('Annuleren'), onClick: () => $('#modal').close() },
@@ -14970,7 +14971,7 @@ function showUpdateDialog(s, log, force = false) {
   const durs = UPDATE_STEPS.map((_, i) => (updT[i] && updT[i + 1] && i < cur ? updSecs(updT[i + 1] - updT[i]) : i === cur && s.state === 'running' ? '…' : ''));
   // Waar de installatie nu mee bezig is: bij Installeren het onderdeel van het installatiescript
   const part = (s.detail || '').match(/^(\d+\/\d+) (.*)$/);
-  const detail = s.state === 'queued' ? L('Wachten op de hulpdienst…')
+  const detail = s.state === 'queued' ? (s.agents ? esc(s.message || '') : L('Wachten op de hulpdienst…'))   // 1.205.0: eerst de agents waarschuwen
     : s.state === 'error' ? esc(s.message || L('Bijwerken mislukt'))
     : part ? L('Onderdeel {n}: {what}', { n: esc(part[1].replace('/', ' ' + L('van') + ' ')), what: esc(L(part[2])) }) : esc(s.message || '');
   const chips = s.from && s.to ? [updChip(s.from), updChip(s.to, true)] : s.to ? [updChip(s.to, true)] : [];

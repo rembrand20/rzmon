@@ -289,6 +289,8 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('update_auto', '0'),
     ('update_time', '04:00'),
     ('update_backup', '1'),
+    -- 1.205.0: zo lang (minuten) wachten agents tijdens een update van RzMon voordat de waakhond alsnog alarm geeft
+    ('update_hold_min', '5'),
     -- Commando-checks op agents: uit tot je ze aanzet (uit | nobody | root), per server te overschrijven
     ('agent_commands', 'off'),
     -- Logins (SSH, console), sudo en su van de agents op de pagina Meldingen; auth_ignore: gebruikers/IP's
