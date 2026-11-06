@@ -64,6 +64,23 @@ final class Paths
             [$hostId, $metric, json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), now()]);
     }
 
+    /**
+     * 1.189.2: na een rapport van de agent de regels opruimen die dat rapport niet ververste. Wat RzMon zelf bijhoudt
+     * en niet in elk rapport zit, blijft staan: de pad-metingen (de agent meet maar elke paar minuten; anders bleef de
+     * pad-check op onbekend staan) en de agent-test. Die van verwijderde pad-checks gaan wel weg.
+     */
+    public static function cleanAgentData(int $hostId, string $now): void
+    {
+        $keep = '^(path|pathtp|pathmax|pathreq):[0-9]+$';
+        q("DELETE FROM agent_data WHERE host_id = ? AND updated_at < ? AND metric NOT REGEXP '$keep' AND metric NOT IN ('iperfs', 'selftest', 'selftest_req')", [$hostId, $now]);
+        $ids = array_map('intval', q("SELECT id FROM checks WHERE host_id = ? AND type = 'path'", [$hostId])->fetchAll(PDO::FETCH_COLUMN));
+        foreach (q("SELECT metric FROM agent_data WHERE host_id = ? AND metric REGEXP '$keep'", [$hostId])->fetchAll(PDO::FETCH_COLUMN) as $m) {
+            if (!in_array((int) substr((string) $m, strpos((string) $m, ':') + 1), $ids, true)) {
+                self::put($hostId, (string) $m, null);
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ opdrachten voor de agent
 
     /** Regels voor de agent: de pad-checks van deze server, een doorvoertest die klaarstaat, en een ontvanger als dit het doel is */

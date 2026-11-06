@@ -938,7 +938,7 @@ if ($action === 'agent') {
     Heal::fromAgent($host, $in, $st, $now);
     // Vorige stand van de verbindingscontrole (1.100.0), vóór de oude regels verdwijnen
     $prevSec = q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'sec_state'", [$host['id']])->fetchColumn();
-    q('DELETE FROM agent_data WHERE host_id = ? AND updated_at < ?', [$host['id'], $now]);
+    Paths::cleanAgentData((int) $host['id'], $now);   // 1.189.2: oude regels weg, de pad-metingen blijven
     $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
     // ℹ️ als de agent (opnieuw) verbindt: de eerste keer, na stil te zijn geweest, of vanaf een ander IP
     Security::agentConnected($host, $encrypted);

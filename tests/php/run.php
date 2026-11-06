@@ -1774,6 +1774,15 @@ ok(in_array("$pcId\tpath\t1.1.1.1\t192.0.2.5\t300", $pcLines, true) && ($pcReq['
     && !str_contains($pr1['message'], '203.0.113.9') && $pr2['status'] === STATUS_CRIT && $pr3['status'] === STATUS_CRIT && str_contains($pr3['message'], 'onbereikbaar')
     && str_starts_with((string) json_decode((string) $pr1['path_sum'], true)['d'], 'g'),
     'pad-check: opdracht voor de agent, doorvoertest naar een server met iperf3, uplink op 100 Mbit en lage doorvoer = WARNING, verlies bij een tussenhop van de provider telt niet, switch of doel weg = CRITICAL');
+// 1.189.2: een volgend rapport zonder nieuwe meting ruimt de meting niet op (anders bleef de check op onbekend)
+$tnSt->execute([$tnH, 'ci_oud', '1', date('Y-m-d H:i:s', time() - 120)]);
+q("UPDATE agent_data SET updated_at = NOW() - INTERVAL 2 MINUTE WHERE host_id = ? AND metric LIKE 'path%'", [$tnH]);
+$tnSt->execute([$tnH, 'path:999999', '{}', date('Y-m-d H:i:s', time() - 120)]);
+Paths::cleanAgentData($tnH, now());
+$pr4 = Paths::check(q('SELECT * FROM checks WHERE id = ?', [$pcId])->fetch(), $pcHost);
+$left = q('SELECT metric FROM agent_data WHERE host_id = ?', [$tnH])->fetchAll(PDO::FETCH_COLUMN);
+ok($pr4['status'] === STATUS_CRIT && in_array('path:' . $pcId, $left, true) && in_array('pathmax:' . $pcId, $left, true) && !in_array('ci_oud', $left, true) && !in_array('path:999999', $left, true),
+    'pad-check na een rapport zonder nieuwe meting: de meting blijft (niet onbekend), oude regels en die van verwijderde checks gaan weg');
 q('DELETE FROM hosts WHERE id = ?', [$pdH]);
 save_setting('path_unifi_cache', '');
 // 1.175.0: TrueNAS 27 geeft via midclt geen temperaturen: dan uit de SMART-gegevens van de agent

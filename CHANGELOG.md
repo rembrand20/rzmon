@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.186.0**: **verkeer per apparaat** (uit UniFi): top 10 van vandaag, grafieken per uur en per dag, een heatmap van aanwezigheid en verkeer, en een melding bij ongewoon veel of nachtelijk verkeer.
 - **1.185.0**: **status bevestigen**: een check wordt pas warning of critical (en eventueel weer OK) na N controles achter elkaar; algemeen in de beheerportal en per check te overschrijven, leeg = meteen.
 
+## 1.189.2 – 2026-11-06
+### Opgelost
+- **Pad-checks bleven op onbekend staan.** De agent meet het pad maar elke paar minuten, en stuurt tussendoor een rapport zonder nieuwe meting. RzMon ruimde na zo'n rapport de laatste meting op, zodat de check meestal *Wacht op de eerste meting* zag en op onbekend bleef (ook al kwamen er wel metingen binnen). De laatste meting, de doorvoertest en de hoogste linksnelheden blijven nu staan; komt er te lang geen nieuwe meting, dan meldt de check dat zoals voorheen. Ook de uitkomst van de agent-test (🧪 Test) blijft nu staan tot je hem bekijkt.
+
 ## 1.189.1 – 2026-11-06
 ### Opgelost
 - **Zijbalk in Instellingen en Mijn account:** op een lager scherm liep het menu onder *Inklappen*, zoeken en je account door, zodat alles door elkaar stond. Het menu scrollt nu binnen de zijbalk; de knoppen onderaan blijven staan, het zoekveld blijft bovenaan en het gekozen onderdeel schuift vanzelf in beeld.
