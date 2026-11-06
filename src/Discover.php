@@ -88,6 +88,37 @@ final class Discover
             $add("cert:$path", 'cert', '🔒 ' . $path, t('Certificaat') . (($c['cn'] ?? '') !== '' ? ' · ' . $c['cn'] : '') . ($na ? ' · ' . t('geldig tot {d}', ['d' => date('d-m-Y', $na)]) : ''),
                 ['type' => 'ssl', 'target' => $path, 'name' => t('Certificaat {n}', ['n' => ($c['cn'] ?? '') ?: basename($path)]), 'warn_threshold' => 21, 'crit_threshold' => 7, 'interval_sec' => 3600]);
         }
+        // 1.200.0: databases: een draaiende MariaDB/MySQL- of PostgreSQL-service of -container zonder databasecheck (via de agent)
+        $dbHave = [];
+        foreach (q("SELECT options FROM checks WHERE host_id = ? AND type = 'mysql'", [$hid]) as $c) {
+            $o = Db::opts($c);
+            $dbHave[$o['engine'] . ':' . ($o['via'] === 'agent' && $o['where'] === 'container' ? $o['container'] : '')] = true;
+        }
+        $dbAdd = static function (string $eng, string $ct, string $label) use (&$dbHave, $add, $host): void {
+            if (isset($dbHave["$eng:$ct"]) || $host['mode'] !== 'agent') {
+                return;
+            }
+            $dbHave["$eng:$ct"] = true;
+            $name = ($eng === 'pgsql' ? 'PostgreSQL' : 'MariaDB') . ($ct !== '' ? ' ' . basename($ct) : '');
+            $add("db:$eng:$ct", 'db', $label, ($eng === 'pgsql' ? 'PostgreSQL' : 'MariaDB / MySQL') . ' · ' . t('via de agent, zonder wachtwoord'),
+                ['type' => 'mysql', 'metric' => 'overview', 'db_engine' => $eng, 'db_via' => 'agent', 'db_where' => $ct !== '' ? 'container' : 'local', 'db_container' => $ct,
+                    'name' => $name, 'warn_threshold' => 500, 'crit_threshold' => 2000, 'interval_sec' => 60]);
+        };
+        foreach ((array) json_decode((string) ($data['svclist'] ?? '[]'), true) as $s) {
+            [$sname, $state] = array_pad((array) $s, 2, null);
+            if ($state === 'active' && preg_match('/^(mariadb|mysql|mysqld|postgresql(@[\w.-]+)?)$/', (string) $sname, $mm)) {
+                $dbAdd(str_starts_with($mm[1], 'postgresql') ? 'pgsql' : 'mysql', '', '🗄️ ' . $sname);
+            }
+        }
+        foreach ($data as $metric => $value) {
+            if (str_starts_with($metric, 'container:')) {
+                $cv = json_decode((string) $value, true) ?: [];
+                $img = strtolower((string) ($cv['image'] ?? ''));
+                if (preg_match('#(^|/)(mariadb|mysql|percona|postgres|postgis|timescale)[^/]*(:|$)#', $img, $mm) && ($cv['state'] ?? 'running') === 'running') {
+                    $dbAdd(in_array($mm[2], ['postgres', 'postgis', 'timescale'], true) ? 'pgsql' : 'mysql', substr($metric, 10), '📦 ' . substr($metric, 10) . " ($img)");
+                }
+            }
+        }
         // Services die nu draaien en bij het opstarten starten
         foreach ((array) json_decode((string) ($data['svclist'] ?? '[]'), true) as $s) {
             [$name, $state, $enabled] = array_pad((array) $s, 3, null);

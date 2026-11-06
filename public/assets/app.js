@@ -75,7 +75,7 @@ const TYPES = {
   ntp:     { label: L('Tijd (NTP)'), target: L('NTP-server (optioneel)'), unit: 'ms', warn: 100, crit: 1000, ph: L('leeg = klok van deze server'), help: L('Loopt de klok goed? Op een server met de agent: de klok van die server (chrony of systemd-timesyncd), niet gesynchroniseerd = WARNING. Of vul een NTP-server in (bv. je router): dan vraagt RzMon die zelf. De waarde is de afwijking in ms.') },
   smart:   { label: L('Schijfgezondheid (SMART)'), target: L('Schijf'), unit: '°C', warn: 55, crit: 65, ph: L('leeg = alle schijven'), help: L('Via de agent en smartctl (smartmontools): de gezondheidstest, de temperatuur (de drempels hierboven), slijtage van SSD\'s en NVMe (80% = WARNING, 90% = CRITICAL) en vervangen of twijfelachtige sectoren (WARNING). Schijven in slaapstand worden niet wakker gemaakt. Agent 1.70.0 of nieuwer.') },
   ups:     { label: L('UPS (NUT)'), target: L('UPS'), unit: '%', warn: 50, crit: 20, low: true, ph: L('leeg = de eerste'), help: L('Via de agent en NUT (upsc) op de server waar de UPS aan hangt: op de batterij = WARNING, batterij bijna leeg = CRITICAL, en de lading met de drempels hierboven. In het bericht de resterende tijd en de belasting. Agent 1.70.0 of nieuwer.') },
-  mysql:   { label: L('MariaDB / MySQL'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server'), help: L('RzMon maakt verbinding en logt in: lukt dat niet = CRITICAL. Daarnaast hoeveel verbindingen er in gebruik zijn (90% = WARNING), trage query\'s sinds de vorige keer en hoe lang de database draait. Gebruik een eigen gebruiker zonder rechten (alleen USAGE). Het wachtwoord gaat nooit terug naar de browser.') },
+  mysql:   { label: L('Database (MariaDB, MySQL, PostgreSQL)'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server (poort 3306 of 5432)'), help: L('Bewaakt een database echt van binnen: verbindingen, lopende en trage query\'s, cache, replicatie, grootte en (PostgreSQL) vacuum. Kies het overzicht (alles in één check) of één waarde met eigen drempels en grafiek. Op een server met de agent leest de agent de database lokaal uit, zonder dat hij open op het netwerk hoeft. Alleen lezen; het wachtwoord gaat nooit terug naar de browser.') },
   // 1.170.0: domein, MQTT-broker en VPN
   domain:  { label: L('Domein (verloopdatum)'), target: L('Domein'), unit: 'dagen', warn: 30, crit: 14, low: true, ph: 'example.nl', help: L('Wanneer verloopt je domein? RzMon vraagt het hooguit twee keer per dag op bij de registry (RDAP, de opvolger van WHOIS). Sommige registries, zoals die van .nl, publiceren geen verloopdatum: dan controleert RzMon of het domein nog geregistreerd en actief is (status als opheffing of quarantaine = CRITICAL).') },
   mqtt:    { label: L('MQTT-broker'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server (poort 1883, met TLS 8883)'), help: L('RzMon logt in bij de broker (bv. Mosquitto), stuurt een testbericht en ontvangt het zelf weer: de waarde is die rondgang in ms. Lukt inloggen niet, of komt het bericht niet terug, dan CRITICAL. Daarnaast kun je een topic bekijken, bv. zigbee2mqtt/bridge/state met "online".') },
@@ -187,6 +187,22 @@ const VPN_METRICS = {
   gluetun: { label: L('Gluetun (control server)'), target: L('Control server'), unit: null, ph: L('leeg = http://<adres van de server>:8000'), help: L('RzMon vraagt de control server van Gluetun of de VPN draait en via welk publiek IP het verkeer gaat. Is dat je eigen IP (van de internetlijn van RzMon), dan lekt de VPN: CRITICAL. Staat de control server achter een API-sleutel, vul die hieronder in.') },
   wg: { label: L('WireGuard (via de agent)'), target: L('Peer'), unit: 's', warn: 300, crit: 900, ph: L('leeg = alle peers, of bv. wg0'), help: L('Hoe lang geleden de laatste handshake was (de oudste peer telt). Met verkeer of PersistentKeepalive is dat elke 2 minuten; een tunnel zonder verkeer en zonder keepalive maakt geen handshakes. Agent 1.75.0 als root nodig.') },
 };
+/** 1.200.0: wat een databasecheck bewaakt (zoals Db::UNITS); only = alleen bij die database */
+const DB_METRICS = {
+  overview: { label: L('Overzicht (alles in één check)'), unit: 'ms', warn: 500, crit: 2000, help: L('Eén check met de ergste van alles: geen verbinding = CRITICAL; 90% van de verbindingen in gebruik, een replica die stilstaat of achterloopt, een query die te lang loopt, "idle in transaction" en (PostgreSQL) wraparound = WARNING of CRITICAL. De meetwaarde is hoe lang de meting duurde.') },
+  conn: { label: L('Verbindingen in gebruik'), unit: '%', warn: 80, crit: 95, help: L('Hoeveel procent van max_connections in gebruik is.') },
+  active: { label: L('Actieve query\'s'), unit: "query's", warn: 20, crit: 50, help: L('Hoeveel query\'s er nu tegelijk bezig zijn.') },
+  qps: { label: L('Query\'s per seconde'), unit: '/s', warn: null, crit: null, help: L('Gemiddeld sinds de vorige check. Handig met slimme drempels of alleen voor de grafiek.') },
+  slow: { label: L('Trage query\'s'), unit: '/min', warn: 5, crit: 20, only: 'mysql', help: L('Trage query\'s per minuut (long_query_time van de database).') },
+  cache: { label: L('Cache-hit (uit het geheugen)'), unit: '%', warn: 95, crit: 90, low: true, help: L('Welk deel van het lezen uit het geheugen kwam (InnoDB buffer pool of shared buffers). Laag = te weinig geheugen voor de database.') },
+  repl: { label: L('Replicatie (achterstand)'), unit: 's', warn: 60, crit: 300, help: L('Op een replica: hoeveel seconden hij achterloopt; staat de replicatie stil, dan CRITICAL. Op een primaire database: hoeveel replica\'s verbonden zijn.') },
+  size: { label: L('Grootte'), unit: 'GB', warn: null, crit: null, help: L('Alle databases samen, of alleen de database hieronder. MariaDB/MySQL: eens per half uur gemeten.') },
+  longq: { label: L('Langste query'), unit: 's', warn: 60, crit: 300, help: L('Hoe lang de langst lopende query al bezig is.') },
+  deadlocks: { label: L('Deadlocks'), unit: 'deadlocks', warn: 1, crit: 10, help: L('Aantal deadlocks sinds de vorige check.') },
+  tmpdisk: { label: L('Tijdelijke tabellen op schijf'), unit: '%', warn: 25, crit: 50, only: 'mysql', help: L('Welk deel van de tijdelijke tabellen op schijf terechtkwam (te klein tmp_table_size).') },
+  wrap: { label: L('Wraparound (transactie-ID)'), unit: '%', warn: 50, crit: 75, only: 'pgsql', help: L('Hoe ver de oudste database op weg is naar transaction ID wraparound. Bij 100% stopt PostgreSQL; VACUUM (FREEZE) lost het op.') },
+  idle: { label: L('Idle in transaction'), unit: 'verbindingen', warn: 1, crit: 5, only: 'pgsql', help: L('Verbindingen die al langer dan 5 minuten "idle in transaction" staan: ze houden locks vast en blokkeren vacuum.') },
+};
 /** Internet (1.157.0): wat een internet-check meet */
 const INET_METRICS = {
   ping: { label: L('Ping (pingtijd, jitter, verlies)'), unit: 'ms', warn: 50, crit: 150, help: L('Pingt 1.1.1.1 en 8.8.8.8 (5 keer) en je router. De waarde is de beste pingtijd. Verlies van 20% of meer, of één adres weg = WARNING; geen van beide = CRITICAL, met in de melding of je router nog antwoordt (dan zit het probleem buiten).') },
@@ -233,7 +249,7 @@ const REVERSIBLE = ['ping', 'tcp', 'http', 'service', 'container', 'podman', 'co
 const SMART_GUARD = { ping: 1000, tcp: 3000, http: 10000, cpu: null, ram: 98, 'snmp:cpu': null, 'snmp:mem': 98, 'snmp:if': 98, 'snmp:load': null, 'snmp:temp': 85,
   'snmp:ups_load': 98, 'snmp:ups_temp': 45, 'snmp:syno_system': 75, 'snmp:syno_disk': 62, 'snmp:unifi_cu': null, 'snmp:unifi_quality': null,
   'container:cpu': null, 'container:mem': 98, dns: 3000, ntp: 1000, mysql: 5000, 'internet:ping': 500, 'internet:resp': 5000 };
-const smartKey = (type, metric) => (['snmp', 'container', 'internet'].includes(type) ? `${type}:${metric || ''}` : type);
+const smartKey = (type, metric) => (['snmp', 'container', 'internet'].includes(type) ? `${type}:${metric || ''}` : type === 'mysql' && metric && metric !== 'overview' ? `mysql:${metric}` : type);
 const smartEligible = (type, metric) => smartKey(type, metric) in SMART_GUARD;
 const smartGuard = (type, metric) => SMART_GUARD[smartKey(type, metric)];
 const SMART_MODES = { manual: '✋ ' + L('Handmatig'), smart: '🧠 ' + L('Slim'), guard: '🧠🛡️ ' + L('Slim met vangnet') };
@@ -4874,6 +4890,22 @@ async function checkInfo(id, live = false, more = null) {
     det = ([[L('Gebruikt'), `<b>${dec(String(Math.round(d.pct * 10) / 10))}%</b>`],
       [L('Groei'), d.per_day !== null ? `${d.per_day >= 0 ? '+' : ''}${dec(String(Math.round(d.per_day * 100) / 100))} ${L('procentpunt per dag')}` : `<span class="muted">${L('nog te weinig gegevens')}</span>`],
       [L('Vol over'), d.days_to_full !== null && d.days_to_full !== undefined ? `<b class="${d.days_to_full < 14 ? 'ct-bad' : ''}">± ${Math.round(d.days_to_full)} ${L('dagen')}</b>` : `<span class="muted">${L('niet in zicht')}</span>`]]);
+  } else if (d && d.kind === 'db') {
+    // 1.200.0: database van binnen: versie, verbindingen, cache, replicatie, grootte en lopende query's
+    const m = d.m || {}, cl = d.calc || {}, r = m.repl;
+    const sizes = Object.entries(m.sizes || {}).slice(0, 5);
+    det = [[L('Database'), `<b>${esc(m.version || (m.engine === 'pgsql' ? 'PostgreSQL' : 'MariaDB/MySQL'))}</b> <span class="muted small">${d.via === 'agent' ? (d.where === 'container' ? L('via de agent, container {c}', { c: esc(d.container) }) : L('via de agent, lokaal')) : L('RzMon maakt verbinding')}</span>`],
+      m.uptime !== null && m.uptime !== undefined ? [L('Draait'), esc(durText(m.uptime))] : null,
+      m.conn !== null && m.conn !== undefined ? [L('Verbindingen'), `<b class="${m.conn_pct >= 90 ? 'ct-bad' : ''}">${m.conn} / ${m.max_conn}</b> <span class="muted small">(${dec(String(m.conn_pct ?? 0))}%) · ${L('{n} actief', { n: m.active ?? 0 })}</span>`] : null,
+      cl.qps !== null && cl.qps !== undefined ? [L('Query\'s per seconde'), dec(String(cl.qps))] : null,
+      cl.cache !== null && cl.cache !== undefined ? [L('Cache-hit'), `<b class="${cl.cache < 90 ? 'ct-bad' : ''}">${dec(String(cl.cache))}%</b>`] : null,
+      r ? [L('Replicatie'), r.role === 'primary' ? L('primair, {n} replica\'s', { n: r.replicas }) : (!r.io || !r.sql ? `<b class="ct-bad">${L('staat stil')}</b> ${esc(r.err || '')}` : r.lag !== null ? L('replica, {s} s achter', { s: r.lag }) : L('replica'))] : null,
+      m.galera ? ['Galera', `${esc(m.galera.status)} · ${L('{n} nodes', { n: m.galera.size })}`] : null,
+      m.wrap_pct !== null && m.wrap_pct !== undefined ? [L('Wraparound'), `<b class="${m.wrap_pct >= 50 ? 'ct-bad' : ''}">${dec(String(m.wrap_pct))}%</b>`] : null,
+      m.idle_tx ? [L('Idle in transaction'), `<b class="ct-bad">${m.idle_tx}</b>`] : null,
+      cl.slow_n || cl.deadlocks ? [L('Sinds de vorige check'), [cl.slow_n ? L('{n} trage query\'s', { n: cl.slow_n }) : '', cl.deadlocks ? L('{n} deadlocks', { n: cl.deadlocks }) : ''].filter(Boolean).join(' · ')] : null,
+      m.size !== null && m.size !== undefined ? [L('Grootte'), `<b>${fmtBytes(m.size)}</b>${sizes.length > 1 ? `<br><span class="muted small">${sizes.map(([k, v]) => `${esc(k)} ${fmtBytes(v)}`).join(' · ')}</span>` : ''}`] : null,
+      (m.longq || []).length ? [L('Lopende query\'s'), m.longq.slice(0, 3).map((q) => `<div class="small"><b class="${q.sec >= 300 ? 'ct-bad' : ''}">${esc(durText(q.sec))}</b> <span class="muted">${esc(q.user)}${q.db ? '@' + esc(q.db) : ''}</span><br><code>${esc(q.q.slice(0, 160))}</code></div>`).join('')] : null];
   } else if (d && d.kind === 'days') {
     det = ([[L('Nog geldig'), `<b class="${d.days < 14 ? 'ct-bad' : ''}">${Math.floor(d.days)} ${L('dagen')}</b>`], [L('Verloopt'), esc(new Date(Date.now() + d.days * 86400000).toLocaleDateString(LOCALE, { dateStyle: 'medium' }))]]);
   } else det = rows.slice(0, 2);
@@ -6202,11 +6234,24 @@ function checkForm(c, h, preset = {}, tpl = null) {
       </div>
       <div id="db-x-wrap" hidden>
         <div class="row2">
-          <label>${L('Gebruiker')} <input name="db_user" maxlength="80" autocomplete="off" value="${esc(opts.user || '')}" placeholder="rzmon_check"></label>
+          <label>${L('Database')} <select name="db_engine"><option value="mysql">MariaDB / MySQL</option><option value="pgsql" ${opts.engine === 'pgsql' ? 'selected' : ''}>PostgreSQL</option></select></label>
+          <label>${L('Bewaken')} <select name="metric" id="db-metric">${Object.entries(DB_METRICS).map(([k, m]) => `<option value="${k}" ${(c.type === 'mysql' ? c.metric || 'overview' : 'overview') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select></label>
+        </div>
+        ${h.mode === 'agent' ? `<div class="row2">
+          <label>${L('Meten')} <select name="db_via"><option value="agent">${L('Via de agent (lokaal, aanbevolen)')}</option><option value="rzmon" ${c.type === 'mysql' && !isNew && (opts.via || 'rzmon') === 'rzmon' ? 'selected' : ''}>${L('RzMon maakt verbinding (netwerk)')}</option></select></label>
+          <label id="db-where-wrap">${L('Waar')} <select name="db_where"><option value="local">${L('Op de server zelf')}</option><option value="container" ${opts.where === 'container' ? 'selected' : ''}>${L('In een container')}</option></select></label>
+        </div>
+        <label id="db-ct-wrap">${L('Container')} <input name="db_container" list="db-ct-list" maxlength="160" value="${esc(opts.container || '')}" placeholder="mariadb"><datalist id="db-ct-list">${containers.map((x) => `<option value="${esc(x)}">`).join('')}</datalist></label>` : ''}
+        <p class="hint" id="db-metric-help"></p>
+        <div class="row2">
+          <label>${L('Gebruiker')} <span class="hint" id="db-user-opt"></span><input name="db_user" maxlength="80" autocomplete="off" value="${esc(opts.user || '')}" placeholder="rzmon_check"></label>
           <label>${L('Wachtwoord')} <input name="db_pass" type="password" maxlength="200" autocomplete="new-password" value="${esc(opts.pass || '')}"></label>
         </div>
-        <label>${L('Database')} <span class="hint">${L('(optioneel)')}</span><input name="db_name" maxlength="64" value="${esc(opts.db || '')}"></label>
-        <p class="hint">${L('Een gebruiker zonder rechten is genoeg:')} <code>CREATE USER 'rzmon_check'@'%' IDENTIFIED BY '…';</code></p>
+        <div class="row2">
+          <label>${L('Naam van de database')} <span class="hint">${L('(optioneel)')}</span><input name="db_name" maxlength="64" value="${esc(opts.db || '')}"></label>
+          <label id="db-longq-wrap">${L('Query "te lang" vanaf')} <span class="hint">${L('seconden')}</span><input name="db_longq" type="number" min="10" max="86400" value="${esc(opts.longq || 300)}"></label>
+        </div>
+        <p class="hint" id="db-hint"></p>
       </div>
       <div id="glu-x-wrap" hidden>
         <div class="row2">
@@ -6476,6 +6521,32 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const trSel = $('#tr-wrap [name=metric]', form);   // 1.187.0
   const vpnSel = $('#vpn-wrap [name=metric]', form);   // 1.170.0
   const tnSel = $('#tn-wrap [name=metric]', form);   // 1.174.0
+  const dbSel = $('#db-metric', form);   // 1.200.0
+  const dbVia = () => (h.mode === 'agent' && $('[name=db_via]', form) ? $('[name=db_via]', form).value : 'rzmon');
+  /** 1.200.0: velden van de databasecheck: wat er bij deze database kan, en wat er nodig is */
+  const dbForm = () => {
+    const eng = $('[name=db_engine]', form).value, via = dbVia();
+    $$('option', dbSel).forEach((o) => { const only = DB_METRICS[o.value].only; o.hidden = o.disabled = !!only && only !== eng; });
+    if (dbSel.selectedOptions[0] && dbSel.selectedOptions[0].disabled) { dbSel.value = 'overview'; }
+    const where = $('[name=db_where]', form) ? $('[name=db_where]', form).value : 'local';
+    if ($('#db-where-wrap')) { $('#db-where-wrap').hidden = via !== 'agent'; $('[name=db_where]', form).disabled = via !== 'agent'; }
+    if ($('#db-ct-wrap')) { const on = via === 'agent' && where === 'container'; $('#db-ct-wrap').hidden = !on; $('[name=db_container]', form).disabled = !on; $('[name=db_container]', form).required = on; }
+    $('#db-longq-wrap').hidden = dbSel.value !== 'overview';
+    $('#db-metric-help').textContent = DB_METRICS[dbSel.value].help;
+    $('#db-user-opt').textContent = via === 'agent' ? L('(optioneel)') : '';
+    $('#db-hint').innerHTML = via === 'agent'
+      ? (where === 'container'
+        ? L('De agent leest de database in de container uit met <code>docker exec</code> of <code>podman exec</code>. Zonder gebruiker: MariaDB/MySQL als root met het wachtwoord uit de container zelf (<code>MARIADB_ROOT_PASSWORD</code>), PostgreSQL als <code>postgres</code>.')
+        : L('Zonder gebruiker leest de agent (als root) de database zonder wachtwoord: MariaDB/MySQL via de socket, PostgreSQL als gebruiker <code>postgres</code>. Op de server is de client nodig (<code>mariadb</code>/<code>mysql</code> of <code>psql</code>).'))
+        + ' ' + L('Een wachtwoord stuurt RzMon alleen naar een versleutelde agent.')
+      : (eng === 'pgsql'
+        ? L('Een gebruiker met alleen leesrechten:') + ' <code>CREATE ROLE rzmon_check LOGIN PASSWORD \'…\' IN ROLE pg_monitor;</code>'
+        : L('Een gebruiker met alleen leesrechten:') + ' <code>CREATE USER \'rzmon_check\'@\'%\' IDENTIFIED BY \'…\'; GRANT PROCESS, REPLICATION CLIENT ON *.* TO \'rzmon_check\'@\'%\';</code>');
+  };
+  dbSel.onchange = () => update('metric');
+  $('[name=db_engine]', form).onchange = () => { const before = dbSel.value; dbForm(); update(dbSel.value !== before ? 'metric' : false); };
+  if ($('[name=db_via]', form)) $('[name=db_via]', form).onchange = () => update(false);
+  if ($('[name=db_where]', form)) $('[name=db_where]', form).onchange = () => update(false);
   $('[name=reverse_ok]', form).onchange = () => update(false);
   const snmpSel = $('#snmp-metric');
   const update = (setDefaults) => {
@@ -6486,6 +6557,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     const isTr = typeSel.value === 'traffic';
     const isVpn = typeSel.value === 'vpn';
     const isTn = typeSel.value === 'truenas';
+    const isDb = typeSel.value === 'mysql';   // 1.200.0
     const isSnmp = typeSel.value === 'snmp';
     const oidMode = $('[name=oid_mode]', form).value;
     const isHb = typeSel.value === 'heartbeat';
@@ -6495,6 +6567,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       : isTr ? { ...TYPES.traffic, ...TRAFFIC_METRICS[trSel.value] }
       : isVpn ? { ...TYPES.vpn, ...VPN_METRICS[vpnSel.value] }
       : isTn ? { ...TYPES.truenas, ...TN_METRICS[tnSel.value] }
+      : isDb ? { ...TYPES.mysql, ...DB_METRICS[dbSel.value], target: dbVia() === 'rzmon' ? TYPES.mysql.target : null }
       : isSnmp ? snmpType({ metric: snmpSel.value, options: JSON.stringify({ mode: oidMode, unit: $('[name=oid_unit]', form).value, low: $('[name=oid_low]', form).checked }) })
         : isHb ? { ...TYPES.heartbeat, unit: $('[name=hb_unit]', form).value.trim() || null }
           : TYPES[typeSel.value];
@@ -6565,7 +6638,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $$('.unit', form).forEach((u) => (u.textContent = t.unit ? L(t.unit) : ''));
     $$('#thr-wrap label', form).slice(0, 2).forEach((l) => (l.hidden = !t.unit || !!t.nothresh));
     // Slimme drempels: alleen bij checks die kunnen leren (niet in een sjabloon, niet omgekeerd)
-    const smartOk = !tpl && smartEligible(typeSel.value, isSnmp ? snmpSel.value : isInet ? inetSel.value : typeSel.value === 'container' ? ($('[name=metric]:not(:disabled)', form) || {}).value : null) && !(+$('[name=reverse_ok]', form).value > 0);
+    const smartOk = !tpl && smartEligible(typeSel.value, isSnmp ? snmpSel.value : isInet ? inetSel.value : isDb ? dbSel.value : typeSel.value === 'container' ? ($('[name=metric]:not(:disabled)', form) || {}).value : null) && !(+$('[name=reverse_ok]', form).value > 0);
     $('#smart-wrap').hidden = !smartOk;
     $$('#smart-wrap select, #smart-wrap input', form).forEach((el) => { el.disabled = !smartOk; });
     const sm = smartOk ? $('[name=thresh_mode]', form).value : 'manual';
@@ -6625,8 +6698,10 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#http-x-wrap').hidden = typeSel.value !== 'http';
     $$('.http-body-x', form).forEach((x) => (x.hidden = !['POST', 'PUT'].includes($('[name=http_method]', form).value)));
     $('#dns-x-wrap').hidden = typeSel.value !== 'dns';
-    $('#db-x-wrap').hidden = typeSel.value !== 'mysql';
-    $('[name=db_user]', form).required = typeSel.value === 'mysql';
+    $('#db-x-wrap').hidden = !isDb;
+    dbSel.disabled = !isDb;
+    if (isDb) dbForm();
+    $('[name=db_user]', form).required = isDb && dbVia() === 'rzmon';
     const isCmd = typeSel.value === 'command';
     $('#cmd-wrap').hidden = !isCmd;
     $('[name=cmd]', form).required = isCmd;
@@ -13584,7 +13659,7 @@ async function totpSetup(id, username) {
 let dbInfo = null;
 // ---------------------------------------------------------------- 💡 Nog niet bewaakt (1.95.0)
 const DISCOVER_KIND = { disk: () => '💾 ' + L('Disks'), smart: () => '💽 ' + L('Schijfgezondheid'), service: () => '⚙️ ' + L('Services'), container: () => '📦 ' + L('Containers'),
-  cert: () => '🔒 ' + L('Certificaten'), ups: () => '🔋 UPS', vpn: () => '🔐 VPN', ntp: () => '🕐 ' + L('Tijd'), port: () => '🌐 ' + L('Poorten') };
+  db: () => '🗄️ ' + L('Databases'), cert: () => '🔒 ' + L('Certificaten'), ups: () => '🔋 UPS', vpn: () => '🔐 VPN', ntp: () => '🕐 ' + L('Tijd'), port: () => '🌐 ' + L('Poorten') };
 async function discoverDialog(h) {
   let d;
   try { d = await api('discover', null, { id: h.id }); } catch (ex) { return toast(ex.message, 'err'); }

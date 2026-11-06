@@ -37,6 +37,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🧩 Checks en monitoring | **Pad-check (traceroute)** | Per hop vertraging en verlies, switches, linksnelheid en doorvoer met iperf3. | 1.177.0 |
 | 🧩 Checks en monitoring | **Slimme drempels** | RzMon leert per check wat normaal is, per uur van de week. | 1.107.0 |
 | 🧩 Checks en monitoring | **Sjablonen** | Een set checks in één keer op een server zetten. | 1.94.0 |
+| 🧩 Checks en monitoring | **Databases van binnen** | MariaDB/MySQL en PostgreSQL: verbindingen, query's, cache, replicatie, grootte en wraparound, via de agent zonder wachtwoord of via het netwerk. | 1.200.0 |
 | 🧩 Checks en monitoring | **Nog niet bewaakt** | Wat de agent ziet maar nog geen check heeft, met één klik toevoegen. | 1.95.0 |
 | 🧩 Checks en monitoring | **Beschikbaarheid en SLA** | Per server en groep: online, %, storingen, trend en minst betrouwbaar. | 1.169.0 |
 | 🧩 Checks en monitoring | **Grafieken en diskvoorspelling** | Van 6 uur tot 30 dagen, en wanneer een disk vol is. | 1.7.0 |

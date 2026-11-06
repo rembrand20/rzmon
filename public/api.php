@@ -497,6 +497,7 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     array_push($out, ...Heal::testLines($hostId, $secure));
     array_push($out, ...Ai::diagLines($hostId));   // 1.171.0: diagnose voor AI-advies (agent 1.76.0)
     array_push($out, ...Paths::agentLines($hostId));   // 1.177.0: pad-checks en doorvoertests (agent 1.78.0)
+    array_push($out, ...Db::agentLines($hostId, $secure));   // 1.200.0: databasechecks (agent 1.81.0); wachtwoord alleen versleuteld
     array_push($out, ...AgentTest::agentLines($hostId));   // 1.178.0: 🧪 Test uit de Agent Manager (agent 1.79.0)
     return $out ? implode("\n", $out) . "\n" : '';
 }
@@ -708,6 +709,7 @@ if ($action === 'agent') {
     // 1.177.0 (agent 1.78.0): pad-checks, doorvoer en de iperf3-ontvanger
     try {
         Paths::fromAgent($host, $in);
+        Db::fromAgent($host, $in, $now);   // 1.200.0 (agent 1.81.0): databases
     } catch (Throwable $e) {
         error_log('RzMon: pad-gegevens niet verwerkt: ' . $e->getMessage());
     }
@@ -1438,6 +1440,18 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 }
                 $target = $dn;
             }
+            // 1.200.0: database (MariaDB/MySQL of PostgreSQL): overzicht of één waarde
+            if ($type === 'mysql') {
+                $metric = (string) ($in['metric'] ?? '');
+                $metric = $metric === 'overview' ? '' : $metric;
+                if ($metric !== '' && !array_key_exists($metric, Db::UNITS)) {
+                    out(['error' => t('Kies wat je van de database wilt bewaken')], 422);
+                }
+                $metric = $metric === '' ? null : $metric;
+                if ($target !== '' && !preg_match('/^[A-Za-z0-9._-]+(:\d{1,5})?$/', $target)) {
+                    out(['error' => t('Ongeldig adres')], 422);
+                }
+            }
             if ($type === 'mqtt' && $target !== '' && !preg_match('/^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(:\d{1,5})?$/', $target)) {
                 out(['error' => t('Ongeldig adres')], 422);
             }
@@ -1779,8 +1793,24 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
             if ($type === 'mysql') {
                 $old = (int) ($in['id'] ?? 0) ? json_decode((string) q('SELECT options FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn(), true) ?: [] : [];
                 $pass = (string) ($in['db_pass'] ?? '');
-                $options = json_encode(['user' => mb_substr(trim((string) ($in['db_user'] ?? '')), 0, 80), 'pass' => $pass === ExtraChecks::MASK ? (string) ($old['pass'] ?? '') : mb_substr($pass, 0, 200),
-                    'db' => preg_replace('/[^\w$-]/', '', mb_substr((string) ($in['db_name'] ?? ''), 0, 64))], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                // 1.200.0: soort database, via RzMon of de agent, lokaal of in een container, en wanneer een query "lang" is
+                $via = ($in['db_via'] ?? 'rzmon') === 'agent' ? 'agent' : 'rzmon';
+                $where = ($in['db_where'] ?? 'local') === 'container' ? 'container' : 'local';
+                $ct = trim((string) ($in['db_container'] ?? ''));
+                if ($via === 'agent' && $where === 'container' && !preg_match('/^([A-Za-z0-9_.-]{1,32}\/)?[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/', $ct)) {
+                    out(['error' => t('Kies de container met de database')], 422);
+                }
+                $dbUser = mb_substr(trim((string) ($in['db_user'] ?? '')), 0, 80);
+                if ($via === 'rzmon' && $dbUser === '') {
+                    out(['error' => t('Vul een gebruiker in (bv. een eigen gebruiker met alleen leesrechten)')], 422);
+                }
+                if ($dbUser !== '' && !preg_match('/^[A-Za-z0-9_.@-]{1,80}$/', $dbUser)) {
+                    out(['error' => t('Ongeldige gebruiker')], 422);
+                }
+                $options = json_encode(['engine' => ($in['db_engine'] ?? 'mysql') === 'pgsql' ? 'pgsql' : 'mysql', 'via' => $via, 'where' => $where, 'container' => $where === 'container' ? $ct : '',
+                    'user' => $dbUser, 'pass' => $pass === ExtraChecks::MASK ? (string) ($old['pass'] ?? '') : mb_substr($pass, 0, 200),
+                    'db' => preg_replace('/[^\w$-]/', '', mb_substr((string) ($in['db_name'] ?? ''), 0, 64)), 'longq' => max(10, min(86400, (int) ($in['db_longq'] ?? 300)))],
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             }
             if ($type === 'pve' && trim((string) ($in['name'] ?? '')) === '') {
                 $g = $metric === 'guest' ? q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [(int) ($in['host_id'] ?? 0), "pveg:$target"])->fetchColumn() : false;
@@ -1788,7 +1818,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 $in['name'] = ['overview' => 'Proxmox', 'guest' => $g ? ($g['kind'] === 'ct' ? '📦 ' : '🖥️ ') . ($g['name'] ?: "VM $target") : "VM $target",
                     'backups' => $target !== '' ? t('Back-up {id}', ['id' => $target]) : t('Proxmox-back-ups'), 'storage' => t('Proxmox-opslag') . ($target !== '' ? " $target" : ''), 'zfs' => 'ZFS'][$metric];
             }
-            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'dns' => 'DNS', 'ntp' => t('Tijd'), 'smart' => t('Schijfgezondheid'), 'ups' => 'UPS', 'mysql' => 'MariaDB', 'domain' => t('Domein'), 'mqtt' => 'MQTT', 'vpn' => $metric === 'wg' ? 'WireGuard' : 'Gluetun',
+            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'dns' => 'DNS', 'ntp' => t('Tijd'), 'smart' => t('Schijfgezondheid'), 'ups' => 'UPS', 'mysql' => (($in['db_engine'] ?? '') === 'pgsql' ? 'PostgreSQL' : 'MariaDB') . ($metric ? ' · ' . t(Db::LABELS[$metric] ?? $metric) : ''), 'domain' => t('Domein'), 'mqtt' => 'MQTT', 'vpn' => $metric === 'wg' ? 'WireGuard' : 'Gluetun',
                 'truenas' => ['alerts' => t('TrueNAS-meldingen'), 'tasks' => t('TrueNAS-taken'), 'apps' => t('TrueNAS-apps'), 'update' => t('TrueNAS-update'), 'temp' => t('Schijftemperatuur')][$metric] ?? 'TrueNAS', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
                 'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'heartbeat' => 'Heartbeat', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
                 'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',

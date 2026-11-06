@@ -75,6 +75,9 @@ final class Smart
     {
         $type = (string) ($check['type'] ?? '');
         $k = in_array($type, ['snmp', 'container', 'internet'], true) ? $type . ':' . ($check['metric'] ?? '') : $type;
+        if ($type === 'mysql' && (string) ($check['metric'] ?? '') !== '') {
+            return null;   // 1.200.0: alleen het overzicht (ms) leert; losse databasewaarden hebben vaste drempels
+        }
         if (!isset(self::SPEC[$k]) || ($check['reverse_ok'] ?? null) !== null) {
             return null;   // omgekeerde checks gaan over werkt het wel/niet, niet over een waarde
         }

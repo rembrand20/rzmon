@@ -25,7 +25,7 @@ final class ExtraChecks
             'ntp' => self::ntp($check, $host),
             'smart' => self::smart($check, $host),
             'ups' => self::ups($check, $host),
-            'mysql' => self::mysql($check, $host, $o),
+            'mysql' => Db::check($check, $host),   // 1.200.0: MariaDB/MySQL en PostgreSQL, via RzMon of de agent
             default => Checks::result(STATUS_UNKNOWN, null, t('Onbekend checktype')),
         };
     }
@@ -246,65 +246,6 @@ final class ExtraChecks
 
     // ------------------------------------------------------------------ MariaDB / MySQL
 
-    private static function mysql(array $check, array $host, array $o): array
-    {
-        $target = trim((string) $check['target']) ?: (string) $host['address'];
-        [$h, $port] = str_contains($target, ':') && !str_contains($target, '::') ? explode(':', $target, 2) + [1 => '3306'] : [$target, '3306'];
-        if (!preg_match('/^[A-Za-z0-9._-]+$/', $h) || !ctype_digit((string) $port)) {
-            return Checks::result(STATUS_UNKNOWN, null, t('Ongeldig adres'));
-        }
-        $user = (string) ($o['user'] ?? '');
-        if ($user === '') {
-            return Checks::result(STATUS_UNKNOWN, null, t('Vul een gebruiker in (bv. een eigen gebruiker met alleen het recht USAGE)'));
-        }
-        $t0 = microtime(true);
-        try {
-            $pdo = new PDO("mysql:host=$h;port=$port" . (!empty($o['db']) ? ';dbname=' . $o['db'] : ''), $user, (string) ($o['pass'] ?? ''),
-                [PDO::ATTR_TIMEOUT => 5, PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-        } catch (Throwable $e) {
-            return Checks::result(STATUS_CRIT, null, t('Geen verbinding') . ': ' . mb_substr(preg_replace('/^SQLSTATE\[\w+\] \[\d+\] /', '', $e->getMessage()), 0, 200));
-        }
-        $ms = (microtime(true) - $t0) * 1000;
-        $vars = [];
-        try {
-            foreach ($pdo->query("SHOW GLOBAL STATUS WHERE Variable_name IN ('Threads_connected', 'Uptime', 'Slow_queries')") as $r) {
-                $vars[$r[0]] = (int) $r[1];
-            }
-            $max = (int) $pdo->query('SELECT @@max_connections')->fetchColumn();
-            $ver = (string) $pdo->query('SELECT VERSION()')->fetchColumn();
-        } catch (Throwable) {
-            $max = 0;
-            $ver = '';
-        }
-        $status = Checks::threshold($ms, $check);
-        $msg = sprintf(t('Verbonden in %.0f ms'), $ms) . ($ver !== '' ? " · $ver" : '');
-        if ($max > 0 && isset($vars['Threads_connected'])) {
-            $pct = $vars['Threads_connected'] / $max * 100;
-            $msg .= ' · ' . t('{n} van {m} verbindingen', ['n' => $vars['Threads_connected'], 'm' => $max]);
-            if ($pct >= 90) {
-                $status = max($status, STATUS_WARN);
-            }
-        }
-        // Trage query's: hoeveel er bij kwamen sinds de vorige keer
-        if (isset($vars['Slow_queries'])) {
-            $prev = $o['_slow'] ?? null;
-            if (is_array($prev) && isset($prev['n'], $prev['up']) && ($vars['Uptime'] ?? 0) >= $prev['up']) {
-                $new = max(0, $vars['Slow_queries'] - (int) $prev['n']);
-                if ($new > 0) {
-                    $msg .= ' · ' . t('{n} trage query\'s sinds de vorige check', ['n' => $new]);
-                }
-            }
-            $o['_slow'] = ['n' => $vars['Slow_queries'], 'up' => $vars['Uptime'] ?? 0];
-            if ((int) ($check['id'] ?? 0) > 0) {
-                q('UPDATE checks SET options = ? WHERE id = ?', [json_encode($o, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $check['id']]);
-            }
-        }
-        if (isset($vars['Uptime'])) {
-            $msg .= ' · ' . t('draait {d}', ['d' => SnmpMonitor::duration($vars['Uptime'])]);
-        }
-        return Checks::result($status, $ms, $msg);
-    }
-
     /** Opties zonder wachtwoord, voor de browser */
     public static function maskOptions(?string $options): ?string
     {
@@ -313,7 +254,7 @@ final class ExtraChecks
             return $options;
         }
         $o['pass'] = $o['pass'] !== '' ? self::MASK : '';
-        unset($o['_slow']);
+        unset($o['_slow'], $o['_prev'], $o['_sz'], $o['_m']);
         return json_encode($o, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 

@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.200.0**: **databases van binnen bewaken**: MariaDB/MySQL en PostgreSQL, via de agent zonder wachtwoord, met overzicht en losse waarden.
 - **1.199.0**: **kruimelpad** boven elke pagina en **CPU · RAM · Disk** (hoogste waarde) in de tellerbalk van Monitoring.
 - **1.198.0**: de Home Assistant-kaart toont nu ook **de servers** (status, CPU, RAM en disk).
 - **1.197.0**: **netwerkkaart voor Home Assistant**: oordeel, internet, verbruik, apparaten, paden en IDS op je HA-dashboard.
 - **1.196.0**: **rustiger tabbalk op een telefoon**: vijf knoppen, de rest onder **Meer**.
-- **1.195.0**: **mDS volledig touch**: bladen van onderaf, vegen, trekken om te verversen en grote knoppen.
+
+## 1.200.0 – 2026-11-06
+### Nieuw
+- **🗄️ Databases van binnen bewaken** (agent 1.81.0 nodig voor meten via de agent): de MariaDB-check is nu een volwaardige **databasecheck voor MariaDB/MySQL én PostgreSQL**.
+  - **Meten via de agent** (aanbevolen): de agent leest de database lokaal uit, op de server of in een Docker/Podman-container. De database hoeft niet open op het netwerk, en zonder gebruiker is er geen wachtwoord nodig (root via de socket, of `postgres`). Of zoals vroeger: **RzMon maakt verbinding** via het netwerk (PostgreSQL ook, met `pdo_pgsql`).
+  - **Overzicht** (één echte check met de ergste van alles): geen verbinding = CRITICAL; 90%/98% van de verbindingen in gebruik, een replica die stilstaat of achterloopt (Galera: cluster niet *Primary*), een query die te lang loopt, verbindingen die "idle in transaction" blijven hangen, transaction ID wraparound (PostgreSQL, 50%/75%) en mislukte WAL-archivering = WARNING of CRITICAL. Een herstart van de database geeft een ℹ️-melding.
+  - **Losse waarden** met eigen drempels, grafiek en melding: verbindingen (%), actieve query's, query's per seconde, trage query's, cache-hit, replicatie-achterstand, grootte (alle databases of één), langste query, deadlocks, tijdelijke tabellen op schijf (MariaDB/MySQL), wraparound en idle in transaction (PostgreSQL).
+  - Checks op dezelfde database delen **één meting**; de agent meet per verbinding één keer.
+  - **Popup** met versie, uptime, verbindingen, query's per seconde, cache-hit, replicatie, grootte per database en de lopende query's (met gebruiker, database en de query zelf).
+  - **💡 Nog niet bewaakt** stelt een databasecheck voor bij een draaiende `mariadb`/`mysql`/`postgresql`-service en bij containers met een MariaDB-, MySQL- of PostgreSQL-image (ook Immich, Nextcloud, …), via de agent en zonder wachtwoord.
+- Bestaande MariaDB-checks blijven werken zoals ze waren (RzMon maakt verbinding, overzicht).
+- Nieuwe agent 1.81.0.
 
 ## 1.199.0 – 2026-11-06
 ### Nieuw

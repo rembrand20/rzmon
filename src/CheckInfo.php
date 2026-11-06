@@ -106,6 +106,15 @@ final class CheckInfo
             $f = Stats::diskForecast((int) $c['id'], (float) $c['last_value']);
             return ['kind' => 'disk', 'pct' => (float) $c['last_value'], 'per_day' => $f['per_day'] ?? null, 'days_to_full' => $f['days_to_full'] ?? null];
         }
+        // 1.200.0: database: het beeld van de laatste meting (Db::check bewaart het in agent_data)
+        if ($type === 'mysql') {
+            $o = Db::opts($c);
+            $st = Db::state($c);
+            if (is_array($st['m'] ?? null)) {
+                return ['kind' => 'db', 'via' => $o['via'], 'where' => $o['where'], 'container' => $o['container']] + $st['m'];
+            }
+            return null;
+        }
         if (in_array($type, ['ssl', 'domain'], true) && $c['last_value'] !== null) {
             return ['kind' => 'days', 'days' => (float) $c['last_value']];
         }

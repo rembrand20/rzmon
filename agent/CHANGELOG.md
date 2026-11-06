@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.81.0 – 2026-11-06
+- **Databases** (RzMon 1.200.0): de agent leest MariaDB/MySQL en PostgreSQL op de server zelf uit, of in een Docker/Podman-container (`docker exec` / `podman exec`). Zonder gebruiker zonder wachtwoord: MariaDB/MySQL als root via de socket (in een container met het wachtwoord uit de container zelf), PostgreSQL als gebruiker `postgres`. Alleen lezen: status, verbindingen, lopende query's, replicatie en grootte (MariaDB/MySQL hooguit eens per half uur). Eén meting per verbinding, ook als er meerdere checks op staan. Een wachtwoord krijgt de agent alleen over een versleutelde verbinding, en het gaat via de omgeving naar de client, nooit op de opdrachtregel. Nodig op de server: de client (`mariadb`/`mysql` of `psql`), of de database in een container.
+
 ## 1.80.0 – 2026-11-05
 - **Netwerkverkeer** (RzMon 1.188.0): de agent stuurt de bytetellers van de echte netwerkkaarten van de server mee (met een apparaat erachter, plus bond en wifi; de poorten van een bond tellen via de bond, niet dubbel). RzMon gebruikt die voor *Netwerk → Verkeer per apparaat* als UniFi deze server niet ziet. Alleen lezen uit `/sys/class/net`, geen extra programma's nodig.
 

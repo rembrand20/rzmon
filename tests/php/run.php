@@ -1681,6 +1681,39 @@ ok($ctDisk === 1 && $ctPing === 3 && $ctOwn === 4 && !$ctBad && $fl['raw'] === 2
     && ($fl['eta'] ?? -1) >= 99 && ($fl['eta'] ?? 0) <= 101,
     'status bevestigen per soort: disk 1, ping de algemene 3, eigen waarde gaat voor, ongeldige soort weg; popup: ruwe meting critical, bevestigen 1/3, melding over ±100 s (40 s sneller bevestigen + meldregel na 1 min)');
 
+// 1.200.0: databasecheck via de agent: een meting per verbinding, overzicht en losse waarden, MariaDB en PostgreSQL
+q("INSERT INTO hosts (name, address, mode, agent_seen, enabled) VALUES ('ci-db', '10.0.0.9', 'agent', NOW(), 1)");
+$dbh = q("SELECT * FROM hosts WHERE name = 'ci-db'")->fetch();
+$dbCheck = static function (?string $metric, array $o, ?float $w = null, ?float $c = null) use ($dbh): array {
+    q('INSERT INTO checks (host_id, type, metric, name, target, options, warn_threshold, crit_threshold, interval_sec, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 60, 1)',
+        [$dbh['id'], 'mysql', $metric, 'db ' . ($metric ?? 'overzicht'), '', json_encode(['via' => 'agent'] + $o), $w, $c]);
+    return q('SELECT * FROM checks WHERE id = ?', [(int) db()->lastInsertId()])->fetch();
+};
+$myO = $dbCheck(null, ['engine' => 'mysql', 'longq' => 60], 500, 2000);
+$myR = $dbCheck('repl', ['engine' => 'mysql'], 60, 300);
+$pgO = $dbCheck(null, ['engine' => 'pgsql'], 500, 2000);
+$pgW = $dbCheck('wrap', ['engine' => 'pgsql'], 50, 75);
+$myKv = ['Uptime' => '5000', 'Threads_connected' => '10', 'Threads_running' => '2', 'Questions' => '1000', 'v:max_connections' => '100', 'v:version' => '10.11.6-MariaDB',
+    'repl:Slave_IO_Running' => 'No', 'repl:Slave_SQL_Running' => 'Yes', 'repl:Last_IO_Error' => 'error connecting to master', 'longq:1' => '120|app|shop|' . base64_encode('SELECT * FROM orders'),
+    'size:shop' => '2000000000', 'wsrep_cluster_status' => 'Disconnected', 'wsrep_cluster_size' => '0'];
+$pgKv = ['version' => '16.4', 'uptime' => '900', 'conn' => '5', 'max_conn' => '100', 'active' => '1', 'xact' => '10', 'blks_hit' => '990', 'blks_read' => '10',
+    'wrap_age' => (string) (int) (0.6 * 2147483648), 'idle_tx' => '0', 'recovery' => '0', 'replicas' => '0', 'size:app' => '500000'];
+Db::fromAgent($dbh, ['db' => [Db::key(Db::opts($myO)) => ['ok' => 1, 'ms' => 12, 'kv' => $myKv, 'at' => time()],
+    Db::key(Db::opts($pgO)) => ['ok' => 1, 'ms' => 30, 'kv' => $pgKv, 'at' => time()]]], now());
+$r1 = Checks::run($myO, $dbh);
+$r2 = Checks::run($myR, $dbh);
+$r3 = Checks::run($pgO, $dbh);
+$r4 = Checks::run($pgW, $dbh);
+ok($r1['status'] === STATUS_CRIT && str_contains($r1['message'], 'Replicatie staat stil') && str_contains($r1['message'], 'Query loopt al') && !str_contains($r1['message'], 'Galera')
+    && $r2['status'] === STATUS_CRIT && $r3['status'] === STATUS_WARN && str_contains($r3['message'], 'wraparound') && $r4['status'] === STATUS_WARN && abs((float) $r4['value'] - 60.0) < 0.1,
+    'Databasecheck: replicatie stil = CRITICAL, lange query, geen Galera zonder cluster, wraparound 60% = WARNING (overzicht en losse waarde)');
+$lines = Db::agentLines((int) $dbh['id'], false);
+ok(count($lines) === 4 && count(array_unique(array_map(static fn($l) => explode("\t", $l)[8], $lines))) === 2 && !str_contains(implode("\n", $lines), base64_encode('x')),
+    'Databasecheck: één verbinding per database voor de agent (checks delen de meting), wachtwoord alleen versleuteld');
+$st = Db::state($myO);
+ok(isset($st['prev']['c_queries'], $st['m']['m']['repl']) && (new ReflectionMethod('CheckInfo', 'detail'))->invoke(null, $myO)['kind'] === 'db',
+    'Databasecheck: tussenstand voor de volgende keer en het beeld voor de popup');
+
 // 1.197.0: netwerk in het kort voor de Home Assistant-kaart (GET /v1.php/network), met en zonder IDS
 $nw = Mds::network(false);
 $nwi = Mds::network(true);

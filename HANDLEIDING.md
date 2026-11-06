@@ -64,7 +64,7 @@ RzMon bestaat uit vier onderdelen:
 | **Tijd (NTP)** (vanaf 1.138.0) | Loopt de klok goed? Op agent-servers de klok van de server (chrony of systemd-timesyncd); of een NTP-server (bv. je router) die RzMon zelf vraagt | Afwijking in ms. Niet gesynchroniseerd = WARNING | Agent 1.70.0, of een NTP-server |
 | **Schijfgezondheid (SMART)** (vanaf 1.138.0) | Gezondheidstest, temperatuur, slijtage (SSD/NVMe), vervangen en twijfelachtige sectoren, per schijf of alle; schijven in slaapstand worden niet gewekt | Temperatuur in °C. Test mislukt of ≥ 90% versleten = CRITICAL; sectoren of ≥ 80% versleten = WARNING | Agent 1.70.0 met smartmontools |
 | **UPS (NUT)** (vanaf 1.138.0) | Op het net of op de batterij, lading, resterende tijd, belasting | Lading in % (lager is slechter). Op de batterij = WARNING, bijna leeg = CRITICAL | Agent 1.70.0 met NUT (`upsc`) |
-| **MariaDB / MySQL** (vanaf 1.138.0) | Verbinden en inloggen, verbindingen in gebruik, trage query's sinds de vorige keer, hoe lang hij draait | Verbindingstijd in ms. Niet verbonden = CRITICAL; 90% van de verbindingen in gebruik = WARNING | Alle servers (RzMon maakt verbinding) |
+| **Database** (MariaDB, MySQL, PostgreSQL; vanaf 1.138.0, uitgebreid in 1.200.0) | Van binnen: verbindingen, lopende en trage query's, cache, replicatie, grootte, deadlocks en (PostgreSQL) wraparound en idle in transaction. Overzicht in één check, of één waarde (§8.5c) | Overzicht: hoe lang de meting duurde (ms); niet verbonden = CRITICAL. Losse waarden met hun eigen eenheid | Via de agent (lokaal of in een container) of RzMon maakt verbinding |
 | **Domein (verloopdatum)** (vanaf 1.170.0) | Wanneer je domein verloopt, via RDAP (de opvolger van WHOIS), hooguit twee keer per dag opgevraagd; registrar en status erbij. Registries die geen verloopdatum publiceren (zoals .nl): of het domein nog geregistreerd en actief is | Dagen tot het verloopt (standaard warning 30, critical 14). Niet gevonden, of een status als *pending delete*, *redemption* of *quarantaine* = CRITICAL | Alle servers (RzMon vraagt het op) |
 | **MQTT-broker** (vanaf 1.170.0) | Inloggen (eventueel met gebruiker, wachtwoord en TLS), een testbericht op `rzmon/check/…` sturen en zelf terug ontvangen, en eventueel een topic bekijken (bv. `zigbee2mqtt/bridge/state` moet `online` bevatten) | Rondgang in ms. Niet verbonden, inloggen geweigerd, testbericht komt niet terug of het topic klopt niet = CRITICAL; geen bericht op het topic (niet *retained*?) = WARNING | Alle servers (RzMon maakt verbinding) |
 | **VPN: Gluetun** (vanaf 1.170.0) | De control server van Gluetun (standaard `http://<server>:8000`, eventueel met API-sleutel): draait de VPN, welk publiek IP, land en provider | Gestopt = CRITICAL; **lek** (het publieke IP is je eigen IP, dat van de internetlijn van RzMon) = CRITICAL; ander land dan verwacht = WARNING | Alle servers (RzMon vraagt het op) |
@@ -2106,6 +2106,67 @@ Installeren: `sudo apt install mtr-tiny iperf3` (Debian/Ubuntu) of `sudo dnf ins
 **Het lichtspoor** (vanaf 1.190.0): in de servertegel, de lijst met checks en de tabel op Netwerkpaden staat het pad als één lijn die altijd past. De punten die ertoe doen zijn een bolletje met een label: **GW** (je router), **SW** (switch, via UniFi of LLDP), **VM** (de virtuele laag), **VIA** (een tussenliggend apparaat dat je zelf opgaf), **ISP** (de eerste hop van je provider) en het **DOEL**. Hops die niet antwoorden zijn kleine streepjes; onder het spoor staat hoeveel dat er zijn (*20 hops · 16 stil*). Dat is normaal: veel routers van providers antwoorden niet op traceroute. Groen is in orde, oranje en rood geven aan waar het hapert (dat bolletje pulseert). De lichtpuls die over de lijn loopt staat uit bij *minder beweging* (Weergave) of als je systeem minder beweging vraagt.
 
 **In de lay-out CC** (vanaf 1.191.0) staat het pad niet in de servertegel, zodat die rustig blijft. Klap je de server open, dan staat het pad als sectie **Netwerkpad** tussen *Vraagt aandacht* en *In orde*: status, doel, het lichtspoor, vertraging, hops en verlies, en de laatste 24 uur. Een pad met een probleem blijft in die sectie (oranje of rode rand) en telt wel mee in de ring van de tegel. Klik je erop, dan ga je naar **Monitoring → Netwerkpaden**, waar dat pad in beeld schuift en even oplicht.
+
+### 8.5c Databases van binnen 🗄️ (vanaf 1.200.0, agent 1.81.0)
+De check **Database** bewaakt MariaDB/MySQL en PostgreSQL echt van binnen. Bij ✎ → *Check toevoegen* kies je:
+- **Database**: *MariaDB / MySQL* of *PostgreSQL*;
+- **Bewaken**: het **Overzicht** (alles in één check), of één waarde met eigen drempels, grafiek en melding (zie de tabel hieronder);
+- **Meten** (op een server met de agent):
+  - **Via de agent (lokaal, aanbevolen)**: de agent leest de database op de server zelf uit. De database hoeft niet open op het netwerk. *Waar*: **Op de server zelf**, of **In een container** (kies de container; de agent gebruikt `docker exec` of `podman exec`, ook rootless);
+  - **RzMon maakt verbinding (netwerk)**: zoals vóór 1.200.0, met adres[:poort] (standaard 3306 of 5432). Voor PostgreSQL moet PHP op de RzMon-server `pdo_pgsql` hebben (`php-pgsql`).
+- **Gebruiker en wachtwoord**: via de agent is een gebruiker **niet nodig**. Zonder gebruiker leest de agent (als root) MariaDB/MySQL via de socket en PostgreSQL als gebruiker `postgres`, zonder wachtwoord. In een container gebruikt hij voor MariaDB/MySQL root met het wachtwoord uit de container zelf (`MARIADB_ROOT_PASSWORD`/`MYSQL_ROOT_PASSWORD`). Geef je wel een wachtwoord op, dan stuurt RzMon dat alleen naar een **versleutelde agent**; het gaat via de omgeving naar de client, nooit op de opdrachtregel. Via het netwerk is een gebruiker nodig, met alleen leesrechten:
+  ```sql
+  -- MariaDB / MySQL
+  CREATE USER 'rzmon_check'@'%' IDENTIFIED BY '…';
+  GRANT PROCESS, REPLICATION CLIENT ON *.* TO 'rzmon_check'@'%';
+  -- PostgreSQL
+  CREATE ROLE rzmon_check LOGIN PASSWORD '…' IN ROLE pg_monitor;
+  ```
+  Zonder `PROCESS` zie je geen lopende query's van anderen, zonder `REPLICATION CLIENT` geen replicatie. De grootte zie je alleen van databases waar die gebruiker rechten op heeft (via de agent: alles).
+- **Query "te lang" vanaf** (alleen bij het overzicht): standaard 300 seconden.
+
+**Het overzicht** is één echte check met de ergste van alles:
+
+| Wat | WARNING | CRITICAL |
+|---|---|---|
+| Verbinding | | geen verbinding of inloggen mislukt |
+| Verbindingen in gebruik | vanaf 90% van `max_connections` | vanaf 98% |
+| Replica (MariaDB/MySQL en PostgreSQL) | 5 minuten achter | replicatie staat stil, of 30 minuten achter |
+| Galera-cluster | | cluster niet *Primary* |
+| Lange query | een query loopt langer dan de ingestelde tijd | |
+| Idle in transaction (PostgreSQL) | een verbinding staat langer dan 5 minuten "idle in transaction" | |
+| Wraparound (PostgreSQL) | 50% op weg naar transaction ID wraparound | 75% |
+| WAL-archivering (PostgreSQL) | mislukt sinds de vorige check | |
+| Hoe lang de meting duurde | je drempel (standaard 500 ms) | je drempel (standaard 2000 ms) |
+
+In het bericht staan verder de versie, hoeveel verbindingen, query's per seconde, replica's, de grootte, trage query's en deadlocks sinds de vorige check, en hoe lang de database draait. Een **herstart** van de database (de uptime wordt korter) geeft een ℹ️-melding.
+
+**Losse waarden** (één per check, met eigen drempels, grafiek en melding):
+
+| Waarde | Eenheid | Standaard warning / critical | Bij |
+|---|---|---|---|
+| Verbindingen in gebruik | % | 80 / 95 | beide |
+| Actieve query's | query's | 20 / 50 | beide |
+| Query's per seconde | /s | – (voor de grafiek) | beide |
+| Trage query's | per minuut | 5 / 20 | MariaDB/MySQL |
+| Cache-hit (uit het geheugen) | % | **onder** 95 / 90 | beide |
+| Replicatie (achterstand) | s | 60 / 300; stil = CRITICAL | beide |
+| Grootte | GB | – (of alleen de database bij *Naam van de database*) | beide |
+| Langste query | s | 60 / 300 | beide |
+| Deadlocks | sinds de vorige check | 1 / 10 | beide |
+| Tijdelijke tabellen op schijf | % | 25 / 50 | MariaDB/MySQL |
+| Wraparound | % | 50 / 75 | PostgreSQL |
+| Idle in transaction | verbindingen | 1 / 5 | PostgreSQL |
+
+Checks op dezelfde database **delen één meting**: zet je er vijf op, dan meet de agent toch maar één keer per verbinding. De **popup** van de check toont de versie, uptime, verbindingen, query's per seconde, cache-hit, replicatie, de grootte per database en de lopende query's met gebruiker, database en de query zelf.
+
+**💡 Nog niet bewaakt** stelt vanzelf een databasecheck (overzicht, via de agent, zonder wachtwoord) voor bij een draaiende `mariadb`-, `mysql`- of `postgresql`-service, en bij een container met een MariaDB-, MySQL-, Percona- of PostgreSQL-image (bijvoorbeeld de database van Nextcloud of Immich).
+
+**Goed om te weten:**
+- Alles is **alleen lezen**: `SHOW GLOBAL STATUS`, `information_schema`, `pg_stat_*`. De agent leest nooit data uit je tabellen.
+- De grootte per database (MariaDB/MySQL) meet de agent hooguit eens per half uur: `information_schema.tables` kan op grote servers traag zijn.
+- Op een primaire PostgreSQL zonder schrijfverkeer lijkt een replica soms achter te lopen (de laatste transactie is gewoon oud); kijk dan naar de replicatie op de primaire (aantal verbonden replica's).
+- Bestaande MariaDB-checks van vóór 1.200.0 blijven werken zoals ze waren (RzMon maakt verbinding, overzicht).
 
 ### 8.6 Containers: Podman en Docker 📦
 
