@@ -441,6 +441,9 @@ final class Paths
         return $n;
     }
 
+    /** 1.190.0: soort knooppunt → één letter in path_sum (lichtspoor in de tegels) */
+    private const KIND_LETTER = ['src' => 's', 'virt' => 'v', 'switch' => 'w', 'via' => 'p', 'hidden' => 'h', 'router' => 'r', 'hop' => 'o', 'ext' => 'e', 'dst' => 'd'];
+
     /** De check: [status, waarde (ms naar het doel), melding] plus vals en een korte samenvatting voor de tegels */
     public static function check(array $check, array $host): array
     {
@@ -494,8 +497,17 @@ final class Paths
             . ($mbit !== null ? ' · ' . I18n::dec((string) round($mbit)) . ' Mbit/s' : '');
         $msg = ($why ? implode(' · ', $why) . ' · ' : '') . $summary;
         $code = implode('', array_map(static fn($n) => $n['kind'] === 'dst' ? ($n['st'] === 'g' ? 'd' : $n['st']) : $n['st'], $m['nodes']));
-        $sum = json_encode(['d' => mb_substr($code, 0, 40), 'ms' => $ms !== null ? round($ms, 1) : null, 'h' => $m['hops'], 'mb' => $mbit !== null ? round($mbit) : null,
-            'w' => mb_substr($why[0] ?? '', 0, 70), 't' => mb_substr($m['dst'], 0, 40)], JSON_UNESCAPED_UNICODE);
+        // 1.190.0: per knooppunt ook de soort (k), voor de labels in het lichtspoor; past het niet in 250 tekens, dan eerst de uitleg korter
+        $kinds = implode('', array_map(static fn($n) => self::KIND_LETTER[$n['kind']] ?? 'o', $m['nodes']));
+        $sumOf = static fn(int $wl, bool $k) => json_encode(['d' => mb_substr($code, 0, 40), 'ms' => $ms !== null ? round($ms, 1) : null, 'h' => $m['hops'], 'mb' => $mbit !== null ? round($mbit) : null,
+            'w' => mb_substr($why[0] ?? '', 0, $wl), 't' => mb_substr($m['dst'], 0, 40), 'l' => isset($dst['loss']) ? (int) $dst['loss'] : null] + ($k ? ['k' => mb_substr($kinds, 0, 40)] : []), JSON_UNESCAPED_UNICODE);
+        $sum = $sumOf(70, true);
+        foreach ([[30, true], [0, true], [30, false]] as [$wl, $k]) {
+            if (strlen((string) $sum) <= 250) {
+                break;
+            }
+            $sum = $sumOf($wl, $k);
+        }
         return ['status' => $status, 'value' => $ms, 'message' => $msg, 'vals' => array_filter(['ms' => $ms, 'loss' => $dst['loss'] ?? null, 'mbit' => $mbit], static fn($v) => $v !== null) ?: null,
             'path_sum' => strlen((string) $sum) <= 250 ? $sum : null];
     }

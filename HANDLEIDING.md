@@ -2074,7 +2074,9 @@ Installeren: `sudo apt install mtr-tiny iperf3` (Debian/Ubuntu) of `sudo dnf ins
 
 **Wanneer meldt hij?** Te veel vertraging naar het doel (de drempels in ms) of verlies (warning/critical in %), een tussenliggend apparaat dat niet reageert (CRITICAL), een linksnelheid die zakt (bv. een poort van 1 Gbit naar 100 Mbit: vaak een slechte kabel) en doorvoer onder de grens (WARNING). Verlies bij een tussenhop van je provider telt niet, zolang de hops erna niets verliezen. Een gewijzigd pad staat bij *Wat er veranderde* en kan als ℹ️ info (*Instellingen → Meldingen → Info*).
 
-**Waar zie je het?** In de popup van de check (het pad, per hop een tabel, de doorvoer en wat er veranderde), op **Monitoring → Netwerkpaden** (een netwerkkaart van alle paden samen, de paden en de switchpoorten uit UniFi, de langzaamste eerst) en in het kort in de servertegel en de lijst met checks (bolletjes per hop).
+**Waar zie je het?** In de popup van de check (het pad, per hop een tabel, de doorvoer en wat er veranderde), op **Monitoring → Netwerkpaden** (een netwerkkaart van alle paden samen, de paden en de switchpoorten uit UniFi, de langzaamste eerst) en in het kort in de servertegel en de lijst met checks.
+
+**Het lichtspoor** (vanaf 1.190.0): in de servertegel, de lijst met checks en de tabel op Netwerkpaden staat het pad als één lijn die altijd past. De punten die ertoe doen zijn een bolletje met een label: **GW** (je router), **SW** (switch, via UniFi of LLDP), **VM** (de virtuele laag), **VIA** (een tussenliggend apparaat dat je zelf opgaf), **ISP** (de eerste hop van je provider) en het **DOEL**. Hops die niet antwoorden zijn kleine streepjes; onder het spoor staat hoeveel dat er zijn (*20 hops · 16 stil*). Dat is normaal: veel routers van providers antwoorden niet op traceroute. Groen is in orde, oranje en rood geven aan waar het hapert (dat bolletje pulseert). De lichtpuls die over de lijn loopt staat uit bij *minder beweging* (Weergave) of als je systeem minder beweging vraagt.
 
 ### 8.6 Containers: Podman en Docker 📦
 

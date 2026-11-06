@@ -2499,24 +2499,57 @@ function npStrip(m) {
   return `<div class="np-strip" data-motion="${afMotion(null)}">${parts}</div>`;
 }
 
-/** Bolletjes per hop (uit de samenvatting van de check), voor tegels en rijen */
-function npDots(code) {
-  return `<span class="np-dots" aria-hidden="true">${String(code || '').split('').map((ch, i, a) => `<i class="d-${ch}"></i>${i < a.length - 1 ? `<b class="d-${a[i + 1]}"></b>` : ''}`).join('')}</span>`;
+/**
+ * 1.190.0: het pad als lichtspoor, voor tegels en rijen. Past altijd: elk knooppunt staat op een plek in procenten.
+ * Bekende punten (bron, VM, switch, gateway, eerste hop van de provider, tussenliggend apparaat, doel, en elke hop
+ * met een probleem) zijn een gloeiend bolletje, de rest een streepje. code = status per knooppunt, kinds = soort.
+ */
+const NP_KIND_LETTER = { src: 's', virt: 'v', switch: 'w', via: 'p', hidden: 'h', router: 'r', hop: 'o', ext: 'e', dst: 'd' };
+const npStCls = (ch) => ({ w: 'w', c: 'c', h: 'u', x: 'e', d: 'd', v: 'd' }[ch] || 'g');   // e = hop buiten de deur die antwoordt
+function npDots(code, kinds) {
+  const st = String(code || '').split('');
+  if (!st.length) return '';
+  let k = String(kinds || '').split('');
+  if (k.length !== st.length) k = st.map((ch, i) => (i === 0 ? 's' : i === st.length - 1 ? 'd' : ch === 'h' ? 'h' : ch === 'x' ? 'e' : 'o'));   // oude samenvatting
+  const firstExt = k.indexOf('e');
+  const lbl = (i) => ({ r: 'GW', w: 'SW', v: 'VM', p: 'VIA', d: L('DOEL') }[k[i]] || (i === firstExt ? 'ISP' : ''));
+  const big = st.map((ch, i) => 'svwprd'.includes(k[i]) || i === firstExt || ch === 'w' || ch === 'c');
+  // Een bolletje krijgt meer ruimte dan een streepje; eerste en laatste precies aan de randen
+  const wt = big.map((b) => (b ? 3 : 1));
+  let acc = 0;
+  const mid = wt.map((w) => { const m = acc + w / 2; acc += w; return m; });
+  const span = mid[mid.length - 1] - mid[0] || 1;
+  const pos = mid.map((m) => Math.round(((m - mid[0]) / span) * 1000) / 10);
+  const at = (pc) => `calc(6px + (100% - 12px) * ${pc / 100})`;
+  const col = { g: 'var(--ok)', w: 'var(--warn)', c: 'var(--crit)', u: 'color-mix(in srgb, var(--unknown) 60%, transparent)', e: 'color-mix(in srgb, var(--ok) 55%, var(--unknown))', d: 'var(--ok)' };
+  // Labels die te dicht op elkaar staan vallen weg (DOEL blijft altijd)
+  const show = new Set();
+  let lastAt = -100;
+  st.forEach((_, i) => { if (big[i] && lbl(i) && i < st.length - 1 && pos[i] - lastAt >= 15 && pos[st.length - 1] - pos[i] >= 15) { show.add(i); lastAt = pos[i]; } });
+  show.add(st.length - 1);
+  const stops = st.slice(1).map((ch, j) => `${col[npStCls(ch)]} ${pos[j]}% ${pos[j + 1]}%`).join(', ');
+  const worst = st.includes('c') ? 'c' : st.includes('w') ? 'w' : 'g';
+  const nodes = st.map((ch, i) => (big[i]
+    ? `<i class="np-n s-${npStCls(ch)}${k[i] === 'd' ? ' dst' : ''}" style="left:${at(pos[i])}"></i>${lbl(i) && show.has(i) ? `<em class="${i === 0 ? 'l0' : i === st.length - 1 ? 'l1' : ''}" style="left:${at(pos[i])}">${lbl(i)}</em>` : ''}`
+    : `<i class="np-t s-${npStCls(ch)}" style="left:${at(pos[i])}"></i>`)).join('');
+  return `<span class="np-trail w-${worst}" aria-hidden="true"><span class="np-rail" style="background:linear-gradient(90deg, ${stops})"></span>${nodes}<span class="np-pulse"></span></span>`;
 }
 const pathSum = (c) => { if (!c || c.type !== 'path' || !c.path_sum) return null; try { return JSON.parse(c.path_sum); } catch { return null; } };
 /** In de lijst met checks: bolletjes + kort wat er speelt */
 function pathMini(c) {
   const p = pathSum(c);
   if (!p) return '';
-  return `<span class="np-mini">${npDots(p.d)}<small>${esc([p.w, p.ms !== null ? npMs(p.ms) : '', p.mb ? npMbit(p.mb) : ''].filter(Boolean).join(' · '))}</small></span>`;
+  return `<span class="np-mini">${npDots(p.d, p.k)}<small>${esc([p.w, p.ms !== null ? npMs(p.ms) : '', p.mb ? npMbit(p.mb) : ''].filter(Boolean).join(' · '))}</small></span>`;
 }
 /** In de servertegel: strookje "Pad → doel" */
 function pathTileStrip(h) {
   const list = h.checks.filter((c) => +c.enabled && c.type === 'path' && pathSum(c)).slice(0, 2);
   return list.map((c) => {
     const p = pathSum(c);
-    return `<div class="np-tile s${c.status}" data-cid="${c.id}"><span class="np-th"><span>${L('PAD')} → ${esc(p.t || c.target)}</span><b class="mono">${p.ms !== null ? npMs(p.ms) : '–'}</b></span>${npDots(p.d)}
-      <span class="np-th"><span>${L('{n} hops', { n: p.h })}</span>${p.mb ? `<b class="mono">${npMbit(p.mb)}</b>` : ''}</span></div>`;
+    const quiet = (String(p.d || '').match(/h/g) || []).length;
+    const right = [p.l !== undefined && p.l !== null ? L('{l}% verlies', { l: p.l }) : '', p.mb ? npMbit(p.mb) : ''].filter(Boolean).join(' · ');
+    return `<div class="np-tile s${c.status}" data-cid="${c.id}" data-motion="${afMotion(null)}"><span class="np-th"><span class="np-to">${L('PAD')} → ${esc(p.t || c.target)}</span><b class="mono">${p.ms !== null ? npMs(p.ms) : '–'}</b></span>${npDots(p.d, p.k)}
+      <span class="np-th np-tf"><span>${L('{n} hops', { n: p.h })}${quiet ? ' · ' + L('{n} stil', { n: quiet }) : ''}</span>${right ? `<span class="mono">${esc(right)}</span>` : ''}</span></div>`;
   }).join('');
 }
 
@@ -2646,11 +2679,12 @@ function renderNetPaths() {
   const rows = ps.map((p) => {
     const m = p.model;
     const code = m ? m.nodes.map((n) => (n.kind === 'dst' ? (n.st === 'g' ? 'd' : n.st) : n.st)).join('') : '';
+    const kinds = m ? m.nodes.map((n) => NP_KIND_LETTER[n.kind] || 'o').join('') : '';
     const dst = m ? m.nodes[m.nodes.length - 1] : null;
     return `<div class="np-pr s${p.status}" data-cid="${p.id}" role="button" tabindex="0"><span class="np-src"><span><b>${esc(p.host)}</b> <span class="muted">→</span> <span class="mono">${esc(p.target)}</span></span><small class="muted">${esc(p.name)}</small></span>
       <span><span class="ax-lbl s${p.status === 0 ? 0 : p.status}" style="${p.status === 0 ? 'color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 10%,transparent)' : ''}">${STATUS[+p.status]}</span></span>
       <span class="mono">${m ? m.hops : '–'}</span><b class="mono">${dst ? npMs(dst.avg) : '–'}</b><span class="mono ${m && m.tp && m.tp.mbit && m.tp.mbit < (m.opts.tp_min || 200) ? 'ct-bad' : ''}">${m && m.tp && m.tp.mbit ? npMbit(m.tp.mbit) : '–'}</span>
-      <span>${npDots(code)}</span><span>${checkTimeline({ id: p.id })}</span></div>`;
+      <span>${npDots(code, kinds)}</span><span>${checkTimeline({ id: p.id })}</span></div>`;
   }).join('');
   const ports = (npData.ports || []).slice(0, 14).map((p) => `<div class="np-port${p.speed && p.speed < 1000 ? ' slow' : ''}"><span><b>${esc(p.switch)} · ${L('poort {p}', { p: p.port })}</b><br><span class="muted small">${esc(p.to || p.name)}</span></span>
     <span class="r"><b class="mono">${npSpeed(p.speed) || '–'}</b><br><span class="mono small muted">${p.full ? L('vol-duplex') : L('half-duplex')}${p.errors ? ' · ' + L('{n} fouten', { n: p.errors }) : ''}</span></span></div>`).join('');

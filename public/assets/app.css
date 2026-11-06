@@ -3773,16 +3773,51 @@ button.ct-k { cursor: pointer; } button.ct-k:hover { border-color: var(--primary
 .np-bars span { flex: 1; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--primary) 70%, transparent); animation: np-grow .8s cubic-bezier(.32, .72, 0, 1) both; }
 .np-bars span.low { background: var(--warn); }
 @keyframes np-grow { from { transform: scaleY(0); transform-origin: bottom; } }
-.np-dots { display: flex; align-items: center; min-width: 60px; }
-.np-dots i { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px var(--card); background: var(--ok); }
-.np-dots b { flex: 1; height: 3px; min-width: 6px; border-radius: 2px; background: var(--ok); }
-.np-dots .d-w { background: var(--warn); } .np-dots .d-c { background: var(--crit); } .np-dots .d-x, .np-dots .d-h { background: var(--unknown); } .np-dots .d-v, .np-dots .d-d { background: var(--primary); }
+/* 1.190.0: het pad als lichtspoor (tegels, rijen, Netwerkpaden): past altijd, bolletjes voor bekende punten, streepjes voor de rest */
+.np-trail { --np-r: 6px; position: relative; display: block; width: 100%; min-width: 80px; height: 24px; container-type: inline-size; }
+.np-rail { position: absolute; left: 6px; right: 6px; top: 13px; height: 2px; border-radius: 2px; }
+.np-trail .np-t { position: absolute; top: 10px; width: 2px; height: 8px; border-radius: 1px; transform: translateX(-1px); background: var(--c, var(--ok)); }
+.np-trail .np-n { position: absolute; top: 8px; width: 12px; height: 12px; border-radius: 50%; transform: translateX(-6px); background: var(--c, var(--ok));
+  box-shadow: 0 0 0 3px var(--np-bg, var(--card-2)), 0 0 8px color-mix(in srgb, var(--c, var(--ok)) 55%, transparent); }
+.np-trail .np-n.dst { --c: var(--primary); width: 13px; height: 13px; top: 7.5px; transform: translateX(-6.5px); box-shadow: 0 0 0 3px var(--np-bg, var(--card-2)), 0 0 12px color-mix(in srgb, var(--primary) 70%, transparent); }
+.np-trail .s-w { --c: var(--warn); } .np-trail .s-c { --c: var(--crit); } .np-trail .s-u { --c: color-mix(in srgb, var(--unknown) 70%, transparent); }
+.np-trail .np-n.dst.s-w { --c: var(--warn); } .np-trail .np-n.dst.s-c { --c: var(--crit); }
+.np-trail .np-n.s-w, .np-trail .np-n.s-c { animation: np-glow 1.6s ease-in-out infinite; }
+@keyframes np-glow { 50% { box-shadow: 0 0 0 3px var(--np-bg, var(--card-2)), 0 0 16px 3px color-mix(in srgb, var(--c) 70%, transparent); } }
+.np-trail em { position: absolute; top: -5px; transform: translateX(-50%); font: 800 .5rem/1 Inter, system-ui, sans-serif; letter-spacing: .08em; color: var(--muted); font-style: normal; white-space: nowrap; pointer-events: none; }
+.np-trail em.l0 { transform: translateX(-6px); } .np-trail em.l1 { transform: translateX(calc(-100% + 6px)); }
+@container (max-width: 170px) { .np-trail em:not(.l1) { display: none; } }
+@container (max-width: 110px) { .np-trail em { display: none; } }
+/* Weinig ruimte: kleinere bolletjes, zodat ze niet over elkaar vallen */
+@container (max-width: 200px) { .np-trail .np-n { width: 9px; height: 9px; top: 9.5px; transform: translateX(-4.5px); box-shadow: 0 0 0 2px var(--np-bg, var(--card-2)), 0 0 6px color-mix(in srgb, var(--c, var(--ok)) 50%, transparent); }
+  .np-trail .np-n.dst { width: 10px; height: 10px; top: 9px; transform: translateX(-5px); } .np-trail .np-t { height: 6px; top: 11px; } }
+.np-pr .np-trail { --np-bg: var(--card); }
+.np-trail .np-t.s-e { --c: color-mix(in srgb, var(--unknown) 80%, transparent); } .np-trail .np-n.s-e { --c: color-mix(in srgb, var(--ok) 70%, var(--unknown)); }
+.np-pulse { position: absolute; top: 11px; left: 6px; width: 26px; height: 6px; border-radius: 3px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--primary) 85%, #fff), transparent); filter: blur(.4px); opacity: 0; animation: np-run 3.6s cubic-bezier(.45, 0, .55, 1) infinite; }
+.np-trail.w-w .np-pulse { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--warn) 85%, #fff), transparent); }
+.np-trail.w-c .np-pulse { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--crit) 85%, #fff), transparent); }
+@keyframes np-run { 0% { left: 6px; opacity: 0; } 10% { opacity: .95; } 85% { opacity: .95; } 100% { left: calc(100% - 32px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .np-pulse { display: none; } .np-trail .np-n { animation: none !important; } }
+body.no-anim .np-pulse, [data-motion="0"] .np-pulse, [data-motion="1"] .np-pulse { display: none; }
+body.no-anim .np-trail .np-n, [data-motion="0"] .np-trail .np-n { animation: none !important; }
 .np-mini { display: flex; flex-direction: column; gap: .2rem; min-width: 0; font-weight: 400; }
 .np-mini small { font-size: .7rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .np-tile { margin-top: .6rem; padding: .5rem .65rem; border-radius: 12px; background: var(--card-2); border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border)); display: flex; flex-direction: column; gap: .35rem; cursor: pointer; }
 .np-tile.s1 { border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); } .np-tile.s2 { border-color: color-mix(in srgb, var(--crit) 45%, var(--border)); }
 .np-th { display: flex; justify-content: space-between; gap: .5rem; font-size: .66rem; font-weight: 700; color: var(--muted); }
-.np-tile .np-th b { color: var(--text); }
+.np-tile .np-th b { color: var(--text); white-space: nowrap; flex: none; font-size: .8rem; letter-spacing: 0; text-transform: none; }
+/* 1.190.0: lichtspoor in de tegel: doel netjes afkappen, ms op één regel; in donker een subtiel raster en gloed */
+.np-tile { --np-bg: var(--card-2); position: relative; overflow: hidden; }
+.np-tile .np-th { align-items: baseline; }
+.np-tile .np-to { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-tile .np-tf { min-height: 0; font-size: .6rem; } .np-tile .np-tf .mono { letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.np-tile::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--np-grid, none); }
+:root { --np-grid: repeating-linear-gradient(90deg, transparent 0 23px, color-mix(in srgb, var(--primary) 7%, transparent) 23px 24px); --np-halo: 0 0 22px color-mix(in srgb, var(--primary) 10%, transparent); }
+:root[data-theme="light"] { --np-grid: none; --np-halo: none; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --np-grid: none; --np-halo: none; } }
+.np-tile { box-shadow: var(--np-halo); }
+.np-tile > * { position: relative; }
 .np-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .np-map { position: relative; margin: .4rem 1rem 1rem; }
 .np-map svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
@@ -3797,7 +3832,7 @@ button.ct-k { cursor: pointer; } button.ct-k:hover { border-color: var(--primary
 .np-ml { position: absolute; transform: translate(-50%, -50%); padding: 1px 6px; border-radius: 6px; background: var(--card); border: 1px solid var(--border); font: 700 .62rem 'JetBrains Mono', ui-monospace, monospace; white-space: nowrap; }
 .np-cols { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 14px; }
 .np-src { min-width: 0; display: flex; flex-direction: column; } .np-src > span, .np-src small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.np-pr { display: grid; grid-template-columns: minmax(170px, 1.6fr) 96px 46px 96px 100px minmax(80px, 1fr) 100px; gap: 10px; align-items: center; min-height: 48px; padding: 0 1rem; font-size: .85rem; cursor: pointer; }
+.np-pr { display: grid; grid-template-columns: minmax(140px, 1.2fr) 96px 46px 100px 96px minmax(140px, 1.3fr) 100px; gap: 10px; align-items: center; min-height: 48px; padding: 0 1rem; font-size: .85rem; cursor: pointer; }
 .np-pr + .np-pr { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
 .np-pr:hover { background: color-mix(in srgb, var(--primary) 6%, transparent); }
 .np-pr.np-th { cursor: default; min-height: 28px; } .np-pr.np-th:hover { background: none; }

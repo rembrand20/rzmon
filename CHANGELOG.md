@@ -8,11 +8,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.190.0**: **het pad als lichtspoor**: past altijd, met gloeiende punten voor router, switch, provider en doel, streepjes voor stille hops en een lichtpuls.
 - **1.189.0**: **stille uren met een naam**: profielen (ook voor een vakantie) die je algemeen of per groep, soort, server of check koppelt, met *critical komt door* en **🌙 Nu stil**.
 - **1.188.0**: **verkeer ook zonder UniFi**: via SNMP op je switches en via de agent op je servers (agent 1.80.0), met UniFi als eerste keus.
 - **1.187.0**: je **internetlijn per maand** met een datalimiet, **diensten per apparaat** (DPI), een nieuwe **check Verkeer** en het rapport **Netwerkverkeer**.
 - **1.186.0**: **verkeer per apparaat** (uit UniFi): top 10 van vandaag, grafieken per uur en per dag, een heatmap van aanwezigheid en verkeer, en een melding bij ongewoon veel of nachtelijk verkeer.
-- **1.185.0**: **status bevestigen**: een check wordt pas warning of critical (en eventueel weer OK) na N controles achter elkaar; algemeen in de beheerportal en per check te overschrijven, leeg = meteen.
+
+## 1.190.0 – 2026-11-06
+### Nieuw
+- **🛣️ Het pad als lichtspoor.** In de servertegel, de lijst met checks en Monitoring → Netwerkpaden is het pad nu een lichtspoor dat altijd past, ook bij 20 of 30 hops en in een smalle tegel:
+  - de punten die ertoe doen zijn een gloeiend bolletje met een label: **GW** (je router), **SW** (switch), **VM**, **VIA** (tussenliggend apparaat), **ISP** (eerste hop van je provider) en het **DOEL**;
+  - hops die niet antwoorden (meestal routers van je provider) zijn kleine streepjes;
+  - een stuk dat hapert kleurt oranje of rood, en dat bolletje pulseert;
+  - er loopt een zachte lichtpuls van bron naar doel (uit bij *minder beweging*);
+  - onder het spoor: het aantal hops, hoeveel er stil zijn, en het verlies;
+  - in donker een subtiel raster en gloed.
+- Labels die te dicht op elkaar staan vallen weg; in een heel smalle plek worden de bolletjes kleiner.
+### Opgelost
+- De padstrook in de servertegel liep bij veel hops uit de tegel, waardoor de vertraging wegviel.
 
 ## 1.189.2 – 2026-11-06
 ### Opgelost
