@@ -248,6 +248,12 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 
 **Zijbalk** (vanaf 1.202.0): op een breed scherm is de zijbalk een zwevend paneel met dezelfde achtergrond als de pagina, afgeronde hoeken en kopjes *Overzicht*, *Beveiliging* en *Analyse en netwerk*. Het actieve item heeft een blauwe streep links. Met Liquid Glass aan wordt het paneel glas. Inklappen, breder of smaller slepen en het beheermenu werken zoals eerder.
 
+**Zijbalk vanzelf inklappen** (vanaf 1.203.0):
+- Sleep je de rand van de zijbalk smaller dan 180 px, dan vervagen de namen en zie je *Loslaten = icoontjes*. Laat je los onder de 150 px, dan klapt de zijbalk in tot icoontjes. Tussen 150 en 180 px veert hij terug naar 180 px.
+- Ingeklapt kun je de rand ook pakken: sleep je verder dan 130 px naar rechts, dan klapt hij open op de breedte waar je loslaat. Dubbelklikken op de rand zet de gewone breedte terug.
+- Met het toetsenbord: ← en → op de rand; onder 180 px klapt hij in.
+- **In een smal venster** (1101–1280 px breed, bijvoorbeeld een laptop of een half scherm) staat de zijbalk vanzelf op icoontjes. Je eigen keuze verandert daardoor niet: wordt het venster breder, dan krijg je je gewone zijbalk terug. Klik je in het smalle venster op *Uitklappen*, dan blijft hij open.
+
 ### Beschikbaarheid per groep 📶 (vanaf 1.169.0)
 Bovenaan **Monitoring** staan twee tabbladen: **📋 Checks** (de pagina zoals je hem kent) en **📶 Beschikbaarheid**.
 - **Indelen** per *🗂️ Soort apparaat* (Servers, Netwerk, Opslag, Stroom, Camera's, Smart home, Overig) of per *🏷️ Eigen groep*.

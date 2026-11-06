@@ -8,11 +8,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.203.0**: de **zijbalk klapt vanzelf in** tot icoontjes als je hem smaller sleept of het venster smal is.
 - **1.202.0**: een **laadteller** met animatie als een pagina lang duurt, en de **zijbalk** als zwevend paneel.
 - **1.201.0**: **Liquid Glass** als keuze per account, en een **laadanimatie** waarin je servers oplichten.
 - **1.200.0**: **databases van binnen bewaken**: MariaDB/MySQL en PostgreSQL, via de agent zonder wachtwoord, met overzicht en losse waarden.
 - **1.199.0**: **kruimelpad** boven elke pagina en **CPU · RAM · Disk** (hoogste waarde) in de tellerbalk van Monitoring.
-- **1.198.0**: de Home Assistant-kaart toont nu ook **de servers** (status, CPU, RAM en disk).
+
+## 1.203.0 – 2026-11-06
+### Nieuw
+- **Zijbalk vanzelf inklappen**: sleep je de zijbalk smaller dan 180 px, dan vervagen de namen (*Loslaten = icoontjes*); onder 150 px loslaten klapt hem in tot icoontjes. Ingeklapt kun je hem weer openslepen. In een smal venster (1101–1280 px) staat hij vanzelf op icoontjes, zonder dat je eigen keuze verandert.
 
 ## 1.202.0 – 2026-11-06
 ### Nieuw

@@ -4455,3 +4455,21 @@ body.no-loader .rz-wait-cv { display: none; }
 }
 @media (min-width: 1101px) { .app-top .main-tabs .tab.tab-wait .tab-badge { visibility: hidden; } }
 .pg-wait canvas { height: 190px; }
+
+/* ---------------------------------------------------------------- 1.203.0: zijbalk smaller slepen = vanzelf icoontjes */
+.side-hint { display: none; }
+@media (min-width: 1101px) {
+  body.side-mini .side-resize { display: block; left: 84px; }
+  body.side-fade .app-top .tab-lbl, body.side-fade .app-top .tab-lbl-s, body.side-fade .app-top .tab-group, body.side-fade .app-top .brand .rz-word,
+  body.side-fade .app-top .brand .version, body.side-fade .app-top .side-toggle-lbl { opacity: .25; transition: opacity .15s; }
+  body.side-fade .topbar.app-top { overflow: hidden; }
+  .side-hint { display: block; position: fixed; top: 50%; transform: translateY(-50%); z-index: 40; pointer-events: none; padding: .3rem .7rem; border-radius: 999px;
+    background: var(--card); border: 1px solid var(--primary); color: var(--primary); font-size: .8rem; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow); }
+  .side-hint[hidden] { display: none; }
+  body:not(.side-dragging) .topbar.app-top { transition: width .25s cubic-bezier(.3,.8,.3,1); }
+  body:not(.side-dragging):has(.app-top) { transition: padding-left .25s cubic-bezier(.3,.8,.3,1); }
+}
+@media (min-width: 1101px) and (prefers-reduced-motion: reduce) {
+  body:not(.side-dragging) .topbar.app-top, body:not(.side-dragging):has(.app-top) { transition: none; }
+}
+@media (min-width: 1101px) { .app-top .main-tabs .tab-group { white-space: nowrap; overflow: hidden; } }

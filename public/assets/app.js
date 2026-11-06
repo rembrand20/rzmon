@@ -12100,27 +12100,54 @@ function setSideW(w, save) {
 function initSideResize() {
   const h = $('#side-resize');
   if (!h) return;
+  /* 1.203.0: smaller dan 180 px slepen = de namen vervagen; loslaten onder 150 px = icoontjes. Ingeklapt kun je de rand
+     ook pakken: voorbij 130 px klapt de zijbalk weer open, op de breedte waar je loslaat. */
+  const SNAP = 150, OPEN = 130, EDGE = 12;
   const cur = () => parseInt(getComputedStyle(document.body).getPropertyValue('--side-w'), 10) || SIDE_DEF;
+  const isMini = () => document.body.classList.contains('side-mini');
+  let hint = null;
+  const showHint = (on, x) => {
+    if (on && !hint) { hint = document.createElement('div'); hint.className = 'side-hint'; hint.textContent = L('Loslaten = icoontjes'); document.body.appendChild(hint); }
+    if (hint) { hint.hidden = !on; if (on) hint.style.left = (x + EDGE + 22) + 'px'; }
+  };
   h.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     h.setPointerCapture(e.pointerId);
     h.classList.add('drag');
     document.body.classList.add('side-dragging');
-    const move = (ev) => setSideW(ev.clientX - 12, false);   // 1.202.0: het paneel staat 12 px van de rand
+    let x = isMini() ? 76 : cur();
+    const w0 = isMini() ? SIDE_DEF : cur();
+    const move = (ev) => {
+      x = Math.max(76, Math.min(SIDE_MAX, ev.clientX - EDGE));   // 1.202.0: het paneel staat 12 px van de rand
+      if (isMini()) {
+        if (x > OPEN) sideSetMini(false, true);
+        else return;
+      }
+      document.body.classList.toggle('side-fade', x < SIDE_MIN);
+      showHint(x < SNAP, Math.max(SIDE_MIN, x));
+      if (x >= SIDE_MIN) setSideW(x, false); else document.body.style.setProperty('--side-w', Math.round(x) + 'px');
+    };
     const up = () => {
       h.removeEventListener('pointermove', move);
       h.classList.remove('drag');
-      document.body.classList.remove('side-dragging');
-      setSideW(cur(), true);
+      document.body.classList.remove('side-dragging', 'side-fade');
+      showHint(false);
+      if (!isMini() && x < SNAP) { sideSetMini(true, true); setSideW(w0, false); }   // de oude breedte terug voor als je weer uitklapt
+      else if (!isMini()) setSideW(Math.max(SIDE_MIN, x), true);
     };
     h.addEventListener('pointermove', move);
     h.addEventListener('pointerup', up, { once: true });
     h.addEventListener('pointercancel', up, { once: true });
   });
-  h.addEventListener('dblclick', () => setSideW(0, true));
+  h.addEventListener('dblclick', () => { if (isMini()) sideSetMini(false, true); setSideW(0, true); });
   h.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); setSideW(cur() + (e.key === 'ArrowRight' ? 12 : -12), true); }
-    if (e.key === 'Home') { e.preventDefault(); setSideW(0, true); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      if (isMini()) { if (e.key === 'ArrowRight') { sideSetMini(false, true); setSideW(SIDE_MIN, true); } return; }
+      const n = cur() + (e.key === 'ArrowRight' ? 12 : -12);
+      if (n < SIDE_MIN) sideSetMini(true, true); else setSideW(n, true);
+    }
+    if (e.key === 'Home') { e.preventDefault(); if (isMini()) sideSetMini(false, true); setSideW(0, true); }
   });
 }
 // ---------------------------------------------------------------- 1.167.0: in Instellingen en Mijn account wordt de zijbalk het menu van die pagina
@@ -12168,11 +12195,17 @@ function initSideAdmin() {
 }
 
 // ---------------------------------------------------------------- Zijbalk inklappen tot iconen (1.150.0), per gebruiker onthouden
+// 1.203.0: in een smal venster (1101–1280 px) vanzelf icoontjes; je eigen keuze blijft bewaard en komt terug als het venster breder wordt
+const SIDE_AUTO = window.matchMedia ? window.matchMedia('(min-width: 1101px) and (max-width: 1280px)') : { matches: false, addEventListener() {} };
+let sideUserMini = false, sideAutoOff = false;
+let sideSetMini = () => {};
 function initSideToggle() {
   const b = $('#side-toggle');
   if (!b) return;
-  const set = (mini, save) => {
+  const draw = () => {
+    const mini = sideUserMini || (SIDE_AUTO.matches && !sideAutoOff);
     document.body.classList.toggle('side-mini', mini);
+    document.body.classList.toggle('side-auto', mini && !sideUserMini);
     b.setAttribute('aria-expanded', String(!mini));
     b.title = mini ? L('Zijbalk uitklappen') : L('Zijbalk inklappen tot iconen');
     $('.side-toggle-lbl', b).textContent = mini ? L('Uitklappen') : L('Inklappen');
@@ -12183,12 +12216,20 @@ function initSideToggle() {
     });
     const a = $('#acct-btn');
     if (a) a.classList.toggle('mini', mini);
-    if (save) savePref('side', mini ? 'mini' : 'full');
     requestAnimationFrame(() => moveTabIndicator(false));
     if (typeof sideMode === 'function' && $('#side-admin')) sideMode(sideTab);   // 1.167.0: ingeklapt = het gewone menu
   };
-  set(PREFS.side === 'mini' || document.body.classList.contains('side-mini'), false);
-  b.onclick = () => set(!document.body.classList.contains('side-mini'), true);
+  /** Inklappen of uitklappen door jou (knop, slepen, toetsen): onthouden per account */
+  sideSetMini = (mini, save) => {
+    sideUserMini = mini;
+    sideAutoOff = !mini && SIDE_AUTO.matches;   // in een smal venster zelf uitgeklapt = zo laten tot het venster verandert
+    if (save) savePref('side', mini ? 'mini' : 'full');
+    draw();
+  };
+  sideUserMini = PREFS.side === 'mini' || document.body.classList.contains('side-mini');
+  draw();
+  b.onclick = () => sideSetMini(!document.body.classList.contains('side-mini'), true);
+  if (SIDE_AUTO.addEventListener) SIDE_AUTO.addEventListener('change', () => { sideAutoOff = false; draw(); });
 }
 function markTheme() {
   const cur = document.documentElement.dataset.theme || 'auto';

@@ -8515,4 +8515,5 @@ return [
     '(meestal {s} s)' => '(usually {s} s)',
     'Dit duurt langer dan normaal' => 'This is taking longer than usual',
     'Opnieuw' => 'Retry',
+    'Loslaten = icoontjes' => 'Release = icons',
 ];
