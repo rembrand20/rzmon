@@ -2,7 +2,7 @@
  * RzMon netwerkkaart voor Home Assistant (1.197.0)
  *
  * Een samenvatting van het netwerk zoals mDS: één oordeel, internetlijn, verbruik deze maand, apparaten,
- * netwerkpaden, IDS en de top 3 verkeer vandaag. De kaart haalt alles rechtstreeks bij RzMon op
+ * netwerkpaden, IDS, de top 3 verkeer vandaag en (1.198.0, schakelaar show_servers) de servers met CPU, RAM en disk. De kaart haalt alles rechtstreeks bij RzMon op
  * (GET /v1.php/network) met een API-sleutel met het recht "Status lezen" (en "IDS lezen" voor de IDS-tegel).
  *
  * In Home Assistant: Instellingen → Dashboards → ⋮ → Bronnen → Bron toevoegen:
@@ -12,13 +12,13 @@
  * Licentie: GPL-3.0
  */
 (() => {
-  const VERSION = '1.197.0';
+  const VERSION = '1.198.0';
 
   const EN = {
     'Netwerk': 'Network', 'Alles in orde': 'All good', 'Let op': 'Attention', 'Storing': 'Outage', 'Internet': 'Internet',
     'Deze maand': 'This month', 'Apparaten': 'Devices', 'online': 'online', 'nieuw': 'new', 'Netwerkpaden': 'Network paths',
     'Top verkeer vandaag': 'Top traffic today', 'geblokkeerd vandaag': 'blocked today', 'open incidenten': 'open incidents',
-    'kritiek': 'critical', 'vandaag': 'today', 'meer': 'more', 'van abonnement': 'of plan', 'open': 'open', 'nu actief': 'active now', 'verwacht': 'forecast', 'van': 'of', 'verlies': 'loss', 'hops': 'hops',
+    'kritiek': 'critical', 'vandaag': 'today', 'Servers': 'Servers', 'agent stil {d}': 'agent silent {d}', '{n} problemen': '{n} problems', '1 probleem': '1 problem', 'onderhoud': 'maintenance', 'Disk': 'Disk', 'Max. servers': 'Max. servers', 'meer': 'more', 'van abonnement': 'of plan', 'open': 'open', 'nu actief': 'active now', 'verwacht': 'forecast', 'van': 'of', 'verlies': 'loss', 'hops': 'hops',
     'Geen meting': 'No measurement', 'Laden…': 'Loading…', 'live': 'live', 'Vul de URL van RzMon en een API-sleutel in.': 'Fill in the RzMon URL and an API key.',
     'De API-sleutel is ongeldig of verlopen.': 'The API key is invalid or expired.',
     'Deze API-sleutel heeft het recht "Status lezen" niet.': 'This API key lacks the "Read status" right.',
@@ -68,6 +68,14 @@
     .val { color: var(--secondary-text-color); white-space: nowrap; font-variant-numeric: tabular-nums; }
     .tb { flex: none; width: 64px; height: 6px; border-radius: 3px; background: var(--divider-color); overflow: hidden; }
     .tb b { display: block; height: 100%; background: var(--primary-color); border-radius: 3px; }
+    .srv { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px; }
+    .srv .nm small { display: block; font-size: .78rem; color: var(--secondary-text-color); }
+    .srv .nm small.w { color: var(--rz-st); }
+    .mm { display: grid; grid-template-columns: repeat(3, 40px); gap: 6px; }
+    .mm span { display: block; font-size: .65rem; color: var(--secondary-text-color); text-align: center; line-height: 1.2; }
+    .mm i { display: block; height: 5px; border-radius: 3px; background: var(--divider-color); overflow: hidden; margin-top: 2px; }
+    .mm i b { display: block; height: 100%; border-radius: 3px; background: var(--rz-bar, var(--primary-color)); }
+    .row.more { color: var(--secondary-text-color); font-size: .85rem; }
     .err { padding: 12px; border-radius: 10px; background: color-mix(in srgb, var(--rz-crit) 12%, transparent); color: var(--primary-text-color); font-size: .9rem; }
     .err small { display: block; color: var(--secondary-text-color); margin-top: 4px; }
     .muted { color: var(--secondary-text-color); font-size: .88rem; }
@@ -93,13 +101,14 @@
             { name: 'show_internet', selector: { boolean: {} } }, { name: 'show_month', selector: { boolean: {} } },
             { name: 'show_devices', selector: { boolean: {} } }, { name: 'show_ids', selector: { boolean: {} } },
             { name: 'show_paths', selector: { boolean: {} } }, { name: 'show_top', selector: { boolean: {} } },
-            { name: 'show_problems', selector: { boolean: {} } },
+            { name: 'show_problems', selector: { boolean: {} } }, { name: 'show_servers', selector: { boolean: {} } },
           ] },
+          { name: 'max_servers', selector: { number: { min: 1, max: 50, step: 1, mode: 'box' } } },
         ],
         computeLabel: (s) => {
           const nl = { url: 'URL van RzMon', api_key: 'API-sleutel', title: 'Titel', refresh: 'Verversen (seconden)', show_internet: 'Internetlijn',
             show_month: 'Deze maand', show_devices: 'Apparaten', show_ids: 'IDS', show_paths: 'Netwerkpaden', show_top: 'Top 3 verkeer',
-            show_problems: 'Redenen bij een probleem' }[s.name];
+            show_problems: 'Redenen bij een probleem', show_servers: 'Servers', max_servers: 'Max. servers' }[s.name];
           return nl ? RzMonNetworkCard._t(nl, document.documentElement.lang) : undefined;
         },
       };
@@ -115,7 +124,7 @@
 
     setConfig(config) {
       if (!config) throw new Error('config');
-      this._cfg = { refresh: 60, show_internet: true, show_month: true, show_devices: true, show_ids: true, show_paths: true, show_top: true, show_problems: true, ...config };
+      this._cfg = { refresh: 60, show_internet: true, show_month: true, show_devices: true, show_ids: true, show_paths: true, show_top: true, show_problems: true, show_servers: true, max_servers: 8, ...config };
       this._cfg.url = String(this._cfg.url || '').trim().replace(/\/+$/, '').replace(/\/(index\.php|v1\.php.*)$/, '');
       this._data = null;
       this._err = null;
@@ -160,7 +169,7 @@
         return this._render();
       }
       try {
-        const r = await fetch(`${c.url}/v1.php/network`, { headers: { Authorization: `Bearer ${c.api_key}` }, cache: 'no-store' });
+        const r = await fetch(`${c.url}/v1.php/network${c.show_servers ? '?servers=1' : ''}`, { headers: { Authorization: `Bearer ${c.api_key}` }, cache: 'no-store' });
         if (r.status === 401) throw [this.L('De API-sleutel is ongeldig of verlopen.')];
         if (r.status === 403) {
           const j = await r.json().catch(() => ({}));
@@ -194,6 +203,12 @@
       let v = +b;
       while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
       return `${this._num(v, v < 10 && i ? 1 : 0)} ${u[i]}`;
+    }
+
+    _dur(min) {
+      if (min < 60) return `${min} min`;
+      if (min < 2880) return `${Math.round(min / 60)} ${String(this._hass?.language || 'nl').startsWith('nl') ? 'u' : 'h'}`;
+      return `${Math.round(min / 1440)} d`;
     }
 
     _mbit(v) {
@@ -269,6 +284,25 @@
           body += `<div class="sec"><div class="sec-h">${esc(L('Top verkeer vandaag'))}</div>${top.map((t) => `
             <div class="row" data-go="net/list"><div class="nm">${esc(t.name)}</div>
               <div class="tb"><b style="width:${Math.round(100 * t.bytes / max)}%"></b></div><div class="val">${this._bytes(t.bytes)}</div></div>`).join('')}</div>`;
+        }
+        if (c.show_servers && d.servers?.length) {
+          const max = Math.max(1, +c.max_servers || 8);
+          const bar = (v, lbl) => {
+            const col = v === null || v === undefined ? '' : (v >= 90 ? ST_COLOR[2] : (v >= 75 ? ST_COLOR[1] : 'var(--primary-color)'));
+            return `<span title="${esc(lbl)}${v !== null && v !== undefined ? ` ${this._num(v)}%` : ''}">${esc(lbl)}<i style="--rz-bar:${col}"><b style="width:${v === null || v === undefined ? 0 : Math.min(100, v)}%"></b></i></span>`;
+          };
+          const rows = d.servers.slice(0, max).map((s) => {
+            const st = s.quiet_min !== null && s.quiet_min !== undefined ? 2 : s.status;
+            const sub = s.quiet_min !== null && s.quiet_min !== undefined ? `<small class="w">${esc(L('agent stil {d}').replace('{d}', this._dur(s.quiet_min)))}</small>`
+              : s.maintenance ? `<small>${esc(L('onderhoud'))}</small>`
+              : s.problems ? `<small class="w">${esc(s.problems === 1 ? L('1 probleem') : L('{n} problemen').replace('{n}', this._num(s.problems)))}</small>` : '';
+            const has = s.cpu !== null || s.ram !== null || s.disk !== null;
+            return `<div class="row srv" data-go="dashboard?server=${esc(encodeURIComponent(s.name))}" style="--rz-st:${ST_COLOR[st] || ST_COLOR[3]}"><i class="dot"></i>
+              <div class="nm">${esc(s.name)}${sub}</div>
+              ${has ? `<div class="mm">${bar(s.cpu, 'CPU')}${bar(s.ram, 'RAM')}${bar(s.disk, L('Disk'))}</div>` : '<div></div>'}</div>`;
+          }).join('');
+          const rest = d.servers.length - max;
+          body += `<div class="sec"><div class="sec-h">${esc(L('Servers'))}</div>${rows}${rest > 0 ? `<div class="row more" data-go="dashboard">+${rest} ${esc(L('meer'))}</div>` : ''}</div>`;
         }
         if (this._err) body += `<div class="sec err">${esc(this._err[0])}${this._err[1] ? `<small>${esc(this._err[1])}</small>` : ''}</div>`;
       }

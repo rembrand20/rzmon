@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.198.0**: de Home Assistant-kaart toont nu ook **de servers** (status, CPU, RAM en disk).
 - **1.197.0**: **netwerkkaart voor Home Assistant**: oordeel, internet, verbruik, apparaten, paden en IDS op je HA-dashboard.
 - **1.196.0**: **rustiger tabbalk op een telefoon**: vijf knoppen, de rest onder **Meer**.
 - **1.195.0**: **mDS volledig touch**: bladen van onderaf, vegen, trekken om te verversen en grote knoppen.
 - **1.194.0**: **mDS**, een eigen samenvatting voor je telefoon (startpagina daar), met snelle acties.
-- **1.193.0**: **van meting tot melding** zichtbaar in de popup, **bevestigen per soort check**, **sneller bevestigen** en één knop **Advies toepassen**.
+
+## 1.198.0 – 2026-11-06
+### Nieuw
+- **Servers op de Home Assistant-kaart**: onderaan de netwerkkaart nu ook een blok **Servers**, met per server een bolletje, CPU, RAM en disk als balkje (oranje vanaf 75%, rood vanaf 90%) en wat er speelt (*2 problemen*, *agent stil 12 min*, *onderhoud*). De ergste staan bovenaan; tik op een server en RzMon opent hem op Monitoring.
+- De servers tellen mee in het oordeel bovenaan (bijvoorbeeld *NAS: 2 problemen* of *WebServer01: agent stil*). Problemen met een pad of de internetlijn staan er maar één keer.
+- Aan en uit met de schakelaar **Servers** (`show_servers`, standaard aan); met **Max. servers** (`max_servers`, standaard 8) bepaal je hoeveel er staan, de rest als *+3 meer*.
+- `GET /v1.php/network?servers=1` geeft de servers ook (recht *Status lezen*).
+- Werk de bron in Home Assistant niet bij: de kaart wordt binnen 5 minuten vanzelf de nieuwe (of ververs de pagina met Ctrl+F5).
 
 ## 1.197.0 – 2026-11-06
 ### Nieuw

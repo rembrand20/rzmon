@@ -18,9 +18,11 @@ final class Mds
     /**
      * 1.197.0: netwerk in het kort voor de Home Assistant-kaart (GET /v1.php/network): één oordeel met de redenen,
      * internetlijn, maandverbruik, apparaten, netwerkpaden en (alleen met het recht IDS lezen) de IDS-tellers.
+     * 1.198.0: met $hosts (de servers zoals GET /v1.php/hosts ze geeft) ook een blok servers, en tellen die mee in het oordeel.
+     * @param list<array<string, mixed>>|null $hosts
      * @return array<string, mixed>
      */
-    public static function network(bool $ids): array
+    public static function network(bool $ids, ?array $hosts = null): array
     {
         $net = self::safe(static fn() => self::net()) ?: ['inet' => null, 'wan' => null, 'new' => null, 'today' => null, 'top' => []];
         $why = [];
@@ -97,10 +99,37 @@ final class Mds
             }
         }
 
+        $servers = null;
+        if ($hosts !== null) {
+            $servers = [];
+            foreach ($hosts as $h) {
+                if (empty($h['enabled'])) {
+                    continue;
+                }
+                $val = static function (string $type) use ($h): ?float {
+                    $v = array_map(static fn($c) => (float) $c['value'], array_filter($h['checks'], static fn($c) => $c['type'] === $type && $c['enabled'] && $c['value'] !== null));
+                    return $v ? round(max($v), 1) : null;
+                };
+                $bad = array_values(array_filter($h['checks'], static fn($c) => $c['enabled'] && !$c['info'] && !$c['in_maintenance'] && in_array($c['status'], [STATUS_WARN, STATUS_CRIT], true)));
+                $quiet = $h['mode'] === 'agent' && $h['agent_seen'] && strtotime((string) $h['agent_seen']) < time() - 600 ? (int) floor((time() - strtotime((string) $h['agent_seen'])) / 60) : null;
+                $st = (int) $h['status'];
+                $servers[] = ['id' => $h['id'], 'name' => $h['name'], 'status' => $st, 'maintenance' => (bool) $h['in_maintenance'], 'cpu' => $val('cpu'), 'ram' => $val('ram'), 'disk' => $val('disk'),
+                    'problems' => count($bad), 'quiet_min' => $quiet];
+                if ($quiet !== null && !$h['in_maintenance']) {
+                    $flag(2, t('{host}: agent stil', ['host' => $h['name']]));
+                } elseif ($bad = array_values(array_filter($bad, static fn($c) => !in_array($c['type'], ['path', 'internet'], true)))) {   // pad en internet staan er al
+                    $worstBad = max(array_column($bad, 'status'));
+                    $flag($worstBad === STATUS_CRIT ? 2 : 1, count($bad) === 1 ? $h['name'] . ' · ' . $bad[0]['name'] : t('{host}: {n} problemen', ['host' => $h['name'], 'n' => count($bad)]));
+                }
+            }
+            $rank = [STATUS_CRIT => 3, STATUS_WARN => 2, STATUS_UNKNOWN => 1, STATUS_OK => 0];
+            usort($servers, static fn($a, $b) => ($b['quiet_min'] !== null) <=> ($a['quiet_min'] !== null) ?: $rank[$b['status']] <=> $rank[$a['status']] ?: strcasecmp($a['name'], $b['name']));
+        }
+
         usort($why, static fn($a, $b) => $b['status'] <=> $a['status']);
         $label = [t('Alles in orde'), t('Let op'), t('Storing')][$worst];
         return ['at' => date('c'), 'status' => $worst, 'status_text' => $label, 'problems' => $why, 'internet' => $inet, 'month' => $wan,
-            'devices' => $dev, 'paths' => $paths, 'ids' => $sec, 'version' => RZMON_VERSION];
+            'devices' => $dev, 'paths' => $paths, 'ids' => $sec, 'servers' => $servers, 'version' => RZMON_VERSION];
     }
 
     private static function safe(callable $f): mixed

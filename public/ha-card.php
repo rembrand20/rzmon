@@ -1,6 +1,6 @@
 <?php
 /**
- * 1.197.0: de RzMon netwerkkaart voor Home Assistant (assets/rzmon-network-card.js).
+ * 1.197.0 (servers erbij in 1.198.0): de RzMon netwerkkaart voor Home Assistant (assets/rzmon-network-card.js).
  *
  * Home Assistant laadt een kaart als JavaScript-module. Komt die van een ander adres dan Home Assistant zelf,
  * dan wil de browser een CORS-kop zien; een gewoon bestand in assets/ krijgt die van de webserver meestal niet.

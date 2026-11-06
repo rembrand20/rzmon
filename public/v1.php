@@ -16,7 +16,7 @@
  *   GET /v1.php/checks/{id}                één check
  *   GET /v1.php/checks/{id}/history        meetwaarden (?hours=24, max 720)
  *   GET /v1.php/alerts                     meldingen (?limit=50, max 500)
- *   GET /v1.php/network                    netwerk in het kort: oordeel, internet, maand, apparaten, paden (+ IDS met ids_read)
+ *   GET /v1.php/network                    netwerk in het kort: oordeel, internet, maand, apparaten, paden (+ IDS met ids_read; ?servers=1: ook de servers)
  *   GET /v1.php/vulnerabilities            kwetsbaarheden: tellers per server              [vulns_read]
  *   GET /v1.php/vulnerabilities/{host_id}  kwetsbaarheden van één server (?all=1: ook geaccepteerde) [vulns_read]
  *   GET /v1.php/ids                        IDS-overzicht                                   [ids_read]
@@ -333,7 +333,7 @@ if ($method === 'POST') {
 // ---------- Netwerk in het kort (1.197.0, voor de Home Assistant-kaart) ----------
 if ($path === 'network') {
     need('read');
-    respond(Mds::network(in_array('ids_read', $rights, true)));
+    respond(Mds::network(in_array('ids_read', $rights, true), !empty($_GET['servers']) ? loadHosts() : null));   // 1.198.0: ?servers=1
 }
 
 // ---------- Kwetsbaarheden lezen ----------

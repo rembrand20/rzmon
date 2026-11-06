@@ -1689,6 +1689,12 @@ ok(in_array($nw['status'], [0, 1, 2], true) && is_array($nw['problems']) && is_a
     'HA-netwerkkaart: oordeel met redenen, internet, maand, apparaten en paden; IDS alleen met het recht IDS lezen');
 ok(is_file(__DIR__ . '/../../public/assets/rzmon-network-card.js') && str_contains((string) file_get_contents(__DIR__ . '/../../public/assets/rzmon-network-card.js'), "customElements.define('rzmon-network-card'"),
     'HA-netwerkkaart: het kaartbestand bestaat en definieert rzmon-network-card');
+// 1.198.0: met servers erbij (?servers=1): per server status, CPU/RAM/disk en problemen; zonder: geen servers
+$nws = Mds::network(false, [['id' => 1, 'name' => 'srv', 'enabled' => true, 'mode' => 'agent', 'status' => 2, 'in_maintenance' => false, 'agent_seen' => date('c'),
+    'checks' => [['type' => 'cpu', 'name' => 'CPU', 'enabled' => true, 'info' => false, 'in_maintenance' => false, 'status' => 2, 'value' => 97.0]]]]);
+ok($nw['servers'] === null && is_array($nws['servers']) && $nws['servers'][0]['cpu'] === 97.0 && $nws['servers'][0]['problems'] === 1 && $nws['status'] === 2
+    && in_array('srv · CPU', array_column($nws['problems'], 'text'), true),
+    'HA-netwerkkaart: servers met CPU/RAM/disk en problemen, en ze tellen mee in het oordeel');
 
 // 1.194.0: mDS (Mobile device summary): beveiliging en netwerk in één keer, ook als een module uit staat
 $mds = Mds::data();

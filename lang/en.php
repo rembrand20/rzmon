@@ -8385,4 +8385,6 @@ return [
     'van abonnement' => 'of plan',
     'verlies' => 'loss',
     'Top verkeer vandaag' => 'Top traffic today',
+    '{host}: agent stil' => '{host}: agent silent',
+    '{host}: {n} problemen' => '{host}: {n} problems',
 ];

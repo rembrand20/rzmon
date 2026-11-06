@@ -179,7 +179,7 @@ final class Features
         // Koppelingen
         ['links', ['Home Assistant (MQTT)', 'Home Assistant (MQTT)'], ['Elke server als apparaat in Home Assistant, met sensoren.', 'Every server as a device in Home Assistant, with sensors.'], '1.7.0', 'mqtt_enabled|mqtt_host', 'mqtt'],
         ['links', ['REST API', 'REST API'], ['Status lezen en acties, met rechten per API-sleutel.', 'Read status and actions, with permissions per API key.'], '1.27.0', '', 'api'],
-        ['links', ['Home Assistant-netwerkkaart', 'Home Assistant network card'], ['Een kaart voor je HA-dashboard met het netwerk in het kort, zoals mDS: oordeel, internet, verbruik, apparaten, paden en IDS.', 'A card for your HA dashboard with the network at a glance, like mDS: verdict, internet, usage, devices, paths and IDS.'], '1.197.0', '', 'api'],
+        ['links', ['Home Assistant-netwerkkaart', 'Home Assistant network card'], ['Een kaart voor je HA-dashboard met het netwerk in het kort, zoals mDS: oordeel, internet, verbruik, apparaten, paden, IDS en de servers.', 'A card for your HA dashboard with the network at a glance, like mDS: verdict, internet, usage, devices, paths, IDS and the servers.'], '1.197.0', '', 'api'],
 
         // Beheer
         ['admin', ['RzMon bijwerken', 'Update RzMon'], ['Vanuit de webinterface, ook automatisch en naar een gekozen versie.', 'From the web interface, also automatically and to a chosen version.'], '1.29.0', 'update_auto', 'update'],

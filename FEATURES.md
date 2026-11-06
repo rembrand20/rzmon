@@ -147,7 +147,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 📬 Rapporten | **Naar mij** | Een rapport naar je eigen e-mailadres sturen. | 1.180.0 |
 | 🔗 Koppelingen | **Home Assistant (MQTT)** | Elke server als apparaat in Home Assistant, met sensoren. | 1.7.0 |
 | 🔗 Koppelingen | **REST API** | Status lezen en acties, met rechten per API-sleutel. | 1.27.0 |
-| 🔗 Koppelingen | **Home Assistant-netwerkkaart** | Een kaart voor je HA-dashboard met het netwerk in het kort, zoals mDS: oordeel, internet, verbruik, apparaten, paden en IDS. | 1.197.0 |
+| 🔗 Koppelingen | **Home Assistant-netwerkkaart** | Een kaart voor je HA-dashboard met het netwerk in het kort, zoals mDS: oordeel, internet, verbruik, apparaten, paden, IDS en de servers. | 1.197.0 |
 | ⚙️ Beheer | **RzMon bijwerken** | Vanuit de webinterface, ook automatisch en naar een gekozen versie. | 1.29.0 |
 | ⚙️ Beheer | **Back-up en herstel** | Automatisch of met de hand, met terugzetten. | 1.18.0 |
 | ⚙️ Beheer | **Wijzigingslogboek** | Wie veranderde wat en wanneer, met terugdraaien. | 1.97.0 |

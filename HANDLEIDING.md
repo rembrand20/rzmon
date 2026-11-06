@@ -3731,7 +3731,8 @@ Een eigen kaart voor je HA-dashboard met **het netwerk in het kort**, in dezelfd
 - **Apparaten**: hoeveel er online zijn (het laatste uur gezien) en hoeveel nieuw;
 - **IDS**: open incidenten, hoeveel kritiek en hoeveel IP's vandaag geblokkeerd zijn (alleen met het recht *IDS lezen*);
 - **Netwerkpaden**: elk pad met een bolletje, de vertraging en het verlies;
-- **Top verkeer vandaag**: de drie apparaten met het meeste verkeer.
+- **Top verkeer vandaag**: de drie apparaten met het meeste verkeer;
+- **Servers** (vanaf 1.198.0, schakelaar *Servers*): elke server met een bolletje, CPU, RAM en disk als balkje (oranje vanaf 75%, rood vanaf 90%) en wat er speelt: *2 problemen*, *agent stil 12 min* of *onderhoud*. De ergste bovenaan; met *Max. servers* (standaard 8) kies je hoeveel er staan. De servers tellen dan ook mee in het oordeel bovenaan.
 
 Tik op een tegel of regel en RzMon opent op die plek (Netwerkpaden, Netwerk → Ontdekken, IDS …). De kaart volgt het thema (licht/donker) en de taal van Home Assistant, en ververst elke minuut (en meteen als je het dashboard weer opent).
 
@@ -3745,13 +3746,14 @@ url: https://rzmon.thuis.lan
 api_key: rzm_xxxxxxxx
 refresh: 60            # seconden (15–3600)
 title: Netwerk         # optioneel
-show_ids: true         # en show_internet, show_month, show_devices, show_paths, show_top, show_problems
+show_ids: true         # en show_internet, show_month, show_devices, show_paths, show_top, show_problems, show_servers
+max_servers: 8         # hoeveel servers (de rest als "+3 meer")
 ```
 **Goed om te weten:**
 - De gegevens worden door de **browser of de HA-app zelf** bij RzMon opgehaald, niet door de HA-server. RzMon moet dus bereikbaar zijn vanaf je telefoon en computer, en gebruikt Home Assistant **https**, dan moet RzMon ook via https bereikbaar zijn (anders blokkeert de browser het als *mixed content*).
 - Zet je **Alleen vanaf** bij de sleutel, neem dan de adressen (of het netwerk) van je telefoon en computer op.
 - Iedereen die het dashboard mag bewerken kan de sleutel zien. Geef de sleutel daarom **alleen leesrechten**.
-- Het endpoint erachter is `GET /v1.php/network`; je kunt het ook zelf gebruiken (bijvoorbeeld in een `rest`-sensor).
+- Het endpoint erachter is `GET /v1.php/network` (met `?servers=1` ook de servers); je kunt het ook zelf gebruiken (bijvoorbeeld in een `rest`-sensor).
 
 ### Statuspagina 🟢 (vanaf 1.107.0)
 Een eenvoudige pagina voor huisgenoten of klanten: *Instellingen → Koppelingen → Statuspagina*.
