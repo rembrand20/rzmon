@@ -63,8 +63,10 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
   <?php if ($userTheme === null): ?><script nonce="<?= csp_nonce() ?>">try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script><?php endif; ?>
 </head>
-<?php $sidePrefs = json_decode((string) ($prefsJson ?? ''), true) ?: []; $sideW = (int) ($sidePrefs['side_w'] ?? 0); ?>
-<body<?= ($sidePrefs['side'] ?? '') === 'mini' ? ' class="side-mini"' : '' ?><?= $sideW >= 180 && $sideW <= 380 ? ' style="--side-w:' . $sideW . 'px"' : '' ?> data-role="<?= htmlspecialchars($role) ?>"<?php if ($user && !$mustChange && !$resetToken): ?> data-prefs="<?= htmlspecialchars($prefsJson ?? 'local') ?>"<?php endif; ?>>
+<?php $sidePrefs = json_decode((string) ($prefsJson ?? ''), true) ?: []; $sideW = (int) ($sidePrefs['side_w'] ?? 0);
+// 1.201.0: Liquid Glass en de laadanimatie, per account (meteen goed bij het laden, zonder flits)
+$bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '', ($sidePrefs['mon_glass'] ?? '') === 'on' ? 'lg' : '', ($sidePrefs['mon_loader'] ?? '') === 'off' ? 'no-loader' : '']); ?>
+<body<?= $bodyCls ? ' class="' . implode(' ', $bodyCls) . '"' : '' ?><?= $sideW >= 180 && $sideW <= 380 ? ' style="--side-w:' . $sideW . 'px"' : '' ?> data-role="<?= htmlspecialchars($role) ?>"<?php if ($user && !$mustChange && !$resetToken): ?> data-prefs="<?= htmlspecialchars($prefsJson ?? 'local') ?>"<?php endif; ?>>
 <?php if ($resetToken): ?>
   <main class="login-wrap">
     <form id="reset-form" class="card login-card" data-token="<?= htmlspecialchars($resetToken) ?>">
@@ -1684,6 +1686,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           </div>
         </div>
         <label class="switch"><input type="checkbox" data-mon-pref="glow"><span></span> <span><?= t('<b>Rode gloed bij critical</b>: een server met een critical check pulseert zacht') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
+        <label class="switch"><input type="checkbox" data-mon-pref="glass"><span></span> <span><?= t('<b>Liquid Glass</b>: kaarten, menu\'s en vensters als glas, met licht dat er zacht achter beweegt') ?> <span class="hint"><?= th('(voor je account; licht en donker blijven werken)') ?></span></span></label>
+        <label class="switch"><input type="checkbox" data-mon-pref="loader"><span></span> <span><?= t('<b>Laadanimatie</b>: bij het openen lichten je servers een voor een op, en overal waar je moet wachten loopt een hartslag') ?> <span class="hint"><?= th('(voor je account; met "minder beweging" stilstaand)') ?></span></span></label>
         <label class="switch"><input type="checkbox" data-mon-pref="anim"><span></span> <span><?= t('<b>Live animaties</b>: getallen lopen naar de nieuwe waarde en een statuswissel licht even op') ?> <span class="hint"><?= th('(voor je account; staat je systeem op "minder beweging", dan altijd uit)') ?></span></span></label>
         <h3 class="set-sub">🛡️ <?= th('IDS') ?></h3>
         <label class="switch"><input type="checkbox" data-acct-ids-modern><span></span> <span><?= t('<b>Moderne weergave</b> van de pagina IDS (score, Nu aandacht nodig, serverkaarten, grafiek)') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
@@ -1713,6 +1717,13 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 <?php endif; ?>
 <?php if ($user): ?>
   <script src="assets/vendor/qrcode.js?v=1.4.4"></script>
+<?php endif; ?>
+<?php if ($user && !$mustChange && !$resetToken): ?>
+  <div class="lg-aurora" aria-hidden="true"><i></i><i></i><i></i></div><!-- 1.201.0: licht achter het glas (alleen met Liquid Glass) -->
+  <?php if (($sidePrefs['mon_loader'] ?? '') !== 'off'): ?>
+  <div class="rz-boot" id="rz-boot" aria-hidden="true"><canvas></canvas><div class="rz-boot-t"><b data-boot-head><?= th('Verbinden met RzMon') ?></b><span data-boot-sub></span></div></div>
+  <?php endif; ?>
+  <script src="assets/pulse.js?v=<?= filemtime(__DIR__ . '/assets/pulse.js') ?>"></script>
 <?php endif; ?>
   <script nonce="<?= csp_nonce() ?>">window.LANG = <?= json_encode(I18n::lang()) ?>; window.I18N = <?= I18n::lang() === 'en' ? json_encode(I18n::dict(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) : '{}' ?>;</script>
 <div class="cmdk" id="cmdk" hidden>

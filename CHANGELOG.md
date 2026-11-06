@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.201.0**: **Liquid Glass** als keuze per account, en een **laadanimatie** waarin je servers oplichten.
 - **1.200.0**: **databases van binnen bewaken**: MariaDB/MySQL en PostgreSQL, via de agent zonder wachtwoord, met overzicht en losse waarden.
 - **1.199.0**: **kruimelpad** boven elke pagina en **CPU · RAM · Disk** (hoogste waarde) in de tellerbalk van Monitoring.
 - **1.198.0**: de Home Assistant-kaart toont nu ook **de servers** (status, CPU, RAM en disk).
 - **1.197.0**: **netwerkkaart voor Home Assistant**: oordeel, internet, verbruik, apparaten, paden en IDS op je HA-dashboard.
-- **1.196.0**: **rustiger tabbalk op een telefoon**: vijf knoppen, de rest onder **Meer**.
+
+## 1.201.0 – 2026-11-06
+### Nieuw
+- **✨ Liquid Glass** (Mijn account → Weergave, per account): kaarten, menu's, de tabbalk en vensters als doorschijnend glas met blur, een lichte rand en een glans die je muis volgt, met een traag bewegend licht in de kleuren van RzMon erachter. De indeling, de statuskleuren en licht/donker blijven hetzelfde. Op een telefoon wordt de tabbalk een zwevende glazen balk; het actieve tabblad krijgt een lichtstreep.
+- **💓 Laadanimatie** (Mijn account → Weergave, standaard aan):
+  - bij het openen *de pols van je netwerk*: je eigen servers lichten een voor een op in hun statuskleur, met een radar, pakketjes naar het midden en een hartslag; daarna verdwijnt het scherm vanzelf (het houdt het laden niet op);
+  - overal waar je moet wachten: een hartslag bij *Laden…* en een radarboog bij *Bezig…*.
+- Met *minder beweging* staat alles stil; zonder blur in de browser zie je het gewone uiterlijk.
 
 ## 1.200.0 – 2026-11-06
 ### Nieuw

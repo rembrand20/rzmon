@@ -1548,7 +1548,7 @@ function init() {
   // 1.158.0: ook knoppen die later getekend worden (kop van het dashboard)
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-view-layout]'); if (b) setLayout(b.dataset.viewLayout); });
   // 1.157.0: rode gloed en live-animaties (per account)
-  $$('[data-mon-pref]').forEach((c) => (c.onchange = () => { savePref(c.dataset.monPref === 'glow' ? 'mon_glow' : 'mon_anim', c.checked ? 'on' : 'off'); applyMonPrefs(); }));
+  $$('[data-mon-pref]').forEach((c) => (c.onchange = () => { savePref(MON_PREF_KEY[c.dataset.monPref], c.checked ? 'on' : 'off'); applyMonPrefs(); }));
   $$('[data-acct-ids-modern]').forEach((c) => (c.onchange = () => { savePref('ids_modern', c.checked ? 'on' : 'off'); savedFlag(c, true); if (typeof idsData !== 'undefined' && idsData) renderIds(); }));
   $$('[data-acct-motion]').forEach((c) => (c.onchange = () => { savePref('af_motion', String(c.value)); savedFlag(c, true); }));
   applyMonPrefs();
@@ -1774,6 +1774,8 @@ async function refresh(live = false, what = null) {
     state.hosts.forEach((h) => h.checks.forEach((c) => { if (+c.info_only && +c.status !== 0) { c.info_status = +c.status; c.status = 0; } }));
     if (state.role && document.body.dataset.role !== state.role) location.reload();   // rol gewijzigd
     render();
+    // 1.201.0: het openingsscherm: je eigen servers lichten op in hun statuskleur, daarna verdwijnt het
+    if (window.RzPulse) RzPulse.ready(state.hosts.filter((h) => +h.enabled).map((h) => ({ name: h.name, st: hostStatus(h) })));
     liveToasts(prev);
     // Live: de meldingen en de IDS-pagina alleen als daar iets veranderde (anders na hooguit 5 minuten)
     const stale = (k) => !what || what[k] || Date.now() - (liveLoaded[k] || 0) > 300000;
@@ -1797,6 +1799,7 @@ async function refresh(live = false, what = null) {
     // Loopt er een update (ook na herladen of in een ander tabblad): het voortgangsvenster weer openen
     if (state.update_running && !$('#modal').open) { showUpdateDialog({ state: 'queued', step: 'queued', message: '' }, ''); pollUpdate(); }
   } catch (ex) {
+    if (window.RzPulse) RzPulse.hide();
     toast(ex.message, 'err');
   }
   // Beschikbaarheid en minigrafieken apart: mag iets langer duren; live hooguit eens per 30 s
@@ -3730,11 +3733,26 @@ function renderAlertCharts() {
 // ---------------------------------------------------------------- Monitoring live (1.157.0)
 /** Rode gloed en live-animaties (Mijn account → Weergave, per account; standaard aan) */
 const monGlow = () => PREFS.mon_glow !== 'off';
+// 1.201.0: Liquid Glass (standaard uit) en de laadanimatie (standaard aan), per account
+const monGlass = () => PREFS.mon_glass === 'on';
+const monLoader = () => PREFS.mon_loader !== 'off';
+const MON_PREF_KEY = { glow: 'mon_glow', anim: 'mon_anim', glass: 'mon_glass', loader: 'mon_loader' };
 const monAnim = () => PREFS.mon_anim !== 'off';
+document.addEventListener('pointermove', (e) => {
+  if (!document.body.classList.contains('lg') || e.pointerType === 'touch') return;
+  const g = e.target.closest && e.target.closest('.card, .pcard, .ccx, .hcard');
+  if (!g) return;
+  const r = g.getBoundingClientRect();
+  g.style.setProperty('--mx', `${Math.round(e.clientX - r.left)}px`);
+  g.style.setProperty('--my', `${Math.round(e.clientY - r.top)}px`);
+}, { passive: true });
 function applyMonPrefs() {
   document.body.classList.toggle('no-glow', !monGlow());
   document.body.classList.toggle('no-anim', !monAnim());
-  $$('[data-mon-pref]').forEach((c) => { c.checked = c.dataset.monPref === 'glow' ? monGlow() : monAnim(); });
+  document.body.classList.toggle('lg', monGlass());
+  document.body.classList.toggle('no-loader', !monLoader());
+  if (window.RzPulse) RzPulse.refreshColors();
+  $$('[data-mon-pref]').forEach((c) => { c.checked = { glow: monGlow, anim: monAnim, glass: monGlass, loader: monLoader }[c.dataset.monPref](); });
   // 1.162.0: IDS-weergave en beweging, per account (standaard: wat de beheerder instelde)
   const vc = $('.view-card');
   if (vc) {

@@ -8496,4 +8496,13 @@ return [
     'Een wachtwoord stuurt RzMon alleen naar een versleutelde agent.' => 'RzMon only sends a password to an encrypted agent.',
     'Een gebruiker met alleen leesrechten:' => 'A user with read rights only:',
     'Databases' => 'Databases',
+    '<b>Liquid Glass</b>: kaarten, menu\'s en vensters als glas, met licht dat er zacht achter beweegt' => '<b>Liquid Glass</b>: cards, menus and windows as glass, with light moving softly behind them',
+    '(voor je account; licht en donker blijven werken)' => '(for your account; light and dark keep working)',
+    '<b>Laadanimatie</b>: bij het openen lichten je servers een voor een op, en overal waar je moet wachten loopt een hartslag' => '<b>Loading animation</b>: on opening, your servers light up one by one, and wherever you have to wait a heartbeat runs',
+    '(voor je account; met "minder beweging" stilstaand)' => '(for your account; still with "reduce motion")',
+    'Verbinden met RzMon' => 'Connecting to RzMon',
+    'Servers antwoorden' => 'Servers responding',
+    '✓ Alles binnen' => '✓ All in',
+    '{n} van {m} servers' => '{n} of {m} servers',
+    'Dit duurt langer dan normaal…' => 'This is taking longer than usual…',
 ];

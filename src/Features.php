@@ -74,6 +74,8 @@ final class Features
         ['dash', ['Dashboard: zo staat het ervoor', 'Dashboard: how things are'], ['Totaalscore, Nu doen, servers die aandacht vragen en grafieken.', 'Overall score, To do now, servers that need attention and charts.'], '1.134.0', '', '#home'],
         ['dash', ['Command center', 'Command center'], ['Een tweede dashboard met indeling naar keuze en TV-modus.', 'A second dashboard with your own layout and TV mode.'], '1.154.0', '', '#home'],
         ['dash', ['Lay-outs Blox, L1nes, Compact en CC', 'Layouts Blox, L1nes, Compact and CC'], ['Per account te kiezen.', 'Chosen per account.'], '1.158.0', '', '#account'],
+        ['dash', ['Liquid Glass', 'Liquid Glass'], ['Kaarten, menu\'s en vensters als glas, met licht dat er zacht achter beweegt, per account.', 'Cards, menus and windows as glass, with light moving softly behind them, per account.'], '1.201.0', '', '#account'],
+        ['dash', ['Laadanimatie', 'Loading animation'], ['Bij het openen lichten je servers een voor een op; overal waar je wacht een hartslag.', 'On opening your servers light up one by one; wherever you wait a heartbeat.'], '1.201.0', '', '#account'],
         ['dash', ['Thema\'s', 'Themes'], ['Licht, donker en meer, per account.', 'Light, dark and more, per account.'], '1.135.0', '', '#account'],
         ['dash', ['Weergave voor nieuwe accounts', 'Defaults for new accounts'], ['De standaard IDS-weergave en beweging.', 'The default IDS view and motion.'], '1.181.0', '', 'looks'],
         ['dash', ['Echt live', 'Truly live'], ['Wijzigingen binnen een paar seconden op je scherm.', 'Changes on your screen within a few seconds.'], '1.109.0', '', ''],

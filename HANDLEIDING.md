@@ -233,6 +233,13 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **Rode gloed**: een server met een onbevestigde critical pulseert zacht.
 - Beide zet je uit bij **Mijn account → Weergave** (*Rode gloed bij critical* en *Live animaties*, per account). Staat je systeem op *minder beweging*, dan beweegt er niets.
 
+**Liquid Glass** (vanaf 1.201.0, **Mijn account → Weergave**, per account, standaard uit): kaarten, menu's, de tabbalk en vensters worden doorschijnend glas met blur, een lichte rand aan de bovenkant en een glans die je muis volgt. Achter het glas beweegt heel traag een zacht licht in de kleuren van RzMon. De indeling, de statuskleuren en licht/donker/automatisch blijven precies hetzelfde. Kan je browser geen blur, dan zie je het gewone uiterlijk; met *minder beweging* staat het licht stil.
+
+**Laadanimatie** (vanaf 1.201.0, **Mijn account → Weergave**, per account, standaard aan):
+- **Bij het openen** van RzMon: RzMon in het midden en je servers eromheen; een radar veegt rond. Zodra de status binnen is, lichten je eigen servers (de ergste eerst, hooguit 12) een voor een op in hun statuskleur en sturen ze een pakketje naar het midden. Onderaan loopt een hartslag. Na ongeveer een seconde verdwijnt het scherm vanzelf; het houdt het laden niet op.
+- **Overal waar je moet wachten**: bij *Laden…* een korte hartslag ervoor, bij *Bezig…* een kleine radarboog.
+- Met *minder beweging* staat er een stilstaand beeld en is er geen openingsscherm.
+
 ### Beschikbaarheid per groep 📶 (vanaf 1.169.0)
 Bovenaan **Monitoring** staan twee tabbladen: **📋 Checks** (de pagina zoals je hem kent) en **📶 Beschikbaarheid**.
 - **Indelen** per *🗂️ Soort apparaat* (Servers, Netwerk, Opslag, Stroom, Camera's, Smart home, Overig) of per *🏷️ Eigen groep*.
