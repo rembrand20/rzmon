@@ -60,6 +60,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🧭 Dashboard en weergave | **Dashboard: zo staat het ervoor** | Totaalscore, Nu doen, servers die aandacht vragen en grafieken. | 1.134.0 |
 | 🧭 Dashboard en weergave | **Command center** | Een tweede dashboard met indeling naar keuze en TV-modus. | 1.154.0 |
 | 🧭 Dashboard en weergave | **Lay-outs Blox, L1nes, Compact en CC** | Per account te kiezen. | 1.158.0 |
+| 🧭 Dashboard en weergave | **Laadteller per pagina** | Duurt een pagina lang, dan een teller, de pols-animatie per onderdeel en na 8 s Opnieuw. | 1.202.0 |
 | 🧭 Dashboard en weergave | **Liquid Glass** | Kaarten, menu's en vensters als glas, met licht dat er zacht achter beweegt, per account. | 1.201.0 |
 | 🧭 Dashboard en weergave | **Laadanimatie** | Bij het openen lichten je servers een voor een op; overal waar je wacht een hartslag. | 1.201.0 |
 | 🧭 Dashboard en weergave | **Thema's** | Licht, donker en meer, per account. | 1.135.0 |

@@ -220,6 +220,59 @@
     return any;
   }
 
+  // ---------------------------------------------------------------- 1.202.0: de pols in een pagina die lang laadt
+  // attach(canvas, nodes, label): je servers (met hun bekende status) om het midden, met het label van de pagina erin.
+  const panels = new Map();
+  function attach(cv, list, lbl) {
+    if (!cv || reduce) return;
+    const pick = (list || []).slice(0, 10);
+    panels.set(cv, { lbl: String(lbl || 'Rz').slice(0, 10), t0: performance.now(),
+      nodes: pick.map((hh, i) => ({ name: String(hh.name || ''), st: STATUS_KEY[hh.st] || 'unk', orbit: i % 2, a0: (i / Math.max(1, pick.length)) * Math.PI * 2 + (i % 2 ? 0.35 : 0) })) });
+    kick();
+  }
+  function detach(cv) { panels.delete(cv); }
+  function panelFrame(now) {
+    let any = false;
+    panels.forEach((pn, cv) => {
+      if (!cv.isConnected) { panels.delete(cv); return; }
+      const f = fit(cv);
+      if (!f) return;
+      any = true;
+      const [ctx, w, h] = f, C = palette(), t = (now - pn.t0) / 1000;
+      const cx = w / 2, cy = h * 0.42, R = Math.min(w * 0.3, h * 0.3, 190);
+      ctx.clearRect(0, 0, w, h);
+      [R * 0.6, R].forEach((r, k) => {
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * (k ? -0.05 : 0.08));
+        ctx.setLineDash([2, 7]); ctx.strokeStyle = rgba(C.primary, 0.35); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      });
+      const sweep = (t * 1.6) % (Math.PI * 2);
+      if (ctx.createConicGradient) {
+        const g = ctx.createConicGradient(sweep - Math.PI / 2.6, cx, cy);
+        g.addColorStop(0, rgba(C.teal, 0)); g.addColorStop(0.11, rgba(C.teal, 0.25)); g.addColorStop(0.115, rgba(C.teal, 0)); g.addColorStop(1, rgba(C.teal, 0));
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * 1.1, 0, Math.PI * 2); ctx.fill();
+      }
+      pn.nodes.forEach((n) => {
+        const r = n.orbit ? R : R * 0.6, a = n.a0 + t * (n.orbit ? -0.05 : 0.08);
+        const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r, col = C[n.st] || C.unk;
+        // een server licht op als de radar langskomt
+        const d = Math.abs(((a - sweep) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+        const glow = Math.max(0, 1 - d / 0.9);
+        ctx.strokeStyle = rgba(col, 0.12 + glow * 0.3); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(cx, cy); ctx.stroke();
+        ctx.shadowColor = col; ctx.shadowBlur = 6 + glow * 14; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 5 + glow * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+        if (n.name && w > 460) {
+          ctx.fillStyle = C.ink; ctx.globalAlpha = 0.6 + glow * 0.4; ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = x < cx ? 'right' : 'left';
+          ctx.fillText(n.name.length > 20 ? n.name.slice(0, 19) + '…' : n.name, x + (x < cx ? -12 : 12), y + 4); ctx.globalAlpha = 1;
+        }
+      });
+      const bt = 1 + Math.max(0, Math.sin(t * 5.2)) ** 8 * 0.16;
+      const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 36 * bt);
+      cg.addColorStop(0, rgba(C.primary, 0.95)); cg.addColorStop(0.6, rgba(C.teal, 0.4)); cg.addColorStop(1, rgba(C.teal, 0));
+      ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(cx, cy, 36 * bt, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.font = '800 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(pn.lbl, cx, cy + 4);
+    });
+    return any;
+  }
+
   // ---------------------------------------------------------------- één lus
   let running = false;
   function loop(now) {
@@ -227,7 +280,8 @@
     const bootOn = !!(boot && !done && boot.isConnected);
     if (bootOn) bootFrame(now);
     const waits = off() ? false : waitFrame(now);
-    if ((bootOn || waits) && !reduce) requestAnimationFrame(loop); else running = false;
+    const pans = panels.size ? panelFrame(now) : false;
+    if ((bootOn || waits || pans) && !reduce) requestAnimationFrame(loop); else running = false;
   }
   function kick() {
     if (running) return;
@@ -237,5 +291,5 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
   kick();
-  window.RzPulse = { ready, hide: hideBoot, kick, refreshColors: () => { colorsAt = 0; } };
+  window.RzPulse = { ready, hide: hideBoot, kick, attach, detach, refreshColors: () => { colorsAt = 0; } };
 })();

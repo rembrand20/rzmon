@@ -8,11 +8,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.202.0**: een **laadteller** met animatie als een pagina lang duurt, en de **zijbalk** als zwevend paneel.
 - **1.201.0**: **Liquid Glass** als keuze per account, en een **laadanimatie** waarin je servers oplichten.
 - **1.200.0**: **databases van binnen bewaken**: MariaDB/MySQL en PostgreSQL, via de agent zonder wachtwoord, met overzicht en losse waarden.
 - **1.199.0**: **kruimelpad** boven elke pagina en **CPU · RAM · Disk** (hoogste waarde) in de tellerbalk van Monitoring.
 - **1.198.0**: de Home Assistant-kaart toont nu ook **de servers** (status, CPU, RAM en disk).
-- **1.197.0**: **netwerkkaart voor Home Assistant**: oordeel, internet, verbruik, apparaten, paden en IDS op je HA-dashboard.
+
+## 1.202.0 – 2026-11-06
+### Nieuw
+- **⏱️ Laadteller per pagina**: duurt het openen van een pagina of tabblad (zoals IDS) langer dan 0,4 s, dan zie je een balkje bovenaan, een teller in het kruimelpad en een draaiertje in het menu. Na 1,5 s komt de pols-animatie over de pagina, met per onderdeel ✓ of …; na 8 s *Dit duurt langer dan normaal (meestal X s)* met **↻ Opnieuw**. Verversen op de achtergrond toont nooit een teller.
+- **Zijbalk als één geheel met de pagina**: een zwevend paneel met afgeronde hoeken, kopjes (*Overzicht*, *Beveiliging*, *Analyse en netwerk*) en een blauwe streep bij het actieve item; met Liquid Glass wordt het glas. Inklappen, slepen en het beheermenu blijven hetzelfde.
 
 ## 1.201.0 – 2026-11-06
 ### Nieuw

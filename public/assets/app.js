@@ -313,7 +313,131 @@ const idsBundles = new Set(); // uitgeklapte bundels van incidenten en toegang
 const idsDayOpen = {};
 
 // ---------------------------------------------------------------- API
+// ---------------------------------------------------------------- 1.202.0: laadteller per pagina
+/* Opent een pagina (of een tabblad op een pagina), dan telt RzMon de verzoeken die daarbij vertrekken. Duurt het
+   langer dan 0,4 s: een dun balkje bovenaan, een teller in het kruimelpad en een draaiertje bij het menu-item.
+   Na 1,5 s: de pols-animatie over de pagina (niet over het hele scherm), met per onderdeel ✓ of …. Na 8 s: een
+   melding met de gewone duur en ↻ Opnieuw. Verversen op de achtergrond telt nooit mee (dat loopt niet via pageWait). */
+let curWait = null;    // de pagina die nu geopend wordt (alleen tijdens het synchroon starten van de laders)
+let pageWait = null;   // de lopende wachttijd (met teller)
+const WAIT_BAR = 400, WAIT_ANIM = 1500, WAIT_LONG = 8000;
+const WAIT_LABELS = () => ({
+  ids: L('Incidenten'), ids_access: L('Toegang'), blocks_overview: L('Blokkades'), ids_attack_flow: L('Aanvalskaart'),
+  edr_feed: L('Live'), edr_rules: L('Regels'), ids_anom: L('Afwijkingen'), ids_mitre: L('MITRE'), ids_protect: L('Bescherming'),
+  alerts: L('Meldingen'), home: L('Dashboard'), analytics: L('Analyse'), incidents: L('Incidenten'), vulns: L('Kwetsbaarheden'),
+  hibp_overview: L('Datalekken'), net_devices: L('Apparaten'), net_discover: L('Ontdekken'), settings: L('Instellingen'),
+  availability: L('Beschikbaarheid'), containers: L('Containers'), paths: L('Netwerkpaden'), mds: L('mDS'),
+});
+function waitTimes() { try { return JSON.parse(localStorage.getItem('rzmon-waits') || '{}') || {}; } catch (ex) { return {}; } }
+function waitPageName(p) {
+  if (p === 'settings') return L('Instellingen');
+  if (p === 'account') return L('Mijn account');
+  return crumbText($(`#main-tabs .tab[data-tab="${p}"] .tab-lbl`) || $(`#main-tabs .tab[data-tab="${p}"]`)) || p;
+}
+/** Begin met tellen voor deze pagina; een lopende telling voor dezelfde pagina loopt gewoon door. */
+function pageWaitOpen(page) {
+  if (pageWait && pageWait.page !== page) pageWaitEnd(pageWait, false);
+  if (!pageWait) {
+    const w = { page, t0: performance.now(), reqs: [], pending: 0, timer: 0, ui: 0, el: null, cv: null };
+    w.add = (action) => {
+      if (pageWait !== w) return null;
+      const r = { action, done: false };
+      w.reqs.push(r); w.pending++;
+      return () => { if (r.done) return; r.done = true; w.pending--; if (pageWait === w) { pageWaitDraw(w); if (!w.pending) pageWaitEnd(w, true); } };
+    };
+    pageWait = w;
+  }
+  curWait = pageWait;
+}
+function pageWaitClose() {
+  curWait = null;
+  const w = pageWait;
+  if (!w) return;
+  if (!w.pending) { pageWaitEnd(w, false); return; }   // alles kwam uit het geheugen: niets te tonen
+  if (!w.timer) w.timer = setInterval(() => pageWaitDraw(w), 100);
+}
+/** Een tabblad op een pagina: alleen tellen als er niet al een pagina geopend wordt (dan hoort het daarbij). */
+function withPageWait(page, fn) {
+  const own = !curWait;
+  if (own) pageWaitOpen(page);
+  try { fn(); } finally { if (own) pageWaitClose(); }
+}
+function pageWaitDraw(w) {
+  if (pageWait !== w) return;
+  const ms = performance.now() - w.t0;
+  if (ms < WAIT_BAR) return;
+  const s = (ms / 1000).toLocaleString(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const name = waitPageName(w.page);
+  // Balkje bovenaan: loopt langzaam naar 90 %
+  let bar = $('#pg-bar');
+  if (!bar) { bar = document.createElement('div'); bar.id = 'pg-bar'; bar.setAttribute('aria-hidden', 'true'); bar.innerHTML = '<i></i>'; document.body.appendChild(bar); }
+  bar.classList.remove('done'); bar.hidden = false;
+  bar.firstChild.style.width = (90 * (1 - Math.exp(-ms / 2500))).toFixed(1) + '%';
+  // Teller in het kruimelpad
+  const cr = $('#crumbs');
+  if (cr && !cr.hidden) {
+    let chip = $('.crumb-wait', cr);
+    if (!chip) { chip = document.createElement('span'); chip.className = 'crumb-wait'; chip.setAttribute('role', 'status'); cr.appendChild(chip); }
+    chip.textContent = L('{p} laden · {s} s', { p: name, s });
+  }
+  const tab = $(`#main-tabs .tab[data-tab="${w.page}"]`);
+  if (tab) tab.classList.add('tab-wait');
+  const panel = $('#tab-' + w.page);
+  if (panel) panel.classList.add('pg-loading');
+  // De pols over de pagina
+  if (ms >= WAIT_ANIM && panel && !document.body.classList.contains('no-loader') && !$('#rz-boot')) {
+    if (!w.el) {
+      w.el = document.createElement('div');
+      w.el.className = 'pg-wait';
+      w.el.innerHTML = `<canvas aria-hidden="true"></canvas><div class="pg-wait-t"><b></b><span class="pg-wait-s"></span><small class="pg-wait-l"></small></div>`;
+      panel.prepend(w.el);
+      w.cv = $('canvas', w.el);
+      const hosts = ((state && state.hosts) || []).filter((h) => +h.enabled).map((h) => ({ name: h.name, st: hostStatus(h) })).sort((a, b) => b.st - a.st);
+      if (window.RzPulse) RzPulse.attach(w.cv, hosts, name);
+      requestAnimationFrame(() => w.el && w.el.classList.add('on'));
+    }
+    $('b', w.el).textContent = L('{p} laden · {s} s', { p: name, s });
+    const lab = WAIT_LABELS();
+    const seen = new Set();
+    $('.pg-wait-s', w.el).innerHTML = w.reqs.filter((r) => { const k = lab[r.action] || r.action; if (seen.has(k)) return false; seen.add(k); return !!lab[r.action]; })
+      .map((r) => { const busy = w.reqs.some((x) => !x.done && (lab[x.action] || x.action) === lab[r.action]); return `<span class="${busy ? 'busy' : 'ok'}">${esc(lab[r.action])} ${busy ? '…' : '✓'}</span>`; }).join('');
+    const l = $('.pg-wait-l', w.el);
+    if (ms >= WAIT_LONG && !l.dataset.on) {
+      l.dataset.on = '1';
+      const avg = waitTimes()[w.page];
+      const usual = avg ? ' ' + L('(meestal {s} s)', { s: (avg / 1000).toLocaleString(LOCALE, { maximumFractionDigits: 1 }) }) : '';
+      l.innerHTML = `${esc(L('Dit duurt langer dan normaal') + usual)}. <button type="button" class="btn btn-sm">↻ ${esc(L('Opnieuw'))}</button>`;
+      $('button', l).onclick = () => { const p = w.page; pageWaitEnd(w, false); showTab(p); };
+    }
+  }
+}
+function pageWaitEnd(w, record) {
+  if (w.timer) clearInterval(w.timer);
+  w.timer = 0;
+  if (pageWait === w) pageWait = null;
+  if (curWait === w) curWait = null;
+  const ms = performance.now() - w.t0;
+  if (record && ms > 150) {
+    try { const t = waitTimes(); t[w.page] = Math.round(t[w.page] ? t[w.page] * 0.7 + ms * 0.3 : ms); localStorage.setItem('rzmon-waits', JSON.stringify(t)); } catch (ex) { /* niet erg */ }
+  }
+  const bar = $('#pg-bar');
+  if (bar && !bar.hidden) { bar.firstChild.style.width = '100%'; bar.classList.add('done'); setTimeout(() => { if (!pageWait && bar.classList.contains('done')) bar.hidden = true; }, 350); }
+  $$('.crumb-wait').forEach((c) => c.remove());
+  $$('#main-tabs .tab-wait').forEach((t) => t.classList.remove('tab-wait'));
+  $$('.tab-panel.pg-loading').forEach((p) => p.classList.remove('pg-loading'));
+  if (w.el) {
+    const el = w.el, cv = w.cv;
+    w.el = null;
+    el.classList.remove('on');
+    setTimeout(() => { if (window.RzPulse) RzPulse.detach(cv); el.remove(); }, 300);
+  }
+}
 async function api(action, body, params = {}, retried = false) {
+  const w = curWait, rec = w ? w.add(action) : null;
+  try { return await apiRaw(action, body, params, retried); } finally { if (rec) rec(); }
+}
+
+async function apiRaw(action, body, params = {}, retried = false) {
   const qs = new URLSearchParams({ action, ...params });
   const opts = {
     method: body ? 'POST' : 'GET',
@@ -1661,6 +1785,7 @@ function showTab(name) {
   fxSyncHash();
   sideMode(name);   // 1.167.0
   renderIsoBanner(name);   // 1.172.0
+  pageWaitOpen(name);   // 1.202.0: laadteller
   if (name === 'settings') { loadSettings(); showSettingsSection(sub || setSection); }
   if (name === 'account') { loadAccount(); setTimeout(() => { if (sideTab === 'account' && document.body.classList.contains('side-admin-on')) sideAcctList(); }, 600); }
   if (name === 'alerts') loadAlerts();
@@ -1675,6 +1800,7 @@ function showTab(name) {
   if (name === 'analytics') loadAnalytics();
   if (name === 'incidents') loadIncidents();
   if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
+  pageWaitClose();
   crumbs();   // 1.199.0
 }
 
@@ -2219,11 +2345,11 @@ function setMonSub(s) {
   monSub = s === 'avail' || s === 'cont' || s === 'paths' ? s : 'checks';
   $('#tab-dashboard').classList.toggle('mon-av', monSub === 'avail');
   $('#tab-dashboard').classList.toggle('mon-ct', monSub === 'cont');   // 1.176.0
-  if (monSub === 'cont') ctLoad();
+  if (monSub === 'cont') withPageWait('dashboard', ctLoad);
   $('#tab-dashboard').classList.toggle('mon-np', monSub === 'paths');   // 1.177.0
-  if (monSub === 'paths') npLoad();
+  if (monSub === 'paths') withPageWait('dashboard', npLoad);
   $$('#mon-tabs [data-msub]').forEach((b) => { const on = b.dataset.msub === monSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
-  if (monSub === 'avail') avLoad();
+  if (monSub === 'avail') withPageWait('dashboard', avLoad);
   crumbs();   // 1.199.0
 }
 
@@ -8804,13 +8930,15 @@ function showIdsTab() {
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
   const nAnom = ((idsData && idsData.incidents) || []).filter((i) => (i.type === 'chain' || i.type === 'anomaly') && i.status === 'open').length;
   $('#it-n-anom').textContent = nAnom || '';
-  if (idsTab === 'blk' && isAdmin()) loadBlocks();
-  if (idsTab === 'live') loadEdrFeed();
-  if (idsTab === 'rules') { ruleWhere = 'ids'; if (ruleSrc === 'exc') ruleSrc = ''; loadEdrRules(); }
-  if (idsTab === 'anom') loadAnom();
-  if (idsTab === 'mitre') loadMitre();
-  if (idsTab === 'prot') loadProt();
-  if (idsTab === 'map') { initAttackMap(); loadAttackMap(); }   // 1.149.0
+  withPageWait('ids', () => {   // 1.202.0
+    if (idsTab === 'blk' && isAdmin()) loadBlocks();
+    if (idsTab === 'live') loadEdrFeed();
+    if (idsTab === 'rules') { ruleWhere = 'ids'; if (ruleSrc === 'exc') ruleSrc = ''; loadEdrRules(); }
+    if (idsTab === 'anom') loadAnom();
+    if (idsTab === 'mitre') loadMitre();
+    if (idsTab === 'prot') loadProt();
+    if (idsTab === 'map') { initAttackMap(); loadAttackMap(); }   // 1.149.0
+  });
   crumbs();   // 1.199.0
 }
 
@@ -11978,7 +12106,7 @@ function initSideResize() {
     h.setPointerCapture(e.pointerId);
     h.classList.add('drag');
     document.body.classList.add('side-dragging');
-    const move = (ev) => setSideW(ev.clientX, false);
+    const move = (ev) => setSideW(ev.clientX - 12, false);   // 1.202.0: het paneel staat 12 px van de rand
     const up = () => {
       h.removeEventListener('pointermove', move);
       h.classList.remove('drag');
@@ -15391,7 +15519,7 @@ function setNetSub(s) {
   $('#tab-net').classList.toggle('net-mp', netSub === 'map');
   if (netSub === 'map') renderNetMap();
   $$('#net-tabs [data-nsub]').forEach((b) => { const on = b.dataset.nsub === netSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
-  if (netSub === 'disc') ndLoad();
+  if (netSub === 'disc') withPageWait('net', ndLoad);
   crumbs();   // 1.199.0
 }
 async function ndLoad() {

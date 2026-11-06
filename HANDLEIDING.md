@@ -240,6 +240,14 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **Overal waar je moet wachten**: bij *Laden…* een korte hartslag ervoor, bij *Bezig…* een kleine radarboog.
 - Met *minder beweging* staat er een stilstaand beeld en is er geen openingsscherm.
 
+**Laadteller per pagina** (vanaf 1.202.0): open je een pagina of een tabblad (bijvoorbeeld IDS) en duurt het laden even, dan zie je dat meteen:
+- na **0,4 s** een dun balkje bovenaan, een teller in het kruimelpad (*IDS laden · 0,8 s*) en een draaiertje bij het menu-item; wat er al stond blijft gedimd staan;
+- na **1,5 s** de pols-animatie over de pagina (niet over het hele scherm), met per onderdeel ✓ of … (bijvoorbeeld *Incidenten ✓ · Toegang …*). Staat de *Laadanimatie* uit, dan blijft het bij het balkje en de teller;
+- na **8 s** *Dit duurt langer dan normaal (meestal X s)* met **↻ Opnieuw**. RzMon onthoudt in je browser hoe lang elke pagina meestal duurt.
+- Gaat het sneller dan 0,4 s, dan zie je niets. Verversen op de achtergrond (live) toont de teller nooit.
+
+**Zijbalk** (vanaf 1.202.0): op een breed scherm is de zijbalk een zwevend paneel met dezelfde achtergrond als de pagina, afgeronde hoeken en kopjes *Overzicht*, *Beveiliging* en *Analyse en netwerk*. Het actieve item heeft een blauwe streep links. Met Liquid Glass aan wordt het paneel glas. Inklappen, breder of smaller slepen en het beheermenu werken zoals eerder.
+
 ### Beschikbaarheid per groep 📶 (vanaf 1.169.0)
 Bovenaan **Monitoring** staan twee tabbladen: **📋 Checks** (de pagina zoals je hem kent) en **📶 Beschikbaarheid**.
 - **Indelen** per *🗂️ Soort apparaat* (Servers, Netwerk, Opslag, Stroom, Camera's, Smart home, Overig) of per *🏷️ Eigen groep*.
