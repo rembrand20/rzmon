@@ -234,6 +234,7 @@ function finish_login(array $u, bool $remember = false, string $how = 'wachtwoor
     unset($_SESSION['pending_2fa'], $_SESSION['lan_auto'], $_SESSION['no_lan_auto'], $_SESSION['remember_id']);
     $_SESSION['user'] = ['id' => (int) $u['id'], 'username' => $u['username'], 'role' => $u['role'] ?? 'admin'];
     $_SESSION['auth_at'] = time();
+    $_SESSION['pw_at'] = time();   // 1.206.0: net je wachtwoord (of passkey) gebruikt: bevestigen met een vinkje mag
     $_SESSION['mfa'] = $how !== 'wachtwoord';   // ingelogd met 2FA of een passkey (telt van buiten je interne netwerken)
     q('UPDATE users SET last_login = ? WHERE id = ?', [now(), $u['id']]);
     if ($remember) {

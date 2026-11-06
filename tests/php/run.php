@@ -1942,5 +1942,31 @@ ok($uhCov && $uhFin && $uhAfter === [] && str_contains($uhMsg, '1.205.0') && str
     'na de update: vrijgave (geen rz_hold), samenvatting met nagestuurde metingen, opgeruimd; tijdens de update geen "agent stil" (wel als hij al eerder stil was)');
 q('DELETE FROM hosts WHERE id IN (?, ?, ?)', [$uh1, $uh2, $uhOld]);
 
+// 1.206.0: bevestigen met een vinkje per rol, zolang het wachtwoord de laatste N minuten is ingevuld
+section('Bevestigen bij acties');
+$cfSess = $_SESSION ?? [];
+$_SESSION = [];
+save_setting('confirm_skip_admin', '1');
+save_setting('confirm_skip_user', '0');
+save_setting('confirm_grace_min', '60');
+$cfAdmin = ['id' => 1, 'role' => 'admin'];
+$cfUser = ['id' => 2, 'role' => 'user'];
+$cfNoPw = Confirm::canSkip($cfAdmin, 'ISOLEREN');   // nog nooit wachtwoord ingevuld in deze sessie
+Confirm::passwordEntered();
+$cfOk = Confirm::canSkip($cfAdmin, 'ISOLEREN') && !Confirm::canSkip($cfAdmin, 'PASSKEY') && !Confirm::canSkip($cfAdmin, 'DOWNLOADEN') && !Confirm::canSkip($cfUser, 'ISOLEREN');
+$_SESSION['pw_at'] = time() - 61 * 60;
+$cfOld = Confirm::canSkip($cfAdmin, 'ISOLEREN');
+save_setting('confirm_grace_min', '90');
+$cfLonger = Confirm::canSkip($cfAdmin, 'ISOLEREN');
+save_setting('confirm_skip_user', '1');
+$_SESSION = ['lan_auto' => true];
+$cfLan = Confirm::canSkip($cfUser, 'BLOKKEREN') && str_contains(Confirm::refusal($cfUser, 'BLOKKEREN'), 'BLOKKEREN');
+$cfSt = Confirm::state($cfAdmin);
+$_SESSION = $cfSess;
+save_setting('confirm_skip_user', '0');
+save_setting('confirm_grace_min', '60');
+ok(!$cfNoPw && $cfOk && !$cfOld && $cfLonger && $cfLan && $cfSt['skip'] === true && in_array('UITLOGGEN', $cfSt['always'], true),
+    'vinkje: beheerder ja (gebruiker uit), niet bij account-zaken, alleen binnen de ingestelde minuten na het wachtwoord, op het lokale netwerk altijd');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

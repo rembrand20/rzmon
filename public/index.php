@@ -1220,6 +1220,16 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <p class="muted small"><?= th('Afwijkingen en "disk groeit hard" staan bij Meldingen → Systeeminfo; standaard alleen op de meldingenpagina.') ?></p>
         </div>
 
+        <div data-sk="confirmpw" class="card" id="confirmpw-card">
+          <h2>🔐 <?= th('Bevestigen bij acties') ?></h2>
+          <?= xp(t('Per rol: bij acties een vinkje in plaats van je wachtwoord.'), t('Bij acties zoals herstellen, installeren, isoleren, blokkeren, bijwerken, terugzetten en verwijderen vraagt RzMon om je wachtwoord. Staat de schakelaar voor een rol aan, dan is een vinkje <i>Ik weet het zeker</i> genoeg, <b>zolang je je wachtwoord de laatste minuten hieronder hebt ingevuld</b> (bij het inloggen of bij een eerdere bevestiging). Daarna vraagt RzMon het één keer opnieuw. Op het lokale netwerk (automatisch ingelogd) vervangt het vinkje het woord dat je typt. <b>Altijd met je wachtwoord:</b> passkeys, sleutels, back-ups en certificaten downloaden, het databasewachtwoord en iedereen uitloggen.')) ?>
+          <label class="switch"><input type="checkbox" name="confirm_skip_admin"><span></span> <?= th('🔑 Beheerder: vinkje in plaats van wachtwoord') ?></label>
+          <label class="switch"><input type="checkbox" name="confirm_skip_user"><span></span> <?= th('👤 Gebruiker: vinkje in plaats van wachtwoord') ?></label>
+          <label class="switch"><input type="checkbox" name="confirm_skip_readonly"><span></span> <?= th('👁 Alleen lezen: vinkje in plaats van wachtwoord') ?></label>
+          <p class="muted small"><?= th('Alleen lezen heeft geen knoppen voor acties; de schakelaar telt pas als dat ooit verandert.') ?></p>
+          <label class="update-hold"><?= th('Vinkje geldig tot') ?> <input type="number" name="confirm_grace_min" min="1" max="1440" step="1" style="width:5.5rem"> <?= th('minuten na het invullen van je wachtwoord') ?></label>
+        </div>
+
         <div data-sk="update" class="card" id="update-card">
           <h2><?= th('⬆ RzMon bijwerken') ?></h2>
           <p class="small" id="update-status">…</p>

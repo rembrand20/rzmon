@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.206.0**: **bevestigen met een vinkje** in plaats van je wachtwoord, per rol in te stellen, met een vangnet van 60 minuten.
 - **1.205.0**: **agents wachten tijdens een update** van RzMon (wachtrij, vrijgave, samenvatting) en geven pas na 5 minuten alarm.
 - **1.204.0**: een **nieuw update-venster** met voortgangsring, tijdlijn per stap en duidelijke foutmeldingen.
 - **1.203.0**: de **zijbalk klapt vanzelf in** tot icoontjes als je hem smaller sleept of het venster smal is.
 - **1.202.0**: een **laadteller** met animatie als een pagina lang duurt, en de **zijbalk** als zwevend paneel.
-- **1.201.0**: **Liquid Glass** als keuze per account, en een **laadanimatie** waarin je servers oplichten.
+
+## 1.206.0 – 2026-11-06
+### Nieuw
+- **🔐 Bevestigen bij acties per rol** (*Instellingen → Beveiliging → Gebruikers*): met een schakelaar per rol (beheerder, gebruiker, alleen lezen) is bij acties als herstellen, installeren, isoleren, blokkeren, bijwerken, terugzetten en verwijderen een vinkje **Ik weet het zeker** genoeg in plaats van je wachtwoord. Standaard aan voor beheerders; gebruikers vullen hun eigen wachtwoord in.
+- Het vinkje geldt zolang je je wachtwoord de laatste **60 minuten** hebt ingevuld (bij het inloggen of een eerdere bevestiging); het aantal minuten stel je zelf in. Daarna vraagt RzMon het één keer opnieuw.
+- Passkeys, sleutels, back-ups en certificaten downloaden, het databasewachtwoord en iedereen uitloggen vragen altijd je wachtwoord.
 
 ## 1.205.0 – 2026-11-06
 ### Nieuw

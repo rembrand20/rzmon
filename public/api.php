@@ -1378,6 +1378,17 @@ function tab_badges(array $user, array $hosts, string $seen): ?array
  */
 $confirm = static function (string $word) use ($user): void {
     $c = (string) (input()['confirm'] ?? '');
+    // 1.206.0: per rol een vinkje in plaats van het wachtwoord (zolang je het de laatste N minuten invulde)
+    if ($c === Confirm::SURE) {
+        if (Confirm::canSkip($user, $word)) {
+            return;
+        }
+        header('X-RzMon-Confirm-Left: ' . max(0, Confirm::until() - time()));   // een account-zaak telt niet: de rest blijft met het vinkje
+        out(['error' => Confirm::refusal($user, $word), 'need_password' => true], 422);
+    }
+    if ($c === '' && Confirm::canSkip($user, $word)) {
+        out(['error' => t('Vink "Ik weet het zeker" aan om te bevestigen')], 422);
+    }
     if (is_lan_session()) {
         if ($c !== $word && $c !== t($word)) {   // het Nederlandse woord, of het woord in de taal van de gebruiker
             out(['error' => t('Typ {word} om te bevestigen', ['word' => t($word)])], 422);
@@ -1389,6 +1400,8 @@ $confirm = static function (string $word) use ($user): void {
         usleep(500000);
         out(['error' => t('Je wachtwoord klopt niet')], 422);
     }
+    Confirm::passwordEntered();
+    header('X-RzMon-Confirm-Left: ' . max(0, Confirm::until() - time()));
 };
 
 /**
@@ -1916,7 +1929,7 @@ switch ($action) {
         out(['hosts' => $hosts, 'badges' => tab_badges($user, $hosts, (string) ($_GET['seen'] ?? '')), 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'snmp_global' => ($sg = SnmpMonitor::global()) ? array_intersect_key($sg, array_flip(['v', 'port', 'user', 'level', 'auth_proto', 'priv_proto'])) : null, 'agent_https_only' => setting('agent_https_only', '0') === '1', 'lan_session' => is_lan_session(), 'maintenance' => $global,
              'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'edr_note_hide' => json_decode((string) setting('edr_note_hide', '{}'), true) ?: (object) [], 'role' => $user['role'], 'user_id' => $user['id'], 'ai' => Ai::stateInfo($user), 'isolated' => Ids::isolated(), 'health' => Health::current(), 'health_groups' => Health::groups(),
-             'agent_tick' => agent_tick(null), 'now_ts' => time(),
+             'agent_tick' => agent_tick(null), 'now_ts' => time(), 'confirm' => Confirm::state($user),   // 1.206.0
              // Sjablonen (1.94.0): item → naam van het sjabloon, en welke sjablonen per server
              'templates' => q('SELECT id, name FROM check_templates ORDER BY name')->fetchAll(),
              'tpl_items' => (object) array_column(q('SELECT ti.id, t.name FROM template_items ti JOIN check_templates t ON t.id = ti.template_id')->fetchAll(), 'name', 'id'),
@@ -3531,7 +3544,7 @@ switch ($action) {
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_keep_manual', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
             'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'report_monthly', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'edr_yara', 'ids_modern', 'af_motion', 'smart_auto', 'alert_auto', 'inet_down', 'inet_up', 'inet_warn_pct', 'inet_crit_pct', 'inet_times', 'inet_speed_mb', 'perf_on', 'edr_note_hide', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
-            'update_auto', 'update_time', 'update_backup', 'update_hold_min',
+            'update_auto', 'update_time', 'update_backup', 'update_hold_min', 'confirm_skip_admin', 'confirm_skip_user', 'confirm_skip_readonly', 'confirm_grace_min',
             'ai_on', 'ai_provider', 'ai_auto', 'ai_daily', 'ai_mask', 'ai_timeout', 'ai_max_tokens', 'ai_ollama_url', 'ai_ollama_key',
             'cve_buzz_on', 'cve_buzz_alert', 'cve_github_token', 'cve_mastodon_url', 'cve_mastodon_token', 'cve_exploitdb', 'cve_nuclei',   // 1.179.0
             'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model',   // 1.171.0
@@ -3561,6 +3574,9 @@ switch ($action) {
             if (isset($in["ai_{$p}_model"]) && !preg_match('/^[A-Za-z0-9._:\/-]{0,80}$/', trim((string) $in["ai_{$p}_model"]))) {
                 out(['error' => t('Ongeldige modelnaam')], 422);
             }
+        }
+        if (isset($in['confirm_grace_min'])) {
+            $in['confirm_grace_min'] = (string) max(1, min(1440, (int) $in['confirm_grace_min']));   // 1.206.0
         }
         if (isset($in['update_hold_min'])) {
             $in['update_hold_min'] = (string) max(5, min(60, (int) $in['update_hold_min']));   // 1.205.0

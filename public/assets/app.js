@@ -458,6 +458,12 @@ async function apiRaw(action, body, params = {}, retried = false) {
   const data = await res.json().catch(() => ({ error: L('Ongeldig antwoord van server') }));
   const tok = res.headers.get('X-CSRF-Token');
   if (tok) CSRF = tok;
+  // 1.206.0: hoe lang het vinkje nog geldt (na het invullen van je wachtwoord)
+  const cLeft = res.headers.get('X-RzMon-Confirm-Left');
+  if (cLeft !== null) CONFIRM.until = Date.now() / 1000 + (+cLeft || 0);
+  if (data.need_password) {   // het vinkje geldt hier niet (meer): in het venster het wachtwoordveld terug
+    $$('#modal .confirm-sure').forEach((l) => { l.outerHTML = confirmField(l.dataset.word || '', true); });
+  }
   // Sessie intussen vernieuwd (lang stil, opnieuw ingelogd via "onthoud mij"): één keer opnieuw met het nieuwe token
   if (res.status === 403 && data.csrf && tok && !retried) return api(action, body, params, true);
   if (res.status === 401 && !action.startsWith('login')) { location.reload(); }
@@ -1896,6 +1902,7 @@ async function refresh(live = false, what = null) {
     const prev = live && state && state.hosts ? new Map(state.hosts.flatMap((h) => h.checks.map((c) => [+c.id, +c.notified_status]))) : null;
     state = await api('state', null, seen ? { seen } : {});
     syncClock(state.now_ts);
+    if (state.confirm) CONFIRM = { ...state.confirm, until: Date.now() / 1000 + (+state.confirm.left || 0) };   // 1.206.0
     // Info-check: telt nooit als storing. Voor tellers, filters en "Problemen" is hij OK; de echte status staat in info_status
     state.hosts.forEach((h) => h.checks.forEach((c) => { if (+c.info_only && +c.status !== 0) { c.info_status = +c.status; c.status = 0; } }));
     if (state.role && document.body.dataset.role !== state.role) location.reload();   // rol gewijzigd
@@ -12327,7 +12334,7 @@ const SET_NAV = [
   ['beveiliging', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Beveiliging'), [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
     ['outside', L('Beheer via https'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk.')],
-    ['users', L('Gebruikers'), ['users'], L('Accounts, rollen en tweestapsverificatie.')],
+    ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')],
     ['vulns', L('Kwetsbaarheden'), ['vulns', 'cvebuzz'], L('Bekende lekken in de software op je servers.')],
     ['hibp', L('Datalekken'), ['hibp'], L('Staan je e-mailadressen of domein in een datalek?')],
     ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
@@ -14647,14 +14654,16 @@ async function loadAgentCommands() {
 function askConfirm({ title, text = '', word, ok = L('Bevestigen'), danger = false }) {
   return new Promise((resolve) => {
     const lan = !!document.querySelector('.lan-badge');
+    const sure = confirmSkip(word);   // 1.206.0: een vinkje in plaats van je wachtwoord
     let dlg = $('#confirm-dlg');
     if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'confirm-dlg'; dlg.className = 'confirm-dlg'; document.body.append(dlg); }
     dlg.innerHTML = `<form method="dialog" class="cf-form">
       <div class="cf-head"><span class="cf-ic ${danger ? 'danger' : ''}" aria-hidden="true">${danger ? '!' : '🔒'}</span><h3>${esc(title)}</h3></div>
       ${text ? `<p class="cf-text">${text}</p>` : ''}
-      <label class="cf-label">${lan ? L('Typ <b>{word}</b> om te bevestigen', { word: esc(L(word)) }) : L('Je wachtwoord')}
+      ${sure ? `<label class="switch cf-sure"><input name="pw" type="checkbox" value="__sure__" required><span></span> ${L('Ik weet het zeker')}</label>`   // 1.206.0
+    : `<label class="cf-label">${lan ? L('Typ <b>{word}</b> om te bevestigen', { word: esc(L(word)) }) : L('Je wachtwoord')}
         <span class="cf-field"><input name="pw" type="${lan ? 'text' : 'password'}" required autocomplete="${lan ? 'off' : 'current-password'}" spellcheck="false" ${lan ? `placeholder="${esc(L(word))}"` : ''}>
-        ${lan ? '' : `<button type="button" class="cf-eye" title="${esc(L('Wachtwoord tonen'))}" aria-label="${esc(L('Wachtwoord tonen'))}">👁</button>`}</span></label>
+        ${lan ? '' : `<button type="button" class="cf-eye" title="${esc(L('Wachtwoord tonen'))}" aria-label="${esc(L('Wachtwoord tonen'))}">👁</button>`}</span></label>`}
       <div class="cf-btns"><button type="button" class="btn" value="cancel" data-cf-cancel>${L('Annuleren')}</button>
         <button type="submit" class="btn ${danger ? 'danger' : 'primary'}">${esc(ok)}</button></div></form>`;
     const inp = $('input', dlg);
@@ -14662,14 +14671,29 @@ function askConfirm({ title, text = '', word, ok = L('Bevestigen'), danger = fal
     const finish = (v) => { if (done) return; done = true; dlg.close(); resolve(v); };
     $('.cf-eye', dlg)?.addEventListener('click', (e) => { inp.type = inp.type === 'password' ? 'text' : 'password'; e.currentTarget.classList.toggle('on', inp.type === 'text'); inp.focus(); });
     $('[data-cf-cancel]', dlg).onclick = () => finish(null);
-    $('form', dlg).onsubmit = (e) => { e.preventDefault(); if (inp.value) finish(inp.value); };
+    $('form', dlg).onsubmit = (e) => { e.preventDefault(); if (sure ? inp.checked : inp.value) finish(inp.value); };
     dlg.oncancel = (e) => { e.preventDefault(); finish(null); };
     dlg.showModal();
     inp.focus();
   });
 }
 
-function confirmField(word) {
+// 1.206.0: per rol een vinkje in plaats van het wachtwoord (RzMon zegt in elke statusvraag of en tot wanneer)
+let CONFIRM = { skip: false, lan: false, until: 0, always: [] };
+document.addEventListener('change', (e) => {
+  if (!e.target.matches || !e.target.matches('.confirm-sure-cb')) return;
+  const h = e.target.closest('.confirm-sure').querySelector('input[name="confirm"]');
+  if (h) h.value = e.target.checked ? '__sure__' : '';
+});
+function confirmSkip(word) {
+  const c = CONFIRM;
+  return !!c.skip && !(c.always || []).includes(word) && (c.lan || Date.now() / 1000 < (c.until || 0) - 5);
+}
+function confirmField(word, noSure = false) {
+  if (!noSure && confirmSkip(word)) {
+    return `<label class="switch confirm-sure" data-word="${esc(word)}"><input type="checkbox" class="confirm-sure-cb" required><span></span> ${L('Ik weet het zeker')}
+      <input type="hidden" name="confirm" value=""></label>`;
+  }
   const lan = !!document.querySelector('.lan-badge');
   return `<label>${lan ? L('Typ <b>{word}</b> om te bevestigen', { word: L(word) }) : L('Bevestig met je eigen wachtwoord')}
     <input name="confirm" type="${lan ? 'text' : 'password'}" required autocomplete="${lan ? 'off' : 'current-password'}" autofocus></label>`;

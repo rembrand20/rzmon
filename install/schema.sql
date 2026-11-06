@@ -291,6 +291,11 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('update_backup', '1'),
     -- 1.205.0: zo lang (minuten) wachten agents tijdens een update van RzMon voordat de waakhond alsnog alarm geeft
     ('update_hold_min', '5'),
+    -- 1.206.0: bevestigen bij acties: beheerders met een vinkje (zolang ze hun wachtwoord de laatste 60 min invulden)
+    ('confirm_skip_admin', '1'),
+    ('confirm_skip_user', '0'),
+    ('confirm_skip_readonly', '0'),
+    ('confirm_grace_min', '60'),
     -- Commando-checks op agents: uit tot je ze aanzet (uit | nobody | root), per server te overschrijven
     ('agent_commands', 'off'),
     -- Logins (SSH, console), sudo en su van de agents op de pagina Meldingen; auth_ignore: gebruikers/IP's
