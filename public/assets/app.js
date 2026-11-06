@@ -1109,6 +1109,14 @@ function init() {
     if (b) { statusFilter = null; setDashFilter(b.dataset.dfilter); }
   });
   $('#dash-sort').onchange = (e) => { dashSort = e.target.value; uiSet('dash_sort', 'rzmon-dash-sort', dashSort); render(); };
+  // 1.199.0: klik op CPU, RAM of disk in de tellerbalk = daarop sorteren (nog eens = terug naar Ergste eerst)
+  $('#mini-res').onclick = (e) => {
+    const b = e.target.closest('[data-mres]');
+    if (!b) return;
+    dashSort = dashSort === b.dataset.mres ? 'status' : b.dataset.mres;
+    uiSet('dash_sort', 'rzmon-dash-sort', dashSort);
+    render();
+  };
   $('#health-counts').addEventListener('click', (e) => {
     const b = e.target.closest('[data-st]');
     if (!b) return;
@@ -1651,7 +1659,70 @@ function showTab(name) {
   if (name === 'analytics') loadAnalytics();
   if (name === 'incidents') loadIncidents();
   if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
+  crumbs();   // 1.199.0
 }
+
+/** 1.199.0: kruimelpad boven elke pagina: 🏠 › pagina › tabblad (› onderdeel) en de filters die aan staan; elk stuk is een link */
+const CRUMB_DEF = { dashboard: 'dashboard/checks', net: 'net/map', ids: 'ids/inc', vulns: 'vulns/cve' };
+function crumbText(b) {
+  if (!b) return '';
+  const x = b.cloneNode(true);
+  $$('.it-n, .tab-badge, .tab-ic, .tab-icw svg', x).forEach((n) => n.remove());
+  return x.textContent.replace(EMOJI_LEAD, '').replace(/\s+\d+\s*$/, '').replace(/\s+/g, ' ').trim();
+}
+function crumbs() {
+  const el = $('#crumbs');
+  if (!el) return;
+  const tab = (($('.tab-panel:not([hidden])') || {}).id || '').replace('tab-', '');
+  document.body.classList.toggle('crumbs-on', !!tab && tab !== 'mds');
+  if (!tab || tab === 'mds') { el.hidden = true; return; }
+  const tabName = (t) => (t === 'settings' ? L('Instellingen') : t === 'account' ? L('Mijn account') : crumbText($(`#main-tabs .tab[data-tab="${t}"] .tab-lbl`) || $(`#main-tabs .tab[data-tab="${t}"]`)) || t);
+  const parts = [{ l: '🏠', t: L('Start'), go: 'home' }];
+  if (tab !== 'home') parts.push({ l: tabName(tab), go: CRUMB_DEF[tab] || tab });
+  if (tab === 'dashboard') parts.push({ l: crumbText($(`#mon-tabs [data-msub="${monSub}"]`)), go: 'dashboard/' + monSub });
+  if (tab === 'net') parts.push({ l: crumbText($(`#net-tabs [data-nsub="${netSub}"]`)), go: 'net/' + netSub });
+  if (tab === 'ids') parts.push({ l: crumbText($(`#ids-tabs [data-it="${idsTab}"]`)), go: 'ids/' + idsTab });
+  if (tab === 'vulns' && $('#vuln-tabs')) parts.push({ l: crumbText($(`#vuln-tabs [data-vt="${vulnTab}"]`)), go: 'vulns/' + vulnTab });
+  if (tab === 'settings') {
+    const f = setFind(setSection);
+    const g = f && SET_NAV.find((x) => x[2] === f.group);
+    if (f) {
+      if (g && g[3][0][0] !== f.sub[0]) parts.push({ l: f.group, go: 'settings/' + g[3][0][0] });
+      else parts.push({ l: f.group, go: null });
+      parts.push({ l: f.sub[1], go: 'settings/' + f.sub[0] });
+      const tabs = f.sub[4];
+      if (tabs) { const tb = tabs.find((x) => x[0] === setTab[setSection]) || tabs[0]; parts.push({ l: tb[1], go: null }); }
+    }
+  }
+  // Filters die aan staan, met ✕ om ze weg te halen
+  const chips = [];
+  if (tab === 'dashboard' && monSub === 'checks') {
+    if (dashFilter !== 'all') { const d = DASH_FILTERS.find((x) => x[0] === dashFilter); if (d) chips.push({ l: d[1](), k: 'dash' }); }
+    if (statusFilter !== null) chips.push({ l: STATUS_WORD[statusFilter] || L('Onderhoud'), k: 'status' });
+  }
+  const page = fxCurrent();
+  if (page && fxActive(page)) chips.push({ l: L('{n} filters', { n: fxCount(page) }), k: 'fx:' + page });
+  const n = parts.length;
+  el.innerHTML = parts.map((p, i) => {
+    const last = i === n - 1;
+    const inner = esc(p.l || '…');
+    return (i ? '<span class="crumb-sep" aria-hidden="true">›</span>' : '')
+      + (last || !p.go ? `<span class="crumb${last ? ' cur' : ''}"${last ? ' aria-current="page"' : ''}>${inner}</span>`
+        : `<button type="button" class="crumb" data-crumb="${esc(p.go)}"${p.t ? ` title="${esc(p.t)}"` : ''}>${inner}</button>`);
+  }).join('') + chips.map((c) => `<button type="button" class="crumb-chip" data-crumb-clear="${esc(c.k)}" title="${esc(L('Filter weghalen'))}">${esc(c.l)} ✕</button>`).join('');
+  el.hidden = false;
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('#crumbs [data-crumb], #crumbs [data-crumb-clear]');
+  if (!b) return;
+  if (b.dataset.crumb) return showTab(b.dataset.crumb);
+  const k = b.dataset.crumbClear;
+  if (k === 'dash') dashFilter = 'all';
+  else if (k === 'status') statusFilter = null;
+  else if (k.startsWith('fx:')) { const p = k.slice(3); Object.keys(fxGet(p)).forEach((x) => delete fxSel[p][x]); fxChanged(p); }
+  render();
+  crumbs();
+});
 
 /** Het open venster live bijwerken (1.109.0): het venster van een check; de Agent Manager doet dat zelf al */
 function liveModal() {
@@ -1838,6 +1909,45 @@ if (!DASH_FILTERS.some((f) => f[0] === dashFilter)) dashFilter = 'all';   // bv.
 /** Gekozen soort op het dashboard (of null bij Alle, Problemen, Onderhoud) */
 const dashGroup = () => (dashFilter.startsWith('g:') ? dashFilter.slice(2) : null);
 
+/** 1.199.0: mini-overzicht in de tellerbalk: per soort de hoogste waarde met de server erbij (niet het gemiddelde: dat verbergt
+ * de ene server op 95%). Hover = de top 3, klik = de servers op die waarde sorteren (nog eens = terug naar Ergste eerst). */
+const MINI_RES = [['cpu', () => 'CPU'], ['ram', () => 'RAM'], ['disk', () => L('Disk')]];
+function hostMax(h, type) {
+  const v = h.checks.filter((c) => c.type === type && +c.enabled && !c.maintenance && c.last_value !== null && c.last_value !== undefined).map((c) => +c.last_value);
+  return v.length ? Math.max(...v) : null;
+}
+/** Dagen tot de disk vol is, uit de trend die RzMon al bijhoudt (zelfde regel als Stats::diskForecast) */
+function diskDays(c) {
+  const t = c.trend_per_day !== null && c.trend_per_day !== undefined ? +c.trend_per_day : null;
+  if (t === null || t <= 0.05 || +c.last_value >= 100) return null;
+  const d = (100 - +c.last_value) / t;
+  return d <= 365 ? d : null;
+}
+function miniRes(inGroup) {
+  const el = $('#mini-res');
+  if (!el) return;
+  const fxOn = fxActive('dash');
+  const hosts = state.hosts.filter((h) => +h.enabled && inGroup(h.id) && (!fxOn || h.checks.some((c) => fxPass('dash', { h, c }))));
+  el.innerHTML = MINI_RES.map(([type, lbl]) => {
+    const all = [];
+    hosts.forEach((h) => h.checks.forEach((c) => {
+      if (c.type === type && +c.enabled && !c.maintenance && c.last_value !== null && c.last_value !== undefined) all.push({ h, c, v: +c.last_value });
+    }));
+    if (!all.length) return '';
+    all.sort((a, b) => b.v - a.v);
+    const top = all[0];
+    const st = [0, 1, 2].includes(+top.c.status) ? +top.c.status : 3;
+    const days = type === 'disk' ? diskDays(top.c) : null;
+    const seen = new Set();
+    const top3 = all.filter((x) => (seen.has(x.h.id) ? false : seen.add(x.h.id))).slice(0, 3)
+      .map((x) => `${x.h.name}${type === 'disk' && x.c.target ? ' ' + x.c.target : ''}: ${Math.round(x.v)}%`).join(' · ');
+    const on = dashSort === type;
+    return `<button type="button" class="mres s${st}${on ? ' on' : ''}" data-mres="${type}" title="${esc(top3)} – ${esc(on ? L('klik: weer ergste eerst') : L('klik: servers sorteren op {w}', { w: lbl() }))}">
+      <span class="mres-k">${esc(lbl())}</span><span class="mres-bar"><b style="width:${Math.min(100, Math.max(2, top.v))}%"></b></span>
+      <b class="mres-v">${Math.round(top.v)}%</b><span class="mres-h">${esc(top.h.name)}${days !== null ? ` · <span class="${days <= 14 ? 'crit-txt' : 'warn-txt'}">${esc(L('vol over {n} d', { n: Math.max(1, Math.round(days)) }))}</span>` : ''}</span></button>`;
+  }).join('');
+}
+
 /** Kerncijfers, tellers en "Nu aandacht nodig" bovenaan het dashboard. Toestand en score komen van de server (Health.php). */
 function renderHealth() {
   const g = dashGroup();
@@ -1853,6 +1963,7 @@ function renderHealth() {
       <span class="hc-dot"></span><b data-flash>${n}</b> <span class="hc-w">${WORD[st]}</span></button>`;
   }).join('');
 
+  miniRes(inGroup);   // 1.199.0
   // Kerncijfers als tegels
   const stateCls = { ok: 'ok', attention: 'warn', outage: 'bad' }[hl.state];
   const hostLink = (id, text) => `<button type="button" class="hl-link" data-host="${id}">${esc(text)}</button>`;
@@ -2094,6 +2205,7 @@ function setMonSub(s) {
   if (monSub === 'paths') npLoad();
   $$('#mon-tabs [data-msub]').forEach((b) => { const on = b.dataset.msub === monSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   if (monSub === 'avail') avLoad();
+  crumbs();   // 1.199.0
 }
 
 async function avLoad(force = false) {
@@ -3254,7 +3366,7 @@ function initAiSettings() {
   guard('#ai-exec', 'exec', L('Uitvoeren vanuit een advies'));
 }
 
-function render() { withMorph(renderNow); }
+function render() { withMorph(renderNow); crumbs(); }
 function renderNow() {
   renderHealth();
   renderIsoBanner();
@@ -3301,7 +3413,8 @@ function renderNow() {
       return { ...h, shown: checks, match: hostMatch, autoOpen: ((!!f && !hostMatch) || fxChecks) && checks.length > 0 };
     })
     .filter((h) => (h.match && !narrowed && !fxChecks) || h.shown.length)
-    .sort((a, b) => (dashSort === 'name' ? 0 : STATUS_RANK[hostStatus(b)] - STATUS_RANK[hostStatus(a)]) || byName(a, b));
+    .sort((a, b) => (MINI_RES.some((m) => m[0] === dashSort) ? (hostMax(b, dashSort) ?? -1) - (hostMax(a, dashSort) ?? -1)
+      : dashSort === 'name' ? 0 : STATUS_RANK[hostStatus(b)] - STATUS_RANK[hostStatus(a)]) || byName(a, b));
 
   fxRender('dash');
   const el = $('#hosts');
@@ -8605,6 +8718,7 @@ function showIdsTab() {
   if (idsTab === 'mitre') loadMitre();
   if (idsTab === 'prot') loadProt();
   if (idsTab === 'map') { initAttackMap(); loadAttackMap(); }   // 1.149.0
+  crumbs();   // 1.199.0
 }
 
 // ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
@@ -12037,6 +12151,7 @@ function showSettingsSection(id, focusEl) {
     $$('#tab-settings [data-sk] input, #tab-settings [data-sk] select, #tab-settings [data-sk] textarea').forEach((x) => { x.disabled = true; });
   }
   $('#set-crumb').textContent = `${L('Instellingen')} › ${f.group}`;
+  crumbs();   // 1.199.0
   // Eén kaart op de pagina: zijn titel is gelijk aan de paginatitel, dus weg (tenzij er knoppen in staan)
   const shown = $$('#tab-settings [data-sk]').filter((c) => !c.classList.contains('set-off'));
   $$('#tab-settings [data-sk] > h2').forEach((h) => h.classList.toggle('set-dup', shown.length === 1 && shown[0] === h.parentElement && !h.querySelector('button, input, a')));
@@ -15184,6 +15299,7 @@ function setNetSub(s) {
   if (netSub === 'map') renderNetMap();
   $$('#net-tabs [data-nsub]').forEach((b) => { const on = b.dataset.nsub === netSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   if (netSub === 'disc') ndLoad();
+  crumbs();   // 1.199.0
 }
 async function ndLoad() {
   if (!ndData) $('#net-disc').innerHTML = `<p class="muted">${L('laden…')}</p>`;
@@ -15813,6 +15929,7 @@ function showVulnTab() {
   if (!['cve', 'leak'].includes(vulnTab)) vulnTab = 'cve';
   $$('#vuln-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.vt === vulnTab));
   $$('#tab-vulns .vuln-pane').forEach((x) => { x.hidden = x.dataset.vpane !== vulnTab; });
+  crumbs();   // 1.199.0
 }
 
 function initLeaks() {

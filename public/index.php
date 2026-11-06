@@ -205,6 +205,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <button type="button" class="cc-tvexit" id="cc-tvexit" hidden><?= th('✕ TV-modus uit') ?></button>
   <main class="container">
     <div class="iso-banner" id="iso-banner" role="alert" hidden></div><!-- 1.172.0: server in isolatie -->
+    <nav class="crumbs" id="crumbs" aria-label="<?= th('Kruimelpad') ?>" hidden></nav><!-- 1.199.0: waar ben je, met elk stuk klikbaar -->
     <!-- 1.194.0: mDS, alleen op een telefoon -->
     <section id="tab-mds" class="tab-panel" aria-label="<?= th('Mobile device summary') ?>" hidden><div id="mds" class="mds"></div></section>
     <section id="tab-home" class="tab-panel" aria-label="<?= th('Dashboard') ?>">
@@ -224,6 +225,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
       <div class="dash-counters" id="dash-counters">
         <div class="dash-in">
           <div class="health-counts" id="health-counts" role="group" aria-label="<?= th('Filter op status') ?>"></div>
+          <div class="mres-row" id="mini-res" role="group" aria-label="<?= th('CPU, RAM en disk') ?>"></div><!-- 1.199.0 -->
           <span class="dash-last muted small"><span class="live-dot" id="live-dot" title="<?= th('Live: wijzigingen komen binnen een paar seconden binnen') ?>"></span> <span id="last-run"></span></span>
         </div>
       </div>
@@ -245,6 +247,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
         <select id="dash-sort" aria-label="<?= th('Sorteren') ?>">
           <option value="status"><?= th('Ergste eerst') ?></option>
           <option value="name"><?= th('Op naam') ?></option>
+          <option value="cpu"><?= th('Hoogste CPU') ?></option>
+          <option value="ram"><?= th('Hoogste RAM') ?></option>
+          <option value="disk"><?= th('Volste disk') ?></option>
         </select>
         <div class="dash-more">
           <button class="btn" id="dash-more-btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>

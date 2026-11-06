@@ -62,6 +62,8 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🧭 Dashboard en weergave | **Thema's** | Licht, donker en meer, per account. | 1.135.0 |
 | 🧭 Dashboard en weergave | **Weergave voor nieuwe accounts** | De standaard IDS-weergave en beweging. | 1.181.0 |
 | 🧭 Dashboard en weergave | **Echt live** | Wijzigingen binnen een paar seconden op je scherm. | 1.109.0 |
+| 🧭 Dashboard en weergave | **Kruimelpad** | Boven elke pagina waar je bent, elk stuk klikbaar, met de filters die aan staan. | 1.199.0 |
+| 🧭 Dashboard en weergave | **CPU, RAM en disk in de tellerbalk** | De hoogste waarde met de server, de top 3 en sorteren met één klik. | 1.199.0 |
 | 🧭 Dashboard en weergave | **Snelzoeken (Ctrl+K)** | Servers, checks, pagina's en instellingen zoeken. | 1.107.0 |
 | 🧭 Dashboard en weergave | **Filters op elke pagina** | Per onderdeel meerdere waarden, onthouden per account. | 1.71.0 |
 | 🧭 Dashboard en weergave | **Nederlands en Engels** | De hele interface en de meldingen. | 1.50.0 |

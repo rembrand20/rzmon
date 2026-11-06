@@ -76,6 +76,8 @@ final class Features
         ['dash', ['Thema\'s', 'Themes'], ['Licht, donker en meer, per account.', 'Light, dark and more, per account.'], '1.135.0', '', '#account'],
         ['dash', ['Weergave voor nieuwe accounts', 'Defaults for new accounts'], ['De standaard IDS-weergave en beweging.', 'The default IDS view and motion.'], '1.181.0', '', 'looks'],
         ['dash', ['Echt live', 'Truly live'], ['Wijzigingen binnen een paar seconden op je scherm.', 'Changes on your screen within a few seconds.'], '1.109.0', '', ''],
+        ['dash', ['Kruimelpad', 'Breadcrumbs'], ['Boven elke pagina waar je bent, elk stuk klikbaar, met de filters die aan staan.', 'Above every page where you are, every part clickable, with the active filters.'], '1.199.0', '', ''],
+        ['dash', ['CPU, RAM en disk in de tellerbalk', 'CPU, RAM and disk in the counter bar'], ['De hoogste waarde met de server, de top 3 en sorteren met één klik.', 'The highest value with the server, the top 3 and sorting with one click.'], '1.199.0', '', ''],
         ['dash', ['Snelzoeken (Ctrl+K)', 'Quick search (Ctrl+K)'], ['Servers, checks, pagina\'s en instellingen zoeken.', 'Search servers, checks, pages and settings.'], '1.107.0', '', ''],
         ['dash', ['Filters op elke pagina', 'Filters on every page'], ['Per onderdeel meerdere waarden, onthouden per account.', 'Several values per part, remembered per account.'], '1.71.0', '', ''],
         ['dash', ['Nederlands en Engels', 'Dutch and English'], ['De hele interface en de meldingen.', 'The whole interface and the notifications.'], '1.50.0', '', '#account'],

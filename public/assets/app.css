@@ -4310,3 +4310,39 @@ body.mds-on { overscroll-behavior-y: contain; }
 .mds-more-n { position: absolute; top: 8px; right: 8px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center;
   background: var(--crit); color: #fff; font-size: .72rem; font-weight: 800; }
 .mds-more-n.s1 { background: var(--warn); }
+
+/* 1.199.0: kruimelpad boven elke pagina */
+.crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: .15rem .35rem; max-width: 1400px; margin: .55rem auto 0; padding: 0 1.25rem; font-size: .82rem; color: var(--muted); }
+.crumbs .crumb { border: 0; background: none; padding: .15rem .3rem; border-radius: 6px; color: var(--muted); font: inherit; cursor: pointer; }
+.crumbs button.crumb:hover { color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.crumbs .crumb.cur { color: var(--text); font-weight: 650; cursor: default; }
+.crumbs span.crumb:not(.cur) { cursor: default; }
+.crumbs .crumb-sep { opacity: .55; }
+.crumbs .crumb-chip { margin-left: .4rem; border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  color: var(--primary); border-radius: 999px; padding: .1rem .55rem; font: inherit; font-size: .76rem; font-weight: 600; cursor: pointer; }
+.crumbs .crumb-chip:hover { border-color: var(--primary); }
+.crumbs-on #set-crumb { display: none; }
+body.tv .crumbs { display: none; }
+@media (max-width: 720px) { .crumbs { display: none; } }
+
+/* 1.199.0: mini-overzicht CPU, RAM en disk in de tellerbalk van Monitoring */
+.mres-row { display: flex; gap: .5rem; margin-left: auto; flex: none; }
+.dash-counters .health-counts { flex: 0 1 auto; min-width: 0; }
+.crumbs-on .dash-counters { margin-top: .35rem; }
+.mres-row:empty { display: none; }
+.mres { flex: none; display: grid; grid-template-columns: auto 52px auto; grid-template-rows: auto auto; column-gap: .45rem; align-items: center; padding: .3rem .7rem; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--card); color: var(--muted); font: inherit; cursor: pointer; text-align: left; min-width: 0; }
+.mres:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
+.mres.on { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent); }
+.mres-k { font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.mres-bar { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--muted) 22%, transparent); overflow: hidden; }
+.mres-bar b { display: block; height: 100%; border-radius: 3px; background: var(--ok, #22c55e); }
+.mres.s1 .mres-bar b { background: var(--warn); }
+.mres.s2 .mres-bar b { background: var(--crit); }
+.mres.s3 .mres-bar b { background: var(--muted); }
+.mres-v { font-size: 1rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.mres.s1 .mres-v { color: var(--warn); }
+.mres.s2 .mres-v { color: var(--crit); }
+.mres-h { grid-column: 1 / -1; font-size: .72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+@media (max-width: 1500px) { .mres-h { display: none; } .mres { grid-template-rows: auto; } }
+@media (max-width: 900px) { .mres-row { display: none; } }

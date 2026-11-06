@@ -8387,4 +8387,13 @@ return [
     'Top verkeer vandaag' => 'Top traffic today',
     '{host}: agent stil' => '{host}: agent silent',
     '{host}: {n} problemen' => '{host}: {n} problems',
+    'Kruimelpad' => 'Breadcrumbs',
+    'CPU, RAM en disk' => 'CPU, RAM and disk',
+    'Hoogste CPU' => 'Highest CPU',
+    'Hoogste RAM' => 'Highest RAM',
+    'Volste disk' => 'Fullest disk',
+    '{n} filters' => '{n} filters',
+    'klik: weer ergste eerst' => 'click: worst first again',
+    'klik: servers sorteren op {w}' => 'click: sort servers by {w}',
+    'vol over {n} d' => 'full in {n} d',
 ];

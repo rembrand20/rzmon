@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.199.0**: **kruimelpad** boven elke pagina en **CPU · RAM · Disk** (hoogste waarde) in de tellerbalk van Monitoring.
 - **1.198.0**: de Home Assistant-kaart toont nu ook **de servers** (status, CPU, RAM en disk).
 - **1.197.0**: **netwerkkaart voor Home Assistant**: oordeel, internet, verbruik, apparaten, paden en IDS op je HA-dashboard.
 - **1.196.0**: **rustiger tabbalk op een telefoon**: vijf knoppen, de rest onder **Meer**.
 - **1.195.0**: **mDS volledig touch**: bladen van onderaf, vegen, trekken om te verversen en grote knoppen.
-- **1.194.0**: **mDS**, een eigen samenvatting voor je telefoon (startpagina daar), met snelle acties.
+
+## 1.199.0 – 2026-11-06
+### Nieuw
+- **Kruimelpad** boven elke pagina: *🏠 › Monitoring › Netwerkpaden*, *🏠 › Instellingen › Monitoring › Advies › Slimme drempels*. Elk stuk is klikbaar, en filters die aan staan staan erachter als knopje (*CRITICAL ✕*, *2 filters ✕*) om ze met één klik weg te halen. Niet op de telefoon.
+- **CPU · RAM · Disk in de tellerbalk van Monitoring**: per soort de hoogste waarde van je servers met de server erbij (en bij disk *vol over 14 d*), in de kleur van de drempels van die check. Wijs aan voor de top 3, klik om de servers daarop te sorteren. Volgt je filters.
+- Sorteren op **Hoogste CPU**, **Hoogste RAM** en **Volste disk** in de keuzelijst van Monitoring.
 
 ## 1.198.0 – 2026-11-06
 ### Nieuw
