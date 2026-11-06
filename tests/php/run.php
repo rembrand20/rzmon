@@ -1681,6 +1681,15 @@ ok($ctDisk === 1 && $ctPing === 3 && $ctOwn === 4 && !$ctBad && $fl['raw'] === 2
     && ($fl['eta'] ?? -1) >= 99 && ($fl['eta'] ?? 0) <= 101,
     'status bevestigen per soort: disk 1, ping de algemene 3, eigen waarde gaat voor, ongeldige soort weg; popup: ruwe meting critical, bevestigen 1/3, melding over ±100 s (40 s sneller bevestigen + meldregel na 1 min)');
 
+// 1.197.0: netwerk in het kort voor de Home Assistant-kaart (GET /v1.php/network), met en zonder IDS
+$nw = Mds::network(false);
+$nwi = Mds::network(true);
+ok(in_array($nw['status'], [0, 1, 2], true) && is_array($nw['problems']) && is_array($nw['paths']) && $nw['ids'] === null && is_array($nwi['ids'])
+    && array_key_exists('internet', $nw) && array_key_exists('month', $nw) && array_key_exists('devices', $nw),
+    'HA-netwerkkaart: oordeel met redenen, internet, maand, apparaten en paden; IDS alleen met het recht IDS lezen');
+ok(is_file(__DIR__ . '/../../public/assets/rzmon-network-card.js') && str_contains((string) file_get_contents(__DIR__ . '/../../public/assets/rzmon-network-card.js'), "customElements.define('rzmon-network-card'"),
+    'HA-netwerkkaart: het kaartbestand bestaat en definieert rzmon-network-card');
+
 // 1.194.0: mDS (Mobile device summary): beveiliging en netwerk in één keer, ook als een module uit staat
 $mds = Mds::data();
 ok(is_array($mds['sec']) && isset($mds['sec']['inc'], $mds['sec']['blk_today'], $mds['sec']['logins']) && array_key_exists('vulns', $mds['sec'])

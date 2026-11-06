@@ -1443,6 +1443,11 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
           <div id="api-key-fields"></div>
           <button class="btn"><?= th('＋ Sleutel maken') ?></button>
         </form>
+        <!-- 1.197.0: de netwerkkaart voor Home Assistant -->
+        <h3 class="set-sub">🏠 <?= th('Home Assistant-kaart') ?></h3>
+        <?= xp(t('Een kaart voor je Home Assistant-dashboard met het netwerk in het kort, zoals mDS.'), t('<b>Wat je ziet:</b> één oordeel (met de redenen), de internetlijn, het verbruik deze maand, de apparaten, de netwerkpaden, het IDS en de top 3 verkeer vandaag. Tik op een tegel en RzMon opent op die plek. <b>Zo zet je hem erin:</b> 1. maak hierboven een sleutel met alleen <i>Status lezen</i> (en <i>IDS lezen</i> voor de IDS-tegel); 2. in Home Assistant: <i>Instellingen → Dashboards → ⋮ → Bronnen → Bron toevoegen</i>, met de URL hieronder als <i>JavaScript-module</i>; 3. ververs de pagina en voeg de kaart <i>RzMon netwerk</i> toe. <b>Let op:</b> de browser of de app haalt de gegevens zelf bij RzMon op. Gebruikt Home Assistant https, dan moet RzMon ook via https bereikbaar zijn, en zet je <i>alleen vanaf</i> bij de sleutel, dan moeten de adressen van je telefoon en computer erin staan. Iedereen die het dashboard mag bewerken ziet de sleutel; daarom alleen leesrechten.')) ?>
+        <p class="small"><?= th('Bron (JavaScript-module):') ?> <code id="ha-card-url"></code> <button type="button" class="link-btn" id="ha-card-copy"><?= th('Kopieer') ?></button></p>
+        <pre class="code" id="ha-card-yaml"></pre>
         <details class="small api-docs">
           <summary><?= th('Endpoints') ?></summary>
           <ul>
@@ -1451,6 +1456,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
             <li><?= t('<code>GET /checks</code> – alle checks (<code>?status=2</code>, <code>?type=disk</code>, <code>?host_id=1</code>)') ?></li>
             <li><?= t('<code>GET /checks/{id}</code> · <code>/checks/{id}/history?hours=24</code>') ?></li>
             <li><?= t('<code>GET /alerts?limit=50</code> – laatste meldingen') ?></li>
+            <li><?= t('<code>GET /network</code> – netwerk in het kort: oordeel met redenen, internetlijn, verbruik deze maand, apparaten, netwerkpaden (en IDS met <i>IDS lezen</i>)') ?></li>
           </ul>
           <p class="muted"><?= th('🛡️ IDS lezen:') ?></p>
           <ul>

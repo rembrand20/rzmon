@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.197.0**: **netwerkkaart voor Home Assistant**: oordeel, internet, verbruik, apparaten, paden en IDS op je HA-dashboard.
 - **1.196.0**: **rustiger tabbalk op een telefoon**: vijf knoppen, de rest onder **Meer**.
 - **1.195.0**: **mDS volledig touch**: bladen van onderaf, vegen, trekken om te verversen en grote knoppen.
 - **1.194.0**: **mDS**, een eigen samenvatting voor je telefoon (startpagina daar), met snelle acties.
 - **1.193.0**: **van meting tot melding** zichtbaar in de popup, **bevestigen per soort check**, **sneller bevestigen** en één knop **Advies toepassen**.
-- **1.192.0**: **iperf3 vanzelf geïnstalleerd** waar de doorvoertest het nodig heeft (zender en ontvanger), veilig via dezelfde weg als pakketten bijwerken.
+
+## 1.197.0 – 2026-11-06
+### Nieuw
+- **🏠 Netwerkkaart voor Home Assistant** (`custom:rzmon-network-card`): het netwerk in het kort op je HA-dashboard, in dezelfde stijl als mDS:
+  - **één oordeel** bovenaan (*Alles in orde*, *Let op* of *Storing*) met de redenen eronder;
+  - tegels voor **Internet** (↓ ↑, vertraging en hoeveel van je abonnement), **Deze maand** (verbruik, limiet en verwachting), **Apparaten** (online, nieuw) en **IDS** (open incidenten, kritiek, geblokkeerd vandaag);
+  - de **netwerkpaden** met bolletje, ms en verlies, en de **top 3 verkeer vandaag**;
+  - tik op een tegel en RzMon opent op die plek; volgt het thema van Home Assistant (licht en donker) en de taal (Nederlands of Engels); in te stellen met de visuele editor.
+- De kaart haalt alles rechtstreeks bij RzMon op met een API-sleutel. Nieuw endpoint **`GET /v1.php/network`** (recht *Status lezen*; de IDS-tellers alleen met *IDS lezen*). Bron voor HA: `https://<rzmon>/ha-card.php`.
+- Bij **Instellingen → Koppelingen → API-sleutels** staat een blok *Home Assistant-kaart* met de bron-URL en de YAML; een nieuwe sleutel toont de YAML meteen mét de sleutel.
+- Nieuwe directe links: `#net/map`, `#net/list`, `#net/disc` en `#dashboard/paths` (ook `/avail` en `/cont`).
 
 ## 1.196.0 – 2026-11-06
 ### Nieuw

@@ -15,6 +15,94 @@ final class Mds
         return ['at' => time(), 'sec' => self::safe(static fn() => self::sec()), 'net' => self::safe(static fn() => self::net())];
     }
 
+    /**
+     * 1.197.0: netwerk in het kort voor de Home Assistant-kaart (GET /v1.php/network): één oordeel met de redenen,
+     * internetlijn, maandverbruik, apparaten, netwerkpaden en (alleen met het recht IDS lezen) de IDS-tellers.
+     * @return array<string, mixed>
+     */
+    public static function network(bool $ids): array
+    {
+        $net = self::safe(static fn() => self::net()) ?: ['inet' => null, 'wan' => null, 'new' => null, 'today' => null, 'top' => []];
+        $why = [];
+        $worst = 0;
+        $flag = static function (int $st, string $txt) use (&$why, &$worst): void {
+            $worst = max($worst, $st);
+            $why[] = ['status' => $st, 'text' => $txt];
+        };
+
+        // Internetlijn: de checks van het apparaat Internet (ping, responstijd, download, upload)
+        $inet = $net['inet'];
+        $ic = self::safe(static fn() => q("SELECT metric, status, last_message FROM checks WHERE type = 'internet' AND enabled = 1")->fetchAll()) ?: [];
+        if ($ic) {
+            $st = 0;
+            foreach ($ic as $c) {
+                $s = (int) $c['status'];
+                if ($s === STATUS_CRIT || $s === STATUS_WARN) {
+                    $st = max($st, $s === STATUS_CRIT ? 2 : 1);
+                }
+            }
+            $inet ??= ['down' => null, 'up' => null, 'lat' => null, 'at' => null, 'err' => null, 'plan' => null];
+            $inet['status'] = $st;
+            $inet['plan_up'] = Internet::plan('up');
+            $inet['host'] = (string) q("SELECT h.name FROM hosts h JOIN checks c ON c.host_id = h.id WHERE c.type = 'internet' ORDER BY h.id LIMIT 1")->fetchColumn();
+            if ($st) {
+                $flag($st, $st === 2 ? t('Internetlijn heeft een storing') : t('Internetlijn is traag'));
+            }
+        }
+
+        // Maandverbruik: waarschuwen als de verwachting boven de limiet komt
+        $wan = $net['wan'];
+        if ($wan && !empty($wan['cap'])) {
+            $wan['pct'] = (int) round(100 * $wan['used'] / $wan['cap']);
+            if ($wan['used'] >= $wan['cap']) {
+                $flag(2, t('Maandlimiet bereikt'));
+            } elseif (!empty($wan['forecast']) && $wan['forecast'] > $wan['cap']) {
+                $flag(1, t('Maandlimiet wordt deze maand gehaald'));
+            }
+        }
+
+        // Apparaten (netwerkscan)
+        $dev = null;
+        if (NetScan::enabled()) {
+            $r = self::safe(static fn() => q("SELECT COUNT(*) AS total, SUM(last_seen >= NOW() - INTERVAL 1 HOUR) AS online FROM net_devices WHERE status <> 'ignored'")->fetch()) ?: [];
+            $dev = ['total' => (int) ($r['total'] ?? 0), 'online' => (int) ($r['online'] ?? 0), 'new' => (int) $net['new'], 'today' => $net['today'], 'top' => $net['top']];
+            if ($dev['new']) {
+                $flag(1, t('{n} nieuwe apparaten', ['n' => $dev['new']]));
+            }
+        }
+
+        // Netwerkpaden: status, ms, verlies en hops uit path_sum
+        $paths = [];
+        foreach (self::safe(static fn() => q("SELECT c.id, c.name, c.status, c.path_sum, c.last_value, h.name AS host FROM checks c JOIN hosts h ON h.id = c.host_id
+                WHERE c.type = 'path' AND c.enabled = 1 ORDER BY c.status = 2 DESC, c.status = 1 DESC, h.name, c.name")->fetchAll()) ?: [] as $c) {
+            $s = json_decode((string) $c['path_sum'], true) ?: [];
+            $st = (int) $c['status'];
+            $paths[] = ['name' => $c['name'], 'host' => $c['host'], 'status' => $st, 'ms' => $s['ms'] ?? ($c['last_value'] !== null ? (float) $c['last_value'] : null),
+                'loss' => $s['l'] ?? null, 'hops' => $s['h'] ?? null, 'mbit' => $s['mb'] ?? null, 'why' => ($s['w'] ?? '') ?: null];
+            if ($st === STATUS_CRIT || $st === STATUS_WARN) {
+                $flag($st === STATUS_CRIT ? 2 : 1, $c['host'] . ' · ' . (($s['w'] ?? '') !== '' ? $s['w'] : $c['name']));
+            }
+        }
+
+        $sec = null;
+        if ($ids) {
+            $x = self::safe(static fn() => self::sec());
+            if (is_array($x)) {
+                $sec = ['inc' => $x['inc'], 'inc_crit' => $x['inc_crit'], 'blk_today' => $x['blk_today'], 'blk_now' => $x['blk_now']];
+                if ($x['inc_crit']) {
+                    $flag(2, t('{n} kritieke incidenten', ['n' => $x['inc_crit']]));
+                } elseif ($x['inc']) {
+                    $flag(1, t('{n} open incidenten', ['n' => $x['inc']]));
+                }
+            }
+        }
+
+        usort($why, static fn($a, $b) => $b['status'] <=> $a['status']);
+        $label = [t('Alles in orde'), t('Let op'), t('Storing')][$worst];
+        return ['at' => date('c'), 'status' => $worst, 'status_text' => $label, 'problems' => $why, 'internet' => $inet, 'month' => $wan,
+            'devices' => $dev, 'paths' => $paths, 'ids' => $sec, 'version' => RZMON_VERSION];
+    }
+
     private static function safe(callable $f): mixed
     {
         try {

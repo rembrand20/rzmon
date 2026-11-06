@@ -1611,6 +1611,10 @@ function showTab(name) {
   const qs = qi >= 0 ? name.slice(qi + 1) : '';
   if (qi >= 0) name = name.slice(0, qi);
   if (name === 'settings/blocks') name = 'ids/blk';   // 1.92.0: blokkades en whitelist staan in het IDS-tabblad
+  // 1.197.0: diepe links (o.a. vanuit de Home Assistant-kaart): #net/map, #net/list, #net/disc en #dashboard/paths, /avail, /cont
+  let netReq = null, monReq = null;
+  if (/^net\/(map|list|disc)$/.test(name)) { netReq = name.slice(4); name = 'net'; }
+  if (/^dashboard\/(paths|avail|cont|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
   if (/^(ids|vulns)\//.test(name)) {
     const [tab, s] = name.split('/');
     name = tab;
@@ -1639,6 +1643,8 @@ function showTab(name) {
   if ((name === 'dashboard' || name === 'alerts') && state.badges) refresh();   // tab gezien: teller naar 0
   if (name === 'ids') loadIds();
   if (name === 'net') loadNet();
+  if (netReq) setNetSub(netReq);   // 1.197.0
+  if (monReq) setMonSub(monReq);
   if (name === 'home') loadHome();
   if (name === 'mds') loadMds();   // 1.194.0
   document.body.classList.toggle('mds-on', name === 'mds');   // 1.195.0: geen trekken-om-te-herladen van de browser zelf
@@ -11556,6 +11562,19 @@ function agentCertRenew(d, what = 'renew') {
 function apiBase() {
   return location.origin + location.pathname.replace(/\/[^/]*$/, '') + '/v1.php';
 }
+/** 1.197.0: de YAML voor de Home Assistant-kaart (met of zonder sleutel) */
+function haCardYaml(key) {
+  const base = apiBase().replace(/\/v1\.php$/, '');
+  return `type: custom:rzmon-network-card\nurl: ${base}\napi_key: ${key || '<sleutel met Status lezen>'}\nrefresh: 60`;
+}
+function haCardInfo() {
+  const u = $('#ha-card-url');
+  if (!u) return;
+  const url = apiBase().replace(/\/v1\.php$/, '') + '/ha-card.php';
+  u.textContent = url;
+  $('#ha-card-yaml').textContent = haCardYaml('');
+  $('#ha-card-copy').onclick = async () => { try { await navigator.clipboard.writeText(url); toast(L('Gekopieerd')); } catch (e) { /* niet erg */ } };
+}
 
 const API_RIGHTS = {
   read: [L('📖 Status lezen'), L('servers, checks, meetwaarden, meldingen')],
@@ -11597,6 +11616,7 @@ function apiKeyExpiry(k) {
 let apiKeys = [];
 async function loadApiKeys() {
   $('#api-base').textContent = apiBase();
+  haCardInfo();   // 1.197.0
   if (!$('#api-key-fields').innerHTML) $('#api-key-fields').innerHTML = apiKeyFields();
   apiKeys = await api('api_keys');
   $('#api-keys').innerHTML = apiKeys.length ? apiKeys.map((k) => `
@@ -11670,7 +11690,8 @@ function newApiKeyDialog(key, rights) {
     body: `<p>${L('Kopieer deze sleutel nu — hij wordt <b>niet</b> opnieuw getoond.')}</p>
       <div class="new-key"><input id="new-key" readonly value="${esc(key)}"><button type="button" class="btn" id="copy-key">${L('Kopieer')}</button></div>
       <p class="muted small" style="margin-top:1rem">Test:</p>
-      <pre class="code">${ex.join('\n\n')}</pre>`,
+      <pre class="code">${ex.join('\n\n')}</pre>
+      ${rights.includes('read') ? `<p class="muted small" style="margin-top:1rem">${L('Home Assistant-kaart (YAML):')}</p><pre class="code">${esc(haCardYaml(key))}</pre>` : ''}`,
     buttons: [{ label: L('Klaar'), cls: 'primary', submit: true }],
   });
   $('#copy-key').onclick = async () => {

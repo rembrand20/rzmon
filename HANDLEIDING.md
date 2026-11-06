@@ -3723,6 +3723,36 @@ Herstart Home Assistant. Ideeën:
 
 ---
 
+### Home Assistant: netwerkkaart 🏠 (vanaf 1.197.0)
+Een eigen kaart voor je HA-dashboard met **het netwerk in het kort**, in dezelfde stijl als mDS:
+- bovenaan **één oordeel**: *Alles in orde*, *Let op* of *Storing*, met de redenen eronder (bijvoorbeeld *pve-node · 1.1.1.1: 88 ms, 30% verlies* of *4 nieuwe apparaten*);
+- **Internet**: download en upload van de laatste meting, de vertraging en hoeveel procent van je abonnement je haalt;
+- **Deze maand**: het verbruik van je internetlijn, je limiet en wat er aan het eind van de maand verwacht wordt;
+- **Apparaten**: hoeveel er online zijn (het laatste uur gezien) en hoeveel nieuw;
+- **IDS**: open incidenten, hoeveel kritiek en hoeveel IP's vandaag geblokkeerd zijn (alleen met het recht *IDS lezen*);
+- **Netwerkpaden**: elk pad met een bolletje, de vertraging en het verlies;
+- **Top verkeer vandaag**: de drie apparaten met het meeste verkeer.
+
+Tik op een tegel of regel en RzMon opent op die plek (Netwerkpaden, Netwerk → Ontdekken, IDS …). De kaart volgt het thema (licht/donker) en de taal van Home Assistant, en ververst elke minuut (en meteen als je het dashboard weer opent).
+
+**Zo zet je hem erin:**
+1. Maak in RzMon bij **Instellingen → Koppelingen → API-sleutels** een sleutel met alleen **Status lezen** (en **IDS lezen** voor de IDS-tegel). Het venster met de nieuwe sleutel toont meteen de YAML voor de kaart.
+2. In Home Assistant: **Instellingen → Dashboards → ⋮ → Bronnen → Bron toevoegen**. URL: `https://<rzmon>/ha-card.php`, soort **JavaScript-module**. (De juiste URL staat in RzMon onder de API-sleutels.)
+3. Ververs de pagina, bewerk een dashboard en voeg de kaart **RzMon netwerk** toe. Vul de URL van RzMon en de sleutel in; de rest kies je met schakelaars. Of in YAML:
+```yaml
+type: custom:rzmon-network-card
+url: https://rzmon.thuis.lan
+api_key: rzm_xxxxxxxx
+refresh: 60            # seconden (15–3600)
+title: Netwerk         # optioneel
+show_ids: true         # en show_internet, show_month, show_devices, show_paths, show_top, show_problems
+```
+**Goed om te weten:**
+- De gegevens worden door de **browser of de HA-app zelf** bij RzMon opgehaald, niet door de HA-server. RzMon moet dus bereikbaar zijn vanaf je telefoon en computer, en gebruikt Home Assistant **https**, dan moet RzMon ook via https bereikbaar zijn (anders blokkeert de browser het als *mixed content*).
+- Zet je **Alleen vanaf** bij de sleutel, neem dan de adressen (of het netwerk) van je telefoon en computer op.
+- Iedereen die het dashboard mag bewerken kan de sleutel zien. Geef de sleutel daarom **alleen leesrechten**.
+- Het endpoint erachter is `GET /v1.php/network`; je kunt het ook zelf gebruiken (bijvoorbeeld in een `rest`-sensor).
+
 ### Statuspagina 🟢 (vanaf 1.107.0)
 Een eenvoudige pagina voor huisgenoten of klanten: *Instellingen → Koppelingen → Statuspagina*.
 - Kies **onderdelen** ("Internet", "NAS", "Plex"…), elk met de checks die erbij horen. Het ergste van die checks telt; checks in onderhoud tonen *Onderhoud*.
