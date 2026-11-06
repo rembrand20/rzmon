@@ -1642,12 +1642,23 @@ $cfRecNow = Monitor::confirmStatus(['status' => STATUS_CRIT] + $cfBase, STATUS_O
 save_setting('confirm_ok', '2');
 $cfRec1 = Monitor::confirmStatus(['status' => STATUS_CRIT] + $cfBase, STATUS_OK);
 $cfRec2 = Monitor::confirmStatus(['status' => STATUS_CRIT, 'pend_status' => STATUS_OK, 'pend_count' => 1] + $cfBase, STATUS_OK);
+// 1.191.2: nog nooit echt gemeten (alleen onbekend): de eerste echte meting geldt meteen; wel ooit gemeten: gewoon bevestigen
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-cf-onb', '192.0.2.77', 'remote')");
+$cfH = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, type, target, name, status) VALUES (?, 'ping', '192.0.2.77', 'onb', 3)", [$cfH]);
+$cfC = (int) db()->lastInsertId();
+q('INSERT INTO results (check_id, status, value) VALUES (?, 3, NULL)', [$cfC]);
+$cfFirst = Monitor::confirmStatus(['id' => $cfC, 'status' => STATUS_UNKNOWN] + $cfBase, STATUS_OK);
+q('INSERT INTO results (check_id, status, value) VALUES (?, 0, 1)', [$cfC]);
+$cfAgain = Monitor::confirmStatus(['id' => $cfC, 'status' => STATUS_UNKNOWN] + $cfBase, STATUS_OK);
+q('DELETE FROM hosts WHERE id = ?', [$cfH]);
 save_setting('confirm_fails', '');
 save_setting('confirm_ok', '');
 ok($cfOff === [STATUS_CRIT, null, 0] && $cf1 === [STATUS_OK, STATUS_WARN, 1] && $cf2 === [STATUS_OK, STATUS_CRIT, 2] && $cf3 === [STATUS_CRIT, null, 0]
     && $cfReset === [STATUS_OK, null, 0] && $cfNew === [STATUS_CRIT, null, 0] && $cfOwn === [STATUS_CRIT, null, 0]
-    && $cfRecNow === [STATUS_OK, null, 0] && $cfRec1 === [STATUS_CRIT, STATUS_OK, 1] && $cfRec2 === [STATUS_OK, null, 0],
-    'status bevestigen: leeg = meteen, na 3 mislukte (warning en critical samen) critical, tussendoor goed = opnieuw, nieuwe check meteen, eigen waarde gaat voor, herstel na 2');
+    && $cfRecNow === [STATUS_OK, null, 0] && $cfRec1 === [STATUS_CRIT, STATUS_OK, 1] && $cfRec2 === [STATUS_OK, null, 0]
+    && $cfFirst === [STATUS_OK, null, 0] && $cfAgain === [STATUS_UNKNOWN, STATUS_OK, 1],
+    'status bevestigen: leeg = meteen, na 3 mislukte (warning en critical samen) critical, tussendoor goed = opnieuw, nieuwe check meteen, eigen waarde gaat voor, herstel na 2, eerste echte meting na alleen onbekend meteen');
 // 1.183.0: Netwerk → Ontdekken: poorten, domeinen (eerst leren), aanwezigheid, voorstellen en met één klik in RzMon
 q("DELETE FROM net_devices WHERE mac = 'ee:ee:ee:00:01:83'");
 q("INSERT INTO net_devices (mac, ip, random_mac, vendor, kind, status, ports, info, first_seen, last_seen) VALUES ('ee:ee:ee:00:01:83', '10.183.0.9', 0, 'Reolink', 'camera', 'new', '[80,554]', '{}', NOW(), NOW())");

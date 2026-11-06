@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.188.0**: **verkeer ook zonder UniFi**: via SNMP op je switches en via de agent op je servers (agent 1.80.0), met UniFi als eerste keus.
 - **1.187.0**: je **internetlijn per maand** met een datalimiet, **diensten per apparaat** (DPI), een nieuwe **check Verkeer** en het rapport **Netwerkverkeer**.
 
+## 1.191.2 – 2026-11-06
+### Opgelost
+- **Nieuwe checks (zoals een pad-check) bleven lang op onbekend staan.** Een nieuwe check is eerst onbekend omdat er nog geen meting is. Met *status bevestigen* (herstel na N controles) telde de eerste echte meting als "terug naar OK", zodat de check nog N rondes op onbekend bleef; bij een pad-check van 5 minuten al gauw een kwartier. Een check die nog nooit echt gemeten had, krijgt zijn eerste echte uitkomst nu meteen. Daarna werkt bevestigen gewoon zoals je het instelde.
+- Wacht een check op bevestiging om weer OK te worden, dan staat dat er nu bij: *⏳ in orde, nog niet bevestigd (1/3)*. Eerder leek hij zonder reden te blijven hangen.
+
 ## 1.191.1 – 2026-11-06
 ### Opgelost
 - **De popup van een check knipperde** bij elke live-verversing: het pad en de grafiek werden eerst leeggemaakt ("laden…") en daarna opnieuw opgebouwd, waardoor de pagina versprong. Nu blijft alles staan en verandert alleen wat echt anders is, zoals een nieuwe vertraging of een andere kleur.

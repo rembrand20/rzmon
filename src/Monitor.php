@@ -317,6 +317,12 @@ final class Monitor
         if (empty($check['last_checked']) || $raw === $cur) {
             return [$raw, null, 0];
         }
+        // 1.191.2: nog nooit een echte meting (alleen "onbekend", bv. een nieuwe check die op zijn eerste meting wachtte)?
+        // Dan geldt de eerste echte uitkomst meteen; bevestigen is er voor uitschieters, niet voor "nog niet gemeten".
+        if ($cur === STATUS_UNKNOWN && $raw !== STATUS_UNKNOWN
+            && !q('SELECT 1 FROM results WHERE check_id = ? AND status <> ? LIMIT 1', [(int) ($check['id'] ?? 0), STATUS_UNKNOWN])->fetchColumn()) {
+            return [$raw, null, 0];
+        }
         $need = self::confirmNeeded($check, $raw === STATUS_OK);
         $pend = $check['pend_status'] ?? null;
         $same = $pend !== null && (((int) $pend === STATUS_OK) === ($raw === STATUS_OK));
@@ -336,6 +342,9 @@ final class Monitor
         }
         if ($pendStatus !== null && $res['status'] === STATUS_OK) {
             $res['message'] = '⏳ ' . t('nog niet bevestigd ({n}/{need})', ['n' => $pendCount, 'need' => self::confirmNeeded($check, false)]) . ': ' . $res['message'];
+        } elseif ($pendStatus === STATUS_OK) {
+            // 1.191.2: wacht op bevestiging om weer OK te worden: dat staat er nu bij (anders leek hij zonder reden te blijven hangen)
+            $res['message'] = '⏳ ' . t('in orde, nog niet bevestigd ({n}/{need})', ['n' => $pendCount, 'need' => self::confirmNeeded($check, true)]) . ': ' . $res['message'];
         }
         $status = $res['status'];
         $failCount = $status === STATUS_OK ? 0 : (int) $check['fail_count'] + 1;

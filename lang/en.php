@@ -8303,4 +8303,5 @@ return [
     'De hele dag (geen tijden)' => 'All day (no times)',
     'Klik: naar Monitoring → Netwerkpaden' => 'Click: go to Monitoring → Network paths',
     'Netwerkpad' => 'Network path',
+    'in orde, nog niet bevestigd ({n}/{need})' => 'fine, not yet confirmed ({n}/{need})',
 ];
