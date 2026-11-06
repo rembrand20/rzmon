@@ -14,6 +14,12 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.203.0**: de **zijbalk klapt vanzelf in** tot icoontjes als je hem smaller sleept of het venster smal is.
 - **1.202.0**: een **laadteller** met animatie als een pagina lang duurt, en de **zijbalk** als zwevend paneel.
 
+## 1.206.1 – 2026-11-06
+### Opgelost
+- **Update-venster zei te vroeg "Bijgewerkt"**: had de hulpdienst het verzoek net opgepakt maar nog niets geschreven, of kwam het verzoek nooit aan, dan las RzMon de stand van de *vorige* update ("klaar 1.203.0 → 1.205.0"). Het venster herlaadde dan de pagina zonder dat er iets bijgewerkt was. Nu staat er *Wachten op de hulpdienst…*, en na 2 minuten zonder antwoord zegt het venster dat de hulpdienst niet reageert (met het commando om dat te controleren). Opnieuw proberen kan dan meteen.
+- Een update die niet kon starten, staat nu als fout in het venster in plaats van stil te verdwijnen.
+- Tijdens een update kon RzMon in één verzoek even al zijn andere instellingen als leeg zien (bij het lezen van de aankondiging aan de agents).
+
 ## 1.206.0 – 2026-11-06
 ### Nieuw
 - **🔐 Bevestigen bij acties per rol** (*Instellingen → Beveiliging → Gebruikers*): met een schakelaar per rol (beheerder, gebruiker, alleen lezen) is bij acties als herstellen, installeren, isoleren, blokkeren, bijwerken, terugzetten en verwijderen een vinkje **Ik weet het zeker** genoeg in plaats van je wachtwoord. Standaard aan voor beheerders; gebruikers vullen hun eigen wachtwoord in.

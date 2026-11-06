@@ -31,6 +31,7 @@ final class UpdateHold
     public static function get(): ?array
     {
         $v = q("SELECT value FROM settings WHERE name = 'update_hold'")->fetchColumn();
+        settings();   // 1.206.1: eerst alles laden, anders lijkt de rest van de instellingen leeg
         $GLOBALS['rz_settings']['update_hold'] = $v === false ? '' : (string) $v;
         $h = json_decode((string) $v, true);
         return is_array($h) && !empty($h['id']) ? $h : null;
@@ -117,8 +118,10 @@ final class UpdateHold
         // Eén keer: wie de instelling als eerste van 0 naar het tijdstip zet, zet het verzoek neer
         $h['started'] = time();
         $n = q("UPDATE settings SET value = ? WHERE name = 'update_hold' AND value = ?", [json_encode($h), setting('update_hold', '')])->rowCount();
+        settings();
         $GLOBALS['rz_settings']['update_hold'] = json_encode($h);
         if ($n === 1 && ($err = Updater::writeRequest((array) $h['req'])) !== true) {
+            save_setting('update_request_error', (string) json_encode(['at' => time(), 'msg' => t('RzMon-update niet gestart: {err}. Agents zijn vrijgegeven.', ['err' => $err])]));   // 1.206.1: in het venster
             self::save(null);
             Monitor::infoSystem(fn() => t('RzMon-update niet gestart: {err}. Agents zijn vrijgegeven.', ['err' => $err]));
         }

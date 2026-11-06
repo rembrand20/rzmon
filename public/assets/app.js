@@ -14830,6 +14830,10 @@ function pollUpdate() {
       return;
     }
     updatePollAt = Date.now();
+    // 1.206.1: een "klaar" van een update van vóór deze aanvraag (oude RzMon) is nog niet deze update
+    if (r.status && r.status.state === 'ok' && updReqAt && ((+r.status.started || +r.status.at || 0) * 1000) < updReqAt - 30000) {
+      r.status = { state: 'queued', step: 'queued', message: L('Wachten op de hulpdienst…'), at: updReqAt / 1000, stuck: Date.now() - updReqAt > 120000 };
+    }
     showUpdateProgress(r.status, r.log);
     showUpdateDialog(r.status, r.log);
     if (r.status && ['queued', 'running'].includes(r.status.state)) return pollUpdate();
@@ -14910,7 +14914,7 @@ function updNotesBlock(notes) {
 }
 
 // Tijden van deze update (in de browser): wanneer elke stap begon, en hoe lang RzMon onbereikbaar was
-let updT = {}, updT0 = 0, updEnd = 0, updDownAt = 0, updDownMs = 0, updBackup = null;
+let updT = {}, updT0 = 0, updEnd = 0, updDownAt = 0, updDownMs = 0, updBackup = null, updReqAt = 0;
 function updResetTimes() { updT = {}; updT0 = Date.now(); updEnd = 0; updDownAt = 0; updDownMs = 0; }
 
 /** Vraag "wil je bijwerken?" (met back-up), of meteen de voortgang als er al een update loopt. */
@@ -14955,6 +14959,7 @@ async function openUpdateDialog(pick = false) {
           if ($('#settings-form')) $('#settings-form').update_backup.checked = backup;   // keuze is opgeslagen
           updatePct = 0;
           updResetTimes();
+          updReqAt = Date.now();   // 1.206.1
           updBackup = backup;
           const s = { state: 'queued', step: 'queued', message: L('Wachten op de hulpdienst…'), at: Date.now() / 1000, from: u.current, to: version || u.latest };
           showUpdateDialog(s, '', true);

@@ -119,6 +119,21 @@ final class Updater
             return ['state' => 'queued', 'step' => 'queued', 'message' => t('Wachten op de hulpdienst…'), 'at' => $at,
                 'stuck' => $at < time() - 120];
         }
+        // 1.206.1: net een update gevraagd, maar de hulpdienst heeft nog geen nieuwe stand geschreven (hij pakte het verzoek
+        // net op, of het verzoek kwam nooit aan). Dan nooit de stand van de vórige update tonen: die zei "klaar", en het
+        // venster herlaadde dan de pagina zonder dat er iets bijgewerkt was.
+        $req = json_decode((string) setting('update_requested', ''), true);
+        $reqAt = is_array($req) ? (int) ($req['at'] ?? 0) : 0;
+        if ($reqAt > time() - 1800 && (!is_array($st) || (int) ($st['started'] ?? $st['at'] ?? 0) < $reqAt - 5)) {
+            $err = json_decode((string) setting('update_request_error', ''), true);
+            if (is_array($err) && (int) ($err['at'] ?? 0) >= $reqAt - 5) {
+                return ['state' => 'error', 'step' => 'queued', 'message' => (string) ($err['msg'] ?? ''), 'at' => (int) $err['at']];
+            }
+            $hold = UpdateHold::get();
+            $since = $hold && !empty($hold['started']) ? (int) $hold['started'] : $reqAt;
+            return ['state' => 'queued', 'step' => 'queued', 'message' => t('Wachten op de hulpdienst…'), 'at' => $since,
+                'stuck' => $since < time() - 120, 'waiting' => true];
+        }
         if (!is_array($st)) {
             return null;
         }
@@ -138,6 +153,10 @@ final class Updater
     public static function running(): bool
     {
         $st = self::status();
+        // 1.206.1: de hulpdienst pakte een verzoek niet op (hangt al 2 minuten): opnieuw proberen mag
+        if ($st && !empty($st['waiting']) && !empty($st['stuck'])) {
+            return false;
+        }
         // Een update die al een half uur "bezig" is, is waarschijnlijk afgebroken
         return $st && in_array($st['state'], ['queued', 'running'], true) && ($st['state'] === 'queued' || (int) $st['at'] > time() - 1800);
     }
