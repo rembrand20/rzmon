@@ -2541,17 +2541,6 @@ function pathMini(c) {
   if (!p) return '';
   return `<span class="np-mini">${npDots(p.d, p.k)}<small>${esc([p.w, p.ms !== null ? npMs(p.ms) : '', p.mb ? npMbit(p.mb) : ''].filter(Boolean).join(' · '))}</small></span>`;
 }
-/** In de servertegel: strookje "Pad → doel" */
-function pathTileStrip(h) {
-  const list = h.checks.filter((c) => +c.enabled && c.type === 'path' && pathSum(c)).slice(0, 2);
-  return list.map((c) => {
-    const p = pathSum(c);
-    const quiet = (String(p.d || '').match(/h/g) || []).length;
-    const right = [p.l !== undefined && p.l !== null ? L('{l}% verlies', { l: p.l }) : '', p.mb ? npMbit(p.mb) : ''].filter(Boolean).join(' · ');
-    return `<div class="np-tile s${c.status}" data-cid="${c.id}" data-motion="${afMotion(null)}"><span class="np-th"><span class="np-to">${L('PAD')} → ${esc(p.t || c.target)}</span><b class="mono">${p.ms !== null ? npMs(p.ms) : '–'}</b></span>${npDots(p.d, p.k)}
-      <span class="np-th np-tf"><span>${L('{n} hops', { n: p.h })}${quiet ? ' · ' + L('{n} stil', { n: quiet }) : ''}</span>${right ? `<span class="mono">${esc(right)}</span>` : ''}</span></div>`;
-  }).join('');
-}
 
 /** De popup van een pad-check: het pad, per hop een tabel met 24 uur, doorvoer per uur en wat er veranderde */
 async function npLoadInfo(id) {
@@ -2702,6 +2691,27 @@ function renderNetPaths() {
         <div class="np-pr np-th"><span>${L('Bron → doel')}</span><span>${L('Status')}</span><span>${L('Hops')}</span><span>${L('Vertraging')}</span><span>${L('Doorvoer')}</span><span>${L('Pad')}</span><span>${L('24 uur')}</span></div>${rows}</section>
       <section class="ct-grp"><div class="ct-gh"><b>${L('Links (UniFi)')}</b><span class="small muted">${L('langzaamste eerst')}</span></div>${ports || `<p class="muted small" style="padding:.8rem 1rem">${npData.unifi === 'ok' ? L('Geen poorten gevonden.') : L('Koppel UniFi met een lokaal account (Instellingen → Koppelingen) om de switchpoorten en hun snelheid te zien.')}</p>`}</section>
     </div>`;
+  npFocusApply();   // 1.191.0
+}
+/** 1.191.0: naar Monitoring → Netwerkpaden, met dit pad in beeld en even opgelicht */
+let npFocus = null, npFlash = null;
+function npGo(checkId) {
+  npFocus = +checkId;
+  showTab('dashboard');
+  setMonSub('paths');
+  npFocusApply();
+}
+function npFocusApply() {
+  // De tabel kan vlak na het openen nog een keer opgebouwd worden: het oplichten loopt dan gewoon door
+  if (npFlash && Date.now() < npFlash.until) { const r = $(`#netpaths .np-pr[data-cid="${npFlash.id}"]`); if (r) r.classList.add('np-flash'); }
+  if (!npFocus) return;
+  const row = $(`#netpaths .np-pr[data-cid="${npFocus}"]`);
+  if (!row) return;   // nog aan het laden: renderNetPaths roept dit opnieuw aan
+  npFlash = { id: npFocus, until: Date.now() + 2600 };
+  npFocus = null;
+  row.scrollIntoView({ block: 'center', behavior: afMotion(null) ? 'smooth' : 'auto' });
+  row.classList.add('np-flash');
+  setTimeout(() => { $$('#netpaths .np-pr.np-flash').forEach((e) => e.classList.remove('np-flash')); npFlash = null; }, 2600);
 }
 function initNetPaths() {
   $('#netpaths').addEventListener('click', (e) => {
@@ -3995,8 +4005,11 @@ function ccHostCard(h) {
   const sparks = keyChecks(h, 2).map((c) => { const [v, un] = keyValue(c); return `<span class="ccx-sp s${c.maintenance ? 4 : +c.status}"><span class="ccx-sp-h"><small>${esc(c.name)}</small><b>${v}<small>${esc(un)}</small></b></span>${keySpark(c, 26)}</span>`; }).join('');
   // Geopend: wat aandacht vraagt (ook bevestigd), en wat in orde is (ingeklapt)
   const rank = (c) => (+c.enabled ? STATUS_RANK[c.maintenance ? 4 : +c.status] : -9);
-  const bad = h.checks.filter((c) => +c.enabled && !c.maintenance && +c.status !== 0).sort((a, b) => !!a.acked_at - !!b.acked_at || rank(b) - rank(a) || String(a.name).localeCompare(String(b.name)));
-  const good = h.checks.filter((c) => !bad.includes(c)).sort((a, b) => rank(b) - rank(a) || String(a.name).localeCompare(String(b.name)));
+  // 1.191.0: pad-checks staan in hun eigen sectie Netwerkpad (tussen Vraagt aandacht en In orde), niet in de lijsten
+  const isPath = (c) => c.type === 'path' && +c.enabled && pathSum(c);
+  const paths = h.checks.filter(isPath);
+  const bad = h.checks.filter((c) => !isPath(c) && +c.enabled && !c.maintenance && +c.status !== 0).sort((a, b) => !!a.acked_at - !!b.acked_at || rank(b) - rank(a) || String(a.name).localeCompare(String(b.name)));
+  const good = h.checks.filter((c) => !bad.includes(c) && !isPath(c)).sort((a, b) => rank(b) - rank(a) || String(a.name).localeCompare(String(b.name)));
   const badRows = bad.map((c, i) => {
     const s = +c.status, [v, un] = keyValue(c), msg = (c.last_message || '').replace(/\s+/g, ' ');
     return `<div class="ccx-row s${s}${c.acked_at ? ' acked' : ''}" data-cid="${c.id}" style="--i:${Math.min(i, 12)}" role="button" tabindex="0" title="${esc(L('Klik voor de details van deze check'))}">
@@ -4013,6 +4026,17 @@ function ccHostCard(h) {
     return `<div class="ccx-ok s${s}${i >= CC_OK_SHOW ? ' more' : ''}" data-cid="${c.id}" role="button" tabindex="0" title="${esc(c.name)}: ${esc(msg)}">
       <i class="ccx-dot"></i><span class="ccx-ok-t"><b>${esc(c.name)}</b><small>${esc(msg.slice(0, 80)) || esc(ccWord(c))}</small></span>${keySpark(c, 22)}<b class="ccx-v" data-flash>${ctOf(c) || `${v}<small>${esc(un)}</small>`}</b></div>`;
   }).join('');
+  const pathRows = paths.map((c) => {
+    const s = pathSum(c), st = c.maintenance ? 4 : +c.status, quiet = (String(s.d || '').match(/h/g) || []).length;
+    const sub = [L('{n} hops', { n: s.h }) + (quiet ? ' · ' + L('{n} stil', { n: quiet }) : ''), s.l !== undefined && s.l !== null ? L('{l}% verlies', { l: s.l }) : '', s.mb ? npMbit(s.mb) : ''].filter(Boolean);
+    return `<div class="ccx-prow s${st}" data-act="np-go" data-id="${c.id}" role="button" tabindex="0" title="${esc(L('Klik: naar Monitoring → Netwerkpaden'))}${s.w ? ' · ' + esc(s.w) : ''}">
+      <span class="ccx-st"><i></i>${esc(ccWord(c))}</span>
+      <span class="ccx-cn"><span class="ccx-ti" aria-hidden="true">${checkIcon(c)}</span><span><b>→ ${esc(s.t || c.target)}</b><small>${esc(c.name)}</small></span></span>
+      ${npDots(s.d, s.k)}
+      <b class="ccx-pv mono">${npMs(s.ms)}</b>
+      <span class="ccx-pm">${esc(sub[0])}${sub.length > 1 ? `<br>${esc(sub.slice(1).join(' · '))}` : ''}</span>
+      <span class="ccx-tl">${checkTimeline(c)}</span><span class="ccx-go" aria-hidden="true">›</span></div>`;
+  }).join('');
   const cpu = ccTop(h, 'cpu'), ram = ccTop(h, 'ram'), disk = ccTop(h, 'disk');
   const gauges = [cpu ? ccGauge('CPU', +cpu.last_value, 'cpu') : '', ram ? ccGauge('RAM', +ram.last_value, 'ram') : '', disk ? ccGauge(disk.name, +disk.last_value, 'disk') : '',
     u && u.h24 !== null ? ccGauge(L('Beschikbaar 24 u'), +u.h24, 'up') : ''].join('');
@@ -4025,7 +4049,6 @@ function ccHostCard(h) {
         ${ccRing(okN, on.length, st)}</div>
       <div class="ccx-chips"><span class="ccx-pill">${esc(p.sum.text)}</span><span class="ccx-kind">${esc(kind)}${ver}</span></div>
       ${sparks ? `<div class="ccx-sps">${sparks}</div>` : ''}
-      ${pathTileStrip(h)}
       <div class="ccx-foot"><span class="ccx-foot-h"><small>${L('24 uur')} · ${up}</small><small>${last}</small></span>${hostTimeline(h)}</div>
       ${h.checks.some(isProblem) ? `<div class="ccx-tile-ai">${aiBtn('bundle', h.id)}</div>` : ''}
     </div>
@@ -4039,7 +4062,8 @@ function ccHostCard(h) {
       </div>
       <div class="hb-bar">${detailBar(h)}</div>
       <div class="ccx-body">
-        ${bad.length ? `<div class="ccx-sec warn"><b>${L('Vraagt aandacht')}</b><span>${bad.length}</span></div><div class="ccx-rows">${badRows}</div>` : `<div class="ccx-allgood">✔ ${L('Alle checks in orde')}</div>`}
+        ${bad.length ? `<div class="ccx-sec warn"><b>${L('Vraagt aandacht')}</b><span>${bad.length}</span></div><div class="ccx-rows">${badRows}</div>` : paths.some((c) => !c.maintenance && +c.status !== 0) || !h.checks.length ? '' : `<div class="ccx-allgood">✔ ${L('Alle checks in orde')}</div>`}
+        ${paths.length ? `<div class="ccx-sec path"><b>${L('Netwerkpad')}</b><span>${paths.length}</span></div><div class="ccx-paths">${pathRows}</div>` : ''}
         ${good.length ? `<div class="ccx-sec ok"><b>${L('In orde')}</b><span>${good.length}</span></div><div class="ccx-oks">${goodTiles}</div>
           ${moreOk ? `<button type="button" class="ccx-more" data-act="cc-allok" data-id="${h.id}"><span class="ccx-more-a">＋ ${L('{n} andere checks tonen', { n: moreOk })}</span><span class="ccx-more-b">− ${L('Minder tonen')}</span></button>` : ''}` : ''}
         ${!h.checks.length ? `<p class="muted">${L('Nog geen checks.')}</p>` : ''}
@@ -4339,6 +4363,7 @@ async function onHostsClick(e) {
     case 'cc-open': return ccToggle(id, !ccOpen.has(+id));
     case 'cc-close': return ccToggle(id, false);
     case 'cc-allok': return ccAllOkToggle(id);   // 1.175.0
+    case 'np-go': return npGo(id);   // 1.191.0
     case 'ack': { const [c, h] = findCheck(id); return ackDialog('check', id, `${h.name} – ${c.name}`, c.last_message); }
     case 'ack-host': { const h = findHost(id); const n = h.checks.filter((c) => +c.enabled && +c.status !== 0 && !c.acked_at).length; return ackDialog('host', id, h.name, L('{n} onbevestigde storing(en)', { n })); }
     case 'unack':

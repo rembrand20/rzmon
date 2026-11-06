@@ -8301,4 +8301,6 @@ return [
     'Alleen in een periode' => 'Only during a period',
     '(bv. een vakantie)' => '(e.g. a holiday)',
     'De hele dag (geen tijden)' => 'All day (no times)',
+    'Klik: naar Monitoring → Netwerkpaden' => 'Click: go to Monitoring → Network paths',
+    'Netwerkpad' => 'Network path',
 ];

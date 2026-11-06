@@ -3803,21 +3803,11 @@ body.no-anim .np-pulse, [data-motion="0"] .np-pulse, [data-motion="1"] .np-pulse
 body.no-anim .np-trail .np-n, [data-motion="0"] .np-trail .np-n { animation: none !important; }
 .np-mini { display: flex; flex-direction: column; gap: .2rem; min-width: 0; font-weight: 400; }
 .np-mini small { font-size: .7rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.np-tile { margin-top: .6rem; padding: .5rem .65rem; border-radius: 12px; background: var(--card-2); border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border)); display: flex; flex-direction: column; gap: .35rem; cursor: pointer; }
-.np-tile.s1 { border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); } .np-tile.s2 { border-color: color-mix(in srgb, var(--crit) 45%, var(--border)); }
 .np-th { display: flex; justify-content: space-between; gap: .5rem; font-size: .66rem; font-weight: 700; color: var(--muted); }
-.np-tile .np-th b { color: var(--text); white-space: nowrap; flex: none; font-size: .8rem; letter-spacing: 0; text-transform: none; }
-/* 1.190.0: lichtspoor in de tegel: doel netjes afkappen, ms op één regel; in donker een subtiel raster en gloed */
-.np-tile { --np-bg: var(--card-2); position: relative; overflow: hidden; }
-.np-tile .np-th { align-items: baseline; }
-.np-tile .np-to { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.np-tile .np-tf { min-height: 0; font-size: .6rem; } .np-tile .np-tf .mono { letter-spacing: 0; text-transform: none; white-space: nowrap; }
-.np-tile::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--np-grid, none); }
+/* 1.190.0/1.191.0: in donker een subtiel raster en gloed achter het lichtspoor */
 :root { --np-grid: repeating-linear-gradient(90deg, transparent 0 23px, color-mix(in srgb, var(--primary) 7%, transparent) 23px 24px); --np-halo: 0 0 22px color-mix(in srgb, var(--primary) 10%, transparent); }
 :root[data-theme="light"] { --np-grid: none; --np-halo: none; }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --np-grid: none; --np-halo: none; } }
-.np-tile { box-shadow: var(--np-halo); }
-.np-tile > * { position: relative; }
 .np-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .np-map { position: relative; margin: .4rem 1rem 1rem; }
 .np-map svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
@@ -4149,3 +4139,31 @@ button.feat-n { cursor: pointer; } button.feat-n:hover, button.feat-n.on { borde
 .qg-table td { padding: .4rem .5rem; } .qg-table select { min-width: 200px; }
 .qn-btns { display: flex; flex-wrap: wrap; gap: .4rem; margin: .6rem 0; }
 .quiet-tag.on { background: color-mix(in srgb, var(--primary) 14%, transparent); border-radius: 6px; padding: 0 .3rem; }
+
+/* 1.191.0: CC – de sectie Netwerkpad in een geopende server (tussen Vraagt aandacht en In orde); klik = Netwerkpaden */
+.ccx-paths { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 6px; }
+.ccx-prow { --np-bg: color-mix(in srgb, var(--primary) 5%, var(--card)); display: grid; grid-template-columns: 110px minmax(150px, .9fr) minmax(200px, 2.2fr) 74px 140px minmax(120px, 170px) 18px;
+  gap: 14px; align-items: center; padding: 10px 14px; border-radius: 12px; cursor: pointer; background: var(--np-bg);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border)); transition: border-color .15s, transform .15s; }
+.ccx-prow:hover, .ccx-prow:focus-visible { border-color: var(--primary); transform: translateY(-1px); outline: none; }
+.ccx-prow.s1 { border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); } .ccx-prow.s2 { border-color: color-mix(in srgb, var(--crit) 45%, var(--border)); }
+.ccx-prow .np-trail { height: 26px; }
+.ccx-prow { position: relative; overflow: hidden; box-shadow: var(--np-halo); }
+.ccx-prow::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--np-grid, none); }
+.ccx-prow > * { position: relative; }
+.ccx-prow .ccx-cn b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ccx-prow .ccx-cn > span:last-child { min-width: 0; }
+.ccx-pv { font-size: .95rem; white-space: nowrap; }
+.ccx-pm { font-size: .72rem; color: var(--muted); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ccx-go { color: var(--muted); font-size: 1.1rem; text-align: right; }
+.ccx-prow:hover .ccx-go { color: var(--primary); }
+@media (max-width: 900px) {
+  .ccx-prow { grid-template-columns: 1fr auto; gap: 6px 12px; }
+  .ccx-prow .ccx-st { grid-column: 1; } .ccx-prow .ccx-pv { grid-column: 2; grid-row: 1; text-align: right; }
+  .ccx-prow .ccx-cn, .ccx-prow .np-trail, .ccx-prow .ccx-pm, .ccx-prow .ccx-tl { grid-column: 1 / -1; }
+  .ccx-prow .ccx-go { display: none; }
+}
+/* Netwerkpaden: het pad waar je vandaan kwam licht even op */
+.np-pr.np-flash { animation: np-flash 2.4s ease-out; }
+@keyframes np-flash { 0%, 30% { background: color-mix(in srgb, var(--primary) 22%, transparent); box-shadow: inset 3px 0 0 var(--primary); } 100% { background: transparent; box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { .np-pr.np-flash { animation: none; background: color-mix(in srgb, var(--primary) 14%, transparent); } }

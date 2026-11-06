@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.191.0**: het **netwerkpad als eigen sectie** in de opengeklapte server (CC), met één klik naar Netwerkpaden; de tegel blijft clean.
 - **1.190.0**: **het pad als lichtspoor**: past altijd, met gloeiende punten voor router, switch, provider en doel, streepjes voor stille hops en een lichtpuls.
 - **1.189.0**: **stille uren met een naam**: profielen (ook voor een vakantie) die je algemeen of per groep, soort, server of check koppelt, met *critical komt door* en **🌙 Nu stil**.
 - **1.188.0**: **verkeer ook zonder UniFi**: via SNMP op je switches en via de agent op je servers (agent 1.80.0), met UniFi als eerste keus.
 - **1.187.0**: je **internetlijn per maand** met een datalimiet, **diensten per apparaat** (DPI), een nieuwe **check Verkeer** en het rapport **Netwerkverkeer**.
-- **1.186.0**: **verkeer per apparaat** (uit UniFi): top 10 van vandaag, grafieken per uur en per dag, een heatmap van aanwezigheid en verkeer, en een melding bij ongewoon veel of nachtelijk verkeer.
+
+## 1.191.0 – 2026-11-06
+### Nieuw
+- **🛣️ Netwerkpad in de opengeklapte server (lay-out CC).** De servertegel blijft clean: het pad staat er niet meer in. Klap je een server open, dan staat het pad als eigen sectie **Netwerkpad** tussen *Vraagt aandacht* en *In orde*, in dezelfde opmaak als een check: status, doel, het lichtspoor, de vertraging, hops en verlies, en de laatste 24 uur.
+  - Een pad met een probleem blijft in die sectie (met een oranje of rode rand) en staat niet dubbel in *Vraagt aandacht*; in de ring en de teller van de tegel telt het wel mee.
+  - **Klik op het pad** en je gaat naar **Monitoring → Netwerkpaden**, waar dat pad in beeld schuift en even oplicht.
 
 ## 1.190.0 – 2026-11-06
 ### Nieuw
