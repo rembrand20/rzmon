@@ -399,7 +399,7 @@ final class Monitor
                 $ruleRem = $rule['mode'] === 'after' ? max(0, (int) $rule['min'] * 60 - ($pend !== null ? 0 : $age)) : 0;
                 $eta = $confirmRem + max($failsRem, $ruleRem);
             }
-        } elseif (!$problem && $pend === STATUS_OK && $notified !== STATUS_OK && $notified !== 0) {
+        } elseif (!$problem && $pend === STATUS_OK && $notified !== STATUS_OK) {
             $eta = max(0, $needO - (int) $c['pend_count']) * $fastIv;   // herstelmelding na bevestigen
         }
         return [

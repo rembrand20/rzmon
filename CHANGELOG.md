@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.190.0**: **het pad als lichtspoor**: past altijd, met gloeiende punten voor router, switch, provider en doel, streepjes voor stille hops en een lichtpuls.
 - **1.189.0**: **stille uren met een naam**: profielen (ook voor een vakantie) die je algemeen of per groep, soort, server of check koppelt, met *critical komt door* en **🌙 Nu stil**.
 
+## 1.193.1 – 2026-11-06
+### Opgelost
+- Melding van de codecontrole (PHPStan) in de nieuwe regel *van meting tot melding* (1.193.0); voor de gebruiker verandert er niets.
+
 ## 1.193.0 – 2026-11-06
 ### Nieuw
 - **⏳ Van meting tot melding in de popup.** Bovenaan de popup van een check staat nu waar hij staat: de **ruwe meting** → **bevestigen** (bv. ●○○ 1/3) → **melden na N** → de **meldregel** → *melding over ±40 s*, *gemeld om 14:32*, of waarom er geen melding komt (onderhoud, bevestigd, meldregel nooit). In de opengeklapte server (CC) staat een knipperend ⏳ bij checks die nog bevestigen.
