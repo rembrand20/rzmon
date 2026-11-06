@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.186.0**: **verkeer per apparaat** (uit UniFi): top 10 van vandaag, grafieken per uur en per dag, een heatmap van aanwezigheid en verkeer, en een melding bij ongewoon veel of nachtelijk verkeer.
 - **1.185.0**: **status bevestigen**: een check wordt pas warning of critical (en eventueel weer OK) na N controles achter elkaar; algemeen in de beheerportal en per check te overschrijven, leeg = meteen.
 
+## 1.189.1 – 2026-11-06
+### Opgelost
+- **Zijbalk in Instellingen en Mijn account:** op een lager scherm liep het menu onder *Inklappen*, zoeken en je account door, zodat alles door elkaar stond. Het menu scrollt nu binnen de zijbalk; de knoppen onderaan blijven staan, het zoekveld blijft bovenaan en het gekozen onderdeel schuift vanzelf in beeld.
+
 ## 1.189.0 – 2026-11-05
 ### Nieuw
 - **🌙 Stille uren met een naam.** Stille uren zijn nu **profielen** die je een naam en een icoon geeft, bv. *Nacht*, *Kantoortijden* of *Vakantie*. Je vindt ze bij **Instellingen → Meldingen → Stille uren**.

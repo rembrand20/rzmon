@@ -3165,6 +3165,14 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
   .side-back:hover { border-color: var(--primary); color: var(--primary); }
   .side-admin-t { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--muted); padding: .35rem .45rem 0; }
   .side-admin .set-side { position: static; top: auto; }
+  /* 1.189.1: het menu scrollt binnen de zijbalk; Inklappen, zoeken en je account blijven onderaan staan */
+  body.side-admin-on .topbar.app-top { overflow: hidden; }
+  body.side-admin-on .app-top .top-actions { flex: 0 0 auto; }
+  #side-admin-body, .side-acct { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-gutter: stable; margin-right: -.4rem; padding-right: .4rem;
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.4rem), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 1.4rem), transparent); }
+  #side-admin-body:empty { display: none; }
+  #side-admin-body .set-search { position: sticky; top: 0; z-index: 1; background: var(--side); padding-bottom: .35rem; }
+  #side-admin-body button, .side-acct-i { scroll-margin: 2.6rem 0 1.6rem; }
   body.side-admin-on #tab-settings .set-layout { grid-template-columns: minmax(0, 1fr); }
   .side-acct { display: flex; flex-direction: column; gap: 2px; }
   .side-acct[hidden] { display: none; }

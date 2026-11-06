@@ -11723,6 +11723,8 @@ function showSettingsSection(id, focusEl) {
   const shown = $$('#tab-settings [data-sk]').filter((c) => !c.classList.contains('set-off'));
   $$('#tab-settings [data-sk] > h2').forEach((h) => h.classList.toggle('set-dup', shown.length === 1 && shown[0] === h.parentElement && !h.querySelector('button, input, a')));
   renderSettingsNav();
+  // 1.189.1: in de zijbalk het gekozen onderdeel in beeld houden
+  if (document.body.classList.contains('side-admin-on')) { const a = $('#side-admin-body .set-nav-subs .active') || $('#side-admin-body .set-nav-head.cur'); if (a) a.scrollIntoView({ block: 'nearest' }); }
   $('#set-mselect').innerHTML = SET_NAV.map(([g, icon, label, subs]) => `<optgroup label="${esc(label)}">${subs.map(([k, l]) => `<option value="${k}" ${k === setSection ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('');
   history.replaceState(null, '', '#settings/' + setSection);
   renderSetAttn();
