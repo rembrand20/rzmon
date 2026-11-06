@@ -244,6 +244,8 @@ const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', L('onbekend')];
 // 1.194.0: mDS (Mobile device summary) alleen op een telefoon
 const MDS_MQ = window.matchMedia ? window.matchMedia('(max-width: 720px)') : { matches: false, addEventListener() {} };
 let mdsData = null, mdsAt = 0, mdsAll = false;
+// 1.196.0: op een telefoon staan deze pagina's onder "Meer" (de tabbalk houdt mDS, Checks, Meldingen, IDS en Meer)
+const MORE_TABS = ['home', 'incidents', 'vulns', 'analytics', 'net', 'settings'];
 
 let stats = { uptime: {}, sparks: {} };
 // Sorteren op de pagina Meldingen (per apparaat onthouden): { key: 'time'|'status'|'server'|'check'|'message'|'channels', dir: 1|-1 }
@@ -1077,7 +1079,7 @@ function init() {
     } catch (ex) { $('#vuln-scan-info').textContent = ex.message; }
     b.disabled = false;
   };
-  $$('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
+  $$('.tab').forEach((t) => t.addEventListener('click', () => { if (t.dataset.tab) showTab(t.dataset.tab); }));   // 1.196.0: "Meer" heeft geen eigen pagina
   initMainTabs();
   // 1.194.0: op een telefoon altijd de mDS als startpagina (behalve een diepe link als #alerts?server=… of #ids/inc)
 { const h = location.hash.slice(1); showTab(MDS_MQ.matches && (!h || /^[a-z]+$/.test(h)) ? 'mds' : (h || 'home')); }
@@ -1624,6 +1626,7 @@ function showTab(name) {
   if (!$('#tab-' + name)) name = 'home';
   if (name === 'mds' && !MDS_MQ.matches) name = 'home';   // 1.194.0: mDS alleen op een telefoon
   $$('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+  { const m = $('#tab-more'); if (m) m.classList.toggle('active', MORE_TABS.includes(name)); }   // 1.196.0
   moveTabIndicator();
   $$('.tab-panel').forEach((p) => (p.hidden = p.id !== 'tab-' + name));
   history.replaceState(null, '', '#' + name);
@@ -2866,6 +2869,29 @@ function mdsHostSheet(id) {
     ${user ? `<div class="mds-bigs">${btnHost('hmaint', '🔧', L('Onderhoud 1 uur'), h.id)}${btnHost('hquiet', '🌙', L('Stil 1 uur'), h.id)}</div>` : ''}
     <button type="button" class="mds-link" data-mds="hostpage" data-id="${h.id}">${L('Op Monitoring openen')} ›</button>`);
 }
+/** 1.196.0: "Meer" in de tabbalk op een telefoon: de overige pagina's als grote tegels in een blad van onderaf */
+function moreSheet() {
+  const tiles = MORE_TABS.map((t) => $(`#main-tabs .tab[data-tab="${t}"]`)).filter(Boolean).map((b) => {
+    const t = b.dataset.tab, badge = $('.tab-badge', b);
+    const n = badge && !badge.hidden ? badge.textContent.trim() : '';
+    const ic = $('.tab-ic', b);
+    const lbl = ($('.tab-lbl', b) || b).textContent.trim();
+    return `<button type="button" class="mds-more-t${t === currentTab() ? ' on' : ''}" data-mds="tab" data-tab="${esc(t)}">${ic ? ic.outerHTML : ''}<span>${esc(lbl)}</span>${n ? `<b class="mds-more-n${badge.classList.contains('s1') ? ' s1' : ''}">${esc(n)}</b>` : ''}</button>`;
+  }).join('');
+  mdsSheet(`<h4 class="mds-h4">${L('Meer')}</h4><div class="mds-more-g">${tiles}</div>`);
+}
+const currentTab = () => { const a = $('#main-tabs .tab.active[data-tab]'); return a ? a.dataset.tab : ''; };
+function moreBadge() {
+  const b = $('#more-badge');
+  if (!b) return;
+  let n = 0, crit = false;
+  MORE_TABS.forEach((t) => { const x = $(`#main-tabs .tab[data-tab="${t}"] .tab-badge`); if (x && !x.hidden && +x.textContent) { n += +x.textContent; if (!x.classList.contains('s1')) crit = true; } });
+  b.hidden = !n;
+  b.textContent = n > 99 ? '99+' : String(n);
+  b.classList.toggle('s1', !crit);
+}
+document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#tab-more')) moreSheet(); });
+setInterval(() => { if (MDS_MQ.matches && !document.hidden) moreBadge(); }, 3000);
 const btnHost = (act, ic, lbl, id) => `<button type="button" class="mds-big" data-mds="${act}" data-id="${id}">${ic}<span>${lbl}</span></button>`;
 document.addEventListener('click', async (e) => {
   const b = e.target.closest && e.target.closest('#mds [data-mds], #mds-sheet [data-mds]');
@@ -2876,7 +2902,7 @@ document.addEventListener('click', async (e) => {
   if (act === 'host') return mdsHostSheet(id);
   if (act === 'all') { mdsAll = !mdsAll; return renderMds(); }
   if (act === 'full') { mdsSheetClose(); return checkInfo(id); }
-  if (act === 'tab') return showTab(b.dataset.tab);
+  if (act === 'tab') { mdsSheetClose(); return showTab(b.dataset.tab); }
   if (act === 'hostpage') { mdsSheetClose(); showTab('dashboard'); setTimeout(() => { const t = $(`[data-hid="${id}"]`); if (t) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 300); return; }
   b.disabled = true;
   b.classList.add('busy');

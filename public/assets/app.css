@@ -4295,3 +4295,18 @@ body.mds-on { overscroll-behavior-y: contain; }
 .mds-ptr.spin { transform: translate(-50%, 30px) !important; } .mds-ptr.spin i { animation: mds-spin .8s linear infinite; display: inline-block; }
 @keyframes mds-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .mds-sheet-p, .mds-sheet-bg { transition: none; } .mds-ptr.spin i { animation: none; } }
+
+/* 1.196.0: rustiger tabbalk op een telefoon: mDS, Checks, Meldingen, IDS en Meer; de rest in het blad "Meer" */
+@media (max-width: 720px) {
+  .main-tabs .tab[data-tab="home"], .main-tabs .tab[data-tab="incidents"], .main-tabs .tab[data-tab="vulns"],
+  .main-tabs .tab[data-tab="analytics"], .main-tabs .tab[data-tab="net"] { display: none; }
+  .main-tabs .tab-lbl, .main-tabs .tab-lbl-s { font-size: .7rem; }
+}
+.mds-more-g { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 4px 0 8px; }
+.mds-more-t { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 92px; padding: 10px 6px; border-radius: 16px;
+  border: 1px solid var(--border); background: var(--card-2, var(--card)); color: var(--text); font: inherit; font-size: .86rem; font-weight: 650; }
+.mds-more-t .tab-ic { width: 26px; height: 26px; }
+.mds-more-t.on { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--card)); }
+.mds-more-n { position: absolute; top: 8px; right: 8px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--crit); color: #fff; font-size: .72rem; font-weight: 800; }
+.mds-more-n.s1 { background: var(--warn); }

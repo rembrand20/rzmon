@@ -8,11 +8,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.196.0**: **rustiger tabbalk op een telefoon**: vijf knoppen, de rest onder **Meer**.
 - **1.195.0**: **mDS volledig touch**: bladen van onderaf, vegen, trekken om te verversen en grote knoppen.
 - **1.194.0**: **mDS**, een eigen samenvatting voor je telefoon (startpagina daar), met snelle acties.
 - **1.193.0**: **van meting tot melding** zichtbaar in de popup, **bevestigen per soort check**, **sneller bevestigen** en één knop **Advies toepassen**.
 - **1.192.0**: **iperf3 vanzelf geïnstalleerd** waar de doorvoertest het nodig heeft (zender en ontvanger), veilig via dezelfde weg als pakketten bijwerken.
-- **1.191.0**: het **netwerkpad als eigen sectie** in de opengeklapte server (CC), met één klik naar Netwerkpaden; de tegel blijft clean.
+
+## 1.196.0 – 2026-11-06
+### Nieuw
+- **Rustiger tabbalk op een telefoon**: nog maar vijf knoppen, **mDS**, **Checks**, **Meldingen**, **IDS** en **Meer**. Onder **Meer** (een blad van onderaf, met grote tegels) staan Dashboard, Incidenten, Kwetsbaarheden, Analyse, Netwerk en Instellingen, elk met zijn eigen teller. De teller op **Meer** telt die samen op (rood als er iets kritiek is). Sta je op een pagina uit Meer, dan licht Meer op.
+- Op een computer verandert niets: daar blijven alle tabs zichtbaar.
 
 ## 1.195.0 – 2026-11-06
 ### Nieuw

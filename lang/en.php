@@ -8360,4 +8360,5 @@ return [
     'Stil 1 uur' => 'Quiet 1 hour',
     'Volledige check openen' => 'Open the full check',
     'Op Monitoring openen' => 'Open in Monitoring',
+    'Meer pagina\'s' => 'More pages',
 ];

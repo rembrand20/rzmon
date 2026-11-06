@@ -1043,6 +1043,8 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - **Servers**: elke server met zijn kleur, CPU, RAM en disk als balkje, en *agent stil …* als een agent langer dan 10 minuten niets stuurde. Tik voor de server op Monitoring.
 De pagina werkt live mee; beveiliging en netwerk worden eens per minuut opgehaald. De knoppen zie je alleen met de rol gebruiker of beheerder.
 
+**Tabbalk op een telefoon** (vanaf 1.196.0). Op een telefoon heeft de tabbalk vijf knoppen: **mDS**, **Checks**, **Meldingen**, **IDS** en **Meer**. **Meer** opent een blad van onderaf met Dashboard, Incidenten, Kwetsbaarheden, Analyse, Netwerk en Instellingen als grote tegels, elk met zijn teller; de teller op Meer telt ze op. Op een computer zie je gewoon alle tabs.
+
 **Met de vinger** (vanaf 1.195.0): tik op een probleem of een server en er schuift een **blad** van onderaf omhoog met de details en grote knoppen (bevestigen, nu checken, onderhoud 1 uur, stil 1 uur; bij een server voor de hele server). Veeg het blad naar beneden of tik ernaast om te sluiten; *Volledige check openen* of *Op Monitoring openen* brengt je naar de gewone pagina. **Trek de pagina bovenaan naar beneden** om te verversen. *alle 18 ▾* klapt alle problemen open. Na een actie trilt je telefoon kort (als dat kan).
 
 **⏳ Van meting tot melding** (vanaf 1.193.0). Een melding gaat door drie stappen, elk na de vorige:
