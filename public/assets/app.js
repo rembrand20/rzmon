@@ -14877,7 +14877,26 @@ function updSteps(steps, cur, state, detail, durs = []) {
     return `<li class="${cls}"><span class="upd-dot">${mark}</span><span class="upd-st">${l}${i === cur && detail && state !== 'ok' ? `<small>${detail}</small>` : ''}</span><span class="upd-dur">${durs[i] || ''}</span></li>`;
   }).join('')}</ol>`;
 }
+// 1.206.2: het venster wordt elke paar seconden opnieuw opgebouwd; wat je zelf open- of dichtklapte (logboek, Alles lezen)
+// en waar je in het logboek stond, blijft zo staan
+const updKept = { log: null, notes: null, scroll: null };
+document.addEventListener('toggle', (e) => {
+  const d = e.target;
+  if (!d.closest || !d.closest('#modal-body .upd-dlg')) return;
+  if (d.classList.contains('upd-term')) updKept.log = d.open;
+  if (d.classList.contains('upd-notes')) updKept.notes = d.open;
+}, true);
+function updKeepScroll() {
+  const lg = $('#modal-body .upd-log');
+  // onderaan (of nog nooit gescrold) = mee naar beneden; anders de plek houden
+  updKept.scroll = lg && lg.scrollTop + lg.clientHeight < lg.scrollHeight - 8 ? lg.scrollTop : null;
+}
+function updLogScroll() {
+  const lg = $('#modal-body .upd-log');
+  if (lg) lg.scrollTop = updKept.scroll === null ? lg.scrollHeight : updKept.scroll;
+}
 function updLog(log, open, n = 12) {
+  if (updKept.log !== null) open = updKept.log;
   const lines = (log || '').trim().split('\n').filter(Boolean);
   if (!lines.length) return '';
   return `<details class="upd-term" ${open ? 'open' : ''}><summary><span>▸ ${L('Logboek')}</span><span>${L('{n} regels', { n: lines.length })}</span></summary><pre class="upd-log">${esc(lines.slice(-n).join('\n'))}</pre></details>`;
@@ -15032,6 +15051,7 @@ function showUpdateDialog(s, log, force = false) {
         ${updLog(log, s.state === 'error')}
       </div></div>`;
   }
+  if (updateDialogShown()) updKeepScroll(); else { updKept.log = null; updKept.scroll = null; }
   modal({
     title: L('RzMon bijwerken'),
     body,
@@ -15043,8 +15063,7 @@ function showUpdateDialog(s, log, force = false) {
   dlg.classList.add('upd-modal');
   const ft = $('#modal-footer');
   if (s.state === 'running' || s.state === 'queued') ft.insertAdjacentHTML('afterbegin', `<span class="upd-note">${L('Je kunt dit venster sluiten; het bijwerken gaat door.')}</span>`);
-  const lg = $('#modal-body .upd-log');
-  if (lg) lg.scrollTop = lg.scrollHeight;
+  updLogScroll();
 }
 
 // ---------------------------------------------------------------- Back-up
@@ -16927,6 +16946,7 @@ async function vulnUpgradeDialog(h, force, first) {
   const pk = st.pkgs || [];
   let nowTxt = now.replace(/^[⏳✔✘] /, '');
   if (nowTxt.startsWith(label + ': ')) nowTxt = nowTxt.slice(label.length + 2);   // de stap staat er al boven
+  if (vulnUpShown()) updKeepScroll(); else { updKept.log = null; updKept.scroll = null; }
   modal({
     title: L('Bijwerken op {name}', { name: h.name }),
     body: `<div class="upd-dlg vu-dlg ${st.state === 'ok' ? 'ok' : st.state === 'error' ? 'error' : ''}">
@@ -16942,8 +16962,7 @@ async function vulnUpgradeDialog(h, force, first) {
       : [{ label: L('Sluiten'), cls: 'primary', onClick: () => { $('#modal').close(); loadVulns(); } }],
   });
   $('#modal').classList.add('upd-modal');
-  const lg = $('#modal-body .upd-log');
-  if (lg) lg.scrollTop = lg.scrollHeight;
+  updLogScroll();
   // Doorvragen tot klaar, en daarna tot de nieuwe scan er is (hooguit 15 minuten)
   if (busy || (st.state === 'ok' && !rescanned && Date.now() - new Date(st.at.replace(' ', 'T')) < 900000)) {
     vulnUpPoll = setTimeout(() => vulnUpgradeDialog(h), busy ? 2000 : 5000);

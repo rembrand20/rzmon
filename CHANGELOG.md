@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.203.0**: de **zijbalk klapt vanzelf in** tot icoontjes als je hem smaller sleept of het venster smal is.
 - **1.202.0**: een **laadteller** met animatie als een pagina lang duurt, en de **zijbalk** als zwevend paneel.
 
+## 1.206.2 – 2026-11-06
+### Opgelost
+- **Logboek in het update-venster klapte meteen weer dicht**: het venster wordt elke paar seconden opnieuw opgebouwd voor de voortgang, en vergat dan dat je het logboek had opengeklapt. Nu blijft het open (of dicht) zoals jij het zette, en blijft ook je plek in het logboek staan als je omhoog scrolt. Geldt ook voor *Pakketten bijwerken* bij Kwetsbaarheden.
+
 ## 1.206.1 – 2026-11-06
 ### Opgelost
 - **Update-venster zei te vroeg "Bijgewerkt"**: had de hulpdienst het verzoek net opgepakt maar nog niets geschreven, of kwam het verzoek nooit aan, dan las RzMon de stand van de *vorige* update ("klaar 1.203.0 → 1.205.0"). Het venster herlaadde dan de pagina zonder dat er iets bijgewerkt was. Nu staat er *Wachten op de hulpdienst…*, en na 2 minuten zonder antwoord zegt het venster dat de hulpdienst niet reageert (met het commando om dat te controleren). Opnieuw proberen kan dan meteen.
