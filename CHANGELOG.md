@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.191.0**: het **netwerkpad als eigen sectie** in de opengeklapte server (CC), met één klik naar Netwerkpaden; de tegel blijft clean.
 - **1.190.0**: **het pad als lichtspoor**: past altijd, met gloeiende punten voor router, switch, provider en doel, streepjes voor stille hops en een lichtpuls.
 
+## 1.194.1 – 2026-11-06
+### Opgelost
+- Melding van de codecontrole (PHPStan) in de nieuwe mDS (1.194.0); voor de gebruiker verandert er niets.
+
 ## 1.194.0 – 2026-11-06
 ### Nieuw
 - **⚡ mDS (Mobile device summary)**: een eigen pagina voor je telefoon, alleen daar zichtbaar, vooraan in de tabbalk en op een telefoon altijd de startpagina. Kort maar krachtig:

@@ -78,10 +78,8 @@ final class Mds
                 uasort($sum, static fn($a, $b) => ((int) $b['rx'] + (int) $b['tx']) <=> ((int) $a['rx'] + (int) $a['tx']));
                 $ids = array_slice(array_keys($sum), 0, 3);
                 $names = [];
-                if ($ids) {
-                    foreach (q('SELECT id, COALESCE(NULLIF(name, \'\'), NULLIF(hostname, \'\'), NULLIF(vendor, \'\'), ip) AS nm FROM net_devices WHERE id IN (' . implode(',', array_map('intval', $ids)) . ')') as $r) {
-                        $names[(int) $r['id']] = (string) $r['nm'];
-                    }
+                foreach (q('SELECT id, COALESCE(NULLIF(name, \'\'), NULLIF(hostname, \'\'), NULLIF(vendor, \'\'), ip) AS nm FROM net_devices WHERE id IN (' . implode(',', array_map('intval', $ids)) . ')') as $r) {
+                    $names[(int) $r['id']] = (string) $r['nm'];
                 }
                 foreach ($ids as $id) {
                     $b = (int) $sum[$id]['rx'] + (int) $sum[$id]['tx'];
