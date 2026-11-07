@@ -98,6 +98,7 @@ final class Features
         ['dash', ['Rz//Sense AI: nieuwe naam en logo', 'Rz//Sense AI: new name and logo'], ['Schild met signaalbogen, één tegel voor licht en donker, een ronde rand om de inhoud en #monitoring in het adres.', 'Shield with signal arcs, one tile for light and dark, a rounded frame around the content and #monitoring in the address.'], '1.214.0', '', ''],
         ['dash', ['Bewegende inlogpagina', 'Animated login page'], ['Een HUD-raster met horizon en scanbalk, ook op een telefoon; toont of de verbinding versleuteld is.', 'A HUD grid with horizon and scan bar, also on a phone; shows whether the connection is encrypted.'], '1.215.0', '', ''],
         ['dash', ['Statuslampje en paginakop', 'Status light and page header'], ['Een levend lampje in de zijbalk en bovenaan elke pagina een klikbaar pad met titel.', 'A live light in the sidebar and a clickable path with title on top of every page.'], '1.216.0', '', ''],
+        ['ids', ['Incidenten snel afhandelen', 'Handle incidents quickly'], ['Meteen, in bundels of een keuze, per server, en voorstellen voor wat vaak terugkomt.', 'Instantly, in bundles or a selection, per server, with suggestions for what keeps coming back.'], '1.217.0', '', '#ids/inc'],
 
         // Meldingen
         ['notify', ['Pushover', 'Pushover'], ['Met prioriteit per status en bevestigen vanuit de app.', 'With priority per status and acknowledge from the app.'], '1.0.0', 'pushover_enabled|pushover_token,pushover_user', 'channels'],

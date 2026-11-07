@@ -269,7 +269,7 @@ const ALERT_SORTS = { time: L('Tijd'), status: 'Status', server: 'Server', check
 // IDS: tabblad, en Toegang (gegevens, filters, sorteren, open dagen)
 const liveLoaded = {};   // wanneer meldingen en IDS voor het laatst geladen zijn (live bijwerken, 1.119.0)
 // 1.119.0: hoeveel dagen Meldingen en IDS ophalen; ouder op verzoek (knop onderaan, of zoeken)
-const histDays = { alerts: 7, ids: 14 };
+const histDays = { alerts: 7, ids: 2 };   // 1.217.0: IDS standaard de open incidenten en de laatste 2 dagen; ouder op verzoek
 let idsTab = (() => { try { return localStorage.getItem('rzmon-ids-tab') || 'inc'; } catch (e) { return 'inc'; } })();
 let accData = null, accFilter = 'all', accHost = '', accDayOpen = {}, accSsh = 'all', sshSess = null;
 let accSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-acc-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
@@ -1579,10 +1579,12 @@ function init() {
     try {
       if (b.dataset.ids === 'block') return idsBlockDialog(b.dataset.ip, b.dataset.host);
       if (b.dataset.ids === 'release') return wlDialog({ type: 'ip', value: b.dataset.ip, src: 'ids', wl: false });
-      // Een bundel in één keer: elk incident apart afhandelen
-      if (b.dataset.many) { for (const id of b.dataset.many.split(',')) await api('ids_incident', { id: +id, action: b.dataset.ids }); }
-      else if (b.dataset.ids) await api('ids_incident', { id: +b.dataset.id, action: b.dataset.ids });
-      else if (b.dataset.unblock) {
+      // 1.217.0: afhandelen gebeurt meteen op het scherm; de server krijgt één aanvraag (ook voor een bundel of een keuze)
+      if (['handle', 'normal', 'reopen'].includes(b.dataset.ids)) {
+        const ids = (b.dataset.many || b.dataset.id || '').split(',').map(Number).filter(Boolean);
+        return idsAct(ids, b.dataset.ids);
+      }
+      if (b.dataset.unblock) {
         if (!confirm(L('Deze blokkade opheffen?'))) return;
         await api('ids_unblock', { id: +b.dataset.unblock });
         toast(L('Gedeblokkeerd; de agent past het binnen een minuut aan'));
@@ -9697,6 +9699,108 @@ const IDS_FW = {
   error: (h) => `<span class="bad">✘ ${L('firewall: {e}', { e: esc(h.fw_error || L('fout')) })}</span>`,
 };
 
+/**
+ * 1.217.0: incidenten afhandelen zonder de pagina opnieuw te laden: de regels gaan meteen weg (of terug), de gegevens op de
+ * pagina worden bijgewerkt en de server krijgt één aanvraag. Mislukt die, dan haalt de pagina alles opnieuw op.
+ */
+let idsRedrawT = 0;
+async function idsAct(ids, action) {
+  if (!ids.length) return;
+  const set = new Set(ids.map(Number));
+  const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', ' ');
+  (idsData ? idsData.incidents : []).forEach((i) => {
+    if (!set.has(+i.id)) return;
+    if (action === 'reopen') { i.status = 'open'; i.handled_by = null; i.handled_at = null; }
+    else if (i.status === 'open') { i.status = 'done'; i.handled_by = ($('.acct-name') || {}).textContent || ''; i.handled_at = now; }
+  });
+  if (action !== 'reopen') {
+    $$('#tab-ids [data-id], #tab-ids [data-many], #tab-ids [data-sel-id]').forEach((x) => {
+      const mine = (x.dataset.many || x.dataset.id || x.dataset.selId || '').split(',').map(Number);
+      if (!mine.length || !mine.every((y) => set.has(y))) return;
+      const r = x.closest('.irow, .arow, .ids-noisy-i');
+      if (r) r.classList.add('ids-going');
+    });
+  }
+  IDS_SEL.clear(); idsSelBar();
+  if (state.ids_open !== undefined) {
+    state.ids_open = Math.max(0, (+state.ids_open || 0) + (action === 'reopen' ? ids.length : -ids.length));
+    const bd = $('#ids-badge'); if (bd) { bd.hidden = !state.ids_open; bd.textContent = state.ids_open || ''; }
+  }
+  clearTimeout(idsRedrawT);
+  idsRedrawT = setTimeout(() => keepOpen($('#tab-ids'), () => renderIds()), 320);   // na de animatie, zonder te laden
+  try {
+    await api('ids_incident', { ids, action });
+    if (action === 'normal') toast(ids.length > 1 ? L('{n} afgehandeld; dit wordt voortaan niet meer gemeld', { n: ids.length }) : L('Afgehandeld; dit wordt voortaan niet meer gemeld'));
+  } catch (ex) { toast(ex.message, 'err'); clearTimeout(idsRedrawT); loadIds(); }
+}
+
+/** 1.217.0: meerdere incidenten aanvinken en in één keer afhandelen */
+const IDS_SEL = new Set();
+function idsSelBar() {
+  let bar = $('#ids-selbar');
+  if (!bar) {
+    const host = $('#ids-incidents'); if (!host) return;
+    bar = document.createElement('div'); bar.id = 'ids-selbar'; bar.className = 'ids-selbar need-admin'; bar.hidden = true;
+    host.parentNode.insertBefore(bar, host);
+  }
+  $$('#ids-incidents .ids-sel').forEach((c) => { c.checked = IDS_SEL.has(+c.dataset.selId); });
+  bar.hidden = !IDS_SEL.size;
+  if (!IDS_SEL.size) return;
+  const ids = [...IDS_SEL].join(',');
+  bar.innerHTML = `<b>${L('{n} gekozen', { n: IDS_SEL.size })}</b>
+    <button type="button" class="btn small-btn primary" data-ids="handle" data-many="${ids}">✔ ${L('Afhandelen')}</button>
+    <button type="button" class="btn small-btn" data-ids="normal" data-many="${ids}" title="${esc(L('Afhandelen en dit voortaan niet meer melden'))}">${L('Dit is normaal')}</button>
+    <button type="button" class="linkbtn" data-ids-sel-clear>${L('Keuze wissen')}</button>`;
+}
+document.addEventListener('change', (e) => {
+  const c = e.target.closest && e.target.closest('#ids-incidents .ids-sel');
+  if (!c) return;
+  (c.dataset.selId.split(',').map(Number)).forEach((id) => (c.checked ? IDS_SEL.add(id) : IDS_SEL.delete(id)));
+  idsSelBar();
+});
+document.addEventListener('click', (e) => {
+  if (e.target.closest && e.target.closest('[data-ids-sel-clear]')) { IDS_SEL.clear(); idsSelBar(); }
+  const m = e.target.closest && e.target.closest('[data-ids-more]');
+  if (m) { const day = m.dataset.idsMore; idsDayLimit[day] = (idsDayLimit[day] || IDS_DAY_ROWS) + 200; idsFillDay(m.closest('.alert-day')); }
+});
+
+/** 1.217.0: een dag pas opbouwen als hij open gaat, en eerst de eerste regels (Meer tonen voor de rest) */
+const IDS_DAY_ROWS = 60;
+const idsDayLimit = {};
+let idsDayItems = new Map();
+function idsFillDay(det) {
+  if (!det) return;
+  const items = idsDayItems.get(det.dataset.day) || [];
+  const groups = bundleRuns(items, (i) => `${i.type}|${i.host_id}|${i.status}`, true);
+  const lim = idsDayLimit[det.dataset.day] || IDS_DAY_ROWS;
+  const html = groups.slice(0, lim).map((g) => {
+    if (g.items.length === 1) return idsRow(g.items[0]);
+    // In het venster loop je met de nummers door precies de incidenten van deze bundel
+    const key = 'i' + g.items[g.items.length - 1].id;
+    return `<div class="bundle${idsBundles.has(key) ? ' open' : ''}" data-bundle="${key}">${idsRow(g.items[0], g.items, g.items)}${g.items.slice(1).map((i) => idsRow(i, null, g.items)).join('')}</div>`;
+  }).join('');
+  const rest = groups.length - lim;
+  $('.ad-body', det).innerHTML = html + (rest > 0 ? `<button type="button" class="attn-more" data-ids-more="${esc(det.dataset.day)}">▾ ${L('Meer tonen ({n})', { n: rest })}</button>` : '');
+  det.dataset.built = '1';
+  idsSelBar();
+}
+
+/** 1.217.0: wat vaak terugkomt (zelfde soort en titel op dezelfde server): voorstel om het als normaal te markeren */
+function idsNoisy(d) {
+  const g = new Map();
+  d.incidents.forEach((i) => {
+    const k = `${i.host_id}|${i.type}|${i.title}`;
+    if (!g.has(k)) g.set(k, { i, n: 0, open: [] });
+    const x = g.get(k); x.n += Math.max(1, +i.hits || 1); if (i.status === 'open') x.open.push(i.id);
+  });
+  const top = [...g.values()].filter((x) => x.n >= 10 && x.open.length).sort((a, b) => b.n - a.n).slice(0, 3);
+  if (!top.length) return '';
+  return `<div class="card ids-noisy need-admin"><div class="ids-noisy-h">🔁 ${L('Komt vaak terug')} <span class="muted small">· ${L('is dit normaal? Dan meldt het IDS het voortaan niet meer')}</span></div>
+    ${top.map((x) => `<div class="ids-noisy-i"><span><b>${esc(x.i.title)}</b> <span class="muted">· ${esc(x.i.host_name)} · ${L('{n}× in {d} dagen', { n: x.n.toLocaleString(LOCALE), d: d.days })} · ${L('{n} open', { n: x.open.length })}</span></span>
+      <span class="ids-actions"><button type="button" class="btn small-btn" data-ids="normal" data-many="${x.open.join(',')}">${L('Dit is normaal')}</button>
+      <button type="button" class="btn small-btn" data-ids="handle" data-many="${x.open.join(',')}">✔ ${L('Afhandelen ({n})', { n: x.open.length })}</button></span></div>`).join('')}</div>`;
+}
+
 async function loadIds() {
   try { [idsData, accData] = await Promise.all([api('ids', null, { days: histDays.ids }), api('ids_access')]); } catch (ex) { toast(ex.message, 'err'); return; }
   keepOpen($('#tab-ids'), () => { renderIds(); renderAccess(); });
@@ -10423,7 +10527,9 @@ function idsPerDay(hostId, n) {
     const t = new Date(idsData.today + 'T12:00:00');
     t.setDate(t.getDate() - k);
     const day = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-    const xs = idsData.incidents.filter((i) => (hostId === null || +i.host_id === +hostId) && i.created_at.slice(0, 10) === day);
+    // 1.217.0: uit de tellingen per dag (de lijst zelf bevat maar een paar dagen)
+    const xs = idsData.perday ? idsData.perday.filter((r) => r.d === day && (hostId === null || +r.host_id === +hostId)).flatMap((r) => Array(+r.n).fill(r))
+      : idsData.incidents.filter((i) => (hostId === null || +i.host_id === +hostId) && i.created_at.slice(0, 10) === day);
     out.push([day, xs, xs.filter((i) => +i.severity === 2).length]);
   }
   return out;
@@ -10443,6 +10549,8 @@ function idsHostCard(h, d = idsData) {
       <span class="ic-n"><b>${h.blocks || 0}</b><small>${L('geblokkeerd')}</small></span>
       <span class="ic-wk">${idsWeekSvg(h)}<small>${L('per dag, 7 dagen')}</small></span>
     </div>
+    ${(() => { const ids = d.incidents.filter((i) => i.status === 'open' && +i.host_id === +h.id).map((i) => i.id); return ids.length > 1
+      ? `<div class="ic-acts need-admin"><button type="button" class="btn small-btn" data-ids="handle" data-many="${ids.join(',')}" title="${esc(L('Alle open incidenten van deze server afhandelen'))}">✔ ${L('Alles van deze server afhandelen ({n})', { n: ids.length })}</button></div>` : ''; })()}
   </article>`;
 }
 
@@ -10673,20 +10781,20 @@ function renderIds() {
     list.forEach((i) => { const day = i.created_at.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(i); });
     const fresh = todayFresh('ids', idsDayOpen, d.today, (byDay.get(d.today) || []).length);
     const isOpen = (day) => idsDayOpen[day] ?? (day === d.today || narrowed || (smartOpen() && idsFilter === 'open'));
-    el.innerHTML = (!narrowed && !byDay.has(d.today) ? todayEmpty(d.today, (idsFilter === 'open' ? L('geen nieuwe open incidenten') : L('geen incidenten')) + ' 👌') : '') + [...byDay].map(([day, items]) => {
+    idsDayItems = byDay;
+    el.innerHTML = (idsFilter === 'open' && !narrowed ? idsNoisy(d) : '') + (!narrowed && !byDay.has(d.today) ? todayEmpty(d.today, (idsFilter === 'open' ? L('geen nieuwe open incidenten') : L('geen incidenten')) + ' 👌') : '') + [...byDay].map(([day, items]) => {
       const n2 = items.filter((i) => +i.severity === 2).length, n1 = items.length - n2;
       return `<details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''} ${fresh && day === d.today ? 'data-fresh="1"' : ''}>
         <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
           <span class="ad-counts">${n2 ? `<span class="ad-count">🔴 ${n2}</span>` : ''}${n1 ? `<span class="ad-count">🟠 ${n1}</span>` : ''}</span>
           <span class="muted small ad-total">${items.length === 1 ? L('1 incident') : L('{n} incidenten', { n: items.length })}</span></summary>
-        <div class="ad-body">${bundleRuns(items, (i) => `${i.type}|${i.host_id}|${i.status}`, true).map((g) => {
-          if (g.items.length === 1) return idsRow(g.items[0]);
-          // In het venster loop je met de nummers door precies de incidenten van deze bundel
-          const key = 'i' + g.items[g.items.length - 1].id;
-          return `<div class="bundle${idsBundles.has(key) ? ' open' : ''}" data-bundle="${key}">${idsRow(g.items[0], g.items, g.items)}${g.items.slice(1).map((i) => idsRow(i, null, g.items)).join('')}</div>`;
-        }).join('')}</div></details>`;
+        <div class="ad-body"></div></details>`;
     }).join('') + more;
-    $$('.alert-day', el).forEach((det) => (det.ontoggle = () => { idsDayOpen[det.dataset.day] = det.open; idsToggleLabel(); }));
+    $$('.alert-day', el).forEach((det) => {
+      if (det.open) idsFillDay(det);   // dichte dagen worden pas opgebouwd als je ze openklapt (1.217.0)
+      det.ontoggle = () => { idsDayOpen[det.dataset.day] = det.open; if (det.open && !det.dataset.built) idsFillDay(det); idsToggleLabel(); };
+    });
+    idsSelBar();
   }
   idsToggleLabel();
 
@@ -11946,7 +12054,11 @@ async function incidentDialog(id, nav = null) {
   if (a.ip) fillIpInfo($('#inc-ip'), a.ip);
   // Na afhandelen: in een bundel door naar het volgende open incident, anders sluiten
   const reload = async () => {
-    await loadIds();
+    // 1.217.0: alleen dit incident bijwerken op de pagina, niet alles opnieuw ophalen
+    const act = ((body.querySelector('[data-inc-act].busy') || {}).dataset || {}).incAct;
+    const x = (idsData && idsData.incidents || []).find((y) => +y.id === +i.id);
+    if (x) { x.status = act === 'reopen' ? 'open' : 'done'; x.handled_by = act === 'reopen' ? null : (($('.acct-name') || {}).textContent || ''); }
+    clearTimeout(idsRedrawT); idsRedrawT = setTimeout(() => keepOpen($('#tab-ids'), () => renderIds()), 50);
     const opens = nav.filter((x) => x !== +i.id && ((idsData.incidents || []).find((y) => +y.id === x) || {}).status === 'open');
     const after = opens.find((x) => nav.indexOf(x) > nav.indexOf(+i.id)) || opens[0];
     if (after) incidentDialog(after, nav); else $('#modal').close();
@@ -11962,6 +12074,7 @@ async function incidentDialog(id, nav = null) {
     }
     try {
       if (b.dataset.incAct) {
+        b.classList.add('busy');
         await api('ids_incident', { id: i.id, action: b.dataset.incAct });
         toast(b.dataset.incAct === 'normal' ? L('Afgehandeld; dit wordt voortaan niet meer gemeld') : b.dataset.incAct === 'reopen' ? L('Weer open') : L('Afgehandeld'));
         return reload();
@@ -12002,8 +12115,9 @@ function idsRow(i, group = null, nav = null) {
   // Uitgaand naar een bekende aanvaller: vrijgeven = het IP op de whitelist (dan ook niet meer geblokkeerd)
   const release = i.type === 'out_bad' && i.ip ? ` <button type="button" class="btn small-btn" data-ids="release" data-ip="${esc(i.ip)}" title="${esc(L('Dit IP op de whitelist: nooit meer melden of blokkeren'))}">✅ ${L('Vrijgeven')}</button>` : '';
   const many = group && !done ? group.filter((x) => x.status === 'open').map((x) => x.id).join(',') : '';
+  const selIds = !done ? (many || String(i.id)) : '';
   return `<div class="irow s${sev} ${done ? 'ids-done' : ''}">
-    <i class="adot s${sev}"></i>
+    <span class="ids-selw">${selIds && (!group || many) ? `<input type="checkbox" class="ids-sel need-admin" data-sel-id="${selIds}" aria-label="${esc(L('Kiezen'))}" ${selIds.split(',').every((x) => IDS_SEL.has(+x)) ? 'checked' : ''}>` : ''}<i class="adot s${sev}"></i></span>
     <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" ${nav && nav.length > 1 ? `data-inc-list="${nav.map((x) => x.id).join(',')}"` : ''} title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${aiTriage(i.id)}${done ? '' : aiBtn('ids', i.id)}${actChips(((idsData && idsData.prot) || {})[i.id])}${+i.hits > 1 ? ` <span class="rep hits" tabindex="0" title="${esc(L('Dit incident is {n}× gezien · eerst {a} · laatst {b}', { n: i.hits, a: fmtDateTime(i.created_at), b: fmtDateTime(i.last_seen || i.created_at) }))}">${i.hits}×</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort op {host} ({o} open) · van {a} tot {b} · klik om ze te tonen; klik op de titel om ze één voor één te bekijken', { n: group.length, host: i.host_name, o: group.filter((x) => x.status === 'open').length, a: group[group.length - 1].created_at.slice(11, 16), b: group[0].created_at.slice(11, 16) }))}">${group.length}×</button>` : ''}
       <small>${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>${ccTag(i.cc)}` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</small></span>
     <span class="m-sv">${esc(i.host_name)}</span>

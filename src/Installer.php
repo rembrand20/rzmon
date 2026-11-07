@@ -83,6 +83,11 @@ final class Installer
     }
 
     /** Kolommen van latere versies; werkt op MariaDB én MySQL (geen ADD COLUMN IF NOT EXISTS). */
+    /** 1.217.0: extra indexen op bestaande tabellen: [tabel, naam, kolommen] */
+    private const INDEXES = [
+        ['ids_incidents', 'idx_idsi_status', 'status, created_at'],
+    ];
+
     private const COLUMNS = [
         ['hosts', 'parent_id', 'INT UNSIGNED NULL AFTER mode'],
         ['hosts', 'maintenance_until', 'DATETIME NULL'],
@@ -315,6 +320,14 @@ final class Installer
             $st->execute([$table, $column]);
             if (!(int) $st->fetchColumn()) {
                 $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+            }
+        }
+        // 1.217.0: indexen die later nodig bleken (bv. open IDS-incidenten snel vinden)
+        foreach (self::INDEXES as [$table, $name, $cols]) {
+            $ix = $pdo->prepare('SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?');
+            $ix->execute([$table, $name]);
+            if (!(int) $ix->fetchColumn()) {
+                $pdo->exec("ALTER TABLE `$table` ADD INDEX `$name` ($cols)");
             }
         }
         if (!$hadLang) {

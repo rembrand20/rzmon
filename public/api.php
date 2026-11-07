@@ -5369,9 +5369,16 @@ switch ($action) {
             'modern' => setting('ids_modern', '1') === '1',   // 1.117.0: moderne weergave (anders compact)
             'fim' => Ids::cleanFim(json_decode((string) setting('ids_fim', '[]'), true)),
             'hosts' => $hosts,
-            'incidents' => $incs = q('SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
-                              WHERE i.created_at >= CURDATE() - INTERVAL ? DAY OR i.status = \'open\' ORDER BY i.created_at DESC, i.id DESC LIMIT 5000', [$days - 1])->fetchAll(),
-            'prot' => Protect::describeAll($incs),   // 1.115.0: per incident de kaart en wat RzSense deed
+            // 1.217.0: open en de periode apart (dan gebruikt de database zijn indexen); van afgehandelde incidenten een kortere
+            // omschrijving (het hele verhaal staat in het venster) en "wat RzSense deed" alleen voor open en recente incidenten
+            'incidents' => $incs = q("SELECT * FROM (
+                    SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.status = 'open'
+                    UNION SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.created_at >= CURDATE() - INTERVAL ? DAY
+                ) x ORDER BY x.created_at DESC, x.id DESC LIMIT 5000", [$days - 1])->fetchAll(),
+            // 1.217.0: de grafiek en de staafjes per server (14 dagen) uit tellingen, zodat de lijst zelf kort kan blijven
+            'perday' => q("SELECT DATE(created_at) AS d, host_id, type, severity, COUNT(*) AS n FROM ids_incidents
+                           WHERE created_at >= CURDATE() - INTERVAL 13 DAY GROUP BY DATE(created_at), host_id, type, severity")->fetchAll(),
+            'prot' => Protect::describeAll(array_values(array_filter($incs, static fn($i) => $i['status'] === 'open' || strtotime((string) $i['created_at']) >= time() - 2 * 86400))),
             'blocks' => Ids::readable($blocks),
             'removed' => Ids::readable(q('SELECT b.*, h.name AS host_name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
                             WHERE b.removed_at IS NOT NULL OR (b.until IS NOT NULL AND b.until <= NOW()) ORDER BY COALESCE(b.removed_at, b.until) DESC LIMIT 30')->fetchAll()),
@@ -5535,11 +5542,36 @@ switch ($action) {
 
     case 'ids_incident':
         $in = input();
+        $act = (string) ($in['action'] ?? '');
+        // 1.217.0: een bundel of een keuze in één keer (ids), in plaats van een aanvraag per incident
+        if (isset($in['ids']) && is_array($in['ids'])) {
+            $ids = array_slice(array_values(array_unique(array_filter(array_map('intval', $in['ids'])))), 0, 2000);
+            if (!$ids) {
+                out(['error' => t('Incident niet gevonden')], 404);
+            }
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            if ($act === 'reopen') {
+                $n = q("UPDATE ids_incidents SET status = 'open', handled_by = NULL, handled_at = NULL WHERE id IN ($ph)", $ids)->rowCount();
+            } else {
+                $n = q("UPDATE ids_incidents SET status = 'done', handled_by = ?, handled_at = NOW() WHERE id IN ($ph) AND status = 'open'", array_merge([$user['username']], $ids))->rowCount();
+                if ($act === 'normal') {
+                    $incs = q("SELECT id, host_id, type, dkey, title FROM ids_incidents WHERE id IN ($ph)", $ids)->fetchAll();
+                    foreach ($incs as $inc) {
+                        q("INSERT IGNORE INTO ids_baseline (host_id, kind, item, value) VALUES (?, 'ignore', ?, ?)",
+                            [$inc['host_id'], mb_substr($inc['type'] . '|' . $inc['dkey'], 0, 255), mb_substr($user['username'], 0, 255)]);
+                        q("UPDATE ids_kills SET done_at = NOW(), result = ? WHERE host_id = ? AND dkey = ? AND done_at IS NULL", [t('vrijgegeven'), $inc['host_id'], $inc['dkey']]);
+                    }
+                    if ($incs) {
+                        AgentCommands::audit($user['username'], 'IDS: dit is normaal', count($incs) . ' incidenten, o.a. ' . $incs[0]['title']);
+                    }
+                }
+            }
+            out(['ok' => true, 'n' => $n]);
+        }
         $inc = q('SELECT * FROM ids_incidents WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetch();
         if (!$inc) {
             out(['error' => t('Incident niet gevonden')], 404);
         }
-        $act = (string) ($in['action'] ?? '');
         if ($act === 'reopen') {
             q("UPDATE ids_incidents SET status = 'open', handled_by = NULL, handled_at = NULL WHERE id = ?", [$inc['id']]);
         } else {

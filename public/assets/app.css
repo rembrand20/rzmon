@@ -5110,3 +5110,24 @@ body.lg:not(.lg-vivid) :is(.card, .pcard, .main-tabs, .hc, .mres, .seg, .subtabs
 }
 /* kaarten met een probleem: een dun lijntje bovenaan in plaats van een volle rode rand (het getal blijft rood) */
 .kpi.bad { border-color: var(--border); box-shadow: inset 0 2px 0 var(--crit); }
+
+/* ---------------------------------------------------------------- 1.217.0: IDS-incidenten snel afhandelen */
+.ids-going { animation: ids-go .3s ease forwards; pointer-events: none; }
+@keyframes ids-go { to { opacity: 0; transform: translateX(16px); } }
+@media (prefers-reduced-motion: reduce) { .ids-going { animation: none; opacity: .3; } }
+@media (min-width: 721px) { .irow { grid-template-columns: 16px minmax(0, 1fr) minmax(90px, 160px) 48px 15.5rem; } }
+@media (max-width: 720px) { .irow { grid-template-columns: 16px minmax(0, 1fr) auto; } .irow .ids-selw { grid-area: d; align-self: start; margin-top: .3rem; } .irow .ids-selw .adot { margin-top: 0; } }
+.ids-selw { position: relative; display: inline-grid; place-items: center; width: 16px; height: 16px; }
+.ids-selw .ids-sel { position: absolute; inset: 0; width: 16px; height: 16px; margin: 0; accent-color: var(--primary); cursor: pointer; opacity: 0; transition: opacity .15s; }
+.irow:hover .ids-sel, .ids-sel:checked, .ids-sel:focus-visible, #ids-incidents:has(.ids-sel:checked) .ids-sel { opacity: 1; }
+.irow:hover .ids-selw:has(.ids-sel) .adot, .ids-selw:has(.ids-sel:checked) .adot, #ids-incidents:has(.ids-sel:checked) .ids-selw:has(.ids-sel) .adot { visibility: hidden; }
+@media (hover: none) { .ids-selw .ids-sel { opacity: 1; } .ids-selw:has(.ids-sel) .adot { visibility: hidden; } }
+.ids-selbar { position: sticky; top: 8px; z-index: 6; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px; margin: 0 0 10px;
+  border-radius: 12px; border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border)); background: color-mix(in srgb, var(--card) 92%, transparent);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: var(--shadow); }
+.ids-noisy { margin: 0 0 12px; padding: 12px 14px; display: grid; gap: 8px; }
+.ids-noisy-h { font-weight: 650; }
+.ids-noisy-i > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.ids-noisy-i { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 6px 0; border-top: 1px solid var(--border); }
+.ids-noisy-i .ids-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.ids-card .ic-acts { margin-top: 10px; display: flex; justify-content: flex-end; }

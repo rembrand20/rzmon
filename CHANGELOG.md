@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.217.0**: **IDS-incidenten veel sneller**: afhandelen reageert meteen, bundels en een keuze in één keer, en voorstellen voor wat vaak terugkomt.
 - **1.216.0**: een **vernieuwde zijbalk** met statuslampje, een **paginakop met klikbaar pad** en **rustiger Liquid Glass**.
 - **1.215.0**: een **bewegende HUD-achtergrond op de inlogpagina**, ook mooi op een telefoon.
 - **1.214.0**: **Rz//Sense AI**: een nieuwe naam en een nieuw logo, een ronde rand om de inhoud, en Monitoring heet ook zo.
 - **1.213.0**: **logs vinden op de server**: de agent laat zien welke logs, containers en services er zijn, en je vinkt ze aan.
-- **1.212.0**: **vaste zoekacties op de logs**: een melding bij te veel (of geen) treffers, met een proef op de laatste 24 uur.
+
+## 1.217.0 – 2026-11-07
+### Nieuw
+- **IDS-incidenten veel sneller**:
+  - **Afhandelen reageert meteen**: de regel verdwijnt direct en het afhandelen gaat op de achtergrond, zonder dat de hele pagina opnieuw laadt (voorheen elke klik tot 5000 incidenten en 1,7 MB opnieuw ophalen). Lukt het niet, dan komt alles terug met een melding. Ook vanuit het incidentvenster.
+  - **Een bundel in één keer**: *Alles afhandelen (48)* is één aanvraag in plaats van één per incident.
+  - **Minder ophalen**: de pagina laadt de open incidenten en de laatste 2 dagen; ouder met *Ouder laden*. De grafiek en de staafjes per server komen uit tellingen (14 dagen), en *wat RzSense deed* wordt alleen voor open en recente incidenten uitgerekend.
+  - **Minder tekenen**: een dichte dag wordt pas opgebouwd als je hem openklapt, en een dag toont eerst 60 regels met *Meer tonen* voor de rest.
+  - Een nieuwe index in de database, zodat open incidenten snel gevonden worden (gaat vanzelf bij het bijwerken).
+- **Meerdere incidenten kiezen**: vink regels aan (op de computer verschijnt het vakje als je over de regel gaat) en handel ze in één keer af, of markeer ze als normaal, via de balk bovenaan.
+- **Alles van deze server afhandelen**: een knop op de kaart van een server met open incidenten.
+- **Komt vaak terug**: bovenaan de open incidenten een voorstel voor wat steeds terugkomt (zelfde melding op dezelfde server, 10× of vaker), met *Dit is normaal* of *Afhandelen*. Dan meldt het IDS het voortaan niet meer.
 
 ## 1.216.0 – 2026-11-07
 ### Nieuw

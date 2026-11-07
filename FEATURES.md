@@ -84,6 +84,7 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | 🧭 Dashboard en weergave | **Rz//Sense AI: nieuwe naam en logo** | Schild met signaalbogen, één tegel voor licht en donker, een ronde rand om de inhoud en #monitoring in het adres. | 1.214.0 |
 | 🧭 Dashboard en weergave | **Bewegende inlogpagina** | Een HUD-raster met horizon en scanbalk, ook op een telefoon; toont of de verbinding versleuteld is. | 1.215.0 |
 | 🧭 Dashboard en weergave | **Statuslampje en paginakop** | Een levend lampje in de zijbalk en bovenaan elke pagina een klikbaar pad met titel. | 1.216.0 |
+| 🛡️ IDS en endpoint-bewaking | **Incidenten snel afhandelen** | Meteen, in bundels of een keuze, per server, en voorstellen voor wat vaak terugkomt. | 1.217.0 |
 | 🔔 Meldingen | **Pushover** | Met prioriteit per status en bevestigen vanuit de app. | 1.0.0 |
 | 🔔 Meldingen | **E-mail** | SMTP met STARTTLS of SSL/TLS. | 1.7.0 |
 | 🔔 Meldingen | **ntfy** | Gratis pushmeldingen via ntfy.sh of je eigen server. | 1.140.0 |
