@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.208.0**: de **golf bij een open storing stopt** zodra iemand hem bekijkt, en komt terug als het erger wordt.
 - **1.207.0**: **meldingen per storing** op één regel met de duur, *Nu open* bovenaan, kleur en golf zoals op Monitoring, en een zijpaneel met details.
 
+## 1.211.1 – 2026-11-07
+### Opgelost
+- PHPStan: een dubbele controle bij de pagina Logs en een te strak type bij het zoeken (geen verandering voor de gebruiker).
+
 ## 1.211.0 – 2026-11-07
 ### Nieuw
 - **📜 Pagina Logs**: zoeken in de logs van al je servers (in de zijbalk onder *Analyse en netwerk*, voor beheerders en gebruikers). Zoeken op woorden, `"exacte zin"`, `-uitsluiten`, `server:`, `bron:`, `niveau:` en `/regex/`, over een periode van 15 minuten tot alles, met filters per niveau, server en bron.

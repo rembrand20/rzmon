@@ -543,12 +543,10 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     </section>
     <?php endif; ?>
 
-    <?php if ($showStats): ?>
     <section id="tab-logs" class="tab-panel" hidden>
       <!-- 1.211.0: zoeken in de logs van je servers (beheerder en gebruiker) -->
       <div id="logs-page" class="logs-page"><p class="muted"><?= th('Laden…') ?></p></div>
     </section>
-    <?php endif; ?>
     <section id="tab-analytics" class="tab-panel" hidden>
       <!-- 1.106.0: trends door de tijd -->
       <div class="pg-tools" data-pgtools="an"></div>

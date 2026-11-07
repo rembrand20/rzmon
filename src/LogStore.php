@@ -632,7 +632,7 @@ final class LogStore
     /**
      * Zoeken: nieuwste eerst, hooguit $limit treffers, met een telling per tijdvak en per niveau over de hele periode
      * (tot de tijd op is: dan "partial"). Alleen blokken in de periode, bij de server en bron, en met het niveau worden uitgepakt.
-     * @param array{q?: string, from?: int, to?: int, hosts?: list<int>, sources?: list<int>, level?: ?int, limit?: int} $in
+     * @param array{q?: string, from?: int, to?: int, hosts?: list<int>, sources?: list<int>, level?: int|string|null, limit?: int} $in
      */
     public static function search(array $in): array
     {
