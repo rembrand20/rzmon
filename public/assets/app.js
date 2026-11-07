@@ -11562,7 +11562,8 @@ function al2MarkSeen(it) {
   const now = new Date(), pad = (x) => String(x).padStart(2, '0');
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   todo.forEach((a) => { a.seen_at = stamp; a.seen_by = a.seen_by || ''; });
-  $$(`#alerts .al2-row[data-aid="${it.first.id}"]`).forEach((r) => { r.classList.remove('al2-wave'); r.classList.add('al2-seen'); });
+  // Uit Nu open naar de dag waarop hij begon (1.209.0)
+  try { renderAlerts(); } catch (ex) { $$(`#alerts .al2-row[data-aid="${it.first.id}"]`).forEach((r) => { r.classList.remove('al2-wave'); r.classList.add('al2-seen'); }); }
   if (!(isAdmin() || isUser())) return;
   api('alert_seen', { ids: todo.map((a) => a.id) }).then((r) => {
     todo.forEach((a) => { a.seen_by = r.by; a.seen_at = r.at; });
@@ -11760,14 +11761,16 @@ function renderAlerts() {
   if (!items.length) { el.innerHTML = `<p class="muted">${d.alerts.length ? L('Geen meldingen met dit filter.') : L('Nog geen meldingen.') + ' 👌'}</p>` + moreDays('alerts', d); $('#alerts-toggle').hidden = true; return; }
   // Nu open: bovenaan, los van de dagen
   // Ergste eerst, daarna wat het langst open staat (tenzij je zelf sorteert)
-  const openIt = items.filter((it) => it.open);
+  // 1.209.0: alleen wat nog niemand bekeek; een bekeken storing staat (nog open, zonder golf) bij de dag waarop hij begon
+  const fresh0 = (it) => it.open && !al2Seen(it);
+  const openIt = items.filter(fresh0);
   if (!ALERT_SORTS[alertSort.key]) openIt.sort((x, y) => al2Rank(y.k) - al2Rank(x.k) || (x.first.created_at < y.first.created_at ? -1 : 1));
   const longest = openIt.reduce((m, it) => Math.max(m, Date.now() - al2Ts(it.first.created_at)), 0);
   const openHtml = openIt.length ? `<section class="al2-openblk"><div class="al2-sech al2-openh"><h3>${L('Nu open')}</h3>
       <span class="al2-sum"><span><b>${openIt.length}</b> ${openIt.length === 1 ? L('storing') : L('storingen')}</span><span>${esc(L('langste {t}', { t: al2Dur(longest) }))}</span></span></div>
       ${al2List(openIt, d.today, layout)}</section>` : '';
   const byDay = new Map();
-  items.filter((it) => !it.open).forEach((it) => {
+  items.filter((it) => !fresh0(it)).forEach((it) => {
     const day = it.first.created_at.slice(0, 10);
     if (!byDay.has(day)) byDay.set(day, []);
     byDay.get(day).push(it);
