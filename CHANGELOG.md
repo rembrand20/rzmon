@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.209.0**: een **bekeken storing gaat uit Nu open** naar de dag waarop hij begon, en komt terug als het erger wordt.
 - **1.208.0**: de **golf bij een open storing stopt** zodra iemand hem bekijkt, en komt terug als het erger wordt.
 
+## 1.212.1 – 2026-11-07
+### Opgelost
+- Vaste zoekacties: met MariaDB 11 telde een binnenkomend logpakket niet mee (de tijd van de laatste treffer gaf een databasefout), waardoor er geen melding kwam bij te veel treffers.
+
 ## 1.212.0 – 2026-11-07
 ### Nieuw
 - **🔔 Vaste zoekacties op de logs**: bewaar een zoekopdracht als melding met **🔔 Bewaren als melding** op de pagina Logs. Melden bij **te veel treffers** (minstens N in 1 minuut tot 24 uur) of bij **geen treffers** (bijvoorbeeld een back-up die niet gelukt is), per server apart of alle servers samen, als info, warning of critical.

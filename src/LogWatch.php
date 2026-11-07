@@ -232,8 +232,11 @@ final class LogWatch
             foreach ($perMin as $m => $n) {
                 q('INSERT INTO log_watch_counts (watch_id, host_id, minute, n) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE n = n + VALUES(n)', [$id, $hostId, $m, $n]);
             }
-            self::state((int) $id, $key);
-            q('UPDATE log_watch_state SET last_hit = GREATEST(COALESCE(last_hit, FROM_UNIXTIME(0)), FROM_UNIXTIME(?)) WHERE watch_id = ? AND host_id = ?', [$last, $id, $key]);
+            // Laatste treffer: in PHP vergelijken (MariaDB 11 weigert FROM_UNIXTIME(0) in een tijdzone voor UTC)
+            $st = self::state((int) $id, $key);
+            if ($st['last_hit'] === null || strtotime((string) $st['last_hit']) < $last) {
+                q('UPDATE log_watch_state SET last_hit = ? WHERE watch_id = ? AND host_id = ?', [date('Y-m-d H:i:s', $last), $id, $key]);
+            }
             if ($a['w']['mode'] === 'none') {
                 self::recoverNone($a['w'], $key);
                 continue;
