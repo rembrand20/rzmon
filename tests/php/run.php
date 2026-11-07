@@ -1042,7 +1042,7 @@ q("INSERT INTO status_changes (check_id, from_status, to_status, created_at) VAL
 q("INSERT INTO alerts (check_id, status, title, message, kind, created_at) VALUES (?, 2, 'x', 'x', 'notify', NOW() - INTERVAL 58 MINUTE), (?, 2, 'x', 'x', 'notify', NOW() - INTERVAL 18 MINUTE)", [$cq, $cq]);
 $hostRow = q('SELECT * FROM hosts WHERE id = ?', [$hq])->fetch();
 Quality::recordAgentGap($hostRow, time());   // 20 minuten stil: een gat
-$slo = Quality::slo(date('Y-m-d'), date('Y-m-d'));
+$slo = Quality::slo(date('Y-m-d', time() - 86400), date('Y-m-d'));   // ook gisteren: rond middernacht vallen de storingen op de vorige dag
 $mine = array_values(array_filter($slo['agents']['hosts'], fn($x) => $x['host'] === 'ci-q'))[0] ?? null;
 ok($slo['notify']['n'] >= 2 && $slo['notify']['within'] >= 1 && $slo['notify']['within'] < $slo['notify']['n'] && $mine && $mine['secs'] >= 1100,
     'SLO: tijd tot melding (binnen/buiten 5 min) en een stille agent geteld');
